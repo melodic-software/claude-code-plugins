@@ -48,16 +48,16 @@ coordination provider instead of publishing a spec that cannot travel.
   **The design artifact, a stated exception to the rule above.** One design session stands
   one-to-one with one container, so the artifact that session produced is inlined here rather
   than referenced. Existence of the artifact is the whole trigger: no flag, no lever, no
-  convention key. A container whose design produced none is unchanged in shape from one
-  published before this rule. This inline is container-only: each item carries its own design
+  convention key. A container whose design produced none carries no design artifact block and
+  no provenance note. This inline is container-only: each item carries its own design
   excerpt in the `## Key interfaces` section of Step 4's item template, quoted from PLAN.md's
   `## Design`, and the template's pressure-test carve-out is untouched.
 
   - **Where to look.** The `design/` subdirectory of the same topic slice the source document was
     read from: `<memory_dir>/<slug>/design/`. A `#<item-number>` or conversation source has no topic
     slice, so there is no lookup and no artifact, and the body is unchanged.
-  - **What counts as one.** A file in that directory whose frontmatter carries BOTH a `scope` key
-    valued `data`, `integration`, or `system`, AND a `dialect` key valued `mermaid`, `dbml`,
+  - **What counts as one.** A file in that directory whose frontmatter carries both a `scope` key
+    valued `data`, `integration`, or `system`, and a `dialect` key valued `mermaid`, `dbml`,
     `openapi-3.1`, `likec4`, or `c4-plantuml`. A missing key, or a value outside those sets, means
     the file is not a typed artifact: skip it and say nothing. The keys and their value sets are
     restated here rather than cited because an installed plugin never sees the publishing
@@ -67,7 +67,7 @@ coordination provider instead of publishing a spec that cannot travel.
     at all; an **`integration` session labels two**, its flows diagram and its contract sketch,
     and both are inlined, each with its own fenced block and its own note. Order them by filename
     so a re-publish is deterministic. Assume no count.
-  - **What to inline.** The artifact's FIRST fenced block, the one immediately after the
+  - **What to inline.** The artifact's first fenced block, the one immediately after the
     frontmatter, copied verbatim including its info string, and nothing else. Not the frontmatter,
     and not the prose that follows the block, which may carry fences of its own: that prose is
     design exploration, and carrying it over is the inflation this rule otherwise forbids. The producer already fixes the info string per dialect (`mermaid`, `dbml`, `yaml`

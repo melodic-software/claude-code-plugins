@@ -1,7 +1,7 @@
 # End-of-Session Wrap-up
 
-When a task or conversation appears complete, proactively suggest these before the user leaves.
-Don't wait to be asked. Suggest as soon as primary work is done.
+When a task or conversation appears complete, suggest these as soon as the primary work is done,
+before the user leaves.
 
 ## Checklist
 

@@ -6,7 +6,7 @@ The skills of `plugins/dometrain`. Each one is driven with `<plugin-dir>` set to
 
 - `grounding`: Ground an approach in how a Dometrain course teaches it, with lesson links.
 - `setup`: Verify that the Dometrain MCP tools are available to the Dometrain grounding skills, without reading or exposing any API key. No plain-words entry.
-- `sync`: Maintainer-only drift check for the grounding skill's vendored upstream content. No plain-words entry.
+- `update`: Maintainer-facing drift check and baseline refresh for the grounding skill's vendored upstream content. No plain-words entry.
 
 ## Sub-features
 

@@ -4566,7 +4566,7 @@ jobs:
   # fix-ci-dispatch.mjs to count, so it would dispatch the head again with no
   # end. This job reads this run's jobs as fix-ci-handoff does and posts
   # fix-ci failure on the gated head, which counts toward fix-ci-restarts. As
-  # the report job does, it posts nothing unless a call's broker-check job
+  # the report job does, it posts nothing unless a call's check-broker job
   # allowed the lane: a kill switch, read there with its repository shadow,
   # or a broker refusal is no merge blocker and spends no restart.
   fix-ci-unreported:
@@ -4896,7 +4896,7 @@ jobs:
         && needs.apply-feedback-patch.outputs.pushed-commit || '' }}
       trusted-base: default-tip
 
-  # The key's credit-stop markers, read by the read runner's broker-check in
+  # The key's credit-stop markers, read by the read runner's check-broker in
   # later runs (each first call's key-credit-job). Each comes from a jobs-API
   # read of the call's run job (handoff-evidence.sh credit-stop), never from a
   # call's output. No job needs this one, so the read, which waits for the

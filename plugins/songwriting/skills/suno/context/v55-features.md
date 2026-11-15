@@ -2,7 +2,7 @@
 
 **Released March 26, 2026** (verified 2026-07-18 against <https://suno.com/blog/v5-5>; still the current model). v5.5 is a personalization-focused upgrade over v5 (Sep 2025). Core prompt syntax unchanged from v5; what changed is **adherence quality** plus three new identity layers.
 
-**Post-baseline addition, 2026-08-12.** The 2026-07-18 verification stamp above predates the **Duration slider**, which Suno's release notes announced on Jul 20 2026 for Web on the V5.5 model, two days after that pass. It is not a March-launch layer and is deliberately **absent from the version-delta table below**, which tracks model capabilities rather than Create-form controls; a row there would misdate it to March. Documented in [advanced.md](advanced.md#duration-slider-create-form).
+The **Duration slider** (Suno release notes, Jul 20 2026, Web, V5.5 model) is a Create-form control, not a model capability, so the version-delta table below leaves it out; a row there would misdate it to March. Documented in [advanced.md](advanced.md#duration-slider-create-form).
 
 ## Three new layers
 
@@ -23,7 +23,7 @@
 
 Clip length, 2-minute auto-selection, verification, and privacy rows verified 2026-07-18 against <https://help.suno.com/en/articles/11362369>.
 
-**Tier corrected 2026-08-08.** The March 2026 Pro/Premier gate (per <https://suno.com/blog/v5-5>) has been superseded. <https://suno.com/release-notes>, Aug 7 2026: "We brought Voices to both iOS and Android. Record your voice once and use it on any song. Now available to try on free plans."
+**Tier.** Pro / Premier at launch (per <https://suno.com/blog/v5-5>), plus a free-plan trial: <https://suno.com/release-notes>, Aug 7 2026: "We brought Voices to both iOS and Android. Record your voice once and use it on any song. Now available to try on free plans."
 
 **Unresolved platform caveat: do not assume free Voices on web.** That release-note entry is tagged *Improvement, iOS, Android, Create* with **no `Web` tag**, while every other web-touching entry in the same window carries one. <https://suno.com/pricing> shows no Voices bullet under Free, and both Voices help articles are silent on plan gating. Free-plan Voices may therefore be mobile-only. Unresolved as of 2026-08-08. Verify in-app before relying on it.
 

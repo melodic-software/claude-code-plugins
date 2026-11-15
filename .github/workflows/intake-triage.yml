@@ -181,8 +181,8 @@ jobs:
   # (check-kill-switch), and a failed job leaves proceed empty, which also
   # stops intake and the floor label. It runs on a reopened issue too, for the
   # floor label.
-  kill-switch:
-    name: Kill Switch
+  check-kill-switch:
+    name: Check Kill Switch
     if: github.event_name == 'issues' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -257,8 +257,8 @@ jobs:
   # limit on its read stops the label and its calls with the same token.
   intake-label-needs-triage:
     name: Intake Label Needs Triage
-    needs: [kill-switch, check-born-triaged]
-    if: ${{ !cancelled() && github.event_name == 'issues' && needs.kill-switch.outputs.proceed == 'true' && needs.check-born-triaged.outputs.rate-limited != 'true' && needs.check-born-triaged.outputs.skip != 'true' }}
+    needs: [check-kill-switch, check-born-triaged]
+    if: ${{ !cancelled() && github.event_name == 'issues' && needs.check-kill-switch.outputs.proceed == 'true' && needs.check-born-triaged.outputs.rate-limited != 'true' && needs.check-born-triaged.outputs.skip != 'true' }}
     permissions:
       issues: write # passed to the reusable, which reads and adds issue labels
     uses: melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@main
@@ -272,12 +272,12 @@ jobs:
   # a dispatch too. A reopened issue gets no triage, only the floor label.
   intake-triage:
     name: Intake Triage
-    needs: [check-born-triaged, kill-switch]
+    needs: [check-born-triaged, check-kill-switch]
     if: >-
       ${{ !cancelled()
       && (github.event_name == 'workflow_dispatch' || github.event.action == 'opened')
-      && needs.kill-switch.outputs.proceed == 'true'
-      && needs.kill-switch.outputs.upstream-degraded != 'true'
+      && needs.check-kill-switch.outputs.proceed == 'true'
+      && needs.check-kill-switch.outputs.upstream-degraded != 'true'
       && needs.check-born-triaged.outputs.rate-limited != 'true'
       && needs.check-born-triaged.outputs.skip != 'true'
       && needs.check-born-triaged.outputs.claude-args != '' }}
@@ -385,7 +385,7 @@ jobs:
         workflows, model, effort or turn flags, new secrets) gets no `cost` flag, no `needs-human`
         and no Cost line: the merge-time cost hold catches it after review.
         Spend drawn from a flat or prepaid source is not a charge either: model runs, lane runs and
-        `claude plugin eval` passes bill the prepaid API keys, which do not auto-refill (owner Q37).
+        `claude plugin eval` passes bill the prepaid API keys, which do not auto-refill.
         They get no `cost` flag, no `needs-human` and no Cost line. Only a new or renewing charge
         (Actions billing, Azure, a key or plan that renews or auto-recharges) is cost.
 
@@ -440,8 +440,8 @@ jobs:
         a. Quote the decision verbatim in your comment: every line as a Markdown quote (`> `), the
            first line included, followed by its link from the comment's `url` field (when that field
            is missing or empty, name it as the decision comment by its author). Never paraphrase,
-           summarize or reword it; quote any @mention as written, since the lane breaks mentions itself. The quote does not count toward the 150-word limit, but the whole
-           comment must stay under 2800 characters: when the quote would not fit, quote its opening
+           summarize or reword it; quote any @mention as written, since the lane breaks mentions itself. The whole
+           comment, quote included, must stay under 2800 characters: when the quote would not fit, quote its opening
            lines and end with `> [quote truncated; the full decision is at the link]`.
         b. List the open questions from the issue body and earlier comments, and check each against
            the decision. One the decision answers, calls no owner question, defers or leaves to the

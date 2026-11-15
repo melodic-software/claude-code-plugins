@@ -19,24 +19,24 @@ One container per run. A topic slug resolves the container the way SKILL.md Step
 
 `run` has no unattended mode. A human approves the item list before the first claim and each
 landing on the default branch. Invoked from a loop, a lane, a scheduled or background session, or
-any run with no human to answer, STOP before any claim and report that `run` is attended only.
+any run with no human to answer, stop before any claim and report that `run` is attended only.
 
 ## Requires the implementation plugin
 
 `run` hands every item to `/implementation:implement-dispatch`. When the `implementation` plugin
-is not installed, STOP before any claim and tell the user to install it; `run` has no other route.
+is not installed, stop before any claim and tell the user to install it; `run` has no other route.
 
 ## Workflow
 
 1. **Resolve and read.** SKILL.md Steps 1 to 3: the container, its rollup and container-scoped
    frontier, and its shape. A run needs a recorded shape: when the shape line is absent or
    unrecognized, or the shape is `integration branch → single PR` and the `**Integration
-   branch:**` line is absent, STOP and offer to record the line (SKILL.md Step 3). The run never
+   branch:**` line is absent, stop and offer to record the line (SKILL.md Step 3). The run never
    applies the per-item default silently.
 
    The `**Integration branch:**` value is item-body data. Before any use it must consist only of
    `A-Z a-z 0-9 . _ / -`, must not start with `-`, and must pass `git check-ref-format --branch
-   <value>`, the check `/implementation:implement-dispatch` applies to `--base`; STOP and report a
+   <value>`, the check `/implementation:implement-dispatch` applies to `--base`; stop and report a
    value that fails.
 
 1. **Gate the seam.** Resolve the seam as SKILL.md Step 2 does, then read its capabilities:
@@ -50,13 +50,13 @@ is not installed, STOP before any claim and tell the user to install it; `run` h
    `<project root>` is the literal path [`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet.
 
    When `list-sub-items` (the verb behind `list-frontier --parent`) or `claim` is unsupported, or
-   the seam cannot run, STOP and name it: without race-safe claims a run is not safe. An unsupported `renew-lease` or `release` is reported and the run continues; leases it
+   the seam cannot run, stop and name it: without race-safe claims a run is not safe. An unsupported `renew-lease` or `release` is reported and the run continues; leases it
    cannot renew or release expire on their own.
 
 1. **Check other holders.** From the rollup, list sibling items whose assignee holds a live lease
    other than this session's; an expired lease is not a holder (step 5 reclaims it). Under
    `integration branch → single PR`, any live one means another session is writing the shared
-   branch: report who holds it and STOP, the multi-session rule in the reference. Under
+   branch: report who holds it and stop, the multi-session rule in the reference. Under
    `per-item PRs`, leave those items out of the run and report them.
 
 1. **Compose the item list.** One entry per frontier item, in the shape

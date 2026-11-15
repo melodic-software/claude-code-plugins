@@ -1,6 +1,6 @@
 # Approvals and per-user state
 
-User-specific approval state lives at `<StateBase>/state/approvals.json`, **not** in the plugin's shipped `TODO.md`. The skill ships with defaults (nothing approved); the user enables individual remediations via `/machine-health:setup`.
+User-specific approval state lives at `<StateBase>/state/approvals.json`, not in the plugin's shipped `TODO.md`. The skill ships with defaults (nothing approved); the user enables individual remediations via `/machine-health:setup`.
 
 Schema: [`catalog/schemas/approvals.schema.json`](../../catalog/schemas/approvals.schema.json).
 
@@ -19,9 +19,10 @@ Three properties make this the right home:
 
 ## What the shipped `TODO.md` is
 
-The `TODO.md` shipped with the plugin is **policy documentation**, not state. It lists
-remediations available for approval, their risks, and how to enable them. It contains no
-checkbox that drives behavior. Runtime proposals accumulate in `<StateBase>/TODO.md`.
+The `TODO.md` shipped with the plugin holds no state and owns no policy. It points to this file
+and to `reference/windows/remediation-policy.md`, which list the approvable remediations, their
+risks and how to enable them. It contains no checkbox that drives behavior. Runtime proposals
+accumulate in `<StateBase>/TODO.md`.
 
 ## Writing approvals and mutes
 

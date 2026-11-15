@@ -4,11 +4,11 @@ The skill's default action: read the git facts, classify the change into a lifec
 
 ## Clean-tree short-circuit + untracked-only diagnostic
 
-[`reference/change-set.md`](../../../reference/change-set.md) "Pre-flight gate", "Nothing to review", BEFORE tier classification; "not ahead of its base" reads the pre-computed committed shortstat. Review modes mutate nothing but the findings file.
+[`reference/change-set.md`](../../../reference/change-set.md) "Pre-flight gate", "Nothing to review", before tier classification; "not ahead of its base" reads the pre-computed committed shortstat. Review modes mutate nothing but the findings file.
 
 ## Leaf diff target
 
-Dispatched surfaces diff the **review diff base** (SKILL.md "Shared inputs") in EVERY case. `git diff <merge-base>` includes uncommitted tracked edits alongside committed branch changes, so it covers dirty trees, clean committed branches, and open PRs alike, while `git diff HEAD` on a dirty ahead-of-base branch would show only the dirty edits and drop the committed changes. Instruct each surface to run the merge-base command itself, never a hardcoded `git diff HEAD`.
+Dispatched surfaces diff the **review diff base** (SKILL.md "Shared inputs") in every case. `git diff <merge-base>` includes uncommitted tracked edits alongside committed branch changes, so it covers dirty trees, clean committed branches, and open PRs alike, while `git diff HEAD` on a dirty ahead-of-base branch would show only the dirty edits and drop the committed changes. Instruct each surface to run the merge-base command itself, never a hardcoded `git diff HEAD`.
 
 ## Tier classification
 
@@ -53,7 +53,7 @@ pipeline reads each of those leaves' reports from your own copy of its path, not
 
 ## Tier transparency (mandatory)
 
-Before dispatch emit ONE line:
+Before dispatch emit one line:
 
 ```text
 Tier: <small|medium|large>; surfaces run: [<list>]; surfaces SKIPPED at this tier: [<list>]

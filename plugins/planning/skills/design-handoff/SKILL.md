@@ -41,7 +41,7 @@ Read `design-threads.md` in the topic's design slice and confirm, thread by thre
 **every** design thread is one of:
 
 - **RESOLVED**. The deciding rationale is recorded in the artifact (not merely "decided"), or
-- **directional**. Direction agreed AND the remaining detail carries a research tag, or
+- **directional**. Direction agreed and the remaining detail carries a research tag, or
 - **TAGGED-DEFERRED**. An explicit research tag naming the external investigation needed.
 
 Two threads are required, each in one of those states:
@@ -57,10 +57,10 @@ At quality bar `prototype` both are skipped and named: a thread reading `deferre
 counts as TAGGED-DEFERRED. Stumble: the gate judged only the threads present, so a design that
 never weighed principles or reversibility passed.
 
-A thread that is unresolved AND untagged, or a required thread that is missing, is a silent gap →
+A thread that is unresolved and untagged, or a required thread that is missing, is a silent gap →
 **FAIL**: open the reply with the verdict sentence (`Gate: FAIL`, naming each offending or missing
 thread) and the coverage table, then route back by invoking `/planning:design` via the Skill tool
-(its design-threads and discussion rounds) to resolve or tag, and do NOT hand off. Stumble: routing
+(its design-threads and discussion rounds) to resolve or tag, and do not hand off. Stumble: routing
 first let the design round replace the verdict, so the reply never said the gate failed. Read the verdict off
 `design-threads.md`, never from a "did we cover enough?" recap of your own: a producing model
 rubber-stamps its own recap.
@@ -167,7 +167,7 @@ Emit a resume prompt so a fresh cleared session can pick up at `/planning:plan` 
 persisted artifacts. The resume prompt carries the uncovered dimensions verbatim; the coverage
 table stays in the emitted output and is never written to disk.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Design exploration or thread resolution**. That's `/planning:design` (a FAILed gate routes
   there; this skill never resolves threads itself)
@@ -182,7 +182,7 @@ table stays in the emitted output and is never written to disk.
 
 ## Gotchas
 
-- A thread marked "decided" without recorded rationale is NOT RESOLVED. FAIL it back by invoking
+- A thread marked "decided" without recorded rationale is not RESOLVED. FAIL it back by invoking
   `/planning:design` via the Skill tool to record the why
 - Do not soften a FAIL into a warning because the offending thread "feels minor". Silent gaps are
   exactly what the binary gate exists to catch

@@ -4,7 +4,6 @@ The skills of `plugins/go-format`. Each one is driven with `<plugin-dir>` set to
 
 ## Parts
 
-- `check`: Report whether goimports and node are installed. Never installs.
 - `setup`: Verify go-format's prerequisites and configuration here, and register its git pre-commit entry. No plain-words entry.
 
 ## Sub-features

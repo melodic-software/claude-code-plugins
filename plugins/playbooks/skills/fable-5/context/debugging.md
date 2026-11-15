@@ -9,7 +9,7 @@ You are debugging: an observed failure with no confirmed cause. Treat it as a se
 - Your first deliverable is a deterministic reproduction, not a hypothesis and not a fix, because every later idea gets tested against it, and without it you cannot distinguish "fixed" from "stopped looking."
 - Drive iteration time down before investigating: target a failure signal in under ~30 seconds per run, and if the natural loop takes minutes (full build, full suite, manual clicking), first extract the failing case into a single test or script. Loop time is the hard cap on how many experiments the session can afford.
 - Shrink the reproduction itself: strip flags, minimize input, cut the scenario to the shortest sequence that still fails. Every element removed while the failure survives is a hypothesis eliminated before you read a line of code.
-- Intermittent failure → making it deterministic IS the first investigation: fix the seed, pin the timing, or loop-until-fail with a run count. An intermittent signal cannot confirm any fix, and "passed 3 times after my change" is indistinguishable from luck.
+- Intermittent failure → making it deterministic is the first investigation: fix the seed, pin the timing, or loop-until-fail with a run count. An intermittent signal cannot confirm any fix, and "passed 3 times after my change" is indistinguishable from luck.
 - Cannot reproduce at all → that is a finding, not a dead end: stop guessing at code and investigate the delta between the reporting environment and yours (version, config, data, platform). The bug usually hides in that delta.
 
 ## Read the error literally before interpreting it

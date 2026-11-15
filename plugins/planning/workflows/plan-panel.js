@@ -1,7 +1,7 @@
 export const meta = {
   name: 'plan-panel',
   description: 'Draft independent implementation plans from distinct angles, score them with independent judges, and synthesize one plan from the winner',
-  whenToUse: 'Run by /planning:plan for a hard or wide plan, which resolves args: task (required), context, angles, rubric, roles, maxConcurrent. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /planning:plan with the task.',
+  whenToUse: 'Run by /planning:plan for a hard or wide plan, which resolves args: task (required), context, angles, rubric, judges, roles, maxConcurrent. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /planning:plan with the task.',
   phases: [
     { title: 'Draft', detail: 'one planner per angle, each blind to the others' },
     { title: 'Judge', detail: 'independent judges score every draft against the rubric' },

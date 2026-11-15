@@ -37,8 +37,8 @@ human-gated act.
 final path segment alone: docs sites repeat `overview`, `settings`, and `index` across pages, and
 two pages sharing one work root let a later run overwrite an immutable `source.*` or resume from
 another page's checklist. The canonical URL is the post-redirect page URL with no fragment and no
-trailing slash, taken BEFORE any channel suffix like `.md` is appended. Drop only known tracking-only
-query parameters (`utm_*`, `gclid`, `fbclid`); KEEP content-selecting ones (`?version=v2` is a
+trailing slash, taken before any channel suffix like `.md` is appended. Drop only known tracking-only
+query parameters (`utm_*`, `gclid`, `fbclid`); keep content-selecting ones (`?version=v2` is a
 different document). Keep `ref`, which often selects a branch or revision, unless the matched
 publisher profile marks it tracking-only for that host. Before any shell command carries the
 canonical URL, it must pass `isPublicUrl` in
@@ -105,8 +105,8 @@ note the rename in the checklist, and continue. Never re-inventory over it.
 ## Phase 1. Fetch
 
 1. **Resume guard:** if any `source.*` snapshot already exists at the work root (an interrupted
-   run's fetch landed before its checklist tick), that snapshot IS the immutable original. Do
-   not fetch again over it, whatever the checklist says. Complete means the CHANNEL'S full file
+   run's fetch landed before its checklist tick), that snapshot is the immutable original. Do
+   not fetch again over it, whatever the checklist says. Complete means the channel's full file
    set: a markdown/rendered channel needs a non-empty `source.md`, plus `source.html` where the
    profile requires the raw HTML (below); a PDF channel needs both
    `source.pdf` and a non-empty `source.txt`. Set complete → tick Phase 1 with a
@@ -124,7 +124,7 @@ note the rename in the checklist, and continue. Never re-inventory over it.
    the user asks what is recorded or deferred, or when Phase 5 checks a `queued` link against it). No match →
    proceed with the generic steps below and record "no profile" in the checklist.
 3. Fetch via the profile's preferred channel (e.g. a raw-markdown variant of the URL), verifying
-   the channel works for THIS page. Profiles record channels as previously-verified, not
+   the channel works for this page. Profiles record channels as previously-verified, not
    guaranteed. Fallback: fetch the rendered page and note the channel degradation.
 4. Snapshot the unaltered original to `<work-root>/source.<ext>`, naming the extension for what
    was actually fetched: `source.md` for a markdown or rendered-text channel, plus the raw
@@ -141,7 +141,7 @@ note the rename in the checklist, and continue. Never re-inventory over it.
 
 Write `<work-root>/SOURCES.md`: every heading/topic/concern in the source, cross-cutting themes, a
 digest-file map (one row per digest unit), and a status checklist. SOURCES.md opens with a YAML
-frontmatter block carrying at least `abstract:` (ONE unwrapped line naming what the page covers),
+frontmatter block carrying at least `abstract:` (one unwrapped line naming what the page covers),
 which a parent slice's `INDEX.md` regen mirrors. Digest-unit granularity: the
 pre-H2 introduction plus each H2 section is one unit; sub-bullets stay as sub-digests inside
 their unit's file. An H2 is a heading in either form, a `##` line or an `<h2 id="...">` tag
@@ -192,7 +192,7 @@ path stays inside `<work-root>/digests/` before writing.
   a brief's body text from the actually-running model, so a pinned brief states its assumption
   conditionally. "this brief assumes model X; if you are not X, note the mismatch in your output
   and continue", never "you are X" as fact.
-- Each brief carries the untrusted-source rule and ONLY the source section plus SOURCES.md context, not this conversation.
+- Each brief carries the untrusted-source rule and only the source section plus SOURCES.md context, not this conversation.
   When the matched profile defines applicability evidence rules, the brief names them, including
   the corpora an absence or blog-only claim must search, so no agent picks its own search set.
 - **Helper and scratch files** (build scripts, the cross-digest reconcile script) go under
@@ -278,7 +278,7 @@ commands before handing off**. Every Phase 4 check precedes it, so this pass is 
 can reach them. A recorded command calls GNU grep explicitly (`ggrep`, or `grep` after
 `grep --version` shows GNU), because a plain `grep` can resolve to ugrep and change a count; the
 replay runs `grep --version` first and reports a non-GNU grep rather than comparing counts. Then hand off: invoke `/planning:interview` via the Skill tool over it when that
-plugin is installed, otherwise present the artifact and stop. The pipeline ends at the handoff. Deciding what to BUILD
+plugin is installed, otherwise present the artifact and stop. The pipeline ends at the handoff. Deciding what to build
 from a verified slice is the interview's job, and building it belongs to the consuming repo's
 planning/implementation flow.
 
@@ -304,9 +304,9 @@ A profile is a separable context file under `context/` owning everything publish
 fetch channel, applicability filter, model-matching map, artifact-target notes, and a pointer to
 that publisher's recorded-pages spoke. The
 engine stays generic. Add a second publisher as a sibling profile file; extract a shared engine
-only when a THIRD profile lands (Rule of Three). Two points make a line, not an abstraction.
+only when a third profile lands (Rule of Three). Two points make a line, not an abstraction.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not crawl.** One page per run; a queue of pages is N runs, and N parallel runs share
   one session's subagent slots (see Phase 3), or one Batch path run.

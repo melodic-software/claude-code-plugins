@@ -36,7 +36,7 @@ interfaces and contracts wait for design, files and symbols for plan.
 - Trigger conditions: intent is fuzzy, scope is uncalibrated, or, on the full path, the work
   changes behavior, structure, or contracts
 - Skip conditions: a change whose diff is quick to review and cheap to retry (the quick-change
-  on-ramp), or follow-ups where the Brief IS the conversation
+  on-ramp), or follow-ups where the Brief is the conversation
 - Front-loads clarification cost in one round-trip; ask the questions the design turns on one at a
   time, highest architectural blast radius first
 - Calls explore, research or a PRD (stages 2-4), or a prototype, only when a question it asks
@@ -75,7 +75,7 @@ External verification of technical claims: official docs, primary sources, curre
 - Skip conditions: no claim the work depends on comes from outside the repository
 - No claim the work depends on is accepted without verified, current information from authoritative
   sources
-- **Task size does NOT reduce research depth.** A one-line config change gets the same
+- **Task size does not reduce research depth.** A one-line config change gets the same
   verification rigor as a multi-file feature
 - Reading a document and restating its conclusions is not research. Analysis requires independent
   verification
@@ -90,7 +90,7 @@ the work returns to the stage that called it.
 Write down the problem, the users, and the success metrics when the interview finds that product
 intent is unsettled, so the Brief aims at an agreed outcome.
 
-- Trigger conditions: the change is user-facing AND business-driven AND alignment across people
+- Trigger conditions: the change is user-facing and business-driven and alignment across people
   matters (a new user-facing surface, a cross-team initiative)
 - Skip conditions: engineering-internal work (refactors, infrastructure, conventions, bug fixes)
 - Before it, a rough problem may be diverged into candidate approaches. A too-big and still-foggy
@@ -152,7 +152,7 @@ plan's design section it touches, so an agent that picks it up cold still builds
   will be picked up across sessions or by more than one person or agent
 - Skip conditions: the plan is one ticket; implement it directly
 - A closed wayfind map whose destination is a set of build items enters here directly, past
-  design and plan: its resolved decisions stand in for them (owner decision Q531, #12477)
+  design and plan: its resolved decisions stand in for them
 - **Effort:** cutting the plan along its seams, where a thick slice stalls the agent that picks it
   up
 

@@ -9,15 +9,10 @@ runner-policy engine refuses a governed fleet label here outright, reporting
 `public-self-hosted-routing`. There is no observer credential and no
 self-hosted exception inventory in this repository.
 
-There is no selector preflight anywhere in the organization any more. ci-perf
-Phase 7 deleted the `select-runner` reusable workflow (ci-workflows#569, merged
-as `541ee4e90d12d77a90a3ddd72a3af9bc78634ea7`, released as v0.23.0) and
-melodic-software/standards#556 (merged as
-`771a796628f325c3c418c7b397d09fb7211e2972`) removed its grammar from the
-`runner-policy` component. Private repositories now name the governed fleet
-label as a literal and nothing routes at run time; this repository is
-unaffected, because it was never eligible for the fleet in the first place.
-The decision is recorded in melodic-software/github-iac#466, which adds
+No selector preflight runs anywhere in the organization: private repositories
+name the governed fleet label as a literal and nothing routes at run time. This
+repository is not eligible for the fleet. The decision is recorded in
+melodic-software/github-iac
 `docs/adr/0014-fleet-first-ci-for-private-repositories.md`.
 
 ## Configuration contract
@@ -70,8 +65,8 @@ diff, and a Windows step runs only when the change selects its suite
 dispatch, and a change to that workflow run every step. The
 metadata checks (Conventional Commits title,
 `do-not-merge` label, issue linkage) run as the `check-contract` composite step
-inside the same `ci-status` job on the same hosted runner, so they no longer
-carry status contexts of their own. Fork pull requests receive no secrets and
+inside the same `ci-status` job on the same hosted runner and carry no status
+contexts of their own. Fork pull requests receive no secrets and
 no automated review, by design.
 
 Workflow, job and step names follow the org naming lint

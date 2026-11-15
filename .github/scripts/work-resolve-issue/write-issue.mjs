@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // write-issue.mjs: writes issue.json for the resolve-issue skill. The title,
 // body and labels go in as written: an issue neither a listed human nor the
-// lanes App wrote fails the run here, behind the admit job's own stop
+// lanes App wrote fails the run here, behind the check-admission job's own stop
 // (check-blockers.mjs), and the skill still reads them as data. Comments go in only when select-trusted-text's author and
 // edit rules keep them, oldest first, each tagged with its author's kind from
 // the trusted-actor list. A human's comment whose first line is
@@ -229,7 +229,7 @@ export async function main({ env = process.env, github, log = console.log, write
     const client = github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const repository = env.GITHUB_REPOSITORY;
     const data = await client("GET", `/repos/${repository}/issues/${env.ISSUE_NUMBER}`);
-    // The admit job stops this run first (check-blockers.mjs); this holds the
+    // The check-admission job stops this run first (check-blockers.mjs); this holds the
     // line if a run gets past it.
     if (!authorAdmitted(data, humans, lanesAppId)) {
       throw new Error("the issue's author is neither a listed human nor the lanes App");

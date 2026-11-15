@@ -233,27 +233,27 @@ for idx in ${inc_conds[@]+"${!inc_conds[@]}"}; do
   gitdir:*)
     case "${OSTYPE:-}" in
     msys* | cygwin* | win32)
-      warn "includeIf \"$cond\" uses case-sensitive gitdir: on a Windows shell — a lowercase drive letter, 8.3 short name, or casing differing from the canonical gitdir matches NOTHING (only the pattern author's spelling matters). Use gitdir/i: on Windows."
+      warn "includeIf \"$cond\" uses case-sensitive gitdir: on a Windows shell — a lowercase drive letter, 8.3 short name, or casing differing from the canonical gitdir matches nothing (only the pattern author's spelling matters). Use gitdir/i: on Windows."
       ;;
     *) ;;
     esac
     ;;
   gitdir/i:* | onbranch:*) ;;
   hasconfig:remote.*.url:*)
-    note "includeIf \"$cond\": hasconfig: is unimplemented in libgit2 (gitui, TortoiseGit, git2/nodegit/pygit2 bindings), where unrecognized conditions fail SILENTLY, and JGit/go-git resolve no includeIf at all — fine for melodic.* (CLI-shelling readers only), unsafe as the identity layer (user.email etc.). Use gitdir/i: for identity."
+    note "includeIf \"$cond\": hasconfig: is unimplemented in libgit2 (gitui, TortoiseGit, git2/nodegit/pygit2 bindings), where unrecognized conditions fail silently, and JGit/go-git resolve no includeIf at all — fine for melodic.* (CLI-shelling readers only), unsafe as the identity layer (user.email etc.). Use gitdir/i: for identity."
     ;;
   worktree:* | worktree/i:*)
     if ((git_version_num < 256)); then
-      warn "includeIf \"$cond\" needs git >= 2.56; this machine's git skips it SILENTLY (rc=0, no stderr) — the condition never fires here"
+      warn "includeIf \"$cond\" needs git >= 2.56; this machine's git skips it silently (rc=0, no stderr) — the condition never fires here"
     fi
     ;;
   *)
-    warn "includeIf \"$cond\" is not a keyword this git recognizes (gitdir:, gitdir/i:, onbranch:, hasconfig:remote.*.url:, worktree:, worktree/i:) — unknown keywords are skipped SILENTLY, so a typo here is indistinguishable from an unset key"
+    warn "includeIf \"$cond\" is not a keyword this git recognizes (gitdir:, gitdir/i:, onbranch:, hasconfig:remote.*.url:, worktree:, worktree/i:) — unknown keywords are skipped silently, so a typo here is indistinguishable from an unset key"
     ;;
   esac
   case "$cond" in
   gitdir:*/.git | gitdir/i:*/.git)
-    note "includeIf \"$cond\" ends in /.git — a BARE repository's gitdir has no /.git suffix, so this pattern silently misses bare clones"
+    note "includeIf \"$cond\" ends in /.git — a bare repository's gitdir has no /.git suffix, so this pattern silently misses bare clones"
     ;;
   *) ;;
   esac
@@ -261,7 +261,7 @@ done
 
 # --- Resolution: which rule supplied the worktree root ------------------------
 # Shared resolver picks worktreeroot.path (and rewrites a retired alias when
-# one is still present). Origin attribution then loops THAT key so empty-last
+# one is still present). Origin attribution then loops that key so empty-last
 # fallthrough matches create.sh.
 declare -a val_origins=() val_values=()
 winning_key=""
@@ -269,7 +269,7 @@ root_expanded=""
 if worktree_root_resolve "$repo_dir"; then
   winning_key="$WORKTREE_ROOT_KEY_USED"
   while IFS= read -r -d '' origin && IFS= read -r -d '' val; do
-    # Same alternating -z framing as above, except --get-all emits the VALUE
+    # Same alternating -z framing as above, except --get-all emits the value
     # alone as the second record (no key<LF> prefix — measured, not assumed).
     ofile=""
     [[ "$origin" == file:* ]] && ofile="${origin#file:}"
@@ -297,7 +297,7 @@ else
   done
   ok "$winning_key = $win_val (supplied by $supplied_by)"
 
-  # Parse order is precedence: a plain value the parser meets AFTER an
+  # Parse order is precedence: a plain value the parser meets after an
   # include-supplied one silently overrides every identity include.
   if ((nvals > 1)); then
     losing_include=0

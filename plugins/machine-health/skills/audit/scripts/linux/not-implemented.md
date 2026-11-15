@@ -22,7 +22,7 @@ See `../../reference/linux/not-implemented.md` for the full porting checklist. L
 
 - **Distro variance is first-class.** Parse `/etc/os-release` and dispatch package-manager checks accordingly. Consider a `distro` field in catalog entries for narrow-scope checks.
 - **Language choice per check is flexible.** PowerShell 7 on Linux is fine; bash checks are also acceptable provided they emit the schema from `reference/shared/output-schema.md`. Orchestrator invokes the script and captures stdout; interpreter is irrelevant.
-- **Never assume sudo.** Elevation-required checks return `UNKNOWN` with `needs_admin: true`. No interactive prompts, no `sudo -n` (can still prompt under certain policies).
+- **Never assume sudo.** Elevation-required checks return `UNKNOWN` with `needs_admin: true`. No interactive prompts, no `sudo -n`: the human decides whether to rerun under sudo ([A note on sudo](../../reference/linux/not-implemented.md#a-note-on-sudo)).
 
 Remove this file once the folder has a working orchestrator and every check in
 `reference/windows/check-catalog.md` has a Linux analog or an explicit "not applicable" decision

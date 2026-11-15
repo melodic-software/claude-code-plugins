@@ -225,5 +225,5 @@ Compact. One line per run. Append-only, never rewritten.
 ## Timestamp and text encoding
 
 - Timestamps are always ISO 8601 with offset (`yyyy-MM-ddTHH:mm:sszzz`). `(Get-Date).ToString('o')` in PowerShell.
-- All files are UTF-8 without BOM unless the file is written by `Out-File`/`Set-Content`, in which case pass `-Encoding utf8` (Windows PowerShell 5.1 defaults to UTF-16 LE with BOM).
+- All files are UTF-8 without BOM unless the file is written by `Out-File`/`Set-Content`, in which case pass `-Encoding utf8`.
 - `state/history.jsonl` is LF-terminated regardless of host OS; git and most tools handle this cleanly.

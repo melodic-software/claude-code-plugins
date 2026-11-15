@@ -39,7 +39,7 @@ Fix the root cause, not the symptom:
 
 ### Step 3: Fix
 
-Change the smallest amount of code that fixes the root cause. NOT a refactoring opportunity:
+Change the smallest amount of code that fixes the root cause. Not a refactoring opportunity:
 
 - Fix the production code, not the test's assertion. A test edited to pass is not a fix. If the test itself is wrong, correct it deliberately and say so
 - Fix the bug, nothing more

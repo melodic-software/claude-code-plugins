@@ -6,14 +6,14 @@
 # handful of markdown-structure false positives (inline backticks / fenced
 # PowerShell `-Profile` joined across records by the shell quote tracker).
 # That is backlog, not a flag day: CI-facing modes (--all and <base-ref>) skip
-# these paths so NEW and CHANGED skill markdown is gated first; --paths never
+# these paths so new and changed skill markdown is gated first; --paths never
 # consults this list (it is the audit tool that measured the debt).
 #
-# Each line is one exact repo-relative path, matched by full-string EQUALITY
+# Each line is one exact repo-relative path, matched by full-string equality
 # (not prefix). An entry is a standing promise the debt is tracked; the gate
-# fails on a STALE entry (file missing, outside the scannable skill-md set, or
-# no longer carrying an unexcused hit), so the list can only shrink. Do NOT add
-# a path here to dodge the gate on NEW work — fix the construct, add a
+# fails on a stale entry (file missing, outside the scannable skill-md set, or
+# no longer carrying an unexcused hit), so the list can only shrink. Do not add
+# a path here to dodge the gate on new work — fix the construct, add a
 # `portability-ok: <reason>` site annotation, or a whole-file
 # `portability-scope: <reason>` declaration.
 

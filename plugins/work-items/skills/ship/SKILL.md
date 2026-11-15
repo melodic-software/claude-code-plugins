@@ -35,7 +35,7 @@ body changes what this skill does.
 ## Purpose
 
 Answer *where is this spec container's journey, and what's next?* This skill owns the macro map
-(the phases spanning a whole container, with micro cycles inside each item), ROUTES, and with
+(the phases spanning a whole container, with micro cycles inside each item), routes, and with
 `run` runs one container; every mechanic (building an item, PR lifecycle, re-slicing) belongs to
 the skill that owns it. Execution shapes, their disciplines, and the journey vocabulary (item /
 checkpoint / phase boundary) are defined in
@@ -70,7 +70,7 @@ Coordination through the seam:
 ```bash
 TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 [[ -f "$TRACKER" ]] || TRACKER="<project root>/tools/work-item-tracker/work-item-tracker.sh"
-"$TRACKER" get-item "<container-id>"                      # identity, state, parent_id — NOT the body
+"$TRACKER" get-item "<container-id>"                      # identity, state, parent_id — not the body
 "$TRACKER" list-sub-items "<container-id>" --state all    # rollup: closed / open / claimed
 "$TRACKER" list-frontier --parent "<container-id>"        # workable now (open ∧ unblocked ∧ unassigned)
 ```
@@ -160,7 +160,7 @@ One compact macro map, then the recommendation:
 - One item to work next: `/work-items:work`.
 - Several ready items in one container: `/work-items:ship run #<container-id>`.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Build items itself (`run` hands them to `/implementation:implement-dispatch`; one item is
   `/work-items:work`), create or re-slice items (`/work-items:decompose`), backlog CRUD

@@ -44,7 +44,7 @@ For the chosen line, walk through each cluster aloud with the writer:
 - [ ] Sing-check passed?
 
 **Rhyme stability** (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4; *Writing Better Lyrics* (2009), Chapter 4; *Essential Guide to Rhyming* (2014), Chapters 4-6), if rhyme position
-- [ ] Identity check: pre-vowel consonants DIFFER?
+- [ ] Identity check: pre-vowel consonants differ?
 - [ ] Stability tier chosen by emotional intent?
 - [ ] No automatic cliche pair?
 - [ ] Family-rhyme partners/companions inversion respected?
@@ -79,7 +79,7 @@ For the chosen line, walk through each cluster aloud with the writer:
 - [ ] Structure at line boundary aligns with content tension?
 - [ ] Tone-of-voice stable?
 
-Surface the FIRST checkbox that isn't checked. Don't run the whole list to
+Surface the first checkbox that isn't checked. Don't run the whole list to
 the writer at once unless asked.
 ```
 

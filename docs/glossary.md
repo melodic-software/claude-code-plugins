@@ -40,7 +40,7 @@ with cognitive load below; the two are distinct budgets and cutting one can over
 **cognitive load**
 
 The attention a human maintainer pays to hold where things live across a doc set. Ten small
-fragment files can be cheap in context load and ruinous in cognitive load.
+fragment files can be cheap in context load and expensive in cognitive load.
 
 Avoid: mental overhead
 
@@ -207,8 +207,10 @@ Avoid: human queue
 
 **PR hold**
 
-A stop on merging a pull request until it is lifted. Only the do-not-merge label binds every lane
-and person; any other hold binds only the gate that reads it.
+A stop on merging a pull request until it is lifted. Only the do-not-merge label is enforced across
+every lane and person; ci-status also enforces a member's veto comment on a lanes App pull request.
+Any other hold is enforced only by the gate that reads it, and a merging session still stops on a
+body hold or a human comment asking to wait until the owner lifts it (AGENTS.md, Merging).
 
 **merge rung**
 

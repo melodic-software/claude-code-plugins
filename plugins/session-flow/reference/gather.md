@@ -1,9 +1,8 @@
 # Durable-state gather: the shared probe set
 
 Owner doc for the small set of read-only probes session-flow skills run before they do anything
-else. Seven skills carried a near-identical copy of this block; `discipline:point-dont-copy` pins
-the duplication threshold at two, so the text lives here and each consumer cites it and names the
-probes it takes.
+else. `discipline:point-dont-copy` pins the duplication threshold at two, so the text lives here and
+each consumer cites it and names the probes it takes.
 
 Consumers: `continue-in-background`, `find-handoff`, `handoff`, `orient`, `retro`, `running-retro`,
 `workflow`. A skill that needs durable state and is not on that list should route to
@@ -62,7 +61,7 @@ value it uses. The differences below are deliberate, not drift to normalize.
 `orient`'s deeper log is intentional: it synthesizes a situation report and reads further back than
 a skill that only stamps a save-point.
 
-## What this block is NOT
+## What this block is not
 
 **It is never a gate.** `continue-in-background` makes this explicit and the rule generalizes: its
 dirty-tree check at delivery step 1 runs its **own** commands and reads a git failure as a reason

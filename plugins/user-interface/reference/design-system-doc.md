@@ -59,22 +59,13 @@ for? The agent has to guess, and there is a lot of room for error.
 `#ef4444` is the raw hex form of the `--red-500` primitive above, the same color as its oklch
 value.
 
-It all comes down to codebase quality at the end of the day, so this doesn't apply to styles only.
-As long as the agent has a good foundation to build on, it will be able to make the right choices
-more easily.
+The same holds beyond styles: an agent that finds consistent, documented building blocks in the
+codebase reuses them instead of inventing new ones.
 
 The rule that code uses semantic tokens rather than raw values, with its audit severity, is the
 `color` concern, and so is remapping a scale for dark mode; how the theme switches, and the one
 place its values flip, is the `theming` concern. This note documents the layer those rules already
 set.
-
-You should treat agents like new engineers on your team. Think about it: in the past when you
-didn't have a well-defined design system, or at least a few reusable components, how would someone
-know what building blocks to use? They wouldn't, because it's not exposed anywhere. You had to point
-them to the right place.
-
-If you set up your foundation in a way that is readable and easy to use for a human, it will be the
-same for an agent.
 
 ### Components
 
@@ -86,15 +77,9 @@ components themselves is a pass on that concern.
 
 ### Docs
 
-Good documentation was extremely important for humans. This way each engineer would know exactly
-when to use which component and what variants were available.
-
-Building out a whole visual documentation system is obviously a lot of work, and for agents it
-doesn't matter that much. We can simply use markdown files to document our system so an agent can
-consume it before building and be aware of the available options.
-
-A few well-written markdown files next to your code get you most of the way there, and they're
-where I'd start.
+The third layer is a few markdown files next to the code, saying when to use which component and
+which variants exist, for an agent to read before building; a visual documentation site matters
+little to an agent.
 
 ## Process
 
@@ -313,6 +298,3 @@ else exists" line that closes each set, the correct and incorrect examples, and 
 rules are this example system's, not defaults for another project: the note you write holds the
 project's own. Its one focus token follows the `color` concern: the focus ring's color is one token,
 `--focus-ring`, and form controls resolve to it.
-
-Once you have a well-defined system, you'll get drastically better results from your agents, since
-they'll pick the right building blocks for the job.

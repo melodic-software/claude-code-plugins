@@ -46,7 +46,7 @@ never combined with `&&` or other commands in one call. The record for these sha
 
 ## 2. Prepare
 
-1. If this session showed a `Plugin updated: <name> · Run /reload-plugins to apply` notice, stop:
+1. If this session showed a plugin-update notice asking for `/reload-plugins`, stop:
    ask the user to run `/reload-plugins` or start a new session, then rerun `next`. Until then
    the session runs the versions it loaded, which the step's record would misname.
    - **Pointer**: when the update notice's wording is in doubt, fetch

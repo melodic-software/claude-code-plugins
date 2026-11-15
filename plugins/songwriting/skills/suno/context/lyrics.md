@@ -1,6 +1,6 @@
 # Lyrics lane: full reference
 
-Suno reads lyrics as a **structured document**. Tags on their own line tell the model what's a verse vs chorus vs interlude; vocal/performance tags tell it HOW to sing. Tags placed mid-line are sung as literal lyrics, so always put them on their own line or in `(parentheses)` for inline cues.
+Suno reads lyrics as a **structured document**. Tags on their own line tell the model what's a verse vs chorus vs interlude; vocal/performance tags tell it how to sing. Tags placed mid-line are sung as literal lyrics, so always put them on their own line or in `(parentheses)` for inline cues.
 
 **Custom mode required** for any tag syntax. Simple mode auto-generates lyrics and ignores tags.
 
@@ -49,9 +49,9 @@ Place before sections, after section tags, or inline as `(parenthetical)` cues. 
 
 Inline or as section markers: `[Crescendo]`, `[Decrescendo]`, `[Swell]`, `[Silence]`, `[Reverb]`, `[Echo]`, `[Distortion]`.
 
-## Per-section style overrides (the lyrics field as a SECOND style channel)
+## Per-section style overrides (the lyrics field as a second style channel)
 
-One of the most underused power techniques. The global style prompt sets the SONG's character; per-section overrides in lyrics control **dynamics, instrumentation, and production on a section-by-section basis**, solving the "every section sounds the same" problem.
+One of the most underused power techniques. The global style prompt sets the song's character; per-section overrides in lyrics control **dynamics, instrumentation, and production on a section-by-section basis**, solving the "every section sounds the same" problem.
 
 ### Syntax
 
@@ -125,7 +125,7 @@ THE HOOK final blowout
 ### Why this technique matters
 
 - **Solves the dynamics problem**: without overrides, AI flattens into uniform density
-- **Cheap to apply**: no extra char count cost, just better-organized lyrics
+- **Cheap to apply**: a few characters per section, spent from the lyrics budget (`style.md` "Character budgets"), not the style prompt's
 - **Composable with global style**: global = song character, per-section = movement within
 - **More reliable than slider tweaks**: describe each section directly instead of hoping Style Influence interprets
 
@@ -197,7 +197,7 @@ Well-attested across community guides and Reddit but not officially documented. 
 
 | Technique | Syntax | Effect |
 |-----------|--------|--------|
-| **Capitalization** | `PRESSURE IS RISING` | Vocal pressure / grit / intensity spike. Use strategically on turning-point words; ALL-caps everywhere dilutes the effect |
+| **Capitalization** | `PRESSURE IS RISING` | Vocal pressure / grit / intensity spike. Use strategically on turning-point words; all-caps everywhere dilutes the effect |
 | **Vowel stretching** | `looooove`, `shouuuuut` | Sustained notes, melisma. **3-5 extra vowels = natural; 20+ glitches** |
 | **Ellipsis** | `and then... I realized` | Natural pause / breath (≈ 0.5-2 sec) |
 | **Hyphenation** | `l-i-v-e the moment` | Staccato letter-by-letter delivery, good for rap or EDM emphasis |
@@ -205,7 +205,7 @@ Well-attested across community guides and Reddit but not officially documented. 
 | **Line breaks** | One idea per line | Forces melodic separation; phrases on one line tend to run together. **A default, not a floor**: stacks of very short lines buy excess separation; see "Line breaks cut both ways" below |
 | **Manual repetition** | Write the line twice with a tweak | `(x2)` notation is largely ignored, so literal repetition with minor variation is more reliable |
 | **Inline backing** | `I love you [ahhs rising]` | Adds layered backing vocals / inline FX |
-| **Timing cue** | `[at 0:15 vocals enter]` | Reported to nudge timing; **no adherence rate is stated**, and the old `~70%` had no basis. Less reliable than structure tags. LOW-MEDIUM; see `tips.md` "Timing cues" |
+| **Timing cue** | `[at 0:15 vocals enter]` | Reported to nudge timing; **no adherence rate is stated**. Less reliable than structure tags. LOW-MEDIUM; see `tips.md` "Timing cues" |
 
 ### Line breaks cut both ways: the short-line edge
 
@@ -219,12 +219,12 @@ Well-attested across community guides and Reddit but not officially documented. 
 
 ## Hallucinated-lyrics prevention
 
-Suno can't fix lyrics post-generation. Prevention only. Apply these BEFORE generating:
+Suno can't fix lyrics post-generation. Prevention only. Apply these before generating:
 
 - Use **clear punctuation** (commas, periods), not run-on phrases
 - Keep **rhyme schemes simple** (internal multi-syllable rhymes confuse the model)
 - Break **long sentences across lines**
-- For **instrumental tracks**: use `[Melodic Instrumental]` AND include "instrumental" in style prompt
+- For **instrumental tracks**: use `[Melodic Instrumental]` and include "instrumental" in style prompt
 - **Pop and Gospel** are most vocal-prone genres, so add explicit instrumental markers
 - If lyrics field is **empty in Custom mode**, Suno may invent vocals, so explicitly mark `[Instrumental]` or use Simple mode's instrumental toggle
 

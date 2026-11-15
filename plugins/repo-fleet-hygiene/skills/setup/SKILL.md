@@ -51,7 +51,7 @@ wants to add names to the defaults wants `--extend-skip`.
 ## `check` (read-only)
 
 The config file and the grammar below are the source of truth. Probe, report a PASS/FAIL/INFO table
-with one remediation line per FAIL, and modify nothing. Do NOT run the collector. That is
+with one remediation line per FAIL, and modify nothing. Do not run the collector. That is
 `/repo-fleet-hygiene:audit`; `check` only validates the configuration the audit would consume, using
 `git config --file` and read-only filesystem probes.
 
@@ -211,7 +211,7 @@ override is therefore not needed merely to steer the audit away from a linked wo
 resolves that itself. Never add one because two directory names look similar; verify the normalized
 GitHub remote identity on both sides first.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run a fleet audit. That is `/repo-fleet-hygiene:audit`. `check` validates config only; it never
   walks the fleet.

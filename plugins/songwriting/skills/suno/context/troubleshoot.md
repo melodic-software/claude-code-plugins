@@ -22,7 +22,7 @@ Most Suno issues are **prompt-side preventable**. The model can't fix audio post
 | Short-line stacks (clipped fragments) | Excess pauses between lines, choppy delivery | Suno phrases at every line break, and separation is what the break buys | Join lines in the Suno lyrics field only, leaving the page lyric unchanged. See "There's too much pause between lines" |
 | Naming artists directly (`like Drake`) | Likely blocked or ignored | Filter | Use sound descriptors (`Toronto trap bounce`, `silk-smooth R&B falsetto`) |
 | Vocal descriptor + active Voice/Custom Model | Conflict, weird vocal artifacts | Cloned identity vs prompted identity | **Drop gender/tone descriptors** from style when Voice/Custom Model active |
-| Same prompt regenerated 3+ times | Diminishing returns, repetitive output | Cached patterns | Rotate synonyms (`gritty → raw → visceral → unpolished`) |
+| Same prompt regenerated 3+ times | Diminishing returns, repetitive output | Community-reported; Suno documents no cause | Rotate synonyms (`gritty → raw → visceral → unpolished`) |
 | Single generation, settle on it | Missed better takes | Variance is the friend | **Always generate 4+ versions, A/B compare** |
 
 ## Symptom-specific diagnoses
@@ -78,12 +78,12 @@ Most Suno issues are **prompt-side preventable**. The model can't fix audio post
 
 ### "Genre bleed: asked for jazz, got jazz-fusion-rock"
 
-**Why:** Stacked too many genres, OR mood words contradict the genre, OR instrumentation doesn't match.
+**Why:** Stacked too many genres, or mood words contradict the genre, or instrumentation doesn't match.
 
 **Fix:**
 
 1. Cap genre tags at 1-2
-2. Match mood + instrumentation to genre conventions (acoustic guitar + brushed drums + 88 BPM = NOT jazz fusion; that's folk)
+2. Match mood + instrumentation to genre conventions (acoustic guitar + brushed drums + 88 BPM = not jazz fusion; that's folk)
 3. Add explicit negatives for the bleed-target (`no rock guitar`, `no fusion synths`)
 
 ### "Vocals sound bleedy / phasey on duets"
@@ -100,7 +100,7 @@ Most Suno issues are **prompt-side preventable**. The model can't fix audio post
 
 ### "Exclusions are being ignored"
 
-**Why:** Conflicting positive elsewhere, OR too many negatives stacked. Prompt position is not a verified cause.
+**Why:** Conflicting positive elsewhere, or too many negatives stacked. Prompt position is not a verified cause.
 
 **Fix:**
 
@@ -117,13 +117,13 @@ Grouping all negatives at the end of the style prompt is a readability conventio
 
 **Fix:**
 
-1. **Drop ALL vocal direction descriptors** from the style prompt
+1. **Drop all vocal direction descriptors** from the style prompt
 2. Raise Audio Influence when resemblance is poor. Suno publishes no number; `>=70%` is only a community-derived, unverified starting point
 3. Re-record cleaner acapella source if voice quality is the issue (one continuous 90-120s clip carrying the emotional range within it, same mic, quiet or treated room)
 
 ### "Output is repetitive / boring after 5 regenerations"
 
-**Why:** Diminishing returns from cached patterns on identical prompts.
+**Why:** Diminishing returns on identical prompts, community-reported; Suno documents no cause.
 
 **Fix:**
 

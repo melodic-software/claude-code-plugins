@@ -88,7 +88,7 @@ file. After every correction agent has returned, the parent writes the round's i
 `verification/corrections-applied-r<round>-<YYYY-MM-DD>.md`, which lists each unit file and
 gathers their "New findings" sections. That index is the round's applied record below.
 
-**Pin on agent-REPORTED completion, never file presence.** A digest file on disk does not mean
+**Pin on agent-reported completion, never file presence.** A digest file on disk does not mean
 its agent is done: an agent can rewrite its file minutes after a presence-based pin.
 Pin the tree only after every dispatched digest agent has *returned*, then write
 `<work-root>/verification/pin-manifest.json` with
@@ -170,7 +170,7 @@ deliberate look finds them.)
 
 **Degraded-verifier fallback (never silent):** when the cross-vendor verifier is unavailable
 (not installed, sandbox-broken, quota), substitute a second same-vendor verifier briefed as an
-adversarial refuter, and RECORD the degradation and its reason in the verdict file header. A
+adversarial refuter, and record the degradation and its reason in the verdict file header. A
 verification record that hides its degraded provenance is worse than a missing one. That rule
 covers a *missing* cross-vendor arm, not a session that cannot spawn.
 

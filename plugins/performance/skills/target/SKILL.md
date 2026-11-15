@@ -44,7 +44,7 @@ how compelling the mechanism sounds.
 | **E4, suspicion** | A plausible mechanism and nothing else | "WDAC is probably slowing spawns" |
 
 **Nothing above E3 exists means the top recommendation is "instrument this first"**, naming the
-cheapest instrument that would reach E2. That IS the answer; do not substitute a ranked guess.
+cheapest instrument that would reach E2. That is the answer; do not substitute a ranked guess.
 
 Cheap instruments: a [census](../../reference/techniques.md#a-choose-the-target) of what runs on
 the hot interaction, and events tagged with the

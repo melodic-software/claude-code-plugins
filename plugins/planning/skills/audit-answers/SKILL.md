@@ -67,7 +67,7 @@ and a **summary-only** general interview are both valid inputs. Derive `<topic-s
 `$ARGUMENTS` or the current branch (kebab-case, ≤40 chars; shared with `/planning:interview`); read
 the memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) per
 [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md).
-If the topic has NO persisted interview output, STOP with a message pointing at
+If the topic has no persisted interview output, stop with a message pointing at
 `/planning:interview`. If output exists with open consequential branches, Step 1 fills them under
 the never-auto floor before validating.
 
@@ -96,7 +96,7 @@ Everything else enters the provisional set as an accepted answer for validation.
 Dispatch **1–3 fresh-context (non-fork) adversarial validator subagents**, **each reviewing the
 whole answer set**. More validators add independent cross-checks on every answer; never shard the
 answers between them, or "confirmed by all" becomes indistinguishable from "unseen by some". A
-validator MUST be a fresh-context subagent that never saw the interview, never a fork (the
+validator must be a fresh-context subagent that never saw the interview, never a fork (the
 marketplace's self-grade fresh-eyes rule). What each kind of subagent starts from:
 [How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents).
 Where the verdict is
@@ -107,7 +107,7 @@ never a route to a command that may not resolve (per `docs/plugin-philosophy.md`
 checkpoints" in the marketplace repository).
 
 Each validator receives the whole provisional answer set and the interview's persisted context
-(Brief or general summary), **with the recommendation's persuasive rationale WITHHELD**: hand it
+(Brief or general summary), **with the recommendation's persuasive rationale withheld**: hand it
 *what* was decided, never *why the orchestrator liked it*.
 
 Each answer also carries the evidence it rested on: the question's Context block, read from the
@@ -158,7 +158,7 @@ Nothing reaches the contract on a bare invocation ahead of this confirmation. Th
 mandatory: a CONFIRMED collapse is a summary to skim, never a license to skip the human. Then hand
 back to the interview's stop/handoff path.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Derive answers**. Validation only; the interview's answers are the input.
 - **Resolve a reserved decision, automatically or early**. Auto-guard choices route to the human,

@@ -52,16 +52,16 @@ Emitters must never emit a duplicate key.
   quality, and no other check judges the rationale.
 - `evidence`: the proof-of-reading token:
   - `quote`: non-empty string, verbatim from the snapshot.
-  - `start_byte` / `end_byte`: the quote's exact span in RAW SNAPSHOT bytes (end exclusive).
+  - `start_byte` / `end_byte`: the quote's exact span in raw snapshot bytes (end exclusive).
 
 ## Evidence-token byte mapping
 
 The manifest is byte-addressed; quotes are text. The mapping rule:
 
-1. UTF-8-encode `quote`; the encoded bytes MUST equal `snapshot[start_byte:end_byte]` exactly,
+1. UTF-8-encode `quote`; the encoded bytes must equal `snapshot[start_byte:end_byte]` exactly,
    with no normalization and no whitespace forgiveness. (Snapshots are UTF-8 by the extractor's encoding
    contract, so this is well-defined.)
-2. The span MUST lie inside the claimed node:
+2. The span must lie inside the claimed node:
    `node.start_byte <= start_byte < end_byte <= node.end_byte`.
    - **Multi-occurrence** is resolved by the explicit offsets: the row commits to one occurrence,
      the gate checks that occurrence. A quote appearing elsewhere too is irrelevant.
@@ -93,5 +93,4 @@ Inputs: manifest path, inventory path, snapshot path. Checks, in order:
 Exit codes: 0 all checks passed; 1 one or more named check failures; 2 unusable input
 (parse/IO/schema-literal errors); 3 internal invariant violation. A clean run prints what it
 exercised (file names, row count, node count, field list). Silence is never a pass, and a pass
-covers only what was printed. The gate was written and tested to fail loudly on unparsable and
-malformed input BEFORE being made a required artifact.
+covers only what was printed.

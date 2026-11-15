@@ -110,9 +110,9 @@ sessions in the same project. Read-only, because it cannot control them.
   closed while its work is still running is the exact failure this skill must
   not cause, the mirror of keep-going's "never kill what you cannot prove is
   dead."
-- **GATE any kill.** Stopping or killing still-running off-thread work, an
+- **Gate any kill.** Stopping or killing still-running off-thread work, an
   agent, a shell, a monitor, a scheduled job, is irreversible and can
-  destroy live-but-slow progress. Do it only when step 2 PROVED the work is
+  destroy live-but-slow progress. Do it only when step 2 proved the work is
   not still progressing; when that cannot be proven, do not kill. Surface it
   as a question in the report.
 
@@ -122,7 +122,7 @@ If the ledger already matches reality and no off-thread work has finished,
 say so and stop. A session whose books are already square is a valid, common
 outcome. Do not manufacture retirements or ledger edits to look thorough.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not prescribe the next stage**; that is `/session-flow:workflow`.
 - **Does not enumerate MCP / browser / playwright tool state.** No generic

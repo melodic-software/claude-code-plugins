@@ -152,6 +152,16 @@ CLAUDE_PROJECT_DIR="$PROJ" deny "the project root in attach alt text" "gh pr edi
 CLAUDE_PROJECT_DIR="$PROJ" deny "the project root in the body beside an attach" "gh pr edit 1 --body 'built in $PROJ' --attach $PROJ/evidence/a.png" path
 deny "home path in attach alt text" "gh pr comment 1 --attach '$AHP/evidence/a.png#built at $AHP'" path
 deny "attach adjacent alt home path" "gh pr comment 1 --attach './x.png#$AHP/alt'" path
+# A home path after a character outside the path pattern's left boundary (a
+# second `#`, `,`, a letter) does not match alone, so an alt text holding a
+# slash is judged with the whole operand.
+deny "attach alt home path after a second #" "gh pr comment 1 --body ok --attach '$AHP/x.png#a#$AHP/log'" path
+deny "attach alt home path after a comma" "gh pr comment 1 --body ok --attach '$AHP/x.png#log,$AHP/log'" path
+deny "joined attach alt home path after a second #" "gh pr comment 1 --body ok --attach=$AHP/x.png#a#$AHP/log" path
+deny "attach alt home path after a letter" "gh pr comment 1 --body ok --attach '$AHP/x.png#x$AHP/log'" path
+deny "issue create attach alt home path after a comma" "gh issue create --title t --body ok --attach '$AHP/x.png#a,$AHP/log'" path
+deny "attach alt with a slash beside a home source, judged whole" "gh pr comment 1 --body ok --attach '$AHP/x.png#before/after'" path
+quiet "relative attach with a slash in the alt text" "gh pr comment 1 --body ok --attach './x.png#before/after'"
 deny "Windows home path in attach alt text" "gh pr edit 5340 --body 'ok' --attach '$AWP\\a.png#built in $AWP'" path PowerShell
 deny "Windows home operand on Bash, posted whole as the base name" "gh pr comment 1 --attach '$AWP\\a.png'" path
 deny "Windows home operand on Bash with an empty alt" "gh pr comment 1 --attach '$AWP\\a.png#'" path

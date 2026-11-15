@@ -18,7 +18,7 @@ pre-commit hook. The `validate-evals` action checks a skill's existing `<skill>/
 schema, then runs the bundled `check-evals-quality.sh`, a deterministic eval-quality lint
 (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage
 warnings) that goes beyond structure without ever running a model-graded eval. The `listing-budget` action runs `check-listing-budget.sh`, a separate, always-advisory
-report on the SHARED listing budget every loaded skill draws from together (a different, cross-skill
+report on the shared listing budget every loaded skill draws from together (a different, cross-skill
 limit from `check`'s per-skill entry cap). The `measure-invocation` action runs
 `measure-invocation.sh`, a repeatable probe harness that scores whether a skill's listing text
 would win the requests it should.
@@ -81,7 +81,7 @@ Parse `$ARGUMENTS`:
 - **`listing-budget`** *(no root)*. Report the shared listing-budget estimate over every
   listing-eligible skill under the resolved root.
 - **`listing-budget <root> [<root> ...]`**. Pool every listing-eligible skill under each given root
-  into ONE shared aggregate (e.g. every plugin's skills dir in a marketplace repo). Every root given
+  into one shared aggregate (e.g. every plugin's skills dir in a marketplace repo). Every root given
   must exist.
 - **`measure-invocation`** *(default `validate` then `score`)*. Run the description-invocation
   probe harness. See Action: measure-invocation.
@@ -108,7 +108,7 @@ Parse `$ARGUMENTS`:
 3. Report per skill:
    - **PASS / FAIL / INCOMPLETE** from the script's exit code (0 = pass, 1 = one or more `FAIL:`
      lines, 3 = no failure, but a deadline left script tests unrun, each named on a `SKIP` line; that
-     is not a pass). In root mode that exit code is the AGGREGATE over every skill, so the per-skill
+     is not a pass). In root mode that exit code is the aggregate over every skill, so the per-skill
      verdict is that skill's own `CHECK-SKILL <name>: PASS`, `CHECK-SKILL <name>: FAIL` or
      `CHECK-SKILL <name>: INCOMPLETE` line instead.
    - The `FAIL:` lines verbatim (each is an actionable defect). A description/verb-contract polarity
@@ -303,7 +303,7 @@ and review against the invariant.
   from the top level of the git repo holding the skill, so a repo-root `.markdownlint-cli2.jsonc`
   applies whichever directory or root you started from (where it discovers config:
   [markdownlint-cli2 README, "Configuration"](https://github.com/DavidAnson/markdownlint-cli2#configuration)). A skill in no git repo (a marketplace-installed skill in the plugin cache, which has
-  no config) is linted where the checker stands, and markdownlint applies its DEFAULTS, so rules a repo deliberately disables (commonly
+  no config) is linted where the checker stands, and markdownlint applies its defaults, so rules a repo deliberately disables (commonly
   `MD013` line-length for injection blocks and tables, `MD041` first-line-heading for a frontmatter/H2
   start, `MD060` table-pipe style) fire as spurious failures on a skill that passes in-repo. This is the
   usual cause of a "shipped marketplace skill fails the marketplace's own gate" report: it is a
@@ -332,15 +332,15 @@ and review against the invariant.
 - Check 3 (trigger-keyword preservation) is advisory: it warns on a dropped phrase and never fails
   the run. It tracks single-quoted `'phrase'` triggers and each unquoted comma-separated item of a
   field's `Use when` clause, up to the period or semicolon that ends it. A dropped phrase found verbatim in a
-  sibling skill's description/when_to_use under the same skills root, where the sibling did NOT
-  already carry it at the base ref, is a trigger MOVE and warns naming the host, because the listing
+  sibling skill's description/when_to_use under the same skills root, where the sibling did not
+  already carry it at the base ref, is a trigger move and warns naming the host, because the listing
   still routes the phrase. A phrase absent everywhere, or one the sibling carried all along
   (coincidental overlap, not a move), warns as dropped and asks the reviewer to confirm the
   description still names the intent the phrase carried (a deliberate consolidation of near-synonym
   triggers into an intent category) or to restore it. Treat that warning as a review item, not
   noise.
 - Check 19 (injection shell-declaration) FAILs only when a `!` injection carries *detectable*
-  bash-only syntax (`/dev/null`, `command -v`, a pipe into a Unix text tool) AND no `shell:` is
+  bash-only syntax (`/dev/null`, `command -v`, a pipe into a Unix text tool) and no `shell:` is
   declared; portable-looking commands downgrade to a WARN, since static analysis cannot prove
   portability. A `shell:` declaration is trusted wholesale. The check does not validate that the
   injected commands actually match the declared shell (so `shell: pwsh` with bash-only commands is
@@ -362,7 +362,7 @@ and review against the invariant.
   `list`) with no redirection, substitution, chaining or pipe other than a trailing `|| echo`
   fallback. A WARN line names no block, so finding it means reading the skill's fenced shell blocks.
 - Check 23 (completion-criteria signal) is an advisory heuristic, never a FAIL. It fires only when a
-  numbered procedure of three or more steps carries NO completion-signal token at all. It detects
+  numbered procedure of three or more steps carries no completion-signal token at all. It detects
   the absence of any done-condition, and cannot grade whether a stated criterion is observable or
   good; its broad token set means it under-reports by design. The write-side doctrine whose floor it
   checks is `docs-hygiene:write-for-agents` (steps state observable completion criteria; guard
@@ -376,7 +376,7 @@ and review against the invariant.
   is fine. The rubric that owns the decision, the
   model-invoked default and the only three exception classes a `true` may claim, is
   [`docs/contracts/invocation-mode/README.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md).
-  Class attribution is NOT machine-checkable: only a `setup` skill's `true` is deterministic (class
+  Class attribution is not machine-checkable: only a `setup` skill's `true` is deterministic (class
   (ii), the plugin-philosophy setup contract), so every other `true` emits a note to hand-verify
   rather than a warning no scan could clear.
 - Check 25 (description/verb-contract polarity) FAILs on a listing-surface mismatch between the
@@ -412,7 +412,7 @@ and review against the invariant.
   sharing one rollup, never one merged corpus. Pooling them would change what those checks mean,
   which is why it is not done. `listing-budget` is the opposite by design: it pools, because the
   budget it reports is the shared one.
-- **In root mode each skill is gated with the DISPATCHED tree's git context, never the caller's.**
+- **In root mode each skill is gated with the dispatched tree's git context, never the caller's.**
   Every git-backed check (3 trigger preservation, 8 vendor byte-identity, 9 stale metadata, 13
   committed artifacts) joins two values that both derive from the working directory: the repository
   root, and the skill's path within it. A child left at the caller's directory takes those from two
@@ -422,7 +422,7 @@ and review against the invariant.
   named notes rather than borrowing the caller's repository, and `CHECK_SKILL_BASE_REF` is resolved
   against the dispatched repository, so a ref that exists only there is accepted and one absent
   there is an environment error in that child.
-- **One resolved root stays the DEFAULT deliberately.** An explicit root list is how you widen
+- **One resolved root stays the default deliberately.** An explicit root list is how you widen
   coverage; the resolution ladder never grows on its own to the union of every skills tree in
   reach. Widening the default would silently widen every existing consumer's gate, including this
   repo's CI, so broader coverage is something a caller asks for rather than something the ladder

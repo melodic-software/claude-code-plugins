@@ -168,7 +168,9 @@ a tool, or deploy it as a chatbot or support assistant, read the guide's section
 
 ## API requests carried over from Haiku 4.5
 
-Our decision: this repository ships no code that sends API requests, so it has no Haiku 4.5 request
+Our decision: the only code in this repository that sends API requests is the pr-verify key proxy
+(`.github/scripts/pr-verify/key-proxy.mjs`), and its model allowlist (the proxy `models` list under `proxy:` in
+`docs/conventions/pr-pipeline.yaml`) names no Haiku 4.5 model, so there are no Haiku 4.5 request
 settings to carry over. `[CC: direct]`
 
 Trigger: before you move an API integration you author from Haiku 4.5 to this model, or when a
@@ -179,7 +181,8 @@ what's-new page at the pointers. `[CC: API-side]`
   [Haiku 5.5 migration guide](https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide)
   and
   [What's new in Claude Haiku 5.5](https://platform.claude.com/docs/en/models/haiku-5-5/whats-new-haiku-5-5).
-- **Recheck trigger**: this repository gaining code that sends API requests.
+- **Recheck trigger**: this repository gaining other code that sends API requests, or that allowlist
+  adding a Haiku 4.5 model.
 
 ## Which surfaces we author as system prompt
 
@@ -246,9 +249,5 @@ Our reads, recorded so a re-read can tell whether a page moved:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-caching>, read 2026-10-10.
 - <https://code.claude.com/docs/en/model-config> (116,499 B, MD5
   `86ee02d08683a5b8696a4b41fb206fef`), read 2026-10-10.
-
-Re-baselined to the Claude Fable 5.2 author on 2026-11-09: every entry above is stated against
-this model's own guide or this repository's routing rule, none against a Fable 5.1 behavior, so all
-are kept unchanged.
 
 Recheck trigger for the whole chapter: a later Haiku release, or a pointed section moving.

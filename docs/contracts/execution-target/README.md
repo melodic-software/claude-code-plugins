@@ -241,6 +241,10 @@ The lanes launcher carries a copy of the plugin column (`stage_required_plugins`
 - **Cloud environments.** Pointer:
   [What carries over from your setup](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup)
   and [Network access](https://code.claude.com/docs/en/cloud-environments#network-access).
+- **Background sessions and their listing.** Pointer: the "Limitations" section of
+  [Agent view](https://code.claude.com/docs/en/agent-view#limitations) (research-preview status)
+  and [List sessions as JSON](https://code.claude.com/docs/en/agent-view#list-sessions-as-json)
+  (which sessions `claude agents --json` prints).
 
 ## Versioning
 

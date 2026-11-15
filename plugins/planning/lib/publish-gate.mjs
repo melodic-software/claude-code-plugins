@@ -126,7 +126,7 @@ const unescapeOnce = (text) =>
 // NFKC, invisible characters stripped, \uXXXX decoded, tags removed and entities decoded until a
 // pass changes nothing, then a backslash before punctuation dropped. A backslash before / . " or '
 // stays: folding those turns tracked regex sources and escaped JSON into paths, hostnames and
-// assignments, which the tracked-tree test in publish-gate.test.mjs refuses.
+// assignments, which the fold-corpus test in publish-gate.test.mjs refuses.
 export const normalize = (text) => {
   let previous;
   let folded = text;

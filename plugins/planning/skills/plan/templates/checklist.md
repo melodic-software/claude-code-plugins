@@ -4,12 +4,12 @@ Copy into `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`; the t
 
 ## Steps
 
-- [ ] Step 1: Prerequisite check. Brief locked (PLAN.md Brief section exists OR equivalent crisp framing); exploration + research done or explicitly waived; design gate evaluated
+- [ ] Step 1: Prerequisite check. Brief locked (PLAN.md Brief section exists or equivalent crisp framing); exploration + research done or explicitly waived; design gate evaluated
 - [ ] Step 2: Formulate the plan. Phases with verifiable Sanity Checks per phase; estimate scope; identify parallelism
 - [ ] Step 3: Plan stress-test. Resolve `plan_stress_test` for the draft's mode and apply the reviewer rule (SKILL.md Gates); when it runs the reviewer, surface cost, then dispatch the plan-reviewer agent per context/plan-reviewer.md; otherwise record `Reviewer: skipped (<reason>)`
 - [ ] Step 3b: Assess blast radius (LOW / MEDIUM / HIGH / CRITICAL). Under `auto` it is assessed before Step 3's reviewer decision and gates both the reviewer and Step 4
-- [ ] Step 4: Formal stress-test + research-iterate (CONDITIONAL on Step 3b). Invoke `/planning:devils-advocate` and targeted research on contested claims
-- [ ] Step 4.5: Execution-shape analysis (default ON for multi-phase plans). Emit scope-fencing tables + per-phase routing table
+- [ ] Step 4: Formal stress-test + research-iterate (conditional on Step 3b). Invoke `/planning:devils-advocate` and targeted research on contested claims
+- [ ] Step 4.5: Execution-shape analysis (default on for multi-phase plans). Emit scope-fencing tables + per-phase routing table
 - [ ] Step 4.6: Tag unilateral decisions. Flag any choice made without explicit user approval; interview below-bar decisions
 - [ ] Step 4.7: Outcome gate. Binary checks read off the PLAN artifact (sanity-check count, phase tags, scope mapping, decisions table, blast-radius line)
 - [ ] Step 5: Present for approval. Persist PLAN.md; wait for the user gate before any code edits

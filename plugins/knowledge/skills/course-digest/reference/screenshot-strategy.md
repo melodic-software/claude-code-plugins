@@ -76,7 +76,7 @@ ffmpeg -y \
 ### Key ffmpeg parameters
 
 - **`-user_agent`**: Required, because Mux rejects requests without a browser user-agent
-- **`-headers "Referer: https://dometrain.com/"`**: Required, because Mux playback restrictions enforce referer checks
+- **`-headers "Referer: <referer>"`**: per platform; the extractor sends the course's `platformConfig.referer` from course.json, empty when unset (the Dometrain course config sets none)
 - **`select='gt(scene\,0.1)'`**: Scene change threshold. 0.1 is the proven default
 - **`-vsync vfr`**: Variable frame rate, which outputs only selected frames (required with `select`)
 - **`scale=1280:-1`**: Downscale to 1280px wide (code is still fully legible at this size)
@@ -126,7 +126,7 @@ After frame extraction, classify each frame using Claude vision:
 | `talking-head` | No | Full-screen face, no code visible |
 | `duplicate` | No | Near-identical to a previous frame (same code, minor cursor change) |
 
-**For courses with picture-in-picture webcam:** Instructor's face appears as a small overlay in the corner of every frame. Classification is "what is the PRIMARY content". The IDE is primary; the face overlay is irrelevant.
+**For courses with picture-in-picture webcam:** Instructor's face appears as a small overlay in the corner of every frame. Classification is "what is the primary content". The IDE is primary; the face overlay is irrelevant.
 
 **At 1280px width, code is fully legible.** Method names, test assertions, class structure, even parameter types are readable. No need to keep 1920x1080 for vision analysis.
 
@@ -164,13 +164,13 @@ Measured across a full code-heavy course extraction. Re-check any row that stops
 
 | Finding | Details |
 |---------|---------|
-| **`-vsync vfr` must NOT be used with `fps` filter** | Drops all frames on static content (talking-head slides). Only use with `select` filter (scene detection) |
+| **`-vsync vfr` must not be used with `fps` filter** | Drops all frames on static content (talking-head slides). Only use with `select` filter (scene detection) |
 | **HLS JWT tokens expire mid-extraction** | Mux tokens are short-lived. Re-navigate to the lesson page before each extraction to get a fresh token |
 | **`spawnSync` with args array, not `execSync`** | CRLF in `-headers` value breaks shell parsing on Windows. `spawnSync` bypasses the shell |
 | **Fresh temp dir per Playwright run** | Stale persistent context profiles interfere with cookie injection. Use `course-extraction-${Date.now()}` |
 | **`page.evaluate()` for shadow DOM detection** | `locator.isVisible()` fails on web components (mux-player). Use `document.querySelector()` via evaluate |
 | **File-size dedup outperforms perceptual hash** | For this content type, consecutive interval frames within 8% file size = duplicate. RMSE/phash/SSIM tested but file-size was more reliable |
-| **Scene threshold 0.1 is the only viable value** | 0.2 catches almost nothing for screencast content. The cliff is dramatic |
+| **Scene threshold 0.1 is the working default for screencasts** | 0.2 caught almost nothing on the measured screencast; calibrate on a new course's first code-heavy lesson |
 | **Timestamp estimation is approximate for scene frames** | Linear interpolation across video duration. Accurate for interval frames (fixed fps), approximate for scene-detected frames |
 
 ## File size management

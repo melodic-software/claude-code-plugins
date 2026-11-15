@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# GitHub conformance binding: on-demand, against a throwaway sandbox repo (NEVER a
+# GitHub conformance binding: on-demand, against a throwaway sandbox repo (never a
 # coordination repo) named by the required WIT_CONFORMANCE_GITHUB_REPO=owner/name.
 
 CB_BINDING_TMP=""
@@ -14,7 +14,7 @@ _cb_close_all_open() {
 }
 
 cb_setup() {
-  CB_REPO="${WIT_CONFORMANCE_GITHUB_REPO:?set WIT_CONFORMANCE_GITHUB_REPO to a throwaway sandbox repo (owner/name); NEVER a coordination repo}"
+  CB_REPO="${WIT_CONFORMANCE_GITHUB_REPO:?set WIT_CONFORMANCE_GITHUB_REPO to a throwaway sandbox repo (owner/name); never a coordination repo}"
   CB_BINDING_TMP="$(mktemp)"
   printf '%s\n' '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}' >"$CB_BINDING_TMP"
   export WORK_ITEM_TRACKER_BINDING="$CB_BINDING_TMP"

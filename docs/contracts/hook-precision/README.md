@@ -13,7 +13,7 @@ production.
 
 ## The rules
 
-Six rules for what a hook matches, how it reads its input, and which paths it acts on. The discipline after
+Seven rules for what a hook matches, how it reads its input, and which paths it acts on. The discipline after
 them turns every next over-fire into a committed regression test. A hook is precise when it matches the
 *structure* it targets, reads its input safely, and scopes its check to what actually changed.
 
@@ -71,8 +71,9 @@ them turns every next over-fire into a committed regression test. A hook is prec
    `CLAUDE_PROJECT_DIR` is unset.
 
    Verification record. Claim: as stated. Basis: the `CLAUDE_PROJECT_DIR` prefix check and temp-tree
-   exclusion in `hook::read_file_path` (`lib/hook-utils.sh`, lines 1596-1626), where the git-work-tree test
-   sits only in the branch for an unset project dir, and rule 6's fail-toward-acting clause.
+   exclusion in `hook::read_file_path_uncached_to` (`lib/hook-utils.sh`), which `hook::read_file_path` calls,
+   where the git-work-tree test sits only in the branch for an unset project dir, and rule 6's
+   fail-toward-acting clause.
    Recheck: a format hook starts rewriting non-project files under a home root.
 
 ## The discipline

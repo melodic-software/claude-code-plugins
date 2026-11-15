@@ -9,7 +9,7 @@ disable-model-invocation: false
 
 Before emitting a form recommendation, section rewrite, hook placement, or bridge, run
 **§6 Form filter** of [response-filter](../../context/pat-pattison/research/response-filter.md)
-(add **§5 Title + hook** for hook/title placement). NAME each box's pass / fail / skip-with-reason
+(add **§5 Title + hook** for hook/title placement). Name each box's pass / fail / skip-with-reason
 (aloud or in reasoning); correct before emission. Skips are valid; silent skips are not.
 
 ## Purpose
@@ -39,7 +39,7 @@ No action → route on context (a structural question → `form`; "write me a br
 
 ## Handlers
 
-- Name the form and what each section is DOING; recommend the smallest structural change that fixes
+- Name the form and what each section is doing; recommend the smallest structural change that fixes
   the problem, not a wholesale rewrite.
 - Repetition is repainting, not stagnation: a repeated chorus should mean something new from its
   surrounding context each time.
@@ -53,7 +53,7 @@ one. Before loading any bundled `templates/<name>.md`, check
 `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
 override wins over the bundled default, first match, per that file's "Template override".
 
-## Boundary. What this skill must NOT emit
+## Boundary. What this skill must not emit
 
 This skill's domain is architecture: which sections exist, what each one is doing, how they
 contrast, balance, and repaint. **It does not write finished lyric lines**, and having diagnosed a

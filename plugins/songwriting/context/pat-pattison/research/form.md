@@ -60,15 +60,12 @@ Chapters 20-21.
   [section-building](section-building.md), 20: `320`, `321`, `322`, `323`,
   `324`, `325`, `32E`, `32F`, `32G`, `32H`, `32J`, `32K`, `32M`, `32N`, `32P`,
   `32R`, `32S`, `32T`, `32V`, `32X`.
-  **Rendered, wording carried, but scansion marks NOT transcribed:** `31Z`,
+  **Rendered, wording carried, but scansion marks not transcribed:** `31Z`,
   `32U`, `32W`, `32Y`. **Rendered but content not carried anywhere in this
   plugin:** `32C`.
   **Not verified against a render by that run at all:** `326`, `327`, `328`,
   `329`, `32A`, `32B`, `32D`. Do not describe those seven as confirmed by the
   restoration run.
-  (An earlier revision of this line claimed "Chapter 5 has now been read in full
-  with every figure." That was not true in effect: `322` and `323` both carried
-  content no file in this plugin held, and both have since been restored.)
   Figures that are lyrics in their own right: `image_rsrc322` (Jim Rushing's
   "SLOW HEALING HEART" verse/chorus Song System, attribution printed in the
   figure; transcribed under "Song system" below),
@@ -76,7 +73,7 @@ Chapters 20-21.
   Divorce," all three Song Systems), `image_rsrc32F`/`32G` (The Cars' "Why Can't
   I Have You," Song Systems 1 and 2), `image_rsrc32P`/`32R` (the "Oh Henry"
   candy-bar Song System), `image_rsrc328` ("These Are the Days" bridge, whose
-  lyric at spine 013 ll.319-347 appears in NO file in this plugin; that is a
+  lyric at spine 013 ll.319-347 appears in no file in this plugin; that is a
   gap for [bridge](bridge.md), not for this file).
   Figures that are the structural-pentad checkboxes for the candy-bar variants:
   `image_rsrc32H`, `32J`, `32K`, `32M`, `32N`. Figure `image_rsrc32E` is the
@@ -282,12 +279,12 @@ I'm feeling most unstable                           b
 > meaning still dreams of checkered flags on the Grand Prix Circuit. Bad
 > combination.
 
-<!-- Disambiguation: there are TWO Exercise 44s across the four books, and they
+<!-- Disambiguation: there are two Exercise 44s across the four books, and they
 are unrelated. This one is *Writing Better Lyrics* (2009), Chapter 20 (the
 Ping-Pong prosody drill). The other is *Essential Guide to Lyric Form and
 Structure* (1991), Chapter 7, "USING ALL FIVE STRATEGIES, WRITE A SONG SYSTEM
 FOR THE HOOK 'DON'T GIVE UP.'", held in exercises.md. Both are correct as
-numbered; the books number independently. Do NOT merge or renumber them. -->
+numbered; the books number independently. Do not merge or renumber them. -->
 
 **EXERCISE 44** (*Writing Better Lyrics* (2009), Chapter 20)**:** We might as
 well destroy prosody completely while we're at it.
@@ -432,7 +429,7 @@ When I was thirty five
 ```
 
 <!-- Pat prints "thirty-five" in the first line and "thirty five" in the last,
-     within the same verse. Both are as printed at spine 013. Do NOT normalize
+     within the same verse. Both are as printed at spine 013. Do not normalize
      the hyphen. The plugin has been caught silently correcting Pat before. -->
 
 > In the fourth verse there is a wonderful variation. You expect the CENTRAL
@@ -511,12 +508,10 @@ And they go so fast
 
 <!-- ai-slop-ignore-start: quoted retired attribution wording -->
 <!-- No attribution line is printed under this chorus in Chapter 5. Pat runs it
-     straight into "This certainly fits all five…". Do NOT add one: an earlier
-     pass added "— Beth Nielsen Chapman, 'Years'" here in the same em-dash form
-     as Pat's one real attribution (the Ervin Drake line above, spine 013 raw
-     l.57), which made fabricated typography look like printed text. The song is
-     "Years" and Pat names Beth Nielsen Chapman in his own prose below; that is
-     where the credit lives. -->
+     straight into "This certainly fits all five…". Add none: an em-dash credit
+     here would look like Pat's one printed attribution (the Ervin Drake line
+     above, spine 013 raw l.57). The song is "Years" and Pat names Beth Nielsen
+     Chapman in his own prose below; that is where the credit lives. -->
 <!-- ai-slop-ignore-end -->
 
 His verdict on that chorus (the "Years" chorus, discussed further under "Chorus
@@ -591,14 +586,11 @@ Common Meter set-up and its Deceptive Closure. Do not reprint the lyric here.
 "I've tried my best to ease the hurt…", so the two analyses must not be merged
 into one lyric.
 
-<!-- This section used to print the "Across the street / the Randall's oldest
-daughter…" verse here, under the sentence "The verse itself, as Chapter 5 prints
-it". That verse is NOT "Southern Comfort". It is the verse of Beth Nielsen
-Chapman's "Years," from Chapter 5, and Chapter 5 never mentions "Southern
-Comfort" at all. The two songs had been welded into one: a nine-line Chapter 5
-verse carrying an eight-phrase count that belongs to a different, eight-line
-Chapter 6 verse. The "Years" verse has been moved back to its own passage under
-"Chorus balance can be composite," where Chapter 5 actually prints it. -->
+<!-- The "Across the street / the Randall's oldest daughter…" verse is not
+"Southern Comfort": it is the nine-line verse of Beth Nielsen Chapman's
+"Years," which Chapter 5 prints under "Chorus balance can be composite."
+Chapter 5 never mentions "Southern Comfort". The eight-phrase count belongs to
+the eight-line Chapter 6 "Southern Comfort" verse, not to "Years". -->
 
 On how many "Southern Comfort" verse phrases there are: **the two books agree at
 eight.** *Writing Better Lyrics* (2009), Chapter 20 reads the verse as two
@@ -626,10 +618,8 @@ citations apart.)
 Same structure, two vocabularies: what 2009 describes as an extra stress in the
 final phrase, 1991 describes as that phrase refusing the three-stress
 common-meter close the first seven have set up. Nothing is withheld in phrase
-*count*. The eighth phrase arrives and deceives. An earlier revision of
-[song-forms-examples](song-forms-examples.md) read it as seven phrases with the
-eighth withheld; that reading is corrected, and there is no longer a reason to
-keep the counts apart.
+*count*. The eighth phrase arrives and deceives: the verse has eight phrases,
+not seven with the eighth withheld.
 
 Useful revision moves:
 
@@ -703,11 +693,8 @@ The chapter frames the same chorus against the five Chorus prescriptions:
 > Of course, as you saw earlier, it does its own trick with phrase lengths.
 > Being most balanced doesn't necessarily mean perfectly balanced.
 
-<!-- Chapter 5 gives stress arithmetic only. A prior revision of this file
-added a paragraph about the two groups sharing "the same four bars" and the
-final phrase getting "only one bar"; the chapter never mentions bars, beats or
-musical time for this chorus, and that paragraph has been removed as
-fabrication. -->
+<!-- Chapter 5 gives stress arithmetic only; it never mentions bars, beats or
+musical time for this chorus. -->
 
 This is form-level juggling: the chorus comments on the long, loose verse
 material by becoming more compact, balanced, and focused. That is Pat's point
@@ -842,13 +829,11 @@ not by the two four-phrase choruses, and the count that matters is **twelve
 across the last system**, not five within the chorus. This is the worked case
 for "Whole-system balance" below.
 
-<!-- This paragraph used to read: "The 'Great Pretender' example and the final
-chorus of 'Some People's Lives' both use an extra phrase after an established
-balanced pattern." The Some People's Lives half is right (Chorus 3 above). The
-Great Pretender half is backwards: Chapter 21 uses that song to unbalance by
-SUBTRACTION, not addition. See the corrected passage immediately below. And
-1991 Chapter 5's Great Pretender point is the rhyme deception, not phrase count
-at all. Do not re-merge the two examples. -->
+<!-- The final chorus of "Some People's Lives" uses an extra phrase after an
+established balanced pattern (Chorus 3 above). Chapter 21 uses "The Great
+Pretender" the other way, to unbalance by subtraction (below), and 1991
+Chapter 5's Great Pretender point is the rhyme deception, not phrase count.
+Keep the two examples apart. -->
 
 Chapter 21's "Great Pretender" example runs the other way. It unbalances by
 taking a phrase away. Balanced at four phrases, where the two short phrases of
@@ -1054,10 +1039,8 @@ dangling, and the names live only in figure `image_rsrc32E`. The figure prints
 They are set out with their provenance under "Transitional bridge:
 alternative-name list" below.
 
-<!-- "Climb or Lift" is ONE entry in the figure. A prior revision of this line
-listed seven by splitting climb from lift ("pre-chorus, climb, lift, vest, verse
-extension, ramp, prime"). bridge.md and the alternative-name-list section below
-both already state the six correctly; this line now agrees with them. -->
+<!-- "Climb or Lift" is one entry in the figure, so the list has six names, as
+in bridge.md and the alternative-name-list section below. -->
 
 The name matters less than the job:
 
@@ -1175,15 +1158,6 @@ indentation of the bridge are Pat's, as printed in the figure.
 restatement of Chapter 5's five numbered points; those are verbatim in
 bridge.md. -->
 
-<!-- RESOLVED. This comment used to warn that elsewhere in this file the "Great
-Pretender" example was said to use "an extra phrase after an established
-balanced pattern", and that Chapter 5 makes no phrase-count claim about the
-bridge. Both halves checked: Chapter 5's point here is indeed the rhyme
-deception ("five 'eel' sounds"), and *Writing Better Lyrics* (2009), Chapter 21
-uses the song to unbalance by SUBTRACTION (four phrases trimmed to three), not
-by addition. The offending sentence under "Expected balance and surprise" has
-been corrected and now carries both of Chapter 21's printed versions. -->
-
 ## Refrain
 
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 5, verbatim:
@@ -1233,11 +1207,6 @@ Chapter 5 prints exactly five exercises, **EXERCISE 29 through EXERCISE 33**,
 and all five are built on the "candy bar" section. They are held verbatim in
 [exercises](exercises.md); do not restate them here.
 
-<!-- A prior revision of this file carried a nine-bullet "Exercises to preserve"
-list ("Find the central idea and central section", "Group sections into song
-systems and mark where each system closes", …). None of those bullets is an
-exercise in Chapter 5; they were invented and have been removed. -->
-
 ## What Chapter 5 tells you to do
 
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 5 closes with its
@@ -1253,11 +1222,6 @@ own instruction, verbatim:
 The build order is the one quoted under "Central and developmental sections"
 above: decide the CENTRAL IDEA, construct a CENTRAL SECTION for it, then
 construct the DEVELOPMENTAL SECTIONS to serve it.
-
-<!-- A prior revision of this file carried an eleven-step numbered "Revision
-workflow" ("1. Name the central idea. … 11. Build song systems and test whether
-each system closes before the next begins."). Chapter 5 prints no such
-procedure; it was invented and has been removed. -->
 
 <!-- unaudited: the "Common fixes" list below is editorial synthesis. Chapter 5
 prints no if/then fix list. Individual items restate Ch5 claims that are already
@@ -1298,7 +1262,7 @@ gives a separate five-point account of what a bridge *is*, held in
 | Function | Effect | When |
 |---|---|---|
 | 1. Break monotony | Disrupt the verse-chorus repetition | The form has run V/Ch twice and risks fatigue |
-| 2. Create a different-size song system | Change the size of the final SYSTEM, not the bridge's own phrase count: shorter in verse/chorus, longer in verse/refrain and AABA | The song has run same-size systems and their symmetry needs interruption |
+| 2. Create a different-size song system | Change the size of the final system, not the bridge's own phrase count: shorter in verse/chorus, longer in verse/refrain and AABA | The song has run same-size systems and their symmetry needs interruption |
 | 3. Provide a new perspective | Let the ideas "breathe" by moving to a new angle or perspective | The chorus has stated; the bridge reframes |
 
 The table above is an index. Chapter 6 states the three functions **twice**, in
@@ -1450,16 +1414,13 @@ Pat's own statement of the distinction is quoted verbatim under "Refrain"
 above. In his words: "A Refrain is different from a Chorus, since a Chorus is
 contained in its own separate section."
 
-Two corrections to what this section used to say:
-
-- It claimed a refrain is "the last line (or two) of every verse." Chapter 5
-  says the opposite is equally available: "A Refrain usually comes either at the
-  beginning or the end of a verse. In older 'Standards' of the 30's and 40's it
-  usually came at the beginning of the Verse. Recently it comes more often at
-  the end."
-- It carried a blockquote reading `"Refrain is part of the verse." — Pat`,
-  labeled a paraphrase. That is not a sentence Pat writes. His numbered point
-  is "2. It is part of the Verse", and it is restored verbatim above.
+- A refrain can open a verse as well as close it. Chapter 5: "A Refrain
+  usually comes either at the beginning or the end of a verse. In older
+  'Standards' of the 30's and 40's it usually came at the beginning of the
+  Verse. Recently it comes more often at the end."
+- "Refrain is part of the verse." is not a sentence Pat writes; do not quote it
+  as his. His numbered point is "2. It is part of the Verse", quoted verbatim
+  above.
 
 ## Transitional bridge: distinct from typical bridge
 
@@ -1487,12 +1448,8 @@ And on when you would reach for one:
 > tension for a return to the groove.
 <!-- ai-slop-ignore-end -->
 
-<!-- A prior revision carried a four-row comparison table asserting line counts
-("Substantial section (often 4-8 lines)" vs "Short (often 2-4 lines)") and an
-absolute ("Always unstable, never closes"), plus an invented use-rule ("Use
-transitional bridges when a verse-chorus boundary feels abrupt; the transitional
-bridge softens the seam"). Chapter 5 gives no line counts for either section and
-no such rule; all three were invented and have been removed. -->
+<!-- Chapter 5 gives no line counts for either bridge type, no "always unstable,
+never closes" absolute, and no use-rule beyond the dance-groove passage above. -->
 
 The full five-point list and the full-bridge contrast are quoted verbatim in
 [bridge](bridge.md).
@@ -1509,19 +1466,16 @@ Pre-Chorus        Vest              Ramp
 Climb or Lift     Verse Extension   Prime
 ```
 
-Note "Climb or Lift" is one entry in the source, not two. Earlier revisions of
-this file listed ten names, adding "channel" and "runway", splitting climb
-from lift, and attaching genre and era attributions ("modern pop / industry
-term", "folk / country", "older industry term") that the chapter does not
-make. None of that is in the book. The heading also carried a *Writing Better
-Lyrics* (2009), Chapter 13 citation; that chapter is "Dialogue and Point of
-View" and has nothing to do with this section.
+Note "Climb or Lift" is one entry in the source, not two. The list holds no
+"channel" or "runway", and the chapter attaches no genre or era to any name.
+*Writing Better Lyrics* (2009) is not a source for this list: its Chapter 13 is
+"Dialogue and Point of View".
 
 All names describe the same structural job: a short, unbalanced section
-enclosed inside a song system, between verse and chorus, that does NOT
+enclosed inside a song system, between verse and chorus, that does not
 close the system (the chorus closes it).
 
-A transitional bridge is NOT a full bridge. See [bridge](bridge.md) for
+A transitional bridge is not a full bridge. See [bridge](bridge.md) for
 the distinction.
 
 ## "Song System" origin (*Essential Guide to Lyric Form and Structure* (1991), Chapter 5)
@@ -1548,9 +1502,8 @@ Pat's fuller wording, verbatim:
 > thing is clear: you have finished something, so you must either be through
 > with the song, or start something up again.
 
-<!-- A prior revision dated the coinage to "some point in the mid-1980s".
-Chapter 5 gives no date. Pat says only that he does not remember which of the
-two of them coined it. Removed. -->
+<!-- Chapter 5 gives no date for the coinage. Pat says only that he does not
+remember which of the two of them coined it. -->
 
 ## Painting / music: forward-movement framing (*Essential Guide to Lyric Form and Structure* (1991), Chapter 5)
 
@@ -1560,11 +1513,7 @@ under "Core idea" above; the sentence that carries this section is:
 > A lyric is like a piece of music, it moves forward one syllable at a time,
 > through time. It is not like a painting, which you can experience all at once.
 
-<!-- This section previously carried a reworded version of that sentence ("It is
-not a painting that the listener sees all at once") set as a blockquote.
-Corrected against spine 013 l.7. -->
-
-Implication: structural decisions are decisions about MOTION, not about
+Implication: structural decisions are decisions about motion, not about
 arrangement. A line's position in the song affects when the listener
 hears it relative to everything else. There is no "looking back" while
 the song plays. The listener experiences only what has happened so far.
@@ -1572,7 +1521,7 @@ the song plays. The listener experiences only what has happened so far.
 This is the principle behind:
 
 - Hot spots (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7): what arrives first / last in time has weight
-- Hot spots within phrases: the END of the phrase is what the listener
+- Hot spots within phrases: the end of the phrase is what the listener
   carries into the next phrase
 - Box model weight rule: boxes must accumulate weight because the
   listener experiences them in sequence, not simultaneously

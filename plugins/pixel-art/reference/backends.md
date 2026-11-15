@@ -18,7 +18,7 @@ other backend is an optional adapter behind a presence gate.
 ## Selection rule
 
 1. Default: native.
-2. An adapter runs only when the user asked for it or configured it AND detection passes.
+2. An adapter runs only when the user asked for it or configured it and detection passes.
 3. Detection fails: say so in one line ("Aseprite not found on PATH; rendered with the native
    backend"), render natively, continue. Never silent, never a hard stop.
 

@@ -212,10 +212,10 @@ How am I to hold you
 Quotes above from *Essential Guide to Lyric Form and Structure* (1991),
 Chapter 5, except the "works wonders" sentence, which is Chapter 1.
 
-Two corrections to an earlier revision of this table: the Verse row read
-"Unstable", which contradicts Chapter 5's own verse list; and the Refrain row
-carried "the most balanced element in the lyric", which Chapter 5 says about the
-**chorus** of "Years", not about a refrain.
+Two readings this table rules out: the verse is not the unstable section by
+default, because Chapter 5's own verse list says verses close down; and "the most
+balanced element in the lyric" is what Chapter 5 says about the **chorus** of
+"Years", not about a refrain.
 
 Pat's technique for pushing a second verse forward, from *Essential Guide to Lyric
 Form and Structure* (1991), **Chapter 1**, not 2009:
@@ -292,10 +292,9 @@ marked inline: the **tone-of-voice axis** (non-book, attributed to Berklee
 Online in `prosody.md`; 0 corpus hits), and the **worked diagnostic**, which is
 this file's own applied example rather than a case Pat prints.
 
-A "central emotion" quote attributed to Pat was carried here for eight
-handoffs and is **fabricated**: 0 hits across all four books. It has been
-replaced with his real sentence from *Writing Better Lyrics* (2009), Chapter 18,
-and the phrase is now used in his wording, "central intent, idea, and emotion".
+Do not attribute a "central emotion" quote to Pat: no such quote appears in
+any of the four books (0 hits). His sentence is in *Writing Better Lyrics* (2009),
+Chapter 18, and the phrase is used in his wording, "central intent, idea, and emotion".
 
 ## Cross-references
 

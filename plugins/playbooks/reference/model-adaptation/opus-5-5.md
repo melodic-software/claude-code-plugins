@@ -240,12 +240,5 @@ decision beside it.
 - <https://code.claude.com/docs/en/fast-mode>: 20,786 bytes, MD5
   `eeb4d08402e125525bc705a6e13c8e16`.
 
-Re-baselined to the Claude Fable 5.2 author on 2026-11-09: every delta above is stated against
-this model's own guide or the Opus 5 chapter, none against a Fable 5.1 behavior, so all are kept
-unchanged; the doctrine folds of 2026-11-01 (per-round batching, targeted edits, the tests clause,
-density and quotation, the low-effort recall rule, the oracle check) and of 2026-11-09 (obstacle
-sorting in "No progress theater", scoped cautions in durable notes, the house form carrying no
-length cap) conflict with no section here.
-
 Recheck trigger for the whole chapter: a later Opus release, or a re-read of any pointed section
 no longer supporting the decision beside it.

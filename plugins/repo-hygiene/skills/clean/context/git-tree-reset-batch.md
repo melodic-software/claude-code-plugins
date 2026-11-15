@@ -66,7 +66,7 @@ a skip that matches nothing is visible in the dry-run instead of passing silentl
 
 ### Dirty guard (skip dirty by default)
 
-A repo with uncommitted or untracked changes, OR unpushed commits, is **skipped**
+A repo with uncommitted or untracked changes, or unpushed commits, is **skipped**
 by default with the reason reported. `--include-dirty` opts in and passes
 `--allow-unpushed` through so unpushed repos actually reset. It discards uncommitted
 work unrecoverably, so it is gated like `--include-secrets`: its own explicit
@@ -124,13 +124,13 @@ Apply across an explicit set that is on default branches (fresh-clone reset),
 after confirming the dry-run:
 
 ```bash
-bash <skill-dir>/scripts/git-tree-reset-batch.sh --apply \
+CLEAN_GUARD_ACK=1 bash <skill-dir>/scripts/git-tree-reset-batch.sh --apply \
   --force-default-branch --repo ~/repos/a --repo ~/repos/b
 ```
 
 Include dirty repos (discards their uncommitted changes, confirm separately):
 
 ```bash
-bash <skill-dir>/scripts/git-tree-reset-batch.sh --apply \
+CLEAN_GUARD_ACK=1 bash <skill-dir>/scripts/git-tree-reset-batch.sh --apply \
   --include-dirty --repos-from repos.txt
 ```

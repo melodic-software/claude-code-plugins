@@ -16,7 +16,7 @@ Trigger `research` when the user's intent involves any of:
 
 ## How the action runs
 
-Research orchestrator. Run these phases in order; STOP early if Phase 1 returns enough.
+Research orchestrator. Run these phases in order; stop early if Phase 1 returns enough.
 
 ### Phase 1: cheap lookup (Tier 1 sources)
 
@@ -79,13 +79,13 @@ Return:
 
 1. **Style prompt block**: full 6-layer formula using research-derived descriptors
 2. **Lyrics shell**: section structure matching the artist's typical song format if researched
-3. **Confidence note**: HIGH if claims confirmed by primary sources, MEDIUM if Perplexity synthesis only, LOW if speculative
+3. **Confidence note**: HIGH if claims confirmed by primary sources, MEDIUM if web-search synthesis only, LOW if speculative
 4. **Source citations**: URLs for the user to verify
 5. **Suno-specific caveats**: any descriptor that's known to be ignored (e.g., naming the artist directly), workarounds applied
 
 ## Worked example: "I want a song to sound like John Mayer"
 
-**Phase 1 lookup** (Wikipedia + AllMusic + Perplexity):
+**Phase 1 lookup** (Wikipedia + AllMusic + web search):
 
 - Genre: blues rock, pop rock, soft rock, with strong blues guitar foundation
 - Lead instrument: Stratocaster, fingerpicked, warm clean tone with light overdrive on solos
@@ -109,7 +109,7 @@ no autotune, no electronic instruments
 
 - Confidence: HIGH on instrumentation + tempo (well-documented), MEDIUM on production "feel" (translates from descriptive language)
 - Caveat: never name the artist in Suno. Already stripped
-- Sources: Wikipedia <artist-page>, AllMusic <bio-url>, Perplexity synthesis 2026
+- Sources: Wikipedia <artist-page>, AllMusic <bio-url>, <search capability used> synthesis 2026
 
 ## Worked example: "Mix of dream pop, modern pop, synthesizer, modern retro throwback"
 

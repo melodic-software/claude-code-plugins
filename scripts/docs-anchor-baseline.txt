@@ -117,7 +117,6 @@ plugins/playwright/skills/playwright/reference/test-generation.md 1
 plugins/playwright/skills/playwright/reference/tracing-and-video.md 2
 plugins/plugin-quality/skills/audit/reference/component-types/command.md 1
 plugins/prototype/skills/explore-directions/reference/claude-design-tool.md 1
-plugins/prototype/skills/explore-directions/reference/design-canvas.md 1
 plugins/repo-fleet-hygiene/skills/apply/SKILL.md 1
 plugins/repo-fleet-hygiene/skills/audit/SKILL.md 1
 plugins/repo-fleet-hygiene/skills/audit/reference/official-sources.md 10

@@ -42,6 +42,16 @@ def run_1080p(*args):
     return subprocess.CompletedProcess(args, code, out.getvalue(), err.getvalue())
 
 
+def board_of(folder, ids, extra=()):
+    """storyboard.json in folder holding only the fixture moments named in ids, then extra: a shorter video, so a
+    render that checks structure and not the full fixture encodes fewer frames."""
+    data = json.loads(BOARD.read_text(encoding='utf-8'))
+    data['moments'] = [m for m in data['moments'] if m['id'] in ids] + list(extra)
+    folder.mkdir(exist_ok=True)
+    (folder / 'storyboard.json').write_text(json.dumps(data), encoding='utf-8')
+    return folder / 'storyboard.json'
+
+
 def streams(video):
     out = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type,codec_name,pix_fmt', '-of',
                           'json', str(video)], capture_output=True, text=True, check=True).stdout
@@ -183,8 +193,11 @@ class Renders(unittest.TestCase):
         cls.dir = Path(tempfile.mkdtemp())
         script = run_1080p('--storyboard', BOARD, '--out', cls.dir / 'probe', '--no-audio')
         cls.silent = (script, cls.dir / 'probe')
-        narration = tone_narration(cls.dir / 'narration', (cls.dir / 'probe' / 'script.txt').read_text())
-        cls.narrated = (run('--storyboard', BOARD, '--out', cls.dir / 'narrated', '--narration', narration),
+        # The 4K render needs one moment per chapter, not the whole fixture: about a third of its length to encode.
+        small = board_of(cls.dir / 'small', ('title', 'compare', 'rest'))
+        run('--storyboard', small, '--out', cls.dir / 'small-script', '--script-only')
+        narration = tone_narration(cls.dir / 'narration', (cls.dir / 'small-script' / 'script.txt').read_text())
+        cls.narrated = (run('--storyboard', small, '--out', cls.dir / 'narrated', '--narration', narration),
                         cls.dir / 'narrated')
 
     @classmethod
@@ -244,20 +257,19 @@ class Renders(unittest.TestCase):
             self.assertEqual(part['sha256'], hashlib.sha256(data).hexdigest(), f'{part["path"]} digest')
 
     def test_each_screenshot_is_published_with_its_own_scanned_sidecar_inside_the_output(self):
-        board = json.loads(BOARD.read_text(encoding='utf-8'))
         src = self.dir / 'shots'
         src.mkdir()
         texts = {'one': 'Settings page\nRetry count: 3\n', 'two': 'Audit log\nNo entries yet\n'}
+        moments = []
         for name, text in texts.items():
             subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=c=0x336699:s=640x360', '-frames:v',
                             '1', str(src / f'{name}.png')], check=True)
             (src / f'{name}.txt').write_text(text, encoding='utf-8')
-            board['moments'].append({'id': f'shot-{name}', 'chapter': 'risk', 'template': 'screenshot',
-                                     'data': {'image': f'{name}.png', 'sidecar': f'{name}.txt', 'alt': name},
-                                     'narration': f'The {name} page.', 'covers': []})
-        (src / 'storyboard.json').write_text(json.dumps(board), encoding='utf-8')
+            moments.append({'id': f'shot-{name}', 'chapter': 'risk', 'template': 'screenshot',
+                            'data': {'image': f'{name}.png', 'sidecar': f'{name}.txt', 'alt': name},
+                            'narration': f'The {name} page.', 'covers': []})
         out = self.dir / 'screens'
-        r = run_1080p('--storyboard', src / 'storyboard.json', '--out', out, '--no-audio')
+        r = run_1080p('--storyboard', board_of(src, ('title',), moments), '--out', out, '--no-audio')
         self.assertIn(r.returncode, (0, 1), r.stdout + r.stderr)
         shots = self.manifest(out)['screenshots']
         self.assertEqual(len(shots), 2)
@@ -359,7 +371,8 @@ class Renders(unittest.TestCase):
             'subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-vf", "fps=30",'
             ' "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p", sys.argv[2]], check=True)\n')
         out = self.dir / 'custom'
-        r = run_1080p('--storyboard', BOARD, '--out', out, '--no-audio', '--stylesheet', css,
+        r = run_1080p('--storyboard', board_of(self.dir / 'custom-src', ('title',)), '--out', out, '--no-audio',
+                      '--stylesheet', css,
                       '--stitcher', f'"{sys.executable}" "{stitcher}" {{inputs}} {{out}}')
         self.assertIn(r.returncode, (0, 1), r.stderr)
         m = self.manifest(out)

@@ -46,7 +46,9 @@ export const TOOLS = deepFreeze([
     title: 'Run one read query',
     description:
       'Runs one read statement: a single SELECT, optionally led by WITH. Any other statement, a batch, ' +
-      'SELECT ... INTO, an OPTION clause, OPENROWSET, OPENQUERY, OPENDATASOURCE and lock-holding table hints are refused.',
+      'SELECT ... INTO, an OPTION clause, OPENROWSET, OPENQUERY, OPENDATASOURCE and lock-holding table hints are refused. ' +
+      'Returns columns, rows, rowCount and truncated: rows stop at the registration row cap (1,000 by default) with truncated true, ' +
+      'and a call that runs past the request timeout (30 seconds by default) is cancelled and returns an error.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -60,7 +62,10 @@ export const TOOLS = deepFreeze([
   {
     name: 'list_objects',
     title: 'List schemas, tables and views',
-    description: 'Lists the schemas, tables and views in one database.',
+    description:
+      'Lists the schemas, tables and views in one database, or in one schema when schema is given, as far as this ' +
+      "registration's read login can see. Returns schemas (names) and objects (schema, name, type), with truncated true " +
+      'when a list stopped at the registration row cap. It returns no columns; describe_object gives those.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -73,7 +78,10 @@ export const TOOLS = deepFreeze([
   {
     name: 'describe_object',
     title: 'Describe a table or view',
-    description: 'Describes the columns, keys and indexes of one table or view.',
+    description:
+      "Describes the columns, keys and indexes of one table or view. Without schema it looks in the login's default schema. " +
+      'Returns columns (name, type, maxLength, precision, scale, nullable, default), keys, indexes and truncated; ' +
+      "a table or view this registration's read login cannot see is an error.",
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -109,7 +117,10 @@ export const TOOLS = deepFreeze([
     description:
       'Runs one INSERT, UPDATE, DELETE or MERGE, optionally led by WITH, in one batch that commits only when the ' +
       'statement affects exactly expectedRows rows and rolls back otherwise. A person approves every call. ' +
-      'Refused unless this registration was started with --write and a write login.',
+      'Refused unless this registration was started with --write and a write login. ' +
+      'Returns committed and rowCount; a rollback on a row-count mismatch is an error naming both counts. ' +
+      'An OUTPUT clause, a batch and SELECT ... INTO are refused. After a timeout, or when a trigger returns more rows than the row cap, ' +
+      'whether it committed is not known: read the table before trying again.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,

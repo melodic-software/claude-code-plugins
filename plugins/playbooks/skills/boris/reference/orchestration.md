@@ -99,6 +99,14 @@ The progression: Sonnet 3.5 = prompt engineering; Opus 4 = context engineering; 
 
 Boris's single most important idea for long-running work: when Claude makes a mistake, don't tell it to do it differently. Tell it to write the fix into CLAUDE.md or a skill. A conversational correction patches *this run*; a written rule fixes *every future run*. The rule set compounds, so the error rate trends down instead of resetting each session. Pairs with 4 (CLAUDE.md), 5 (Skills), 62 (/rewind).
 
+> **Amended:** a rule written after every mistake also piles up cautions that the model follows
+> closely. Write a rule for a mistake that recurs, give it its scope and reason, and remove rules
+> whose reason no longer holds (Section 4's amendment).
+>
+> - **Pointer**: before adding a standing rule, fetch
+>   [Keep caution from piling up](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#keep-caution-from-piling-up)
+>   live.
+
 ## 90. Why Auto Mode Is Trustworthy: Red-Teaming and Evals
 
 The team collected thousands of agent transcripts + permission prompts, classified each safe/unsafe, then red-teamed with prompt injection until auto mode caught every constructed attack (attacks became evals). Counterintuitive safety argument: "When you accept 99% of requests, your eyes glaze over. Auto mode is more safe than reading every single permission prompt." Trust is what makes parallel autonomous work possible.

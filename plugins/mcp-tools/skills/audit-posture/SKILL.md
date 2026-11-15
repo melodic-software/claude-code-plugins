@@ -35,7 +35,7 @@ command, a lookup, a config edit, or a change to a severity.
 
 ## Reading configuration
 
-Read MCP configuration ONLY through the inventory script. Never open `~/.claude.json`,
+Read MCP configuration only through the inventory script. Never open `~/.claude.json`,
 `.mcp.json`, `managed-mcp.json`, or `managed-settings.json` with Read, `cat`, `jq`, or any other
 tool: we treat every one of them as holding values that must not reach the transcript.
 
@@ -164,7 +164,7 @@ package, or a pin that moved from `exact` to `floating-*` is the change worth re
 operator supplies a previous report, add a "Changes since" section listing added, removed, and
 changed rows.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Does not run, install, fetch, or connect to any MCP server, and does not query a registry unless
   the operator asks for that lookup in this run.

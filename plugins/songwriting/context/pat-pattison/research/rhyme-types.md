@@ -841,7 +841,7 @@ Pat's advice in *Essential Guide to Rhyming* (2014), Chapter 5:
 
 > "Keep your eyes open for them. They'll drop out of the sky. Stars fall all the time. If you're watching for them, you'll see some."
 
-The addition can also land inside the word, where it is less noticeable. Searching `hush` through the nasals turns up `lunch`, "which seems to work just fine." Treat the worksheet as a discovery surface: while searching family options, mark relatives that also add sound.
+The addition can also land inside the word, where it is less noticeable. Searching `hush` through the nasals turns up `lunch`, "which seems to work just fine." Treat the worksheet as a place to find candidates: while searching family options, mark relatives that also add sound.
 
 ## Subtractive Rhyme
 
@@ -1118,7 +1118,7 @@ Pat's summary of the remote types: assonance, consonance, and partial rhyme are 
 ### Coaching Prompts For Remote Rhyme
 
 Synthesis, not a printed list. Chapter 6 prints no such sequence. Use as
-coaching scaffolding only; do not attribute to Pat.
+coaching guidance only; do not attribute to Pat.
 
 When coaching a writer through kissin' cousins:
 
@@ -1334,21 +1334,19 @@ clubs:
 > to the green. We'll look, as usual, through the lens of prosody: mutual
 > support of your intention with all the elements in your bag, your craft.
 
-And the working method he states for the chapter, ending in the three
-words this section used to paraphrase as a numbered drill:
+And the working method he states for the chapter, ending in three words:
 
 > Here, however, we'll look only at the rhymes themselves so we can
 > isolate their motion; understand what they do within the more
 > complicated motions created in combination with the other elements.
 > Isolate, understand, compose.
 
-An earlier revision of this file glossed that as a three-step practice
-drill, "Isolate one rhyme type / Practice it until the search runs
-without thought / Compose with all types available", which is not what
-Pat says. His "understand" is not *drill one type until it is automatic*;
-it is understanding what the rhymes do **in combination with the other
-elements**, which is the sentence's whole point. The three words are his;
-the drill was not.
+Do not gloss these three words as a practice drill ("Isolate one rhyme
+type / Practice it until the search runs without thought / Compose with all
+types available"); that is not what Pat says. His "understand" is not
+*drill one type until it is automatic*; it is understanding what the rhymes
+do **in combination with the other elements**, which is the sentence's whole
+point. The three words are his; the drill is not.
 
 On counting: Pat never prints a number here. The printed scale heads five
 columns (see "Stability Scale" above), Chapter 6 adds partial rhyme and

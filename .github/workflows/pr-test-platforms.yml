@@ -4,16 +4,16 @@ name: PR Test Platforms
 # Windows jobs and the macOS job (`test-macos-planning-shared`), which share one
 # selection and one standing.
 #
-# WHY IT LEFT pr-require-checks.yml. It is not in `ci-status.needs` and is not a required
-# check, so nothing waits on it — but it is the longest job in the run at 355 to
-# 413 s against the required lanes' 330 s, and while it sat in pr-require-checks.yml it held
-# that RUN open. Time-to-green is measured to the run's completion, so an
-# advisory lane nobody gates on was setting the number. Out here it holds only
+# WHY IT IS NOT IN pr-require-checks.yml. It is not in `ci-status.needs` and is not a
+# required check, so nothing waits on it — but it is the longest job at 355 to
+# 413 s against the required lanes' 330 s, and inside pr-require-checks.yml it would
+# hold that run open. Time-to-green is measured to the run's completion, so an
+# advisory lane nobody gates on would set the number. Out here it holds only
 # its own run open, and pr-require-checks.yml finishes when its required lanes do.
 #
-# IT IS STILL INFORMATIONAL. Do not add this workflow to any required check and
+# It is still informational. Do not add this workflow to any required check and
 # do not wire it into `ci-status`. The doctrine that kept it out of the
-# aggregate is unchanged and is the reason a JOB-LEVEL gate is legal here: a
+# aggregate is unchanged and is the reason a job-level gate is legal here: a
 # lane the aggregate cannot see costs a skipped informational run rather than a
 # false green. Inside the required closure the same condition would let a lane
 # report success having run nothing, which both of pr-require-checks.yml's gates reject.
@@ -29,9 +29,9 @@ name: PR Test Platforms
 # merge queue, and the scheduled run covers what landed together.
 #
 # NO `on.paths` FILTER: THE SELECTION IS THE ONE GATE, AND IT FAILS OPEN. A
-# path list here drifted from the selection and failed closed: a change to
+# path list here drifts from the selection and fails closed: a change to
 # plugins/guardrails/hooks/exec-bash.mjs or a hooks.json selects Windows jobs
-# but matched no listed path, so no run started. The selector maps an
+# but can match no listed path, so no run starts. The selector maps an
 # unclassified code file to its language's whole corpus; a docs-only diff, or a
 # data file no suite reads, selects nothing, so such a push costs only
 # `select-tests-windows` on Linux; a Windows job skipped by its `if:` starts
@@ -102,8 +102,8 @@ jobs:
   # Every suite runs on Linux too. A suite is here because a Linux runner cannot
   # exercise part of what it tests:
   #
-  # `lib/hook-utils.sh` carries OSTYPE-gated branches a Linux runner NEVER
-  # EXECUTES — case-insensitive path folding for the Windows filesystem, and
+  # `lib/hook-utils.sh` carries OSTYPE-gated branches a Linux runner never
+  # executes — case-insensitive path folding for the Windows filesystem, and
   # `cygpath` short-name (8.3) resolution. #2774's disk-hygiene read-only Bash
   # allowlist is NT-specific (MSYS path mapping, .exe basename stripping,
   # ProgramFiles trust roots), which is how an inert Windows allowlist shipped
@@ -128,7 +128,7 @@ jobs:
   # before bash reads a line, and only a Windows run takes that branch. A
   # host-gated case that cannot run must print a counted SKIP line.
   #
-  # Keep these jobs SMALL. Adding a platform-agnostic suite here buys no
+  # Keep these jobs small. Adding a platform-agnostic suite here buys no
   # coverage and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on
   # Linux). A new step needs a line in scripts/test-windows-plan.txt under its
   # job, keyed as its `if:` is.

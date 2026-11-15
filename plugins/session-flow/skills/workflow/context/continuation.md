@@ -1,6 +1,6 @@
 # End-of-phase continuation router
 
-The stage map answers *what comes next*; this router answers *which continuation MECHANISM
+The stage map answers *what comes next*; this router answers *which continuation mechanism
 carries the session there*. Run it at a phase boundary, when a stage just produced its artifact, or
 whenever "continue, clear, handoff, background, stop, or compact?" is the live question.
 
@@ -8,7 +8,7 @@ whenever "continue, clear, handoff, background, stop, or compact?" is the live q
 
 The terminals are exactly the continuation mechanisms this plugin installs plus the built-ins:
 continue in session, `/clear`, `/rewind`, `session-flow:handoff`, `session-flow:continue-in-background`,
-`session-flow:clean-stop`, and `/compact`. Two session-flow siblings are deliberately NOT
+`session-flow:clean-stop`, and `/compact`. Two session-flow siblings are deliberately not
 terminals: `reconcile` and `orient` are state hygiene. They inform this decision (what is still
 running, where we stand) but never carry the session forward. Mid-task subagent delegation is a
 spawn-brief decision owned by `session-flow:orchestrate` (if installed); question 2 below is its
@@ -40,7 +40,7 @@ mechanics.
 | Input | Owner, if installed | What the router takes |
 |---|---|---|
 | Where we stand, durable and off-thread state | `session-flow:orient` | its briefing's findings: the last save-point, the stage ledger, open PRs and work-items, git state |
-| What is still running | a reconciliation ALREADY run this session (`session-flow:reconcile`), else `session-flow:orient`'s read-only off-thread glance | the liveness answer: which off-thread work is finished, which is live |
+| What is still running | a reconciliation already run this session (`session-flow:reconcile`), else `session-flow:orient`'s read-only off-thread glance | the liveness answer: which off-thread work is finished, which is live |
 | Which boundary this is | the workflow checklist (SKILL.md, "Consumer conventions") | the last ticked stage and the next unticked one |
 | Whether the remaining work is already scoped | the consuming repo's work-item tracker | the claimed item's remaining acceptance criteria |
 | The effort the next stage wants | this skill's `context/steps.md`, "Effort per stage" | the level and matched table text that rule advises for the next stage, or its statement that the table could not be read |
@@ -68,7 +68,7 @@ arrives as a pointer to an informant, never as a probe inlined into this file.
 Each edge carries its ordering purpose; an edge that loses its purpose is dead. Remove it rather
 than route past it. **First yes wins among the terminals.** Question 2 is the single non-terminal
 edge: a yes there hands the delegation decision to its owner and the router keeps asking, because
-sending work elsewhere does not by itself answer which mechanism carries THIS session across the
+sending work elsewhere does not by itself answer which mechanism carries this session across the
 boundary.
 
 0. **Is the machine going away (end of day, laptop shutting, runner expiring)?**
@@ -76,14 +76,14 @@ boundary.
    below: a handoff file is a machine-local save-point, and a save-point that dies with the disk
    is no save-point.* (Absent that skill: push everything durable by hand, meaning commits, PR
    bodies, and issue notes, before stopping.)
-1. **Did the user explicitly request background continuation, AND can the work proceed without
+1. **Did the user explicitly request background continuation, and can the work proceed without
    human input right now?** → `session-flow:continue-in-background` (`--cloud` when the user
-   asked for a cloud session). *Ordered BEFORE every
+   asked for a cloud session). *Ordered before every
    cost-based question below, including question 3's zero-cost in-session exit, on the same
    ground question 0 already establishes: a hard fact outranks a cost heuristic. Question 3 asking
    first would answer yes whenever context is healthy, silently discarding an explicit user
    instruction the user has no way of knowing was overridden; that is exactly the "edge that
-   loses its purpose" this section warns against. It is also ordered BEFORE handoff because it is
+   loses its purpose" this section warns against. It is also ordered before handoff because it is
    the strictly narrower gate on the same save-point engine: same state captured, different
    delivery (a detached background session instead of clear-then-paste). The explicit-request-
    and-feasibility gate is that skill's own hard rule, restated here only as an ordering fact; a
@@ -92,12 +92,12 @@ boundary.
    question 5 (handoff).*
 2. **Is the remaining work scoped to run away from the keyboard, with no decision the human still owes
    it, no mid-flight approval it must stop for?** → hand the spawn-brief decision to
-   `session-flow:orchestrate` (if installed), then CONTINUE to question 3 for this session's own
-   mechanism. *The AFK criterion, asked here because a yes changes WHO does the remaining work,
-   while every question below asks how THIS session carries it, a question only well-posed once
-   the work that is leaving has left. Ordered AFTER question 1 because feasibility the router
-   INFERS must never pre-empt an instruction the user actually gave: question 1's gate is the
-   user's own request, this one is the router's reading of the work. Deliberately NOT a terminal:
+   `session-flow:orchestrate` (if installed), then continue to question 3 for this session's own
+   mechanism. *The AFK criterion, asked here because a yes changes who does the remaining work,
+   while every question below asks how this session carries it, a question only well-posed once
+   the work that is leaving has left. Ordered after question 1 because feasibility the router
+   infers must never pre-empt an instruction the user actually gave: question 1's gate is the
+   user's own request, this one is the router's reading of the work. Deliberately not a terminal:
    the spawn brief is orchestrate's to own, and this router suggests without ever launching, so
    `continue-in-background`'s explicit-intent launch gate is untouched by a yes here.* (Absent
    that skill: say that the work looks delegable and what a brief would have to carry, meaning
@@ -177,8 +177,9 @@ leaving.
 We route by task: same phase or task compacts with a focus, unrelated work hands off when
 anything carries over and clears when nothing does, work that leaves the session hands off.
 
-- Mid-phase, hand bulk work to subagents before compacting, so the window fills with their short
-  returns instead of the raw material.
+- Mid-phase, when bulk reading or searching would fill the window, hand that part to a subagent
+  before compacting, so the window fills with its short return instead of the raw material; each
+  subagent adds to the session's cost, so keep small or dependent work in session.
 - A cleared conversation stays resumable, so `/clear` loses nothing durable.
 - Handoff files and the interview's documents for another person stay where they are in the memory
   dir (handoffs in `<memory_dir>/handoffs/`, documents in
@@ -199,7 +200,7 @@ anything carries over and clears when nothing does, work that leaves the session
 
 ## Output shape: suggest by default
 
-The router's product is a recommendation addressed to the HUMAN, not an action taken on their
+The router's product is a recommendation addressed to the human, not an action taken on their
 behalf. Emit three things:
 
 - **The mechanism.** Exactly one, named as the skill or built-in the human would invoke.
@@ -250,7 +251,7 @@ explicit licenses. It never elects autonomy for itself, and no standing config g
 
 1. **Per-invocation opt-in, the human's, top tier.** `/session-flow:workflow continue auto`, or
    the user saying in words that the router should carry the move out rather than recommend it,
-   authorizes THIS invocation to execute the mechanism it routed to: invoke the routed skill
+   authorizes this invocation to execute the mechanism it routed to: invoke the routed skill
    (`/session-flow:handoff`, `/session-flow:clean-stop`, `/session-flow:continue-in-background`,
    `/session-flow:orchestrate`) via the Skill tool. The license expires with the invocation; the
    next one suggests again. This mirrors `continue-in-background`'s explicit-words precedent
@@ -258,7 +259,7 @@ explicit licenses. It never elects autonomy for itself, and no standing config g
    refuse.
 
    **The built-in terminals stay the human's to type.** We treat `/clear` and `/compact` as outside
-   the allowlist of `Skill`-invocable built-ins: they can be NAMED as the next step but never
+   the allowlist of `Skill`-invocable built-ins: they can be named as the next step but never
    invoked on the operator's behalf, so `auto` cannot carry them out however explicit the license.
    Landing on one under `auto` produces what the router always produces: the recommendation, the
    evidence, and the note that this step is the human's.
@@ -274,7 +275,7 @@ explicit licenses. It never elects autonomy for itself, and no standing config g
    command in the turn at all; when nothing in a user turn granted the license, the tier is simply
    not open.
 
-   **Where the literal token is the ONLY license.** A routed skill whose own policy makes outbound
+   **Where the literal token is the only license.** A routed skill whose own policy makes outbound
    changes without a further confirmation takes the explicit `continue auto` argument and nothing
    else. `clean-stop` is the case that fixes the line: once invoked it pushes commits, opens PRs,
    and files issues without asking, so a natural-language reading must never be what starts it. On
@@ -295,10 +296,10 @@ explicit licenses. It never elects autonomy for itself, and no standing config g
 For long-running delegated work, the same routing applies one level down, with a twist that keeps
 the parent's window clean:
 
-- A **worker** approaching its zone boundary writes its OWN handoff file (per the handoff
-  engine's structure) and returns only the file PATH to its parent, never the contents.
+- A **worker** approaching its zone boundary writes its own handoff file (per the handoff
+  engine's structure) and returns only the file path to its parent, never the contents.
 - The **orchestrator**, standing in for the human at that boundary, retires the worker and seeds
-  a FRESH agent with the resume prompt built from that path, briefed "read that file, then
+  a fresh agent with the resume prompt built from that path, briefed "read that file, then
   continue its remaining next steps", and never reads the handoff body itself. State passes
   worker → worker without ever occupying the parent's context window.
 - **The initiative is the orchestrator's.** A worker routes and writes at its fork point; it does
@@ -313,7 +314,7 @@ worker's spawn brief.
 ## Where the mechanism menu lives
 
 The menu of continuation mechanisms lives only in this skill body, never in a hook or
-any model-injected text, and the router takes only the zone WORD from `context-usage`
+any model-injected text, and the router takes only the zone word from `context-usage`
 (`mcp__context-usage__status` or the snapshot) and inlines no band values, so the router never
 states or reasons from a remaining-context count; the tool's other figures are not its input. The signals that license
 a continuation are the ones named under Autonomy above: the user's own turn, an instrument that

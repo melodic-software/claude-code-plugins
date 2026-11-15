@@ -13,11 +13,11 @@ disable-model-invocation: false
 Before emitting a critique, diagnosis, audit verdict, variation set, or rewrite, run **§3 Critique
 filter** and **§8 Pre-lock filter** of
 [response-filter](../../context/pat-pattison/research/response-filter.md) (add **§2
-Line-writing** when producing rewritten lines). NAME each box's pass / fail / skip-with-reason
+Line-writing** when producing rewritten lines). Name each box's pass / fail / skip-with-reason
 (aloud or in reasoning); correct before emission. Skips are valid; silent skips are not.
 List-and-leave critique is the default this filter catches.
 
-`variations` and `rewrite` EMIT lines. §2's **Reference:** line is a load list, not a
+`variations` and `rewrite` emit lines. §2's **Reference:** line is a load list, not a
 bibliography: §2 has not run until the files it names were read this session, at minimum
 [meter](../../context/pat-pattison/research/meter.md) and
 [phrasing](../../context/pat-pattison/research/phrasing.md) before the first candidate, plus
@@ -27,7 +27,7 @@ Line-writing filter". The Action Router's `Load` column is a routing hint; this 
 of emission. A candidate table written before those files were opened ran on model priors, the
 failure §2 exists to catch, and naming the §2 boxes does not undo it. Then cycle §2's boxes inside
 [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md), the full cycle per
-candidate before it is shown. Auditing a line the writer already HAS is the other direction: that
+candidate before it is shown. Auditing a line the writer already has is the other direction: that
 stays [audit-checklist](../../context/pat-pattison/research/audit-checklist.md) (pre-lock). Line
 emission is `/songwriting:co-write`'s, and its input gate travels with the lines: same gate,
 checked here. *(Plugin-authored, not Pat Pattison's.)*
@@ -65,15 +65,15 @@ No action → route on completion stage (partway draft → `demo`; near-complete
   `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin songwriting --skill diagnose`
   prints, under that row's rules for each level. Rewrites and variation sets are line emission: cycle
   [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) in full on every
-  candidate, pass 1 clean, and DROP any candidate a pass flagged rather than presenting it flagged.
+  candidate, pass 1 clean, and drop any candidate a pass flagged rather than presenting it flagged.
   Two rejected executions in one slot ends generation for that slot: hand the concept back per
   `/songwriting:co-write` Handlers.
-- `variations` output reaches the writer as full section blocks IN CONTEXT: changed lines marked
+- `variations` output reaches the writer as full section blocks in context: changed lines marked
   `►`, one labeled block per variation, 3-4 per chat menu; scansion maps and per-candidate craft
   notes go to the `variations/` file. Never a bare one-line candidate in a table. See
   [variations](../../context/pat-pattison/research/variations.md) "Presenting the candidates: chat
   vs file".
-- `variations` and `audit` judge candidates against the WRITER's register, not genre and not
+- `variations` and `audit` judge candidates against the writer's register, not genre and not
   taste. Load [voiceprint](../../context/pat-pattison/research/voiceprint.md); if none exists, name
   that as a skipped gate instead of ruling on register anyway.
 - An incomplete fragment, idea or half-song is the wrong skill: invoke `/songwriting:workflow`

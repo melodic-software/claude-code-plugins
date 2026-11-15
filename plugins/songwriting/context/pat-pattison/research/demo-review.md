@@ -10,7 +10,7 @@ Distinct from:
 - `brainstorm.md`: nothing yet
 - `idea-to-title.md`: seed only
 - `fragment-development.md`: single fragment
-- `/songwriting:diagnose diagnose`: assumes a complete-ish draft; this assumes ANY stage
+- `/songwriting:diagnose diagnose`: assumes a complete-ish draft; this assumes any stage
 - `/songwriting:diagnose rewrite`: execute a rewrite (this file precedes that)
 
 ## When to load
@@ -94,8 +94,9 @@ Run the diagnose pass (per `workflows.md` Scenario 2):
 9. Hook check (title position, hook rhythm setup)
 10. Sing aloud as the last pass
 
-Identify the **dominant problem**. Stop there. Do not list 10 problems.
-The writer cannot fix 10 problems in one revision pass.
+Identify the **dominant problem** and lead with it; give secondary problems
+one line each, without fixes (Step 4). The writer cannot fix 10 problems in
+one revision pass.
 
 ### If near-final / polish
 
@@ -106,7 +107,7 @@ Pre-lock audit (per `audit-checklist.md`):
 - Pre-lock-title checklist if title is still moving
 - Pre-lock-form checklist if structure is still moving
 
-The polish pass surfaces the LAST move before lock, usually one of:
+The polish pass surfaces the last move before lock, usually one of:
 
 - A single line that drags
 - A rhyme stability mismatch
@@ -123,10 +124,10 @@ Lyric-melodic alignment pass (per `lyric-melodic-roadmaps.md`):
 - Stable/unstable per section
 - Three alignment fixes (change melody, change lyric, repeat-a-word bridge)
 
-## Step 4: Surface ONE focused next move
+## Step 4: Surface one focused next move
 
 Pat's coach posture: name the dominant problem, propose one focused fix,
-return ONE finding. Not a punch list.
+return one finding. Not a punch list.
 
 Format:
 
@@ -146,7 +147,7 @@ If/when this lands, the next pass would be:
 - [secondary move, deferred until dominant is resolved]
 ```
 
-Surface secondary problems briefly (one line each) but do NOT propose
+Surface secondary problems briefly (one line each) but do not propose
 fixes for them yet. The writer can revisit them after the dominant fix
 lands.
 
@@ -167,7 +168,7 @@ Depending on the dominant move, route to:
 | Rhyme weak | `rhyme-generation.md` discipline |
 | Polish line by line | `audit-checklist.md` |
 
-## What this file does NOT do
+## What this file does not do
 
 - Does not rewrite. This is diagnosis. Rewriting is `rewrite` action.
 - Does not list 10 problems. One dominant, surface secondaries briefly.

@@ -61,7 +61,7 @@ wit_gitea_scope_in_scope "$REPO" ||
   wit_usage_error "$REPO is not in config.gitea.scopes (the declared write scope)"
 wit_gitea_scope_parts "$REPO"
 
-# Every --blocked-by id is validated BEFORE the item is created. The edges are written
+# Every --blocked-by id is validated before the item is created. The edges are written
 # in a second request, so a malformed id discovered afterwards would leave a created
 # item whose declared blockers were never linked — an item that then looks ready.
 BLOCKERS=()
@@ -74,7 +74,7 @@ if [[ -n "$BLOCKED_BY" ]]; then
   done
 fi
 
-# Gitea's CreateIssueOption takes label IDs (`labels: []int64`), NOT label names — a
+# Gitea's CreateIssueOption takes label IDs (`labels: []int64`), not label names — a
 # real divergence from GitHub's API, and one that fails silently if ignored (a name
 # array is simply not accepted). Resolve names to ids against the repo's label set, and
 # refuse an unknown name rather than dropping it: a work item filed without its
@@ -132,7 +132,7 @@ if [[ -n "$LABELS" ]]; then
     ((LABEL_GOT == 0)) && break
     PAGE=$((PAGE + 1))
   done
-  # ORGANIZATION-WIDE labels are usable on this repo's issues and are NOT in the repo label
+  # Organization-wide labels are usable on this repo's issues and are not in the repo label
   # list. `GetLabelsByRepoID` backs /repos/{o}/{r}/labels with `WHERE repo_id = ?`, so an org
   # label never appears there — but `NewIssueWithIndex` accepts any label whose
   # `OrgID == repo.OwnerID`, and get-item reports org labels in `.labels[]`. A user-owned repo has no org and answers 404 here, which is
@@ -233,7 +233,7 @@ done
 # blocked_by_count, and there is no honest value to substitute — 0 is the frontier lie
 # this adapter counts open blockers to avoid. So propagate the read's own code, keeping
 # the seam's status vocabulary intact (8 stays "unavailable, back off", 4 stays auth).
-# What non-zero must NOT mean here is "nothing happened": name the created id on stderr
+# What non-zero must not mean here is "nothing happened": name the created id on stderr
 # so a retry re-reads the item instead of filing a second one.
 BBC="$(wit_gitea_blocked_by_count "$WIT_GITEA_OWNER" "$WIT_GITEA_REPO" "$NUMBER")" || {
   RC=$?

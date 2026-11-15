@@ -136,11 +136,11 @@ one as a default is checked at the first pointer.
   and
   [Readability when communicating with the user](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#readability-when-communicating-with-the-user).
 
-## What NOT to import from Fable-era practice
+## What not to import from Fable-era practice
 
 - **Do not relax instruction specificity.** When authoring prompts, specs, or delegation
   instructions for yourself or workers, enumerate scope and cases explicitly. Specificity is a
-  per-model dial, not a virtue: the same over-prescription that helps you degrades Fable.
+  per-model dial, not a virtue. The same over-prescription that helps you degrades Fable.
   `[CC: prompt-authoring]` Pointer: when weighing how much to spell out for this model, fetch
   [More literal instruction following](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#more-literal-instruction-following)
   live; for Fable, fetch
@@ -159,9 +159,3 @@ one as a default is checked at the first pointer.
 Our reads: the guide was fetched 2026-07-06 and last confirmed 2026-08-08; the
 [Prompting Claude Fable 5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5)
 page was last captured 2026-07-29; model-config was re-read 2026-10-01 for the fallback section.
-
-Re-baselined to the Claude Fable 5.2 author on 2026-11-09: the "Behaviors to emulate deliberately"
-section is the one delta stated against a Fable guide and keeps its Fable 5 guide pointers under
-the record above; every other delta is stated against this model's own guide and is kept unchanged.
-The communication chapter's prompt-authoring note removes narration-suppressing
-lines rather than scaffolding updates, so "Do not scaffold your own progress updates" stands.

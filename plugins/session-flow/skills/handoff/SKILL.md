@@ -36,7 +36,7 @@ clears is decided by the continuation router in
   <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>; for executing a
   finished spec, see <https://code.claude.com/docs/en/best-practices#brainstorm-with-claude-first>.
 
-This skill delivers the save-point for a MANUAL resume: the user `/clear`s and pastes the resume
+This skill delivers the save-point for a manual resume: the user `/clear`s and pastes the resume
 prompt themselves. To hand the resume prompt to a fresh background agent that continues the task
 now, invoke the sibling `/session-flow:continue-in-background` via the Skill tool instead, same
 save-point engine, different delivery.
@@ -49,15 +49,15 @@ save-point engine, different delivery.
   `$ARGUMENTS` before method detection; the rules below read what is left. It changes only the steps that would
   ask the user: the `/export` step (dropped: an unattended run neither suggests nor runs a user-only built-in) and stuck dependent work
   ("Settle in-flight work before writing"). The bare word `unattended` is not this flag: the rules below read it as topic or purpose text, like any word.
-- **Method** (`file` | `prompt`). Recognized ONLY as the first token. `file` forces the full
+- **Method** (`file` | `prompt`). Recognized only as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
   path").
-- **Topic**. Short kebab slug for the filename. When the first token is not a method keyword it IS
+- **Topic**. Short kebab slug for the filename. When the first token is not a method keyword it is
   the topic (`/session-flow:handoff phase-3`); with a method present it is the second token. Omitted → inferred
   from context.
 - **Purpose**. Everything after the topic token is optional natural-language purpose text
-  saying what the next session is meant to do, no quoting, no new syntax, and
-  invocations without it parse exactly as before. What purpose is allowed to change (emphasis
+  saying what the next session is meant to do, with no quoting or other syntax; an invocation
+  without it parses as method and topic alone. What purpose is allowed to change (emphasis
   only) and what it may never touch is owned by the engine doc ("The purpose argument tailors
   emphasis only"); parse it from `$ARGUMENTS` in place, never pre-compute.
 
@@ -71,8 +71,8 @@ multiple steps, or the remaining work being small, does not unlock continuing.
 **What STOP means, and the one thing it never means.** STOP ends the underlying task. It never
 ends the response before the resume prompt is on screen, because emitting that prompt is not work
 that follows the save-point. It is the save-point. The engine is explicit that the prompt is the
-mandatory half and the file the optional one: "A resume prompt is ALWAYS emitted. The only
-decision is whether to ALSO write a durable handoff file." A turn that writes the file and stops
+mandatory half and the file the optional one: "A resume prompt is always emitted. The only
+decision is whether to also write a durable handoff file." A turn that writes the file and stops
 has delivered the optional half and dropped the required one; the operator is left holding a
 `/clear` they cannot resume from, which is worse than never having run the skill, since the skill
 reports success. The failure shape is in `context/gotchas.md`. Until the rails prompt is in the
@@ -285,11 +285,11 @@ is what the operator actually reads (engine doc, "Emit the position panel"), so 
 checklist is this skill's own audit trail and follows it; and the rails prompt closes the response
 (on the tracker short form, its two lines stand in for the rails prompt and close it instead).
 The rails resume prompt, the copy instruction, each region's dashed rails, and every below-the-rails
-`/loop` re-arm note, is the FINAL text of the response, with nothing after it. This order exists
+`/loop` re-arm note, is the final text of the response, with nothing after it. This order exists
 because the rails prompt is the deliverable the operator copies, and under heavy context a turn
 that ends on anything else can run out of room before the rails prompt appears: the save-point
 file exists, but the operator has nothing to paste after `/clear`. A response whose last text is
-not the rails block (plus its below-rail notes) is a FAILED handoff even when every box above is
+not the rails block (plus its below-rail notes) is a failed handoff even when every box above is
 ticked. Emit the rails block before ending the turn, always. Except: a turn ended before `new`
 to wait for dependent work ("Settle in-flight work before writing") wrote no save-point yet.
 
@@ -297,34 +297,34 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
 
 - [ ] Position located + next stage named (fresh reads this turn)
 - [ ] Position panel emitted per the engine doc ("Emit the position panel"), vertical rail with the
-  current unit marked, completeness line, and the three one-line blocks, OR an explicit line saying
+  current unit marked, completeness line, and the three one-line blocks, or an explicit line saying
   the units would not resolve. Never a rail whose units were invented to fill it
 - [ ] `memory_dir` resolved (a root `CLAUDE.md` / `.claude/rules/` declares, else `.work`; never
   the literal `.work` assumed), in-flight work settled per "Settle in-flight work before writing"
-  (each running item waited for, independent, or recorded in flight, OR none running), the
+  (each running item waited for, independent, or recorded in flight, or none running), the
   root-equivalence refusal and the self-ignore guard run, and
   `save_point.py new` invoked through the interpreter ladder as `"$PY" -X utf8 …` with
   `--previous <file>` or `--no-previous`, plus `--purpose "<purpose text>"` when the invocation
-  carried any. The path `new` printed is the ONE path used for every
+  carried any. The path `new` printed is the one path used for every
   later step (`fill`, `validate`, `emit`, the directive), never recomputed in bash. `new` refused
   for a missing or non-UUID session id → prompt-only path, reason stated; no interpreter →
   `validator unavailable: no python3/python on PATH` said in one line, the file written by
   hand per the structure doc, and the `validate` box below reads `SKIPPED (no interpreter)`
-- [ ] Slot values written as ONE JSON object beside the handoff (`<same stem>.slots.json`, left in
+- [ ] Slot values written as one JSON object beside the handoff (`<same stem>.slots.json`, left in
   place afterwards) and applied in a single
   `save_point.py fill "$FILE" --slots "$SLOTS"` call, its slot names read off the skeleton `new`
   just wrote rather than a remembered template (the set is branch-dependent, and an unknown key
   is refused); `fill` exited 0, so no `FILL` text remains and every deterministic field is still
   as `new` wrote it (frontmatter, the carried goal, rules, preferences and trail, the
   `## Prior sessions` table, the rails block minus `Next:`, the hop file). An optional slot
-  (`goal-first`, `goal-after`, `below-rail`, `goal-new`, `<section>-new`) that does not apply is left OUT of the object, which is how `fill`
+  (`goal-first`, `goal-after`, `below-rail`, `goal-new`, `<section>-new`) that does not apply is left out of the object, which is how `fill`
   deletes its line; a goal region goes in `goal-first` or `goal-after` as one multi-line value,
   whichever the ordering rule calls for, and the other is left out; a refusal names the slot or key and leaves the file byte-identical, so the fix is the JSON
   and a re-run, never a hand-edit around it
-- [ ] `previous_handoff` present IF this session continued a prior handoff's task (chain continuity
+- [ ] `previous_handoff` present if this session continued a prior handoff's task (chain continuity
   per the structure doc, `--previous` passed explicitly, never auto-picked); omitted otherwise
   (`--no-previous`), including when the directory holds only unrelated-task handoffs. When
-  present, `new` opened that file from disk THIS turn: it copied the `Original goal` over
+  present, `new` opened that file from disk this turn: it copied the `Original goal` over
   unchanged and moved the predecessor's other sections into this hop's file, so nothing was
   rebuilt from the conversation; a changed rule was rewritten in place under its id, a new one
   took the next id, and a new owner amendment went below the copied goal
@@ -340,7 +340,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   plain fact. A fix still in CI, merge, or another unreturned check is `UNVERIFIED (<check>)`,
   never "verified" or "the fix" (engine doc, "Claim provenance"; verified is not CI-green;
   [`reference/pending-ci-caveat.md`](reference/pending-ci-caveat.md))
-- [ ] Redaction pass swept the file AND the prompt (secrets/tokens/credentials/PII replaced with
+- [ ] Redaction pass swept the file and the prompt (secrets/tokens/credentials/PII replaced with
   shape markers)
 - [ ] `wip_commit` line reported ("WIP commit on an explicit pause"): not applied with its
   reason, resolved `false`, refused with its reason, rejected by a hook, or committed with its
@@ -348,13 +348,13 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
 - [ ] Task list handled per the structure doc's tool-presence branch: with the task tools, captured
   with literal recreate calls in the environment section from a live `TaskList` call this turn;
   with `TodoWrite` instead, from the latest `TodoWrite` call; with neither, a line saying this
-  session has no task tools (OR, in every case, an explicit statement that there is nothing to
+  session has no task tools (or, in every case, an explicit statement that there is nothing to
   recreate)
 - [ ] Worktree claims read this turn ("Hand worktree claims to the resuming session"): each worktree
   whose lock names this session has an Environment to re-establish entry with its path, this
   session's id and the handover before `check-enter`; the handover is first in
-  `Remaining actions, in order`, leading `Next:` unless the handoff is closed (OR none held)
-- [ ] Plugin changes: entry and below-rail `/reload-plugins` note (structure doc) (OR none)
+  `Remaining actions, in order`, leading `Next:` unless the handoff is closed (or none held)
+- [ ] Plugin changes: entry and below-rail `/reload-plugins` note (structure doc) (or none)
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
   names the previous handoff recorded as deliberately left running. For each one, read its
   actual output or transcript per
@@ -368,7 +368,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   ("SendMessage worker continuation"; official
   [Resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents)). Any still
   running recorded in Environment to re-establish with why, so the resuming session inherits the
-  list (OR an
+  list (or an
   explicit statement that none were spawned and none were inherited, or that every one was
   cancelled). Named subagents stay live and addressable across `/clear` and across sessions;
   an unreaped idle agent accumulates into later sessions.
@@ -379,7 +379,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
 - [ ] `save_point.py validate <file>` run and its result quoted here as `validate: exit 0` (WARN
   lines listed and ruled on, secret-shape hits included). Non-zero → fix the slots the FAIL lines
   name and re-run, at most three attempts; still failing → this box reads `validate: FAILED`, an
-  `UNVALIDATED: <validator output>` banner sits ABOVE the copy instruction (outside the copy
+  `UNVALIDATED: <validator output>` banner sits above the copy instruction (outside the copy
   region), and the rails are still emitted from the file's `## Resume prompt` section (engine
   doc, full-path block). Never green-silent, never a withheld prompt
 - [ ] Resume prompt emitted between dashed rails as the `save_point.py emit <file>` output pasted
@@ -400,7 +400,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   the region's instruction line, its text unchanged, and a goal met at recorded commits or files
   with only the user's decisions left given no region and a below-rail note listing the decisions
   (engine doc, "Check the condition before emitting the region"); a below-the-rails note
-  re-arming EVERY surviving loop, one
+  re-arming every surviving loop, one
   `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine
   doc, "Emit the copy/paste resume prompt")
 - [ ] **EXECUTION STOPS HERE** (for a forked side task, only the side task), the rails prompt and
@@ -408,26 +408,26 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
 
 **Prompt-only path:**
 
-- [ ] Prompt-only justified (all auto-detect criteria hold, OR `prompt` explicitly passed)
+- [ ] Prompt-only justified (all auto-detect criteria hold, or `prompt` explicitly passed)
 - [ ] In-flight work settled before the rails prompt, as on the full path
-- [ ] Position panel emitted per the engine doc ("Emit the position panel"), OR an explicit line
-  saying the units would not resolve. Prompt-only writes no file, so this is the ONLY place the
+- [ ] Position panel emitted per the engine doc ("Emit the position panel"), or an explicit line
+  saying the units would not resolve. Prompt-only writes no file, so this is the only place the
   operator sees where the work stands, the path where skipping it costs the most. Unit ladder rung
-  4 (`TaskList`) is skipped here unless `prompt` was FORCED, in which case the one `TaskList` call
+  4 (`TaskList`) is skipped here unless `prompt` was forced, in which case the one `TaskList` call
   is made rather than the list being guessed from the conversation (a session with `TodoWrite`
   instead reads its latest `TodoWrite` call; one with neither falls through to rung 5)
 - [ ] The verbatim goal sits between the resume region's rails above the remaining-work bullets,
   and, when a goal applies, is the condition of the goal region (no `Read @` line on this path);
-  when the goal has recorded amendments, the original dated quote travels with EVERY dated
+  when the goal has recorded amendments, the original dated quote travels with every dated
   amendment line, never collapsed to a single line; prompt-only writes no file, so the goal
-  travels in the prompt or not at all (engine doc, "Original goal, mandatory on BOTH paths")
+  travels in the prompt or not at all (engine doc, "Original goal, mandatory on both paths")
 - [ ] Claim provenance applied to every inline remaining-work bullet, inherited status marked
   `UNVERIFIED (<source>)`, not stated as plain fact. A pending CI, merge, or unreturned check
   is `UNVERIFIED (<check>)`, never "verified" (engine doc, "Claim provenance";
   [`reference/pending-ci-caveat.md`](reference/pending-ci-caveat.md))
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
 - [ ] Worktree claims read this turn: each worktree whose lock names this session is the first
-  remaining-work bullet: path, this session's id, handover before `check-enter` (OR none held)
+  remaining-work bullet: path, this session's id, handover before `check-enter` (or none held)
 - [ ] `wip_commit` line reported, as on the full path; a commit, refusal or hook rejection is one
   bullet in the prompt, nothing pushed
 - [ ] If /export is available in your session (gate basis: [`reference/export-verification.md`](reference/export-verification.md)), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`--unattended`:** make no suggestion; tick this box as not applicable.
@@ -439,7 +439,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
 - [ ] Copy instruction above each region's rails; a goal region under its own `Type /goal`
   instruction line when a goal applies, ordered by what the user asked for (engine doc, the Goal
   region bullet under "Emit the copy/paste resume prompt"), with the conversation-bound warning
-  and the met-goal omission applied as on the full path; a below-the-rails note covering EVERY
+  and the met-goal omission applied as on the full path; a below-the-rails note covering every
   surviving loop that has the resumed session list its scheduled tasks first and re-arm only the
   loops missing from that list, one `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message; the `/reload-plugins` note when a plugin changed (engine doc, "Emit the copy/paste resume prompt")
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
@@ -452,10 +452,10 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   agent still auto-resumes on `SendMessage`. The decision and pointer live in
   [`${CLAUDE_PLUGIN_ROOT}/skills/orchestrate/context/sources.md`](${CLAUDE_PLUGIN_ROOT}/skills/orchestrate/context/sources.md)
   ("SendMessage worker continuation"). Any still running named between the rails with why
-  (OR an explicit statement that none were spawned and none were inherited, or that every
+  (or an explicit statement that none were spawned and none were inherited, or that every
   one was cancelled). Named subagents stay live and addressable across `/clear`; prompt-only
   writes no file, so the leftover list travels in the prompt or not at all.
-- [ ] **EXECUTION STOPS HERE** (for a forked side task, only the side task). "Small enough" means the prompt captures the work, NOT "small
+- [ ] **EXECUTION STOPS HERE** (for a forked side task, only the side task). "Small enough" means the prompt captures the work, not "small
   enough to skip `/clear` and finish in-session"; the rails prompt and its below-rail notes follow
   these ticks as the response's final text (see "Output order is fixed" above)
 
@@ -475,7 +475,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
 - The resume prompt was lost after `/clear`: /session-flow:find-handoff.
 - The resumed session must check that the handoff's premises still hold: /session-flow:reanchor.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not commit**. Handoff docs are durable task state, not source code. Commit ready code
   changes separately; describe uncommitted work in the file-roles section. The one exception is
@@ -486,7 +486,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
 - **Does not launch a background agent**. Background delegation is the sibling
   `/session-flow:continue-in-background` skill, and it fires only on the user's explicit request
 - **Does not continue executing the underlying task**, per the hard rule above. Prompt-only does
-  NOT relax this. A forked side task is the hard rule's exception: this session keeps its own task
+  not relax this. A forked side task is the hard rule's exception: this session keeps its own task
 - **Does not offer a resident / no-stop mode.** A resident
   `/implementation:implement-dispatch` boundary runs plan marks and the commit; the handoff is
   written last, and only when a clear, model switch, run end, or user-only commit gate applies.
