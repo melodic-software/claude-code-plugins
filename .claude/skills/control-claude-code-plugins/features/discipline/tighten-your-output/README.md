@@ -33,7 +33,7 @@ None: the skill only answers in the transcript.
    the same prompt. Result: the steps there state theirs; the transcript shows the same rewrite.
 3. **Proof.** Result: the reply says the sentence in fewer words with its meaning kept (install
    the dependencies before running the tests) and reports what it cut and what it kept.
-   Captures: logs, screenshot for a terminal-session entry point
+   Captures: logs
 
 ## Gotchas
 
