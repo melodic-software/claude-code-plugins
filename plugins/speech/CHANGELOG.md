@@ -3,6 +3,14 @@
 All notable changes to the `speech` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.2] - 2026-11-14
+
+### Changed
+
+- `narrate.py` retries a failed edge-tts paragraph after 5, 20 and 60 seconds instead of 1, 2 and 4, so a
+  Microsoft endpoint that drops requests for a few seconds recovers before the whole script falls back to the
+  next backend. Other backends keep 1, 2 and 4 seconds.
+
 ## [1.2.1] - 2026-11-14
 
 ### Fixed
