@@ -1,0 +1,14 @@
+checks:
+  - id: claim-arbitration
+    covers:
+      - plugins/work-items/tools/work-item-tracker/CONTRACT.md
+      - plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh
+      - plugins/work-items/tools/work-item-tracker/adapters/github/release.sh
+      - plugins/work-items/tools/work-item-tracker/lib/lease.sh
+    commit: 8b9d8ed176e9598cfafe717d1937a6d5454791bd
+    command: /formal-verification:chart .claude/skills/formal-claim-protocol/model/ClaimProtocol.tla --view .claude/skills/formal-claim-protocol/model/view.mjs
+    seeded_break:
+      change: claim.sh step 4 takes the latest live lease as the winner instead of the earliest
+      caught: false
+      commit: 8b9d8ed176e9598cfafe717d1937a6d5454791bd
+outside_model: []
