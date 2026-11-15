@@ -67,7 +67,8 @@ bash "$SCRIPT" --all "$SOURCES" --file-lines >/dev/null 2>&1
 assert_eq "--file-lines with no value exits 2" 2 "$?"
 
 # --commits-since against a scratch repository: one long file committed three
-# times (once by a bot), one long file committed once, one short file.
+# times (once by a bot) and then renamed, one long file committed once, one
+# short file.
 CHURN="$(mktemp -d)"
 (
   cd "$CHURN" || exit 2
@@ -77,13 +78,14 @@ CHURN="$(mktemp -d)"
   git add busy.txt quiet.txt short.txt && commit dev "add"
   echo 31 >>busy.txt && git add busy.txt && commit dev "busy again"
   echo 32 >>busy.txt && git add busy.txt && commit 'release[bot]' "bot touch"
+  git mv busy.txt moved.txt && commit dev "move"
 )
 out="$(cd "$CHURN" && bash "$SCRIPT" --json --all --file-lines 20 --commits-since "10 years ago")"
 assert_eq "--commits-since exits 0" 0 "$?"
-assert_doc "--commits-since lists only files at or above the reference, most commits first, bots left out" "$out" \
-  '[(r["file"], r["commits"]) for r in d["file_commits"]["rows"]] == [("busy.txt", 2), ("quiet.txt", 1)]'
+assert_doc "--commits-since lists only files at or above the reference, most commits first, bots left out, renames followed" "$out" \
+  '[(r["file"], r["commits"]) for r in d["file_commits"]["rows"]] == [("moved.txt", 3), ("quiet.txt", 1)]'
 out="$(cd "$CHURN" && bash "$SCRIPT" --all --file-lines 20 --commits-since "10 years ago")"
-assert_contains "--commits-since renders its table in markdown" "$out" "| busy.txt | 32 | 2 |"
+assert_contains "--commits-since renders its table in markdown" "$out" "| moved.txt | 32 | 3 |"
 out="$(bash "$SCRIPT" --json --all "$SOURCES")"
 assert_doc "no --commits-since, no file_commits key" "$out" '"file_commits" not in d'
 bash "$SCRIPT" --all "$SOURCES" --commits-since >/dev/null 2>&1

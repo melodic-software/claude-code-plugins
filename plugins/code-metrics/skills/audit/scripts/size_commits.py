@@ -6,7 +6,8 @@
 
 `add` counts, per file row whose `over_reference` names `file_lines`, the
 commits since <date> (anything `git log --since` accepts) that touched the
-file, leaving out commits whose author name contains `[bot]`. It counts and
+file, under its earlier names too, leaving out commits whose author name
+contains `[bot]`. It counts and
 ranks; it sets no cutoff. Exit 2 when the report's root is not a git
 repository or git refuses the date.
 """
@@ -22,7 +23,17 @@ BOT_MARK = "[bot]"
 
 def _count(root: str, since: str, path: str) -> int:
     result = subprocess.run(
-        ["git", "-C", root, "log", f"--since={since}", "--format=%an", "--", path],
+        [
+            "git",
+            "-C",
+            root,
+            "log",
+            "--follow",
+            f"--since={since}",
+            "--format=%an",
+            "--",
+            path,
+        ],
         capture_output=True,
         text=True,
         check=False,
