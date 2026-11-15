@@ -40,6 +40,12 @@ async page => {
     ok("N hides the dock from the Controls tab, the focus on the dock button", await page.isHidden("#panel") && (await focused()) === "dock", await focused());
     await page.keyboard.press("n");
     ok("N shows the dock again on the Controls tab, the focus on that tab", await page.isVisible("#controls-panel") && (await focused()) === "tab-controls", await focused());
+    await page.keyboard.press("r");
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowRight");
+    ok("during a region pick the arrows on a focused tab move the region, not the tabs", await page.getAttribute("#region", "aria-pressed") === "true" && await selected("#tab-controls") === "true");
+    await page.keyboard.press("Escape");
+    ok("Esc ends that pick", await page.getAttribute("#region", "aria-pressed") === "false");
 
     ok("the tab lists the manifest's five controls and says where they came from", /^5 control\(s\)/.test(await page.textContent("#controls-status")), await page.textContent("#controls-status"));
     ok("a manifest label holding markup is shown as text and makes no element", (await page.$$("#controls-panel img")).length === 0
@@ -47,6 +53,8 @@ async page => {
     ok("the defaults are shown and the page starts at them", (await shown("Card gap")) === "12px" && (await css("--card-gap")) === "12px" && (await attr("data-control-align")) === "start");
 
     await page.getByLabel("Card gap", { exact: true }).fill("24");
+    // A value reaches the frame by postMessage, a task after the input event.
+    await frame.waitForFunction(() => getComputedStyle(document.documentElement).getPropertyValue("--card-gap").trim() === "24px", null, { timeout: 2000 }).catch(() => {});
     ok("range: writes its CSS variable with its unit and shows the value", (await css("--card-gap")) === "24px" && (await shown("Card gap")) === "24px", [await css("--card-gap"), await shown("Card gap")]);
     await page.getByLabel("Accent", { exact: true }).fill("#aa3300");
     ok("color: writes its CSS variable and shows the value", (await css("--accent")) === "#aa3300" && (await shown("Accent")) === "#aa3300");
@@ -97,7 +105,24 @@ async page => {
     const set = await frame.evaluate(() => window.uiFeedbackRelocate.setControls({ "card-gap": "30", dense: "on" }));
     ok("the relocation hook sets controls in the page", set === 0 && (await css("--card-gap")) === "30px" && (await attr("data-control-dense", "A")) === "on");
     ok("and counts a control the page has no entry for", await frame.evaluate(() => window.uiFeedbackRelocate.setControls({ gone: "1" })) === 1);
+    ok("a value the control's field cannot hold is set nowhere and counted", await frame.evaluate(() => window.uiFeedbackRelocate.setControls({ font: "Papyrus", "card-gap": "999", accent: "oklch(0.6 0.1 180)" })) === 3
+      && (await css("--font")) === "system-ui, sans-serif" && (await css("--card-gap")) === "30px");
     ok("no handler in a manifest string ran", await page.evaluate(() => window.__xss) === undefined && await frame.evaluate(() => window.__xss) === undefined);
+
+    // The registry's own check, which the schema cannot state, over the shared fixtures.
+    const registry = __REGISTRY__;
+    for (const { why, manifest } of registry.valid) ok(`the registry admits: ${why}`, await page.evaluate((m) => window.uiFeedbackControls.refused(m.controls), manifest) === null);
+    for (const { why, manifest } of registry.invalid) {
+      const said = await page.evaluate((m) => window.uiFeedbackControls.refused(m.controls), manifest);
+      ok(`the registry refuses: ${why}`, typeof said === "string", said);
+    }
+
+    // A second document in the frame: the host page stops listening, so the Controls tab stops too.
+    await frame.evaluate(() => { location.href = "about:blank"; });
+    await page.waitForFunction(() => document.getElementById("pick").disabled, null, { timeout: 5000 });
+    ok("after the frame loads another page, the controls, Copy config and Reset controls are off and the tab says why",
+      await page.locator("#controls-list input").first().isDisabled() && await page.isDisabled("#copy-config") && await page.isDisabled("#reset-controls")
+      && /no longer reach/.test(await page.textContent("#controls-status")), await page.textContent("#controls-status"));
   } catch (e) {
     R.push("ERROR " + String(e).split("\n")[0]);
   }

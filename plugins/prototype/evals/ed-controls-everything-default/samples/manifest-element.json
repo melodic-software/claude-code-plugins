@@ -27,6 +27,10 @@
       "why": "a grep naming the element, not a write"
     },
     {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -c '<script type=\\\"application/json\\\" id=\\\"prototype-controls\\\">' /tmp/explore-directions-a1B2c3/explore-directions.html\",\"description\":\"x\"}}]}}",
+      "why": "a read-only grep of the whole tag, whose own > is no redirect"
+    },
+    {
       "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"<!doctype html>\\n<html><body><main data-variant=\\\"A\\\"></main>\\n<script type=\\\"application/json\\\" id=\\\"prototype-controls\\\">\\n{\\n  \\\"controls\\\": [\\n    {\\n      \\\"id\\\": \\\"c-0\\\",\\n      \\\"label\\\": \\\"Control 0\\\",\\n      \\\"group\\\": \\\"layout\\\",\\n      \\\"type\\\": \\\"range\\\",\\n      \\\"target\\\": \\\"--c-0\\\",\\n      \\\"default\\\": \\\"1\\\"\\n    },\\n    {\\n      \\\"id\\\": \\\"c-1\\\",\\n      \\\"label\\\": \\\"Control 1\\\",\\n      \\\"group\\\": \\\"typography\\\",\\n      \\\"type\\\": \\\"range\\\",\\n      \\\"target\\\": \\\"--c-1\\\",\\n      \\\"default\\\": \\\"1\\\"\\n    },\\n    {\\n      \\\"id\\\": \\\"c-2\\\",\\n      \\\"label\\\": \\\"Control 2\\\",\\n      \\\"group\\\": \\\"color\\\",\\n      \\\"type\\\": \\\"range\\\",\\n      \\\"target\\\": \\\"--c-2\\\",\\n      \\\"default\\\": \\\"1\\\"\\n    }\\n  ]\\n}\\n</script>\\n</body></html>\\n\"}]}}",
       "why": "a tool result carrying it, not a write"
     }

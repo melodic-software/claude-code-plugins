@@ -1,5 +1,5 @@
 {
-  "description": "Valid and invalid controls manifests (controls.schema.json), run against both validators: note-model.mjs and notes_bridge.py's problems().",
+  "description": "Valid and invalid controls manifests (controls.schema.json), run against both validators: note-model.mjs and notes_bridge.py's problems(). registry holds manifests the schema admits that the registry in controls.js (refused) admits or refuses: a control whose own field cannot hold its default, a toggle without two options, or two controls sharing an id; the controls browser test runs them, and note-model.test.mjs checks the schema admits each.",
   "valid": [
     {
       "why": "no controls",
@@ -2935,5 +2935,55 @@
         ]
       }
     }
-  ]
+  ],
+  "registry": {
+    "valid": [
+      {"why": "every type at a default its field holds", "manifest": {"controls": [
+        {"id": "gap", "label": "Gap", "group": "spacing", "type": "range", "target": "--gap", "min": 0, "max": 48, "step": 2, "unit": "px", "default": "12"},
+        {"id": "accent", "label": "Accent", "group": "color", "type": "color", "target": "--accent", "default": "#0d9488"},
+        {"id": "font", "label": "Typeface", "group": "typography", "type": "select", "target": "--font", "options": ["system-ui, sans-serif", "Georgia, serif"], "default": "Georgia, serif"},
+        {"id": "dense", "label": "Dense", "group": "layout", "type": "toggle", "target": "data-control-dense", "options": ["off", "on"], "default": "on"},
+        {"id": "align", "label": "Alignment", "group": "layout", "type": "radio", "target": "data-control-align", "options": ["start", "center"], "default": "center"}
+      ]}},
+      {"why": "a range default at its maximum, with no step", "manifest": {"controls": [
+        {"id": "width", "label": "Width", "group": "layout", "type": "range", "target": "--width", "min": 320, "max": 1280, "default": "1280"}
+      ]}}
+    ],
+    "invalid": [
+      {"why": "a color default the picker cannot show (oklch)", "manifest": {"controls": [
+        {"id": "accent", "label": "Accent", "group": "color", "type": "color", "target": "--accent", "default": "oklch(0.6 0.1 180)"}
+      ]}},
+      {"why": "a color default in upper case, which the picker reads back in lower case", "manifest": {"controls": [
+        {"id": "accent", "label": "Accent", "group": "color", "type": "color", "target": "--accent", "default": "#AA3300"}
+      ]}},
+      {"why": "a range default that is not a number", "manifest": {"controls": [
+        {"id": "gap", "label": "Gap", "group": "spacing", "type": "range", "target": "--gap", "min": 0, "max": 48, "default": "wide"}
+      ]}},
+      {"why": "a range default above its maximum", "manifest": {"controls": [
+        {"id": "gap", "label": "Gap", "group": "spacing", "type": "range", "target": "--gap", "min": 0, "max": 48, "default": "60"}
+      ]}},
+      {"why": "a range default off its step", "manifest": {"controls": [
+        {"id": "gap", "label": "Gap", "group": "spacing", "type": "range", "target": "--gap", "min": 0, "max": 48, "step": 2, "default": "13"}
+      ]}},
+      {"why": "a select default outside its options", "manifest": {"controls": [
+        {"id": "font", "label": "Typeface", "group": "typography", "type": "select", "target": "--font", "options": ["serif", "sans-serif"], "default": "monospace"}
+      ]}},
+      {"why": "a radio default outside its options", "manifest": {"controls": [
+        {"id": "align", "label": "Alignment", "group": "layout", "type": "radio", "target": "data-control-align", "options": ["start", "center"], "default": "end"}
+      ]}},
+      {"why": "a toggle with one option", "manifest": {"controls": [
+        {"id": "dense", "label": "Dense", "group": "layout", "type": "toggle", "target": "data-control-dense", "options": ["on"], "default": "on"}
+      ]}},
+      {"why": "a toggle with no options", "manifest": {"controls": [
+        {"id": "dense", "label": "Dense", "group": "layout", "type": "toggle", "target": "data-control-dense", "default": ""}
+      ]}},
+      {"why": "a toggle default outside its options", "manifest": {"controls": [
+        {"id": "dense", "label": "Dense", "group": "layout", "type": "toggle", "target": "data-control-dense", "options": ["off", "on"], "default": "yes"}
+      ]}},
+      {"why": "two controls sharing an id", "manifest": {"controls": [
+        {"id": "gap", "label": "Gap", "group": "spacing", "type": "range", "target": "--gap", "min": 0, "max": 48, "default": "12"},
+        {"id": "gap", "label": "Row gap", "group": "spacing", "type": "range", "target": "--row-gap", "min": 0, "max": 48, "default": "8"}
+      ]}}
+    ]
+  }
 }

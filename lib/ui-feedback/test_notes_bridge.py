@@ -268,6 +268,10 @@ class TestNotes(NotesCase):
             self.assertEqual(nb.problems(case["manifest"], doc=doc), [], case["why"])
         for case in MANIFESTS["invalid"]:
             self.assertNotEqual(nb.problems(case["manifest"], doc=doc), [], case["why"])
+        # The registry cases are schema-valid: only controls.js's own check refuses them.
+        registry = MANIFESTS["registry"]
+        for case in registry["valid"] + registry["invalid"]:
+            self.assertEqual(nb.problems(case["manifest"], doc=doc), [], case["why"])
 
     def test_a_ref_to_a_schema_the_bridge_never_loaded_raises(self):
         with self.assertRaises(RuntimeError):

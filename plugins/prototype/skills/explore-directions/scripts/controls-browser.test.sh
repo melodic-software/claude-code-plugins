@@ -46,10 +46,11 @@ ok() { echo "PASS: $1"; }
 bad() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 # The fixture with the controls runtime and the switcher inlined; $1 replaces "--card-gap" as the
-# first control's target.
+# first control's target, and $2, when given, replaces the manifest's opening line.
 page() {
   local runtime='<!-- The canonical lib/ui-feedback/controls.js is inlined whole here; elided from this fixture. -->'
   local switcher='<!-- The bundled assets/variant-switcher.html is inlined whole here; elided from this fixture. -->'
+  local head='{"controls": ['
   while IFS= read -r line; do
     if [[ "$line" == "$runtime" ]]; then
       printf '<script>\n'
@@ -57,6 +58,8 @@ page() {
       printf '</script>\n'
     elif [[ "$line" == "$switcher" ]]; then
       cat "$skill/assets/variant-switcher.html"
+    elif [[ "$line" == "$head" && -n "${2:-}" ]]; then
+      printf '%s\n' "$2"
     else printf '%s\n' "${line/\"target\": \"--card-gap\"/\"target\": \"$1\"}"; fi
   done <"$skill/evals/fixtures/controls-mockup.html" >"$d/explore-directions.html"
 }
@@ -87,10 +90,19 @@ code() { # script; a failed run prints no result, which the checks below count a
   path=$(native "$1")
   (cd "$tmp" && TMPDIR="$tmp/b" playwright-cli -s="$session" run-code --filename "$path" 2>&1) || true # prereq-ok: test-only
 }
-# Run one page script with __PORT__ and __FILE__ filled in, and grade each line it returns.
-run() { # script label
+# Run one page script with __PORT__, __FILE__, __WANT__ ($3) and __REGISTRY__ (the registry cases
+# of lib/ui-feedback/fixtures/controls.json, as a JSON literal) filled in, and grade each line it returns.
+run() { # script label [want]
   local n=0 line
-  sed -e "s|__PORT__|$port|" -e "s|__FILE__|file://$d/explore-directions.html|" "$1" >"$tmp/$2.js"
+  python3 -c '
+import json, sys
+src, dst, port, page, want, fixtures = sys.argv[1:]
+text = open(src, encoding="utf-8").read()
+registry = json.dumps(json.load(open(fixtures, encoding="utf-8"))["registry"])
+for k, v in {"PORT": port, "FILE": "file://" + page, "WANT": want, "REGISTRY": registry}.items():
+    text = text.replace(f"__{k}__", v)
+open(dst, "w", encoding="utf-8").write(text)
+' "$1" "$tmp/$2.js" "$port" "$d/explore-directions.html" "${3:-}" "$skill/../../../../lib/ui-feedback/fixtures/controls.json"
   while IFS= read -r line; do
     n=$((n + 1))
     case "$line" in
@@ -120,8 +132,17 @@ check "after a reload the note re-locates with its data log and its controls res
 page "onclick"
 run "$here/controls-browser-refuse.js" refuse
 
+page "--card-gap" '{"controls": [,'
+run "$here/controls-browser-status.js" unparsed "is not JSON"
+
+page "--card-gap" '{"controls": [{"id": "tint", "label": "Tint", "group": "color", "type": "color", "target": "--tint", "default": "oklch(0.6 0.1 180)"},'
+run "$here/controls-browser-status.js" misfit "tint: its field cannot hold its default"
+
 page "--card-gap"
 run "$here/controls-browser-alone.js" alone
+
+page "--card-gap" '{"placement": "top-left", "controls": ['
+run "$here/controls-browser-corner.js" corner
 
 if ((fails)); then
   echo "controls-browser: $fails failed"

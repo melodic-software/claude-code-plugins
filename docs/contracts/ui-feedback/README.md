@@ -81,6 +81,11 @@ Controls tab, validates the manifest against `controls.schema.json` before it re
 and sends the frame only values and presses. The data controls and content sets the page marks
 appear there as built-in entries, each kept only when `note.schema.json` admits it as a data step
 or a content set; their presses are in a note's data log, not in its controls.
+The registry is also the one place that checks what the schema cannot: a value fits a control
+when the control's own field, set to it, reads it back, and a toggle needs two options. Its
+`refused` turns a manifest down whole when a default does not fit or two controls share an id, on
+the host page and on the page alone alike, and a value set later that does not fit is not set and
+is counted, so a re-located note reports `restored.controls` false.
 
 ## The state snapshot
 

@@ -40,6 +40,7 @@ edit the canonical source, then rerun the script. -->
   [role="tablist"] { display: flex; gap: 4px; }
   [role="tab"][aria-selected="true"] { font-weight: 700; border-block-end: 2px solid currentColor; }
   fieldset { margin: 0; display: grid; gap: 6px; }
+  fieldset.bare { border: 0; padding: 0; }
   .uifc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
   body.docked { grid-template-columns: minmax(0, 1fr) auto; }
   [hidden] { display: none !important; }
@@ -80,7 +81,7 @@ edit the canonical source, then rerun the script. -->
   </div>
   <div role="tabpanel" id="controls-panel" aria-labelledby="tab-controls" hidden>
     <p id="controls-status" class="state">The mockup has not loaded yet.</p>
-    <div id="controls-list"></div>
+    <fieldset id="controls-fields" class="bare"><div id="controls-list"></div></fieldset>
     <p><button type="button" id="copy-config" disabled>Copy config</button> <button type="button" id="reset-controls" disabled>Reset controls</button></p>
     <div id="config-out" hidden>
       <label for="config">The current config</label>
@@ -116,10 +117,10 @@ edit the canonical source, then rerun the script. -->
   let controls = [], values = {}, builtins = [], content = null;
   function takeControls(m) {
     const P = schema.properties;
-    const found = m.controls == null ? [] : problems(m.controls, cschema, cschema, "manifest");
+    const found = m.controls == null || m.controls === false ? [] : problems(m.controls, cschema, cschema, "manifest");
     const list = m.controls && !found.length ? m.controls.controls : [];
-    const twice = list.find((c, i) => list.findIndex((d) => d.id === c.id) !== i);
-    controls = twice ? [] : list;
+    const refused = C.refused(list);
+    controls = refused ? [] : list;
     values = C.defaults(controls);
     const steps = (Array.isArray(m.data) ? m.data : []).filter((st) => fits(st, schema.$defs.dataStep)).slice(0, cschema.properties.controls.maxItems);
     builtins = steps.map((st, i) => ({ id: `@data-${i}`, label: [st.op, st.n ?? st.name].filter((x) => x !== undefined).join(" "), group: "data", type: "action", press: st }));
@@ -128,7 +129,8 @@ edit the canonical source, then rerun the script. -->
       builtins.push({ id: "@content", label: "Worst content", group: "content", type: "toggle", options: P.content.enum, default: m.content, content: true });
     }
     $("controls-status").textContent = found.length ? `The mockup's controls manifest is outside the controls contract (${found[0]}), so only its data controls are here.`
-      : twice ? `Two controls in the mockup's manifest share the id ${twice.id}, so only its data controls are here.`
+      : refused ? `The mockup's controls manifest is refused (${refused}), so only its data controls are here.`
+      : m.controls === false ? "The mockup's controls manifest is not JSON, so only its data controls are here."
       : m.controls == null ? "The mockup has no controls manifest." : `${controls.length} control(s) from the mockup's manifest.`;
     for (const b of [$("copy-config"), $("reset-controls")]) b.disabled = !controls.length;
     renderControls();
@@ -482,7 +484,8 @@ edit the canonical source, then rerun the script. -->
     t.addEventListener("click", () => selectTab(t));
     t.addEventListener("keydown", (e) => {
       const i = tabs.indexOf(t), to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
-      if (to === undefined) return;
+      // During a region pick the arrows move the region: the document's handler takes them.
+      if (to === undefined || picking === "region") return;
       e.preventDefault();
       e.stopPropagation();
       selectTab(tabs[(to + tabs.length) % tabs.length]);
@@ -525,8 +528,9 @@ edit the canonical source, then rerun the script. -->
       if (loads > 1) {
         ready = false;
         picking = null;
-        for (const b of [...Object.values(buttons), $("quote")]) b.disabled = true;
+        for (const b of [...Object.values(buttons), $("quote"), $("controls-fields"), $("copy-config"), $("reset-controls")]) b.disabled = true;
         say("The mockup loaded another page in its frame, so this page stopped listening to it. Reload to start again.");
+        $("controls-status").textContent = "The mockup loaded another page in its frame, so these controls no longer reach it. Reload to start again.";
       }
     });
     frame.srcdoc = await page.text();
