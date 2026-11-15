@@ -581,8 +581,8 @@ names, so:
 
 The reason is asymmetry: a walk that omits a layer says so in `scope` and rule 4 protects it, but a
 targeted run walks no layer at all, so without this clause rule 3 would read every un-examined
-finding in the target's layer as a deleted artifact and close it. That is the loss the section below
-exists to prevent, arriving through the other door.
+finding in the target's layer as a deleted artifact and close it. That is the same loss the section below
+exists to prevent, reached by a different path.
 
 A re-audit **rewrites the artifact in place**, merging against the prior content by stable id. For
 each finding:

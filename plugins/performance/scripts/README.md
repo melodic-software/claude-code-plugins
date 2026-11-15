@@ -31,7 +31,7 @@ Every script carries a co-located `<stem>.test.sh`. Run one with `bash <stem>.te
 - **Skip an unresolvable tool.** Skipping one undercounts silently.
 - **Fall back to `date(1)` for timing.** A process spawn per sample measures the instrument.
 - **Report a percentile the sample count cannot express.** `p95` needs 20 samples; below that the
-  printed value is the maximum wearing a percentile's name.
+  printed value is the maximum, labeled as a percentile.
 - **Report a headline paired ratio from a handful of pairs.** Two identical arms measured here spread
   0.78x to 17.12x at five pairs, and once read 17.12x. The default floor is 20 pairs; below it the
   raw per-pair ratios are printed instead.

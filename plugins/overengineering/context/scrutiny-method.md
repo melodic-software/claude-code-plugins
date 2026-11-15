@@ -448,8 +448,7 @@ human place it.
    Make the off state explicit and verify it took effect.
 2. **Observe** for one window, default about **30 days or one release cycle**, whichever is longer,
    and **consumer-configurable**. Record what would have fired and what escaped. State the window's
-   end date on the finding: an observation with no end date is an abandonment wearing an
-   experiment's clothes.
+   end date on the finding: an observation with no end date is an abandoned experiment.
 3. **Delete, with recorded rationale.** The deletion carries the evidence and the observation result
    in its change description, so the next reader of the absence knows it was a decision rather than
    an omission. Where a re-add surface exists, preserve it. Emptying a file while keeping its
