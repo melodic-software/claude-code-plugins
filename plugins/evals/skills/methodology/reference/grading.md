@@ -18,7 +18,7 @@ This repository's own defaults and source-conflict records: [local-decisions.md]
    judgments that resist rule-based rigidity. Forms: exact match (`output == golden_answer`),
    string match (`key_phrase in output`), regex, multiple-choice keying. Prefer it whenever the
    eval can be designed to allow it.
-2. **LLM-based grading**: fast, flexible, scalable, suitable for complex judgment. TEST the
+2. **LLM-based grading**: fast, flexible, scalable, suitable for complex judgment. Test the
    grader's reliability first, then scale.
 3. **Human grading**: most flexible and highest quality, but slow and expensive. **Avoid if
    possible.** When used, give the human grader rubric-instructions as the golden answer.
@@ -27,7 +27,7 @@ This repository's own defaults and source-conflict records: [local-decisions.md]
 
 - **Detailed, clear rubrics.** E.g. "The answer should always mention 'Acme Inc.' in the first
   sentence. If it does not, the answer is automatically graded as 'incorrect.'" One use case, or
-  even one success criterion, may need SEVERAL rubrics for holistic evaluation.
+  even one success criterion, may need several rubrics for holistic evaluation.
 - **Empirical or specific output.** Instruct the grader to output only `correct`/`incorrect`, or a
   1–5 score. Purely qualitative open-ended judgments are hard to assess quickly at scale.
 - **Encourage reasoning, then discard it.** Have the grader think first (e.g. in `<thinking>`
@@ -41,7 +41,7 @@ This repository's own defaults and source-conflict records: [local-decisions.md]
 - **Different model than the generator.** It is generally best practice to grade with a different
   model than the one that produced the evaluated output.
 - **Test the grader before trusting it.** The only way to know whether a model-based grader can
-  grade your task is to try it and READ SAMPLES of its verdicts against your own judgment; only
+  grade your task is to try it and read samples of its verdicts against your own judgment; only
   then scale.
 - **Binary correctness is strict by default.** An answer is correct iff it entirely meets the
   rubric; otherwise incorrect, with no partial credit unless the rubric defines a scale.

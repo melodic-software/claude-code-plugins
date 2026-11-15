@@ -3,6 +3,25 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.16] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [0.8.15] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [0.8.14] - 2026-11-15
+
+### Changed
+
+- The README gives the current subcommand count, and the command reference sends the reader to the CLI's `--help` for `parse` file limits and refund amounts instead of restating them.
+- `--pretty` is no longer listed as a global flag (`search` has none), scheduling advice points at the Claude Code scheduling comparison, and history notes about the earlier MCP setup are gone.
+
 ## [0.8.13] - 2026-11-13
 
 ### Changed

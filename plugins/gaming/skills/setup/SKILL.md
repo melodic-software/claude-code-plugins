@@ -24,9 +24,9 @@ Bash then fails with `bad substitution` before pwsh starts.
 
 | Option | Resolution | Passed as |
 |---|---|---|
-| **`<data-dir>`** | `${user_config.data_dir}` when non-empty and not still showing the unexpanded token; otherwise the output of the default command below. Changing it after an apply is a MOVE of the directory, not a reconfiguration: every manifest stays at the old root | `-DataDir '<data-dir>'` on every call |
-| **`<runtime-dll>`** | `${user_config.runtime_dll}` when set; otherwise `<data-dir>\runtime\nvngx_dlssnr.dll` | `-RuntimeDll` ONLY when the option is set. Passing the default path marks it configured, and `provision -Runtime` then refuses a failing file without scanning |
-| **`<runtime-source>`** | `${user_config.runtime_source}` when set; otherwise none | `-RuntimeSource` ONLY when set. A path or a plain `https://` URL. A URL with a query string (where signed-URL credentials live) is refused, because this option is not stored as a secret: [manifest reference § Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored). A private store is synced to a path by the user's own tooling |
+| **`<data-dir>`** | `${user_config.data_dir}` when non-empty and not still showing the unexpanded token; otherwise the output of the default command below. Changing it after an apply is a move of the directory, not a reconfiguration: every manifest stays at the old root | `-DataDir '<data-dir>'` on every call |
+| **`<runtime-dll>`** | `${user_config.runtime_dll}` when set; otherwise `<data-dir>\runtime\nvngx_dlssnr.dll` | `-RuntimeDll` only when the option is set. Passing the default path marks it configured, and `provision -Runtime` then refuses a failing file without scanning |
+| **`<runtime-source>`** | `${user_config.runtime_source}` when set; otherwise none | `-RuntimeSource` only when set. A path or a plain `https://` URL. A URL with a query string (where signed-URL credentials live) is refused, because this option is not stored as a secret: [manifest reference § Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored). A private store is synced to a path by the user's own tooling |
 
 The default `data_dir` follows OneDrive Known Folder Move, which `$env:USERPROFILE\Documents`
 does not:
@@ -110,7 +110,7 @@ download nothing, and never call `provision` in any form.
    `<data-dir>` names as `gameDir` is FAIL (a modded game this data directory does not track); and
    another directory whose `state\` has entries is FAIL: the default (`Gaming\dlss5` under
    Documents) when `<data-dir>` is not the default, or the legacy default (`Gaming` under
-   Documents) when `<data-dir>\state\` is absent or empty. The remediation for both is to MOVE the <!-- portability-ok: Windows path, not a shell regex -->
+   Documents) when `<data-dir>\state\` is absent or empty. The remediation for both is to move the <!-- portability-ok: Windows path, not a shell regex -->
    old directory's contents (`runtime\`, `state\`, `builds\`, `cache\` and `LEDGER.md`) to
    `<data-dir>`; without its manifest, `remove` cannot undo the mod. When `<data-dir>` is the
    default, the script refuses every verb but `refetch` and `selftest` on the legacy case.
@@ -163,7 +163,7 @@ anywhere but the three sources `provision -Runtime` tries.
   `310,8,0,0` there. Read the numeric `FileMajorPart` to `FilePrivatePart` fields, as steps 5 and 7
   do; `refetch` reports the same numeric form.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Apply, remove or tune the mod in a game. That is `/gaming:dlss5`.
 - Write Claude Code user settings or `pluginConfigs`. Reconfigure with

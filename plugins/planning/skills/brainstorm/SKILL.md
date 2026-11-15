@@ -53,7 +53,8 @@ requests". Its `time_units` user layer is `${user_config.time_units}` (unexpande
    keep it. Beyond these, ask at most one question, only to learn where the user is starting from.
    Propose no approach of your own until the user answers. If the user asks to skip the questions,
    restate the problem, record the intent as `not stated`, and go on.
-2. **Ground**. A fast breadth pass over where the problem lives: entry points, existing mechanisms that
+2. **Ground**. Fast breadth pass (`Glob`/`Grep`/targeted Read; survey the file landscape before
+   reading anything in depth) over where the problem lives: entry points, existing mechanisms that
    already partially address it, prior art in the repo. Optional landscape pass, when it would
    change the candidates: `/discovery:research` for how others solve this problem,
    `/discovery:blindspot` when the domain is unfamiliar to the user, `/discovery:explore` for a

@@ -4,6 +4,18 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [6.1.0] - 2026-11-15
+
+Additive guidance; minor under this contract's own rule. No required part, canonical name, or
+enforceability tier changes.
+
+"Monthly drift issues" is now "Weekly drift issues": one weekly workflow runs every drift check and
+the one filer, and the separate weekly workflow over the vendored skills' check scripts, which
+failed on drift and opened no issue, is gone. The section names the vendored-skill adapter, its row
+table and ids, its exit-code mapping (out-of-contract exits and timeouts are `untracked`), the
+`pin=unknown head=unknown` it reports for every row, and the split between a read-only `report`
+job and an issues-writing `file` job that receives the reports only when both producers finished.
+
 ## [6.0.0] - 2026-11-11
 
 Major: which records carry the as-of date and recheck trigger changes, by the owner's decision D26

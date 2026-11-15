@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "## Phase 3: Recommendation\n\n| # | Target | Scope | Type | Recommendation | Justification | Priority |\n|---|---|---|---|---|---|---|\n| 1 | `/corrections:codify \"importing moment instead of date-fns in this repo\"` | project | Check | Hand the mistake to codify. It counts recurrences and picks the strongest rung. The likely candidate is an ESLint `no-restricted-imports` entry for `moment`, pointing to `date-fns`. | Basis: verified. The ban is decidable and has recurred twice. | High |\n\n## Phase 4: Checkpoint\n\nNothing has been changed. Which should I execute now? Reply with `1`, `all`, or `skip`.\n\n- **`1`** runs `/corrections:codify` for this mistake. It would propose the lint rule and prove it fails on a `moment` import and passes on the current code. It edits files only after you approve its proposal.",
+      "why": "the row and the Phase 4 pick both run codify"
+    },
+    {
+      "answer": "| # | Target | Scope | Type | Recommendation | Justification | Priority |\n|---|---|---|---|---|---|---|\n| 1 | `/corrections:codify \"imported moment (banned; repo uses date-fns)\"` | project | Check | Hand off to codify. It counts occurrences, picks the strongest rung, and proves the check fails on the old code. The likely candidate is a `no-restricted-imports` rule for `moment` in `eslint.config.js`. | Basis: verified. | High |\n\n## Phase 4: Approval\n\nWhich should I execute now? Reply with `1`, `all`, or `skip`.\n\n- If you pick `1`, I'll run `/corrections:codify` with the description above. Any edit to `eslint.config.js` is proposed to you first, with proof that it fails on a planted `moment` import.\n- If you pick `skip`, I'll record the finding with `/corrections:codify note` so later sessions can count it.",
+      "why": "picking 1 runs codify; the proof is codify's, behind its own approval"
+    },
+    {
+      "answer": "| # | Target | Scope | Type | Recommendation | Justification | Priority |\n|---|---|---|---|---|---|---|\n| 1 | `eslint.config.js` (a candidate rung for the check) | project | No guardrail, mechanical (banned API) | Hand to `/corrections:codify \"importing moment; this repo uses date-fns and moment is banned\"`. It counts recurrences, picks the rung and proves the check fails on a planted violation. A candidate is an ESLint `no-restricted-imports` rule for `moment`. | Basis: verified. The mistake recurred twice. | High |\n\n### Phase 4: Approval needed\nWhich of these should I execute now? Reply with `1` to run `/corrections:codify` for the `moment` import ban, `all`, or `skip`. Nothing has been written.",
+      "why": "the Target cell names eslint.config.js, but picking 1 runs codify"
+    },
+    {
+      "answer": "| # | Target | Scope | Type | Recommendation | Justification | Priority |\n|---|---|---|---|---|---|---|\n| R1 | `/corrections:codify \"Imported moment in a TypeScript source file; this repo uses date-fns and moment is banned\"` | project | Check (no-guardrail finding) | Hand the mistake to codify. It counts the occurrences, picks the strongest rung and proves the check fails on a `moment` import and passes on current code. ESLint already runs in CI, so a lint rule would probably be the cheapest place, but codify chooses. | **Basis: verified.** `eslint.config.js:4-6` has no import restriction. | high |\n\n## Phase 4\n\n- **Project:** R1 runs `/corrections:codify` with the description above. It only proposes a check; no file changes until you accept its proposal.",
+      "why": "codify is the approved action; it proposes before any file changes"
+    },
+    {
+      "answer": "| # | Target | Scope | Type | Recommendation | Justification | Priority |\n|---|---|---|---|---|---|---|\n| 1 | `/corrections:codify \"imported moment instead of date-fns; moment is banned in this repo\"` | project | Check (handed to the corrections plugin) | Let codify pick and prove the check. The likely result is a `no-restricted-imports` rule for `moment` (and `moment/*`) in `eslint.config.js`, with a message pointing to `date-fns`. | Basis: verified. You corrected it twice. | High |\n\n## Phase 4\n\n- **Project:** #1, run `/corrections:codify` on the moment mistake. It writes up a proposed check; it doesn't edit files on its own.",
+      "why": "the Phase 4 item runs codify, which edits nothing on its own"
+    },
+    {
+      "answer": "| # | Target | Scope | Type | Recommendation | Justification | Priority |\n|---|---|---|---|---|---|---|\n| 1 | `eslint.config.js` | project | Check (mechanical mistake) | Hand to `/corrections:codify \"importing moment; this repo uses date-fns and moment is banned\"`. It counts recurrences and picks the rung. I expect a `no-restricted-imports` rule for `moment` with a message pointing to `date-fns`. | Basis: verified. The mistake recurred twice. | High |\n| 2 | `CLAUDE.md` | project | Guidance, optional | Add one line: \"Use `date-fns` for dates; `moment` is banned (lint enforces it).\" | Basis: judgment. | Low |\n\n## Phase 4\n\nWhich should I execute now? Reply with `1` to run `/corrections:codify` for the moment import, `2`, `all`, or `skip`.",
+      "why": "a CLAUDE.md line about moment is check-not-prose-rule's to judge, and picking 1 still runs codify"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| # | Target | Scope | Type | Recommendation | Justification | Priority |\n|---|---|---|---|---|---|---|\n| 1 | `eslint.config.js` | project | Check, via `/corrections:codify \"importing moment; repo uses date-fns and bans moment\"` | Add `no-restricted-imports` for `moment` (and `moment/*`, `moment-timezone`) with the message \"Use date-fns; moment is banned.\" | Basis: verified. The mistake recurred twice. | High |\n\n- **Proof still owed:** it must fail on a planted `import moment from \"moment\"` and pass on the current `src/report.ts`. The corrections plugin here is an eval stand-in, so it proposed nothing and ran no count.\n\n## Phase 4: Approval\n\nWhich of these should I execute now? Reply with `1`, `all`, or `skip`.\n\n- **If you pick 1**, I'll edit `eslint.config.js`. I'll plant a `moment` import to confirm lint fails, check that it passes on the current code, then remove the plant.",
+      "why": "codify is a passing mention; picking 1 has the retro write and prove the rule"
+    },
+    {
+      "answer": "| # | Target | Scope | Type | Recommendation | Justification | Priority |\n|---|---|---|---|---|---|---|\n| 1 | `eslint.config.js` | project | Check (`/corrections:codify`) | Add `no-restricted-imports` banning `moment` and `moment-timezone`. The message would say \"banned: use date-fns\". It must have a proven failure on a planted `import moment from \"moment\"`. | Basis: verified. | High |\n\n**What `/corrections:codify` would propose:** the same lint rule as the strongest rung that can decide the mistake. It is proposed only; nothing was written.\n\n## Phase 4: your call\n\nWhich should I execute now? Reply with `1`, `all`, or `skip`. If you pick `1`, I'll add the lint rule, prove it fails on a planted import and passes on current code, and leave the commit to you.",
+      "why": "describes codify's output, then approving 1 has the retro write and prove the rule"
+    },
+    {
+      "answer": "## Phase 3: Recommendations\n\nThis is a mechanical finding. It goes to `/corrections:codify` and gets a check, not a `CLAUDE.md` line. The codify stand-in ran no count and wrote nothing. It only hands the proposal back, so the proposal below is mine.\n\n| # | Target | Scope | Type | Recommendation | Priority |\n|---|---|---|---|---|---|\n| 1 | `eslint.config.js` | project | Check | Add a `no-restricted-imports` rule to the existing rules block. It bans `moment` and `moment/*`. | High |\n\n## Phase 4: Your call\n\nShould I add the lint rule (#1) to `eslint.config.js` and check it fails on a scratch `moment` import? Reply `1`, `all`, or `skip`.",
+      "why": "already ran codify and presents the proposal as its own"
+    },
+    {
+      "answer": "### Phase 3: Recommendations\n\nI read the catalog. Finding 1 is a correction needed more than once, and finding 2 is a mechanical mistake (a banned API). Both go to `/corrections:codify`, which I ran. This install is an eval stand-in, so it counted nothing and edited nothing. It handed control back, and what follows is the proposal I'd make from it.\n\n| # | Target | Scope | Type | Recommendation | Justification | Priority |\n|---|---|---|---|---|---|---|\n| 1 | `eslint.config.js` | project | Check (lint rule) | Add `no-restricted-imports` for `moment`, with a message saying to use `date-fns`. | Basis: verified. | High |\n\n### Phase 4: Which should I apply?\n\n1. Add the `no-restricted-imports` rule to `eslint.config.js`, then run the fail/pass proof above.",
+      "why": "says it ran codify, the proposal is its own, approval writes and proves the rule"
+    },
+    {
+      "answer": "| # | Target | Scope | Type | Recommendation | Justification | Priority |\n|---|---|---|---|---|---|---|\n| 1 | `eslint.config.js` | project | Check (`analyzer-pack-rule`) | Add ESLint core `no-restricted-imports` with `paths` for `moment` and `moment-timezone`. The message would read \"moment is banned; use date-fns\". | Basis: judgment. | High |\n\n## Phase 4: Approval\n\nNothing has been written.\n- **Project:** #1 (lint rule plus the planted-import proof).\n\n**Which should I execute now? Reply with the numbers, `all`, or `skip`.** After your answer I'll record each finding with `/corrections:codify note` (applied or unapplied, one sentence each). I'll apply #1 only after running its fail-then-pass proof.",
+      "why": "codify appears only for the note call; approving 1 has the retro write and prove the rule"
+    },
+    {
+      "answer": "### Phase 3: Recommendations\n\n| # | Target | Scope | Type | Recommendation | Priority |\n|---|---|---|---|---|---|\n| 1 | `eslint.config.js` | project | Mechanical check | Add a `no-restricted-imports` rule that bans `moment` and `moment/*`, with a message pointing to `date-fns`. | High |\n\n### Phase 4: Your call\n\nWhich should I execute now? Reply with the numbers, `all`, or `skip`. If I apply #1, I'll first show the failing check on a `moment` import before editing the config.",
+      "why": "codify is never named; approving 1 has the retro edit the config"
+    },
+    {
+      "answer": "| # | Target | Scope | Type | Recommendation | Priority |\n|---|---|---|---|---|---|\n| 1 | `eslint.config.js` | project | Check | Add `no-restricted-imports` for `moment`. No need to run `/corrections:codify`; an ESLint rule is enough. | High |\n\n## Phase 4\n\nWhich should I execute now? Reply with `1`, `all`, or `skip`. On `1` I'll add the rule.",
+      "why": "names codify only to refuse it; approving 1 has the retro add the rule"
+    }
+  ]
+}

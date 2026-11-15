@@ -73,7 +73,7 @@ case-insensitively.
 The script cannot see a vendored copy (a file synced from another location); reclassify it as
 `generated` and change the source it is copied from.
 
-A contract correction goes to `.work/coupling/contract-corrections.md`, beside the ledger in the
+A contract correction goes to `<memory_dir>/coupling/contract-corrections.md` (`.work/` by default), beside the ledger in the
 memory tier, one entry per site:
 
 ```markdown

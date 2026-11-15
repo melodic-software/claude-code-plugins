@@ -323,12 +323,13 @@ With no argument in an interactive session, run the interview:
    `<type>/<N>-<slug>` convention>
    ```
 
-   Drop any section with no content rather than leaving it empty. Add one line under the heading
-   naming which layer this file is (`user` or `local`) and that it overrides per key: the two
-   markdown layers look identical, and the next reader has no other signal.
+   Drop any section with no content rather than leaving it empty. Writing a non-`team` layer, add one
+   line under the heading naming which layer this file is and that it overrides per key. The file
+   sits next to (or looks identical to) the team file, and the next reader has no other signal.
 
-   The preamble above the first `##` heading tells a reader who does not run these plugins that the
-   file binds nothing on its own. It is part of the template, not an append: a reconfiguration run
+   The self-describing preamble above the first `##` heading exists for the reader who does NOT run
+   these plugins. The team file lands in shared history, and a teammate opening it deserves to know
+   it binds nothing on its own. It is part of the template, not an append: a reconfiguration run
    rewrites the whole header block in place, never stacks a second copy. Prose above the first H2 is
    inert to every consumer by construction: the enforcement resolver reads only the first non-empty
    body line under a `## <key>` heading (`lib/resolve-convention-pattern.sh` parse contract), and the

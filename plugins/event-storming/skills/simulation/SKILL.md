@@ -28,7 +28,7 @@ Parse `$ARGUMENTS` for a simulation mode:
 - `--value [board-url]`: Run standalone Value Exploration against an existing Big Picture board. Executes all 5 sub-rounds: Financial value → Non-financial currencies → Contrasting perspectives → Diverging perspectives (customer segments) → Explore Purpose. (Book Ch. 5)
 - `--crc [board-url]`: Run Event-Driven CRC Cards validation against an existing Design-Level board. Assigns each aggregate to a separate agent, passes command/event cards between them with "tell don't ask" constraint. Validates interaction patterns work. (Book Ch. 22)
 - `--ux [domain]`: Run UX-Driven EventStorming, Process Modeling with a user journey focus. Follows the customer/user through the process, evaluating emotional experience, friction points, and "flawless execution" at each step. Uses standard PM color grammar plus emotional annotations. (Book preface + Brandolini's "Transactions Redefined" talk)
-- `--discover-bcs [board-url]`: Run Bounded Context discovery against an existing Big Picture board. Reads ALL board items via MCP, applies Brandolini's 6 heuristics (Ch. 6) mechanically against the data, and produces a structured BC analysis with heuristic evidence. Can be run at any time against any completed BP board. Results are reproducible. See "Bounded Context Discovery Protocol" below.
+- `--discover-bcs [board-url]`: Run Bounded Context discovery against an existing Big Picture board. Reads all board items via MCP, applies Brandolini's 6 heuristics (Ch. 6) mechanically against the data, and produces a structured BC analysis with heuristic evidence. Can be run at any time against any completed BP board. Results are reproducible. See "Bounded Context Discovery Protocol" below.
 
 If no simulation mode is specified, ask whether to run a full `--simulate` cycle (defaulting the domain to "Developer Conference") or to read facilitation reference instead (`/event-storming:methodology`).
 
@@ -51,7 +51,7 @@ denotes that tool under whichever prefix the gate found. Naming basis:
 live.
 
 - **Miro available** → run normally: create boards, place stickies, screenshot-verify each phase.
-- **Miro absent** → do NOT fail. Tell the user the `miro` plugin isn't enabled, then offer two paths
+- **Miro absent** → do not fail. Tell the user the `miro` plugin isn't enabled, then offer two paths
   and let them choose:
   1. **Structured-markdown mode (default, recommended):** run the same agentic multi-persona
      workshop, but emit the model as structured markdown instead of board stickies: an ordered
@@ -115,7 +115,7 @@ When invoked with `--process-model` or `--design-level`, run a single format aga
 
 ## Running an Evaluation (`--evaluate`)
 
-When invoked with `--evaluate`, run the iteration workflow against existing boards WITHOUT re-running the simulation. Use this to re-score boards, compare versions, or verify that fixes improved quality.
+When invoked with `--evaluate`, run the iteration workflow against existing boards without re-running the simulation. Use this to re-score boards, compare versions, or verify that fixes improved quality.
 
 **Execution:** Follow `iteration-workflow.md` steps 2-7 (SCORE → COMPARE → DIFF → FIX → VERIFY → CODIFY). Read board data via Miro MCP, have it scored against the rubric in a fresh context (`simulation-evaluation.md` "How to Run an Evaluation", step 3), compare against the `${CLAUDE_PLUGIN_DATA}/history.jsonl` baselines.
 
@@ -135,7 +135,7 @@ When invoked with `--discover-bcs [board-url]`, run Brandolini's 6 heuristics (C
 
 **Execution sequence:**
 
-1. **Read ALL board items** via `miro_list_board_items` (`limit=1000`) for a live board, or by parsing the supplied board export when one was provided instead of a URL. Parse into structured data: events by persona, people, external systems, hot spots, pivotal events.
+1. **Read all board items** via `miro_list_board_items` (`limit=1000`) for a live board, or by parsing the supplied board export when one was provided instead of a URL. Parse into structured data: events by persona, people, external systems, hot spots, pivotal events.
 
 2. **Apply Brandolini's 6 boundary heuristics mechanically** against the parsed data. Canonical definitions in `/event-storming:methodology --big-picture` "Heuristics for Discovering Boundaries". Board-data signals: pivotal-event stickies (`dark_blue` / `--- PIVOTAL ---`) mark business-phase boundaries (H1); persona y-offset rows reveal parallel swimlanes (H2); per-persona event density per timeline zone assigns ownership (H3/H4); `[DIVERGENCE]` / hot-spot markers and same-noun-different-meaning phrasings signal boundaries (H5/H6). Use short BC names (2-3 words).
 

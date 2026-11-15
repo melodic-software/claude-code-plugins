@@ -18,7 +18,7 @@ it when a verdict is close or contested.
 
 ## The core question, precisely
 
-> Could a fresh agent that has NOT seen this document reconstruct its
+> Could a fresh agent that has not seen this document reconstruct its
 > substantive conclusions by natively exploring the repository (reading code,
 > config, metadata, directory structure, build files, tests), without external
 > knowledge the repository does not contain?
@@ -33,7 +33,7 @@ component consumes or copies at runtime (a checklist template a skill instructs
 agents to copy and tick, an eval fixture, a scaffold) is a functional artifact
 with no claims to derive, so the four factors do not apply. Record it
 `out-of-scope: functional artifact` with no verdict. The test: is this file an
-INPUT a tool or skill consumes, rather than prose a reader learns from?
+input a tool or skill consumes, rather than prose a reader learns from?
 
 ## Factor 1: Derivable?
 
@@ -156,11 +156,11 @@ that never saw the document.
 
 1. Spawn a **fresh-context, non-fork subagent**. When the audited file loads at
    launch (root `CLAUDE.md`, `AGENTS.md`, an unscoped `.claude/rules` file), it
-   MUST be an `Explore` or `Plan` agent, the subagent types we rely on to start
+   must be an `Explore` or `Plan` agent, the subagent types we rely on to start
    without those files, so the "fresh" run is not graded by an agent that has
    read the answer. A custom subagent with `omitClaudeMd` is not a substitute.
    Any other audited file may use any non-fork subagent.
-   The subagent must NOT be shown the document and must NOT be spawned as the Agent tool's
+   The subagent must not be shown the document and must not be spawned as the Agent tool's
    `fork` subagent type, which would carry this context's answers into the
    test. A skill's own `context: fork` frontmatter is a different mechanism and
    is not ruled out by this step.
@@ -227,7 +227,7 @@ a sweep cannot spot-test every keep, so it samples.
 |---|---|---|
 | A `.claude/rules/` file listing the public methods of a well-named class | Derivable (code); cheap; high drift (methods change); owns nothing | `delete` (agent-facing, full axe) |
 | A root `CLAUDE.md` that only routes to `README.md`, CI headers, and rules files | Routing index (Factor 1 exception); launch-loaded, so it is what tells the agent where to look | `convert-to-pointer (already satisfied)`. Not actionable; count in aggregate |
-| A doc whose `git log` shows a commit recording a decision about it. Case 1: an empty root `CLAUDE.md` deliberately emptied as an instruction-baseline reset. Case 2: a `docs/deploy-notes.md` restating config values, whose creating commit says it was kept on purpose | `git log` is checked before EVERY `delete`/`convert-to-pointer` that recommends a change. The decision in the commit message is an owned fact (Factor 4 "decisions" class), though the file's mechanical history is derivable | Case 1: `keep-owns-facts`, the emptiness is the decision. Case 2: the verdict ships provisional, `reverses a recorded decision` |
+| A doc whose `git log` shows a commit recording a decision about it. Case 1: an empty root `CLAUDE.md` deliberately emptied as an instruction-baseline reset. Case 2: a `docs/deploy-notes.md` restating config values, whose creating commit says it was kept on purpose | `git log` is checked before every `delete`/`convert-to-pointer` that recommends a change. The decision in the commit message is an owned fact (Factor 4 "decisions" class), though the file's mechanical history is derivable | Case 1: `keep-owns-facts`, the emptiness is the decision. Case 2: the verdict ships provisional, `reverses a recorded decision` |
 | A skill's `templates/checklist.md` that the skill instructs agents to copy and tick | Runtime scaffold a component consumes, not a document; the four factors do not apply | `out-of-scope: functional artifact` (no verdict) |
 | A hand-kept table restating a large generated OpenAPI spec, no regen script, no recheck trigger | Derivable; expensive; high drift; owns nothing; **no drift control** | `keep-as-derivation-cache` **demotes** → `convert-to-pointer` (point at the spec) |
 | A doc explaining *why* the retry count is 3 (rate limit, past incident, breaker invariant) | Bare value derivable, but owns rationale + constraint + cross-cutting invariant | `keep-owns-facts` |

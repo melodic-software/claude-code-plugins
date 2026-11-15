@@ -73,7 +73,8 @@ Moved to [this section](../../contracts/upstream-drift/README.md#the-drift-check
 
 ### Monthly drift issues
 
-Moved to [this section](../../contracts/upstream-drift/README.md#monthly-drift-issues).
+Moved to [this section](../../contracts/upstream-drift/README.md#weekly-drift-issues): one weekly
+workflow, `maintenance-file-upstream-drift-issues`, runs every drift check and files the issues.
 
 ### Claude Code release intake
 

@@ -111,17 +111,14 @@ Count by disposition, each of the 37 rows counted once by its leading dispositio
 G1.2); `adapt` 10 (G1.1, G2, G2.1, G3, G5, G6.1, G7.3, G7.4, A2, A3); `already have` 20, of which
 G4 also adapts a pointer; `reject` 5 (W3, W4, W7, W9, W10).
 
-Open for the owner:
-
-- **Q4 (G6.4, absolute rules).** The re-read guide puts more weight on writing the exception, or an
-  ask-first form, into a rule worded with "never". Whether this repository's own "never" rules
-  outside the chapter (`AGENTS.md`, skill bodies) are rewritten that way is a change to what agents
-  may do. Options: (a) leave them; the chapter's caution-reading rule (row G6.1) covers Fable 5.2;
-  (b) a sweep of those rules as its own change. Recommended: (a) now, (b) only on an observed
-  stall. Basis: judgment; no stall from such a rule has been observed. Unblocks: nothing in this
-  record.
+Open for the owner: none.
 
 Decided by the owner on 2026-11-15:
+
+- **Q4 (G6.4, absolute rules): no sweep.** After an audit of the rules worded with "never", the
+  owner had two `AGENTS.md` rules reworded: the merge-hold rule now states what lifts a hold, and
+  the lane ready-marking rule now matches what the pull-request skill does. The other rules in this
+  repository stay as written.
 
 - **Q1 (G2.1, consent gate on Fable 5.2): option (a).** The chapter narrows the reading and lists
   the internal steps outside the gate; the gate's text is unchanged. Three of the four steps

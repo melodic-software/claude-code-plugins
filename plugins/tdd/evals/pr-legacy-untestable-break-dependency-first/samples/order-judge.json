@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "1. Make only the dependency-breaking change: add a `now` parameter and a `connection` parameter whose defaults do what the function does today. Nothing else in that commit.\n2. Write characterization tests through those parameters.\n3. Then remove the duplicated proration code and rename the parameters, with the tests as the guard.",
+      "why": "three steps in order, the first kept alone"
+    },
+    {
+      "answer": "Break the two dependencies first, as a small mechanical change of its own with no renames. Once a test can call the function, pin its current behavior with characterization tests. Only after that do the cleanup: the duplication, then the names.",
+      "why": "same order in prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Write characterization tests first, as the rule says, then remove the duplication and rename the parameters.",
+      "why": "no way to reach the code is given"
+    },
+    {
+      "answer": "Start by extracting the proration code into a pure function and renaming the parameters while you inject the clock and connection. Then write unit tests for the new shape.",
+      "why": "cleanup in the same step as the dependency change, tests last"
+    },
+    {
+      "answer": "Inject the clock and the connection, then remove the duplication and rename the parameters, then add tests to lock in the result.",
+      "why": "refactors before any test pins the current behavior"
+    }
+  ]
+}

@@ -14,10 +14,10 @@ Two shapes, and neither announces itself as a failure:
   the stated work never happens and the run reports as finished.
 - **A turn that stops to ask for permission the pipeline already granted.** The model has
   everything it needs to proceed and asks anyway. The cost is not one wasted cycle: the question
-  reaches no reader, so the lane sits until a timeout retires it.
+  reaches no reader, so the run waits until a timeout ends it.
 
 Both are *stopping* failures rather than *doing* failures, which is why review catches them late.
-The artifact a run leaves behind looks reasonable; only the absent effect gives it away.
+The artifact a run leaves behind looks reasonable, and the only evidence of the failure is the tool call or change that never happened.
 
 ## The reminder
 
@@ -93,7 +93,8 @@ installed, so they stay self-contained by design.
 
 ## Relationship to the lane-stop gate
 
-`hooks/lane-stop-gate.sh` is the mechanism half, and it covers exactly one clause: the last one.
+`hooks/lane-stop-gate.sh` is the mechanism half, and it covers exactly one clause, the one that
+begins "End the turn only when the goal is met".
 On a lane's first unsignaled stop it blocks once and re-injects a completion self-check, and a
 lane that stops again is treated as genuinely down and reported to the operator.
 
@@ -110,7 +111,7 @@ reminder is worse than one known to cover a slice:
 
 A mechanism outranks an admonition wherever the shape allows one. Here the shape allows one for a
 single clause, and the honest arrangement is the gate for that clause plus stated instruction for
-the rest, not a gate presented as if it covered all seven.
+the rest, not a gate presented as if it covered all eight.
 
 ## Provenance
 

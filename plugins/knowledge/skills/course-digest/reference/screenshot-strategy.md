@@ -170,7 +170,7 @@ Measured across a full code-heavy course extraction. Re-check any row that stops
 | **Fresh temp dir per Playwright run** | Stale persistent context profiles interfere with cookie injection. Use `course-extraction-${Date.now()}` |
 | **`page.evaluate()` for shadow DOM detection** | `locator.isVisible()` fails on web components (mux-player). Use `document.querySelector()` via evaluate |
 | **File-size dedup outperforms perceptual hash** | For this content type, consecutive interval frames within 8% file size = duplicate. RMSE/phash/SSIM tested but file-size was more reliable |
-| **Scene threshold 0.1 is the working default for screencasts** | 0.2 caught almost nothing on the measured screencast; calibrate on a new course's first code-heavy lesson |
+| **Scene threshold 0.1 is the only viable value** | 0.2 catches almost nothing for screencast content. The cliff is dramatic |
 | **Timestamp estimation is approximate for scene frames** | Linear interpolation across video duration. Accurate for interval frames (fixed fps), approximate for scene-detected frames |
 
 ## File size management

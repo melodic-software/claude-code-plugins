@@ -15,7 +15,7 @@ owning contract, never restated here.
 
 ## Charter scope: the autonomous-drain side only
 
-The boundary between plugins and runner IS the governed work-item queue, split
+The boundary between plugins and runner is the governed work-item queue, split
 interactive-upstream from autonomous-downstream:
 
 - **Interactive upstream (plugins own it).** Everything interactive, meaning interview, design,
@@ -35,8 +35,8 @@ assumed to have fired. Restated verbatim in substance (the executor references r
 shipped surface-class vocabulary, never as vendor names):
 
 - The `C2` promotion trigger fires (per the [guardrail matrix](guardrails.md#the-matrix))
-  AND the existing executors behind the invocation-adapter seam, the self-operated and
-  vendor-hosted surfaces reachable today, demonstrate a clean autonomous drain; **OR**
+  and the existing executors behind the invocation-adapter seam, the self-operated and
+  vendor-hosted surfaces reachable today, demonstrate a clean autonomous drain; or
 - those existing executors hit an isolation, concurrency, or platform wall the runner uniquely
   solves.
 
@@ -73,10 +73,10 @@ All imported unchanged; each is enforced by its owning contract, cited never res
   binding-validity time what no static check can reach at run time. **Three obligations land on
   this seam when the build trigger fires**, and each is a hole until it does: aggregating verdicts
   under the unanimity invariant, including the checker-timeout and no-verdict cases a static check
-  never sees; refusing to count two checkers the binding held distinct that RESOLVE to one
+  never sees; refusing to count two checkers the binding held distinct that resolve to one
   instance; and drawing lenses per that leaf's draw rule. A binding cannot express a topology that
   auto-proceeds with no force behind its checkers, and the runner is what makes the same true of
-  a RUN.
+  a run.
 
 ## Anti-goals
 

@@ -8,7 +8,7 @@
 - [Special cases](#special-cases)
 - [Hand-off](#hand-off)
 
-Audit mode runs the full pattern library + triage classifier but performs NO Edit calls; output is a findings report. Use for:
+Audit mode runs the full pattern library + triage classifier but performs no Edit calls; output is a findings report. Use for:
 
 - Pre-rename impact analysis ("how big is the blast radius if I rename X?")
 - Verifying a just-completed rename has zero stragglers (post-rename gate)
@@ -33,7 +33,7 @@ Resolve the rename pair `(old, new)`:
 2. If single-token arg, pair is `(arg, undetermined)`, so ask via `AskUserQuestion` what new name would be (so triage can show "would change X to Y" diffs)
 3. If no args, run Smart default detection. If multiple candidates, present via `AskUserQuestion`. If zero, abort with helpful message
 
-Then resolve the **rename MODE**, container vs identifier, per [patterns.md](patterns.md)
+Then resolve the **rename mode**, container vs identifier, per [patterns.md](patterns.md)
 "Phase 0b" and its selection ladder (explicit override → filesystem → manifest → invocation
 shape → ask). The pair alone does not determine it, and the mode changes how the bare-token
 residue is bucketed, so resolve it here rather than letting a default apply silently.
@@ -41,7 +41,7 @@ residue is bucketed, so resolve it here rather than letting a default apply sile
 Only the explicit override short-circuits. **Collect the filesystem, manifest and invocation-shape
 evidence in full and compare their verdicts.** They can disagree in a monorepo where an
 identifier shares a name with an unrelated package, and taking the earliest would silently pick
-container mode and suppress the identifier's actionable references. On disagreement, ASK rather
+container mode and suppress the identifier's actionable references. On disagreement, ask rather
 than resolve. Carry the resolved mode and every rule that fired into the Phase 4 report.
 
 ### Phase 2: Survey
@@ -55,58 +55,58 @@ not a sweep. Use Read only to confirm a Grep hit in context before classifying i
 - Use `output_mode: "content"` with `-n` for line numbers and `-C 1` for one line of surrounding context
 - Use `multiline: true` for **Form 7** (frontmatter chain string) **and Form 14's Setext-title
   alternative**. Both patterns contain a literal `\n`, which ripgrep's single-line default
-  REJECTS outright (`the literal "\n" is not allowed in a regex`). Without it the Setext pattern
+  rejects outright (`the literal "\n" is not allowed in a regex`). Without it the Setext pattern
   errors rather than under-matching, so the survey silently loses the form and a container's
   landing-page title survives as Form-2 residue that container mode excludes
 - Form 14's ATX and Setext alternatives embed `(?i)` so title-case headings match; do **not** add
   `-i` globally, because declaration alternatives must stay case-sensitive
 - Apply auto-exclusions per `../SKILL.md` "Auto-exclusions" via `glob` filter or post-filter
 
-**Collect per-OCCURRENCE records, not per-line ones.** `output_mode: "content"` returns matching
-LINES, and `--column` reports only the first match on a line, so a line-shaped record gives the
+**Collect per-occurrence records, not per-line ones.** `output_mode: "content"` returns matching
+lines, and `--column` reports only the first match on a line, so a line-shaped record gives the
 span rule below nothing to compare and silently degrades it to line-keyed dedup, restoring the false
-completion eval 14 exists to prevent. For every returned match, re-scan it locally for ALL occurrences of the form's pattern
+completion eval 14 exists to prevent. For every returned match, re-scan it locally for all occurrences of the form's pattern
 and emit one record per occurrence: `{file, line, start, end, pattern_form, snippet}`. A line with
 two `<old>` occurrences produces two records.
 
-**Enumerate every `<old>` span INSIDE each match. Do not rely on repeated whole-pattern
+**Enumerate every `<old>` span inside each match. Do not rely on repeated whole-pattern
 matching.** Some forms match a span far wider than the token: Form 7's
 `description:\s*"[^"]*\b<old>\b[^"]*"` swallows the entire field, and its greedy prefix binds the
-captured group to just ONE occurrence. On `description: "first <old> and then <old>"` the pattern
+captured group to just one occurrence. On `description: "first <old> and then <old>"` the pattern
 yields one match for two references, and no cursor advancing recovers the other, because
 re-matching from inside the field cannot reproduce the `description:` prefix the pattern requires.
-So for each match, scan its REFERENCE REGION for every occurrence of `<old>` and emit one record
-per occurrence, all attributed to the matching form. The whole-pattern match establishes THAT the
+So for each match, scan its reference region for every occurrence of `<old>` and emit one record
+per occurrence, all attributed to the matching form. The whole-pattern match establishes that the
 form applies and to what extent; the token spans inside its reference region are the references.
 Under container mode a lost occurrence becomes suppressed Form 2 residue, so it drops silently
 and the rename can falsely complete.
 
-**The reference region is the whole match ONLY when the whole match is reference-bearing.**
+**The reference region is the whole match only when the whole match is reference-bearing.**
 Enumerating blindly is as wrong as enumerating too little, and more dangerous: these forms are
 Certain, so a spurious record auto-applies. Each form's region:
 
 | Form | Reference region | Excluded from enumeration |
 |---|---|---|
 | 7 (frontmatter chain) | the whole quoted field | nothing; the field's occurrences are all real references |
-| 14 declaration alternatives | the declaration VALUE only | the trailing inline comment |
+| 14 declaration alternatives | the declaration value only | the trailing inline comment |
 | 1, 3, 13, 15, Form 14 key-position | the token span the alternative anchors | the consumed delimiter and surrounding syntax |
 
 The comment case is the live hazard: `name: <old> # <old> before publishing` is one declaration
 and one piece of ordinary prose. Enumerating the whole match emits two records, both attributed to
 Form 14, which is Certain and exempt from the common-word demotion in a manifest, so apply mode
 rewrites the comment text too. The TOML alternative has the identical shape and region. A comment
-is documentation ABOUT the declaration, never a second declaration.
+is documentation about the declaration, never a second declaration.
 
-**Then advance the rescan cursor to the end of the LAST enumerated `<old>` span, not the end of
+**Then advance the rescan cursor to the end of the last enumerated `<old>` span, not the end of
 the match.**
-Several forms CONSUME a trailing delimiter instead of using a lookahead, because ripgrep's default
+Several forms consume a trailing delimiter instead of using a lookahead, because ripgrep's default
 engine rejects look-around: Forms 1, 3, 13, 15 and both delimiter-anchored Form 14 alternatives.
-That consumed delimiter is often the LEADING delimiter the next occurrence needs, so a rescan that
+That consumed delimiter is often the leading delimiter the next occurrence needs, so a rescan that
 resumes after the whole match eats the boundary and emits only the first of two adjacent
-references. Verified: on `{"name":"<old>","id":"<old>"}` a global `rg -o` returns ONE match,
+references. Verified: on `{"name":"<old>","id":"<old>"}` a global `rg -o` returns one match,
 `{"name":"<old>",`, because the first match consumed the comma the `id` member needed; resuming at
 the end of the captured token returns both. Insert `"version":"1"` between them and both appear
-either way. The collision is specifically ADJACENCY, which a compact manifest produces. Form 2
+either way. The collision is specifically adjacency, which a compact manifest produces. Form 2
 still finds the lost token, but under container mode that is suppressed residue, so the sweep can
 report completion with the second declaration stale.
 
@@ -118,10 +118,10 @@ Two details that make the cursor rule correct:
 - **The cursor is the last enumerated token's end, not the match's start + 1.** Advancing by one
   character re-finds the same occurrence through a different alternative and doubles the record;
   the captured span is the unit of identity everywhere else in this pipeline, so here too.
-  Advancing past the whole match is the adjacency bug above; advancing past only the FIRST token
+  Advancing past the whole match is the adjacency bug above; advancing past only the first token
   in a wide match re-emits the ones already enumerated.
 
-**Rescan the returned BLOCK, not a line, for the multiline forms.** For Form 7 and Form 14's
+**Rescan the returned block, not a line, for the multiline forms.** For Form 7 and Form 14's
 Setext alternative Grep returns a multi-line block, and the pattern only matches against that
 whole block. Feeding it one line at a time emits no record, so the reference vanishes between the
 survey and triage, silently, on exactly the two forms added because their references were being
@@ -131,24 +131,24 @@ block's own first-line number. Line-by-line rescanning is correct for every sing
 wrong for these two; branch on whether the form needs `multiline: true`, which is the same two
 forms listed above.
 
-With those records, apply BOTH rules from `patterns.md`, in this order:
+With those records, apply both rules from `patterns.md`, in this order:
 
-1. **Precedence** ("Phase 0"): deduplicate by OCCURRENCE SPAN `(file, line, start, end)`, never
-   by whole line: a weaker match is suppressed only when its span is COVERED BY a more-specific
+1. **Precedence** ("Phase 0"): deduplicate by occurrence span `(file, line, start, end)`, never
+   by whole line: a weaker match is suppressed only when its span is covered by a more-specific
    match's span, so a second reference elsewhere on the same line survives. Coverage also collapses
-   COEQUAL matches: two alternatives of one form hitting the same occurrence keep one, widest span
+   coequal matches: two alternatives of one form hitting the same occurrence keep one, widest span
    first, or the count doubles and the second targeted Edit fails on an already-rewritten token.
    A match by Forms 13–15 is attributed to that form and its weaker Form 2 / chain-form duplicates
    are dropped. Carry the dropped count into the report's "superseded" row.
 2. **Container-rename mode** ("Phase 0b"): when the renamed thing is a container, apply the
-   Certain-eligibility ALLOWLIST to every remaining match, not only to the bare-token ones. Forms
+   Certain-eligibility allowlist to every remaining match, not only to the bare-token ones. Forms
    1, 3 and 13–15 are the whole eligible set: Form 2's residue leaves Certain and is reported as
    one aggregate count, and **every other form's matches, Forms 4 through 12, are demoted to
    Ambiguous**, including Forms 8 and 12, which are Certain by default and would otherwise stay
    on the auto-apply path and rewrite an unrelated dotted key or glob entry. Precedence alone
    leaves all of them at their identifier-mode ratings; the mode rule removes them.
 
-Both run BEFORE Phase 3, or triage will bucket the same reference twice and re-admit the
+Both run before Phase 3, or triage will bucket the same reference twice and re-admit the
 residue the mode rule excluded.
 
 ### Phase 3: Triage
@@ -160,7 +160,7 @@ Classify each match into one of three buckets per [triage.md](triage.md):
   container-rename mode the eligible set is narrower**, Forms 1, 3 and 13–15 only, so the
   frontmatter glob (Form 8) and the dot-form (Form 12) are not Certain there
 - **Chain-context**: high-precision form when neighbors confirm context (chain prose with known skill names, numbered rows)
-- **Ambiguous**: bare-token form when `<old>` is in English-verb blocklist, OR chain-form without confirming neighbors
+- **Ambiguous**: bare-token form when `<old>` is in English-verb blocklist, or chain-form without confirming neighbors
 
 ### Phase 4: Report (audit-mode terminal step)
 
@@ -215,15 +215,15 @@ If `<new>` is undetermined (single-token reverse mode), omit the `→ <new>` and
 
 ## Output discipline
 
-- Audit reports facts, not actions. NEVER call Edit/Write in audit mode
+- Audit reports facts, not actions. Never call Edit/Write in audit mode
 - If user implicitly authorizes edits ("yes apply") during audit, switch to apply mode (`/docs-hygiene:rename-references <old> to <new>`). Never silently start editing from within audit
 - Audit is cheap to re-run; encourage iteration
 
 ## Special cases
 
-- **Zero matches across all patterns**: report explicitly. Rename target either does not appear in codebase OR pattern library has a gap. If user expected matches, treat as Phase 6 pattern-library-evolution trigger
+- **Zero matches across all patterns**: report explicitly. Rename target either does not appear in codebase or pattern library has a gap. If user expected matches, treat as Phase 6 pattern-library-evolution trigger
 - **All matches in excluded paths**: report with breakdown showing why each was excluded. User may want to widen scope via the override flags (`--include-historical`, `--include-memory`, `--include-plan-docs`, `--include-bare-token`)
-- **Ambiguous bucket is empty AND `<old>` is in English-verb blocklist**: unusual for an
+- **Ambiguous bucket is empty and `<old>` is in English-verb blocklist**: unusual for an
   identifier rename. Re-run Form 2 without blocklist filter to verify; the blocklist demotes, not
   excludes. **Expected under container-rename mode**, where the bare-token residue is excluded
   from the buckets entirely and reported as an aggregate, so an empty Ambiguous bucket is the
@@ -239,4 +239,4 @@ After audit completes, suggest the next action based on counts:
 | 0 matches | "No stragglers found. Safe to proceed." If post-rename context, suggest running the consuming repository's verification workflow |
 | Only Certain bucket non-zero | Suggest `/docs-hygiene:rename-references <old> to <new>`, since auto-apply will likely succeed cleanly |
 | Chain-context or Ambiguous non-zero | Suggest `/docs-hygiene:rename-references preview <old> to <new>` first, so the user reviews planned edits before committing |
-| NEW form discovered (no pattern matched but user reports a stale ref) | Phase 6 evolution: extend `context/patterns.md`, re-audit |
+| New form discovered (no pattern matched but user reports a stale ref) | Phase 6 evolution: extend `context/patterns.md`, re-audit |

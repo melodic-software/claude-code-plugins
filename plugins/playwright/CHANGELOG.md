@@ -3,6 +3,31 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.8] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [2.0.7] - 2026-11-15
+
+### Changed
+
+- README: the marketplace's weekly drift check for this skill now runs in the `maintenance-file-upstream-drift-issues` workflow, which files one issue when upstream moves.
+
+## [2.0.6] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [2.0.5] - 2026-11-15
+
+### Changed
+
+- Playwright skill and reference text reads in plain case instead of capital-letter emphasis; the form example fills its password through `fill-secret.sh` and the multi-session example closes each named session instead of every session.
+- Restated upstream facts (route abort error codes, the debug flow, cloud-session network limits, tracing overhead) now point at their upstream pages.
+
 ## [2.0.4] - 2026-11-14
 
 ### Changed

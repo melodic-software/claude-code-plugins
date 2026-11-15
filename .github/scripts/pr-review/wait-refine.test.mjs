@@ -312,7 +312,70 @@ test("a ref with no commit warns once, and a ref naming another head does not wa
   assert.ok(!other.reads.some((line) => line.includes("the head ref read failed")));
 });
 
+// The workflows pass the base ref and head repository from the
+// pull_request event, so the start needs no pull request read; the finish
+// read still decides whether the head moved or the pull request closed.
+const EVENT = { ...INPUT, baseRef: "main", headRepository: REPO };
+
+test("with the event's base ref and head repository, no pull request read comes before the dispatcher listing; the finish read still comes", async () => {
+  const w = world(refined(refineRun()));
+  assert.deepEqual(await decide(EVENT, w.deps), { proceed: true, reason: "refine-success" });
+  assert.equal(apiReads(w)[0], LIST, "the dispatcher listing is the first read");
+  assert.equal(reads(w, "pulls/7"), 1, "the finish read only");
+  assert.equal(apiReads(w).at(-1), "pulls/7", "the finish read is the last read");
+});
+
+test("with the event's values, a head moved or a pull request closed by the finish is still not reviewed", async () => {
+  for (const finish of [pull(MOVED), pull(HEAD, { state: "closed" }), pull(HEAD, { state: "closed", merged: true })]) {
+    const w = world(refined(refineRun(), finish));
+    assert.deepEqual(await decide(EVENT, w.deps), { proceed: false, reason: "head-moved" }, JSON.stringify(finish));
+  }
+});
+
+test("with the event's values, a PR into another base, or from a fork, is reviewed after the one finish read", async () => {
+  for (const other of [{ baseRef: "release" }, { headRepository: "fork/r" }]) {
+    const w = world({ "pulls/7": pull() });
+    assert.deepEqual(await decide({ ...EVENT, ...other }, w.deps), { proceed: true, reason: "no-refine" }, JSON.stringify(other));
+    assert.deepEqual(apiReads(w), ["pulls/7"], JSON.stringify(other));
+  }
+});
+
+test("with the event's values, a head already moved at the start is caught at the first poll: the listing comes first, then the poll and its confirming read", async () => {
+  const w = world({ "pulls/7": pull(MOVED), [PROBE]: ref(MOVED), [LIST]: { workflow_runs: [dispatcherRun({ status: "in_progress" })] } });
+  assert.deepEqual(await decide(EVENT, w.deps), { proceed: false, reason: "head-moved" });
+  assert.equal(apiReads(w)[0], LIST, "the dispatcher listing is the first read");
+  assert.equal(w.elapsed(), 60_000, "one 30 s poll, then the 30 s confirming read");
+});
+
+test("with the event's values, a pull request closed at the start is caught only at the finish read", async () => {
+  const w = world({ "pulls/7": pull(HEAD, { state: "closed" }), [PROBE]: ref(), [LIST]: { workflow_runs: [] } });
+  assert.deepEqual(await decide(EVENT, w.deps), { proceed: false, reason: "head-moved" });
+  assert.equal(w.elapsed(), 300_000, "the ref outlives the close, so the 300 s window runs out first");
+  assert.equal(reads(w, "pulls/7"), 1, "the finish read only");
+});
+
+test("with either event value empty or missing, the start reads the pull request as before", async () => {
+  for (const missing of [{ baseRef: "" }, { headRepository: "" }, { baseRef: null }, { headRepository: undefined }]) {
+    const w = world(refined(refineRun()));
+    assert.deepEqual(await decide({ ...EVENT, ...missing }, w.deps), { proceed: true, reason: "refine-success" }, JSON.stringify(missing));
+    assert.deepEqual(apiReads(w).slice(0, 2), ["pulls/7", LIST], JSON.stringify(missing));
+    assert.equal(reads(w, "pulls/7"), 2, "the start read and the finish read");
+  }
+});
+
 const ENV = { PR_NUMBER: "7", HEAD_SHA: HEAD, GITHUB_REPOSITORY: REPO, GITHUB_TOKEN: "t", GITHUB_OUTPUT: "/dev/null" };
+
+test("readEnv takes PR_BASE_REF and PR_HEAD_REPO, empty or missing as none", () => {
+  assert.deepEqual(readEnv({ ...ENV, PR_BASE_REF: "main", PR_HEAD_REPO: REPO }), { ...EVENT, pollMs: 60_000 });
+  assert.deepEqual(readEnv({ ...ENV, PR_BASE_REF: "", PR_HEAD_REPO: "" }), { ...INPUT, pollMs: 60_000, baseRef: null, headRepository: null });
+});
+
+test("main with PR_BASE_REF and PR_HEAD_REPO set reads no pull request before the dispatcher listing", async () => {
+  const w = world({ ...refined(steps(running(), refineRun())), [PROBE]: ref() });
+  assert.deepEqual(await main({ ...ENV, PR_BASE_REF: "main", PR_HEAD_REPO: REPO }, w.deps), { proceed: true, reason: "refine-success" });
+  assert.equal(apiReads(w)[0], LIST);
+  assert.equal(reads(w, "pulls/7"), 1);
+});
 
 test("with no poll set, a poll comes 60 s after the last read", async () => {
   const w = world({ ...refined(steps(running(), refineRun())), [PROBE]: ref() });
@@ -324,7 +387,7 @@ test("malformed env throws before any read", () => {
   for (const bad of [{ PR_NUMBER: "7x" }, { PR_NUMBER: "0" }, { HEAD_SHA: "abc" }, { HEAD_SHA: HEAD.toUpperCase() }, { GITHUB_TOKEN: "" }, { GITHUB_OUTPUT: undefined }, { GITHUB_REPOSITORY: "o" }, { WAIT_CAP_SECONDS: "-1" }]) {
     assert.throws(() => readEnv({ ...ENV, ...bad }), Error, JSON.stringify(bad));
   }
-  assert.deepEqual(readEnv({ ...ENV, WAIT_POLL_SECONDS: "5" }), { ...INPUT, pollMs: 5_000 });
+  assert.deepEqual(readEnv({ ...ENV, WAIT_POLL_SECONDS: "5" }), { ...INPUT, pollMs: 5_000, baseRef: null, headRepository: null });
 });
 
 // The production reader: createApi over budgetedFetch and a holding rate

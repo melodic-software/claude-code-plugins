@@ -65,7 +65,7 @@ the script cannot run (no bash), on a small run, following "What each cell says"
   `rule-utm-params`, the delete-or-source decision for the two IMPORTANT residue rules.
 - **Cell-escape** `Finding` and `Action` per the shape's rule (`\|`, newlines to spaces). The
   detector's excerpts already replace `|` with `/`, but the composed cells must be re-checked.
-- **`Tier`** is LOOKED UP from the rule's crosswalk row, then mapped to the consuming project's
+- **`Tier`** is looked up from the rule's crosswalk row, then mapped to the consuming project's
   severity vocabulary when it defines one (the contract's consumer-precedence rule).
   **`Confidence`** is `high` on every emitted row: a deterministic detector fired.
 

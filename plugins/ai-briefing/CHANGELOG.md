@@ -3,6 +3,34 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.22] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [1.0.21] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [1.0.20] - 2026-11-15
+
+### Changed
+
+- The generate skill's reference docs drop capital-letter emphasis, state the emit step's split
+  rule for the HIGH bucket (split past 5 bullets; HIGH items past 7 move to MED), and describe the
+  legal cluster with a generic case instead of one past trial.
+- The HTML-to-PDF fallback reads the Playwright CLI's PDF command name and flags from its own help
+  instead of restating them.
+
+## [1.0.19] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
 ## [1.0.18] - 2026-11-14
 
 ### Changed

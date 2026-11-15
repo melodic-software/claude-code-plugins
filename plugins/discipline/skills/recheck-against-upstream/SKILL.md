@@ -25,13 +25,13 @@ Existing state, a config file, a code path, a runbook, an infra
 definition, is evidence of *what is*, never proof that it matches the
 upstream it depends on. Resolve the source of truth per the method doc's
 ladder: if the consuming project states an upstream-conformance rule in its
-own `CLAUDE.md` / `.claude/rules/`, re-anchor THAT. Otherwise re-anchor this
+own `CLAUDE.md` / `.claude/rules/`, re-anchor that. Otherwise re-anchor this
 portable baseline:
 
 - **Present state is not self-justifying.** "It's already configured this
   way" and "the code does X" describe the state; neither shows it still
   matches upstream. Conformance is a claim to verify, not to assume.
-- **Compare against the CURRENT official upstream, fetched now.** Re-read
+- **Compare against the current official upstream, fetched now.** Re-read
   the vendor's live documentation for the surface in play this session, never training-data recall of it, never a stale in-repo summary of it.
   Read each docs page through the shared docs lookup, not a WebFetch
   summary: the procedure is
@@ -43,7 +43,7 @@ portable baseline:
   docs page, such as a changelog repository or GitHub release notes, keeps
   its existing route.
 - **Resolve the applicable upstream version first.** When the repo pins a
-  supported major/minor, compare against the docs for THAT version. The
+  supported major/minor, compare against the docs for that version. The
   latest docs can legitimately prescribe APIs and defaults the pin does not
   have. Divergence between the pinned line and latest is its own finding
   (upgrade candidate or deliberate hold), never a false gap against the pin.
@@ -62,8 +62,8 @@ repo's state against them, and sort every divergence into one of three categorie
    deprecation and version drift here: a flag upstream renamed, a default it
    changed, an API it marked deprecated is a gap even when the old form
    still functions today.
-2. **Deliberate divergence**, a rationale IS recorded in the repo's docs or
-   an ADR. Do not "correct" it. Audit only whether it STILL holds against
+2. **Deliberate divergence**, a rationale is recorded in the repo's docs or
+   an ADR. Do not "correct" it. Audit only whether it still holds against
    the current docs: upstream may have shipped the very thing the workaround
    was written to route around, obsoleting the recorded rationale. Report-
    only when the rationale still holds; flag it when the docs have overtaken
@@ -108,14 +108,14 @@ enumerating surfaces: it owns the doc-by-doc dispatch, the mid-run checkpoint,
 the divergence ledger, and work-item routing, and replaces the inline audit
 and correct-forward steps.
 
-## Distinct axes. What this is NOT
+## Distinct axes. What this is not
 
-- **vs `/discipline:reason-dont-recite`.** That skill interrogates INTERNAL
+- **vs `/discipline:reason-dont-recite`.** That skill interrogates internal
   precedent coasting on "that's how it's done here". This one measures
-  against an EXTERNAL upstream authority: the vendor's current docs.
+  against an external upstream authority: the vendor's current docs.
 - **vs `/discipline:follow-our-standards`.** That skill audits against the
-  consuming ORG's own engineering standards. This one audits against the
-  third-party VENDOR's documentation the state depends on.
+  consuming org's own engineering standards. This one audits against the
+  third-party vendor's documentation the state depends on.
 - **Divergence is not automatic error.** A recorded, still-valid deliberate
   divergence audits clean; the duty is to classify, not to force every
   difference back to the default.

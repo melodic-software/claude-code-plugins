@@ -27,8 +27,13 @@ None: the skill only answers in the transcript.
 
 1. Capture `logs` with the prompt
    `/discipline:tighten-your-output In order to be able to run the tests, you will first need to install all of the dependencies.`
+   Result: the driver prints its `log: <path>` line and exits 0,
+   and the reply in the `.jsonl` restates the sentence in fewer words.
 2. For a terminal-session entry point, drive it as the driving tool's `skills/invoke` feature with
-   the same prompt.
+   the same prompt. Result: the steps there state theirs; the transcript shows the same rewrite.
+3. **Proof.** Result: the reply says the sentence in fewer words with its meaning kept (install
+   the dependencies before running the tests) and reports what it cut and what it kept.
+   Captures: logs
 
 ## Gotchas
 

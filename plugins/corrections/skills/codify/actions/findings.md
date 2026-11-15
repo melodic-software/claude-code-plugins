@@ -9,10 +9,10 @@ The argument names exactly one file. Never glob a findings directory and never p
 second file is a second invocation.
 
 - No path, or a path that does not exist: print
-  `usage: /corrections:codify findings <findings-file>` and STOP.
+  `usage: /corrections:codify findings <findings-file>` and stop.
 - The frontmatter must declare `type: review-findings` and the table under `## Findings` must parse
   ([the shape](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/reference/findings-file-shape.md)).
-  Otherwise STOP with one line naming which half failed.
+  Otherwise stop with one line naming which half failed.
 - Read rows only from the table under `## Findings`: `## By dimension` repeats them with the same
   ranks. Unescape `\|` before reading a cell. An empty `Confidence` is absent, not low. A
   `> DEGRADED:` blockquote above the table is a coverage notice: carry its first line into the

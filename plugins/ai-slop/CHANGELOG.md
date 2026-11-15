@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.19.6] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [0.19.5] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [0.19.4] - 2026-11-15
+
+### Changed
+
+- The audit skill drops capital-letter emphasis and dated recheck logs.
+- The rewrite guide collapses a triad only under its entailment condition, and a fix writes a
+  figure only when the text or its sources already state it.
+
 ## [0.19.3] - 2026-11-15
 
 ### Added

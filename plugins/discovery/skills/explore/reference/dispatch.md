@@ -5,7 +5,7 @@ step is shaped the way it is **for exploration**, and what the parent does when 
 agent's own side is
 [`../../../agents/explorer.md`](../../../agents/explorer.md).
 
-Everything the parent owes that is **identical for exploration and research** is stated once in the
+Everything the parent owes that is **identical across exploration, research and intent tracing** is stated once in the
 shared contract. That covers the envelope's six fields as a literal template, the pre-dispatch
 baseline in both shell forms, what is and is not documented about argument substitution on the
 preload path, why the gate ships no permission grant and what to do when it cannot run, and the

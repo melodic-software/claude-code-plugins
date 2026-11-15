@@ -100,7 +100,7 @@ probe and never created `~/.claude/context-usage/` at all.
 
 The `.compacted` marker in that directory was written by `hooks/post-compact-mark.sh` during an
 auto-compaction of that session, which proves **plugin hooks do run in this environment**. The
-status line was the only context-usage writer silent in cloud. The hook layer is alive. That
+status line was the only context-usage writer silent in cloud. That
 is why hook stdin was the first channel checked, and why its field set is the decisive negative
 result for a settings hook rather than an assumption.
 
@@ -243,7 +243,7 @@ list, deferred tool names included.
    what the session can check itself (`node`, `jq`, whether the mod loads), and ask the operator to run
    `/context-usage:setup check`, which is user-only, for the full diagnosis.
 
-A configured `statusLine` no longer decides either branch: the module needs none.
+A configured `statusLine` decides neither branch: the module needs none.
 
 ## What would have to change upstream
 

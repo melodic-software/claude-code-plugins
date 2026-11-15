@@ -3,6 +3,18 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.31] - 2026-11-15
+
+### Changed
+
+- The setup skill's text drops capital-letter emphasis; its steps are unchanged.
+
+## [1.0.30] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
 ## [1.0.29] - 2026-11-14
 
 ### Changed

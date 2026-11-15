@@ -14,7 +14,7 @@ metadata:
 
 ## Why this skill exists
 
-Codifies the markdown-SSOT-extraction pattern as a repeatable workflow. Each invocation targets ONE cluster of repeated markdown content and resolves it to a single named source of truth, consolidating into an existing SSOT home when one already owns the concept, otherwise creating a new artifact (e.g. a rule file or a new skill), plus migration of all call sites to cite by exact heading.
+Codifies the markdown-SSOT-extraction pattern as a repeatable workflow. Each invocation targets one cluster of repeated markdown content and resolves it to a single named source of truth, consolidating into an existing SSOT home when one already owns the concept, otherwise creating a new artifact (e.g. a rule file or a new skill), plus migration of all call sites to cite by exact heading.
 
 The principle is the coding Rule of Three / DRY, applied to markdown text. If the same unit of prose appears 3+ times, changes together, and has an identity that can be named, collapse to one definition and reference by name. Below 3 instances, minting a new SSOT artifact is premature abstraction, the dominant failure mode, and the skill refuses it.
 
@@ -28,11 +28,11 @@ Typical markdown extraction shapes the workflow handles:
 
 Extraction is dangerous, for the reason the record in context/decision-framework.md, "The SkillsBench record", points at. This skill encodes the guardrails (Rule of Three, categorical-shape test, the size bound and one-level depth rule `/playbooks:skill-authoring` `## Body` and `## Reference files` record, Metz unwind procedure) so each invocation is reversible and reviewable.
 
-**Code / config escape-hatch.** Repeated string literals, magic constants, helper functions in source code, or repeated CI / settings / MCP stanzas in config files are also extractable in principle (Rule of Three applies). This skill flags such clusters during `identify` but does NOT ship a citation contract for them, the caller uses the language-idiomatic form (`import` / `using` / `source`, YAML anchor, JSON `$ref`, build-tool include) and language-aware refactoring tools (IDE rename, Roslyn / ts-morph). Markdown is the only file class with no language-level rename safety net. That is where the contract here adds value.
+**Code / config escape-hatch.** Repeated string literals, magic constants, helper functions in source code, or repeated CI / settings / MCP stanzas in config files are also extractable in principle (Rule of Three applies). This skill flags such clusters during `identify` but does not ship a citation contract for them, the caller uses the language-idiomatic form (`import` / `using` / `source`, YAML anchor, JSON `$ref`, build-tool include) and language-aware refactoring tools (IDE rename, Roslyn / ts-morph). Markdown is the only file class with no language-level rename safety net. That is where the contract here adds value.
 
 ## Evidence discipline
 
-Every extraction decision must be grounded in **direct evidence captured this session**. Grep output or file reads you performed yourself. This skill calls such evidence **Tier 0**. Recall ("I remember seeing this repeated"), a subagent's survey summary, or any other synthesized claim is NOT Tier 0. Promote it via your own grep before it drives a plan or an edit. A subagent roster is a lead list, never proof.
+Every extraction decision must be grounded in **direct evidence captured this session**. Grep output or file reads you performed yourself. This skill calls such evidence **Tier 0**. Recall ("I remember seeing this repeated"), a subagent's survey summary, or any other synthesized claim is not Tier 0. Promote it via your own grep before it drives a plan or an edit. A subagent roster is a lead list, never proof.
 
 ## Scope: markdown SSOT
 
@@ -41,7 +41,7 @@ Every extraction decision must be grounded in **direct evidence captured this se
 | Citation target | Form |
 |-----------------|------|
 | Rule-file H3 heading | `` per `<file>.md` "<exact heading>" `` |
-| New skill | `/<skill-name>` invocation (skill internals NOT cited externally. See `/docs-hygiene:audit-encapsulation`) |
+| New skill | `/<skill-name>` invocation (skill internals not cited externally. See `/docs-hygiene:audit-encapsulation`) |
 
 **Out-of-scope, but flagged during `identify`:**
 
@@ -49,21 +49,21 @@ Every extraction decision must be grounded in **direct evidence captured this se
 - **Config clusters** (`.yml`, `.json`, `.toml`, `.editorconfig`). Repeated CI step, MCP entry, settings stanza. Use the tooling's native include / anchor / `$ref` mechanism. Schema validation catches mismatches.
 - **Mixed clusters** spanning markdown + code + config. Pick the canonical owner (usually code/schema where runtime authority lives), then each file class cites in its native form. This skill handles the markdown half; the code/config half follows that file class's own conventions.
 
-The 6-test extraction gate (Rule of Three, namable, stable, self-contained, bounded, one level deep) generalizes to all file classes, and `context/decision-framework.md` annotates each test with code/config equivalents. The HOW (citation contract, rename sweep, encapsulation rule) is markdown-specific.
+The 6-test extraction gate (Rule of Three, namable, stable, self-contained, bounded, one level deep) generalizes to all file classes, and `context/decision-framework.md` annotates each test with code/config equivalents. The how (citation contract, rename sweep, encapsulation rule) is markdown-specific.
 
 Boundary with single-file refactoring: a rename, inline, or extract confined to one file or one recent diff is ordinary editing, not this skill's job. `/docs-hygiene:extract-ssot` handles cross-file markdown deduplication where the repeated unit needs a stable name and cross-file citations. When work touches both, normalize the call sites first, then lift the named unit.
 
 ## When to use vs not use
 
-**Use** when: the same unit appears more than once across files (3+ instances is the bar for *creating* a new SSOT artifact; 1 and 2 route to the non-abstracting buckets); the instances change together (correlated edits); the unit has a stable identity that can be named; the unit is self-contained (extracts cleanly without dragging unrelated context). **Normal-work entry point**, when a cleanup pass, audit, value-bump diff, or review surfaces ANY of the three duplication smells, (a) same literal repeated across tracked files, (b) value-bump diff touches multiple unrelated files, (c) same concept reworded across files or contradicting nuance between files. Route detection here. The skill accepts both literal and semantic clusters; the 6-test gate's "namable + categorical-shape + stable identity" tests admit semantic clusters provided the unit can be named and instances change together.
+**Use** when: the same unit appears more than once across files (3+ instances is the bar for *creating* a new SSOT artifact; 1 and 2 route to the non-abstracting buckets); the instances change together (correlated edits); the unit has a stable identity that can be named; the unit is self-contained (extracts cleanly without dragging unrelated context). **Normal-work entry point**, when a cleanup pass, audit, value-bump diff, or review surfaces any of the three duplication smells, (a) same literal repeated across tracked files, (b) value-bump diff touches multiple unrelated files, (c) same concept reworded across files or contradicting nuance between files. Route detection here. The skill accepts both literal and semantic clusters; the 6-test gate's "namable + categorical-shape + stable identity" tests admit semantic clusters provided the unit can be named and instances change together.
 
 **Classify each file's role before flagging it as a duplicate:**
 
-- **DESCRIBE**, the file IS the SSOT and owns the value or concept; keep the body.
-- **USE**, the file consumes the concept as a load-bearing reference (rules, agent prompts, skill bodies invoking the rule); it MUST cite the SSOT by exact heading or path + key rather than restate body content.
-- **EXPOSE**, the file surfaces the concept to humans for onboarding clarity (README install commands, error messages, public-facing docs); it MAY restate when onboarding clarity outweighs maintenance cost AND adjacent prose cross-references the SSOT.
+- **DESCRIBE**, the file is the SSOT and owns the value or concept; keep the body.
+- **USE**, the file consumes the concept as a load-bearing reference (rules, agent prompts, skill bodies invoking the rule); it must cite the SSOT by exact heading or path + key rather than restate body content.
+- **EXPOSE**, the file surfaces the concept to humans for onboarding clarity (README install commands, error messages, public-facing docs); it may restate when onboarding clarity outweighs maintenance cost and adjacent prose cross-references the SSOT.
 
-Contract identifiers the SSOT defines (tier names, label slugs, action verbs, command names) stay inline in consumers. Naming them is not duplication; those tokens ARE the contract surface. Content (definitions, criteria, mapping tables, thresholds, exception clauses) must cite, never recap.
+Contract identifiers the SSOT defines (tier names, label slugs, action verbs, command names) stay inline in consumers. Naming them is not duplication; those tokens are the contract surface. Content (definitions, criteria, mapping tables, thresholds, exception clauses) must cite, never recap.
 
 **Don't use** for: single-file refactoring inside one diff; recent-diff simplification of a single skill or feature; filing a tracking issue (route to the repo's issue tracker); writing a new skill from scratch without an underlying repetition trigger (use a skill-authoring workflow such as the skill-creator plugin); cross-language type sharing where the answer is codegen, not text dedup.
 
@@ -75,7 +75,7 @@ Full decision matrix: `context/decision-framework.md` (6+5 checklist with worked
 |----------|--------|---------|
 | *(empty)* | Smart default | Auto-detect: working notes from a prior run hold an active candidate roster (defined in "Phases per invocation") → resume the current phase; the invocation or conversation already names a scope → `identify`; otherwise → confirm scope with the user first (see "Bare invocation: confirm scope first") |
 | `identify [<cluster-name>]` | Find candidates (default = exhaustive subagent survey) | Dispatches a read-only exploration subagent over 30+ duplication heuristics (full body in `actions/identify.md`), or surveys inline with a Tier 0 grep per candidate when the corpus is small or `--inline` is passed; ranks by ROI; emits batch-sequencing matrix + recommended `/docs-hygiene:extract-ssot batch` invocation. Rosters every surviving candidate in a labeled multiplicity bucket (N=1 / N=2 / N≥3) with its instance count; artifact-creating outputs stay reserved for N≥3. Single-cluster mode (`identify <name>`) skips the subagent for a targeted Tier 0 grep |
-| `verify <cluster-name>` | Refuse-fast pre-extraction gate | 6-gate cheap check (bucket assignment + Tier 0 grep, citation state, primary-source URL gate, bifurcation check, off-by-one heuristic, LOW-ROI threshold). Output: `PROCEED \| REFUSE-{reason} \| WARN` plus the assigned `bucket:`. OPTIONAL. Does not gate `plan`/`execute`. See `actions/verify.md` |
+| `verify <cluster-name>` | Refuse-fast pre-extraction gate | 6-gate cheap check (bucket assignment + Tier 0 grep, citation state, primary-source URL gate, bifurcation check, off-by-one heuristic, LOW-ROI threshold). Output: `PROCEED \| REFUSE-{reason} \| WARN` plus the assigned `bucket:`. Optional. Does not gate `plan`/`execute`. See `actions/verify.md` |
 | `plan <cluster-name>` | Architect | Pre-step (Tier 0 grep): does an existing rule/doc already own the concept? If yes → consolidate-into-existing branch (extend the home + de-recap consumers, no new artifact). Else choose creation output type (rule vs skill); draft or extend SSOT body; sketch migration plan |
 | `execute <cluster-name>` | Migrate | Write or extend the SSOT (skip writing when an existing home already documents the concept); rewrite call sites to cite + de-recap inline reproductions; sweep references by invoking `/docs-hygiene:rename-references` via the Skill tool if a heading/identifier changed; verify |
 | `batch <cluster-list>` | Multi-candidate orchestration | Auto-`verify` filter, file-overlap matrix, sequential-by-default dispatch, lesson injection between subagents. See `actions/batch.md` |
@@ -91,7 +91,7 @@ Accepted by `identify` and `batch` (the roster-producing surfaces); `batch` pass
 |------|---------|----------|
 | `--min-instances=<N>` | `1` | Lowest bucket to roster. `--min-instances=3` rosters only N≥3 clusters, so sub-three candidates never reach the user |
 | `--buckets=<list>` | all | Filter the roster to the named buckets, e.g. `--buckets=1,2` for the non-abstracting work only |
-| `--fix` | off | Apply ONLY the non-abstracting remedies (`trim-to-citation`, `normalize-wording`). Never writes a new artifact; still honors the per-bucket review gate unless `--yes` |
+| `--fix` | off | Apply only the non-abstracting remedies (`trim-to-citation`, `normalize-wording`). Never writes a new artifact; still honors the per-bucket review gate unless `--yes` |
 | `--dry-run` | off | Print the diff `--fix` would apply; write nothing |
 | `--yes` | off | Non-interactive; skip the per-bucket review gate. Only meaningful with `--fix` |
 | `--inline` | off | `identify` only. Survey in the main session with a Tier 0 grep per candidate instead of dispatching the survey subagent, whatever the corpus size. A small corpus already surveys inline without it |
@@ -132,9 +132,9 @@ whole-repo intent.
 
 ## Decision framework
 
-Before recommending a NEW SSOT artifact, run the 6-test gate (all must pass) + 5-test inline gate (any one keeps inline). Full checklist with evidence and worked examples in `context/decision-framework.md`.
+Before recommending a new SSOT artifact, run the 6-test gate (all must pass) + 5-test inline gate (any one keeps inline). Full checklist with evidence and worked examples in `context/decision-framework.md`.
 
-Headline gate: **Rule of Three** (Don Roberts / Fowler). Refuse *creation of a new SSOT artifact* at <3 instances. Premature abstraction is the dominant failure mode. Rule of Three gates artifact creation, NOT reporting: every candidate is rostered at its own multiplicity, and the bucket decides which remedies are on the table.
+Headline gate: **Rule of Three** (Don Roberts / Fowler). Refuse *creation of a new SSOT artifact* at <3 instances. Premature abstraction is the dominant failure mode. Rule of Three gates artifact creation, not reporting: every candidate is rostered at its own multiplicity, and the bucket decides which remedies are on the table.
 
 | Bucket | Rostered? | Permitted remedies | Creates a new artifact? |
 |---|---|---|---|
@@ -159,7 +159,7 @@ Markdown branch (primary):
 
 Skill-vs-rule heuristic: if the SSOT body is mostly nouns (named units the caller cites), it's a rule file. If the SSOT body is mostly verbs (steps the caller invokes), it's a skill.
 
-Non-markdown escape (out of scope for this skill's HOW; flag during `identify`, refer the caller to language-idiomatic tooling): code constants / shared modules / helper libraries; config includes / YAML anchors / JSON `$ref`. See `context/decision-framework.md` "Output type: rule file vs skill" for the fuller table including code/config rows and worked examples; this section is the canonical markdown summary.
+Non-markdown escape (out of scope for this skill's how; flag during `identify`, refer the caller to language-idiomatic tooling): code constants / shared modules / helper libraries; config includes / YAML anchors / JSON `$ref`. See `context/decision-framework.md` "Output type: rule file vs skill" for the fuller table including code/config rows and worked examples; this section is the canonical markdown summary.
 
 ## Citation form
 
@@ -167,7 +167,7 @@ For markdown call sites, cite by exact H3 heading text + 1-line inline summary. 
 
 ```text
 <scope phrase> per `<rule-file>.md` "<exact heading text>".
-<scope phrase> per `<rule-file>.md` "<exact heading text>" — <optional ≤80-char summary>.
+<scope phrase> per `<rule-file>.md` "<exact heading text>": <optional ≤80-char summary>.
 ```
 
 For code call sites, use the language's native import syntax. For config call sites, use the tooling's native include / anchor / `$ref` mechanism.

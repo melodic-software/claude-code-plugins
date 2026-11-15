@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Topology: `billing/tax` with one entry point. The architecture plugin is not enabled here; it would supply the module-design vocabulary and the friction scan."
+    },
+    {
+      "answer": "I loaded /architecture:principles for the terms: the tax module's interface is `quote(region, net)`. For the other billing modules, /architecture:improve finds which to reshape."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Topology: `billing/tax`, `billing/render`, `billing/mail`. Q1: should the rate table be private?"
+    },
+    {
+      "answer": "The architecture of the split is three modules with tax at the bottom."
+    }
+  ]
+}

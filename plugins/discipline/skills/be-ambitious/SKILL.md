@@ -125,7 +125,7 @@ project's own instructions still govern.
    report, run the outside check and say what it showed. A fresh-context
    review stays a proposal under section 3.
 
-## A declared species in this plugin: NOT a corrector
+## A declared species in this plugin: not a corrector
 
 The correctors re-anchor a standing discipline. This skill is a one-shot,
 user-fired raise or deepen: only the user knows they want more than they

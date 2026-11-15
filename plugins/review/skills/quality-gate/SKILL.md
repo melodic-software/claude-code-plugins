@@ -157,7 +157,7 @@ Follow the selected context file. Two hard rules:
 
 ## What this skill does NOT do
 
-- **Does not run builds or tests**. Use the project's build/test tooling (or this plugin's `ecosystem-specialist` agent) separately. One exception: `downstream` mode, under `downstream_probe: run`, runs the single probe it writes for its safety fact ([context/downstream.md](context/downstream.md) Step 2)
+- **Does not run builds or tests**. Use the project's build/test tooling (or this plugin's `ecosystem-specialist` agent) separately. One exception: `downstream` mode, under `downstream_probe: run`, runs the single probe it writes for its safety fact ([context/downstream.md](context/downstream.md) Step 2). That probe runs none of the reviewed code; the shared rule for running reviewed code, and why the probe sits outside it, is [`run-reviewed-code.md`](../../reference/run-reviewed-code.md) "The downstream probe is outside this rule"
 - **Does not write or fix code**. It identifies issues; the implementer fixes them
 - **Does not fan out across many surfaces**. That is this plugin's `fanout` skill
 

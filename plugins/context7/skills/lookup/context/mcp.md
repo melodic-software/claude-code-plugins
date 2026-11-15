@@ -1,6 +1,6 @@
 # MCP reference (`mcp__context7__*`)
 
-Context7 HTTP MCP server, reading the same backend as the `ctx7` CLI. This plugin does NOT ship or auto-start an MCP server; the consuming project opts in by declaring it in its own MCP configuration.
+Context7 HTTP MCP server, reading the same backend as the `ctx7` CLI. This plugin does not ship or auto-start an MCP server; the consuming project opts in by declaring it in its own MCP configuration.
 
 > Server URL and header facts verified 2026-07-18 against `ctx7` 0.5.5 source and
 > [Context7's docs](https://context7.com/docs) (linked without a section anchor: the fetched page

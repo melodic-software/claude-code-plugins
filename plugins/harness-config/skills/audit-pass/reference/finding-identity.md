@@ -114,9 +114,8 @@ through. Pointer: for the payload fields, fetch
 
 **`load_path`**, the ordered chain of entry points through which a surface loaded, is carried as a
 **non-identity** field for diagnosis, capped at **5 entries** and truncated with an explicit marker
-beyond that. The cap is meant to admit the deepest import chain the harness allows; for that depth,
-fetch [memory: import additional files](https://code.claude.com/docs/en/memory#import-additional-files)
-live. It is outside the hash because the same file reached through a second import path is the same
+beyond that. Observed import depth is four hops, so the cap admits the real maximum with one to
+spare. It is outside the hash because the same file reached through a second import path is the same
 content and the same defect.
 
 ### `anchor`: content-derived, granularity-discriminated, versioned

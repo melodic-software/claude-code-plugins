@@ -48,14 +48,14 @@ Every agent prompt must include corrective instructions for the tensions relevan
 #### 1. Completeness Bias → Partial, Siloed Views
 
 **LLM default:** Produce comprehensive, thorough coverage. Fill every gap. Be helpful.
-**Book requires:** Each persona sees ONLY their slice. Gaps are someone else's job. "Silos maximize ignorance about the whole" (Ch. 2). That is the POINT, because colliding partial views creates discovery.
+**Book requires:** Each persona sees only their slice. Gaps are someone else's job. "Silos maximize ignorance about the whole" (Ch. 2). That is the point, because colliding partial views creates discovery.
 
-**Corrective prompt:** "You know 30% of this domain deeply and 70% is fog. Write ONLY events you personally encounter in your daily work. If you catch yourself writing events outside your expertise, STOP. That's someone else's job. Leave gaps. Your incomplete view is the simulation's most valuable input."
+**Corrective prompt:** "You know 30% of this domain deeply and 70% is fog. Write only events you personally encounter in your daily work. If you catch yourself writing events outside your expertise, stop. That's someone else's job. Leave gaps. Your incomplete view is the simulation's most valuable input."
 
 #### 2. Convergence → Genuine Divergence
 
 **LLM default:** All agents share a base model and naturally produce similar vocabulary, similar event granularity, and similar flow structures. The output sounds like one person wearing different hats.
-**Book requires:** Divergence IS the signal. Different wordings for the same moment = bounded context clue. "Nouns are the portion of enterprise knowledge most prone to ambiguity" (Ch. 3). `Schedule Ready` vs `Schedule Completed` vs `Schedule Published`: three personas, one moment, three names.
+**Book requires:** Divergence is the signal. Different wordings for the same moment = bounded context clue. "Nouns are the portion of enterprise knowledge most prone to ambiguity" (Ch. 3). `Schedule Ready` vs `Schedule Completed` vs `Schedule Published`: three personas, one moment, three names.
 
 **Corrective prompt:** "Use your role's vocabulary, not generic business language. A Developer says `Ticket Purchased`; a Finance person says `Revenue Recognized`; an Operations person says `Seat Allocated`. You must name events using the words your role uses daily, even if another persona already named the same moment differently. Especially if they named it differently. That divergence is the most valuable signal in the workshop."
 
@@ -64,58 +64,58 @@ Every agent prompt must include corrective instructions for the tensions relevan
 **LLM default:** Validate others' contributions. Build on what's there. Avoid conflict. Be constructive.
 **Book requires:** "Everybody in the room can (and *must*) interrupt you to challenge the ongoing storytelling" (Ch. 4). Workshop value comes from heated disagreement, sarcastic complaints, and eye-rolling. Hot spots emerge from conflict, not consensus.
 
-**Corrective prompt:** "When you read another persona's events, your FIRST instinct should be to find what's WRONG. Not 'yes, and...' but 'no, that's not how it works from where I sit.' If you agree with everything on the board, you're not doing your job. Challenge at least 2-3 events per round. When you disagree, say WHY from your experience: 'In my 8 years in Operations, that NEVER works that way because [specific reason].'"
+**Corrective prompt:** "When you read another persona's events, your first instinct should be to find what's wrong. Not 'yes, and...' but 'no, that's not how it works from where I sit.' If you agree with everything on the board, you're not doing your job. Challenge at least 2-3 events per round. When you disagree, say why from your experience: 'In my 8 years in Operations, that never works that way because [specific reason].'"
 
 #### 4. Clean Logical Flows → Messy Organic Clusters
 
 **LLM default:** Produce well-ordered, logically sequenced output. Each event flows naturally to the next. The result reads like a textbook process.
-**Book requires:** Chaotic Exploration produces "locally ordered clusters in a disordered whole": big, messy, dozens of stickies, duplicated, not in correct order. "I don't trust the official version", because starting from the clean process hides contradictions. The mess IS the point.
+**Book requires:** Chaotic Exploration produces "locally ordered clusters in a disordered whole": big, messy, dozens of stickies, duplicated, not in correct order. "I don't trust the official version", because starting from the clean process hides contradictions. The mess is the point.
 
-**Corrective prompt:** "Do NOT produce a clean left-to-right process flow. Dump events in the ORDER THEY COME TO MIND, not in chronological order. Some will be from the beginning, some from the middle, some from the end. Cluster related events together but don't worry about gaps between clusters. If your output reads like a process document, you've done it wrong. It should read like a brain dump on sticky notes."
+**Corrective prompt:** "Do not produce a clean left-to-right process flow. Dump events in the order they come to mind, not in chronological order. Some will be from the beginning, some from the middle, some from the end. Cluster related events together but don't worry about gaps between clusters. If your output reads like a process document, you've done it wrong. It should read like a brain dump on sticky notes."
 
 #### 5. Verbosity → Sticky Note Brevity
 
 **LLM default:** Write complete sentences. Explain. Elaborate. Provide context.
 **Book requires:** Events are written with a thick marker on a 76x76mm sticky note: 2-5 words. Past-tense verb phrases. `Order Placed`, `Payment Failed`, `Certificate Signed`. If it doesn't fit on a physical sticky in thick marker, it's too long.
 
-**Corrective prompt:** "Each event is 2-5 WORDS. Past tense. Verb phrase. NOT a sentence. NOT a description. Think: fat marker on a tiny sticky note. `Ticket Sold` not `A ticket was sold to the attendee after payment processing completed`. If you write more than 5 words, split it into multiple events or simplify."
+**Corrective prompt:** "Each event is 2-5 words. Past tense. Verb phrase. Not a sentence. Not a description. Think: fat marker on a tiny sticky note. `Ticket Sold` not `A ticket was sold to the attendee after payment processing completed`. If you write more than 5 words, split it into multiple events or simplify."
 
 #### 6. Expert/Teacher Mode → Participant Mode
 
 **LLM default:** Explain concepts. Teach the reader. Provide comprehensive answers. "Here's how this works..."
 **Book requires:** Workshop participants don't explain. They place stickies and react. An expert who knows why `Verification Step` exists doesn't explain it; they just write it. The explanation only surfaces when a naive participant questions it or gets it wrong.
 
-**Corrective prompt:** "You are a PARTICIPANT at a wall, not a teacher at a whiteboard. Place events. React to others' events. DON'T explain or justify unless directly challenged. When you see something wrong, don't write an essay. Place a hot spot with 3-5 words and a '!!!' marker."
+**Corrective prompt:** "You are a participant at a wall, not a teacher at a whiteboard. Place events. React to others' events. Don't explain or justify unless directly challenged. When you see something wrong, don't write an essay. Place a hot spot with 3-5 words and a '!!!' marker."
 
 #### 7. Consensus-Seeking → Disagreement-Preserving
 
 **LLM default:** Find common ground. Synthesize opposing views. Resolve conflicts into a single coherent model.
-**Book requires:** "Discussing to reach an agreement on every single sticky note, before writing it would kill workshop throughput and hide exactly the contradictions we want to explore" (Ch. 4). Different wordings for the same event are NOT a problem to solve. They are a signal to preserve. Merging duplicates destroys bounded context information.
+**Book requires:** "Discussing to reach an agreement on every single sticky note, before writing it would kill workshop throughput and hide exactly the contradictions we want to explore" (Ch. 4). Different wordings for the same event are not a problem to solve. They are a signal to preserve. Merging duplicates destroys bounded context information.
 
-**Corrective prompt:** "If you and another persona wrote different names for the same business moment, that is NOT a conflict to resolve. Both names STAY. Place them next to each other. The divergence IS the discovery. Do NOT merge, do NOT pick the 'better' name, do NOT synthesize."
+**Corrective prompt:** "If you and another persona wrote different names for the same business moment, that is not a conflict to resolve. Both names stay. Place them next to each other. The divergence is the discovery. Do not merge, do not pick the 'better' name, do not synthesize."
 
 #### 8. Structured Thinking → Organic Unfolding
 
 **LLM default:** Plan the output. Think about the full scope before writing. Produce organized, categorized results.
-**Book requires:** "The structure must emerge from the team's hard work", not from upfront planning. Chaotic Exploration is organic: people write what comes to mind, influenced by what they see on the wall. The facilitator provides structure AFTER chaos, not before.
+**Book requires:** "The structure must emerge from the team's hard work", not from upfront planning. Chaotic Exploration is organic: people write what comes to mind, influenced by what they see on the wall. The facilitator provides structure after chaos, not before.
 
 **Corrective prompt:** "Place events in the order they occur to you, starting with the first one your role would name, and let each event suggest the next. Related events may cluster as they come, but decide no categories up front and leave the whole unsorted: ordering and categorizing are Enforce Timeline work, which comes later."
 
 #### 9. Helpful Gap-Filling → Genuine Blind Spots
 
 **LLM default:** Notice gaps in the flow and fill them. Anticipate what's missing. Be thorough.
-**Book requires:** DEEP/GREY/PRETEND zones. In your GREY zone, you have stale knowledge, so write events based on outdated assumptions, not current reality. In your PRETEND zone, you bluff. "Pretending to know is the standard behavior in many organizations" (Ch. 2). Your blind spots should produce WRONG events, not missing events.
+**Book requires:** DEEP/GREY/PRETEND zones. In your GREY zone, you have stale knowledge, so write events based on outdated assumptions, not current reality. In your PRETEND zone, you bluff. "Pretending to know is the standard behavior in many organizations" (Ch. 2). Your blind spots should produce wrong events, not missing events.
 
-**Corrective prompt for GREY zone behavior:** "In areas outside your expertise, you have STALE knowledge: things you were told years ago that may no longer be true. Write events in these areas using your outdated understanding. DO NOT research or double-check whether you're right. Your wrongness will force experts to correct you, which is exactly how tacit knowledge surfaces."
+**Corrective prompt for GREY zone behavior:** "In areas outside your expertise, you have stale knowledge: things you were told years ago that may no longer be true. Write events in these areas using your outdated understanding. Do not research or double-check whether you're right. Your wrongness will force experts to correct you, which is exactly how tacit knowledge surfaces."
 
-**Corrective prompt for PRETEND zone behavior:** "In areas far from your expertise, you BLUFF. Write plausible-sounding events that feel right but are actually wrong. You don't know they're wrong. You genuinely believe them. This is normal organizational behavior: 'pretending to know is the standard behavior.'"
+**Corrective prompt for PRETEND zone behavior:** "In areas far from your expertise, you bluff. Write plausible-sounding events that feel right but are actually wrong. You don't know they're wrong. You genuinely believe them. This is normal organizational behavior: 'pretending to know is the standard behavior.'"
 
 #### 10. Balanced Output → Asymmetric Contribution
 
 **LLM default:** Each agent produces roughly equal output. Equal turns, equal detail, equal coverage.
 **Book requires:** "Some might work mostly alone, dropping the bulk of their expertise in a single strip of orange sticky notes, ignoring the surrounding world" (Ch. 4). A Domain Expert dumps 15 events while a New Hire adds 5 confused guesses. Asymmetry is realistic and valuable.
 
-**Corrective prompt:** "Your output volume should match YOUR role's knowledge. If you're the Domain Expert, dump 12-15 events. If you're the New Hire, write 4-6 hesitant guesses. If you're Finance, write 8 events that developers always forget. Do NOT try to match other personas' output volume."
+**Corrective prompt:** "Your output volume should match your role's knowledge. If you're the Domain Expert, dump 12-15 events. If you're the New Hire, write 4-6 hesitant guesses. If you're Finance, write 8 events that developers always forget. Do not try to match other personas' output volume."
 
 ### Applying Corrections Per Phase
 
@@ -133,7 +133,7 @@ Not all corrections apply equally to every phase. Here's the priority map:
 
 ### How to Embed Corrections in Agent Prompts
 
-Every agent prompt already includes persona identity, domain context, color/format rules, and round-specific behavior. Add a **Behavioral Rules** section AFTER the persona identity that includes the relevant corrections for the current phase. Example structure:
+Every agent prompt already includes persona identity, domain context, color/format rules, and round-specific behavior. Add a **Behavioral Rules** section after the persona identity that includes the relevant corrections for the current phase. Example structure:
 
 ```markdown
 ## Behavioral Rules (do not override)
@@ -155,9 +155,9 @@ After each round, the facilitator checks for regression into LLM defaults:
 |--------|---------------------|------------|
 | All events use identical vocabulary | **Convergence** (#2) | Re-prompt with divergent vocabulary emphasis; add shared focal moments with explicit instruction to name differently |
 | No hot spots or challenges | **Politeness** (#3) | Spawn a skeptical persona specifically to challenge: "The [Expert] says X. From your experience, is that really how it works?" |
-| Events read like process documentation | **Clean flows** (#4) | Invoke "I don't trust the official version": "This looks like the official process. What ACTUALLY happens?" |
+| Events read like process documentation | **Clean flows** (#4) | Invoke "I don't trust the official version": "This looks like the official process. What actually happens?" |
 | Every persona produced ~same number of events | **Balanced output** (#10) | Re-check persona prompts; ensure Domain Expert gets "dump 12-15" and New Hire gets "write 4-6 guesses" |
-| No WRONG events in grey zones | **Helpful gap-filling** (#9) | Re-prompt grey-zone personas: "Write what you THINK happens, even if you're not sure. Your outdated assumptions are valuable." |
+| No wrong events in grey zones | **Helpful gap-filling** (#9) | Re-prompt grey-zone personas: "Write what you think happens, even if you're not sure. Your outdated assumptions are valuable." |
 | Events are full sentences, 10+ words | **Verbosity** (#5) | Re-prompt: "Thick marker, tiny sticky note. 2-5 words. Split long events into multiples." |
 
 ---
@@ -191,13 +191,13 @@ Based on the problem space, identify which stakeholder perspectives are needed. 
 
 ### HARD RULE: Beneficiary Persona is Non-Negotiable
 
-**The FIRST persona designed must be the end-user/beneficiary, the person the system exists to serve.** This persona cannot be proxied by an operational role (e.g., a support coordinator "speaking for" the individual). The beneficiary's vocabulary, frustrations, and blind spots are fundamentally different from any staff member's.
+**The first persona designed must be the end-user/beneficiary, the person the system exists to serve.** This persona cannot be proxied by an operational role (e.g., a support coordinator "speaking for" the individual). The beneficiary's vocabulary, frustrations, and blind spots are fundamentally different from any staff member's.
 
 Examples: For IDD: Individual receiving services + Family/Guardian. For healthcare: Patient. For commerce: Customer. For education: Student.
 
 ### Agent Execution Rule: One Persona Per Agent Invocation
 
-**NEVER combine two personas in a single Agent invocation.** Each persona = one Agent call. When two personas share one agent, vocabulary converges and the output sounds like one voice wearing two hats. This defeats the core value of multi-persona simulation.
+**Never combine two personas in a single Agent invocation.** Each persona = one Agent call. When two personas share one agent, vocabulary converges and the output sounds like one voice wearing two hats. This defeats the core value of multi-persona simulation.
 
 Combining personas in one agent degrades the output in two specific ways: the shared prompt has to
 serve two identities, so each gets less of it, and the single agent's voice flattens the vocabulary
@@ -205,7 +205,7 @@ difference that made the two personas worth simulating separately.
 
 ### Standard Persona Catalog
 
-Pick 4-8 from these based on your domain (beneficiary persona is mandatory, always first):
+Pick 4-7 from these based on your domain (beneficiary persona is mandatory, always first):
 
 | Persona | Perspective | Typical Concerns | Agent Tone |
 |---------|-------------|-----------------|------------|
@@ -344,10 +344,10 @@ Each persona is a separate Agent tool invocation, and this skill hands it its ea
 ```
 
 **Loading profiles into agent prompts:**
-When spawning an agent for Round N, include the persona's profile file content at the TOP of the prompt. The profile provides identity continuity and vocabulary consistency. After the agent completes, UPDATE the profile with what they produced in that round.
+When spawning an agent for Round N, include the persona's profile file content at the top of the prompt. The profile provides identity continuity and vocabulary consistency. After the agent completes, update the profile with what they produced in that round.
 
 **Session ID generation:**
-Use `{domain}-{date}-{random4}` format, e.g., `devconf-20260321-a7f2`, where `{random4}` is four random lowercase hex characters (`0-9a-f`), with no spaces, slashes, or other path-unsafe characters, since the ID is used in filesystem paths (including the `rm -rf` cleanup). This namespaces the temp directory for concurrent session safety.
+Use `{domain}-{date}-{random4}` format, e.g., `devconf-20260321-a7f2`, where `{random4}` is four random lowercase hex characters (`0-9a-f`), with no spaces, slashes, or other path-unsafe characters, since the ID names the archive directory `${CLAUDE_PLUGIN_DATA}/sessions/{session_id}/`. The temp directory takes its name from the temp primitive, not from this ID.
 
 **Cleanup protocol:**
 At session end, ask user: "Delete persona temp files? (They can be archived for session replay.)"
@@ -359,28 +359,28 @@ At session end, ask user: "Delete persona temp files? (They can be archived for 
 
 ### Differentiating Agent Output: Simulating Siloed Knowledge (Brandolini Ch. 2, 3, 6)
 
-Brandolini's core insight: "Silos minimize the learning newcomers need to start contributing. But the grey, unexplored areas will stay. Possibly for a very long time." (Ch. 2). The VALUE of EventStorming comes from colliding these designed ignorances: each persona has deep knowledge in their area and genuine ignorance outside it.
+Brandolini's core insight: "Silos minimize the learning newcomers need to start contributing. But the grey, unexplored areas will stay. Possibly for a very long time." (Ch. 2). The value of EventStorming comes from colliding these designed ignorances: each persona has deep knowledge in their area and genuine ignorance outside it.
 
-**Agent prompts must define THREE things per persona:**
+**Agent prompts must define three things per persona:**
 
-1. **Deep expertise zone**: what this persona knows cold, from daily work. They write events here quickly, confidently, using precise internal vocabulary. They CORRECT wrong events in this zone
+1. **Deep expertise zone**: what this persona knows cold, from daily work. They write events here quickly, confidently, using precise internal vocabulary. They correct wrong events in this zone
 2. **Grey areas / blind spots**: what this persona was told "you don't need to know." They have stale, second-class knowledge here, outdated assumptions from years ago, not zero knowledge. Brandolini: "the former experts will slowly drift into second-class knowledge" (Ch. 2)
 3. **Pretend-to-know zone**: areas where this persona bluffs with plausible-sounding but wrong assertions rather than admitting ignorance. Brandolini: "'Pretending to know' is the standard behavior in many organizations" (Ch. 2)
 
 **Per persona type:**
 
-- **Domain Expert / Business Owner**: DEEP in business process and customer interactions. GREY on technical implementation ("the system handles it"). PRETENDS about scalability and failure modes. Uses precise business jargon. Skips "obvious" steps. Dismisses edge cases: "that never happens." Has SACRED DECISIONS they'll defend emotionally (Ch. 2: cognitive dissonance around past choices)
+- **Domain Expert / Business Owner**: DEEP in business process and customer interactions. GREY on technical implementation ("the system handles it"). PRETENDS about scalability and failure modes. Uses precise business jargon. Skips "obvious" steps. Dismisses edge cases: "that never happens." Has sacred decisions they'll defend emotionally (Ch. 2: cognitive dissonance around past choices)
 - **Developer / Architect**: DEEP in technical systems, data flow, error handling. GREY on business rules and financial flows. PRETENDS about customer experience. Looks for semantic symmetry (`PlaceOrder` → `CancelOrder`). Brandolini: "developers invariably neglect the money part" (Ch. 4). Distances self from legacy: says "the system" not "our code" for components they've disengaged from (Ch. 4)
 - **Operations / Support**: DEEP in failure modes, incidents, manual workarounds. GREY on the "why" behind business rules. PRETENDS about planned features ("I think they're fixing that"). Writes the events nobody else remembers: `Timeout Hit`, `Manual Override`, `Escalation Triggered`. Uses war-story vocabulary
-- **End User / Customer**: DEEP in their own experience, pain points, emotional journey. GREY on everything behind the curtain. PRETENDS the system works simply ("I just click the button"). Writes events from OUTSIDE the system boundary using plain language
-- **New Hire / Outsider**: DEEP in fresh pattern-recognition. GREY on everything specific. GUESSES rather than pretends. Brandolini: "guessing is a legitimate action" (Ch. 4). Wrong guesses force experts to articulate tacit knowledge they'd otherwise skip. Value is in being wrong in INTERESTING ways
+- **End User / Customer**: DEEP in their own experience, pain points, emotional journey. GREY on everything behind the curtain. PRETENDS the system works simply ("I just click the button"). Writes events from outside the system boundary using plain language
+- **New Hire / Outsider**: DEEP in fresh pattern-recognition. GREY on everything specific. Guesses rather than pretends. Brandolini: "guessing is a legitimate action" (Ch. 4). Wrong guesses force experts to articulate tacit knowledge they'd otherwise skip. Value is in being wrong in interesting ways
 - **Finance / Accounting**: DEEP in money flow, revenue recognition, payment terms. GREY on product features and user experience. PRETENDS about technical capabilities. Writes events developers systematically miss: `Invoice Generated`, `Revenue Recognized`, `Refund Window Expired`
 
 **Critical principle, same noun, different meaning (Ch. 3, 6):**
-Different personas use the SAME nouns to mean different things. "Order" to Sales means opportunity/pipeline. "Order" to Shipping means packages/routes. "Order" to Billing means invoice/payment. Agents must use domain-specific vocabulary naturally. The divergence in how they name the same business moment IS the bounded context signal. Brandolini: "Nouns are the portion of enterprise knowledge most prone to ambiguity... Looking at verbs provides much more consistency" (Ch. 3)
+Different personas use the same nouns to mean different things. "Order" to Sales means opportunity/pipeline. "Order" to Shipping means packages/routes. "Order" to Billing means invoice/payment. Agents must use domain-specific vocabulary naturally. The divergence in how they name the same business moment is the bounded context signal. Brandolini: "Nouns are the portion of enterprise knowledge most prone to ambiguity... Looking at verbs provides much more consistency" (Ch. 3)
 
-**Tacit knowledge surfaces through CORRECTION, not interrogation (Ch. 10):**
-Don't have expert agents dump their knowledge unprompted. Have naive agents model first, let experts REACT to errors. An expert who would never mention "we always verify X before Y" will immediately correct a naive agent who places Y before X. That correction IS the articulation of tacit knowledge.
+**Tacit knowledge surfaces through correction, not interrogation (Ch. 10):**
+Don't have expert agents dump their knowledge unprompted. Have naive agents model first, let experts react to errors. An expert who would never mention "we always verify X before Y" will immediately correct a naive agent who places Y before X. That correction is the articulation of tacit knowledge.
 
 **Key test:** if you remove the `[PersonaName]` prefix and can't tell who wrote it, the personas aren't differentiated enough. Check: do they use different vocabulary for the same moment? Do experts skip "obvious" steps that others include? Does the New Hire guess wrong in ways that provoke correction?
 
@@ -436,7 +436,7 @@ You act as the facilitator, the skill provides methodology guidance, and you inv
 
 - Ask each persona agent: "Write 10-15 Domain Events you'd place on the wall for [scope]"
 - Collect all events, noting which persona generated each
-- Duplicates and near-duplicates are VALUABLE. They signal bounded context boundaries
+- Duplicates and near-duplicates are valuable. They signal bounded context boundaries
 
 **Enforce the Timeline**
 
@@ -446,7 +446,7 @@ You act as the facilitator, the skill provides methodology guidance, and you inv
 
 **People and Systems**
 
-- Ask each persona: "Who are the key actors in YOUR part of the process?"
+- Ask each persona: "Who are the key actors in your part of the process?"
 - Ask: "What external systems do you depend on or blame?"
 - Fuzzy definitions intentional: let different personas name the same system differently
 
@@ -517,24 +517,24 @@ disagreements.
 
 1. **Persona profile**: if persona persistence is enabled, load the full profile file content from `{session_dir}/personas/{role}.md`. Otherwise, include inline: role, background (2-3 sentences), priorities (ordered), blind spots, communication style, what triggers them to speak up
 2. **Board ID and MCP instructions**: agents read the board themselves via `miro_list_board_items`, place events via `miro_create_sticky_note` or `miro_bulk_create_sticky_notes`
-3. **Domain context**: research relevant to their role, not the full dump, just what THIS persona would know from their professional experience
+3. **Domain context**: research relevant to their role, not the full dump, just what this persona would know from their professional experience
 4. **Color and format rules**: which colors are allowed this round (e.g., orange only during Chaotic Exploration), event format: `[PersonaName] Event in Past Tense`
 5. **Y-offset**: each persona occupies a distinct y-coordinate row during chaotic exploration
 6. **Sticky note content rules (mandatory in every agent prompt):**
    - **Brevity:** 2-5 words per event. Past-tense verb phrases (`Order Placed`, `Payment Failed`). If it doesn't fit on a physical 76x76mm sticky note in thick marker, it's too long. **Key test:** count your words. If >5, split into multiple events or simplify
    - **No emojis:** Physical sticky notes are handwritten text only. Do not prefix stickies with emoji characters (🧑, 📖, 🔵, ⚡, 📊, 🏆, etc.). Plain text only. This applies to all board types (BP, PM, DL) and all agent prompts. Include this instruction in every subagent prompt that creates stickies
-   - **No literal newlines:** Do NOT use `\n` in sticky note content. Miro renders these as literal backslash-n, not line breaks. Use ` — ` (em dash with spaces) as separator instead
-   - **No type prefixes:** Do NOT add prefixes like "COMMAND:", "EVENT:", "POLICY:" to sticky content. The COLOR is the type indicator, not a text prefix. Write the content only: `Submit Talk Proposal` not `🔵 COMMAND Submit Talk Proposal`
+   - **No literal newlines:** Do not use `\n` in sticky note content. Miro renders these as literal backslash-n, not line breaks. Use ` — ` (em dash with spaces) as separator instead
+   - **No type prefixes:** Do not add prefixes like "COMMAND:", "EVENT:", "POLICY:" to sticky content. The color is the type indicator, not a text prefix. Write the content only: `Submit Talk Proposal` not `🔵 COMMAND Submit Talk Proposal`
 7. **Round-specific behavior:**
-   - **Hermit agents**: "Do NOT read the board. Dump 8-12 events purely from YOUR expertise."
-   - **Reactor agents**: "Read the board first via `miro_list_board_items`. Place events that REACT to what you see. Reference other personas' events by name, add your perspective, flag where you disagree."
+   - **Hermit agents**: "Do not read the board. Dump 8-12 events purely from your expertise."
+   - **Reactor agents**: "Read the board first via `miro_list_board_items`. Place events that react to what you see. Reference other personas' events by name, add your perspective, flag where you disagree."
    - **"What is missing?" agents**: "Read the full board. Identify gaps: failure modes, edge cases, time-triggered events, financial flows, system interactions nobody mentioned. Place 3-5 events filling those gaps."
 
 **Round orchestration (facilitator workflow):**
 
 1. Spawn agent(s) for the current micro-round, using parallel Agent tool calls where simultaneous work is appropriate
 2. Wait for all agents to complete
-3. **Post-placement quality gate (facilitator validates EVERY round):**
+3. **Post-placement quality gate (facilitator validates every round):**
    a. Read the board via `miro_list_board_items` (`limit=1000`)
    b. **Mechanical content scan:** run one pass over the new stickies' content strings and collect
       three lists rather than judging them by eye: content over 5 words, content containing emoji
@@ -546,7 +546,8 @@ disagreements.
    d. **Phase name check:** scan for nouns/gerund phrases without past-tense verbs and flag as `[PHASE? Decompose this]`
    e. **Visual checkpoint:** on the live-board path with a browser MCP connected, take a screenshot at every phase transition (a strong quality gate for board runs); in structured-markdown mode or with no browser MCP, skip it and verify against the markdown artifact instead
    f. **Legend overflow check:** verify legend stickies are within frame bounds visually
-4. Next round's agents read the board themselves via MCP. They don't need a facilitator summary
+4. Next round's agents read the board themselves via MCP. Past 100 items, also give them the
+   structured summary that "Inter-round communication" below describes
 5. Repeat until cool down (see the event-count diagnostic below)
 6. If persona persistence is enabled, update the persona profile files with what each agent produced in this round
 
@@ -554,42 +555,42 @@ disagreements.
 
 1. Create board with `miro_create_board`
 2. Create Legend frame, but only show Domain Events initially (add to legend incrementally as phases progress)
-3. **Do NOT create a timeline frame.** A frame sized to the flow must grow every round, and frames created or resized after their content render on top and hide it (frame z-order gotcha in `miro-integration.md`). Rely on coordinate-based organization; the static Legend frame is the only frame.
+3. **Do not create a timeline frame.** A frame sized to the flow must grow every round, and frames created or resized after their content render on top and hide it (frame z-order gotcha in `miro-integration.md`). Rely on coordinate-based organization; the static Legend frame is the only frame.
 4. Set x=0 as the timeline start, flowing right
 
-**Round 1: Chaotic Exploration (EVENTS ONLY, orange stickies)**
+**Round 1: Chaotic Exploration (events only, orange stickies)**
 
-The ONLY notation at this point is orange Domain Events in past tense. No other colors, no actors, systems, commands, or hot spots.
+The only notation at this point is orange Domain Events in past tense. No other colors, no actors, systems, commands, or hot spots.
 
 **Simulating "quiet chaos" (Brandolini's actual description):**
 
-Brandolini says the chaotic exploration phase is "usually silent: people will quietly place their brain-dump on the wall" (Ch. 4, 6). This is NOT a conversation. It is massively parallel independent work. Conversations and reactions come LATER during Enforce Timeline.
+Brandolini says the chaotic exploration phase is "usually silent: people will quietly place their brain-dump on the wall" (Ch. 4, 6). This is not a conversation. It is massively parallel independent work. Conversations and reactions come later during Enforce Timeline.
 
-**Critical simulation principle: "I don't trust the official version."** Brandolini uses messy chaotic exploration specifically because starting from the "official" process hides real contradictions. If the simulation produces a clean, consistent flow on the first pass, the agent prompts aren't diverse enough. The mess IS the point.
+**Critical simulation principle: "I don't trust the official version."** Brandolini uses messy chaotic exploration specifically because starting from the "official" process hides real contradictions. If the simulation produces a clean, consistent flow on the first pass, the agent prompts aren't diverse enough. The mess is the point.
 
 **Simulation flow (mirroring the organic workshop dynamic):**
 
-Brandolini describes ONE organic phase, not structured "waves." The dynamics (Ch. 4): awkward start → icebreaker → ignition → quiet chaos → cool-down. People self-organize into three simultaneous behaviors: **committees** (trying to agree on wording, which the facilitator breaks up), **hermits** (working alone, dumping expertise), and **lost/guessing** (no idea what to write, reassured that guessing is legitimate). "I am not expecting many conversations at this stage. After breaking the committee circles, people will eventually start working on their own: I call this phase quiet chaos." The result is "locally ordered clusters in a disordered whole."
+Brandolini describes one organic phase, not structured "waves." The dynamics (Ch. 4): awkward start → icebreaker → ignition → quiet chaos → cool-down. People self-organize into three simultaneous behaviors: **committees** (trying to agree on wording, which the facilitator breaks up), **hermits** (working alone, dumping expertise), and **lost/guessing** (no idea what to write, reassured that guessing is legitimate). "I am not expecting many conversations at this stage. After breaking the committee circles, people will eventually start working on their own: I call this phase quiet chaos." The result is "locally ordered clusters in a disordered whole."
 
-The simulation approximates this with parallel agent rounds, but must NOT impose artificial structure (no "Wave 1/Wave 2/Wave 3" labels, no behavioral mode switches between rounds).
+The simulation approximates this with parallel agent rounds, but must not impose artificial structure (no "Wave 1/Wave 2/Wave 3" labels, no behavioral mode switches between rounds).
 
-1. **Everyone at the wall, spawn ALL agents in parallel:**
-   Spawn ALL persona agents simultaneously. Each agent independently dumps 10-15 Domain Events from their expertise. Each agent places events in their own y-row. Whichever agent COMPLETES first is the organic icebreaker. This is emergent, not prescribed ("An icebreaker, the person that places the first sticky note... is your best ally", Ch. 4). The facilitator does NOT go first ("I tend to resist it, since it may put other's participants in passive mode", Ch. 4).
+1. **Everyone at the wall, spawn all agents in parallel:**
+   Spawn all persona agents simultaneously. Each agent independently dumps Domain Events from their expertise, as many as its role's volume in the Behavioral Rules. Each agent places events in their own y-row. Whichever agent completes first is the organic icebreaker. This is emergent, not prescribed ("An icebreaker, the person that places the first sticky note... is your best ally", Ch. 4). The facilitator does not go first ("I tend to resist it, since it may put other's participants in passive mode", Ch. 4).
 
-   Each agent CHOOSES whether to read the board (`miro_list_board_items`) or not. Some will be hermits ("work mostly alone, dropping the bulk of their expertise"), some will glance at what's there. Do NOT prescribe "hermit mode" or "peripheral awareness mode". Let the agent prompt say: "You're at the wall with everyone else. Place your events. You may glance at what's already on the board, or ignore it entirely and just dump your expertise."
+   Each agent chooses whether to read the board (`miro_list_board_items`) or not. Some will be hermits ("work mostly alone, dropping the bulk of their expertise"), some will glance at what's there. Do not prescribe "hermit mode" or "peripheral awareness mode". Let the agent prompt say: "You're at the wall with everyone else. Place your events. You may glance at what's already on the board, or ignore it entirely and just dump your expertise."
 
-   **Anti-Spoiler protection (critical for LLM agents):** LLM agents naturally want to be comprehensive and correct, so they dump complete, consistent process flows instead of partial, perspective-limited views. This is the Spoiler anti-pattern (Ch. 29). Every agent prompt MUST include: "You are NOT trying to be comprehensive. Place 10-15 events from YOUR perspective only. Leave gaps. Your incomplete view is the POINT. Events you don't know about are someone else's job. If you're writing events that feel outside your expertise, stop."
+   **Anti-Spoiler protection (critical for LLM agents):** LLM agents naturally want to be comprehensive and correct, so they dump complete, consistent process flows instead of partial, perspective-limited views. This is the Spoiler anti-pattern (Ch. 29). Every agent prompt must include: "You are not trying to be comprehensive. Place only as many events as your role knows (the volume in your Behavioral Rules), from your perspective only. Leave gaps. Your incomplete view is the point. Events you don't know about are someone else's job. If you're writing events that feel outside your expertise, stop."
 
    Spawn one Agent tool call per persona in a single message, never one orchestrator agent writing
    for all of them.
 
    **Seeding overlap (the "same moment, different eyes" principle):**
-   In real workshops, overlap happens because everyone writes about the same visible business moments from their own perspective, as in Brandolini's `Schedule Ready` vs `Schedule Completed` vs `Schedule Published` example (Ch. 6). In simulation, agents writing about completely different domain areas produces complementary coverage but zero overlap. To force natural overlap, include 3-5 **shared focal moments** in every agent's prompt: "Your domain includes these key moments that everyone encounters: [list pivotal transitions, e.g., 'a customer first engages', 'money changes hands', 'the product/service is delivered', 'something goes wrong']. Write events for these moments FROM YOUR PERSPECTIVE using YOUR vocabulary, AND write events for the parts of the domain only you know about." Each persona will name the same moment differently, and that divergence is the signal we want.
+   In real workshops, overlap happens because everyone writes about the same visible business moments from their own perspective, as in Brandolini's `Schedule Ready` vs `Schedule Completed` vs `Schedule Published` example (Ch. 6). In simulation, agents writing about completely different domain areas produces complementary coverage but zero overlap. To force natural overlap, include 5 **shared focal moments** in every agent's prompt: "Your domain includes these key moments that everyone encounters: [list pivotal transitions, e.g., 'a customer first engages', 'money changes hands', 'the product/service is delivered', 'something goes wrong']. Write events for these moments from your perspective using your vocabulary, and write events for the parts of the domain only you know about." Each persona will name the same moment differently, and that divergence is the signal we want.
 
 2. **Continued exploration (if areas are thin):**
-   If total events are well below 100 after the initial dump, or if the facilitator sees under-explored areas, spawn agents again. Each agent reads the board and adds MORE events from their own expertise, but is NOT yet "reacting to" or "referencing" others' events. That's Enforce Timeline behavior. The conversation is still mostly silent.
+   If total events are well below 100 after the initial dump, or if the facilitator sees under-explored areas, spawn agents again. Each agent reads the board and adds more events from their own expertise, but is not yet "reacting to" or "referencing" others' events. That's Enforce Timeline behavior. The conversation is still mostly silent.
 
-   This is NOT a separate "wave". It is continued exploration, the same way workshop participants keep adding stickies after the initial rush. "Some might work mostly alone, dropping the bulk of their expertise in a single strip of orange sticky notes, ignoring the surrounding world" (Ch. 4).
+   This is not a separate "wave". It is continued exploration, the same way workshop participants keep adding stickies after the initial rush. "Some might work mostly alone, dropping the bulk of their expertise in a single strip of orange sticky notes, ignoring the surrounding world" (Ch. 4).
 
 3. **Cool-down, recognizing the natural stopping point:**
    "Eventually, the crowd will stop adding stickies to the wall and will take a more contemplative position, looking at the big picture more than to their own stickies, and walking a few steps back" (Ch. 4). In simulation, cool-down = when the last round of agents adds only 1-3 events each, or when agents start producing events that feel like stretches rather than natural expertise. The facilitator praises the result and takes a break.
@@ -608,8 +609,9 @@ After each micro-round, the facilitator scans for stickies that look like phase/
 
 **Checkpoints (facilitator action at each):**
 
-- After the initial dump, fewer than 10 events per persona: the persona prompts are too narrow.
-  Widen the domain context and run those personas again
+- After the initial dump, a persona well below the volume its role was given (Expert 12-15,
+  Specialist 8-10, New Hire 4-6): that persona's prompt is too narrow. Widen its domain context and
+  run it again
 - After the initial dump, three or more personas using identical phrasing for the same moment:
   convergence. Break the committee circles in the next round's prompts
 - After cool-down, under 100: exploration only scratched the surface. Run targeted rounds for the
@@ -623,7 +625,7 @@ Treat a sub-100 count as a quality warning that requires action, not as a condit
 next phase.
 
 **Legend completeness requirements (facilitator responsibility):**
-The legend MUST be incrementally updated as each phase introduces new building blocks. A missing legend entry = a building block viewers can't decode. After each phase, verify the legend contains ALL building block types currently on the board:
+The legend must be incrementally updated as each phase introduces new building blocks. A missing legend entry = a building block viewers can't decode. After each phase, verify the legend contains all building block types currently on the board:
 
 - After Chaotic Exploration: Domain Event (orange)
 - After Enforce Timeline: add Hot Spot (red), Temporal Milestone (dark_green), Pivotal Event (dark_blue), Phase Name (cyan)
@@ -634,12 +636,12 @@ The legend MUST be incrementally updated as each phase introduces new building b
 - Throughout: facilitator may note domain terms with precise meanings as gray stickies (facilitator observation, not a formal workshop step)
 
 **Ubiquitous Language capture (facilitator observation, not a formal phase):**
-Per Brandolini (Ch. 1): "When new terms arise, and the discussion shows that they have an exact meaning in that context, I start capturing key term definitions on a special sticky note and place them just below the normal flow." In simulation, the facilitator notes domain-specific terms with precise contextual meanings as they emerge organically during ANY phase, not as a dedicated step. Use gray stickies placed below the main flow. These are NOT Wikipedia definitions, just what each term means in THIS domain conversation. Examples: "CFP: Call for Papers", "Track: Parallel session stream."
+Per Brandolini (Ch. 1): "When new terms arise, and the discussion shows that they have an exact meaning in that context, I start capturing key term definitions on a special sticky note and place them just below the normal flow." In simulation, the facilitator notes domain-specific terms with precise contextual meanings as they emerge organically during any phase, not as a dedicated step. Use gray stickies placed below the main flow. These are not Wikipedia definitions, just what each term means in this domain conversation. Examples: "CFP: Call for Papers", "Track: Parallel session stream."
 
-At Wrapping Up, these gray stickies become graduation candidates: offer each resolved term for the consumer repo's committed project glossary, one entry per term with a 1-2 sentence definition of what it IS and a plain `Avoid:` line listing the rejected synonyms, project-context terms only. When `/domain-driven-design:ubiquitous-language curate` is available in the current session, delegate this active maintenance to it by invoking it via the Skill tool; the skill discovers the consumer's format and location and routes only among contexts already established by the workshop or project. Without that skill, preserve the same discovery-first, lazy fallback and ask when placement is ambiguous. Glossary graduation never discovers bounded contexts.
+At Wrapping Up, these gray stickies become graduation candidates: offer each resolved term for the consumer repo's committed project glossary, one entry per term with a 1-2 sentence definition of what it is and a plain `Avoid:` line listing the rejected synonyms, project-context terms only. When `/domain-driven-design:ubiquitous-language curate` is available in the current session, delegate this active maintenance to it by invoking it via the Skill tool; the skill discovers the consumer's format and location and routes only among contexts already established by the workshop or project. Without that skill, preserve the same discovery-first, lazy fallback and ask when placement is ambiguous. Glossary graduation never discovers bounded contexts.
 
-**Bounded context identification (POST-WORKSHOP homework, not a workshop phase):**
-Brandolini is emphatic (Ch. 6): "Once the workshop is officially over, and participants left the workshop room, we can start talking software, ...finally!" and "We can't assume the business side to know about bounded contexts. BCs are mostly a software development issue." BC discovery is the software architect's homework AFTER the workshop, using these 6 heuristics from Ch. 6:
+**Bounded context identification (post-workshop homework, not a workshop phase):**
+Brandolini is emphatic (Ch. 6): "Once the workshop is officially over, and participants left the workshop room, we can start talking software, ...finally!" and "We can't assume the business side to know about bounded contexts. BCs are mostly a software development issue." BC discovery is the software architect's homework after the workshop, using these 6 heuristics from Ch. 6:
 
 1. **Look at the business phases**: different phases = different problems = different models. Pivotal Events mark transitions
 2. **Look at the swimlanes**: independent processes, especially on different timelines
@@ -650,16 +652,16 @@ Brandolini is emphatic (Ch. 6): "Once the workshop is officially over, and parti
 
 Punchline: **"Merge the people, split the software"** (Ch. 6).
 
-In the simulation, run BC discovery as a separate facilitator activity AFTER the workshop phases complete. Use the 6 heuristics above against the board data. Present findings to the user. They are the architect's analysis, not workshop output. Use short names (2-3 words), not verbose descriptions.
+In the simulation, run BC discovery as a separate facilitator activity after the workshop phases complete. Use the 6 heuristics above against the board data. Present findings to the user. They are the architect's analysis, not workshop output. Use short names (2-3 words), not verbose descriptions.
 
 **Board relationship tracking (simulation convenience, not from the book):**
-After completing all formats (BP → PM → DL), place an Exploration Map on the Big Picture board showing: (1) which problem won the arrow voting, (2) which BC was explored in PM + DL, (3) which BCs were identified but NOT explored (future work), (4) aggregate names and counts from DL. This is a simulation artifact for session continuity. Brandolini's approach is to take pictures and fold the paper roll.
+After completing all formats (BP → PM → DL), place an Exploration Map on the Big Picture board showing: (1) which problem won the arrow voting, (2) which BC was explored in PM + DL, (3) which BCs were identified but not explored (future work), (4) aggregate names and counts from DL. This is a simulation artifact for session continuity. Brandolini's approach is to take pictures and fold the paper roll.
 
 **Session lifecycle (setup → run → teardown):**
 
 Every simulation session follows this lifecycle. The protocol ensures clean state, prevents artifact leakage between sessions, and supports concurrent execution across different conversations.
 
-**Structured-markdown fallback mode:** when the Miro availability gate (SKILL.md "Miro availability & graceful degradation") has routed the run to structured-markdown output, SKIP every Miro-tool and board-screenshot step below: board creation, sticky placement, phase-transition screenshots (which need a browser MCP), and `miro_delete_board` teardown. In that mode the model, persona, and session-state steps still run; the board-rendering steps are replaced by appending to the markdown artifact. Only run the Miro/screenshot steps when the live-board path is active.
+**Structured-markdown fallback mode:** when the Miro availability gate (SKILL.md "Miro availability & graceful degradation") has routed the run to structured-markdown output, skip every Miro-tool and board-screenshot step below: board creation, sticky placement, phase-transition screenshots (which need a browser MCP), and `miro_delete_board` teardown. In that mode the model, persona, and session-state steps still run; the board-rendering steps are replaced by appending to the markdown artifact. Only run the Miro/screenshot steps when the live-board path is active.
 
 **1. Session Setup (before any board creation):**
 
@@ -698,10 +700,10 @@ Every simulation session follows this lifecycle. The protocol ensures clean stat
 **Key principles for realistic simulation:**
 
 - **Parallel, quiet chaos**: everyone at the wall simultaneously. No imposed wave structure. "I am not expecting many conversations at this stage... I call this phase quiet chaos" (Ch. 4). Reactions and conversations come during Enforce Timeline, not during chaos
-- **Duplicates are DESIRED**: agents writing independently about the same moment is a signal, not an error. During sorting, resist merging duplicates, because divergent wordings for "apparently the same event" are bounded context signals (Brandolini Ch. 6). Genuine identical duplicates can be stacked but divergent phrasings stay visible
+- **Duplicates are desired**: agents writing independently about the same moment is a signal, not an error. During sorting, resist merging duplicates, because divergent wordings for "apparently the same event" are bounded context signals (Brandolini Ch. 6). Genuine identical duplicates can be stacked but divergent phrasings stay visible
 - **Asymmetric output is natural**: Domain Experts dump 15 events, New Hires add 5. Don't force equal output. "Some might work mostly alone, dropping the bulk of their expertise in a single strip of orange sticky notes" (Ch. 4)
 - **The facilitator breaks "committee circles"**: if agents converge too quickly on clean consistent flows, prompt them to disagree. "Discussing to reach an agreement on every single sticky note, before writing it would kill workshop throughput and hide exactly the contradictions we want to explore" (Ch. 4)
-- **No connectors / arrows**, per Brandolini (Ch. 7): "once an arrow is drawn, your brain avoids moving stickies to preserve arrows" (Sunken Cost Fallacy). In Miro, do NOT use connectors during Big Picture. Use proximity and temporal order instead
+- **No connectors / arrows**, per Brandolini (Ch. 7): "once an arrow is drawn, your brain avoids moving stickies to preserve arrows" (Sunken Cost Fallacy). In Miro, do not use connectors during Big Picture. Use proximity and temporal order instead
 - **Continuous source validation**: after each phase, check: "Is this how it should be done?" against the bundled methodology references (`/event-storming:methodology`), which encode Brandolini's guidance. Only read the book itself if the user has supplied a copy. Never block a phase waiting on the book, because the bundled references are sufficient
 - **"The model is still wrong"**: the workshop output is provisional. "Some inconsistencies could only be spotted by coding and testing the model in the real world" (Ch. 9). Don't fall in love with the artifact
 
@@ -713,9 +715,9 @@ Brandolini warns: "discussing to reach an agreement on every single sticky note,
 
 1. Scan for events that use identical or near-identical phrasing across personas. If 3+ agents wrote the same event name with no variation, the "different perspectives" signal is missing
 2. Check if any persona's events contradict another's. If not, prompt the skeptical personas: "The [Domain Expert] says [X happens]. From your experience in [Operations/Support], is that really how it works? What goes wrong?"
-3. Look for suspiciously clean flows. Real businesses are messy. If the event dump reads like a textbook process, invoke the "I don't trust the official version" principle and prompt: "This looks like the official process. What ACTUALLY happens?"
+3. Look for suspiciously clean flows. Real businesses are messy. If the event dump reads like a textbook process, invoke the "I don't trust the official version" principle and prompt: "This looks like the official process. What actually happens?"
 
-This is NOT a separate "contradiction round". Brandolini explicitly warns against calling for problems too early (Ch. 4). It is the facilitator breaking committee circles, which is a continuous responsibility, not a phase.
+This is not a separate "contradiction round". Brandolini explicitly warns against calling for problems too early (Ch. 4). It is the facilitator breaking committee circles, which is a continuous responsibility, not a phase.
 
 **Round 2: Enforce Timeline**
 
@@ -730,12 +732,12 @@ This is NOT a separate "contradiction round". Brandolini explicitly warns agains
 **Steps:**
 
 1. Facilitator selects sorting strategy based on domain characteristics
-2. **Place temporal milestones/pivotal events ABOVE the persona event rows** (negative y). These act as section headers, consistent with Brandolini's "colored tape" at the top of the wall
+2. **Place temporal milestones/pivotal events above the persona event rows** (negative y). These act as section headers, consistent with Brandolini's "colored tape" at the top of the wall
 3. Identifies 4-5 **Pivotal Events**, marked with dark_blue stickies on the Pivotal Events row (see the Big Picture Y-Coordinate Table in `miro-integration.md`)
 4. **Physically sort events into timeline zones** using `miro_update_sticky_note` to reposition each event to the correct x-zone under its milestone. Group events by milestone, maintain persona y-offsets within each zone. This is the digital equivalent of physically moving stickies along the paper roll
-5. Places duplicates and near-duplicates NEXT TO each other (NEVER merge them). These are bounded context SIGNALS. Place a hot spot between them: `[DIVERGENCE] Organizer says "X" vs Speaker says "Y" — different context?`
-6. **Hot spots during enforcement are FACILITATOR-ONLY**: do NOT prompt personas for problems yet. "An explicit call for problems too early creates a flood with low signal-to-noise ratio" (Brandolini). The facilitator observes inconsistencies during sorting and marks them
-7. **Do NOT walk through or reverse narrative yet.** That comes after People & Systems are visible (Round 4)
+5. Places duplicates and near-duplicates next to each other (never merge them). These are bounded context signals. Place a hot spot between them: `[DIVERGENCE] Organizer says "X" vs Speaker says "Y" — different context?`
+6. **Hot spots during enforcement are facilitator-only**: do not prompt personas for problems yet. "An explicit call for problems too early creates a flood with low signal-to-noise ratio" (Brandolini). The facilitator observes inconsistencies during sorting and marks them
+7. **Do not walk through or reverse narrative yet.** That comes after People & Systems are visible (Round 4)
 
 **Sorting layout (positioning strategy):**
 Assign x-zones to each milestone. For Temporal Milestones with 7 zones:
@@ -750,7 +752,7 @@ Assign x-zones to each milestone. For Temporal Milestones with 7 zones:
 
 Within each zone, events from different personas keep their original y-offsets (persona rows). Use `miro_update_sticky_note(board_id, item_id, x=new_x)`. Read all items first, categorize by milestone zone, then reposition in batch
 
-**Inter-round communication:** Agents read the board directly via `miro_list_board_items` at the start of each round, so they see all events from all personas and react accordingly. The facilitator does NOT need to summarize board state. When boards exceed 100 items, the facilitator should provide agents with a structured summary organized by timeline position alongside the raw MCP read. Each persona agent sees the FULL event list (not just their own) so they can react to other perspectives.
+**Inter-round communication:** Agents read the board directly via `miro_list_board_items` at the start of each round, so they see all events from all personas and react accordingly. The facilitator does not need to summarize board state. When boards exceed 100 items, the facilitator should provide agents with a structured summary organized by timeline position alongside the raw MCP read. Each persona agent sees the full event list (not just their own) so they can react to other perspectives.
 
 **Board reading, one call for the whole board:**
 `miro_list_board_items` paginates internally and returns at most `limit` items, which defaults to
@@ -766,18 +768,18 @@ Run a facilitator step-back after Round 2 (not just after Round 4). Early step-b
 
 **Round 3: People and Systems (yellow + pink stickies)**
 
-- NOW introduce actors (yellow) and external systems (pink), not before
+- Now introduce actors (yellow) and external systems (pink), not before
 - Use "people" not "actors/users/roles/personas", a fuzzy definition for inclusion (Brandolini Ch. 4: "I prefer to use the term people")
 - External system fuzzy definition: **"whatever we can put the blame on"** (Ch. 4). This may include non-software things: "Bad Luck," "Europe," "Brexit," "GDPR" are all legitimate
-- Facilitator provides each persona with the sorted timeline, then prompts: "Looking at this timeline, who are the KEY PEOPLE involved in your area? What EXTERNAL SYSTEMS do you depend on or blame?"
-- Place people on the People/Actors row and external systems on the External Systems row, both ABOVE the persona event rows, per the Big Picture Y-Coordinate Table in `miro-integration.md` (external systems sit at the top of the board, not below the flow)
+- Facilitator provides each persona with the sorted timeline, then prompts: "Looking at this timeline, who are the key people involved in your area? What external systems do you depend on or blame?"
+- Place people on the People/Actors row and external systems on the External Systems row, both above the persona event rows, per the Big Picture Y-Coordinate Table in `miro-integration.md` (external systems sit at the top of the board, not below the flow)
 - **Trigger the "Is this a person or a system?" conversation.** Brandolini highlights this as an interesting question that reveals ownership attitudes (Ch. 4). Prompt agents: "Is [thing X] a person or a system? Who owns it?"
-- This triggers MORE events: "mundane activities that occur on the boundaries" (Ch. 4)
+- This triggers more events: "mundane activities that occur on the boundaries" (Ch. 4)
 - **Be alert for sarcastic complaints.** "I am usually alert for spontaneous comments (usually sarcastic complaints) that we should capture with Hot Spots" (Ch. 4). Prompt agents: "Any complaints about working with these systems?"
-- **Adding systems triggers new events.** Per Brandolini Ch. 4: "Adding new systems usually triggers the need for more events." When personas place external systems on the board, the facilitator should prompt them: "What events happen BECAUSE of this system? What breaks when this system is down?" Expect 5-10 new events triggered by adding people and systems
+- **Adding systems triggers new events.** Per Brandolini Ch. 4: "Adding new systems usually triggers the need for more events." When personas place external systems on the board, the facilitator should prompt them: "What events happen because of this system? What breaks when this system is down?" Expect 5-10 new events triggered by adding people and systems
 - Update the legend with People and External Systems
 
-**Round 4: Explicit Walk-through (FORWARD, separate from Reverse Narrative)**
+**Round 4: Explicit Walk-through (forward, separate from Reverse Narrative)**
 
 - **This is the phase where the most discovery happens.** Now that actors and systems are visible, the story has full context
 - "A great way to enforce consistency during this phase is to ask someone to walk through the sequence of events while telling the story that connects them" (Ch. 4)
@@ -786,20 +788,20 @@ Run a facilitator step-back after Round 2 (not just after Round 4). Early step-b
 Rotate narrators at each pivotal event, so the expert in that area tells the story for their segment. "This is where [Persona]'s team takes over" (Ch. 4). Handoff points are discovery moments: if the handoff feels awkward, there's a gap.
 
 **Audience challenges the narrator:**
-"Everybody in the room can (and *must*) interrupt you to challenge the ongoing storytelling" (Ch. 4). In simulation: after each narrator places their segment, spawn 1-2 OTHER persona agents to read the narrator's segment and challenge it. "Does this match YOUR experience? What's missing? What's wrong?"
+"Everybody in the room can (and *must*) interrupt you to challenge the ongoing storytelling" (Ch. 4). In simulation: after each narrator places their segment, spawn 1-2 other persona agents to read the narrator's segment and challenge it. "Does this match your experience? What's missing? What's wrong?"
 
 **Narrative consistency probe (simulating "body feedback"):**
 In a real workshop, the narrator physically walks along the wall and "your body will slowly try to walk forward, making you feel weird if the flow is not consistent" (Ch. 4). In the simulation, each narrator must construct a **natural-language paragraph** (not a list) connecting events in their segment. Any place requiring "and then somehow..." or a logical leap signals a gap. The narrator flags these: `[STUMBLE] I can't naturally connect [Event A] to [Event B] — what happens in between?` **"It is a good sign if your storytelling is bumpy and continuously forcing you to add more events. Your brain pain means that it's actually working"** (Ch. 4).
 
 **New Hire agent:** Invoke here. Their "stupid questions" challenge assumptions everyone else takes for granted.
 
-**Round 5: Reverse Narrative (BACKWARD, a separate phase)**
+**Round 5: Reverse Narrative (backward, a separate phase)**
 "Even if we think we're done with forward exploration, we usually discover a relevant portion of the system (around 30-40%) that was buried under the optimistic thinking" (Ch. 4).
 
-This is a SEPARATE phase from Walk-through, with a different direction and a different purpose:
+This is a separate phase from Walk-through, with a different direction and a different purpose:
 
-- Walk-through goes FORWARD (left to right): "tell the story that connects them"
-- Reverse Narrative goes BACKWARD (right to left): "pick an event from the end of the flow, then look for the events that made it possible"
+- Walk-through goes forward (left to right): "tell the story that connects them"
+- Reverse Narrative goes backward (right to left): "pick an event from the end of the flow, then look for the events that made it possible"
 
 **Steps:**
 
@@ -814,13 +816,13 @@ This is a SEPARATE phase from Walk-through, with a different direction and a dif
 
 **[Optional] Round 6: Value Exploration (not just money)**
 
-Per Brandolini (Ch. 5) this is OPTIONAL, and happens AFTER Walk-through + Reverse Narrative, but BEFORE Problems & Opportunities. "Once the flow is adequately clear and consistent to everyone (usually after People and Systems and Explicit Walk-through), you may want to start digging into when and where value is delivered" (Ch. 5).
+Per Brandolini (Ch. 5) this is optional, and happens after Walk-through + Reverse Narrative, but before Problems & Opportunities. "Once the flow is adequately clear and consistent to everyone (usually after People and Systems and Explicit Walk-through), you may want to start digging into when and where value is delivered" (Ch. 5).
 
 **Sub-round A, Financial value (green for creation, pink for destruction):**
 Start with money, "the most obvious choice" (Ch. 5). Facilitator prompts: "Where does money change hands? Where is value created? Where is it destroyed?"
 
 **Sub-round B, Non-financial value currencies:**
-"Things start getting interesting once we open up the possibility for other value currencies than money" (Ch. 5). Currencies: awareness, time, anxiety, stress, pride, reputation, safety, status, belonging. "Once you signal that 'we can actually talk about something else than just money' ...people start to talk!" (Ch. 5). For EACH persona: "What do YOU gain or lose at each step? Not money. Think about time, stress, reputation, pride, belonging, safety, status, awareness." Place green for value gained, pink for value destroyed, with the currency labeled.
+"Things start getting interesting once we open up the possibility for other value currencies than money" (Ch. 5). Currencies: awareness, time, anxiety, stress, pride, reputation, safety, status, belonging. "Once you signal that 'we can actually talk about something else than just money' ...people start to talk!" (Ch. 5). For each persona: "What do you gain or lose at each step? Not money. Think about time, stress, reputation, pride, belonging, safety, status, awareness." Place green for value gained, pink for value destroyed, with the currency labeled.
 
 **Sub-round C, Contrasting perspectives:**
 "A given step may be generating value for some parties while being a loss for somebody else" (Ch. 5). Identify events where multiple personas placed value stickies. Highlight contradictions. The same step generates value for some and destroys it for others, which reveals real business tensions.
@@ -829,11 +831,11 @@ Start with money, "the most obvious choice" (Ch. 5). Facilitator prompts: "Where
 "We start with the idea of attendee in mind, to discover that we have more sophisticated categories to play with" (Ch. 5). Prompt: "Are all attendees the same? Do they have the same needs?" Discover customer segments: learners, networkers, recruiters, community seekers. "Different needs and different values mean also that we probably can't improve the system in a one-size-fits-all fashion" (Ch. 5).
 
 **Sub-round E, Explore Purpose (optional, powerful):**
-"Failing to find a real reason why users should perform a given action can quietly kill a start-up idea" (Ch. 5). Prompt: "What is the PURPOSE of this conference? Is every step aligned with that purpose?" Brandolini's anecdote: someone said "I don't see the purpose of our job", a game-changer moment.
+"Failing to find a real reason why users should perform a given action can quietly kill a start-up idea" (Ch. 5). Prompt: "What is the purpose of this conference? Is every step aligned with that purpose?" Brandolini's anecdote: someone said "I don't see the purpose of our job", a game-changer moment.
 
 **Round 7: Problems and Opportunities (red + green stickies)**
 
-- NOW open the floor for hot spots (problems) and opportunities
+- Now open the floor for hot spots (problems) and opportunities
 - Facilitator provides full board summary (events + people + systems) to each persona
 - Each persona generates 3 problems (red, "!!!" prefix) and 2 opportunities (green)
 - Place hot spots above their related events, opportunities below
@@ -845,13 +847,13 @@ Start with money, "the most obvious choice" (Ch. 5). Facilitator prompts: "Where
 - Tally votes, identify the winner
 - Mark the winning problem prominently
 - If a follow-up Process Modeling session is warranted, identify which bounded context area to zoom into
-- That becomes a NEW board (separate from Big Picture)
+- That becomes a new board (separate from Big Picture)
 
 ### Subsequent Formats (Separate Boards)
 
 **Process Modeling** (after Big Picture identifies the problem to solve):
 
-Create a NEW Miro board. This is a different workshop with different participants (3-5 people, more technical). See `/event-storming:methodology --process` for full details.
+Create a new Miro board. This is a different workshop with different participants (3-5 people, more technical). See `/event-storming:methodology --process` for full details.
 
 **Board Setup:**
 
@@ -869,7 +871,7 @@ Create a NEW Miro board. This is a different workshop with different participant
   - Blue (commands): user intentions/actions, present tense
   - Lilac (policies): "whenever X happens, do Y", the reactive logic between events and commands
 - **Strict rule:** Every command→event pair must pass through a system/aggregate. Every event→command reaction must go through a policy (lilac). No implicit cascading
-- **Second pass: Speak Out Loud.** Read EACH policy aloud: "Whenever we receive [event], we [command]..." Inconsistencies surface when spoken: "I can't even finish the sentence, because I will sound stupid saying so" (Brandolini, Ch. 14, Process Modeling Building Blocks)
+- **Second pass: Speak Out Loud.** Read each policy aloud: "Whenever we receive [event], we [command]..." Inconsistencies surface when spoken: "I can't even finish the sentence, because I will sound stupid saying so" (Brandolini, Ch. 14, Process Modeling Building Blocks)
 - **Third pass: Magic words challenge.** For each policy, add "Always" and "Immediately": "Do we ALWAYS do this? Do we do it IMMEDIATELY?" These words trigger objections that reveal conditions, exceptions, and timing constraints. Update policies, add read models for information needed, split policies when behavior differs by context
 - **Flood with hot spots.** After the baseline is complete, the facilitator marks everything that feels wrong or incomplete. "I just need a solution, not a good one." (Brandolini, Ch. 15 / Ch. 30)
 
@@ -879,7 +881,7 @@ Create a NEW Miro board. This is a different workshop with different participant
 - Place happy path events on the Main Flow row; route failure/rejection alternatives to the
   Exception flows row and additional/secondary alternatives to the Secondary alternatives row
   (see the Process Modeling Y-Coordinate Table in `miro-integration.md`)
-- **Events that are NOT happening** (Ch. 14): Model unfulfilled expectations via time-triggered events. "End of day happened before Greeting Received" models a forgotten birthday. Prompt agents: "What SHOULD happen but doesn't? What deadlines expire? What expectations go unfulfilled?" Making the time-frame explicit leads to interesting insights
+- **Events that are not happening** (Ch. 14): Model unfulfilled expectations via time-triggered events. "End of day happened before Greeting Received" models a forgotten birthday. Prompt agents: "What should happen but doesn't? What deadlines expire? What expectations go unfulfilled?" Making the time-frame explicit leads to interesting insights
 - Continue until all paths reach a stable state (System Happy + User Happy)
 
 **Round 3: People, Systems, and Read Models**
@@ -895,7 +897,7 @@ Create a NEW Miro board. This is a different workshop with different participant
 - Review and rewrite events for increased precision. Different rounds increase semantic precision and require more events (Ch. 14: "be ready to rewrite events many times"). Prompt each agent: "Look at your events from Round 1. Now that you understand the flow better, which events need sharper wording? Which need to be split into multiple events?"
 - Add hot spots for any remaining unresolved policy disagreements
 
-**Win Conditions (game ends when ALL are met):**
+**Win Conditions (game ends when all are met):**
 
 1. All process paths are **completed**: every path reaches a stable state
 2. The **color grammar** is preserved: no holes, no missing policies between events and commands
@@ -906,7 +908,7 @@ Create a NEW Miro board. This is a different workshop with different participant
 
 **Design-Level** (after Process Modeling converges on a solution):
 
-Create ANOTHER new Miro board. This is mostly developers (3-7) + one domain expert. See `/event-storming:methodology --design-level` for full details.
+Create another new Miro board. This is mostly developers (3-7) + one domain expert. See `/event-storming:methodology --design-level` for full details.
 
 **Board Setup:**
 
@@ -920,15 +922,15 @@ Create ANOTHER new Miro board. This is mostly developers (3-7) + one domain expe
 
 **Step 3: Actors, Policies, External Systems (15-20 min).** Add actors (yellow), policies (lilac), and external systems (pink). Critical `[BOURGAU]` insight: other bounded contexts become pink stickies here, making integration boundaries visible before aggregate discovery.
 
-**Step 4: Read Models + UX Mock-ups `[BOURGAU]` (20-30 min).** Place green stickies (Read Models) showing what actors need to see to decide. Optional white stickies for UX wireframes. Domain experts and UX people can work in PARALLEL here. This is one of two critical discussion moments.
+**Step 4: Read Models + UX Mock-ups `[BOURGAU]` (20-30 min).** Place green stickies (Read Models) showing what actors need to see to decide. Optional white stickies for UX wireframes. Domain experts and UX people can work in parallel here. This is one of two critical discussion moments.
 
-**Step 5: Place Blank Business Rules (5 min).** For every command-event pair NOT already linked by a pink External System, place an empty pale yellow sticky between them. Purely mechanical. Call them "Business Rules" not "Aggregates", because "Don't talk about DDD" `[BOURGAU]`.
+**Step 5: Place Blank Business Rules (5 min).** For every command-event pair not already linked by a pink External System, place an empty pale yellow sticky between them. Purely mechanical. Call them "Business Rules" not "Aggregates", because "Don't talk about DDD" `[BOURGAU]`.
 
-**Step 6: Fill Business Rules, Discover Invariants (20-30 min).** Second critical discussion moment. For each blank yellow sticky, fill in preconditions ("what must be true before?"), postconditions ("what is true after?"), and invariants ("what must remain true all along?"). Brandolini: look for responsibilities first, then information needed, THEN name.
+**Step 6: Fill Business Rules, Discover Invariants (20-30 min).** Second critical discussion moment. For each blank yellow sticky, fill in preconditions ("what must be true before?"), postconditions ("what is true after?"), and invariants ("what must remain true all along?"). Brandolini: look for responsibilities first, then information needed, then name.
 
-**Step 7: Group → Aggregates (15-20 min).** When two business rules deal with similar data or enforce related invariants, stack them vertically. This BREAKS the timeline, and that is expected. Commands enforcing the same invariant share an aggregate. **Consolidation challenge (facilitator):** If aggregate count exceeds command count, something is wrong. Group by shared invariant, not by entity.
+**Step 7: Group → Aggregates (15-20 min).** When two business rules deal with similar data or enforce related invariants, stack them vertically. This breaks the timeline, and that is expected. Commands enforcing the same invariant share an aggregate. **Consolidation challenge (facilitator):** If aggregate count exceeds command count, something is wrong. Group by shared invariant, not by entity.
 
-**Step 8: Name the Aggregates (5-10 min).** LAST step for naming: "What would you call a class that does X and enforces Y?"
+**Step 8: Name the Aggregates (5-10 min).** Last step for naming: "What would you call a class that does X and enforces Y?"
 
 **Step 9: Identify Bounded Context Contracts (10 min).** Which events need to be published to other contexts? Which commands come from outside?
 
@@ -936,13 +938,13 @@ Create ANOTHER new Miro board. This is mostly developers (3-7) + one domain expe
 
 ### BDUF Warning Gate (after Design-Level of the top 1-2 BCs) `[BRANDOLINI]` `[BOURGAU]`
 
-After Design-Level modeling the **arrow-voting winner** BC (and at most one runner-up), STOP and surface this gate BEFORE modeling any further bounded context. Modeling all remaining BCs up front is Big Design Up Front, the single biggest deviation from Brandolini's method (`/event-storming:methodology --design-level` "Post-Workshop Strategies": never spend more than two full days total).
+After Design-Level modeling the **arrow-voting winner** BC (and at most one runner-up), stop and surface this gate before modeling any further bounded context. Modeling all remaining BCs up front is Big Design Up Front, the single biggest deviation from Brandolini's method (`/event-storming:methodology --design-level` "Post-Workshop Strategies": never spend more than two full days total).
 
-Default action: **START CODING the top-priority BC.** Present to the user verbatim:
+Default action: **Start coding the top-priority BC.** Present to the user verbatim:
 
-> "Per Brandolini: we have enough to start coding. The arrow-voting winner BC has been Process Modeled and Design-Level modeled. Modeling the remaining BCs now would be Big Design Up Front. Recommendation: START CODING the top-priority BC. Model additional BCs when they become the implementation priority."
+> "Per Brandolini: we have enough to start coding. The arrow-voting winner BC has been Process Modeled and Design-Level modeled. Modeling the remaining BCs now would be Big Design Up Front. Recommendation: start coding the top-priority BC. Model additional BCs when they become the implementation priority."
 
-Continue to additional BCs ONLY on explicit user opt-in that acknowledges it exceeds Brandolini's recommended scope. When the user opts in, label the extended boards **"Exploratory: exceeds Brandolini's recommended scope"** (valuable as domain-exploration / architecture-planning artifacts, not method-endorsed).
+Continue to additional BCs only on explicit user opt-in that acknowledges it exceeds Brandolini's recommended scope. When the user opts in, label the extended boards **"Exploratory: exceeds Brandolini's recommended scope"** (valuable as domain-exploration / architecture-planning artifacts, not method-endorsed).
 
 ### Spacing and Frame Management
 
@@ -964,7 +966,7 @@ Layout invariants for the agentic run:
 - **400px horizontal** between flow items; **≥250px vertical** between adjacent rows
   (`miro-integration.md` "Positioning Strategy (Tested Values)").
 
-**Do NOT create or resize timeline frames.** A frame sized to the growing flow must be resized each
+**Do not create or resize timeline frames.** A frame sized to the growing flow must be resized each
 round, and frames created or recreated after their content render on top and hide it (frame z-order
 gotcha in `miro-integration.md`). Use coordinate-based organization; the static Legend frame is the
 only frame. **Place a copy of the legend near the sorted timeline** (not just near the chaotic dump)
@@ -985,7 +987,7 @@ Include persona name in sticky content for traceability:
 1. **Feed real domain context**: the simulation is only as good as the context each persona receives. Use WebSearch/Perplexity to research the domain before building prompts
 2. **Don't skip the New Hire**: their "stupid questions" surface the most valuable assumptions
 3. **Embrace disagreement**: if all personas agree, your prompts aren't diverse enough
-4. **Use simulation to PREPARE for real workshops**: the output is a draft, not a final model
+4. **Use simulation to prepare for real workshops**: the output is a draft, not a final model
 5. **Run Process Modeling simulations with fewer personas** (3-5) focused on one bounded context
 6. **Run Design-Level simulations with mostly developer personas** plus one domain expert for validation
 7. **The facilitator role is yours**: you decide when to push deeper, when to move on, when to add space
@@ -1000,9 +1002,9 @@ These modes are variations on the core Big Picture simulation. Each modifies the
 
 **How it differs from `--simulate`:**
 
-- **Framing:** "What ACTUALLY happens?" vs "What should happen?" Brandolini's "I don't trust the official version" is the default posture, not a fallback
+- **Framing:** "What actually happens?" vs "What should happen?" Brandolini's "I don't trust the official version" is the default posture, not a fallback
 - **Personas:** Use real organizational roles, not generic archetypes. Research the specific company/industry structure. Include the "frustrated veteran" who knows all the workarounds
-- **Chaotic Exploration prompt override:** "Write the events that ACTUALLY happen in your daily work, not the official process, not what the manual says, not what your boss thinks happens. The real sequence, including the manual workarounds, the shortcuts, the things you'd never put in a slide deck."
+- **Chaotic Exploration prompt override:** "Write the events that actually happen in your daily work, not the official process, not what the manual says, not what your boss thinks happens. The real sequence, including the manual workarounds, the shortcuts, the things you'd never put in a slide deck."
 - **Value Exploration emphasis:** Problems & Opportunities phase is the primary output (not BCs). Green opportunities = "what would make your life easier?" Red problems = "what makes you want to quit?"
 - **Post-workshop:** No BC discovery. Instead, produce a ranked list of improvement opportunities with Theory of Constraints framing: "Which single bottleneck, if removed, would have the biggest impact?"
 
@@ -1010,10 +1012,10 @@ These modes are variations on the core Big Picture simulation. Each modifies the
 
 **How it differs from `--simulate`:**
 
-- **Persona hierarchy inverted:** The New Hire is the PRIMARY narrator. They model first, using guesses and assumptions. Senior personas REACT to correct errors: "Let's start modeling what you think is happening in this organization!" (Ch. 10)
+- **Persona hierarchy inverted:** The New Hire is the primary narrator. They model first, using guesses and assumptions. Senior personas react to correct errors: "Let's start modeling what you think is happening in this organization!" (Ch. 10)
 - **Facilitator behavior:** Actively protect the New Hire from being steamrolled by expert corrections. "Let them finish their guess before you correct."
-- **Chaotic Exploration:** New Hire goes FIRST (solo agent, 8-10 guessed events). Then spawn expert agents to read the New Hire's events and react: "What did they get right? What did they get wrong? What critical steps did they miss?"
-- **Walk-through:** New Hire narrates the ENTIRE flow. Experts interrupt only when the story goes seriously wrong. Wrong guesses that provoke expert explanations are the primary output
+- **Chaotic Exploration:** New Hire goes first (solo agent, 8-10 guessed events). Then spawn expert agents to read the New Hire's events and react: "What did they get right? What did they get wrong? What critical steps did they miss?"
+- **Walk-through:** New Hire narrates the entire flow. Experts interrupt only when the story goes seriously wrong. Wrong guesses that provoke expert explanations are the primary output
 - **Success metric:** Not event count or coverage. Success is measured by how many expert corrections surfaced tacit knowledge the experts would never have volunteered unprompted
 
 ### `--value`: Standalone Value Exploration (Book Ch. 5)
@@ -1023,31 +1025,31 @@ These modes are variations on the core Big Picture simulation. Each modifies the
 **Execution:** Run all 5 sub-rounds from Ch. 5 as separate agent rounds on the existing board:
 
 1. **Financial value:** Spawn each persona with "Where does money change hands? Place green stickies for value created, pink for value destroyed, along the existing event flow"
-2. **Non-financial currencies:** Re-prompt each persona with "Now forget about money. Think about: time, stress, reputation, pride, belonging, safety, status, anxiety, awareness. What do YOU gain or lose at each step?"
+2. **Non-financial currencies:** Re-prompt each persona with "Now forget about money. Think about: time, stress, reputation, pride, belonging, safety, status, anxiety, awareness. What do you gain or lose at each step?"
 3. **Contrasting perspectives:** Facilitator reads the board, identifies events where multiple personas placed value stickies. Spawn 2-3 personas to debate: "The [Expert] says this step creates value. The [User] says it destroys value. Who's right?"
 4. **Diverging perspectives (segments):** Prompt with "Are all users the same? Do they have the same needs?" Discover segments. For each segment, re-evaluate the value stickies
-5. **Explore Purpose:** "What is the PURPOSE of this business/product? Is every step aligned with that purpose? Are there steps that actively contradict the purpose?"
+5. **Explore Purpose:** "What is the purpose of this business/product? Is every step aligned with that purpose? Are there steps that actively contradict the purpose?"
 
 ### `--ux`: UX-Driven EventStorming (Book preface + "Transactions Redefined" talk)
 
-**What it is:** Process Modeling with the lens shifted to user/customer journey. Brandolini describes it as "similar to Value-Driven, focusing on the User/Customer Journey in the quest for usability and flawless execution." This is NOT a separate format with different mechanics. It is PM with a UX emphasis. No dedicated chapter exists in the book; this mode synthesizes from Brandolini's description, his "Transactions Redefined" DDD Europe 2017 talk, and Avanscoperta's PM "Rule 3" (stakeholder happiness opens the door to UX concerns).
+**What it is:** Process Modeling with the lens shifted to user/customer journey. Brandolini describes it as "similar to Value-Driven, focusing on the User/Customer Journey in the quest for usability and flawless execution." This is not a separate format with different mechanics. It is PM with a UX emphasis. No dedicated chapter exists in the book; this mode synthesizes from Brandolini's description, his "Transactions Redefined" DDD Europe 2017 talk, and Avanscoperta's PM "Rule 3" (stakeholder happiness opens the door to UX concerns).
 
 **How it differs from standard `--process-model`:**
 
-- **Persona emphasis:** Must include End User / Customer as PRIMARY persona, who narrates first while other personas react. UX Designer persona strongly recommended
-- **Walk-through narration:** The End User narrates the ENTIRE flow from their perspective, not from the system's perspective. "I go to the website, I see X, I click Y, I wait, I get confused, I try again..." The emotional journey is as important as the functional flow
+- **Persona emphasis:** Must include End User / Customer as primary persona, who narrates first while other personas react. UX Designer persona strongly recommended
+- **Walk-through narration:** The End User narrates the entire flow from their perspective, not from the system's perspective. "I go to the website, I see X, I click Y, I wait, I get confused, I try again..." The emotional journey is as important as the functional flow
 - **Emotional annotations:** After each command/event pair, the End User places an emotional annotation: frustrated, confused, delighted, anxious, bored, trusting, abandoned. Use pink stickies (value destroyed) for negative emotions and green (value created) for positive ones, placed directly above the relevant event
 - **Friction point identification:** Hot spots specifically target UX friction: "I don't know what to do here", "This takes too long", "I expected X but got Y", "Why am I being asked this?"
-- **"Flawless execution" test:** For each step, ask: "If this step worked PERFECTLY, with zero friction, zero confusion, instant response, what would it look like?" Place the ideal version alongside the current version. The gap between them is the UX opportunity
-- **Read Models are UI views:** Green stickies during this mode represent what the user SEES, not what the system stores. Sketch wireframes or describe the information display: "Order confirmation with estimated delivery date and tracking link"
-- **Implicit deadlines (from "Transactions Redefined"):** Brandolini's talk emphasizes that users have IMPLICIT time expectations at each step. "How long is the user willing to wait here before they assume something went wrong?" Add clock/calendar annotations for user patience thresholds
+- **"Flawless execution" test:** For each step, ask: "If this step worked perfectly, with zero friction, zero confusion, instant response, what would it look like?" Place the ideal version alongside the current version. The gap between them is the UX opportunity
+- **Read Models are UI views:** Green stickies during this mode represent what the user sees, not what the system stores. Sketch wireframes or describe the information display: "Order confirmation with estimated delivery date and tracking link"
+- **Implicit deadlines (from "Transactions Redefined"):** Brandolini's talk emphasizes that users have implicit time expectations at each step. "How long is the user willing to wait here before they assume something went wrong?" Add clock/calendar annotations for user patience thresholds
 
 **PM Round modifications for UX mode:**
 
 - Round 1 (Rush to Goal): End User narrates the happy path. Developer/Domain Expert react with system events
-- Round 2 (Alternative Paths): Focus on "what goes wrong FROM THE USER'S PERSPECTIVE", not system errors, but user confusion, dead ends, unclear feedback
+- Round 2 (Alternative Paths): Focus on "what goes wrong from the user's perspective", not system errors, but user confusion, dead ends, unclear feedback
 - Round 3 (People/Systems/Read Models): Read Models are UI mockups. External Systems include "the user's mental model" as a legitimate external system (often wrong about how things actually work)
-- Round 4 (Precision Rewrite): Rewrite events to include the user's EMOTIONAL state change, not just the system state change
+- Round 4 (Precision Rewrite): Rewrite events to include the user's emotional state change, not just the system state change
 
 ### `--crc`: Event-Driven CRC Cards Validation (Book Ch. 22)
 
@@ -1055,9 +1057,9 @@ These modes are variations on the core Big Picture simulation. Each modifies the
 
 **Execution:**
 
-1. **Assign roles:** For each aggregate on the DL board, spawn a separate agent. That agent IS the aggregate, and can only see its own state and the commands/events it owns
+1. **Assign roles:** For each aggregate on the DL board, spawn a separate agent. That agent is the aggregate, and can only see its own state and the commands/events it owns
 2. **Pass cards:** The facilitator constructs a scenario (a user story or use case from the DL board). The facilitator sends the first Command card to the relevant aggregate agent
 3. **Process:** The aggregate agent checks its invariants, produces Event cards (or rejection events), and declares which other aggregates/policies should receive them
 4. **Chain:** The facilitator routes Event cards to the relevant Policy agents, who produce Command cards for the next aggregate. Continue until the scenario reaches a stable state
-5. **Constraint:** Agents can only TELL (produce output), never ASK (request information from other agents). If an aggregate needs information to make a decision, it must already have it or the model is wrong
+5. **Constraint:** Agents can only tell (produce output), never ask (request information from other agents). If an aggregate needs information to make a decision, it must already have it or the model is wrong
 6. **Output:** A validated interaction map showing which aggregates talk to which, through which events. Any point where the chain breaks or an agent says "I don't have enough information" reveals a model flaw

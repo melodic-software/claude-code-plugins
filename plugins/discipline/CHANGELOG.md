@@ -5,6 +5,31 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.28.9] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [0.28.8] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [0.28.7] - 2026-11-15
+
+### Changed
+
+- The corrector skills' instructions drop capital-letter emphasis and state each rule once, with no "when in doubt" default that widened subagent dispatch.
+- Stale claims are corrected: the README lists the `setup` skill and its checkpoint behavior, `do-your-research` names the `strict` verification level as a reason for the full tier, and observed product behavior points at its live source.
+
+## [0.28.6] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
 ## [0.28.5] - 2026-11-14
 
 ### Changed

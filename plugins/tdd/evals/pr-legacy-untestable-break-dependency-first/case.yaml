@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: pr-legacy-untestable-break-dependency-first
+graders:
+  - name: 'routes-principles'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:tdd:)?principles"'
+    arm: 'with-only'

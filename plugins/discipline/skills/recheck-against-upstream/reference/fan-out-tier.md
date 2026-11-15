@@ -12,7 +12,7 @@ subsystem, framework, or repo doc-by-doc, which one context cannot cover from wi
    work rests on. Do not spot-check one.
 2. **Fan out, throttled, doc-by-doc.** Dispatch per [`fan-out.md`](../../../context/fan-out.md):
    blind fresh-context subagents, bounded waves, failed-subset retry. Each subagent fetches the
-   CURRENT official upstream docs for its surface and classifies the divergence per SKILL.md's
+   current official upstream docs for its surface and classifies the divergence per SKILL.md's
    three categories. Each reads every docs page through the shared docs lookup, following the
    docs-lookup procedure with the `<scripts>` directory SKILL.md resolved; put both as absolute
    paths in the brief, so the subagent never depends on a plugin variable resolving in its shell
@@ -35,7 +35,7 @@ subsystem, framework, or repo doc-by-doc, which one context cannot cover from wi
 
 ## Routing findings onward
 
-- **Category 1 (gap) and category 3 (undocumented): OFFER work-items routing.** When a work-item
+- **Category 1 (gap) and category 3 (undocumented): offer work-items routing.** When a work-item
   or issue-tracker capability is installed, offer to route the actionable gaps and the
   undocumented divergences awaiting a human decision into tracked work items. Degrade to a prose
   offer (a listed set of would-be items) when no such capability is present; never assume a

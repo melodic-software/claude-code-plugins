@@ -868,6 +868,14 @@
       "max-reader": ".github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs",
       "reason": "The marker is the only record that a release was processed: once it expires a schedule run takes the release again, so it keeps the longest retention. It holds the plan the scan job cleared and publish posted, downloaded by id and hash; the publish job runs no scan of its own.",
       "scan": "none"
+    },
+    "upstream-drift-report": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/maintenance-file-upstream-drift-issues.yml file job of the same run"
+      ],
+      "reason": "Hands the report job's drift reports to the file job of the same run; the job summary keeps them for a reader. It holds report lines (ids, hex pins, repository paths and statuses) and the ids of broken check scripts, never a check script's own output.",
+      "scan": "none"
     }
   }
 }

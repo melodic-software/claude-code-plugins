@@ -4,7 +4,7 @@ Adapter shapes the trigger/dispatch slice wires, one per surface class. `<...>` 
 resolve from the binding at wire time; no org, fleet, or vendor value is baked in, and vendor
 event names appear only as marked examples. Every shape carries the contract's six adapter
 obligations inline: normalize+enqueue only, idempotent dedup, provenance + raw link,
-traceparent injection, admission enforcement, acknowledgment. Every shape STAMPS
+traceparent injection, admission enforcement, acknowledgment. Every shape stamps
 `signal.work_class` from the security-surface classification rules where they resolve, and
 leaves it absent where they do not; admission then evaluates the item with the work-class axis
 `"*"` after the `C5` trust tests.
@@ -34,7 +34,7 @@ marker line plus one fenced JSON block:
 ```
 
 Dedup identity derivation (obligation 2): use the surface-native unique event id where the
-surface issues one (delivery id, event id). FALLBACK, never a bare content hash: compose
+surface issues one (delivery id, event id). Fallback, never a bare content hash: compose
 `<surface-class>:<origin-locator>:<delivery-id-or-event-timestamp>:<content-hash>`. The
 enqueue is an atomic identity-keyed create/upsert where the tracker offers one; otherwise
 search-before-create backed by create-then-reconcile (re-search after create; oldest wins,
@@ -60,7 +60,7 @@ runs, see
    fail-closed floor); never dropped.
 6. Acknowledge: comment the item reference back on the source event per
    [`ack-reply.md`](ack-reply.md).
-7. Kick the drain: after enqueue + ack, invoke the SAME queue-drain entrypoint (the
+7. Kick the drain: after enqueue + ack, invoke the same queue-drain entrypoint (the
    work-item queue capability's autonomous drain mode via the invocation-adapter seam) so
    push-originated work gets an event-fired dispatch attempt instead of waiting for the
    scheduled catch-up. There is one entrypoint, and concurrent kicks are harmless via the seam lease;
@@ -156,14 +156,14 @@ plus `workflow_dispatch` for manual kicks):
   `signal.transport: "poll"`, `signal.source_surface` = this surface's id in the binding's
   `surfaces` map, `signal.raw_link` = a durable reference to the observed state (https
   permalink; a local-scheduler surface may use an absolute `file:` or artifact-store URI). A
-  detector-fired temporal signal carries NO `signal.routine` and never stamps
+  detector-fired temporal signal carries no `signal.routine` and never stamps
   `signal.work_class`. It carries no stamped class, and a routine identity or a stamped class
   on it is rejected fail-closed. Admission runs the `C5` trust tests on the observed state: a PR
   or an issue runs that surface's tests, and any other state (a chat backstop included) fails
   closed to `C5`, human-gated. State-based detections with no instance
   identity bound dedup retention to open items, and re-detection after closure is a new signal.
 
-The scheduled-ROUTINE shape is the temporal surface's other producer, wired per
+The scheduled-routine shape is the temporal surface's other producer, wired per
 [`routine-definitions.md`](routine-definitions.md): unlike the poll-detector it carries
 `signal.routine`, and it resolves `signal.producer_identity`, along with `signal.source_surface`
 and `signal.raw_link`, from the platform's authenticated run context, never from job arguments.
@@ -173,8 +173,8 @@ and `signal.raw_link`, from the platform's authenticated run context, never from
 No standing wiring: an executing session files follow-up work through the queue seam
 directly, carrying the envelope with `signal.provenance: "agent"` and
 `signal.parent_item` = the canonical URL of the item the session was dispatched on
-(REQUIRED: the admission seam verifies the session-to-parent association against the
-queue's own lease record; an unverifiable association is NO provenance, a trust hold that
+(required: the admission seam verifies the session-to-parent association against the
+queue's own lease record; an unverifiable association is no provenance, a trust hold that
 enqueues the item human-gated). `signal.raw_link` = a durable reference to the emitting context (the parent
 item or its run permalink). Dedup identity composes the parent item + the follow-up's
 content hash + the filing timestamp.
@@ -193,7 +193,7 @@ vendor-hosted channel agents are advisory, plan-gated):
    event permalink.
 4. Acknowledge in-thread per [`ack-reply.md`](ack-reply.md).
 
-A continuous routine never enqueues its RUN here: the feed emission may wake the routine's
+A continuous routine never enqueues its run here: the feed emission may wake the routine's
 ratified temporal surface, and the run enters via the temporal adapter carrying `signal.routine`
 and `signal.producer_identity`; `channel-feed` carries only the ordinary feed signal.
 

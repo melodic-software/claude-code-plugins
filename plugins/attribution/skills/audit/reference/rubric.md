@@ -160,7 +160,7 @@ without a quote is not a grade; if the text you would need to quote is not in fr
 grade UNKNOWN and say what you would need. UNKNOWN is not a FAIL and not a PASS. It stops the
 verdict and routes to the human.
 
-**Polarity, stated once because it is easy to invert: PASS always means the criterion SUPPORTS
+**Polarity, stated once because it is easy to invert: PASS always means the criterion supports
 the finding.** All four criteria point the same way, so all four PASS is what makes a verdict
 STAND. A criterion that clears the candidate is a FAIL. This reads backwards for C3 and C4,
 where the exculpatory answer is the intuitive "yes", adequately attributed and genuinely
@@ -230,7 +230,7 @@ numbers bound the evidence; they do not render the verdict.
 
 ### C3-attribution-adequacy
 
-**Is the attribution already present INADEQUATE to discharge the obligation?**
+**Is the attribution already present inadequate to discharge the obligation?**
 
 Adequate attribution answers three things for a reader who wants to check: *what* is being
 attributed, *to where*, and *as of when* if the claim is time-bound. A bare link at the bottom of
@@ -249,7 +249,7 @@ that honest. Quote the attribution you are grading, whichever way you grade it.
 
 ### C4-transformative-use
 
-**Is the use NON-transformative, meaning the local text adds nothing the source does not carry?**
+**Is the use non-transformative, meaning the local text adds nothing the source does not carry?**
 
 Selection, synthesis across sources, application to this repository's own context, worked
 examples the source lacks: these make a passage this repository's own even where it began from
