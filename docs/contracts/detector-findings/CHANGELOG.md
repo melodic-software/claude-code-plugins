@@ -4,6 +4,12 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.9.1] - 2026-11-14
+
+**Patch, docs-only.** The shared-emitter decision's trigger and the
+`check-cross-plugin-source-drift.sh` pointer use the glossary term "recheck trigger". No
+producer-owned field's rule, coexistence obligation, or enforceability verdict moves.
+
 ## [3.9.0] - 2026-11-13
 
 **Minor, additive.** Three crosswalk rows and one Adopters row admit `code-tidying:remove-comments`,

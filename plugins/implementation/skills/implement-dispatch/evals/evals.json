@@ -163,7 +163,7 @@
     {
       "id": 13,
       "name": "per-phase-model-column-routes-the-worker-agent",
-      "prompt": "/implementation:implement-dispatch: autonomous run on the Anthropic API (no CLAUDE_CODE_USE_* provider variable is set). The orchestrator's standing rule is to pass model: opus on every spawn. The plan's routing table has Model sonnet on phase 1 (a closed file list with grep checks), no routing row for phase 2, and phase 3 is an auth-token handling change in the security-surface work class. Dispatch each phase in order.",
+      "prompt": "/implementation:implement-dispatch: autonomous run on the Anthropic API (no CLAUDE_CODE_USE_* provider variable is set). The orchestrator's standing rule is to pass model: opus on every spawn. The plan's routing table has Model sonnet on phase 1 (a closed file list with grep checks), no routing row for phase 2, and phase 3 is an auth-token handling change, which is security-surface work. Dispatch each phase in order.",
       "expected_output": "Phase 1 dispatches implementation:scoped-implementer with an explicit per-invocation model: sonnet, so the orchestrator's model: opus habit cannot override the routed tier; before that it reads the provider variables with printenv, and would have spawned implementation:implementer instead had a Bedrock, Vertex or Foundry variable been set with ANTHROPIC_DEFAULT_SONNET_MODEL unset. Phase 2 has no row, so it dispatches implementation:implementer on its frontmatter binding. Phase 3 is security-surface work, so it dispatches implementation:implementer with the frontier tier's current alias as the per-invocation model. No phase is routed downward by passing a weaker model to implementation:implementer.",
       "files": [],
       "expectations": [

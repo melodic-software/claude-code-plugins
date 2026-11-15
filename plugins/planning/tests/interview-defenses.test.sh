@@ -587,11 +587,12 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
 # second home that can be inverted while the pinned original stands.
 # The twin now reads that the restatement opens with the problem and `lock` confirms the
 # problem with one registered question; it adds a confirmation and keeps STOP-on-gap.
+# Terminology only: the trigger a captured assumption carries is named with the glossary term "recheck trigger"; the STOP-on-gap halt, its offer of ask / capture-as-assumption / switch mode, and the no-fudge rule are unchanged.
 pin_section "loop.md Step 3 section is unchanged (it twins the confirmation-gate exemption)" \
   "$LOOP" \
   "## Step 3. Recognize the stop condition" \
   "## Step 4. Section guidance for the Brief" \
-  "6b0f094c39b858d405dd5c41418c9c28bde87f9cdd3bac774524fcb31149e228"
+  "98a128e1cbeb6173043630fc660aa334972843da965623aeb598f650ca9b3037"
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The Problem, Work size and general-session entries point at context/problem-framing.md; they add Brief fields and touch no arbiter rule.
 # AC<n> ids prefix the criteria guidance and EARS examples; USER-RESERVED lines unchanged
@@ -646,11 +647,12 @@ pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \
 # The "Problem first" paragraph makes `lock` ask one registered problem question and sends a
 # solution-shaped goal to rethink-or-accept; it adds a question and leaves the STOP line byte-identical.
 # An unattended pre-confirmed item counts as accept for rethink-or-accept, per problem-framing.md "Pre-confirmed"; STOP-on-gap is unchanged.
+# Terminology only: the trigger a captured assumption carries is named with the glossary term "recheck trigger"; the STOP-on-gap halt, its offer of ask / capture-as-assumption / switch mode, and the no-fudge rule are unchanged.
 pin_section "loop.md Step 1.5 section is unchanged (loop's auto-guard + \`lock\` STOP line live here)" \
   "$LOOP" \
   "## Step 1.5. Auto-detect: gap analysis without asking" \
   "## Step 2. Drive the decision tree" \
-  "6c1565b7b7b28cb9a9d6bed6fbb7522b5c3657309189f1a7ecc5ec7afe4fd205"
+  "5a65d20ba8f7988d3eba22ff8deaebcde7c7783d6f8730369b9c42ba97b3d4f3"
 # The problem-confirmation paragraph puts the unattended confirmation under rung 3 as a
 # `blocked` USER-RESERVED row; a pre-confirmed item writes that row `answered` citing the label, so the register still gates. Rungs 3-5 are byte-identical.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
@@ -668,9 +670,10 @@ pin_section "loop.md Unattended path section is unchanged (the ladder lives here
 
 # Case A's exemption expectation now names `lock`'s one problem question and its invocation
 # confirming the rest; it still says invoking `lock` does not license guessing, and the halt expectations stand.
+# Terminology only: the trigger a captured assumption carries is named with the glossary term "recheck trigger"; the STOP-on-gap halt, its offer of ask / capture-as-assumption / switch mode, and the no-fudge rule are unchanged.
 pin_case_digest "eval case A is unchanged (no criterion added that contradicts the halt)" \
   "$CASE_A_NAME" \
-  "6b70dca686448add3ffcc435f3026a1ea0635a94e8675b123fbff2f92648e257"
+  "127e69330697737f80e82556cfc7e67492203979a16616fac732992c3654f490"
 # The page paragraph now opens with the configured surface value in bold and says a `page`
 # value starts the page before the first round, with no round asked inline. It only names
 # where a round is asked; the `lock` row and its reading are unchanged and no defense weakened.
@@ -788,11 +791,12 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
 # Review fixes only: Step 3's ADR verdict line adds the passing part and the declined-under-ask case, and the overrule notes that under ask it is the answer; loop.md item 8 asks record-decision to name the part a recorded decision passes. No constraint-ledger row, process-change definition, confirmation gate, register gate or procedure check changed
 # A decision whose evidence leaves only one viable answer is named on the round header Settled by evidence line with its Basis and an answered-from-evidence register row the user can reopen by id, and a quoted prior owner ruling answers its question as an answered-from-decision fact; every decision with a live alternative is still asked, so the auto-guard still never folds a user choice, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
 # The self-answer source lists name prior owner decisions first, and an answer from a quoted prior owner ruling is an answered-from-decision register row, never an F-line fact, so a sweep decision item still always takes a register row and the procedure check still refuses an F-line for it; decisions with a live alternative and no ruling are still asked, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
+# Terminology only: the trigger a captured assumption carries is named with the glossary term "recheck trigger"; the STOP-on-gap halt, its offer of ask / capture-as-assumption / switch mode, and the no-fudge rule are unchanged.
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "198b284f05ca1a99cd929fe23f47d6a647fd6805d4eae67bb8652825c7ca9e60"
+  "ba7727158e5262e9f1e1be8d07d049b3a909a06a086bb0ea19d5b5ed89184708"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
@@ -993,7 +997,7 @@ pin "confirmation-gate exemption preserves STOP-on-gap" "$SKILL" \
 
 # A6. loop.md carries the operative STOP wording the case grades the offer against.
 pin "loop.md carries the STOP-and-surface offer" "$LOOP" \
-  "STOP and surface: *\"Found gap: <X>. Want me to ask, or capture as assumption with revisit trigger?\"* Never fudge."
+  "STOP and surface: *\"Found gap: <X>. Want me to ask, or capture as assumption with recheck trigger?\"* Never fudge."
 
 # A7. A gap that goes to the user is a QUESTION, so the register gate keeps applying —
 #     the no-question carve-out must stay scoped to the absence of questions.
@@ -1200,7 +1204,7 @@ pin_exact "the confirmation-gate paragraph is byte-identical to the pinned defen
 pin_exact "the fudge-prohibition bullet is byte-identical to the pinned defense" "$SKILL" \
   '- **Does not fudge gaps in `lock` mode**. If a true unknown surfaces during synthesis, STOP and surface it. Fall back to `auto` or `me` instead of guessing'
 pin_exact "loop.md's \`lock\` STOP-on-gap line is byte-identical to the pinned defense" "$LOOP" \
-  'When `lock` is invoked explicitly, skip auto-detect and synthesize. If a true gap is detected during synthesis, STOP and surface: *"Found gap: <X>. Want me to ask, or capture as assumption with revisit trigger?"* Never fudge.'
+  'When `lock` is invoked explicitly, skip auto-detect and synthesize. If a true gap is detected during synthesis, STOP and surface: *"Found gap: <X>. Want me to ask, or capture as assumption with recheck trigger?"* Never fudge.'
 
 # ===========================================================================
 # CASE B — auto-guard: the residue is asked, or blocked/USER-RESERVED, never assumed

@@ -392,7 +392,7 @@ a per-invocation `model` and operator overrides is set by
 Two consequences of that order:
 
 - **Overrides remain per-dispatch duties.** The frontmatter binds only the
-  default: security-surface work classes and conflict workers still take an
+  default: security-surface work and conflict workers still take an
   explicit per-invocation frontier-alias override. The worker-lane bodies below
   carry only those overrides, not a per-dispatch binding for the capability tiers the
   agent frontmatter already enforces. The merge-lane bodies additionally keep their
@@ -579,7 +579,7 @@ variable that sets it).
 > binding in `model` frontmatter, so pass no `model` for those and never
 > one that undercuts the binding. Pass an explicit per-invocation `model`
 > only for the exceptions the agent frontmatter does not carry:
-> `opus` for conflict resolution and any security-surface work class,
+> `opus` for conflict resolution and any security-surface work,
 > unconditionally (the frontier rung waits on an owner decision and a per-week Fable allowance, as the
 > CI lane profiles' ladder paragraph under "Models" in
 > `docs/conventions/pr-pipeline/README.md` records; recheck when both are set); the strong tier (`opus`) for a judgment-call dispatch that does not
@@ -742,7 +742,7 @@ wakeup ceiling for days rather than finishing.
 > **Dispatch model, every dispatch.** Your root runs on the strong tier and
 > subagents inherit it by default, so every dispatch names its tier
 > explicitly. Pass an explicit per-invocation `model`: `opus` for
-> conflict resolution and every security-surface work class, unconditionally
+> conflict resolution and all security-surface work, unconditionally
 > (the frontier rung waits on an owner decision and a per-week Fable allowance, as the
 > CI lane profiles' ladder paragraph under "Models" in
 > `docs/conventions/pr-pipeline/README.md` records; recheck when both are set);
@@ -947,7 +947,7 @@ The attended queue's attention view is deliberately narrow: a human-gated
 label **without** a machine escalation-marker comment is a parked item, not
 an escalation, and never lists. That protects real worker questions from
 being buried, and it means parked decisions, decision-pending items, and
-decisions deferred with a named revisit trigger belong to no standing lane.
+decisions deferred with a named recheck trigger belong to no standing lane.
 Left alone they rot; a fired trigger looks exactly like a dormant one. This
 template is the deliberate act that owns them.
 
@@ -1054,7 +1054,7 @@ with the operator's signature on them.
 >    have decided. The parking rule below the exclusions closes that window.
 > 3. Trigger sweep, **over populations 1 and 2 only**, plus decision
 >    comments on items closed in the last 90 days: any text naming a
->    revisit trigger ("after <date> if …", "when <capability> exists").
+>    recheck trigger ("after <date> if …", "when <capability> exists").
 >    Evaluate every trigger against today, live, never from memory. A
 >    fired trigger on an OPEN item joins the queue; a fired trigger on a
 >    CLOSED item reopens it or files a successor open item (never mutate a
