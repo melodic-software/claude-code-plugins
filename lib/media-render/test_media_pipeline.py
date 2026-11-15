@@ -251,6 +251,21 @@ class CaptureTest(unittest.TestCase):
                                                     *SIZE, 1, BAND)
         self.assertEqual([p for _, p in checked], [[]] * len(cuts))
 
+    def test_paginate_spreads_entries_evenly_so_no_frame_holds_a_lone_tail(self):
+        import media_capture
+        import media_templates
+
+        def renderer(moment):
+            return lambda a, b: frame(media_templates.subset(moment, a, b), part=(2, 9))
+        (full,) = media_capture.paginate([(renderer(also_changed(30)), 30)], *SIZE, 1, BAND)
+        one_over = max(b - a for a, b in full) + 1
+        for total in (one_over, 30):
+            with self.subTest(total=total):
+                (cuts,) = media_capture.paginate([(renderer(also_changed(total)), total)], *SIZE, 1, BAND)
+                sizes = [b - a for a, b in cuts]
+                self.assertEqual(sum(sizes), total)
+                self.assertLessEqual(max(sizes) - min(sizes), 1, cuts)
+
     def test_every_template_s_smallest_text_reads_at_least_14_px_tall_in_an_888_px_player(self):
         from playwright.sync_api import sync_playwright
         moments = {
