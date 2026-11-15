@@ -392,7 +392,7 @@ a per-invocation `model` and operator overrides is set by
 Two consequences of that order:
 
 - **Overrides remain per-dispatch duties.** The frontmatter binds only the
-  default: security-surface work classes and conflict workers still take an
+  default: security-surface work and conflict workers still take an
   explicit per-invocation frontier-alias override. The worker-lane bodies below
   carry only those overrides, not a per-dispatch binding for the capability tiers the
   agent frontmatter already enforces. The merge-lane bodies additionally keep their
@@ -579,7 +579,7 @@ variable that sets it).
 > binding in `model` frontmatter, so pass no `model` for those and never
 > one that undercuts the binding. Pass an explicit per-invocation `model`
 > only for the exceptions the agent frontmatter does not carry:
-> `opus` for conflict resolution and any security-surface work class,
+> `opus` for conflict resolution and any security-surface work,
 > unconditionally (the frontier rung waits on an owner decision and a per-week Fable allowance, as the
 > CI lane profiles' ladder paragraph under "Models" in
 > `docs/conventions/pr-pipeline/README.md` records; recheck when both are set); the strong tier (`opus`) for a judgment-call dispatch that does not
@@ -742,7 +742,7 @@ wakeup ceiling for days rather than finishing.
 > **Dispatch model, every dispatch.** Your root runs on the strong tier and
 > subagents inherit it by default, so every dispatch names its tier
 > explicitly. Pass an explicit per-invocation `model`: `opus` for
-> conflict resolution and every security-surface work class, unconditionally
+> conflict resolution and all security-surface work, unconditionally
 > (the frontier rung waits on an owner decision and a per-week Fable allowance, as the
 > CI lane profiles' ladder paragraph under "Models" in
 > `docs/conventions/pr-pipeline/README.md` records; recheck when both are set);

@@ -193,7 +193,7 @@ machines; neither on the attended box.
 > well-scoped goes to `scoped-implementer` with an explicit `model: sonnet`
 > instead; unrouted or complex phases stay on `implementer`. Pass an explicit per-invocation `model`
 > only for the exceptions the agent frontmatter does not carry:
-> `opus` for conflict resolution and any security-surface work class,
+> `opus` for conflict resolution and any security-surface work,
 > unconditionally (the frontier rung waits on an owner decision and a per-week Fable allowance, as the
 > CI lane profiles' ladder paragraph under "Models" in
 > `docs/conventions/pr-pipeline/README.md` records; recheck when both are set); the strong tier (`opus`) for a judgment-call dispatch that does not
@@ -359,7 +359,7 @@ the partition and the evidence predicate is met.
 > **Dispatch model, every dispatch.** Your root runs on the strong tier and
 > subagents inherit it by default, so every dispatch names its tier
 > explicitly. Pass an explicit per-invocation `model`: `opus` for
-> conflict resolution and every security-surface work class, unconditionally
+> conflict resolution and all security-surface work, unconditionally
 > (the frontier rung waits on an owner decision and a per-week Fable allowance, as the
 > CI lane profiles' ladder paragraph under "Models" in
 > `docs/conventions/pr-pipeline/README.md` records; recheck when both are set);

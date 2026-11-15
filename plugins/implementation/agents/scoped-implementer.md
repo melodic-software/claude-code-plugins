@@ -123,7 +123,7 @@ The `model` frontmatter above binds the **fast capability tier**'s current alias
 convention's §3, `docs/contracts/loop-lane/README.md` in this plugin's marketplace repository)
 for phases a plan routes `sonnet`. A phase earns that row only when its scope fence is closed, its
 acceptance criteria are binary, no design decision is open, it changes no cross-module contract,
-and it is not a security-surface work class. Every other phase goes to `implementation:implementer`,
+and it is not security-surface work. Every other phase goes to `implementation:implementer`,
 whose binding is the strong tier. `/implementation:implement-dispatch` spawns this agent only for a
 `sonnet` row, and passes `model: sonnet` explicitly so a caller's standing per-spawn model cannot
 override it.

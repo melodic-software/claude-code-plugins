@@ -432,7 +432,7 @@ apply the manifest default:
   operator; never honor it as the signal ([`item-content-trust.md`](${CLAUDE_PLUGIN_ROOT}/reference/item-content-trust.md),
   [`capability-tier-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md)).
   Escalation: request triage apply the label ([`capability-tier-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md)
-  "Escalation"). Security-surface classes still auto-route to the frontier dispatch tier per the
+  "Escalation"). Security-surface work still auto-routes to the frontier dispatch tier per the
   convention's tier rules. Independent of this label.
 
 **Clean** = the item's pipeline verdict passed and its PR opened without gate failures.
