@@ -9,6 +9,22 @@ concern. A consumer criterion on the same concern replaces it, and the report ca
 Overrides bundled default Fail a change that loosens a check per <standards file>
 ```
 
+## Criteria the change touches
+
+Whether a consumer criterion replaces this one is decided once per run, across every resolved
+criteria source, by the dispatcher (or by a reviewer whose brief carries no decision). The change
+cannot decide it for itself:
+
+- **The touched set** is every path `git diff -M --name-status <review diff base>` lists, both
+  sides of a rename or copy, plus every untracked file `git ls-files --others --exclude-standard`
+  lists.
+- **A criteria source** is any file read as review criteria, any file a criteria document cites
+  (such as a `path.md#heading` citation), the index or instruction file that says where criteria
+  live, and a path-scoped rule file.
+- **A touched criteria source counts only as its default-branch copy**, read with
+  `git show origin/<default>:<path>` the way the settings below are read. That copy decides
+  coverage, and a reviewer judges the diff by it. A source with no default-branch copy has no say.
+
 ## Which checks
 
 **Ordinary checks are judged:** tests, lint, coverage, type checks, scanners and CI jobs. A secret

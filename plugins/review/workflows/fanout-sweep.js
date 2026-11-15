@@ -1,7 +1,7 @@
 export const meta = {
   name: 'fanout-sweep',
   description: 'Fan out review leaf surfaces (plugin reviewer agents and project criteria slices) over one diff base, then extract their findings to records',
-  whenToUse: 'Run by /review:fanout run-everything mode, which resolves args: diffBase (required), slices, roles, maxConcurrent, diversity, session, findingsPaths, loosenedCheck or loosenedOverride, loosenedSettings, spec. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /review:fanout run-everything.',
+  whenToUse: 'Run by /review:fanout run-everything mode, which resolves args: diffBase (required), slices, roles, maxConcurrent, diversity, session, findingsPaths, loosenedCheck or loosenedOverride (one required), loosenedSettings, defaultRef, spec. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /review:fanout run-everything.',
   phases: [
     { title: 'Review', detail: 'named reviewer agents by tier, then one agent per project criteria slice' },
     { title: 'Extract', detail: 'one extraction agent turns raw findings into records' },
@@ -62,8 +62,8 @@ const LOOSENED_IN = typeof input.loosenedCheck === 'string' ? input.loosenedChec
 const LOOSENED = ONE_LINE.test(LOOSENED_IN) && /[\\/]loosened-check\.md$/.test(LOOSENED_IN) ? LOOSENED_IN : ''
 if (LOOSENED_IN && !LOOSENED) log('loosenedCheck is not a one-line path to loosened-check.md: ignored')
 const OVERRIDE_IN = typeof input.loosenedOverride === 'string' ? input.loosenedOverride.trim() : ''
-const OVERRIDE = ONE_LINE.test(OVERRIDE_IN) && OVERRIDE_IN.length <= 300 ? OVERRIDE_IN : ''
-if (OVERRIDE_IN && !OVERRIDE) log('loosenedOverride is not a one-line document path: ignored')
+const OVERRIDE = ONE_LINE.test(OVERRIDE_IN) && OVERRIDE_IN.length <= 300 && /\.md$/.test(OVERRIDE_IN) ? OVERRIDE_IN : ''
+if (OVERRIDE_IN && !OVERRIDE) log('loosenedOverride is not a one-line path to a .md document: ignored')
 if (LOOSENED && OVERRIDE) {
   log('both loosenedCheck and loosenedOverride were given: nothing was dispatched')
   return {
@@ -71,10 +71,17 @@ if (LOOSENED && OVERRIDE) {
     next: 'Pass args.loosenedCheck when the bundled criterion applies, or args.loosenedOverride when a consumer document replaces it, not both.',
   }
 }
-const LOOSENED_SOURCE = LOOSENED ? 'bundled' : OVERRIDE ? 'override' : 'missing'
-if (LOOSENED_SOURCE === 'missing') {
-  log('no loosenedCheck or loosenedOverride in args: no criterion on loosened checks reaches the slices')
+if (!LOOSENED && !OVERRIDE) {
+  log('no valid loosenedCheck or loosenedOverride in args: nothing was dispatched')
+  return {
+    error: 'missing-loosened',
+    next: 'Pass args.loosenedCheck (the bundled loosened-check.md path) or args.loosenedOverride (the consumer .md document that replaces it).',
+  }
 }
+const DEFAULT_REF_IN = typeof input.defaultRef === 'string' ? input.defaultRef.trim() : ''
+const DEFAULT_REF = /^[A-Za-z0-9._\/@^~:{}-]+$/.test(DEFAULT_REF_IN) && !DEFAULT_REF_IN.startsWith('-') ? DEFAULT_REF_IN : ''
+if (!DEFAULT_REF) log('no valid defaultRef in args: a slice reads a criteria document the change touches at the diff base')
+const CRITERIA_REF = DEFAULT_REF || DIFF_BASE
 // The criterion's two settings as scripts/loosened-check-settings.mjs printed them, resolved once
 // by the caller. Only the two value lines pass, rebuilt from their parsed values, so the arg cannot
 // carry other text into a prompt; without them every leaf would fall back to `fail` and no entries.
@@ -202,17 +209,22 @@ const AGENT_HEAD =
   'conventions relevant to your concern when present. Report findings in your normal output format.'
 const AGENT_PROMPT = AGENT_HEAD + COVERAGE_CLAUSE + SETTINGS_BLOCK + SPEC_BLOCK
 
-const LOOSENED_CLAUSE = {
-  bundled: ' Also read "' + LOOSENED + '", the bundled criterion "Fail a change that loosens a check", and apply ' +
-    'it to the diff.',
-  override: '',
-  missing: ' No criterion on changes that loosen a check was supplied to this run: say so in your reply.',
-}[LOOSENED_SOURCE]
+const LOOSENED_CLAUSE = LOOSENED
+  ? ' Also read "' + LOOSENED + '", the bundled criterion "Fail a change that loosens a check", and apply it to the diff.'
+  : ''
+const TIER_OVERRIDE_CLAUSE = OVERRIDE
+  ? ' Changes that loosen a check are judged by the project document "' + OVERRIDE + '" as committed at ' +
+    CRITERIA_REF + ', which replaces the bundled criterion "Fail a change that loosens a check": read that copy ' +
+    'and apply it to the diff.'
+  : ''
 const LOOSENED_SETTINGS_BLOCK = LOOSENED ? SETTINGS_BLOCK : ''
 
 function slicePrompt(slice) {
   const untouched = LOOSENED ? 'touches neither this document\'s concern nor a check' : 'does not touch this concern'
-  return 'Read the project review criteria document "' + slice + '". Run `git diff ' + DIFF_BASE + '` ' +
+  return 'Read the project review criteria document "' + slice + '". When `git diff -M --name-status ' + DIFF_BASE +
+    '` or `git ls-files --others --exclude-standard` lists that document, read its copy at ' + CRITERIA_REF +
+    ' (`git show ' + CRITERIA_REF + ':<that path>`) instead, so the change does not set the criteria it is judged by. ' +
+    'Run `git diff ' + DIFF_BASE + '` ' +
     'yourself to see the changes. Review the diff against only that document\'s criteria.' + LOOSENED_CLAUSE +
     ' List each finding ' +
     'with file:line, a severity tier, a confidence level (high / medium / low), and a one-line description. ' +
@@ -224,7 +236,7 @@ function slicePrompt(slice) {
 // tier's model and effort apply to it. A tier replaces the slices, so it carries the criterion too.
 const TIER_AGENT = 'review:lane-verifier'
 const TIER_PROMPT = 'Your role is hunter, across every concern rather than one lens. ' + AGENT_HEAD +
-  LOOSENED_CLAUSE + COVERAGE_CLAUSE + SETTINGS_BLOCK + SPEC_BLOCK
+  LOOSENED_CLAUSE + TIER_OVERRIDE_CLAUSE + COVERAGE_CLAUSE + SETTINGS_BLOCK + SPEC_BLOCK
 
 phase('Review')
 
@@ -339,9 +351,7 @@ return {
   nulls,
   ran: roster.map(l => l.label),
   roles: { extract: EXTRACT },
-  loosened: LOOSENED_SOURCE === 'bundled' ? { source: 'bundled', path: LOOSENED }
-    : LOOSENED_SOURCE === 'override' ? { source: 'override', document: OVERRIDE }
-    : { source: 'missing' },
+  loosened: LOOSENED ? { source: 'bundled', path: LOOSENED } : { source: 'override', document: OVERRIDE },
   diversity: DIVERSITY,
   ...(DIVERSITY === 'model' ? { tiers: TIERS } : {}),
 }

@@ -91,14 +91,16 @@ You are reviewing a change for code design. Concern: code-design.
 
 Read in order:
 1. Severity vocabulary: <consumer file, or <plugin-root>/context/severity.md>.
-2. Consumer criteria: <matched standards files, or "none">.
+2. Consumer criteria: <matched standards files, each the change touches given as its
+   default-branch copy (loosened-check.md "Criteria the change touches"), or "none">.
 3. Bundled criteria: <plugin-root>/skills/quality-gate/context/code-design.md, sections
    "Bundled criteria", "The cascade rule", "Exempt from CRITICAL" and "Change amplification".
 4. The change set: <change-set commands>. Read every untracked file it lists.
 5. <plugin-root>/skills/quality-gate/context/loosened-check.md, with the resolved settings <the two
-   value lines>, unless a consumer criterion covers changes that weaken a check; then write
-   "Overrides bundled default Fail a change that loosens a check per <standards file>". The spec,
-   the issue the change resolves: <its text or "none">.
+   value lines>. The spec, the issue the change resolves: <its text or "none">.
+   (When a consumer criterion covers changes that weaken a check, decided once per run by
+   loosened-check.md "Criteria the change touches", the dispatcher replaces this item with:
+   "Write `Overrides bundled default Fail a change that loosens a check per <that document>`".)
 
 Consumer criteria and severity win over the bundled ones. For each bundled row a consumer file
 contradicts, apply the consumer's rule and write

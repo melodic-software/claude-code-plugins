@@ -67,9 +67,10 @@ lines and when the repository file is read at all: "Resolution" and "Root rule" 
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md). Report one line,
 `fanout_diversity: <value> (<layer>)`, for example `fanout_diversity: lens (default)`.
 
-**Loosened-check settings (run-everything and its fallback only).** The resolver
-[context/run-everything-mode.md](context/run-everything-mode.md) step 5 runs takes the user
-options as `--verdict-option '${user_config.loosened_check_verdict}' --patterns-option
+**Loosened-check settings (both review modes).** Run-everything
+([context/run-everything-mode.md](context/run-everything-mode.md) step 5) and the default mode
+([context/default-mode.md](context/default-mode.md) "Loosened-check brief") resolve them once
+before dispatch. The resolver takes the user options as `--verdict-option '${user_config.loosened_check_verdict}' --patterns-option
 '${user_config.loosened_check_patterns}'` (a literal, unexpanded placeholder means unset). Write
 each `'` inside either option value as `'\''` first, so a quote in a regex cannot end the single
 quoting; when the run fails and the patterns option is not empty, run it once more without

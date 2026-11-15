@@ -33,8 +33,8 @@ Read the `file_lines` row of its References table (config key `size.file_lines`)
 
 Put each crossing into the `code-reviewer` brief as `<path>: <base count> -> <head count>,
 size.file_lines <reference> (<layer>)`. With no crossing, or when code-metrics is not available,
-the brief lists none. On the primary path, which dispatches no `code-reviewer`, list the crossings
-in the gate's report in that same form.
+the brief lists none. Both paths dispatch `code-reviewer` (the primary path for the loosened-check
+criterion, below), so its brief always carries them.
 
 ## Primary path: `pr-review-toolkit` orchestrator plugin (when installed)
 
