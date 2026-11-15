@@ -42,8 +42,10 @@ async page => {
     await pick(1, "Delete me");
     await page.click("#save");
     ok("a second draft is listed and Send all drafts shows", String(await states()) === "draft,draft" && await page.isVisible("#sendall"), await states());
+    await page.click('[data-key="edit-2"]');
     await page.click('[data-key="delete-2"]');
     ok("Delete removes the draft and moves the focus to the list", String(await states()) === "draft" && (await focused()) === "notes-title", await focused());
+    ok("deleting a draft closes the editor that was open on it", await page.isHidden("#composer"));
 
     await page.click('[data-key="edit-1"]');
     await page.keyboard.press("Escape");

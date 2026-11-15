@@ -229,19 +229,24 @@ edit the canonical source, then rerun the script. -->
   }
   async function sendDrafts(list) {
     const sent = [];
+    let got;
     for (const entry of list) {
-      if ((await deliver(entry)) !== "sent") break;
+      got = await deliver(entry);
+      if (got !== "sent") break;
       sent.push(entry.seq);
     }
+    // deliver() has just said why the session refused a note; keep that beside what was sent.
+    const refusal = got === "refused" ? ` ${$("status").textContent}` : "";
     // A sent note is in the session's log: the editor must not turn it back into a draft.
     if (editing && !editing.draft) closeComposer();
     render();
     if (noSession) say(OFFLINE);
-    else if (sent.length) say(sent.length === 1 ? `Note ${sent[0]} sent.` : `Notes ${sent.join(", ")} sent.`);
+    else if (sent.length) say((sent.length === 1 ? `Note ${sent[0]} sent.` : `Notes ${sent.join(", ")} sent.`) + refusal);
     if (!document.activeElement || document.activeElement === document.body) $("notes-title").focus();
   }
   function remove(entry) {
     if (sending) return;
+    if (editing === entry) closeComposer();
     mine.splice(mine.indexOf(entry), 1);
     render();
     $("notes-title").focus();
