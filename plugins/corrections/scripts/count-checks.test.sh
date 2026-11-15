@@ -302,7 +302,7 @@ new_repo
 commit 2026-04-01 'docs: explain the record line (#16)
 
 The record is `Codifies: <#n | session> rung=<id> <kind>`.
-**Codifies:** #13 rung=action-guard blocking'
+**Codifies:** #13 action-guard blocking'
 commit 2026-04-02 "feat: boundary test (#14)
 
 Codifies: #15 rung=architecture-test advisory
@@ -314,7 +314,7 @@ run "$R" --since 2026-04-01 --until 2026-04-30
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "forms: the emphasis form and the repeat are listed, the quoted grammar is not" has_line "not counted: 2"
 DETAIL="out: $OUT"
-check "forms: the emphasis form is listed" grep -qF '**Codifies:** #13 rung=action-guard blocking' <<<"$OUT"
+check "forms: the emphasis form is listed" grep -qF '**Codifies:** #13 action-guard blocking' <<<"$OUT"
 DETAIL="out: $OUT"
 check "forms: the quoted grammar is not listed" test "$(grep -c 'session> rung=<id>' <<<"$OUT")" -eq 0
 DETAIL="out: $OUT"
