@@ -5,3 +5,9 @@ upkeep_cadence: daily
 upkeep_backstop: weekly
 upkeep_max_open: 3
 upkeep_spec_issue: 12894
+comment_posture: necessary
+comment_edit_scope: files
+comment_lint: report
+comment_lint_allow:
+  - '^#[[:space:]]*test-scope:'
+  - '^//[[:space:]]*test-scope:'
