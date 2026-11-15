@@ -2237,7 +2237,7 @@ test("a probe that handed off skips the probe check and every step from the head
   assert.ok(capIndex(CAP_HANDOFF) < capIndex(PROBE_CHECK));
 });
 
-// Issue #16193's done-when: a credit stop on the capture's key raises an
+// The expected alert: a credit stop on the capture's key raises an
 // alert naming the key's role and the run that hit it, the warning
 // annotation every lane raises on a key's handoff, also in the run summary.
 test("a credit stop on the capture's key raises a warning naming the pr-verify role's key and the run, in the annotations and the run summary", { skip: process.platform === "win32" && "bash step" }, () => {
@@ -2292,8 +2292,9 @@ test("a key that cannot capture records the capture blocked in the capture job, 
   assert.equal(stepIf(capStep("Upload the capture")), `(always() && ${either}) && steps.scan-capture.outputs.clean == 'true'`);
 });
 
-// Issue #16193's done-when: credit stop, empty key or probe handoff, each with
-// its own reason, and no "subscription token cannot go behind the proxy".
+// The causes the owner's decision names: credit stop, empty key or probe
+// handoff, each with its own reason, and no "subscription token cannot go
+// behind the proxy".
 test("the blocked capture records its cause: credit stop, empty key or probe handoff, each with its own reason", { skip: process.platform === "win32" && "bash step" }, () => {
   const head = "c".repeat(40);
   const write = (env) => {

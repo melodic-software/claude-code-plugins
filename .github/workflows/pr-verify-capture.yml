@@ -41,8 +41,8 @@ name: PR Verify Capture
 # pull request code runs. A probe leg that hands off (run-claude-cli's
 # handoff: a credit stop, or class auth with API status 401 or 402) skips
 # the probe check, so that job checks out no head code and stays green.
-# Both legs stay key-only (owner decision on #16193): a subscription token
-# cannot go behind the key proxy. When the key cannot capture, the same job
+# Both legs stay key-only (an owner decision): a subscription token cannot
+# go behind the key proxy. When the key cannot capture, the same job
 # uploads a capture recorded blocked with its cause: credit-stop (the credit
 # gate held the key off, or its probe hit a credit stop), empty-key, or
 # probe-handoff (the probe handed off on auth). The cause comes only from

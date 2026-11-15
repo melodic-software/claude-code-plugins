@@ -182,8 +182,8 @@ test("run-e2e's e2e-summary.json is read into the capture keys, and a summary ou
   }
 });
 
-// Issue #16193: a capture the key cannot make records its cause, one of
-// credit stop, empty key or probe handoff, and the verdict names it.
+// A capture the key cannot make records its cause, one of credit stop, empty
+// key or probe handoff, and the verdict names it.
 test("a blocked capture's cause reaches the verdict, and a cause off the list or on another outcome is blocked unreadable", () => {
   const summary = (capture) => ({ route: "none", app: "claude-code", affected: [], capture, entry_points: [], publishable: [] });
   for (const cause of ["credit-stop", "empty-key", "probe-handoff"]) {
