@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "# Opening shift\n\nOvens go on at 5:30 and reach `220C` before the first trays go in.\n\nWholesale drivers pull up at the back door at 6:15 to add next-day bread, so the standing-order clipboard hangs on the back door, because a driver who has to walk inside to write an order often skips it.\n\nOn Tuesdays the supplier leaves the flour delivery invoice on the back-door shelf, and the manager signs it before the sacks go into the store room.\n\nClosing staff wipe the standing-order clipboard after the last driver leaves.\n",
+      "why": "6:15 line still names the standing-order clipboard"
+    },
+    {
+      "answer": "# Opening shift\n\nOvens go on at 5:30 and reach `220C` before the first trays go in.\n\nWholesale drivers pull up at the back door at 6:15 to add next-day bread, so the clipboard for standing orders hangs there, where drivers already stop.\n\nOn Tuesdays the supplier leaves the flour delivery invoice on the back-door shelf, and the manager signs it before the sacks go into the store room.\n\nClosing staff wipe the standing-order clipboard after the last driver leaves.\n",
+      "why": "a paraphrase of the same noun phrase"
+    },
+    {
+      "answer": "# Opening shift\n\nOvens go on at 5:30 and reach `220C` before the first trays go in.\n\nWholesale drivers pull up at the back door at 6:15 to add next-day bread (paperwork friction kills standing orders; the standing-order clipboard lives where the drivers already stop).\n\nOn Tuesdays the supplier leaves the flour delivery invoice on the back-door shelf, and the manager signs it before the sacks go into the store room.\n\nClosing staff wipe the standing-order clipboard after the last driver leaves.\n",
+      "why": "unfixed file keeps the referent; figure-gone fails it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Opening shift\n\nOvens go on at 5:30 and reach `220C` before the first trays go in.\n\nWholesale drivers pull up at the back door at 6:15 to add next-day bread, so the flour delivery invoice stays on the back-door shelf, where they already stop.\n\nOn Tuesdays the supplier leaves the flour delivery invoice on the back-door shelf, and the manager signs it before the sacks go into the store room.\n\nClosing staff wipe the standing-order clipboard after the last driver leaves.\n",
+      "why": "referent swapped for the invoice; the closing line's clipboard mention does not count"
+    },
+    {
+      "answer": "# Opening shift\n\nOvens go on at 5:30 and reach `220C` before the first trays go in.\n\nWholesale drivers pull up at the back door at 6:15 to add next-day bread, because paperwork friction kills standing orders.\n\nOn Tuesdays the supplier leaves the flour delivery invoice on the back-door shelf, and the manager signs it before the sacks go into the store room.\n\nClosing staff wipe the standing-order clipboard after the last driver leaves.\n",
+      "why": "referent dropped from the 6:15 line"
+    }
+  ]
+}

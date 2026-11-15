@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-fix-keeps-referent
+description: "Hard: the fix must turn a figurative parenthetical ('paperwork friction kills standing orders; the standing-order clipboard lives where the drivers already stop') into a literal reason that still names the standing-order clipboard, while the next paragraph puts a different paper, the flour delivery invoice, at the same back door; 'paperwork' invites swapping one paper for the other, and a swapped sentence reads fluently and states a wrong reason. Source: an observed fix-lane failure, rewritten with every detail changed. Written from MB:plugins/ai-slop/skills/audit/reference/catalog.md:1024-1050, MB:plugins/ai-slop/skills/audit/reference/rewrite-guide.md:181-187."
+tags: [fix, rewrite-guide, figure-for-fact, meaning, hard]
+runs: 3
+expected_outcome: "After an explicit fix, docs/opening.md no longer says 'friction kills' or 'lives where'; the line that states the 6:15 driver stop still names the standing-order clipboard and does not mention the invoice, so the reason it gives is still about where the clipboard hangs. The fix reads reference/rewrite-guide.md first."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/ai-slop:audit fix docs/opening.md"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent]
+  max_turns: 80
+  timeout_seconds: 1500
