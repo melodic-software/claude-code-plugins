@@ -6,7 +6,7 @@
 - [Source and verification](#source-and-verification)
 - [Row schema](#row-schema)
 - [Decisions](#decisions)
-- [Revisit triggers](#revisit-triggers)
+- [Recheck triggers](#recheck-triggers)
 
 This is the provenance record for acting on the claude.com article about folding subagents into
 one agent loop. It follows the record shape of
@@ -61,7 +61,7 @@ checks live, followed by any correlate note.
 | F7 Parallel work limited to reads | Not adopted in any skill: `/implementation:implement-dispatch` runs concurrent writers on disjoint file fences, and only practitioner posts state the qualifier. Revisit on evidence from our own runs. | watch | When splitting writes across agents, read [Cognition, 2025-06-12](https://cognition.ai/blog/dont-build-multi-agents), [Cognition, 2026-04-22](https://cognition.com/blog/multi-agents-working) and [LangChain, 2025-06-16](https://www.langchain.com/blog/how-and-when-to-build-multi-agent-systems) live; no docs page covers it as of 2026-10-24 |
 | F8 Tool selection or conflicting instructions as a reason to keep a subagent | Not added as a standing condition: no stumble here shows it. `/multi-agent:assess` points at the docs comparison for the subagent-or-single choice instead. | vendor-claimed, watch | When a kept subagent is justified by tool or instruction conflict, fetch [Choose between subagents and main conversation](https://code.claude.com/docs/en/sub-agents#choose-between-subagents-and-main-conversation) live; correlate with [Building multi-agent systems](https://claude.com/resources/articles/building-multi-agent-systems-when-and-how-to-use-them) |
 
-## Revisit triggers
+## Recheck triggers
 
 Decisions deferred until the named evidence exists:
 

@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Claiming it: /work-items:track start <#62>.",
+      "why": "claims the design item"
+    },
+    {
+      "answer": "Claiming it: /work-items:track start https://example.com/acme/mail/issues/62",
+      "why": "claims the design item by URL"
+    },
+    {
+      "answer": "Claim: `/work-items:track start <item #62>`.",
+      "why": "claims the design item, written as an item reference"
+    },
+    {
+      "answer": "```\nSkill: work-items:track   args: start https://example.com/acme/mail/issues/62\n```",
+      "why": "claims the design item by URL, written as skill and arguments"
+    },
+    {
+      "answer": "Claim: `/work-items:track start <issue #62>`.",
+      "why": "claims the design item, written as an issue reference"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Claiming it: /work-items:track start <#61>.",
+      "why": "claims the owner-call item"
+    },
+    {
+      "answer": "Claiming it: /work-items:track start https://example.com/acme/mail/issues/162",
+      "why": "another item"
+    },
+    {
+      "answer": "```\nSkill: work-items:track   args: start <item #61>\n```",
+      "why": "claims the owner-call item"
+    },
+    {
+      "answer": "I claimed item #62 and handed it to /planning:design.",
+      "why": "no claim call written out"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 ---
 description: "Read-only report of the five DORA delivery metrics (deployment frequency, change lead time, change fail rate, failed deployment recovery time, deployment rework rate) as a team trend from the default branch's history, never per person. Use when: 'measure delivery', 'DORA metrics', 'deployment frequency', 'change lead time', 'change fail rate', 'how fast do we ship', 'delivery trend'. Backlog counts are /work-items:track stats."
-argument-hint: "[--since YYYY-MM-DD] [--until YYYY-MM-DD] [--bucket week|month] [--branch <ref>]"
+argument-hint: "[--since YYYY-MM-DD] [--until YYYY-MM-DD] [--bucket week|month] [--branch <ref>] [--merge-risk]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -16,6 +16,7 @@ Arguments: `$ARGUMENTS`, the window and period flags below, passed through to th
 - `--until <YYYY-MM-DD>`: last UTC day, inclusive (default: now).
 - `--bucket week|month`: trend period (default `week`, ISO weeks starting Monday).
 - `--branch <ref>`: the default branch (default: the ref `origin/HEAD` names).
+- `--merge-risk`: add the merge-risk failures section below; not passed to `delivery-metrics.sh`.
 
 ## Purpose
 
@@ -66,7 +67,8 @@ Its one value, and the default, is `merge-to-default-branch`:
   not a revert. A revert landing after `--until` still marks a deployment in the window as failed,
   and a target that landed before `--since` still resolves.
 
-The signal reads only git history, so no tracker or forge call is made and any host works.
+The signal reads only git history, so no tracker or forge call is made and any host works. Only
+`--merge-risk` reads the forge.
 
 ## Workflow
 
@@ -106,6 +108,28 @@ The signal reads only git history, so no tracker or forge call is made and any h
 
 Done when the table and the trend lines are shown, with the window, branch and deploy signal
 they cover.
+
+## Merge-risk failures (`--merge-risk`)
+
+With `--merge-risk` in `$ARGUMENTS`, also report whether merges rated `demote=true` by
+`/review:merge-risk` fail more often than those rated `demote=false`. It runs only where
+`docs/conventions/work-items.yaml` binds `tracker.provider: "github"` and the repository's merge
+lane records the rating (the `merge-risk-line` marker comment its pipeline convention defines);
+elsewhere, say the section does not apply. Run it after step 2, with the same window flags:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/skills/measure-delivery/scripts/merge-risk-failures.mjs" \
+  --repo "<repo root>" --format md <--since, --until and --branch from $ARGUMENTS>
+```
+
+Show its output as it prints it. It counts, per `demote` group, the rated merges and those later
+met by a post-merge demotion record, a silent-revert canary record, or a revert on the default
+branch (the forms in "Deploy signal"), plus a per-lane breakdown where the rating names the lane
+run that opened the pull request. A record that names a range of merges counts in `*_in_range`
+and in no rate. Where either group has too few failures, it prints "not enough failures to
+compare" in place of a rate: report that line, never a rate of your own. A `PARTIAL:` line means
+part of the window went unread: say so beside the table. Exit `3` is a rate limit: report it and
+stop, with no retry. It writes nothing to the forge.
 
 ## Next
 

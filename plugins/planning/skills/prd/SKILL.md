@@ -151,7 +151,7 @@ Question shapes that recur, in priority order:
 | Assumptions | "What are we taking as true without proof, and what would show it false?" |
 | Open questions | "What is genuinely undecided that `/planning:plan` needs an answer to?" |
 
-Stop asking once every required section has either a resolved answer or an explicit "open question with revisit trigger".
+Stop asking once every required section has either a resolved answer or an explicit "open question with recheck trigger".
 
 ### Step 5. Persist the PRD
 

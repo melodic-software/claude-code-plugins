@@ -169,8 +169,8 @@
 // merge.report-only is true it reports
 // each decision and writes nothing.
 // Just before an arm, after its pin, the run records the report-only
-// Merge-Risk line in the lanes App's marker comment for the head
-// (merge-risk-line.mjs recordMergeRisk): the rating pr-rate-merge-risk.yml
+// Merge-Risk line in the lanes App's marker comment for the head, naming the
+// lane run its branch names (merge-risk-line.mjs recordMergeRisk): the rating pr-rate-merge-risk.yml
 // uploaded for the head, or `unrated` with a closed reason, read and written
 // within about 40 seconds at most (15 for the reads, 5 for the write, and a
 // download capped at 8 for gh and 8 for unzip that no timer can cut short),
@@ -294,7 +294,7 @@ export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: Strin
     pullRequests(states: OPEN, baseRefName: "main", first: 100, after: $after) {
       pageInfo { hasNextPage endCursor }
       nodes {
-        id number isDraft isCrossRepository headRefOid baseRefOid body updatedAt mergeStateStatus
+        id number isDraft isCrossRepository headRefName headRefOid baseRefOid body updatedAt mergeStateStatus
         author { __typename login }
         userContentEdits(first: 100) { totalCount nodes { editor { __typename login } } }
         labels(first: 100) { totalCount nodes { name } }

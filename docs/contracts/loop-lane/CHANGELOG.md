@@ -5,6 +5,15 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [19.6.2] - 2026-11-14
+
+Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant
+changed.
+
+- **Capability tiers.** The tier table, its fixed rules and the classifier-fallback gap say
+  "security-surface work" where they said "security-surface work class": it is a property of the
+  work beside its class, not one of the work classes.
+
 ## [19.6.1] - 2026-11-11
 
 Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant

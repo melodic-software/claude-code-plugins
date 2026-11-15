@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.1] - 2026-11-15
+
+### Changed
+
+- `/prototype:explore-directions` shared-interview placement now covers build sources, scripts and scratch files: they go in `<data_dir>/staging/<run>/`, outside the live build folder, or stay in memory, never in a `mktemp` directory. SKILL.md's "Ephemeral placement" `mktemp` template applies only to the offline mockup.
+
 ## [0.29.0] - 2026-11-14
 
 ### Added

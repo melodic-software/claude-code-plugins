@@ -222,6 +222,18 @@ class CaptureTest(unittest.TestCase):
         bottom = min(b for _, b in rows)
         self.assertLess(top, bottom, f'every node and arrow should share one row: {rows}')
 
+    def test_a_long_pull_request_title_fits_the_title_frame(self):
+        import media_capture
+        import media_templates
+        moment = {'template': 'title', 'chapter': 'c', 'data': {'subtitle': 'A walkthrough for reviewers'}}
+        titles = ['feat(session-flow): ask whether a check could decide a retro finding before proposing a prose rule',
+                  'feat(session-flow): ' + 'ask whether a check could decide each retro finding ' * 2 + 'first']
+        with tempfile.TemporaryDirectory() as d:
+            checked = media_capture.capture_checked(
+                [(media_templates.page(moment, t, 'Chapter', (1, 1), SIZE, BAND), Path(d) / f'{i}.png')
+                 for i, t in enumerate(titles)], *SIZE, 1, BAND)
+        self.assertEqual([p for _, p in checked], [[], []])
+
     def test_paginate_covers_the_list_in_order_with_frames_that_each_fit(self):
         import media_capture
         import media_templates
@@ -238,6 +250,21 @@ class CaptureTest(unittest.TestCase):
             checked = media_capture.capture_checked([(render(a, b), Path(d) / f'{a}.png') for a, b in cuts],
                                                     *SIZE, 1, BAND)
         self.assertEqual([p for _, p in checked], [[]] * len(cuts))
+
+    def test_paginate_spreads_entries_evenly_so_no_frame_holds_a_lone_tail(self):
+        import media_capture
+        import media_templates
+
+        def renderer(moment):
+            return lambda a, b: frame(media_templates.subset(moment, a, b), part=(2, 9))
+        (full,) = media_capture.paginate([(renderer(also_changed(30)), 30)], *SIZE, 1, BAND)
+        one_over = max(b - a for a, b in full) + 1
+        for total in (one_over, 30):
+            with self.subTest(total=total):
+                (cuts,) = media_capture.paginate([(renderer(also_changed(total)), total)], *SIZE, 1, BAND)
+                sizes = [b - a for a, b in cuts]
+                self.assertEqual(sum(sizes), total)
+                self.assertLessEqual(max(sizes) - min(sizes), 1, cuts)
 
     def test_every_template_s_smallest_text_reads_at_least_14_px_tall_in_an_888_px_player(self):
         from playwright.sync_api import sync_playwright

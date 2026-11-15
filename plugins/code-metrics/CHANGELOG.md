@@ -3,6 +3,18 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.0] - 2026-11-15
+
+### Added
+
+- A consumer can add a lane the plugin does not ship. List its id under `lanes` in the code-metrics
+  configuration and give it a `.claude/ecosystems/<id>.yaml` record with `globs`. Each measure on
+  that lane reads `unavailable` with the reason `no shipped collector for the <id> lane`. Its files
+  still get a `file_lines` count through the `other` lane's collectors. A record whose id is not
+  listed creates no lane, so lint-only records such as `markdown` or `yaml` change nothing. The
+  schema accepts any lowercase kebab-case lane id, and the resolver drops any other id with a
+  warning.
+
 ## [1.1.0] - 2026-11-14
 
 ### Added

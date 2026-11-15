@@ -2469,14 +2469,19 @@ passing, so it holds no merge. Not while `merge.report-only` is true.
 
 Each arm records the head's merge-risk rating in a lanes App comment on the pull request (owner
 decision Q57, #13657: record ratings so revert rates per risk level can be measured, and wire
-`demote` into no gate yet). The comment's first line is a marker naming the head, and its second
-is the line:
+`demote` into no gate yet). The comment's first line is a marker naming the head and the lane run
+that opened the pull request, and its second is the line:
 
 ```text
-<!-- merge-risk-line head=<sha> -->
+<!-- merge-risk-line head=<sha> lane=<lane> run=<run id> -->
 Merge-Risk: max=<level> demote=<bool> head=<sha> rubric=<review plugin version> rater=<model> checker=<model>
 Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-budget>
 ```
+
+`lane` and `run` come from the pull request's `<lane>/issue-<n>-<run id>-<attempt>` branch
+(`merge-risk-line.mjs` `producerOf`); a marker for any other branch, or written before they were
+added, has neither. `/work-items:measure-delivery --merge-risk` joins the record to the post-merge
+failure signals.
 
 - **Where the rating comes from.** `pr-rate-merge-risk.yml` runs on pr-verify's trigger as its own
   run, so a PASS never waits on it, for each open, non-draft lanes App head that passes
@@ -2507,8 +2512,8 @@ Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-bud
   it again, and builds the line from closed values alone. With no artifact, a run of that file
   still going for the head is `pending`, a finished one `no-rating`, none `no-run`. It then reads
   the pull request's comments the arm already listed, and lists none again. When the lanes App's
-  newest marker comment names this head and holds this line, or holds a rated line while this
-  one is `unrated`, it writes nothing, so a later failed read never overwrites a rating; when it
+  newest marker comment names this head and lane run and holds this line, or holds a rated line
+  while this one is `unrated`, it writes nothing, so a later failed read never overwrites a rating; when it
   names this head with another line (`pending` before the rating landed, or another rating), it
   edits that comment. When that comment was edited by anyone other than the lanes App (its
   `editor`, or an editor that does not read, with `lastEditedAt` set) it is no longer the App's

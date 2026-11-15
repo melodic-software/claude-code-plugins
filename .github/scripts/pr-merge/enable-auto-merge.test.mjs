@@ -4376,6 +4376,14 @@ test("the Merge-Risk record reads the comments the arm already read, lists none 
   assert.equal(calls.filter(({ body }) => body?.query === DISCUSSION_PAGE_QUERIES.comments).length, 0);
 });
 
+test("the Merge-Risk record names the lane run the pull request's branch names", async () => {
+  const writer = riskWriter();
+  const mergeRisk = (target, comments) => recordMergeRisk({ bot: LANES.login, pull: target, comments, repository: "o/r", actions: () => new Promise(() => {}), github: writer.github, download: () => "", readMs: 20 });
+  const { code } = await run([pull(1, { headRefName: "work-resolve-issue/issue-5-43643331000-1" })], {}, { mergeRisk });
+  assert.equal(code, 0);
+  assert.deepEqual(writer.sent.map((call) => call.payload.body), [`<!-- merge-risk-line head=${HEAD} lane=work-resolve-issue run=43643331000 -->\n${unratedLine("over-budget")}`]);
+});
+
 test("a merge-risk step that throws outright still arms", async () => {
   const { code, writes, lines } = await run([pull(1)], {}, {
     mergeRisk: async () => {

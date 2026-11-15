@@ -14,8 +14,9 @@ contract owns. No standalone estimation or reporting capability; no new cost.
    this anyway (`yes` | `no` | `partial`); (b) the manual-effort band (below).
 3. **Agent / LLM**: prompts for layer 2 at the task boundary and analyzes/aggregates over
    layers 1+2. It never estimates, imputes, or backfills the two human-attested fields.
-   Revisit trigger: models proven capable at effort estimation. The constraint is
-   conditional, not permanent.
+   Recheck trigger: a model release whose notes or docs claim calibrated effort estimates, or an
+   eval in this repository showing a model's estimates match human-attested effort bands. The
+   constraint is conditional, not permanent.
 
 ## Record schema (v1)
 
@@ -90,8 +91,8 @@ other ad-hoc correlation. A surface that cannot stamp its identifier leaves its 
 entry unwired and reported.
 
 Capture scope: autonomous-class work only, per the guardrail contract's class vocabulary;
-interactive work is exempt (prompting friction kills compliance; divergence lives where no
-human is in the loop). Expansion trigger: aggregate spend concentrating in interactive work.
+interactive work is exempt (prompting for the two attested fields lowers compliance, and
+divergence happens where no human is in the loop). Expansion trigger: aggregate spend concentrating in interactive work.
 
 ## The prompt: two fields, never more
 

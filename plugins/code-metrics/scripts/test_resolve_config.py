@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -395,9 +396,16 @@ class SchemaTests(unittest.TestCase):
         bundled: set[str] = set()
         default_keys(defaults, "", bundled)
         self.assertEqual(declared, bundled)
+        lanes_schema = schema["properties"]["lanes"]
+        self.assertEqual(sorted(lanes_schema["properties"]), sorted(lanes))
+        # An extra lane id is accepted in the form the resolver accepts.
+        pattern = re.compile(lanes_schema["propertyNames"]["pattern"])
+        for lane in [*lanes, "rust", "cross-cutting"]:
+            self.assertRegex(lane, pattern)
+        for bad in ["Rust", "../x", "a/b", "-x"]:
+            self.assertNotRegex(bad, pattern)
         self.assertEqual(
-            sorted(schema["properties"]["lanes"]["propertyNames"]["enum"]),
-            sorted(lanes),
+            lanes_schema["additionalProperties"], {"$ref": "#/$defs/lane"}
         )
 
 
@@ -457,6 +465,85 @@ class DiscoveredLayerTests(unittest.TestCase):
             self.assertEqual(
                 args, ["--lane-globs bash=*.sh,*.bats", "--disable-lane go"]
             )
+
+    def test_only_a_listed_lane_id_reads_its_ecosystem_record(self) -> None:
+        # `rust` is listed and has no shipped collector, `python` is a shipped
+        # lane listed with globs, and the unlisted `cross-cutting` record (this
+        # repository's lint-only one) is the control. Names are composed for
+        # the reason the test above gives.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            ecosystems = root / ".claude" / "ecosystems"
+            ecosystems.mkdir(parents=True)
+            (root / "docs" / "conventions").mkdir(parents=True)
+            (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
+                "lanes:\n  rust:\n    enabled: true\n  python:\n    enabled: true\n",
+                encoding="utf-8",
+            )
+            extra, shipped, unlisted = "rust", "python", "cross-cutting"
+            (ecosystems / (extra + ".yaml")).write_text(
+                'globs: ["**/*.rs"]\n', encoding="utf-8"
+            )
+            (ecosystems / (shipped + ".yaml")).write_text(
+                'globs: ["**/*.py"]\n', encoding="utf-8"
+            )
+            (ecosystems / (unlisted + ".yaml")).write_text(
+                'globs: ["**"]\n', encoding="utf-8"
+            )
+            result = run("--home", tmp, "--repo-root", str(root))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            d = json.loads(result.stdout)
+            self.assertEqual(d["_ecosystems"]["rust"]["globs"], ["**/*.rs"])
+            self.assertEqual(d["_ecosystems"]["python"]["globs"], ["**/*.py"])
+            self.assertNotIn("cross-cutting", d["_ecosystems"])
+            args = run(
+                "--home", tmp, "--repo-root", str(root), "--format", "dispatch-args"
+            ).stdout.splitlines()
+            self.assertEqual(
+                args, ["--lane-globs python=**/*.py", "--lane-globs rust=**/*.rs"]
+            )
+
+    def test_a_lane_id_outside_kebab_case_is_dropped_by_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            (root / ".claude" / "ecosystems").mkdir(parents=True)
+            (root / "docs" / "conventions").mkdir(parents=True)
+            (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
+                "lanes:\n  Rust:\n    enabled: true\n", encoding="utf-8"
+            )
+            (root / ".claude" / "ecosystems" / "Rust.yaml").write_text(
+                'globs: ["**/*.rs"]\n', encoding="utf-8"
+            )
+            result = run("--home", tmp, "--repo-root", str(root))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            d = json.loads(result.stdout)
+            self.assertTrue(
+                any("lanes.Rust.enabled" in w and "kebab-case" in w for w in d["_warnings"]),
+                d["_warnings"],
+            )
+            self.assertEqual(d["_ecosystems"], {})
+
+    def test_a_scalar_listed_lane_is_dropped_not_read_as_a_mapping(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            (root / "docs" / "conventions").mkdir(parents=True)
+            (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
+                "lanes:\n  rust: true\n  zig:\n    collectors: true\n", encoding="utf-8"
+            )
+            result = run(
+                "--home", tmp, "--repo-root", str(root), "--ladder", str(LADDER)
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            d = json.loads(result.stdout)
+            for key in ("lanes.rust", "lanes.zig.collectors"):
+                self.assertTrue(
+                    any(f"{key} = True: must be a mapping" in w for w in d["_warnings"]),
+                    d["_warnings"],
+                )
+            args = run(
+                "--home", tmp, "--repo-root", str(root), "--format", "dispatch-args"
+            )
+            self.assertEqual(args.returncode, 0, args.stderr)
 
     def _team_files(self, root: Path, docs: str | None, retired: str | None) -> None:
         if docs is not None:

@@ -17,6 +17,8 @@ header .chapter { color: var(--accent); font-weight: 600; text-transform: upperc
 header .part { margin-right: auto; }
 main { flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0; }
 h1 { font-size: 120px; line-height: 1.1; font-weight: 700; text-wrap: balance; }
+.title.long h1 { font-size: 96px; }
+.title.longer h1 { font-size: 80px; }
 h2 { font-size: 48px; color: var(--muted); font-weight: 600; margin-bottom: 20px; }
 .subtitle { font-size: 56px; color: var(--muted); margin-top: 36px; }
 .note { color: var(--muted); font-size: 40px; margin-top: 28px; }
