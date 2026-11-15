@@ -116,7 +116,7 @@ A pointer is good when *(Anthropic-prescribed unless noted)*:
 
 1. **Direct from the hub** (depth rule: `/playbooks:skill-authoring` `## Reference files`): we treat a chained pointer as inviting a partial
    preview read of the deeper file instead of a full read.
-2. **Condition attached**: the pointer states WHEN to read the target ("For a schema change:
+2. **Condition attached**: the pointer states when to read the target ("For a schema change:
    read MIGRATIONS.md"); Claude may never follow a bare link.
 3. **Intent marked**: execute vs read ("Run `fetch.py` to pull the rows" vs "Read `fetch.py`
    for the retry rules").
@@ -139,9 +139,9 @@ A pointer is good when *(Anthropic-prescribed unless noted)*:
   [Runtime environment](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#runtime-environment)
   and [Structure longer reference files with a table of contents](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#structure-longer-reference-files-with-table-of-contents).
 
-Description-as-trigger (the always-loaded pointer to a skill body): name the skill's job AND the
+Description-as-trigger (the always-loaded pointer to a skill body): name the skill's job and the
 situations that call for it, third person, key use case first (tail-first truncation strips
-trailing keywords; the cap is `/playbooks:skill-authoring` `## Descriptions`). A when-NOT-to-use clause in descriptions is *(community)* guidance: surface it as advisory color only, never as an official requirement.
+trailing keywords; the cap is `/playbooks:skill-authoring` `## Descriptions`). A when-not-to-use clause in descriptions is *(community)* guidance: surface it as advisory color only, never as an official requirement.
 
 **Observed-navigation diagnostics** *(Anthropic-prescribed method)*: repeatedly re-read spoke →
 promote its content to the hub; never-read spoke → demote, re-signal, or delete; failed

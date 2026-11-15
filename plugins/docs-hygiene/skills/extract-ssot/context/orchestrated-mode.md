@@ -29,7 +29,7 @@ Private surface. External consumers invoke
   work. It never performs a cluster's verify or execute inline while
   workers are available, because its context is the scarcest resource
   in the run.
-- **Inventory is ONE read-only survey subagent**, not a fan-out. The
+- **Inventory is one read-only survey subagent**, not a fan-out. The
   survey's output is unverified synthesis whatever its size, so extra
   survey workers multiply lead lists, not evidence; the verify phase is
   where breadth belongs.
@@ -56,7 +56,7 @@ is deliberately static and low:
   cannot observe the windows must assume contention.
 - Enterprise and API-key auth expose no window data at all
   (capability-detect fails open to "unknown"), which is a reason for
-  MORE conservatism, not less.
+  more conservatism, not less.
 - Remote/cloud containers cannot see machine-scope guard state (below),
   so they always operate in unknown mode.
 

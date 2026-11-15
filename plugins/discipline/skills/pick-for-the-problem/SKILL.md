@@ -23,7 +23,7 @@ framework, language, or approach.
 A selection is a design decision, not a reflex. Resolve the source of truth
 per the method doc's ladder: if the consuming project states a
 technology-selection or dependency-adoption rule in its own `CLAUDE.md` /
-`.claude/rules/`, re-anchor THAT. Otherwise re-anchor this portable
+`.claude/rules/`, re-anchor that. Otherwise re-anchor this portable
 baseline.
 
 **The five selection sins**, an unexamined choice usually traces to one:
@@ -62,15 +62,15 @@ baseline.
 ## Mandatory routing. No verdict from memory
 
 When the selection is load-bearing, the field survey and the maintenance /
-security / license / adoption judgment must come from CURRENT research, not
+security / license / adoption judgment must come from current research, not
 training-data recall: a tool's maintenance status, licensing, and security
 posture drift constantly. Route to a research capability rather than judging
 from memory: invoke `/discovery:research` via the Skill tool, or
 `/discovery:research deep` for a large surface. Degrade to an explicit in-thread research pass (fetch the primary
 sources yourself and cite them) when that capability is not installed, never a bare recalled verdict.
 State the chosen option with a `Basis:`: `verified` with the source URLs or tool output it rests
-on, or `judgment` only where the call is not consequential (cross-repo, shared
-infrastructure, irreversible, or security). A consequential choice research cannot settle is
+on, or `judgment` only where the call is not consequential (consequential means cross-repo,
+shared infrastructure, irreversible or costly to reverse, or security). A consequential choice research cannot settle is
 withheld: raise it as an open question naming the evidence that would settle it. Contract:
 [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md);
 full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#basis-label).
@@ -78,7 +78,7 @@ full convention: [recommendation-basis](https://github.com/melodic-software/clau
 ## Audit. What to look for
 
 Name concrete, located findings (per the method doc's step 2, self-audit; on load-bearing work a fresh-context subagent confirms a clean result),
-both at an explicit choice-time AND over choices already embedded in the
+both at an explicit choice-time and over choices already embedded in the
 work in flight:
 
 - a tool named before the problem it solves was stated;
@@ -109,7 +109,7 @@ there. Consistency of idioms, structure, and process, where matching the
 established way is usually right, is `/discipline:reuse-or-replace`'s axis,
 which carves tool/dependency selection out to this skill.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not churn a well-fitted choice.** A tool re-derived from the problem
   and found to fit audits clean, including an incumbent one; the duty is to

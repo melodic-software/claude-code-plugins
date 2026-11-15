@@ -1,33 +1,33 @@
 # Compress fan-out orchestration
 
-Read this when batch-compressing N markdown files via parallel subagents. The multi-phase split keeps the mandatory semantic-diff in a SEPARATE fresh-context auditor, dispatched by the main session: a fresh-context verifier beats self-critique, and dispatching every audit from the main session keeps it under the session's control.
+Read this when batch-compressing N markdown files via parallel subagents. The multi-phase split keeps the mandatory semantic-diff in a separate fresh-context auditor, dispatched by the main session: a fresh-context verifier beats self-critique, and dispatching every audit from the main session keeps it under the session's control.
 
 - **Pointer**: when a design question turns on whether a subagent can spawn its own, fetch
   [Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
   live.
 
-**Why this exists:** `/docs-hygiene:compress` "Hard rules" mandate semantic-diff dispatch. A subagent that invokes `/docs-hygiene:compress` must NOT run that dispatch as a self-audit in its own context: self-audit by the model that produced the edits drifts toward EXPANSION ("preserve clarity" re-adds words just removed; an observed failure, see ## History).
+**Why this exists:** `/docs-hygiene:compress` "Hard rules" mandate semantic-diff dispatch. A subagent that invokes `/docs-hygiene:compress` must not run that dispatch as a self-audit in its own context: self-audit by the model that produced the edits drifts toward expansion ("preserve clarity" re-adds words just removed; an observed failure, see ## History).
 
 ## Architecture (three phases per wave)
 
 ### Phase A: compressor subagents (parallel, 3-5 per wave)
 
-Each subagent compresses exactly ONE file via the Edit tool. **NO `/docs-hygiene:compress` slash invocation, NO self-audit, NO re-review.** Returns a diff stat. Latitude follows this skill's flavor-vs-content taxonomy (`context/flavor-vs-content-matrix.md`): full mechanical drops plus prose-quality moves (passive → active, nominalization collapse).
+Each subagent compresses exactly one file via the Edit tool. **No `/docs-hygiene:compress` slash invocation, no self-audit, no re-review.** Returns a diff stat. Latitude follows this skill's flavor-vs-content taxonomy (`context/flavor-vs-content-matrix.md`): full mechanical drops plus prose-quality moves (passive → active, nominalization collapse).
 
 Canonical Phase A prompt template (compose verbatim, substitute `<ABSOLUTE-PATH>` and `<ARTICLES>`). The main session resolves `compress_articles` once per batch (SKILL.md "Articles") and substitutes `<ARTICLES>`: under `keep` (the default), `Keep every article (the/a/an); dropping one is a content change.`; under `cut`, `Articles (the/a/an) before clear nouns are flavor and may be dropped.`
 
 ```text
-Compress exactly ONE file: <ABSOLUTE-PATH>
+Compress exactly one file: <ABSOLUTE-PATH>
 
 LATITUDE:
 - <ARTICLES>
 - Mechanical drops: filler (just/really/basically/actually/simply), hedging (perhaps/somewhat/might in factually-direct statements), pleasantries, verbose verb phrases (in order to → to, due to the fact that → because, make use of → use)
 - Prose playbook: passive → active voice, nominalization collapse ("performs analysis of" → "analyzes", "is responsible for" → "owns")
-- Batch fan-out does NOT delete sentence-level restatements (that latitude is Edit-fallback / single-file only; see SKILL.md Purpose).
+- Batch fan-out does not delete sentence-level restatements (that latitude is Edit-fallback / single-file only; see SKILL.md Purpose).
 
 HARD RULES:
 - Never add words. Ever.
-- Never swap word X for synonym X' unless X' is strictly shorter AND same meaning
+- Never swap word X for synonym X' unless X' is strictly shorter and same meaning
 - Never touch code blocks (fenced ``` or inline `...`), URLs, file paths, identifiers, env vars, slash commands, hook names
 - Never touch directive force ("must" vs "should" vs "may")
 - Never touch qualifiers narrowing scope (ONLY, NEVER, every, all, only, exact)
@@ -35,7 +35,7 @@ HARD RULES:
 - Never touch examples, counter-examples, "X not Y" pairs
 - Never touch error messages, quoted text, citations
 - Never self-audit. Never re-read your own edits. Never "preserve clarity".
-- Touch ONLY <ABSOLUTE-PATH>. FORBIDDEN: any other file, any git operation, any other repo path.
+- Touch only <ABSOLUTE-PATH>. Forbidden: any other file, any git operation, any other repo path.
 
 DELIVERABLE: apply Edit ops; return exactly one line:
 <basename>: edited (changes=N, bytes_saved=B)
@@ -45,7 +45,7 @@ If nothing safely droppable after one read-through: <basename>: no-op (reason)
 
 ### Phase B: auditor subagents (parallel, one per Phase-A modified file)
 
-The main session dispatches via the Agent tool, which it has. Each subagent applies `/docs-hygiene:compress`'s semantic-diff prompt template against ONE file's diff.
+The main session dispatches via the Agent tool, which it has. Each subagent applies `/docs-hygiene:compress`'s semantic-diff prompt template against one file's diff.
 
 Main session preparation per subagent:
 
@@ -70,8 +70,8 @@ Two requests per file: one compress dispatch and one audit dispatch, so 8 reques
 
 ## Orchestration rules
 
-- **Phase A scope fence**: each compressor subagent's prompt names exactly ONE allowed file; any other file, git operation, or path is forbidden (the template above encodes this)
-- **Phase A does NOT invoke `/docs-hygiene:compress`** as a slash command from subagents: self-audit in the compressor context caused reverse-direction edits (see ## History)
+- **Phase A scope fence**: each compressor subagent's prompt names exactly one allowed file; any other file, git operation, or path is forbidden (the template above encodes this)
+- **Phase A does not invoke `/docs-hygiene:compress`** as a slash command from subagents: self-audit in the compressor context caused reverse-direction edits (see ## History)
 - **Refuse-fast threshold**: 5 consecutive Phase A or Phase B ERROR returns aborts the batch
 - **Yield circuit breaker**: 5 consecutive auto-reverts in a wave (results under `compress_revert_below_pct` percent, default 3, with 0 SL: successful outcomes that still discard the edit) → pause, report observed yield, and re-confirm with the user before the next wave. Reverts are not ERROR returns; without this breaker a misclassified COMPRESS cohort burns two dispatches per file to completion.
 - **Phase B returns are unverified synthesis**, so the main session reverts per finding rather than verifying each by hand; a forbidden citation token invalidates the whole dispatch

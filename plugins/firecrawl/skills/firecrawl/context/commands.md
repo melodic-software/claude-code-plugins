@@ -87,7 +87,7 @@ Cheap. Returns a list of URLs the site exposes. Use before `crawl` to estimate s
 firecrawl parse <file> --format <markdown|html|rawHtml|links|images|summary|json|attributes> -o <path>
 ```
 
-Supported file types: `.html`, `.htm`, `.pdf`, `.docx`, `.doc`, `.odt`, `.rtf`, `.xlsx`, `.xls`. Max upload: 50 MB. Uses `/v2/parse` server-side. Multiple formats with commas produce a JSON wrapper; single format produces raw content. Boilerplate is stripped by default; `--full-page` keeps it. `-Q "<question>"` runs a Q&A pass over the parsed content in one call. Use this instead of WebFetch when the artifact is a binary doc already on disk (downloaded PDF, exported DOCX). No separate text-extraction step needed.
+Which file types `parse` accepts and how large a file it takes are upstream's to state: check `firecrawl parse --help` before parsing an unusual or large file. Multiple formats with commas produce a JSON wrapper; single format produces raw content. Boilerplate is stripped by default; `--full-page` keeps it. `-Q "<question>"` runs a Q&A pass over the parsed content in one call. Use this instead of WebFetch when the artifact is a binary doc already on disk (downloaded PDF, exported DOCX). No separate text-extraction step needed.
 
 ## interact: run prompts/code against a prior scrape
 
@@ -140,7 +140,7 @@ firecrawl monitor check <monitorId> <checkId> --page-status changed
 firecrawl monitor delete <monitorId>
 ```
 
-Out-of-band scheduled scraping with email alerts on content changes. Lives server-side at Firecrawl, not in this repo. Use sparingly. This repo's recurring-work pattern is `/schedule` (CC routines); Firecrawl monitors carry their own credit cost and a notification side channel that bypasses CC observability. Reach for it only when the alert recipient should be a human inbox rather than a CC routine.
+Out-of-band scheduled scraping with email alerts on content changes. Lives server-side at Firecrawl, not in this repo. Use sparingly. A Claude Code scheduled task may fit better: see [Compare scheduling options](https://code.claude.com/docs/en/scheduled-tasks#compare-scheduling-options). Firecrawl monitors carry their own credit cost and a notification side channel that bypasses CC observability. Reach for it only when the alert recipient should be a human inbox rather than a Claude Code scheduled task.
 
 ## developer: search an index built for coding agents
 
@@ -176,7 +176,7 @@ When a Firecrawl job fails or returns unexpected output, run `doctor` with its j
 firecrawl search-feedback <searchId> --rating <good|bad|partial> [...]
 ```
 
-`<searchId>` is returned by `firecrawl search ... --json` in the response payload. **Refunds 1 credit on first submission** when the search was unsatisfactory. Optional `--valuable-results` (useful results the search returned, as `source:position`), `--valuable-sources` (useful URLs it did not return), `--missing-content`, `--query-suggestions` train future ranking. Worth doing whenever a `search` call returned junk. It recovers credit AND improves the API.
+`<searchId>` is returned by `firecrawl search ... --json` in the response payload. **Refunds credit on first submission** when the search was unsatisfactory; the amount is upstream's to state (`firecrawl search-feedback --help`). Optional `--valuable-results` (useful results the search returned, as `source:position`), `--valuable-sources` (useful URLs it did not return), `--missing-content`, `--query-suggestions` train future ranking. Worth doing whenever a `search` call returned junk. It recovers credit and improves the API.
 
 ## credit-usage: check remaining quota
 
@@ -184,4 +184,4 @@ firecrawl search-feedback <searchId> --rating <good|bad|partial> [...]
 firecrawl credit-usage
 ```
 
-Pre-computed in the skill's context block via `firecrawl --status`. Watch the running number. When credits dip low, prefer WebFetch or Ref over Firecrawl unless the work requires anti-bot handling or JS rendering. The CLI has no `FIRECRAWL_CREDIT_*_THRESHOLD` env vars. Those were MCP-era knobs, covered in `configuration.md`.
+Pre-computed in the skill's context block via `firecrawl --status`. Watch the running number. When credits dip low, prefer WebFetch or Ref over Firecrawl unless the work requires anti-bot handling or JS rendering. The CLI reads no `FIRECRAWL_CREDIT_*_THRESHOLD` env vars (`configuration.md`).

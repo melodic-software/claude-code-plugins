@@ -38,7 +38,7 @@ requests must be incapable of writing:
 - no `--method`/`-X` with anything other than `GET`,
 - no pagination or preview flag workaround that smuggles a body.
 
-The contract is capability-based: "no `-X POST`" alone is NOT the guard. `gh api -f` implies
+The contract is capability-based: "no `-X POST`" alone is not the guard. `gh api -f` implies
 POST without ever naming a method.
 
 ## Rung 3: `gh api graphql`

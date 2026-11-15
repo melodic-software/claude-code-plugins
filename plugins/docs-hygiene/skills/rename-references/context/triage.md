@@ -22,8 +22,8 @@ Match patterns where the rename intent is unambiguous regardless of surrounding 
 - Form 1: slash-prefixed token (`\B/<old>([^\w-]|$)`): slash-tokens are skill names by convention, virtually never an English word with a leading slash. The trailing class excludes a hyphen, so `/context` does not match the unrelated `/context-usage`; a bare `\b` would, and this bucket auto-applies
 - Form 3: path references (`context/<old>.md`, `skills/<old>/`, and a container-root segment
   ending in the token, `plugins/<old>`): paths are inherently specific
-- Form 8: frontmatter glob set (`{a,b,<old>,c}`): brace enumeration is a glob construct, not English prose. **Identifier mode only:** under container-rename mode Form 8 falls outside the Certain-eligibility allowlist and demotes to Ambiguous, as does Form 12. A glob set and a dotted key both prove the token is an IDENTIFIER, which is not what a container rename is asking (`patterns.md` "Phase 0b")
-- Forms 13–15 (container-position), but ONLY the alternatives their own form rates Certain.
+- Form 8: frontmatter glob set (`{a,b,<old>,c}`): brace enumeration is a glob construct, not English prose. **Identifier mode only:** under container-rename mode Form 8 falls outside the Certain-eligibility allowlist and demotes to Ambiguous, as does Form 12. A glob set and a dotted key both prove the token is an identifier, which is not what a container rename is asking (`patterns.md` "Phase 0b")
+- Forms 13–15 (container-position), but only the alternatives their own form rates Certain.
   Form 13's management-verb alternative, a Form 14 title in a container-owned file with an
   uncommon token, a Form 14 manifest/catalog `name` declaration (exempt from the scope rule), and
   Form 15 where the token is not a common noun. The demoted alternatives land in Bucket 2 or
@@ -39,8 +39,8 @@ Match patterns where rename intent is highly likely given surrounding context, b
 
 **Bucket criteria:**
 
-- Form 4: chain prose forward (`(?:→|->|,| and ) <old>`): plausibly a rename target if neighbors are also identifiers
-- Form 5: chain prose backward (`<old> (?:→|->|,| and )`): same
+- Form 4: chain prose forward (`(?:→|->|,| and | then )\s*<old>\b`): plausibly a rename target if neighbors are also identifiers
+- Form 5: chain prose backward (`\b<old>\s*(?:→|->|,| and | then )`): same
 - Form 6: numbered table row (`| <N>. <old> |`): workflow step tables
 - Form 7: frontmatter chain string, when token appears alongside other workflow tokens
 - Form 9: PascalCase comma-list, meaning comma-separated capitalized identifiers
@@ -54,13 +54,13 @@ Match patterns where rename intent is highly likely given surrounding context, b
 
 For chain forms (4, 5, 6, 9), check whether at least one neighboring token (within 5 chars before or after the separator) matches a known skill or command name in the consuming repository (e.g., `name:` frontmatter across `.claude/skills/*/SKILL.md`, installed plugin skill listings). If yes, promote confidence: these are workflow chain references, near-certain rename targets. If no, demote to ambiguous.
 
-**Form 13's qualified-id alternative uses its OWN promotion test, not the one above.** It has no
+**Form 13's qualified-id alternative uses its own promotion test, not the one above.** It has no
 separator and no chain neighbors, so the 5-char skill-name check does not apply to it. Promote it
 to Certain only on the single per-occurrence signal `patterns.md` "Form 13" names: the occurrence
-IS a key in an `enabledPlugins` / `pluginConfigs` map. A management verb elsewhere on the LINE does
+is a key in an `enabledPlugins` / `pluginConfigs` map. A management verb elsewhere on the line does
 not promote it: the verb may govern a different plugin entirely, and one that governs this
 occurrence is already Certain under the management-verb alternative. **A failed promotion leaves it at
-Chain-context; it does NOT fall through to Ambiguous** the way a chain form does. Chain-context is
+Chain-context; it does not fall through to Ambiguous** the way a chain form does. Chain-context is
 this alternative's floor, because the form is high-recall and its risk is auto-application, not
 misclassification.
 
@@ -70,15 +70,15 @@ misclassification.
 
 ## Bucket 3: Ambiguous (mandatory per-match confirmation)
 
-Match patterns where the token is a common English word AND surrounding context doesn't strongly disambiguate. These are the highest false-positive vector.
+Match patterns where the token is a common English word and surrounding context doesn't strongly disambiguate. These are the highest false-positive vector.
 
 **Bucket criteria:**
 
 - Forms **14 and 15** (container-position) when the matching form's own scope rules demote it: a
   Form 14 title match outside a container-owned file or with a common-word token, a Form 15
   possessive where `<old>` is a common noun. Span-precedence attributes the occurrence to that
-  form; it does NOT override the form's demotion (`patterns.md` "Phase 0"). A Form 14
-  manifest/catalog `name` declaration is NOT demoted here: the scope rule and the common-word
+  form; it does not override the form's demotion (`patterns.md` "Phase 0"). A Form 14
+  manifest/catalog `name` declaration is not demoted here: the scope rule and the common-word
   rule both exempt it, because the key is the registration rather than evidence of one.
   **Form 13 is deliberately absent:** its demoted alternative lands in Bucket 2, not here
 - Form 2: bare token (`\b<old>\b`) when `<old>` is in the English-verb blocklist, and, under
@@ -110,9 +110,9 @@ token:
 - **Added to the blocklist** → every hit lands ambiguous, and the per-match rule below turns a
   handful of real defects into hundreds of confirmation prompts.
 
-Extending the blocklist is therefore the WRONG remedy; it swaps one unusable bucket for another.
+Extending the blocklist is therefore the wrong remedy; it swaps one unusable bucket for another.
 The remedy is position: `patterns.md` Forms 13–15 anchor on syntax that only the container sense
-can occupy (argument-to-a-management-command, a heading that IS the token, the possessive clitic),
+can occupy (argument-to-a-management-command, a heading that is the token, the possessive clitic),
 so they stay Certain regardless of blocklist membership. Reach for a position-anchored form before
 reaching for the blocklist.
 
@@ -120,19 +120,19 @@ reaching for the blocklist.
 match; the remaining bare-token lines still reach Form 2 and take its Certain default. What
 removes them is `patterns.md` "Phase 0b: container-rename mode": when the renamed thing is a
 container, bare-token position carries no signal, so the residue is excluded from Certain and
-reported as an aggregate rather than as prompts. That mode rule is an ALLOWLIST over forms, not a
+reported as an aggregate rather than as prompts. That mode rule is an allowlist over forms, not a
 Form 2 filter: Forms 1, 3 and 13–15 are the whole Certain-eligible set, so Forms 8 and 12 lose
-their Certain default there too and land in the Ambiguous bucket. Mode is decided by WHAT is being
+their Certain default there too and land in the Ambiguous bucket. Mode is decided by what is being
 renamed, so it works where the blocklist cannot: it does not depend on anyone having listed the
 token in advance.
 
 **User flow:** present each match individually via `AskUserQuestion` with 3 lines of surrounding context. Three options per match: "rename this", "skip this", "skip remaining ambiguous". Always one-by-one, because batched confirmation defeats the safety purpose.
 
-**Why per-match:** renaming the `confirm` skill does NOT mean every English use of "confirm" should change. When the renamed token is also a common verb, most bare-token hits are ordinary prose (research vocabulary, user-confirmation prompts, domain logic) and must be preserved; per-match confirmation lets the user catch each.
+**Why per-match:** renaming the `confirm` skill does not mean every English use of "confirm" should change. When the renamed token is also a common verb, most bare-token hits are ordinary prose (research vocabulary, user-confirmation prompts, domain logic) and must be preserved; per-match confirmation lets the user catch each.
 
 ## Special case: Rename-documenting plan docs
 
-Auto-exclude any match in the active plan/work-notes documents that document THIS rename (a plan file, migration notes, a changelog entry drafted for the rename) from ALL buckets. Both old and new names appear there by design in scope tables, success criteria, and decision logs.
+Auto-exclude any match in the active plan/work-notes documents that document this rename (a plan file, migration notes, a changelog entry drafted for the rename) from all buckets. Both old and new names appear there by design in scope tables, success criteria, and decision logs.
 
 Identify these documents from conversation context and the consuming repository's work-notes conventions (its CLAUDE.md / rules). When in doubt, exclude the file that documents the rename and report it in the Excluded row so the user can widen scope deliberately.
 

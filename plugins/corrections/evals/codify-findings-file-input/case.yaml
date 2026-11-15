@@ -23,9 +23,9 @@ graders:
     flags: 'i'
     arm: 'both'
   - name: rungs-by-id
-    type: 'regex'
-    pattern: '^(?=[\s\S]*editorconfig-severity)(?=[\s\S]*analyzer-pack-rule)(?=[\s\S]*automated-review)'
-    flags: 'i'
+    type: 'llm'
+    criteria: 'PASS only if the reply proposes each of editorconfig-severity, analyzer-pack-rule and automated-review as the chosen rung for at least one finding. A rung id that is only listed, rejected, ruled out, set aside or named as an alternative does not count as chosen. FAIL if any of the three is never the chosen rung of a finding, or if the reply proposes no rungs. Judge which rung each statement chooses, not which ids appear. A chosen rung counts even when its check is unproven. An interim or accompanying instruction line is not a second rung.'
+    focus: 'last_message'
     arm: 'both'
   - name: seven-proposal-files
     type: 'tool_used'

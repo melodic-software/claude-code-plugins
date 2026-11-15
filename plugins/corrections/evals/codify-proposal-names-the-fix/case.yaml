@@ -13,9 +13,9 @@ execution:
   timeout_seconds: 420
 graders:
   - name: rungs-by-id
-    type: 'regex'
-    pattern: '^(?=[\s\S]*editorconfig-severity)(?=[\s\S]*(?:action-guard|harness-setting|architecture-test|behavior-test|Tests\b))'
-    flags: 'i'
+    type: 'llm'
+    criteria: 'PASS only if the reply proposes editorconfig-severity as the chosen rung for row 1 and one of action-guard, harness-setting or architecture-test as the chosen rung for row 6. A rung id that is only listed, rejected, ruled out, set aside or named as an alternative does not count as chosen. FAIL if row 1 or row 6 has no chosen rung, a different rung, or a rung named only in prose such as "tests" or "a test" rather than by one of those ids. Judge which rung each statement chooses, not which ids appear. A chosen rung counts even when its check is unproven. An interim or accompanying instruction line is not a second rung.'
+    focus: 'last_message'
     arm: 'both'
   - name: no-earliest-stage
     type: 'regex'

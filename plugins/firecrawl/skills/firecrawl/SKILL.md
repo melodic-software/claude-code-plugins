@@ -130,7 +130,7 @@ Fourteen subcommands. One-line purpose below; **full flag detail + examples in `
 | `parse <file>` | Local PDF/DOCX/XLSX/HTML → markdown, server-side |
 | `interact "<p>"` | Prompt/code against a cached scrape session |
 | `agent "<p>"` | Hosted NL web-research task (Spark models) |
-| `monitor` | Server-side scheduled scrapes + change alerts (use sparingly, a local scheduler such as the built-in `/schedule` may fit better) |
+| `monitor` | Server-side scheduled scrapes + change alerts (use sparingly, a Claude Code scheduled task may fit better: see [Compare scheduling options](https://code.claude.com/docs/en/scheduled-tasks#compare-scheduling-options)) |
 | `developer "<q>"` | Search repositories, GitHub issues, merged PRs, and curated docs for coding questions |
 | `research <sub>` | Scientific paper index with citation expansion |
 | `doctor [job-id]` | Environment health check, or why a specific job failed |

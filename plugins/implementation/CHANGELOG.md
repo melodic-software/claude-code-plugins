@@ -3,6 +3,13 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.1] - 2026-11-15
+
+### Changed
+
+- The implement and implement-dispatch instructions use plain emphasis instead of capital letters, and stale facts in them are corrected.
+- The README says handoff notes go under `<memory_dir>/handoffs/`.
+
 ## [0.44.0] - 2026-11-15
 
 ### Added
