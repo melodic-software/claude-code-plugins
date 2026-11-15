@@ -23,6 +23,8 @@ saved values.
 
 ## Drive
 
+Preconditions: the session loads no plugin but the one under test.
+
 First read the mod's README for the command that turns its band on, the text the band shows, and
 whether it draws only after a response (for `plugins/context-budget`: `/context-budget live band`,
 which draws nothing before the first response).
@@ -41,7 +43,7 @@ which draws nothing before the first response).
 
 ## Gotchas
 
-- Every loaded mod can draw in the band. Load only the plugin under test, so a screenshot shows its
-  content alone.
+- Every loaded mod can draw in the band, so the precondition keeps a screenshot to the plugin under
+  test's content alone.
 - Where the band is and how mods share it:
   <https://code.claude.com/docs/en/plugins/mods/interface#pick-where-to-draw>.

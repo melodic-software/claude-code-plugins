@@ -276,7 +276,7 @@ in this order:
 | `## Sub-features` | The states or branches inside this feature that have their own feature file, each a pointer to it, or `none` |
 | `## Entry points` | Where a user starts the feature, one line each. Each line ends `driven` or `not driven: <reason>`, the reason naming what would make it drivable, such as a test account, a seeded record or a `cli/` command. A drive through one entry point proves only that one and never marks another `driven` |
 | `## Reset` | How to return the app's own data to a known state |
-| `## Drive` | The steps a user takes, one action per step, each with the result a user should observe, ending in a proof step ([Drive steps](#drive-steps)) |
+| `## Drive` | The steps a user takes, one action per step, each with the result a user should observe, ending in a proof step ([Drive steps](#drive-steps)). It may open with a `Preconditions:` line ([Preconditions](#preconditions)) |
 | `## Gotchas` | What has made a run lie or fail before |
 
 Create writes the title and paragraph, and may give Parts ids. `/app-control:map check` requires
@@ -294,7 +294,7 @@ the end state that proves the feature works, and its `Captures:` names the
 
 ```text
 1. Open the cart: `click [data-test=basket]`. Result: the cart page lists one item.
-2. **Proof.** Result: the cart page lists the added item at its price. Captures: screenshot, trace
+2. **Proof.** Result: the cart page lists the added item at its price. Captures: aria, screenshot
 ```
 
 A step and its result change together, so the result stays on its step; a feature has no
@@ -322,8 +322,8 @@ A state or branch with no feature file of its own is a line in `## Parts`. A mod
 is the one exception: its `## Sub-features` points to the module's features, each its own goal.
 
 UI that differs by tenant or configuration, such as a control a setting turns off or a role
-hides, is a named precondition in `## Drive`, stating the tenant, setting or role the steps need,
-or a step whose selector matches every variant. A selector written against one tenant's UI fails
+hides, is a state on the `Preconditions:` line ([Preconditions](#preconditions)), naming the
+tenant, setting or role the steps need, or a step whose selector matches every variant. A selector written against one tenant's UI fails
 on the next tenant.
 
 A feature's id is `<feature>`, or `<module>/<feature>` when it sits in a module folder. Drive
@@ -341,6 +341,52 @@ A part with a feature file of its own therefore resolves to that file. An id tha
 these, or names a part two Parts lines share, stops that feature, and drive names each path and
 Parts section it looked in. `/app-control:map check` reports two Parts lines in one feature file
 that name the same part.
+
+### Preconditions
+
+`## Drive` may open, before its first step, with one line naming each state that must hold before
+the first step and that the feature's `## Reset` and the hub's `## Ready` do not already set, such
+as a seeded record, an account in a role, a tenant setting or a file that must be absent:
+
+```text
+Preconditions: <state>; <state>
+```
+
+Write each state so a run can check it, never as a step. A feature with nothing to state leaves the
+line out; `/app-control:map check` does not require it.
+
+A run never passes by weakening the journey. When the data lacks a precondition the journey needs,
+the step that needs it fails and is reported as failed, and the reason goes in that feature's
+`## Gotchas`; the steps, their results, the proof step and the `Preconditions:` line stay as
+written. Weakening is dropping, skipping or reordering a step (an absent optional step, per
+[Steps files](#steps-files), is not weakening), loosening a `Result:`, driving
+another entry point in its place, or reaching the state through a test-only endpoint or an internal
+setter instead of the user's path. A failed step has one of two causes, kept apart:
+
+- **The control skill is wrong**: a handle or route that moved, or a state the steps need that the
+  `Preconditions:` line does not name. Create and refresh fix the control skill.
+- **The data lacks a precondition** the line names. No edit to the steps fixes it: the failure
+  stands, and the data is fixed outside the steps, through `## Reset`, a seed or a test account.
+
+### Step evidence
+
+The evidence each kind of action needs:
+
+| Action | Evidence |
+|---|---|
+| A UI end state | The proof step's `Captures:` names `aria` and `screenshot`, the screenshot with the app's identity visible, such as its name or URL. A hub whose `## Capture` names no `aria` tool, such as a terminal app's, names `screenshot` alone |
+| A command line (a `cli/` command or any other command) | The command, its standard output, its standard error and its exit code. Drive records all four for every such step |
+| A change to stored data | A read-only second view of the stored value: a later step that reads it back through a separate request, query or file read, never the app's own confirmation. The rule is `/testing:run-e2e`'s "Evidence the run reads back" |
+
+Every artifact name carries the feature and the entry point it came from. A kind `## Capture` names
+no tool for is a capability gap, never replaced by another kind. An entry point a run skipped is
+never reported as proven through another entry point (`## Entry points` above).
+
+Basis: the seed-data and evidence rules of
+<https://github.com/cursor/plugins/blob/main/pstack/skills/create-verification-skill/SKILL.md> and
+the `Preconditions:` line and per-action proof of
+<https://github.com/cursor/plugins/blob/main/pstack/skills/create-verification-skill/references/feature-map-example/README.md>
+(both read 2026-11-15).
 
 ## Shared items
 
@@ -475,7 +521,12 @@ So agents can use it well, the CLI also has these traits, which create writes an
 - `--dry-run` on every command that writes or sends: it checks its arguments and the floors as a
   real run would, prints what it would do, and does nothing. A dry run sits beside the
   [Safety floors](#safety-floors) and the Write grants, never in place of them: it grants no write,
-  lifts no floor, and a command a floor refuses is refused under `--dry-run` too (exit 4);
+  lifts no floor, and a command a floor refuses is refused under `--dry-run` too (exit 4). A dry
+  run is trusted only once a run was seen to change nothing, since some still touch the network
+  or open a browser: `cli/README.md` marks each command's dry run `trusted`, naming the run or test
+  that showed it and what it watched stay unchanged (files, network calls, git refs, processes),
+  or else `untrusted`. How to watch one is `/testing:run-e2e`'s "Watch what a dry run touches". A
+  caller runs an `untrusted` dry run only where the real command may run;
 - subcommands that reveal features gradually: `--help` lists the commands one line each, and
   `<command> --help` gives that command's flags;
 - error messages that say what to do instead, such as the flag to add or the command to run first;
@@ -483,7 +534,10 @@ So agents can use it well, the CLI also has these traits, which create writes an
 
 Basis: the traits of a CLI agents use well in
 <https://github.com/cursor/plugins/blob/main/pstack/docs/guide/06-verify-and-ship.md> (read
-2026-11-13), all but its machine-readable output, which `--json` above already covers.
+2026-11-13), all but its machine-readable output, which `--json` above already covers. The
+dry-run trust mark: the Evidence rules of
+<https://github.com/cursor/plugins/blob/main/pstack/skills/create-verification-skill/SKILL.md>
+(read 2026-11-15).
 
 A feature whose `## Drive` has a step that sends to anyone, signs in, or writes to an environment
 or external system needs `cli/`: each such step is a `cli/` command, never a click or a raw request
