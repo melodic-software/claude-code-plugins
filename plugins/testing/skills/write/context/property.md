@@ -126,26 +126,17 @@ attribute stack holds one. The skip covers only that test, so:
   reviewer hold it to the rule under Patterns;
 - an example test in the same file as a property is still checked.
 
-## Language references
+## The property library
 
-Identify the language of the code under test from its manifests and sources, and read only its
-page:
+In every language, use the property library the project already has, found by the steps in
+[`reference/ecosystem-resolution.md`](../../../reference/ecosystem-resolution.md), and read that
+library's own docs for how it declares a property, builds one input from another, fixes an example
+input and sets the run size. If none resolves, add none on your own: that file's last steps say
+what to do instead. Cover the rule with example tests meanwhile.
 
-| Code under test | Reference |
-|---|---|
-| Python (`pyproject.toml`, `setup.cfg`, `requirements*.txt`, `.py` sources) | [property/python.md](property/python.md) |
-| TypeScript or JavaScript (`package.json`, `.ts` or `.js` sources) | [property/typescript.md](property/typescript.md) |
-| C# (`.csproj`, `.sln`, `.cs` sources) | [property/csharp.md](property/csharp.md) |
-
-For any other language, read none of them and use the property library the project already has. If
-it has none, ask the user before adding one, and cover the rule with example tests meanwhile.
-
-## Python: the Hypothesis team's command
-
-For Python, the Hypothesis maintainers publish a `/hypothesis` Claude Code command that encodes
-this loop (evidence-backed properties, failure triage, pinning the minimal input). Use it rather
-than re-deriving it here:
-[`.claude/commands/hypothesis.md`](https://github.com/HypothesisWorks/hypothesis/blob/master/.claude/commands/hypothesis.md).
+The adapters' `property_markers` lists name the markers the audit knows; a property library no
+adapter lists gets its markers through the `extend` key in `.claude/testing.yaml`
+(`extend.<adapter>.property_markers`).
 
 Basis: the agent-self-check research slice (2026-10-06). Agentic property testing found real bugs
 in mature Python libraries (one workshop paper, NeurIPS 2025), alongside the unsound-property rate
