@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Ready ran `cli/shop health` (exit 0).\n\nready: no: port 18080 is held by pid 4242, not pid 5120 that this run launched",
+      "answer": "Ready ran `cli/shop ready ./evidence` (exit 4).\n\nready: no: port 18080 is held by pid 4242, not pid 5120 that this run launched",
       "why": "names both pids on the ready line"
     },
     {

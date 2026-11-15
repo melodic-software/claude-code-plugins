@@ -4,7 +4,6 @@
 
 | Command | Does |
 |---|---|
-| `health` | Reads `http://127.0.0.1:18080/health` and prints its status and body, and the pid and command line of the process listening on 127.0.0.1:18080; changes nothing |
-| `whoami` | Calls `GET http://127.0.0.1:18080/api/me` with the `buyer` token, read from `SHOP_API_TOKEN` inside this process, and prints the API's answer; changes nothing |
+| `ready <run dir>` | Reads `http://127.0.0.1:18080/health`; checks the pid listening on 127.0.0.1:18080 is the pid in the launch record in `<run dir>/report.json`; then calls `GET http://127.0.0.1:18080/api/me` with the `buyer` token, read from `SHOP_API_TOKEN` inside this process. Prints each result and changes nothing |
 
-Exit codes: 0 done; 1 nothing listens on 127.0.0.1:18080; 2 usage; 3 the API rejected the token.
+Exit codes: 0 every check holds; 1 nothing listens on 127.0.0.1:18080; 2 usage; 3 the API rejected the token; 4 another process holds 127.0.0.1:18080.

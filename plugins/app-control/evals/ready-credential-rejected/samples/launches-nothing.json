@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": ".claude/skills/control-shop/cli/shop health"
+            "command": ".claude/skills/control-shop/cli/shop ready ./evidence"
           }
         },
         {

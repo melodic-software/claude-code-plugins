@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: ready-owned-port-valid-credential
 description: Control for the Ready rule cases - Ready on the instance this run launched, whose API accepts the run's credential, reports ready, so the not-ready cases cannot pass by always saying not ready
 tags: [drive, ready, launch-model, credentials, control, invented]
-expected_outcome: "Drive reads the control-shop skill and the launch record in evidence/report.json (pid 5120). `cli/shop health` exits 0 with pid 5120, the launched pid, listening on 127.0.0.1:18080, and a read-only `cli/shop whoami` returns 200 for the buyer account. build is listed as a capability gap, not a reason. The reply ends `ready: yes`, never says `ready: no`, and launches no shop server."
+expected_outcome: "Drive reads the control-shop skill and the launch record in evidence/report.json (pid 5120). The hub's Ready command, `cli/shop ready <run dir>` with the run directory ./evidence, exits 0: pid 5120, the launched pid, holds 127.0.0.1:18080, and the read-only GET /api/me call returns 200 for the buyer account. build is listed as a capability gap, not a reason. The reply ends `ready: yes`, never says `ready: no`, and launches no shop server."
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -14,7 +14,7 @@ graders:
   - name: runs-ready-command
     type: tool_used
     tool: Bash
-    input_match: 'cli/shop\s+health'
+    input_match: 'cli/shop\s+ready\b'
     min: 1
     arm: both
   - name: reports-ready

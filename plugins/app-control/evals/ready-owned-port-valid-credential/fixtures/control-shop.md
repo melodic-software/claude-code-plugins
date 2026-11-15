@@ -14,7 +14,10 @@ Side by side: no: the app listens on fixed port 18080
 
 ## Ready
 
-`cli/shop health`
+`cli/shop ready <run dir>`
+
+It exits non-zero when nothing answers on 127.0.0.1:18080, when the pid listening there is not the
+one in the run's launch record, or when the API rejects the buyer credential.
 
 build: not exposed
 

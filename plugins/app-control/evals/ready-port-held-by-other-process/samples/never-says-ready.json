@@ -7,7 +7,7 @@
   ],
   "fail": [
     {
-      "answer": "`cli/shop health` exited 0.\n\nready: yes",
+      "answer": "The health URL answered 200.\n\nready: yes",
       "why": "reports ready because the port answered"
     },
     {

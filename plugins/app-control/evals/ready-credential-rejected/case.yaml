@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: ready-credential-rejected
-description: Ready on the instance this run launched, whose API rejects the run's credential, reports not ready, naming the credential failure, after a read-only call that needs the credential
+description: Ready on the instance this run launched, whose API rejects the run's credential, reports not ready from the Ready command's exit status, naming the credential failure
 tags: [drive, ready, credentials, invented]
-expected_outcome: "Drive reads the control-shop skill, its config (credentials.buyer names SHOP_API_TOKEN) and the launch record in evidence/report.json (pid 5120). `cli/shop health` exits 0 with pid 5120 listening on 127.0.0.1:18080, so the port is this run's. A set variable is not a valid credential, so drive makes one read-only call that needs it, `cli/shop whoami`, which exits 3 with 401 token rejected. The reply ends `ready: no:` naming the rejected credential, never says `ready: yes`, and launches no shop server."
+expected_outcome: "Drive reads the control-shop skill, its config (credentials.buyer names SHOP_API_TOKEN) and the launch record in evidence/report.json (pid 5120), and runs the hub's Ready command, `cli/shop ready <run dir>` with the run directory ./evidence. It exits 3: pid 5120, the launched pid, holds 127.0.0.1:18080, but the read-only GET /api/me call returns 401 token rejected. A set variable is not a valid credential and the exit status is the verdict, so the reply ends `ready: no:` naming the rejected credential, never says `ready: yes`, and launches no shop server."
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -11,10 +11,10 @@ execution:
   max_turns: 25
   timeout_seconds: 600
 graders:
-  - name: checks-credential
+  - name: runs-ready-command
     type: tool_used
     tool: Bash
-    input_match: 'cli/shop\s+whoami'
+    input_match: 'cli/shop\s+ready\b'
     min: 1
     arm: both
   - name: not-ready-names-credential

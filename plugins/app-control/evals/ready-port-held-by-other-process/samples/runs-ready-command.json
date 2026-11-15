@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": ".claude/skills/control-shop/cli/shop health"
+            "command": ".claude/skills/control-shop/cli/shop ready ./evidence"
           }
         }
       ],
@@ -18,7 +18,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": ".claude/skills/control-shop/cli/shop whoami"
+            "command": "curl -fsS http://127.0.0.1:18080/health"
           }
         }
       ],
