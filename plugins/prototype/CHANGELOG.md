@@ -3,6 +3,19 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.0] - 2026-11-15
+
+### Added
+
+- `/prototype:explore-directions` says where a notes session's files go: the distilled notes and
+  screenshots to the memory slice, and, for a named map item, those files and the mockup page to
+  the item's folder on the map's dossier branch, pushed only after the repository's secrets and
+  machine-data check passes, with `not pushed: <reason>` in the reply otherwise. Real-stack
+  screenshots stay local.
+- Review mode's boundaries name the local notes host as one person's element-pinned notes.
+- Eval cases `ed-notes-dossier-map-item` and `ed-notes-dossier-check-fails` cover the passing and
+  the failing check against a local bare remote.
+
 ## [0.31.2] - 2026-11-15
 
 ### Changed
