@@ -58,7 +58,7 @@ for (const label of HANDBACK_LEAVES) {
 // The bundled loosened-check criterion's absolute path, read by each slice beside its own
 // document, and the trusted spec text, the only text that gives a loosening its reason.
 const LOOSENED_IN = typeof input.loosenedCheck === 'string' ? input.loosenedCheck.trim() : ''
-const LOOSENED = /^[^\u0000-\u001f  `"]*[\\/]loosened-check\.md$/.test(LOOSENED_IN) ? LOOSENED_IN : ''
+const LOOSENED = /^[^\u0000-\u001f\u2028\u2029`"]*[\\/]loosened-check\.md$/.test(LOOSENED_IN) ? LOOSENED_IN : ''
 if (LOOSENED_IN && !LOOSENED) log('loosenedCheck is not a one-line path to loosened-check.md: slices run without the bundled criterion')
 // The criterion's two settings as scripts/loosened-check-settings.mjs printed them, resolved once
 // by the caller. Only the two value lines pass, rebuilt from their parsed values, so the arg cannot
@@ -187,14 +187,14 @@ const AGENT_PROMPT =
   'conventions relevant to your concern when present. Report findings in your normal output format.' +
   COVERAGE_CLAUSE + SETTINGS_BLOCK + SPEC_BLOCK
 
+const LOOSENED_CLAUSE = LOOSENED
+  ? ' Also read "' + LOOSENED + '", the bundled criterion "Fail a change that loosens a check", and apply it ' +
+    'to the diff.'
+  : ''
+
 function slicePrompt(slice) {
-  const loosened = LOOSENED
-    ? ' Also read "' + LOOSENED + '", the bundled criterion "Fail a change that loosens a check", and apply it ' +
-      'to the diff, unless that document covers changes that weaken a check; then write "Overrides bundled ' +
-      'default Fail a change that loosens a check per ' + slice + '".'
-    : ''
   return 'Read the project review criteria document "' + slice + '". Run `git diff ' + DIFF_BASE + '` ' +
-    'yourself to see the changes. Review the diff against only that document\'s criteria.' + loosened +
+    'yourself to see the changes. Review the diff against only that document\'s criteria.' + LOOSENED_CLAUSE +
     ' List each finding ' +
     'with file:line, a severity tier, a confidence level (high / medium / low), and a one-line description. ' +
     'If the diff does not touch this concern, reply "No findings for ' + slice + '."' +

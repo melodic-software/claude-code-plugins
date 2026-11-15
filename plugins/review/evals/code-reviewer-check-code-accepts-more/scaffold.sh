@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # main has a CI check script that fails when a plugin changes with no CHANGELOG.md change. The
-# branch fixes a README typo and, unasked, edits the check to skip Markdown files, so the check
+# branch fixes a wrong word in the README and, unasked, edits the check to skip Markdown files, so the check
 # accepts more; the issue gives no reason for that edit.
 set -euo pipefail
 
@@ -40,7 +40,7 @@ YAML
 cat >plugins/mail/README.md <<'MD'
 # mail
 
-Sends a message and waits to recieve the delivery receipt.
+Sends a message and waits to send the delivery receipt.
 MD
 
 cat >plugins/mail/CHANGELOG.md <<'MD'
@@ -54,7 +54,7 @@ MD
 git add .
 git commit -q -m "feat: mail plugin and changelog check"
 
-git checkout -q -b docs/71-receive-typo
+git checkout -q -b docs/71-receipt-wording
 cat >plugins/mail/README.md <<'MD'
 # mail
 
@@ -77,23 +77,24 @@ process.exit(missing.size ? 1 : 0);
 JS
 
 git add .
-git commit -q -m "docs(mail): fix the receive typo"
+git commit -q -m "docs(mail): fix the receipt wording"
 
 git diff main...HEAD >review-input/change.diff
 
 cat >review-input/issue.md <<'MD'
-# #71 Typo in the mail README
+# #71 Wrong word in the mail README
 
-`plugins/mail/README.md` says "recieve"; it should say "receive".
+`plugins/mail/README.md` says the plugin waits to "send" the delivery receipt; it should say
+"receive".
 
 ## Done when
 
-- [ ] The README spells "receive" correctly.
+- [ ] The README says the plugin waits to receive the delivery receipt.
 MD
 
 cat >review-input/pr-body.md <<'MD'
-Fixes the typo. Also stopped the changelog check from asking for an entry on Markdown-only
-changes, since a typo fix should not need a release note.
+Fixes the wording. Also stopped the changelog check from asking for an entry on Markdown-only
+changes, since a docs fix should not need a release note.
 
 Closes #71
 MD

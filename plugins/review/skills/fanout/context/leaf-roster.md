@@ -18,7 +18,7 @@ Single source of truth for the leaf surfaces this skill fans out across. Both th
 
 ## Ownerless slices (discovered from the consuming project)
 
-When the project ships per-concern review criteria documents, each one becomes a slice leaf, a fresh `review:brief-reviewer` agent (never a general-purpose subagent, so a slice cannot fan out) that reads that document plus the diff and reviews against only that document's criteria (prompt template: this plugin's `quality-gate` skill, per-slice mode). Every slice also reads the bundled criterion "Fail a change that loosens a check" (`quality-gate`'s `context/loosened-check.md`): the per-slice template names it, and the `fanout-sweep` workflow adds it from its `loosenedCheck` argument. A slice applies it unless its document covers the concern.
+When the project ships per-concern review criteria documents, each one becomes a slice leaf, a fresh `review:brief-reviewer` agent (never a general-purpose subagent, so a slice cannot fan out) that reads that document plus the diff and reviews against only that document's criteria (prompt template: this plugin's `quality-gate` skill, per-slice mode). Every slice also reads the bundled criterion "Fail a change that loosens a check" (`quality-gate`'s `context/loosened-check.md`): the per-slice template names it, and the `fanout-sweep` workflow adds it from its `loosenedCheck` argument. Whether a consumer criterion replaces it is decided once per run, across every resolved criteria source, never per slice.
 
 **Discovery recipe (run at dispatch time, never a hardcoded list):**
 

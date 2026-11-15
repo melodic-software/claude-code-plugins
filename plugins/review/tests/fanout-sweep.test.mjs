@@ -191,12 +191,20 @@ test('loosenedCheck reaches every slice prompt and spec reaches every leaf, quot
   const { calls } = await run({ diffBase: 'abc', slices: ['a.md', 'b.md'], loosenedCheck, spec })
   assert.equal(slices(calls).length, 2)
   for (const c of slices(calls)) {
-    assert.ok(c.prompt.includes(`Also read "${loosenedCheck}"`), `${c.opts.label} reads the criterion`)
-    assert.ok(c.prompt.includes('Overrides bundled default Fail a change that loosens a check per '), `${c.opts.label} names the override line`)
+    assert.ok(c.prompt.includes(`Also read "${loosenedCheck}", the bundled criterion "Fail a change that loosens a check", and apply it to the diff.`), `${c.opts.label} applies the criterion`)
   }
   for (const c of calls.filter(x => x.opts.label !== 'stage0-extract')) {
     assert.ok(c.prompt.includes('<spec>\nLower the coverage minimum to 80'), `${c.opts.label} carries the spec`)
     assert.ok(!/^Findings path:/m.test(c.prompt), `${c.opts.label} has no findings path line from the spec`)
+  }
+})
+
+test('whether a consumer criterion replaces the bundled one is decided once per run, not by each slice', async () => {
+  const loosenedCheck = '/plugins/review/skills/quality-gate/context/loosened-check.md'
+  const { calls } = await run({ diffBase: 'abc', slices: ['a.md', 'b.md'], loosenedCheck })
+  for (const c of slices(calls)) {
+    assert.ok(!c.prompt.includes('Overrides bundled default'), `${c.opts.label} is not asked to decide the override itself`)
+    assert.ok(!c.prompt.includes('unless'), `${c.opts.label} has no per-slice exception`)
   }
 })
 

@@ -3,7 +3,7 @@ description: "Breadth review: fans a change out to many reviewers at once (this 
 argument-hint: "[run-everything|fix] [--yes]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Workflow(review:fanout-sweep)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)"]
+allowed-tools: ["Workflow(review:fanout-sweep)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/loosened-check-settings.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)"]
 shell: bash
 metadata:
   workflow-stage: review
