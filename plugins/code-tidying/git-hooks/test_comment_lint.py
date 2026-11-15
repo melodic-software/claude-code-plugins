@@ -349,5 +349,91 @@ class Cli(unittest.TestCase):
         self.assertIn("comment_lint_allow", proc.stderr.decode())
 
 
+class GoDocInsideGroups(unittest.TestCase):
+    def test_doc_on_exported_const_in_a_group_passes(self):
+        text = "package p\n\nconst (\n\t// Foo is the answer.\n\tFoo = 1\n)\n"
+        self.assertEqual(flagged("a.go", text), [])
+
+    def test_doc_on_exported_struct_field_passes(self):
+        text = (
+            "package p\n\ntype T struct {\n\t// Name is the name.\n\tName string\n}\n"
+        )
+        self.assertEqual(flagged("a.go", text), [])
+
+    def test_comment_on_unexported_group_member_fails(self):
+        text = "package p\n\nconst (\n\t// foo is the answer.\n\tfoo = 1\n)\n"
+        self.assertEqual(flagged("a.go", text), [4])
+
+    def test_comment_above_a_statement_in_a_function_fails(self):
+        text = "package p\n\nfunc F() {\n\t// call it\n\tPrintln()\n}\n"
+        self.assertEqual(flagged("a.go", text), [4])
+
+
+class MoreDirectives(unittest.TestCase):
+    def test_floor_directives_pass(self):
+        cases = [
+            ("d.c", "// clang-format off\nint x;\n// clang-format on\n"),
+            ("d.c", "// cppcheck-suppress nullPointer\nint x;\n"),
+            ("d.lua", "-- luacheck: ignore 212\nlocal x = 1\n"),
+            ("d.lua", "-- stylua: ignore\nlocal x = 1\n"),
+            ("d.lua", "---@diagnostic disable-next-line: undefined-global\nx = 1\n"),
+            ("d.py", 'KEY = "x"  # pragma: allowlist secret\n'),
+            ("d.py", "y = 1  # pyre-ignore[16]\n"),
+            ("d.rb", "# typed: strict\nx = 1\n"),
+            ("d.toml", "#:schema ./s.json\nx = 1\n"),
+        ]
+        for path, text in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged(path, text), [])
+
+    def test_prose_that_resembles_a_directive_fails(self):
+        cases = [
+            ("a.sh", "x=1\n# the global config\n"),
+            ("a.sh", "x=1\n# see ex: the parser\n"),
+        ]
+        for path, text in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged(path, text), [2])
+
+    def test_real_region_modeline_and_global_still_pass(self):
+        cases = [
+            ("a.cs", "class C {\n#region Fields\nint x;\n#endregion\n}\n"),
+            ("a.ts", "// #region helpers\nconst x = 1;\n// #endregion\n"),
+            ("a.sh", "x=1\n# vim: set ts=2 sw=2:\n"),
+            ("a.js", "/* global window */\nconst x = 1;\n"),
+        ]
+        for path, text in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged(path, text), [])
+
+
+class RunsAndLexers(unittest.TestCase):
+    def test_blank_line_separates_two_runs(self):
+        text = "# See https://example.com/x\n\n# narrative\nx=1\n"
+        self.assertEqual(flagged("a.sh", text), [3])
+
+    def test_license_header_in_blank_separated_paragraphs_passes_whole(self):
+        text = (
+            "#!/bin/sh\n# Copyright 2026 Example Corp.\n\n"
+            "# Provided as is, without warranty of any kind.\n\nx=1\n"
+        )
+        self.assertEqual(flagged("a.sh", text), [])
+
+    def test_comment_two_blank_lines_below_a_license_fails(self):
+        text = "# Copyright 2026 Example Corp.\n\n\n# narrative\nx=1\n"
+        self.assertEqual(flagged("a.sh", text), [4])
+
+    def test_mts_and_cts_are_judged_as_typescript(self):
+        for path in ("a.mts", "a.cts"):
+            with self.subTest(path=path):
+                self.assertEqual(flagged(path, "const x = 1; // a note\n"), [1])
+
+    def test_powershell_hash_inside_a_word_is_no_comment(self):
+        self.assertEqual(flagged("n.ps1", "dotnet new console -lang C#\n"), [])
+
+    def test_powershell_comment_after_whitespace_still_fails(self):
+        self.assertEqual(flagged("n.ps1", "$x = 1 # a note\n"), [1])
+
+
 if __name__ == "__main__":
     unittest.main()

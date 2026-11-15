@@ -34,7 +34,8 @@ caught again at review, not by pull-request prep, and ruled out a repository-wid
 
 The judge ran with posture `necessary` over the added lines of the last 50 merged pull requests
 that touched a code file, after a control case with one planted comment reported exactly that
-line. Every finding was read.
+line. Every finding was read. The table is the judge as merged: a second run over the same 50
+commits, after review changed the judge, removed no finding and added none.
 
 | Class | Test and fixture paths | Workflow files | Hook-manager config | Other | Total |
 |---|---|---|---|---|---|

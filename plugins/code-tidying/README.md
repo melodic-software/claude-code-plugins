@@ -209,7 +209,7 @@ settings drive it, both read from `<home>/code-tidying.yaml` only, with no perso
 | Setting | Default | Effect |
 |---|---|---|
 | `comment_lint` | `off` | `off` runs nothing; `report` prints the findings and exits 0; `block` prints them and fails the commit. `off` is the kill switch. |
-| `comment_lint_allow` | `[]` | Extended regular expressions (matched with `grep -E`) for the repository's own comment markers, such as a gate's `# silent-skip-ok:`. A comment whose text matches one passes. |
+| `comment_lint_allow` | `[]` | Extended regular expressions (matched with `grep -E`) for the repository's own comment markers, such as a gate's `# silent-skip-ok:`, and for a tool directive the built-in list lacks. A comment whose text matches one passes. |
 
 The posture comes from `comment_posture` in the team file and its personal override. A git hook
 runs outside Claude Code, so a `userConfig` posture never reaches it; unset reads as `auto`, which
@@ -255,8 +255,10 @@ settings, so a branch cannot lower its own level:
 1. Fetch the base branch and add a detached worktree of the pull request head.
 2. In it, `git reset --soft "$(git merge-base origin/<base> HEAD)"`, so the whole change is the
    staged diff.
-3. Replace the worktree's `<home>/code-tidying.yaml` (and `.local.yaml`) with the base commit's
-   copies, or delete them when the base has none.
+3. Take the files the settings come from as the base commit holds them, restoring each with
+   `git restore --source=<merge base> --worktree` or deleting it when the base has none: first the
+   root `AGENTS.md` and `CLAUDE.md`, which bind `<home>`, then `<home>/code-tidying.yaml` and
+   `<home>/code-tidying.local.yaml`.
 4. From the worktree, run `sh <plugin>/git-hooks/comment-lint.sh` with Python 3 and pygments on
    `PATH`; under `block` it exits 1 on a finding.
 

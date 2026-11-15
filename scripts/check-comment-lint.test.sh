@@ -89,6 +89,30 @@ commit_all "$clone" 'planted, level lowered'
 run_gate "$clone" >/dev/null
 check 'a branch cannot lower its own level' '1' "$?"
 
+clone="$(new_clone personal block)"
+planted >>"$clone/src/app.py"
+printf 'comment_posture: explanatory\n' >"$clone/docs/conventions/code-tidying.local.yaml"
+commit_all "$clone" 'planted, personal override committed'
+run_gate "$clone" >/dev/null
+check 'a committed personal override cannot switch the lint off' '1' "$?"
+
+clone="$(new_clone rehomed block)"
+planted >>"$clone/src/app.py"
+mkdir -p "$clone/own"
+printf 'comment_lint: off\n' >"$clone/own/code-tidying.yaml"
+printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `own`.\n<!-- END GENERATED: convention-home -->\n' >"$clone/AGENTS.md"
+commit_all "$clone" 'planted, convention home moved'
+run_gate "$clone" >/dev/null
+check 'a branch cannot move the convention home to its own team file' '1' "$?"
+
+clone="$(new_clone linked-out block)"
+planted >>"$clone/src/app.py"
+printf 'keep\n' >"$TMP/outside.txt"
+ln -s "$TMP/outside.txt" "$clone/docs/conventions/code-tidying.local.yaml"
+commit_all "$clone" 'planted, a symlink where a settings file goes'
+run_gate "$clone" >/dev/null
+check 'a planted symlink leaves the file it points at untouched' 'keep' "$(cat "$TMP/outside.txt")"
+
 clone="$(new_clone raised off)"
 planted >>"$clone/src/app.py"
 printf 'comment_posture: necessary\ncomment_lint: block\n' >"$clone/$TEAM"

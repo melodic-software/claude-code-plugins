@@ -33,7 +33,10 @@ DIRECTIVE = re.compile(
     | \bmypy:\s*\w | \bpragma:\s*no\s*(?:cover|branch) | \bfmt:\s*(?:off|on|skip)\b | \bisort:\s*\w
     | \bruff:\s*(?:noqa|isort) | \bnosec\b | \bnosemgrep\b | \bgitleaks:allow\b
     | \bshellcheck\s+(?:disable|enable|source|shell|external-sources)=
-    | \beslint(?:-disable|-enable)?(?:-next-line|-line)?\b(?=[\s:*]|$) | \bglobal\s+\w+\s*$
+    | \beslint(?:-disable|-enable)?(?:-next-line|-line)?\b(?=[\s:*]|$) | /\*\s*globals?\s[^*]*\*/
+    | \bclang-format\s+(?:off|on)\b | \bcppcheck-suppress\b | \bluacheck:\s*\w | \bstylua:\s*ignore
+    | ---@diagnostic\b | \bpragma:\s*allowlist\s+secret\b | \bpyre-(?:ignore|fixme)\b
+    | ^\s*\#\s*typed:\s*\w | ^\s*\#:schema\s
     | @ts-(?:ignore|expect-error|nocheck|check)\b | \bprettier-ignore\b | \bbiome-ignore\b
     | \b(?:istanbul|c8|v8)\s+ignore\b | \bdeno-lint-ignore | \bNOLINT | //\s*nolint\b | \bnolint:
     | \brubocop:(?:disable|enable|todo)\b | \bStryker\s+(?:disable|restore)\b | \bNOSONAR\b
@@ -44,7 +47,7 @@ DIRECTIVE = re.compile(
     | \b@formatter:(?:off|on)\b | \blgtm\b | \bcoverage:\s*ignore
     | ^\s*//go:\w | ^\s*//\s*\+build\b | ^\s*//line\s | ^\s*/// <reference\b
     | ^\s*(?:\#|//|--|/\*)\s*\#?(?:end)?region\b | <editor-fold\b | </editor-fold> | \{\{\{\d*\s*$ | \}\}\}\d*\s*$
-    | (?:^|\s)(?:vim?|ex):\s*\S.*:? | -\*-.*-\*- | \bLocal\s+Variables:
+    | (?:^|\s)(?:vim?|ex):\s*(?:set?\s|[a-z]+=) | -\*-.*-\*- | \bLocal\s+Variables:
     | \byaml-language-server:\s*\$schema= | \bfrozen_string_literal:\s*(?:true|false) | ^\s*\#\s*syntax=
     """,
     re.VERBOSE,
@@ -73,6 +76,11 @@ PS_HELP = re.compile(
 PS_REQUIRES = re.compile(r"^\s*#Requires\s+-", re.IGNORECASE)
 PS_SIGNATURE = re.compile(r"^\s*# SIG # ")
 GO_EXPORTED = re.compile(r"^(?:func\s+(?:\([^)]*\)\s*)?|type\s+|var\s+|const\s+)[A-Z]")
+GO_GROUP = re.compile(
+    r"^\s*(?:type\s+\w+(?:\[[^\]]*\])?\s+(?:struct|interface)\s*\{|(?:const|var|type)\s*\()\s*$"
+)
+GO_MEMBER = re.compile(r"^\s+[A-Z]")
+TYPESCRIPT_SUFFIXES = (".mts", ".cts")
 CODE_WAIVER = re.compile(
     r"@SuppressWarnings\b|@Suppress\(|\bSuppressMessage(?:Attribute)?\b|#\s*pragma\s+warning\b"
     r"|\[Diagnostics\.CodeAnalysis\.|\bExcludeFromCodeCoverage\b"
@@ -110,13 +118,15 @@ def _is_comment(tok) -> bool:
 
 def _lex(path: str, text: str):
     from pygments import lex
-    from pygments.lexers import get_lexer_for_filename
+    from pygments.lexers import get_lexer_by_name, get_lexer_for_filename
     from pygments.util import ClassNotFound
 
     try:
         lexer = get_lexer_for_filename(path, stripnl=False)
     except ClassNotFound:
-        return None, None
+        if not path.lower().endswith(TYPESCRIPT_SUFFIXES):
+            return None, None
+        lexer = get_lexer_by_name("typescript", stripnl=False)
     return lexer, list(lex(text, lexer))
 
 
@@ -145,6 +155,8 @@ def _layout(tokens, count: int) -> list[_Line]:
             n = line + i
             if n >= len(lines):
                 break
+            if comment and i and i == len(parts) - 1 and not part:
+                continue
             if comment:
                 lines[n].covered = True
                 lines[n].doc |= doc
@@ -171,11 +183,31 @@ def _runs(lines: list[_Line]) -> dict[int, list[int]]:
     return run_of
 
 
-def _passes(n, lines, run_of, source, posture, lexer_name) -> bool:
+def _paragraphs(
+    lines: list[_Line], run_of: dict[int, list[int]]
+) -> dict[int, list[int]]:
+    block_of: dict[int, list[int]] = {}
+    current: list[int] = []
+    last = 0
+    for n in range(1, len(lines)):
+        run = run_of.get(n)
+        if run is None or lines[n].code:
+            continue
+        if n == run[0] and not (current and n - last == 2 and not lines[n - 1].code):
+            current = []
+        current.append(n)
+        block_of[n] = current
+        last = n
+    return block_of
+
+
+def _passes(n, lines, run_of, block_of, source, posture, lexer_name) -> bool:
     ln = lines[n]
     text = ln.comment
     run = run_of.get(n, [n])
     run_text = [lines[m].comment for m in run]
+    if any(LICENSE.search(lines[m].comment) for m in block_of.get(n, [])):
+        return True
     src = source[n - 1] if n - 1 < len(source) else ""
     nxt = source[n] if n < len(source) else ""
 
@@ -221,7 +253,24 @@ def _code_part(src: str, comment: str) -> str:
 
 def _go_doc(run: list[int], source: list[str]) -> bool:
     after = run[-1]
-    return after < len(source) and bool(GO_EXPORTED.match(source[after]))
+    if after >= len(source):
+        return False
+    member = source[after]
+    if GO_EXPORTED.match(member):
+        return True
+    if not GO_MEMBER.match(member):
+        return False
+    indent = len(member) - len(member.lstrip())
+    for m in range(run[0] - 2, -1, -1):
+        line = source[m]
+        if line.strip() and len(line) - len(line.lstrip()) < indent:
+            return bool(GO_GROUP.match(line))
+    return False
+
+
+def _inside_word(src: str, comment: str) -> bool:
+    at = src.find(comment)
+    return at > 0 and not src[at - 1].isspace()
 
 
 def _allowed(texts: list[str], allow: list[str]) -> set[int]:
@@ -248,12 +297,17 @@ def findings(path: str, text: str, added, posture: str, allow: list[str]):
     source = text.split("\n")
     lines = _layout(tokens, len(source))
     run_of = _runs(lines)
+    block_of = _paragraphs(lines, run_of)
     candidates = []
     for first, last in added:
         for n in range(max(first, 1), min(last, len(lines) - 1) + 1):
-            if lines[n].comment and not _passes(
-                n, lines, run_of, source, posture, lexer.name
+            if not lines[n].comment:
+                continue
+            if lexer.name == "PowerShell" and _inside_word(
+                source[n - 1] if n - 1 < len(source) else "", lines[n].comment
             ):
+                continue
+            if not _passes(n, lines, run_of, block_of, source, posture, lexer.name):
                 candidates.append(n)
     candidates = sorted(set(candidates))
     kept = _allowed([lines[n].comment for n in candidates], allow)
