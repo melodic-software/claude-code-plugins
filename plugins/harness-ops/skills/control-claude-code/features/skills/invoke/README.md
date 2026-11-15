@@ -39,7 +39,7 @@ First read the skill's SKILL.md for its arguments and the text its output starts
    `log: <path> (claude exit 0, apiKeySource <source>)` and exits 0, and the `.jsonl` holds the
    skill's output.
 5. **Proof.** Result: the transcript shows the skill's output, starting with the text its
-   SKILL.md gives, for each entry point driven. Captures: screenshot, logs
+   SKILL.md gives, for each entry point driven. Captures: screenshot
 
 ## Gotchas
 

@@ -38,7 +38,7 @@ which draws nothing before the first response).
    Result: `screenshot` prints the `.png` path and writes it with a `.png.txt` sidecar holding the
    band's text; `record stop` prints `recording stopped` and writes the `.mp4.txt` frame text.
 5. **Proof.** Result: the band above the prompt shows the README's text, and no other mod's
-   content. Captures: screenshot, video for a band that changes over a turn
+   content. Captures: screenshot
 
 ## Gotchas
 

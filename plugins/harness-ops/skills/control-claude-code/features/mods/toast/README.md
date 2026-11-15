@@ -33,8 +33,8 @@ First read the mod's README for the action that raises a toast and its text (for
    prints the `.png` path; with no such text by `stepMs`, `wait-for` exits 1.
 4. `record stop --session <session>`. Result: the driver prints `recording stopped` and writes
    the `.mp4` with a `.mp4.txt` holding every frame's text.
-5. **Proof.** Result: the recording shows the toast with the mod's name and text appear, then go,
-   with no turn started. Captures: video, screenshot
+5. **Proof.** Result: the toast is gone and no turn started; the step 1 video holds it appearing
+   with the mod's name and text. Captures: screenshot
 
 ## Gotchas
 

@@ -36,8 +36,9 @@ and its close action (for `plugins/context-budget`: `/context-budget live pane`)
    driver prints `seen: <that text>`.
 4. Close the pane with the README's close action. Result: the pane and its text are gone from the
    screen.
-5. **Proof.** Result: the screenshots show the pane open with the mod's title and content, then
-   changed by each key as the README says. Captures: screenshot
+5. **Proof.** Result: the pane is closed and the transcript and prompt show without it; the step 2
+   and 3 screenshots show it open with the mod's title and content, then changed by each key.
+   Captures: screenshot
 
 ## Gotchas
 

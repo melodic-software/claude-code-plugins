@@ -37,8 +37,8 @@ record that, then delete the file.
    dialog is gone and the write is refused.
 5. `record stop --session <session>`, then check Reset. Result: the driver prints
    `recording stopped`, and no `ccprobe.txt` exists in the working directory.
-6. **Proof.** Result: the dialog showed for the write and, answered No, left no `ccprobe.txt`
-   behind. Captures: video, screenshot
+6. **Proof.** Result: no dialog is open and no `ccprobe.txt` exists; the video and the step 3
+   screenshot hold the dialog that asked for the write. Captures: screenshot
 
 ## Gotchas
 

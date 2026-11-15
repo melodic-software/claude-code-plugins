@@ -30,8 +30,8 @@ that and stop this feature.
    such as `(pass) <name>`, then `<n> pass` and `<n> fail`; exit 0 when every test passes, 1 when one fails or the shell cannot load
    mods (a line starting `claude plugin test: hooks modules are turned off`).
 2. **Proof.** Result: `<run-dir>/desktop-mod-harness.txt` lists the Desktop render-site test as
-   `(pass)`, `0 fail` and exit status 0. Captures: none of `## Capture`'s kinds; the saved test
-   output is the evidence
+   `(pass)`, `0 fail` and exit status 0; that saved output, no `## Capture` kind, is the
+   evidence. Captures: none
 
 ## Gotchas
 

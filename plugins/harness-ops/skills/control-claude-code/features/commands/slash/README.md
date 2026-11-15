@@ -31,10 +31,10 @@ First read the plugin's skills and mods for the command names.
 2. `wait-for "<command name>" --session <session>`, then capture `screenshot`. Result: the menu,
    narrowed by the typed letters, lists the command, the driver prints `seen: <command name>`,
    and `screenshot` prints the `.png` path; with no such name by `stepMs`, `wait-for` exits 1.
-3. `type --key Escape --session <session>`. Result: the driver prints `typed`, the prompt is
-   cleared and the menu closes.
-4. **Proof.** Result: the screenshot shows the plugin's command in the slash menu. Captures:
-   screenshot
+3. **Proof.** Result: the slash menu, narrowed by the typed letters, lists the plugin's command.
+   Captures: screenshot
+
+Then clear the prompt as Reset says.
 
 ## Gotchas
 

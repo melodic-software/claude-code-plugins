@@ -36,7 +36,7 @@ hook shows.
    `log: <path> (claude exit 0, apiKeySource <source>)` and exits 0, and the `.jsonl` holds the
    turn the hook ran in.
 4. **Proof.** Result: the session shows the text the plugin's README says the hook shows when its
-   event fires. Captures: screenshot, logs
+   event fires. Captures: screenshot
 
 ## Gotchas
 
