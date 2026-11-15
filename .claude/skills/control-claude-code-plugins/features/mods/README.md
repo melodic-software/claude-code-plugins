@@ -35,14 +35,18 @@ A mod that draws nothing of its own (it forwards other mods' toasts, logs, or ru
 events) has nothing to wait for here: record it as `not driven: draws nothing` and drive it as the
 `hooks` feature, which its files also match.
 
-A mod that transforms transcript components has no band, toast or panel:
+A mod that transforms transcript components has no band, toast or panel. First read
+`register.ts` or `register.tsx` for the components it handles (assistant message, user message,
+tool use, tool result), then, once per component the change touches:
 
-1. Read `register.ts` or `register.tsx` for the components it handles (assistant message, user
-   message, tool use, tool result).
-2. `type "<a prompt that makes one of them appear>" --key Enter --session <session>`, choosing a
-   prompt whose result holds the text the mod changes.
-3. `wait-for "<text the mod shows in place of the original>" --session <session>`, then capture
-   `screenshot`. One pass per component the change touches.
+1. `type "<a prompt that makes one of them appear>" --key Enter --session <session>`, choosing a
+   prompt whose result holds the text the mod changes. Result: the driver prints `typed`.
+2. `wait-for "<text the mod shows in place of the original>" --session <session>`, then capture
+   `screenshot`. Result: the component shows the mod's text in place of the original, the driver
+   prints `seen: <that text>`, and `screenshot` prints the `.png` path; with no such text by
+   `stepMs`, `wait-for` exits 1.
+3. **Proof.** Result: the transcript shows each touched component with the mod's text in place of
+   the original. Captures: screenshot
 
 ## Gotchas
 

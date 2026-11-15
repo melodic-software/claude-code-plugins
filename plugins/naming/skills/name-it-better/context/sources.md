@@ -102,7 +102,7 @@ choice.
 
 ## `tournament` mode: adapted, not a documented naming technique
 
-There is no primary source describing a "naming tournament"
+HONEST FLAG: there is no primary source describing a "naming tournament"
 or "naming bracket" method for choosing identifiers. The mode is an
 adaptation, presented as a local convergence mechanism, not an
 established naming standard. It borrows two documented, unrelated things:

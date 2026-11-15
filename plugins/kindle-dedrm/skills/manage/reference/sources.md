@@ -64,7 +64,7 @@ If Amazon revokes the URL, this skill is significantly compromised. An alternate
 | Drift signal | HEAD-probe of the pinned direct zip URL (non-200 = revoked/rolled) |
 | Last-fetched URL | `https://techy-notes.com/content/files/2026/04/Kindle_Key_Finder_2026.04.28.JH.zip` (still serving byte-identical zip, SHA-verified 2026-07-19) |
 
-Date in URL rolls forward when the author publishes a new build. The tutorial article is subscriber-gated as of 2026-07 (see Primary tutorial), so its public body carries no zip link: the drift check HEAD-probes the pinned direct URL, and rolling forward to a new build requires a subscriber to read the current article and update the pin by hand.
+Date in URL rolls forward when the author publishes a new build. The original `update` approach was to WebFetch the tutorial article, regex `Kindle_Key_Finder_\d{4}\.\d{2}\.\d{2}\.JH\.zip`, and compare against the pinned filename. That no longer works: the article is subscriber-gated as of 2026-07 (see Primary tutorial), so its public body carries no zip link. The drift check now HEAD-probes the pinned direct URL instead; roll-forward to a NEW build requires a subscriber to read the current article and update the pin by hand.
 
 ## Calibre
 

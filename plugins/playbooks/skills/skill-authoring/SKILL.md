@@ -164,7 +164,7 @@ Reference other skills by name. Claude invokes them if installed. A plugin can a
 | Principle | One-liner |
 |---|---|
 | Skip the obvious | Claude has defaults, push it off the beaten path |
-| Gotchas section | Highest signal. Add a line per recurring failure |
+| Gotchas section | Highest signal. Add a line every failure |
 | Progressive disclosure | Folder, not file. Hub dispatches, spokes do work |
 | Don't railroad | Info + flexibility > step-by-step scripts |
 | Description = trigger | Write it for the model, include trigger phrases |

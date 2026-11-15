@@ -40,7 +40,7 @@ Load the most relevant file first. Load a second only if the first doesn't fully
 - "Should I write a test for this?" → Yes, unless it's third-party code you trust or trivial code (bottom-left quadrant of the 2x2 matrix: low complexity, few collaborators)
 - "Should I mock this?" → Only if it's an unmanaged dependency (message bus, SMTP). Use real instances for managed deps (database)
 - "Fake It or Obvious Implementation?" → If confident, Obvious. If surprised by red, back off to Fake It
-- "Is this test too big?" → If it needs multiple changes to work, write a smaller Child Test first
+- "Is this test too big?" → If it needs >3 changes to work, write a smaller Child Test first
 - "Test before or after?" → Before. Always. "You won't test after"
 - "Output, state, or communication test?" → Output-based first. State-based second. Communication-based only for inter-system with visible side effects
 - "Is this code testable?" → Check the 2x2 matrix. High complexity + many collaborators = split it (Humble Object)

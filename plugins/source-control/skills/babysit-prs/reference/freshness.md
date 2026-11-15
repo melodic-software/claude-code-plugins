@@ -163,7 +163,7 @@ so a base that is strict or queue-gated only through classic protection still ge
 
 The check runs only when the gate runs. Once the gate has armed auto-merge (`--auto`), GitHub
 merges the PR when its checks pass without the gate running again, so a base that moves after
-arming is not re-checked. A compare that keeps failing on a loose
+arming is not re-checked; that race predates this check. A compare that keeps failing on a loose
 base holds the PR until a human acts, because the snapshot does not report the head `behind`
 without a compare that proves it, so no refresh clears the hold.
 

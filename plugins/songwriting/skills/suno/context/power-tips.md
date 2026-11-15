@@ -218,7 +218,7 @@ Train Custom Model on your own reference catalog of songs you love the sonic DNA
 - Effectively produces "songs that sound like me but new"
 - Especially powerful when your catalog is sonically coherent (same genre, similar production)
 
-**Train separate models per coherent sound.** A model trained on lo-fi + thrash metal in the same set averages into incoherent middle-ground. Train one Custom Model per sonic identity.
+**Critical: train separate models per coherent sound.** A model trained on lo-fi + thrash metal in the same set averages into incoherent middle-ground. Train one Custom Model per sonic identity.
 
 **Combine with Voices for the full identity stack:**
 

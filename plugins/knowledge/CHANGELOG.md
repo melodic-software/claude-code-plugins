@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.1.5] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
 ## [3.1.4] - 2026-11-15
 
 ### Changed

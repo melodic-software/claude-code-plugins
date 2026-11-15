@@ -109,10 +109,10 @@ nobody authorized.
   prints the panel size the run declared.
 
 `not-found` is the single name every prose surface of this skill publishes for the neutral
-outcome. The reader also recognizes the spelling `source-not-identified`, and that tolerance is
-permanent: a sidecar is model-authored against whatever description was in context, and
-recognizing one name too many can only withhold a record, while one too few walks a judgment
-verdict onto a relay row.
+outcome. The reader also recognizes `source-not-identified`, the name `SKILL.md` published before
+that reconciliation, and that tolerance is permanent: a sidecar is model-authored against
+whatever description was in context, and recognizing one name too many can only withhold a
+record, while one too few walks a judgment verdict onto a relay row.
 
 The script applies this filter itself rather than trusting the sidecar to arrive pre-filtered,
 and it counts what it withheld in `## Surfaces` rather than dropping it. Two consequences worth

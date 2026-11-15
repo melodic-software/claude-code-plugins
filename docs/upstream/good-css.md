@@ -32,7 +32,7 @@ from another source (`reduced-motion-swap`, `hover-that-keeps-its-hit-area`,
   read, and this page's git history records when.
 - **Recheck trigger**: a change, between the pinned commit and upstream HEAD, to a path a row we
   took or rejected something from links, a unit removed or added under the scope: re-audit the
-  affected rows. `scripts/check-upstream-drift.sh` detects these, and the monthly drift issue for
+  affected rows. `scripts/check-upstream-drift.sh` detects these, and the weekly drift issue for
   this upstream lists them
   ([upstream-drift convention, "Pinned git upstreams"](../contracts/upstream-drift/README.md#pinned-git-upstreams)).
   A Baseline status change for a technique the skill uses also obliges a re-audit of its row.
@@ -40,9 +40,8 @@ from another source (`reduced-motion-swap`, `hover-that-keeps-its-hit-area`,
   as [When a trigger fires](../contracts/upstream-drift/README.md#when-a-trigger-fires) requires:
   move the pin on the marker line and in every upstream link, `## Map` included, and run
   `scripts/check-upstream-drift.sh --links` on this page. A changed `check-css.mjs` or `LICENSE`
-  also means re-vendoring the copy. The weekly
-  `plugins/user-interface/scripts/check-good-css-drift.sh` and its test pin the upstream blob SHAs
-  too; update them in the same change.
+  also means re-vendoring the copy. `plugins/user-interface/scripts/check-good-css-drift.sh` and
+  its test pin the vendored copies' blob SHAs; update them in the same change.
 
 The 2026-10-18 re-audit moved the pin from `b645ab15b9fc` (`PRACTICES.md` blob `7d746e65`)
 to <!-- spellchecker:off -->`92d436ba1937`<!-- spellchecker:on --> (blob `b8a6cb6e`). The only change was to technique 7, `content-grid-with-breakouts`:
@@ -61,16 +60,16 @@ Units we took nothing from; each counts only if removed upstream.
 
 ## Drift check
 
-[`plugins/user-interface/scripts/check-good-css-drift.sh`](../../plugins/user-interface/scripts/check-good-css-drift.sh)
-`--check` reads the current blob SHA of each of the three files on upstream `main`, compares it with
-the blob SHA the script pins for that file at the pin above, and checks that both vendored copies
-still hash to theirs. Exit 0 means no drift, 1 drift (it names each changed file and prints the
-compare URL), and 2 unverifiable (network, auth or rate limit). The pinned SHAs live in one array at
-the top of the script. The
-`user-interface:write-css` row of
-[`.github/workflows/maintenance-check-upstream-drift.yml`](../../.github/workflows/maintenance-check-upstream-drift.yml)
-runs it weekly under the exit-code contract every row shares. Its exit-code contract is
-tested by `plugins/user-interface/tests/check-good-css-drift.test.sh`.
+Two checks run weekly in
+[`.github/workflows/maintenance-file-upstream-drift-issues.yml`](../../.github/workflows/maintenance-file-upstream-drift-issues.yml),
+and both feed this upstream's one `Upstream drift: vojtaholik/good-css` issue.
+`scripts/check-upstream-drift.sh` reads the upstream side: a change since the pin to a file a row
+above links. [`plugins/user-interface/scripts/check-good-css-drift.sh`](../../plugins/user-interface/scripts/check-good-css-drift.sh)
+`--check`, the `vojtaholik/good-css` row of `scripts/upstream-drift-vendored-report.sh`, checks
+offline that both vendored copies still hash to the upstream blob SHA at the pin, which one array at
+the top of the script holds. Exit 0 means no drift, 1 drift (it names each modified or missing
+copy), and 2 unverifiable (git missing) or usage. Its exit-code contract is tested by
+`plugins/user-interface/tests/check-good-css-drift.test.sh`.
 
 ## Adaptation posture
 

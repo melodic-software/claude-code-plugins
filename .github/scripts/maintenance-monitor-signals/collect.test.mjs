@@ -234,7 +234,7 @@ const routes = () => [
   ]],
   [/maintenance-audit-test-selection\.yml\/runs/, { workflow_runs: [run(60, { conclusion: "failure", created_at: "2026-10-19T10:43:00Z" })] }],
   [/runs\/60\/jobs/, { jobs: [{ id: 600, name: "audit-test-selection", conclusion: "failure" }] }],
-  [/maintenance-check-upstream-drift\.yml\/runs/, { workflow_runs: [] }],
+  [/maintenance-file-upstream-drift-issues\.yml\/runs/, { workflow_runs: [] }],
   [
     /\/issues\/comments\?since=/,
     [

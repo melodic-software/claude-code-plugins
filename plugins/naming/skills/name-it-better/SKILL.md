@@ -229,8 +229,8 @@ independent judges then score against a standard the pool itself authored.
 A criterion found missing mid-bracket still routes upstream, and adding it
 means re-scoring the round it changes.
 
-A "naming tournament / bracket" is not a documented
-software-naming technique. This mode adapts elimination brackets plus
+HONEST FRAMING: a "naming tournament / bracket" is NOT a documented
+software-naming technique. This mode ADAPTS elimination brackets plus
 pairwise social-choice scoring as a convergence mechanism. See
 [`context/sources.md`](context/sources.md). Present it as such, not as an
 established standard.

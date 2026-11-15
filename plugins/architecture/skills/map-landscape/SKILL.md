@@ -38,10 +38,10 @@ line), 2 (usage), and 3 (FAIL, surface the resolver's own message) all mean ther
 home to read.
 
 Per key, in order: `--out <dir>` wins for this run alone, then a declared topic-doc value, then an
-inference proposed from repository evidence and confirmed by the operator, then one question. When
-nothing answers, `landscape_dialect` falls back to `mermaid`, and `architecture_dir` has no
-default, so an undeclared and unconfirmed home, including every non-interactive run, stops and
-points at `/architecture:setup`.
+inference PROPOSED from repository evidence and confirmed by the operator, then one question. Two
+outcomes are non-negotiable when nothing answers: `landscape_dialect` falls back to `mermaid`, and
+`architecture_dir` has NO default, so an undeclared and unconfirmed home, including every
+non-interactive run, STOPS and points at `/architecture:setup`.
 
 This skill never writes the consumer's root instruction file or its topic doc. `/architecture:setup
 apply` owns both.

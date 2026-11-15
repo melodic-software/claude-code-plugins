@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.3] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+### Fixed
+
+- The pass sample in the `interview-round-topic-groups` eval case now ends on the closing probe, with the note that the user may answer in any order just before it. The interview skill's round layout requires that order.
+
 ## [5.2.2] - 2026-11-15
 
 ### Changed

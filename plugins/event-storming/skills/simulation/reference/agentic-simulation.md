@@ -189,7 +189,7 @@ Based on the problem space, identify which stakeholder perspectives are needed. 
 **"invite the right people — a blend of curiosity and expertise."**
 <!-- ai-slop-ignore-end -->
 
-### Beneficiary Persona is Non-Negotiable
+### HARD RULE: Beneficiary Persona is Non-Negotiable
 
 **The first persona designed must be the end-user/beneficiary, the person the system exists to serve.** This persona cannot be proxied by an operational role (e.g., a support coordinator "speaking for" the individual). The beneficiary's vocabulary, frustrations, and blind spots are fundamentally different from any staff member's.
 
@@ -505,7 +505,7 @@ for the tool namespace, color mapping, spacing values, and board setup.
 
 ### Round-Based Orchestration: Following Brandolini's Incremental Phases
 
-Agents do not subscribe to live board changes; the pattern here is **round-based orchestration**, which maps to Brandolini's Big Picture phases exactly. **Follow the incremental notation and don't dump all building blocks at once.**
+Agents do not subscribe to live board changes; the pattern here is **round-based orchestration**, which maps to Brandolini's Big Picture phases exactly. **Critical: follow the incremental notation and don't dump all building blocks at once.**
 
 **Agent Execution Pattern**
 
@@ -859,8 +859,8 @@ Create a new Miro board. This is a different workshop with different participant
 
 1. Create board titled "Process Modeling: [Selected Problem/Process]"
 2. Create Legend frame showing "The Picture That Explains Everything": Actor → ReadModel → Command → System → Event → Policy → Command...
-3. Carry over relevant events from Big Picture as starting context. **Do not create a growing timeline frame** (frame z-order gotcha in `miro-integration.md`). Use coordinate-based organization; the static Legend frame is the only frame
-4. **Display the color grammar visibly**, because "there must be a lilac between an orange and the blue"
+3. Carry over relevant events from Big Picture as starting context. **Do NOT create a growing timeline frame** (frame z-order gotcha in `miro-integration.md`). Use coordinate-based organization; the static Legend frame is the only frame
+4. **Critical: display the color grammar visibly**, because "there must be a lilac between an orange and the blue"
 
 **Personas:** Reduce to 3-5 from Big Picture. Keep Domain Expert, add Developer, keep one business role. Drop broad stakeholders.
 

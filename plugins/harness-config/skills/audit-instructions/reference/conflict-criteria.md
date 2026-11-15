@@ -112,7 +112,7 @@ is the set of surfaces the tree can enumerate, and such requests are not in it. 
 window, and a hypothetical request has no residency, no enumerability and no liveness the tree can
 determine. Admitting the axis would either drop that gate and reintroduce the noise it suppresses, or
 need a parallel liveness notion for imagined inputs. The population is also unbounded, so the
-false-negative rate cannot be measured. A
+false-negative rate cannot be measured. The owner adjudicated this in #3565 and rejected the reopen. A
 corpus of realistic prompts to test instruction surfaces against is a different artifact and would be
 filed separately, not as an I15 extension.
 **Claim:** I15 does not adjudicate standing instructions against plausible user requests.
@@ -276,7 +276,8 @@ Three consequences for residency, and each one bounds a pair rather than admitti
   re-injects; a hook registered only for `startup` does not. Treat a pair whose hook half is
   `startup`-only as conditional after a compaction, and say so rather than asserting permanent
   residency. Read the matcher values from
-  [hooks: SessionStart](https://code.claude.com/docs/en/hooks#sessionstart) live.
+  [hooks: SessionStart](https://code.claude.com/docs/en/hooks#sessionstart) live (as of 2026-10-11;
+  recheck when its matcher values change).
 - **Exit-2 stderr is turn-scoped error feedback, not a standing directive, and only some events
   have an act to block.** Where exit-2 stderr goes varies by event, so read whether Claude, the user
   or nobody sees it from the table below; at most it is a one-turn message, never a standing rule.
@@ -364,6 +365,9 @@ its current behavior:
 
 - **Pointer**: when resolving a session's liveness controls, fetch the section each bullet names
   live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: one of those sections adds, removes or changes a control over which
+  instruction files load or which hooks run.
 
 A pass that skips this gate reports conflicts between instructions one side of which is dead, and
 misses live counterparts that were never inventoried. Both failures are silent, and both are

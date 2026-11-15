@@ -32,7 +32,7 @@ graders:
     target: last_message
   - name: front-load-advice
     type: llm
-    criteria: "PASS only if the reply advises keeping the critical details near the start (front-loading them, where truncation cannot reach them) for BOTH the export_ledger tool description AND the server instructions. FAIL if that advice covers only one of the two, or neither."
+    criteria: "PASS only if the reply advises keeping the critical details near the start (front-loading them, where truncation cannot reach them) for BOTH the export_ledger tool description AND the server instructions. FAIL if that advice covers only one of the two, or neither (legacy expectations: the advice is given for the description and for the server instructions)."
   - name: audit-skill-fired
     type: tool_used
     tool: 'Skill'

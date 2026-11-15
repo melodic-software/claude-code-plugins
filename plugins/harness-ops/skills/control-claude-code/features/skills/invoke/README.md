@@ -25,11 +25,21 @@ Undo what the skill wrote, the way its own SKILL.md says; a skill that only repo
 
 ## Drive
 
-1. Read the skill's SKILL.md for its arguments and the text its output starts with.
-2. `type "/<plugin>:<skill> <args>" --key Enter --session <session>`.
-3. `wait-for "<text its output starts with>" --session <session>`, then capture `screenshot`.
-4. For the plain-words entry point, type the request instead, and `wait-for` the same text.
-5. Capture `logs` with the same slash command as the prompt.
+First read the skill's SKILL.md for its arguments and the text its output starts with.
+
+1. `type "/<plugin>:<skill> <args>" --key Enter --session <session>`. Result: the driver prints
+   `typed`, and the slash command shows in the transcript.
+2. `wait-for "<text its output starts with>" --session <session>`, then capture `screenshot`.
+   Result: the skill's output shows in the transcript below the command, the driver prints
+   `seen: <that text>`, and `screenshot` prints the `.png` path; with no such text by `stepMs`,
+   `wait-for` exits 1.
+3. For the plain-words entry point, type the request instead, and `wait-for` the same text.
+   Result: the same output shows below the request, and the driver prints `seen: <that text>`.
+4. Capture `logs` with the same slash command as the prompt. Result: the driver prints
+   its `log: <path>` line and exits 0, and the `.jsonl` holds the
+   skill's output.
+5. **Proof.** Result: the transcript shows the skill's output, starting with the text its
+   SKILL.md gives, for each entry point driven. Captures: screenshot
 
 ## Gotchas
 

@@ -25,6 +25,7 @@ Contents: [The remote flag](#the-remote-flag-and-how-its-code-default-is-read) �
 [Other loaders](#loader-behavior-of-cursor-grok-build-and-muse-code) ·
 [Canary recipe](#the-canary-recipe) · [Shim removal cost](#what-shim-removal-costs) ·
 [Measuring the cutover](#what-the-loss-means-for-measuring-the-cutover) ·
+[Hook gap recheck](#page-recheck-of-the-hook-gap) ·
 [Built-in agents-md plugin](#the-built-in-agents-md-plugin) ·
 [Frontmatter hooks](#frontmatter-hooks-and-instructionsloaded) ·
 [Nested path blockers](#blockers-between-the-root-and-a-nested-agentsmd) ·
@@ -299,6 +300,17 @@ where the load arrives as an import and the hook fires with `load_reason` `inclu
 - **Recheck trigger**: `InstructionsLoaded` starts firing for a directly read `AGENTS.md`, or
   `verify-load.sh` gains a detection path that does not depend on that hook. Either one puts the
   two instruments back together.
+
+## Page recheck of the hook gap
+
+The 2026-09-20 measurement above was not repeated on this pass.
+
+A re-read of the hooks page found the hook gap unchanged, so this plugin still treats
+`verify-load.sh` as blind to a direct load. What moved is the `/memory` listing, recorded under
+[What shim removal costs](#what-shim-removal-costs).
+
+- **Pointer**: the hooks and memory fetches in that cost record. This checkout's
+  `claude auth status` reported `loggedIn` false, so no new `claude -p` measurement was possible.
 
 ## The built-in agents-md plugin
 
