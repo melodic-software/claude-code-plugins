@@ -1531,7 +1531,10 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   try {
     const listed = await paginate(runsPage, `/repos/${repo}/actions/workflows/${workflowFile(VERDICT_DISPATCH)}/runs?created=${created}&status=failure`, LANE_RUN_PAGES);
     // The earlier file has no runs to list once they age out or are deleted.
-    const earlier = await paginate(runsPage, `/repos/${repo}/actions/workflows/${workflowFile(PREVIOUS_VERDICT_DISPATCH)}/runs?created=${created}&status=failure`, LANE_RUN_PAGES).catch(() => []);
+    const earlier = await paginate(runsPage, `/repos/${repo}/actions/workflows/${workflowFile(PREVIOUS_VERDICT_DISPATCH)}/runs?created=${created}&status=failure`, LANE_RUN_PAGES).catch((error) => {
+      if (error?.status !== 404) noteFailure(PREVIOUS_VERDICT_DISPATCH, error);
+      return [];
+    });
     stopped = listed.concat(earlier).filter((r) => isStoppedVerdict(r, since)).sort(byAge);
   } catch (error) {
     noteFailure(VERDICT_DISPATCH, error);

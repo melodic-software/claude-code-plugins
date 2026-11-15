@@ -1286,7 +1286,10 @@ export async function lostDispatchRun({ api, runId, log, now = Date.now() }) {
   try {
     runs = await api.listRecentRuns(DISPATCH_WORKFLOW, isoSeconds(since));
     // The earlier file has no runs to list once they age out or are deleted.
-    const earlier = await api.listRecentRuns(PREVIOUS_DISPATCH_WORKFLOW, isoSeconds(since)).catch(() => []);
+    const earlier = await api.listRecentRuns(PREVIOUS_DISPATCH_WORKFLOW, isoSeconds(since)).catch((error) => {
+      if (!/ returned 404$/.test(error.message)) log(`::warning::${PREVIOUS_DISPATCH_WORKFLOW} run listing failed (${error.message}); runs under the earlier name are not recovered this tick`);
+      return [];
+    });
     const seen = new Set(runs.map((run) => String(run.id)));
     runs = runs.concat(earlier.filter((run) => !seen.has(String(run.id))));
   } catch (error) {
