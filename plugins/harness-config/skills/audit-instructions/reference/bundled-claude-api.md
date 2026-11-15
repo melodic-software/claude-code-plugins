@@ -26,7 +26,8 @@ Both surfaces judge prompt text against current-model doctrine, and neither repl
 
 - The bundled subcommand is the vendor's procedure for the vendor's own model. Its catalog moves
   with each model generation, it covers application code this skill deliberately does not, and it
-  applies edits. Running it is how a repository absorbs a model change; converting its findings
+  can apply its proposed diff, under the apply rule the Step 6 record above points at. Running it is
+  how a repository absorbs a model change; converting its findings
   into local criteria would be a copy that drifts.
 - This skill is a standing, report-only audit over a versioned catalog whose rows carry
   target-model scope, deterministic pre-scans, and citations. It covers cross-surface conflicts and

@@ -45,11 +45,11 @@ The script treats the file as bytes and finds the source by content.
 
 ### 1. Region rule: every printable run above a floor, from the first marker to end of file
 
-The previous rule took the single largest printable run around an anchor. On a fragmented build
-that run holds commands and nothing else, so the bundled-skill lane returned empty while the
-command lane looked healthy.
+Taking only the single largest printable run around an anchor fails on a fragmented build: that
+run holds commands and nothing else, so the bundled-skill lane returns empty while the command
+lane looks healthy.
 
-The rule now, stated exactly: from the first `BUNDLE_MARKERS` occurrence to end of file, every
+The rule, stated exactly: from the first `BUNDLE_MARKERS` occurrence to end of file, every
 printable run of at least `MIN_RUN_BYTES` (256) bytes, found with one `RUN_RE` pass, joined with
 newlines. `sources.binary` records `runs`, `joined_bytes`, `region_rule`, `runs_below_floor`, and
 `elapsed_seconds`. `runs_below_floor` counts registration tokens (`({name:` followed directly by a
@@ -114,7 +114,7 @@ cannot see. Every candidate, for commands, bundled skills, subagents and tools a
 the string constant the read sees under the module and scope rule that field resolution uses
 (`_scoped_constant`); otherwise the name stays unresolved. In 2.1.286 the generic skill loader
 builds `{type:"prompt",name:Vt,...}` with `Vt=$t?smt(e):e` in its own scope, and an unrelated
-`Vt="string"` megabytes ahead used to surface as a built-in command `string`.
+`Vt="string"` megabytes ahead would otherwise surface as a built-in command `string`.
 
 Two further shapes, both first seen in 2.1.284:
 
@@ -180,7 +180,7 @@ bytecode string-table text, which is not JavaScript and can open a brace or a qu
 text closes far later. In 2.1.318 such text after the runtime header opened a brace at 5.46 MB that
 closed at 58.57 MB, near the end of the 58.7 MB source. Every top-level binding inside looked
 function-local, so `_redeclared_later` rejected it and the workflow, tool and plugin lanes lost
-their canaries. A misread is now confined to the module it happens in.
+their canaries. The per-module reset confines a misread to the module it happens in.
 
 A call to the registrar identifier whose object carries no `name:` is another module's function
 sharing the minified name, not a registration; it is counted in `same_identifier_calls_skipped` and

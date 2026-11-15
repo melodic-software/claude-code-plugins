@@ -5,7 +5,7 @@ after an explicit per-plugin confirm. [sync-install-enable.md](sync-install-enab
 `project`-scope enable gap instead of filling it. It never runs implicitly from `sync`: that report
 only names the `converge` command, and the user runs it explicitly.
 
-## Autonomous-session abort (run this check FIRST, before any preview work)
+## Autonomous-session abort (run this check first, before any preview work)
 
 `converge` is destructive-tier (it can uninstall a scoped plugin install and rewrite committed
 settings). Per this repo's existing convention (`repo-hygiene`'s `clean` skill, preflight §1.5):
@@ -123,7 +123,7 @@ Every preview row states why its default was chosen, in a `Why:` clause, for exa
 ```
 
 **Before proposing the update strategy, check the catalog's direction.** We treat
-`claude plugin update` as installing the CATALOG version, never the sibling scope's (see
+`claude plugin update` as installing the catalog version, never the sibling scope's (see
 [plugins CLI reference: plugin update](https://code.claude.com/docs/en/plugins/cli-reference#plugin-update)),
 so when the catalog reads below the
 highest installed version that strategy rolls the lagging scopes backward instead of forward. Read
@@ -246,7 +246,9 @@ object's `strategy`, `command` and `warning` exactly as printed; never build or 
 alternative command. Then ask with `AskUserQuestion`, one question per runnable row in that path's
 batch, each with its own distinct text (answers are keyed by it): **approve** (apply the proposed
 strategy), **choose the other strategy** (only where `alternative` is not `null`: run its
-`command`, shown with its `warning`), or **skip**. The tool takes at most 4 questions per call, so a path with more than 4
+`command`, shown with its `warning`), or **skip**. The tool takes at most 4 questions per call, per
+[Handle approvals and user input: limitations](https://code.claude.com/docs/en/agent-sdk/user-input#limitations)
+(as of 2026-11-10; recheck if that section changes it), so a path with more than 4
 runnable rows takes successive calls, all inside that path's batch.
 
 A group with no runnable row (every row is `blocked-*`, or a `worktree` row with `command: null`) is

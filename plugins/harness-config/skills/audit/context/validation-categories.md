@@ -23,7 +23,7 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
 
 - `$schema` present and points to `https://json.schemastore.org/claude-code-settings.json`
 - No unknown top-level keys (cross-reference against official docs schema)
-- `settings.local.json` does NOT contain `mcpServers` (wrong file, use `.mcp.json`)
+- `settings.local.json` does not contain `mcpServers` (wrong file, use `.mcp.json`)
 - **Consent receipts.** Some undocumented keys are written by the CLI or a plugin when the user
   accepts a prompt. [consent-receipts.json](../reference/consent-receipts.json) records them as
   `{"consentReceipt": {"<owner>": [records]}}`, where the owner is a `plugin@marketplace` id or
@@ -64,7 +64,7 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
   What you may not do is take the narrowing on an unread lever. On a scope-filtered run that excludes
   Category D, and `/audit permissions` is exactly this, the reading is unavailable unless the operator
   supplies it, so the narrowing is unavailable too
-- **Deny rules in settings.json ONLY**, not in settings.local.json (bug [#8961](https://github.com/anthropics/claude-code/issues/8961))
+- **Deny rules in settings.json only**, not in settings.local.json (bug [#8961](https://github.com/anthropics/claude-code/issues/8961))
 - **No overly broad patterns**: `Bash(git *)` should be split into specific operations
 - **Evaluation order** makes sense: deny overrides ask overrides allow
 - **What the engine already settled.** `scripts/audit-engine.sh` decides pattern presence for every
@@ -207,8 +207,8 @@ exactly `false`.
 
 | Mode | Definition | Fix policy |
 |---|---|---|
-| **ORPHAN** (false) | Plugin in `enabledPlugins` set to `false`, NOT in the upstream catalog, and not a `null` renames entry | Removal candidate, removed by `--yes`. The removal moves to manual review when a lower-precedence scope file (the user file, and the sibling `settings.json` when the audited file is `settings.local.json`) holds `true` for the key, because removing the `false` would let that `true` take effect; an unreadable or invalid lower scope file does the same. Other developers' user scopes and managed settings are not checked, and a plan with a pending removal says so |
-| **ORPHAN** (true) | Plugin in `enabledPlugins` set to `true`, NOT in the upstream catalog, and not a `null` renames entry | REPORT ONLY. The user explicitly enabled a plugin that is now gone upstream; surface for manual review, never auto-remove |
+| **ORPHAN** (false) | Plugin in `enabledPlugins` set to `false`, not in the upstream catalog, and not a `null` renames entry | Removal candidate, removed by `--yes`. The removal moves to manual review when a lower-precedence scope file (the user file, and the sibling `settings.json` when the audited file is `settings.local.json`) holds `true` for the key, because removing the `false` would let that `true` take effect; an unreadable or invalid lower scope file does the same. Other developers' user scopes and managed settings are not checked, and a plan with a pending removal says so |
+| **ORPHAN** (true) | Plugin in `enabledPlugins` set to `true`, not in the upstream catalog, and not a `null` renames entry | REPORT ONLY. The user explicitly enabled a plugin that is now gone upstream; surface for manual review, never auto-remove |
 | **NEW** | Plugin in upstream catalog with no entry in the audited file | REPORT ONLY. `fix-plugin-drift.sh` never adds a key. The engine reports catalog plugins with no entry in any scope as one `ok` inventory row per marketplace (check `E/drift-new`) |
 | **RENAME** (catalog) | The catalog `renames` map sends the enabled key to a name; the row names the final name in the chain (`source: "renames"`) | REPORT ONLY. Replace the key in this file, or open a Claude Code session in this checkout and commit the rewrite it makes. For managed settings, update managed `enabledPlugins`. The fixer writes nothing |
 | **RENAME?** (heuristic) | ORPHAN and NEW with similar names, and the orphan is not a key of the renames map (`source: "heuristic"`) | REPORT ONLY. Flag for human review, no automation |
@@ -274,7 +274,7 @@ warning naming the waived guard. To apply to a settings file that is a symlink, 
 ## Category F: Environment Variables
 
 - Env vars in `settings.json` are documented Claude Code variables or justified custom vars
-- Secrets (tokens, keys, passwords) are in `settings.local.json`, NOT in `settings.json`
+- Secrets (tokens, keys, passwords) are in `settings.local.json`, not in `settings.json`
 - `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` in any user, project or local `env` is treated as dead
   (`F/function-hooks-flag-dead`, `warning`): the engine flags it at any value and quotes the mods
   overview's line on it, read this run; with that line not read, the row is `not-inspectable`.

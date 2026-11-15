@@ -49,7 +49,7 @@ budget as a band over both windows and both byte estimates, naming no row as thi
 
 - **Pointer**: when stating the fraction's or the per-entry cap's default, fetch [settings reference: skillListingBudgetFraction](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction) and [skillListingMaxDescChars](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars) live.
 
-**The drop ORDER is a source conflict.** The skills page's [skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)
+**The drop order is a source conflict.** The skills page's [skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)
 and the binary disagree on which descriptions overflow drops first. Take the ordering from the
 binary: [reference/listing-scorer.md](reference/listing-scorer.md) carries the counterexamples, the
 greps, the budget arithmetic, and the stamp.
@@ -102,7 +102,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/audit_skill
 `skills/` directory, the layout both a marketplace checkout and an installed
 plugin root use.
 
-### Auditing the INSTALLED fleet
+### Auditing the installed fleet
 
 `--plugins-root` measures a directory. To measure what is actually installed
 instead, read the plugin manifest:
@@ -117,7 +117,7 @@ point elsewhere). The two answers differ on purpose: a checkout can hold
 plugins that are not installed, so the repo count and the installed count
 disagree. Neither number is wrong; they answer different questions.
 
-**The manifest lists one entry per install SCOPE, not per plugin.** A
+**The manifest lists one entry per install scope, not per plugin.** A
 marketplace installed at both `project` and `user` scope carries two entries
 per plugin. This resolves to one entry per plugin, and the report states both
 numbers so the collapse is auditable. Counting entries would inflate the fleet
@@ -393,7 +393,7 @@ the settings file that did), and says so when there is nothing to fix.
 
 - **Never sum sources.** Native counters and the JSONL store both record the
   same invocation, so adding them double-counts. At a given instant the count is
-  the MAX across sources, while two events from ONE source at the same instant
+  the MAX across sources, while two events from one source at the same instant
   still count twice, because those are genuinely two invocations.
 - **`pluginUsage` is not a skill signal.** Neither its counts nor its
   timestamps are read as skill use. What it counts and how its rows are seeded

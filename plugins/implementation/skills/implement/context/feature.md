@@ -1,6 +1,6 @@
 # Feature Implementation
 
-New feature implementation follows a top-down approach: scaffold the structure, fill in implementation, then wire up tests.
+New feature implementation follows a top-down approach: scaffold the structure, fill in the implementation test-first (step 7), then wire it up.
 
 **Posture.** With an approved plan, its work items set how far the feature reshapes existing code. With none, apply the `integration_posture` that Step 0 resolved: `by-kind` or `day-one` redesigns the code the feature lands in, `minimal` adds the feature with the smallest change.
 

@@ -7,7 +7,7 @@ Symptoms encountered (or expected) during setup / sync / cleanup, with diagnosis
 **Symptom:** `Kindle.exe` reports any version other than `2.8.0.70980` after setup. Usually `2.9.x` because:
 
 1. Pre-existing Kindle for PC was installed and the 2.8.0 installer ran in upgrade mode.
-2. User clicked "Update" on a prompt during sign-in, OR the cached installer at `%LOCALAPPDATA%\Amazon\Kindle\updates\` ran on next launch.
+2. User clicked "Update" on a prompt during sign-in, or the cached installer at `%LOCALAPPDATA%\Amazon\Kindle\updates\` ran on next launch.
 
 **Diagnosis:**
 
@@ -17,20 +17,20 @@ Symptoms encountered (or expected) during setup / sync / cleanup, with diagnosis
 
 **Recovery:**
 
-1. Uninstall the current version: Settings → Apps → Amazon Kindle → Uninstall. OR run `%LOCALAPPDATA%\Amazon\Kindle\application\uninstall.exe`.
+1. Uninstall the current version: Settings → Apps → Amazon Kindle → Uninstall. Or run `%LOCALAPPDATA%\Amazon\Kindle\application\uninstall.exe`.
 2. Re-run the 2.8.0.70980 installer from `~/Downloads/`.
-3. If the firewall rule wasn't in place when this happened, re-apply it BEFORE opening Kindle this time.
+3. If the firewall rule wasn't in place when this happened, re-apply it before opening Kindle this time.
 4. Re-sync books (they may need to re-download since uninstall clears `My Kindle Content/`).
 
 ## Cached installer popped up when opening Kindle
 
 **Symptom:** User opens Kindle (with firewall block in place) and an installer dialog appears, "Install Kindle for PC" or similar.
 
-**Diagnosis:** Installer downloaded BEFORE firewall block applied (typical sign-in race window). Now auto-running on launch. Kindle.exe firewall block doesn't stop the installer because installer is a separate process.
+**Diagnosis:** Installer downloaded before firewall block applied (typical sign-in race window). Now auto-running on launch. Kindle.exe firewall block doesn't stop the installer because installer is a separate process.
 
 **Recovery:**
 
-1. **Do NOT click anything in the installer dialog. Do NOT click Cancel.** Leave it open.
+1. **Do not click anything in the installer dialog. Do not click Cancel.** Leave it open.
 2. Verify the installer hasn't already run:
 
    ```powershell
@@ -81,7 +81,7 @@ Symptoms encountered (or expected) during setup / sync / cleanup, with diagnosis
 
 **Symptom:** `Run_keyfinder_admin.vbs` reports Python missing.
 
-**Diagnosis:** Either Python isn't installed, OR only the WindowsApps stub is on PATH (which keyfinder skips).
+**Diagnosis:** Either Python isn't installed, or only the WindowsApps stub is on PATH (which keyfinder skips).
 
 **Recovery:**
 
@@ -92,7 +92,7 @@ Symptoms encountered (or expected) during setup / sync / cleanup, with diagnosis
    python --version
    ```
 
-2. If only WindowsApps appears, install Python from python.org (NOT the Microsoft Store version) and ensure "Add Python to PATH" is checked during install.
+2. If only WindowsApps appears, install Python from python.org (not the Microsoft Store version) and ensure "Add Python to PATH" is checked during install.
 3. Alternatively: install via `uv` (`~/.local/bin/python.exe` is accepted by the keyfinder filter).
 
 ## Keyfinder crashes with STATUS_ACCESS_VIOLATION
@@ -104,7 +104,7 @@ Symptoms encountered (or expected) during setup / sync / cleanup, with diagnosis
 **Recovery:**
 
 1. Check Kindle.exe version. If outside `2.8.0–2.8.3` or `2.9.1`, this skill can't extract keys with bundled tools.
-2. Check `update` action for newer KFXArchiver supporting the current Kindle version. If none → wait for upstream update OR downgrade Kindle for PC to a supported version.
+2. Check `update` action for newer KFXArchiver supporting the current Kindle version. If none → wait for upstream update or downgrade Kindle for PC to a supported version.
 3. As a workaround: try Mode B (KFXArchiver-only) by re-running the keyfinder with reset config:
 
    ```bash
@@ -154,13 +154,13 @@ bash -x "<plugin-root>/skills/manage/scripts/sync-finalize.sh"
 
    Expect `DeDRM.zip` and `KFX Input.zip` (or similar names).
 
-2. Verify dedrm.json has keys:
+2. Verify dedrm.json exists without opening or printing it (it holds the extracted keys):
 
    ```bash
-   cat "${APPDATA}/calibre/plugins/dedrm.json" | head -20
+   bash "<plugin-root>/skills/manage/scripts/status.sh"
    ```
 
-   Should have entries under `kindlekeys` or similar.
+   `calibre_plugins` should report `dedrm.json=present`. To check that it holds a Kindle key, open the DeDRM plugin's customization dialog in Calibre (Preferences → Plugins) instead of reading the file.
 
 3. Manually try importing one book via Calibre GUI (drag-and-drop the `.azw` file). If Calibre import works manually but not via Phase 3, keyfinder's calibredb invocation has a path issue. Open `~/Tools/Kindle_Key_Finder/key_finder.log` for detail.
 
@@ -168,7 +168,7 @@ bash -x "<plugin-root>/skills/manage/scripts/sync-finalize.sh"
 
 **Symptom:** After running `cleanup --full`, `Get-NetFirewallRule -DisplayName "Block Kindle for PC (lock 2.8.0)"` still returns the rule.
 
-**Diagnosis:** Either the rule was created with a different name, OR cleanup ran without admin privileges.
+**Diagnosis:** Either the rule was created with a different name, or cleanup ran without admin privileges.
 
 **Recovery:**
 
@@ -217,7 +217,7 @@ icacls "$env:LOCALAPPDATA\Amazon\Kindle\updates" /remove:d "AzureAD\<user>"
 
 **Symptom:** `cleanup --full` ran, but Calibre still shows KFX Input and DeDRM under Preferences → Plugins.
 
-**Diagnosis:** Calibre plugins must be removed via Calibre's GUI (or by editing Calibre's plugin database directly, which is fragile). Cleanup script intentionally does NOT auto-remove plugins because Calibre may be in use for other workflows.
+**Diagnosis:** Calibre plugins must be removed via Calibre's GUI (or by editing Calibre's plugin database directly, which is fragile). Cleanup script intentionally does not auto-remove plugins because Calibre may be in use for other workflows.
 
 **Recovery (manual):**
 

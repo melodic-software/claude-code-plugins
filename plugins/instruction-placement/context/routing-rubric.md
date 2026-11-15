@@ -52,7 +52,7 @@ absent at the moment it was needed, not how the sentence is worded.
   (`verified-mechanics.md`, the write-trigger gap). Either way a rule governing how new files are
   made may not be in context for the creation it exists for. It may still route to a subtree
   destination, or stay. This is a deny of one *destination*, not of the candidate. Lift or narrow it
-  only once a canary measures whether a Write-triggered rule arrives before the write.
+  only when a re-run of the 2.1.312 canary shows a Write-triggered rule arriving before the write.
 - **A candidate whose body is only an `@import` is never routed to a path-scoped rule.** The import
   inlines at session start and defeats the scoping (`verified-mechanics.md` finding 2), producing a
   move that reads as a saving and is not one.
