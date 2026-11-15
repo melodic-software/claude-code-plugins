@@ -25,7 +25,11 @@ None: the skill only answers in the transcript.
 ## Drive
 
 1. Drive it as the driving tool's `skills/invoke` feature: first type any question and wait for the
-   reply, then type `/discipline:wait-what`.
+   reply, then type `/discipline:wait-what`. Result: the steps there state theirs; the reply shows,
+   then a new explanation of it shows below the `/discipline:wait-what` line.
+2. **Proof.** Result: the new explanation explains the earlier reply again, adding context, in
+   short Simplified Technical English sentences that use the project's own terms.
+   Captures: screenshot
 
 ## Gotchas
 
