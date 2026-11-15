@@ -11,6 +11,10 @@
     {
       "answer": "Open file:///tmp/explore-directions-a1B2c3/explore-directions.html (arrow keys switch).\n- A Checklist: one column of rows that expand in place\n  - States: populated, empty, loading, error\n- B Path: one step at a time along a track\n  - States: populated, empty, loading, error\n- C Cards: a grid of tiles\n  - States: populated, empty, loading, error\nNo screenshots: Playwright is not available.\n| Variant | Axis | Right when | Costs |\n| A | layout | few steps | dense |\n| B | interaction | linear | slow to skim |\n| C | hierarchy | visual | space |\nCheck list:\n1. Open the page. Expect: variant A, five habits.\n2. Press Clear. Expect: no habits in any variant.\n3. Press Reset. Expect: the five habits again.\n```\ndirection: <key or graft>\nsteal: <piece> from <variant>\n```",
       "why": "states in a sub-bullet directly under each variant's line"
+    },
+    {
+      "answer": "Open file:///tmp/explore-directions-a1B2c3/explore-directions.html (arrow keys switch).\n- A Checklist: one column of rows that expand in place\n- B Path: one step at a time along a track\n- C Cards: a grid of tiles\nEvery variant has the same states: populated, empty, loading, error.\nNo screenshots: Playwright is not available.\n| Variant | Axis | Right when | Costs |\n| A | layout | few steps | dense |\n| B | interaction | linear | slow to skim |\n| C | hierarchy | visual | space |\nCheck list:\n1. Open the page. Expect: variant A, five habits.\n2. Press Clear. Expect: no habits in any variant.\n3. Press Reset. Expect: the five habits again.\n```\ndirection: <key or graft>\nsteal: <piece> from <variant>\n```",
+      "why": "states named once in a line saying every variant has them"
     }
   ],
   "fail": [
@@ -27,8 +31,12 @@
       "why": "no check list before the reply template"
     },
     {
-      "answer": "Open file:///tmp/explore-directions-a1B2c3/explore-directions.html (arrow keys switch).\n- A Checklist: one column of rows that expand in place\n- B Path: one step at a time along a track\n- C Cards: a grid of tiles\nEvery variant has the same states: populated, empty, loading, error.\nNo screenshots: Playwright is not available.\n| Variant | Axis | Right when | Costs |\n| A | layout | few steps | dense |\n| B | interaction | linear | slow to skim |\n| C | hierarchy | visual | space |\nCheck list:\n1. Open the page. Expect: variant A, five habits.\n2. Press Clear. Expect: no habits in any variant.\n3. Press Reset. Expect: the five habits again.\n```\ndirection: <key or graft>\nsteal: <piece> from <variant>\n```",
-      "why": "states given once for all variants, not on each variant line; otherwise complete"
+      "answer": "Open file:///tmp/explore-directions-a1B2c3/explore-directions.html (arrow keys switch).\n- A Checklist: one column of rows that expand in place\n- B Path: one step at a time along a track\n- C Cards: a grid of tiles\nNo screenshots: Playwright is not available.\n| Variant | Axis | Right when | Costs |\n| A | layout | few steps | dense |\n| B | interaction | linear | slow to skim |\n| C | hierarchy | visual | space |\nCheck list:\n1. Open the page. Expect: variant A, five habits.\n2. Press Clear. Expect: no habits in any variant.\n3. Press Reset. Expect: the five habits again.\n```\ndirection: <key or graft>\nsteal: <piece> from <variant>\n```",
+      "why": "no states anywhere; otherwise complete"
+    },
+    {
+      "answer": "Open file:///tmp/explore-directions-a1B2c3/explore-directions.html (arrow keys switch).\n- A Checklist: populated, empty, done\n- B Path: populated, empty, done\n- C Cards: a grid of tiles\nNo screenshots: Playwright is not available.\n| Variant | Axis | Right when | Costs |\n| A | layout | few steps | dense |\n| B | interaction | linear | slow to skim |\n| C | hierarchy | visual | space |\nCheck list:\n1. Open the page. Expect: variant A, five habits.\n2. Press Clear. Expect: no habits in any variant.\n3. Press Reset. Expect: the five habits again.\n```\ndirection: <key or graft>\nsteal: <piece> from <variant>\n```",
+      "why": "states on A and B, none on C, and no line says every variant has the same states; otherwise complete"
     },
     {
       "answer": "Open file:///tmp/explore-directions-a1B2c3/explore-directions.html (arrow keys switch).\n- States (same in every variant): populated, empty, loading, error.\n- A Checklist: one column of rows that expand in place\n- B Path: one step at a time along a track\n- C Cards: a grid of tiles\nNo screenshots: Playwright is not available.\n| Variant | Axis | Right when | Costs |\n| A | layout | few steps | dense |\n| B | interaction | linear | slow to skim |\n| C | hierarchy | visual | space |\nCheck list:\n1. Open the page. Expect: variant A, five habits.\n2. Press Clear. Expect: no habits in any variant.\n3. Press Reset. Expect: the five habits again.\n```\ndirection: <key or graft>\nsteal: <piece> from <variant>\n```",
