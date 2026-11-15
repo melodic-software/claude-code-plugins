@@ -12,6 +12,7 @@ import {
   checkRating,
   checkResult,
   modelsOf,
+  producerOf,
   ratedLine,
   readRating,
   recordMergeRisk,
@@ -51,7 +52,7 @@ test("the unrated line names its reason, and only a reason from the closed set",
 test("no line or marker comment the builder writes trips a hold or a committer row", async () => {
   const { BODY_HOLD, HUMAN_VETO, LANE_HOLD } = await import("./merge-holds.mjs");
   const lines = [ratedLine(rating({ max: "CRITICAL", demote: true })), ...REASONS.map(unratedLine)];
-  for (const line of [...lines, ...lines.map((text) => markerBody(HEAD, text))]) {
+  for (const line of [...lines, ...lines.flatMap((text) => [markerBody(HEAD, text), markerBody(HEAD, text, { lane: "work-resolve-issue", run: "43643331000" })])]) {
     assert.equal(BODY_HOLD.test(line), false, line);
     assert.equal(HUMAN_VETO.test(line), false, line);
     assert.equal(LANE_HOLD.test(line), false, line);
@@ -224,6 +225,41 @@ const pendingReads = () => fake({ listing: [runOf(5, { status: "queued", conclus
 
 test("markerBody puts the head marker above the line", () => {
   assert.equal(markerBody(HEAD, unratedLine("pending")), PENDING_COMMENT);
+});
+
+const PRODUCER = { lane: "work-resolve-issue", run: "43643331000" };
+const LANE_BRANCH = "work-resolve-issue/issue-16239-43643331000-1";
+
+test("producerOf reads the lane and run from a lane branch, and nothing from any other branch", () => {
+  assert.deepEqual(producerOf(LANE_BRANCH), PRODUCER);
+  assert.deepEqual(producerOf("pr-refine/issue-5-77-2"), { lane: "pr-refine", run: "77" });
+  for (const branch of ["chore/tidy-adhoc-prompts","work-resolve-issue/issue-1-2", "Work/issue-1-2-3", "a/issue-1-0-1", "x y/issue-1-2-3", undefined, null]) {
+    assert.equal(producerOf(branch), null, String(branch));
+  }
+});
+
+test("markerBody names the producing lane and run in the marker when it has them", () => {
+  assert.equal(markerBody(HEAD, unratedLine("pending"), PRODUCER), `<!-- merge-risk-line head=${HEAD} lane=work-resolve-issue run=43643331000 -->\nMerge-Risk: unrated reason=pending`);
+  assert.equal(markerBody(HEAD, unratedLine("pending"), null), PENDING_COMMENT);
+});
+
+test("markerAction reads a record of either marker shape, and adds the producer to an old one", () => {
+  const line = ratedLine(rating());
+  const old = appSaid(90, markerBody(HEAD, line));
+  const current = appSaid(91, markerBody(HEAD, line, PRODUCER));
+  assert.deepEqual(markerAction([old], { bot: BOT, head: HEAD, line }), { action: "none" });
+  assert.deepEqual(markerAction([old], { bot: BOT, head: HEAD, line, producer: PRODUCER }), { action: "patch", id: 90 });
+  assert.deepEqual(markerAction([current], { bot: BOT, head: HEAD, line, producer: PRODUCER }), { action: "none" });
+  assert.deepEqual(markerAction([current], { bot: BOT, head: HEAD, line: unratedLine("no-run"), producer: PRODUCER }), { action: "none" });
+  assert.deepEqual(markerAction([old], { bot: BOT, head: HEAD, line: unratedLine("no-run"), producer: PRODUCER }), { action: "none" });
+  assert.deepEqual(markerAction([appSaid(92, markerBody(OTHER, line, PRODUCER))], { bot: BOT, head: HEAD, line, producer: PRODUCER }), { action: "post" });
+});
+
+test("recordMergeRisk names the lane and run of the pull request's lane branch", async () => {
+  const { actions } = pendingReads();
+  const { github, sent } = writer();
+  await recordMergeRisk({ bot: BOT, pull: { ...pull, headRefName: LANE_BRANCH }, comments: [], repository: REPO, actions, github, download: () => "" });
+  assert.deepEqual(sent, [{ method: "POST", path: `/repos/${REPO}/issues/7/comments`, payload: { body: markerBody(HEAD, unratedLine("pending"), PRODUCER) } }]);
 });
 
 test("markerAction posts with no marker, leaves an exact one, patches a changed line and posts for a new head", () => {
