@@ -27,8 +27,8 @@ landscape of repositories is `/architecture:map-landscape`.
 Read `${CLAUDE_PLUGIN_ROOT}/reference/config.md` first. Run
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"`
 and follow the exit code. Exit 0 means read `<home>/architecture/README.md` for
-`architecture_dir` and the optional `component_layers`. Exit 1, 2, and 3 mean
-there is no declared home.
+`architecture_dir` and the optional `component_layers`. Any other exit (1 to 5)
+means there is no declared home.
 
 `--out <dir>` wins for this run alone. Then a declared topic-doc value. Then
 one question. `architecture_dir` has no default: an undeclared, unconfirmed
@@ -51,7 +51,7 @@ not a task list:
    `<root>/<home>/authoring-formats/README.md` to the resolver.
 4. Layer order is one layer deep: an explicit `--dialect` argument, then the team convention doc.
    There is no personal override.
-5. `diagram_dialect.system` has NO default. Allowed values are `likec4` and `c4-plantuml`. When it
+5. `diagram_dialect.system` has no default. Allowed values are `likec4` and `c4-plantuml`. When it
    is unset, write `components.md` with the prose and tables and draw no diagram block.
 6. Degrade soft, and say so. No pointer, no doc, no key, or an unrecognized value (mermaid
    included, which the convention refuses) each resolve to emitting no view. The resolver names
@@ -209,7 +209,7 @@ deployable's node id>`, never hand-written; the shared medium resolver decides t
 plugin's `medium` option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (never put
 a `${user_config.*}` string in a shell command), and its report line is printed. Procedure: [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Class-level or code-rung diagrams, behavior, or deployment. Those are other
   rungs.

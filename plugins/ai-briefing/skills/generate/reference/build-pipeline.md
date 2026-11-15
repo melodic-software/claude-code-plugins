@@ -25,7 +25,7 @@ This file documents the working pipeline schema + commands. For brand spec, slid
 |---|---|---|
 | `run.js` | **Orchestrator.** Chains emit → build (pptx+html+pdf) → validate. Single entrypoint | drives the chain |
 | `emit-slides-data.js` | **Emitter.** Reads briefing markdown + state, writes `slides-data.js`. Pre-flight provider-logo resolution. Zod schema validates before writing | `slides-data.js` |
-| `slides-data.js` | **Generated.** Slide content per current meeting. Do NOT hand-edit; re-run emitter. | data module consumed by build-* scripts |
+| `slides-data.js` | **Generated.** Slide content per current meeting. Do not hand-edit; re-run emitter. | data module consumed by build-* scripts |
 | `lib/parse-briefing.js` | Markdown AST parser (remark + remark-gfm). H2 buckets → H3 tiers → bullet items | n/a |
 | `lib/emit-slides.js` | Items → slide objects (canonical order, HIGH≤5 split, MED≤14 split, cross-provider clusters, patterns synthesis) | n/a |
 | `lib/schema.js` | Zod discriminated union: 11 slide types, meta, theme, providerLogos | n/a |
@@ -114,10 +114,10 @@ Scripts make pipeline **efficient**, not autonomous. Overseer (Claude or human) 
 |---|---|---|
 | **Briefing → slides-data emit** | Parses markdown, partitions tiers, splits HIGH/MED, places clusters, fetches logos, validates schema | Reviews emitted `slides-data.js`: are tier assignments right? Are headline truncations preserving meaning? Should any item be promoted/demoted? Edit and re-run |
 | **Patterns synthesis** | Emits stub `patterns` slide based on bucket presence | Reviews stub, replaces with curated cross-bucket themes the briefing actually surfaces, never a generic stub |
-| **Apolitical filter** | Doesn't filter. Passes everything through | Drops partisan-only items at briefing-emit time AND re-validates at slides-emit (defense in depth) |
+| **Apolitical filter** | Doesn't filter. Passes everything through | Drops partisan-only items at briefing-emit time and re-validates at slides-emit (defense in depth) |
 | **Cross-provider clusters** | Routes "Legal", "Compute", "Real-world" H2 sections to dedicated slides | Decides if a sub-bullet inside another bucket should be promoted to a cluster slide (e.g., a Microsoft item that's actually a Musk-v-Altman co-defendant detail) |
 | **Visual review** | Screenshots every section to `shots/section-NN.png` and every responsive combination to `shots/responsive-*.png`, dumps `audit.json` | Reads screenshots, checks: text legibility, contrast, headline truncation natural, URL list density acceptable, no broken layouts, brand consistency |
-| **Ship gate** | Prints "VALIDATION PASSED" on 0 blocking | Final go/no-go after visual + audit review. Iterate (edit briefing.md OR slides-data.js, re-run) until satisfied |
+| **Ship gate** | Prints "VALIDATION PASSED" on 0 blocking | Final go/no-go after visual + audit review. Iterate (edit briefing.md or slides-data.js, re-run) until satisfied |
 
 **Rule of thumb:** if a decision could embarrass the team in front of attendees (wrong tier, awkward headline, a partisan item that slipped the apolitical filter, broken pattern claim), it's an overseer call. Scripts only handle decisions that have one mechanically-correct answer.
 
@@ -198,7 +198,7 @@ When `--format slides|html` runs:
 4. Within each bucket, partition by HIGH / MED / LOW
 5. **Apolitical filter.** Drop partisan-only items (already done at briefing-emit time per SKILL.md, but re-validate at slides-emit)
 6. Emit slide objects in canonical order (see `slide-generation.md` "Canonical slide order")
-   - HIGH bucket → `news` slide(s), split when >7 bullets
+   - HIGH bucket → `news` slide(s), split past 5 bullets; a bucket's HIGH items past 7 move to MED
    - MED bucket → `condensed` slide, auto 2-col when >7 bullets
    - LOW bucket → `condensed` slide, single-col
    - Cross-provider clusters → dedicated `news` slide (Legal/Compute/Real-world)

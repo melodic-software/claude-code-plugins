@@ -43,7 +43,7 @@ non-source paths are not in the coverage total.
   one root per `package.json`. Never one run for the whole repository: a monorepo's workspaces have
   their own installs, their own configs, and their own restore state, and one broken workspace must
   not condemn the others.
-- **Findings are filtered to what the root OWNS and what the caller asked for**: paths under that
+- **Findings are filtered to what the root owns and what the caller asked for**: paths under that
   root and under no nested root, never a path excluded from candidate scope (`node_modules`, `dist`,
   `build`, `vendor`, `**/evals/fixtures/**`), and never a file outside the scoped `TS_FILES` set.
   Invoking knip at a root does not restrict what it *reports*: it walks the whole subtree, nested
@@ -57,7 +57,7 @@ non-source paths are not in the coverage total.
   then PATH. A pinned devDependency is the version that matches the project it is judging.
   Measured: `npm i -D knip` leaves knip **off PATH**, so a bare-name probe reports "missing" on a
   correctly configured repo.
-- **Restore probe is DIRECT and walks ancestors.** `node_modules` present and non-empty at the
+- **Restore probe is direct and walks ancestors.** `node_modules` present and non-empty at the
   resolved root *or an ancestor up to the repo root*, the same walk `dc_locate_binary` uses for a
   hoisted workspace install. It is never inferred from knip's `unresolved` / `unlisted` output:
   measured, restored and unrestored JSON were **byte-identical**: those keys report source defects,
@@ -123,7 +123,7 @@ non-source paths are not in the coverage total.
 - **Precondition:** a resolvable module cache, the same class of precondition as `node_modules`.
 - **Degradation has two shapes, both with exit 0.** An unresolved dependency prints an import error
   on **stdout** and suppresses the hints; a workspace-load failure leaves **stdout empty** and puts
-  the error on **stderr**. Either way the lane produces false **NEGATIVES**, the opposite of knip's
+  the error on **stderr**. Either way the lane produces false **negatives**, the opposite of knip's
   false positives. The report must not describe the two with one shared phrase.
 - **Paths are absolute and cwd-independent.** `gopls check -h` exposes only `-severity`; no flag
   relativizes them, so the script relativizes to the repo root itself. The column field is a

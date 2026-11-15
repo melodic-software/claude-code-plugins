@@ -15,9 +15,9 @@ finding only if you fail.*
 
 Give the gate this stance verbatim:
 
-> Your default verdict is REFUTE. Assume the code is correct and the candidate is a false positive
+> Your default verdict is refute. Assume the code is correct and the candidate is a false positive
 > until you have specifically failed to explain it away. Do not accept the candidate's reasoning; redo
-> it from the source. **If uncertain, it is NOT a finding.**
+> it from the source. **If uncertain, it is not a finding.**
 
 A verification subagent can return a verdict without having done the work. The gate therefore
 opens the cited file and reads the surrounding code, attempts each falsification route below, and

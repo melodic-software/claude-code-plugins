@@ -3,7 +3,7 @@
   "meta": {
     "purpose": "The lever catalogue: operator-controllable switches over the fixed startup payload that this plugin has recorded, as data rows. It is not a proof that no other switch exists; verify-catalogue --find-unstored lists env names in the measured binary that no row cites. A new lever is a row, not a rewrite. No row carries a token value — every saving is measured on the consumer's machine by the engine, per row's `measurement`.",
     "honestyRule": "A lever whose category cannot be determined for the consumer's configuration is not offered. Rows whose category is condition-dependent say so in `conditions`; the audit resolves the condition by measurement before presenting the lever.",
-    "dualLedger": "Two ledgers, never conflated: the CONTEXT-WINDOW ledger (what occupies reasoning space — the /context headline) and the REQUEST ledger (what ships and is billed every turn). Deferral moves weight between them; removal clears both. Each row's category refers to the request ledger unless `conditions` says otherwise.",
+    "dualLedger": "Two ledgers, never conflated: the context-window ledger (what occupies reasoning space — the /context headline) and the request ledger (what ships and is billed every turn). Deferral moves weight between them; removal clears both. Each row's category refers to the request ledger unless `conditions` says otherwise.",
     "staleness": "Every row carries `verified` (the date its claims were checked against the cited sources at the named CLI version) and `recheckTrigger`. A row whose trigger fired is re-derived from a fresh fetch of its citations before being offered — never trusted from this file alone.",
     "verifiedAgainst": { "cliVersion": "2.1.241", "date": "2026-08-23" },
     "categories": {
@@ -223,11 +223,11 @@
       "category": "removes-weight",
       "saving": "runtime-resolved",
       "categoryBasis": "The mechanism removes a skill from the listing. Whether that saves tokens is resolved on this machine: while the listing cap is saturated, freed space redistributes and the measured saving is zero; below the cap the Skills bucket moves. The cap is a character budget (skillListingBudgetFraction of the window, and skillListingMaxDescChars), not the Skills token total.",
-      "conditions": "While the skill listing is over its budget cap, disabling individual skills changes WHICH skills get full descriptions, not what is paid. Below the cap it removes weight. Resolve by measurement: if the baseline listing shows collapsed rows, the cap is binding.",
+      "conditions": "While the skill listing is over its budget cap, disabling individual skills changes which skills get full descriptions, not what is paid. Below the cap it removes weight. Resolve by measurement: if the baseline listing shows collapsed rows, the cap is binding.",
       "posture": "recommendable-on-fit",
       "scope": "Settings key, one skill at a time. To drop every claude.ai-synced skill on a machine, syncClaudeAiSkills: false is the other route (user, local or managed only).",
       "detection": "skillOverrides across scopes; collapsed rows in the baseline skill listing indicate cap saturation.",
-      "measurement": "snapshot before/after an override; compare the Skills bucket AND note the System tools artifact (see comparability rules — the listing changed, so System tools deltas are not tool-attributable).",
+      "measurement": "snapshot before/after an override; compare the Skills bucket and note the System tools artifact (see comparability rules — the listing changed, so System tools deltas are not tool-attributable).",
       "emittedConfig": "{\"skillOverrides\": {\"<skill-name>\": \"off\"}}",
       "caveats": [
         "The honest benefit while capped is routing accuracy (fewer candidates competing), not tokens — present it as that.",
@@ -342,7 +342,7 @@
       "mechanism": "Removes connector MCP servers (and so their tool schemas) from the session. Mechanisms with distinct scopes: disableClaudeAiConnectors (all, settings), ENABLE_CLAUDEAI_MCP_SERVERS (env gate), the /mcp panel toggle (one connector, per project, written to disabledMcpServers in ~/.claude.json), deniedMcpServers (policy, by serverName or serverUrl pattern), managed-mcp.json with allowAllClaudeAiMcps, and --mcp-config/--strict-mcp-config (per invocation).",
       "category": "removes-weight",
       "categoryBasis": "Mechanisms documented across the MCP/settings/managed-MCP pages. Connector tools commonly sit in the deferred pool, so the saving is request weight that may barely move the context-usage headline — the dual-ledger note applies.",
-      "conditions": "LOCAL CLI ONLY. On cloud/web surfaces connectors arrive as server-delivered --mcp-config entries: disableClaudeAiConnectors does not apply and deniedMcpServers serverUrl patterns do not match. Declare the narrower scope rather than promising correctness there (operator decision 2026-08-17).",
+      "conditions": "Local CLI only. On cloud/web surfaces connectors arrive as server-delivered --mcp-config entries: disableClaudeAiConnectors does not apply and deniedMcpServers serverUrl patterns do not match. Declare the narrower scope rather than promising correctness there (operator decision 2026-08-17).",
       "posture": "recommendable-on-fit",
       "scope": "Per mechanism, from managed policy down to one invocation.",
       "detection": "The keys above across scopes plus disabledMcpServers in ~/.claude.json; the baseline's mcpTools shows what is live.",
@@ -389,7 +389,7 @@
       "title": "Tool search / deferred loading (ENABLE_TOOL_SEARCH, alwaysLoad)",
       "mechanism": "Defers tool schemas out of the context window until fetched by tool search. The full schema still goes out in the request's tools array every turn so the cached prefix stays stable.",
       "category": "works-but-saves-nothing-here",
-      "categoryBasis": "Deferral semantics documented: it controls what enters the context window, not what is sent. The category is with respect to the REQUEST ledger; on the context-window ledger deferral is a real reasoning-space gain.",
+      "categoryBasis": "Deferral semantics documented: it controls what enters the context window, not what is sent. The category is with respect to the request ledger; on the context-window ledger deferral is a real reasoning-space gain.",
       "conditions": "Present deferral as context-window headroom, never as request/billing savings. The honest request-side lever for a deferred tool is still removal (bare-name deny or the owning feature's disable switch).",
       "posture": "disclose-only",
       "scope": "ENABLE_TOOL_SEARCH env var (unset/true/auto/auto:N/false), which the settings.json env field can also carry; per-server or per-tool alwaysLoad opt-outs in the MCP server entry. Neither has a dedicated settings.json key, and this lever emits no config (emittedConfig stays null).",
@@ -397,7 +397,7 @@
       "measurement": "The baseline snapshot's System tools (deferred) bucket is the deferral observation; differencing a specific tool shows which pool it leaves from.",
       "emittedConfig": null,
       "caveats": [
-        "Whether HTTP/Streamable-HTTP MCP tools defer at a given version is measured, never trusted from documentation: an upstream report of upfront loading (anthropics/claude-code#40314, closed not-planned) did NOT reproduce at the verified version — a probe server's tools measured deferred, in a dedicated 'MCP tools (deferred)' category separate from 'System tools (deferred)', with per-tool weights and isLoaded flags. Treat the two deferred buckets as distinct; the transition version and interactive behavior remain unknown."
+        "Whether HTTP/Streamable-HTTP MCP tools defer at a given version is measured, never trusted from documentation: an upstream report of upfront loading (anthropics/claude-code#40314, closed not-planned) did not reproduce at the verified version — a probe server's tools measured deferred, in a dedicated 'MCP tools (deferred)' category separate from 'System tools (deferred)', with per-tool weights and isLoaded flags. Treat the two deferred buckets as distinct; the transition version and interactive behavior remain unknown."
       ],
       "citations": [
         "https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#deferred-tool-loading",
@@ -418,7 +418,7 @@
       "posture": "disclose-only",
       "scope": "CLI flag, per invocation.",
       "detection": "Not persistent; nothing to detect in settings.",
-      "measurement": "snapshot spawned with and without the flag; compare System prompt AND Messages — judging only one row misreads relocation as saving.",
+      "measurement": "snapshot spawned with and without the flag; compare System prompt and Messages — judging only one row misreads relocation as saving.",
       "emittedConfig": null,
       "caveats": [
         "Exists for prompt-caching stability, not for savings; evaluating it on one row is exactly the confident-wrong-number trap."

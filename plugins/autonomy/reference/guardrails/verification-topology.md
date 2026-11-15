@@ -220,14 +220,11 @@ deterministically, narrate it with a model, route acceptance to a person. Per-re
 and per-frame metering make a lane's artifact volume a cost bound the runner resolves against the
 bound instance's declared limits, never a policy axis.
 
-Two claims previously carried here were removed on **2026-09-06** rather than restated: a
-precision-and-error-direction figure for model judgment over rendered artifacts, and a survey
-asserting that every established comparison product reaches this arrangement independently.
-Neither named a source, a date, or a method, and neither is settleable from this contract, so
-neither could be verified or corrected. The structural argument above and the runtime note below
-carry the rule without them. Recheck trigger: a maintainer who can cite a dated, sourced
-measurement adds it here as a record; until then the rule stands on structure, and a reader must
-not reintroduce a figure this contract cannot source.
+The rule stands on structure alone. This contract carries no precision or error-direction figure
+for model judgment over rendered artifacts, and no survey of comparison products, because none
+has a source, a date and a method. The structural argument above and the runtime note below carry
+the rule. A figure enters only as a dated, sourced measurement record; a figure this contract
+cannot source stays out.
 
 **Not demonstrated at runtime.** With no runner built there is no runtime in which to exercise the
 ordering, so the property claimed here is structural: no cell exists through which authority could

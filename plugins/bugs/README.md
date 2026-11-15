@@ -75,7 +75,8 @@ or as a daily routine. Four properties matter before you rely on it:
   may propose a check, such as a test; an interactive run asks you before each one, and a run
   passed `--unattended` runs none and labels every finding `verified-by-reading`.
 - **A bare run is read-only toward your repository and stays within a budget**. It stops at
-  three verified findings or a complete lane sample. Filing happens only when you pass
+  the verified-finding count the [skill's Effort table](skills/scan/SKILL.md#effort) sets for the
+  session's effort level, or at a complete lane sample. Filing happens only when you pass
   `--track`, and a complete lane sample is never reported as the lane being bug-free.
 - **Cost follows the scope, never the precision.** Hunters and gates take their models from the
   multi-agent role map (the skill's sizing table names the roles); hunters pass no effort and gates

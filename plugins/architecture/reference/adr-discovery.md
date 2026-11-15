@@ -5,7 +5,7 @@ shape once they are found. Loaded by `/architecture:record-decision` before it w
 `/architecture:improve` before a scan reads existing records.
 
 ADR placement varies widely, so a single default glob misses most of them. Walk the ladder below
-from the working area up to the repository root. **First hit wins**: a nearer directory beats a
+from the working area up to the repository root. The first hit wins: a nearer directory beats a
 further one, and a declaration beats an observation.
 
 ## Rung 1. Declared
@@ -44,13 +44,13 @@ Parse the identifier prefix of every record in the chosen directory, its archive
 record ever added under the directory in git history
 (`git log --diff-filter=A --name-only --format= -- <dir>`), so a retired record's number is never
 reused. The next identifier is the highest of
-those plus one, at the **same zero-pad width and separator** the existing records use (`0031-`,
+those plus one, at the same zero-pad width and separator the existing records use (`0031-`,
 `ADR-009-`, `31_` are three different answers to the same question). A gap in the numbering marks a
 retired record, not an error.
 
 A date-prefixed scheme uses today's date in the observed format rather than a counter.
 
-Duplicate identifiers are **reported, never fixed**. Renumbering breaks every inbound link, and the
+Duplicate identifiers are reported, never fixed. Renumbering breaks every inbound link, and the
 duplicate is a fact about the repository's history.
 
 ## Inference: shape
@@ -58,7 +58,7 @@ duplicate is a fact about the repository's history.
 An explicit template or a directory README wins: it states the intended shape. Absent one, read the
 newest two or three records and follow them.
 
-On disagreement between them, follow the **newest** and say so, rather than averaging shapes into a
+On disagreement between them, follow the newest and say so, rather than averaging shapes into a
 record that matches nothing.
 
 Keep exactly: the metadata block form (front matter, a status line, a date line, or none), the status

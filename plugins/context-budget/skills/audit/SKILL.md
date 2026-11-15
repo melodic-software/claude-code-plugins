@@ -37,8 +37,7 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs" snapshot --measure
 
 Per-skill, per-agent, and per-MCP-tool attribution stays with `/context`, which the person runs
 (the Boundary section below). This skill covers what our measurements see `/context` report only
-as totals: the built-in tool pools, `System tools` and `System tools (deferred)`. Together they
-are typically the largest single contributor to the fixed startup payload. This skill measures
+as totals: the built-in tool pools, `System tools` and `System tools (deferred)`. This skill measures
 that attribution on the consumer's own machine by A/B differencing: a baseline session versus one
 session per candidate tool with that tool denied by bare name. The two attributed buckets compose differently, so price a basket
 per bucket rather than as one number: deferred-side deltas add, and a basket's deferred saving is

@@ -243,7 +243,7 @@ list, deferred tool names included.
    what the session can check itself (`node`, `jq`, whether the mod loads), and ask the operator to run
    `/context-usage:setup check`, which is user-only, for the full diagnosis.
 
-A configured `statusLine` no longer decides either branch: the module needs none.
+A configured `statusLine` decides neither branch: the module needs none.
 
 ## What would have to change upstream
 

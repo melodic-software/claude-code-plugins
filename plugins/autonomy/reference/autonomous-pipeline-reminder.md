@@ -93,7 +93,8 @@ installed, so they stay self-contained by design.
 
 ## Relationship to the lane-stop gate
 
-`hooks/lane-stop-gate.sh` is the mechanism half, and it covers exactly one clause: the last one.
+`hooks/lane-stop-gate.sh` is the mechanism half, and it covers exactly one clause, the one that
+begins "End the turn only when the goal is met".
 On a lane's first unsignaled stop it blocks once and re-injects a completion self-check, and a
 lane that stops again is treated as genuinely down and reported to the operator.
 
@@ -110,7 +111,7 @@ reminder is worse than one known to cover a slice:
 
 A mechanism outranks an admonition wherever the shape allows one. Here the shape allows one for a
 single clause, and the honest arrangement is the gate for that clause plus stated instruction for
-the rest, not a gate presented as if it covered all seven.
+the rest, not a gate presented as if it covered all eight.
 
 ## Provenance
 

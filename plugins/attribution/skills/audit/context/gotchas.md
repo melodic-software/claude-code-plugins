@@ -32,7 +32,7 @@ against dates nobody wrote down precisely, which is worse than declining them an
 
 ## Zero expiry findings can be a real result
 
-At the 180-day default this repository's oldest parsed stamp is not yet due, so the check
+When no parsed stamp is older than the expiry window (180 days by default), the check
 correctly fires on nothing. That is a statement about the corpus, not a broken detector.
 
 Tell the two apart with `counts.parsed`: a run that parsed hundreds of stamps and expired none

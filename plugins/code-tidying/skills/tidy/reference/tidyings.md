@@ -33,7 +33,7 @@ Beck's framing: small, named refactorings nobody could hate on. Structural-only.
 
 ### #4: New Interface, Old Implementation
 
-- **When to apply:** **ONLY when the new interface has zero existing consumers.** Add a new abstraction layer over an existing implementation without changing the implementation. Tidy the call sites later.
+- **When to apply:** **Only when the new interface has zero existing consumers.** Add a new abstraction layer over an existing implementation without changing the implementation. Tidy the call sites later.
 - **When NOT to apply:** existing consumers exist that would need to migrate. That's not a tidying. That's a migration with breaking-change risk. **Treat as behavioral.**
 - **Example:** wrapping a static helper class behind an injectable interface, when no one currently calls the static directly. If anyone calls it directly today, this is migration work; defer.
 

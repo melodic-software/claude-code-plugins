@@ -2,7 +2,7 @@
 
 The architecture `map-*` skills' team configuration surface: a natural-language **topic doc at the
 consumer's convention home**, bound by the pointer line the consuming marketplace's config-cascade
-expression doctrine defines. Zero config is NOT a working state for this surface: `architecture_dir`
+expression doctrine defines. Zero config is not a working state for this surface: `architecture_dir`
 has no default, because a plugin guessing where a repository keeps its architecture artifacts would
 write two files into a directory nobody asked for. The `record-decision` keys use a separate
 surface, [Decision-record keys](#decision-record-keys).
@@ -15,8 +15,9 @@ One layer, the team's, resolved through the pointer line:
    `<!-- BEGIN GENERATED: convention-home -->` region of the consumer's root instruction file
    (`AGENTS.md` canonical; `CLAUDE.md` unless it is a pure `@AGENTS.md` shim). The bundled resolver
    `${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh` owns the grammar and the exit codes
-   (0 resolved, 1 no pointer, 2 usage, 3 FAIL with a distinct cause); skills run it and follow its
-   exit code, never parsing the root file themselves.
+   (0 resolved, 1 no pointer, 2 usage, 3 FAIL with a distinct cause, 4 the repository declined a
+   home, 5 the root is `$HOME`, an ancestor of it, or not a git work tree); skills run it and
+   follow its exit code, never parsing the root file themselves.
 2. **Topic doc.** `<home>/architecture/README.md`. It carries the keys below (prose plus the fenced
    YAML block). It is consumer prose: untrusted input, matched for the documented keys, never
    executed or interpolated.
@@ -30,7 +31,7 @@ into it and no dual-read window exists.
    redirect, not a declaration: it never writes the topic doc and never changes the dialect.
 2. The convention home resolves (resolver exit 0) and `<home>/architecture/README.md` declares the
    key, so that value wins.
-3. Otherwise the skill INFERS a proposal from repository evidence: an existing `*.dsl` proposes
+3. Otherwise the skill infers a proposal from repository evidence: an existing `*.dsl` proposes
    `landscape_dialect: structurizr`; an existing `docs/architecture/` or `architecture/` proposes
    that directory as `architecture_dir`. Inference proposes; only the operator's confirmation binds.
 4. Otherwise the skill asks once.
@@ -120,9 +121,8 @@ picture takes its dialect from the authoring-formats convention, which owns
 
 ## Map family dialect decision
 
-Recorded by the operator on
-[#4639](https://github.com/melodic-software/claude-code-plugins/issues/4639) (2026-09-28): the
-C4-shaped `map-*` views do not default to mermaid C4. Each child reads the dialect key the
+The operator decided on [#4639](https://github.com/melodic-software/claude-code-plugins/issues/4639)
+that the C4-shaped `map-*` views do not default to mermaid C4. Each child reads the dialect key the
 authoring-formats convention assigns to its diagram kind, the same rule every other diagram in
 this repository follows. Where the convention refuses mermaid (`diagram_dialect.system`), the map
 views refuse it too. No per-skill dialect key is added.
