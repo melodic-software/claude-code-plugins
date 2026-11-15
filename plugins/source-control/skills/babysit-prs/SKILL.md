@@ -232,10 +232,8 @@ silently dropped guard.
 
 - **The agent** decides severity (is this security/P1?), whether a finding is genuinely addressed,
   what a label means, and every fix-vs-escalate call, never a script. Escalate a security/P1
-  thread instead of resolving it, in every tier and mode and with no exception. The resolve wrapper
-  refuses a severity-flagged thread under `--autonomous` and `--independent-resolver`; a vetted
-  pinned `--resolve --thread-id` and autopilot's `--resolve --include-human` apply no severity
-  screen, so there the escalation rests on this agent (`safety.md`, "Security/P1 escalation has no exception").
+  thread instead of resolving it, in every tier and mode and with no exception. The resolve wrapper refuses a severity-flagged thread under `--autonomous` and `--independent-resolver`;
+  a vetted pinned `--resolve --thread-id` and autopilot's `--resolve --include-human` apply no severity screen, so there the escalation rests on this agent (`safety.md`, "Security/P1 escalation has no exception").
 
 ## Fan out: one fresh worker per PR that needs one, per cycle
 
