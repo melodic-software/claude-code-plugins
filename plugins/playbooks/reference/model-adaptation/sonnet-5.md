@@ -150,7 +150,7 @@ and planning chapters ask for. `[CC: prompt-authoring]`
 
 - **Do not relax instruction specificity.** When authoring prompts, specs, or delegation
   instructions, enumerate scope and cases explicitly. This is a per-model dial rather than a
-  virtue: the same over-prescription that helps you degrades Fable.
+  virtue. The same over-prescription that helps you degrades Fable.
 - **Size plan granularity to the executor.** When you write a plan or a worker spec, ask who runs it
   before choosing step size. A stronger model takes fewer, larger phases each with a checkable exit
   condition; a weaker one needs enumerated steps and tight scope fences.
