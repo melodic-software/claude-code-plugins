@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "ref refs/heads/dossier/40-returns-redesign\nfile .gitignore\nfile 41-return-reasons/findings.md\nfile 42-parcel-card-layout/explore-directions.html\nfile 42-parcel-card-layout/prototype-notes.md\nfile 42-parcel-card-layout/shots/1.png\nfile README.md\n",
+      "why": "the pushed dossier tree holds the notes file in item 42's folder"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ref refs/heads/dossier/40-returns-redesign\nfile 41-return-reasons/findings.md\nfile prototype/42-parcel-card-layout/prototype-notes.md\n",
+      "why": "the notes file sits under a prototype/ folder, not the item's own folder"
+    },
+    {
+      "answer": "ref refs/heads/dossier/40-returns-redesign\nfile 41-return-reasons/findings.md\nfile 42-parcel-card-layout/explore-directions.html\n",
+      "why": "the mockup was pushed but the notes file was not"
+    }
+  ]
+}

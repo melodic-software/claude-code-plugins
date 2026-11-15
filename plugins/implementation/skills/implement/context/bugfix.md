@@ -1,6 +1,6 @@
 # Bugfix Implementation
 
-Bug fixes follow a bottom-up approach, in this order: reproduce, isolate, fix, prove.
+Bug fixes follow a bottom-up approach: reproduce, isolate, fix, prove. Temptation is to jump to the fix. Resist it.
 
 **Posture.** The minimal-fix rule below holds under `by-kind` and `minimal`. When Step 0 resolved `integration_posture` to `day-one` with no approved plan, step 3 instead reshapes the code around the root cause so the corrected behavior reads as the original design, still inside the files the fix touches.
 

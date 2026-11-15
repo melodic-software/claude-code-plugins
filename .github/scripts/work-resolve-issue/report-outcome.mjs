@@ -7,8 +7,8 @@
 //             section when the run's `remaining` names the parts of the
 //             issue it leaves for later work (a malformed list counts as
 //             none); the merge lane reads a plain `Refs:` issue as it reads
-//             a closing one. Under that line go the `Refs:` and `Siblings:`
-//             lines the trusted issue's done-when asks the body to carry
+//             a closing one. Under that line go the `Refs:`, `Siblings:` and
+//             `Codifies:` lines the trusted issue's done-when asks the body to carry
 //             (linkageLines). The title is the run's Conventional
 //             Commits title, with any `#` or `/` a space
 //             (else one built from the issue title), and the body carries
@@ -593,10 +593,15 @@ const quoted = (value) =>
 // Built from the issue's text, never the run's, so the line keeps the ASCII
 // `#` that neutral() breaks in model text; main passes a body only when a
 // listed human or the lanes App wrote the issue. A Refs line naming the issue
-// itself is left out, since the body's first line already names it.
+// itself is left out, since the body's first line already names it. A
+// `Codifies:` line (the record /corrections:codify count-checks counts) is
+// copied only when it matches the record grammar whole and fits in 72
+// characters, so the squash commit's wrap cannot split it.
 const TASK_ITEM = /^ {0,3}[-*+] \[[ xX]\] (.*)$/;
 const PR_BODY = /\b(?:PR|pull request)(?:'s)? body\b/i;
 const LINKAGE = /`(Refs:[ \t]*#[1-9][0-9]{0,8}|Siblings:[ \t]*#[1-9][0-9]{0,8}(?:[ \t]*,[ \t]*#[1-9][0-9]{0,8}){0,9})[ \t]*`/g;
+const CODIFIES = /`(Codifies: (?:#[1-9][0-9]{0,8}|session) rung=[a-z][a-z0-9-]{0,39} (?:blocking|advisory))`/g;
+const MAX_CODIFIES_LENGTH = 72;
 export const MAX_LINKAGE = 10;
 export function linkageLines(body, issueNumber) {
   const lines = new Set();
@@ -609,6 +614,11 @@ export function linkageLines(body, issueNumber) {
       const text = quote.replace(/:[ \t]*/, ": ").replaceAll(/[ \t]*,[ \t]*/g, ", ");
       if (text !== `Refs: #${issueNumber}`) {
         lines.add(text);
+      }
+    }
+    for (const [, record] of item[1].matchAll(CODIFIES)) {
+      if (record.length <= MAX_CODIFIES_LENGTH) {
+        lines.add(record);
       }
     }
   }

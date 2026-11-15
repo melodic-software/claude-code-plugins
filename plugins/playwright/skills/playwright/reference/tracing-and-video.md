@@ -206,7 +206,7 @@ the file stays small.
 
 ## Known costs
 
-- Tracing adds per-action overhead; measure it on your own flow before budgeting for it
+- Tracing adds ~50-150ms/action overhead
 - Video adds real-time encoding overhead. WebM file size scales with frame area and with how much of
   the screen moves, so raising `--size` raises cost roughly in proportion. Measure your own flow
   rather than budgeting from a rule of thumb

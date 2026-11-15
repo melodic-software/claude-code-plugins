@@ -3,6 +3,24 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0] - 2026-11-15
+
+### Added
+
+- The control-skill contract adds an optional `Preconditions:` line that opens a feature's `## Drive`, and a never-weaken rule: a step whose data lacks a precondition fails, its reason goes in that feature's `## Gotchas`, and the steps stay as written. It also states the evidence each kind of step needs (a UI action, a command line, a change to stored data), pointing at `/testing:run-e2e`'s read-back rule. A driver CLI's dry run counts as trusted only once a run showed it changed nothing, marked in `cli/README.md`. `/app-control:map check` does not require the new line.
+- `/app-control:drive` records the command, exit code and standard error of each command-line step in `report.md` and `report.json` (`steps[].exit_code`, `steps[].stderr`), and never drops, skips or reorders a step to get past a failure.
+
+### Changed
+
+- `/app-control:map create` and `refresh` treat a wrong control skill and data that lacks a stated precondition as separate causes: create fixes the first and reruns once, and for the second writes the reason in the feature's `## Gotchas` and edits no step. Refresh triages the second as missing data. Create marks each `--dry-run` it writes `untrusted` unless it saw the dry run change nothing.
+
+## [0.25.2] - 2026-11-15
+
+### Changed
+
+- The README's "Not yet in this plugin" list no longer names attaching to a running process,
+  which `/app-control:drive --attach` does.
+
 ## [0.25.1] - 2026-11-14
 
 ### Fixed

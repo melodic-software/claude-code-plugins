@@ -133,7 +133,7 @@ Brandolini's book (*Introducing EventStorming*, Leanpub) is the **canonical sour
 1. **Always cross-check against Brandolini** before adopting into the skill
 2. Secondary sources are **enrichments** tagged `[BOURGAU]` or `[SUPPLEMENTED]`, never replacements for canonical content
 3. **When sources conflict, Brandolini wins**
-4. **When Brandolini is silent** (e.g., a part the in-progress book has not written yet), secondary sources fill the gap with clear attribution
+4. **When Brandolini is silent** (e.g., Design-Level at ~10% written), secondary sources fill the gap with clear attribution
 
 This matters because secondary authors publish their *interpretations* of how to facilitate Brandolini's method. Often good interpretations, but not Brandolini's prescribed sequence.
 

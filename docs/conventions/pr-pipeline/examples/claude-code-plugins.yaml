@@ -117,6 +117,7 @@ activities:
     inputs: [head-sha]
   sweep-comments:
     skill: review:fanout
+    args: --unattended            # a lane run has nobody to approve a check
     effect: read
     gating: advisory
     reads-untrusted: true

@@ -114,7 +114,7 @@ Claim a work item through the seam (assignee + lease record).
 
    **Multi-claim 3-option**, used when on a branch naming `<other-id>` and just claimed `<id>` (different item):
 
-   1. **Switch to `<type>/<ref>-<slug>`.** Uncommitted work on the current branch must be committed or stashed first; the agent never runs `git stash` on a shared branch without confirming. Emit `git checkout -b <type>/<ref>-<slug> <base-ref>` for the user.
+   1. **Switch to `<type>/<ref>-<slug>`.** WARN: uncommitted work on the current branch must be committed or stashed first; the agent never runs `git stash` on a shared branch without confirming. Emit `git checkout -b <type>/<ref>-<slug> <base-ref>` for the user.
    1. **Stay on current branch and cover both in one PR.** `/source-control:pull-request create` will add the adapter's closing line for both items at PR-time via its multi-issue prompt.
    1. **Skip.** Decide later; continue on current branch without rename.
 

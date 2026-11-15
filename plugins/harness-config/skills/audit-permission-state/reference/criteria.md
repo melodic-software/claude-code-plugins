@@ -431,9 +431,10 @@ page covers the related case of an ask rule matching one subcommand of a compoun
 subshell, including the version that fixed it; read it there. It is not a claim that every ask-rule
 miss is fixed.
 
-Upstream issue **anthropics/claude-code#83766** reports `permissions.ask` patterns auto-approved under
-`defaultMode: "auto"`; a reader acting on an `ask` finding reads its current state first. This plugin
-follows the auto-mode config page, the source with a stated contract.
+Upstream issue **#42797**, about auto mode ignoring `permissions.ask`, is closed. **#83766** remains
+open and still reports `permissions.ask` patterns auto-approved under `defaultMode: "auto"`. This
+plugin follows the auto-mode config page, the source with a stated contract. A reader acting on an
+`ask` finding should know #83766 is still open.
 
 **What this changes in practice:** an `ask` rule is reported here as outranking an `allow`, and as
 surviving auto mode. Treat `ask` as a prompt you *expect*, not a guarantee you *rely on*, and use

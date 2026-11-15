@@ -1,5 +1,20 @@
 # Changelog: evals
 
+## [0.18.15] - 2026-11-15
+
+### Fixed
+
+- The plugin-eval results reference now says a run's `costUsd` already includes that run's
+  `judgeCostUsd`, so a reader who adds the two no longer counts the judge cost twice. The note
+  gives its basis, date and recheck trigger.
+
+## [0.18.14] - 2026-11-15
+
+### Changed
+
+- The design and methodology instructions drop capital-letter emphasis.
+- The price-before-running grader's fail clause now matches its pass clause and the case's expected outcome: 24 runs and a 4.2 to 5 USD band.
+
 ## [0.18.13] - 2026-11-15
 
 ### Fixed

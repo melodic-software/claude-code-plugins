@@ -1,11 +1,11 @@
 {
   "name": "review",
-  "description": "Code-review toolkit: nine agents, read-only over the reviewed code, plus orchestration skills for the quality gate and fan-out, a pull-request change digest with an interactive view (/review:explain-change), a merge-risk rating with a demote-only flag (/review:merge-risk), a fan-out sweep workflow (/review:fanout-sweep), and CI lane commands (/review:code-review, /review:security-review) for org reusable workflows.",
+  "description": "Code-review toolkit: ten agents, read-only over the reviewed code, plus orchestration skills for the quality gate and fan-out, a pull-request change digest with an interactive view (/review:explain-change), a merge-risk rating with a demote-only flag (/review:merge-risk), a fan-out sweep workflow (/review:fanout-sweep), and CI lane commands (/review:code-review, /review:security-review) for org reusable workflows.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "9.2.4",
+  "version": "9.4.0",
   "license": "MIT",
   "keywords": [
     "review",
@@ -57,6 +57,28 @@
       "description": "How many rows under each By axis heading (Spec, Standards) of a /review:fanout report are marked act on; default 2, a whole number of at least 1. The other rows stay in the report, marked no. A repository's docs/conventions/review.yaml fanout_act_on_cap wins over this option.",
       "default": 2,
       "min": 1
+    },
+    "reproduce_findings": {
+      "type": "string",
+      "title": "Reproduce findings",
+      "description": "off (default): reports unchanged. label: findings at or above the floor go to a refute gate and get evidence labels; refuted ones are not acted on. require: unreproduced ones are not acted on either. Nothing runs reviewed code without your yes. The repository's docs/conventions/review.yaml wins.",
+      "default": "off",
+      "options": [
+        "off",
+        "label",
+        "require"
+      ]
+    },
+    "reproduce_findings_floor": {
+      "type": "string",
+      "title": "Reproduce findings floor",
+      "description": "The lowest tier the reproduce_findings gate checks; findings below it are labeled not-attempted. IMPORTANT (default), CRITICAL or SUGGESTION; another value is reported and every finding is checked. A repository's docs/conventions/review.yaml reproduce_findings_floor wins over this option.",
+      "default": "IMPORTANT",
+      "options": [
+        "CRITICAL",
+        "IMPORTANT",
+        "SUGGESTION"
+      ]
     },
     "smell_baseline": {
       "type": "string",

@@ -3,6 +3,38 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.3.0] - 2026-11-15
+
+### Added
+
+- **`/planning:design` uses the architecture skills when the work changes module structure.**
+  Phase 4 invokes `/architecture:principles` (if enabled) for the module-design terms the topology
+  uses, and names `/architecture:improve` (if enabled) as the step that finds which existing
+  modules to reshape. Without the architecture plugin it says once what the plugin would add.
+- **`/planning:plan`** names both skills in its prerequisite check when the plan reshapes existing
+  modules.
+
+### Changed
+
+- **DIP** in `reference/design-principles.md` adds that constructing a collaborator in place is a
+  design decision, and cites Steve Smith's "New is Glue" (2012).
+
+## [5.2.4] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [5.2.3] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+### Fixed
+
+- The pass sample in the `interview-round-topic-groups` eval case now ends on the closing probe, with the note that the user may answer in any order just before it. The interview skill's round layout requires that order.
+
 ## [5.2.2] - 2026-11-15
 
 ### Changed

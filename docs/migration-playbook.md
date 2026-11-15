@@ -362,7 +362,7 @@ different layout**: a plugin's `evals/` tree of `<case>/prompt.md` plus `graders
 **What is adopted.** This marketplace uses `claude plugin eval` (version floor: [plugin evals § Requirements](https://code.claude.com/docs/en/plugin-evals#requirements)).
 The adopted surface is the `evals` plugin, whose `/evals:plugin-eval` guides a run of the command
 and whose `/evals:validate` checks case files with no model call, over the pilot suite at
-`plugins/evals/evals/`. `melodic-software/medley#1418`, which carried the earlier deferral, stays open on its own terms; this record supersedes that deferral but does not close the ticket.
+`plugins/evals/evals/`. `melodic-software/medley#1418` stays open on its own terms; this record does not close it.
 
 **The suite format is the default for new cases.** The per-skill `evals/evals.json` corpus is
 legacy: `scripts/check-changed-skills.sh` still accepts it in place of a tagging suite case,

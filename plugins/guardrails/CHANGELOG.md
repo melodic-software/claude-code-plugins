@@ -3,6 +3,19 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.9] - 2026-11-15
+
+### Fixed
+
+- The `reference-verify` pre-push entry no longer judges lines that a merged branch brings in when one of the remote's tracking refs already holds them, for any branch. Before, it skipped such lines only for a merge of the default branch, so a push that merged a long-lived integration branch ran the verifiers on every file that branch changed. That could take minutes, long enough for the remote to drop the idle ssh connection. The entry now uses the same rule as `pre-push-content`, and the README row also names the `Connection to <host> closed by remote host.` failure.
+
+## [3.4.8] - 2026-11-15
+
+### Changed
+
+- The plugin description counts 18 guards, the two advisory guards' option descriptions say only that they are off by default and how to turn them on, and the README states where the reference verifiers run and how hook budgets are set.
+- The root-delete guard's block messages name the real cause of an unfollowable `cd` and say where a literal path goes for robocopy and .NET delete calls; the setup skill says which actions ask questions.
+
 ## [3.4.7] - 2026-11-15
 
 ### Changed

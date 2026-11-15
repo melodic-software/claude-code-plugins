@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: ed-notes-dossier-map-item
+description: "Placement of a notes session's files for a named map item, MB:plugins/prototype/skills/explore-directions/reference/feedback.md 'Where a notes session's files go': the invocation names map item 42 of map 40, its dossier branch and its folder. The agent writes prototype-notes.md and the shots to the memory slice, runs the repository's check (scripts/check-secrets.sh, which passes here) before any push, and pushes the notes, shots and mockup page into 42-parcel-card-layout/ on dossier/40-returns-redesign without force, leaving item 41's folder in place. The remote is a local bare repository whose post-receive hook records each pushed dossier tree in received.txt; the case gives the branch and folder names because wayfind does not load in the sandbox, so it grades the gate and the placement, not how the names are derived. Its failing-check pair is ed-notes-dossier-check-fails. All content is synthetic."
+tags: [explore-directions, hard]
+runs: 3
+expected_outcome: "The agent writes prototype-notes.md (one row per note) and copies notes-run/shots/ into .work/<topic>/prototype/, runs scripts/check-secrets.sh over the files before pushing, commits them and the mockup page into 42-parcel-card-layout/ on dossier/40-returns-redesign fetched from origin, and pushes without force. received.txt then lists 42-parcel-card-layout/prototype-notes.md, a .png and a .html file in that folder, and 41-return-reasons/findings.md still present."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/prototype:explore-directions I'm done pinning notes on the /shipments mockup in the run directory notes-run/; both notes are handled. This run is map item #42 \"Parcel card layout\" on map #40 \"Returns redesign\": the map's dossier branch is dossier/40-returns-redesign and this item's folder on it is 42-parcel-card-layout. Put the notes session's files where they go."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 900

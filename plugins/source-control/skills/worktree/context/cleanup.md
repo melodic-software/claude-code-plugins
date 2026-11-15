@@ -205,7 +205,8 @@ Five rules govern this step; each closes a way it could do real harm:
   worktree to a bare existence check, and destroying those records is unrecoverable data loss. Orphans from worktrees removed any other way are **reported by
   `audit`, not reaped here**. See [audit.md](audit.md).
 - **A non-zero exit is a no-op to report, never an escalation.** The CLI's own failure text for an id
-  with no project-scope record here suggests re-running with `--scope user`. Following that suggestion would uninstall the plugin **fleet-wide**.
+  with no project-scope record here reads `Plugin "<id>" is installed in user scope, not project.
+  Use --scope user to uninstall.` Following that suggestion would uninstall the plugin **fleet-wide**.
   Never run `-s user`, and never `--prune` (which reaches past project scope into shared
   auto-installed dependencies).
 - **Every uninstall carries `--keep-data`, and the helper passes it unconditionally.** The CLI

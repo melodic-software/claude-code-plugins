@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.20.5] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [0.20.4] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [0.20.3] - 2026-11-15
+
+### Changed
+
+- The audit skill's notes drop authoring history and describe the zero-expiry result without this
+  repository's stamp dates; capital-letter emphasis is lower-cased.
+- The setup skill gains a `## Next` pointer to `/attribution:audit`.
+
 ## [0.20.2] - 2026-11-15
 
 ### Changed

@@ -26,8 +26,9 @@
 # current branch against its upstream. Whichever way it came, a range's base
 # then moves up to the nearest of the remote's tracking refs between it and
 # the tip (nearest_pushed_base), so a new branch stacked on a pushed branch is
-# judged only on what it adds to that branch. A range whose tip merged the default
-# branch is narrowed to the lines the branch itself adds (narrow_to_branch).
+# judged only on what it adds to that branch. A range whose tip merged a branch
+# one of the remote's tracking refs holds (the default branch or any other) is
+# narrowed to the lines the branch itself adds (narrow_to_branch).
 # Each range is checked on its own, in
 # that range's tip: the checkout when HEAD is the tip and the tree is clean,
 # else a temporary detached worktree of the tip, removed afterwards.
@@ -85,21 +86,26 @@ fi
 [[ -f "$run_guards" ]] || exit 0
 
 # The tip and base of the range being checked; both empty for --worktree.
-# MAIN_BASE is the tip's merge-base with the remote's default branch when the
-# range carries commits merged in from it (see narrow_to_branch), else empty.
+# MERGE_BASES holds the tip's merge-bases with the remote's tracking refs when
+# the range carries commits merged in from them (see pushed_merge_bases), else
+# nothing.
 TIP=""
 BASE=""
-MAIN_BASE=""
+MERGE_BASES=()
 
-# is_new <path>: the range adds the file rather than changing it.
+# is_new <path>: the range adds the file rather than changing it: neither BASE
+# nor any of MERGE_BASES holds it.
 is_new() {
   if [[ "$CHECKS_MODE" == worktree ]]; then
     ! git ls-files --error-unmatch -- ":(literal)$1" >/dev/null 2>&1 ||
       ! git cat-file -e "HEAD:$1" 2>/dev/null
     return
   fi
-  ! git cat-file -e "$BASE:$1" 2>/dev/null &&
-    { [[ -z "$MAIN_BASE" ]] || ! git cat-file -e "$MAIN_BASE:$1" 2>/dev/null; }
+  local m
+  for m in "$BASE" ${MERGE_BASES[@]+"${MERGE_BASES[@]}"}; do
+    git cat-file -e "$m:$1" 2>/dev/null && return 1
+  done
+  return 0
 }
 
 # changed_lines: the lib's ranges, except that a file the range adds as a copy
@@ -161,27 +167,31 @@ changed_lines() {
   mv "$CHECKS_TMP/ranges.new" "$CHECKS_TMP/ranges"
 }
 
-# narrow_to_branch: a range whose tip merged the default branch since the last
-# push holds the lines that merge brought in, which the branch did not write.
-# Keep only the lines added both since the last push and against the tip's
-# merge-base with the default branch, so a check never judges more than the
-# plain range.
+# narrow_to_branch: a range whose tip merged a pushed branch since the last push
+# holds the lines that merge brought in, which the branch did not write. Keep
+# only the lines added both since the last push and against each of
+# MERGE_BASES, so a check never judges more than the plain range. A line the
+# branch adds that a merged base already holds at the same place is dropped too.
 narrow_to_branch() {
-  [[ -n "$MAIN_BASE" ]] || return 0
-  mv "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.push"
-  printf '%s %s\n' "$MAIN_BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
-  changed_lines
-  mv "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.main"
+  local m s
+  ((${#MERGE_BASES[@]})) || return 0
+  cp "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.push"
+  for m in "${MERGE_BASES[@]}"; do
+    mv "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.kept"
+    printf '%s %s\n' "$m" "$TIP" >"$CHECKS_TMP/push-ranges"
+    changed_lines
+    mv "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.merged"
+    checks_intersect_ranges "$CHECKS_TMP/ranges.merged" "$CHECKS_TMP/ranges.kept" >"$CHECKS_TMP/ranges"
+    s=$?
+    # A failed awk fails the hook and keeps the plain range, never fewer lines.
+    if ((s != 0)); then
+      printf '%s %s\n' "$BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
+      checks_tool_failed awk "$s" 'narrowing the changed lines to the branch'
+      mv "$CHECKS_TMP/ranges.push" "$CHECKS_TMP/ranges"
+      return 1
+    fi
+  done
   printf '%s %s\n' "$BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
-  checks_intersect_ranges "$CHECKS_TMP/ranges.main" "$CHECKS_TMP/ranges.push" >"$CHECKS_TMP/ranges.new"
-  local s=$?
-  # A failed awk fails the hook and keeps the plain range, never fewer lines.
-  if ((s != 0)); then
-    checks_tool_failed awk "$s" 'narrowing the changed lines to the branch'
-    mv "$CHECKS_TMP/ranges.push" "$CHECKS_TMP/ranges"
-    return 1
-  fi
-  mv "$CHECKS_TMP/ranges.new" "$CHECKS_TMP/ranges"
 }
 
 # nearest_pushed_base: moves BASE to the commit of a tracking ref of $remote
@@ -200,17 +210,35 @@ nearest_pushed_base() {
   [[ -z "$best" ]] || BASE="$best"
 }
 
-# main_base_for_range: sets MAIN_BASE for the current BASE..TIP, empty unless
-# the default branch's merge-base is not already behind BASE.
-main_base_for_range() {
-  local head m
-  MAIN_BASE=""
-  head="$(checks_remote_head "$remote")"
-  [[ -n "$head" ]] || return 0
-  m="$(git merge-base "$TIP" "$head" 2>/dev/null)" || return 0
-  [[ -n "$m" && "$m" != "$BASE" ]] || return 0
-  git merge-base --is-ancestor "$m" "$BASE" 2>/dev/null && return 0
-  MAIN_BASE="$m"
+# pushed_merge_bases: sets MERGE_BASES for the current BASE..TIP to the commits
+# already on the remote that the tip merged in: pre-push-content's rule, that a
+# commit one of the remote's tracking refs holds is on the remote already. One
+# walk lists the commits the remote lacks and, as its boundary, the held
+# commits they sit on, the default branch's included; BASE and any held commit
+# BASE or another one holds are dropped. With no commit the remote lacks, the
+# remote holds the tip itself, so the tip is the one base. A git failure
+# leaves no base, which narrows nothing and judges the plain range.
+pushed_merge_bases() {
+  local walk line own=0
+  local -a held=()
+  MERGE_BASES=()
+  walk="$(git rev-list --boundary "$TIP" --not "$BASE" --remotes="$remote" 2>/dev/null)" || return 0
+  while IFS= read -r line; do
+    if [[ "$line" == -* ]]; then
+      [[ "${line#-}" == "$BASE" ]] || held+=("${line#-}")
+    elif [[ -n "$line" ]]; then
+      own=1
+    fi
+  done <<<"$walk"
+  if ((!own)); then
+    [[ "$TIP" == "$BASE" ]] || MERGE_BASES=("$TIP")
+    return 0
+  fi
+  ((${#held[@]})) || return 0
+  walk="$(git merge-base --independent "$BASE" "${held[@]}" 2>/dev/null)" || return 0
+  while IFS= read -r line; do
+    [[ -z "$line" || "$line" == "$BASE" ]] || MERGE_BASES+=("$line")
+  done <<<"$walk"
 }
 
 # added_lines <path>: the lines the range adds, in order.
@@ -402,7 +430,7 @@ else
   while read -r BASE TIP <&3; do
     nearest_pushed_base
     printf '%s %s\n' "$BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
-    main_base_for_range
+    pushed_merge_bases
     if tip_is_checkout; then
       check_range
       continue

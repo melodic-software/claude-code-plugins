@@ -159,7 +159,7 @@ const attempted = (run) => !(run.conclusion === "neutral" && String(run.output?.
 // A select job that finds the stop gone on its head skips stop-resolved and
 // report-stop-status posts success over the failing status, which this job
 // cannot read, so that skip stands for the success.
-export const AUDIT_WORKFLOWS = ["maintenance-audit-test-selection", "maintenance-check-upstream-drift"];
+export const AUDIT_WORKFLOWS = ["maintenance-audit-test-selection", "maintenance-file-upstream-drift-issues"];
 // Pull-request and merge-group runs hold no lane token, and a merge-group
 // failure is counted as an ejection instead.
 const SKIP_FAILED_EVENTS = new Set(["pull_request", "merge_group"]);

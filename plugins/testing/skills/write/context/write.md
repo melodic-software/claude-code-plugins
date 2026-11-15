@@ -1,6 +1,6 @@
 # Write Tests (TDD Mode)
 
-Write tests in the TDD cadence: Red (failing test) -> Green (make it pass) -> Refactor (clean up), whether test-first or test-alongside. For a testing decision such as whether to mock, whether to test output or state, or which quadrant the code is in, load `/tdd:principles` (when the `tdd` plugin is enabled) for Beck and Khorikov's guidance.
+Write tests in the TDD cadence: Red (failing test) -> Green (make it pass) -> Refactor (clean up), whether test-first or test-alongside. When uncertain about a testing decision (mock this? output or state test? which quadrant is this code in?), load `/tdd:principles` (when the `tdd` plugin is enabled) for Beck and Khorikov's guidance.
 
 ## Vertical slices, not horizontal layers
 

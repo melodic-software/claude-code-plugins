@@ -12,10 +12,11 @@ name: PR Verify Capture
 #
 # It runs on the trigger pr-verify.yml runs on, for the heads its judges
 # would judge: the same job `if` (no fork head), then the kill switch, the
-# resolver, the trigger gate and their agreement, so it captures nothing on a
-# run that judges nothing. With merge.verify-capture.app unset in main's
-# pr-pipeline.yaml it stops after the kill switch with a note. The token
-# reads only and the job can only read the cache.
+# key's credit read, the resolver, the trigger gate and their agreement, so
+# it captures nothing on a run that judges nothing. With
+# merge.verify-capture.app unset in main's pr-pipeline.yaml it stops after
+# the kill switch with a note. The token reads only and the job can only
+# read the cache.
 #
 # Credential separation (owner decisions Q11, Q6 option A, Q7 (a) and
 # Q9 (c)): the capture job holds only pr-verify's API key, and gives it to
@@ -40,12 +41,16 @@ name: PR Verify Capture
 # pull request code runs. A probe leg that hands off (run-claude-cli's
 # handoff: a credit stop, or class auth with API status 401 or 402) skips
 # the probe check, so that job checks out no head code and stays green.
-# When the key cannot capture (its credit gate skipped the key, its probe
-# leg handed off, or the key is empty), the same job uploads a capture
-# recorded blocked: a subscription token cannot go behind the key proxy, so
-# no second leg could capture, and a job for it would only repeat these
-# gates' reads. A driver that stops at the usage limit after the head
-# checkout leaves a blocked capture saying so, as any driver failure does.
+# When the key cannot capture (its probe leg handed off, or the key is
+# empty), the same job uploads a capture recorded blocked: a subscription
+# token cannot go behind the key proxy, so no second leg could capture, and a
+# job for it would only repeat these gates' reads. When the credit gate
+# skips the key the job stops before the resolver and uploads nothing, and
+# the verdict records the capture blocked from find-capture's miss, with the
+# reason "left no capture artifact for this head": expected during a credit
+# stop, not an upload fault. A driver
+# that stops at the usage limit after the head checkout leaves a blocked
+# capture saying so, as any driver failure does.
 # Every checkout keeps no credential in its .git/config. Steps after the
 # head checkout load .base's scan-upload, which head code could have
 # changed; the capture is untrusted data to its only reader, and nothing
@@ -53,21 +58,28 @@ name: PR Verify Capture
 #
 # The credit gate (ci-workflows select-model-credential, reading
 # check-key-credit's history) skips the key while its last credit stop is
-# inside vars.KEY_CREDIT_WINDOW_HOURS (1 hour unset).
+# inside vars.KEY_CREDIT_WINDOW_HOURS (1 hour unset), or while another run's
+# probe of the key is in flight.
 # The capture job uploads the gate's credit-stop marker after its probe's
 # credit stop, and the probing marker when the gate names this run the
-# probe; both before the head checkout, from this run's own evidence. A
+# probe and the run is past the agree step, so a run the resolver or the
+# trigger gate stops never claims the probe; both before the head checkout,
+# from this run's own evidence. A
 # marker is still forgeable: any same-repository pull_request workflow can
 # upload an artifact of either name, and gate.cjs newestMarker checks only
 # head_repository_id. A forged one can only skip the key leg, which leaves
 # the capture blocked: no credential leak.
 #
 # A change that touches no feature of the control skill is recorded
-# not-applicable by the job's match step, before the credit gate, from the
-# changed path names alone: the key is not read and no model session starts.
+# not-applicable by the job's match step, before the key call, from the
+# changed path names alone: the key is not set up and no model session
+# starts. The match needs the resolver's SHAs, so while the credit gate
+# skips the key such a change records blocked, not not-applicable; the
+# judges treat both alike (prompt.md).
 #
 # The job uploads at most one pr-capture-<pr>-<head-sha>, the capture, a
-# blocked one or a not-applicable one; find-capture.mjs reads the run's conclusion and the run's
+# blocked one or a not-applicable one, and none when the credit gate skips
+# the key; find-capture.mjs reads the run's conclusion and the run's
 # artifacts. The judges wait find-capture.mjs WAIT_MS (35 minutes) from
 # their find step's start, which comes about when this run starts, so the
 # job's 30 minutes fit; one that starts more than about 5 minutes after this
@@ -192,11 +204,49 @@ jobs:
           echo "app=$app" >>"$GITHUB_OUTPUT"
           echo "retention-days=$days" >>"$GITHUB_OUTPUT"
 
+      # Whether the key is still out of credit (select-model-credential's
+      # start call: check-key-credit's artifact-list reads for the `marker`
+      # this job uploads after a credit stop and the probing marker). It needs
+      # nothing of the pull request, so it runs first: a held key
+      # (next-leg subscription) could only record the capture blocked, so
+      # the job stops here, before the resolver's reads, and uploads nothing;
+      # find-capture then records the verdict's capture blocked by its miss.
+      # Its own step, under continue-on-error and a 2-minute limit, so a read
+      # that fails or hangs leaves next-leg empty and the job goes on.
+      - name: Read the key's credit history
+        id: credit
+        if: steps.config.outputs.app != ''
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: start
+          key-job: capture
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
+
+      # The skipped key leg's lane record: outcome skip, class credit-stop,
+      # handed off. It comes from the credit read alone, so it also counts
+      # runs the resolver, the trigger gate or the match step would have
+      # stopped, and changes that touch no feature: a skip count is per run
+      # with an app set, not per head the judges judge.
+      - name: Report the skipped key leg
+        if: steps.credit.outputs.next-leg == 'subscription'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: skipped
+          lane: pr-verify-capture
+          lane-id: pr-verify-capture
+          credential: PR_VERIFY_CLAUDE_API_KEY
+          known-failure-class: credit-stop
+          handoff: "true"
+
       # pr-verify.yml's resolver, unchanged: it skips every head the judge
       # would not judge, so neither does this job.
       - name: Resolve the pull request
         id: pr
-        if: steps.config.outputs.app != ''
+        if: steps.config.outputs.app != '' && steps.credit.outputs.next-leg != 'subscription'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
@@ -318,27 +368,10 @@ jobs:
           echo "applicable=false" >>"$GITHUB_OUTPUT"
           echo "::notice::the change touches no feature; the capture is recorded not-applicable and no model session runs"
 
-      # Whether the key is still out of credit (select-model-credential's
-      # start call: check-key-credit's artifact-list read for the `marker`
-      # this job uploads after a credit stop). Its own step, under
-      # continue-on-error and a 2-minute limit, so a read that fails or hangs
-      # leaves next-leg empty and the key runs. It runs only where the key
-      # call below does, so a run that skips there spends no call.
-      - name: Read the key's credit history
-        id: credit
-        if: steps.agree.outcome == 'success' && steps.match.outputs.applicable != 'false'
-        continue-on-error: true
-        timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
-        with:
-          leg: start
-          key-job: capture
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
-          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
-
-      # Whether the key runs: it is set, and the read above did not hold it
-      # off (selected). Only whether the secret is set reaches the action,
-      # never its value.
+      # Whether the key runs: it is set, and the credit read did not hold it
+      # off (selected; a held key never gets here, since the resolver skips
+      # then). Only whether the secret is set reaches the action, never its
+      # value.
       - name: Check the credential
         id: credential
         if: steps.agree.outcome == 'success' && steps.match.outputs.applicable != 'false'
@@ -348,20 +381,6 @@ jobs:
           role: pr-verify
           credential-set: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
           selected: ${{ steps.credit.outputs.next-leg }}
-
-      # The skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off, so leg counts before and after the gate compare.
-      - name: Report the skipped key leg
-        if: steps.credential.outputs.key-skipped == 'true'
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
-        with:
-          outcome: skipped
-          lane: pr-verify-capture
-          lane-id: pr-verify-capture
-          credential: PR_VERIFY_CLAUDE_API_KEY
-          known-failure-class: credit-stop
-          handoff: "true"
 
       # The verify-pr route's model, turns and effort, as the judge's.
       - name: Resolve the capture's model
@@ -377,7 +396,10 @@ jobs:
       # Read by the next runs' gates: the probing marker the gate names
       # (gate.cjs probeName) when this run tries the key first after a credit
       # stop's window, so they skip while this run's probe does. Written only
-      # when the key is set, the probe's own term. The name is written out so
+      # when the key is set, the probe's own term, which the key call sets
+      # only past the agree step and the match: the read names the probe
+      # before the resolver runs, and a run stopped there never claims it.
+      # The name is written out so
       # its retention row claims it. An artifact upload uses the runner's
       # token, not the job token.
       - name: Write the key's probing marker
@@ -1126,8 +1148,10 @@ jobs:
           handoff: ${{ steps.probe.outputs.handoff }}
           handoff-reason: ${{ steps.probe.outputs.handoff-reason }}
 
-      # The key could not capture and a subscription token cannot go behind
-      # the key proxy, so no leg captures: the blocked capture in run-e2e's
+      # The key could not capture (it is empty, or its probe handed off; a
+      # credit-gate skip stopped the job before the resolver) and a
+      # subscription token cannot go behind the key proxy, so no leg
+      # captures: the blocked capture in run-e2e's
       # shape, which write-verdict.mjs reads as any other, so a verdict still
       # records why none ran. No head code is checked out after it.
       - name: Write the blocked capture

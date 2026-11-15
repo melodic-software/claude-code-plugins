@@ -1,5 +1,25 @@
 # Changelog: docs-hygiene plugin
 
+## [4.0.7] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [4.0.6] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [4.0.5] - 2026-11-15
+
+### Changed
+
+- The audit, compress, extract-ssot, rename-references and write-for-agents instructions drop capital-letter emphasis and settle points where two files disagreed, such as when the semantic-diff pass runs and whether extract-ssot commits its own waves.
+- extract-ssot's identify survey and verify Gate 1 both leave generated blocks and the candidate SSOT's own file out of reproduction counts.
+- Stale line-number citations, undated measured figures and restated tool behavior are replaced with current values or pointers to the live source.
+
 ## [4.0.4] - 2026-11-15
 
 ### Changed

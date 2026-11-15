@@ -3,6 +3,14 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.2] - 2026-11-15
+
+### Changed
+
+- The audit skill's description and README say `--fix` ends the report with a suggestion the user
+  runs, say at which validation levels a validator runs, and say the Boundary section names
+  sibling lanes without invoking them.
+
 ## [0.14.1] - 2026-11-14
 
 ### Changed

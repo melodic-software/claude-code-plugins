@@ -219,6 +219,65 @@
         "Still writes the durable candidate artifact to the memory tier and gives its path",
         "Prints the resolver's report line naming the plugin option (userConfig) as the source of the medium, and the retired-file notice for ~/.claude/rendered-views.md"
       ]
+    },
+    {
+      "id": 16,
+      "name": "layout-no-style-attended-asks-once",
+      "prompt": "/architecture:improve layout. This repository has no ADRs, no architecture topic doc, no boundary rules in any of the enforcement ladder's sources, and no docs/conventions/architecture.yaml. It has 800 commits; src/orders/OrderForm.tsx, src/api/orders.ts, src/db/orderRepo.ts and src/tests/orders.test.ts change together in most order commits. I am here to answer questions.",
+      "expected_output": "Reads the recorded-style sources first and says none records a layout style, naming the sources it checked. Asks once how the repository should group files into folders and offers /architecture:record-decision to record the answer, without running it. Runs the co-change script once and builds each card from its output, then asks which candidate to explore.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "States that no layout style is recorded and names the sources it checked",
+        "Asks exactly once how this repository should group files into folders",
+        "Offers /architecture:record-decision to record the answer and does not invoke it unasked",
+        "Runs scripts/co-change.mjs once and takes every number on the cards from its JSON output",
+        "Ends by asking which candidate to explore"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "layout-no-style-unattended-reports-without-judging",
+      "prompt": "/architecture:improve layout. [Unattended run: no one will answer a question.] This repository records no layout style: no ADRs, no architecture topic doc and no boundary rules. src/orders/OrderForm.tsx, src/api/orders.ts, src/db/orderRepo.ts and src/tests/orders.test.ts change together in most order commits.",
+      "expected_output": "Says no layout style is recorded and asks nothing. Runs the co-change script and reports the evidence: each cluster's files, folders, spread, focus, pattern or unclassified, and pair counts with citing commits. Every card reads 'none recorded' for its style, makes no judgment against a style, and carries the Speculative badge.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Asks no question and does not offer to wait for an answer",
+        "Reports each cluster's files, folders, spread, focus, pattern name or unclassified, and pair counts with citing commits from the script's output",
+        "Each card shows 'none recorded' for its style and says nothing about whether the layout agrees with a style",
+        "Every card carries the Speculative badge"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "layout-marker-card-for-scattered-rule",
+      "prompt": "/architecture:improve layout. ARCHITECTURE.md line 22 records: \"The files src/billing/invoice.ts, src/reports/ledger-view.ts and lib/tax.ts hold the tax rules and must change only through a reviewed tax change.\" No other layout style is recorded. I am here to answer questions.",
+      "expected_output": "Records the ARCHITECTURE.md rule with its source line. Notes that the three files it governs share no folder and no file-name part, and gives the rule a marker card that proposes a shared file-name part (such as a suffix) the rule could be enforced by, routed to the conventions lens, /architecture:improve conventions. Renames no file.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Cites ARCHITECTURE.md:22 as the rule's source",
+        "States that src/billing/invoice.ts, src/reports/ledger-view.ts and lib/tax.ts share no folder and no file-name part",
+        "Presents a marker card proposing a shared file-name part for the rule's files",
+        "Routes the marker card to /architecture:improve conventions",
+        "Renames no file"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "layout-unattended-stops-after-report",
+      "prompt": "/architecture:improve layout. [Unattended run: no one will answer a question.] docs/adr/0004-folder-per-feature.md line 9 records \"Each feature lives in one folder under src/features/.\" History shows src/features/cart/CartView.tsx changing with src/shared/cartTotals.ts, src/hooks/useCart.ts and src/api/cart.ts in most cart commits.",
+      "expected_output": "Judges the cart cluster against the recorded folder-per-feature decision and cites docs/adr/0004-folder-per-feature.md:9 on the card, with a proposed layout and before and after folder trees. Writes the candidate artifact to the memory tier, then stops: it asks no question, runs no interview, invokes no other skill, and moves, renames or deletes no file.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Cites docs/adr/0004-folder-per-feature.md:9 as the recorded style on the cart card",
+        "The card carries a one-sentence proposed layout with before and after folder trees",
+        "Writes the layout-candidates artifact to the memory tier and names its path",
+        "Stops after the report: asks no question, starts no interview and invokes no other skill",
+        "Moves, renames and deletes no file"
+      ]
     }
   ]
 }

@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/split-invoicing/design/design-threads.md",
+            "content": "# Threads\n"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "billing/tax.py",
+            "content": "RATES = {}\n"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -62,7 +62,7 @@ looks for what is wrong in it.
 | `--lane <name>` | Hunt the named lane's globs |
 | `--track` | File the verified findings as raw intake through the `work-items` plugin |
 | `--dry-run` | Report to stdout only. Persists nothing, advances no rotation |
-| `--unattended` | Nobody is present: run none of the scanned code, and file rather than fix |
+| `--unattended` | Nobody is present: run none of the scanned code, and file rather than fix. A run is also unattended when `CLAUDE_CODE_REMOTE` is set, under `claude -p`, or in an autonomous loop |
 
 One invocation is **one bounded pass**, which makes it usable interactively, from a loop,
 or as a daily routine. Four properties matter before you rely on it:
@@ -72,8 +72,10 @@ or as a daily routine. Four properties matter before you rely on it:
   survivors reach the report, each labeled `reproduced` or `verified-by-reading`, and refuted
   candidates stay in the report with the argument that killed them.
 - **Your repository's code runs only when you approve it.** Hunters and gates only read. A gate
-  may propose a check, such as a test; an interactive run asks you before each one, and a run
-  passed `--unattended` runs none and labels every finding `verified-by-reading`.
+  may propose a check, such as a test; an interactive run asks you before each one, and an
+  unattended run (passed `--unattended`, or one the environment marks as unattended) runs none
+  and labels every finding `verified-by-reading`. The rule is shared with the review plugin:
+  [`reference/run-reviewed-code.md`](reference/run-reviewed-code.md).
 - **A bare run is read-only toward your repository and stays within a budget**. It stops at
   the verified-finding count the [skill's Effort table](skills/scan/SKILL.md#effort) sets for the
   session's effort level, or at a complete lane sample. Filing happens only when you pass

@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Security review of branch",
+            "prompt": "Review the diff from the merge-base with origin/HEAD.",
+            "subagent_type": "review:security-reviewer"
+          }
+        }
+      ],
+      "why": "the plugin's security reviewer dispatched"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no subagent: reviewed on the main thread"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Code review",
+            "prompt": "Review the branch.",
+            "subagent_type": "review:code-reviewer"
+          }
+        }
+      ],
+      "why": "wrong reviewer"
+    }
+  ]
+}

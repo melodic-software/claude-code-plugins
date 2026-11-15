@@ -3,6 +3,42 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.1] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [1.1.0] - 2026-11-15
+
+### Added
+
+- `/corrections:codify count-checks [--since <day>] [--until <day>] [--bucket week|month]`: a read-only count of the checks merged changes record with a `Codifies:` line, per week or month and cumulative, read from the default branch's first-parent git history only. Blocking checks lead, advisory checks have their own column, each rung that occurs has a column, and malformed, list-item, guidance-rung and reverted records are listed as not counted.
+- A proposal for a checking rung or `make-impossible` now holds the `Codifies:` record line for the pull request body, and the task-list item form for work filed as an issue.
+
+### Changed
+
+- The enforcement ladder copy is at 3.1.0: the "Compiler or type settings" and "Tests" rows carry the rung ids `compiler-setting` and `behavior-test`.
+
+## [1.0.4] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [1.0.3] - 2026-11-15
+
+### Fixed
+
+- The `rungs-by-id` graders in the `codify-findings-file-input` and `codify-proposal-names-the-fix` eval cases are now `llm` graders instead of regexes. A reply that names a rung id only to reject or set it aside fails. `codify-proposal-names-the-fix` no longer passes on a bare `Tests` word. Each grader's samples include a set-aside reply as a fail answer for judge calibration.
+
+## [1.0.2] - 2026-11-15
+
+### Changed
+
+- The codify skill places a lesson that fits more than one scope in project scope, drops an as-of
+  note from the `baseRefOid` pointer, and lower-cases capital-letter emphasis.
+
 ## [1.0.1] - 2026-11-15
 
 ### Changed

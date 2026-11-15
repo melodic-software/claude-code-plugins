@@ -322,9 +322,8 @@ Root and nested shims come out **together**: a lone nested `AGENTS.md` never att
 nothing.
 
 **The nested canary runs from the nested directory, and its line has to be unique.** A session
-started there loads that directory's `AGENTS.md` and every ancestor's at session start (for which
-files load when, see <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md>):
-running from the directory is itself the trigger, so no Read is needed. It also
+started there loads that directory's `AGENTS.md` and every ancestor's, measured on 2.1.278 with no
+tools available: running from the directory is itself the trigger, so no Read is needed. It also
 means a line the nested file shares with the root file is answered by the **root** file, so the
 nested surface would pass while loading nothing of its own. The canary line is therefore the longest
 plain line **contained in** no line of any other `AGENTS.md` that loads beside it, ancestors above

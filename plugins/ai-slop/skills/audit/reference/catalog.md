@@ -61,11 +61,13 @@ Wikipedia; the page's text is read at the pointer, not stored here.
 - **Known fetch gap**: closed 2026-08-21. The catalog-time fetch window missed
   "Comment-specific indicators" and "Ineffective indicators"; both were retrieved from the pin and
   from live revision
-  [1370403579](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1370403579).
-  See those sections below.
-- **Sections read at the pin**: `action=parse&oldid=1369699198&prop=wikitext`, section 80 =
-  Ineffective indicators, section 62 = Comment-specific indicators, section 29 = Overuse of em
-  dashes.
+  [1370403579](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1370403579)
+  (2026-08-20). See those sections below.
+- **Sections read at the pin** (revision 1369699198, 2026-08-16):
+  `action=parse&oldid=1369699198&prop=wikitext`, section 80 = Ineffective indicators, section 62 =
+  Comment-specific indicators, section 29 = Overuse of em dashes.
+- **Drift measured at the 2026-08-25 head**: 4 heading changes across 29 edits since the pin, none
+  in the sections this catalog draws on.
 - **Candidate for the next recheck**: the live-page general-prose tell "Vague expression of
   connection or association", which measured 0 qualifying hits on this corpus.
 

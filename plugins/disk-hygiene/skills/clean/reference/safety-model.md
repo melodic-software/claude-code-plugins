@@ -489,10 +489,11 @@ destructive-action guard itself stays fully active. This is a deliberate safe-ov
 tradeoff, not a security gap. The guard-values note and an engine-call denial name one recovery: run this plugin from a
 marketplace install, or register the checkout as a local-directory marketplace
 (`claude plugin marketplace add <checkout>`) so a `--plugin-dir` session inside it derives that
-marketplace's data root. Setting `CLAUDE_PLUGIN_DATA` in the launch shell is not a recovery, and
-the recovery hint does not recommend it: whether that export reaches a skill-frontmatter hook is
-unmeasured (the `claude -p` probe was not run, #4669), and even if it did the value would be the
-same repo-injectable channel the belt dropped. **Pointer:** when
+marketplace's data root. Setting `CLAUDE_PLUGIN_DATA` in the launch shell is not a recovery: a
+paid `claude -p` probe of whether that export reaches a skill-frontmatter hook was not run, and
+even if it did the value would be the same repo-injectable channel the belt dropped.
+Whether a launch-shell `CLAUDE_PLUGIN_DATA` reaches a skill-frontmatter hook is unmeasured (the
+paid probe was not run, #4669), so the recovery hint does not recommend it. **Pointer:** when
 checking which processes receive `CLAUDE_PLUGIN_DATA`, fetch
 [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form) and
 [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves) live. **Recheck trigger:** a live probe with version and platform, or either section states
@@ -906,8 +907,8 @@ or cleanup contract. The report each registry match produces is specified in
 
 The baseline policy therefore ships no discovery hint for another product's managed state. A hint
 for a class the engine will never act on tells the operator to look for residue the plugin has
-already decided to hand off. For that reason the `.pulumi-write-test-*` hint was removed (#3860)
-rather than exempted. Residue inside a managed directory is reported as a handoff to its owner, and
+already decided to hand off, and no managed-state hint is exempted from that rule. Residue inside
+a managed directory is reported as a handoff to its owner, and
 any gated lane for it is tracked separately (#4006). Do not re-add a baseline hint for managed state
 without that lane.
 
