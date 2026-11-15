@@ -3,6 +3,14 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.1] - 2026-11-15
+
+### Changed
+
+`/prototype:explore-directions` handover: when every variant has the same states, one shared line
+saying so and naming them can replace repeating the states on each variant's line. The
+`ed-offline-mockup-handover` grader passes that line.
+
 ## [0.32.0] - 2026-11-15
 
 ### Added
