@@ -110,7 +110,7 @@ You write the results, not the sub-agent, so register ids stay contiguous.
 - **hedged:** no new row. The rows go to the confirmation restate.
 - **coined-term:** a register row asking the user to accept or rename the term, with the closest
   existing name in the user's vocabulary as the recommendation, and naming the existing term it
-  overlaps. With no existing name close to it, recommend keeping the term, defined in one line. An
+  overlaps. With no existing name close to it, ask it withheld, the term defined in one line (SKILL.md "Agree the terms before the first decision"). An
   accepted or renamed term is written to the glossary; a rename also replaces the term in the
   draft and in the resolutions of the rows that carry it, and the next sweep covers those rows.
 - **unstated-value:** a register row asking the user to confirm the literal value, whoever owns
