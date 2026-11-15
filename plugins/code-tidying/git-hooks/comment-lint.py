@@ -201,6 +201,21 @@ def _paragraphs(
     return block_of
 
 
+def _has_prose(line: _Line) -> bool:
+    return bool(line.comment.strip("*/ \t"))
+
+
+def _link_span(n: int, run: list[int], lines: list[_Line]) -> list[int]:
+    if n not in run or not _has_prose(lines[n]):
+        return run
+    low = high = run.index(n)
+    while low > 0 and _has_prose(lines[run[low - 1]]):
+        low -= 1
+    while high < len(run) - 1 and _has_prose(lines[run[high + 1]]):
+        high += 1
+    return run[low : high + 1]
+
+
 def _passes(n, lines, run_of, block_of, source, posture, lexer_name) -> bool:
     ln = lines[n]
     text = ln.comment
@@ -231,7 +246,9 @@ def _passes(n, lines, run_of, block_of, source, posture, lexer_name) -> bool:
         return True
     if lexer_name == "Go" and not ln.code and _go_doc(run, source):
         return True
-    if posture == "necessary" and any(LINK.search(t) for t in run_text):
+    if posture == "necessary" and any(
+        LINK.search(lines[m].comment) for m in _link_span(n, run, lines)
+    ):
         return True
     prev = lines[n - 1].comment if n > 1 else ""
     if IGNORE in prev or DISSOLVE in prev:

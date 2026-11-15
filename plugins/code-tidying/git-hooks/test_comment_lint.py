@@ -412,6 +412,18 @@ class RunsAndLexers(unittest.TestCase):
         text = "# See https://example.com/x\n\n# narrative\nx=1\n"
         self.assertEqual(flagged("a.sh", text), [3])
 
+    def test_blank_line_inside_a_block_comment_ends_the_link(self):
+        text = "/*\n * See https://example.com/x\n\n * narrative\n */\nconst x = 1;\n"
+        self.assertEqual(flagged("a.js", text), [4])
+
+    def test_bare_star_line_inside_a_block_comment_ends_the_link(self):
+        text = "/*\n * See https://example.com/x\n *\n * narrative\n */\nconst x = 1;\n"
+        self.assertEqual(flagged("a.js", text), [4])
+
+    def test_link_passes_its_own_block_comment_paragraph(self):
+        text = "/*\n * The limit follows\n * https://example.com/x\n */\nconst x = 1;\n"
+        self.assertEqual(flagged("a.js", text), [])
+
     def test_license_header_in_blank_separated_paragraphs_passes_whole(self):
         text = (
             "#!/bin/sh\n# Copyright 2026 Example Corp.\n\n"
