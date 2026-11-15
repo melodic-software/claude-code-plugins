@@ -1,0 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+x = 1
+# coding: latin-1 PLANTED
+#!/usr/bin/env python3 PLANTED

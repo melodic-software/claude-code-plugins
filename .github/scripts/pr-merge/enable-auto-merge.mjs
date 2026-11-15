@@ -120,7 +120,7 @@
 // scheduled runs judge it again, and once a lane's refusal has stood at the
 // head for merge.risk-escalation-minutes (timed from the first one there,
 // LANE_SINCE) the run hands a
-// failing `pr-merge/unarmed` status for the head to the unarmed-status job
+// failing `pr-merge/unarmed` status for the head to the report-unarmed-status job
 // (unarmedStatus, post-unarmed-status.mjs), and a passing one when it arms
 // or the refusal becomes a person's.
 // clear-escalations takes the label off at the latest once the head moves,
@@ -205,7 +205,7 @@
 //                        unset holds the lane off, as the gate reads it)
 //   RISK_ESCALATION_MINUTES  merge.risk-escalation-minutes (empty is
 //                        RISK_ESCALATION_MINUTES)
-//   GITHUB_OUTPUT        receives UNARMED_OUTPUT for the unarmed-status job
+//   GITHUB_OUTPUT        receives UNARMED_OUTPUT for the report-unarmed-status job
 //   BABYSIT_VERIFY_*, BABYSIT_RUN_CACHE  the reader's Actions token (the
 //                        job's GITHUB_TOKEN), saved listing, head-ref map and
 //                        run cache, as the gate's
@@ -1087,7 +1087,7 @@ export function refusalWrites(pull, comments, { clears, reason, comment, partial
 }
 
 // The commit status context the status job posts (pr-merge.yml
-// unarmed-status), and the step output enable-auto-merge hands it.
+// report-unarmed-status), and the step output enable-auto-merge hands it.
 export const UNARMED_CONTEXT = "pr-merge/unarmed";
 export const UNARMED_OUTPUT = "unarmed-statuses";
 // A PR-scoped run's outcome: `armed`, `refused: <why>` or `skipped: <why>`.

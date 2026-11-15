@@ -4,7 +4,7 @@ name: PR Review Security Hosted
 # melodic-software/standards
 # (components/claude-lanes-hosted/claude-security-review.yml) is
 # `locally-owned` for this repository in distribution/sync-manifest.yml, so
-# this copy can add the resolve-model, kill-switch and wait-refine jobs
+# this copy can add the resolve-model, kill-switch and wait-for-refine jobs
 # below. It differs from the component in those jobs and these comments.
 #
 # Thin caller for the org's pr-review-cli reusable, lane `security` (advisory
@@ -32,7 +32,7 @@ name: PR Review Security Hosted
 # RUNNER PLACEMENT: every job of the reusable runs on ubuntu-24.04; it takes
 # no runner input.
 
-# API_BUDGET_HOLD (outage posture element 2): only the wait-refine step sets it,
+# API_BUDGET_HOLD (outage posture element 2): only wait-for-refine's wait step sets it,
 # since wait-refine.mjs reviews on a refused call. The other steps gate the review
 # (check-trusted-trigger, the upstream status) or end red on a failed read.
 # A step opts in only once its script is shown to hold green with a notice on
@@ -250,8 +250,8 @@ jobs:
   # fails or times out leaves proceed empty and the job green, which reviews
   # too (.github/scripts/pr-review/wait-refine.mjs). It waits only when the
   # kill switch lets the review run.
-  wait-refine:
-    name: Wait Refine
+  wait-for-refine:
+    name: Wait For Refine
     needs: [kill-switch]
     if: github.event.pull_request.draft == false && needs.kill-switch.outputs.proceed == 'true'
     runs-on: ubuntu-24.04
@@ -321,12 +321,12 @@ jobs:
 
   pr-review-security:
     name: PR Review Security
-    needs: [resolve-model, kill-switch, wait-refine]
+    needs: [resolve-model, kill-switch, wait-for-refine]
     # A draft is work in progress and does not spend a review; the
     # ready_for_review trigger above is what delivers one when it is ready.
-    # Only wait-refine's proceed=false (the head moved while it waited) skips
+    # Only wait-for-refine's proceed=false (the head moved while it waited) skips
     # the review.
-    if: ${{ !cancelled() && github.event.pull_request.draft == false && needs.kill-switch.outputs.proceed == 'true' && needs.wait-refine.outputs.proceed != 'false' }}
+    if: ${{ !cancelled() && github.event.pull_request.draft == false && needs.kill-switch.outputs.proceed == 'true' && needs.wait-for-refine.outputs.proceed != 'false' }}
     # The model jobs narrow this to contents: read and pull-requests: read;
     # only the reusable's status job (the security-review check) writes.
     permissions:

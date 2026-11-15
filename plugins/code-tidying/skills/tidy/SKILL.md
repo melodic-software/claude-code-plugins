@@ -3,7 +3,7 @@ description: "When the bundled simplify skill resolves in this session, prefer i
 argument-hint: "[<lane>|<glob>...|dry-run [<lane>|<glob>...]|self-update|help] [override] [in-place[=commit]]"
 disable-model-invocation: false
 user-invocable: true
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh:*)", "Bash(grep:*)", "Bash(echo:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-settings.sh:*)", "Bash(grep:*)", "Bash(echo:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime
@@ -23,12 +23,22 @@ The pipe is the bound and belongs in the command, never left to how the Bash too
 ## Pre-computed context
 
 Open chore/tidy-* PRs: !`${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh 2>/dev/null | grep -E '^(Open tidy|Throttle)' || echo unknown`
+Comment settings (team then personal layer, one line per key): !`${CLAUDE_SKILL_DIR}/scripts/comment-settings.sh 2>/dev/null | grep -E '^comment_(posture|keep_list)' || echo "(settings unavailable)"`
 
 ## Variables
 
 Arguments: `$ARGUMENTS`
 
 HARD path exclusions: `${user_config.hard_exclusions}` (unexpanded, empty, or any value outside `enforce` and `advisory` means `enforce`).
+
+Comment posture: `comment_posture` resolves through four layers, lowest first, a later one winning:
+the default `auto`, `userConfig` (`${user_config.comment_posture}`), the team file
+`<home>/code-tidying.yaml` and the personal override `<home>/code-tidying.local.yaml` (`<home>` the
+repository's bound convention home, else `docs/conventions`), the last two from the settings line
+above (`${CLAUDE_SKILL_DIR}/scripts/comment-settings.sh`). `auto` means `necessary`; `strict`, `balanced` and `conservative` read as `explanatory`, `aggressive` as
+`necessary`. An unexpanded or empty `userConfig` value is unset, and any other value outside `auto`,
+`none`, `necessary`, `explanatory` is named with its layer and dropped. The posture decides what
+tidyings #14 and P-5 may add ([reference/tidyings.md](reference/tidyings.md)).
 
 ## Purpose
 

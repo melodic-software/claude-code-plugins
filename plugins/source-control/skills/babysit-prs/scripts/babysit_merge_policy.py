@@ -7951,7 +7951,7 @@ def settle_shared(
     is read again with `post_merge` (`_recompute_shared`), or with none
     refuses. Without `code_unchanged` (`check_code_unchanged`), `shared` came
     from other check code: `code-changed`, never reused or kept. One rule for
-    the lane room and the merge job's reuse of post-merge-dispatch's report.
+    the lane room and the merge job's reuse of dispatch-post-merge-runs's report.
 
     `outcome`, when given, is filled with how it settled: `answer` is
     `reused`, `kept`, `recomputed` or `refused`, `reason` the

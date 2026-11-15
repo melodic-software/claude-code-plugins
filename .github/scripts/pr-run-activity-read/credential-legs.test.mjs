@@ -256,7 +256,7 @@ test("broker-check's start call reads the credit history on the first call alone
 const OLD_GATES = {
   run: "!(github.event_name == 'pull_request' && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID) && needs.broker-check.outputs.skip-reason == ''",
   report:
-    "always() && (inputs.issue-number == '' && needs.run.outputs.handed-off != 'true' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && !(github.event_name == 'pull_request' && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID) || inputs.issue-number != '' && needs.broker-check.outputs.lease == 'held' && needs.broker-check.outputs.lease-comment-id != '' && !(inputs.caller-releases-lease && needs.run.outputs.handed-off != 'true' && (needs.issue-fields.outputs.issue-run-started == 'true' || needs.issue-fields.outputs.reuse-branch != '')))",
+    "always() && (inputs.issue-number == '' && needs.run.outputs.handed-off != 'true' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && !(github.event_name == 'pull_request' && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID) || inputs.issue-number != '' && needs.broker-check.outputs.lease == 'held' && needs.broker-check.outputs.lease-comment-id != '' && !(inputs.caller-releases-lease && needs.run.outputs.handed-off != 'true' && (needs.check-issue-fields.outputs.issue-run-started == 'true' || needs.check-issue-fields.outputs.reuse-branch != '')))",
 };
 const SENDER = "format('{0}', github.event.sender.id)";
 const gate = (text) => {
@@ -295,8 +295,8 @@ function* gateContexts() {
                               "needs.broker-check.outputs.lease": lease,
                               "needs.broker-check.outputs.lease-comment-id": leaseId,
                               "needs.run.outputs.handed-off": handedOff,
-                              "needs.issue-fields.outputs.issue-run-started": started,
-                              "needs.issue-fields.outputs.reuse-branch": reuse,
+                              "needs.check-issue-fields.outputs.issue-run-started": started,
+                              "needs.check-issue-fields.outputs.reuse-branch": reuse,
                             };
                             ctx["needs.broker-check.outputs.skip-run"] = value(SKIP_RUN, ctx);
                             yield ctx;
@@ -346,10 +346,10 @@ test("without the report guard a skipped key-leg run would post the check, which
 
 test("with the key leg's run and report skipped, the jobs after them skip as they did on its handoff", () => {
   const ctx = { "inputs.issue-number": "", "needs.run.result": "skipped", "needs.run.outputs.handed-off": "", "needs.scan.result": "skipped" };
-  assert.equal(runs(wf.jobIf("issue-fields"), ctx), false, "issue-fields");
+  assert.equal(runs(wf.jobIf("check-issue-fields"), ctx), false, "check-issue-fields");
   assert.equal(runs(wf.jobIf("scan"), ctx), false, "scan");
   assert.equal(runs(wf.jobIf("scan-refusal"), ctx), false, "scan-refusal");
-  assert.equal(runs(wf.jobIf("summary"), ctx), false, "summary");
+  assert.equal(runs(wf.jobIf("generate-reuse-summary"), ctx), false, "generate-reuse-summary");
   assert.equal(runs(wf.jobIf("broker-allowed"), { "needs.broker-check.outputs.allowed": "true" }), true, "broker-allowed still records the allow");
 });
 
@@ -389,7 +389,7 @@ test("pr-unblock starts each subscription call on a skipped key-leg run exactly 
     // A call whose run job skipped while its broker-check succeeded is not
     // `skipped` to the caller: run 42742077371's address-feedback call had
     // broker-check and report success and every other job skipped, and
-    // key-credit-markers, whose if needs one call's result != 'skipped' with
+    // upload-key-credit-markers, whose if needs one call's result != 'skipped' with
     // the other four calls skipped, ran. Only != 'skipped' is read here.
     const ctx = {
       [`needs.${leg}-select.outputs.proceed`]: "true",

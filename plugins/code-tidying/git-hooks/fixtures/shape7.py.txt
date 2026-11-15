@@ -1,0 +1,10 @@
+"""Module summary."""
+
+
+def add(a, b):
+    """Return the sum."""
+    return a + b
+
+
+# PLANTED a header-style note
+x = 1

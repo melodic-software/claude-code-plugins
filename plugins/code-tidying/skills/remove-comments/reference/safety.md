@@ -152,7 +152,9 @@ unless the resolved keep list keeps them. The list:
 - Machine-read directives: shebangs, lint pragmas (`# noqa`, `// eslint-disable`,
   `#pragma warning`), region markers, editor folds, encoding cookies. In PowerShell that also covers
   `#Requires`, a `<#PSScriptInfo ... #>` block, and the `# SIG # Begin signature block` run, whose
-  bytes a signature is computed over
+  bytes a signature is computed over. In any file it covers the version pin: the comment trailing
+  a `uses:` line pinned to a full commit id (`uses: owner/action@<40-hex id> # v4.2.2`), decided by
+  the line's shape, whatever the comment's wording
 - **Repo-local machine-read markers**, discovered per run. See the section below. The universal
   pragmas above are the floor, not the list
 - Units, ranges, boundary semantics, sentinel values, ownership and lifetime, thread-safety and

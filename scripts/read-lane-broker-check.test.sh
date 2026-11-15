@@ -247,8 +247,8 @@ who() {
       "github.event_name": "issues", "github.event.pull_request.head.repo.full_name": "", "github.repository": "acme/widgets", "github.event.sender.id": "", "vars.AUTOMATION_LANES_APP_SENDER_ID": "987654", "inputs.issue-number": "7", "inputs.caller-releases-lease": crl === "true",
       "needs.broker-check.outputs.lease": lease, "needs.broker-check.outputs.lease-comment-id": leaseId,
       "needs.broker-check.outputs.skip-run": "false",
-      "needs.run.outputs.handed-off": handedOff, "needs.issue-fields.outputs.issue-run-started": started,
-      "needs.issue-fields.outputs.reuse-branch": reuse,
+      "needs.run.outputs.handed-off": handedOff, "needs.check-issue-fields.outputs.issue-run-started": started,
+      "needs.check-issue-fields.outputs.reuse-branch": reuse,
     });
     const callerCtx = {
       "needs.resolve-issue-fallback.result": "skipped", "needs.resolve-issue-subscription.result": "skipped",

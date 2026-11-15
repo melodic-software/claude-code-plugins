@@ -1,4 +1,4 @@
-// pr-refine.yml's plan job: reads the base config under BASE_PATH as
+// pr-refine.yml's select-passes job: reads the base config under BASE_PATH as
 // resolve-config loads it (configFromBase) and the PR's changed paths (one a
 // line), expands the pr-refine lane's slots through resolve.mjs laneSlots,
 // plans the Refine passes (plan-passes.mjs) and writes them as step outputs:

@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add scripts/fetch-status.sh",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "staged, not committed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git commit -m 'refactor: name the timeout'",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "a commit was made"
+    }
+  ]
+}

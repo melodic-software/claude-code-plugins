@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Takes the trusted-text job's context.json into this leg's data directory,
+# Takes the collect-trusted-text job's context.json into this leg's data directory,
 # only when it is this run attempt's, read at this leg's main commit for this
 # leg's pull request and head at most SHARED_TEXT_MAX_AGE_MINUTES ago, and its
 # bytes hash to the job's sha256 output. A later leg can start hours after the

@@ -1,4 +1,4 @@
-// pr-refine.yml's job gates and limits: the plan job decides which passes
+// pr-refine.yml's job gates and limits: the select-passes job decides which passes
 // start, a PR the plan matches to no pass skips every job after it, and every
 // job has a timeout so a hung job cannot strand the run.
 import assert from "node:assert/strict";
@@ -86,48 +86,48 @@ const DISPATCH = {
 const ran = (results) => Object.keys(results).filter((name) => results[name] === "success");
 
 test("an empty plan skips every job after it, with no model turn", () => {
-  const results = simulate(TEXT, DISPATCH, { plan: { passes: "[]", "fix-docs": "" } });
-  assert.deepEqual(ran(results), ["dispatcher-current", "plan"]);
+  const results = simulate(TEXT, DISPATCH, { "select-passes": { passes: "[]", "fix-docs": "" } });
+  assert.deepEqual(ran(results), ["check-dispatcher-current", "select-passes"]);
   assert.ok(Object.keys(results).length > 8, "every job was simulated");
 });
 
 test("a plan with fix-docs starts fix-docs and records its pass (positive control)", () => {
   const results = simulate(TEXT, DISPATCH, {
-    plan: { passes: '["fix-docs"]', "fix-docs": "true" },
+    "select-passes": { passes: '["fix-docs"]', "fix-docs": "true" },
     "fix-docs-head": { held: "false", "head-sha": "a".repeat(40) },
     "fix-docs": { "scan-patch-state": "written" },
   });
-  for (const job of ["plan", "fix-docs-head", "fix-docs", "fix-docs-handoff", "apply-docs-patch", "record-passes"]) {
+  for (const job of ["select-passes", "fix-docs-head", "fix-docs", "fix-docs-handoff", "apply-docs-patch", "record-passes"]) {
     assert.equal(results[job], "success", job);
   }
 });
 
-test("the plan job waits on a current dispatcher, and fix-docs-head on the plan's fix-docs output", () => {
+test("the select-passes job waits on a current dispatcher, and fix-docs-head on the plan's fix-docs output", () => {
   const block = jobs(TEXT);
-  const plan = gateOf(block.get("plan"));
-  assert.deepEqual(plan.needs, ["dispatcher-current"]);
-  assert.equal(evaluate(plan.gate, { ...DISPATCH, "needs.dispatcher-current.outputs.stale": "false" }), true);
-  assert.equal(evaluate(plan.gate, { ...DISPATCH, "needs.dispatcher-current.outputs.stale": "true" }), false);
+  const plan = gateOf(block.get("select-passes"));
+  assert.deepEqual(plan.needs, ["check-dispatcher-current"]);
+  assert.equal(evaluate(plan.gate, { ...DISPATCH, "needs.check-dispatcher-current.outputs.stale": "false" }), true);
+  assert.equal(evaluate(plan.gate, { ...DISPATCH, "needs.check-dispatcher-current.outputs.stale": "true" }), false);
   assert.equal(evaluate(plan.gate, { ...DISPATCH, "inputs.pr-number": "" }), false);
   // A dispatch fix-docs-head could never start plans nothing, so no hold or record follows it.
   assert.equal(evaluate(plan.gate, { ...DISPATCH, "inputs.activity": "apply-patch" }), false);
   assert.equal(evaluate(plan.gate, { ...DISPATCH, "github.event.sender.id": 2 }), false);
   const head = gateOf(block.get("fix-docs-head"));
-  assert.ok(head.needs.includes("plan"));
-  const starts = (planned) => evaluate(head.gate, { ...DISPATCH, "needs.plan.outputs.fix-docs": planned });
+  assert.ok(head.needs.includes("select-passes"));
+  const starts = (planned) => evaluate(head.gate, { ...DISPATCH, "needs.select-passes.outputs.fix-docs": planned });
   assert.equal(starts("true"), true);
   assert.equal(starts(""), false);
   assert.equal(starts("false"), false);
 });
 
-// simulate() with the plan job's own result forced, as a red step leaves it.
+// simulate() with the select-passes job's own result forced, as a red step leaves it.
 function simulateFailedPlan(text, base) {
   const results = {};
   const context = { ...base };
   for (const [name, block] of jobs(text)) {
     const { needs, gate } = gateOf(block);
     let result;
-    if (name === "plan") result = "failure";
+    if (name === "select-passes") result = "failure";
     else {
       const statusFree = gate === null || !/cancelled\(\)|always\(\)|failure\(\)/.test(gate);
       const runs = (!statusFree || needs.every((n) => results[n] === "success")) && (gate === null || evaluate(gate, context));
@@ -141,26 +141,26 @@ function simulateFailedPlan(text, base) {
 
 test("a failed plan starts no pass, and record-passes still runs to log refine-failed", () => {
   const results = simulateFailedPlan(TEXT, DISPATCH);
-  assert.equal(results.plan, "failure");
-  assert.deepEqual(ran(results), ["dispatcher-current", "record-passes"]);
+  assert.equal(results["select-passes"], "failure");
+  assert.deepEqual(ran(results), ["check-dispatcher-current", "record-passes"]);
 });
 
 test("a held plan starts no pass and no record, and fix-docs-head-held logs the hold", () => {
-  const results = simulate(TEXT, DISPATCH, { plan: { held: "true" } });
-  assert.deepEqual(ran(results), ["dispatcher-current", "plan", "fix-docs-head-held"]);
+  const results = simulate(TEXT, DISPATCH, { "select-passes": { held: "true" } });
+  assert.deepEqual(ran(results), ["check-dispatcher-current", "select-passes", "fix-docs-head-held"]);
   // Positive control: a read plan holds nothing.
-  const read = simulate(TEXT, DISPATCH, { plan: { held: "false", passes: "[]", "fix-docs": "" } });
+  const read = simulate(TEXT, DISPATCH, { "select-passes": { held: "false", passes: "[]", "fix-docs": "" } });
   assert.equal(read["fix-docs-head-held"], "skipped");
 });
 
 test("record-passes runs after a failed pass, and not when the plan is empty or did not run", () => {
   const { needs, gate } = gateOf(jobs(TEXT).get("record-passes"));
-  assert.ok(needs.includes("plan") && needs.includes("apply-docs-patch") && needs.includes("fix-docs"));
-  const records = (result, passes) => evaluate(gate, { "needs.plan.result": result, "needs.plan.outputs.passes": passes });
+  assert.ok(needs.includes("select-passes") && needs.includes("apply-docs-patch") && needs.includes("fix-docs"));
+  const records = (result, passes) => evaluate(gate, { "needs.select-passes.result": result, "needs.select-passes.outputs.passes": passes });
   assert.equal(records("success", '["fix-docs"]'), true);
   assert.equal(records("success", "[]"), false);
   assert.equal(records("skipped", ""), false);
-  const results = simulate(TEXT, DISPATCH, { plan: { passes: '["fix-docs"]', "fix-docs": "true" }, "fix-docs-head": { held: "false" } });
+  const results = simulate(TEXT, DISPATCH, { "select-passes": { passes: '["fix-docs"]', "fix-docs": "true" }, "fix-docs-head": { held: "false" } });
   assert.equal(results["record-passes"], "success", "it runs whatever the pass jobs did");
 });
 
@@ -177,8 +177,8 @@ test("every pr-refine job has a timeout: its own, or its reusable workflow's tim
 // The plan reads the base config through resolve-config's own loader, the one
 // plan-passes.test.mjs and live-config.test.mjs run, not a yq conversion.
 test("the plan step runs write-pass-plan.mjs on the base checkout, with no yq conversion", () => {
-  const plan = jobs(TEXT).get("plan");
+  const plan = jobs(TEXT).get("select-passes");
   assert.ok(plan.includes("          BASE_PATH: .base"));
   assert.ok(plan.includes("        run: node .base/.github/scripts/pr-refine/write-pass-plan.mjs"));
-  assert.ok(!plan.some((line) => /\byq\b/.test(line)), "no yq in the plan job");
+  assert.ok(!plan.some((line) => /\byq\b/.test(line)), "no yq in the select-passes job");
 });

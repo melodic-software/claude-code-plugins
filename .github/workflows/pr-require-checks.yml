@@ -1635,6 +1635,15 @@ jobs:
           cd "$head_tree"
           "$GITHUB_WORKSPACE/scripts/check-stale-base-overlap.sh" --warn "origin/$BASE_REF"
 
+      - name: Lint the comments the change adds
+        id: comment_lint
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash scripts/run-hygiene-gate.sh comment-lint {0}
+        run: scripts/check-comment-lint.sh
+
       # The docs-only short-circuit is a fail-open shape by construction:
       # getting it wrong makes a heavy lane report success without running. Its
       # safety properties — one resolution, an output table whose unset values
@@ -2118,6 +2127,7 @@ jobs:
             line-citations=${{ steps.line_citations.outcome }}
             contract-clause-coverage=${{ steps.contract_clause_coverage.outcome }}
             stale-base-overlap=${{ steps.stale_base.outcome }}
+            comment-lint=${{ steps.comment_lint.outcome }}
             docs-only-contract=${{ steps.docs_only_contract.outcome }}
             lane-coverage=${{ steps.lane_coverage.outcome }}
             test-plan-corpus=${{ steps.test_plan_corpus.outcome }}

@@ -360,12 +360,12 @@ test("work-unblock marks a paced run, and the sweep after it reaches back past a
 
 // pr-merge's sweep jobs skip at job level: a step-level skip would leave a
 // paced run's job waiting in its group, and superseded.mjs would let an
-// earlier run hand its work to it. post-merge-dispatch reads the pacer and
+// earlier run hand its work to it. dispatch-post-merge-runs reads the pacer and
 // never waits on it, so the post-merge check and cover dispatch run on every
 // tick.
-test("pr-merge reads the pacer in post-merge-dispatch and skips only the sweep jobs on it", () => {
+test("pr-merge reads the pacer in dispatch-post-merge-runs and skips only the sweep jobs on it", () => {
   const file = "pr-merge.yml";
-  const steps = stepsOf(file, "post-merge-dispatch");
+  const steps = stepsOf(file, "dispatch-post-merge-runs");
   const { work } = assertPaceSteps(file, steps);
   // The merge job, which a paced tick skips whole, marks a sweep that listed
   // (a held listing writes held, never listed) and gated.
@@ -373,12 +373,12 @@ test("pr-merge reads the pacer in post-merge-dispatch and skips only the sweep j
   const merge = stepsOf(file, "merge");
   const index = (name) => merge.findIndex((step) => step.name === name);
   assert.ok(index(work) > index("Run the merge gate on each candidate"), "the marker follows the gate");
-  assert.match(jobOf(file, "post-merge-dispatch"), /\n {4}outputs:\n(?: {6}.*\n)*? {6}paced: \$\{\{ steps\.pace\.outputs\.paced \}\}\n/);
+  assert.match(jobOf(file, "dispatch-post-merge-runs"), /\n {4}outputs:\n(?: {6}.*\n)*? {6}paced: \$\{\{ steps\.pace\.outputs\.paced \}\}\n/);
   const waiting = steps.filter((step) => /steps\.pace\.outputs/.test(step.s)).map((step) => step.name);
-  assert.deepEqual(waiting, [], "no post-merge-dispatch step waits on the pacer");
+  assert.deepEqual(waiting, [], "no dispatch-post-merge-runs step waits on the pacer");
   for (const job of ["merge", "enable-auto-merge"]) {
     const gate = /\n {4}if: >-\n((?: {6}.*\n)+)/.exec(jobOf(file, job))?.[1] ?? "";
-    assert.match(gate, /\n {6}&& needs\.post-merge-dispatch\.outputs\.paced != 'true'\n/, job);
+    assert.match(gate, /\n {6}&& needs\.dispatch-post-merge-runs\.outputs\.paced != 'true'\n/, job);
     assert.doesNotMatch(jobOf(file, job), /steps\.pace\./, `${job} reads no pacer of its own`);
   }
 });

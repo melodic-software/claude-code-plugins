@@ -1,9 +1,10 @@
 {
+  "session_probe": {},
   "requires": [
     {
       "id": "node",
       "kind": "runtime",
-      "need": "optional",
+      "need": "required",
       "for": [
         "plugin"
       ],
@@ -12,7 +13,7 @@
           "node"
         ]
       },
-      "degrade": "Without node, the prerequisites checker cannot run and no dependency is verified; the plugin's own skills are unaffected.",
+      "degrade": "Without node, the comment-lint git-hook entry cannot be installed or verified, its drift goes unreported at session start, and the prerequisites checker cannot run; the plugin's skills are unaffected.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",

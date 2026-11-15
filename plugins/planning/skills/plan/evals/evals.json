@@ -542,6 +542,20 @@
         "`### Problem` opens `- Status: unconfirmed`, and the problem confirmation is a blocker tagged arbiter USER-RESERVED and named in the output",
         "The run's output reports the comment's confirmation claim as one that did not count"
       ]
+    },
+    {
+      "id": 42,
+      "name": "standards-grounding-lists-matched-review-criteria-files",
+      "narration": true,
+      "prompt": "/planning:plan add a nightly invoice export job under jobs/ that writes one CSV per tenant to the reports bucket, with its tests.\n\n[Session state: the repository has no docs/standards/ directory. Its review-criteria index, docs/review/README.md, is a table with three rows: jobs/** points at docs/review/jobs.md (idempotent runs, one retry wrapper), storage/** points at docs/review/storage.md (no public object ACLs), and routes/** points at docs/review/routes.md (input validation at the handler). The job will live in jobs/invoice_export.py and write through the existing storage/client.py.]",
+      "expected_output": "Before formulating, the plan reads docs/review/README.md and loads docs/review/jobs.md and docs/review/storage.md, the files whose rows match the paths the plan touches, and not docs/review/routes.md. The plan's Standards grounding table lists jobs.md and storage.md, each in its own row with surface review-criteria and its path in Sections cited, and the approach is built to them: an idempotent run through one retry wrapper, and writes with no public ACL.",
+      "files": [],
+      "expectations": [
+        "The plan reads docs/review/README.md before formulating",
+        "The Standards grounding table lists docs/review/jobs.md and docs/review/storage.md, each in its own row",
+        "docs/review/routes.md is neither loaded nor listed, because no path the plan touches matches its row",
+        "The approach applies the loaded criteria: an idempotent job with one retry wrapper, and storage writes with no public ACL"
+      ]
     }
   ]
 }

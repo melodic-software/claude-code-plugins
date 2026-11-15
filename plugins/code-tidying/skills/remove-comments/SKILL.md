@@ -1,6 +1,6 @@
 ---
 description: "Edits code so its comments earn their keep under a posture (none or 'strip', necessary or 'aggressive', explanatory): deletes zero-information comments, renames or restructures so explanatory ones can go, keeps terse load-bearing ones; a 'safe' mode, and an edit-free 'report'. Use when asked to 'remove comments' or 'dissolve comments', when code has too many or agent-written comments, or to make code self-documenting. Read-only residue flagging is /code-tidying:audit-comment-residue."
-argument-hint: "[audit|report|safe] [none|necessary|explanatory] [override] [--pipeline] [target]"
+argument-hint: "[audit|report|safe] [none|necessary|explanatory] [override] [--pipeline] [--base <ref>] [target]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/scope-code-files.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/added-lines.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-tooling-probe.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/change-shape.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-census.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/commented-out-code.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rank-comment-targets.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/settings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/changed-code-files.sh:*)", "Bash(git branch:*)", "Bash(git log:*)", "Bash(git ls-files:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(echo:*)"]
 disable-model-invocation: false
 user-invocable: true
@@ -87,6 +87,7 @@ zero edits.
 | `none`, `necessary`, `explanatory` | This run's posture, over every layer. |
 | `override [target]` | Lift the GLOBAL HARD path list for this run's target, so `/code-tidying:remove-comments override ruff.toml` triages a file the list would drop. Path entries only; every lifted path is named in the report with its channel. |
 | `--added-since <base>` | Only comments on lines the branch adds against the merge base of `<base>` and `HEAD`, from `${CLAUDE_SKILL_DIR}/scripts/added-lines.sh <base>` (`<start><TAB><count><TAB><path>` per hunk). With no target its files are the scope and `scope-code-files.sh` is not run. Exit 2 is reported and the run stops. |
+| `--base <ref>` | With no target, the scope is the branch's changed code files against the merge base of `<ref>`, uncommitted and untracked ones included, from `${CLAUDE_SKILL_DIR}/scripts/scope-code-files.sh --branch-only --base <ref>`, and `comment_edit_scope` sets the granularity. It never widens: nothing changed is `files=0`. Exit 2 is reported and the run stops. `--added-since` beats it. |
 | `--notes <path>` | Append the staged narrative block to `<path>` too. Refuse a symlink, then check `git ls-files --error-unmatch <path>`: a tracked or symlinked path is refused, the run continues, and the block is reported only. |
 | `--pipeline` | The run is the pull-request pipeline's comment pass; it changes no setting. |
 
@@ -139,7 +140,8 @@ the gates in [reference/safety.md](reference/safety.md).
 
 **The floor, kept in every posture**: machine-read directives (shebangs, lint pragmas, encoding
 cookies, region markers, repo-local markers the workflow discovers, `remove-comments-ignore` and
-`dissolve-comments-ignore` lines), suppression justifications paired with their waiver, legal and
+`dissolve-comments-ignore` lines, the comment trailing a `uses:` line pinned to a full commit id,
+whatever its wording), suppression justifications paired with their waiver, legal and
 license headers, `TODO(#issue)` markers, and a comment that is one half of a comment-plus-regression-test
 pair, because deleting half of a paired record is a correctness bug. A pragma that waives a
 correctness or safety rule stays (deleting it changes lint output, so it is not a comment edit), and

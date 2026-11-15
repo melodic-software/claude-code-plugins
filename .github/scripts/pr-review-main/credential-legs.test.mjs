@@ -234,7 +234,7 @@ function chain(version, s) {
       rows = r.rows;
     } else ctx[`needs.${nextRoute}.result`] = "skipped";
   };
-  later(SUB, "subscription", "subscription-handoffs");
+  later(SUB, "subscription", "collect-subscription-handoffs");
   later(FB, "fallback", null);
   return out;
 }

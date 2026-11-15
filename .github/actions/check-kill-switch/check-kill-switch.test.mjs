@@ -292,7 +292,7 @@ test("a failed budget read proceeds", async () => {
 // existing work (reviews, merges, verdicts, post-model writes, model legs that
 // take over a handed-off turn) and check the switches only.
 const GATES = {
-  "pr-run-plugin-evals.yml": { eval: "switch", "eval-subscription": "switch", "eval-fallback": "switch" },
+  "pr-run-plugin-evals.yml": { "run-eval": "switch", "run-eval-subscription": "switch", "run-eval-fallback": "switch" },
   "maintenance-measure-skill-edit-pass.yml": { pass: "switch", "pass-subscription": "switch", "pass-fallback": "switch" },
   "intake-reenter.yml": { reenter: "start" },
   "intake-triage.yml": {
@@ -323,10 +323,10 @@ const GATES = {
   "post-merge-file-demotion-issues.yml": { "report-red-main": "switch" },
   "post-merge-test-mutation.yml": { prep: "start" },
   "pr-dispatch-feedback.yml": { "post-verify-notes": "switch", dispatch: "switch", "rerun-ci-status": "switch" },
-  "pr-merge.yml": { "post-merge-dispatch": "switch", merge: "switch", "enable-auto-merge": "switch" },
+  "pr-merge.yml": { "dispatch-post-merge-runs": "switch", merge: "switch", "enable-auto-merge": "switch" },
   "pr-rate-merge-risk.yml": { "rate-merge-risk": "switch", "rate-merge-risk-subscription": "switch", "rate-merge-risk-fallback": "switch" },
   "pr-review-hosted.yml": { "kill-switch": "switch" },
-  "pr-review-main.yml": { trigger: "switch", "trusted-text": "switch", review: "switch", "review-subscription": "switch", "review-fallback": "switch" },
+  "pr-review-main.yml": { trigger: "switch", "collect-trusted-text": "switch", review: "switch", "review-subscription": "switch", "review-fallback": "switch" },
   "pr-review-security-hosted.yml": { "kill-switch": "switch" },
   // broker-check reads the budget only for a caller passing start-gate, and
   // only on a call that is the first in its slot (FIRST_CALL).

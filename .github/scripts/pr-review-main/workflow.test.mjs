@@ -23,7 +23,7 @@ const LEGS = [KEY, SUB, FB];
 // The credit gate before the key leg: no model, no secret.
 const PROBE = "review-handoffs-credit";
 // The one read of the trusted PR text each leg may take: no model, no secret.
-const TEXT = "trusted-text";
+const TEXT = "collect-trusted-text";
 const jobText = (id) => {
   const found = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(text);
   assert.ok(found, `a job ${id}`);
@@ -81,7 +81,7 @@ test("each leg reviews every chunk in order, one run each, and stops at a handof
   }
 });
 
-test("a chunked review that wrote no verdict records chunk-failed for the record job", () => {
+test("a chunked review that wrote no verdict records chunk-failed for the report-review-counts job", () => {
   for (const job of LEGS) {
     const stop = step("Record a failed chunk", job);
     assert.equal(index("Record a failed chunk", job), index("Write the verdict", job) + 1, job);
@@ -132,7 +132,7 @@ test("the model's jobs can only read, and the one writer runs no model", () => {
   }
   // The routes between legs hold no grant, no secret and no model; the one
   // action is review-handoffs' credit-stop marker upload, on the runtime token.
-  for (const job of ["review-handoffs", "subscription-handoffs"]) {
+  for (const job of ["review-handoffs", "collect-subscription-handoffs"]) {
     const route = jobText(job);
     assert.match(route, /^ {4}permissions: \{\}$/m, job);
     assert.doesNotMatch(route, /run-claude-cli|secrets\.|actions\/checkout@/, job);
@@ -140,7 +140,7 @@ test("the model's jobs can only read, and the one writer runs no model", () => {
     assert.deepEqual(uses.map((line) => line.replace(/@.*/, "")), job === "review-handoffs" ? ["uses: actions/upload-artifact"] : [], job);
   }
   // The trigger job reads with the key leg's grants and checks: read, for the
-  // record job's check runs its judged-head read takes; it holds no secret
+  // report-review-counts job's check runs its judged-head read takes; it holds no secret
   // and runs no model.
   const trigger = jobText("trigger");
   assert.deepEqual(
@@ -148,7 +148,7 @@ test("the model's jobs can only read, and the one writer runs no model", () => {
     [...grantsOf(jobText(KEY)).map(([, scope, level]) => `${scope}:${level}`), "checks:read"],
   );
   assert.doesNotMatch(trigger, /run-claude-cli|secrets\./);
-  const record = jobText("record");
+  const record = jobText("report-review-counts");
   assert.deepEqual(grantsOf(record).map(([, scope, level]) => `${scope}:${level}`), ["checks:write"]);
   assert.doesNotMatch(record, /run-claude-cli|secrets\.|actions\/checkout@/);
   // It posts counts only, read as numbers from this run's verdicts.
@@ -396,7 +396,7 @@ function runDiff(patch, { pythonFails = false, job = KEY, maxBytes = "300", maxC
   }
 }
 
-test("a diff the review cannot read whole stops green and names its reason for the record job", () => {
+test("a diff the review cannot read whole stops green and names its reason for the report-review-counts job", () => {
   const small = "diff --git a/x b/x\n@@ -1 +1 @@\n+short\n";
   for (const job of LEGS) {
     // One file of 612 bytes fits no 300-byte chunk.
@@ -513,9 +513,9 @@ test("after a stop no later step of the leg runs, and each lane's stop leaves th
   }
 });
 
-// The record job's "Record the stops" script, with gh stubbed to log its args.
+// The report-review-counts job's "Record the stops" script, with gh stubbed to log its args.
 function recordStops(env) {
-  const block = stepsOf("record").find((s) => s.name === "Record the stops").block;
+  const block = stepsOf("report-review-counts").find((s) => s.name === "Record the stops").block;
   const run = /^ {8}run: \|\n((?:(?: {10}.*)?\n)+)/m.exec(`${block}\n`)[1].replace(/^ {10}/gm, "");
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-record-"));
   try {
@@ -532,8 +532,8 @@ function recordStops(env) {
   }
 }
 
-test("the record job posts each stop as a neutral verdict=none record, from a closed reason", () => {
-  const block = stepsOf("record").find((s) => s.name === "Record the stops").block;
+test("the report-review-counts job posts each stop as a neutral verdict=none record, from a closed reason", () => {
+  const block = stepsOf("report-review-counts").find((s) => s.name === "Record the stops").block;
   // A stop run uploads no artifact, so the step never waits on the download.
   assert.doesNotMatch(block, /steps\.download/);
   assert.match(block, /\^\(too-large\|binary\|chunk-failed\)\$/);
@@ -788,7 +788,7 @@ test("each chunk's review leaves a lane record", () => {
 
 test("it checks out main only, and runs local actions from that checkout", () => {
   // One checkout per leg, the trigger job's of the tip, like the key leg's,
-  // and the trusted-text job's of the trigger job's recorded commit.
+  // and the collect-trusted-text job's of the trigger job's recorded commit.
   assert.equal(text.match(/uses: actions\/checkout@/g).length, LEGS.length + 2);
   const textCheckout = stepsOf(TEXT).filter((s) => /uses: actions\/checkout@/.test(s.block));
   assert.equal(textCheckout.length, 1);
@@ -814,7 +814,7 @@ test("it checks out main only, and runs local actions from that checkout", () =>
   assert.doesNotMatch(text, /github\.sha/);
   // The key and subscription legs pass each lane's commit on, and each route
   // reads the previous leg's.
-  for (const [route, from] of [["review-handoffs", KEY], ["subscription-handoffs", SUB]]) {
+  for (const [route, from] of [["review-handoffs", KEY], ["collect-subscription-handoffs", SUB]]) {
     for (const lane of ["claude-review", "claude-security-review"]) {
       assert.match(jobText(from), new RegExp(`^ {6}${lane}-base-sha: \\$\\{\\{ steps\\.base\\.outputs\\.${lane}-base-sha \\}\\}$`, "m"));
     }
@@ -864,7 +864,7 @@ test("the prompt names the per-concern review rules the criteria step copies", (
 
 test("the verdict uploads once, after it is written, under the writer's name", () => {
   // Each leg's verdict, plus review-handoffs' credit-stop marker, the gate's
-  // probing marker, the trusted-text job's shared read, and the lane-hold
+  // probing marker, the collect-trusted-text job's shared read, and the lane-hold
   // marker of the trigger job and each leg.
   assert.equal(text.match(/uses: actions\/upload-artifact@/g).length, LEGS.length + 3 + LEGS.length + 1);
   // The lane-hold marker is told by its artifact name, never its step name:
@@ -1119,13 +1119,13 @@ test("each select reads the files again after a failure and holds green on a lis
 // found no lane source, or a head both lanes already reviewed.
 const KEY_SKIP = "      && (needs.trigger.outputs.run-attempt != github.run_attempt\n      || needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true')\n";
 
-// The record job runs once a leg could have reviewed: the key leg, or a
+// The report-review-counts job runs once a leg could have reviewed: the key leg, or a
 // subscription leg the credit gate's skip of the key leg handed every lane to.
 const RECORD_IF = /^ {4}if: \$\{\{ !cancelled\(\) && github\.ref == 'refs\/heads\/main' && \(needs\.review\.result != 'skipped' \|\| needs\.review-subscription\.result != 'skipped'\) \}\}$/m;
 
 test("no leg starts, and nothing records, for a head with no lane source or one both lanes reviewed", () => {
   assert.ok(/^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(KEY))[1].endsWith(KEY_SKIP));
-  assert.match(jobText("record"), RECORD_IF);
+  assert.match(jobText("report-review-counts"), RECORD_IF);
   // A skipped key leg is reported, and a lane handed on, only where this
   // attempt's trigger job starts the key leg.
   for (const report of ["Report the skipped claude-review key leg", "Report the skipped claude-security-review key leg"]) {
@@ -1632,7 +1632,7 @@ test("the legs run the review lanes' credentials in the review lanes' order", ()
   // needs the leg before it last (the key route also the trigger and gate).
   const order = [KEY];
   for (let job = KEY; ; ) {
-    const route = ["review-handoffs", "subscription-handoffs"].find((id) => needsOf(id).replace(/^\[|\]$/g, "").split(", ").at(-1) === job);
+    const route = ["review-handoffs", "collect-subscription-handoffs"].find((id) => needsOf(id).replace(/^\[|\]$/g, "").split(", ").at(-1) === job);
     if (!route) break;
     job = LEGS.find((id) => needsOf(id) === `[${TEXT}, ${route}]`);
     order.push(job);
@@ -1676,7 +1676,7 @@ test("the legs run the review lanes' credentials in the review lanes' order", ()
 // set hands off as no-key (report-lane-outcome's fallback-reason).
 const ROUTES = {
   "review-handoffs": ["credit-stop", "auth", "no-key"],
-  "subscription-handoffs": ["limit-stop", "credit-stop", "auth", "no-key"],
+  "collect-subscription-handoffs": ["limit-stop", "credit-stop", "auth", "no-key"],
 };
 const SHA_A = "a".repeat(40);
 const SHA_B = "0123456789abcdef0123456789abcdef01234567";
@@ -1731,11 +1731,11 @@ test("a route hands the next leg fixed lane rows, only for a lane handed on with
   }
   // limit-stop comes only from a subscription leg.
   assert.notEqual(routeRun("review-handoffs")({ CODE: "limit-stop", SECURITY: "" }).status, 0);
-  assert.equal(routeRun("subscription-handoffs")({ CODE: "limit-stop", SECURITY: "" }).status, 0);
+  assert.equal(routeRun("collect-subscription-handoffs")({ CODE: "limit-stop", SECURITY: "" }).status, 0);
 });
 
 test("a later leg runs only for the lanes the previous leg handed on", () => {
-  for (const [route, from, to] of [["review-handoffs", KEY, SUB], ["subscription-handoffs", SUB, FB]]) {
+  for (const [route, from, to] of [["review-handoffs", KEY, SUB], ["collect-subscription-handoffs", SUB, FB]]) {
     const routeJob = jobText(route);
     // The key route also reads the trigger job's commit and the credit gate's
     // skip, which hands every lane on (its own test above).
@@ -1760,7 +1760,7 @@ test("a later leg runs only for the lanes the previous leg handed on", () => {
   }
   // The fallback leg is the last: it hands nothing on.
   assert.equal(index("Hand the lane on", FB), -1);
-  // Its outputs are the designed stops alone, for the record job.
+  // Its outputs are the designed stops alone, for the report-review-counts job.
   const fbOutputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobText(FB))[1];
   assert.deepEqual(
     [...fbOutputs.matchAll(/^ {6}([a-z-]+):/gm)].map(([, name]) => name),
@@ -1771,11 +1771,11 @@ test("a later leg runs only for the lanes the previous leg handed on", () => {
     assert.equal(input(step(`Review chunk ${k}`, SUB), "fallback-ready"), "${{ steps.credential.outputs.fallback-ready }}");
     assert.doesNotMatch(step(`Review chunk ${k}`, FB), /fallback-ready/);
   }
-  // The record job waits for every leg and runs when a later one skipped,
+  // The report-review-counts job waits for every leg and runs when a later one skipped,
   // but not when the key leg and the subscription leg both did (its own test above).
-  assert.match(jobText("record"), /^ {4}needs: \[review, review-subscription, review-fallback\]$/m);
-  assert.match(jobText("record"), RECORD_IF);
-  const records = (review, subscription) => admits(/^ {4}if: \$\{\{ (.*) \}\}$/m.exec(jobText("record"))[1], { github: { ref: "refs/heads/main" }, needs: { review: { result: review }, "review-subscription": { result: subscription } } });
+  assert.match(jobText("report-review-counts"), /^ {4}needs: \[review, review-subscription, review-fallback\]$/m);
+  assert.match(jobText("report-review-counts"), RECORD_IF);
+  const records = (review, subscription) => admits(/^ {4}if: \$\{\{ (.*) \}\}$/m.exec(jobText("report-review-counts"))[1], { github: { ref: "refs/heads/main" }, needs: { review: { result: review }, "review-subscription": { result: subscription } } });
   assert.ok(records("success", "skipped"));
   assert.ok(records("skipped", "success"));
   assert.ok(records("skipped", "failure"));

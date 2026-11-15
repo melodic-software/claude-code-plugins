@@ -23,6 +23,12 @@ rung=<uncommitted|branch|repository> base=<ref|none> files=<n>
 The base is `--base <ref>` when given, else `refs/remotes/origin/HEAD`, else the first of
 `origin/main`, `origin/master`, `main`, `master` that exists. <!-- portability-ok: documents the script's detection-first order (the remote's own HEAD is read before any name is tried); the names are the last-resort fallback, not an assumed default -->
 
+The skill's `--base <ref>` argument runs the script as `--branch-only --base <ref>`, which skips the
+ladder and never leaves the `branch` rung: its files are the code files that differ between the
+merge base of `<ref>` and the working tree, untracked ones included, and nothing changed prints
+`files=0`. A clean tree or a branch with no commits of its own never widens to the repository.
+A `<ref>` that does not resolve, or shares no merge base with `HEAD`, exits 2.
+
 The ladder advances on **absence** of a rung, never on emptiness: a rung that exists but yields zero
 code files is reported with `files=0`, so a docs-only branch reports its files as out of scope
 instead of silently escalating to the whole repository. Widening to the `repository` rung is taken

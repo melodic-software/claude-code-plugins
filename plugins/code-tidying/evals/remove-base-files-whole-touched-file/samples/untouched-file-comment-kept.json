@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\n\n# set the total to zero\ntotal=0\necho \"$total\"\n",
+      "why": "the untouched file is outside the scope"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\n\ntotal=0\necho \"$total\"\n",
+      "why": "the scope widened past the branch"
+    }
+  ]
+}

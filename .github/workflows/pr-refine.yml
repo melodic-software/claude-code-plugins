@@ -25,7 +25,7 @@ name: PR Refine
 # " #" would start a YAML comment and drop the PR number.
 run-name: "pr-refine ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
-# API_BUDGET_HOLD (outage posture element 2): only plan's changed-files read
+# API_BUDGET_HOLD (outage posture element 2): only select-passes's changed-files read
 # and fix-docs-head's head read and hold check set it, since an unread file
 # list, head or hold holds green and starts nothing. handoff-evidence.sh sets
 # it itself for the fix-docs reads.
@@ -63,15 +63,15 @@ concurrency:
 jobs:
   # A dispatcher that ran an older copy of its file than the tip sent a run the
   # broker refuses every write token (workflow-modified), so this job compares
-  # the two before anything else. On a difference the plan job does not start,
+  # the two before anything else. On a difference the select-passes job does not start,
   # nor any job after it: no model turn and no check; the run ends green and
   # the next dispatcher, on the tip's file, finds the head unhandled and sends
   # it again. Here and not in the read runner, because the jobs after a
   # fix-docs-head that proceeded mint a token whatever the model call did.
   # Only base code and a read-only token; a dispatch with no dispatcher run
   # skips the steps.
-  dispatcher-current:
-    name: Dispatcher Current
+  check-dispatcher-current:
+    name: Check Dispatcher Current
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -133,13 +133,13 @@ jobs:
   # each runner's own applies-when decides. A file list it cannot read holds
   # (outage posture element 2): one notice, held=true and no passes, and
   # fix-docs-head-held logs the hold the dispatcher reads to send the PR again.
-  plan:
-    name: Plan
-    needs: dispatcher-current
+  select-passes:
+    name: Select Passes
+    needs: check-dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'fix-docs'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-      && needs.dispatcher-current.outputs.stale != 'true'
+      && needs.check-dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -256,15 +256,15 @@ jobs:
   # or an answer with no SHA) holds (outage posture element 2): one notice,
   # unread=true, no head-sha, so nothing after it starts but fix-docs-head-held.
   # A hold whose reads meet a GitHub fault holds the same way, with no held.
-  # It starts only when the plan job planned fix-docs.
+  # It starts only when the select-passes job planned fix-docs.
   fix-docs-head:
     name: Fix Docs Head
-    needs: [dispatcher-current, plan]
+    needs: [check-dispatcher-current, select-passes]
     if: >-
       inputs.pr-number != '' && inputs.activity == 'fix-docs'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-      && needs.dispatcher-current.outputs.stale != 'true'
-      && needs.plan.outputs.fix-docs == 'true'
+      && needs.check-dispatcher-current.outputs.stale != 'true'
+      && needs.select-passes.outputs.fix-docs == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -361,18 +361,18 @@ jobs:
           tokens: github-token
 
   # Job-level evidence that fix-docs-head held on an unread head or hold, or
-  # the plan on unread changed files: the run ends green, and
+  # select-passes on unread changed files: the run ends green, and
   # fix-docs-dispatch.mjs (heldHead) reads this job's conclusion, as it reads a
   # handoff hold, to dispatch the PR again until limit-stops-per-head runs went
   # red or held. Monitor signal 13 counts its titled notice (signals.mjs
-  # HOLD_LANES). It needs plan and fix-docs-head alone, jobs that run no head
+  # HOLD_LANES). It needs select-passes and fix-docs-head alone, jobs that run no head
   # code, so nothing forges it.
   fix-docs-head-held:
     name: Fix Docs Head Held
-    needs: [plan, fix-docs-head]
+    needs: [select-passes, fix-docs-head]
     if: >-
       ${{ !cancelled() && (needs.fix-docs-head.outputs.unread == 'true'
-      || needs.plan.outputs.held == 'true') }}
+      || needs.select-passes.outputs.held == 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
@@ -381,7 +381,7 @@ jobs:
         env:
           PR_NUMBER: ${{ inputs.pr-number }}
           HOLD_UNREAD: ${{ needs.fix-docs-head.outputs.hold-unread }}
-          PLAN_HELD: ${{ needs.plan.outputs.held }}
+          PLAN_HELD: ${{ needs.select-passes.outputs.held }}
         run: |
           what="head"
           [[ $HOLD_UNREAD != true ]] || what="human-gated hold"
@@ -539,8 +539,8 @@ jobs:
   # read of the call's run job (handoff-evidence.sh credit-stop), never from a
   # call's output. No job needs this one, so the read, which waits for the
   # jobs listing's steps, delays no handoff.
-  key-credit-markers:
-    name: Key Credit Markers
+  upload-key-credit-markers:
+    name: Upload Key Credit Markers
     needs: [fix-docs]
     if: ${{ !cancelled() && (needs.fix-docs.result != 'skipped') }}
     runs-on: ubuntu-24.04
@@ -824,15 +824,15 @@ jobs:
   # which monitor signal 13 counts as a pr-refine hold, on this job of a red
   # run too (signals.mjs HOLD_LANES). Each outcome comes from the jobs'
   # results and the push job's outputs, which only its base script sets,
-  # never from a model call's run job, which runs head code. A plan job that
+  # never from a model call's run job, which runs head code. A select-passes job that
   # failed logs refine-failed for pass=plan, since no pass's job ran. No token
   # but a read-only one for the checkout.
   record-passes:
     name: Record Passes
-    needs: [plan, fix-docs-head, fix-docs, fix-docs-handoff, fix-docs-subscription, fix-docs-subscription-handoff, fix-docs-fallback, apply-docs-patch]
+    needs: [select-passes, fix-docs-head, fix-docs, fix-docs-handoff, fix-docs-subscription, fix-docs-subscription-handoff, fix-docs-fallback, apply-docs-patch]
     if: >-
-      ${{ !cancelled() && (needs.plan.result == 'failure'
-      || needs.plan.result == 'success' && needs.plan.outputs.held != 'true' && needs.plan.outputs.passes != '[]') }}
+      ${{ !cancelled() && (needs.select-passes.result == 'failure'
+      || needs.select-passes.result == 'success' && needs.select-passes.outputs.held != 'true' && needs.select-passes.outputs.passes != '[]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -863,10 +863,10 @@ jobs:
 
       - name: Record each pass
         env:
-          PLAN_RESULT: ${{ needs.plan.result }}
-          PASSES: ${{ needs.plan.outputs.passes }}
-          FILES: ${{ needs.plan.outputs.files }}
-          STARTED_AT: ${{ needs.plan.outputs.started-at }}
+          PLAN_RESULT: ${{ needs.select-passes.result }}
+          PASSES: ${{ needs.select-passes.outputs.passes }}
+          FILES: ${{ needs.select-passes.outputs.files }}
+          STARTED_AT: ${{ needs.select-passes.outputs.started-at }}
           # fix-docs's jobs and their results, and its push job's outputs.
           FIX_DOCS_RESULTS: >-
             {"fix-docs-head": "${{ needs.fix-docs-head.result }}",

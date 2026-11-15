@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // last-report.mjs: the post-merge report the last pr-merge tick kept (its
-// post-merge-dispatch job's pr-merge-post-merge-report artifact), which this
-// tick's post-merge-dispatch job reuses in place of its own check while
+// dispatch-post-merge-runs job's pr-merge-post-merge-report artifact), which this
+// tick's dispatch-post-merge-runs job reuses in place of its own check while
 // nothing the check reads has moved (babysit_verify_evidence.py settle
 // --idle-tick). Found as the lane records are (lane-records.mjs): the newest
 // scheduled or hand-started run of main's pr-merge.yml, this run aside,
