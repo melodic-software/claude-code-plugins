@@ -9,7 +9,7 @@
 # runs outside a repository and exits 0, and a probe that sources the check lib
 # reruns under the first bash on PATH outside System32, or with none follows the
 # check-placement contract's missing-tool rule.
-# test-scope: plugins/*/git-hooks/* plugins/*/lib/git-hooks/check-lib.sh lib/git-hooks/install.mjs lib/git-hooks/check-lib.sh lib/resolve-convention-pattern.sh plugins/guardrails/hooks/resolve-convention-pattern.sh .lefthook/*
+# test-scope: plugins/*/git-hooks/* plugins/*/lib/git-hooks/check-lib.sh lib/git-hooks/install.mjs lib/git-hooks/check-lib.sh lib/resolve-convention-pattern.sh plugins/guardrails/hooks/resolve-convention-pattern.sh .lefthook/* plugins/guardrails/hooks/*.sh plugins/guardrails/lib/*/*.sh plugins/code-tidying/scripts/comment-settings.sh plugins/code-tidying/lib/parse-concern-value.sh plugins/code-tidying/lib/resolve-convention-home.sh
 # shellcheck disable=SC2016 # single-quoted $ text is shell source written to files or matched literally
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
@@ -91,9 +91,78 @@ for wrapper in "$TOP"/.lefthook/*/*.sh; do
   sh_only "lefthook remote wrapper ${wrapper#"$TOP"/}" "$wrapper"
 done
 
-remote="$TOP/plugins/guardrails/git-hooks/lefthook-remote.yml"
-expect "the lefthook remote runs every script with sh" "4|0" \
-  "$(grep -cE '^[[:space:]]*runner:[[:space:]]*sh[[:space:]]*$' "$remote")|$(grep -E '^[[:space:]]*runner:' "$remote" | grep -cvE 'runner:[[:space:]]*sh[[:space:]]*$')"
+NEWER_THAN_BASH_3_2='(declare|local|typeset)[[:space:]]+-[[:alpha:]]*[An]|(^|[^[:alnum:]_])(mapfile|readarray|coproc)([[:space:]]|$)|\$\{[!#]?[[:alpha:]_][[:alnum:]_]*(\[[^]]*\])?(\^|,)|\$\{[[:alpha:]_][[:alnum:]_]*(\[[^]]*\])?@[QEPAaKkUuL]\}|\|&|&>>|;;&|;&[[:space:]]*$|\[\[[[:space:]]+-v[[:space:]]|wait[[:space:]]+-n|\$\{[[:alpha:]_][[:alnum:]_]*\[-[0-9]+\]\}|shopt[[:space:]]+-s[[:space:]]+(globstar|lastpipe|autocd|dirspell|checkjobs|direxpand|globasciiranges)|\$\{?(EPOCHSECONDS|EPOCHREALTIME|BASHPID)|%\([^)]*\)T|\{-?[0-9]+\.\.-?[0-9]+\.\.-?[0-9]+\}'
+
+bash4_syntax() {
+  local n=0 line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    n=$((n + 1))
+    ((n > 1)) || continue
+    [[ "$line" =~ $COMMENT ]] && continue
+    [[ "$line" =~ $NEWER_THAN_BASH_3_2 ]] && printf '%s: %s\n' "$n" "$line"
+  done <"$1"
+  return 0
+}
+
+printf '%s\n' '#!/bin/sh' 'declare -A m' 'local -n ref=x' 'mapfile -t a <f' 'echo "${x,,}"' 'echo "${x^}"' \
+  'echo "${x@Q}"' 'cmd |& tee' 'cmd &>>log' '  a) x ;;&' '[[ -v name ]]' 'wait -n' 'echo "${a[-1]}"' \
+  'shopt -s globstar' 'echo $EPOCHSECONDS' "printf '%(%F)T'" 'echo {1..9..2}' \
+  '# declare -A in a comment' 'local -a list=()' 'echo "${#x}" "${x:-d}" "${x%,*}" "${!x}"' \
+  'read -r -d "" f' 'cmd >&2 && x' 'echo {1..9}' 'local IFS=,' >"$WORK/sample4"
+expect "the bash 4 pattern catches syntax newer than bash 3.2, and only that" \
+  "$(printf '%s\n' '2: declare -A m' '3: local -n ref=x' '4: mapfile -t a <f' '5: echo "${x,,}"' '6: echo "${x^}"' \
+    '7: echo "${x@Q}"' '8: cmd |& tee' '9: cmd &>>log' '10:   a) x ;;&' '11: [[ -v name ]]' '12: wait -n' \
+    '13: echo "${a[-1]}"' '14: shopt -s globstar' '15: echo $EPOCHSECONDS' "16: printf '%(%F)T'" '17: echo {1..9..2}')" \
+  "$(bash4_syntax "$WORK/sample4")"
+
+entry_shell_assets() {
+  TOP_DIR="$TOP" node --input-type=module -e '
+    import { readdirSync, readFileSync, existsSync } from "node:fs";
+    const top = process.env.TOP_DIR;
+    for (const p of readdirSync(`${top}/plugins`).sort()) {
+      const m = `${top}/plugins/${p}/git-hooks/entries.json`;
+      if (!existsSync(m)) continue;
+      const seen = new Set();
+      for (const e of JSON.parse(readFileSync(m, "utf8")).entries) {
+        const files = [`git-hooks/${e.script}`, ...(e.assets ?? []).filter((a) => a.endsWith(".sh"))];
+        for (const f of files) {
+          if (seen.has(f)) continue;
+          seen.add(f);
+          console.log(`plugins/${p}/${f}\t${top}/plugins/${p}/${f}`);
+        }
+      }
+    }'
+}
+
+KNOWN_FAILING_SCANS=" plugins/bash-format/git-hooks/shfmt-rewrite.sh:bash plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh:bash4 plugins/guardrails/hooks/run-guards.sh:bash4 plugins/guardrails/hooks/hook-utils.sh:bash plugins/guardrails/hooks/hook-utils.sh:bash4 plugins/guardrails/hooks/cli-flag-verify.sh:bash4 plugins/guardrails/hooks/skill-reference-verify.sh:bash4 plugins/guardrails/hooks/stale-path-verify.sh:bash4 plugins/guardrails/lib/verification/verify-cli-flag.sh:bash plugins/guardrails/lib/verification/verify-cli-flag.sh:bash4 "
+scan() {
+  local label="$1" kind="$2" text="$3" what="$4"
+  if [[ "$KNOWN_FAILING_SCANS" == *" $label:$kind "* ]]; then
+    expect "$label: still $what, as the known list says" yes "$([[ -n "$text" ]] && echo yes)"
+  else
+    expect "$label: $what: none" "" "$text"
+  fi
+}
+shell_files=0
+while IFS=$'\t' read -r label path; do
+  shell_files=$((shell_files + 1))
+  scan "$label" bash "$(bash_commands "$path")" "names bash as a command"
+  scan "$label" bash4 "$(bash4_syntax "$path")" "uses syntax newer than bash 3.2"
+done < <(entry_shell_assets)
+expect "every entry's shell assets were read" yes "$( ((shell_files > entries)) && echo yes)"
+for lib in "$HERE/check-lib.sh" "$TOP"/plugins/*/lib/git-hooks/check-lib.sh; do
+  expect "${lib#"$TOP"/}: no syntax newer than bash 3.2" "" "$(bash4_syntax "$lib")"
+done
+
+remotes=0
+for remote in "$TOP"/plugins/*/git-hooks/lefthook-remote.yml; do
+  [[ -f "$remote" ]] || continue
+  remotes=$((remotes + 1))
+  scripts="$(grep -cE '^[[:space:]]*script:' "$remote")"
+  expect "${remote#"$TOP"/}: the lefthook remote runs every script with sh" "$scripts|0" \
+    "$(grep -cE '^[[:space:]]*runner:[[:space:]]*sh[[:space:]]*$' "$remote")|$(grep -E '^[[:space:]]*runner:' "$remote" | grep -cvE 'runner:[[:space:]]*sh[[:space:]]*$')"
+done
+expect "every plugin's lefthook remote was read" yes "$( ((remotes >= 2)) && echo yes)"
 
 # The path goes in the environment, not argv: install.mjs runs its CLI when
 # argv[1] names it.

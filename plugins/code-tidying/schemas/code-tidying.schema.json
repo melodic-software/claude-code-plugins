@@ -40,6 +40,17 @@
       "default": true,
       "description": "Whether a function-local rename certified RENAME-ONLY applies without a test net."
     },
+    "comment_lint": {
+      "enum": ["off", "report", "block"],
+      "default": "off",
+      "description": "Level of the comment lint, the git-hook entry comment-lint that judges the comment lines a change adds against comment_posture. off: it does not run. report: it prints its findings and passes. block: it prints them and fails. Team file only: the personal override is not read. It never runs under the explanatory posture."
+    },
+    "comment_lint_allow": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "default": [],
+      "description": "Extra comments the comment lint passes: each item is an extended regular expression matched against a comment's text, for markers a repository's own tools read. Team file only."
+    },
     "upkeep_cadence": {
       "enum": ["daily", "weekly"],
       "default": "daily",

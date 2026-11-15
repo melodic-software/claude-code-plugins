@@ -1,0 +1,8 @@
+#!/bin/sh
+# shellcheck disable=SC2086
+ls $x
+# vim: set ts=2 sw=2:
+# region setup
+y=1
+# endregion
+z=2 # PLANTED set the cache up

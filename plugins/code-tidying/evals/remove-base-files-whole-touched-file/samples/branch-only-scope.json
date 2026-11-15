@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/x/skills/remove-comments/scripts/scope-code-files.sh --branch-only --base main",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "the --base form ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/x/skills/remove-comments/scripts/scope-code-files.sh",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "the ladder ran instead"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/x/skills/remove-comments/scripts/added-lines.sh main",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "added lines only"
+    }
+  ]
+}

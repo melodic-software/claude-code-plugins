@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\n\ncount=0\necho \"$count\"\necho \"done\"\n",
+      "why": "comment deleted, code unchanged"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\n\n# set the count to zero\ncount=0\necho \"$count\"\necho \"done\"\n",
+      "why": "nothing deleted, code unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\n\ncount=1\necho \"$count\"\necho \"done\"\n",
+      "why": "a code line changed"
+    }
+  ]
+}

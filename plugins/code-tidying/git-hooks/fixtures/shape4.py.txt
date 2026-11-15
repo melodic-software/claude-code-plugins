@@ -1,0 +1,2 @@
+x = 1  # TODO(#123): drop once the upstream fix ships
+y = 2  # TODO: PLANTED drop this

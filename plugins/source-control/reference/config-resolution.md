@@ -266,7 +266,7 @@ reads the file itself, through a script where the key names one below.
   `tests`). Three audits are not replaceable here:
   - `tests` can be turned off but not replaced, because prep step 1.3 reads its judge verdicts.
   - The comment pass is not listed, because it is a `code`-class step whose staged report and
-    `--pipeline --added-since` scope later prep steps read.
+    `--pipeline --base` scope later prep steps read.
   - `security` is not listed, because it runs in `ready`, where `pre_ready`'s `security-review`
     step already governs it.
 

@@ -1,0 +1,9 @@
+#Requires -Version 7
+# remove-comments-ignore
+# kept by the marker above
+$a = 1 # FIXME(#9): wrong rounding
+$b = 2 # FIXME: PLANTED wrong rounding
+Write-Output $a
+# SIG # Begin signature block
+# MIIFAbcdef
+# SIG # End signature block

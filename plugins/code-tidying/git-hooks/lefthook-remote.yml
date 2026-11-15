@@ -1,0 +1,5 @@
+pre-commit:
+  jobs:
+    - name: code-tidying-remote-comment-lint
+      script: code-tidying-comment-lint.sh
+      runner: sh

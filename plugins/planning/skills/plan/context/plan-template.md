@@ -53,7 +53,7 @@ Process criteria: <criterion ids no behavior shows; omit when none>
 
 ### Standards grounding
 
-<which consumer standards shaped this plan, from the grounding step. Skipped at trivial scale only: state "Skipped: trivial scale, ambient context only">
+<which consumer standards shaped this plan, from the grounding step. Skipped at trivial scale only: state "Skipped: trivial scale, ambient context only". Each review-criteria file whose index row matches the plan's paths gets its own row, surface `review-criteria`, its path in "Sections cited">
 
 | Surface | Sections cited | Layer provenance |
 |---------|----------------|------------------|

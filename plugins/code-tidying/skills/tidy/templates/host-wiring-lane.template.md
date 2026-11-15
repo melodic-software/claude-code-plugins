@@ -16,7 +16,7 @@ Hosting infrastructure: startup wiring, service registration, logging configurat
 - **Beck #2, Dead Code**: registrations for services that no longer exist, stale feature-flag branches
 - **Beck #9, Explaining Constants**: inline connection-string keys, header names, timeout literals → named constants
 - **Beck #12, Extract Helper**: repeated registration blocks across hosts → one extension method (only when call sites are truly identical)
-- **Beck #14, Explaining Comments**: non-obvious ordering constraints deserve a `// Why:` comment
+- **Beck #14, Explaining Comments**: a non-obvious ordering constraint, when #14's posture rule allows a comment
 - **<config-consolidation-pattern>**: duplicated configuration keys/sections across host projects
 
 ## Lane-specific extra exclusions
