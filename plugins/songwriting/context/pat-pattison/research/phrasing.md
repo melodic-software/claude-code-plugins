@@ -612,7 +612,9 @@ wants back-heavy on a weak bar.
 
 **Unaudited, non-book material**, same scope as the section above: "body
 language" appears nowhere in the four books, so do not attribute this framing to
-Pat or quote him on it; no source for such a quotation has been found.
+a book. Pat's one sourced sentence on it is the patpattison.com "The Art of
+Phrasing" quote in [lyric-melodic-roadmaps.md](lyric-melodic-roadmaps.md);
+quote no other line as his.
 
 The framing itself, unattributed: phrasing is the song's body language. Where a
 phrase sits against the bar communicates emotion before the words register.
