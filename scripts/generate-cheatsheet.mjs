@@ -367,6 +367,24 @@ const stageByName = new Map(
     s,
   ]),
 );
+// A conditional stage's trigger is the text after "conditional:" in its
+// heading; the by-kind lead-in quotes steps.md's own sentences on conditional
+// stages and detours, so neither rule is restated here.
+const conditionBySlug = new Map(
+  workflowStages.map((s, i) => [s.slug, stepHeadings[i].match(/\(conditional: ([^)]*)\)/)?.[1]]),
+);
+const stepsProse = stepsLines.join("\n").split(/\n\s*\n/).map((p) => p.replace(/\s*\n\s*/g, " "));
+const leadIn = [
+  "A conditional stage runs only when its trigger holds",
+  "Stages 2-4 are detours",
+].map((prefix) => {
+  const sentence = stepsProse
+    .map((p) => p.slice(p.indexOf(prefix)))
+    .find((p) => p.startsWith(prefix))
+    ?.match(/^.*?\.(?=\s|$)/)?.[0];
+  if (!sentence) fail([`${stepsPath} has no sentence starting "${prefix}"`]);
+  return sentence;
+});
 const kindsStart = stepsLines.findIndex((l) => l.trim() === `## ${TASK_KINDS_HEADING}`);
 if (kindsStart === -1) fail([`${stepsPath} has no Task kinds table (## ${TASK_KINDS_HEADING})`]);
 const kindsEnd = stepsLines.findIndex((l, j) => j > kindsStart && l.startsWith("## "));
@@ -499,7 +517,9 @@ const kindRowsOut = kinds
   .map((k) => {
     const steps = k.enters.map((s) => {
       const command = stageCommands.get(s.stage.slug)?.command;
-      return command ? `${stageLink(s)}: ${command}` : stageLink(s);
+      const condition = conditionBySlug.get(s.stage.slug);
+      const stage = condition ? `${stageLink(s)} (conditional: ${cell(condition)})` : stageLink(s);
+      return command ? `${stage}: ${command}` : stage;
     });
     const runs = k.enters.flatMap((s) => stageCommands.get(s.stage.slug)?.runs ?? []);
     const skips = k.skips.length ? k.skips.map((s) => s.name).join(", ") : "None";
@@ -508,7 +528,7 @@ const kindRowsOut = kinds
   .join("\n");
 toc.unshift(`- [${BY_KIND_HEADING}](#${slugify(BY_KIND_HEADING)})`);
 sections.unshift(
-  `## ${BY_KIND_HEADING}\n\n` +
+  `## ${BY_KIND_HEADING}\n\nFrom the stage definitions: ${cell(leadIn.join(" "))}\n\n` +
     "| Kind of task | Commands to type, in order | What they run for you | Skips | Why |\n" +
     "| --- | --- | --- | --- | --- |\n" +
     kindRowsOut,

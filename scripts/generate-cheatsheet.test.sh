@@ -56,7 +56,9 @@ write_steps() {
   local dir="$1"
   shift
   {
-    printf '## 3. Plan (fixture spine)\n'
+    printf 'A conditional stage runs only when its trigger holds; otherwise it is\nskipped.\n\n'
+    printf '%s\n\n' "${STEPS_HEADING:-## 3. Plan (fixture spine)}"
+    printf 'Stages 2-4 are detours: the interview calls one, and the work returns\nto it.\n'
     if (($# > 0)); then
       printf '\n## Task kinds\n\n| Kind | Stages, in order | Skips | Why |\n| --- | --- | --- | --- |\n'
       printf '%s\n' "$@"
@@ -395,6 +397,36 @@ else
   fail "by-kind table (exit=$CODE: $OUT)"
 fi
 rm -rf "$tree"
+
+# --- conditional stages: the heading's condition shows beside the command ---------
+mk_tree tree
+run_gen "$tree"
+sheet="$(cat "$tree/docs/skill-cheat-sheet.md")"
+if [[ "$CODE" -eq 0 && "$sheet" == *"| Fixture kind | [Plan](#3-plan) |"* &&
+  "$sheet" == *$'## By kind of task\n\nFrom the stage definitions: A conditional stage runs only when its trigger holds; otherwise it is skipped. Stages 2-4 are detours: the interview calls one, and the work returns to it.\n'* ]]; then
+  ok "an unconditional stage renders no condition; the lead-in quotes steps.md's conditional and detour sentences"
+else
+  fail "unconditional stage or lead-in (exit=$CODE: $sheet)"
+fi
+rm -rf "$tree"
+
+mk_tree tree
+STEPS_HEADING='## 3. Plan (conditional: the fixture needs a plan)' \
+  write_steps "$tree" '| Fixture kind | Plan | None | fixture reason |'
+run_gen "$tree"
+sheet="$(cat "$tree/docs/skill-cheat-sheet.md")"
+if [[ "$CODE" -eq 0 && "$sheet" == *"| Fixture kind | [Plan](#3-plan) (conditional: the fixture needs a plan) |"* ]]; then
+  ok "a conditional stage renders its heading's condition in the sequence"
+else
+  fail "conditional stage (exit=$CODE: $OUT)"
+fi
+rm -rf "$tree"
+
+mk_tree tree
+printf '## 3. Plan (fixture spine)\n\n## Task kinds\n\n| Kind | Stages, in order | Skips | Why |\n| --- | --- | --- | --- |\n| K | Plan | None | r |\n' \
+  >"$tree/plugins/session-flow/skills/workflow/context/steps.md"
+assert_fails "a steps.md missing the conditional-stage sentence fails naming it" "$tree" \
+  'has no sentence starting "A conditional stage runs only when its trigger holds"'
 
 # --- stage commands: the command typed per stage, with cited runs-for-you claims ---
 # stage_commands <tree> <skill key> <basis>: one plan-stage entry with one claim.
