@@ -4874,7 +4874,7 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_an_over_count_refused_before_paging_leaves_the_job_its_listing(
         self,
     ) -> None:
-        # pr-feedback-dispatch's order: PR A's Reader over-counts under
+        # pr-dispatch-feedback's order: PR A's Reader over-counts under
         # verify-cap's limit, and its whole listing does not fit, so it
         # refuses before paging. PR B's Reader, with the time, takes it.
         base = self.tail()
@@ -6225,7 +6225,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertEqual(out["unattended"]["reason"], "verify:untrusted-spec")
 
     def test_a_fail_at_the_head_writes_no_escalation(self) -> None:
-        # A fix round answers it (pr-feedback-dispatch.yml); a label would
+        # A fix round answers it (pr-dispatch-feedback.yml); a label would
         # hold that round as awaiting-human.
         self.verdicts[unattended.PR] = evidence("verify:fail")
         code, out = self.lane()

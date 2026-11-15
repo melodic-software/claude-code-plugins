@@ -78,6 +78,108 @@ export const EXCLUDED_SKILLS = new Map([
   ["playbooks/update", "maintainer-only upstream sync"],
 ]);
 
+// The review and pull-request skill map, rendered after the stage sections.
+// One row per skill whose job is reviewing a PR or moving it. `audience` is who
+// runs it; `posts` is whether it writes to the PR itself. `basis` is a line
+// quoted from the skill's own SKILL.md that supports `posts`; the generator
+// fails when the quote is missing, so a reworded skill forces a re-check.
+export const REVIEW_PR_MAP_HEADING = "Review and pull-request skill map";
+export const REVIEW_PR_AUDIENCES = ["author", "reviewer", "CI lane"];
+export const REVIEW_PR_POSTS = ["yes", "no", "through another skill"];
+export const REVIEW_PR_MAP = [
+  {
+    skill: "review/quality-gate",
+    job: "Single-lens review checkpoint of a change before it is ready",
+    audience: ["author", "reviewer"],
+    posts: "no",
+    basis: "Durable findings are `<UTC-timestamp>-<mode>.md` in that directory",
+  },
+  {
+    skill: "review/fanout",
+    job: "Every reviewer at once, merged into one ranked report on disk",
+    audience: ["author", "reviewer"],
+    posts: "no",
+    basis: "violates the review modes' report-only contract",
+  },
+  {
+    skill: "review/council",
+    job: "Configured panel of reviewers, one ranked report, optional fix rounds",
+    audience: ["author", "reviewer"],
+    posts: "no",
+    basis: "Findings stay on disk; no PR comment",
+  },
+  {
+    skill: "review/explain-change",
+    job: "Digest of one PR: why, before and after, risk map, where to focus",
+    audience: ["reviewer"],
+    posts: "no",
+    basis: "It never comments, reviews, labels, or sets a check status",
+  },
+  {
+    skill: "review/merge-risk",
+    job: "Checked merge-risk rating of one PR, with a demote-only flag",
+    audience: ["reviewer"],
+    posts: "no",
+    basis: "Never posts or gates.",
+  },
+  {
+    skill: "review/reviewer-media",
+    job: "Decides whether a PR needs a walkthrough video and builds it from the digest",
+    audience: ["author", "CI lane"],
+    posts: "through another skill",
+    basis: "hands the manifest to /source-control:pull-request media",
+  },
+  {
+    skill: "review/code-review",
+    job: "CI lane: correctness and maintainability findings on one PR",
+    audience: ["CI lane"],
+    posts: "yes",
+    basis: "This lane posts only through its wrapper's mechanics",
+  },
+  {
+    skill: "review/security-review",
+    job: "CI lane: logic, trust-boundary and Actions security findings on one PR",
+    audience: ["CI lane"],
+    posts: "yes",
+    basis: "In the CI lane this skill posts only through its wrapper's mechanics",
+  },
+  {
+    skill: "source-control/pull-request",
+    job: "Whole PR lifecycle: prep, create, ready, monitor, merge, evidence, media",
+    audience: ["author"],
+    posts: "yes",
+    basis: "post one evidence comment, or update",
+  },
+  {
+    skill: "source-control/babysit-prs",
+    job: "Tiered fleet pass advancing open PRs; resolves threads and merges only at worker and autopilot",
+    audience: ["author"],
+    posts: "yes",
+    basis: "auto-resolves *pre-push-outdated* bot threads",
+  },
+  {
+    skill: "source-control/babysit-loop",
+    job: "One repository's PR queue run as a standing merge lane",
+    audience: ["CI lane"],
+    posts: "through another skill",
+    basis: "invoking /source-control:babysit-prs each cycle",
+  },
+  {
+    skill: "playwright/demo-video",
+    job: "Produced demo video of a web UI change, quality-checked from frames",
+    audience: ["author"],
+    posts: "yes",
+    basis: "goes locally through `gh pr comment --attach`",
+  },
+  {
+    skill: "explainer-video/produce",
+    job: "Renders a narrated video from a topic or a storyboard",
+    audience: ["author"],
+    posts: "no",
+    basis: "places a finished video in a pull request",
+  },
+];
+
 // Characters that make a plain YAML scalar unsafe at value start (flow/block
 // indicators, anchors, tags, comments, quotes, list dash, flow entry separator,
 // complex-mapping-key indicator). Held as a Set of single characters, not a

@@ -1,5 +1,24 @@
 # Changelog for the PR pipeline convention
 
+## [10.2.7] - 2026-11-14
+
+### Changed
+
+- The convention names the renamed workflow `pr-dispatch-feedback.yml` (display name
+  `PR Dispatch Feedback`), in place of `pr-feedback-dispatch.yml`. Its `pr-feedback-dispatched-*`
+  artifact names are unchanged.
+- The dispatcher's half-hourly recovery and the lost-run reconciler also read runs under the file's
+  earlier name, since a run keeps the path it started from. Each costs one more run listing per
+  pass.
+
+## [10.2.6] - 2026-11-14
+
+### Changed
+
+- The convention names the renamed workflows `post-merge-file-demotion-issues.yml`,
+  `intake-label-outside-actor-activity.yml`, `release-generate-dependabot-changelog-fragments.yml`,
+  `pr-run-plugin-evals.yml` and `maintenance-measure-skill-edit-pass.yml`.
+
 ## [10.2.5] - 2026-11-14
 
 ### Fixed

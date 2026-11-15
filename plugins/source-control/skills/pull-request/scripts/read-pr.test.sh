@@ -77,7 +77,7 @@ repos/*/pulls/7)
   elif [[ "${GH_STUB_MERGED:-}" == 1 ]]; then
     printf '{"number":7,"html_url":"https://%s/%s/pull/7","state":"closed","draft":false,"merged_at":"2026-01-01T00:00:00Z","merge_commit_sha":"m1","title":"t","base":{"ref":"main","sha":"b1"},"head":{"ref":"feat/7-x","sha":"h1"},"additions":3,"deletions":1,"labels":[]}' "$url_host" "$url_repo"
   else
-    printf '{"number":7,"html_url":"https://%s/%s/pull/7","state":"open","draft":true,"merged_at":null,"merge_commit_sha":"t1","title":"t","body":"Closes #3","base":{"ref":"main","sha":"b1"},"head":{"ref":"feat/7-x","sha":"h1"},"additions":3,"deletions":1,"labels":[{"node_id":"L1","name":"bug","description":"d","color":"f00"}]}' "$url_host" "$url_repo"
+    printf '{"number":7,"html_url":"https://%s/%s/pull/7","state":"open","draft":true,"merged_at":null,"merge_commit_sha":"t1","title":"t","body":"Closes #3","base":{"ref":"main","sha":"b1","repo":{"full_name":"acme/app"}},"head":{"ref":"feat/7-x","sha":"h1","repo":%s},"additions":3,"deletions":1,"labels":[{"node_id":"L1","name":"bug","description":"d","color":"f00"}]}' "$url_host" "$url_repo" "${GH_STUB_HEAD_REPO:-{\"full_name\":\"acme/app\"\}}"
   fi
   ;;
 repos/acme/app | repos/acme/ghe-app)
@@ -110,9 +110,15 @@ assert_eq "an unmerged pull request has no merge commit" "null" "$(jq -c .mergeC
 assert_eq "view maps a removed file to DELETED" "f0.md DELETED" "$(jq -r '.files[0] | "\(.path) \(.changeType)"' <<<"$out")"
 assert_eq "view keeps label names" "bug" "$(jq -r '.labels[0].name' <<<"$out")"
 assert_eq "view keeps the body" "Closes #3" "$(jq -r .body <<<"$out")"
+assert_eq "a head in the base repository is not cross-repository" "false" "$(jq -r .isCrossRepository <<<"$out")"
 calls=$(cat "$TEST_TMPDIR/calls")
 assert_not_contains "view never reaches gh's GraphQL commands" "$calls" "pr "
 assert_contains "view without --repo names the github.com remote host, so GH_HOST cannot redirect it" "$calls" "api --hostname github.com repos/{owner}/{repo}/pulls/7"
+
+out=$(GH_STUB_HEAD_REPO='{"full_name":"someone/app"}' run view 7)
+assert_eq "a head in a fork is cross-repository" "true" "$(jq -r .isCrossRepository <<<"$out")"
+out=$(GH_STUB_HEAD_REPO=null run view 7)
+assert_eq "a head whose fork was deleted is cross-repository" "true" "$(jq -r .isCrossRepository <<<"$out")"
 
 out=$(GH_STUB_MERGED=1 run view 7)
 assert_eq "a merged pull request reads MERGED with its merge commit" "MERGED m1" "$(jq -r '"\(.state) \(.mergeCommit.oid)"' <<<"$out")"

@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.0.2] - 2026-11-15
+
+### Changed
+
+- The `audit-instructions` criteria call the per-model playbook files model-adaptation chapters, the glossary's term, in place of delta chapters.
+
 ## [5.0.1] - 2026-11-14
 
 ### Changed

@@ -222,7 +222,7 @@ requires linear history and squash-only merges.
 > **Superseded 2026-09-05:** the `ci-gate` ruleset now requires `ci-status` alone. The
 > `pr-title / pr-title` and `do-not-merge / do-not-merge` contexts no longer exist: the
 > ci-perf program folded the title check, the `do-not-merge` label check and the issue-linkage
-> check into the `pr-contract` composite step inside `ci.yml`'s `ci-status` job, and this
+> check into the `check-contract` composite step inside `ci.yml`'s `ci-status` job, and this
 > repository's `pr-title.yml`, `do-not-merge.yml` and `pr-issue-linkage.yml` callers were
 > deleted. The title and label checks still block merge, now under the name `ci-status`; the
 > linkage check became advisory, a comment plus the `needs-issue-linkage` label. Read the live

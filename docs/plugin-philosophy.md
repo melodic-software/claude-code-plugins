@@ -1249,7 +1249,7 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
   nothing to presence-gate. Effort: it pins `effort: medium`, not the `high` that a
   consequential-verdict lane pins, because its pin bounds cost; the brevity line and `maxTurns`
   bound it further. Model: it pins `model: opus`; under the fleet's pinned default session, `opus`
-  is the tier the plan was written at, so it meets the [Model tiers](#model-tiers) rule that a
+  is the tier the plan was written at, so it meets the [Capability tiers](#capability-tiers) rule that a
   judgment verdict is never on a weaker model than the work it checks.
 - **Pointer:** the frontmatter of `plugins/planning/agents/plan-reviewer.md` (`model: opus`,
   `effort: medium`, `maxTurns: 25`) and `plugins/planning/skills/plan/SKILL.md` Step 3;
@@ -1284,7 +1284,7 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
   shared-lane dispatch starts passing `model` or `effort`, that section changes how a `tools` list
   withholds tools, or the agent's `tools`, `model` or `effort` changes.
 
-### Model tiers
+### Capability tiers
 
 Four rules decide a lane's model, applied in this order:
 

@@ -52,7 +52,7 @@ git add -A
 git commit -q -m "chore: initial commit"
 
 mkdir -p .claude/rules
-cat >.claude/rules/pr-contract.md <<'MD'
+cat >.claude/rules/pr-body-contract.md <<'MD'
 ---
 description: "Pull request titles and bodies follow the shared PR contract"
 ---
@@ -62,6 +62,6 @@ description: "Pull request titles and bodies follow the shared PR contract"
 - Title pull requests in Conventional Commits form.
 - Open the body with a closing keyword or a Refs line.
 MD
-git add .claude/rules/pr-contract.md
+git add .claude/rules/pr-body-contract.md
 git -c user.name=standards-sync -c user.email=standards-sync@example.invalid \
   commit -q -m "chore: sync standards components"

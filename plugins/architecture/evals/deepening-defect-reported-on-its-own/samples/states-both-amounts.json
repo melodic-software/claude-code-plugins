@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Expected 6.75, actual 7.50.",
+      "why": "both amounts"
+    },
+    {
+      "answer": "It returns 7.5 where the rate card says 6.75.",
+      "why": "both amounts, other wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The quote is too high because the surcharge is added twice.",
+      "why": "no amounts"
+    }
+  ]
+}

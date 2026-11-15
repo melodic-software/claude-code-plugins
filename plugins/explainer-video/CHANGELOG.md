@@ -3,6 +3,75 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.0] - 2026-11-14
+
+### Added
+
+- The stills renderer reports each narrated moment held in silence more than 3 seconds past its
+  paragraph, because its frames need longer to read: a `SILENT:` line and a `silent_holds` entry
+  in `manifest.json`. It is a report, not a defect; the exit code is unchanged.
+
+## [2.4.2] - 2026-11-14
+
+### Fixed
+
+- A code line that wraps at a space no longer fails the frame fit check: the space at the wrap
+  point used to hang past the content area's right edge.
+- A flow diagram keeps its nodes and arrows on one row, wrapping text inside each node with
+  balanced lines, instead of wrapping a node onto a second row after a dangling arrow.
+
+## [2.4.1] - 2026-11-14
+
+### Fixed
+
+- continue long lists onto new frames and fail frames that overflow
+
+  A stills moment whose list does not fit one frame (also-changed files,
+  code-hunk lines, risk-map rows) now continues onto as many frames as it
+  needs, each labeled "continued, part N of M", all held during that
+  moment's narration paragraph and sharing its time by entry count. The
+  storyboard contract is unchanged.
+
+  After capture, each frame is fit-checked in the capture browser: any box
+  or line of text outside the content area (cut off, in the caption band,
+  or over the header) is a defect listed in manifest.json, and the render
+  exits 1. The check runs on the final frames, so it catches an overflow
+  even when pagination is wrong.
+
+  The bundled frame stylesheet is scaled so the smallest text is at least
+  14 px tall in an 888 px wide player, also-changed paths wrap instead of
+  running off the frame, before-after lines balance their wraps, and a
+  screenshot fits the area above the caption band.
+
+- hold every stills frame long enough to read
+
+  Each frame now has a reading minimum: its visible words at the caption
+  reading rate (captions.seconds_per_word), never under the captions-only
+  hold's floor (captions_only_hold.min_seconds, 3 s). When a moment's
+  frames need more time than its narration paragraph, the moment holds on
+  past the paragraph with silence padded into the audio, so later words,
+  captions and chapters shift with it and nothing is sped up or cut. A
+  frame held under its minimum is a defect in manifest.json and the render
+  exits 1.
+
+## [2.4.0] - 2026-11-14
+
+### Added
+
+- The stills renderer's `diagram` moment takes an optional `layout`: `flow` (the default) joins its nodes with arrows as before, while `stack` (layers, top first) and `group` (side by side, under an optional `center` heading) draw no arrows, so a hub, a set of layers or a comparison is no longer shown as a sequence.
+
+## [2.3.0] - 2026-11-14
+
+### Added
+
+- `stills.py --scan-pattern <regex>` (repeatable) adds a pattern the storyboard scan refuses, on top of its floor; a pattern that does not compile fails the scan (exit 4). The produce skill passes the caller's patterns to the renderer and the narration.
+
+## [2.2.0] - 2026-11-14
+
+### Changed
+
+- The stills renderer's delivery now goes to the same fresh-context frame judge as a manim render, given the contact sheets and the narration script, when the `verification` level is `standard` or `strict`.
+
 ## [2.1.4] - 2026-11-14
 
 ### Changed

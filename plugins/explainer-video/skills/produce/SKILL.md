@@ -144,10 +144,12 @@ instead of a topic, render held still frames instead of a scene. The storyboard 
 write markup from it, and never edit its text to get past a check.
 
 1. Run `scripts/stills.py --storyboard <file> --out <dir> --script-only` to validate, scan and
-   write `<dir>/script.txt`; a storyboard rejection exits 2 (a screenshot moment with no
+   write `<dir>/script.txt`, with one `--scan-pattern <regex>` per pattern the caller passed (here
+   and in steps 2 and 3); a storyboard rejection exits 2 (a screenshot moment with no
    `data.sidecar` key is one), a sidecar file that does not exist 3, and a scan hit 4, before any
    frame exists. Report the reason and stop on 3 or 4.
-2. Narrate `<dir>/script.txt` with `/speech:narrate` into its own folder, as in Loop step 2.
+2. Narrate `<dir>/script.txt` with `/speech:narrate` into its own folder, as in Loop step 2,
+   with the same `--scan-pattern` flags.
 3. Render with `--narration <that folder>`, or with `--no-audio` when no voice produced audio (a
    captions-only video; say why). Pass the configured
    values: `frame_stylesheet` as `--stylesheet`, a `stitcher` command as `--stitcher`, the
@@ -158,9 +160,26 @@ write markup from it, and never edit its text to get past a check.
    team file, and `--path <frame_stylesheet>` prints the stylesheet, which you write to a file
    outside the repository and pass. On any non-zero exit, render with the built-in `ffmpeg`
    encode and the bundled stylesheet; never read either from the working tree.
-4. Exit 0 is a pass; exit 1 lists each defect in `manifest.json` (a frame under the luma SSIM floor,
-   a loudness miss, a stream defect). Fix the cause and render again; never lower a floor. Read the
-   contact sheet before calling it done.
+4. Exit 0 is a pass; exit 1 lists each defect in `manifest.json` (a frame whose content lies outside
+   it or over its header, a frame held under its reading minimum, a frame under the luma SSIM floor, a loudness miss, a stream defect). A
+   list too long for one frame (also-changed files, code-hunk lines, risk-map rows) continues onto
+   frames labeled "continued, part N of M". Every frame stays up long enough to read its words,
+   at least 3 seconds; when a moment's frames need more than its paragraph, the moment holds on
+   past the paragraph in silence, and a frame held under its minimum is a defect. A fit defect left is one entry too big for any frame, or a diagram or before-after moment with
+   too much in it: it goes back to the storyboard. Fix the cause and render again; never lower a
+   floor. Read the contact sheet before calling it done.
+   A narrated moment held past its paragraph by more than `silent_hold.report_over_seconds` in
+   `${CLAUDE_PLUGIN_ROOT}/scripts/defaults.json` (3 seconds, our judgment, as the stills
+   reporting length is) prints `SILENT: moment <id> holds <x.x> s past its narration (frames
+   need <y.y> s, narration <z.z> s)` and is listed under `silent_holds` in `manifest.json`. It is
+   a report, not a defect: the exit code stays, nothing is cut. Hand each line to the caller,
+   whose narration for that moment is too short for its frames.
+5. Your contact-sheet read is the fix loop, not the verdict. Read the `verification` level as the
+   manim loop does, and copy its line into the report. At standard or strict, dispatch a
+   fresh-context subagent with the paths to the contact sheets and `<dir>/script.txt`, never your
+   notes on them; it returns each frame whose text is cut off or unreadable, or that does not show
+   what its paragraph says. A returned frame sends you back to the storyboard. Under light and off,
+   dispatch none and report `verification: skipped (<level>)`.
 
 `manifest.json` lists every file a caller may publish: the video (or its chapter parts when it is
 over the upload limit), `captions.srt`, the contact sheets and the screenshots. The video, each
@@ -173,6 +192,8 @@ split under the limit; it is hosted whole as an Actions artifact, never recompre
 ## Related
 
 - `/education:illustrate` offers a video view through this skill.
+- `/review:reviewer-media` builds a pull request's reviewer storyboard from that digest and hands
+  it here, then hands the manifest to `/source-control:pull-request media`.
 - `/review:explain-change` writes a pull request digest; a `storyboard.json` built from one renders
   here through the stills renderer.
 - `/playwright:demo-video` records a live UI flow; this skill renders still frames and diagrams.

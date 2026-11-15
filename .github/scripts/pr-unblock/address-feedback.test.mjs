@@ -2292,7 +2292,7 @@ test("main select takes the FAILed heads only from a dispatcher's model round, a
   assert.deepEqual(earlierFailHeadsFrom({ HEAD_SHA: HEAD, DISPATCHER_RUN_ID: "1", VERIFY_EARLIER_FAIL_HEADS: `${OLD_HEAD} ${"c".repeat(40)}` }), [OLD_HEAD, "c".repeat(40)]);
 });
 
-// pr-feedback-dispatch.yml sends verify-pass-head after a pr-verify pass at
+// pr-dispatch-feedback.yml sends verify-pass-head after a pr-verify pass at
 // the PR's head; the select job then lists only the stale fail-note threads.
 test("main select with a pass head lists the stale fail-note threads for the reply job and keeps none for a model", async (t) => {
   const dir = tempDir("address-feedback-");

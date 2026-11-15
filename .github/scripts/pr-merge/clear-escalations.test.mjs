@@ -141,6 +141,20 @@ test("an App-set needs-human whose workflow-staged reason cleared comes off with
   assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
 });
 
+test("main's tip the job resolved with git ls-remote (MAIN_TIP_SHA) is used, not read again; any other value reads it", async () => {
+  const tipReads = (w) => w.calls.filter((call) => call.method === "GET" && call.path === `/repos/${REPO}/git/ref/heads/main`).length;
+  const given = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated()] });
+  assert.equal((await run(given, { MAIN_TIP_SHA: MAIN })).code, 0);
+  assert.equal(tipReads(given), 0, "no REST read of main's tip when the job passed it in");
+  assert.equal(given.writes().length, 2, "the same comment and label removal as with the read");
+  assert.ok(given.calls.some((call) => call.path === `/repos/${REPO}/compare/${HEAD}...${MAIN}`), "the compare names the tip passed in");
+  for (const value of [undefined, "", "main", MAIN.slice(1)]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated()] });
+    assert.equal((await run(w, { MAIN_TIP_SHA: value })).code, 0);
+    assert.equal(tipReads(w), 1, `MAIN_TIP_SHA=${value} falls back to one read of main's tip`);
+  }
+});
+
 test("an App-set needs-human on an item flagged security: outside-actor is never removed", async () => {
   const flagged = ["needs-human", "security: outside-actor"];
   for (const [listed, labels] of [

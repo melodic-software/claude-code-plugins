@@ -54,6 +54,9 @@ const {
   STAGES, CADENCES, EXCLUDED_PLUGINS, EXCLUDED_SKILL_NAME, EXCLUDED_SKILLS,
   summaryError,
 } = config;
+const {
+  REVIEW_PR_MAP = [], REVIEW_PR_MAP_HEADING = "", REVIEW_PR_AUDIENCES = [], REVIEW_PR_POSTS = [],
+} = config;
 const stageSlugs = new Set(STAGES.map((s) => s.slug));
 
 function fail(messages) {
@@ -261,6 +264,26 @@ for (const s of skills) {
   mapped.push({ ...s, stage, summary, cadence });
 }
 
+const mappedKeys = new Set(mapped.map((s) => `${s.plugin}/${s.skill}`));
+const mapRows = [];
+for (const row of REVIEW_PR_MAP) {
+  const skill = skills.find((s) => `${s.plugin}/${s.skill}` === row.skill);
+  if (!skill || !mappedKeys.has(row.skill)) {
+    errors.push(`review map: "${row.skill}" is not a listed skill`);
+    continue;
+  }
+  for (const a of row.audience) {
+    if (!REVIEW_PR_AUDIENCES.includes(a)) errors.push(`review map: ${row.skill} has unknown audience "${a}"`);
+  }
+  if (!REVIEW_PR_POSTS.includes(row.posts)) {
+    errors.push(`review map: ${row.skill} has unknown posts value "${row.posts}"`);
+  }
+  if (!readFileSync(skill.path, "utf8").includes(row.basis)) {
+    errors.push(`review map: ${row.skill} no longer contains its basis quote "${row.basis}"; re-check "posts"`);
+  }
+  mapRows.push({ ...row, plugin: skill.plugin, name: skill.skill });
+}
+
 if (errors.length > 0) fail(errors);
 
 // --- Spine-drift assertion ---------------------------------------------------
@@ -348,6 +371,21 @@ for (const stage of STAGES) {
     })
     .join("\n");
   sections.push(`## ${stage.heading}\n\n${header}\n${body}`);
+}
+
+if (mapRows.length > 0) {
+  toc.push(`- [${REVIEW_PR_MAP_HEADING}](#${slugify(REVIEW_PR_MAP_HEADING)})`);
+  const rows = mapRows
+    .map((r) => {
+      const link = `[\`/${r.plugin}:${r.name}\`](../plugins/${r.plugin}/skills/${r.name}/SKILL.md)`;
+      return `| ${link} | ${cell(r.job)} | ${r.audience.join(", ")} | ${r.posts} |`;
+    })
+    .join("\n");
+  sections.push(
+    `## ${REVIEW_PR_MAP_HEADING}\n\n` +
+      "| Skill | Job | Who it is for | Posts to the PR |\n| --- | --- | --- | --- |\n" +
+      rows,
+  );
 }
 
 const body = `${toc.join("\n")}\n\n${sections.join("\n\n")}`;

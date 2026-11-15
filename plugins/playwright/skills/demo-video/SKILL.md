@@ -115,8 +115,8 @@ removes its layer in either style. Pass them to `build_edl.py` as
 
 ## Related
 
-- The review plugin's reviewer-media skill produces narrated review media for a pull request from
-  its diff; this skill records the change running in a browser.
+- `/review:reviewer-media` produces narrated review media for a pull request from its diff; this
+  skill records the change running in a browser.
 - `/explainer-video:produce` renders still frames and diagrams into a narrated video.
 - `/review:explain-change` writes a pull request digest of the diff.
 - `/education:illustrate` explains a concept with diagrams, with a video view through

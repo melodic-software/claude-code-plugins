@@ -37,10 +37,25 @@ it, never left empty. Never run a whole-tree test command no one confirmed: in a
 bare `dotnet test` can run test projects that reset or write shared environments. An unattended run
 with no test command stops and asks for one.
 
+## Tool with no shipped adapter
+
+Apply this rule before Tool unavailable below, and never probe whether the tool is installed: an
+id with no shipped adapter gets no install offer, installed or not.
+
+The shipped adapters are `stryker-js`, `stryker-net`, `stryker4s`, `pitest`, `infection` and
+`mutmut`, one per row of the `principles` skill's
+[`tooling.md`](../../principles/reference/tooling.md) "Established tools" table. Any other `tool`
+id but `manual` (for example `cargo-mutants`) is valid config. Keep the layer that set it, and every other value in that layer.
+The `Config:` line names the id and says `no shipped adapter`. With no row, Phase 0 cannot work out
+the tool's write regime, so it cannot rule out an in-tree write it has no gate for. Refuse to run
+the tool, and offer to continue with `tool: manual` this run: install nothing, take the test
+command under the never-guessed rule above, and when running unattended stop with the id and the
+`tool: manual` offer.
+
 ## Tool unavailable
 
-Name the install command as `/mutation-testing:setup check` does, and offer to continue with
-`tool: manual` this run. Install nothing yourself. Refuse only when the user declines both. A switch
-to `manual` with no configured `test-command` takes its test command under the never-guessed rule
-above. An unattended run keeps the configured tool and stops with the install command and the
-`tool: manual` offer.
+For a tool with a shipped adapter only. Name the install command as `/mutation-testing:setup check`
+does, and offer to continue with `tool: manual` this run. Install nothing yourself. Refuse only when
+the user declines both. A switch to `manual` with no configured `test-command` takes its test
+command under the never-guessed rule above. An unattended run keeps the configured tool and stops
+with the install command and the `tool: manual` offer.

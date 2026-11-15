@@ -493,6 +493,10 @@ Where the panel sits in the response belongs to the citing skill, which owns its
 
   When no `/goal` call is found and the user asked for no fresh goal, omit the region and note
   below the bottom rail: "if a goal was active, type /goal and a space, then paste the condition."
+- **Plugin reload:** when the structure doc's "Plugin changes" entry names a plugin, put a note
+  below the bottom rail, ahead of any `/loop` re-arm block: "a plugin changed this session
+  (`<plugin> <version>`): after `/clear`, type `/reload-plugins`, then paste the block above."
+  Prompt-only, which has no Environment section, names the plugin and version in that note alone.
 - **Loop-aware re-arm:** running under `/loop` means this session's own
   `/loop [<interval>] <prompt>` launch turns earlier in the conversation with no later stop (`Esc`, a
   `ScheduleWakeup` call carrying `stop: true`, or, for a fixed-interval loop, a turn in which Claude

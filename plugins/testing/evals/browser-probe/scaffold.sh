@@ -12,7 +12,7 @@ port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0))
 
 # A scaffold gets no EVAL_* variable, and a Bash allow rule does not match past
 # a PLAYWRIGHT_BROWSERS_PATH= prefix, so the Chromium that
-# .github/workflows/eval-browser-dispatch.yml installs under /opt/pw is pinned
+# .github/workflows/pr-run-plugin-evals.yml installs under /opt/pw is pinned
 # here by path. A missing install leaves a path that fails loudly at open.
 chrome=/opt/pw/chromium-not-found
 for candidate in /opt/pw/chromium-*/chrome-linux*/chrome; do

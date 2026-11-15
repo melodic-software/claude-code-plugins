@@ -274,7 +274,8 @@ findings.
 
 **Keep only durable findings.** A finding gets a row only when it passes all four tests below.
 One failure drops it, and so does a finding that rests on a commit SHA, a line number or a fact
-true of this session alone.
+true of this session alone. A no-op steering-file row rests on the file, not the session, so this
+filter keeps it.
 
 | Test | It fails when |
 | --- | --- |
@@ -312,7 +313,8 @@ counts it and picks its rung before its place; its row here names that route. Wi
 catalog's matching section takes the finding, as its "Owner skills" section says.
 
 **Environment findings.** Look for each of these in the session, and give each one found a row
-with the route named here. An owner skill is named only when the catalog's Owner skills section
+with the route named here. The no-op row is the exception: it comes from reading the steering
+files, not from a session event. An owner skill is named only when the catalog's Owner skills section
 allows it; otherwise the row takes that section's fallback.
 
 | Finding | What it is | Route |
@@ -320,14 +322,16 @@ allows it; otherwise the row takes that section's fallback.
 | Unwired or broken check | A check that exists and should have caught the mistake, but no CI or pre-commit step runs it, or it is broken. Read the repository's check scripts, CI workflows and pre-commit config before proposing a check | Reported before any new check is proposed: the row proposes wiring or repairing the existing check, per the catalog's "When to propose a check" |
 | No guardrail | A recurring mistake that meets the "Guardrail criterion" section of `<plugin-root>/skills/retro/reference/enforcement-ladder.md` but that no check covers, wired or not (an existing unwired or broken check is the row above) | Reported as a "no guardrail" finding naming that section, as `/corrections:codify` does in its step 2, "Pick the rung", and handed to the catalog's owner for a mechanical mistake |
 | Information access | Information the session needed but could not reach: dev-server logs not written to a file the agent can read, or a read-only service it had no way to query | The catalog's owner for missing automation, or its MCP Servers section for a service to query |
-| No-op in a steering file | A line in `CLAUDE.md`, `AGENTS.md` or a rules file that the model would follow without it | `/harness-config:unhobble` or `/harness-config:audit-instructions` |
+| No-op in a steering file | A line in `CLAUDE.md`, `AGENTS.md` or a rules file that the model would follow without it. It gets its row with no session event behind it, even in a session where nothing went wrong | `/harness-config:unhobble` or `/harness-config:audit-instructions` |
 | Pointer after a long search | The session searched at length to find something | Proposes a navigation pointer in the steering file that would have led there, placed by the catalog's decision tree |
 
 **Steering-file yardstick.** Every steering-file line the report assesses (`CLAUDE.md`,
 `AGENTS.md`, a rules file), whether as a finding, a no-op row, a line a tool already enforces or a
 judgment call, is judged against `/docs-hygiene:write-for-agents`, read through the Skill tool when
-it is among the available skills. Without it, the report says in one line that the yardstick was
-not available, not only that it was not run.
+it is among the session's skills. When it is not among them, each place the report assesses a
+steering-file line says so in one line, in these terms: "`/docs-hygiene:write-for-agents` was not
+available in this session, so this line was not judged against it." A sentence saying only that the
+yardstick was not run does not meet this.
 
 Present as a GFM table with a **Scope** column distinguishing:
 

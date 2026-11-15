@@ -311,7 +311,7 @@ new signal, and each carries the `needs-human` role label only for a reason or k
 [When work stops for the owner](#when-work-stops-for-the-owner) names. Structural-plan approval
 stops only when the plan changes intent or the primary design; untrusted-provenance is a kept
 trust control (below). The post-merge demotion alert
-([`post-merge-demotion-alert.yml`](../../../.github/workflows/post-merge-demotion-alert.yml))
+([`post-merge-file-demotion-issues.yml`](../../../.github/workflows/post-merge-file-demotion-issues.yml))
 follows the record rules [#11022](https://github.com/melodic-software/claude-code-plugins/issues/11022)
 set and the pr-pipeline "Demotion issue" rule
 ([the local babysit lane](../../conventions/pr-pipeline/README.md#the-local-babysit-lane)) states: a
@@ -1521,7 +1521,7 @@ that lane's own invocation overrides it. Remove the label to release the PR; an 
 released by its record ([Cross-lane PR hold](#cross-lane-pr-hold)).
 
 **Run a PR's plugin evals.** The `eval: run` label runs
-[`eval-browser-dispatch.yml`](../../../.github/workflows/eval-browser-dispatch.yml) on a
+[`pr-run-plugin-evals.yml`](../../../.github/workflows/pr-run-plugin-evals.yml) on a
 same-repository, non-draft PR: the suite of each plugin whose `skills/`, `agents/` or `evals/` the
 PR changes, deterministic graders only, under `--max-cost-usd`, with a PASS or NOT COMPARABLE
 verdict per case in the job summary. Only a listed human's label starts a run, and a selected plugin

@@ -1,0 +1,57 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git branch --show-current"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain | head -5"
+          }
+        }
+      ],
+      "why": "the bug-writing skill's own git reads"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "bug-reports/parcels/20261114T180000Z-fuel-surcharge-added-twice.md",
+            "content": "To file it: gh issue create --type Bug --body-file <report>"
+          }
+        }
+      ],
+      "why": "a report that mentions the filing command, not a run of it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh issue create --type Bug --body-file bug-reports/fuel.md --title \"Fuel surcharge added twice\""
+          }
+        }
+      ],
+      "why": "files a tracker issue"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git commit -m \"fix: add fuel surcharge once\""
+          }
+        }
+      ],
+      "why": "commits"
+    }
+  ]
+}

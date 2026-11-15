@@ -354,6 +354,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   whose lock names this session has an Environment to re-establish entry with its path, this
   session's id and the handover before `check-enter`; the handover is first in
   `Remaining actions, in order`, leading `Next:` unless the handoff is closed (OR none held)
+- [ ] Plugin changes: entry and below-rail `/reload-plugins` note (structure doc) (OR none)
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
   names the previous handoff recorded as deliberately left running. For each one, read its
   actual output or transcript per
@@ -440,7 +441,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   region bullet under "Emit the copy/paste resume prompt"), with the conversation-bound warning
   and the met-goal omission applied as on the full path; a below-the-rails note covering EVERY
   surviving loop that has the resumed session list its scheduled tasks first and re-arm only the
-  loops missing from that list, one `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine doc, "Emit the copy/paste resume prompt")
+  loops missing from that list, one `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message; the `/reload-plugins` note when a plugin changed (engine doc, "Emit the copy/paste resume prompt")
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
   names the previous handoff recorded as deliberately left running. For each one, read its
   actual output or transcript per

@@ -109,7 +109,7 @@ and a failed dispatch leaves the issue with no `status:` label for a re-run or t
 milestone in `admission-rules.json`'s `cordoned-milestones` keeps an issue parked. It never adds `agent-ready`, and it holds the job's own `GITHUB_TOKEN` (`actions: write`, `contents: read`, `issues: write`), never a lanes App token.
 
 Anyone outside the organization who writes on an issue or pull request is flagged for a person by
-[`security-outside-actor.yml`](../../../.github/workflows/security-outside-actor.yml), a scripted
+[`intake-label-outside-actor-activity.yml`](../../../.github/workflows/intake-label-outside-actor-activity.yml), a scripted
 workflow with no model, secret or kill switch. It runs on an issue or pull request opened, edited
 or reopened, a pull request synchronized (`pull_request_target` for a pull request), on a
 comment, review or diff comment created, submitted or edited, and on `security: outside-actor`
@@ -251,12 +251,12 @@ A conflict that clears with the head unchanged (main moved again) leaves the fai
 until a push or a person replaces it. An `address-feedback` or `fix-ci` failing status stays too
 when a person resolves the threads or gets the checks green on that head: a `pr-unblock` dispatch
 of that activity then finds the cause gone and clears it. On a lanes App pull request the
-dispatchers start that run themselves, once per stop: `pr-feedback-dispatch.yml`'s sweep for an
+dispatchers start that run themselves, once per stop: `pr-dispatch-feedback.yml`'s sweep for an
 `address-feedback` stop with no unresolved thread left (`sweepStale`), and `pr-unblock-dispatch.yml`
 for a `fix-ci` stop whose head's checks all pass (`staleStop`). On any other pull request a person
 dispatches it.
 
-`pr-unblock`'s `address-feedback` dispatches come from `pr-feedback-dispatch.yml`, also scripted,
+`pr-unblock`'s `address-feedback` dispatches come from `pr-dispatch-feedback.yml`, also scripted,
 on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-hosted`. It takes only
 the upstream run id from the event and reads the rest back. It dispatches `pr-unblock.yml` with
 `activity: address-feedback` when the upstream is a `pull_request` run of one of those two paths in
@@ -475,7 +475,7 @@ thread, and one a trusted person answered after the lane escalated it, is
 worked even when its review is on an earlier head than the one the reviewed-head markers name.
 On a lanes App PR, the next half-hourly tick picks up a fix request on an unresolved thread the
 reviewer bot opened: each scheduled `pr-unblock-dispatch.yml` run's completion starts
-`pr-feedback-dispatch.yml`, whose sweep decides each such head ahead of the heads it retries, within its cap of five a tick.
+`pr-dispatch-feedback.yml`, whose sweep decides each such head ahead of the heads it retries, within its cap of five a tick.
 The request must be newer than the head's newest `pr-unblock / address-feedback` check run; check
 runs that started before it stop counting for that dispatch, except a limit stop, which keeps its
 reset hold. Each request is sent once, a head with three rounds or releasing skips is not sent, and
@@ -1120,7 +1120,7 @@ each entry once.
 | Across PRs | Unbounded: every group is per PR | group names |
 | Within one PR, across write lanes | One queue: a write job waits for the one ahead and never cancels it | job group `pr-pipeline-write-<n>`, `queue: max`, on every write caller job |
 | `pr-unblock-dispatch` | One run at a time; a push cancels the run going, and a tick or hand run waits behind it; any newer run replaces one still waiting | workflow group `pr-unblock-dispatch`, `cancel-in-progress: ${{ github.event_name == 'push' }}` |
-| `pr-feedback-dispatch` | One run per group at a time: one per pr-verify run, one for all sweeps, and one per reviewed head otherwise; waiting runs queue and none is replaced | workflow group `pr-feedback-dispatch-verify-<run id>`, `-sweep` or `-<head SHA>`, `queue: max` |
+| `pr-dispatch-feedback` | One run per group at a time: one per pr-verify run, one for all sweeps, and one per reviewed head otherwise; waiting runs queue and none is replaced | workflow group `pr-dispatch-feedback-verify-<run id>`, `-sweep` or `-<head SHA>`, `queue: max` |
 | `pr-merge` `enable-auto-merge`, across PRs | One run at a time, sweeps and verdict wakes alike, since the lane-room check is not re-read after arming; none is cancelled, and a waiting sweep, or a newer wake for the same PR, does a wake's work. At the measured peak of 31 `pr-verify` completions in 15 minutes, all of them wakes, the job's 44-minute ceiling queues about 91, under GitHub's cap of 100; a run past the cap leaves its PR to the next scheduled run | job group `pr-merge-enable-auto-merge`, `queue: max` |
 
 The write group sits on each caller job, behind an `if:` that leaves out the lanes App's own
@@ -1275,7 +1275,7 @@ the rules that only tighten in
   `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`. A record is a state marker, never lane
   work: no record is sent to intake triage, since the fix issues carry the work, and its text keeps
   the fix-issue rule (each newly failing check by job name only, never a gate's annotation title or
-  a revert command). `post-merge-demotion-alert.yml` files a red-main record (signal `schedule` or
+  a revert command). `post-merge-file-demotion-issues.yml` files a red-main record (signal `schedule` or
   `dispatch`) with no label, since it clears itself (below), unless a failing check got no fix
   issue (over the cap or outside the charset), which labels it `needs-human`; it labels a canary or revert record
   `needs-human`, since a green main clears neither; each keeps the label until it lifts (below).
@@ -1352,7 +1352,7 @@ the rules that only tighten in
   history, read from main's full history. A revert commit any revert record already lists, in any
   state, is skipped, so a commit is filed once and never again after a person closes its record. A
   reverted commit whose pull request cannot be read is an unproven revert and files the record. The wrapper finds these issues by author (the agent identity
-  or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
+  or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-file-demotion-issues.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
   labeled as a record of its signal is: a full-run one carries no label unless a failing check got
@@ -1412,7 +1412,7 @@ the rules that only tighten in
     is ci-status, `pr-require-checks.yml`, which posts the required status and runs the hold step,
     named by file, and each workflow whose job token has `actions: write` (or `write-all`), which
     can dispatch those credentialed workflows, `intake-reenter.yml` and
-    `pr-feedback-dispatch.yml` among them: a logic edit inside scopes it already holds trips no
+    `pr-dispatch-feedback.yml` among them: a logic edit inside scopes it already holds trips no
     patch hold, so a model verdict alone never clears it. 23 workflows are gated.
     `scripts/sync-hold-floor.py` derives these rows from the workflow files with
     `babysit_risk.gated_workflow`, so a workflow that gains a secret or `actions: write` joins the
@@ -1722,7 +1722,7 @@ the rules that only tighten in
   demotes nothing, the window counts as verified (its `max-in-flight` slots free), and the suite
   is quarantined: an issue marked `<!-- post-merge-quarantine suite=<path> -->`, with no label
   and no assignee, filed by the agent identity's `--remediate` (whose issue starts intake triage)
-  or by post-merge-demotion-alert.yml (which locks it and dispatches intake triage for it), so a
+  or by post-merge-file-demotion-issues.yml (which locks it and dispatches intake triage for it), so a
   lane picks it up. While that issue is open
   and younger than `merge.quarantine-days` (default 7, at most 30), the suite's out-of-set failures
   demote nothing; after that they demote again, even when the suite was already failing before the
@@ -2535,7 +2535,7 @@ Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-bud
   write, and the arm goes on. Each arm makes at most one comment write, and a head gets at most
   one comment unless anyone other than the lanes App edited its record; there is no write when the head's record already
   holds the line or a rating. Its `issue_comment` event starts
-  `security-outside-actor` and `intake-reenter` runs whose jobs skip a bot's comment, as they do
+  `intake-label-outside-actor-activity` and `intake-reenter` runs whose jobs skip a bot's comment, as they do
   for the pin. Nothing reads the record back: no gate, hold or rung. Not while
   `merge.report-only` is true.
 - **Telemetry.** The rating run writes one `pr-merge-risk` lane-outcome record (outcome, class,
@@ -2717,7 +2717,7 @@ or `pass-notes` name that carries issues, issues out of order or repeated, a pul
 over 10 digits, and a name over 194 characters. A name that starts like a `fail`'s
 (`pr-verify-<digits>-<sha>-fail`, any digits) but no reader takes holds rather than being skipped:
 the gate refuses `verify:unreadable` when its run is of verifier origin, or is tied to the pull
-request and cannot be read, and pr-feedback-dispatch fails its run. One of verifier origin holds
+request and cannot be read, and pr-dispatch-feedback fails its run. One of verifier origin holds
 every pull request in the repository until its artifact is deleted or expires; deleting it clears
 the hold. The writer adds the issues to every `fail` that records one, ascending and once each,
 and checks the name against the readers' pattern before uploading; a `fail` whose issues no name
@@ -2983,7 +2983,7 @@ owner accepts that risk: unattended merge is on (`merge.report-only: false`) bef
 exists (#7711).
 
 `verify:fail` and `verify:earlier-fail` only wait: the fail's notes go to an `address-feedback`
-round (`pr-feedback-dispatch.yml`, above), whose push the verifier judges again.
+round (`pr-dispatch-feedback.yml`, above), whose push the verifier judges again.
 `verify:spec-changed` holds for the lanes
 ([when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner)): it still refuses the merge, with no label.
 Only `verify:untrusted-spec` needs a human, since the spec's provenance is a trust boundary.
@@ -3021,7 +3021,7 @@ nor triage starts it again.
 `label-unblocked.mjs` hands no issue to triage for a lane pull request its capped-close record
 names with an attempt, since the lane already restarted or parked it. An armed pull request is disarmed first. One the close leaves open, or fails on, keeps
 the lane's refusal note and its `pr-merge/unarmed` status, with no person's label.
-`pr-feedback-dispatch.yml` and `pr-unblock-dispatch.yml` start no address-feedback or fix-ci round,
+`pr-dispatch-feedback.yml` and `pr-unblock-dispatch.yml` start no address-feedback or fix-ci round,
 and post nothing, on a lanes App pull request (the only kind the close takes; an adopted owner's is
 not read) the gate's reader refuses `verify:repeated-fail`
 (`.github/scripts/pr-unblock/verify-cap.mjs`, reading `babysit_verify_evidence.py` with the
@@ -3258,7 +3258,7 @@ A review usually finishes after ci-status first reads it, so on a full run (not 
 body edit) ci-status's review-lanes step waits: it polls each lane whose run on the head has not
 completed, every 60 seconds for at most 8 minutes (`REVIEW_WAIT_SECONDS`), reading that run once a
 poll, then judges both lanes as below. A lane with no run is not waited for. A review still running at the cap fails as before,
-naming the automatic re-run, so no manual re-run is needed. Then `pr-feedback-dispatch.yml`'s
+naming the automatic re-run, so no manual re-run is needed. Then `pr-dispatch-feedback.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
 when a review caller completes (not when GitHub skipped it) on an open same-repository PR still at
 that head and the other lane's newest run on the head has finished or never ran. While the other
@@ -3543,7 +3543,7 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 |---|---|---|
 | `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
 | Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
-| Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `dependabot-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
+| Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `release-generate-dependabot-changelog-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 
 ## Models
@@ -3800,7 +3800,7 @@ with its default.
 | `lane-level` | 2, 4, 3, 2, `[lanes-app]`, `true`, `CLAUDE_LANE_LEVEL`, 150 | The adaptive lane level L (owner decision Q111): `floor`, `ceiling`, `default`, `clean-windows` and `pools` for `decide()` in `.github/scripts/lib/lane-level.mjs`, whose truth table is `lane-level.vectors.json` beside it. `shadow` (default `true`), `variable` (default `CLAUDE_LANE_LEVEL`, must end in `_LANE_LEVEL`) and `valid-minutes` (default 150, 60 to 1440) govern publish and read: work-unblock's hourly `publish-lane-level` job publishes L as `<level>@<valid-until>` in `variable`, and pick-slot and label-unblocked read it through `.github/scripts/lib/lane-level-value.mjs` (empty, expired or malformed reads as `default`, clamped to `floor` and `ceiling`). While `shadow` is set the job mints no token and writes nothing, `SLOTS` stays `default`, and both log the level they would use. Each window L steps up 1 after `clean-windows` windows in a row that each had demand (runs waiting, or every slot running) and no limit signal, when every pool in `pools` fits: peak used, as a share of the pool's planned budget, times (L+1)/L at most `api.<pool>.plan`. A window where a pool has `api.<pool>.writer-pause` of its header's limit left or less resets the streak. Any limit signal the lanes App's own calls meet (403, 429, a secondary-limit or GraphQL rate-limit error, `retry-after`) halves L, rounded down, to no less than `floor`, and blocks a step up until the reset it names. A breaker trip is not a signal: it mostly reflects GITHUB_TOKEN spend, which pacing controls, and the breaker stays the backstop. Missing readings or demand hold L and the streak; a missing or malformed previous level reads as `default`, and every level is clamped to `floor` and `ceiling`. A `floor` above the `ceiling`, as set or defaulted, is rejected. An `api` pool field left unset reads from `rate-limits.json`, as the rate guard reads it. `.github/scripts/lib/lane-level-replay.mjs` replays the rule over the hub's recorded history. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
-pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
+pr-dispatch-feedback, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
 config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
 the WIP cap check holds the run ([WIP cap](#wip-cap)). This repository's values are in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`limits` and `wip`).
@@ -3966,7 +3966,7 @@ count as queued work:
 | work-unblock's restarts, re-fires and relabels (remove and re-add on an admitted issue) | No: they re-run work already admitted |
 | A person adding the label by hand | No |
 | A person-run skill: `/work-items:triage`, `/work-items:decompose`, `/work-items:attend-queue`, `/work-items:track` | No: a person's account, their call |
-| `post-merge-demotion-alert.yml` red-main fix issues | No: it files them unlabeled and reopens one on a repeat failure keeping the `agent-ready` a person gave it, which work-unblock relabels; guardrail work |
+| `post-merge-file-demotion-issues.yml` red-main fix issues | No: it files them unlabeled and reopens one on a repeat failure keeping the `agent-ready` a person gave it, which work-unblock relabels; guardrail work |
 
 The check publishes its status as one flat JSON object: the step output `wip`, the step summary
 and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pause or hold;
@@ -4140,7 +4140,7 @@ using the same name matches nothing. The comment text stays data in every model 
 reviewer bot's does. This repository lists `chatgpt-codex-connector[bot]` (199175422) and
 `github-advanced-security[bot]` (62310815). The
 select job and `publish-feedback` read the list from the resolved config; `fix-ci-context.mjs`
-and `pr-feedback-dispatch.yml` read it from the base's `pr-pipeline.yaml`. Absent: none.
+and `pr-dispatch-feedback.yml` read it from the base's `pr-pipeline.yaml`. Absent: none.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -4191,7 +4191,7 @@ reading every pull request merged from `--since` to today, a day per search.
 
 When a full `pr-require-checks` run on `main` (scheduled or dispatched) fails, the
 `report-red-main` job of
-[`post-merge-demotion-alert.yml`](../../../.github/workflows/post-merge-demotion-alert.yml) applies
+[`post-merge-file-demotion-issues.yml`](../../../.github/workflows/post-merge-file-demotion-issues.yml) applies
 this rule after the alert job has filed its post-merge record. It runs no model; its scripts and
 tests are in
 [`.github/scripts/post-merge-demotion-alert/`](../../../.github/scripts/post-merge-demotion-alert/).

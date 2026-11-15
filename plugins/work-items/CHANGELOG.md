@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.1.3] - 2026-11-15
+
+### Changed
+
+- The work-class label references say work class in place of risk class, `work` says attended queue in place of human queue, and the pipeline-shape reference says recheck trigger.
+
 ## [15.1.2] - 2026-11-14
 
 ### Changed

@@ -3,6 +3,18 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.1] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now says the install `--config` rerun takes the scope `claude plugin list` reports for the plugin, with a `project` or `local` rerun run from the project that install lives in, and passes `user` only when the working directory is the home directory and the list labels the plugin both `user` and `project`.
+
+## [2.1.0] - 2026-11-14
+
+### Changed
+
+- `/education:illustrate` hands its record to `/explainer-video:produce` as a storyboard, one moment per diagram, and names the related pull-request and video skills under `## Related`.
+
 ## [2.0.2] - 2026-11-14
 
 ### Changed

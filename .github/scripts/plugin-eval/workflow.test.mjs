@@ -1,4 +1,4 @@
-// eval-browser-dispatch.yml's pull request path keeps the eval credential out
+// pr-run-plugin-evals.yml's pull request path keeps the eval credential out
 // of what a pull request's prompts can read or publish: a root-owned managed
 // policy denies reads of process and runner state before sudo is removed,
 // the summary is redacted, and no results artifact is uploaded.
@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-const text = readFileSync(new URL("../../workflows/eval-browser-dispatch.yml", import.meta.url), "utf8");
+const text = readFileSync(new URL("../../workflows/pr-run-plugin-evals.yml", import.meta.url), "utf8");
 const step = (name) => {
   const start = text.indexOf(`- name: ${name}\n`);
   assert.ok(start > 0, `step ${name}`);

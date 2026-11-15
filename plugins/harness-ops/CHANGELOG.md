@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.0.6] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now says the install `--config` rerun takes the scope `claude plugin list` reports for the plugin, with a `project` or `local` rerun run from the project that install lives in, and passes `user` only when the working directory is the home directory and the list labels the plugin both `user` and `project`.
+
 ## [9.0.5] - 2026-11-14
 
 ### Changed

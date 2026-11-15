@@ -3,6 +3,38 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.2.2] - 2026-11-14
+
+### Fixed
+
+- Reviewer media no longer posts a walkthrough with long silent pauses unnoticed: each moment's
+  narration is sized to its frames' reading time, and a `SILENT:` moment from the render is
+  lengthened or split and rendered once more, with any pause left named in the report.
+
+## [9.2.1] - 2026-11-14
+
+### Fixed
+
+- `/review:reviewer-media` checks that `/explainer-video:produce` is loaded before it claims a
+  pull request's head, on a direct run and on `--handoff`. Without it the build skips with reason
+  `producer-unavailable` (`decide.mjs --producer-unavailable`), so no head is left claimed with
+  nothing able to finish it. A missing `/speech:narrate` still builds captions-only and the
+  report says narration is unavailable.
+
+## [9.2.0] - 2026-11-14
+
+### Added
+
+- The `reviewer-media` convention gains `scan.extra_patterns`: Python regexes the secret and machine-data scan also refuses, such as a private codename. `/review:reviewer-media` passes each one as `--scan-pattern` to the renderer, the voice and `/source-control:pull-request media`. The list is add-only: a personal override adds to the team's patterns instead of replacing them, and nothing lowers the built-in floor. While a pattern does not compile, the skill skips before claiming the head and names it, so fixing the team file lets the next run build.
+
+## [9.1.0] - 2026-11-14
+
+### Added
+
+- `/review:reviewer-media <pr>` builds a narrated walkthrough for a pull request's reviewers: it decides whether the pull request needs one, builds a storyboard from `/review:explain-change`'s digest, checks that every changed file appears in a moment, has `/explainer-video:produce` render it, and hands the manifest to `/source-control:pull-request media`. A build that fails twice records one failure for that commit.
+- The `reviewer-media` convention (`docs/conventions/reviewer-media.yaml`, `schemas/reviewer-media.schema.json`): `policy` (`never`, `on-request` by default, `when-selected`, `always`), the three label names, the voice chain and voices, the upload limit and the artifact retention. The team file is read from the pull request's base commit only; `voice_command` and `allow_unattended_paid_voice` are team-only. A fork's pull request gets media only through the request label or a direct run, and posted media are rebuilt only when the changes since them cross a review-digest trigger.
+- `/review:explain-change` names `/review:reviewer-media` under Related and Next. The review-digest defaults, layers and triggers move from its `digest-policy.mjs` into `lib/review-digest.mjs`, which both skills import; `digest-policy.mjs` behaves as before.
+
 ## [9.0.2] - 2026-11-14
 
 ### Fixed

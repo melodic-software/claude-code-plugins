@@ -99,6 +99,8 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
      [F631](https://docs.astral.sh/ruff/rules/assert-tuple/). As of 2026-11-10; recheck when a ruff
      release note changes the default rule set.
    - Bash, PowerShell and Go: no maintained rule.
+   - Any other detected language: named with `setup has no lint check for this language`, not a
+     finding.
 3. **instruction**: the optional line, naming the one file Claude Code loads at the repository
    root: `CLAUDE.md`, else `.claude/CLAUDE.md`, else `CLAUDE.local.md`, else `AGENTS.md`, else `CLAUDE.md` in
    `${CLAUDE_CONFIG_DIR:-~/.claude}` (the script's order). Which files load, and when `AGENTS.md` is

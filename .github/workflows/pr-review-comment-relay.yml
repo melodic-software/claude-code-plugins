@@ -1,7 +1,7 @@
 name: PR Review Comment Relay
 
 # Relays a new review comment by a person on a lanes App pull request to
-# pr-feedback-dispatch.yml, which lists this workflow's name under
+# pr-dispatch-feedback.yml, which lists this workflow's name under
 # workflow_run: a listed human's reply on a thread the pr-unblock lane
 # escalated then starts address-feedback within one dispatcher pass, with no
 # review round behind it (ADR 0088).
@@ -34,4 +34,4 @@ jobs:
     timeout-minutes: 1
     steps:
       - name: Relay the comment
-        run: echo "A person's review comment; pr-feedback-dispatch.yml decides from this run's own facts."
+        run: echo "A person's review comment; pr-dispatch-feedback.yml decides from this run's own facts."

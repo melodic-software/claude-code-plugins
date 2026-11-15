@@ -122,6 +122,15 @@ End the file with two lines: `phase-1.5: downgraded=<n> dropped=<n> corrected=<n
 
 **ADR conflicts**: check each candidate against the recorded architecture decisions. One that contradicts a decision is dropped unless its friction would justify reopening that decision; one that stays names the decision on its card.
 
+**A reproduced live defect gets its own report.** A `runtime-claim` that Phase 1.5 reproduced as a live bug does not wait for its candidate to be picked: the refactor may never be chosen, and the defect is real either way. Name each one in the reply before the question, security defects first. A dead-code claim is not a defect, and a `runtime-claim` labeled `unverified` is named as unverified, not reported.
+
+- **Not a security defect**: invoke `/bugs:write --file` (if that plugin is installed) with the reproduction, so the report is saved to a file that outlives the session and the user is offered the choice to file it. Without it, give the report in the reply: a title, the steps that reproduce it, expected against actual, and the file and function to fix.
+- **A security defect** (a missing access check, exposed data, an injection): state it to the user in the reply, and put its details in no tracker item, pull request, commit message or other text that may become public. Tell the user to report it through the repository's security policy or a private advisory, and file nothing yourself. Pointer: when the user asks how to report privately on GitHub, fetch [About reporting and disclosing vulnerabilities in projects on GitHub](https://docs.github.com/en/code-security/concepts/vulnerability-reporting-and-management/coordinated-disclosure#about-reporting-and-disclosing-vulnerabilities-in-projects-on-github) live.
+
+The candidate keeps the defect as evidence for the refactor.
+
+**Review-class problems belong to the skills that own them.** A scan also sees problems that are not about module shape: types that opt out of checking, errors caught and discarded, a hard-coded value that should be read from data. Keep each as evidence on the candidate it belongs to, add no finding or badge for it, and name the owning skill once in the reply: `/code-metrics:audit type-debt` (if that plugin is installed) for typing, `/review:quality-gate code` (if that plugin is installed) for the rest. Without either plugin, say that these were seen and not assessed.
+
 Phase 2 proposes no interfaces. Once the report is written, the reply opens with the decision now up to the user, names the top recommendation, gives the report path (when one was written) and the artifact path, and asks: "Which candidate should we explore?"
 
 ## Phase 3: Interview loop on selected candidates

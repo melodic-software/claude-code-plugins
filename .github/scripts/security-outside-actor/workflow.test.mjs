@@ -1,4 +1,4 @@
-// security-outside-actor.yml's hardening: members and Bot senders start no
+// intake-label-outside-actor-activity.yml's hardening: members and Bot senders start no
 // job, the job checks out main only, holds the job token with least privilege
 // and no secret, and passes no event text to a shell.
 import assert from "node:assert/strict";
@@ -7,7 +7,7 @@ import { test } from "node:test";
 
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 
-const text = readFileSync(new URL("../../workflows/security-outside-actor.yml", import.meta.url), "utf8");
+const text = readFileSync(new URL("../../workflows/intake-label-outside-actor-activity.yml", import.meta.url), "utf8");
 // The job's folded `if: >-` scalar, joined as YAML folds it.
 const condition = /\n {4}if: >-\n((?: {6,}.*\n)+)/.exec(text)[1].split("\n").map((line) => line.trim()).filter(Boolean).join(" ");
 const block = (name) => new RegExp(`\\n {4}${name}:\\n((?: {6}[a-z-]+: .*\\n)+)`).exec(text)[1];

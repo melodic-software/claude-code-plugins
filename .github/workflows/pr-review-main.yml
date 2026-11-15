@@ -359,7 +359,7 @@ jobs:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
-          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+          ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
 
       # Only a pull request that changes a lane source is reviewed here; the
       # predicate is the merge gate's own, read from main. The file list read
@@ -827,7 +827,7 @@ jobs:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
-          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+          ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
 
       # Only a pull request that changes a lane source is reviewed here; the
       # predicate is the merge gate's own, read from main.
@@ -1780,7 +1780,7 @@ jobs:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
-          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+          ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
 
       # Only a pull request that changes a lane source is reviewed here; the
       # predicate is the merge gate's own, read from main.
@@ -2701,7 +2701,7 @@ jobs:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
-          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+          ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
 
       # Only a pull request that changes a lane source is reviewed here; the
       # predicate is the merge gate's own, read from main.

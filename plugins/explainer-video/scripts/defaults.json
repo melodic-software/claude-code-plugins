@@ -11,6 +11,9 @@
     "min_seconds": 0.834,
     "seconds_per_word": 0.3
   },
+  "silent_hold": {
+    "report_over_seconds": 3.0
+  },
   "stills": {
     "min_seconds": 3.0,
     "noise": 0.003

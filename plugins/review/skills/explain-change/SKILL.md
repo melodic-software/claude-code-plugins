@@ -145,9 +145,17 @@ Both can put a page about one pull request on claude.ai, so the two get confused
 
 - **Pointer**: the `artifact-pr-review` row in [`docs/native-surfaces.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/native-surfaces.md); no upstream page documents the skill.
 
+## Related
+
+- `/review:reviewer-media` turns this digest into a narrated walkthrough for the pull request's
+  reviewers; `/explainer-video:produce` renders it and `/source-control:pull-request` places it.
+- `/education:illustrate` explains a concept rather than a pull request.
+- `/playwright:demo-video` records a live UI flow for the pull request.
+
 ## Next
 
-/review:quality-gate pr
+- The change still needs its review pass: /review:quality-gate pr.
+- Its reviewers should get a walkthrough video: /review:reviewer-media <pr>.
 
 ## Gotchas
 

@@ -100,7 +100,7 @@ on any new model release. Tier *definitions* stay abstract; only this seam binds
 Frontmatter binds a floor-shaped default; it cannot follow a phase routed upward. When the
 orchestrator ran a phase's implementer above this binding (the frontier tier for security-surface
 work, or a session model above it), it passes this verifier a per-invocation `model` at or above
-that tier (the marketplace's `docs/plugin-philosophy.md` "Model tiers"); that override routes
+that tier (the marketplace's `docs/plugin-philosophy.md` "Capability tiers"); that override routes
 upward only. The same holds for a Workflow script this repository ships: an `agent()` call naming
 this verifier never passes `effort` or `model` below this binding, and omits both to keep it. An
 Agent tool spawn of this verifier likewise omits the per-call `effort` parameter to keep the `high`

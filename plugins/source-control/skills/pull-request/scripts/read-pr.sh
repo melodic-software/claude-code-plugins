@@ -196,6 +196,7 @@ facts=$(cat "$work"/files-*.json | jq -n --slurpfile pull "$work/pull.json" '
     headRefName: $p.head.ref,
     baseRefOid: $p.base.sha,
     headRefOid: $p.head.sha,
+    isCrossRepository: ($p.head.repo.full_name == null or $p.head.repo.full_name != $p.base.repo.full_name),
     mergeCommit: (if $p.merged_at then {oid: $p.merge_commit_sha} else null end),
     additions: $p.additions,
     deletions: $p.deletions,
