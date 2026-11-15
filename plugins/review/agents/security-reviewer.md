@@ -63,7 +63,7 @@ When the change set deletes, narrows, or softens a standing instruction (`CLAUDE
 
 | OWASP | Category | Specific checks |
 |---|---|---|
-| A01 | Broken Access Control | IDOR (CWE-639), path traversal (CWE-22), missing authorization on endpoints |
+| A01 | Broken Access Control | IDOR (CWE-639), path traversal (CWE-22), missing authorization on endpoints; authorization each route or handler must opt in to, with no central decision point and no default deny, even when every current route carries its check ([OWASP Proactive Controls C1](https://top10proactive.owasp.org/archive/2024/the-top-10/c1-accesscontrol/)) |
 | A02 | Cryptographic Failures | Weak crypto (CWE-326/327), TLS misuse (CWE-295), JWT signing/validation, secrets in code |
 | A03 | Injection | SQL (CWE-89), command (CWE-77/78), XSS (CWE-79). Covered per-ecosystem |
 | A04 | Insecure Design | Threat modeling. Flag for design review, do not tier |
