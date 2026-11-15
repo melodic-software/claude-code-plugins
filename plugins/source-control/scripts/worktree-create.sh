@@ -203,7 +203,7 @@ Options:
                       nesting invariant forbids (skills/worktree/reference/nesting-invariant.md).
                       Mutually exclusive with --root-file.
   --fallback-root <dir>
-                      The machine-global worktree_root PLUGIN OPTION, consulted
+                      The machine-global worktree_root plugin option, consulted
                       only when neither an explicit --root/--root-file nor
                       worktreeroot.path yields
                       a value. Ranks
@@ -219,7 +219,7 @@ Options:
                       shell source safely. Mutually exclusive with --fallback-root.
   --data-root-file <path>
                       Read the plugin's data directory from <path>, used as the
-                      root ONLY when no --root/--root-file value is configured
+                      root only when no --root/--root-file value is configured
                       (the resolved root is then <data-dir>/worktrees). Same
                       byte-verbatim file channel as --root-file, and combinable
                       with it: a configured root always wins. The caller obtains
@@ -230,13 +230,13 @@ Options:
   --root-file <path>  Read the external worktree root from <path> instead of a
                       --root argument. For a caller that cannot place the value
                       in shell source safely — e.g. a skill rendering
-                      \${user_config.worktree_root} into markdown, which is RAW
+                      \${user_config.worktree_root} into markdown, which is raw
                       text substitution, not shell-escaped — write the value to
                       a temp file through a non-shell channel (the Write tool's
                       JSON content parameter), never a quoted literal or a
                       heredoc body: a value containing the heredoc delimiter
                       line ends the heredoc early and the remainder is parsed
-                      as commands. The file's bytes ARE the root, verbatim and
+                      as commands. The file's bytes are the root, verbatim and
                       unterminated — a newline anywhere in it, trailing
                       included, is a usage error (exit 2), never trimmed, and so
                       is a NUL byte. The same unset/empty/unexpanded-token
@@ -430,7 +430,7 @@ fi
 # --root-file: read the root from the file rather than a process argument. This
 # is the out-of-band handoff a skill uses when it cannot place the
 # raw-substituted ${user_config.worktree_root} value in shell source safely (see
-# the --root-file usage text above) — the file's bytes ARE the root (or, when
+# the --root-file usage text above) — the file's bytes are the root (or, when
 # unset, the literal unexpanded ${user_config...} token), placed there through a
 # non-shell channel so no expansion, quote-processing, or heredoc-delimiter
 # matching touches it before it lands here.

@@ -45,14 +45,13 @@ Online. Available in English, Spanish, and Portuguese.
 
 - **Title rhythm as motif:** the title's stress pattern is treated as a
   rhythmic motif developed across the song. **Unaudited**: course content,
-  not verifiable from the books. (An earlier draft glossed this as a
-  four-stage "state / vary / withhold / deliver" sequence; that phrasing was
-  **invented** and has been removed. Pat's actual treatment of motivic
-  development is in *Essential Guide to Lyric Form and Structure* (1991),
-  Chapter 7, "Speed it up, slow it down, say it backwards, turn it upside
-  down". See `hook.md`.)
+  not verifiable from the books. Do not gloss it as a four-stage "state / vary /
+  withhold / deliver" sequence; no source prints that. Pat's treatment of
+  motivic development is in *Essential Guide to Lyric Form and Structure*
+  (1991), Chapter 7, "Speed it up, slow it down, say it backwards, turn it
+  upside down". See `hook.md`.
 - **Stressed-vowel brainstorming from the title:** take the title's
-  stressed vowels to the rhyming dictionary FIRST, before drafting lines.
+  stressed vowels to the rhyming dictionary first, before drafting lines.
   Generate seed words; build verses from them.
 - **Lyric video integration:** students submit weekly lyric videos for
   peer review. Format itself teaches.
@@ -214,7 +213,7 @@ Verified episodes with distinctive craft material:
 
 | Episode | Year | Distinctive content |
 |---|---|---|
-| Professor Pat Pattison: The Power of Phrasing | 2022 | Pat walks through multiple songs demonstrating melodic-phrasing effect; before/after rewrite of one of HIS OWN songs to demonstrate phrase placement change |
+| Professor Pat Pattison: The Power of Phrasing | 2022 | Pat walks through multiple songs demonstrating melodic-phrasing effect; before/after rewrite of one of his own songs to demonstrate phrase placement change |
 | Creating Metaphors with Pat Pattison | 2024 | Step-by-step metaphor recipe walkthrough; simile vs metaphor distinction; passing vs central metaphors; case studies on Eli & Fur + Gillian Welch tracks; exercise that writer Madi Diaz publicly credits |
 
 ### Songwriter Trysts ep. 40
@@ -236,7 +235,7 @@ Verified episodes with distinctive craft material:
 - Origin story: transition from teaching philosophy/logic to songwriting
 - Why English is uniquely hard to write in
 - "Write something stupid" framing for breaking through perfectionism
-- The most recent documented Pat appearance; newest stance material
+- A 2025 appearance, later than all four books; stance material
 
 ### Berklee Alumni Webinar: Songwriting Master Class
 
@@ -391,7 +390,7 @@ informally).
 These Pat formulations appear across columns / podcasts / talks and serve as
 anchor stance for the skill.
 
-**EVERY QUOTE IN THIS SECTION IS UNAUDITED unless it carries a book citation.**
+**Every quote in this section is unaudited unless it carries a book citation.**
 They are spoken or web sources outside the four books; a mechanical check of the
 corpus cannot confirm them, and their absence from it is *not* evidence against
 them. Two consequences, both binding:
@@ -399,9 +398,9 @@ them. Two consequences, both binding:
 1. **Never re-cite one of these to a book** to make it look checked. If you need
    a citable version, find Pat's printed sentence and quote that instead.
 2. **Never treat these as verbatim.** Spoken phrasing drifts; several of these
-   are near-variants of printed lines (see `line-brainstorm.md`, which now pairs
-   two of them with their printed counterparts). "Verbatim" was claimed here and
-   cannot be supported for any un-cited item, so the word is gone.
+   are near-variants of printed lines (see `line-brainstorm.md`, which pairs
+   two of them with their printed counterparts). Verbatim cannot be supported
+   for any un-cited item.
 
 The one exception below is the last entry, which is a real book quote and is
 cited as such.

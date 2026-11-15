@@ -48,10 +48,7 @@ Source images inspected:
   page-scan figures**, all 40 distinct files, read at 3x-4x upscale. This
   file's primary source argues in scans: the balance paradigms, every closure
   type, the exercise answer keys, and all three strategy examples are figures,
-  not prose. Earlier revisions of this inventory listed only the *Essential
-  Guide to Rhyming* (2014) and *Songwriting Without Boundaries* (2011) images
-  and omitted this chapter entirely, which is how the `abba` error below
-  survived. Distinct files are not distinct content: `image_rsrc31U` and
+  not prose. Distinct files are not distinct content: `image_rsrc31U` and
   `image_rsrc31X` print the same six-line lyric, because Pat reprints example
   c) when he comes back to it. Reprints in this chapter are pedagogy. Do not
   fold them.
@@ -959,9 +956,8 @@ matches the emotional motion.
 
 ## Why `abba` does not close
 
-An earlier revision of this file described `abba` as "enclosing," which reads as
-a closure claim and contradicted the Challenge 4 table above, where `abba` is
-listed under floating instability. *Essential Guide to Lyric Form and Structure*
+`abba` does not enclose or close a section; the Challenge 4 table above lists it
+under floating instability. *Essential Guide to Lyric Form and Structure*
 (1991), Chapter 4 settles it twice over, both times in figures rather than
 prose:
 
@@ -987,12 +983,10 @@ loss, hope, or suspension, and not when it needs to land.
 
 ## Choosing the rhyme type for a slot
 
-This index is the skill's own routing aid. An earlier revision claimed
-*Essential Guide to Rhyming* (2014), Chapter 9 "synthesizes a decision matrix
-for rhyme type by emotional intent"; it does not. Chapter 9 never sorts rhyme
-types by intent, and the rows below for partial and weak-syllable rhyme come
-from Chapter 6, not Chapter 9. The rhyme types are Pat's; the intent column is
-this file's gloss, and every definition lives in
+This index is the skill's own routing aid. *Essential Guide to Rhyming* (2014),
+Chapter 9 never sorts rhyme types by intent, and the rows below for partial and
+weak-syllable rhyme come from Chapter 6, not Chapter 9. The rhyme types are
+Pat's; the intent column is this file's gloss, and every definition lives in
 [rhyme types](rhyme-types.md).
 
 | Intent at the slot | Rhyme type | Where Pat defines it |
@@ -1039,11 +1033,10 @@ the words are chosen. A long single thought benefits from spread
 rhymes; a section made of short paired thoughts benefits from
 couplet adjacency.
 
-**"The Shelley principle" is not Pat's term.** He names no such principle,
-and the three-item "use when" list that stood here was invented. The
-preceding paragraph is the actual lesson the chapter draws. Pat's own words
-for what rhyme is doing here, *Essential Guide to Lyric Form and Structure*
-(1991), Chapter 4:
+**"The Shelley principle" is not Pat's term.** He names no such principle
+and gives no "use when" list for it. The preceding paragraph is the actual
+lesson the chapter draws. Pat's own words for what rhyme is doing here,
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 4:
 
 > "Rhyme is the best way to control a lyric's FLOW. Nothing can match
 > rhyme's power in this area. Not phrase length. Not rhythm."
@@ -1322,7 +1315,7 @@ craft step Chapter 7 exists to force.
 - [rhyme types](rhyme-types.md): the stability scale that fills
   the decision matrix.
 - [rhyme worksheets](rhyme-worksheets.md): full search algorithm
-  per slot, and the twelve "RISKY BUSINESS" perfect/imperfect columns this
+  per slot, and the eleven "RISKY BUSINESS" perfect/imperfect columns this
   file excerpts only `leave` from.
 - [rhyme generation](rhyme-generation.md): internal generation discipline.
 - [Five Compositional Elements](five-compositional-elements.md):

@@ -109,7 +109,7 @@ The method's handling differs from the shared table in two ways:
 
 ## 2.3 Stage and commit
 
-### 2.3.1 Unrelated uncommitted changes check (MANDATORY)
+### 2.3.1 Unrelated uncommitted changes check (mandatory)
 
 Before staging, run `git status --porcelain` and classify every modified/untracked file as **PR-related** or **unrelated**: files that don't belong in this PR, such as pre-existing edits from other sessions, hook auto-fixes, exploratory changes, or work from a different task.
 
@@ -121,7 +121,7 @@ Before staging, run `git status --porcelain` and classify every modified/untrack
 |--------|-------------|---------|
 | **Include in PR** | Changes are small, related enough, and won't pollute the PR | Stage them with the PR files |
 | **Stash** | Changes should be preserved but don't belong in this PR | `git stash push -u -m "unrelated: <description>" -- <files>` |
-| **Separate commit** | Changes are valuable and self-contained. Commit on this branch as a separate commit (squash merge collapses anyway) | `git add <files> && git commit -m "chore: <description>"` |
+| **Separate commit** | Changes are valuable and self-contained. Commit on this branch as a separate commit (squash merge collapses anyway) | `git add <files>`, then `/source-control:commit` with a `chore: <description>` subject |
 | **Discard** | Changes are throwaway (build artifacts, experimental edits) | `git checkout -- <files>` |
 
 **Default recommendation:** stash with a descriptive message, using `-u` to include untracked files; without it, `git stash push -- <files>` silently skips them (`pathspec did not match`). Stashes persist across branch switches and deletion, `git stash list` shows them from any branch, and the user can `git stash pop` on the new branch.
@@ -130,9 +130,9 @@ Before staging, run `git status --porcelain` and classify every modified/untrack
 
 ### 2.3.2 Stage and commit PR changes
 
-Stage specific files (never `git add -A`), then invoke `/source-control:commit` via the Skill tool (this plugin's sibling skill) for the commit. It owns message drafting, the Conventional Commits regex pre-check, the `Co-authored-by` trailer, and the canonical bash heredoc form. **Wait for user approval on the proposed commit message inside `/source-control:commit`.** Do NOT bypass it by running `git commit` directly from this phase: the heredoc, trailer and pre-check live there.
+Stage specific files (never `git add -A`), then invoke `/source-control:commit` via the Skill tool (this plugin's sibling skill) for the commit. It owns message drafting, the Conventional Commits regex pre-check, the `Co-authored-by` trailer, and the canonical bash heredoc form. **Wait for user approval on the proposed commit message inside `/source-control:commit`.** Do not bypass it by running `git commit` directly from this phase: the heredoc, trailer and pre-check live there.
 
-**When NOT to delegate:** if `/source-control:commit` is unavailable (e.g. skill discovery broken), inline the same heredoc form (`git commit -F - --cleanup=verbatim <<'EOF' ... EOF`), proceed, and note the fallback to the user.
+**When not to delegate:** if `/source-control:commit` is unavailable (e.g. skill discovery broken), inline the same heredoc form (`git commit -F - --cleanup=verbatim <<'EOF' ... EOF`), proceed, and note the fallback to the user.
 
 ### 2.3.3 Changelog fragments for the whole branch
 
@@ -177,7 +177,7 @@ Then invoke `/work-items:track link` via the Skill tool, `<owner>/<repo>` being 
 starts `CLOSES_LINE` and `REFS_LINES` empty. `REFS_LINES` collects newline-separated
 `Refs #Y — <why>` bullets for the `## Related` section from the multi-issue or orphan-PR prompts
 below; never a closing keyword and not a linkage line (§2.4.1 routes it). When `ISSUE_NUM` is a
-number, it validates that the issue exists in the current repository BEFORE shipping `Closes #N`:
+number, it validates that the issue exists in the current repository before shipping `Closes #N`:
 GitHub auto-close fires only when the issue exists, lives in this repo, and is open at merge time,
 and a typo'd branch like `feat/99999-foo` would otherwise ship a misleading `Closes #99999` line.
 An open issue sets `CLOSES_LINE` to `Closes #<N>`; otherwise it warns that the issue is missing or
@@ -209,7 +209,7 @@ When option 2 is chosen, read that issue's body and open sub-issues for §2.4.1'
 section ([GitHub](../../../reference/providers/github/pull-request/create.md#refs-issue-read));
 on the tracker-bound path, the `refs` item's `ISSUE_BODY` serves.
 
-Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an HTML comment: `<!-- Closes #N -->` still parses and auto-closes the issue on merge. Fenced code blocks ARE inert, so example snippets are safe.
+Persist chosen line(s) into `${CLOSES_LINE}`. Never wrap a closing keyword in an HTML comment: `<!-- Closes #N -->` still parses and auto-closes the issue on merge. Fenced code blocks are inert, so example snippets are safe.
 
 **Close only what the diff finishes.** Run the siblings step below once on every issue
 `${CLOSES_LINE}` would close, then read each such issue (the
@@ -647,7 +647,7 @@ and write targets that repository, and names the number.
 
 PR identity (number + URL) is queried live from the forge, the authoritative source, whenever a later phase needs it ([GitHub](../../../reference/providers/github/pull-request/create.md#pr-identity)); never persisted to a state file. That read is GraphQL-backed, so a sandboxed session under the restriction above takes identity from the create response, or re-reads it over REST.
 
-**All subsequent phases MUST use `<pr_number>` explicitly**, never a bare PR view, checks or merge call without the PR number argument.
+**All subsequent phases must use `<pr_number>` explicitly**, never a bare PR view, checks or merge call without the PR number argument.
 
 ## 2.5 Record expected CI workflows
 
@@ -680,7 +680,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
 
 **Preconditions (assert, never redo).** The worker commits, pushes, and brings the branch current with the default branch before returning; verify rather than repeat:
 
-- **Clean tree:** `git -C "$WT" status --porcelain` empty, else STOP (the worker returned with uncommitted work).
+- **Clean tree:** `git -C "$WT" status --porcelain` empty, else stop (the worker returned with uncommitted work).
 - **Pushed to the remote at HEAD:** confirm the branch's remote tip equals local HEAD **without relying on `@{u}`**: a worker that pushed with `git push origin <branch>` (no `-u`) has no upstream, so `git log @{u}..` exits 128 on a fully pushed branch. Resolve the remote and compare the refs directly:
 
   ```bash
@@ -694,7 +694,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
     || { echo 'worker branch is not fully pushed to the remote' >&2; exit 1; }
   ```
 
-  else STOP (the worker returned without pushing HEAD).
+  else stop (the worker returned without pushing HEAD).
 
 **Caller requests.** The orchestrator asks through two optional flags after `--worktree`:
 
@@ -703,15 +703,15 @@ BRANCH=$(git -C "$WT" branch --show-current)
 - `--hold '<line>'` takes a line starting `Hold:`, which §2.4.1's body composition places
   below `${CLOSES_LINE}` and any `Siblings:` line in `$BODY_FILE` before the §2.4.2 gates run, so the PR opens
   with the hold before `ready --unattended` can flip it. A value not starting `Hold:` is refused:
-  STOP and report it.
+  stop and report it.
 
 **Sub-steps relative to the normal `create` path:**
 
 - **§2.1 / §2.3 (branch-name prompts, stage + commit):** skipped. The worker already committed; the preconditions above replace them.
 - **§2.2 (bring the branch current):** skipped. The worker brings the branch current before returning; the Phase 3 mergeability read and CI catch residual staleness. The out-of-tree orchestrator cannot update a branch it is not on, so it never owns this step.
-- **§2.4.1 (push):** skipped, replaced by the unpushed-commits assertion above, except §2.4.1's base update: when it applies, run [Decide and carry out the update](ready-for-review.md#decide-and-carry-out-the-update) from `$WT` with the signals script's `--branch "$BRANCH" --base "$BASE"` mode, `$BASE` resolved as the §2.4.3 bullet below says, before the read. What differs here: only `none`, `merge` and `hold` can come back, because this run's head is pushed and cannot be rewritten and a branch-only read reports no managed head. A `merge` runs in `$WT` (`git -C "$WT"`, the fetch remote from `resolve-remote.sh` without `--push` run from `$WT`) and is pushed with `push-branch.sh --dir "$WT"`. After `none` or `hold` the run pushes nothing and goes on to open the PR. When the merge conflicts, run `git -C "$WT" merge --abort`, so `$WT` returns to the worker's clean tree, then STOP and report the conflict: no push and no PR create, since this unattended run has no PR to leave in draft and cannot resolve the conflict itself.
+- **§2.4.1 (push):** skipped, replaced by the unpushed-commits assertion above, except §2.4.1's base update: when it applies, run [Decide and carry out the update](ready-for-review.md#decide-and-carry-out-the-update) from `$WT` with the signals script's `--branch "$BRANCH" --base "$BASE"` mode, `$BASE` resolved as the §2.4.3 bullet below says, before the read. What differs here: only `none`, `merge` and `hold` can come back, because this run's head is pushed and cannot be rewritten and a branch-only read reports no managed head. A `merge` runs in `$WT` (`git -C "$WT"`, the fetch remote from `resolve-remote.sh` without `--push` run from `$WT`) and is pushed with `push-branch.sh --dir "$WT"`. After `none` or `hold` the run pushes nothing and goes on to open the PR. When the merge conflicts, run `git -C "$WT" merge --abort`, so `$WT` returns to the worker's clean tree, then stop and report the conflict: no push and no PR create, since this unattended run has no PR to leave in draft and cannot resolve the conflict itself.
 - **§2.4.0 (`Closes #N`), §2.4.1 (body assembly), §2.4.2 (pre-create gates):** run unchanged, except every `git`/diff read is anchored with `git -C "$WT"` and the branch is `$BRANCH`, never the session branch. In §2.4.0 this means passing `$BRANCH` as `parse-branch-issue.sh`'s explicit first positional and running it with `CLAUDE_PROJECT_DIR="$WT"` (`CLAUDE_PROJECT_DIR="$WT" parse-branch-issue.sh "$BRANCH" ['<branch-issue-pattern>']`), so it reads the worktree's own source-control config layers, not the orchestrator's. The script defaults to `git branch --show-current` **in its own process**, which `git -C` cannot redirect, so leaving it implicit would parse `Closes #N` from the orchestrator's branch and silently drop the linkage.
-- **§2.4.3 (create):** the PR create MUST name the head `$BRANCH` explicitly, since the invoker is not on the branch ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator)). §2.4.3's open-state step reads `docs/conventions/source-control.yaml` at the PR's base branch, never from `$WT` or the worker's branch. A `--pushed` run is unattended but follows the resolved state: a resolved `ready` runs Phase 2.5 as `ready "$PR_NUMBER" --unattended`, whose holds still apply. It runs with `$WT` as its working directory: every Phase 2.5 command takes the `( cd "$WT" && … )` form this section uses for `resolve-remote.sh`, and every forge call names `$PR_NUMBER`, the PR this run just opened. It stops when the branch in `$WT` resolves a different PR. Its code and security reviews run in fresh-context subagents at their own model binding ([ready-for-review.md](ready-for-review.md) §2.5.3); a caller that needs the base update and the fixes at a stronger tier invokes `create --pushed` from an agent dispatched at that tier.
+- **§2.4.3 (create):** the PR create must name the head `$BRANCH` explicitly, since the invoker is not on the branch ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator)). §2.4.3's open-state step reads `docs/conventions/source-control.yaml` at the PR's base branch, never from `$WT` or the worker's branch. A `--pushed` run is unattended but follows the resolved state: a resolved `ready` runs Phase 2.5 as `ready "$PR_NUMBER" --unattended`, whose holds still apply. It runs with `$WT` as its working directory: every Phase 2.5 command takes the `( cd "$WT" && … )` form this section uses for `resolve-remote.sh`, and every forge call names `$PR_NUMBER`, the PR this run just opened. It stops when the branch in `$WT` resolves a different PR. Its code and security reviews run in fresh-context subagents at their own model binding ([ready-for-review.md](ready-for-review.md) §2.5.3); a caller that needs the base update and the fixes at a stronger tier invokes `create --pushed` from an agent dispatched at that tier.
 
   §2.4.3's `target-repo.sh` runs with `--dir "$WT"`, so the repository comes from the worker's checkout, not the orchestrator's. In a sandboxed session that 403s, substitute §2.4.3's REST form, which names that repository and needs no anchoring.
 

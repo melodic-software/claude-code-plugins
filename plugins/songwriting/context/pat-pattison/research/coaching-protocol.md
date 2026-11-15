@@ -1,7 +1,7 @@
 # Coaching Protocol: Dynamic Guided Dialog
 
 Pat Pattison teaches by guiding, never by lecturing. The AI applying this
-skill MUST coach the writer step-by-step, surfacing choice points, applying
+skill must coach the writer step-by-step, surfacing choice points, applying
 the relevant Pat tool to the writer's answer, and proceeding only when the
 writer has chosen. This file codifies the dialog mechanics.
 
@@ -16,19 +16,11 @@ tools each step applies. Those are cited where they appear.*
 > Chapter 18. He prints the same stance in *Essential Guide to Rhyming*
 > (2014), Chapter 4: "there are no rules. Only tools."
 
-<!-- ai-slop-ignore-start: correction note quoting the retired fabricated attribution line verbatim -->
-<!-- CORRECTED. This block-quoted '"Tools, not rules." — Pat Pattison
-     (recurring column / seminar framing…)'. In that word order the phrase
-     appears in NONE of the four books: 0 hits, wrap-safe, all four. It is the
-     title of his *American Songwriter* column, not something he is recorded
-     saying, so presenting it as a Pat quotation invented a quotation out of a
-     masthead. Replaced with the two sentences he actually prints. -->
-<!-- ai-slop-ignore-end -->
-
-The protocol exists because generic LLM defaults directly contradict Pat's
-coaching practice: long monologues, 14-step plans pre-decided, single-pick
-recommendations. The AI must throttle itself into one-question dialog,
-even when it could spit out an answer.
+The protocol exists because Pat's coaching works through dialog: one
+question at a time, a plan built from the writer's answers, and several
+labeled options rather than a single pick. Keep to one-question dialog even
+when a full answer is ready, because the writer's choices are what make the
+song theirs.
 
 ## Stance: coach posture, not author posture
 
@@ -72,9 +64,9 @@ key is it in". Settle the larger first.
 | Mechanical follow-through on a settled plan | DECIDE |
 | Single-line edit, single rhyme look-up, factual question | DECIDE |
 
-When in doubt: ask one question rather than spawn a long answer. One
-question costs the writer 5 seconds. A wrong long answer costs both sides
-a full revision pass.
+For a situation the table does not cover, or one where you are unsure
+which row applies, ask one question rather than write a long answer. One question costs the writer 5 seconds. A wrong long
+answer costs both sides a full revision pass.
 
 ## One question at a time
 
@@ -151,7 +143,7 @@ Title candidates (5):
 Each does different work. Which feels closest to your song's pull?
 ```
 
-The AI names what each option DOES, not just what it IS. The writer picks
+The AI names what each option does, not just what it is. The writer picks
 by what the song needs.
 
 ## Refuse the "just decide" trap (with grace)
@@ -160,15 +152,13 @@ When a writer says "you decide", the AI:
 
 1. Names the assumption it's about to make
 2. Decides
-3. Surfaces the alternative IT didn't pick + why
+3. Surfaces the alternative it didn't pick + why
 
 This preserves the writer's agency without forcing the dialog when the
 writer wants a draft.
 
 Example: invented illustrative dialogue, not a Pat quotation. It is fenced
-rather than block-quoted precisely so it cannot be mistaken for one (the
-mechanical quote checker flagged all three of its sentences while it was in a
-`>` block):
+rather than block-quoted so it cannot be mistaken for one:
 
 ```text
 Writer: "Just give me a title — I trust you."
@@ -214,16 +204,16 @@ specialized action is the right tool.
 | Anti-pattern | Why it fails | Correction |
 |---|---|---|
 | AI delivers a complete chorus on first prompt | Pre-empts writer's voice | Ask one orienting question; surface options |
-| AI lists 12 options without labels | Writer can't choose by intent | Add a one-line label per option naming what each one DOES |
+| AI lists 12 options without labels | Writer can't choose by intent | Add a one-line label per option naming what each one does |
 | AI says "I'll do X" when X has ≥2 reasonable alternates | Imposes AI preference | Surface the choice with at least the runner-up named |
 | AI proceeds when the writer didn't confirm | Assumes consent | Wait. Silence = wait, not assume |
-| AI lectures Pat's principle in 200 words | Telling, not coaching | Name the principle in one sentence and APPLY it to the writer's answer |
+| AI lectures Pat's principle in 200 words | Telling, not coaching | Name the principle in one sentence and apply it to the writer's answer |
 | AI uses generic "good", "strong", "interesting" | No craft signal | Name what specifically is working (sense-bound image, surprising verb, family rhyme, hot-spot placement) |
 | AI keeps going after writer's done | Wastes writer's energy | Sanity-check, hand off, or end |
 
 ## Anchor stance
 
-**All three quotes below are UNAUDITED**: spoken, non-book sources catalogued in
+**All three quotes below are unaudited**: spoken, non-book sources catalogued in
 `beyond-books.md`. Measured wrap-safe across all four books: `Music means
 nothing` = 0 hits, `Verbs are the amplifiers` = 0 hits, `telling people who you
 are` = 0 hits. Absence from the corpus is not evidence against a spoken source,

@@ -49,7 +49,7 @@ Template: `../templates/rock.md`. The umbrella subdivides by era (classic / alt 
 | Hard rock | 1970-1985 | US/UK | 115-145 | Minor, power-chord | Wailing high-tenor, throaty | Cranked Marshall stacks, layered guitars, gated reverb on snare | Aggressive, confident, larger-than-life | H |
 | Glam rock | 1971-1980 | UK/US | 120-140 | Major lead, minor verses | Theatrical, androgynous, sneer | Glossy stereo guitars, hand-claps, layered "ooh" backing | Decadent, flashy, theatrical | H |
 | Garage rock | 1964-1969; revival 2001-2008 | US | 130-155 | Minor pentatonic | Sneering, lo-fi shout | Single mic, tape saturation, sloppy ensemble | Raw, sneering, immediate | H |
-| - *Signature instrumentation:* Fuzz Vox or Farfisa-style organ + distorted Telecaster + tambourine + minimal drum kit. *Differentiator:* Recording artifacts ARE the aesthetic; cleanness sounds wrong. |
+| - *Signature instrumentation:* Fuzz Vox or Farfisa-style organ + distorted Telecaster + tambourine + minimal drum kit. *Differentiator:* Recording artifacts are the aesthetic; cleanness sounds wrong. |
 | Surf rock | 1961-1965 | California | 130-180 | Minor harmonic, double-picked | Mostly instrumental; sparse close-harmony when present | Heavy spring reverb, single-coil bright | Sunny, energetic, cinematic | H |
 | - *Signature instrumentation:* Fender Jaguar/Jazzmaster through Fender Reverb tank + standup bass + four-on-floor surf beat + occasional sax. |
 | Psychedelic rock | 1966-1972 | US/UK | 80-130 | Modal, key changes | Languid, drifting, occasionally chanted | Backwards tape, phaser, panned stereo trickery | Trippy, expansive, surreal | H |
@@ -86,7 +86,7 @@ Template: `../templates/metal.md`. Down-tuned guitars define the family; subdivi
 |-------|-----|--------|-----|-----|-------|------------|------|------|
 | Heavy metal (NWOBHM) | 1979-1983 | UK | 130-180 | Minor, harmonic minor | Operatic high-tenor | Live-room drums, midrange-heavy guitars | Epic, mythic, defiant | H |
 | Thrash metal | 1983-1991 | Bay Area / NY / Germany | 150-220 | Minor pentatonic, chromatic | Shouted-sung tenor (not growled) | Scooped-mid distortion, double-bass kicks, picked-bass | Aggressive, technical, urgent | H |
-| - *Signature instrumentation:* Tremolo-picked rhythm + dual lead Gibson Explorer/Flying V + double-kick acoustic kit + pick-played bass. *Differentiator:* NWOBHM speed × hardcore-punk aggression × prog technicality; vocals NOT growled. |
+| - *Signature instrumentation:* Tremolo-picked rhythm + dual lead Gibson Explorer/Flying V + double-kick acoustic kit + pick-played bass. *Differentiator:* NWOBHM speed × hardcore-punk aggression × prog technicality; vocals not growled. |
 | Death metal (Florida) | 1989-1996 | Tampa, FL | 150-210 | Chromatic, diminished | Deep growls, full-throated roars | Studio polish (Morris Sound), tight blast beats | Brutal, technical, ominous | H |
 | Death metal (Stockholm) | 1990-1995 | Stockholm | 150-200 | Minor pentatonic, chromatic | Mid-register growls | Boss HM-2 buzzsaw guitar (maxed), Sunlight Studio mix | Filthy, primal, decaying | H |
 | - *Signature instrumentation:* Boss HM-2 distortion pedal cranked all dials + tremolo-picked downtuned guitars + double-bass kicks. *Differentiator:* Buzzsaw HM-2 tone is the entire identity. Without it, this is generic death metal. |

@@ -406,7 +406,7 @@ repo's owner.
 
 | Key | Type | Default / absent behavior |
 |---|---|---|
-| `lane_instance` | string | sanitized lowercased hostname (writer identity suffixing `babysit-loop`'s telemetry marker; must be distinct across concurrent lane instances) |
+| `lane_instance` | string | a random `lane-<hex>` id made once and kept in the plugin data dir, never the hostname (writer identity suffixing `babysit-loop`'s telemetry marker; must be distinct across concurrent lane instances) |
 | `lane_app_slug` | string | none (the telemetry write identity comes from the token's user; set it under a GitHub App installation token so `babysit-loop` resolves `<slug>[bot]`) |
 | `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no workflow using the `check-contract` step) |
 | `pr_linkage_mcp_gate_enabled` | boolean | `true` (the MCP-surface sibling; inert in a repo with no workflow using the `check-contract` step) |
@@ -632,12 +632,15 @@ For a Claude Code release without `plugin configure`, see [Plugin install](https
 
 ## Security
 
-- One local hook (`pr-body-linkage-gate`, above), no MCP servers, no telemetry
-  unless you opt in (see below), no outbound network beyond `git` and `gh`
-  against the repository the session already targets. The hook reads only the
-  Bash command it is gating, the body file that command names, and the
-  repository's own workflow directory; it never runs `git`, `gh`, or any
-  network call.
+- Local hooks only (the ones under [Hooks](#hooks)), no MCP servers, no telemetry
+  unless you opt in (see [Telemetry](#telemetry-opt-in)), no outbound network beyond `git` and `gh`
+  against the repository the session already targets. The PR-linkage gates read only the
+  command or MCP payload they gate, the body file a command names, and the
+  repository's own workflow directory; they run only local `git` reads
+  (`git rev-parse`, and `git remote get-url` on the MCP surface), never `gh` or a
+  network call. The worktree hooks run local `git worktree` commands (a claim lock,
+  and in `worktree-remove-gate` unlock and remove) and `claude plugin uninstall`
+  through the reap script.
 - Writes to GitHub (comments, reactions, thread resolution, PR creation,
   merge) happen only inside the documented `/source-control:pull-request` phases and the
   `/source-control:babysit-prs` loop. `/source-control:babysit-prs` merges only in its explicit

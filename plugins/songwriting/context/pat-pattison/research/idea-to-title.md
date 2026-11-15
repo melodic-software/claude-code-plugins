@@ -34,7 +34,7 @@ Distinct from:
 - `fragment-development.md`: a partial line or section, not just a seed
 - `hook.md` "Title generation": title generation techniques (the seven types, Nashville method)
 
-This file is the BRIDGE between seed and title generation. It walks the
+This file is the bridge between seed and title generation. It walks the
 writer from intuition to concrete title candidates.
 
 ## When to load
@@ -71,7 +71,7 @@ type changes the work. Verbatim:
 > a serious subject, maybe homelessness.' Or, you may write from a title
 > you like, maybe 'Risky Business.'"
 
-When the seed IS a title, the missing piece is the angle. Pat's own
+When the seed is a title, the missing piece is the angle. Pat's own
 worked dialogue for "Risky Business" over the subject of homelessness:
 
 ```text
@@ -93,7 +93,7 @@ Set a 10-minute timer. Object-write the world the seed implies:
 - the person at the center
 - the body language of the speaker
 
-Per `object-writing.md`. Do NOT try to make it lyrical. The point is to
+Per `object-writing.md`. Do not try to make it lyrical. The point is to
 generate raw vocabulary, images, verbs, sensory anchors.
 
 Pat does exactly this in Chapter 24: given the working title "She Sells
@@ -129,7 +129,7 @@ After the timer, mine for:
 
 ### Step 3: Generate title candidates
 
-From the mined material AND the distilled seed sentence, generate 10-15
+From the mined material and the distilled seed sentence, generate 10-15
 title candidates.
 
 **Unverified against the books:** the seven-type taxonomy below appears
@@ -244,7 +244,7 @@ than it conveys. Like soul. Avoid those clunkers." Under `sand` he finds
 hand/understand/command nonsense."
 <!-- ai-slop-ignore-end -->
 
-A title that can ONLY perfect-rhyme with cliche partners is a weaker title
+A title that can only perfect-rhyme with cliche partners is a weaker title
 than one with family-rhyme + world-vocabulary options. More options =
 better choices.
 
@@ -289,7 +289,7 @@ Sometimes seeds need to season.
 |---|---|
 | Writer jumps to drafting before titling | back up; the title is the structural seed (per `hook.md`) |
 | Title is too abstract ("Hope", "Time") | route back through Step 2, since the abstraction needs a sense-bound collar |
-| Title rhymes only with cliche partners | shift stressed vowel via near-rhyme reframe, OR shelve and re-seed |
+| Title rhymes only with cliche partners | shift stressed vowel via near-rhyme reframe, or shelve and re-seed |
 | Multiple strong titles compete | pick the one whose stressed vowel + stress count best matches the emotional shape from Step 1 |
 | Title feels strong but writer can't commit | object-write the song's world for another 10 min; the commitment usually follows material |
 

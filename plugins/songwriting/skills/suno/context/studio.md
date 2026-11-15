@@ -2,7 +2,7 @@
 
 Suno Studio is a **Generative Audio Workstation (GAW)**, a multitrack DAW in the browser, with AI generation built into the timeline. **Premier tier**, verified 2026-07-18 against <https://suno.com/pricing> (Pro has no Studio access; tiers drift, re-check before relying).
 
-Where to go AFTER initial generation when you want to: rearrange sections, comp across multiple takes, isolate/replace instruments, fix timing, strip reverb, export stems, or build a song from scratch using AI-generated parts on individual tracks.
+Where to go after initial generation when you want to: rearrange sections, comp across multiple takes, isolate/replace instruments, fix timing, strip reverb, export stems, or build a song from scratch using AI-generated parts on individual tracks.
 
 ## Core capabilities
 
@@ -44,7 +44,7 @@ Right-click clip → `Remove FX`. Strips reverb / delay processing from the audi
 - Bottom info panel
 - Numerator 1–99, custom denominator
 - Updates the grid + metronome
-- **Caveat: NOT yet sent to the generative model.** New clips you generate ignore the picker. Use it to reshape EXISTING clips visually; lock to 4/4 for generation.
+- **Caveat: not yet sent to the generative model.** New clips you generate ignore the picker. Use it to reshape existing clips visually; lock to 4/4 for generation.
 
 ### Project versions / auto-save
 
@@ -56,7 +56,7 @@ Right-click clip → `Remove FX`. Strips reverb / delay processing from the audi
 
 The `Get MIDI` button extracts a MIDI representation from a stem.
 
-- **Cost: 10 credits** per MIDI extraction (verify current pricing)
+- **Cost:** each MIDI extraction spends credits; read the current figure in Studio or on <https://suno.com/pricing> before relying on it
 - Useful for: chord analysis, exporting a melody to a notation app, feeding the part into a sampler / soft synth in your external DAW
 - Quality varies by stem: clean monophonic leads convert best; dense polyphonic mixes are noisy
 
@@ -104,7 +104,7 @@ Upload limits (verified 2026-07-18 against <https://suno.com/pricing>):
 | Free | up to 8 minutes |
 | Pro / Premier | up to 30 minutes |
 
-## What Studio does NOT do (current 1.2)
+## What Studio does not do (current 1.2)
 
 - **Third-party plugins / VSTs**: not documented in any current help article. Treat as unsupported. Do plugin work in your external DAW after stem export.
 - **Time signature in generation**: picker affects grid + metronome only; generative model still works in 4/4 internally.
@@ -147,7 +147,7 @@ Upload limits (verified 2026-07-18 against <https://suno.com/pricing>):
 4. Repeat for any drifting clips
 5. Export Tempo-Locked WAV
 
-**Recheck trigger:** `suno.com/pricing` changes Studio's tier gating (currently Premier-only), the audio-upload limits, or the stem-separation-mode table (Split from Mix / Auto Split / Advanced Split), **or** Suno ships a Studio release past 1.2 that adds a capability currently listed under "What Studio does NOT do" (third-party plugins, generation-time time signature, real-time MIDI input, multi-user collaboration). Not a date.
+**Recheck trigger:** `suno.com/pricing` changes Studio's tier gating (currently Premier-only), the audio-upload limits, or the stem-separation-mode table (Split from Mix / Auto Split / Advanced Split), **or** Suno ships a Studio release past 1.2 that adds a capability currently listed under "What Studio does not do" (third-party plugins, generation-time time signature, real-time MIDI input, multi-user collaboration). Not a date.
 
 ## Sources
 

@@ -674,10 +674,10 @@ Rounds are not independent repetitions; each one raises the floor. Run the
 rounds in sequence and name what made the best write of each round work before
 starting the next.
 
-Both mechanisms transfer directly to multi-agent generation: fan several
-writers out over one seed with none of them seeing the others' output or the
-song in progress, then feed the round's strongest result forward as the
-standard for the next round.
+Both mechanisms carry over to generation when several independent writes on
+one seed are worth their cost: run them as separate writers so none sees the
+others' output or the song in progress, then feed the round's strongest result
+forward as the standard for the next round.
 
 Object-writing parties can use:
 
@@ -1100,9 +1100,8 @@ He also prints a warning about when to start using tells at all:
 > *Writing Better Lyrics* (2009), Chapter 1
 <!-- ai-slop-ignore-end -->
 
-The three-item "Use destination writing when:" list that stood here was
-**invented**. Pat gives no such criteria. What he actually gives is the
-reason it earns its place:
+Pat gives no "use destination writing when" criteria; do not invent any. What
+he gives is the reason it earns its place:
 
 > She recognizes that good song ideas, especially titles, come just as easily
 > from the "tell" side as the "show" side of your writing.

@@ -566,7 +566,7 @@ artifacts; verified against `raw/`. Do not correct them.)
 
 ## Front-heavy and back-heavy phrases
 
-**Non-book material, and the source has now been READ (2026-08-11; recheck when the column's
+**Non-book material, checked against the source (as of 2026-08-11; recheck when the column's
 wording changes or a book edition adopts the terms).**
 "Front-heavy," "back-heavy" and "body language" return **zero hits across all
 four books**. That is because the frame is from Pat's patpattison.com column
@@ -578,8 +578,7 @@ coins both terms outright:
 > "We'll call phrases that start after the downbeat back-heavy."
 
 **These are Pat's terms, not this plugin's.** Cite the column; never cite a
-chapter for them. This file was right to keep them and right not to claim a
-book. It was the only file that had this correct.
+chapter for them.
 
 Where a lyric phrase begins relative to the bar shapes its emotional
 character. Two states:
@@ -613,11 +612,7 @@ wants back-heavy on a weak bar.
 
 **Unaudited, non-book material**, same scope as the section above: "body
 language" appears nowhere in the four books, so do not attribute this framing to
-Pat. Two sentences previously stood here as quotations attributed to
-`— Pat (patpattison.com)` and `— Pat (seminar copy)`; the second was also
-ungrammatical as printed ("Line like body language helps deliver the emotion you
-intend"), which is a fair sign it was never transcribed from anything. Both are
-gone.
+Pat or quote him on it; no source for such a quotation has been found.
 
 The framing itself, unattributed: phrasing is the song's body language. Where a
 phrase sits against the bar communicates emotion before the words register.

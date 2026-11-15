@@ -9,7 +9,7 @@ disable-model-invocation: false
 
 Generate, refine, and debug both Suno fields, **style/genre** and **lyrics**, with v5.5-era
 practice, the documented tag taxonomy, and community-validated performance tricks. This skill
-writes the text that goes INTO Suno; Suno makes the audio. Suno v5.5 (released March 26, 2026;
+writes the text that goes into Suno; Suno makes the audio. Suno v5.5 (released March 26, 2026;
 verified 2026-07-18 against <https://suno.com/blog/v5-5>) kept v5's prompt syntax; it improved
 adherence to nuanced descriptors and added three personalization layers (Voices, Custom Models, My
 Taste). Everything below targets v5.5 unless noted.
@@ -77,7 +77,7 @@ consensus ([hookgenius character limits](https://hookgenius.app/learn/suno-chara
 above, **or** an official Suno page states style-prompt / lyrics / title limits directly. Not a
 date.
 
-### The lyrics field is a SECOND style channel
+### The lyrics field is a second style channel
 
 **Per-section style overrides** in the lyrics field control instrumentation, dynamics, and
 production section by section, which the global style prompt cannot. Without them every section
@@ -167,7 +167,7 @@ mode's Advanced Options is the structural alternative.
 | Naming artists directly (`like Drake`) | Blocked or ignored | Use sound descriptors (`Toronto trap bounce`, `silk-smooth R&B falsetto`) |
 | `no drums` in a drum-heavy genre alone | Drums still appear | Pair with positive (`piano only, no drums`) |
 | Style prompt near / over ~1,000 chars | Later content may receive less attention; silent truncation is unverified | Front-load critical content |
-| Capitalize EVERY word | Effect dilutes | Cap only turning-point words for emphasis |
+| Capitalize every word | Effect dilutes | Cap only turning-point words for emphasis |
 | Vocal descriptor + active Voices/Custom Model | Conflict between clone and prompt | **Drop gender/tone descriptors when a Voice or Custom Model is selected** |
 
 ### Custom mode is required for tag syntax
@@ -194,7 +194,7 @@ different production).
 
 **`clean <text>`**. Load [context/troubleshoot.md](context/troubleshoot.md) and
 [context/style.md](context/style.md). Score the user's prompt against the anti-pattern table above,
-surface flagged issues with specific quotes, and propose a rewrite. Do NOT silently rewrite: state
+surface flagged issues with specific quotes, and propose a rewrite. Do not silently rewrite: state
 what changed and why.
 
 **`tags`**. Load [context/lyrics.md](context/lyrics.md). Render the full taxonomy as tables
@@ -215,11 +215,11 @@ syntax example.
    - Synthesize into the standard template format: style prompt block + lyrics shell + 3 tweak
      knobs + 2-3 common variants. Cite sources.
 3. **Suggest mode**. `<name>` starts with `suggest` (e.g., `genre suggest dark moody chill`,
-   `genre suggest dystopian aggressive`) OR is a vibe phrase rather than a genre name:
+   `genre suggest dystopian aggressive`) or is a vibe phrase rather than a genre name:
    - Read the "Vibe → genre mapping" section of
      [context/genre-taxonomy.md](context/genre-taxonomy.md).
    - Return 3-7 fitting genres, each with a 1-line distinguishing characteristic, BPM/key/
-     instrumentation hints, and which template to load OR which research target to chase.
+     instrumentation hints, and which template to load or which research target to chase.
    - Ask which one to expand into a full prompt.
 4. **Family mode**. `<name>` starts with `family` (e.g., `genre family hip-hop`,
    `genre family electronic`):
@@ -227,7 +227,7 @@ syntax example.
    - Show the requested family's subgenres in tree form, a 1-line characteristic each.
    - Ask which leaf to expand.
 
-If `<name>` is ambiguous (could be template OR research OR suggest), ask which mode they want.
+If `<name>` is ambiguous (could be template or research or suggest), ask which mode they want.
 
 **`troubleshoot <symptom>`**. Load [context/troubleshoot.md](context/troubleshoot.md). Match the
 symptom to a known failure mode. Give diagnosis + 1-3 specific fixes + a regenerate-with-this
@@ -248,7 +248,7 @@ Stems, Sliders, Studio). Answer only the section the user asked about.
 - **HIGH confidence**: confirmed by Suno's official help center (`help.suno.com`) or
   `suno.com/blog`. The 6-layer formula, structural and vocal tag names, Custom mode requirements,
   Voices/Custom Models/My Taste mechanics, and Creative Slider names and qualitative endpoints are
-  all HIGH. Character budgets are NOT officially published: third-party tester consensus only
+  all HIGH. Character budgets are not officially published: third-party tester consensus only
   (MEDIUM-HIGH).
 - **MEDIUM confidence**: community-validated across multiple guides + Reddit consensus, but no
   official Suno doc. Capitalization weighting magnitude, vowel-stretching letter counts,
@@ -264,7 +264,7 @@ Stems, Sliders, Studio). Answer only the section the user asked about.
   basis is unsourced both in-repo and externally ([context/tips.md](context/tips.md)). Offer these
   as untested leads carrying their own caveat, never as procedure, and never in place of a
   better-supported route when one exists.
-- **OFF the ladder: first-hand writer observation.** Every rung above grades **second-hand**
+- **Off the ladder: first-hand writer observation.** Every rung above grades **second-hand**
   sourcing. A finding the writer produced by driving Suno directly is a different evidentiary axis,
   so label it in place with `writer-observed, single session (date), n=1, not externally
   corroborated` (dated per finding) and **invent no new rung for it**; name the gap instead.
@@ -293,7 +293,7 @@ Nothing below is needed to write a prompt. It is the maintainer surface for this
 |---|---|
 | [reference/suno-drift-audit-ledger.md](reference/suno-drift-audit-ledger.md) | Re-rating a claim in a context spoke, answering whether a claim was ever audited, or shipping any change to a spoke. It is the committed record of which claims have been audited, which are unsourced, and which release last touched each, with the dated search records and per-claim audit history behind every confidence label. A row that moves is updated in the same PR as the claim |
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Generate audio**. Suno does that. This skill produces text prompts.
 - **Cover legacy v4 prompting**, the ~200-char style-prompt era is out of scope. Targets v5.5.

@@ -20,36 +20,33 @@ reason out loud so the writer keeps craft conscious, not accidental.
 
 **What this file is.** The checklist form is this repo's, not Pat's. He never
 publishes a pre-lock audit. What is his is the material each box invokes, and
-this file now quotes it rather than paraphrasing it. Boxes that turned out to
-have no source are still here, but relabelled as this file's own synthesis so
-you can tell the tooling from the books.
+this file quotes it rather than paraphrasing it. Boxes with no book source are
+labelled as this file's own synthesis so you can tell the tooling from the books.
 
-Sources, corrected:
+Sources:
 
-- *Essential Guide to Lyric Form and Structure* (1991): Ch 3 (rhythm, the
-  too-hot/too-cold test), Ch 4 (the conditions for rhyme, identity), Ch 5
-  (section types, song systems), Ch 6 (song forms, what a bridge accomplishes),
-  Ch 7 (hot spots, hook placement)
-- *Writing Better Lyrics* (2009): Ch 1-2 (senses, show before tell), Ch 4
-  (rhyme types incl. subtractive), Ch 5 (clichés), Ch 6 (boxes, You-I-We),
-  Ch 7 (power positions), Ch 8 (travelogues), Ch 9 (recoloring), Ch 10-13
-  (point of view), Ch 19 (the five basic structural elements, motion and
-  emotion), Ch 22 (song forms, "four times is a lot")
+- *Essential Guide to Lyric Form and Structure* (1991): Chapter 3 (rhythm, the
+  too-hot/too-cold test), Chapter 4 (the conditions for rhyme, identity),
+  Chapter 5 (section types, song systems), Chapter 6 (song forms, what a bridge
+  accomplishes), Chapter 7 (hot spots, hook placement)
+- *Writing Better Lyrics* (2009): Chapters 1-2 (senses, show before tell),
+  Chapter 4 (rhyme types incl. subtractive), Chapter 5 (clichés), Chapter 6
+  (boxes, You-I-We), Chapter 7 (power positions), Chapter 8 (travelogues),
+  Chapter 9 (recoloring), Chapters 10-13 (point of view), Chapter 19 (the five
+  basic structural elements, motion and emotion), Chapter 22 (song forms, "four
+  times is a lot")
 - *Songwriting Without Boundaries* (2011): Challenge 1 and 2 (verbs),
   Challenge 4 (stress, the *ínto* rule). This book has **Challenges and Days,
-  not chapters**; the old header's "Chapter 4" was a citation-form error.
-- *Essential Guide to Rhyming* (2014): Ch 4 "Family Friends" (partners and
-  companions), Ch 9 "Craft and Rhyme Types" (rhyme type by position)
+  not chapters**.
+- *Essential Guide to Rhyming* (2014): Chapter 4 "Family Friends" (partners and
+  companions), Chapter 9 "Craft and Rhyme Types" (rhyme type by position)
 
-<!-- The old header also claimed a fourth source: "Pat's recurring critique
-     vocabulary in writer-sample commentary." That names no book, chapter, or
-     page and cannot be checked. Dropped. -->
-<!-- Other corrections to the old header: it cited Writing Better Lyrics (2009)
-     Ch 18-21 for "structural elements" (Ch 20-21 are Form Follows Function and
-     The Great Balancing Act), and Essential Guide to Rhyming (2014) Ch 4-6 for
-     the "rhyme type identity check" (Ch 4-6 are Family Friends / Friendly
-     Relatives / Kissin' Cousins, which are rhyme types; identity is a 1991 Ch 4
-     idea). -->
+<!-- A source that names no book, chapter, or page does not go in this list.
+     Do not cite Writing Better Lyrics (2009) Chapters 18-21 for the structural
+     elements (Chapters 20-21 are Form Follows Function and The Great Balancing
+     Act), or Essential Guide to Rhyming (2014) Chapters 4-6 for the identity
+     check (Chapters 4-6 are Family Friends / Friendly Relatives / Kissin'
+     Cousins, which are rhyme types). -->
 
 ## When to run
 
@@ -133,8 +130,8 @@ different jobs. Auditing a refrain like a chorus is the wrong test.
 - [ ] developmental section
 - [ ] develops a new perspective or contrasting idea
 - [ ] unbalances by moving away from established structures
-- [ ] **resolved by a return to previously established structures**, the box
-      this file was missing. A bridge that never comes home is not finished
+- [ ] **resolved by a return to previously established structures**. A bridge
+      that never comes home is not finished
 - [ ] *frequently* the most unbalanced section (his hedge, not "always")
 
 **Transitional bridge?** Pat's own name for it, and his list, verbatim:
@@ -180,11 +177,9 @@ different jobs. Auditing a refrain like a chorus is the wrong test.
 - [ ] part of a verse, not a section at all
 - [ ] contains the central idea
 - [ ] gets repeated in the other verses
-<!-- CORRECTED: this file previously required the refrain to be "repeated at
-     end of every verse" with "same length/position each visit." Pat says only
-     that it is repeated in the other verses. His own first example, Buck Ram's
-     "The Great Pretender," carries its refrain at the TOP of each verse, so the
-     end-of-verse requirement contradicts the chapter it was cited to. -->
+<!-- Pat says only that the refrain is repeated in the other verses, not where
+     or at what length. His own first example, Buck Ram's "The Great Pretender,"
+     carries its refrain at the top of each verse. -->
 
 ## Per-line checklist
 
@@ -220,12 +215,9 @@ Pat frames this as Goldilocks. Too hot, too cold, just right:
       positions (this is "greed")
 - [ ] too cold? The important positions carry important words, not filler.
       A line can resist greed perfectly and still be too cold.
-<!-- ai-slop-ignore-start: quoted retired wording of this file's own removed box -->
-<!-- REMOVED as unsupported: "no unstressed syllable riding a strong beat — the
-     reverse alignment error." Pat's second failure mode is not unstressed
-     syllables on strong beats; it is UNIMPORTANT WORDS in important positions.
-     The inversion was this file's invention, not the chapter's. -->
-<!-- ai-slop-ignore-end -->
+<!-- Pat's second failure mode is unimportant words in important positions, not
+     unstressed syllables on strong beats; do not add an "unstressed syllable on a
+     strong beat" box citing this chapter. -->
 - [ ] "into" handled as ínto, not intó:
       <!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Songwriting Without Boundaries, Challenge 4 -->
       > "Take a second to notice into, another two-syllable preposition. It is
@@ -261,16 +253,16 @@ Rhyming* (2014), Chapters 4-6 "Family Friends" / "Friendly Relatives" /
       > yell."
       >
       > *Essential Guide to Lyric Form and Structure* (1991), Chapter 4
-- [ ] rhyme type chosen deliberately. Pat's own roster, and note **subtractive**,
-      which this checklist had been omitting: "family rhymes, additive and
+- [ ] rhyme type chosen deliberately. Pat's own roster, **subtractive** included:
+      "family rhymes, additive and
       subtractive rhymes, assonance and even consonance rhymes (especially for
       l and r)" (*Writing Better Lyrics* (2009), Chapter 4). Additive ordering
       runs closest-to-perfect outward: "The less sound you add, the closer you
       stay to perfect rhyme."
 - [ ] no automatic cliche pair. Check against Pat's own printed CLICHÉ RHYMES
       list, not a remembered one: "fire / desire / higher" and "heart / start /
-      apart / part" are on it; **moon/June, which this checklist used to cite,
-      is not.** The list opens: "When you hear one of these, no need to lose
+      apart / part" are on it; **moon/June is not.** The list opens: "When you
+      hear one of these, no need to lose
       sleep wondering what's coming next. Plop. Naptime."
       (*Writing Better Lyrics* (2009), Chapter 5)
       <!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics, Chapter 5 -->
@@ -324,9 +316,8 @@ inside a phrase:
 <!-- SYNTHESIS, not a Chapter 7 claim: "within a phrase: second-most-important
      word at beginning, most-important at end" and "no important content in
      unimportant grammatical positions." Pat's hot spots operate at section
-     beginnings and endings. The old heading half-admitted this by calling
-     itself a "phrase-level extension"; that hedge was doing the work of a
-     citation. Keep the habit if it helps you, but it is this file's, not his. -->
+     beginnings and endings. Keep the habit if it helps you, but it is this
+     file's, not his. -->
 
 **POV / address (*Writing Better Lyrics* (2009), Chapters 10-13)**
 
@@ -344,8 +335,8 @@ inside a phrase:
       **Most Intimate (Close-up: Feelings)** to **Most Objective (Long Range:
       Facts)**: Direct Address · Second Person Narrative · First Person
       Narrative · Third Person Narrative. It is a continuum of the four
-      POVs, not the free-standing four-name distance set this checklist used to
-      list. Three of those names are his, each attached to a specific POV:
+      POVs, not a free-standing four-name distance set. Three distance names are
+      his, each attached to a specific POV:
       third person is "the long-distance, panoramic view," first person is "the
       middle-distance shot," and direct address is "the camera close-up […] the
       most intimate of the points of view." **"Hybrid" is not his.** The word
@@ -471,19 +462,17 @@ lines, matched line length, stable rhythm, and stable rhyme scheme."
       which in the tonic (*Essential Guide to Rhyming* (2014), Chapter 9,
       "Craft and Rhyme Types")
 - [ ] rhythm of each line
-<!-- CORRECTED HEADING: this section was titled "Five Compositional Elements"
-     and cited to Essential Guide to Lyric Form and Structure (1991) Ch 3-4 plus
-     Essential Guide to Rhyming (2014) Ch 9. Neither source names five elements.
-     "Five compositional elements" as a phrase returns no corpus hits at all. -->
+<!-- Neither Essential Guide to Lyric Form and Structure (1991) Chapters 3-4 nor
+     Essential Guide to Rhyming (2014) Chapter 9 names five elements, and "five
+     compositional elements" as a phrase returns no corpus hits. -->
 <!-- SYNTHESIS: "duple / triple / mixed; consistent across like sections" is
      this file's gloss on the rhythm element, not Chapter 19's wording. -->
 
 **Stable / unstable signature (*Essential Guide to Lyric Form and Structure*
 (1991), Chapter 5)**
 
-This block previously carried no citation at all while sitting between two
-cited blocks, which made it read as inherited attribution. Three of its four
-boxes are Pat's, and the sentences are the ones already quoted above: the
+Three of this block's four boxes are Pat's, and the sentences are the ones
+already quoted above: the
 chorus "Is typically the lyric's most balanced section," the bridge "is
 frequently the lyric's most unbalanced section," and the transitional bridge
 "is usually the lyric's shortest and most unbalanced section."
@@ -524,9 +513,9 @@ what is his are the underlying tools they invoke: the rhyme conditions and
 identity (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4),
 family rhyme (*Essential Guide to Rhyming* (2014), Chapter 4, "Family
 Friends"), and the CLICHÉ RHYMES list (*Writing Better Lyrics* (2009),
-Chapter 5). The previous heading also cited *Essential Guide to Rhyming*
-(2014), Chapter 3, which is "Getting References", about rhyming dictionaries
-and worksheets, not title sound.
+Chapter 5). *Essential Guide to Rhyming* (2014), Chapter 3 is "Getting
+References", about rhyming dictionaries and worksheets, not title sound: do not
+cite it here.
 
 - [ ] stressed vowel identified
 - [ ] family rhymes plausible (run `datamuse.sh family <title>` per `ai-tools.md`)

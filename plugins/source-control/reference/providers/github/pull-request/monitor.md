@@ -154,10 +154,10 @@ while true; do
     baselined=1
   fi
 
-  # New comments — ALL THREE review surfaces (issue-level, inline
+  # New comments — all three review surfaces (issue-level, inline
   # review comments, review bodies). Watching only issues/comments
   # misses inline findings posted with no CI state change.
-  # Advance the watermark ONLY when every fetch succeeded — a transient
+  # Advance the watermark only when every fetch succeeded — a transient
   # gh failure would otherwise skip past comments that arrived during
   # the failed poll window and never emit them.
   now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -172,7 +172,7 @@ while true; do
   else fetch_ok=0; fi
   # Reviews API has no `since` param — filter client-side on submitted_at.
   # Client-side filtering makes pagination required: an unpaginated read
-  # returns the 30 OLDEST reviews, so on a PR past that count the new ones
+  # returns the 30 oldest reviews, so on a PR past that count the new ones
   # this poll exists to catch are exactly the ones never fetched.
   if read_into gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" \
     --jq ".[] | select(.submitted_at > \"$last_comment_ts\") | \"REVIEW \(.user.login) [\(.state)]: \(.body[:80])\""; then
@@ -278,8 +278,8 @@ interval, or when either runners endpoint changes its permission requirement.
 
 ## Fetch failed logs
 
-`gh run view --log-failed` is the LAST resort: it truncates at the CLI display layer (~4MB cap,
-cli/cli #11059, #10551, #7771, #7642), while the bundled scripts' REST path returns complete logs.
+`gh run view --log-failed` is the last resort: it truncates at the CLI display layer (cli/cli
+#11059, #10551, #7771, #7642), while the bundled scripts' REST path returns complete logs.
 `fetch-annotations.sh` and `fetch-failed-logs.sh` take `--dir "<checkout>"` and resolve the
 repository with `target-repo.sh`, as [Resolve PR identity](#resolve-pr-identity) does. On a
 triangular flow, name the PR's base repository in `GH_REPO`, or in `FETCH_ANNOT_REPO` and
@@ -307,7 +307,7 @@ gh api "repos/<owner>/<repo>/commits/<head-sha>/check-runs"
 
 ## Why the comment script
 
-`gh pr view --json comments,reviews` MISSES inline review comments, so the bundled
+`gh pr view --json comments,reviews` misses inline review comments, so the bundled
 `fetch-all-pr-comments.sh` reads all three surfaces instead. Like the log scripts, it takes
 `--dir "<checkout>"`; on a triangular flow, name the PR's base repository in `GH_REPO`, or in
 `FETCH_COMMENTS_OWNER` and `FETCH_COMMENTS_REPO`, which win over `--dir`.

@@ -358,8 +358,8 @@ beyond the grid):
 | Pre-Chorus | Vest | Ramp |
 | Climb or Lift | Verse Extension | Prime |
 
-(Earlier drafts of this file added "channel" and "runway"; they are not in
-Pat's list.) Then: "This section is used for so many jobs,
+("Channel" and "runway" are not in Pat's list.) Then: "This section is used
+for so many jobs,
 none of these descriptive names quite fit all of them:"
 
 > 1. It is a DEVELOPMENTAL section.
@@ -396,10 +396,10 @@ explicit, working from the AABA case ("The Great Pretender") outward:
 His worked case is **"HAITIAN DIVORCE"**, introduced as "Here is a fine example
 by Donald Fagen and Walter Becker of Steely Dan" and printed in full across figures
 `image_rsrc32B` and `image_rsrc32C` as three Song Systems (Verse/Chorus,
-Verse/Chorus, Bridge → Verse/Chorus). An earlier revision of this file named the
-song "Babylon Sisters"; that is wrong, and the figures say so on every line
-("Babs and Clean Willie were in love they said", "This is your HAITIAN
-DIVORCE"). The bridge "makes a clear move away from the structures of the Verse
+Verse/Chorus, Bridge → Verse/Chorus). The song is not "Babylon Sisters"; the
+figures say so on every line ("Babs and Clean Willie were in love they said",
+"This is your HAITIAN DIVORCE"). The bridge "makes a clear move away from the
+structures of the Verse
 and Chorus," and:
 
 > In this lyric, the Bridge leads to another verse. As long as the bridge takes
@@ -415,8 +415,8 @@ Chapter 23's exact length instruction appears once in EXERCISE 49 above.
 Chapter 6's relative-length statement appears once in the verse/chorus
 three-item list above.
 
-<!-- removed unsupported taxonomy: The prior 2-line, 4-6-line, and 8-line
-categories do not appear in the four specified chapters. -->
+<!-- No 2-line / 4-6-line / 8-line bridge-length taxonomy appears in the four
+specified chapters; do not add one. -->
 
 ## Bridge writing workflow
 
@@ -439,7 +439,7 @@ set of diagnostic claims was found in the four specified chapters. -->
 | "Bridge that's a chorus restatement" | repeats chorus content with different words | replace with the song's missing angle |
 | "Bridge that doesn't connect" | contrasts on every axis, chorus return feels jarring | reduce contrast to 2-3 axes |
 | "Bridge that's too long" | takes over the song's emotional weight | trim; the bridge serves the chorus, not the other way around |
-| "Bridge that's too short" | 2 lines but doing full-bridge work | extend OR demote to transitional bridge |
+| "Bridge that's too short" | 2 lines but doing full-bridge work | extend or demote to transitional bridge |
 
 ## Cross-references
 

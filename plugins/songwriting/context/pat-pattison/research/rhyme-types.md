@@ -1334,21 +1334,19 @@ clubs:
 > to the green. We'll look, as usual, through the lens of prosody: mutual
 > support of your intention with all the elements in your bag, your craft.
 
-And the working method he states for the chapter, ending in the three
-words this section used to paraphrase as a numbered drill:
+And the working method he states for the chapter, ending in three words:
 
 > Here, however, we'll look only at the rhymes themselves so we can
 > isolate their motion; understand what they do within the more
 > complicated motions created in combination with the other elements.
 > Isolate, understand, compose.
 
-An earlier revision of this file glossed that as a three-step practice
-drill, "Isolate one rhyme type / Practice it until the search runs
-without thought / Compose with all types available", which is not what
-Pat says. His "understand" is not *drill one type until it is automatic*;
-it is understanding what the rhymes do **in combination with the other
-elements**, which is the sentence's whole point. The three words are his;
-the drill was not.
+Do not gloss these three words as a practice drill ("Isolate one rhyme
+type / Practice it until the search runs without thought / Compose with all
+types available"); that is not what Pat says. His "understand" is not
+*drill one type until it is automatic*; it is understanding what the rhymes
+do **in combination with the other elements**, which is the sentence's whole
+point. The three words are his; the drill is not.
 
 On counting: Pat never prints a number here. The printed scale heads five
 columns (see "Stability Scale" above), Chapter 6 adds partial rhyme and

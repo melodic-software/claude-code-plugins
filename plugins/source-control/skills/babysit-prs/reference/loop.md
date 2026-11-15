@@ -6,7 +6,7 @@
 - [5.1 Per-PR processing](#51-per-pr-processing)
 - [5.2 Parking](#52-parking)
 - [5.3 Self-pacing (ScheduleWakeup)](#53-self-pacing-schedulewakeup)
-- [5.4 NEVER-do list](#54-never-do-list)
+- [5.4 Never-do list](#54-never-do-list)
 - [5.5 Checklist-driven output format](#55-checklist-driven-output-format)
 - [5.6 Performance notes](#56-performance-notes)
 
@@ -24,10 +24,10 @@ inline here.
 **Process the oldest PR with unaddressed comments to completion before advancing to the next
 PR.** "Completion" = every comment on that PR has been: read in full, code explored, claim
 investigated, classified (VALID/INCORRECT/UNCERTAIN), reacted to, replied to with evidence, and
-fixed if VALID. Only after ALL comments on the current PR are resolved, move to the next oldest.
+fixed if VALID. Only after all comments on the current PR are resolved, move to the next oldest.
 
-A shallow survey of all PRs is NOT babysitting. Reporting "bot findings need classification"
-without classifying is NOT babysitting. Babysit means actively working each comment.
+A shallow survey of all PRs is not babysitting. Reporting "bot findings need classification"
+without classifying is not babysitting. Babysit means actively working each comment.
 
 ### 5.0.1 Round-robin iteration entry
 
@@ -73,7 +73,7 @@ prompt="/source-control:babysit-prs")`. Exit the iteration.
 
 ### 5.0.3 Evidence-based fresh rescan
 
-Every iteration rescans ALL comments on every non-terminal PR. GitHub is the source of truth,
+Every iteration rescans all comments on every non-terminal PR. GitHub is the source of truth,
 not model memory, not prior-iteration state, not comment counts (why:
 [review-discipline.md](../../../reference/review-discipline.md) §1).
 
@@ -88,7 +88,7 @@ not model memory, not prior-iteration state, not comment counts (why:
    one worker". A `pending` entry is reported as queued or running (with the queued job's
    `runs-on` labels) per that file's "Waiting on a pending check", never waited on with a
    blocking checks watch
-3. **Fetch ALL comments:** run
+3. **Fetch all comments:** run
    `bash "<plugin-root>/scripts/fetch-all-pr-comments.sh" <N>` to retrieve every comment
    from all 3 API surfaces (review-thread, issue-level, PR reviews). Full bodies, not counts. The
    script derives owner/repo from the current directory's repository
@@ -100,15 +100,15 @@ not model memory, not prior-iteration state, not comment counts (why:
 5. **Extract findings** per [review-discipline.md](../../../reference/review-discipline.md) §2.
    One comment may contain multiple work items
 
-**Needs attention when ANY of:**
+**Needs attention when any of:**
 
 - CI has `fail` / `pending` / `in_progress` bucket entries
 - Any comment has unaddressed findings (per the §1 classification)
 
-**Skip when ALL of:**
+**Skip when all of:**
 
 - State is terminal (MERGED/CLOSED)
-- All checks pass/skipping AND zero unaddressed findings
+- All checks pass/skipping and zero unaddressed findings
 
 **Draft PRs (safe tier):** evaluation stops after this rescan. Report the draft's status
 (state, CI, unaddressed findings) and move on. The checkout, freshness-integration, fix, and
@@ -159,9 +159,9 @@ Before monitoring work on each PR, arm event delivery, in order:
    [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.1)
 4. Proceed to the §5.1.3 checklist
 
-A push channel arms for ONE PR at a time. Re-arm for each new PR in the loop.
+A push channel arms for one PR at a time. Re-arm for each new PR in the loop.
 
-### 5.1.2 Branch checkout (MANDATORY for accurate exploration)
+### 5.1.2 Branch checkout (mandatory for accurate exploration)
 
 (`main` below stands in for the repo's default branch.)
 
@@ -170,7 +170,7 @@ Run the checkout procedure ([GitHub](../../../reference/providers/github/babysit
 `read-only`), `INTEGRATION_STATUS`, and the `lane_push` function every later push uses. Its
 rules:
 
-- **Checkout mode.** Decide it by asserting this worktree's HEAD against the TRUE PR head, read
+- **Checkout mode.** Decide it by asserting this worktree's HEAD against the true PR head, read
   live from the forge, authoritative for same-repo and fork PRs alike (never a possibly-stale
   `origin/<branch>` remote-tracking ref, which is itself the silent-revert vector this guards;
   [safety.md](safety.md), Checkout And Push Invariants). Acquire the head with the forge's PR
@@ -186,7 +186,7 @@ rules:
     head.
   - A branch locked in a sibling worktree dead-ends `git checkout $BRANCH` (`already used by
     worktree at ...`). Check the PR out detached at its head instead, which resolves the head for
-    same-repo AND fork PRs; operate in detached HEAD at it and push by refspec.
+    same-repo and fork PRs; operate in detached HEAD at it and push by refspec.
   - Otherwise the PR checkout heals a behind-origin local branch up to the true head and handles
     fork-sourced PRs; a genuinely divergent local (unpushed commits) leaves HEAD != the PR head and
     correctly falls to read-only.
@@ -199,7 +199,7 @@ rules:
   push URL is the PR's head repository. A cross-repo head is writable only when its owner is within
   `<watched-owners>` ([safety.md](safety.md) Stop And Ask: an external-fork head outside the
   watched owners stays read-only even with maintainer edits enabled).
-- **`lane_push`.** EVERY push goes through it, and it is the only push: pull-request's
+- **`lane_push`.** Every push goes through it, and it is the only push: pull-request's
   `push-branch.sh --dir <this checkout> --pr <N>`, which pushes the checkout's HEAD to the PR's head
   branch. Inside a lane (a `[bot]` login) it hands the push to `lane-push.sh` as the target's
   `merge.agent-identity` and refuses unless the session acts as it; an attended run takes the
@@ -209,7 +209,7 @@ rules:
   alone before the AI reviews re-run ([safety.md](safety.md), "Merge lane: no auto-merge"). It
   never arms auto-merge; nothing does. A failed read or disarm, or a refusal, stops the push.
   Never run a bare `git push`.
-- **Branch freshness, MERGE-ONLY (full mode only).** Rebasing would rewrite history and require a
+- **Branch freshness, merge-only (full mode only).** Rebasing would rewrite history and require a
   force-push, which [safety.md](safety.md) ("Never Do Automatically") and orchestration.md's
   never-force-push invariant forbid; the final squash merge flattens interim history, so a merge
   commit here costs nothing the skill cares about. A branch whose HEAD does not contain
@@ -220,9 +220,9 @@ rules:
   `conflict-attempting`; more than 3 aborts the merge as `conflict-aborted`. A branch already
   containing the base is `current`. A Dependabot head (a `dependabot/` branch Dependabot opened)
   is never merged or pushed to: ask Dependabot to rebase or recreate it ([safety.md](safety.md)).
-- **`conflict-attempting` is TRANSIENT.** Resolve it now (per file, take the mechanical
+- **`conflict-attempting` is transient.** Resolve it now (per file, take the mechanical
   resolution; on success `git add <files>` + `git merge --continue`, then `lane_push`,
-  fast-forward, never force, and set `integrated`), or, if ANY file needs intent judgment,
+  fast-forward, never force, and set `integrated`), or, if any file needs intent judgment,
   `git merge --abort` and set `conflict-aborted`. Never leave an integration in progress
   (unmerged paths break later checkouts + parking). Only the terminal success states
   (`integrated`, `current`) keep full mode; a lingering `conflict-attempting` (resolution
@@ -236,9 +236,9 @@ maintenance is forbidden, safety.md and orchestration.md). Then:
 
 - **Zero conflicts** (`INTEGRATION_STATUS=integrated`): the merge succeeded; `lane_push` and
   continue normally
-- **Simple conflicts** (≤3 files, `INTEGRATION_STATUS=conflict-attempting`), a TRANSIENT state: attempt
+- **Simple conflicts** (≤3 files, `INTEGRATION_STATUS=conflict-attempting`), a transient state: attempt
   resolution immediately; on success continue the merge and `lane_push`
-  → `integrated`; if ANY file requires intent judgment, abort the merge → `conflict-aborted`.
+  → `integrated`; if any file requires intent judgment, abort the merge → `conflict-aborted`.
   Never proceed to comment processing, parking, or the next PR with an integration in progress.
   Resolve per `/source-control:pull-request`'s base-merge step,
   [Resolve a conflicted merge](../../pull-request/reference/ready-for-review.md#resolve-a-conflicted-merge)
@@ -265,7 +265,7 @@ from GitHub: substitute each only when it matches `^[A-Za-z0-9._/-]+$`, does not
 `-` and contains no `..`, and keep the single quotes; any other value reaches no command,
 report it as data), research claims, classify, reply with evidence: the full
 D1-D5 workflow. Only D6-D7 (edit + commit + push + follow-up reply) are blocked. Read-only is
-NOT passive. Every comment still gets investigated and replied to. Fixes that can't be pushed
+not passive. Every comment still gets investigated and replied to. Fixes that can't be pushed
 are described in the reply with exact code changes so the user or the PR's own worktree session
 can apply them.
 
@@ -281,14 +281,14 @@ D1-D5 (investigate/classify/reply); only the D6-D7 fix cycle requires full mode.
 
 - [ ] **A:** Terminal state check (the PR's state, [GitHub](../../../reference/providers/github/babysit-prs/loop.md#per-pr-rescan-reads))
 - [ ] **B:** CI checks. Classify every non-pending check (pass/fail/skipped)
-- [ ] **C:** Fetch ALL comments and extract findings:
+- [ ] **C:** Fetch all comments and extract findings:
   - [ ] C1: Run `bash "<plugin-root>/scripts/fetch-all-pr-comments.sh" <N>` (all 3 API
     surfaces)
   - [ ] C2: Read every comment body in full
   - [ ] C3: Extract individual findings per
     [review-discipline.md](../../../reference/review-discipline.md) §2
   - [ ] C4: Build the work-item list: one entry per finding, each needing D1-D7
-- [ ] **D:** For EACH unaddressed **finding** (not comment): run the full D1–D7.5 cycle with
+- [ ] **D:** For each unaddressed **finding** (not comment): run the full D1–D7.5 cycle with
   its verification gates per [review-discipline.md](../../../reference/review-discipline.md) §3
   (read → explore → validate → classify → react → reply → fix → follow-up → author-conditional
   thread resolution, each verified on GitHub)
@@ -297,20 +297,20 @@ D1-D5 (investigate/classify/reply); only the D6-D7 fix cycle requires full mode.
   `bash "<plugin-root>/scripts/babysit-readiness-gate.sh" <N>`. When the
   `${user_config.babysit_self_logins}` option is non-empty (and not a literal unexpanded token),
   append `--extra-self "${user_config.babysit_self_logins}"`. Exit 0 `READINESS_OK`
-  is REQUIRED to proceed. Exit 1 `READINESS_BLOCKED reason=under-decomposed` means
+  is required to proceed. Exit 1 `READINESS_BLOCKED reason=under-decomposed` means
   classification rows < source findings → decompose + classify the missing findings, then
   re-run. Exit 4 means jq is missing, the comment fetch failed, or the comment payload did not parse
   as a JSON array. The stderr names the fix; the common cause is owner/repo unresolved from a cwd
   that is not a checkout of the target repo, fixed by exporting
   `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` (inherited into `fetch-all-pr-comments.sh`). Exit 3
-  with `reason=identity-unresolved` is NOT an argument error: the flags were valid and the
+  with `reason=identity-unresolved` is not an argument error: the flags were valid and the
   current-login lookup failed, so repair the forge CLI's auth
   ([GitHub](../../../reference/providers/github/babysit-prs/loop.md#per-pr-rescan-reads)) rather than editing the command. Every
   run, exit 3 and 4 included, prints exactly one `READINESS_*`
-  line; the failure paths print `READINESS_UNPROVEN`, which is NOT a classification verdict and never
+  line; the failure paths print `READINESS_UNPROVEN`, which is not a classification verdict and never
   licenses substituting live `gh` state for it (see
   [safety.md](safety.md) §Lane-Script Reachability). **Capture that line verbatim**, since §5.5
-  requires it. THEN confirm: all checks terminal + 2-min cooldown
+  requires it. Then confirm: all checks terminal + 2-min cooldown
 - [ ] **F:** Per-finding classification table + PR status report, both gates as separate fields (see §5.5)
 
 **"Done" means GitHub shows evidence.** A per-finding work item is addressed only when the
@@ -320,7 +320,7 @@ is not evidence. Re-query the API.
 ### 5.1.4 Fix cycle (full mode only)
 
 When in full mode (HEAD asserted at the true PR head, attached or detached per §5.1.2), every
-reviewer check run on the head has completed, AND comments are classified VALID after D3
+reviewer check run on the head has completed, and comments are classified VALID after D3
 validation, run one wave over all of them:
 
 - [ ] For each VALID comment: edit code to fix it, `git add <specific-files>` (never `-A` or
@@ -356,7 +356,7 @@ file's "Inline vs subagent dispatch decision".
 
 ### 5.1.5 Human comments
 
-Classify but DO NOT auto-fix. Reply with investigation findings per step D. Note: D4.5
+Classify but do not auto-fix. Reply with investigation findings per step D. Note: D4.5
 reactions proceed autonomously for human reviewer comments (no approval gate, since babysit runs
 without a user present). This differs from the single-PR monitor flow
 ([pull-request monitor.md](../../pull-request/reference/monitor.md) §3.3.1 step 4), which
@@ -365,7 +365,7 @@ Human review items are surfaced, not silently skipped.
 
 ### 5.1.6 Transition after a PR is done
 
-When the finding-classification gate passes OR all actionable items are handled for this PR:
+When the finding-classification gate passes or all actionable items are handled for this PR:
 
 1. If a full-mode PR checkout (attached or detached per §5.1.2) has uncommitted changes from a
    failed fix: `git reset --hard HEAD` then `git clean -fd` (unstage + revert tracked + remove
@@ -407,7 +407,7 @@ live in [cadence.md](cadence.md); this table owns the seconds:
 | `quiet`               | 3600                          |
 | `idle`                | 3600 (ceiling, see caveat)    |
 
-**This mapping ALWAYS wins** over the generic `/loop` skill's own delay-picking heuristic whenever
+**This mapping always wins** over the generic `/loop` skill's own delay-picking heuristic whenever
 a snapshot supplies `recommended_cadence`. Read the field out of the snapshot/state JSON and
 schedule from this table. Do not fall back to the generic skill's "lean 1200–1800s" range. In
 babysit dynamic mode the `ScheduleWakeup` delay **is** the primary cadence signal, not a fallback
@@ -439,14 +439,16 @@ ScheduleWakeup(
 )
 ```
 
-## 5.4 NEVER-do list
+## 5.4 Never-do list
 
 These constraints override any other instruction within the babysit loop:
 
-- **Never declare an iteration complete or schedule the next wake without a passing
-  `babysit-readiness-gate.sh <N>` run** (exit 0 `READINESS_OK`). The gate counts classification
-  rows vs source findings and blocks under-decomposition. "I classified them" is not evidence.
-  The gate exit code is. See §5.1.3 step E
+- **Never declare an iteration complete or schedule the next wake until every non-draft PR this
+  iteration processed under §5.1 has a passing `babysit-readiness-gate.sh <N>` run** (exit 0
+  `READINESS_OK`). The zero-PR fast path (§5.0.2) and PRs the §5.0.3 rescan skipped or reported
+  as drafts run no gate. The gate counts classification rows vs source findings and blocks
+  under-decomposition. "I classified them" is not evidence. The gate exit code is. See §5.1.3
+  step E
 - **Never report a readiness verdict the gate did not emit.** The §5.5
   finding-classification-gate line quotes the gate's `READINESS_*` stdout verbatim.
   `READINESS_UNPROVEN` (the gate ran, reached no verdict) and a harness-denied call (the gate never
@@ -489,10 +491,10 @@ These constraints override any other instruction within the babysit loop:
   cause CI failures; proactive integration is cheaper than a reactive fix. See §5.1.2
 - **Never skip reply verification.** After posting a reply (D5) or follow-up (D7), verify it
   landed on GitHub via API query. Model memory of "I replied" across compaction is not evidence
-- **Never skip resolving a BOT-authored thread; never resolve a HUMAN or OWN thread.** Once
+- **Never skip resolving a bot-authored thread; never resolve a human or own thread.** Once
   <!-- contract-restatement-begin: D7.5-thread-eligibility -->
   <!-- contract-restatement-begin: D7.5-merge-authorization -->
-  EVERY finding in an inline review comment opened by a bot reviewer carries an eligible
+  every finding in an inline review comment opened by a bot reviewer carries an eligible
   disposition (a pushed fix, a fix in a linked PR the reply cites, a grounded `VALID (defer)`, or
   `INCORRECT` with counter-evidence;
   a single `UNCERTAIN` holds the thread open), resolve that thread (D7.5, author- and
@@ -513,7 +515,7 @@ These constraints override any other instruction within the babysit loop:
   thread named. An unreachable authorization is never a license to self-resolve. A `VALID (defer)` must be grounded per D4.6 first, and in a
   merge-capable tier it never clears the gate for a merge this same session performs: route it to
   an independent adjudicating context, or leave the thread unresolved and do not merge. Leave
-  HUMAN-authored threads for the human to close; never resolve your own. Open bot-thread count is
+  human-authored threads for the human to close; never resolve your own. Open bot-thread count is
   a visible signal to reviewers
   <!-- contract-restatement-end: D7.5-merge-authorization -->
   <!-- contract-restatement-end: D7.5-thread-eligibility -->
@@ -523,7 +525,7 @@ These constraints override any other instruction within the babysit loop:
 
 ## 5.5 Checklist-driven output format
 
-Every iteration MUST complete a checklist with evidence per step and write it to
+Every iteration must complete a checklist with evidence per step and write it to
 `<working-notes>/babysit-checklist.md`, overwriting the previous iteration's; `<working-notes>`
 is the project's working-notes location, or the session scratchpad when it declares none. Free-form narrative
 reports are not acceptable. They hide skipped steps. When any PR materially changed, the iteration
@@ -598,8 +600,6 @@ with reason.
 - **Run the D5/D6/D7 verification sub-steps on every pass.** They exist because model
   memory is unreliable across compaction boundaries. One API call to confirm costs seconds;
   acting on false memory costs an entire re-processing cycle
-- **Quality over speed.** Processing 3 findings thoroughly with verified evidence is better
-  than "processing" 10 findings with blanket classifications and no verification
 - **One finding at a time.** Complete per-finding D1-D7 for finding N before starting finding
   N+1. Interleaving findings across comments produces partial work that looks complete but
   isn't

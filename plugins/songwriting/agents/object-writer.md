@@ -46,7 +46,7 @@ missing, and they are the ones that move a write from description into a body. W
 ## The pivot chain is the mechanism, not a suggestion
 
 Do not describe one scene. Each image hands off to the next **through a sense**, never through
-topic, logic, or narrative, and it lands in a DIFFERENT channel from the one it left. A texture
+topic, logic, or narrative, and it lands in a different channel from the one it left. A texture
 suggests a taste; the taste puts you somewhere else entirely; that place makes a sound; the sound
 produces a flinch; the flinch tilts the floor. A handoff phrased as "and also there was…" is
 topical and is the failure; a handoff where the sense channel changes is the mechanism running.
@@ -70,7 +70,7 @@ specific. `the diner` → `the Moonlight` is the floor, not the target.
 You have no childhood, no sense memory, and no autobiography. **This does not disqualify you from
 the exercise and is not a reason to hand it back to a human.** A song is not a deposition; truth
 outranks reality. Invent the street, the weather, the garment, the age, the person. Concrete,
-sense-bound, specific invention IS the exercise performed correctly.
+sense-bound, specific invention is the exercise performed correctly.
 
 Abstraction, hedging, disclaiming your lack of experience, or writing about the difficulty of the
 exercise are the exercise refused. If your dispatch prompt names a character to write as, get
@@ -109,10 +109,8 @@ summary ("I covered smell") is not evidence and will be rejected.
 2. Return **only**: the file path, then the seven channel names each marked `strong` / `thin` /
    `absent`, then one sentence on where the pivot chain took you and how far from the seed.
    **That sentence is the last line of the return and a single sentence: one terminal period, no
-   second sentence, no clause-by-clause recap of the chain, nothing after it.** Writers at every
-   effort level returned two to four pivot sentences here
-   ([#6031](https://github.com/melodic-software/claude-code-plugins/issues/6031)); the chain
-   itself belongs in the file.
+   second sentence, no clause-by-clause recap of the chain, nothing after it.** The chain itself
+   belongs in the file.
 
 File format:
 

@@ -46,7 +46,7 @@ by naming all five properties, balance, pace, flow, closure, and closure type,
 and gives each its own numbered section, applied to rhyme structure. The
 citation spans both chapters because the framework does.
 
-Everything book-sourced below is now Pat's own text and Pat's own examples,
+Everything book-sourced below is Pat's own text and Pat's own examples,
 quoted rather than described. Two conventions apply to those quotations. Where a
 stress or rhyme label in the source is visibly wrong, the label is omitted
 rather than corrected or propagated. Where the ebook text carries an extraction
@@ -58,11 +58,11 @@ and the phrase "preserving the natural shape of the language" are stated
 outright in *Writing Better Lyrics* (2009) Chapter 18, and that section is
 cited to the book below.
 
-**Web-source status, updated 2026-08-11.** The **American Songwriter column
-"Motion Creates E-Motion In Songwriting" (17 October 2012) has now been fetched
-and read.** See [motion creates e-motion](#motion-creates-e-motion-the-motion-controllers).
-Result: it does **not** carry a four-controller framework, and it never mentions
-line length, which dissolves a conflict this file previously recorded as live.
+**Web-source status, as of 2026-08-11.** The **American Songwriter column
+"Motion Creates E-Motion In Songwriting" (17 October 2012) is read.** See
+[motion creates e-motion](#motion-creates-e-motion-the-motion-controllers).
+It does **not** carry a four-controller framework, and it never mentions
+line length, so it does not conflict with the books' line-length ranking.
 
 **Still unaudited:** the Berklee Online article, patpattison.com, and OSONG-525,
 distillations nobody has checked against their originals. Two passages rest on
@@ -443,10 +443,8 @@ ranking above: line length is the captain.
 
 Measure it in stressed syllables, per the rule at the head of this section. Raw
 syllable counts are recorded alongside only as note counts, never as lengths.
-Observed 2026-08-12: a bridge written free of any paradigm ran to 13- and
-14-syllable lines and read as prose beside the song's other sections, and no
-check caught it, because nothing in the method had yet asked what the other
-sections measured.
+Without this measurement, a bridge written free of any paradigm can run to 13-
+and 14-syllable lines and read as prose beside the song's other sections.
 
 "Free meter" is workspace shorthand, not a Pat category. The phrase returns zero
 hits across the four books. Pat supplies the measurement and the ranking; the
@@ -1262,8 +1260,8 @@ verbatim wording for the two title-targeting drills is given below because the
 
 ## Motion creates e-motion: the motion controllers
 
-**The column has now been READ. Corrected 2026-08-11 (recheck when the column is revised to
-enumerate controllers).** Fetched at
+**Read 2026-08-11 (recheck when the column is revised to enumerate
+controllers).** Fetched at
 <https://americansongwriter.com/motion-creates-e-motion-in-songwriting/>
 (Pat Pattison, 17 October 2012). Chapters 18-19 do not contain a
 four-controller list, and **neither does the column.** What the column actually
@@ -1279,7 +1277,6 @@ and one sentence naming the others in passing:
 The four items below are a fair distillation of what those two sentences name,
 and they are kept on that basis, but **Pat does not enumerate four
 controllers**, and this list must never be presented as his numbered framework.
-That is the "counts are the tell" failure this project keeps hitting.
 
 Distilled from the column, not enumerated by it:
 
@@ -1289,16 +1286,13 @@ Distilled from the column, not enumerated by it:
 4. **Melodic rhythm**: long notes vs short notes, syncopation, line-end
    note durations.
 
-The bare slogan "motion creates e-motion" is Pat's, but the fuller sentence this
-file used to print inside quotation marks and attribute to `— Pat` traces to no
-readable source and has been removed rather than left to look verbatim.
+The bare slogan "motion creates e-motion" is Pat's; no fuller sentence around it
+traces to a readable source, so none is quoted or attributed to him here.
 
-**The list is INCOMPLETE, not contradicted. Corrected 2026-08-11.** An earlier
-pass recorded a live conflict here between this list and Challenge 4. Having
-read the column, there is no conflict to resolve: **the phrase "line length"
-does not appear in the column at all**, and the column makes no comparative
-claim about line length against rhyme. It is silent on the question, not
-opposed to the books.
+**The list is incomplete, not contradicted.** This list does not conflict with
+Challenge 4: **the phrase "line length" does not appear in the column at all**,
+and the column makes no comparative claim about line length against rhyme. It
+is silent on the question, not opposed to the books.
 
 <!-- ai-slop-ignore-start: inline verbatim quote from Pat Pattison, Songwriting Without Boundaries (2011) -->
 What remains true is that the list is not a complete inventory of lyric-side
@@ -1529,10 +1523,8 @@ declarative chorus delivered breathy from below the beat undermines
 the words, on purpose or by accident.
 
 The claim in one line, **unattributed and unaudited**: tone of voice can change
-a section's stability without a single word changing. This file previously
-printed that sentence inside quotation marks against "paraphrase of Berklee
-article", quotation marks around an admitted paraphrase of an unreadable
-source. It is not a quotation and is no longer set as one.
+a section's stability without a single word changing. It paraphrases an
+unreadable source, so it is not a quotation and is never set as one.
 
 If a draft "sounds wrong" but the printed page looks fine, the tone
 of voice may be the lever doing the work. Sing the chorus two ways.
@@ -1540,9 +1532,8 @@ of voice may be the lever doing the work. Sing the chorus two ways.
 ## Origin note: *Essential Guide to Lyric Form and Structure* (1991), Chapter 2
 
 Pat first introduces the term **prosody** in *Essential Guide to Lyric Form and
-Structure* (1991), Chapter 2. **Correction to an earlier version of this
-note: the 1991 definition was not narrower.** It was already fully general.
-Verbatim:
+Structure* (1991), Chapter 2. **The 1991 definition is not narrower than the
+2009 one.** It is already fully general. Verbatim:
 
 > "Prosody" means that things fit well with one another. Here, for example, how
 > well meaning fits with structure. Here we're talking about the way syllables
@@ -1585,9 +1576,8 @@ notation. It requires hearing the bar structure clearly. When the melody
 makes the bar boundaries audible, strong/weak bar phrasing creates
 section-internal motion the other two types can't access alone.
 
-No "use when" rule for the third type is sourced. An earlier revision of this
-file carried a three-item trigger list here; it was scaffolding invented on top
-of an already-unreadable source, and it has been removed rather than restated.
+No "use when" rule for the third type is sourced, so this file gives none; a
+trigger list here would be invented on top of an unreadable source.
 
 If you reach for the strong/weak-bar idea, reach for it descriptively, naming
 what the bars are doing, and do not present a selection rule as Pat's.

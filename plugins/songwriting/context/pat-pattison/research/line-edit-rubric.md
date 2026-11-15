@@ -13,13 +13,13 @@
 - [8. Register and tone](#8-register-and-tone)
 - [9. Metaphor validity (figurative lines only)](#9-metaphor-validity-figurative-lines-only)
 - [10. Spotlight content ("does it hit")](#10-spotlight-content-does-it-hit)
-- [11. Voiceprint match: "does this sound like THIS writer said it?"](#11-voiceprint-match-does-this-sound-like-this-writer-said-it)
+- [11. Voiceprint match: "does this sound like this writer said it?"](#11-voiceprint-match-does-this-sound-like-this-writer-said-it)
 - [Then: sing-check](#then-sing-check)
 - [Where a rubric run goes](#where-a-rubric-run-goes)
 - [Cross-references](#cross-references)
 
 **This file is mandatory for line emission.** Before any candidate lyric line is
-shown to the writer, cycle every pass below and NAME each one pass / fail /
+shown to the writer, cycle every pass below and name each one pass / fail /
 skip-with-reason. Order matters: cheap kills first.
 
 **What this file is.** The rubric form is this repo's, not Pat's. He never
@@ -37,7 +37,7 @@ assistant should have. Two of those misses put this file here: `fountain` /
 uncaught, and sonically inert candidates were presented with no sound-thread
 check run at all.
 
-**Pre-emission, not pre-lock.** This rubric runs when NOTHING has been shown to
+**Pre-emission, not pre-lock.** This rubric runs when nothing has been shown to
 the writer yet. The AI is gating its own about-to-emit candidate.
 [audit-checklist.md](audit-checklist.md) `## Per-line checklist` runs the other
 side of the same line: the writer is considering committing an existing line.
@@ -50,7 +50,7 @@ neither owns per-line checking on its own.
 apply on a typical output | Trim: fast filters get run, slow ones get skipped".
 A full pre-emission cycle cannot live inline in a gate held to that budget
 without turning the gate into the thing that gets skipped. So §2's line-writing
-boxes are cycled HERE, at pass 6, when the output is a candidate line about to be
+boxes are cycled here, at pass 6, when the output is a candidate line about to be
 shown. One way, not two. §2 stays the owner of those boxes; if §2 changes, §2
 wins.
 
@@ -58,7 +58,7 @@ wins.
 tools." (*Writing Better Lyrics* (2009), Chapter 18). Per
 [response-filter.md](response-filter.md)'s stance section, the same stance
 governs the AI's self-check, with the one narrowing in the standing rules below:
-a craft box the WRITER may decline is skippable when the skip is NAMED, and a
+a craft box the writer may decline is skippable when the skip is named, and a
 silent skip is the failure. Naming a pass as run with nothing to show for it is
 also a failure.
 
@@ -68,47 +68,47 @@ also a failure.
 are the writer's own standing process rules, imposed after the session where the
 assistant violated its own rubric. Do not attribute them to Pat.
 
-1. **Nothing is shown until pass 1 is CLEAN.** On fixed-melody work a candidate
+1. **Nothing is shown until pass 1 is clean.** On fixed-melody work a candidate
    that fails positional fit is not a candidate. It is not shown with a caveat,
    not shown as "off-template but interesting". It is not shown.
 2. **The full rubric is self-run before presentation, every time. No fatigue
    exceptions.** The failures this rule exists for: a word repeated across
    adjacent lines (`wishes` / `wish`) in violation of the rubric's own pass 2,
    and lines presented after the assistant had itself flagged them off-template.
-   Under load, emit FEWER candidates, never unchecked ones.
+   Under load, emit fewer candidates, never unchecked ones.
 
    **Not applicable is not a skip.** Four passes are scoped by their own headings:
    pass 1 to fixed-melody work, pass 4 to lines in a rhyme position, pass 9 to
    figurative lines, and pass 11 to sessions where a voiceprint exists. Reaching
-   one of those, declaring it out of scope for THIS candidate, and moving on IS
+   one of those, declaring it out of scope for this candidate, and moving on is
    the pass running. Say which scope condition failed and continue. What rule 2
    forbids is the other thing: dropping an in-scope pass because the cycle is
    long, the hour is late, or the candidate looks fine. A pass whose input is
    merely missing is the pass that sends you to go get the input; a pass whose
    subject is absent has nothing to get.
-3. **A FAILED pass kills the candidate.** It does not reach the menu with the
+3. **A failed pass kills the candidate.** It does not reach the menu with the
    flag attached. A disclosed failure is still a failure shown, and the writer's
    attention is what the disclosure spends.
    <!-- ai-slop-ignore-start: rule 4 quotes a verbatim writer remark recorded from the Sofía sessions -->
 4. **Two rejected executions in a slot stops generation.**
    `/songwriting:co-write` Handlers owns this rule; the definitions below are
    restated here because this file runs under three skills. When the writer
-   rejects execution twice for the same slot, STOP generating and hand the
-   CONCEPT to the writer instead of producing a third batch. **Two** is the
+   rejects execution twice for the same slot, stop generating and hand the
+   concept to the writer instead of producing a third batch. **Two** is the
    writer's own threshold (Sofía sessions, 2026-08-12); the AI does not raise
    it. *Slot* = the lyric position under
    revision: one line, or one section when the section is being rewritten whole;
    not the metrical or rhyme slot the craft files mean. *Rejection* = the writer
-   declines the batch's EXECUTION ("none of these", "the idea's right, the lines
+   declines the batch's execution ("none of these", "the idea's right, the lines
    aren't", no candidate picked). Picking one and asking for a tweak is not a
-   rejection, and rejecting the CONCEPT resets the count, because the next batch
+   rejection, and rejecting the concept resets the count, because the next batch
    answers a different brief. The writer's recurring note is "I get the idea —
    your execution is bad"; a third batch at the same execution quality spends his
    attention for nothing. What the handoff contains is specified in
    `/songwriting:co-write` Handlers.
    <!-- ai-slop-ignore-end -->
 5. **No object-write prose pasted into a lyric slot.** Object-writing output is
-   ore, not lines. Pull ONE image forward, adapt it to plain sung English, and
+   ore, not lines. Pull one image forward, adapt it to plain sung English, and
    say it aloud before it enters a slot, the three-step rule
    `/songwriting:co-write` states as "Mine → adapt → say it aloud".
 6. **The writer's sing-check is the final gate.** No pass count and no clean
@@ -131,11 +131,11 @@ song's `variations/` file, not inline; the presentation shape is
 Guide to Lyric Form and Structure* (1991), Chapter 3, quoted below from
 [audit-checklist.md](audit-checklist.md)'s per-line block; the stress material is
 *Songwriting Without Boundaries* (2011), Challenge 4, from the same block; the
-melody-setting scope and the template-building METHOD are
+melody-setting scope and the template-building method are
 [meter.md](meter.md) "fitting a replacement line to an already-sung melody". The
 empirical slot numbers are writer-derived (Sofía sessions, 2026-08-12).
 
-This pass is the CHECK. The method that builds the template belongs to
+This pass is the check. The method that builds the template belongs to
 [meter.md](meter.md); run it there and check the result here. That method is to
 transcribe from the recording, scan by importance, number and bracket, and
 compose into it.
@@ -153,7 +153,7 @@ Pat's frame is Goldilocks. Too hot, too cold, just right:
 > *Essential Guide to Lyric Form and Structure* (1991), Chapter 3
 
 That passage scopes greed one-directionally because it is matching a lyric to a
-model LYRIC. This pass is the other case, and [meter.md](meter.md) states the
+model lyric. This pass is the other case, and [meter.md](meter.md) states the
 difference: when the lyric is being matched to a *melody* rather than to another
 lyric, a mismatch in either direction is a greedy spot, a stressed syllable on a
 weak beat or an unstressed syllable riding a strong one, because either one
@@ -169,11 +169,11 @@ scan: u      u   /     u      u    /        u    /     u     u    /     u    /
 syl:  1      2   [3]   4      5    [6]      7    [8]   9     10   [11]  12   [13]
 ```
 
-- [ ] **Syllable count** matched to the SUNG line, not to an inferred grid. ±1 is
-      one merged or split note, allowed but FLAGGED and priced as such
+- [ ] **Syllable count** matched to the sung line, not to an inferred grid. ±1 is
+      one merged or split note, allowed but flagged and priced as such
       (observed tolerance from the Sofía demo work, 2026-08-12; not a book
       number)
-- [ ] **Stress POSITIONS** matched, not just the stress count. A candidate with
+- [ ] **Stress positions** matched, not just the stress count. A candidate with
       the right number of stresses in the wrong slots is dead. Observed
       2026-08-12: a five-stress replacement stressing 2/4/6/11/13 was written
       against a sung line stressing 3/6/8/11/13 and died on the first
@@ -216,22 +216,22 @@ syl:  1      2   [3]   4      5    [6]      7    [8]   9     10   [11]  12   [13
 
 **Provenance:** writer-derived (Sofía sessions, 2026-08-12). No book source.
 This is the pass the file exists for. [repetition.md](repetition.md) is related
-reading on what repetition DOES; it does not source these radii, and it does not
+reading on what repetition does; it does not source these radii, and it does not
 draw the named / unnamed distinction below.
 
-- [ ] **Same section**: no repeated content word, INCLUDING inflections
+- [ ] **Same section**: no repeated content word, including inflections
       (`fill` / `filled` counts, `wish` / `wishes` counts). Kill it or justify it
       out loud
 - [ ] **Adjacent-section boundary**: the last line of this section against the
       first two of the next, and the reverse. These are the junctures the ear
       holds together, so a repeat across them reads as a repeat
-- [ ] **Whole song**: a repeated content word must be NAMED as deliberate: a
+- [ ] **Whole song**: a repeated content word must be named as deliberate: a
       through-object (the coin), or a refrain scaffold ("of Spain came coursing").
       Unnamed repetition is a defect; named repetition is a motif. The rubric does
       not forbid the repeat. It forbids the repeat nobody chose
 
-Word repetition and sound repetition are graded oppositely: a repeated WORD is a
-collision, a repeated SOUND is glue. Pass 3 is where the glue gets credit. *(This
+Word repetition and sound repetition are graded oppositely: a repeated word is a
+collision, a repeated sound is glue. Pass 3 is where the glue gets credit. *(This
 grading pair is the writer's formulation, 2026-08-12.)*
 
 ## 3. Sonic-bonding pass (word repetition ≠ sound repetition)
@@ -268,14 +268,14 @@ And the mechanism, in his musical analogy of voice leading:
       thread or break one? Voice leading works inside phrases, so it bonds lines
       without touching the rhyme scheme
 - [ ] **Boundary stitch** *(writer tool, 2026-08-12, not a book claim)*: the last
-      line of a section can plant a sound that recurs EARLY in the next section's
+      line of a section can plant a sound that recurs early in the next section's
       first line, as a vowel, consonant frame, or alliteration stretched across
       words, so the junction punches instead of resetting. Check both sides of any
       boundary line you touch
 - [ ] **Section sonic key** *(writer tool, 2026-08-12, not a book claim)*: name
       the section's dominant vowel or consonant thread (Sofía V1 runs short-i:
       Seville / wish / kiss, plus the `-ill` rhyme column). State whether the
-      candidate JOINS the key, or breaks it and what the break buys
+      candidate joins the key, or breaks it and what the break buys
 
 ## 4. Rhyme audit (when the line sits in a rhyme position)
 
@@ -285,13 +285,13 @@ Structure* (1991), Chapter 4, quoted below from
 to Rhyming* (2014), Chapter 5, as printed in
 [response-filter.md](response-filter.md) §1.
 
-- [ ] **Type NAMED per pair**: no unlabeled "rhymes". Pat's printed "Scale of
+- [ ] **Type named per pair**: no unlabeled "rhymes". Pat's printed "Scale of
       Rhyme Types: Most Stable to Least Stable" runs, in order: Perfect Rhyme →
       Family Rhyme → Additive/Subtractive Rhyme → Assonance Rhyme → Consonance
       Rhyme (*Essential Guide to Rhyming* (2014), Chapter 5, chapter-opening
       scale). Mosaic is a construction rather than a tier. Name it alongside the
       tier, per [mosaic-rhyme.md](mosaic-rhyme.md)
-- [ ] **Identity check**: pre-vowel consonants DIFFER, including across mosaic
+- [ ] **Identity check**: pre-vowel consonants differ, including across mosaic
       word boundaries, and no suffix-driven identity:
       > "'IDENTITY' means that syllables start the same way. 'Fuse/confuse' is
       > not a rhyme, it is an IDENTITY. Your ear does not pay attention to the
@@ -333,7 +333,7 @@ scheme, or rhyme types, name the delta and its stable ↔ unstable consequence.
       discipline [five-compositional-elements.md](five-compositional-elements.md)
       draws from Pat's own single-row counterfactuals: diagnose all five rows,
       change one, keep the other four fixed so you can hear what the change did
-- [ ] **Line length counted in STRESSES**, not raw syllables: "line length is
+- [ ] **Line length counted in stresses**, not raw syllables: "line length is
       determined by the number of stresses in a line" (*Writing Better Lyrics*
       (2009), Chapter 19). A raw-syllable count answers a different question and
       invents symmetry that is not there. Pass 1's syllable numbers are an
@@ -350,7 +350,7 @@ scheme, or rhyme types, name the delta and its stable ↔ unstable consequence.
 
 ## 6. Content boxes (response filter §2 core)
 
-**Provenance:** Pat-anchored, and NOT a second copy.
+**Provenance:** Pat-anchored, and not a second copy.
 [response-filter.md](response-filter.md) §2 owns these boxes; this pass cycles
 them. Run §2 as printed there. The boxes below are the ones the Sofía sessions
 found get skipped under load, listed so they are named rather than assumed. If
@@ -373,7 +373,7 @@ found get skipped under load, listed so they are named rather than assumed. If
       context so it earns its place, per [cliche.md](cliche.md). A flagged cliche
       is answered by reframing, never by reaching for a rarer word. See pass 8
 - [ ] **Unintended implication**: read the line as a stranger with no access to
-      the writer's intent, and NAME what it implies about each character. This is
+      the writer's intent, and name what it implies about each character. This is
       §2's window-sill lesson, and it is the box skipped precisely because the
       others passed: `she watched me from the window sill` clears sense-bound,
       specific noun, strong verb, no cliche, and consistent POV, and reads as
@@ -390,11 +390,11 @@ found get skipped under load, listed so they are named rather than assumed. If
 its target when the window sill left the line, and nobody re-read line 3 (Sofía
 sessions, 2026-08-12).
 
-Every line that referenced the OLD line gets re-read against the NEW one.
+Every line that referenced the old line gets re-read against the new one.
 
 - [ ] **Dependents listed explicitly**: which later or earlier lines point at an
       object, a person, an action, or a place this line used to supply
-- [ ] **Each dependent verified** one at a time against the candidate AS WRITTEN,
+- [ ] **Each dependent verified** one at a time against the candidate as written,
       not against the intent behind it
 - [ ] **Orphans named**: if the candidate strands a reference, either the
       candidate restores the antecedent, or the stranded lines are named in this
@@ -408,31 +408,27 @@ not invention: [cliche.md](cliche.md)'s rewrite pattern already says "Read the
 old and new lines aloud", under that file's own plugin-authored flag. This pass
 promotes it from a rewrite nicety into a kill rule.
 
-<!-- SYNTHESIS, and a naming correction carried forward from the prototype: this
-     pass was titled "Register and tone" and its body used "tone" loosely. "Tone
-     of voice" returns ZERO hits across all four books; audit-checklist.md and
-     stable-unstable-meta.md both removed the phrase for that reason. The heading
-     is kept for continuity, but the boxes below are stated as register and
-     vernacular, which is what the Sofía failure actually was, and none of them
-     is attributed to Pat. -->
+<!-- Synthesis. "Tone of voice" returns zero hits across all four books, so the
+     heading keeps "tone" only for continuity: the boxes below are stated as
+     register and vernacular, and none of them is attributed to Pat. -->
 
 The failure this pass exists for is not a wrong emotional color; it is
 out-of-vernacular drift. The writer caught it on `silt`: the anti-cliche
 discipline overcorrects into literary or rare words nobody sings.
 
-- [ ] **Say it out loud, talk-sung**: kill rule. Would a person SAY this? A
+- [ ] **Say it out loud, talk-sung**: kill rule. Would a person say this? A
       precious or literary conceit can pass mechanics and fail speech
       (`bracelet's trill` did). Unsayable = rewrite, not polish
-- [ ] **Bar-story test**: is this word in a bar-story telling of THIS scene, the
+- [ ] **Bar-story test**: is this word in a bar-story telling of this scene, the
       words someone reaches for recounting it out loud? The writer's own
       formulation and his recorded judgments, 2026-08-12: `silt` rejected as too
       literary, `picturesque` accepted, `so` never
-- [ ] **Common-word stock searched FIRST**: brainstorm from common idiom (`time
+- [ ] **Common-word stock searched first**: brainstorm from common idiom (`time
       to kill`, `sit still`, `the bill`), then reframe against cliche, per
       [line-brainstorm.md](line-brainstorm.md) "Discipline". Reaching past the
       common words entirely is the drift, not the cure. The writer's working
       premise (2026-08-12) is that modern pop sings out of the common words and
-      freshness comes from STORY PLACEMENT, stated here as his premise, with no
+      freshness comes from story placement, stated here as his premise, with no
       figure attached to it, because none is sourced
 - [ ] **Not a prefer-plain-words dial**: this pass fails a word for being
       unsayable, never for being long or Latinate. `picturesque` passes, and
@@ -459,7 +455,7 @@ Boundaries* (2011), Challenge 2 and *Writing Better Lyrics* (2009), Chapter 3.
       makes them interesting." (*Songwriting Without Boundaries* (2011), Challenge
       2 Day 1). If it could be literally true it is description, not metaphor:
       `dark thoughts` is a metaphor, `dark eyes` is not
-- [ ] **Type named, and Pat's count is THREE**: Expressed Identity, Qualifying
+- [ ] **Type named, and Pat's count is three**: Expressed Identity, Qualifying
       Metaphor, Verbal Metaphor. Simile is not a fourth type (it is focus
       control), and neither is personification (it is a recipe within the three).
       Do not invent extras
@@ -533,7 +529,7 @@ the chorus." Run it on the candidate:
 4. Ask whether the section's argument still arrives from that reading.
 
 If the reduced read goes slack or silent exactly where the candidate sits, the
-candidate FAILS. Print the reduced read back and name the position; a verdict
+candidate fails. Print the reduced read back and name the position; a verdict
 without the reduced read shown is not this pass run.
 
 **Fail signature: competent-flat in a bright position.** A candidate that is
@@ -546,7 +542,7 @@ spotlight lit an absence. This is the discrimination against the content boxes
 where all of them already passed.
 
 **Remedy: rewrite or demote. There is no third option.** Demote means both
-halves: move the flat content to a dim slot AND put something that earns the
+halves: move the flat content to a dim slot and put something that earns the
 light in the bright one. That placement alone is a real lever is Pat's, shown as
 a failure rather than a recommendation: Chapter 7 redistributes "Child Again"
 verse 1's own information into weaker slots, adding and cutting nothing, and the
@@ -562,7 +558,7 @@ in a slot whose brightness the section fixed before the rewrite began. The §3
 question is *which positions are marked*; this one is *does this line earn the
 light this slot is already throwing*.
 
-## 11. Voiceprint match: "does this sound like THIS writer said it?"
+## 11. Voiceprint match: "does this sound like this writer said it?"
 
 **Provenance:** writer-derived (Sofía sessions, 2026-08-12). No book source. The
 build procedure and the artifact it judges against are
@@ -573,9 +569,9 @@ Judged against the writer's voiceprint (`songwriting/shared/voiceprint.md`), nev
 against genre and never against "good line". This pass sits last because it is the
 closest proxy the rubric has for the writer's own ear, so it stands next to the
 sing-check that settles everything. Name the dimension the candidate is tested on
-AND the accepted line that sets the standard:
+and the accepted line that sets the standard:
 
-- [ ] **Vocabulary band**: every multisyllable in the candidate, does it PAY, by
+- [ ] **Vocabulary band**: every multisyllable in the candidate, does it pay, by
       the standard of the writer's accepted lines? Quote the accepted line it is
       measured against. Every plain word: does it carry weight, or is it below the
       writer's floor?
@@ -593,13 +589,13 @@ AND the accepted line that sets the standard:
 If no voiceprint exists, report `UNKNOWN — no voiceprint on disk` and move on.
 That is this pass's scope condition failing, in the sense rule 2 allows, and it is
 the same `UNKNOWN` [voiceprint.md](voiceprint.md) uses for a dimension below its
-evidence floor. What is not allowed is claiming the pass PASSED: a pass claimed
+evidence floor. What is not allowed is claiming the pass passed: a pass claimed
 with no artifact to judge against is a failed pass. This pass's input lives in the
 consuming project, so `UNKNOWN` is a real and common answer, and it is also the
 signal that building the voiceprint is the next piece of work.
 
-**Distinct from pass 8.** Pass 8 asks whether the line fits the SECTION's voice,
-whether it is speakable in this slot. This pass asks whether it fits the WRITER's,
+**Distinct from pass 8.** Pass 8 asks whether the line fits the section's voice,
+whether it is speakable in this slot. This pass asks whether it fits the writer's,
 across every song and every speaker they write. A line can sit perfectly in a
 talk-sung verse and still be a line this writer would never say, and the reverse
 is equally possible. Neither pass acquires the other's test.
@@ -637,7 +633,7 @@ context; the pass-by-pass detail lives in the file.
   file cycles them for pre-emission candidates
 - [voiceprint.md](voiceprint.md): pass 11's artifact and the procedure that
   builds it from the writer's accepted lines
-- [audit-checklist.md](audit-checklist.md): the PRE-LOCK counterpart; its
+- [audit-checklist.md](audit-checklist.md): the pre-lock counterpart; its
   `## Per-line checklist` runs on a line the writer is already considering
   committing
 - [meter.md](meter.md): pass 1, greedy spots in the melody-setting frame, and

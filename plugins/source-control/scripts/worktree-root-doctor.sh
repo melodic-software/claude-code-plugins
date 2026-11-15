@@ -161,7 +161,7 @@ if [[ -n "$common_dir" && "$common_dir" != /* && ! "$common_dir" =~ ^[A-Za-z]:/ 
   common_dir="$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')/$common_dir"
 fi
 if [[ -n "$git_dir" && -n "$common_dir" && "$(canon "$git_dir")" != "$(canon "$common_dir")" ]]; then
-  note "linked worktree: gitdir is $git_dir (under the main repository), so gitdir-anchored includeIf conditions classify this worktree WITH its repository — and a pattern anchored at this worktree's own tree path matches nothing, ever."
+  note "linked worktree: gitdir is $git_dir (under the main repository), so gitdir-anchored includeIf conditions classify this worktree with its repository — and a pattern anchored at this worktree's own tree path matches nothing, ever."
 fi
 
 # --- Declared includeIf conditions, and which files actually contributed ------
@@ -233,27 +233,27 @@ for idx in ${inc_conds[@]+"${!inc_conds[@]}"}; do
   gitdir:*)
     case "${OSTYPE:-}" in
     msys* | cygwin* | win32)
-      warn "includeIf \"$cond\" uses case-sensitive gitdir: on a Windows shell — a lowercase drive letter, 8.3 short name, or casing differing from the canonical gitdir matches NOTHING (only the pattern author's spelling matters). Use gitdir/i: on Windows."
+      warn "includeIf \"$cond\" uses case-sensitive gitdir: on a Windows shell — a lowercase drive letter, 8.3 short name, or casing differing from the canonical gitdir matches nothing (only the pattern author's spelling matters). Use gitdir/i: on Windows."
       ;;
     *) ;;
     esac
     ;;
   gitdir/i:* | onbranch:*) ;;
   hasconfig:remote.*.url:*)
-    note "includeIf \"$cond\": hasconfig: is unimplemented in libgit2 (gitui, TortoiseGit, git2/nodegit/pygit2 bindings), where unrecognized conditions fail SILENTLY, and JGit/go-git resolve no includeIf at all — fine for melodic.* (CLI-shelling readers only), unsafe as the identity layer (user.email etc.). Use gitdir/i: for identity."
+    note "includeIf \"$cond\": hasconfig: is unimplemented in libgit2 (gitui, TortoiseGit, git2/nodegit/pygit2 bindings), where unrecognized conditions fail silently, and JGit/go-git resolve no includeIf at all — fine for melodic.* (CLI-shelling readers only), unsafe as the identity layer (user.email etc.). Use gitdir/i: for identity."
     ;;
   worktree:* | worktree/i:*)
     if ((git_version_num < 256)); then
-      warn "includeIf \"$cond\" needs git >= 2.56; this machine's git skips it SILENTLY (rc=0, no stderr) — the condition never fires here"
+      warn "includeIf \"$cond\" needs git >= 2.56; this machine's git skips it silently (rc=0, no stderr) — the condition never fires here"
     fi
     ;;
   *)
-    warn "includeIf \"$cond\" is not a keyword this git recognizes (gitdir:, gitdir/i:, onbranch:, hasconfig:remote.*.url:, worktree:, worktree/i:) — unknown keywords are skipped SILENTLY, so a typo here is indistinguishable from an unset key"
+    warn "includeIf \"$cond\" is not a keyword this git recognizes (gitdir:, gitdir/i:, onbranch:, hasconfig:remote.*.url:, worktree:, worktree/i:) — unknown keywords are skipped silently, so a typo here is indistinguishable from an unset key"
     ;;
   esac
   case "$cond" in
   gitdir:*/.git | gitdir/i:*/.git)
-    note "includeIf \"$cond\" ends in /.git — a BARE repository's gitdir has no /.git suffix, so this pattern silently misses bare clones"
+    note "includeIf \"$cond\" ends in /.git — a bare repository's gitdir has no /.git suffix, so this pattern silently misses bare clones"
     ;;
   *) ;;
   esac
@@ -261,7 +261,7 @@ done
 
 # --- Resolution: which rule supplied the worktree root ------------------------
 # Shared resolver picks worktreeroot.path (and rewrites a retired alias when
-# one is still present). Origin attribution then loops THAT key so empty-last
+# one is still present). Origin attribution then loops that key so empty-last
 # fallthrough matches create.sh.
 declare -a val_origins=() val_values=()
 winning_key=""
@@ -269,7 +269,7 @@ root_expanded=""
 if worktree_root_resolve "$repo_dir"; then
   winning_key="$WORKTREE_ROOT_KEY_USED"
   while IFS= read -r -d '' origin && IFS= read -r -d '' val; do
-    # Same alternating -z framing as above, except --get-all emits the VALUE
+    # Same alternating -z framing as above, except --get-all emits the value
     # alone as the second record (no key<LF> prefix — measured, not assumed).
     ofile=""
     [[ "$origin" == file:* ]] && ofile="${origin#file:}"
@@ -297,7 +297,7 @@ else
   done
   ok "$winning_key = $win_val (supplied by $supplied_by)"
 
-  # Parse order is precedence: a plain value the parser meets AFTER an
+  # Parse order is precedence: a plain value the parser meets after an
   # include-supplied one silently overrides every identity include.
   if ((nvals > 1)); then
     losing_include=0
@@ -309,7 +309,7 @@ else
       fi
     done
     if ((losing_include && !win_from_include)); then
-      warn "a plain $winning_key in $win_origin is parsed AFTER an include-supplied value and silently overrides it — precedence is parse order, not specificity. If the include is meant to win, move the plain default ABOVE the includeIf block."
+      warn "a plain $winning_key in $win_origin is parsed after an include-supplied value and silently overrides it — precedence is parse order, not specificity. If the include is meant to win, move the plain default above the includeIf block."
     elif ((win_from_include)); then
       # The recommended layout: a plain machine default parsed first, the
       # include's more-specific answer after it. Say so — the absence of a
@@ -328,7 +328,7 @@ else
   # The root must satisfy the invariant the key exists for.
   root_expanded="$(expand_tilde "$win_val")"
   if [[ -e "$root_expanded" ]] && git -C "$root_expanded" rev-parse --show-toplevel >/dev/null 2>&1; then
-    warn "the resolved root $win_val sits INSIDE a git working tree — the one placement the convention exists to prevent; point it at a directory outside every repository"
+    warn "the resolved root $win_val sits inside a git working tree — the one placement the convention exists to prevent; point it at a directory outside every repository"
   fi
 fi
 

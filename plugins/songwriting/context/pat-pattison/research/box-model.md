@@ -484,7 +484,7 @@ entirely:
 
 ## Travelogue vs same-color
 
-Two verse failures sit at OPPOSITE ends of one axis. Chapter 8 names both poles
+Two verse failures sit at opposite ends of one axis. Chapter 8 names both poles
 in its closing exercise:
 
 > Verse development is probably a lyricist's trickiest job. Verse ideas must
@@ -596,7 +596,7 @@ follows it, and see whether the second chorus can say anything the first didn't.
 > will look the same. If they project different or deeper colors, the choruses
 > will look different.
 
-Verses connected but same-colored is NOT a travelogue; the chain is intact and
+Verses connected but same-colored is not a travelogue; the chain is intact and
 the repainting is missing.
 
 Pat's case is "Between Fathers and Sons" (John Jarvis and Gary Nicholson), in
@@ -671,11 +671,11 @@ prints.
 
 | Failure | Symptom | Fix |
 |---|---|---|
-| Both ideas crammed into box 1 | box 2 restates; "the second chorus is a goner" | split the ideas across boxes, the "Between Fathers and Sons" repair (Ch 6) |
-| Boxes the same size | chorus repetition goes "static and boring" (Ch 8) | separate the perspectives (you-I-we) or the tenses (past-present-future) (Ch 6) |
-| Stagnation: verses say the same thing in different words | the sheriff summaries; "the only real fix is to take the idea new places" (Ch 6) | develop the idea, not the language |
-| Boxes unconnected, linked only by the title | travelogue, "you might end up in fabulous Hawaii" (Ch 8) | use each verse to prepare what comes next; one snowball from the top |
-| Refrain resists the new color | you can't change the verse's tense or POV without breaking the refrain (Ch 9) | neutralize the refrain's tense and POV |
+| Both ideas crammed into box 1 | box 2 restates; "the second chorus is a goner" | split the ideas across boxes, the "Between Fathers and Sons" repair (Chapter 6) |
+| Boxes the same size | chorus repetition goes "static and boring" (Chapter 8) | separate the perspectives (you-I-we) or the tenses (past-present-future) (Chapter 6) |
+| Stagnation: verses say the same thing in different words | the sheriff summaries; "the only real fix is to take the idea new places" (Chapter 6) | develop the idea, not the language |
+| Boxes unconnected, linked only by the title | travelogue, "you might end up in fabulous Hawaii" (Chapter 8) | use each verse to prepare what comes next; one snowball from the top |
+| Refrain resists the new color | you can't change the verse's tense or POV without breaking the refrain (Chapter 9) | neutralize the refrain's tense and POV |
 
 Equal box weight is a symptom of travelogue, not a synonym for it: Pat says "in
 a travelogue, all the boxes are the same size," but boxes can also come out the

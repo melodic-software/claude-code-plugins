@@ -104,7 +104,7 @@ Structure* (1991), Chapter 5:
 > Each section in your lyric will have its own job to do.
 <!-- ai-slop-ignore-end -->
 
-So: if the fragment IS the central section's seed, draft outward from it. If the
+So: if the fragment is the central section's seed, draft outward from it. If the
 fragment is a verse piece, locate the central section first, then draft the
 fragment's verse.
 
@@ -143,10 +143,9 @@ build. A fragment that wants to change as the song develops is a healthy
 fragment.
 
 <!-- ai-slop-ignore-start: correction note quoting the retired fabricated sentence verbatim -->
-<!-- FABRICATION REMOVED: this paragraph previously ended "— Pat: every revision
-is an option, not a betrayal." No such sentence appears anywhere in the four
-books; "betray"/"betrayal" occurs in the corpus only inside two object-writing
-samples in *Songwriting Without Boundaries* (2011). Invented quote, deleted. -->
+<!-- No sentence calling a revision "an option, not a betrayal" appears in the
+four books; "betray"/"betrayal" occurs only inside two object-writing samples in
+*Songwriting Without Boundaries* (2011). Do not attribute one to Pat. -->
 <!-- ai-slop-ignore-end -->
 
 ## When the fragment resists development
@@ -169,14 +168,14 @@ If the fragment won't grow:
 | Writer wants to draft straight from fragment | back up; do Steps 1-3 first |
 | Fragment is brilliant in isolation, generic in context | the world isn't developed enough; deeper object-writing |
 | Fragment forces unnatural rhymes | run `rhyme-generation.md` on the stressed vowel; if zero clean rhymes, the fragment may be in the wrong form (lives-once vs repeats) |
-| Multiple fragments compete | the song probably wants to develop around ONE; the others go to `ideation/fragments.md` for later |
+| Multiple fragments compete | the song probably wants to develop around one; the others go to `ideation/fragments.md` for later |
 | Fragment requires a title that doesn't fit | title and fragment are connected, so try alternate titles per `idea-to-title.md` |
 
 ## Artifact pattern
 
 The fragment + Step 1/2 inventory + Step 3 object-write material land in
-`songwriting/songs/<slug>/ideation/fragments.md` (per the SKILL.md
-"Artifact Persistence" layout).
+`songwriting/songs/<slug>/ideation/fragments.md` (per the layout in
+[artifact-persistence.md](artifact-persistence.md)).
 
 Once development begins, fragment material migrates to `LYRIC.md` and
 working variations to `variations/<section>.md`.

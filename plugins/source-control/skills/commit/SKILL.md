@@ -83,7 +83,7 @@ commands, not remembered facts. Steps 3–5 are the ones a long session silently
    is enough; re-resolve if a layer changed).
 2. **Stage** surgically by explicit path, after checking the four pre-existing conditions below.
 3. **Format**, run the discoverable formatter scoped to this commit's paths, re-stage its fixes.
-4. **Exec-bit**, run `exec-bit-check.sh --fix -- <this commit's paths>`, AFTER step 3.
+4. **Exec-bit**, run `exec-bit-check.sh --fix -- <this commit's paths>`, after step 3.
 5. **Pre-check** the drafted subject against the resolved pattern before invoking git.
 6. **Fragments**, in a repository with a `fragment-plugins.txt` list under `scripts/`, pipe the drafted message to
    `write-changelog-fragments.sh` and stage the paths it prints (Task step 7).
@@ -105,7 +105,7 @@ these failure modes:
 
 ## Subject convention ladder
 
-The subject convention (WHAT shape a subject must take) resolves via a ladder, checked in order:
+The subject convention (what shape a subject must take) resolves via a ladder, checked in order:
 
 1. **The layered source-control convention config**. User-global, tracked team
    (`docs/conventions/source-control.yaml`), and gitignored personal override, merged per key by
@@ -373,7 +373,7 @@ or `/commit-push-pr` on its own behalf.
 `skillOverrides` entry hides it; this section states what to do when a surface resolves, never
 that it is present. The four-part records live in [reference/native-commit.md](reference/native-commit.md).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **No `git push`**, that's `/source-control:pull-request create`.
 - **No branch creation**, that's the project's branch-naming / branch-protection mechanisms (or

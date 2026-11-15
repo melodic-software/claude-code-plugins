@@ -84,10 +84,8 @@ Pat's own scansion of that verse is reproduced under
   This chapter argues *in* its figures: every scansion, all three Paradigms, the
   4/4 bar settings, and the Structural Pentad worksheets, one blank
   (`image_rsrc309.jpg`) plus three filled in for Common Meter, Paradigm Two, and
-  Paradigm Three, exist only as page scans. Earlier revisions of this file
-  recorded "no linked page-scan images" for this chapter, and that one false
-  line is why the too-cold definition and the "When I got home" scansion below
-  both survived a full pass uncorrected.
+  Paradigm Three, exist only as page scans, so a read of the text layer alone
+  misses them.
 - *Writing Better Lyrics*, Chapter 14: `image_rsrcAU7.jpg`, `image_rsrcAU8.jpg`,
   `image_rsrcAU9.jpg`, `image_rsrcAUA.jpg`, `image_rsrcAUB.jpg`.
 - *Writing Better Lyrics*, Chapter 15: no linked page-scan images.
@@ -1524,8 +1522,8 @@ Closure:   closed twice — internally at line two, then again at line four
 Stability: stable but blocky
 ```
 
-Useful when the section wants to feel even, declarative, or chant-like.
-Avoid when through-written motion is needed.
+This file's guidance, not Chapter 3's: useful when the section wants to feel
+even, declarative, or chant-like. Avoid when through-written motion is needed.
 
 ## Paradigm Three: 4/3/4/4 deceptive closure
 
@@ -1591,12 +1589,10 @@ One consequence follows once the structure is set in bars: Paradigm Two
 "defines a four-bar unit as the primary unit of the structure rather than, like
 Common Meter, showing the four-bar unit as a subdivision of an eight-bar unit."
 
-Chapter 3 assigns neither paradigm a mood, a section type, or a "best for" use;
-the paradigms are characterized only by the Pentad. Earlier revisions of this
-file carried "Length perception," "Default mood," and "Best for" rows here,
-plus a "Teaching move" directing a writer to set the same idea in both. None
-of that is in the chapter, and Exercises 14 and 15 in fact ask for three systems
-of *different* content in each paradigm. Removed rather than re-sourced.
+Chapter 3 assigns neither paradigm a mood, a section type, a "best for" use, or
+a length perception; the paradigms are characterized only by the Pentad. Nor
+does it ask a writer to set the same idea in both: Exercises 14 and 15 ask for
+three systems of *different* content in each paradigm.
 
 ## Duple-to-triple and triple-to-duple physics
 
@@ -1635,7 +1631,7 @@ is the standing error here:
   music, and they lose their emotion on the way.
 - **Too cold**: the **important positions filled with the wrong words**. Nothing
   trips; the section simply stops being worth listening to. Pat's marked example
-  shows two flavors of this, and the file used to claim only the first. In its
+  shows two flavors of this. In its
   lines two and four the scansion is exactly the model's, syllable for syllable,
   and the lines are still dead because connectives and hedges stand where the
   model had meaning carriers. In its lines one and three the strong position
@@ -1750,9 +1746,9 @@ by one row.
    silently.** Writer-derived (Sofía sessions, 2026-08-12). One syllable over or
    under costs exactly one merged or split note, available because a diphthong
    already takes two notes and a single vowel takes one, per the quote above.
-   Naming the price is the rule. In production the 14-syllable variant of a
-   13-syllable slot was surfaced to the writer as a choice about whether the
-   added specificity was worth the extra note; it was not absorbed as tolerance.
+   Naming the price is the rule: surface a 14-syllable variant of a 13-syllable
+   slot to the writer as a choice about whether the added specificity is worth
+   the extra note, never absorb it as tolerance.
    Anything past one note is a melody change, which is one of Pat's options in
    [lyric-melodic roadmaps](lyric-melodic-roadmaps.md), not a fit.
 8. **The sung original is the floor, not the ideal.** If the recording itself
@@ -1945,12 +1941,10 @@ surfaces:
 - **Rhyme structure**: the same properties measured against the rhyme scheme.
 - **Musical structure**: named, but not broken down or worked through.
 
-Pat's word for the third surface is *musical*, and it stops there. Earlier
-revisions of this file split it into "melodic structure" and "harmonic
-structure (chord pattern stability per pentad property)"; that split is not in
-the source, and the per-surface criteria it implied were never Pat's. Pat does
-not break the musical surface down here, and no file in this plugin should
-supply per-domain melodic or harmonic stability criteria on his authority. The
+Pat's word for the third surface is *musical*, and it stops there: he does not
+split it into melodic and harmonic structure or break it down here, and no file
+in this plugin should supply per-domain melodic or harmonic stability criteria
+on his authority. The
 adjacent song-wide frame is [stable / unstable](stable-unstable-meta.md), but it
 works from the five elements of structure, not from a musical-domain table.
 

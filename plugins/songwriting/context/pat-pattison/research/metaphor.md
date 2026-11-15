@@ -132,7 +132,7 @@ candidate metaphor partners per quality.
 ### Multi-quality target-walk (the canonical practice)
 
 *Songwriting Without Boundaries* (2011), Challenge 2 Day 10 demonstrates
-the **multi-quality target-walk**: running THREE distinct qualities
+the **multi-quality target-walk**: running three distinct qualities
 through the two-question move per target.
 
 Pat's worked target is `policeman`. He supplies the three qualities as
@@ -963,12 +963,7 @@ When applying this file:
 
 ## Eight metaphor moves: this repo's recipe card, not Pat's taxonomy
 
-<!-- The heading read "Eight **named** metaphor moves". The body already
-     debunked the taxonomy claim, but "named" kept asserting it one line above,
-     and a heading that outlives its body is how the claim grows a new body.
-     Nobody names these eight. Word removed. -->
-
-**Plugin-side synthesis: UNAUDITED, not Pat's taxonomy.** These eight
+**Plugin-side synthesis: unaudited, not Pat's taxonomy.** These eight
 are a generation checklist assembled here from the material above; they
 are **not** a list of metaphor types, and no book prints them as a set of
 eight. Pat's types number **three** (Expressed Identity, Qualifying,
@@ -1101,7 +1096,7 @@ Pat classifies the Day 4-6 prompt verbs explicitly:
 
 | Verb | Day | Classification | Pat's consequence |
 |---|---|---|---|
-| `exhale` | Day 4 | transitive | The prompt noun can sit AFTER the verb as direct object, with a different noun as subject ("The tsunami exhaled a funeral onto the white beach") |
+| `exhale` | Day 4 | transitive | The prompt noun can sit after the verb as direct object, with a different noun as subject ("The tsunami exhaled a funeral onto the white beach") |
 | `plead` | Day 4 | intransitive | "It doesn't require a direct object, so handkerchief needs to stay in subject position. It could take an indirect object, introduced by a preposition: pleads with, pleads for" |
 | `flush` | Day 6 | transitive | "you'll have to find two nouns: x flushes y. Dusk flushes daylight" |
 | `indict` | Day 6 | transitive | "The collision is between the subject and the verb. The direct object comes along for the ride" |
@@ -1151,7 +1146,7 @@ This is Pat's "playing in keys" workflow at the vocabulary level:
    beach.
 3. Combine members of that family into secondary collisions. Pat's own,
    in the key of power: "An avalanche is an army of snow."
-4. Apply nondiatonic words DELIBERATELY, since they make metaphors land
+4. Apply nondiatonic words deliberately, since they make metaphors land
 5. Avoid accidental nondiatonic drift, which makes the lyric feel
    unfocused
 
@@ -1249,11 +1244,6 @@ book it wraps things like `90 seconds:` prompt labels and prompt words, which
 read as bold. Rendered as bold on that basis. **If a later pass gets the
 stylesheet and it says italic, change the face. Do not delete the emphasis.**
 
-<!-- CORRECTED: GENERICIZATION. An invented pair, "Her smile IS sunlight" /
-     "Her smile is LIKE sunlight", stood here doing the job of Pat's own
-     `Love is a rose`, which he prints on the very same page. Substituting a
-     made-up example for one of his is the failure the BRIEF names first. -->
-
 The mechanical consequence: **simile keeps the listener at distance**
 (comparing); **metaphor pulls the listener into identification**
 (experiencing). Pick by emotional intent.
@@ -1275,19 +1265,6 @@ The distinction, as Pat states it, is one sentence, and it is only about degree:
 > only a few, simile. More, metaphor."
 >
 > *Songwriting Without Boundaries* (2011), Challenge 2, Day 14
-
-<!-- REMOVED: INVENTED SCAFFOLDING. A four-row "Imagination (metaphor) / Fancy
-     (simile)" table stood here, directly under the Coleridge quotation, so it
-     read as Pat's or Coleridge's gloss. It is neither. Rows such as "Listener
-     does the work of completing" / "Writer does the work of pointing" and
-     "Pressure builds and resolves internally" / "Pressure resolves at the
-     comparison itself" have no counterpart anywhere in Day 14 or in *Writing
-     Better Lyrics* (2009) Ch 3. Pat's whole statement of the distinction is the
-     single sentence now quoted above, a difference of DEGREE, nothing more.
-     The invented table also contradicted the paragraph immediately following
-     it, which correctly reports that Pat declines the degree test in favor of
-     commitment. Classic named-axes signature: four tidy oppositions where the
-     source has one. -->
 
 Both are valid craft moves. Pat does **not** adopt Coleridge's
 shared-quality test as his own decision rule. His stated criterion is
@@ -1329,7 +1306,7 @@ Being thirsty is like being the parent of a teenage daughter.
 ```
 
 The elaboration is the craft move: a simile without elaboration is a
-naked comparison. A simile WITH elaboration earns its place, because the
+naked comparison. A simile with elaboration earns its place, because the
 elaboration extends the shared quality into the song.
 
 ## Failure mode: simile-only candidate

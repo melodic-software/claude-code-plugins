@@ -24,7 +24,7 @@
 - [Strategic position](#strategic-position)
 - [Motivic development analogy](#motivic-development-analogy)
 - [Know the hook rhythm before writing the lyric](#know-the-hook-rhythm-before-writing-the-lyric)
-- [Title generation: UNAUDITED, no book source](#title-generation-unaudited-no-book-source)
+- [Title generation: unaudited, no book source](#title-generation-unaudited-no-book-source)
 - [Phrase-level hot spots (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7 Strategy 1)](#phrase-level-hot-spots-essential-guide-to-lyric-form-and-structure-1991-chapter-7-strategy-1)
 - [Conscious craft stance: "you can" (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7 Strategy 5 close)](#conscious-craft-stance-you-can-essential-guide-to-lyric-form-and-structure-1991-chapter-7-strategy-5-close)
 - [Cross-references](#cross-references)
@@ -500,10 +500,10 @@ Then, of the real `abaa` chorus:
 That third effect is the craft point, not a side cost: **match the security of
 the cadence to whether the song's question is answered.**
 
-<!-- EDITORIAL INFERENCE, NOT PRINTED. Everything from here to the end of this
+<!-- Editorial inference, not printed. Everything from here to the end of this
 section is this file's extrapolation from the nine lines Pat actually prints
 (2009 spine 020, "Give Me Wings"). He states the abaa effect and the prosody
-match; he gives no when-to-use list, no when-NOT-to rule, and no diagnostic
+match; he gives no when-to-use list, no when-not-to rule, and no diagnostic
 procedure. Do not cite these as Pat's. -->
 
 When to reach for it:
@@ -514,7 +514,7 @@ When to reach for it:
   resolution would contradict the content.
 - The chorus already repeats the title and a plain repetition would feel inert.
 
-When NOT to: the section resolves something, arrives, or answers. There, the
+When not to: the section resolves something, arrives, or answers. There, the
 expected rhyme *is* the prosody, and withholding it fights the meaning.
 
 Diagnose an existing chorus by naming its scheme, then asking what the ear was
@@ -710,10 +710,9 @@ the chorus of "I CAN'T FIGHT THIS FEELING ANY MORE." His analysis of the second:
 
 ## Strategic position
 
-Pat names exactly **one** position in Chapter 7, and this is it. An earlier
-version of this file also gave a "Balancing position" as though it were a
-second Pat term; it is not. He describes the later phrase as the thing that
-*balances*, never as a named position.
+Pat names exactly **one** position in Chapter 7, and this is it.
+"Balancing position" is not a second Pat term: he describes the later phrase
+as the thing that *balances*, never as a named position.
 
 > "I thought you'd never ask ... A strategic position is a place you have to
 > match in order to balance a section. In Common Meter, this is a strategic
@@ -790,9 +789,9 @@ a rhythm that the chorus cannot match, so the chorus's hook arrives
 out of context. Knowing the hook rhythm first ties the whole song
 to the hook.
 
-## Title generation: UNAUDITED, no book source
+## Title generation: unaudited, no book source
 
-**UNAUDITED: not from Chapter 7, and no book source is cited.** Chapter 7 of
+**Unaudited: not from Chapter 7, and no book source is cited.** Chapter 7 of
 *Essential Guide to Lyric Form and Structure* (1991) contains no title
 typology, no "seven types," and no Nashville stressed-vowel method. The two
 quotes below are attributed to Berklee Online and patpattison.com, non-book
@@ -907,9 +906,9 @@ with a recurring craft stance:
 > "You can see how well the strategy works. Did Kevin Cronin do it on purpose?
 > He could have. Whether or not HE did is not the point. YOU can."
 
-The principle: identifying a craft tool in another writer's song does NOT
+The principle: identifying a craft tool in another writer's song does not
 require proving the other writer used it consciously. The tool exists; you
-can use it deliberately on YOUR song. Conscious craft ownership.
+can use it deliberately on your song. Conscious craft ownership.
 
 This stance applies to every Pat-named technique. The writer doesn't need
 to claim the technique was always there. The writer just needs to apply

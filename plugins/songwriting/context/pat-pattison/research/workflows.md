@@ -84,8 +84,9 @@ Default chain:
     second verse, pronoun bouncing, greedy spots. See [cliche](cliche.md),
     [point of view](point-of-view.md), [prosody](prosody.md) "greedy spots".
 
-Coach posture: protect the object-writing material from premature polish. The
-first three steps are non-negotiable for "from scratch".
+Coach posture: protect the object-writing material from premature polish. For
+a song from scratch, run the first three steps even when later steps are
+skipped, because they produce the material the rest of the chain works on.
 
 ## Scenario 2: Existing song revision (the song exists, something is off)
 
@@ -107,11 +108,9 @@ Route to **both** scenarios:
   line being replaced.
 - Then run the chain below on the diagnosis, with those templates in hand.
 
-The fitting pass runs **before** step 1 of the chain, not after it. Diagnosing
-first and fitting afterwards is what failed in production (2026-08-12): the
-router picked this scenario alone, Scenario 4 never loaded, the two never
-composed, and replacement lines were written to a stress *count* instead of the
-sung line's stress *positions*.
+The fitting pass runs **before** step 1 of the chain, not after it: when
+diagnosis comes first or Scenario 4 never loads, replacement lines get written
+to a stress *count* instead of the sung line's stress *positions*.
 
 Default chain:
 
@@ -339,9 +338,9 @@ Default chain:
 3. **Mine**: strongest image, surprising verb, possible title fragment.
 4. **Route forward**: if seed emerged → Scenario 9 (idea). If fragment
    emerged → Scenario 10 (fragment). If title emerged → Scenario 3.
-5. **No commitment yet**: do NOT pick form, POV, or title in this scenario.
+5. **No commitment yet**: do not pick form, POV, or title in this scenario.
 
-Coach posture: pre-commitment IS the point. Mining is the judgment phase;
+Coach posture: pre-commitment is the point. Mining is the judgment phase;
 brainstorm is pure intake.
 
 ## Scenario 9: Idea / seed but no title
@@ -407,7 +406,7 @@ Default chain:
    analysis).
 3. **Stage-appropriate diagnose**: different stage needs different pass;
    don't run all 12 audits on a chorus stub.
-4. **Surface ONE focused next move**: strongest material + dominant next
+4. **Surface one focused next move**: strongest material + dominant next
    move + rationale + secondary observations (deferred).
 5. **Route to action**: depending on dominant move (verse / repetition /
    hook / align-melody / cliche / form / object-writing / bridge / rhyme /
@@ -426,9 +425,9 @@ secondaries briefly, do not fix them. (Plugin-authored coaching posture,
   - "blank page" / "no idea" / "give me anything" (no commitment) → Scenario 8
   - "I have an idea / image / phrase" but no title → Scenario 9
   - "I have a line / fragment / half-verse" → Scenario 10
-  - "demo" / "partway done" / "what's missing" → Scenario 11
+  - "demo" / "partway done" / "what's missing", with no line replacement asked → Scenario 11
   - "fix" / "review" / "not landing" / full draft attached → Scenario 2 or 6
-  - "title" word in prompt → Scenario 3
+  - a title in hand ("I have a title", "what do I do with this hook") → Scenario 3
   - "melody" / "music" / "tune" / "co-writer wrote" → Scenario 4
   - "cover" / "demo" / "already recorded" / "replace a line in the track" /
     "the melody stays" → Scenario 2 **and** Scenario 4, composed, with the
