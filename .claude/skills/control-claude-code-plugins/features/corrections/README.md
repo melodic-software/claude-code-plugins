@@ -25,6 +25,8 @@ The `## Reset` of the driving tool's `skills/invoke` feature.
 
 Drive the skill as the driving tool's `skills/invoke` feature, with `<plugin>` set to `corrections` and
 `<skill>` from Parts. The skill's own `plugins/corrections/skills/<skill>/SKILL.md` gives its arguments.
+The action to drive for `codify` is `count-checks`, so `<args>` is `count-checks`: it counts the
+checks the default branch's history records and changes nothing.
 
 ## Gotchas
 

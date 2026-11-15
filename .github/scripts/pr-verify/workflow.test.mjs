@@ -2584,6 +2584,77 @@ test("the dummy key lives in sibling-init.sh's unexported variable and reaches j
   assert.match(SIBLING_INIT, /--root "\$ws\/head" --root "\$ws\/capture-run" --deps-dir \/opt\/ccd\/deps /);
 });
 
+const WORKDIR = "Clone the head for the driven session";
+
+test("the driven session's working directory becomes a clone of the head inside the sandbox, after the head checkout", () => {
+  // The sandbox's own root-owned copy clones into the working directory the broker runs in, on its tmpfs, in the background.
+  assert.match(capStep("Install the driver and its engine"), /^ {10}sudo install -m 0755 -o root -g root \.base\/\.github\/scripts\/pr-verify\/sibling-workdir\.sh \/opt\/ccd\/sibling-workdir\.sh$/m);
+  assert.match(scriptOf(capStep(SIBLING)), /--tmpfs "\$HOME" \\\n[\s\S]*--dir "\$HOME\/w" --chdir "\$HOME\/w"/);
+  const lines = SIBLING_INIT.split("\n");
+  const launch = lines.findIndex((l) => l.startsWith("bash /opt/ccd/sibling-workdir.sh "));
+  assert.ok(launch >= 0);
+  assert.match(lines[launch], /^bash \/opt\/ccd\/sibling-workdir\.sh "\$rt\/head-ready" "\$ws\/head" "\$HOME\/w" "\$probe\/workdir\.json" <\/dev\/null >>"\$rt\/log\/workdir\.log" 2>&1 &$/);
+  assert.ok(launch < lines.findIndex((l) => /broker\.mjs/.test(l)));
+  // The trust the session gets is for that same directory.
+  assert.match(SIBLING_INIT, /jq -R --arg w "\$HOME\/w"/);
+  // The workflow marks the head ready only once the head checkout has filled it, then the prompt and the driver follow.
+  const order = [HEAD_CHECKOUT, WORKDIR, "Write the capture prompt and schema", DRIVER];
+  const at = order.map(capIndex);
+  assert.deepEqual([...at].sort((a, b) => a - b), at, order.join(" < "));
+  const block = capStep(WORKDIR);
+  assert.equal(stepIf(block), "steps.head.outcome == 'success'");
+  assert.match(block, /^ {8}continue-on-error: true$/m);
+  assert.doesNotMatch(block, /secrets\.|github\.token/);
+  assert.equal(input(capStep("Write the capture prompt and schema"), "WORKDIR"), "${{ steps.workdir.outcome }}");
+});
+
+test("the clone step passes only on the sandbox's ready result for this head, and marks the head ready first", { skip: process.platform === "win32" && "bash step" }, () => {
+  const block = capStep(WORKDIR);
+  const head = "a".repeat(40);
+  const run = (written) => {
+    const home = tempDir("capture-workdir-");
+    mkdirSync(path.join(home, ".ccd", "probe"), { recursive: true });
+    if (written !== undefined) writeFileSync(path.join(home, ".ccd", "probe", "workdir.json"), JSON.stringify(written));
+    const result = runStep(block, { HOME: home, HEAD_SHA: head, WAIT_SECONDS: "1" });
+    return { ...result, ready: existsSync(path.join(home, ".ccd", "head-ready")) };
+  };
+  const passed = run({ status: "ready", head });
+  assert.equal(passed.status, 0, passed.stdout + passed.stderr);
+  assert.ok(passed.ready);
+  assert.match(passed.stdout, /^::notice::the driven session starts in a writable clone of the head at a{40}, with its history$/m);
+  for (const [why, written] of [
+    ["another commit", { status: "ready", head: "b".repeat(40) }],
+    ["a failed clone", { status: "failed", head: "" }],
+    ["a timeout", { status: "timeout", head: "" }],
+    ["no result", undefined],
+  ]) {
+    const result = run(written);
+    assert.equal(result.status, 1, why);
+    assert.ok(result.ready, why);
+    assert.match(result.stdout, /^::warning::the driven session has no clone of the head \(.*\); it starts in an empty directory$/m, why);
+  }
+});
+
+test("the capture prompt tells the driver where the driven session runs and to drive the named action", { skip: process.platform === "win32" && "bash step" }, () => {
+  const block = capStep("Write the capture prompt and schema");
+  const prompt = (workdir) => {
+    const dir = tempDir("capture-prompt-");
+    const file = path.join(dir, "prompt.md");
+    const result = runStep(block, { APP: "claude-code-plugins", BASE_SHA: "c".repeat(40), WORKDIR: workdir, GITHUB_WORKSPACE: "/ws", PROMPT_FILE: file, SCHEMA_FILE: path.join(dir, "schema.json") });
+    assert.equal(result.status, 0, result.stderr);
+    return readFileSync(file, "utf8").replace(/\s+/g, " ");
+  };
+  for (const workdir of ["success", "failure", "skipped"]) {
+    assert.match(prompt(workdir), /where a feature's ## Drive names the action to drive for a skill, drive that action with exactly the arguments it names\./i, workdir);
+  }
+  assert.match(prompt("success"), /runs in a writable clone of that checkout, with its git history/);
+  assert.doesNotMatch(prompt("success"), /empty directory/);
+  for (const workdir of ["failure", "skipped"]) {
+    assert.match(prompt(workdir), /runs in an empty directory: record a step that needs the repository or its history as blocked/, workdir);
+    assert.doesNotMatch(prompt(workdir), /writable clone/, workdir);
+  }
+});
+
 test("the outer claude reaches the broker and the holders through CCD_* only", () => {
   const env = blockOf(capStep(DRIVER), "env", 8)
     .trim()
