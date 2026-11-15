@@ -2755,14 +2755,18 @@ tokens the driven session of one capture job may spend, cache tokens counted in 
 `upstream-timeout-ms`, and the `betas`, `body-keys` and `block-types` it allows. The capture
 installs the Claude Code version `package-lock.json` pins, the one source of that version. The three
 lists were measured from the driven session's requests; the proxy refuses a value they do not list
-and names it, so the first capture after a version bump says what to add. Before the credit gate,
-the job's match step runs main's `affected_features.py` over the changed path names the compare API
-lists: a change that touches no feature of main's control skill uploads a capture recorded
-`not-applicable`, and the job reads no key and starts no model session. A read or script that fails,
-or a compare at the API's 300-file limit, leaves the decision to the capture session. When the key cannot capture (the
-credit gate skipped it, its probe handed off, or it is empty), the job uploads a
-capture recorded `blocked`: a subscription token cannot go behind the key proxy, so it runs no
-model, and no fallback job follows it. A model error, an output that fails the schema, or a `pass` or `pass-notes` with any
+and names it, so the first capture after a version bump says what to add. The job reads the
+key's credit history first, right after the capture config and before the resolver. When the
+credit gate skips the key, the job stops there: it runs no resolver, trigger gate or match step and
+uploads no capture. find-capture then reports `no-artifact`, and the verdict records the capture
+`blocked` with the reason "left no capture artifact for this head". During a credit stop that
+reason is expected and is not an upload fault. Before the key call, the job's match step runs
+main's `affected_features.py` over the changed path names the compare API lists: a change that
+touches no feature of main's control skill uploads a capture recorded `not-applicable`, and the
+job sets up no key and starts no model session. A read or script that fails, or a compare at the
+API's 300-file limit, leaves the decision to the capture session. When the key cannot capture (its
+probe handed off, or it is empty), the job uploads a capture recorded `blocked`: a subscription
+token cannot go behind the key proxy, so it runs no model, and no fallback job follows it. A model error, an output that fails the schema, or a `pass` or `pass-notes` with any
 permission denial uploads nothing, and the run fails. A `fail` with a summary or note matching a
 shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), a `pass` or `pass-notes` holding a
 credential format (those patterns less the secret assignment, the set `scanLeak` blocks on), or any
