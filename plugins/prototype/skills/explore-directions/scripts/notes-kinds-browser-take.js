@@ -65,6 +65,10 @@ async page => {
     const inFrameMove = await box();
     ok("ArrowDown inside the frame moves the region 10 pixels down", inFrameMove[1] - moved[1] === 10, `${moved} -> ${inFrameMove}`);
     ok("and does not reach the switcher's state keys", (await view()) === before, await view());
+    const frameBox = await page.locator("#page").boundingBox();
+    await page.mouse.click(frameBox.x + 40, frameBox.y + frameBox.height - 40);
+    const clicked = await box();
+    ok("a click without a drag keeps the region's box", String(clicked) === String(inFrameMove), `${inFrameMove} -> ${clicked}`);
     await page.focus("#region");
     for (const k of ["Shift+ArrowRight", "Shift+ArrowRight", "Shift+ArrowDown"]) await page.keyboard.press(k);
     const sized = await box();

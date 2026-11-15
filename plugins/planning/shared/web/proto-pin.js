@@ -267,8 +267,9 @@
   addEventListener("pointermove", over, true);
   addEventListener("click", pick, true);
   // Before `stop`, which ends the event for every later listener.
-  addEventListener("pointerdown", e => { if (mode && kind === "region") { drag = { x: e.clientX, y: e.clientY }; region = { x: e.clientX, y: e.clientY, w: 0, h: 0 }; draw(); } }, true);
-  addEventListener("pointerup", e => { if (mode && kind === "region" && drag) { stop(e); drag = null; if (region.w >= 4 && region.h >= 4) sendRegion(); } }, true);
+  addEventListener("pointerdown", e => { if (mode && kind === "region") { drag = { x: e.clientX, y: e.clientY, was: region }; region = { x: e.clientX, y: e.clientY, w: 0, h: 0 }; draw(); } }, true);
+  // A press that never became a drag (a click to focus the frame) keeps the box the keys were moving.
+  addEventListener("pointerup", e => { if (mode && kind === "region" && drag) { stop(e); const { was } = drag; drag = null; if (region.w >= 4 && region.h >= 4) sendRegion(); else { region = was; draw(); } } }, true);
   for (const t of ["pointerdown", "mousedown", "mouseup", "submit", "auxclick", "dblclick"]) addEventListener(t, stop, true);
   addEventListener("keydown", e => {
     if (e.key === "Escape") { post({ type: "escape" }); return; }
