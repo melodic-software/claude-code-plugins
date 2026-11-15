@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Hooks | project | Check | Event `PreToolUse`, matcher `Bash`: the script reads the command and blocks a `git push` with `--force`, `-f` or a `+` refspec to main. Rung `action-guard`. | Basis: verified, one occurrence, irreversible | High |",
+      "why": "the event in a table row"
+    },
+    {
+      "answer": "R1 (check): a Claude Code hook.\n- Event: PreToolUse\n- Matcher: Bash\n- Checks: git push that forces main\n- Behavior: block",
+      "why": "the event as a bullet field"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "R1: add a pre-commit hook that runs gitleaks, and a PostToolUse hook that logs pushes.",
+      "why": "other events only"
+    },
+    {
+      "answer": "R1: a hook before each tool use that blocks git push --force on main.",
+      "why": "describes the timing but never names the event"
+    },
+    {
+      "answer": "R1: register it under MyPreToolUseHelper in settings.json.",
+      "why": "the event name inside another word"
+    }
+  ]
+}
