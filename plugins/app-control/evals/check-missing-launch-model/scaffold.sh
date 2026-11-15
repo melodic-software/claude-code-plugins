@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a control skill whose hub's ## Launch has a Data line but no Side by side line.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

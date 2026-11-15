@@ -34,7 +34,7 @@ optional `## Gotchas`, and an index:
 | Section | Holds |
 |---|---|
 | `## Launch` | A pointer to the launch recipe or the one command that starts the app from empty data, and the launch model lines, per [The launch model](#the-launch-model) |
-| `## Ready` | One read-only command that shows a running instance is fit to drive: it answers, the port it answers on belongs to this run's instance, the credentials the run uses are valid, it is the expected build when the app exposes one, it uses the expected data. Each check in it exits non-zero when it fails, per [The Ready command](#the-ready-command). Also names the telemetry the app exposes |
+| `## Ready` | One read-only command that shows a running instance is fit to drive: it answers, the port it answers on belongs to the instance the run drives, the credentials the run uses are valid, it is the expected build when the app exposes one, it uses the expected data. Each check in it exits non-zero when it fails, per [The Ready command](#the-ready-command). Also names the telemetry the app exposes |
 | `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `animation`, `logs`) the tool that records it, or nothing when the project has none; one row per tier (such as `browser` and `server`) when the kind records differently on each; optionally a `frames` row, per [Writing the Capture section](#writing-the-capture-section) |
 | `## Cleanup` | How to stop what a run started and nothing else |
 | `## Mask` | What a `screenshot` or `video` capture hides, and the values drive looks for in it afterward, per [The Mask section](#the-mask-section). Required when `## Capture` records either kind |
@@ -161,9 +161,11 @@ proof runs Ready once with the app stopped to show it exits non-zero.
 
 Ready shows a user could use the instance, not only that something answers:
 
-- **Port owner.** The port or socket Ready reaches belongs to this run's instance: for example, the
-  pid listening on the port is the one in drive's launch record, or a health field returns an
-  instance id the launch set. Another process holding the port makes Ready exit non-zero.
+- **Port owner.** The port or socket Ready reaches belongs to the instance the run drives, the one
+  it launched or an already running one it was handed (such as an attached pid): for example, the
+  pid listening on the port is the one in drive's launch record or the attached pid, or a health
+  field returns an instance id the launch set. Another process holding the port makes Ready exit
+  non-zero.
 - **Credentials.** Each credential the run uses is valid, shown by one read-only call that needs it
   (such as a `whoami` request through `cli/`), not only by its variable being set. A credential
   that can be checked only by signing in is checked at the run's sign-in step, under the Sign-in

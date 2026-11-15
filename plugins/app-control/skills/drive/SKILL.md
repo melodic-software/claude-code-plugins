@@ -168,7 +168,7 @@ it as step 9 does. The report names `affected.json`; the file's fields and its g
 ## Rules
 
 - **Ready means usable.** A port answering is not enough: the surface answers, the port is held by
-  the instance this run launched, the credentials the run uses are valid, the build is the one
+  the instance this run drives (the one it launched, or under `--attach` the pid the person named), the credentials the run uses are valid, the build is the one
   expected when the app exposes one, and it uses the expected data, which a launch starts empty
   (contract "The launch model"). Report each surface (URL, port,
   command), the build, the data and the telemetry the app exposes (log files, an OTLP endpoint, a
