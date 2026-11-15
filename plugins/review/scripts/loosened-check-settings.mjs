@@ -6,7 +6,7 @@
 //   loosened_check_patterns  union of every valid layer's entries; default none
 //
 // Usage: loosened-check-settings.mjs [--root <dir>] [--ref <origin/name|40-hex>]
-//          [--verdict-option <value>] [--patterns-file <path>]
+//          [--verdict-option <value>] [--patterns-file <path>] [--spec-issue <number>]
 //
 // The repository layer is read only from --ref, through setup-apply.mjs --check
 // --ref, never from the working tree, so a change cannot relax the verdict or
@@ -38,7 +38,7 @@ function usage(message) {
 
 function parseArgs(argv) {
   const opts = { root: null, ref: null, verdict: null, patterns: null };
-  const names = { "--root": "root", "--ref": "ref", "--verdict-option": "verdict", "--patterns-file": "patternsFile" };
+  const names = { "--root": "root", "--ref": "ref", "--verdict-option": "verdict", "--patterns-file": "patternsFile", "--spec-issue": "specIssue" };
   for (let i = 0; i < argv.length; i++) {
     const name = names[argv[i]];
     if (!name) usage(`unknown argument ${JSON.stringify(argv[i])}`);
@@ -52,7 +52,49 @@ function parseArgs(argv) {
       usage(`--patterns-file ${JSON.stringify(opts.patternsFile)} could not be read: ${err.code ?? err.message}`);
     }
   }
+  if (opts.specIssue !== undefined && !/^[1-9][0-9]{0,9}$/.test(opts.specIssue)) usage("--spec-issue needs an issue number");
   return opts;
+}
+
+const TRUSTED_ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
+const ACTOR_KEYS = "id,kind,login";
+const isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** The human ids of the trusted-actor list at opts.ref, schema-checked as loadTrustedList does; throws on any failure. */
+function trustedHumans(opts, root) {
+  if (opts.ref === null || !/^(origin\/[A-Za-z0-9._/-]+|[0-9a-f]{40})$/.test(opts.ref)) throw new Error("no --ref names the default branch");
+  const shown = spawnSync("git", ["-C", root, "show", `${opts.ref}:${TRUSTED_ACTORS}`], { encoding: "utf8" });
+  if (shown.status !== 0) throw new Error(`${TRUSTED_ACTORS} is not readable at ${opts.ref}`);
+  const list = JSON.parse(shown.stdout);
+  if (!isObject(list) || Object.keys(list).sort().join() !== "actors,version" || list.version !== 1 || !Array.isArray(list.actors)) {
+    throw new Error(`${TRUSTED_ACTORS} at ${opts.ref} does not match its schema`);
+  }
+  const humans = new Set();
+  for (const a of list.actors) {
+    if (!isObject(a) || Object.keys(a).sort().join() !== ACTOR_KEYS || !Number.isInteger(a.id) || a.id < 1 || typeof a.login !== "string" || !["human", "bot"].includes(a.kind)) {
+      throw new Error(`${TRUSTED_ACTORS} at ${opts.ref} has an entry that does not match its schema`);
+    }
+    if (a.kind === "human") humans.add(a.id);
+  }
+  return humans;
+}
+
+/** Whether the spec issue's text may give a loosening its reason: [counts, why]. */
+function specTrust(opts) {
+  if (opts.specIssue === undefined) return [false, "no --spec-issue names the issue"];
+  const root = resolve(opts.root ?? process.cwd());
+  try {
+    const humans = trustedHumans(opts, root);
+    const read = spawnSync("gh", ["api", `repos/{owner}/{repo}/issues/${opts.specIssue}`], { cwd: root, encoding: "utf8" });
+    if (read.status !== 0) throw new Error(`issue #${opts.specIssue}'s author could not be read`);
+    const user = JSON.parse(read.stdout)?.user;
+    if (!isObject(user) || !Number.isInteger(user.id)) throw new Error(`issue #${opts.specIssue} names no author`);
+    const who = `issue #${opts.specIssue} by ${user.login}, id ${user.id}`;
+    if (user.type === "User" && humans.has(user.id)) return [true, `${who}, a trusted person at ${opts.ref}`];
+    return [false, `${who}, not a trusted person at ${opts.ref}`];
+  } catch (err) {
+    return [false, err instanceof SyntaxError ? "a reply could not be parsed" : err.message];
+  }
 }
 
 const unset = (raw) => raw === null || raw === "" || raw.startsWith("${user_config.");
@@ -151,9 +193,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     [repo.unreadable ? "unreadable default branch" : "docs/conventions/review.yaml", repo],
   ];
   const r = resolveLoosenedCheck(layers);
+  const [counts, why] = specTrust(opts);
   process.stdout.write(
     `loosened_check_verdict: ${r.verdict} (${r.verdictFrom.join(", ")})\n` +
       `loosened_check_patterns: ${JSON.stringify(r.patterns)} (${r.patternsFrom.join(", ")})\n` +
+      `loosened_check_spec: ${counts ? "counts" : "no reason"} (${why})\n` +
       notes.map((n) => `${n}\n`).join(""),
   );
 }

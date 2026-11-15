@@ -155,6 +155,39 @@ assert_eq "case 6: an unreadable patterns file is a usage error" "2" "$?"
 node "$RESOLVE" --root "$R4" --ref origin/main --patterns-option '["test/**"]' >/dev/null 2>&1
 assert_eq "case 6: the shell-argument form is gone" "2" "$?"
 
+# --- Case 7: the spec gives a reason only when a trusted human wrote the issue --
+FAKE_BIN="$TEST_TMPDIR/bin"
+mkdir -p "$FAKE_BIN"
+# shellcheck disable=SC2016 # the stub's own variables expand when it runs, not here
+printf '#!/usr/bin/env bash\n[[ "$1 $2" == "api repos/{owner}/{repo}/issues/$FAKE_GH_ISSUE" ]] || exit 1\n[[ -n "${FAKE_GH_REPLY:-}" ]] || { echo "HTTP 404" >&2; exit 1; }\nprintf "%%s" "$FAKE_GH_REPLY"\n' >"$FAKE_BIN/gh"
+chmod +x "$FAKE_BIN/gh"
+TRUST_LIST='{"version": 1, "actors": [{"id": 101, "login": "owner-person", "kind": "human"}, {"id": 202, "login": "lanes[bot]", "kind": "bot"}]}'
+R7="$TEST_TMPDIR/c7"
+mkdir -p "$R7/.github/standards/trusted-actors"
+g "$R7" init -q
+printf '%s' "$TRUST_LIST" >"$R7/.github/standards/trusted-actors/trusted-actors.json"
+g "$R7" add .github
+g "$R7" commit -q -m base
+g "$R7" update-ref refs/remotes/origin/main HEAD
+spec_line() { (cd "$R7" && PATH="$FAKE_BIN:$PATH" FAKE_GH_ISSUE=42 FAKE_GH_REPLY="$1" node "$RESOLVE" --root "$R7" "${@:2}" | grep '^loosened_check_spec: '); }
+out="$(spec_line '{"number": 42, "user": {"login": "owner-person", "id": 101, "type": "User"}}' --ref origin/main --spec-issue 42)"
+assert_contains "case 7: a trusted human's issue gives the spec's reason" "$out" "loosened_check_spec: counts"
+out="$(spec_line '{"number": 42, "user": {"login": "stranger", "id": 999, "type": "User"}}' --ref origin/main --spec-issue 42)"
+assert_contains "case 7: an author off the list gives no reason" "$out" "loosened_check_spec: no reason"
+out="$(spec_line '{"number": 42, "user": {"login": "lanes[bot]", "id": 202, "type": "Bot"}}' --ref origin/main --spec-issue 42)"
+assert_contains "case 7: a listed bot is not a person, so no reason" "$out" "loosened_check_spec: no reason"
+out="$(spec_line '' --ref origin/main --spec-issue 42)"
+assert_contains "case 7: an author gh cannot read gives no reason" "$out" "loosened_check_spec: no reason"
+out="$(spec_line '{"number": 42, "user": {"login": "owner-person", "id": 101, "type": "User"}}' --ref origin/nope --spec-issue 42)"
+assert_contains "case 7: a trusted-actor list that cannot be read gives no reason" "$out" "loosened_check_spec: no reason"
+printf '%s' '{"version": 1, "actors": [{"id": 999, "login": "stranger", "kind": "human"}]}' >"$R7/.github/standards/trusted-actors/trusted-actors.json"
+out="$(spec_line '{"number": 42, "user": {"login": "stranger", "id": 999, "type": "User"}}' --ref origin/main --spec-issue 42)"
+assert_contains "case 7: a head that adds the author to its own list gives no reason" "$out" "loosened_check_spec: no reason"
+out="$(spec_line '{"number": 42, "user": {"login": "owner-person", "id": 101, "type": "User"}}' --ref origin/main)"
+assert_contains "case 7: with no --spec-issue the spec gives no reason" "$out" "loosened_check_spec: no reason"
+node "$RESOLVE" --root "$R7" --ref origin/main --spec-issue '42; rm' >/dev/null 2>&1
+assert_eq "case 7: a --spec-issue that is not a number is a usage error" "2" "$?"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

@@ -83,8 +83,11 @@ can neither relax the verdict nor drop a pattern to narrow its own detection. Un
 patterns still apply, and a WARN line says why.
 `scripts/loosened-check-settings.mjs --root <root> --ref origin/<default>` resolves both, with
 `--verdict-option` and `--patterns-file` (a file holding the patterns option, never a shell
-argument) for the user options, and prints each value with the
-layers that set it.
+argument, written to `<memory_dir>/reviews/<branch-slug>/loosened-check-patterns.json`) for the
+user options, and prints each value with the layers that set it. Given `--spec-issue <number>`, it
+also prints `loosened_check_spec: counts` only when the issue's author is a User whose id is a
+human entry of `.github/standards/trusted-actors/trusted-actors.json` at `--ref`; any other author,
+or a read that fails, prints `no reason`, and the spec is then not handed to reviewers.
 
 **Root rule.** The repository file is read only when the repository root (`CLAUDE_PROJECT_DIR`,
 else `git rev-parse --show-toplevel`) is inside a git working tree and is neither `$HOME` nor an

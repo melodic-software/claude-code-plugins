@@ -3,7 +3,7 @@ description: "Breadth review: fans a change out to many reviewers at once (this 
 argument-hint: "[run-everything|fix] [--yes] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Workflow(review:fanout-sweep)", "Bash(mktemp -d)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/loosened-check-settings.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)"]
+allowed-tools: ["Workflow(review:fanout-sweep)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/loosened-check-settings.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -80,9 +80,13 @@ lines and when the repository file is read at all: "Resolution" and "Root rule" 
 ([context/run-everything-mode.md](context/run-everything-mode.md) step 5) and the default mode
 ([context/default-mode.md](context/default-mode.md) "Loosened-check brief") resolve them once
 before dispatch. The bundled criterion always applies; consumer criteria apply in addition. The resolver takes the user options as `--verdict-option '${user_config.loosened_check_verdict}' --patterns-file
-<dir>/patterns` (a literal, unexpanded placeholder means unset). `<dir>` comes from `mktemp -d`;
-first write `<dir>/patterns` with the Write tool, its content exactly
-`${user_config.loosened_check_patterns}`, so the free-form value never passes through a shell.
+<memory_dir>/reviews/<branch-slug>/loosened-check-patterns.json` (a literal, unexpanded placeholder
+means unset; `<memory_dir>` and `<branch-slug>` as
+[`reviewer-handback.md`](../../reference/reviewer-handback.md) defines them). First write that
+file with the Write tool, its content exactly `${user_config.loosened_check_patterns}`, so the
+free-form value never passes through a shell. Add `--spec-issue <number>` for the issue the change
+resolves; hand its text to the leaves as the spec only when the `loosened_check_spec:` line says
+`counts` (a trusted person wrote it), otherwise hand no spec.
 When the run fails and the patterns option is not empty, run it once more without
 `--patterns-file` so the repository's entries still apply, and say the user's entries were
 dropped.
