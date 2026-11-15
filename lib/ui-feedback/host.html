@@ -72,7 +72,7 @@
   const buttons = { element: $("pick"), region: $("region") };
   const say = (t) => { $("status").textContent = t; };
   let schema = null, token = null, ready = false, loads = 0, picking = null, wantText = false, draft = null, noSession = false;
-  let editing = null, opener = null, ids = 0;
+  let editing = null, opener = null, ids = 0, sending = false;
   // This page load's notes: {id, note, where, seq, draft}; seq is null until the session has it, and
   // a draft is one the person has not sent yet.
   const mine = [];
@@ -172,8 +172,11 @@
     return note;
   }
 
-  /** Post one entry's note. "sent" gives it its seq; "offline" keeps it here for Copy all notes. */
+  /** Post one entry's note. "sent" gives it its seq; "offline" keeps it here for Copy all notes;
+   *  "busy" posts nothing, because one post at a time keeps a second click from sending a copy. */
   async function deliver(entry) {
+    if (sending) return "busy";
+    sending = true;
     let r, body;
     try {
       r = await fetch("/api/note", {
@@ -186,6 +189,8 @@
       entry.draft = false;
       noSession = true;
       return "offline";
+    } finally {
+      sending = false;
     }
     if (!r.ok) { say(`Not sent: ${body.error || r.status}.`); return "refused"; }
     entry.seq = body.seq;
@@ -196,20 +201,20 @@
   const OFFLINE = "Not sent: no session is answering. The note is kept on this page; Copy all notes makes a block to paste to Claude.";
 
   async function send() {
-    if (!draft) return;
+    if (!draft || sending) return;
     const note = written("sent");
     if (!note) return;
     const entry = editing || { id: ++ids };
     Object.assign(entry, { note, where: where(note), seq: null });
     const got = await deliver(entry);
-    if (got === "refused") return;
+    if (got === "refused" || got === "busy") return;
     if (!mine.includes(entry)) mine.push(entry);
     render();
     closeComposer();
     say(got === "sent" ? `Note ${entry.seq} sent.` : OFFLINE);
   }
   function save() {
-    if (!draft) return;
+    if (!draft || sending) return;
     const note = written("saved");
     if (!note) return;
     const entry = editing || { id: ++ids };
@@ -226,12 +231,15 @@
       if ((await deliver(entry)) !== "sent") break;
       sent.push(entry.seq);
     }
+    // A sent note is in the session's log: the editor must not turn it back into a draft.
+    if (editing && !editing.draft) closeComposer();
     render();
     if (noSession) say(OFFLINE);
     else if (sent.length) say(sent.length === 1 ? `Note ${sent[0]} sent.` : `Notes ${sent.join(", ")} sent.`);
     if (!document.activeElement || document.activeElement === document.body) $("notes-title").focus();
   }
   function remove(entry) {
+    if (sending) return;
     mine.splice(mine.indexOf(entry), 1);
     render();
     $("notes-title").focus();

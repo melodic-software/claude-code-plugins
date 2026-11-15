@@ -49,9 +49,14 @@ async page => {
     await page.keyboard.press("Escape");
     ok("Esc closes the editor, gives the focus back to Edit and keeps the draft", await page.isHidden("#composer") && (await focused()) === "edit-1" && (await page.textContent("#notes li")).includes("to the top"), await focused());
 
-    await page.click('[data-key="send-1"]');
+    // Send pressed twice in one tick, with the editor open on that draft.
+    await page.click('[data-key="edit-1"]');
+    await page.evaluate(() => { const b = document.querySelector('[data-key="send-1"]'); b.click(); b.click(); });
     await page.waitForFunction(() => /Note 1 sent/.test(document.getElementById("status").textContent), null, { timeout: 5000 });
     ok("the sent note shows sent", String(await states()) === "sent", await states());
+    ok("sending a draft closes the editor that was open on it", await page.isHidden("#composer"));
+    await page.waitForTimeout(1500);
+    ok("the second press sent no copy", (await page.$$("#notes li")).length === 1, await states());
     ok("no handler in the note ran", await page.evaluate(() => window.__xss) === undefined);
   } catch (e) {
     R.push("ERROR " + String(e).split("\n")[0]);
