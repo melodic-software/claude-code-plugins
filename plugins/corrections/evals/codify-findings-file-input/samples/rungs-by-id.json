@@ -1,7 +1,16 @@
 {
   "pass": [
     {
-      "answer": "editorconfig-severity, analyzer-pack-rule and automated-review"
+      "answer": "Row 1 → editorconfig-severity, row 2 → analyzer-pack-rule, row 7 → automated-review.",
+      "why": "hand-written: the three rungs, each tied to its row in one line"
+    },
+    {
+      "answer": "| Row | Rung |\n|---|---|\n| 1 | `editorconfig-severity` |\n| 2 | `analyzer-pack-rule` |\n| 3 | `custom-analyzer` |\n| 4 | `syntax-pattern-rule` |\n| 5 | `architecture-test` |\n| 6 | `action-guard` |\n| 7 | `automated-review` |",
+      "why": "hand-written: one chosen rung per row in a table"
+    },
+    {
+      "answer": "Row 1: Rung `editorconfig-severity`, the ordering and brace settings in `.editorconfig`.\nRow 2: Rung `analyzer-pack-rule`; keep the ai-slop:audit detector. Proof: unproven.\nRow 7: Rung `automated-review`, a REVIEW.md line, since readability is a judgment.",
+      "why": "hand-written: the three rungs chosen on labeled lines, one unproven"
     }
   ],
   "fail": [
@@ -9,7 +18,20 @@
       "answer": ""
     },
     {
-      "answer": "analyzer-pack-rule only"
+      "answer": "analyzer-pack-rule only",
+      "why": "hand-written: one of the three rungs"
+    },
+    {
+      "answer": "Not editorconfig-severity, not analyzer-pack-rule, not automated-review: every row goes to instruction.",
+      "why": "hand-written: every id named only to set it aside"
+    },
+    {
+      "answer": "Row 1: instruction (editorconfig-severity was considered and rejected).\nRow 2: analyzer-pack-rule.\nRow 7: skill rather than automated-review.",
+      "why": "hand-written: two of the ids only on rejected or not-taken lines"
+    },
+    {
+      "answer": "Rung ids: make-impossible, shared-helper, editorconfig-severity, analyzer-pack-rule, custom-analyzer, syntax-pattern-rule, architecture-test, harness-setting, action-guard, scaffold, runtime-verification, formal-verification, automated-review, instruction, skill, human-review.",
+      "why": "hand-written: a list of every rung id, no rung proposed"
     }
   ]
 }
