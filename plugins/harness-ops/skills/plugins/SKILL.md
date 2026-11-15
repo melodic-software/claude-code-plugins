@@ -332,7 +332,6 @@ read, so the reload line does not restate it. After the line, answer follow-up q
 and the run directory it names; load [context/sync.md](context/sync.md) when a question is about
 why a step behaved the way it did.
 
-
 ## Stale project records and cache content
 
 Both are findings the render reports and this skill never fixes: a project/local record whose

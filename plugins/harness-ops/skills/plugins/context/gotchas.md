@@ -29,7 +29,6 @@ observed on. Where a section carries no version of its own, it was last checked 
 Code 2.1.240**. **Recheck trigger:** any minor-version bump touching the plugin CLI, plugin
 loading/caching, or `userConfig` substitution. A date, on its own, is not a trigger.
 
-
 ## Always pass the full id to `claude plugin update`: bare-name resolution is version-dependent
 
 Bare-name resolution has differed across CLI versions and scopes. On an earlier CLI,

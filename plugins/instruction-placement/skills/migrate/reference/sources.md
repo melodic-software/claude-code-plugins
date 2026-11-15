@@ -300,7 +300,6 @@ where the load arrives as an import and the hook fires with `load_reason` `inclu
   `verify-load.sh` gains a detection path that does not depend on that hook. Either one puts the
   two instruments back together.
 
-
 ## The built-in agents-md plugin
 
 The record behind the skill body's `## Boundary` section for `cc-plugin-agents-md` and

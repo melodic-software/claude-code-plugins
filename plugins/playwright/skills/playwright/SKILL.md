@@ -148,7 +148,6 @@ to expand it from. Basis: the plugins reference,
 
 ## Gotchas
 
-
 - **`fill` does not leave the field.** A form that validates on blur keeps its submit button disabled after `fill`, and the click times out. Press `Tab` (or click the next field) after the last `fill`. Agents hit this on the blur-validated form in most runs.
 - **A ref from before a re-render is refused** ("Ref eN not found ... capture new snapshot"). After filtering, sorting, or any partial update, take a fresh `snapshot` before acting.
 - **A page can look ready before its handlers attach.** A server-rendered button that is not yet hydrated takes the click and does nothing. Wait for a readiness signal the page gives (a status element, an enabled control, a network request finishing) before the first click; `click` waits for enabled, not for listeners.

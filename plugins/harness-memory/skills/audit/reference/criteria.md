@@ -455,7 +455,6 @@ fix where direct reading is unavailable, so the fix line names it in every case.
 - **As of**: 2026-09-19
 - **Recheck trigger**: a fetch of those sections changes which file names displace an `AGENTS.md`.
 
-
 ---
 
 ## Provenance routing

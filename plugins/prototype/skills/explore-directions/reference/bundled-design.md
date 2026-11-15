@@ -13,7 +13,6 @@ the same surface in its decision-matrix catalog.
 | Settings can remove the skill | Pointer: when a person asks how to turn `/design` off, fetch [`disableBundledSkills`](https://code.claude.com/docs/en/settings-reference#disablebundledskills) and [`skillOverrides`](https://code.claude.com/docs/en/settings-reference#skilloverrides) live |  |  |
 | No release note names a design-family surface, so the only version floor is the one the first row's pointer reads | Probe: the changelog cross-check in the `design` records of `docs/native-surfaces/records.json` | 2026-09-11 | A changelog entry names `/design` or the hub |
 
-
 ## Why the verdict is complementary
 
 `/design` drafts a persistent, shareable canvas that the user edits by hand. This skill builds throwaway variants as a local HTML mockup by default, or on the real stack on request, switchable
