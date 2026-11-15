@@ -461,6 +461,38 @@ stage_commands "$tree" alpha/ghost "anything"
 assert_fails "a stage command naming no listed skill fails naming the entry" "$tree" \
   'stage commands: plan names "alpha/ghost", which is not a listed skill'
 
+# stage_also <tree> <skill key>: a plan-stage entry whose situational command
+# runs only in a stated situation.
+stage_also() {
+  cat >>"$1/scripts/cheatsheet-config.mjs" <<EOF
+export const STAGE_COMMANDS = [
+  { stage: "plan", skill: "alpha/mapped", also: [{ when: "when the fixture breaks, first", skill: "$2" }] },
+];
+EOF
+}
+
+mk_tree tree
+write_skill "$tree" alpha other 'workflow-stage: plan' 'summary: Fixture situational skill'
+stage_also "$tree" alpha/other
+run_gen "$tree"
+sheet="$(cat "$tree/docs/skill-cheat-sheet.md")"
+if [[ "$CODE" -eq 0 && "$sheet" == *"| Fixture kind | [Plan](#3-plan): \`/alpha:mapped\` (when the fixture breaks, first \`/alpha:other\`) |"* ]]; then
+  ok "a stage's situational command renders beside its main command with its condition"
+else
+  fail "situational command (exit=$CODE: $OUT)"
+fi
+rm -rf "$tree"
+
+mk_tree tree
+stage_also "$tree" alpha/ghost
+assert_fails "a situational command naming no listed skill fails naming the entry" "$tree" \
+  'stage commands: plan also names "alpha/ghost", which is not a listed skill'
+
+mk_tree tree
+stage_also "$tree" beta/looper
+assert_fails "a situational command whose skill sits in another stage fails naming the entry" "$tree" \
+  'stage commands: plan also names "beta/looper", whose workflow-stage is "operator"'
+
 mk_tree tree
 stage_commands "$tree" beta/looper "anything"
 assert_fails "a stage command whose skill sits in another stage fails naming the entry" "$tree" \

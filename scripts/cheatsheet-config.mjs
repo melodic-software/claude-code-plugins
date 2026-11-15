@@ -186,7 +186,9 @@ export const REVIEW_PR_MAP = [
 // entry per stage and never per kind of task (which stages a kind enters is the
 // workflow skill's Task kinds table). Each `runs` claim names a call the skill
 // makes; `basis` is a quote from the line that makes it, which the generator
-// finds and cites as path:line, failing when the quote is gone.
+// finds and cites as path:line, failing when the quote is gone. An `also`
+// entry is a command of the same stage typed only in the situation `when`
+// names.
 export const STAGE_COMMANDS = [
   { stage: "interview", skill: "planning/interview" },
   { stage: "explore", skill: "discovery/explore" },
@@ -195,8 +197,16 @@ export const STAGE_COMMANDS = [
   { stage: "design", skill: "planning/design" },
   { stage: "plan", skill: "planning/plan" },
   { stage: "decompose", skill: "work-items/decompose" },
-  { stage: "implement", skill: "implementation/implement" },
-  { stage: "test", skill: "testing/write" },
+  {
+    stage: "implement",
+    skill: "implementation/implement",
+    also: [{ when: "when the breakage is not yet diagnosed, first", skill: "debugging/debug" }],
+  },
+  {
+    stage: "test",
+    skill: "testing/write",
+    also: [{ when: "when a test fails,", skill: "testing/diagnose" }],
+  },
   { stage: "review", skill: "review/quality-gate" },
   {
     stage: "verify",

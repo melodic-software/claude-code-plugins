@@ -314,7 +314,19 @@ for (const entry of STAGE_COMMANDS) {
       if (at === -1) errors.push(`${id} (${entry.skill}) no longer contains its basis quote "${basis}"`);
       return `${command}: ${claim} ([\`${rel}:${at + 1}\`](../${rel}))`;
     });
-    stageCommands.set(entry.stage, { command, runs });
+    const also = (entry.also ?? []).flatMap(({ when, skill: key }) => {
+      const other = mapped.find((s) => `${s.plugin}/${s.skill}` === key);
+      if (!other) {
+        errors.push(`${id} also names "${key}", which is not a listed skill`);
+        return [];
+      }
+      if (other.stage !== entry.stage) {
+        errors.push(`${id} also names "${key}", whose workflow-stage is "${other.stage}"`);
+        return [];
+      }
+      return [`(${when} \`/${other.plugin}:${other.skill}\`)`];
+    });
+    stageCommands.set(entry.stage, { command: [command, ...also].join(" "), runs });
   }
 }
 
