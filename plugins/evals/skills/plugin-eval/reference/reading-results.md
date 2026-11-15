@@ -216,7 +216,7 @@ without-run lost its judge to the ceiling: `scoreWithout` and `delta` were both 
   counts the judge twice. The suite `costUsd` is the sum of the per-run `costUsd` values.
   - **Basis**: the plugin-evals page says `llm` and `baseline` graders "call a judge model and add
     to the run's cost"
-    (<https://code.claude.com/docs/en/plugin-evals#choose-and-weight-graders>) and that the suite
+    (<https://code.claude.com/docs/en/plugin-evals#grade-the-result>) and that the suite
     `costUsd` includes judge calls
     (<https://code.claude.com/docs/en/plugin-evals#json-result>); it does not name
     `judgeCostUsd`. In 171
