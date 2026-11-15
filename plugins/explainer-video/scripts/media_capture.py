@@ -120,7 +120,24 @@ async def _split(browser, render, total, width, height, scale, band, gate):
                     bad = mid
         cuts.append((start, start + good))
         start += good
-    return cuts
+    return await _balance(cuts, total, fits)
+
+
+async def _balance(cuts, total, fits):
+    """The same number of frames with entries spread evenly, so no frame holds a lone tail entry;
+    the greedy cuts stand when an even frame would not fit."""
+    if len(cuts) < 2:
+        return cuts
+    k = len(cuts)
+    sizes = [total // k + (1 if i < total % k else 0) for i in range(k)]
+    even, start = [], 0
+    for size in sizes:
+        even.append((start, start + size))
+        start += size
+    for a, b in even:
+        if not await fits(a, b):
+            return cuts
+    return even
 
 
 async def _browse(work):

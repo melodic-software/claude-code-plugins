@@ -36,7 +36,9 @@ def _lines(items):
 
 def _title(d, board_title):
     sub = f'<p class="subtitle">{esc(d.get("subtitle"))}</p>' if d.get('subtitle') else ''
-    return f'<section class="title"><h1>{esc(board_title)}</h1>{sub}</section>'
+    n = len(board_title or '')
+    size = ' longer' if n > 100 else ' long' if n > 60 else ''
+    return f'<section class="title{size}"><h1>{esc(board_title)}</h1>{sub}</section>'
 
 
 def _code_hunk(d):
