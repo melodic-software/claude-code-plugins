@@ -46,7 +46,7 @@ paths narrow either. Nothing depends on a framework, a build system, or the publ
 
 | Collector | Used for | Install |
 |---|---|---|
-| `scc` | comment-aware line counts, every lane | `go install github.com/boyter/scc/v3@latest`, `brew install scc`, or a release binary |
+| `scc` | comment-aware line counts, every lane | `go install github.com/boyter/scc/v4@latest`, `brew install scc`, or a release binary |
 | `lizard` | cyclomatic complexity and function ranges for TypeScript/JavaScript, Python, Go | `pip install lizard` or `pipx install lizard` |
 | `radon` | Python cyclomatic complexity, Halstead, function ranges | `pip install radon` |
 | `eslint` with the core `complexity` rule | TypeScript/JavaScript cyclomatic complexity when ESLint is wired | `npm install --save-dev eslint` |
