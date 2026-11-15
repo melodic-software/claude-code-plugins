@@ -5,6 +5,15 @@
     },
     {
       "answer": "Observation check: ruled in, stale capture (14:02 file, rebuild at 14:09)."
+    },
+    {
+      "answer": "- **Observation check:** capture suspected first: the screenshot was taken before the 14:09 rebuild; no second route can run here."
+    },
+    {
+      "answer": "| Observation check | the capture pre-dates the rebuild; re-capture needed |"
+    },
+    {
+      "answer": "Observation check: capture suspected first: file modified 14:02, rebuild finished 14:09; no second route can run here; ruled in"
     }
   ],
   "fail": [
@@ -16,6 +25,9 @@
     },
     {
       "answer": "Observation check: no check failed."
+    },
+    {
+      "answer": "Observation check: driver suspected first; re-drove the reports page.\nThe screenshot is stale."
     },
     {
       "answer": ""
