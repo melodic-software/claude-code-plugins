@@ -3,6 +3,12 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.11] - 2026-11-15
+
+### Changed
+
+- Capital-letter emphasis is lower-cased across the lookup skill's context files.
+
 ## [1.0.10] - 2026-11-13
 
 ### Changed

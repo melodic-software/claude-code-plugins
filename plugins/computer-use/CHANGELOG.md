@@ -3,6 +3,13 @@
 All notable changes to the `computer-use` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.19] - 2026-11-15
+
+### Changed
+
+- The diagnose skill's screenshot reference dates the observed `zoom` failure message with a
+  recheck trigger and says the worked example is in the upstream downscaling section.
+
 ## [0.1.18] - 2026-11-12
 
 ### Changed

@@ -3,6 +3,13 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.28] - 2026-11-15
+
+### Changed
+
+- The DLSS 5 references date the fork-activity claim and agree with the skill on where `refetch` records its results.
+- The setup skill's instructions drop capital-letter emphasis.
+
 ## [0.10.27] - 2026-11-13
 
 ### Changed

@@ -3,6 +3,13 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.34] - 2026-11-15
+
+### Changed
+
+- The clean and setup instructions, and the engine's handoff-verify and alias-probe messages, drop capital-letter emphasis; every safety gate and approval rule is unchanged.
+- The safety model and scan-flag references state each rule once and point at the Python and PowerShell docs instead of restating them.
+
 ## [1.0.33] - 2026-11-15
 
 ### Changed

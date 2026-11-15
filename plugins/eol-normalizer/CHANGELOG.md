@@ -3,6 +3,12 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.30] - 2026-11-15
+
+### Changed
+
+- The README and setup skill name both configuration options the plugin declares.
+
 ## [1.0.29] - 2026-11-15
 
 ### Changed

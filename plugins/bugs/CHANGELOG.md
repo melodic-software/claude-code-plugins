@@ -3,6 +3,14 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.5] - 2026-11-15
+
+### Changed
+
+- The README points at the scan skill's Effort table for the verified-finding count that ends a
+  scan instead of a fixed three; issue numbers leave headings and capital-letter emphasis is
+  lower-cased.
+
 ## [0.23.4] - 2026-11-15
 
 ### Changed
