@@ -741,6 +741,11 @@ Claude Code alias (see "Alias binding" below):
 | strong | Orchestrator by default ([ADR 0100](../../adr/0100-run-the-orchestrator-on-the-session-model-opus-by-default.md)); default implementer / worker for unrouted or complex work | `opus` |
 | fast | Mechanical items an objective check backs (a build, a test run, a schema or exit-code check), and phases a plan routes `sonnet` as well-scoped | `sonnet` |
 
+**Security-surface work** is work that changes authentication, authorization, the handling of
+tokens or secrets, permissions, or a network boundary. It is a property of the work, judged beside
+its work class, not one of the work classes. This is the one statement of its scope; other
+surfaces point here.
+
 Fixed rules: the orchestrator runs at the strong or frontier tier, in the coordinator shape where
 the larger model plans and coordinates and the workers execute; workers stay strong, and a
 mechanical item drops to the fast tier only when an objective check decides whether its output is

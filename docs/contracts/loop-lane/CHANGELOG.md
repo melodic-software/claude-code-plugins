@@ -5,6 +5,15 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [19.7.0] - 2026-11-14
+
+Minor: additive guidance. No tier, routing rule or §4 invariant changed.
+
+- **Capability tiers gains the scope of security-surface work.** It is work that changes
+  authentication, authorization, token or secret handling, permissions, or a network boundary,
+  judged beside the work class. §3 is the one statement of that scope; the glossary, the planning
+  plugin's plan template and stress-test triggers, and `implement-dispatch` point at it.
+
 ## [19.6.2] - 2026-11-14
 
 Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant

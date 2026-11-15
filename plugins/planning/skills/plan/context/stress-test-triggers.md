@@ -10,7 +10,7 @@ When to invoke `/planning:devils-advocate` on a plan under `plan_stress_test`'s 
 - **New conventions or enforcement mechanisms:** new analyzer/lint rules, new hooks, new agent-instruction rules. These constrain all future work
 - **Multi-step implementations with 3+ steps** that touch undocumented or poorly-understood behavior. The failure surface area grows with step count
 - **External dependency changes:** adding, removing, or upgrading third-party packages. Especially when the package interacts with other dependencies
-- **Security-sensitive changes:** auth, tokens, secrets, permissions, network boundaries
+- **Security-sensitive changes:** security-surface work, scoped in `docs/contracts/loop-lane/README.md` §3 in this plugin's marketplace repository
 - **Breaking changes:** anything that changes a public API, removes a feature, or modifies behavior that other code depends on
 
 ## Never stress-test (research validation is sufficient)

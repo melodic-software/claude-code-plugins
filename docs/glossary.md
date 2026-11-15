@@ -172,6 +172,16 @@ reversibility, input provenance and verifiability, not by its description.
 
 Avoid: risk class
 
+**security-surface work**
+
+Work that changes how the system authenticates, authorizes, handles tokens or secrets, grants
+permissions, or crosses a network boundary: a property of the work beside its work class, not a
+work class. Owned by the loop-lane convention's
+[capability tiers](contracts/loop-lane/README.md#3-capability-tiers). Distinct from the `autonomy`
+plugin's security surface, the security binding agents cannot write.
+
+Avoid: security-surface work class
+
 ### Lanes and pull requests
 
 **loop lane**
