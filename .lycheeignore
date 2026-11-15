@@ -96,6 +96,10 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 # Publisher bot block: 403 to the runner and to a browser User-Agent; the DOI resolves to the cited Parnas paper on dl.acm.org (verified 2026-11-11).
 ^https://doi\.org/10\.1145/361598\.361623$
 
+# Publisher bot block: 403 to the runner after the doi.org redirect to academic.oup.com and dl.acm.org; each DOI's doi.org metadata names the cited paper (verified 2026-11-15).
+^https://doi\.org/10\.1093/jcr/ucaf037$
+^https://doi\.org/10\.1145/3232078\.3232092$
+
 # claude.ai connectors settings page behind sign-in: 403 on the runner (online run 42809150911) and to a signed-out browser User-Agent (verified 2026-11-11).
 ^https://claude\.ai/customize/connectors$
 
