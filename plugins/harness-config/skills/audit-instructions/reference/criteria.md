@@ -566,7 +566,7 @@ target model.
      non-finding shape is a tidying catalog's restraint text (in this monorepo, the catalog
      `/code-tidying:tidy` loads; in a standalone install the shape, not the path, is the fence).
   2. **Quoted/meta surfaces**: a document that DISCUSSES the conservative-reporting pattern
-     (this criteria file, a model-adaptation delta chapter, verification records quoting it) is
+     (this criteria file, a model-adaptation chapter, verification records quoting it) is
      not a finding. Judge at the level of the instruction's audience: quoted text embedded inside
      an operative directive ("follow the maxim: 'only report high-severity issues'") is still
      operative and IS a finding; the exemption is for documents about the pattern, never for
@@ -1358,7 +1358,7 @@ since each prescribes a request the model refuses.
   finds nothing and learns nothing. The value is writable, not unreachable: the schema is
   advisory and the harness reads a file that violates it, which is why the settings-file check is
   `harness-config:audit` category H rather than absent. **A document that states any arm to
-  describe or forbid it**, such as this row, a model-adaptation delta chapter, or a verification
+  describe or forbid it**, such as this row, a model-adaptation chapter, or a verification
   record quoting it, on the same audience test I8-b applies: any arm prescribed inside an
   operative directive is a finding; a document *about* it is not. **The bare `ultracode` prompt
   keyword.** Instruction text telling a reader to include it in a typed prompt runs one task as a
@@ -1380,7 +1380,7 @@ since each prescribes a request the model refuses.
   the two are read as separate arms rather than one range.
 - **Local coverage of the second arm, measured 2026-08-04: zero operative instances in the
   repository that authored it.** The disable literal occurs six times across four files: three in
-  this catalog, once in the Opus 5 model-adaptation delta chapter, twice in changelog entries.
+  this catalog, once in the Opus 5 model-adaptation chapter, twice in changelog entries.
   Every one is a document *about* the restriction, which is the audience-test fence above rather
   than a passed check. **Re-measure when** a surface here begins prescribing a thinking-disable
   instead of describing one.
@@ -1461,7 +1461,7 @@ Severity `warning`.
   control and, separately, an accepted mid-session change.
 - **Local coverage of the thinking half, measured 2026-08-04: zero operative instances here.** The
   session-toggle and `budget_tokens` literals appear only in this catalog, in two model-adaptation
-  delta chapters, and in changelog entries, which are descriptions, not prescriptions.
+  chapters, and in changelog entries, which are descriptions, not prescriptions.
 - **Remediate:** name the re-read cost, and prefer choosing both dials at session start. On an API
   surface, offer the per-message effort change where the model supports it and the request does
   not send `between_tools`, nor disable thinking on a model whose docs refuse that pairing.
@@ -1520,7 +1520,7 @@ ranges below are Detect conditions, not a `Model scope` annotation**, for the re
   every accurate piece of documentation about it. **The finding is the missing gate, never the
   mention.**
 - **Must NOT flag:** a bare reference to either variable making no claim about its reach. A document
-  *about* the pattern, such as this row, a model-adaptation delta chapter, or a verification record,
+  *about* the pattern, such as this row, a model-adaptation chapter, or a verification record,
   on the audience test I8-b applies. **The budget expressed as a settings key, an environment
   assignment, or an SDK request field** rather than prescribed in instruction text: that is a
   config-mechanics or source-code finding on the same discriminator I17 base, I21 and I22 apply, and
@@ -1632,7 +1632,7 @@ is what a surface believes about blocks that are *not there*. They share a subje
   concern is only that a type filter would drop them if the API returned them. Pruning of *prior*
   turns' thinking, which the API does for you and which the page explicitly allows outside tool use.
   **A document that names the type-filter predicate to describe the smell**, such as this row,
-  a model-adaptation delta chapter, or a verification record quoting it, on the same audience test
+  a model-adaptation chapter, or a verification record quoting it, on the same audience test
   I8-b applies: the predicate quoted inside an operative directive is still operative and is a
   finding; a document *about* the pattern is not.
 - **Source:** Thinking, "Preserving thinking blocks" (echoing blocks back complete and unmodified,
@@ -1754,7 +1754,7 @@ condition, not a `Model scope` annotation**, for the reason I17 states.
   or a tool.
 - **Must NOT flag:** an assistant message anywhere other than the last turn, which is unaffected.
   **A document that names the technique or its tells to describe it as retired**, such as this
-  row, a migration guide, or a model-delta chapter, on the same audience test I8-b applies: a prefill
+  row, a migration guide, or a model-adaptation chapter, on the same audience test I8-b applies: a prefill
   prescribed inside an operative directive is a finding; a document *about* prefill is not.
   Instructions targeting an explicitly pinned earlier model, which still supports it.
 - **Source:** prompting best practices, "Migrating away from prefilled responses" (the unsupported
@@ -2190,7 +2190,7 @@ gate is unmet).
   fires only on the length premise.
 - **Must NOT flag: response-length instructions themselves.** "Keep responses short" with no effort
   clause is the documented remediation, not the defect.
-- **Must NOT flag: a document *about* the misconception**, such as this row, a model-delta chapter,
+- **Must NOT flag: a document *about* the misconception**, such as this row, a model-adaptation chapter,
   or a verification record quoting the premise to refute it, on the audience test I8-b applies.
 - **Must NOT flag: `effortLevel` settings keys and `effort:` frontmatter as such**, on the same
   discriminator as I21 and I17: a config value implements a choice without stating the premise;

@@ -21,7 +21,7 @@ The competing forces:
   the opposite defaults.
 - Fleet-wide, model-agnostic rules are cheaper to write, audit, and consume; per-model scoping
   multiplies files and rows and makes target-model resolution machinery load-bearing.
-- These surfaces (audit criteria rows, playbook delta chapters) constrain future work, so a wrong
+- These surfaces (audit criteria rows, playbook model-adaptation chapters) constrain future work, so a wrong
   scoping default compounds silently with every new consumer.
 
 Real alternatives shaped the outcome: keeping fleet-wide-by-default with ad-hoc per-model

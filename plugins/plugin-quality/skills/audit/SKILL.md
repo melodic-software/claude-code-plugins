@@ -227,7 +227,7 @@ conversation fork, satisfies neither property ([what a fork inherits](https://co
 any other dispatch mechanism must supply both.
 
 The `auditor` definition pins `model: opus`. Its verdict is consequential, so it runs at the
-session's model tier or above: when this session's model resolves above `opus`, pass the session's
+session's capability tier or above: when this session's model resolves above `opus`, pass the session's
 own model as the per-call `model`, in the form that parameter's schema accepts. Never pass one below `opus`. Which model a dispatch gets: [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).
 
 ### Step 3. Persist-check, then blindspot + candidate findings (subagent output → user)

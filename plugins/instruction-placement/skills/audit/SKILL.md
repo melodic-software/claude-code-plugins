@@ -39,7 +39,7 @@ adherence is in
 [Memory, "Write effective instructions"](https://code.claude.com/docs/en/memory#write-effective-instructions).
 This plugin's own adherence measurement ([`../../evals/adherence-results.md`](../../evals/adherence-results.md))
 does not reproduce a length effect on adherence for a clear, non-conflicting convention; the figures live in that file, and it is re-run
-when the model tier changes. So propose moves on context cost and on reaching content Claude
+when the capability tier changes. So propose moves on context cost and on reaching content Claude
 never loads, never by promising the operator their instructions will be followed better
 afterwards.
 
