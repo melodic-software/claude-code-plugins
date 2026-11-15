@@ -21,6 +21,7 @@ import { CREDENTIAL_NAMES, scanFiles } from "./capture-probe.mjs";
 import { WAIT_MS } from "./find-capture.mjs";
 import { loadConfig } from "./key-proxy.mjs";
 import { HELD_REASON, HELD_STEP } from "./resolve-pr.mjs";
+import { fromE2eSummary } from "./write-verdict.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
 const KEY = "check-intent";
@@ -1919,10 +1920,125 @@ const stepIf = (block) => /^ {8}if: (.*)$/m.exec(block)?.[1];
 // A step's `if:` as admits reads it: always() holds while the job runs.
 const runs = (block, context) => admits(stepIf(block).replaceAll("always() && ", ""), context);
 
+// The match step (#16184): whether the change touches a feature is decided
+// by main's affected_features.py before the credit gate, so a change that
+// touches none starts no model session.
+const MATCH = "Match the change to the control skill's features";
+const APPLICABLE = "steps.agree.outcome == 'success' && steps.match.outputs.applicable != 'false'";
+
+test("the match step runs after the agree step with no credential, and a change that touches no feature skips every credential and session step", () => {
+  const match = capStep(MATCH);
+  assert.match(match, /^ {8}id: match$/m);
+  assert.equal(stepIf(match), "steps.agree.outcome == 'success'");
+  assert.equal(capIndex(MATCH), capIndex("Assert the gate and the resolver agree") + 1);
+  // A failed fetch or script leaves applicable unset, and the session decides as before.
+  assert.match(match, /^ {8}continue-on-error: true$/m);
+  assert.match(match, /^ {8}timeout-minutes: 3$/m);
+  // No secret: the job token's one compare read, then main's script and hub alone.
+  assert.doesNotMatch(match, /secrets\./);
+  assert.equal(input(match, "GH_TOKEN"), "${{ github.token }}");
+  assert.deepEqual(scriptOf(match).match(/\bgh [^\n]*/g), ['gh api "repos/$GITHUB_REPOSITORY/compare/$BASE_SHA...$HEAD_SHA?per_page=1" >"$WORK/compare.json"']);
+  assert.ok(capIndex(MATCH) < capIndex("Log the API budget"));
+  assert.equal(input(match, "TRUSTED"), "${{ github.workspace }}/.base");
+  assert.equal(input(match, "BASE_SHA"), "${{ steps.pr.outputs.base-sha }}");
+  assert.equal(input(match, "HEAD_SHA"), "${{ steps.pr.outputs.head-sha }}");
+  assert.equal(input(match, "OUT"), input(capStep("Collect the capture"), "OUT"));
+  const script = scriptOf(match);
+  assert.match(script, /^python3 -I "\$TRUSTED\/plugins\/app-control\/scripts\/affected_features\.py" \\$/m);
+  assert.match(script, /--hub "\$hub" --control-skill "control-\$APP" --source project --trusted-root "\$TRUSTED"/);
+  // Only path names reach the scratch repository: nothing is fetched, cloned or checked out.
+  assert.doesNotMatch(script, /\b(?:fetch|clone|checkout|switch|worktree|restore|pull)\b/);
+  // applicable false skips the credit read and the key call, so present stays
+  // unset and no setup, proxy, sandbox or session step starts; unset or true runs them.
+  const context = (applicable) => ({ steps: { agree: { outcome: "success" }, match: { outputs: { applicable } }, credential: { outputs: {} } } });
+  for (const name of ["Read the key's credit history", "Check the credential", "Resolve the capture's model"]) {
+    assert.ok(!runs(capStep(name), context("false")), name);
+    for (const applicable of ["true", ""]) assert.ok(runs(capStep(name), context(applicable)), `${name} ${applicable}`);
+  }
+  for (const name of [...SANDBOX_STEPS.slice(0, 5), PROXY_START, ISOLATE, PROBE]) {
+    assert.equal(stepIf(capStep(name)), "steps.credential.outputs.present == 'true'", name);
+  }
+  // The scan and the upload take the match step's summary with nothing else run.
+  const only = { steps: { collect: { outcome: "skipped" }, "handoff-capture": { outcome: "skipped" }, match: { outputs: { applicable: "false" } }, "scan-capture": { outputs: { clean: "true" } } } };
+  assert.ok(runs(capStep("Scan the capture for credentials"), only));
+  assert.ok(runs(capStep("Upload the capture"), only));
+});
+
+test("the match step records not-applicable for a change that touches no feature, and lets one that does run", { skip: process.platform === "win32" && "bash step" }, () => {
+  const trusted = fileURLToPath(new URL("../../../", import.meta.url)).replace(/\/$/, "");
+  const [base, head] = ["a", "b"].map((c) => c.repeat(40));
+  // The step with a gh that answers the compare read from a file, or fails with none.
+  const match = (files, env = {}) => {
+    const dir = tempDir("capture-match-");
+    const bin = path.join(dir, "bin");
+    mkdirSync(bin);
+    const calls = path.join(dir, "calls");
+    const compare = path.join(dir, "compare.json");
+    if (files) writeFileSync(compare, JSON.stringify({ files }));
+    writeFileSync(path.join(bin, "gh"), `#!/bin/sh\necho "$*" >>'${calls}'\nexec cat '${compare}'\n`, { mode: 0o755 });
+    const output = path.join(dir, "output");
+    writeFileSync(output, "");
+    const out = path.join(dir, "pr-capture");
+    const ran = runStep(capStep(MATCH), { PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: "o/r", APP: "claude-code-plugins", BASE_SHA: base, HEAD_SHA: head, TRUSTED: trusted, WORK: path.join(dir, "work"), OUT: out, GITHUB_OUTPUT: output, ...env });
+    const summary = path.join(out, "e2e-summary.json");
+    return {
+      ...ran,
+      output: readFileSync(output, "utf8"),
+      calls: existsSync(calls) ? readFileSync(calls, "utf8") : "",
+      summary: existsSync(summary) ? JSON.parse(readFileSync(summary, "utf8")) : null,
+    };
+  };
+  const file = (filename, more = {}) => ({ filename, status: "modified", ...more });
+  const none = match([file("docs/notes.md"), file("plugins/planning/README.md")]);
+  assert.equal(none.status, 0, none.stderr);
+  // One read; the API budget wrapper adds -i to it.
+  assert.equal(none.calls.replace("api -i ", "api "), `api repos/o/r/compare/${base}...${head}?per_page=1\n`);
+  assert.equal(none.output, "applicable=false\n");
+  const reason = "control skill present, 2 files unmatched";
+  assert.deepEqual(none.summary, { route: "none", app: "claude-code-plugins", affected: [], capture: { status: "not-applicable", reason, count: 0 }, entry_points: [], publishable: [] });
+  assert.match(none.stdout, /^::notice::the change touches no feature; the capture is recorded not-applicable and no model session runs$/m);
+  // write-verdict.mjs reads the summary as it reads run-e2e's.
+  assert.deepEqual(fromE2eSummary(none.summary), { capture: "not-applicable", capture_count: 0, features: [], reason });
+  // A feature's source file, under a new name or the old one of a rename, and a name with a newline beside it.
+  for (const files of [
+    [file("docs/notes.md"), file("plugins/planning/skills/interview/SKILL.md")],
+    [file("docs/moved.md", { status: "renamed", previous_filename: "plugins/planning/skills/interview/SKILL.md" })],
+    [file("docs/odd\nname.md"), file("plugins/guardrails/hooks/x.ts")],
+  ]) {
+    const some = match(files);
+    assert.equal(some.status, 0, some.stderr);
+    assert.equal(some.output, "applicable=true\n", JSON.stringify(files));
+    assert.equal(some.summary, null);
+    assert.match(some.stdout, /^::notice::features the change touches: [12]; the capture runs$/m);
+  }
+  // Left to the session, with nothing written: a compare at the API's file limit, a path that is also a folder,
+  // an app with no project control skill on main, and (a failed step, under continue-on-error) a failed read.
+  const undecided = (ran, status, notice) => {
+    assert.equal(ran.status, status, ran.stderr);
+    assert.equal(ran.output, "");
+    assert.equal(ran.summary, null);
+    if (notice) assert.match(ran.stdout, notice);
+  };
+  undecided(match(Array.from({ length: 300 }, (_, i) => file(`docs/${i}.md`))), 0, /^::notice::the compare is at its 300-file limit; the capture session decides$/m);
+  assert.equal(match(Array.from({ length: 299 }, (_, i) => file(`docs/${i}.md`))).output, "applicable=false\n");
+  const folder = match([file("docs/a"), file("docs/a/b.md")]);
+  assert.equal(folder.output, "");
+  assert.equal(folder.summary, null);
+  const noHub = match([file("docs/notes.md")], { APP: "no-such-app" });
+  undecided(noHub, 0, /^::notice::main has no project control skill for no-such-app; the capture session decides$/m);
+  assert.equal(noHub.calls, "");
+  undecided(match(null), 1);
+  for (const sha of ["main", "", `${base} --upload-pack=x`]) {
+    const bad = match([file("docs/notes.md")], { HEAD_SHA: sha });
+    undecided(bad, 1, /^::error::the base or head SHA is malformed$/m);
+    assert.equal(bad.calls, "");
+  }
+});
+
 test("the capture's credit gate reads the key's credit history after the agree step, and a skipped key sets up nothing", () => {
   const gate = capStep("Read the key's credit history");
   assert.match(gate, /^ {8}id: credit$/m);
-  assert.equal(stepIf(gate), "steps.agree.outcome == 'success'");
+  assert.equal(stepIf(gate), APPLICABLE);
   assert.match(gate, /^ {8}continue-on-error: true$/m);
   assert.match(gate, /^ {8}timeout-minutes: 2$/m);
   assert.doesNotMatch(gate, /secrets\./);
@@ -1933,17 +2049,17 @@ test("the capture's credit gate reads the key's credit history after the agree s
   assert.match(CAP, /^[a-z][a-z0-9-]{0,99}$/);
   assert.equal(input(gate, "window-hours"), "${{ vars.KEY_CREDIT_WINDOW_HOURS }}");
   assert.equal(input(gate, "reset-at"), "${{ vars.KEY_CREDIT_RESET_AT }}");
-  assert.equal(capIndex("Read the key's credit history"), capIndex("Assert the gate and the resolver agree") + 1);
+  assert.equal(capIndex("Read the key's credit history"), capIndex(MATCH) + 1);
   // The key call runs whatever the read chose; only whether the key is set reaches it.
   const key = capStep("Check the credential");
-  assert.equal(stepIf(key), "steps.agree.outcome == 'success'");
+  assert.equal(stepIf(key), APPLICABLE);
   assert.equal(input(key, "leg"), "key");
   assert.equal(input(key, "role"), "pr-verify");
   assert.equal(input(key, "selected"), "${{ steps.credit.outputs.next-leg }}");
   assert.deepEqual(key.match(/secrets\.[^\n]*/g), ["secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}"]);
   assert.equal(capIndex("Check the credential"), capIndex("Read the key's credit history") + 1);
   const models = capStep("Resolve the capture's model");
-  assert.equal(stepIf(models), "steps.agree.outcome == 'success' && steps.credential.outputs.key-skipped != 'true'");
+  assert.equal(stepIf(models), `${APPLICABLE} && steps.credential.outputs.key-skipped != 'true'`);
   assert.ok(capIndex("Resolve the capture's model") > capIndex("Check the credential"));
   // A held key sets present false, so no leg step starts.
   for (const name of ["Apply the Claude managed settings", "Isolate the runner", "Write the probe prompt", PROBE]) {
@@ -2072,8 +2188,8 @@ test("a key that cannot capture records the capture blocked in the capture job, 
   assert.equal(input(write, "WHY"), "${{ steps.next.outputs.next-reason }}");
   // No job reads the leg any more, so the capture job exports none.
   assert.doesNotMatch(jobIn(CAPTURE_TEXT, CAP), /^ {4}outputs:/m);
-  // The scan and the upload take either capture, the driver's or the blocked one.
-  const either = "(steps.collect.outcome == 'success' || steps.handoff-capture.outcome == 'success')";
+  // The scan and the upload take any one capture: the driver's, the blocked one or the match step's.
+  const either = "(steps.collect.outcome == 'success' || steps.handoff-capture.outcome == 'success' || steps.match.outputs.applicable == 'false')";
   assert.equal(stepIf(capStep("Scan the capture for credentials")), `always() && ${either}`);
   assert.equal(stepIf(capStep("Upload the capture")), `(always() && ${either}) && steps.scan-capture.outputs.clean == 'true'`);
 });
