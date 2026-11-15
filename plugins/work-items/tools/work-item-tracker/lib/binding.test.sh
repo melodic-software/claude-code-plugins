@@ -625,6 +625,18 @@ run_wayfind_labels "$WREPO"
 assert_eq "wayfind-labels, a non-string human-gated label → exit 3" "3" "$RC"
 assert_eq "wayfind-labels, a non-string human-gated label → nothing on stdout" "" "$OUT"
 
+# The WORK_ITEM_TRACKER_BINDING paths: a named file supplies the labels, a missing one refuses.
+write_binding "$WREPO/elsewhere.yaml" "$WAYFIND_YAML"
+OUT="$(WORK_ITEM_TRACKER_BINDING="$WREPO/elsewhere.yaml" CLAUDE_PROJECT_DIR="$WREPO" bash "$DISPATCHER" wayfind-labels 2>/dev/null)"
+assert_eq "wayfind-labels, the variable names a binding → its labels" "decide: owner-call binding binding" \
+  "$(jq -r '[.prefix, .human_gated, .prefix_source, .human_gated_source] | join(" ")' <<<"$OUT")"
+OUT="$(WORK_ITEM_TRACKER_BINDING="$WREPO/nope.yaml" CLAUDE_PROJECT_DIR="$WREPO" bash "$DISPATCHER" wayfind-labels 2>/dev/null)"
+RC=$?
+assert_eq "wayfind-labels, the variable names a missing file → exit 3" "3" "$RC"
+assert_eq "wayfind-labels, the variable names a missing file → nothing on stdout" "" "$OUT"
+ERR="$(WORK_ITEM_TRACKER_BINDING="$WREPO/nope.yaml" CLAUDE_PROJECT_DIR="$WREPO" bash "$DISPATCHER" wayfind-labels 2>&1 >/dev/null)"
+assert_contains "wayfind-labels, the variable names a missing file → stderr names the variable" "$ERR" "WORK_ITEM_TRACKER_BINDING"
+
 # assert_wayfind_refuses <root> <resolver exit> <what>: the resolver exits as named at
 # <root>, and the verb refuses with nothing on stdout.
 assert_wayfind_refuses() {
