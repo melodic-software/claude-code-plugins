@@ -3,6 +3,16 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.4.0] - 2026-11-15
+
+### Added
+
+- `/work-items:morning-brief` reports, in its Owner touches section, how many of the pull requests merged in the window no person touched, with their share and a note on how a touch is counted: a commit on the pull request, or a review or comment from its open to its merge, by a person. It reads these from the section's own search.
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
 ## [15.3.2] - 2026-11-15
 
 ### Changed

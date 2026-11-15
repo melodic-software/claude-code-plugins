@@ -1,5 +1,13 @@
 # Changelog: evals
 
+## [0.18.15] - 2026-11-15
+
+### Fixed
+
+- The plugin-eval results reference now says a run's `costUsd` already includes that run's
+  `judgeCostUsd`, so a reader who adds the two no longer counts the judge cost twice. The note
+  gives its basis, date and recheck trigger.
+
 ## [0.18.14] - 2026-11-15
 
 ### Changed
