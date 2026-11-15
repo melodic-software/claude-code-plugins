@@ -3,6 +3,13 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.6] - 2026-11-15
+
+### Changed
+
+- The plan template's `frontier` routing row points at the loop-lane convention's capability tiers
+  for the scope of security-surface work; the routing is unchanged.
+
 ## [5.1.5] - 2026-11-15
 
 ### Changed
