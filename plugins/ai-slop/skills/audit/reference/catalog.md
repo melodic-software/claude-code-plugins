@@ -1032,18 +1032,22 @@ either layer, and those rows say so.
     retries is herding cats";
   - a consequence told as a small drama: "skip the migration check and the on-call phone lights
     up at 3 a.m.";
-  - a program, file or service credited with moods or opinions: "the scheduler hates overlapping
-    jobs", "CI gets grumpy about lockfiles";
+  - a program, file or service credited with moods or opinions, or an abstraction or object given
+    a living thing's act: "the scheduler hates overlapping jobs", "CI gets grumpy about
+    lockfiles", "flaky tests eat the release week";
   - a slogan where the rule and its reason belong: "ship small, sleep well", "green builds or
     bust".
-- Before reporting, write the literal sentence. Report the original when the literal one is about
-  as long and tells the reader something the picture hid, such as an error code, a count or a
-  step: "the scheduler hates overlapping jobs" hides "the scheduler skips a run while the previous
-  run of the same job is still going". The fix is in `rewrite-guide.md`.
+- Before reporting, write the literal sentence: it names who does what and what follows. An
+  abstract verb in the figure's place ("hurts", "discourages", "impacts") is not the literal
+  sentence, so the test below is not applied to it. Report the original when the literal one is
+  about as long and tells the reader something the picture hid, such as an error code, a count or
+  a step: "the scheduler hates overlapping jobs" hides "the scheduler skips a run while the
+  previous run of the same job is still going". The fix is in `rewrite-guide.md`.
 - Not reported: a field's own term that only looks figurative (a process forks, a queue drains, a
-  cache is warm, a thread starves), since each names a defined behavior, and quoted text, as for
-  every rubric tell. When a sentence's only figure is a noun from the list in
-  `rule-abstract-metaphor-jargon` ("seam", "load-bearing", "north star"), that rule takes the
+  cache is warm, a thread starves), since each names a defined behavior; an everyday verb for a
+  plain relation that carries no image (a branch points at a commit, a request hits the cache);
+  and quoted text, as for every rubric tell. When a sentence's only figure is a noun from the list
+  in `rule-abstract-metaphor-jargon` ("seam", "load-bearing", "north star"), that rule takes the
   finding and this one says nothing about the sentence.
 - Reported, from a billing runbook: "Let the cron job drift and the unpaid invoices pile up like
   snow." Declined, from the same runbook: "The worker thread starves when the pool holds fewer
