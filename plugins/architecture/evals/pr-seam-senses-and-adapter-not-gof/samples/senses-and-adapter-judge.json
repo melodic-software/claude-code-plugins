@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "No. The report uses the module-design sense of seam, the only one an architecture finding uses. The tracker seam is one of four other senses this marketplace defines: the provider-neutral interface to a work-item tracker. A spot is a seam when an adapter can be swapped there with no edit, and it has an enabling point. Adapter: no, not the Gang of Four pattern. Here it is the code plugged in at a seam, and it may convert nothing.",
+      "answer": "No. The report uses the module-design sense of seam, the only one an architecture finding uses. The tracker seam is one of the other senses a project gives the word in its own documents. A spot is a seam when an adapter can be swapped there with no edit, and it has an enabling point. Adapter: no, not the Gang of Four pattern. Here it is the code plugged in at a seam, and it may convert nothing.",
       "why": "separates the senses and separates the adapter from the pattern"
     },
     {

@@ -54,18 +54,8 @@ Every seam has an **enabling point**, the place where the choice of adapter is m
 same chapter). Here it is the argument through which `TaxCalculator` receives its `TaxRates`. A
 spot with no enabling point is not a seam: nothing can be swapped there without an edit.
 
-This is the module-design sense, the only one an architecture finding uses. This marketplace's own
-documents give the word four other defined senses, each in its own file:
-
-- a presence-gated reference from one plugin to another
-  ([seam phrasing](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/seam-phrasing/README.md));
-- the provider-neutral interface to a work-item tracker
-  ([tracker seam](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/work-items/reference/tracker-seam.md));
-- the autonomy plugin's binding and runner interfaces
-  ([binding seam](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/autonomy/reference/binding-seam.md),
-  [runner seams](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/autonomy/reference/runner/seams.md));
-- the four channels through which a consumer configures a plugin
-  ([extensibility contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/migration-playbook.md#extensibility-contract-v21-the-four-seams)).
+This is the module-design sense, the only one an architecture finding uses. A project may give
+the word other senses in its own documents; a finding never means those.
 
 **Adapter**: the code plugged in at a seam. It is named for the slot it fills (the rates-service
 adapter, the dictionary adapter), not for the work it does inside. Not: the Gang of Four Adapter
