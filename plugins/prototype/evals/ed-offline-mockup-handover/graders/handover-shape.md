@@ -14,8 +14,8 @@ directly below the variant lines that both names the states and says every varia
 that names no source variant ("same states") fails (2) unless an earlier variant's line named the
 states. These fail (2): a message that names no states; a variant with neither states nor a named
 source variant when no such shared line exists; a shared line that names no states, or that does
-not say every variant has them (a bare "States: ..."); shared states given only in the plan line,
-the key help or elsewhere away from the variant lines; a shared line when any variant's own line
+not say every variant has them (a bare "States: ..."); shared states given only away from the variant
+lines (in a plan earlier in the message, or after the reply template); a shared line when any variant's own line
 gives different states; (3) says no screenshots were captured or that
 Playwright was unavailable, or pairs each variant with screenshot paths; (4) gives one tradeoff
 row or entry per variant saying when it is the right choice and what it costs, without
