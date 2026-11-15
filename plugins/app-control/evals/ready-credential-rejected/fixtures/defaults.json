@@ -1,0 +1,6 @@
+{
+  "credentials": {
+    "buyer": ["SHOP_API_TOKEN"]
+  },
+  "safety": {}
+}

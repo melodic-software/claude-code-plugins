@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": ".claude/skills/control-shop/cli/shop health"
+          }
+        }
+      ],
+      "why": "ran the hub's Ready command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": ".claude/skills/control-shop/cli/shop whoami"
+          }
+        }
+      ],
+      "why": "never ran the Ready command"
+    }
+  ]
+}

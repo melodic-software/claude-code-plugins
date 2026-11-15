@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "ready: no: port 18080 is held by pid 4242, not the launched pid 5120",
+      "why": "not ready"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`cli/shop health` exited 0.\n\nready: yes",
+      "why": "reports ready because the port answered"
+    },
+    {
+      "answer": "**Ready:** yes",
+      "why": "reports ready in markdown"
+    }
+  ]
+}

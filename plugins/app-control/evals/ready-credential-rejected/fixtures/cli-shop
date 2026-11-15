@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "${1:-}" in
+  health)
+    printf '%s\n' '{"url": "http://127.0.0.1:18080/health", "status": 200, "body": {"status": "ok"}, "listener": {"pid": 5120, "command_line": "python3 shop/server.py --port 18080 --data evidence/data"}}'
+    ;;
+  whoami)
+    printf '%s\n' '{"url": "http://127.0.0.1:18080/api/me", "status": 401, "error": "token rejected"}'
+    exit 3
+    ;;
+  *)
+    printf '%s\n' '{"error": "usage: cli/shop health|whoami"}' >&2
+    exit 2
+    ;;
+esac
