@@ -451,7 +451,8 @@ export function laneVariableFindings({ laneVariableRuns = [] }) {
 // monitor.lane-holds raises signal 13; the leaf's defaults have this one copy.
 // Each lane's `jobs` are those jobs' ids, and `names` their names in the same
 // order, as a run lists them; a run from before the job rename lists the ids.
-// `holdRuns`, when set, is the lane's own cap on unread green runs per window
+// `planned`, when set, holds the names and ids a planned rename gives them,
+// which the workflow does not carry yet. `holdRuns`, when set, is the lane's own cap on unread green runs per window
 // (collect.mjs LIMITS.holdRuns otherwise).
 export const LANE_HOLDS = { threshold: 4, "window-hours": 24 };
 export const HOLD_LANES = [
@@ -504,6 +505,7 @@ export const HOLD_LANES = [
     workflow: "pr-review-main.yml",
     jobs: ["trigger", "review", "review-subscription", "review-fallback"],
     names: ["Trigger", "Review", "Review Subscription", "Review Fallback"],
+    planned: ["Check Trigger", "check-trigger"],
     area: "Review lanes (pr-review-main)",
     holdRuns: 70,
     listPages: 4,

@@ -3637,7 +3637,8 @@ def _after(value: Any, opened: datetime | None) -> bool:
 # rename, or a repository whose caller job has no display name), then the one
 # pr-review.yml and pr-review-security.yml give it, under the caller's display
 # name and its job id, then the Title Case names ci-workflows gives the same
-# jobs (`Status`, `Claude`). The notice's head and
+# jobs (`Status`, `Claude`), then the status job's planned name
+# (`Publish Review`). The notice's head and
 # criteria, and the base branch name a compare takes, as the hold step reads it.
 REVIEW_LANES = (
     (
@@ -3651,6 +3652,8 @@ REVIEW_LANES = (
             "pr-review / Status",
             "PR Review / Claude",
             "pr-review / Claude",
+            "PR Review / Publish Review",
+            "pr-review / Publish Review",
         ),
     ),
     (
@@ -3664,6 +3667,8 @@ REVIEW_LANES = (
             "pr-review-security / Status",
             "PR Review Security / Claude",
             "pr-review-security / Claude",
+            "PR Review Security / Publish Review",
+            "pr-review-security / Publish Review",
         ),
     ),
 )

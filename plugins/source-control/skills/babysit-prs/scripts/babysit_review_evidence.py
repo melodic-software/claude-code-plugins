@@ -57,7 +57,8 @@ from babysit_risk import Floor, LONG_LINE_BYTES, LaneEvidence, glob_match
 # caller job has no display name. The last two are the names ci-workflows'
 # pr-review.yml and pr-review-security.yml give it, under the caller's display
 # name and its job id. The Title Case names ci-workflows gives the same jobs
-# (`Status`, `Claude`) follow; the first name stays an old one, since
+# (`Status`, `Claude`) follow, then the status job's planned name
+# (`Publish Review`); the first name stays an old one, since
 # babysit_gh.py keys its lane-run cache on its last segment.
 LANES: dict[str, tuple[str, tuple[str, ...]]] = {
     "claude-review": (
@@ -71,6 +72,8 @@ LANES: dict[str, tuple[str, tuple[str, ...]]] = {
             "pr-review / Status",
             "PR Review / Claude",
             "pr-review / Claude",
+            "PR Review / Publish Review",
+            "pr-review / Publish Review",
         ),
     ),
     "claude-security-review": (
@@ -84,6 +87,8 @@ LANES: dict[str, tuple[str, tuple[str, ...]]] = {
             "pr-review-security / Status",
             "PR Review Security / Claude",
             "pr-review-security / Claude",
+            "PR Review Security / Publish Review",
+            "pr-review-security / Publish Review",
         ),
     ),
 }
@@ -321,8 +326,9 @@ NO_OUTCOME_RE = re.compile(
 LOST = "lost"
 LOST_CONCLUSIONS = frozenset({"cancelled", "timed_out", "startup_failure"})
 # The kill-switch job's display name; `kill-switch` is a head tested before
-# the rename, or a repository whose job has no display name.
-KILL_SWITCH_JOBS = frozenset({"Kill Switch", "kill-switch"})
+# the rename, or a repository whose job has no display name, and
+# `Check Kill Switch` its planned name.
+KILL_SWITCH_JOBS = frozenset({"Kill Switch", "kill-switch", "Check Kill Switch"})
 KILL_SWITCH_NOTICE_RE = {
     "claude-review": re.compile(r"a kill switch stops this review \("),
     "claude-security-review": re.compile(

@@ -2752,10 +2752,14 @@ const UNTRUSTED_STOPPED = [
 ];
 
 test("a run the gate stopped on untrusted provenance is never re-fired, past any wait or bound, and gets no needs-human", async () => {
-  for (const ended of ["2026-10-16T10:05:00Z", "2026-10-15T00:00:00Z"]) {
-    const { github, actions, calls } = stalledRun({ jobs: UNTRUSTED_STOPPED, conclusion: "success", ended });
-    assert.equal(await sweep({ github, actions }), 0);
-    assert.deepEqual(writes(calls), [], ended);
+  // The admit job's planned name, `Check Admission`, stops it the same way.
+  const planned = UNTRUSTED_STOPPED.map((job) => (job.name === "Admit" ? { ...job, name: "Check Admission" } : job));
+  for (const jobs of [UNTRUSTED_STOPPED, planned]) {
+    for (const ended of ["2026-10-16T10:05:00Z", "2026-10-15T00:00:00Z"]) {
+      const { github, actions, calls } = stalledRun({ jobs, conclusion: "success", ended });
+      assert.equal(await sweep({ github, actions }), 0);
+      assert.deepEqual(writes(calls), [], `${jobs[0].name} ${ended}`);
+    }
   }
 });
 
@@ -2836,6 +2840,7 @@ test("a run cancelled before resolve-issue started is re-fired like a failed run
   for (const [name, jobs] of [
     ["at pick-slot", CANCELLED_AT_PICK_SLOT],
     ["in the slot queue", CANCELLED_IN_SLOT_QUEUE],
+    ["in the slot queue, admit under its planned name", [{ ...ADMITTED, name: "Check Admission" }, ...CANCELLED_IN_SLOT_QUEUE.slice(1)]],
   ]) {
     const fresh = stalledRun({ jobs, conclusion: "cancelled" });
     assert.equal(await sweep({ github: fresh.github, actions: fresh.actions }), 0, name);
@@ -4126,6 +4131,12 @@ const PRE_MODEL_LIMITED = {
     { name: "Report Outcome", conclusion: "skipped", steps: [] },
   ],
 };
+// The admit and broker-check jobs under their planned names and ids.
+const plannedName = (jobs, from, to) => jobs.map((job) => (job.name === from ? { ...job, name: to } : job));
+PRE_MODEL_LIMITED["admit under its planned id"] = plannedName(PRE_MODEL_LIMITED.admit, "admit", "check-admission");
+PRE_MODEL_LIMITED["admit under its planned name"] = plannedName(PRE_MODEL_LIMITED.admit, "admit", "Check Admission");
+PRE_MODEL_LIMITED["broker-check under its planned id"] = plannedName(PRE_MODEL_LIMITED["broker-check"], "resolve-issue / broker-check", "resolve-issue / check-broker");
+PRE_MODEL_LIMITED["broker-check under its planned name"] = plannedName(PRE_MODEL_LIMITED["broker-check under its display name"], "Resolve Issue / Broker Check", "Resolve Issue / Check Broker");
 const AFTER_RESET = Date.parse("2026-10-16T12:31:00Z");
 // A rate-limit stop's records name the GitHub API rate limit and the reset, never the broker.
 const limitCause = (reset) => `The work-resolve-issue run that \`agent-ready\` started stopped on GitHub's API rate limit before any model turn; the limit reset at ${reset}.`;
@@ -4313,6 +4324,8 @@ const PICK_SLOT_KILLED = [
 test("an admit or pick-slot kill-switch skip is a breaker trip at broker-check, read from the job listing alone and re-fired at the first sweep", async () => {
   for (const [name, jobs] of [
     ["admit", ADMIT_KILLED],
+    ["admit under its planned id", plannedName(ADMIT_KILLED, "admit", "check-admission")],
+    ["admit under its planned name", plannedName(ADMIT_KILLED, "admit", "Check Admission")],
     ["pick-slot", PICK_SLOT_KILLED],
   ]) {
     const { github, actions, calls } = stalledRun({ jobs, conclusion: "success" });

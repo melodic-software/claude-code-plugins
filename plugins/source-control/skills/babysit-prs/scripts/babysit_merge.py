@@ -322,8 +322,8 @@ def is_unarmed_status(check: dict[str, Any]) -> bool:
 # `security-review / security-review` the previous one, and
 # `claude-security-review-status` the job of a pin that predates the fold.
 # ci-workflows names these jobs in Title Case: pr-review-cli.yml's status job
-# `Status`, and both pr-review.yml's and pr-review-security.yml's job `Claude`.
-# Both segments are shared by the two lanes, so each counts only as a whole
+# `Status` (planned: `Publish Review`), and both pr-review.yml's and
+# pr-review-security.yml's job `Claude`. These segments are shared by the two lanes, so each counts only as a whole
 # name under the lane's own callers (`pr-review-no-bots` is the sandbox's
 # pr-review.yml caller). Old and new callers and job names run side by side
 # while repos migrate. Every matching check must succeed.
@@ -337,6 +337,8 @@ AI_REVIEW_CHECKS = {
         "PR Review / Claude",
         "pr-review / Claude",
         "pr-review-no-bots / Claude",
+        "PR Review / Publish Review",
+        "pr-review / Publish Review",
     ),
     "claude-security-review-status": (
         "claude-security-review-status",
@@ -349,6 +351,8 @@ AI_REVIEW_CHECKS = {
         "pr-review-security / Status",
         "PR Review Security / Claude",
         "pr-review-security / Claude",
+        "PR Review Security / Publish Review",
+        "pr-review-security / Publish Review",
     ),
 }
 

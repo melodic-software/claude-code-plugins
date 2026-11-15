@@ -623,6 +623,23 @@ test("heldHandoff, heldHead and docsRunState read a run whose jobs are named by 
   assert.equal(docsRunState(byIds(job("fix-docs / broker-allowed", "skipped"))), "done");
 });
 
+// The broker-allowed job's planned name, `record-broker-allow`, counts as the
+// current one does, by display name and by id.
+test("heldHandoff and docsRunState read the broker-allowed job under its planned name", () => {
+  const planned = (name, scan) => [job(`${name} / Record Broker Allow`, "success"), job(`${name} / Run`, "success"), job(`${name} / Scan`, scan)];
+  assert.equal(heldHandoff(ended(job("Fix Docs Head", "success"), ...planned("Fix Docs", "skipped"), read("Fix Docs"), job("Fix Docs Subscription", "skipped"))), true);
+  assert.equal(heldHandoff(ended(job("Fix Docs / Record Broker Allow", "skipped"), job("Fix Docs / Run", "success"), read("Fix Docs"))), false, "no broker allow");
+  const byIds = (...jobs) => ended(job("fix-docs-head", "success"), ...jobs);
+  assert.equal(
+    heldHandoff(byIds(job("fix-docs / record-broker-allow", "success"), job("fix-docs / run", "success"), job("fix-docs-handoff", "success"), job("fix-docs-subscription", "skipped"))),
+    true,
+  );
+  assert.equal(docsRunState(ended(job("Fix Docs / Record Broker Allow", "success"))), "allowed");
+  assert.equal(docsRunState(byIds(job("fix-docs / record-broker-allow", "success"))), "allowed");
+  assert.equal(docsRunState(ended(job("Fix Docs / Record Broker Allow", "skipped"))), "done");
+  assert.equal(docsRunState(ended(job("Fix Docs / Record Broker", "success"))), "done", "a job of another name is no allow");
+});
+
 // Run ids the dispatch record keeps for a head.
 const kept = (record, number, ids) => record.docsRuns.set(pr(number).headRefOid, ids);
 

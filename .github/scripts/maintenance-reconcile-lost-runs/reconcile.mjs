@@ -252,9 +252,9 @@ export const CI_WORKFLOWS = new Set([
   ...GATED_REVIEWS,
 ]);
 // The hosted review callers' kill-switch job, by its name (kill-switch on a
-// head tested before the rename), and the step that fails it while the
-// upstream-status gate skips the review.
-export const GATE_JOBS = new Set(["Kill Switch", "kill-switch"]);
+// head tested before the rename, Check Kill Switch its planned name), and the
+// step that fails it while the upstream-status gate skips the review.
+export const GATE_JOBS = new Set(["Kill Switch", "kill-switch", "Check Kill Switch"]);
 export const UPSTREAM_STOP_STEP = "Stop on upstream status";
 // The step that job runs when a kill switch stops the review, and the caller's
 // job names for the review itself (`PR Review`, or a reusable's `PR Review / x`;

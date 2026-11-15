@@ -103,6 +103,26 @@ test("a run started before the rename is read by its job ids", () => {
   assert.equal(out.output, "posted=true\n");
 });
 
+// The broker allow job alone answers `allowed`; with it absent, the broker
+// check job answers through its broker step. Each is read under its name and
+// its id, current and planned.
+test("the broker jobs are read under their current and planned names and ids", () => {
+  const ask = [{ name: "Ask the broker whether the lane may run", conclusion: "success" }];
+  for (const [check, allow] of [
+    ["Fix Docs / Broker Check", "Fix Docs / Broker Allowed"],
+    ["fix-docs / broker-check", "fix-docs / broker-allowed"],
+    ["Fix Docs / Check Broker", "Fix Docs / Record Broker Allow"],
+    ["fix-docs / check-broker", "fix-docs / record-broker-allow"],
+  ]) {
+    const allowed = run([[answer("200 OK", {}, listing({ name: allow, conclusion: "success", steps: [] })), 0]], "0", { facts: ["allowed"] });
+    assert.equal(allowed.output, "allowed=true\n", `${allow}: ${allowed.stdout}`);
+    const checked = run([[answer("200 OK", {}, listing({ name: check, conclusion: "success", steps: ask })), 0]], "0", { facts: ["allowed"] });
+    assert.equal(checked.output, "allowed=true\n", `${check}: ${checked.stdout}`);
+  }
+  const other = run([[answer("200 OK", {}, listing({ name: "Fix Docs / Check Brokers", conclusion: "success", steps: ask })), 0]], "0", { facts: ["allowed"] });
+  assert.equal(other.output, "allowed=false\n", "a job of another name is no broker check");
+});
+
 // Each CALLS id a workflow passes, in Title Case, is the display name of that
 // workflow's job of that id, so the script finds the call's report job.
 test("every call a workflow names is read under that job's display name", () => {

@@ -2405,6 +2405,14 @@ test("a hosted review run from before the job rename, its gate named kill-switch
   assert.deepEqual(failedJobReruns, [201]);
 });
 
+test("a hosted review run whose gate has its planned name, Check Kill Switch, is re-run the same way", async () => {
+  const { code, failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1), {}, gatedJobs({ names: { ...NEW_NAMES, kill: "Check Kill Switch" } }))] });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [201]);
+  const other = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1), {}, gatedJobs({ names: { ...NEW_NAMES, kill: "Check Kill" } }))] });
+  assert.deepEqual(other.failedJobReruns, [], "a job of another name is no gate");
+});
+
 // An outage stops both review lanes at one head, so one PR's set can hold more
 // records than the workflow's upload steps have room for beside another PR's.
 const bothStopped = (n) => [gated(200 + n, sha(n)), gated(300 + n, sha(n), { path: SECURITY_REVIEW })];
