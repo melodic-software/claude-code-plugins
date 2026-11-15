@@ -3,6 +3,14 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.2] - 2026-11-15
+
+### Changed
+
+- The mechanical worker default's reason in `reference/defaults.yaml` records a measurement:
+  Sonnet 5.5 passed every run of the `ai-slop` `audit-fix-*` eval cases, so the default stays on
+  Sonnet. No default changes.
+
 ## [3.0.1] - 2026-11-14
 
 ### Changed
