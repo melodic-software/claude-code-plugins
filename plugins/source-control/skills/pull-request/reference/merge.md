@@ -113,7 +113,9 @@ for the user.
   `PR Review Security / Claude` or `pr-review-security / Claude`, or the earlier
   `PR Review Security / review-status`, `pr-review-security / review-status`,
   `PR Review Security / security-review`, `pr-review-security / security-review`, its legacy
-  caller `security-review / security-review`, or `claude-security-review-status` (the names
+  caller `security-review / security-review`, or `claude-security-review-status`, or the status
+  job's planned name, `PR Review / Publish Review`, `pr-review / Publish Review`,
+  `PR Review Security / Publish Review` or `pr-review-security / Publish Review` (the names
   `babysit_merge.py` accepts). Both lanes' jobs share the segments `Status` and `Claude`, so those
   count only as the whole caller-qualified name. A missing, running,
   skipped or failed review check holds. The Codex review posts review threads, not a check run,
