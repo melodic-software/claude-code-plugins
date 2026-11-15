@@ -474,24 +474,41 @@ HEAD or tree) still refused is named on stderr and listed as `status=unreachable
 pages are still read, and every mode but `--report` then exits 2. The script writes no
 file. A change that converts or re-pins a page runs `--links` on it.
 
-### Monthly drift issues
+### Weekly drift issues
 
-A scheduled GitHub Actions workflow, `.github/workflows/maintenance-file-upstream-drift-issues.yml`,
-runs the check once a month with `--report` and hands the report to
-`scripts/upstream-drift-issues.sh`, which keeps one issue per upstream titled
-`Upstream drift: <owner>/<repo>`: it opens the issue when that upstream drifts, updates the same
+One scheduled GitHub Actions workflow, `.github/workflows/maintenance-file-upstream-drift-issues.yml`,
+runs every drift check once a week and hands the combined report to
+`scripts/upstream-drift-issues.sh`, the one filer, which keeps one issue per upstream titled
+`Upstream drift: <id>`: it opens the issue when that upstream drifts, updates the same
 issue in place on later runs, reopens and updates it when it was closed, unless it was closed as not
 planned or duplicate, and closes it once the upstream is clean. It also closes, with a
-comment, any open `Upstream drift:` issue the workflow's bot opened for a repository the report no
-longer names, such as one whose `docs/upstream` page was removed or renamed. The run fails on a
-script error, a failed issue write, or an `unreachable` page, the last after every other upstream
-is filed; drift alone does not fail it. After a failed write the other
-upstreams still run, and the run then exits nonzero.
+comment, any open `Upstream drift:` issue the workflow's bot opened for an id the report no
+longer names, such as one whose `docs/upstream` page was removed or renamed.
+
+Two producers write the report. `scripts/check-upstream-drift.sh --report` covers the git-pinned
+pages. `scripts/upstream-drift-vendored-report.sh`, the adapter, runs each vendored skill's own
+check script, whose output the standard check cannot read, from a table of rows
+`<id>|<check script>|<argument>`, and writes one `page` line per row with `path=` naming the check
+script. A row's id is the upstream's `<owner>/<repo>` when one is known, else `<plugin>/<skill>`;
+a row sharing an id with a git-pinned page (good-css's vendored-copy check) adds its page to that
+upstream's one issue. The adapter maps a check's exit code to the page status: 0 `clean`, 1
+`drift`, 2 `untracked` with a warning, a timeout (`--row-timeout`, 120 seconds by default)
+`untracked` with a warning, and any other code `untracked` with an error and the row id in its
+broken-contract file. Each check's own output goes only to the job summary. The adapter exits 0
+when it wrote every row and 2 when it could not finish, and on 2 it writes no report.
+
+The workflow's `report` job runs both producers with a read-only token, held by the pinned check
+alone, so no vendored check script runs with a token. It hands the reports to the `file` job, the
+only one holding `issues: write`, only when both producers finished: a producer that exits 2 or more
+fails the run with nothing filed, because the filer's sweep would close the missing upstreams'
+issues. The `file` job fails on a failed issue write, an `unreachable` page, or a check script that
+broke its exit contract, each after every other upstream is filed; drift alone does not fail it.
+After a failed write the other upstreams still run, and the run then exits nonzero.
 
 - **Sources with no git pin.** A report `page` line's `pin` and `head` are each a hex SHA or the
-  literal `unknown`; any other token fails the report. The filer accepts a source with no git pin,
-  such as a vendored skill, as `pin=unknown head=unknown` under the id `<plugin>/<skill>`, and
-  titles its issue with that id. `scripts/check-upstream-drift.sh` itself prints only hex pins. A drifted `pin=unknown` page has no pin sentence in the issue. It names the
+  literal `unknown`; any other token fails the report. Every adapter row reports
+  `pin=unknown head=unknown`, since a vendored skill has no git pin, and its issue is titled with
+  the row's id. `scripts/check-upstream-drift.sh` itself prints only hex pins. A drifted `pin=unknown` page has no pin sentence in the issue. It names the
   skill (`<plugin>:<skill>` from a `plugins/<plugin>/skills/<skill>/` path, else the id) and tells
   the reader to run the page's path, restore or re-vendor what it names, and read its output in
   the run's job summary. The re-audit footer is written only when a hex-pin page drifted.
@@ -504,13 +521,12 @@ upstreams still run, and the run then exits nonzero.
 - **`untracked` and `unreachable` block close.** An upstream with any `untracked` or
   `unreachable` page is never closed as clean,
   even beside a `clean` page, and since the report names it, the sweep leaves its issue alone too.
+  An adapter row that could not be checked is `untracked` for that reason.
 - **Accepted cases.** Closing an issue as not planned or duplicate mutes that upstream: later drift
   neither reopens it nor files another. An open issue's body is replaced in place on each drifted
   run, with no label change and no comment.
 
-It differs from
-`maintenance-check-upstream-drift.yml`, which runs weekly over the vendored skills' own update
-scripts, fails on drift, and never opens an issue. Whether to adopt an
+Whether to adopt an
 upstream change stays a person's decision: the issue is the to-do, and re-auditing the rows, which
 moves the pin and records the outcome as [When a trigger fires](#when-a-trigger-fires) requires, is
 what closes it.
@@ -640,7 +656,7 @@ a pointer and loses its stamp the same way.
 | [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only: an undated in-repo deferral with no upstream pointer. |
 | `/ai-slop:audit`, the tell catalog it loads, §Upstream-drift record | new with 1.5.0 | Conforming record: a revision-pinned pointer to the Wikipedia source page (`oldid`), as-of date, and a recurring recheck trigger: each `ai-slop` release and each fleet audit, chosen over per-revision after measuring the page at 50+ edits/week. |
 | `/docs-hygiene:write-for-humans`, the source records it loads | new with docs-hygiene 0.18.0 | Conforming records: one pointer record per external writing standard the skill falls back to, each carrying the pointer, as-of date, and an observable recheck trigger: a publication event for an edition-pinned standard, a page-content divergence for a continuously edited one. The record names which. |
-| `docs/upstream/` pages pinned to a git commit (`addyosmani-agent-skills.md`, `cursor-pstack.md`, `mattpocock-skills.md`, `trailofbits-skills.md`, `tlaplus-agentskills.md`, `t3dotgg-tstack.md`) | new with 3.0.0 | Conforming records in the [pinned git upstream](#pinned-git-upstreams) form: every row link resolves at the page pin (`scripts/check-upstream-drift.sh --links`), and the monthly drift issues name any row whose upstream changed since that pin. |
+| `docs/upstream/` pages pinned to a git commit (`addyosmani-agent-skills.md`, `cursor-pstack.md`, `mattpocock-skills.md`, `trailofbits-skills.md`, `tlaplus-agentskills.md`, `t3dotgg-tstack.md`) | new with 3.0.0 | Conforming records in the [pinned git upstream](#pinned-git-upstreams) form: every row link resolves at the page pin (`scripts/check-upstream-drift.sh --links`), and the weekly drift issues name any row whose upstream changed since that pin. |
 
 Elsewhere the name binds on touch: living surfaces still saying "revisit trigger", "re-trigger",
 "re-derivation trigger", or "what would reopen it" (several plugin reference docs already use the

@@ -295,7 +295,7 @@ test("signal 6: a failed scheduled audit fires per workflow, a green one stays q
         run: { id: 5, url: "https://github.com/o/r/actions/runs/5", conclusion: "failure", createdAt: "2026-10-19T10:43:00Z", failedJobs: ["audit-test-selection"] },
       },
       {
-        workflow: "maintenance-check-upstream-drift",
+        workflow: "maintenance-file-upstream-drift-issues",
         run: { id: 6, url: "https://github.com/o/r/actions/runs/6", conclusion: "success", createdAt: "2026-10-13T10:29:00Z", failedJobs: [] },
       },
     ],
@@ -304,6 +304,24 @@ test("signal 6: a failed scheduled audit fires per workflow, a green one stays q
     found.map((f) => f.key),
     ["audit:maintenance-audit-test-selection"],
   );
+});
+
+test("signal 6: a failed drift-filer run reads as a failure, not as findings", () => {
+  const [found] = auditFindings({
+    ...base,
+    audits: [
+      {
+        workflow: "maintenance-file-upstream-drift-issues",
+        run: { id: 7, url: "https://github.com/o/r/actions/runs/7", conclusion: "failure", createdAt: "2026-11-16T10:29:00Z", failedJobs: ["File Upstream Drift Issues"] },
+      },
+    ],
+  });
+  assert.equal(found.key, "audit:maintenance-file-upstream-drift-issues");
+  assert.doesNotMatch(found.title, /reported findings/);
+  assert.match(found.title, /maintenance-file-upstream-drift-issues/);
+  assert.match(found.summary, /failed issue write/);
+  assert.match(found.summary, /exit contract/);
+  assert.match(found.summary, /https:\/\/github\.com\/o\/r\/actions\/runs\/7/);
 });
 
 const incident = {
