@@ -9,8 +9,8 @@
     "major": 7
   },
   "fastTrack": {
-    "reviewed": "2026-11-11",
-    "basis": "Owner decision 2026-11-11: Claude Code and Anthropic updates land as soon as they publish, and this organization's own releases need no soak from itself.",
+    "reviewed": "2026-11-15",
+    "basis": "Owner decision 2026-11-11: Claude Code and Anthropic updates land as soon as they publish, and this organization's own releases need no soak from itself. Owner decision 2026-11-15: below 1.0, an own release takes the auto tier when only its second or third version component changes, because an own release comes from this organization's own lanes and CI Status must still pass where it lands; a ci-workflows release already reaches every repository unpinned through its reusable workflows at @main.",
     "npm": ["@anthropic-ai/claude-code"],
     "github-actions": ["anthropics/*"],
     "own": ["melodic-software/*"]
