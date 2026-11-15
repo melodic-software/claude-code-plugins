@@ -2774,7 +2774,7 @@ the collect step drops a `cause` from the driven session's summary in either sha
 reads, and the writer records one only in the nested shape the job writes, on a `blocked` capture
 and from that list, so `evidence` carries `cause` exactly when the capture recorded one. The cause
 is advisory: the strip that keeps it the job's own runs after the head checkout, so it informs an
-operator and gates nothing, and and the verdict step's `pr-verify capture` annotation names the outcome and,
+operator and gates nothing. The verdict step's `pr-verify capture` annotation names the outcome and,
 for a blocked capture, the cause (`none` when it recorded none). A credit stop on the probe raises
 the warning annotation every lane raises on its key's handoff, naming the pr-verify role's key and
 the run, also in the run summary. A model error, an output that fails the schema, or a `pass` or `pass-notes` with any
