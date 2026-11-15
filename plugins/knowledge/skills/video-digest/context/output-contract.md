@@ -51,8 +51,8 @@ plugin data directory its `--data-dir "<plugin-data>"` flag names, not the work 
 
 `run.mjs` translates `--work-root` into `VIDEO_DIGEST_WORK_ROOT`, the variable
 `resolveWorkRoot()` reads before the fallbacks above. Every extraction variable lives in that
-`VIDEO_DIGEST_` namespace; each one's pre-rename `YOUTUBE_` spelling is still honored, warning
-once per process, and the new name wins when both are set.
+`VIDEO_DIGEST_` namespace; each one's `YOUTUBE_` alias is accepted with one warning per process,
+and the `VIDEO_DIGEST_` name wins when both are set.
 
 **Scope of the setting.** `library_dir` relocates the work *root*; it does not reshape the
 `<watch-epic>/<video-slug>/` sub-path itself. A consumer whose own convention lands source

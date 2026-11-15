@@ -57,7 +57,7 @@ Code negotiates by default. Of the tool rules that revision added, three were we
   C16's MUST, so a second row would grade the same defect twice.
 - **Deterministic `tools/list` ordering** is declined. It is a SHOULD on the order a running server
   returns: <https://modelcontextprotocol.io/specification/2026-07-28/server/tools#capabilities>. This audit reads source and never runs the
-  server, and runtime behavior is out of its scope ("What this skill does NOT do" in the skill
+  server, and runtime behavior is out of its scope ("What this skill does not do" in the skill
   body), so source can neither show the wire order nor prove it varies.
 
 - **Pointer**: when grading a SPEC-tagged criterion, fetch
@@ -119,7 +119,7 @@ Severity levels:
 
 The spec defines tool annotations as OPTIONAL, so every criterion here is WARN or info, never FAIL.
 
-When auditing SOURCE, accept each SDK's native spelling of these hints as satisfying the criterion, not only literal `readOnlyHint`/`destructiveHint`/`idempotentHint` keys. Native spellings include .NET `[McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true)]` attribute properties and the Python SDK's `annotations=` argument. The SDK maps them to the wire-level annotations.
+When auditing source, accept each SDK's native spelling of these hints as satisfying the criterion, not only literal `readOnlyHint`/`destructiveHint`/`idempotentHint` keys. Native spellings include .NET `[McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true)]` attribute properties and the Python SDK's `annotations=` argument. The SDK maps them to the wire-level annotations.
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
@@ -137,7 +137,7 @@ When auditing SOURCE, accept each SDK's native spelling of these hints as satisf
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
-| C16 | **Callable from schema alone; input schema valid**. The tool description plus parameter descriptions let an LLM construct a valid call with zero system prompt, and the tool's input schema is valid | ANTHROPIC + SPEC-MUST | WARN (FAIL if the input schema is missing or invalid) | Graded against the spec's MUST: the wire-level `inputSchema` has to be a valid JSON Schema object (not `null`). Judge validity in the dialect the schema's `$schema` names, and in the default dialect the spec's Tool data type gives when it names none (Spec revision record), so a keyword valid in that dialect is never flagged as unknown. When auditing SOURCE (not a live server), SDK-native schema forms count as valid, since the SDK converts them for the protocol: TypeScript Zod schemas / raw shapes (`inputSchema: { boardId: z.string() }`), Python type hints, .NET method signatures. FAIL only when the schema is missing, `null`, or malformed in its own idiom. Self-sufficiency: if you showed only this tool's schema to an LLM with no other context, could it make a valid call? Domain concepts referenced without explanation = warn |
+| C16 | **Callable from schema alone; input schema valid**. The tool description plus parameter descriptions let an LLM construct a valid call with zero system prompt, and the tool's input schema is valid | ANTHROPIC + SPEC-MUST | WARN (FAIL if the input schema is missing or invalid) | Graded against the spec's MUST: the wire-level `inputSchema` has to be a valid JSON Schema object (not `null`). Judge validity in the dialect the schema's `$schema` names, and in the default dialect the spec's Tool data type gives when it names none (Spec revision record), so a keyword valid in that dialect is never flagged as unknown. When auditing source (not a live server), SDK-native schema forms count as valid, since the SDK converts them for the protocol: TypeScript Zod schemas / raw shapes (`inputSchema: { boardId: z.string() }`), Python type hints, .NET method signatures. FAIL only when the schema is missing, `null`, or malformed in its own idiom. Self-sufficiency: if you showed only this tool's schema to an LLM with no other context, could it make a valid call? Domain concepts referenced without explanation = warn |
 
 ## 7. Claude Code `_meta` annotations (C17-C19)
 
@@ -156,7 +156,7 @@ advisory that the server could benefit), and for C19 not a finding at all. Two d
   the cost (C19 declared `true` where no turn needs the tool, or across many of a server's tools, spending
   session-start context deferral would have saved). WARN.
 
-When auditing SOURCE, accept each SDK's native way of attaching `_meta` to a tool's `tools/list` entry,
+When auditing source, accept each SDK's native way of attaching `_meta` to a tool's `tools/list` entry,
 not only a literal `_meta` key in source. Each language's **meta-extraction** entry in
 [server-discovery.md](server-discovery.md) names that way and links its SDK reference. C18 turns on
 the value's JSON type, so read it in that language's own syntax.
@@ -177,7 +177,7 @@ them.
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
-| C20 | **Every `x-mcp-header` meets the spec's constraints, and none marks a sensitive parameter** | SPEC-MUST + SPEC-SHOULD | FAIL (WARN for a sensitive parameter, or for a value source cannot show) | A tool with no `x-mcp-header` passes; the keyword is optional. For each one declared, check its value and the property it sits on against every constraint in the spec section: a violation = FAIL, for the client consequence the section states. Marking a parameter that carries a secret or personal data (password, API key, token, PII) = WARN, per the section's SHOULD NOT. When auditing SOURCE, accept however the SDK attaches an extension keyword to one property's schema (a Zod `.meta()` or JSON Schema override, a Python `Field(json_schema_extra=...)`, a .NET schema attribute). A value built at run time, which source cannot show, = WARN naming the parameter |
+| C20 | **Every `x-mcp-header` meets the spec's constraints, and none marks a sensitive parameter** | SPEC-MUST + SPEC-SHOULD | FAIL (WARN for a sensitive parameter, or for a value source cannot show) | A tool with no `x-mcp-header` passes; the keyword is optional. For each one declared, check its value and the property it sits on against every constraint in the spec section: a violation = FAIL, for the client consequence the section states. Marking a parameter that carries a secret or personal data (password, API key, token, PII) = WARN, per the section's SHOULD NOT. When auditing source, accept however the SDK attaches an extension keyword to one property's schema (a Zod `.meta()` or JSON Schema override, a Python `Field(json_schema_extra=...)`, a .NET schema attribute). A value built at run time, which source cannot show, = WARN naming the parameter |
 
 ## Scoring
 

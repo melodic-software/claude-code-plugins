@@ -1,6 +1,6 @@
 # Tracked citation shape
 
-This document owns the citation shape that `knowledge` skills use whenever a TRACKED output
+This document owns the citation shape that `knowledge` skills use whenever a tracked output
 refers to fetched external content. The rule it serves: **tracked outputs cite, never copy**.
 The verbatim snapshot stays in the untracked work slice; only the citation crosses into anything
 committed.
@@ -44,7 +44,7 @@ checkable against its slice without re-fetching.
 
 ## Sub-resource anchors (optional extension)
 
-A citation MAY narrow to a region of the resource with the emitting skill's deterministic node
+A citation may narrow to a region of the resource with the emitting skill's deterministic node
 id (e.g. map-corpus `n0007-05b0396b`, whose trailing 8 hex are the first 8 of the node's span
 hash). Serialization is fixed so independent emitters converge:
 
@@ -66,7 +66,7 @@ skill's manifest format doc.
 
 ## Drift
 
-A citation asserts what WAS fetched, not what the URL serves now. On re-fetch, a differing hash
+A citation asserts what was fetched, not what the URL serves now. On re-fetch, a differing hash
 means upstream drift: record the new fetch as a new citation (new date, new hash) and note the
 drift; never edit the old citation's hash in place and never silently re-snapshot over the slice
 the old citation points into.

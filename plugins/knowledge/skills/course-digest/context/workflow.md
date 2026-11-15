@@ -18,10 +18,10 @@
 
 Eight phases executed in order. Each phase produces artifacts consumed by subsequent phases.
 
-**Critical ordering rule:** ALL context must be gathered before summarization begins. Module
+**Ordering rule:** all context must be gathered before summarization begins. Module
 summaries generated from transcripts alone are incomplete. They miss code syntax, visual
 diagrams, repo patterns. Full sequence: Extract → Process Frames → Analyze Code
-Repo → Validate → THEN Synthesize.
+Repo → Validate → then Synthesize.
 
 **Completeness markers:** Module summaries should note their context sources:
 
@@ -183,7 +183,7 @@ only, then discard.
 ## Phase 3: Synthesize
 
 **Goal:** Produce per-module summaries combining all three knowledge modalities into a unified
-analysis. A `[full-context]` summary is NOT just transcripts with metadata. It synthesizes what
+analysis. A `[full-context]` summary is not just transcripts with metadata. It synthesizes what
 the instructor says, what's shown on screen, what the actual code does.
 
 **Three modalities (all required for `[full-context]`):**
@@ -192,7 +192,7 @@ the instructor says, what's shown on screen, what the actual code does.
 |----------|--------|-----------------|
 | Audio/transcript | `transcript.md` per lesson | Instructor explanations, arguments, verbal emphasis, things said but not shown |
 | Visual/frames | Frame PNG files + `manifest.json` | Code on screen, architecture diagrams, slides, terminal output, UI demos |
-| Code/repo | `code/repo/<section>/` source files | Actual implementation patterns, DI setup, project structure, what the code DOES vs what the instructor SAYS it does |
+| Code/repo | `code/repo/<section>/` source files | Actual implementation patterns, DI setup, project structure, what the code does vs what the instructor says it does |
 
 **Multi-agent approach per module:**
 
@@ -238,7 +238,7 @@ Build this table during Phase 2c. Example from per-section repo:
 **Per module, identify:**
 
 - Core concepts taught (with lesson references)
-- Code patterns demonstrated (from transcripts AND actual code AND visual frames)
+- Code patterns demonstrated (from transcripts and actual code and visual frames)
 - Discrepancies between what's said, shown, and coded (these are high-value findings)
 - Best practices advocated
 - Anti-patterns warned against
@@ -261,7 +261,7 @@ Build this table during Phase 2c. Example from per-section repo:
 
 ## Phase 5: Recommend
 
-**Goal:** Map course learnings to THIS repository. Primary deliverable.
+**Goal:** Map course learnings to this repository. Primary deliverable.
 
 1. Read `course-summary.md` + all module summaries
 2. Read repository's CLAUDE.md, `.claude/rules/`, key architecture files
@@ -303,9 +303,9 @@ When invoked with `/knowledge:course-digest resume <slug>`:
 
 ## Execution model: sequential vs parallel
 
-**Bot detection constraint:** All browser-based extraction (Phase 2) MUST be sequential. Dometrain and
+**Bot detection constraint:** All browser-based extraction (Phase 2) must be sequential. Dometrain and
 similar platforms rate-limit and detect automated access. Navigate no faster than ~2 seconds between
-lessons. Do NOT parallelize DOM interactions, browser contexts, lesson navigation.
+lessons. Do not parallelize DOM interactions, browser contexts, lesson navigation.
 
 **What can run in parallel:**
 
@@ -351,4 +351,4 @@ at recording time. Before using recommended patterns, verify current stable vers
 `/discovery:research` or `mcp__nuget__get_latest_package_version`.
 
 **Rule:** Course content is a starting point for research, not a final answer. Every action item
-gets `/discovery:explore` + `/discovery:research` verification AT TIME OF INTEGRATION, not at digest time.
+gets `/discovery:explore` + `/discovery:research` verification at time of integration, not at digest time.

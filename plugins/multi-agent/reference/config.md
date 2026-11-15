@@ -64,10 +64,8 @@ resolves to per provider, see
 for the model an agent with no `model` runs on, see
 [workflows: cost](https://code.claude.com/docs/en/workflows#cost).
 
-The subagent `model` field accepts the aliases `sonnet`, `opus`, `haiku` and
-`fable`, a full model ID, or `inherit`, and a subagent with none falls back to
-the main conversation's model after the per-invocation parameter and the
-`CLAUDE_CODE_SUBAGENT_MODEL` variable; see
+For the values the subagent `model` field accepts, and the order in which a
+subagent with no `model` resolves one, see
 [sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).
 
 The `effort` values are the full set this resolver accepts; which of them a
@@ -116,11 +114,10 @@ level is its own `lanes[].effort`, not the `orchestrator` role.
 ## Hard cap
 
 `maxEffortLevel` is the consumer's hard cap over every role and every named
-agent's pinned effort. It can be set in any settings scope, the lowest value
-across scopes applies, and a per-model cap sits in that model's
-`modelSettings` entry. Any higher level, from a role, frontmatter or the
-session, runs at the cap. An organization effort limit for a model applies
-alongside it, and the lower of the two wins.
+agent's pinned effort: any higher level, from a role, frontmatter or the
+session, runs at the cap. Which settings scopes set it, how values across
+scopes and a model's `modelSettings` entry combine, and how an organization
+effort limit applies alongside it are read at the pointers below.
 
 - Pointer: [settings reference: `maxEffortLevel`](https://code.claude.com/docs/en/settings-reference#maxeffortlevel);
   [model config: organization effort limits](https://code.claude.com/docs/en/model-config#organization-effort-limits)

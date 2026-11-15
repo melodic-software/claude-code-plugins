@@ -107,7 +107,7 @@ A defensible manual pass needs all five:
    is where this technique manufactures false confidence. Cite the measurement: the two runs and
    what was identical about them.
 
-That last point is not theoretical. This repository's own `lib/hook-utils.test.sh` carries a worked
+That last point is not theoretical. The marketplace repository's `lib/hook-utils.test.sh` carries a worked
 example: a block deleted from `hook-utils.sh`, a baseline and mutant run measured and reported, the
 survivor diagnosed, the test redesigned around a non-temporal observable so it would go red, and the
 one delivery shape under which the mutant is genuinely undetectable documented with the measurement

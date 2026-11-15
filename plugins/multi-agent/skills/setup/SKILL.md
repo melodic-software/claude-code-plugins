@@ -102,7 +102,7 @@ separately from the rest of the change. Recommend the narrowest layer that
 covers what they mean: `local` for one checkout, `user` for one machine, `team`
 only when the whole team has agreed.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Edit `.gitignore`, `CLAUDE.md` or `AGENTS.md`.
 - Write a model ID. Only aliases are accepted, so the map stays portable across

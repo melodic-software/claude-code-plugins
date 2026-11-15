@@ -131,8 +131,7 @@ reader can tell the two apart.
 **A supporting control gets the same scrutiny as the artifact.** A verdict may lean on a comparison:
 "the sibling mechanism costs almost nothing, so this one's cost is anomalous". Before that
 comparison is admitted, the control's own liveness is checked by §3. A control that never ran
-produces a number that measures the refusal to start, not the thing being compared, and such a
-number has shipped inside a ratified decision before now.
+produces a number that measures the refusal to start, not the thing being compared.
 
 ## 3. Liveness: three independent questions
 

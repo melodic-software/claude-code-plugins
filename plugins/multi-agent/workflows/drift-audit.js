@@ -684,7 +684,7 @@ const skepticView = f => (MODE === 'repo'
 
 const votes = await inWaves(panel.map(({ b, k, label }) => () => judged(extra =>
   'Stage: skeptic. You are skeptic ' + (k + 1) + ' of ' + SKEPTICS + ' on this batch, working independently. For ' +
-  'each finding below, try to REFUTE it: ' +
+  'each finding below, try to refute it: ' +
   (MODE === 'repo'
     ? 're-read the cited page. The quote was read from the file by a separate reader; judge it as given. ' +
       'Is the quoted text actually correct now, already pointered, out of scope, or is the proposed fix wrong? '

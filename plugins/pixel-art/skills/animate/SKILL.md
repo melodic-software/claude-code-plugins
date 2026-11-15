@@ -69,9 +69,9 @@ Output location resolves as in `/pixel-art:sprite`. `backends.py` follows the sa
 
 ## 5. Review loop
 
-Read `preview.png` (every frame side by side) and each animation GIF (the Read tool shows the first
-frame, so judge motion from the sheet). Every round, list each done criterion in `brief.md` as
-pass or fail with a one-line reason. Also check the cycle plan:
+Read `preview.png` (every frame side by side) and each animation GIF (the Read tool shows only a
+GIF's first frame; no Claude Code docs page covers how Read renders animated images), so judge
+motion from the sheet. Every round, list each done criterion in `brief.md` as pass or fail with a one-line reason. Also check the cycle plan:
 
 - contact and passing poses are distinct and the stride reads in every direction;
 - body bob is present and consistent;
@@ -97,7 +97,7 @@ eight-character sheet).
 ## Gotchas
 
 - GIF delays are whole hundredths of a second; `render.py` rounds each duration and floors at 20 ms.
-- The Read tool shows a GIF's first frame only. Review motion from `preview.png`, or from browser
-  screenshots when a browser automation tool is present.
+- The Read tool shows only a GIF's first frame (no Claude Code docs page covers this). Review motion
+  from `preview.png`, or from browser screenshots when a browser automation tool is present.
 - Sub-pixel animation and smear frames depend on palette shades between colors; plan ramps before
   animating.

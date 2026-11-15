@@ -25,7 +25,7 @@ Walk the enforcement surface that governs work in this repository and report whi
 earn their carry cost. Every incumbent is a retirement candidate until evidence earns its keep, and
 silence is not evidence in either direction.
 
-Which automation is MISSING is `/harness-config:audit-automation-gaps`'s question. Route a gap that
+Which automation is missing is `/harness-config:audit-automation-gaps`'s question. Route a gap that
 surfaces mid-walk there when that plugin is installed; otherwise record it in the findings artifact
 as an observation for the human. This walk never proposes new automation.
 

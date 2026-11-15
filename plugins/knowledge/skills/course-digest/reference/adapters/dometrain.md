@@ -8,7 +8,7 @@ Platform-specific extraction logic for Dometrain (dometrain.com) courses.
 
 Dometrain uses **Mux Player** (`<mux-player>` custom element) loaded from `cdn.jsdelivr.net/npm/@mux/mux-player`. Videos are HLS streams with JWT-protected access tokens (playback-restricted, user-scoped, and short-lived). Read the remaining lifetime from the token itself rather than assuming a window; the check is under "Getting the HLS URL" below.
 
-Video player is NOT a standard `<video>` element. It's a web component with a shadow DOM. Do not try to interact with `<video>` directly.
+Video player is not a standard `<video>` element. It's a web component with a shadow DOM. Do not try to interact with `<video>` directly.
 
 ## Course structure extraction (Phase 1)
 
@@ -72,7 +72,7 @@ Dometrain has a **built-in transcript panel** in the sidebar. Primary extraction
 - `"No transcript available for this lesson."` suffix (from a fallback panel always present in DOM but hidden)
 - Trailing whitespace and empty lines
 
-**Fallback:** If transcript panel shows "No transcript available" or "Loading transcript" after 3 seconds AND no timestamp segments found, lesson may not have captions. Log and continue.
+**Fallback:** If transcript panel shows "No transcript available" or "Loading transcript" after 3 seconds and no timestamp segments found, lesson may not have captions. Log and continue.
 
 **Subtitle tracks:** Mux player loads English subtitles as chunked VTT files from `chunk-*.edgemv.mux.com/v1/subtitle/*/N.vtt`. Signed URLs that expire. DOM transcript panel is more reliable than fetching VTT chunks directly.
 
@@ -132,7 +132,7 @@ ffmpeg -y -user_agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
 **Key flags:**
 
 - `-user_agent` is required, since Mux rejects requests without a browser user-agent
-- `-ss BEFORE -i` for fast keyframe-based seeking
+- `-ss` before `-i` seeks faster than after it; the verified single-frame command above has it after `-i` (**Pointer**: <https://ffmpeg.org/ffmpeg.html#Main-options> for `-ss` as an input or an output option)
 - `-update 1` for single-frame output (avoids "no image sequence pattern" error)
 - Output: 1920x1080 PNG by default
 

@@ -28,8 +28,9 @@ at higher cost.
 For higher accuracy on specific frames, Claude's vision can read PNG files directly during
 summarization phase.
 
-**Recommended approach**: Hybrid two-pass. Tesseract on all frames (free, fast), then
-selectively send high-value frames (code-heavy keyframes) to Claude vision during summarization.
+**Recommended approach**: start with Claude vision on the curated keyframes (Option B below). Once
+Option A is built, run Tesseract on all frames (free, fast), then send high-value frames
+(code-heavy keyframes) to Claude vision during summarization.
 
 **Output**: `code-snippets.md` per lesson, containing extracted code blocks.
 
