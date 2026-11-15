@@ -119,7 +119,7 @@ def classify(path: Path | None) -> dict[str, object]:
             f"{_NAME} resolves to a zero-length WindowsApps App Execution Alias stub "
             f"({path}). It opens the Microsoft Store instead of running an interpreter, so the "
             "guard's launcher skips this rung and falls through to `python`, then `py -3`. "
-            "This verdict describes the FIRST RUNG only — it is not the setup verdict: the "
+            "This verdict describes the first rung only — it is not the setup verdict: the "
             "guard fails open only where the whole ladder is exhausted. Where a later rung "
             "resolves a supported interpreter the install is healthy, and the residual is that "
             "a bare `python3` typed by hand still opens the Store. To clear that: disable the "

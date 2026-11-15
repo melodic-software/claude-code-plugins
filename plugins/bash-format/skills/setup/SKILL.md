@@ -86,7 +86,7 @@ and reads no toggle.
 5. **`shfmt`** (format pass). The pre-computed `shfmt` row. Its FAIL/INFO status depends on the
    `.editorconfig` opt-in below, because the format pass runs **only when the repo has opted
    in**:
-   - opted in AND `shfmt` absent → FAIL: neither the batch row nor the pre-commit entry formats.
+   - opted in and `shfmt` absent → FAIL: neither the batch row nor the pre-commit entry formats.
    - not opted in → INFO regardless of `shfmt`: the format pass stays quiet by design (the
      repo chose not to format), so a missing `shfmt` is not a defect here.
 6. **`.editorconfig` shell opt-in.** Mirror the hook's opt-in logic
@@ -94,9 +94,9 @@ and reads no toggle.
    `.editorconfig` exist". The opt-in is an EditorConfig **section that names shell files**:
    a shell glob such as `[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]` (including path-prefixed
    forms like `[**/*.sh]`), discovered by walking up from the file's directory to the repo
-   root and stopping at a `root = true` config. A bare `[*]` catch-all does NOT count (most
+   root and stopping at a `root = true` config. A bare `[*]` catch-all does not count (most
    repos only set line-ending / charset properties there). Path-only sections like
-   `[scripts/**]` do NOT count either. Report as INFO: whether a governing shell section
+   `[scripts/**]` do not count either. Report as INFO: whether a governing shell section
    exists and therefore whether the format pass is active. If none exists, INFO-note the
    consequence per the hook's logic: shell files are left unformatted rather than rewritten
    to shfmt's built-in defaults.
@@ -226,7 +226,7 @@ the reader's report that they installed something.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run the linter or formatter. Editing any `.sh` or `.bash` file exercises the batch row end to
   end; `git commit` exercises the installed pre-commit entry.

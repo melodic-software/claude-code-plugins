@@ -37,7 +37,7 @@ now measures:
   counts toward `straight_border`.
 - Caption slits: a few short enclosed cuts, not a plain hand-cut notch and not a long cream strip.
   `scripts/woodcut_marks.py` `caption_panel()` (four slits, 5 px by 2 px) scores 2.5, inside the
-  band 2.02-3.28. Length 4 scores 2.0, below it. Length 8 scores 4.0, above it.
+  `bands.sliver_caption` band. Length 4 scores 2.0, below it. Length 8 scores 4.0, above it.
 - Texture: gray inside the ink comes in irregular patches. Parallel dry-brush lines at a fixed pitch
   read as ribbed black; pixel noise lowers `grain` (`grain` and `period` are measured only).
 - Carving: gouges are chunky and irregular, not long thin lines (`sliver`) or rows at one spacing.
@@ -45,20 +45,19 @@ now measures:
 - Timing: step at about 8 drawings a second on 3s, but hold some drawings for 2 or 4 frames as the
   source does (`offstep`); a film strictly on 3s fails.
 - Boil: redraw every mark each drawing, moving every contour a few px rather than a few far. Move
-  the frame stroke 1 px and it scores about 1.00, below 1.30-1.48. Move all of it 2 px and it
+  the frame stroke 1 px and it scores about 1.00, below the `bands.boil` band. Move all of it 2 px and it
   scores about 2.00. `frame_pair('tail')` moves the left half of the top edge by 4 px and everything
   else by 1 px (about 14% of the stroke's pixels move 4 px), and scores about 1.41. 8% of the
   pixels at 4 px is still below the band.
 
 ## Validation
 
-The check in `style.json` `check` has not yet validated a new, untraced scene. The earlier scene
-("the keeper") passed an earlier check that a blur and ruled stripes could satisfy, and is being
-rebuilt. What the check separates, the control suite it is held to, and its held-out results are in
-the learn-style skill's `reference/statistics.md`.
+The check in `style.json` `check` has not yet validated a new, untraced scene. What the check
+separates, the control suite it is held to, and its held-out results are in the learn-style
+skill's `reference/statistics.md`.
 
 The pack predates the corrected final-hold statistic. The `timing` values (`offstep`, `per_second`,
 `holds`), the `bands` and the `ref` values, including the on-1s/2s/3s mix and duration, were
 learned before `inkstats.py` counted a rotoscope work dir's final hold up to `d/index.json` `t1`.
 A film checked against them is measured with the corrected statistic against bands learned with a
-one-frame final hold. The pack has not been relearned; how to relearn it is open in issue #4594.
+one-frame final hold. The pack has not been relearned.

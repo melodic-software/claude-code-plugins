@@ -14,7 +14,7 @@ binding does not land.
 ## Assertions (all substrate classes)
 
 Three checks, plus a fourth where WSL2 interop applies, run inside the boundary, all expected to
-FAIL:
+fail:
 
 | Assertion | Runs | Expected result |
 |---|---|---|

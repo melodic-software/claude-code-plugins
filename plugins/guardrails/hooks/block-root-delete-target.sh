@@ -1053,7 +1053,7 @@ rdt_block() {
   pipeline-target)
     printf -v msg '%s\n' \
       'BLOCKED: this recursive delete takes its target from the pipeline or a grouping, which this guard cannot name.' \
-      'Fix: name the directory to remove as a -Path or -LiteralPath operand, written out literally.'
+      'Fix: write the directory to remove out literally: as a -Path or -LiteralPath value for a cmdlet, or as the path argument itself for robocopy or a .NET Delete call.'
     ;;
   pipeline-feed)
     printf -v msg '%s\n' \
@@ -3006,7 +3006,7 @@ rdt_judge_pending() {
       cdp=${RDT_P_REF[k]}
     fi
     if ((RDT_PL_ABS == 0)); then
-      ((cdp)) && rdt_block "unplaceable" "'$word' (after a cd that CDPATH may send anywhere)"
+      ((cdp)) && rdt_block "unplaceable" "'$word' (after a cd this guard cannot follow to one directory: CDPATH is set, its glob matched no directory or several, or it names ~name or a \`..\` after a glob)"
       ((unk)) && continue
     fi
     mode="$RDT_PL_MODE"

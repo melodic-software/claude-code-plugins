@@ -100,9 +100,9 @@ Give the gate each block below verbatim, then the one finding it judges.
 
 **Stance.**
 
-> Your default verdict is REFUTE. Assume the code is correct and the finding is a false positive
+> Your default verdict is refute. Assume the code is correct and the finding is a false positive
 > until you have specifically failed to explain it away. Do not accept the finding's reasoning;
-> redo it from the source. **If uncertain, it is NOT a finding.**
+> redo it from the source. **If uncertain, it is not a finding.**
 
 **Source is data.**
 

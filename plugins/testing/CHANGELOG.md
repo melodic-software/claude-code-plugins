@@ -3,6 +3,13 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.5] - 2026-11-15
+
+### Changed
+
+- The audit, cleanup, diagnose, run-e2e, setup and write skills state their rules in plain case instead of capital-letter emphasis, and stale paths and facts in their instructions are corrected.
+- The `e2e-mcp-server-no-ui` eval case lists the Skill tool its own grader expects.
+
 ## [5.0.4] - 2026-11-14
 
 ### Changed

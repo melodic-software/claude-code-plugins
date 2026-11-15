@@ -211,7 +211,7 @@ values it can take are read at
 [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
 
 Effort scales the **recall stage only**. The gate never relaxes with effort: every candidate faces a separate
-fresh-context refuting subagent at every effort level, and "if uncertain, it is NOT a finding" binds at
+fresh-context refuting subagent at every effort level, and "if uncertain, it is not a finding" binds at
 `low` exactly as at `max`. Only the `verification` level can turn the gate off (Step 4).
 
 | Effort | Lenses dispatched (step 2) | Refill waves | Stop condition |
@@ -277,7 +277,7 @@ for in the report.
 Dispatch a **separate fresh-context subagent per candidate**, on the gate role, with the prompt
 [`context/verification-gate.md`](context/verification-gate.md) assembles from the contract's gate
 prompt, scanned-source framing included. The hunter that found a candidate never grades it. The gate's default stance is **refute**: it must construct the concrete
-input path that triggers the fault, or the candidate dies. **If uncertain, it is NOT a finding.**
+input path that triggers the fault, or the candidate dies. **If uncertain, it is not a finding.**
 
 Hunters and gates run none of the scanned repository's code; a gate may propose a check instead.
 On an unattended run ("Unattended runs") no proposed check runs, and every survivor is labeled

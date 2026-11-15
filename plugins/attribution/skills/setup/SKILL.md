@@ -127,6 +127,12 @@ silent no-op that quietly halves the panel.
 Reject any key not in this schema rather than writing it through. A typo that lands in the file
 reads as a setting and behaves as nothing.
 
+## Next
+
+`/attribution:audit`
+
+It reads the config this skill writes.
+
 ## Gotchas
 
 - **A misplaced key reads like a setting and behaves like nothing.** `accuracy.judge_samples` is
@@ -142,7 +148,7 @@ reads as a setting and behaves as nothing.
   An unconditional exclusion would decline the fixtures under every eval harness run, leaving the
   eval author reading prose instead of results; the harness can lift the config default.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not edit source.** The only files it writes are the consuming repository's own config,
   and the only files it removes are retired config files its manifest names, after migration.

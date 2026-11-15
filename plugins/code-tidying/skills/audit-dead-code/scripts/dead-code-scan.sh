@@ -47,7 +47,7 @@ TARGETS=()
 
 usage() {
   cat <<'EOF'
-dead-code-scan.sh — emit dead-code CANDIDATES for /code-tidying:audit-dead-code.
+dead-code-scan.sh — emit dead-code candidates for /code-tidying:audit-dead-code.
 
 Usage:
   dead-code-scan.sh [target]...
@@ -56,11 +56,11 @@ Usage:
   dead-code-scan.sh --help
 
 Candidate scope is the given targets (default: the whole repository). The
-reference SEARCH is always repository-wide — a reference from anywhere still
+reference search is always repository-wide — a reference from anywhere still
 saves a symbol, whatever the candidate scope.
 
 --max <n> caps how many candidates are emitted, ordered by git recency,
-OLDEST-UNTOUCHED FIRST (0 = no cap). The detectors carry no usable confidence
+oldest-untouched first (0 = no cap). The detectors carry no usable confidence
 key to order by: vulture pins every symbol-level finding at 60 and knip has no
 confidence field at all.
 
@@ -458,13 +458,13 @@ lane_knip() {
     nfiles="${#repo_owned[@]}"
     if [[ "$nfiles" -eq 0 ]]; then
       lane_line knip "$root_rel" scanned-zero-files 0 \
-        'no TS/JS file owned by this root in candidate scope (files under a NESTED project root belong to that root) — a scan of nothing, not a clean bill'
+        'no TS/JS file owned by this root in candidate scope (files under a nested project root belong to that root) — a scan of nothing, not a clean bill'
       continue
     fi
     if [[ "$root_rel" == "." ]]; then root_abs="$REPO_ROOT"; else root_abs="$REPO_ROOT/$root_rel"; fi
     if ! dc_find_nonempty_node_modules "$root_abs" "$REPO_ROOT" >/dev/null; then
       lane_files knip "$root_rel" degraded \
-        'node_modules absent or empty by direct ancestor-walk probe — an unrestored knip run MANUFACTURES false unused-file findings, so this root emits no records' \
+        'node_modules absent or empty by direct ancestor-walk probe — an unrestored knip run manufactures false unused-file findings, so this root emits no records' \
         "${repo_owned[@]}"
       continue
     fi
@@ -486,7 +486,7 @@ lane_knip() {
     (cd "$root_abs" && "$bin" --reporter json --no-progress) >"$WORK/knip.out" 2>"$WORK/knip.err" || true
     if dc_knip_stderr_is_degraded "$WORK/knip.err"; then
       lane_files knip "$root_rel" degraded \
-        'knip wrote an ERROR: line to stderr, which --reporter json discards; such a run manufactures FALSE POSITIVES, so this root emits no records' \
+        'knip wrote an ERROR: line to stderr, which --reporter json discards; such a run manufactures false positives, so this root emits no records' \
         "${repo_owned[@]}"
       continue
     fi
@@ -521,7 +521,7 @@ lane_knip() {
       done <"$WORK/knip.rows"
       detail="$rows candidate(s)"
       if [[ "$foreign" -gt 0 ]]; then
-        detail="$detail; $foreign finding(s) this root does not own dropped (a NESTED project root's file, or a path excluded from candidate scope) — each nested root reports its own, and only when its own run is healthy"
+        detail="$detail; $foreign finding(s) this root does not own dropped (a nested project root's file, or a path excluded from candidate scope) — each nested root reports its own, and only when its own run is healthy"
       fi
       lane_files knip "$root_rel" ran "$detail" "${repo_owned[@]}"
     else
@@ -657,7 +657,7 @@ lane_gopls() {
     nfiles="${#repo_owned[@]}"
     if [[ "$nfiles" -eq 0 ]]; then
       lane_line gopls "$root_rel" scanned-zero-files 0 \
-        'no .go file owned by this module in candidate scope (files under a NESTED go.mod belong to that module) — a scan of nothing, not a clean bill'
+        'no .go file owned by this module in candidate scope (files under a nested go.mod belong to that module) — a scan of nothing, not a clean bill'
       continue
     fi
     if [[ "$root_rel" == "." ]]; then root_abs="$REPO_ROOT"; else root_abs="$REPO_ROOT/$root_rel"; fi
@@ -691,7 +691,7 @@ lane_gopls() {
     fi
     if [[ "$degraded" == '1' ]]; then
       lane_files gopls "$root_rel" degraded \
-        'module graph or workspace did not load (import error on stdout or a non-empty stderr, always with exit 0); hints are SUPPRESSED, so this module produces false NEGATIVES and emits no records' \
+        'module graph or workspace did not load (import error on stdout or a non-empty stderr, always with exit 0); hints are suppressed, so this module produces false negatives and emits no records' \
         "${repo_owned[@]}"
       continue
     fi
@@ -722,7 +722,7 @@ lane_gopls() {
     fi
     detail="$parsed unexported candidate(s), $drift unrecognized line(s); exported symbols are outside this lane"
     if [[ "$foreign" -gt 0 ]]; then
-      detail="$detail; $foreign diagnostic(s) this module does not own dropped (a NESTED module's file, or a path excluded from candidate scope)"
+      detail="$detail; $foreign diagnostic(s) this module does not own dropped (a nested module's file, or a path excluded from candidate scope)"
     fi
     lane_files gopls "$root_rel" ran "$detail" "${repo_owned[@]}"
   done

@@ -14,7 +14,7 @@ preflight** above, which sits before this list's step 1 and gates the whole
 pass, and the split below. The shared loop has each corrector run steps 1–3
 itself, in its own context. This runbook **splits** them: the audit
 (steps 1–2) runs in per-corrector subagents; the correction (step 3) is
-collected and applied ONCE on the main thread, serialized in rank order.
+collected and applied once on the main thread, serialized in rank order.
 Rationale: a dozen disciplines each correcting forward independently in one
 context recreates the salience dilution this plugin exists to fix, and a
 merged pass lets order matter. The shared method's Non-negotiables are
@@ -29,26 +29,26 @@ unchanged and bind every member.
    [How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents)
    live). The dated record for every fork claim in this pass is
    [`inheritance-preflight.md`](inheritance-preflight.md), whose stamp opens
-   that file. The forks read the live working tree. Do NOT isolate them
+   that file. The forks read the live working tree. Do not isolate them
    (see Gotchas: isolation would hide the uncommitted work in flight, which is
    usually the thing under audit). Their no-writes rule is trusted, not
    enforced. See Gotchas, and treat a fork that wrote as untrusted output:
    stop rather than correct on top of it. Instruct
    each fork: answer the preflight's inheritance-proof question first, then
-   load exactly this ONE corrector's
+   load exactly this one corrector's
    `SKILL.md`, run shared-loop steps 1–2 only (re-anchor + self-audit), never
    its fan-out tier (no subagent dispatch, whatever argument or trigger the
    corrector would otherwise act on; a fan-out that would fit becomes a ledger
-   entry recommending a direct run), make NO writes, and return a findings
+   entry recommending a direct run), make no writes, and return a findings
    ledger. Each ledger entry carries the
-   concrete located finding AND the remedy this corrector would apply for it
+   concrete located finding and the remedy this corrector would apply for it
    (the shared loop's step-3 corrective action, *described* not performed. The
    fork still writes nothing), or "clean (unconfirmed)", since a fork cannot
    spawn the method doc's step 2 confirmation. Capturing the proposed
    remedy in the audit is what gives step 3 the reporter→remedy data to key on;
    a ledger of bare violations would leave the dedup with nothing to preserve.
 
-   **Wave sizing, budget, and what counts as a failure.** Prefer ONE wave:
+   **Wave sizing, budget, and what counts as a failure.** Prefer one wave:
    dispatch every in-scope member together, so no member's ledger is in the
    transcript when another member spawns. That independence is load-bearing,
    not decoration. Step 3's dedup and step 4's ordering both assume the
@@ -103,14 +103,14 @@ unchanged and bind every member.
 
    **Retry, and what counts as a failure.** Retry only a failed subset, once, and **failure includes a ledger returned without verified inheritance
    proof**, not only an errored dispatch: a fabricated ledger is the exposure
-   the retry rule exists for. One dispatch error is explicitly NOT a retryable
+   the retry rule exists for. One dispatch error is explicitly not a retryable
    failure: a spawn refused at the concurrent subagent limit. For that error's
    wording and how the harness handles it, read
    [Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
    live. That is a capacity race, not a failed audit. Wait for
    capacity and dispatch, rather than retrying into the same wall. A retry is anchored by construction, one wave or
    many: it spawns after other members' ledgers have landed, so it inherits
-   them. There is no un-anchored rerun available inside this conversation; re-running the whole pass would inherit MORE, not less, since every ledger
+   them. There is no un-anchored rerun available inside this conversation; re-running the whole pass would inherit more, not less, since every ledger
    is already in the transcript any new fork copies. So do not offer a clean
    rerun; report each retried member's ledger as anchored and weigh it as such.
    A member still unproven after its one retry is reported
@@ -123,20 +123,20 @@ unchanged and bind every member.
    3's dedup and step 4's rank order like any other entry. Under `light` or
    `off` the ledger stays "clean (self-audit only)".
 3. **Dedup by root cause.** Before correcting, group ledger entries across
-   correctors that name the SAME underlying finding. Distinct disciplines
+   correctors that name the same underlying finding. Distinct disciplines
    routinely surface one root cause as separate entries (e.g. a recall-based
    claim flagged independently by `do-your-research`, `recheck-against-upstream`,
    and `mind-your-maxims`). Group them into one finding carrying the union of
-   their located evidence and, keyed BY reporting corrector, the remedy that
+   their located evidence and, keyed by reporting corrector, the remedy that
    corrector asks for, a reporter→remedy mapping, not a flat remedy list beside
    a separate reporter list, so step 4 knows which remedy belongs to which rank.
    What dedup collapses is the
-   re-analysis and the re-reporting of one root cause, NOT the corrective work:
+   re-analysis and the re-reporting of one root cause, not the corrective work:
    a shared root cause can demand more than one remedy that are not
    interchangeable (verifying or retracting the unsupported claim satisfies the
    research reporters, but `mind-your-maxims` may still require a reader-facing
    uncertainty disclosure), and every reporter's remedy is still applied. This
-   grouping is the ONLY place ledgers combine: the forks stay independent by
+   grouping is the only place ledgers combine: the forks stay independent by
    design (no shared ledger across forks. That independence is what keeps each
    audit's perspective un-anchored), and grouping is by root cause, not by
    corrector. A finding only one corrector raised passes through unchanged.

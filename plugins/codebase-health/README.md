@@ -4,15 +4,16 @@ A Claude Code plugin for repo-wide drift auditing: it verifies that a codebase's
 ground truth via a parallel per-file subagent fan-out, findings are severity-rated, and the audit
 reports them read-only. Remediation is delegated to the implementation/verification lanes.
 
-Distinct from diff/PR review (which judges a change): this plugin verifies whether the repo's own
-written claims about itself are true.
+Diff/PR review judges a change. This plugin instead verifies whether the repo's own written claims
+about itself are true.
 
 Other kinds of drift belong to other lanes. The audit skill's
-[Boundary](skills/audit/SKILL.md#boundary-the-adjacent-drift-lanes) section routes seven of them
-(doc drift in a change under review or in a repo-wide sweep, stale session assumptions, currency
-against upstream docs, prose copied from an external source, Claude Code's own configuration and
-instruction surfaces, and the placement and enforcement delta lanes) to the sibling that owns each,
-presence-gated on that plugin being installed.
+[Boundary](skills/audit/SKILL.md#boundary-the-adjacent-drift-lanes) section names seven of them
+(whether a page deserves to exist or is fresh in a change under review, stale session assumptions,
+currency against upstream docs, prose copied from an external source, Claude Code's own
+configuration and instruction surfaces, and the placement and enforcement delta lanes) with the
+sibling that owns each. It reports such a request as uncovered and names that lane for the operator
+to run, whether or not its plugin is installed, without invoking it.
 
 | Skill | What it does |
 |---|---|
@@ -21,8 +22,10 @@ presence-gated on that plugin being installed.
 
 ## The audit
 
-Four phases (0–3): prime the repo's conventions, discover via per-file fan-out, independently
-validate each finding (a separate agent re-verifies, never self-review), then categorize and present
+Four phases (0–3): prime the repo's conventions, discover via per-file fan-out, validate each
+finding (a separate agent re-verifies, never self-review, at the `standard` level after a fan-out
+Phase 1 and always at `strict`; at the default `light`, and at `off`, no validator runs and the
+findings are reported `unverified`), then categorize and present
 in a severity-rated table with a verified-non-issues proof-of-thoroughness list, drift patterns, fix
 priority, enforcement escalation, and config-gap observations. Bare invocation is read-only. It
 reports and stops.

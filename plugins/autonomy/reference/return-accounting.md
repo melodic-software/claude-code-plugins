@@ -174,7 +174,7 @@ Usage measures activity. Only the two human-attested fields answer the return qu
 capability may present telemetry alone as return, and no capability may estimate the
 human-attested fields.
 
-## Agent-run artifact attestation is out of scope (#4703)
+## Agent-run artifact attestation is out of scope
 
 This convention attests **return**: two human fields at the task boundary. It does not sign
 which instructions, review prompts, workflows, or runs produced a commit, and no plugin or leaf

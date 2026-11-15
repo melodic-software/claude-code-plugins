@@ -53,7 +53,7 @@ The row is derived through the catalog's mapping rules, never hand-assigned:
 
 1. **Judgment axis.** The narrative of what mattered, what changed, and what trends is
    agent judgment, so the class is a routine rather than judgment-free work; the underlying counters
-   alone would be deterministic, but the digest's value IS the judgment over them.
+   alone would be deterministic, but the digest's value is the judgment over them.
 2. **Output axis.** Advisory report only, no repository mutation → `C1`, with the `L2`
    unattended floor (the read-only class's exfiltration surface remains).
 

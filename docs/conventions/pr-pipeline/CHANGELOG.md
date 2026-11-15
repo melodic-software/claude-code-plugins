@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [10.3.5] - 2026-11-15
+
+### Changed
+
+- The PR pipeline contract docs state rules as current facts, with stale figures corrected and capital-letter emphasis removed.
+
 ## [10.3.4] - 2026-11-15
 
 ### Changed

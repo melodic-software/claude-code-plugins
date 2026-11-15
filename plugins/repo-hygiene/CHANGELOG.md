@@ -3,6 +3,15 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.30] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
+- Clean skill text, script help and guard messages read in plain case instead of capital-letter emphasis, and the action resolver's help lists the batch actions it returns.
+- The setup skill points at the settings reference for where a plugin option value is read from.
+
 ## [0.21.29] - 2026-11-14
 
 ### Changed

@@ -31,7 +31,7 @@ and worked examples: [../reference/triage.md](../reference/triage.md).
 | **C, same test failed** | Inexpressible, but criterion 2 fails: recoverable from version control, an ADR or an external source | Under `explanatory`: deleted behind the token proof, narrative staged first; proposed under `safe`. Outside `explanatory` criterion 2 is not run on a comment off the keep list |
 
 The two class-C rows are one class and one test, whose three criteria must **all** hold. A
-criterion-1 failure is not this branch: expressible is class B, redundant with code that IS present
+criterion-1 failure is not this branch: expressible is class B, redundant with code that is present
 is class A. Class-B moves and their tiers: [../reference/dissolving-moves.md](../reference/dissolving-moves.md).
 
 **Class B applies less than it looks**: 2 of 17 moves need no test net, none apply with tree-sitter

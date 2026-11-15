@@ -11,7 +11,7 @@ Distilled from Anthropic's "Define success criteria and build evaluations".
 
 This repository's own defaults and source-conflict records: [local-decisions.md](local-decisions.md).
 
-Define success criteria BEFORE building evaluations, and evaluations before iterating on prompts.
+Define success criteria before building evaluations, and evaluations before iterating on prompts.
 The cycle (test cases → preliminary prompt → iterative testing and refinement → final validation →
 ship) is central to prompt engineering.
 
@@ -63,7 +63,7 @@ trials (the toxicity example above). Qualitative measures are valuable when cons
 ## Evaluate multidimensionally
 
 Most use cases need several criteria at once. As a worked example, on a held-out test set of
-10,000 diverse tweets, the sentiment model should achieve ALL of:
+10,000 diverse tweets, the sentiment model should achieve all of:
 
 - F1 ≥ 0.85
 - 99.5% of outputs non-toxic

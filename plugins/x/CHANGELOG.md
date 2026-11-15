@@ -5,6 +5,13 @@ All notable changes to the `x` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.21] - 2026-11-15
+
+### Changed
+
+- The read skill points at its gotchas for the observed xtomd GET response, and the gotchas say when to recheck them.
+- Eval case descriptions cite the read skill by section name instead of line numbers.
+
 ## [0.4.20] - 2026-11-13
 
 ### Changed

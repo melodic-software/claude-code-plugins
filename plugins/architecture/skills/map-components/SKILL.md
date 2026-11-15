@@ -51,7 +51,7 @@ not a task list:
    `<root>/<home>/authoring-formats/README.md` to the resolver.
 4. Layer order is one layer deep: an explicit `--dialect` argument, then the team convention doc.
    There is no personal override.
-5. `diagram_dialect.system` has NO default. Allowed values are `likec4` and `c4-plantuml`. When it
+5. `diagram_dialect.system` has no default. Allowed values are `likec4` and `c4-plantuml`. When it
    is unset, write `components.md` with the prose and tables and draw no diagram block.
 6. Degrade soft, and say so. No pointer, no doc, no key, or an unrecognized value (mermaid
    included, which the convention refuses) each resolve to emitting no view. The resolver names
@@ -209,7 +209,7 @@ deployable's node id>`, never hand-written; the shared medium resolver decides t
 plugin's `medium` option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (never put
 a `${user_config.*}` string in a shell command), and its report line is printed. Procedure: [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Class-level or code-rung diagrams, behavior, or deployment. Those are other
   rungs.

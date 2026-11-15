@@ -32,7 +32,7 @@ of the fleet.
 
 ### When the plugin is absent
 
-Fall back to the bundled walk, and ANNOUNCE the fallback: the operator has to know the collaborator
+Fall back to the bundled walk, and announce the fallback: the operator has to know the collaborator
 did not run. Fall back the same way when the plan file is missing or carries a `schema_version`
 other than `1`, rather than parsing a plan shape nothing verified.
 

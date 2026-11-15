@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Skips: PRD, because bug fixes are engineering-internal.",
+      "why": "names the skipped stage"
+    },
+    {
+      "answer": "The PRD is skipped for a bug.",
+      "why": "stage first, then the word skipped"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No stages are skipped; run every stage.",
+      "why": "names no skipped stage"
+    },
+    {
+      "answer": "Do not skip the PRD for this one.",
+      "why": "negated"
+    }
+  ]
+}

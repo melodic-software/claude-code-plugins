@@ -29,10 +29,10 @@ mints a new schema identifier. `v2` is that case: in `v1` a measured path was re
 working directory the audit ran from, and in `v2` it is relative to `root.path`. A `v1` document
 and a `v2` document are not comparable path-for-path.
 
-The identifier changed with no dual-emission window because, at the time, nothing read persisted
-reports. Today the one reader is `audit-duplication`'s own clone trend ("Clone trend"), which
-compares only reports carrying the current `schema`, so a later identifier change resets the trend
-rather than mixing versions. No reader outside this plugin opens a saved report.
+A schema identifier change carries no dual-emission window. The one reader of persisted reports is
+`audit-duplication`'s own clone trend ("Clone trend"), which compares only reports carrying the
+current `schema`, so an identifier change resets the trend rather than mixing versions. No reader
+outside this plugin opens a saved report.
 
 - Claim: a new identifier needs no compatibility window, because the only reader of persisted
   `code-metrics` reports is this plugin's clone trend, which skips any report with another
