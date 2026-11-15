@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "from hypothesis import given, strategies as st\n\nfrom src.tags import normalize_tags\n\n\n@given(st.lists(st.text()))\ndef test_second_pass_changes_nothing(tags):\n    once = normalize_tags(tags)\n    assert normalize_tags(once) == once\n",
+      "why": "a Hypothesis property"
+    },
+    {
+      "answer": "import hypothesis\nimport hypothesis.strategies as st\n\n\n@hypothesis.given(st.lists(st.text()))\ndef test_idempotent(tags):\n    pass\n",
+      "why": "the module-qualified decorator"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "from src.tags import normalize_tags\n\n\ndef test_normalizes():\n    assert normalize_tags(['B', 'a', 'b']) == ['a', 'b']\n",
+      "why": "an example test only"
+    },
+    {
+      "answer": "# TODO: @given(st.lists(st.text()))\ndef test_normalizes():\n    pass\n",
+      "why": "the decorator only in a comment"
+    }
+  ]
+}

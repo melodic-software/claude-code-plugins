@@ -230,11 +230,17 @@ describe("acquireYouTubeMedia", () => {
      * @param {"full" | "transcript"} mode
      * @param {object} infoFields
      * @param {string | null} [captionWaitDeadline]
+     * @param {boolean} [skipCaptionWait]
      */
-    const acquireUncaptioned = (mode, infoFields, captionWaitDeadline = null) =>
+    const acquireUncaptioned = (
+      mode,
+      infoFields,
+      captionWaitDeadline = null,
+      skipCaptionWait = false,
+    ) =>
       acquireYouTubeMedia(
         DRIVER_WATCH_URL,
-        { workDir, mode, videoId: DRIVER_VIDEO_ID, captionWaitDeadline },
+        { workDir, mode, videoId: DRIVER_VIDEO_ID, captionWaitDeadline, skipCaptionWait },
         {
           ...NO_THROTTLE,
           now: () => NOW,
@@ -260,6 +266,22 @@ describe("acquireYouTubeMedia", () => {
       const result = await acquireUncaptioned("full", justEnded);
       expect(result.success).toBe(false);
       expect(result.captionWait).toMatchObject({ state: "wait", liveStatus: "was_live" });
+    });
+
+    it("skips an open wait in full mode when the caller can transcribe the media, and says so", async () => {
+      const result = await acquireUncaptioned("full", justEnded, null, true);
+      expect(result.success).toBe(true);
+      expect(result.data?.caption).toBeNull();
+      expect(result.captionWait).toBeUndefined();
+      expect(result.data?.acquireMetrics?.captionWait).toContain(
+        "caption wait skipped on a ranged run with no captions (live_status was_live",
+      );
+    });
+
+    it("still holds transcript mode when asked to skip, since it has no media to transcribe", async () => {
+      const result = await acquireUncaptioned("transcript", { live_status: "post_live" }, null, true);
+      expect(result.success).toBe(false);
+      expect(result.captionWait).toMatchObject({ state: "wait", liveStatus: "post_live" });
     });
 
     it("keeps today's caption-less path for a video that is not live-derived", async () => {

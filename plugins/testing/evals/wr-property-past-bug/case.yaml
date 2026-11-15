@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: wr-property-past-bug
+description: 'Past bug. slugify once returned an empty slug for the title "!!!" and broke the URL builder; it is fixed. A property test for slugify (never empty, only lowercase letters, digits and single hyphens) carries that reported input as a fixed Hypothesis @example on the property, so the regression runs before any generated input on every run. skill-fired reads the Skill calls; uses-given and pins-past-bug read tests/test_slug.py. Needs --scaffold --allow-tools Write Edit.'
+tags: [testing, write, property, regression, past-bug, scaffold, no-network]
+expected_outcome: 'tests/test_slug.py holds a @given property for slugify decorated with @example("!!!").'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Write a property-based test for slugify in src/slug.py and put it in tests/test_slug.py. Last month a user reported that slugify("!!!") returned an empty string, which broke the URL builder; that is fixed now. Dependencies are not installed in this checkout, so write the file and do not run it. Use the `testing:write` skill if you have it.'
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: uses-given
+    type: regex
+    pattern: '^\s*@(?:hypothesis\.)?given\('
+    flags: m
+    target: { source: file, path: tests/test_slug.py }
+  - name: pins-past-bug
+    type: regex
+    pattern: '^\s*@(?:hypothesis\.)?example\(\s*(?:\w+\s*=\s*)?["'']!!!["'']'
+    flags: m
+    target: { source: file, path: tests/test_slug.py }
