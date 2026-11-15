@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.3.1] - 2026-11-15
+
+### Fixed
+
+The charge words no longer read "seat the guard" and similar lines, where the verb "seat" opens a line or follows a word such as "then" or "to" and takes a thing as its object, as a paid seat, so intake admission stops holding such issues for a cost decision; every other "seat" and every "seats" still counts.
+
 ## [15.3.0] - 2026-11-15
 
 ### Added
