@@ -225,8 +225,9 @@ Constraints:
 When the intent selector lands on the HTML mockup substrate and `medium` allows it (resolve it first per [reference/medium.md](reference/medium.md)), tell the user before building, except
 under `--unattended`, that the design canvas is an alternative they can run themselves; this skill builds the HTML mockup
 either way and never invokes `design`. Read [reference/design-canvas.md](reference/design-canvas.md)
-before making the offer: it holds the two options, the lifecycle difference the offer names, the
-capture discipline, and the verification record for the `design` registration.
+before making the offer: it holds the two options, the lifecycle difference the offer names, and the
+capture discipline. The verification record for the `design` registration is
+[reference/bundled-design.md](reference/bundled-design.md).
 
 ## For a shared interview
 
@@ -430,9 +431,9 @@ Before acting on a row, read [reference/boundaries.md](reference/boundaries.md) 
 
 - **`design` (bundled skill)**: only the person runs `/design`; never run or publish the canvas or
   cite it in tracked files. Before building on the mockup host, unless the medium keeps the view on
-  this machine or `--unattended` is set (then suggest and record nothing), tell the user:
+  this machine or `--unattended` is set (then make no suggestion and record nothing), tell the user:
   If /design is available in your session (gate basis: the verification record in
-  [reference/design-canvas.md](reference/design-canvas.md)), you can run `/design <scope>` instead
+  [reference/bundled-design.md](reference/bundled-design.md)), you can run `/design <scope>` instead
   of or alongside this skill for a hand-editable design canvas.
   Every offer adds that `/design`'s description should read "Make a new Design artifact from a
   brief". A `design` entry in your skill listing is a local skill shadowing the bundled one: make

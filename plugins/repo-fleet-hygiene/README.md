@@ -20,8 +20,8 @@ The currently shipped audit reports:
 
 The plugin is deliberately **read-only by default**. `/repo-fleet-hygiene:audit` never fetches,
 prunes, repairs, deletes, checks out, or rewrites anything. Every finding names its evidence,
-confidence, disposition, and exact target. Two verbs mutate, each only behind `--apply` and one
-confirmation: `/repo-fleet-hygiene:apply --plan-file <path> [--apply] [--yes] [--remote-branches]` consumes the audit's
+confidence, disposition, and exact target. Two verbs mutate repositories, each only behind `--apply`
+and one confirmation: `/repo-fleet-hygiene:apply --plan-file <path> [--apply] [--yes] [--remote-branches]` consumes the audit's
 action-plan JSON (see [Fleet cleanup plan](#fleet-cleanup-plan)), and `/repo-fleet-hygiene:sync`
 fast-forwards canonical checkouts (see [Sync](#sync)). Per-repository owners remain available for
 interactive work:
@@ -52,9 +52,9 @@ The epic's fleet architecture is intentionally split from the current implementa
 | One fleet cleanup-plan handoff consuming that artifact | `repo-fleet-hygiene:apply` (owns batched merged-local-branch deletion; worktree cleanup in plan order) | Shipped |
 | Conformance against the configured worktree root | `repo-fleet-hygiene`, reading the convention owned by `source-control` | Shipped |
 | Complete exact branch merge evidence via GraphQL | `repo-fleet-hygiene` | Shipped |
-| Merged remote-branch reporting and its separate safety gate | `repo-fleet-hygiene` | Tracked by [#2607](https://github.com/melodic-software/claude-code-plugins/issues/2607); follow-up PR [#2645](https://github.com/melodic-software/claude-code-plugins/pull/2645) |
+| Merged remote-branch reporting and its separate safety gate | `repo-fleet-hygiene` | Shipped; see [Remote branch deletion](#remote-branch-deletion) |
 
-Rows marked "not yet shipped" are contracts, not commands this version accepts. Their linked child
+Parts marked "Not shipped" are contracts, not commands this version accepts. Their linked child
 issues become the shipping record when merged; until then, the audit preserves the current detailed
 report and exact per-repository handoffs.
 
@@ -220,7 +220,7 @@ successfully audited.
 
 "Can I delete this repository safely?" is deletion triage, an inventory of dirty files, stashes,
 and unpushed branches, and belongs to `/repo-hygiene:clean` (its scan/stash/git tiers), which owns
-per-repository disposability analysis. This audit is a read-only cross-repository evidence REPORT;
+per-repository disposability analysis. This audit is a read-only cross-repository evidence report;
 it names candidates and hands off. Linked unlocked worktrees are named in `worktree-status-handoff`
 for `/source-control:worktree status` stranded-work classification. This audit does not emit a
 `git status`-based reclaimability substitute.

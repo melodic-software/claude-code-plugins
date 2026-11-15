@@ -265,7 +265,7 @@ Uninstalling the plugin removes the cache directory, not the files under
 the reader contract says. To remove the files too, delete `~/.claude/rate-limits/` after the
 uninstall.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform setup
   contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace

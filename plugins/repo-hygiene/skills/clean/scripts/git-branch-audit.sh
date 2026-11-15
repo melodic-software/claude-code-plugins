@@ -7,7 +7,7 @@
 # Loss, Reason, Landed (the proof, on a landed branch only), Family (plus Worktree, the
 # checkout path, on a WORKTREE branch); then the LossBlock (LossBlock / LossBranch / LossCommit /
 # LossBlockEnd); then TipCapture (or TipCaptureError); Summary line. A missing
-# map is NOT the same as a repo with no PRs, and the two are distinguishable
+# map is not the same as a repo with no PRs, and the two are distinguishable
 # here on purpose: PR state is what detects a squash merge, so without it a
 # landed branch reads as unmerged.
 # Exit: 0 (2 on a usage error).
@@ -56,7 +56,7 @@
 # it would otherwise be REVIEW, origin/<default> is present so "landed" can be
 # evaluated, and `git rev-list <branch> --not --remotes --tags` counts at least
 # one commit reachable from no remote-tracking ref and no tag. Those commits
-# exist only on this local branch. Other local branches deliberately do NOT
+# exist only on this local branch. Other local branches deliberately do not
 # count as "elsewhere": a sibling in the same deletion batch is not a place the
 # work persists. A PR known to be MERGED (a squash changes the SHA, so the count
 # would overstate the loss) or OPEN (an active claim on the branch) keeps the
@@ -130,7 +130,7 @@
 # common git dir (`.git/repo-hygiene/branch-tips/<utc-stamp>-<pid>.tsv`), and
 # the path is printed as `TipCapture: <path>`. That file is the precondition
 # git-branch-delete.sh demands before it deletes anything: a deleted branch is
-# restorable only from its tip, and the tip must be recorded BEFORE the delete,
+# restorable only from its tip, and the tip must be recorded before the delete,
 # not remembered from a transcript. The capture is written to a `.part` file
 # (created exclusively, so two runs can never share one) and renamed into place
 # only when every row landed; any failure (no writable location, a short write)
@@ -258,7 +258,7 @@ variable holding a whole number of days):
 "On another ref" is `git rev-list <tip> --not <every other ref>` being empty. With
 --repo / --repos-from each repository is reported the same way.
 
-Does NOT delete branches. Exit: 0 (2 on a usage error).
+Does not delete branches. Exit: 0 (2 on a usage error).
 EOF
 }
 
@@ -939,7 +939,7 @@ classify_branch() {
     tier=REVIEW reason="PR closed without merge" pr_line="#${PR_NUM[$branch]} CLOSED"
   elif [[ -n "${GONE_SET[$branch]+x}" ]]; then
     if [[ -z "$ahead_default" ]]; then
-      # Upstream gone AND no origin/<default> to compare against (feature-only
+      # Upstream gone and no origin/<default> to compare against (feature-only
       # clone, unfetched/missing remote HEAD): the script cannot prove the branch
       # is merged, so fail closed to REVIEW rather than offer it as a deletable
       # LIKELY-SAFE candidate that might carry local-only commits.

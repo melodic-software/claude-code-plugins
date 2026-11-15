@@ -23,10 +23,10 @@ their repo mid-session.
   suggested change is filed agent-ready only after a research pass, otherwise as needs-decision.
   `/session-flow:workflow` offers the `session` mode at wrap-up when a plugin skill ran.
 - **Auditor agent** (`agents/auditor.md`), the fresh-context specialist for steps 2–3. Tools:
-  Read/Grep/Glob/WebFetch plus Bash. Bash is there for `claude plugin validate`,
+  Read/Grep/Glob/WebFetch plus Bash and Write. Bash is there for `claude plugin validate`,
   config-resolution probes, and the fetch ladder's rung-1 `scripts/fetch-docs.sh` read of the
   raw-markdown docs channel, not mutation. That script also stores the page in the shared
-  user-scope docs cache, its own store.
+  user-scope docs cache, its own store. Write is for the evidence packet only.
 - **Reference corpus** (`skills/audit/reference/`), the recurring-concerns checklist plus five
   component-type lenses (hook, skill, agent, command, config). Extending coverage = one file +
   one index row; the hub never grows.

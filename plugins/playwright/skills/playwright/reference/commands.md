@@ -175,13 +175,13 @@ Session isolation with `-s=<name>`: see [sessions.md](sessions.md). `--headed` o
 **Form submission**
 
 ```bash
-playwright-cli open https://example.com/form
-playwright-cli snapshot
-playwright-cli fill e1 "user@example.com"
-playwright-cli fill e2 "password"
-playwright-cli click e3
-playwright-cli snapshot
-playwright-cli close
+playwright-cli -s=form open https://example.com/form
+playwright-cli -s=form snapshot
+playwright-cli -s=form fill e1 "user@example.com"
+bash "<skill-dir>/scripts/fill-secret.sh" form e2 E2E_TEST_PASSWORD
+playwright-cli -s=form click e3
+playwright-cli -s=form snapshot
+playwright-cli -s=form close
 ```
 
 **DevTools inspection**

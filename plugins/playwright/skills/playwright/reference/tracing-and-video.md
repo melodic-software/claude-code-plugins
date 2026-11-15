@@ -177,7 +177,7 @@ config route as unverified until you have measured it yourself.
 
 ## Video hero scripts (via `run-code`)
 
-For polished recordings (demos, PR evidence), build a single `run-code` script with typing delays, overlays, and chapter cards. For the execution mechanism, see [running-code.md](running-code.md). Upstream ships a detailed pattern at `../vendor/references/video-recording.md` covering:
+For polished recordings (demos, PR evidence), build a single `run-code` script with typing delays, overlays, and chapter cards. For the execution mechanism, see [running-code.md](running-code.md). The script uses:
 
 - `page.screencast.showChapter(title, { description, duration })`: full-screen chapter card with blurred backdrop
 - `page.screencast.showOverlay(html, { duration })`: custom HTML callouts/labels/highlights
@@ -206,7 +206,7 @@ the file stays small.
 
 ## Known costs
 
-- Tracing adds ~50-150ms/action overhead
+- Tracing adds per-action overhead; measure it on your own flow before budgeting for it
 - Video adds real-time encoding overhead. WebM file size scales with frame area and with how much of
   the screen moves, so raising `--size` raises cost roughly in proportion. Measure your own flow
   rather than budgeting from a rule of thumb

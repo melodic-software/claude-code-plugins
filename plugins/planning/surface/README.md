@@ -140,7 +140,7 @@ The team, personal and user files also take `themeTokens` (`{"light": {...}, "da
 
 ### Theme
 
-The page copies three parts of the plugin's canonical chrome, `../reference/html-chrome.html`, verbatim: the theme toggle, the comment box, and the CSS rules between the `rv-chrome:begin` and `rv-chrome:end` markers. `test_page_chrome.py` checks that the copies match. The header's System, Light and Dark toggle is the page's only theme choice. It opens on System, which follows the browser's color-scheme preference; Light and Dark pin the page by setting `data-theme` on the root element. Nothing stores the choice, so a reload opens on System again. The `theme` setting, `themeTokens` and `theme.json` no longer change the page. The chrome's comment box is the Notes panel's composer, and Send note delivers its text as a note.
+The page copies three parts of the plugin's canonical chrome, `../reference/html-chrome.html`, verbatim: the theme toggle, the comment box, and the CSS rules between the `rv-chrome:begin` and `rv-chrome:end` markers. `test_page_chrome.py` checks that the copies match. The header's System, Light and Dark toggle is the page's only theme choice. It opens on System, which follows the browser's color-scheme preference; Light and Dark pin the page by setting `data-theme` on the root element. Nothing stores the choice, so a reload opens on System again. The `theme` setting, `themeTokens` and `theme.json` do not change the page. The chrome's comment box is the Notes panel's composer, and Send note delivers its text as a note.
 
 ## Differences from the shared page
 

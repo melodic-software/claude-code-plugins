@@ -8,7 +8,7 @@
 ## Check
 
 - **Description/discovery**: does the description make the agent findable for its intended tasks,
-  and does it state when NOT to use it?
+  and does it state when not to use it?
 - **Model**: does the definition name its model explicitly, so a dispatch that passes none does not
   fall through to whatever the resolution order picks? Is `inherit` used only with a stated reason
   on the model line? When tracing that order, fetch

@@ -28,8 +28,8 @@ State the repo order rule once: alphabetical from `.github`, the chezmoi dotfile
 
 ## 2. Recommend
 
-1. `S/history.sh C > W/recs.tsv`. A stderr warning that `gh` failed means history came from
-   trailers only; say so.
+1. Run `S/history.sh C` and write its stdout to `W/recs.tsv` with the Write tool, not a shell
+   redirect. A stderr warning that `gh` failed means history came from trailers only; say so.
 2. For every entry, judge its `applies-when` (column 7 of `S/catalog.sh C`) against this
    repository with cheap evidence: `git ls-files`, file globs, `ls`. When it does not hold, set
    that row's recommendation in `W/recs.tsv` to `not-applicable` and the reason to the evidence
@@ -47,14 +47,16 @@ State the repo order rule once: alphabetical from `.github`, the chezmoi dotfile
 1. Print a table in chat with every catalog id in catalog order: id, recommendation, reason,
    default checked (`checked` column, false for `not-applicable`). Every id appears, so a
    headless run still shows the full plan.
-2. `S/render.sh --page C W/recs.tsv > W/plan-page.html`. Give the absolute path and open it
+2. Run `S/render.sh --page C W/recs.tsv` and write its stdout to `W/plan-page.html` with the Write
+   tool, not a shell redirect. Give the absolute path and open it
    (`wslview`, `xdg-open`, or `open`, whichever exists; otherwise the user opens it). The page
    lets the user tick, untick, and drag entries, then copy one `repo-sweep-selection:` line.
 3. Fallback when the page cannot be opened: print the output of `S/render.sh --checklist C
    "repo-sweep-selection: <default checked ids, comma-separated>" W/recs.tsv` and ask the user to
    edit it in chat; convert their edited list back to a selection line.
 4. Wait for the selection line. Validate it with `S/render.sh --checklist C "<line>"
-   W/recs.tsv > W/checklist.md`; exit 1 names the bad id.
+   W/recs.tsv`, then write its stdout to `W/checklist.md` with the Write tool, not a shell
+   redirect; exit 1 names the bad id.
 
 ## 4. Create the sweep (after user approval)
 
