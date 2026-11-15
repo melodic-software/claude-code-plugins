@@ -3,6 +3,14 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.20] - 2026-11-15
+
+### Changed
+
+- The audit and audit-posture skills use plain emphasis instead of capital letters.
+- Three eval grader criteria drop a trailing note that repeated the criterion; what each grader
+  checks is unchanged.
+
 ## [0.8.19] - 2026-11-13
 
 ### Changed

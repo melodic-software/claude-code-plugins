@@ -3,6 +3,13 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.2.3] - 2026-11-15
+
+### Changed
+
+- Skill, agent and reference text across `code-review`, `council`, `fanout`, `merge-risk`, `quality-gate`, `security-review` and `setup` drops all-caps emphasis, and the README now says correctly that `code-reviewer` and `security-reviewer` list `Write`.
+- Restated upstream behavior (inline-comment server setup, effort override) now points at the upstream docs instead.
+
 ## [9.2.2] - 2026-11-14
 
 ### Fixed
