@@ -319,12 +319,6 @@
   "jobNameExceptions": [],
   "exemptions": [
     {
-      "path": ".github/workflows/pr-feedback-dispatch.yml",
-      "repository": "melodic-software/claude-code-plugins",
-      "rules": ["workflow-filename"],
-      "reason": "The file name is not verb-first after its stage; its rename is tracked in melodic-software/claude-code-plugins#15394, which removes this entry."
-    },
-    {
       "path": ".github/workflows/release-deploy.yml",
       "repository": "melodic-software/github-iac",
       "rules": ["workflow-name"],
