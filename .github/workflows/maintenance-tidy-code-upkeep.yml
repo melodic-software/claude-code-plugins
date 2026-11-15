@@ -7,19 +7,19 @@ name: Maintenance Tidy Code Upkeep
 # log, so a lost run here drops no area.
 #
 # On the daily schedule, and a listed human's dispatch, the batch:
-#   gate (no model, no secret) reads the settings, the open tidy pull requests
+#   select-areas (no model, no secret) reads the settings, the open tidy pull requests
 #     and the sweep records, and picks at most upkeep_max_open minus open areas
 #     (.github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs); it enforces
 #     a cadence or backstop cron cannot. It fails, and nothing runs, when
 #     upkeep_spec_issue is not set: every pull request's body opens with
 #     `Refs: #<upkeep_spec_issue>`, the spec pr-verify judges it against.
-#   model runs `/code-tidying:tidy <glob> in-place=commit` per area on a local
+#   sweep-areas runs `/code-tidying:tidy <glob> in-place=commit` per area on a local
 #     chore/tidy-adhoc-<slug>-<date> branch, on the automations role's API
 #     key, with a read-only GITHUB_TOKEN and nothing else. When that key leg
 #     hands off (a credit stop, or a 401 or 402), the key is empty, or the
-#     gate's key-credit check skips a key that credit-stopped inside its
-#     window, model-subscription runs the same steps on the role's
-#     subscription token, and model-fallback on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
+#     select-areas's key-credit check skips a key that credit-stopped inside its
+#     window, sweep-areas-subscription runs the same steps on the role's
+#     subscription token, and sweep-areas-fallback on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
 #     after the subscription leg hands off (a limit stop, a credit stop, or a
 #     401 or 402). What a leg leaves is sealed to the scan-carrier key.
 #   scan (the key's third holder: main only, no model, no id-token, no write
@@ -89,8 +89,8 @@ jobs:
           [[ $BEFORE =~ ^[0-9a-f]{40}$ ]] && git fetch --quiet --no-tags --depth=1 --filter=blob:none origin "$BEFORE" || true
           node .github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs detect --before "$BEFORE" --after "$AFTER"
 
-  gate:
-    name: Gate
+  select-areas:
+    name: Select Areas
     if: github.ref == 'refs/heads/main' && github.event_name != 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -110,7 +110,7 @@ jobs:
     env:
       API_BUDGET_TOKEN: github-token
     steps:
-      # Full history, no blobs: the gate reads commits back to the oldest sweep.
+      # Full history, no blobs: select-areas reads commits back to the oldest sweep.
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -165,9 +165,9 @@ jobs:
 
       # Whether the key is still out of credit, and so which leg runs first
       # (ci-workflows select-model-credential, its start call: check-key-credit's
-      # one artifact-list call for the `marker` the model job uploads after a
+      # one artifact-list call for the `marker` the sweep-areas job uploads after a
       # credit stop). A credit stop inside the window names the subscription
-      # leg, and model-subscription sweeps on the subscription token. It runs
+      # leg, and sweep-areas-subscription sweeps on the subscription token. It runs
       # only once areas are picked. Probing is off: one batch runs at a time.
       # Every failure runs the key.
       - name: Read the key's credit history
@@ -205,19 +205,19 @@ jobs:
         with:
           tokens: github-token
 
-  # The model's key leg, with the API key and a read-only GITHUB_TOKEN and
+  # The sweep's key leg, with the API key and a read-only GITHUB_TOKEN and
   # nothing else: tidy needs Bash to commit and verify, so this job holds no
   # write token. run-claude-cli runs the CLI with --restricted; the plugin loads
   # from a read-only copy staged from main before the root checkout, and every
   # CLAUDE.md, AGENTS.md, .mcp.json and .claude/ in the checkout is removed from
   # the working tree first. A handoff or an empty key leaves the sweep to
-  # model-subscription.
-  model:
-    name: Model
-    needs: gate
+  # sweep-areas-subscription.
+  sweep-areas:
+    name: Sweep Areas
+    needs: select-areas
     # The first attempt only: a re-run never runs the model again. A key the
-    # credit gate skipped runs nothing here; model-subscription runs it.
-    if: needs.gate.outputs.proceed == 'true' && needs.gate.outputs.next-leg != 'subscription' && github.run_attempt == '1'
+    # credit gate skipped runs nothing here; sweep-areas-subscription runs it.
+    if: needs.select-areas.outputs.proceed == 'true' && needs.select-areas.outputs.next-leg != 'subscription' && github.run_attempt == '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -242,7 +242,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-areas.outputs.base-sha }}
           path: .base
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -271,7 +271,7 @@ jobs:
           output-path: ${{ runner.temp }}/upkeep-models.json
 
       # Only whether the secret is set reaches the action, never its value. An
-      # empty key hands the sweep to model-subscription.
+      # empty key hands the sweep to sweep-areas-subscription.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
@@ -287,9 +287,9 @@ jobs:
         if: steps.models.outcome == 'success'
         env:
           STAGE: ${{ runner.temp }}/upkeep-stage
-          AREAS: ${{ needs.gate.outputs.areas }}
-          DATE: ${{ needs.gate.outputs.date }}
-          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          AREAS: ${{ needs.select-areas.outputs.areas }}
+          DATE: ${{ needs.select-areas.outputs.date }}
+          BASE_SHA: ${{ needs.select-areas.outputs.base-sha }}
           PROMPT_FILE: ${{ runner.temp }}/upkeep-prompt.md
         run: |
           mkdir -p "$STAGE/plugins"
@@ -313,7 +313,7 @@ jobs:
         if: steps.models.outcome == 'success'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-areas.outputs.base-sha }}
           fetch-depth: 0
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -388,7 +388,7 @@ jobs:
         if: always() && steps.run.outcome != 'skipped'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-areas.outputs.base-sha }}
           path: .lane-trusted
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -410,7 +410,7 @@ jobs:
       # leg and scanned with the trusted checkout's action.
       - name: Write the key's credit-stop marker
         id: credit-marker
-        if: always() && needs.gate.outputs.credit-marker == 'key-credit-stop-maintenance-tidy-code-upkeep.yml-model' && steps.run.outputs.handoff-reason == 'credit-stop'
+        if: always() && needs.select-areas.outputs.credit-marker == 'key-credit-stop-maintenance-tidy-code-upkeep.yml-model' && steps.run.outputs.handoff-reason == 'credit-stop'
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -446,8 +446,8 @@ jobs:
           LANE_CLASS: ${{ steps.run.outputs.lane-class }}
         run: |
           case "$LANE_CLASS" in
-            auth) line="the API refused AUTOMATIONS_CLAUDE_API_KEY (class auth); the owner must replace the secret, and model-subscription sweeps on the subscription token" ;;
-            *) line="AUTOMATIONS_CLAUDE_API_KEY hit a credit stop (class credit-stop); model-subscription sweeps on the subscription token" ;;
+            auth) line="the API refused AUTOMATIONS_CLAUDE_API_KEY (class auth); the owner must replace the secret, and sweep-areas-subscription sweeps on the subscription token" ;;
+            *) line="AUTOMATIONS_CLAUDE_API_KEY hit a credit stop (class credit-stop); sweep-areas-subscription sweeps on the subscription token" ;;
           esac
           echo "::warning::$line"
           echo "$line" >>"$GITHUB_STEP_SUMMARY"
@@ -476,10 +476,10 @@ jobs:
         id: seal
         if: always() && steps.run.outcome != 'skipped'
         env:
-          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          BASE_SHA: ${{ needs.select-areas.outputs.base-sha }}
           TRUSTED: ${{ github.workspace }}/.lane-trusted
           OUT: ${{ runner.temp }}/upkeep-out
-          JOB_ID: model
+          JOB_ID: sweep-areas
           MAX_CHUNKS: "6"
         run: |
           rm -rf "$OUT"
@@ -524,17 +524,17 @@ jobs:
   # The subscription leg: the key leg's steps from a fresh VM, on the
   # automations role's subscription token alone, with no credit-stop marker.
   # With FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, a limit stop, a credit stop, or
-  # a 401 or 402 hands off to model-fallback. callers.test.mjs holds its
+  # a 401 or 402 hands off to sweep-areas-fallback. callers.test.mjs holds its
   # steps equal to the key leg's but for the credential, the handoff report,
   # the leg record's fallback reason and the seal's job id.
-  model-subscription:
-    name: Model Subscription
-    needs: [gate, model]
+  sweep-areas-subscription:
+    name: Sweep Areas Subscription
+    needs: [select-areas, sweep-areas]
     # The first attempt only, after the key leg handed off, found its key
     # empty, or was skipped by the credit gate.
     if: >-
-      ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
-      && (needs.model.outputs.next-leg == 'subscription' || needs.gate.outputs.next-leg == 'subscription') }}
+      ${{ !cancelled() && needs.select-areas.outputs.proceed == 'true' && github.run_attempt == '1'
+      && (needs.sweep-areas.outputs.next-leg == 'subscription' || needs.select-areas.outputs.next-leg == 'subscription') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -548,7 +548,7 @@ jobs:
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
-      # model-fallback also starts on an empty subscription token when the
+      # sweep-areas-fallback also starts on an empty subscription token when the
       # fallback token is empty too, so its own check reports that.
       credential-present: ${{ steps.credential.outputs.present }}
       sealed-length: ${{ steps.seal.outputs.sealed-length }}
@@ -562,7 +562,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-areas.outputs.base-sha }}
           path: .base
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -600,7 +600,7 @@ jobs:
           role: automations
           credential-set: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: ${{ needs.model.outputs.next-reason || needs.gate.outputs.next-reason }}
+          reason: ${{ needs.sweep-areas.outputs.next-reason || needs.select-areas.outputs.next-reason }}
 
       # The plugin and the prompt, written from main before the root checkout
       # replaces .base.
@@ -608,9 +608,9 @@ jobs:
         if: steps.models.outcome == 'success'
         env:
           STAGE: ${{ runner.temp }}/upkeep-stage
-          AREAS: ${{ needs.gate.outputs.areas }}
-          DATE: ${{ needs.gate.outputs.date }}
-          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          AREAS: ${{ needs.select-areas.outputs.areas }}
+          DATE: ${{ needs.select-areas.outputs.date }}
+          BASE_SHA: ${{ needs.select-areas.outputs.base-sha }}
           PROMPT_FILE: ${{ runner.temp }}/upkeep-prompt.md
         run: |
           mkdir -p "$STAGE/plugins"
@@ -634,7 +634,7 @@ jobs:
         if: steps.models.outcome == 'success'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-areas.outputs.base-sha }}
           fetch-depth: 0
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -710,7 +710,7 @@ jobs:
         if: always() && steps.run.outcome != 'skipped'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-areas.outputs.base-sha }}
           path: .lane-trusted
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -731,7 +731,7 @@ jobs:
         env:
           HANDOFF_REASON: ${{ steps.run.outputs.handoff-reason }}
         run: |
-          line="AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN handed off (${HANDOFF_REASON:-unknown}); model-fallback sweeps on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
+          line="AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN handed off (${HANDOFF_REASON:-unknown}); sweep-areas-fallback sweeps on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
           echo "::notice::$line"
           echo "$line" >>"$GITHUB_STEP_SUMMARY"
 
@@ -759,10 +759,10 @@ jobs:
         id: seal
         if: always() && steps.run.outcome != 'skipped'
         env:
-          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          BASE_SHA: ${{ needs.select-areas.outputs.base-sha }}
           TRUSTED: ${{ github.workspace }}/.lane-trusted
           OUT: ${{ runner.temp }}/upkeep-out
-          JOB_ID: model-subscription
+          JOB_ID: sweep-areas-subscription
           MAX_CHUNKS: "6"
         run: |
           rm -rf "$OUT"
@@ -807,14 +807,14 @@ jobs:
   # The fallback leg: the same steps on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
   # alone, after the subscription leg handed off. It is the last leg and
   # never hands off.
-  model-fallback:
-    name: Model Fallback
-    needs: [gate, model-subscription]
+  sweep-areas-fallback:
+    name: Sweep Areas Fallback
+    needs: [select-areas, sweep-areas-subscription]
     # The first attempt only, after the subscription leg handed off or found
     # its token empty.
     if: >-
-      ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
-      && (needs.model-subscription.outputs.next-leg == 'fallback' || needs.model-subscription.outputs.credential-present == 'false') }}
+      ${{ !cancelled() && needs.select-areas.outputs.proceed == 'true' && github.run_attempt == '1'
+      && (needs.sweep-areas-subscription.outputs.next-leg == 'fallback' || needs.sweep-areas-subscription.outputs.credential-present == 'false') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -837,7 +837,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-areas.outputs.base-sha }}
           path: .base
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -874,7 +874,7 @@ jobs:
           leg: fallback
           role: automations
           credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: ${{ needs.model-subscription.outputs.next-reason }}
+          reason: ${{ needs.sweep-areas-subscription.outputs.next-reason }}
 
       # The plugin and the prompt, written from main before the root checkout
       # replaces .base.
@@ -882,9 +882,9 @@ jobs:
         if: steps.models.outcome == 'success'
         env:
           STAGE: ${{ runner.temp }}/upkeep-stage
-          AREAS: ${{ needs.gate.outputs.areas }}
-          DATE: ${{ needs.gate.outputs.date }}
-          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          AREAS: ${{ needs.select-areas.outputs.areas }}
+          DATE: ${{ needs.select-areas.outputs.date }}
+          BASE_SHA: ${{ needs.select-areas.outputs.base-sha }}
           PROMPT_FILE: ${{ runner.temp }}/upkeep-prompt.md
         run: |
           mkdir -p "$STAGE/plugins"
@@ -908,7 +908,7 @@ jobs:
         if: steps.models.outcome == 'success'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-areas.outputs.base-sha }}
           fetch-depth: 0
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -983,7 +983,7 @@ jobs:
         if: always() && steps.run.outcome != 'skipped'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-areas.outputs.base-sha }}
           path: .lane-trusted
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -1021,10 +1021,10 @@ jobs:
         id: seal
         if: always() && steps.run.outcome != 'skipped'
         env:
-          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          BASE_SHA: ${{ needs.select-areas.outputs.base-sha }}
           TRUSTED: ${{ github.workspace }}/.lane-trusted
           OUT: ${{ runner.temp }}/upkeep-out
-          JOB_ID: model-fallback
+          JOB_ID: sweep-areas-fallback
           MAX_CHUNKS: "6"
         run: |
           rm -rf "$OUT"
@@ -1057,8 +1057,8 @@ jobs:
   # subscription leg when it ran, else the key leg.
   scan:
     name: Scan
-    needs: [gate, model, model-subscription, model-fallback]
-    if: ${{ !cancelled() && (needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-length || '') != '' }}
+    needs: [select-areas, sweep-areas, sweep-areas-subscription, sweep-areas-fallback]
+    if: ${{ !cancelled() && (needs.sweep-areas-fallback.result != 'skipped' && needs.sweep-areas-fallback.outputs.sealed-length || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result != 'skipped' && needs.sweep-areas-subscription.outputs.sealed-length || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result == 'skipped' && needs.sweep-areas.outputs.sealed-length || '') != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
@@ -1085,7 +1085,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-areas.outputs.base-sha }}
           path: .base
           fetch-depth: 0
           persist-credentials: false
@@ -1102,24 +1102,24 @@ jobs:
           read -r _ id _ <.base/.github/lane-keys/scan-carrier.pub || true
           echo "id=$id" >>"$GITHUB_OUTPUT"
 
-      - name: Open the model job's sealed payloads
+      - name: Open the sweep-areas job's sealed payloads
         id: open
         uses: ./.base/.github/actions/open-lane-output # zizmor: ignore[self-repository]
         with:
           private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
           expected-key-ids: ${{ steps.key.outputs.id }}
-          job-id: ${{ needs.model-fallback.result != 'skipped' && 'model-fallback' || needs.model-subscription.result != 'skipped' && 'model-subscription' || 'model' }}
+          job-id: ${{ needs.sweep-areas-fallback.result != 'skipped' && 'sweep-areas-fallback' || needs.sweep-areas-subscription.result != 'skipped' && 'sweep-areas-subscription' || 'sweep-areas' }}
           max-bytes: |
             plan.json=262144
             branches.bundle=393216
           directory: ${{ runner.temp }}/scan-in
-          sealed-length: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-length || '' }}
-          sealed-1: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-1 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-1 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-1 || '' }}
-          sealed-2: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-2 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-2 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-2 || '' }}
-          sealed-3: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-3 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-3 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-3 || '' }}
-          sealed-4: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-4 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-4 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-4 || '' }}
-          sealed-5: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-5 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-5 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-5 || '' }}
-          sealed-6: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-6 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-6 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-6 || '' }}
+          sealed-length: ${{ needs.sweep-areas-fallback.result != 'skipped' && needs.sweep-areas-fallback.outputs.sealed-length || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result != 'skipped' && needs.sweep-areas-subscription.outputs.sealed-length || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result == 'skipped' && needs.sweep-areas.outputs.sealed-length || '' }}
+          sealed-1: ${{ needs.sweep-areas-fallback.result != 'skipped' && needs.sweep-areas-fallback.outputs.sealed-1 || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result != 'skipped' && needs.sweep-areas-subscription.outputs.sealed-1 || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result == 'skipped' && needs.sweep-areas.outputs.sealed-1 || '' }}
+          sealed-2: ${{ needs.sweep-areas-fallback.result != 'skipped' && needs.sweep-areas-fallback.outputs.sealed-2 || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result != 'skipped' && needs.sweep-areas-subscription.outputs.sealed-2 || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result == 'skipped' && needs.sweep-areas.outputs.sealed-2 || '' }}
+          sealed-3: ${{ needs.sweep-areas-fallback.result != 'skipped' && needs.sweep-areas-fallback.outputs.sealed-3 || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result != 'skipped' && needs.sweep-areas-subscription.outputs.sealed-3 || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result == 'skipped' && needs.sweep-areas.outputs.sealed-3 || '' }}
+          sealed-4: ${{ needs.sweep-areas-fallback.result != 'skipped' && needs.sweep-areas-fallback.outputs.sealed-4 || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result != 'skipped' && needs.sweep-areas-subscription.outputs.sealed-4 || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result == 'skipped' && needs.sweep-areas.outputs.sealed-4 || '' }}
+          sealed-5: ${{ needs.sweep-areas-fallback.result != 'skipped' && needs.sweep-areas-fallback.outputs.sealed-5 || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result != 'skipped' && needs.sweep-areas-subscription.outputs.sealed-5 || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result == 'skipped' && needs.sweep-areas.outputs.sealed-5 || '' }}
+          sealed-6: ${{ needs.sweep-areas-fallback.result != 'skipped' && needs.sweep-areas-fallback.outputs.sealed-6 || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result != 'skipped' && needs.sweep-areas-subscription.outputs.sealed-6 || needs.sweep-areas-fallback.result == 'skipped' && needs.sweep-areas-subscription.result == 'skipped' && needs.sweep-areas.outputs.sealed-6 || '' }}
 
       - name: Check the plan and write the diffs
         id: check
@@ -1127,10 +1127,10 @@ jobs:
           IN: ${{ runner.temp }}/scan-in
           OUT: ${{ runner.temp }}/scan-out
           RECORD_DIR: ${{ runner.temp }}/scan-record
-          AREAS: ${{ needs.gate.outputs.areas }}
-          DATE: ${{ needs.gate.outputs.date }}
-          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
-          SPEC_ISSUE: ${{ needs.gate.outputs.spec-issue }}
+          AREAS: ${{ needs.select-areas.outputs.areas }}
+          DATE: ${{ needs.select-areas.outputs.date }}
+          BASE_SHA: ${{ needs.select-areas.outputs.base-sha }}
+          SPEC_ISSUE: ${{ needs.select-areas.outputs.spec-issue }}
           REPO_DIR: ${{ github.workspace }}/.base
         run: node .base/.github/scripts/maintenance-tidy-code-upkeep/batch.mjs scan
 
@@ -1152,7 +1152,7 @@ jobs:
         with:
           path: ${{ runner.temp }}/scan-in/publish.txt
 
-      # Holds only the base commit's time and slugs of areas the gate chose. Its absence means a later run
+      # Holds only the base commit's time and slugs of areas select-areas chose. Its absence means a later run
       # picks those areas again, so a failed upload costs a repeat sweep only.
       - name: Upload the sweep record
         if: steps.check.outputs.recorded != '0' && steps.check.outputs.recorded != ''
@@ -1200,7 +1200,7 @@ jobs:
   # mutate-branch: contents write only.
   push-branches:
     name: Push Branches
-    needs: [gate, scan]
+    needs: [select-areas, scan]
     if: ${{ !cancelled() && needs.scan.outputs.clean == 'true' && needs.scan.outputs.branches != '0' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1219,7 +1219,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-areas.outputs.base-sha }}
           path: .base
           fetch-depth: 0
           persist-credentials: false
@@ -1302,9 +1302,9 @@ jobs:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           COUNT_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: lanes-app
-          AREAS: ${{ needs.gate.outputs.areas }}
-          DATE: ${{ needs.gate.outputs.date }}
-          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          AREAS: ${{ needs.select-areas.outputs.areas }}
+          DATE: ${{ needs.select-areas.outputs.date }}
+          BASE_SHA: ${{ needs.select-areas.outputs.base-sha }}
           PLAN_FILE: ${{ runner.temp }}/plan/plan.json
           BUNDLE_FILE: ${{ runner.temp }}/plan/branches.bundle
           SYNTHETIC: ${{ needs.scan.outputs.synthetic }}
@@ -1329,7 +1329,7 @@ jobs:
   # publish-artifact: pull-requests write, contents read.
   publish:
     name: Publish
-    needs: [gate, scan, push-branches]
+    needs: [select-areas, scan, push-branches]
     if: >-
       ${{ !cancelled() && needs.push-branches.result == 'success'
       && needs.push-branches.outputs.skip-reason == '' }}
@@ -1346,7 +1346,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-areas.outputs.base-sha }}
           path: .base
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -1419,12 +1419,12 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
-          AREAS: ${{ needs.gate.outputs.areas }}
-          DATE: ${{ needs.gate.outputs.date }}
-          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          AREAS: ${{ needs.select-areas.outputs.areas }}
+          DATE: ${{ needs.select-areas.outputs.date }}
+          BASE_SHA: ${{ needs.select-areas.outputs.base-sha }}
           PLAN_FILE: ${{ runner.temp }}/plan/plan.json
           HEADS: ${{ needs.push-branches.outputs.heads }}
-          SPEC_ISSUE: ${{ needs.gate.outputs.spec-issue }}
+          SPEC_ISSUE: ${{ needs.select-areas.outputs.spec-issue }}
           REPO_DIR: ${{ github.workspace }}/.base
         run: node .base/.github/scripts/maintenance-tidy-code-upkeep/batch.mjs publish
 

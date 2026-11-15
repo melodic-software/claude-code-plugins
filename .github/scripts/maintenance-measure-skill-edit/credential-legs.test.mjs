@@ -1,7 +1,7 @@
-// maintenance-measure-skill-edit.yml's propose job runs its three legs as
+// maintenance-measure-skill-edit.yml's generate-edit job runs its three legs as
 // steps of one job (run-claude-cli's one-job rule), and picks each leg's
 // credential through ci-workflows' select-model-credential, fetched at the
-// pin the workflow names: propose-key-credit's start call, then in propose a
+// pin the workflow names: check-key-credit's start call, then in generate-edit a
 // credential call and a next-leg call per leg. This truth table drives the
 // workflow's own step conditions and inputs through every combination of
 // gate verdict, secrets set or empty, a prompt written or not, a step failing
@@ -21,7 +21,7 @@ const TEXT = readFileSync(new URL("../../workflows/maintenance-measure-skill-edi
 const wf = workflowText(TEXT);
 const S = await loadSelect(selectPin(TEXT));
 
-const JOB = "propose";
+const JOB = "generate-edit";
 const SECRETS = { key: "MAINTENANCE_CLAUDE_API_KEY", sub: "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", fallback: "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN" };
 // The run steps, in order, and their lane record's fallback reason.
 const RUNS = ["run-key", "run", "run-fallback"];
@@ -82,10 +82,10 @@ function call(id, ctx) {
 
 function newRun(s) {
   const start = s.gate === "failed" ? {} : S.start({ skipKey: s.gate === "skip" });
-  const gateOutputs = wf.outputs("propose-key-credit");
+  const gateOutputs = wf.outputs("check-key-credit");
   const ctx = {
     "steps.prompt.outcome": s.prompt ? "success" : "skipped",
-    "needs.propose-key-credit.outputs.next-leg": value(gateOutputs["next-leg"], prefixed("steps.credit.outputs", start)),
+    "needs.check-key-credit.outputs.next-leg": value(gateOutputs["next-leg"], prefixed("steps.credit.outputs", start)),
     ...prefixed("secrets", Object.fromEntries(Object.entries(SECRETS).map(([k, name]) => [name, s[k] ? "set" : ""]))),
   };
   // The steps after the key's credential call follow the failing step, so a
@@ -126,7 +126,7 @@ function* states() {
                   yield { prompt, gate, key, sub, fallback, failAt, keyOutcome, subOutcome };
 }
 
-test("propose runs the same legs with the same credential decisions as before select-model-credential", () => {
+test("generate-edit runs the same legs with the same credential decisions as before select-model-credential", () => {
   let count = 0;
   const shapes = new Set();
   for (const s of states()) {

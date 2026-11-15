@@ -1,6 +1,6 @@
 name: Upstream Apply Changelog
 
-# The release intake lane (#7407): for one Claude Code release, a model job
+# The release intake lane (#7407): for one Claude Code release, the apply-changelog job
 # runs `/harness-ops:changelog apply --ci <release>`, which commits one local
 # branch per owner plugin and writes ci-plan.json
 # (plugins/harness-ops/skills/changelog/context/ci-mode.md). Scripted jobs
@@ -17,7 +17,7 @@ name: Upstream Apply Changelog
 # The broker never grants contents and pull-requests write in one mint, nor
 # merge or actions, so no job here can merge.
 #
-# The scrub-probe job checks the release itself: capture-probe.mjs as a Bash
+# The verify-env-scrub job checks the release itself: capture-probe.mjs as a Bash
 # child of a leg on that release's CLI, holding the key. A release that lets
 # the child read the key, the job token or the runtime token fails that job
 # and the run. No job needs it, so a red probe blocks no publishing.
@@ -30,11 +30,11 @@ name: Upstream Apply Changelog
 # moves the read marker; existing branches and PRs are skipped per item.
 # At most limits.upstream-apply-changelog-per-day runs whose leg ran start
 # in any 24 hours (docs/conventions/pr-pipeline.yaml).
-# The model runs as three legs, one credential per job: model on the issue
-# lane's API key, model-subscription on its subscription token when the key
+# The model runs as three legs, one credential per job: apply-changelog on the issue
+# lane's API key, apply-changelog-subscription on its subscription token when the key
 # leg hands off (a credit stop, or a 401 or 402), the key is empty, or the
 # key-credit gate skips a key that credit-stopped inside its window, and
-# model-fallback on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN when the subscription leg
+# apply-changelog-fallback on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN when the subscription leg
 # hands off (a limit stop, a credit stop, or a 401 or 402). A leg that hands
 # off is not counted toward the cap; the leg after it is.
 #
@@ -75,8 +75,8 @@ defaults:
 jobs:
   # Picks the release, skips one already processed, and applies the per-day
   # cap. No model, no secret, a read-only token.
-  gate:
-    name: Gate
+  select-release:
+    name: Select Release
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -126,7 +126,7 @@ jobs:
       # broker checks the same, so this only keeps the model from running for
       # nothing. Actor-only mode takes no schedule event, so a re-run of a
       # scheduled run stops here: dispatch the release instead. Any re-run,
-      # partial or full, also skips the model job (its run_attempt check), so
+      # partial or full, also skips the apply-changelog job (its run_attempt check), so
       # a retry of the model is a new dispatch.
       - name: Check who started the run
         id: who
@@ -161,9 +161,9 @@ jobs:
 
       # Whether the key is still out of credit, and so which leg runs first
       # (ci-workflows select-model-credential, its start call: check-key-credit's
-      # one artifact-list call for the `marker` the model job uploads after a
+      # one artifact-list call for the `marker` the apply-changelog job uploads after a
       # credit stop). A credit stop inside the window names the subscription
-      # leg, and model-subscription runs the release on the subscription
+      # leg, and apply-changelog-subscription runs the release on the subscription
       # token. It runs only once a release is picked, so a tick with nothing
       # to take spends no call. Probing is off: the concurrency group runs one
       # run at a time, so no second run can reach the key while the first run
@@ -226,13 +226,13 @@ jobs:
   # load from read-only copies staged from main before the root checkout, and
   # every CLAUDE.md, AGENTS.md, .mcp.json and .claude/ in the checkout is
   # removed from the working tree first (R13). This is the key leg; a
-  # handoff or an empty key leaves the release to model-subscription.
-  model:
-    name: Model
-    needs: gate
+  # handoff or an empty key leaves the release to apply-changelog-subscription.
+  apply-changelog:
+    name: Apply Changelog
+    needs: select-release
     # The first attempt only: a re-run never runs the model again. A key the
-    # credit gate skipped runs nothing here; model-subscription runs it.
-    if: needs.gate.outputs.proceed == 'true' && needs.gate.outputs.next-leg != 'subscription' && github.run_attempt == '1'
+    # credit gate skipped runs nothing here; apply-changelog-subscription runs it.
+    if: needs.select-release.outputs.proceed == 'true' && needs.select-release.outputs.next-leg != 'subscription' && github.run_attempt == '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -260,7 +260,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-release.outputs.base-sha }}
           path: .base
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -292,7 +292,7 @@ jobs:
           output-path: ${{ runner.temp }}/upstream-apply-changelog-models.json
 
       # Only whether the secret is set leaves this step, never its value. An
-      # empty key hands the release to model-subscription.
+      # empty key hands the release to apply-changelog-subscription.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -331,7 +331,7 @@ jobs:
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-release.outputs.base-sha }}
           fetch-depth: 0
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -341,7 +341,7 @@ jobs:
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         env:
           STAGE: ${{ runner.temp }}/upstream-apply-changelog-stage
-          RELEASE: ${{ needs.gate.outputs.release }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
           MODEL: ${{ steps.models.outputs.model }}
         run: bash .github/scripts/upstream-apply-changelog/prepare-working-tree.sh
 
@@ -414,7 +414,7 @@ jobs:
         if: always() && steps.models.outcome != 'skipped'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-release.outputs.base-sha }}
           path: .lane-trusted
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -429,7 +429,7 @@ jobs:
       # the leg and scanned with the trusted checkout's action.
       - name: Write the key's credit-stop marker
         id: credit-marker
-        if: always() && needs.gate.outputs.credit-marker == 'key-credit-stop-upstream-apply-changelog.yml-model' && steps.run.outputs.handoff-reason == 'credit-stop'
+        if: always() && needs.select-release.outputs.credit-marker == 'key-credit-stop-upstream-apply-changelog.yml-model' && steps.run.outputs.handoff-reason == 'credit-stop'
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -467,7 +467,7 @@ jobs:
         id: start
         if: always() && steps.models.outcome != 'skipped' && steps.run.outputs.handoff != 'true' && steps.credential.outputs.present != 'false'
         env:
-          RELEASE: ${{ needs.gate.outputs.release }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
         run: |
           rm -rf "${RUNNER_TEMP:?}/started"
           mkdir -p "$RUNNER_TEMP/started"
@@ -495,12 +495,12 @@ jobs:
         continue-on-error: true
         timeout-minutes: 1
         env:
-          RELEASE: ${{ needs.gate.outputs.release }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
           LANE_CLASS: ${{ steps.run.outputs.lane-class }}
         run: |
           case "$LANE_CLASS" in
-            auth) line="the API refused ISSUE_LANE_CLAUDE_API_KEY (class auth); the owner must replace the secret, and model-subscription runs release $RELEASE on the subscription token" ;;
-            *) line="ISSUE_LANE_CLAUDE_API_KEY hit a credit stop (class credit-stop); model-subscription runs release $RELEASE on the subscription token" ;;
+            auth) line="the API refused ISSUE_LANE_CLAUDE_API_KEY (class auth); the owner must replace the secret, and apply-changelog-subscription runs release $RELEASE on the subscription token" ;;
+            *) line="ISSUE_LANE_CLAUDE_API_KEY hit a credit stop (class credit-stop); apply-changelog-subscription runs release $RELEASE on the subscription token" ;;
           esac
           echo "::warning::$line"
           echo "$line" >>"$GITHUB_STEP_SUMMARY"
@@ -538,11 +538,11 @@ jobs:
         id: seal
         if: always() && steps.run.outcome != 'skipped'
         env:
-          RELEASE: ${{ needs.gate.outputs.release }}
-          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
+          BASE_SHA: ${{ needs.select-release.outputs.base-sha }}
           TRUSTED: ${{ github.workspace }}/.lane-trusted
           OUT: ${{ runner.temp }}/upstream-apply-changelog-out
-          JOB_ID: model
+          JOB_ID: apply-changelog
           MAX_CHUNKS: "6"
         run: |
           rm -rf "$OUT"
@@ -591,17 +591,17 @@ jobs:
   # The subscription leg: the key leg's steps from a fresh VM, on the issue
   # lane's subscription token alone, with no credit-stop marker. With
   # FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, a limit stop, a credit stop, or a
-  # 401 or 402 hands off to model-fallback. upstream-apply-changelog.test.mjs
+  # 401 or 402 hands off to apply-changelog-fallback. upstream-apply-changelog.test.mjs
   # holds its steps equal to the key leg's but for the credential, the
   # handoff report, the leg record's fallback reason and the seal's job id.
-  model-subscription:
-    name: Model Subscription
-    needs: [gate, model]
+  apply-changelog-subscription:
+    name: Apply Changelog Subscription
+    needs: [select-release, apply-changelog]
     # The first attempt only, after the key leg handed off, found its key
     # empty, or was skipped by the credit gate.
     if: >-
-      ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
-      && (needs.model.outputs.next-leg == 'subscription' || needs.gate.outputs.next-leg == 'subscription') }}
+      ${{ !cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1'
+      && (needs.apply-changelog.outputs.next-leg == 'subscription' || needs.select-release.outputs.next-leg == 'subscription') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -629,7 +629,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-release.outputs.base-sha }}
           path: .base
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -670,7 +670,7 @@ jobs:
           role: issue-lane
           credential-set: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: ${{ needs.model.outputs.next-reason || needs.gate.outputs.next-reason }}
+          reason: ${{ needs.apply-changelog.outputs.next-reason || needs.select-release.outputs.next-reason }}
 
       # The plugins the skill and its stage skills load, copied out of main
       # before the root checkout replaces .base.
@@ -701,7 +701,7 @@ jobs:
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-release.outputs.base-sha }}
           fetch-depth: 0
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -711,7 +711,7 @@ jobs:
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         env:
           STAGE: ${{ runner.temp }}/upstream-apply-changelog-stage
-          RELEASE: ${{ needs.gate.outputs.release }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
           MODEL: ${{ steps.models.outputs.model }}
         run: bash .github/scripts/upstream-apply-changelog/prepare-working-tree.sh
 
@@ -785,7 +785,7 @@ jobs:
         if: always() && steps.models.outcome != 'skipped'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-release.outputs.base-sha }}
           path: .lane-trusted
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -799,7 +799,7 @@ jobs:
         id: start
         if: always() && steps.models.outcome != 'skipped' && steps.run.outputs.handoff != 'true' && steps.credential.outputs.present != 'false'
         env:
-          RELEASE: ${{ needs.gate.outputs.release }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
         run: |
           rm -rf "${RUNNER_TEMP:?}/started"
           mkdir -p "$RUNNER_TEMP/started"
@@ -827,10 +827,10 @@ jobs:
         continue-on-error: true
         timeout-minutes: 1
         env:
-          RELEASE: ${{ needs.gate.outputs.release }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
           HANDOFF_REASON: ${{ steps.run.outputs.handoff-reason }}
         run: |
-          line="ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN handed off (${HANDOFF_REASON:-unknown}); model-fallback runs release $RELEASE on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
+          line="ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN handed off (${HANDOFF_REASON:-unknown}); apply-changelog-fallback runs release $RELEASE on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
           echo "::notice::$line"
           echo "$line" >>"$GITHUB_STEP_SUMMARY"
 
@@ -867,11 +867,11 @@ jobs:
         id: seal
         if: always() && steps.run.outcome != 'skipped'
         env:
-          RELEASE: ${{ needs.gate.outputs.release }}
-          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
+          BASE_SHA: ${{ needs.select-release.outputs.base-sha }}
           TRUSTED: ${{ github.workspace }}/.lane-trusted
           OUT: ${{ runner.temp }}/upstream-apply-changelog-out
-          JOB_ID: model-subscription
+          JOB_ID: apply-changelog-subscription
           MAX_CHUNKS: "6"
         run: |
           rm -rf "$OUT"
@@ -920,14 +920,14 @@ jobs:
   # The fallback leg: the same steps on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
   # alone, after the subscription leg handed off. It is the last leg and
   # never hands off.
-  model-fallback:
-    name: Model Fallback
-    needs: [gate, model-subscription]
+  apply-changelog-fallback:
+    name: Apply Changelog Fallback
+    needs: [select-release, apply-changelog-subscription]
     # The first attempt only, after the subscription leg handed off or found
     # its token empty.
     if: >-
-      ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
-      && needs.model-subscription.outputs.next-leg == 'fallback' }}
+      ${{ !cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1'
+      && needs.apply-changelog-subscription.outputs.next-leg == 'fallback' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -953,7 +953,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-release.outputs.base-sha }}
           path: .base
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -993,7 +993,7 @@ jobs:
           leg: fallback
           role: issue-lane
           credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: ${{ needs.model-subscription.outputs.next-reason }}
+          reason: ${{ needs.apply-changelog-subscription.outputs.next-reason }}
 
       # The plugins the skill and its stage skills load, copied out of main
       # before the root checkout replaces .base.
@@ -1024,7 +1024,7 @@ jobs:
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-release.outputs.base-sha }}
           fetch-depth: 0
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -1034,7 +1034,7 @@ jobs:
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         env:
           STAGE: ${{ runner.temp }}/upstream-apply-changelog-stage
-          RELEASE: ${{ needs.gate.outputs.release }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
           MODEL: ${{ steps.models.outputs.model }}
         run: bash .github/scripts/upstream-apply-changelog/prepare-working-tree.sh
 
@@ -1107,7 +1107,7 @@ jobs:
         if: always() && steps.models.outcome != 'skipped'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-release.outputs.base-sha }}
           path: .lane-trusted
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -1121,7 +1121,7 @@ jobs:
         id: start
         if: always() && steps.models.outcome != 'skipped' && steps.credential.outputs.present != 'false'
         env:
-          RELEASE: ${{ needs.gate.outputs.release }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
         run: |
           rm -rf "${RUNNER_TEMP:?}/started"
           mkdir -p "$RUNNER_TEMP/started"
@@ -1177,11 +1177,11 @@ jobs:
         id: seal
         if: always() && steps.run.outcome != 'skipped'
         env:
-          RELEASE: ${{ needs.gate.outputs.release }}
-          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
+          BASE_SHA: ${{ needs.select-release.outputs.base-sha }}
           TRUSTED: ${{ github.workspace }}/.lane-trusted
           OUT: ${{ runner.temp }}/upstream-apply-changelog-out
-          JOB_ID: model-fallback
+          JOB_ID: apply-changelog-fallback
           MAX_CHUNKS: "6"
         run: |
           rm -rf "$OUT"
@@ -1215,14 +1215,14 @@ jobs:
   # (run-claude-cli always sets it: lane.cjs legEnv). A Bash child of a leg on
   # that CLI and the key runs capture-probe.mjs, whose canary child shows its
   # /proc scan can see an environment, and two Read calls the deny rules must
-  # refuse. Same conditions as the model job, so a release the gate takes again
-  # is probed again. This is the key leg's probe; scrub-probe-subscription and
-  # scrub-probe-fallback probe the same way on the credential each later leg
+  # refuse. Same conditions as the apply-changelog job, so a release the gate takes again
+  # is probed again. This is the key leg's probe; verify-env-scrub-subscription and
+  # verify-env-scrub-fallback probe the same way on the credential each later leg
   # runs on, after the same handoffs as the model's legs.
-  scrub-probe:
-    name: Scrub Probe
-    needs: gate
-    if: needs.gate.outputs.proceed == 'true' && needs.gate.outputs.next-leg != 'subscription' && github.run_attempt == '1'
+  verify-env-scrub:
+    name: Verify Env Scrub
+    needs: select-release
+    if: needs.select-release.outputs.proceed == 'true' && needs.select-release.outputs.next-leg != 'subscription' && github.run_attempt == '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
@@ -1235,7 +1235,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-release.outputs.base-sha }}
           path: .base
           persist-credentials: false
 
@@ -1327,7 +1327,7 @@ jobs:
           # Sandbox off (melodic-software/ci-workflows#1060), as on the model
           # legs, so the probe checks the scrub where their Bash runs.
           sandbox: "false"
-          cli-version: ${{ needs.gate.outputs.release }}
+          cli-version: ${{ needs.select-release.outputs.release }}
           tools: |
             Bash
             Read
@@ -1386,7 +1386,7 @@ jobs:
         if: always() && steps.probe.outcome != 'skipped' && steps.probe.outputs.handoff != 'true'
         env:
           KEY_NAME: ISSUE_LANE_CLAUDE_API_KEY
-          RELEASE: ${{ needs.gate.outputs.release }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
           LEG_OUTCOME: ${{ steps.probe.outcome }}
           LEG_CLASS: ${{ steps.probe.outputs.lane-class }}
           CLI_VERSION: ${{ steps.probe.outputs.cli-version }}
@@ -1446,12 +1446,12 @@ jobs:
 
   # The scrub probe on the subscription token, after the key probe handed off,
   # found its key empty, or was skipped by the credit gate.
-  scrub-probe-subscription:
-    name: Scrub Probe Subscription
-    needs: [gate, scrub-probe]
+  verify-env-scrub-subscription:
+    name: Verify Env Scrub Subscription
+    needs: [select-release, verify-env-scrub]
     if: >-
-      ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
-      && (needs.scrub-probe.outputs.next-leg == 'subscription' || needs.gate.outputs.next-leg == 'subscription') }}
+      ${{ !cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1'
+      && (needs.verify-env-scrub.outputs.next-leg == 'subscription' || needs.select-release.outputs.next-leg == 'subscription') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
@@ -1464,7 +1464,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-release.outputs.base-sha }}
           path: .base
           persist-credentials: false
 
@@ -1502,7 +1502,7 @@ jobs:
           role: issue-lane
           credential-set: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: ${{ needs.scrub-probe.outputs.next-reason || needs.gate.outputs.next-reason }}
+          reason: ${{ needs.verify-env-scrub.outputs.next-reason || needs.select-release.outputs.next-reason }}
 
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -1559,7 +1559,7 @@ jobs:
           # Sandbox off (melodic-software/ci-workflows#1060), as on the model
           # legs, so the probe checks the scrub where their Bash runs.
           sandbox: "false"
-          cli-version: ${{ needs.gate.outputs.release }}
+          cli-version: ${{ needs.select-release.outputs.release }}
           tools: |
             Bash
             Read
@@ -1618,7 +1618,7 @@ jobs:
         if: always() && steps.probe.outcome != 'skipped' && steps.probe.outputs.handoff != 'true'
         env:
           KEY_NAME: ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN
-          RELEASE: ${{ needs.gate.outputs.release }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
           LEG_OUTCOME: ${{ steps.probe.outcome }}
           LEG_CLASS: ${{ steps.probe.outputs.lane-class }}
           CLI_VERSION: ${{ steps.probe.outputs.cli-version }}
@@ -1678,12 +1678,12 @@ jobs:
 
   # The scrub probe on the fallback token, after the subscription probe handed
   # off or found its token empty. The last leg: it never hands off.
-  scrub-probe-fallback:
-    name: Scrub Probe Fallback
-    needs: [gate, scrub-probe-subscription]
+  verify-env-scrub-fallback:
+    name: Verify Env Scrub Fallback
+    needs: [select-release, verify-env-scrub-subscription]
     if: >-
-      ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
-      && needs.scrub-probe-subscription.outputs.next-leg == 'fallback' }}
+      ${{ !cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1'
+      && needs.verify-env-scrub-subscription.outputs.next-leg == 'fallback' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
@@ -1693,7 +1693,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-release.outputs.base-sha }}
           path: .base
           persist-credentials: false
 
@@ -1730,7 +1730,7 @@ jobs:
           leg: fallback
           role: issue-lane
           credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: ${{ needs.scrub-probe-subscription.outputs.next-reason }}
+          reason: ${{ needs.verify-env-scrub-subscription.outputs.next-reason }}
 
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -1786,7 +1786,7 @@ jobs:
           # Sandbox off (melodic-software/ci-workflows#1060), as on the model
           # legs, so the probe checks the scrub where their Bash runs.
           sandbox: "false"
-          cli-version: ${{ needs.gate.outputs.release }}
+          cli-version: ${{ needs.select-release.outputs.release }}
           tools: |
             Bash
             Read
@@ -1845,7 +1845,7 @@ jobs:
         if: always() && steps.probe.outcome != 'skipped' && steps.probe.outputs.handoff != 'true'
         env:
           KEY_NAME: FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
-          RELEASE: ${{ needs.gate.outputs.release }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
           LEG_OUTCOME: ${{ steps.probe.outcome }}
           LEG_CLASS: ${{ steps.probe.outputs.lane-class }}
           CLI_VERSION: ${{ steps.probe.outputs.cli-version }}
@@ -1893,8 +1893,8 @@ jobs:
   # subscription leg when it ran, else the key leg.
   scan:
     name: Scan
-    needs: [gate, model, model-subscription, model-fallback]
-    if: ${{ !cancelled() && (needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-length || '') != '' }}
+    needs: [select-release, apply-changelog, apply-changelog-subscription, apply-changelog-fallback]
+    if: ${{ !cancelled() && (needs.apply-changelog-fallback.result != 'skipped' && needs.apply-changelog-fallback.outputs.sealed-length || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result != 'skipped' && needs.apply-changelog-subscription.outputs.sealed-length || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result == 'skipped' && needs.apply-changelog.outputs.sealed-length || '') != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
@@ -1925,7 +1925,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-release.outputs.base-sha }}
           path: .base
           fetch-depth: 0
           persist-credentials: false
@@ -1942,24 +1942,24 @@ jobs:
           read -r _ id _ <.base/.github/lane-keys/scan-carrier.pub || true
           echo "id=$id" >>"$GITHUB_OUTPUT"
 
-      - name: Open the model job's sealed payloads
+      - name: Open the apply-changelog job's sealed payloads
         id: open
         uses: ./.base/.github/actions/open-lane-output # zizmor: ignore[self-repository]
         with:
           private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
           expected-key-ids: ${{ steps.key.outputs.id }}
-          job-id: ${{ needs.model-fallback.result != 'skipped' && 'model-fallback' || needs.model-subscription.result != 'skipped' && 'model-subscription' || 'model' }}
+          job-id: ${{ needs.apply-changelog-fallback.result != 'skipped' && 'apply-changelog-fallback' || needs.apply-changelog-subscription.result != 'skipped' && 'apply-changelog-subscription' || 'apply-changelog' }}
           max-bytes: |
             plan.json=262144
             branches.bundle=393216
           directory: ${{ runner.temp }}/scan-in
-          sealed-length: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-length || '' }}
-          sealed-1: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-1 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-1 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-1 || '' }}
-          sealed-2: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-2 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-2 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-2 || '' }}
-          sealed-3: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-3 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-3 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-3 || '' }}
-          sealed-4: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-4 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-4 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-4 || '' }}
-          sealed-5: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-5 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-5 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-5 || '' }}
-          sealed-6: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-6 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-6 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-6 || '' }}
+          sealed-length: ${{ needs.apply-changelog-fallback.result != 'skipped' && needs.apply-changelog-fallback.outputs.sealed-length || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result != 'skipped' && needs.apply-changelog-subscription.outputs.sealed-length || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result == 'skipped' && needs.apply-changelog.outputs.sealed-length || '' }}
+          sealed-1: ${{ needs.apply-changelog-fallback.result != 'skipped' && needs.apply-changelog-fallback.outputs.sealed-1 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result != 'skipped' && needs.apply-changelog-subscription.outputs.sealed-1 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result == 'skipped' && needs.apply-changelog.outputs.sealed-1 || '' }}
+          sealed-2: ${{ needs.apply-changelog-fallback.result != 'skipped' && needs.apply-changelog-fallback.outputs.sealed-2 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result != 'skipped' && needs.apply-changelog-subscription.outputs.sealed-2 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result == 'skipped' && needs.apply-changelog.outputs.sealed-2 || '' }}
+          sealed-3: ${{ needs.apply-changelog-fallback.result != 'skipped' && needs.apply-changelog-fallback.outputs.sealed-3 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result != 'skipped' && needs.apply-changelog-subscription.outputs.sealed-3 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result == 'skipped' && needs.apply-changelog.outputs.sealed-3 || '' }}
+          sealed-4: ${{ needs.apply-changelog-fallback.result != 'skipped' && needs.apply-changelog-fallback.outputs.sealed-4 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result != 'skipped' && needs.apply-changelog-subscription.outputs.sealed-4 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result == 'skipped' && needs.apply-changelog.outputs.sealed-4 || '' }}
+          sealed-5: ${{ needs.apply-changelog-fallback.result != 'skipped' && needs.apply-changelog-fallback.outputs.sealed-5 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result != 'skipped' && needs.apply-changelog-subscription.outputs.sealed-5 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result == 'skipped' && needs.apply-changelog.outputs.sealed-5 || '' }}
+          sealed-6: ${{ needs.apply-changelog-fallback.result != 'skipped' && needs.apply-changelog-fallback.outputs.sealed-6 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result != 'skipped' && needs.apply-changelog-subscription.outputs.sealed-6 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result == 'skipped' && needs.apply-changelog.outputs.sealed-6 || '' }}
 
       # The plan's checks, and each branch's diff as text for the scan: the
       # bundle itself is compressed, so its bytes say nothing to a scanner.
@@ -1968,11 +1968,11 @@ jobs:
         env:
           IN: ${{ runner.temp }}/scan-in
           OUT: ${{ runner.temp }}/scan-out
-          RELEASE: ${{ needs.gate.outputs.release }}
-          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
+          BASE_SHA: ${{ needs.select-release.outputs.base-sha }}
           REPO_DIR: .base
         run: |
-          [ -f "$IN/plan.json" ] || { echo "::error::the model job left no ci-plan.json"; exit 1; }
+          [ -f "$IN/plan.json" ] || { echo "::error::the apply-changelog job left no ci-plan.json"; exit 1; }
           # Nothing here prints model text before the scans below: the
           # plan's checks name fields, and git runs quiet.
           node --input-type=module -e '
@@ -1988,7 +1988,7 @@ jobs:
           : >"$IN/diffs.txt"
           count=0
           if [ -s "$IN/heads.txt" ] && [ ! -f "$IN/branches.bundle" ]; then
-            echo "::error::the plan names branches and the model job left no bundle"
+            echo "::error::the plan names branches and the apply-changelog job left no bundle"
             exit 1
           fi
           if [ -s "$IN/heads.txt" ]; then
@@ -2101,7 +2101,7 @@ jobs:
   # inside its plugin.
   push-branches:
     name: Push Branches
-    needs: [gate, scan]
+    needs: [select-release, scan]
     if: ${{ !cancelled() && needs.scan.outputs.clean == 'true' && needs.scan.outputs.branches != '0' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -2119,7 +2119,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-release.outputs.base-sha }}
           path: .base
           fetch-depth: 0
           persist-credentials: false
@@ -2191,7 +2191,7 @@ jobs:
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
           lane: upstream-apply-changelog
           activity: apply-changelog-branches
-          release: ${{ needs.gate.outputs.release }}
+          release: ${{ needs.select-release.outputs.release }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
@@ -2204,8 +2204,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
-          RELEASE: ${{ needs.gate.outputs.release }}
-          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
+          BASE_SHA: ${{ needs.select-release.outputs.base-sha }}
           PLAN_FILE: ${{ runner.temp }}/plan/plan.json
           BUNDLE_FILE: ${{ runner.temp }}/plan/branches.bundle
           SYNTHETIC: ${{ needs.scan.outputs.synthetic }}
@@ -2237,7 +2237,7 @@ jobs:
   # release again.
   publish:
     name: Publish
-    needs: [gate, scan, push-branches]
+    needs: [select-release, scan, push-branches]
     if: >-
       ${{ !cancelled() && needs.scan.outputs.clean == 'true'
       && (needs.push-branches.result == 'success' || needs.push-branches.result == 'skipped')
@@ -2255,7 +2255,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.gate.outputs.base-sha }}
+          ref: ${{ needs.select-release.outputs.base-sha }}
           path: .base
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
@@ -2331,7 +2331,7 @@ jobs:
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
           lane: upstream-apply-changelog
           activity: publish-changelog-intake
-          release: ${{ needs.gate.outputs.release }}
+          release: ${{ needs.select-release.outputs.release }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
@@ -2344,8 +2344,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
-          RELEASE: ${{ needs.gate.outputs.release }}
-          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          RELEASE: ${{ needs.select-release.outputs.release }}
+          BASE_SHA: ${{ needs.select-release.outputs.base-sha }}
           PLAN_FILE: ${{ runner.temp }}/plan/plan.json
           HEADS: ${{ needs.push-branches.outputs.heads }}
         run: node .base/.github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs publish
@@ -2363,7 +2363,7 @@ jobs:
         if: steps.publish.outcome == 'success' && steps.publish.outputs.done == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: upstream-apply-changelog-done-${{ needs.gate.outputs.release }}
+          name: upstream-apply-changelog-done-${{ needs.select-release.outputs.release }}
           path: ${{ runner.temp }}/plan/plan.json
           retention-days: 90
           if-no-files-found: error

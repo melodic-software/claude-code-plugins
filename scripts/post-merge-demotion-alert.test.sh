@@ -71,22 +71,22 @@ if [[ "$triggers" == *"workflows: [$full_name, $canary_name]"* && "$triggers" ==
 else
   fail "workflow_run does not name both workflows: '$triggers'"
 fi
-# The alert job alone; the report-red-main job after it has its own tests
+# The file-demotion-issue job alone; the report-red-main job after it has its own tests
 # (.github/scripts/post-merge-demotion-alert/workflow.test.mjs).
-alert_job="$(awk '/^  alert:$/ { on = 1 } on && /^  [a-z-]+:$/ && !/^  alert:$/ { exit } on' "$WORKFLOW")"
+alert_job="$(awk '/^  file-demotion-issue:$/ { on = 1 } on && /^  [a-z-]+:$/ && !/^  file-demotion-issue:$/ { exit } on' "$WORKFLOW")"
 if [[ -n "$alert_job" ]] && grep -q '^permissions: {}$' "$WORKFLOW" &&
   [[ "$(grep -oE '^ +[a-z-]+: (read|write)( |$)' <<<"$alert_job" | sed 's/^ *//; s/ *$//' | sort | paste -sd ' ')" == 'actions: write checks: read contents: read issues: write pull-requests: read' ]]; then
-  ok "the alert token holds issues: write, actions: write and checks, contents and pull-requests read, nothing else"
+  ok "the file-demotion-issue token holds issues: write, actions: write and checks, contents and pull-requests read, nothing else"
 else
-  fail "the alert job's permissions are not exactly issues: write, actions: write, checks: read, contents: read, pull-requests: read"
+  fail "the file-demotion-issue job's permissions are not exactly issues: write, actions: write, checks: read, contents: read, pull-requests: read"
 fi
 # The revert record's filer: issues: write alone, no action, no checkout, and
-# it runs after the alert job whatever that job concluded, unless cancelled.
+# it runs after the file-demotion-issue job whatever that job concluded, unless cancelled.
 filer_job="$(awk '/^  file-revert:$/ { on = 1; next } on && /^  [a-z-]+:$/ { exit } on' "$WORKFLOW")"
 filer_if="$(awk '/^    if: >-$/ { on = 1; next } on && /^    [a-z-]+:/ { exit } on' <<<"$filer_job" | tr -s ' \n' ' ')"
 if [[ -n "$filer_job" && "$(grep -oE '^ +[a-z-]+: (read|write)( |$)' <<<"$filer_job" | sed 's/^ *//; s/ *$//' | paste -sd ' ')" == 'issues: write' ]] &&
-  grep -qx '    needs: \[alert\]' <<<"$filer_job" && ! grep -qE '^[[:space:]]*-?[[:space:]]*uses:' <<<"$filer_job" &&
-  [[ "$filer_if" == " !cancelled() && needs.alert.outputs.revert-title != '' " ]]; then
+  grep -qx '    needs: \[file-demotion-issue\]' <<<"$filer_job" && ! grep -qE '^[[:space:]]*-?[[:space:]]*uses:' <<<"$filer_job" &&
+  [[ "$filer_if" == " !cancelled() && needs.file-demotion-issue.outputs.revert-title != '' " ]]; then
   ok "the file-revert job holds issues: write alone, runs no action, and runs after any alert that handed it a record"
 else
   fail "the file-revert job's permissions are not exactly issues: write, or it runs an action or the wrong condition: if='$filer_if'"
@@ -94,7 +94,7 @@ fi
 if grep -qF "\${{" "$TMP_ROOT/filer.sh"; then
   fail "the filer step body interpolates an expression; pass it through env"
 else
-  ok "the filer step body takes the alert job's outputs through env"
+  ok "the filer step body takes the file-demotion-issue job's outputs through env"
 fi
 # Beside the checkout, only the job-end log-api-budget action, run from that
 # checkout of main's tip. The checkout takes main's tip as the SHA the job's
@@ -107,9 +107,9 @@ first_step="$(awk '/^    steps:$/ { on = 1; next } on && /^      - / { n++ } n =
 if [[ "$uses" == $'actions/checkout\n./.base/.github/actions/log-api-budget' &&
   "$first_step" == *"- name: Resolve main's tip"* && "$first_step" == *"id: tip"* && "$first_step" == *"TIP_BRANCH: main"* &&
   "$checkout" == *'ref: ${{ steps.tip.outputs.sha }}'* && "$checkout" == *"persist-credentials: false"* ]]; then
-  ok "the alert job checks out main's tip without credentials and runs no other action but that checkout's log-api-budget"
+  ok "the file-demotion-issue job checks out main's tip without credentials and runs no other action but that checkout's log-api-budget"
 else
-  fail "the alert job runs an action other than one credential-less checkout of main's tip SHA and its log-api-budget: '$uses'"
+  fail "the file-demotion-issue job runs an action other than one credential-less checkout of main's tip SHA and its log-api-budget: '$uses'"
 fi
 if grep -qF "\${{" "$TMP_ROOT/body.sh"; then
   fail "the step body interpolates an expression; pass it through env"
@@ -1085,7 +1085,7 @@ else
   fail "lane revert record changed: rc=$RC output='$(cat "$TMP_ROOT/stub/output")'"
 fi
 
-# The alert job files no revert record itself: it hands it over.
+# The file-demotion-issue job files no revert record itself: it hands it over.
 ALERT_ONLY=1 GRAPHQL="$LANE" run_push
 if [[ "$RC" -eq 0 ]] && ! grep -qE '^(POST|PATCH|PUT) ' <<<"$LOG" &&
   [[ "$(out_value revert-commits)" == "$HEAD_SHA" && "$(out_value revert-filer)" == 'melodic-automation-lanes[bot]' &&
@@ -2489,7 +2489,7 @@ fi
 
 timeout_expr="$(sed -n 's/^    timeout-minutes: //p' <<<"$alert_job")"
 if [[ "$timeout_expr" =~ workflow_dispatch\'\ \&\&\ ([0-9]+)\ \|\|\ 30 ]] && ((BASH_REMATCH[1] >= confirm_wait + 10)); then
-  ok "the alert job's dispatch timeout leaves room past the confirm wait"
+  ok "the file-demotion-issue job's dispatch timeout leaves room past the confirm wait"
 else
   fail "alert timeout '$timeout_expr' does not cover a $confirm_wait-minute wait"
 fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// post-merge-test-mutation.yml's mutate job: applies each mutant the generate
+// post-merge-test-mutation.yml's run-mutants job: applies each mutant the generate
 // leg returned and runs the file's covering tests on it, in a job that holds no
 // secret, so no mutated code runs beside a Claude credential. No model runs here.
 //

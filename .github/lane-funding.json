@@ -29,12 +29,12 @@
         { "id": "resolve-issue-subscription", "workflow": "work-resolve-issue.yml", "launcher": "run-claude-cli", "triggers": ["issues"], "gate": "author", "currentSecrets": ["ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "resolve-issue-handoff", "workflow": "work-resolve-issue.yml", "launcher": "run-claude-cli", "triggers": ["issues"], "gate": "author", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "resolve-issue-fallback", "workflow": "work-resolve-issue.yml", "launcher": "run-claude-cli", "triggers": ["issues"], "gate": "author", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "model", "workflow": "upstream-apply-changelog.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["ISSUE_LANE_CLAUDE_API_KEY"] },
-        { "id": "model-subscription", "workflow": "upstream-apply-changelog.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "model-fallback", "workflow": "upstream-apply-changelog.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "scrub-probe", "workflow": "upstream-apply-changelog.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["ISSUE_LANE_CLAUDE_API_KEY"] },
-        { "id": "scrub-probe-subscription", "workflow": "upstream-apply-changelog.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "scrub-probe-fallback", "workflow": "upstream-apply-changelog.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "apply-changelog", "workflow": "upstream-apply-changelog.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["ISSUE_LANE_CLAUDE_API_KEY"] },
+        { "id": "apply-changelog-subscription", "workflow": "upstream-apply-changelog.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "apply-changelog-fallback", "workflow": "upstream-apply-changelog.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "verify-env-scrub", "workflow": "upstream-apply-changelog.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["ISSUE_LANE_CLAUDE_API_KEY"] },
+        { "id": "verify-env-scrub-subscription", "workflow": "upstream-apply-changelog.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "verify-env-scrub-fallback", "workflow": "upstream-apply-changelog.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
@@ -111,12 +111,12 @@
       "keyed": true,
       "category": "maintenance",
       "lanes": [
-        { "id": "judge", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
-        { "id": "judge-subscription", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "judge-fallback", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "model", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
-        { "id": "model-subscription", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "model-fallback", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "assess-units", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "assess-units-subscription", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "assess-units-fallback", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "sweep-areas", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "sweep-areas-subscription", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "sweep-areas-fallback", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "generate", "workflow": "post-merge-test-mutation.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
         { "id": "generate-subscription", "workflow": "post-merge-test-mutation.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "generate-fallback", "workflow": "post-merge-test-mutation.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
@@ -136,13 +136,13 @@
         { "id": "run-eval", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "pull_request"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
         { "id": "run-eval-subscription", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "pull_request"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "run-eval-fallback", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "pull_request"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "pass-a", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "pass-a2", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "propose", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "pass-b", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "pass", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
-        { "id": "pass-subscription", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "pass-fallback", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "measure-baseline", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "measure-baseline-again", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "generate-edit", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "measure-edit", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "run-eval", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
+        { "id": "run-eval-subscription", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "run-eval-fallback", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     }
   ]

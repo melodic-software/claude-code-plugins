@@ -2,7 +2,7 @@ name: Maintenance Delete Stale Branches
 
 # Deletes the branches of this repository whose work is finished: a branch
 # lives as long as its issue is open (owner decisions W-7 and #8958). Daily the
-# plan job sorts every branch by the branch-cleanup rule
+# select-stale-branches job sorts every branch by the branch-cleanup rule
 # (docs/conventions/pr-pipeline/README.md, "Branch cleanup"): a branch whose
 # pull request closed or merged and whose linked issue closed is deleted; one
 # with an open issue, an open pull request, a protection or ruleset, or that
@@ -50,8 +50,8 @@ defaults:
     shell: bash
 
 jobs:
-  plan:
-    name: Plan
+  select-stale-branches:
+    name: Select Stale Branches
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -63,7 +63,7 @@ jobs:
       planned: ${{ steps.plan.outputs.planned }}
       # The candidate list's artifact name, fixed by the attempt that planned
       # it: re-running only a failed delete job keeps this job's outputs, so
-      # the delete job still finds the list the plan uploaded.
+      # the delete job still finds the list select-stale-branches uploaded.
       candidates: branch-cleanup-candidates-${{ github.run_id }}-${{ github.run_attempt }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
@@ -148,11 +148,11 @@ jobs:
 
   delete:
     name: Delete
-    needs: plan
+    needs: select-stale-branches
     if: >-
       github.ref == 'refs/heads/main'
-      && needs.plan.outputs.planned != ''
-      && needs.plan.outputs.planned != '0'
+      && needs.select-stale-branches.outputs.planned != ''
+      && needs.select-stale-branches.outputs.planned != '0'
       && (github.event_name != 'workflow_dispatch' || !inputs.dry-run)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -178,7 +178,7 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
-      # Checked again: the switch may have flipped since the plan job.
+      # Checked again: the switch may have flipped since the select-stale-branches job.
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
@@ -198,13 +198,13 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
-      # This run's own plan job wrote it; the delete stage still refuses a
+      # This run's own select-stale-branches job wrote it; the delete stage still refuses a
       # list over the cap or with an entry it does not expect.
       - name: Download the candidate list
         if: steps.kill.outputs.proceed == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: ${{ needs.plan.outputs.candidates }}
+          name: ${{ needs.select-stale-branches.outputs.candidates }}
           path: ${{ runner.temp }}/branch-cleanup-candidates
 
       - name: Delete stale branches

@@ -730,7 +730,7 @@ activities:
     inputs: [issue]
   apply-changelog:
     # Runs `/harness-ops:changelog apply --ci <release>` in the
-    # upstream-apply-changelog model job, which commits one local branch per
+    # upstream-apply-changelog apply-changelog job, which commits one local branch per
     # owner plugin and writes ci-plan.json; apply-changelog-branches and
     # publish-changelog-intake act on what it leaves. The job holds no write
     # token, so no broker mint names it.
@@ -742,7 +742,7 @@ activities:
     reads-untrusted: true
   apply-changelog-branches:
     # Recreates each changelog/<plugin>/v<release> branch the
-    # upstream-apply-changelog model job's `/harness-ops:changelog apply --ci`
+    # upstream-apply-changelog apply-changelog job's `/harness-ops:changelog apply --ci`
     # committed, as lanes App commits through the Git Data API, after
     # checking every commit changes only plugins/<plugin>/ and
     # .changes/<plugin>/ as regular files and that the result holds the
@@ -1262,8 +1262,8 @@ limits:
     failed-again: 3
     failed-mint: 1
     kill-switch: 1
-  # upstream-apply-changelog model jobs past the kill switch in any 24 hours, a setup
-  # failure before the leg included (counted from the start records the model job
+  # upstream-apply-changelog apply-changelog legs past the kill switch in any 24 hours, a setup
+  # failure before the leg included (counted from the start records the leg job
   # writes after the leg, as red-main.daily-cap counts reverts; a credit-stopped leg
   # whose marker uploaded writes none). Each run
   # takes one release, so 3 is the most anthropics/claude-code releases

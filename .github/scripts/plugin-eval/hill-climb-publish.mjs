@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The steps of maintenance-measure-skill-edit.yml after a win. No model runs here, and nothing here
 // reads the model's proposal: the edit is the patch the scan job checked and pass b measured, and
-// the pull request text is written here from the verdict job's scripted results.
+// the pull request text is written here from the compare-passes job's scripted results.
 //
 //   push     applies edit.patch to a checkout of the base, adds a fixed changelog fragment, checks
 //            the result changes only the skill's markdown body (never its frontmatter) and that

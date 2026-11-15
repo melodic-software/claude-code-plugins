@@ -12,7 +12,7 @@ name: Maintenance File Dead Links
 # reusable workflow's outputs reach only its own caller, so this workflow reads
 # the artifact instead, in two jobs that each hold one scope:
 #
-# - read: actions: read, to download the artifact from the link-check run. It
+# - download-dead-links: actions: read, to download the artifact from the link-check run. It
 #   checks the shape, keeps at most MAX_LINKS links, and hands them on through
 #   its outputs, an empty list included. A run that uploaded no artifact (a
 #   scheduled run the repository property turned off) hands on nothing, so
@@ -43,8 +43,8 @@ on:
 permissions: {}
 
 jobs:
-  read:
-    name: Read The Dead Links
+  download-dead-links:
+    name: Download Dead Links
     if: >-
       github.event.workflow_run.head_branch == 'main'
       && github.event.workflow_run.head_repository.full_name == github.repository
@@ -135,8 +135,8 @@ jobs:
 
   file:
     name: Update The Dead-Link Rollup Issue
-    needs: [read]
-    if: needs.read.outputs.found == 'true'
+    needs: [download-dead-links]
+    if: needs.download-dead-links.outputs.found == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -150,8 +150,8 @@ jobs:
       - name: Rewrite the rollup issue
         env:
           GH_TOKEN: ${{ github.token }}
-          LINKS: ${{ needs.read.outputs.links }}
-          MORE: ${{ needs.read.outputs.more }}
+          LINKS: ${{ needs.download-dead-links.outputs.links }}
+          MORE: ${{ needs.download-dead-links.outputs.more }}
           RUN_URL: ${{ github.event.workflow_run.html_url }}
           MARKER: <!-- link-check-dead-pointer rollup -->
           DEMOTION_PATH: https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/attribution/skills/audit/reference/dispositions.md#the-demotion-path-when-a-pointer-later-dies

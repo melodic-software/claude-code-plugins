@@ -113,7 +113,7 @@ Anyone outside the organization who writes on an issue or pull request is flagge
 workflow with no model, secret or kill switch. It runs on an issue or pull request opened, edited
 or reopened, a pull request synchronized (`pull_request_target` for a pull request), on a
 comment, review or diff comment created, submitted or edited, and on `security: outside-actor`
-removed from an issue or pull request. A flag job starts only when the sender is not a Bot (an App
+removed from an issue or pull request. A label-outside-actor job starts only when the sender is not a Bot (an App
 installed here), or the event is on a pull request whose head is a fork (an App on the fork can act
 there), and either the content's author is neither `OWNER` nor `MEMBER` or the event is an edit,
 push or reopen by someone other than the author, which judges the sender. The run then trusts the
@@ -1338,7 +1338,7 @@ the rules that only tighten in
   way. A push to main files a `revert` record when one
   of its commits names a pull request it reverts and the lanes App enqueued that pull request or
   its enqueuer cannot be read; a revert of one a person enqueued files nothing, and one on a
-  record-mode path gets labels only ([Merge paths](#merge-paths)). The alert job
+  record-mode path gets labels only ([Merge paths](#merge-paths)). The file-demotion-issue job
   finds the revert and hands the record, through its job outputs, to the `file-revert` job, whose
   token holds `issues: write` alone; that job re-reads the revert records and files nothing when
   one already lists every revert commit. A commit names it
@@ -3408,17 +3408,17 @@ issue. It never labels an issue `agent-ready`, so nothing it writes starts work.
   four slice C units), and says so: a
   workflow it read only part of is named in a warning, and its unit carries `window_complete:
   false`.
-- **judge**, one model leg per unit, runs ci-workflows' `run-claude-cli` as the `automations` role
+- **assess-units**, one model leg per unit, runs ci-workflows' `run-claude-cli` as the `automations` role
   on `AUTOMATIONS_CLAUDE_API_KEY`, holds read permissions only, runs with `--permission-mode
   dontAsk`, and has Read, Grep and Glob over its data and the main checkout and no shell. It takes
   the `triage-issue` route's profile. CI logs and titles reach it as data. It returns at most three
   findings, each citing at least one `path`, `line` and exact `quote` from main. A unit whose key
   leg hands off (a credit stop, a 401 or 402, or an empty key) with no permission denial is judged
-  by **judge-subscription** on `AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`; with
+  by **assess-units-subscription** on `AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`; with
   `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, a unit that leg hands off (a limit stop, a credit stop, a
-  401 or 402) is judged by **judge-fallback** on that token, which never hands off. Each leg is its
+  401 or 402) is judged by **assess-units-fallback** on that token, which never hands off. Each leg is its
   own job holding one credential. A leg that hands off uploads a marker artifact naming the unit and
-  the launcher's reason, and **judge-handoffs** and **judge-subscription-handoffs**, which hold no
+  the launcher's reason, and **collect-key-handoffs** and **collect-subscription-handoffs**, which hold no
   secret, check each marker against a closed set and build the next leg's matrix
   (`handoff.mjs`). Each unit leaves one lane record (`lane-sweep`), from the leg that saw its end.
 - **file**, a script with no model and `issues: write`, drops a finding whose slice is not its
@@ -3734,7 +3734,7 @@ that token on a third runner, recording `fallback-reason` `limit-stop`, `credit-
 with it empty, the subscription leg is the last. `pr-verify-capture` has one job, `capture`, on
 the key; when the key cannot capture it records the capture `blocked` and runs no model
 ([Verifier verdict](#verifier-verdict)). The lane sweep's judge, on the `automations`
-role, has the same three legs per unit (`judge`, `judge-subscription`, `judge-fallback`), each
+role, has the same three legs per unit (`assess-units`, `assess-units-subscription`, `assess-units-fallback`), each
 started by a route job from the previous leg's handoff markers
 ([The lane sweep](#the-lane-sweep)). The read runner's callers
 do the same in two calls, the second started by a job that reads this run's jobs: `pr-unblock`'s
@@ -4174,7 +4174,7 @@ repository sets one, `owner-agent`, for agent sessions merging through the owner
 | `paths.<name>.enqueuers` | none | Logins (at least one) whose merge-queue actor or enqueuer puts an agent-authored merge on the path. |
 
 On every canary push run, the alert workflow's `label-paths` job (`issues: write`, after the
-alert job) reads the push's merges and the pull requests it reverts, and labels each one on a record path `merge-path: <name>` and
+file-demotion-issue job) reads the push's merges and the pull requests it reverts, and labels each one on a record path `merge-path: <name>` and
 each reverted one also `post-merge: reverted`, creating a label that is missing. It files no issue
 and posts no comment, and its `GITHUB_TOKEN` writes start no workflow run. A lane merge gets no
 label; a push that reverts a lane pull request still files the revert demotion record, and
@@ -4201,7 +4201,7 @@ reading every pull request merged from `--since` to today, a day per search.
 When a full `pr-require-checks` run on `main` (scheduled or dispatched) fails, the
 `report-red-main` job of
 [`post-merge-file-demotion-issues.yml`](../../../.github/workflows/post-merge-file-demotion-issues.yml) applies
-this rule after the alert job has filed its post-merge record. It runs no model; its scripts and
+this rule after the file-demotion-issue job has filed its post-merge record. It runs no model; its scripts and
 tests are in
 [`.github/scripts/post-merge-demotion-alert/`](../../../.github/scripts/post-merge-demotion-alert/).
 
@@ -4334,7 +4334,7 @@ While the issue is open, its next lane run deletes a stopped run's lane branch t
 request in any state (owner decision on #7948,
 [`pr-run-activity.md`](pr-run-activity.md#issue-mode)); this daily rule is unchanged.
 
-Two jobs run it. The plan job, whose token writes nothing (`contents`, `issues` and
+Two jobs run it. The select-stale-branches job, whose token writes nothing (`contents`, `issues` and
 `pull-requests` read), sorts the branches, prints how many it will delete, and hands at most
 `max-deletes-per-run` candidates, in listing order, to the delete job as the run's
 `branch-cleanup-candidates-<run>-<attempt>` artifact. It leaves the delete job one call plus five

@@ -71,8 +71,8 @@ jobs:
   # born-triaged issue still re-acquires the floor label and a dispatch
   # (intake-reenter.yml) still triages one. The gate reads before the model
   # resolves, so a model config that fails still leaves the floor label its skip.
-  born-triaged:
-    name: Born Triaged
+  check-born-triaged:
+    name: Check Born Triaged
     if: github.event_name == 'issues' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -257,8 +257,8 @@ jobs:
   # limit on its read stops the label and its calls with the same token.
   intake-label-needs-triage:
     name: Intake Label Needs Triage
-    needs: [kill-switch, born-triaged]
-    if: ${{ !cancelled() && github.event_name == 'issues' && needs.kill-switch.outputs.proceed == 'true' && needs.born-triaged.outputs.rate-limited != 'true' && needs.born-triaged.outputs.skip != 'true' }}
+    needs: [kill-switch, check-born-triaged]
+    if: ${{ !cancelled() && github.event_name == 'issues' && needs.kill-switch.outputs.proceed == 'true' && needs.check-born-triaged.outputs.rate-limited != 'true' && needs.check-born-triaged.outputs.skip != 'true' }}
     permissions:
       issues: write # passed to the reusable, which reads and adds issue labels
     uses: melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@main
@@ -272,15 +272,15 @@ jobs:
   # a dispatch too. A reopened issue gets no triage, only the floor label.
   intake-triage:
     name: Intake Triage
-    needs: [born-triaged, kill-switch]
+    needs: [check-born-triaged, kill-switch]
     if: >-
       ${{ !cancelled()
       && (github.event_name == 'workflow_dispatch' || github.event.action == 'opened')
       && needs.kill-switch.outputs.proceed == 'true'
       && needs.kill-switch.outputs.upstream-degraded != 'true'
-      && needs.born-triaged.outputs.rate-limited != 'true'
-      && needs.born-triaged.outputs.skip != 'true'
-      && needs.born-triaged.outputs.claude-args != '' }}
+      && needs.check-born-triaged.outputs.rate-limited != 'true'
+      && needs.check-born-triaged.outputs.skip != 'true'
+      && needs.check-born-triaged.outputs.claude-args != '' }}
     permissions:
       actions: read # list this repository's credit-stop markers
       contents: read # check out the default branch so the lane can read AGENTS.md
@@ -292,7 +292,7 @@ jobs:
     with:
       runner: ubuntu-24.04
       role: intake
-      claude-args: ${{ needs.born-triaged.outputs.claude-args }}
+      claude-args: ${{ needs.check-born-triaged.outputs.claude-args }}
       lane-transcript-public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
       # The key's credit window every model lane reads (callers.test.mjs
       # KEY_CREDIT_WINDOW); empty runs the reusable's 1-hour default.
@@ -301,8 +301,8 @@ jobs:
       # holds the key off.
       key-credit-reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
       issue-number: ${{ inputs.issue-number }}
-      allowed-author-ids: ${{ needs.born-triaged.outputs.human-ids }}
-      allowed-bot-sender-ids: ${{ needs.born-triaged.outputs.bot-ids }}
+      allowed-author-ids: ${{ needs.check-born-triaged.outputs.human-ids }}
+      allowed-bot-sender-ids: ${{ needs.check-born-triaged.outputs.bot-ids }}
       # Re-entry after a recorded decision (intake-reenter.yml). The marker is
       # the first line isDecisionComment in select-trusted-text.mjs matches. An
       # escalated run posts only the reusable's fixed note, so the quote and
@@ -490,7 +490,7 @@ jobs:
   # apply-verdict skips it.
   apply-verdict:
     name: Apply Verdict
-    needs: [born-triaged, intake-triage]
+    needs: [check-born-triaged, intake-triage]
     if: >-
       ${{ !cancelled()
       && needs.intake-triage.result == 'success'
@@ -633,7 +633,7 @@ jobs:
           API_BUDGET_HOLD: "1"
           SCRIPT: ${{ steps.config.outputs.script }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
-          STARTED_AT: ${{ needs.born-triaged.outputs.started-at }}
+          STARTED_AT: ${{ needs.check-born-triaged.outputs.started-at }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           BASE_PATH: .base
@@ -689,7 +689,7 @@ jobs:
   # in a separate marked comment. Rules: .github/scripts/intake-triage/refine.mjs.
   refine-select:
     name: Refine Select
-    needs: [born-triaged, apply-verdict]
+    needs: [check-born-triaged, apply-verdict]
     if: ${{ !cancelled() && needs.apply-verdict.result == 'success' && needs.apply-verdict.outputs.stopped == '' && needs.apply-verdict.outputs.held == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -778,7 +778,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
-          STARTED_AT: ${{ needs.born-triaged.outputs.started-at }}
+          STARTED_AT: ${{ needs.check-born-triaged.outputs.started-at }}
           KILL_SWITCH: proceed
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           CONTEXT_PATH: ${{ runner.temp }}/refine-context/context.json
@@ -2029,7 +2029,7 @@ jobs:
   # refined issue's done-when.
   apply-refinement:
     name: Apply Refinement
-    needs: [born-triaged, refine-select, refine-issue, refine-issue-subscription, refine-issue-fallback]
+    needs: [check-born-triaged, refine-select, refine-issue, refine-issue-subscription, refine-issue-fallback]
     if: >-
       ${{ !cancelled() && (needs.refine-issue.outputs.refined == 'true'
       || needs.refine-issue-subscription.outputs.refined == 'true'
@@ -2192,8 +2192,8 @@ jobs:
   # issue edited while the model ran is triaged again the same way, with
   # nothing written. Its own job holds the dispatch grant, not the job with
   # the App token.
-  redispatch-refined:
-    name: Redispatch Refined
+  dispatch-refined-triage:
+    name: Dispatch Refined Triage
     needs: [apply-refinement]
     if: ${{ !cancelled() && needs.apply-refinement.outputs.redispatch == 'true' }}
     runs-on: ubuntu-24.04
@@ -2259,7 +2259,7 @@ jobs:
               -f ref=main -f "inputs[issue-number]=$child"
           done
 
-      # The hub's api-calls notice, as redispatch-refined writes it.
+      # The hub's api-calls notice, as dispatch-refined-triage writes it.
       - name: Log the API calls at the end
         if: always()
         run: |

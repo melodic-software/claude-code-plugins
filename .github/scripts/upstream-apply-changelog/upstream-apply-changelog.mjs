@@ -9,7 +9,7 @@
 //            API as one lanes App commit on the base (mutate-branch token)
 //   publish  opens one PR per pushed branch and files the release's handoffs
 //            as one issue (publish-artifact token)
-// The plan and each branch's tree come from the model job, so every field is
+// The plan and each branch's tree come from the apply-changelog job, so every field is
 // data: names are held to fixed shapes and each branch's net diff to its
 // plugin's paths, none of them a hold path. The bundle holds the scan job's
 // synthetic commits only.

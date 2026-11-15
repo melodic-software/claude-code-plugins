@@ -304,7 +304,7 @@ function assertKillSwitchJob(gate, { starts = false } = {}) {
 
 test("intake-triage.yml: intake runs only with claude-args resolved from triage-issue", () => {
   const { jobs } = workflow("intake-triage.yml");
-  const gate = jobs["born-triaged"];
+  const gate = jobs["check-born-triaged"];
   const checkout = gate.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
   const resolve = gate.steps.find((step) => step.uses?.startsWith(RESOLVE));
   assert.equal(checkout.with.ref, undefined, "an issues event checks out the default branch");
@@ -320,14 +320,14 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
   assert.equal(runRefusal(refusal, ""), 0);
 
   const intake = jobs["intake-triage"];
-  assert.match(intake.if, /&& needs\.born-triaged\.outputs\.claude-args != '' \}\}$/);
+  assert.match(intake.if, /&& needs\.check-born-triaged\.outputs\.claude-args != '' \}\}$/);
   const runs = (skip, claudeArgs, event = "issues", proceed = "true", limited = "false", action = event === "issues" ? "opened" : "", degraded = "false") =>
     evaluate(intake.if, {
       "github.event_name": event,
       "github.event.action": action,
-      "needs.born-triaged.outputs.skip": skip,
-      "needs.born-triaged.outputs.claude-args": claudeArgs,
-      "needs.born-triaged.outputs.rate-limited": limited,
+      "needs.check-born-triaged.outputs.skip": skip,
+      "needs.check-born-triaged.outputs.claude-args": claudeArgs,
+      "needs.check-born-triaged.outputs.rate-limited": limited,
       "needs.kill-switch.outputs.proceed": proceed,
       "needs.kill-switch.outputs.upstream-degraded": degraded,
     });
@@ -354,8 +354,8 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
   assert.equal(runs("true", args, "workflow_dispatch", "true", "true"), false, "and a dispatch too");
   assert.equal(runs("false", args, "issues", "true", ""), true, "a gate job that wrote no output still falls through");
   assert.equal(gate.outputs["rate-limited"], "${{ steps.check.outputs.rate-limited }}");
-  assert.equal(intake.with["claude-args"], "${{ needs.born-triaged.outputs.claude-args }}");
-  assert.deepEqual(intake.needs, ["born-triaged", "kill-switch"]);
+  assert.equal(intake.with["claude-args"], "${{ needs.check-born-triaged.outputs.claude-args }}");
+  assert.deepEqual(intake.needs, ["check-born-triaged", "kill-switch"]);
   const killSwitch = jobs["kill-switch"];
   assertKillSwitchJob(killSwitch, { starts: true });
   const killRuns = (event, action, ref = "refs/heads/main") =>
@@ -414,7 +414,7 @@ test("upstream-apply-changelog.yml: every resolve-config step resolves on schedu
 
 test("intake-triage.yml: the kill switch stops the born-triaged check and the floor label", () => {
   const { jobs } = workflow("intake-triage.yml");
-  const gate = jobs["born-triaged"];
+  const gate = jobs["check-born-triaged"];
   const checks = (action) => evaluate(gate.if, { "github.event_name": "issues", "github.event.action": action, "github.ref": "refs/heads/main" });
   assert.equal(checks("opened"), true);
   assert.equal(checks("reopened"), true, "a reopened issue is checked for a routing label");
@@ -424,13 +424,13 @@ test("intake-triage.yml: the kill switch stops the born-triaged check and the fl
     assert.ok(sparse.includes(`/${path}`), `the gate's sparse checkout lacks ${path}, which holds the routing labels`);
   }
   const label = jobs["intake-label-needs-triage"];
-  assert.deepEqual(label.needs, ["kill-switch", "born-triaged"]);
+  assert.deepEqual(label.needs, ["kill-switch", "check-born-triaged"]);
   const labels = (proceed, skip, limited = "false", event = "issues") =>
     evaluate(label.if, {
       "github.event_name": event,
       "needs.kill-switch.outputs.proceed": proceed,
-      "needs.born-triaged.outputs.skip": skip,
-      "needs.born-triaged.outputs.rate-limited": limited,
+      "needs.check-born-triaged.outputs.skip": skip,
+      "needs.check-born-triaged.outputs.rate-limited": limited,
     });
   assert.equal(labels("true", ""), true, "a skipped or failed born-triaged check still labels");
   assert.equal(labels("true", "false"), true);
@@ -460,9 +460,9 @@ test("intake-triage.yml: a reopened issue runs only the gate, the kill switch an
     "github.ref": "refs/heads/main",
     "needs.kill-switch.outputs.proceed": "true",
     // The gate finds no routing label on the reopened issue.
-    "needs.born-triaged.outputs.skip": "false",
-    "needs.born-triaged.outputs.rate-limited": "false",
-    "needs.born-triaged.outputs.claude-args": "--model sonnet",
+    "needs.check-born-triaged.outputs.skip": "false",
+    "needs.check-born-triaged.outputs.rate-limited": "false",
+    "needs.check-born-triaged.outputs.claude-args": "--model sonnet",
   };
   const ran = new Set();
   for (const [id, job] of Object.entries(jobs)) {
@@ -475,7 +475,7 @@ test("intake-triage.yml: a reopened issue runs only the gate, the kill switch an
     );
     if (job.if === undefined || evaluate(job.if, { ...reopened, ...results, ...outputs })) ran.add(id);
   }
-  assert.deepEqual([...ran].sort(), ["born-triaged", "intake-label-needs-triage", "kill-switch"]);
+  assert.deepEqual([...ran].sort(), ["check-born-triaged", "intake-label-needs-triage", "kill-switch"]);
 });
 
 // Folding the floor label in gave no job a permission it did not hold in
@@ -484,7 +484,7 @@ test("intake-triage.yml: each job keeps its own least-privilege permissions", ()
   const { permissions, jobs } = workflow("intake-triage.yml");
   assert.deepEqual(permissions, {});
   assert.deepEqual(Object.fromEntries(Object.entries(jobs).map(([id, job]) => [id, job.permissions])), {
-    "born-triaged": { contents: "read", issues: "read" },
+    "check-born-triaged": { contents: "read", issues: "read" },
     "kill-switch": { contents: "read" },
     "intake-label-needs-triage": { issues: "write" },
     "intake-triage": { actions: "read", contents: "read", issues: "write" },
@@ -495,14 +495,14 @@ test("intake-triage.yml: each job keeps its own least-privilege permissions", ()
     "refine-issue-subscription": { contents: "read" },
     "refine-issue-fallback": { contents: "read" },
     "apply-refinement": { contents: "read", "id-token": "write" },
-    "redispatch-refined": { actions: "write" },
+    "dispatch-refined-triage": { actions: "write" },
     "triage-split-children": { actions: "write" },
   });
 });
 
 test("intake-triage.yml: a dispatch runs only from main and passes the gate's ids", () => {
   const { jobs } = workflow("intake-triage.yml");
-  const gate = jobs["born-triaged"];
+  const gate = jobs["check-born-triaged"];
   const runsOn = (event, ref, action = event === "issues" ? "opened" : "") =>
     evaluate(gate.if, { "github.event_name": event, "github.event.action": action, "github.ref": ref });
   assert.equal(runsOn("issues", "refs/heads/main"), true);
@@ -510,8 +510,8 @@ test("intake-triage.yml: a dispatch runs only from main and passes the gate's id
   assert.equal(runsOn("workflow_dispatch", "refs/heads/feature"), false, "a dispatch from a branch reads no branch's trusted-actor list");
 
   const intake = jobs["intake-triage"];
-  assert.equal(intake.with["allowed-author-ids"], "${{ needs.born-triaged.outputs.human-ids }}");
-  assert.equal(intake.with["allowed-bot-sender-ids"], "${{ needs.born-triaged.outputs.bot-ids }}");
+  assert.equal(intake.with["allowed-author-ids"], "${{ needs.check-born-triaged.outputs.human-ids }}");
+  assert.equal(intake.with["allowed-bot-sender-ids"], "${{ needs.check-born-triaged.outputs.bot-ids }}");
   assert.equal(intake.with["issue-number"], "${{ inputs.issue-number }}");
 
   const bots = gate.steps.find((step) => step.id === "bots");
@@ -539,7 +539,7 @@ test("intake-triage.yml: a dispatch runs only from main and passes the gate's id
 test("intake-triage.yml: apply-verdict writes as the lanes App only after a triage that ran, for the issue it triaged", () => {
   const { jobs } = workflow("intake-triage.yml");
   const job = jobs["apply-verdict"];
-  assert.deepEqual(job.needs, ["born-triaged", "intake-triage"]);
+  assert.deepEqual(job.needs, ["check-born-triaged", "intake-triage"]);
   assert.deepEqual(job.permissions, { contents: "read", "id-token": "write" });
   const minting = Object.entries(jobs)
     .filter(([, j]) => j.permissions?.["id-token"] !== undefined || j.permissions === "write-all")
@@ -561,7 +561,7 @@ test("intake-triage.yml: apply-verdict writes as the lanes App only after a tria
   assert.equal(runs("failure", "false"), false, "a failed apply writes nothing");
   assert.equal(runs("skipped", ""), false);
 
-  const gate = jobs["born-triaged"];
+  const gate = jobs["check-born-triaged"];
   assert.equal(gate.outputs["started-at"], "${{ steps.started.outputs.at }}");
   assert.equal(gate.steps[0].id, "started", "the start time is taken before the triage runs");
 
@@ -580,7 +580,7 @@ test("intake-triage.yml: apply-verdict writes as the lanes App only after a tria
   assert.equal(token.with["pr-number"], undefined);
   const write = job.steps.find((s) => s.name === "Write the verdict");
   assert.equal(write.env.GH_TOKEN, "${{ steps.lane-token.outputs.token }}");
-  assert.equal(write.env.STARTED_AT, "${{ needs.born-triaged.outputs.started-at }}");
+  assert.equal(write.env.STARTED_AT, "${{ needs.check-born-triaged.outputs.started-at }}");
   assert.equal(write.env.KILL_SWITCH, "${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}");
   assert.equal(write.run, 'node ".base/$SCRIPT"');
   assert.deepEqual(stepSecrets(job), []);
@@ -650,7 +650,7 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   const fallback = jobs["refine-issue-fallback"];
   const credit = jobs["refine-key-credit"];
   const apply = jobs["apply-refinement"];
-  const again = jobs["redispatch-refined"];
+  const again = jobs["dispatch-refined-triage"];
   assert.deepEqual(select.permissions, { contents: "read", issues: "read", "pull-requests": "read" });
   assert.deepEqual(model.permissions, { contents: "read" }, "the model job holds no write grant");
   assert.deepEqual(sub.permissions, { contents: "read" }, "the subscription leg holds no write grant");
@@ -659,11 +659,11 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.deepEqual(stepSecrets(credit), [], "the credit gate holds no secret");
   assert.deepEqual(apply.permissions, { contents: "read", "id-token": "write" });
   assert.deepEqual(again.permissions, { actions: "write" }, "the dispatch grant is not on the job with the App token");
-  assert.deepEqual(select.needs, ["born-triaged", "apply-verdict"]);
+  assert.deepEqual(select.needs, ["check-born-triaged", "apply-verdict"]);
   assert.deepEqual(model.needs, ["refine-select", "refine-key-credit"]);
   assert.deepEqual(sub.needs, ["refine-select", "refine-key-credit", "refine-issue"]);
   assert.deepEqual(fallback.needs, ["refine-select", "refine-issue-subscription"]);
-  assert.deepEqual(apply.needs, ["born-triaged", "refine-select", "refine-issue", "refine-issue-subscription", "refine-issue-fallback"]);
+  assert.deepEqual(apply.needs, ["check-born-triaged", "refine-select", "refine-issue", "refine-issue-subscription", "refine-issue-fallback"]);
   assert.deepEqual(again.needs, ["apply-refinement"]);
 
   const groups = Object.values(jobs)
@@ -5478,9 +5478,10 @@ test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each r
     assert.deepEqual(holder.permissions, { contents: "read" });
     assert.equal(holder["cache-mode"], "read");
     assert.ok(!holder.steps.some((step) => String(step.uses ?? "").includes("/run-claude-cli@")), `${file} scan runs no model`);
-    // Main only: the scan job runs after the gate job, which runs only on refs/heads/main.
-    assert.ok([holder.needs].flat().includes("gate"));
-    assert.match(intake.gate.if ?? "", /github\.ref == 'refs\/heads\/main'/);
+    // Main only: the scan job runs after the select job, which runs only on refs/heads/main.
+    const select = file === "upstream-apply-changelog.yml" ? "select-release" : "select-areas";
+    assert.ok([holder.needs].flat().includes(select));
+    assert.match(intake[select].if ?? "", /github\.ref == 'refs\/heads\/main'/);
   }
   for (const file of files) {
     for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
@@ -5502,7 +5503,7 @@ test("every job naming an environment uses it for its secrets alone, with deploy
   }
   assert.ok(named.includes("release-publish-plugins.yml merge"), named.join(", "));
   assert.ok(named.includes("release-publish-plugins.yml build"), named.join(", "));
-  assert.ok(named.includes("release-generate-dependabot-changelog-fragments.yml write"), named.join(", "));
+  assert.ok(named.includes("release-generate-dependabot-changelog-fragments.yml generate-changelog-fragments"), named.join(", "));
 });
 
 test("scan job: the verdict is built from the run job's checked outputs, never from a file a model job wrote", (t) => {
@@ -9224,16 +9225,16 @@ test("every job that runs or reads untrusted head content has a read-only Action
     "pr-run-activity-write.yml": ["run"],
     "work-resolve-issue.yml": ["run-checks"],
     "pr-unblock.yml": ["resolve-conflicts-select", "adjudicate-feedback"],
-    "maintenance-audit-lane-runs.yml": ["judge", "judge-subscription", "judge-fallback"],
+    "maintenance-audit-lane-runs.yml": ["assess-units", "assess-units-subscription", "assess-units-fallback"],
     "pr-run-plugin-evals.yml": ["run-eval"],
-    "maintenance-measure-skill-edit.yml": ["propose", "scan", "verdict", "push-branch", "publish"],
-    "maintenance-measure-skill-edit-pass.yml": ["pass"],
+    "maintenance-measure-skill-edit.yml": ["generate-edit", "scan", "compare-passes", "push-branch", "publish"],
+    "maintenance-measure-skill-edit-pass.yml": ["run-eval"],
     "intake-triage.yml": ["refine-issue", "refine-issue-subscription"],
     "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],
     "pr-verify.yml": ["check-intent", "check-intent-subscription", "check-intent-fallback"],
     "pr-rate-merge-risk.yml": ["rate-merge-risk", "rate-merge-risk-subscription", "rate-merge-risk-fallback"],
-    "upstream-apply-changelog.yml": ["model", "scan", "push-branches", "publish"],
-    "maintenance-tidy-code-upkeep.yml": ["model", "model-subscription", "model-fallback", "scan", "push-branches", "publish"],
+    "upstream-apply-changelog.yml": ["apply-changelog", "scan", "push-branches", "publish"],
+    "maintenance-tidy-code-upkeep.yml": ["sweep-areas", "sweep-areas-subscription", "sweep-areas-fallback", "scan", "push-branches", "publish"],
   };
   for (const [file, names] of Object.entries(readOnly)) {
     const { jobs } = workflow(file);
@@ -9662,19 +9663,19 @@ test("the tip step tries ls-remote at most 3 times with full-jitter waits and fa
   }
 });
 
-// The tidy lane's three legs: model on the automations API key, then
-// model-subscription on its subscription token, then model-fallback on the
+// The tidy lane's three legs: sweep-areas on the automations API key, then
+// sweep-areas-subscription on its subscription token, then sweep-areas-fallback on the
 // central fallback token, one credential per job, each the key leg's steps
 // but for the credential, the marker, the handoff report, the leg record's
 // fallback reason and the seal's job id.
 test("maintenance-tidy-code-upkeep.yml: the sweep runs key, subscription and fallback legs, each with one credential", () => {
   const { jobs } = workflow("maintenance-tidy-code-upkeep.yml");
-  const legs = ["model", "model-subscription", "model-fallback"];
+  const legs = ["sweep-areas", "sweep-areas-subscription", "sweep-areas-fallback"];
   const run = (id) => jobs[id].steps.find((s) => s.id === "run");
-  assert.equal(run("model").with["api-key"], "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}");
-  assert.equal(run("model-subscription").with["subscription-token"], "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}");
-  assert.equal(run("model-subscription").with["fallback-ready"], "${{ steps.credential.outputs.fallback-ready }}");
-  assert.equal(run("model-fallback").with["fallback-token"], "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}");
+  assert.equal(run("sweep-areas").with["api-key"], "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}");
+  assert.equal(run("sweep-areas-subscription").with["subscription-token"], "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}");
+  assert.equal(run("sweep-areas-subscription").with["fallback-ready"], "${{ steps.credential.outputs.fallback-ready }}");
+  assert.equal(run("sweep-areas-fallback").with["fallback-token"], "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}");
   for (const id of legs) {
     assert.deepEqual(jobs[id].permissions, { contents: "read" }, `${id} holds no write grant`);
     assert.equal(jobs[id]["cache-mode"], "read", id);
@@ -9694,41 +9695,41 @@ test("maintenance-tidy-code-upkeep.yml: the sweep runs key, subscription and fal
         if (copy.name === "Record the leg") delete copy.with["fallback-reason"];
         return copy;
       });
-  assert.deepEqual(shape("model-subscription"), shape("model"));
-  assert.deepEqual(shape("model-fallback"), shape("model"));
+  assert.deepEqual(shape("sweep-areas-subscription"), shape("sweep-areas"));
+  assert.deepEqual(shape("sweep-areas-fallback"), shape("sweep-areas"));
 
   // select-model-credential decides each leg (credential-legs.test.mjs in
   // .github/scripts/maintenance-tidy-code-upkeep holds it to the old
   // conditions); these are the conditions that read it.
-  const ctx = (over) => ({ "needs.gate.outputs.proceed": "true", "github.run_attempt": "1", ...over });
-  assert.equal(evaluate(jobs.model.if, ctx({ "needs.gate.outputs.next-leg": "subscription" })), false, "a credit-stopped key is skipped");
-  assert.equal(evaluate(jobs.model.if, ctx({ "needs.gate.outputs.next-leg": "" })), true, "a failed credit read runs the key");
-  const sub = (over) => evaluate(jobs["model-subscription"].if, ctx({ "needs.model.outputs.next-leg": "", "needs.gate.outputs.next-leg": "key", ...over }));
-  assert.equal(sub({ "needs.model.outputs.next-leg": "subscription" }), true);
-  assert.equal(sub({ "needs.gate.outputs.next-leg": "subscription" }), true);
+  const ctx = (over) => ({ "needs.select-areas.outputs.proceed": "true", "github.run_attempt": "1", ...over });
+  assert.equal(evaluate(jobs["sweep-areas"].if, ctx({ "needs.select-areas.outputs.next-leg": "subscription" })), false, "a credit-stopped key is skipped");
+  assert.equal(evaluate(jobs["sweep-areas"].if, ctx({ "needs.select-areas.outputs.next-leg": "" })), true, "a failed credit read runs the key");
+  const sub = (over) => evaluate(jobs["sweep-areas-subscription"].if, ctx({ "needs.sweep-areas.outputs.next-leg": "", "needs.select-areas.outputs.next-leg": "key", ...over }));
+  assert.equal(sub({ "needs.sweep-areas.outputs.next-leg": "subscription" }), true);
+  assert.equal(sub({ "needs.select-areas.outputs.next-leg": "subscription" }), true);
   assert.equal(sub({}), false);
   const fb = (next, present = "true") =>
-    evaluate(jobs["model-fallback"].if, ctx({ "needs.model-subscription.outputs.next-leg": next, "needs.model-subscription.outputs.credential-present": present }));
+    evaluate(jobs["sweep-areas-fallback"].if, ctx({ "needs.sweep-areas-subscription.outputs.next-leg": next, "needs.sweep-areas-subscription.outputs.credential-present": present }));
   assert.equal(fb("fallback"), true);
   assert.equal(fb("", "false"), true, "an empty subscription token starts the fallback leg, which reports an empty fallback token itself");
   assert.equal(fb(""), false);
   assert.equal(fb("", ""), false, "a subscription leg that never checked its token hands nothing on");
-  for (const id of ["model-subscription", "model-fallback"]) {
+  for (const id of ["sweep-areas-subscription", "sweep-areas-fallback"]) {
     assert.equal(jobs[id].steps.find((s) => s.name === "Record the leg").with["fallback-reason"], "${{ steps.credential.outputs.fallback-reason }}", id);
   }
 
   // The scan opens the leg that ran: the fallback leg, else the subscription leg, else the key leg.
   const open = jobs.scan.steps.find((s) => s.id === "open");
   const pick = (fbResult, subResult) =>
-    evaluate(open.with["job-id"], { "needs.model-fallback.result": fbResult, "needs.model-subscription.result": subResult });
-  assert.equal(pick("success", "success"), "model-fallback");
-  assert.equal(pick("skipped", "success"), "model-subscription");
-  assert.equal(pick("skipped", "skipped"), "model");
-  assert.deepEqual(jobs.scan.needs, ["gate", "model", "model-subscription", "model-fallback"]);
-  // Only the key leg uploads the credit gate's marker, and the gate reads it.
-  const credit = jobs.gate.steps.find((s) => s.id === "credit");
+    evaluate(open.with["job-id"], { "needs.sweep-areas-fallback.result": fbResult, "needs.sweep-areas-subscription.result": subResult });
+  assert.equal(pick("success", "success"), "sweep-areas-fallback");
+  assert.equal(pick("skipped", "success"), "sweep-areas-subscription");
+  assert.equal(pick("skipped", "skipped"), "sweep-areas");
+  assert.deepEqual(jobs.scan.needs, ["select-areas", "sweep-areas", "sweep-areas-subscription", "sweep-areas-fallback"]);
+  // Only the key leg uploads the credit gate's marker, and select-areas reads it.
+  const credit = jobs["select-areas"].steps.find((s) => s.id === "credit");
   assert.equal(credit.with["key-job"], "model");
-  for (const id of ["model-subscription", "model-fallback"]) assert.doesNotMatch(JSON.stringify(jobs[id]), /key-credit-stop/, id);
+  for (const id of ["sweep-areas-subscription", "sweep-areas-fallback"]) assert.doesNotMatch(JSON.stringify(jobs[id]), /key-credit-stop/, id);
 });
 
 // The maintenance role's `claude plugin eval` lanes run key, subscription and
@@ -9744,7 +9745,7 @@ const EVAL_LEG_CREDENTIALS = {
 };
 const CLASSIFIER_PIN = "fc442ad3e808adafe3b195e9d12fff901220db50";
 for (const [file, gateId, [keyId, subId, fbId], keyJob, marker] of [
-  ["maintenance-measure-skill-edit-pass.yml", "gate", ["pass", "pass-subscription", "pass-fallback"], "pass", "key-credit-stop-maintenance-measure-skill-edit.yml-pass"],
+  ["maintenance-measure-skill-edit-pass.yml", "check-key-credit", ["run-eval", "run-eval-subscription", "run-eval-fallback"], "pass", "key-credit-stop-maintenance-measure-skill-edit.yml-pass"],
   ["pr-run-plugin-evals.yml", "check-key-credit", ["run-eval", "run-eval-subscription", "run-eval-fallback"], "eval", "key-credit-stop-pr-run-plugin-evals.yml-eval"],
 ]) {
   test(`${file}: the eval runs key, subscription and fallback legs, each with one credential`, () => {
@@ -10003,7 +10004,7 @@ test("handoff-evidence.sh: credit-stop is the run job's Mark a key credit stop s
 // failed check names the probe's closed facts.
 test("every eval leg runs the same managed-policy step and the same probe", () => {
   const legs = [
-    ["maintenance-measure-skill-edit-pass.yml", ["pass", "pass-subscription", "pass-fallback"]],
+    ["maintenance-measure-skill-edit-pass.yml", ["run-eval", "run-eval-subscription", "run-eval-fallback"]],
     ["pr-run-plugin-evals.yml", ["run-eval", "run-eval-subscription", "run-eval-fallback"]],
   ].flatMap(([file, ids]) => ids.map((id) => [file, id, workflow(file).jobs[id].steps]));
   const step = (steps, id) => steps.find((s) => s.id === id);
@@ -10040,7 +10041,7 @@ test("every eval leg runs the same managed-policy step and the same probe", () =
 // call, a stub node standing in for the handoff classifier, and the real
 // policy-probe.mjs.
 test("the policy probe reruns a session with no tool call, at most three times, then stops as unproven", () => {
-  const step = workflow("maintenance-measure-skill-edit-pass.yml").jobs.pass.steps.find((s) => s.id === "probe");
+  const step = workflow("maintenance-measure-skill-edit-pass.yml").jobs["run-eval"].steps.find((s) => s.id === "probe");
   const root = "/runner";
   const calls = [
     ["Read", { file_path: "/proc/self/environ" }],
@@ -10128,7 +10129,7 @@ test("no job that runs mutants holds a secret, the job token or a write grant", 
     }
   }
   assert.ok(found >= 1, "the mutation lane has a job that runs mutants");
-  assert.ok(runsMutants(workflow("post-merge-test-mutation.yml").jobs.mutate));
+  assert.ok(runsMutants(workflow("post-merge-test-mutation.yml").jobs["run-mutants"]));
   // Every model leg of that workflow runs no mutant.
   for (const [id, job] of Object.entries(workflow("post-merge-test-mutation.yml").jobs)) {
     if ((job.steps ?? []).some((s) => String(s.uses ?? "").includes("/run-claude-cli@"))) assert.equal(runsMutants(job), false, id);
@@ -10185,17 +10186,17 @@ for (const stage of ["generate", "triage"]) {
     assert.deepEqual(shape(ids[2]), shape(ids[0]));
     // Each leg starts on the leg the one before it names; the subscription
     // leg also on the gate's, for a key job that failed before its credential.
-    assert.ok(ifTerms(jobs[ids[1]].if).includes(`(needs.${ids[0]}.outputs.next-leg == 'subscription' || needs.key-credit.outputs.${stage}-next-leg == 'subscription')`));
+    assert.ok(ifTerms(jobs[ids[1]].if).includes(`(needs.${ids[0]}.outputs.next-leg == 'subscription' || needs.check-key-credit.outputs.${stage}-next-leg == 'subscription')`));
     assert.equal(ifTerms(jobs[ids[2]].if).at(-1), `needs.${ids[1]}.outputs.next-leg == 'fallback'`);
     const credential = (id) => jobs[id].steps.find((s) => s.id === "credential");
     assert.deepEqual(
       ids.map((id) => credential(id).with.leg),
       ["key", "subscription", "fallback"],
     );
-    assert.equal(credential(ids[0]).with.selected, `\${{ needs.key-credit.outputs.${stage}-next-leg }}`);
+    assert.equal(credential(ids[0]).with.selected, `\${{ needs.check-key-credit.outputs.${stage}-next-leg }}`);
     const marker = jobs[ids[0]].steps.find((s) => s.id === "credit-marker-upload");
     assert.equal(marker.with.name, `key-credit-stop-post-merge-test-mutation.yml-${stage}`);
-    const start = jobs["key-credit"].steps.find((s) => s.id === `credit-${stage}`);
+    const start = jobs["check-key-credit"].steps.find((s) => s.id === `credit-${stage}`);
     assert.equal(start.with.leg, "start");
     assert.equal(start.with["key-job"], stage);
   });

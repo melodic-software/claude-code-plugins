@@ -53,8 +53,8 @@ operators: default
 baseline-suite-ms: 72571
 timeout-ms: 115000
 
-# The lane runs the audit split (--phase generate, then the mutate job, then
-# --phase triage), so no model turn runs a test. The mutate job runs about one
+# The lane runs the audit split (--phase generate, then the run-mutants job, then
+# --phase triage), so no model turn runs a test. The run-mutants job runs about one
 # covering-suite run per mutant, so 7 mutants fit its 60-minute job. A larger
 # diff reports what it dropped.
 max-mutants: 7
