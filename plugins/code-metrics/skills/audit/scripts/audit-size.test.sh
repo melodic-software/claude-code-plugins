@@ -49,6 +49,49 @@ assert_contains "all-unavailable run renders the Measured nothing headline" "$ou
 bash "$SCRIPT" "$SOURCES/does-not-exist.py" >/dev/null 2>&1
 assert_eq "a missing explicit path exits 2" 2 "$?"
 
+out="$(bash "$SCRIPT" --json --all --file-lines 10 "$SOURCES")"
+assert_eq "--file-lines exits 0" 0 "$?"
+assert_doc "--file-lines replaces the reference and names itself as the layer" "$out" \
+  'next(t for t in d["thresholds"] if t["measure"]=="file_lines")["reference"]==10 and next(t for t in d["thresholds"] if t["measure"]=="file_lines")["layer"]=="this run (--file-lines)"'
+assert_doc "--file-lines counts files against the new reference" "$out" \
+  'any("file_lines" in (m.get("over_reference") or []) for m in d["measures"])'
+out="$(bash "$SCRIPT" --json --all "$SOURCES")"
+assert_doc "without --file-lines no fixture is over the reference" "$out" \
+  'not any(m.get("over_reference") for m in d["measures"])'
+for bad in 0 -5 12x ""; do
+  err="$(bash "$SCRIPT" --all --file-lines "$bad" "$SOURCES" 2>&1 >/dev/null)"
+  assert_eq "--file-lines '$bad' exits 2" 2 "$?"
+  assert_contains "--file-lines '$bad' names the option" "$err" "--file-lines takes a positive whole number"
+done
+bash "$SCRIPT" --all "$SOURCES" --file-lines >/dev/null 2>&1
+assert_eq "--file-lines with no value exits 2" 2 "$?"
+
+# --commits-since against a scratch repository: one long file committed three
+# times (once by a bot) and then renamed, one long file committed once, one
+# short file.
+CHURN="$(mktemp -d)"
+(
+  cd "$CHURN" || exit 2
+  git init -q && git symbolic-ref HEAD refs/heads/main
+  commit() { git -c user.name="$1" -c user.email=t@example.invalid commit -q -m "$2"; }
+  seq 1 30 >busy.txt && seq 1 40 >quiet.txt && echo one >short.txt
+  git add busy.txt quiet.txt short.txt && commit dev "add"
+  echo 31 >>busy.txt && git add busy.txt && commit dev "busy again"
+  echo 32 >>busy.txt && git add busy.txt && commit 'release[bot]' "bot touch"
+  git mv busy.txt moved.txt && commit dev "move"
+)
+out="$(cd "$CHURN" && bash "$SCRIPT" --json --all --file-lines 20 --commits-since "10 years ago")"
+assert_eq "--commits-since exits 0" 0 "$?"
+assert_doc "--commits-since lists only files at or above the reference, most commits first, bots left out, renames followed" "$out" \
+  '[(r["file"], r["commits"]) for r in d["file_commits"]["rows"]] == [("moved.txt", 3), ("quiet.txt", 1)]'
+out="$(cd "$CHURN" && bash "$SCRIPT" --all --file-lines 20 --commits-since "10 years ago")"
+assert_contains "--commits-since renders its table in markdown" "$out" "| moved.txt | 32 | 3 |"
+out="$(bash "$SCRIPT" --json --all "$SOURCES")"
+assert_doc "no --commits-since, no file_commits key" "$out" '"file_commits" not in d'
+bash "$SCRIPT" --all "$SOURCES" --commits-since >/dev/null 2>&1
+assert_eq "--commits-since with no value exits 2" 2 "$?"
+rm -rf "${CHURN:?}"
+
 grep -q 'audit-size.sh \[--json\]' < <(bash "$SCRIPT" --help 2>&1)
 assert_eq "--help prints usage" 0 "$?"
 

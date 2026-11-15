@@ -8,9 +8,9 @@ scc's `Complexity` figure is a per-file substring count and is never surfaced
 by this plugin (Brief: "scc is not a cyclomatic collector"). Only the line
 counts are read: Lines, Code, Comment, Blank, per file, from
 `scc --by-file --format json`, whose top level is a list of per-language
-objects each carrying `Files[]` with a `Location` (probed 2026-09-05 against
-scc 3.7.0; the capture in fixtures/tool-output/scc.json is the reference
-shape).
+objects each carrying `Files[]` with a `Location` (the capture in
+fixtures/tool-output/scc.json is the reference shape; reference/collectors.md
+holds the versions probed).
 """
 
 from __future__ import annotations
@@ -179,7 +179,7 @@ def measures() -> None:
     print("*/file_lines")
 
 
-INSTALL_HINT = "scc: https://github.com/boyter/scc (go install github.com/boyter/scc/v3@latest, brew install scc, or a release binary)"
+INSTALL_HINT = "scc: https://github.com/boyter/scc (go install github.com/boyter/scc/v4@latest, brew install scc, or a release binary)"
 
 
 def main(argv: list[str]) -> int:
