@@ -2611,10 +2611,16 @@ test("the driven session's working directory becomes a clone of the head inside 
 test("the clone step passes only on the sandbox's ready result for this head, and marks the head ready first", { skip: process.platform === "win32" && "bash step" }, () => {
   const block = capStep(WORKDIR);
   const head = "a".repeat(40);
-  const run = (written) => {
+  const run = (written, { link = false, early = false } = {}) => {
     const home = tempDir("capture-workdir-");
-    mkdirSync(path.join(home, ".ccd", "probe"), { recursive: true });
-    if (written !== undefined) writeFileSync(path.join(home, ".ccd", "probe", "workdir.json"), JSON.stringify(written));
+    const probe = path.join(home, ".ccd", "probe");
+    mkdirSync(probe, { recursive: true });
+    if (early) mkdirSync(path.join(home, ".ccd", "head-ready"));
+    if (written !== undefined) {
+      const file = link ? path.join(home, "elsewhere.json") : path.join(probe, "workdir.json");
+      writeFileSync(file, typeof written === "string" ? written : JSON.stringify(written));
+      if (link) symlinkSync(file, path.join(probe, "workdir.json"));
+    }
     const result = runStep(block, { HOME: home, HEAD_SHA: head, WAIT_SECONDS: "1" });
     return { ...result, ready: existsSync(path.join(home, ".ccd", "head-ready")) };
   };
@@ -2622,17 +2628,24 @@ test("the clone step passes only on the sandbox's ready result for this head, an
   assert.equal(passed.status, 0, passed.stdout + passed.stderr);
   assert.ok(passed.ready);
   assert.match(passed.stdout, /^::notice::the driven session starts in a writable clone of the head at a{40}, with its history$/m);
-  for (const [why, written] of [
-    ["another commit", { status: "ready", head: "b".repeat(40) }],
-    ["a failed clone", { status: "failed", head: "" }],
-    ["a timeout", { status: "timeout", head: "" }],
-    ["no result", undefined],
+  for (const [why, written, opts, shown] of [
+    ["another commit", { status: "ready", head: "b".repeat(40) }, {}, "ready"],
+    ["a failed clone", { status: "failed", head: "" }, {}, "failed"],
+    ["a timeout", { status: "timeout", head: "" }, {}, "timeout"],
+    ["no result", undefined, {}, "no result"],
+    ["a status outside the vocabulary", { status: "x\n::error::injected", head: "" }, {}, "no result"],
+    ["a result that is not JSON", "not json", {}, "no result"],
+    ["a ready result behind a link", { status: "ready", head }, { link: true }, "no result"],
   ]) {
-    const result = run(written);
+    const result = run(written, opts);
     assert.equal(result.status, 1, why);
     assert.ok(result.ready, why);
-    assert.match(result.stdout, /^::warning::the driven session has no clone of the head \(.*\); it starts in an empty directory$/m, why);
+    assert.equal(result.stdout, `::warning::the driven session has no clone of the head (${shown}); it starts in an empty directory\n`, why);
   }
+  // A handshake path that existed before the checkout finished asks for no clone.
+  const early = run({ status: "ready", head }, { early: true });
+  assert.equal(early.status, 1);
+  assert.equal(early.stdout, "::error::the head-ready handshake path existed before the head checkout finished; no clone is asked for\n");
 });
 
 test("the capture prompt tells the driver where the driven session runs and to drive the named action", { skip: process.platform === "win32" && "bash step" }, () => {
@@ -2645,7 +2658,7 @@ test("the capture prompt tells the driver where the driven session runs and to d
     return readFileSync(file, "utf8").replace(/\s+/g, " ");
   };
   for (const workdir of ["success", "failure", "skipped"]) {
-    assert.match(prompt(workdir), /where a feature's ## Drive names the action to drive for a skill, drive that action with exactly the arguments it names\./i, workdir);
+    assert.match(prompt(workdir), /where a feature's ## Drive in the control skill under \/ws\/\.base names the action to drive for a skill, drive that action with exactly the arguments it names\./i, workdir);
   }
   assert.match(prompt("success"), /runs in a writable clone of that checkout, with its git history/);
   assert.doesNotMatch(prompt("success"), /empty directory/);
