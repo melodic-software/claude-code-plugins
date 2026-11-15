@@ -834,6 +834,20 @@
         "No workload or class name is invented for the pick",
         "The pick does not use the frontier tier and the worker is dispatched as an implementer agent"
       ]
+    },
+    {
+      "id": 63,
+      "name": "brief-carries-review-criteria-from-standards-grounding",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch phase-2 - autonomous run. Phase 2 adds jobs/invoice_export.py and its test; phase 3 edits storage/client.py. The approved plan's Standards grounding table has two review-criteria rows: docs/review/jobs.md (jobs/**) and docs/review/storage.md (storage/**). The repository's review-criteria index, docs/review/README.md, also has a routes/** row pointing at docs/review/routes.md. Compose and dispatch phase 2's brief.",
+      "expected_output": "The brief carries a `Review criteria:` line naming docs/review/jobs.md, read from the plan's Standards grounding table, so the worker reads it before its first edit. Neither docs/review/storage.md, which matches phase 3's paths, nor docs/review/routes.md is named, since no path in phase 2 matches their rows. The orchestrator does not paste the criteria files' text into the brief.",
+      "files": [],
+      "expectations": [
+        "The brief has a Review criteria line",
+        "The line names docs/review/jobs.md, taken from the plan's Standards grounding table",
+        "Neither docs/review/storage.md nor docs/review/routes.md is named, because no path in phase 2 matches their rows",
+        "The line lists paths for the worker to read rather than copying the criteria files' text into the brief"
+      ]
     }
   ]
 }
