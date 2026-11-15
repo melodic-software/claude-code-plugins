@@ -84,7 +84,9 @@ export const TRANSCRIPT_JOB_IDS = {
   // job-id `${{ inputs.lane }}-${{ github.job }}` and chunks -2 to -4.
   "ci-workflows/pr-review-cli.yml": ["code", "security"].flatMap((lane) => ["review-key", "review-subscription", "review-fallback"].flatMap((job) => CHUNKS.map((chunk) => `${lane}-${job}${chunk}`))),
   // job-id `intake-${{ github.job }}`.
-  "ci-workflows/intake-triage.yml": ["intake-claude", "intake-subscription", "intake-fallback"],
+  // The legs' job ids are triage-subscription and triage-fallback; runs from
+  // before that rename uploaded the two shorter names.
+  "ci-workflows/intake-triage.yml": ["intake-claude", "intake-triage-subscription", "intake-triage-fallback", "intake-subscription", "intake-fallback"],
 };
 // A re-run uploads under its own attempt number; attempts past 3 are not read.
 // Two workflows can share a job-id (model), so each name is listed once.
