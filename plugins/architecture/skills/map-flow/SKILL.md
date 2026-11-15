@@ -11,8 +11,8 @@ metadata:
 
 ## Repository context
 
-The current repository is both the CONSUMER, whose convention home declares where artifacts land,
-and the DEFAULT SUBJECT, whose tracked C# contains the entry point.
+The current repository is both the consumer, whose convention home declares where artifacts land,
+and the default subject, whose tracked C# contains the entry point.
 
 Collect with an **individual** Bash call, one command per call: the project root,
 `git rev-parse --show-toplevel`. Treat a failure (not a repository, git unavailable) as an unknown
@@ -36,8 +36,8 @@ follow the exit code; never parse the root instruction file yourself. Exit 0: re
 `<home>/architecture/README.md` for `architecture_dir`. Exit 1, 2, or 3: no declared home.
 
 In order: `--out <dir>` wins for this run alone, then a declared topic-doc value, then one
-question. `architecture_dir` has NO default. An undeclared and unconfirmed home, including every
-non-interactive run, STOPS and points at `/architecture:setup`.
+question. `architecture_dir` has no default. An undeclared and unconfirmed home, including every
+non-interactive run, stops and points at `/architecture:setup`.
 
 This skill never writes the consumer's root instruction file or its topic doc;
 `/architecture:setup apply` owns both.
@@ -179,7 +179,7 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
 `${user_config.*}` string in a shell command), and its report line is printed. Procedure:
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Bind an interface, a service locator, or reflection to an implementation, or bind any call by
   method name alone.

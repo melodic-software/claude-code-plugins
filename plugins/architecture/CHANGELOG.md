@@ -3,6 +3,20 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.3.2] - 2026-11-15
+
+### Changed
+
+- `setup check` names `adr_retirement` among the keys that belong in `architecture.yaml`.
+- Capital-letter emphasis is lower-cased; the map skills say they run the resolver and restate the
+  convention's ladder, and `map-dependencies` says it follows neither dialect key.
+
+## [4.3.1] - 2026-11-15
+
+### Changed
+
+- The enforcement ladder reference now points at the Claude Code memory docs for how rule files load, instead of restating it.
+
 ## [4.3.0] - 2026-11-15
 
 ### Added

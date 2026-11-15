@@ -11,7 +11,7 @@ metadata:
 
 ## Repository context
 
-The current repository is both the CONSUMER and the DEFAULT SUBJECT. Collect the project root with
+The current repository is both the consumer and the default subject. Collect the project root with
 one Bash call, `git rev-parse --show-toplevel`. A failure is an unknown value; `${CLAUDE_PROJECT_DIR}`
 is the root either way.
 
@@ -46,8 +46,8 @@ Exit 0 means read `<home>/architecture/README.md` for `architecture_dir`. Exit 1
 there is no declared home.
 
 `--out <dir>` wins for this run. Then a declared `architecture_dir`. Then one question.
-`architecture_dir` has NO default. An undeclared and unconfirmed home, including every
-non-interactive run, STOPS and points at `/architecture:setup`.
+`architecture_dir` has no default. An undeclared and unconfirmed home, including every
+non-interactive run, stops and points at `/architecture:setup`.
 
 ## Build the record
 
@@ -109,7 +109,7 @@ hand-written; the shared medium resolver decides the destination, with this plug
 `${user_config.*}` string in a shell command), and its report line is printed. Procedure:
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - In-process synchronous calls. Those are `/architecture:map-flow`.
 - Retry, dead-letter, or delivery guarantees.

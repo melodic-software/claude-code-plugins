@@ -3,6 +3,31 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.2] - 2026-11-15
+
+### Changed
+
+- The tidy skill simplifies the touched files itself instead of invoking the bundled `/simplify`,
+  matching its own mutation gate; batch-simplify's Phase 4 exclusion list matches Phase 2 and its
+  override channels, and filing follows the issue house style.
+- Capital-letter emphasis is lower-cased across the skills and the dead-code scanner's printed
+  lane notes; tool counts and Vale's language coverage point at their upstream pages.
+
+## [0.48.1] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
+### Fixed
+
+- The comment lint, and the `remove-comments` audit's upstream note, count `do not edit` as a
+  generated-file marker only as a whole-file notice: at the end of the line, before punctuation or
+  `this file`, `this copy`, `by hand`, `manually` or `directly`, or on a line that also says
+  `generated`. A hand-written `# do not edit the order below` no longer skips the whole file.
+  `sync-managed` and `@generated` match as before. Both read one definition,
+  `scripts/generated-marker.ere`.
+
 ## [0.48.0] - 2026-11-15
 
 ### Added

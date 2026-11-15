@@ -53,7 +53,7 @@ On every `apply` or `diff` invocation, compare the newest release in the range a
 One line in the repository's upstream ledger for Claude Code releases (default
 `docs/upstream/claude-code.md`, override `HARNESS_OPS_CHANGELOG_LEDGER`) records the newest release
 the repository has been read against. `status` reads that line; with no ledger it falls back to the
-highest version named in a Conventional Commits SUBJECT of the form
+highest version named in a Conventional Commits subject of the form
 `chore(<scope>): address Claude Code v<A>..<B> changelog`, and it never reads commit bodies, because
 a body's "verified against Claude Code v<X>" is a doc's recency stamp, not an apply.
 
@@ -108,7 +108,7 @@ file instead.
 Resolve the range, check the cap, and check version alignment:
 
 1. **Resolve the range** (first match wins):
-   - Changelog text already in conversation → the releases its release markers or version headings name ARE the range; pass them as `--range <lowest>..<highest>` so the cap is judged on the pasted releases and never on the repository's default feed. Pasted text with no version at all skips the cap
+   - Changelog text already in conversation → the releases its release markers or version headings name are the range; pass them as `--range <lowest>..<highest>` so the cap is judged on the pasted releases and never on the repository's default feed. Pasted text with no version at all skips the cap
    - A range or version was given → `--range` as given
    - Otherwise → no `--range`; the default range from the read marker applies
 2. **Run the status script** with that `--range`. If `cap` reads `exceeded`, stop and relay the `recommend` line; the hand-off does not run past the cap. Relay any `warn` line per "Version awareness" above
@@ -118,9 +118,9 @@ Resolve the range, check the cap, and check version alignment:
 
 ### Phase 1. Explore
 
-Orient on repo impact for EACH changelog item. Run `bash "${CLAUDE_SKILL_DIR}/scripts/discover-surfaces.sh"` first: its output is the surface list, and `context/repo-surfaces.md` gives per-class examples and scoped grep patterns:
+Orient on repo impact for each changelog item. Run `bash "${CLAUDE_SKILL_DIR}/scripts/discover-surfaces.sh"` first: its output is the surface list, and `context/repo-surfaces.md` gives per-class examples and scoped grep patterns:
 
-1. Grep/Glob each feature name, setting name, hook event, CLI flag across ALL surface classes the script printed
+1. Grep/Glob each feature name, setting name, hook event, CLI flag across all surface classes the script printed
 2. Classify each item per `context/classification-rubric.md` into one action lens per owner surface it touches: **correct**, **replace**, **adopt**, **note**, or **skip**
 3. Group by owner surface and write each correct, replace and adopt row with its required sentence. A skip item leaves no row
 

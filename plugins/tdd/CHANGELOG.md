@@ -3,6 +3,12 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3] - 2026-11-15
+
+### Changed
+
+- The Child Test trigger and the integration-test share of the test pyramid now match the Beck and Khorikov references they summarize.
+
 ## [0.5.2] - 2026-11-12
 
 ### Changed

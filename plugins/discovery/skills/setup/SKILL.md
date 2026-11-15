@@ -33,8 +33,11 @@ Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a
    - **Harness version against the 2.1.219 floor** (`claude --version`). Below it, several behaviors
      the dispatch design relies on are false rather than merely absent: background became the default
      subagent execution mode in **2.1.198**, and below **2.1.218** a `context: fork` skill always
-     blocked the invoking turn and the narrow background tool set did not apply to it. The dated
-     record for background as the default is
+     blocked the invoking turn and the narrow background tool set did not apply to it. As of
+     2026-07-25; recheck when the section below changes when background became the default or how a
+     fork skill runs. For current behavior, see
+     [subagents: run subagents in foreground or background](https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background);
+     the record for background as the default is
      [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
      "Harness facts the dispatch design rests on". Report the
      observed version and, when it is under the floor, name which of those the session does not have.

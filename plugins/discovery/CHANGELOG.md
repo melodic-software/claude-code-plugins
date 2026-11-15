@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [2.1.3] - 2026-11-15
+
+### Changed
+
+- The explore, research and blindspot instructions drop capital-letter emphasis, settle rules that disagreed between files, and correct stale section names and minimums.
+
 ## [2.1.2] - 2026-11-15
 
 ### Changed

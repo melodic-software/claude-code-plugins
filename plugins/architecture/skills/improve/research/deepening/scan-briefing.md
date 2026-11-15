@@ -85,7 +85,8 @@ Have the agent rate its own confidence **against the two acceptance heuristics**
 Calibrating at scan time is what lets Phase 1.5 verify against a stated bar rather than a hunch.
 
 - **Deletion test (acceptance form)**: would a future maintainer, finding this module gone, rebuild
-  it substantially the same way? If not, the boundary is arbitrary and the candidate is weak.
+  it substantially the same way? If not, the module is cut in an arbitrary place and the candidate
+  is weak.
 - **Two-adapter rule**: an abstraction or port earns its existence only with two real
   consumers/adapters (typically production + test). A candidate whose value hinges on a one-adapter
   abstraction is speculative indirection, and earns `speculative` confidence at best.

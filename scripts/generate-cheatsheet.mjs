@@ -3,8 +3,11 @@
 // Generates the stage-grouped skill cheat sheet block in
 // docs/skill-cheat-sheet.md from each in-scope SKILL.md's `metadata:`
 // frontmatter (`workflow-stage`, `summary`, `cadence`), its `argument-hint`
-// (the Actions column) and its `## Next` section (the Next column), plus the
-// hand-curated grouping layer in scripts/cheatsheet-config.mjs.
+// (the Actions and Arguments columns) and its `## Next` section (the Next
+// column), the Task kinds table in the workflow skill's steps.md (the By kind
+// of task table), the attribution tables of the configured upstream records
+// (the Upstream column), plus the hand-curated grouping layer in
+// scripts/cheatsheet-config.mjs.
 // Sibling of generate-catalog.mjs: the block between the markers is
 // generated, never hand-edited; run with no argument to rewrite it, with
 // --check to fail on drift (CI gate). --root <dir> points every input and the
@@ -15,7 +18,9 @@
 // must name existing plugins/skills; stage and cadence values must be in the
 // config enums; `cadence` is required with `workflow-stage:
 // operator` and forbidden otherwise; summaries must pass the shared guard
-// (plain YAML scalar, <=100 codepoints). A `## Next` token naming no skill is
+// (plain YAML scalar, <=100 codepoints); a Task kinds row naming a stage
+// steps.md does not define fails naming the kind and the stage, and a missing
+// Task kinds table or upstream attribution table fails. A `## Next` token naming no skill is
 // rendered as written; scripts/check-next-graph.py fails on it. Swept values are plain scalars, and
 // this reader takes the literal text after the key: it strips a trailing
 // `#`-comment but never strips quotes, because a quoted value is a rejection
@@ -56,6 +61,7 @@ const {
 } = config;
 const {
   REVIEW_PR_MAP = [], REVIEW_PR_MAP_HEADING = "", REVIEW_PR_AUDIENCES = [], REVIEW_PR_POSTS = [],
+  UPSTREAM_RECORDS = [], STAGE_COMMANDS = [],
 } = config;
 const stageSlugs = new Set(STAGES.map((s) => s.slug));
 
@@ -124,6 +130,7 @@ function readCheatsheetMeta(path) {
   return {
     values,
     raw,
+    argumentHint,
     actions: actionWords(argumentHint ?? ""),
     successors: successorTokens(lines.slice(i + 1)),
   };
@@ -284,20 +291,61 @@ for (const row of REVIEW_PR_MAP) {
   mapRows.push({ ...row, plugin: skill.plugin, name: skill.skill });
 }
 
+// The command typed for each stage, and what it runs, each claim cited by the
+// path:line of its basis quote, found afresh on every run.
+const stageCommands = new Map(); // stage slug -> { command, runs: [cited claim] }
+for (const entry of STAGE_COMMANDS) {
+  const id = `stage commands: ${entry.stage}`;
+  const skill = mapped.find((s) => `${s.plugin}/${s.skill}` === entry.skill);
+  if (!stageSlugs.has(entry.stage)) {
+    errors.push(`${id} is not a stage in STAGES`);
+  } else if (stageCommands.has(entry.stage)) {
+    errors.push(`${id} has more than one entry`);
+  } else if (!skill) {
+    errors.push(`${id} names "${entry.skill}", which is not a listed skill`);
+  } else if (skill.stage !== entry.stage) {
+    errors.push(`${id} names "${entry.skill}", whose workflow-stage is "${skill.stage}"`);
+  } else {
+    const lines = readFileSync(skill.path, "utf8").split(/\r?\n/);
+    const rel = `plugins/${skill.plugin}/skills/${skill.skill}/SKILL.md`;
+    const command = `\`/${skill.plugin}:${skill.skill}\``;
+    const runs = (entry.runs ?? []).map(({ claim, basis }) => {
+      const at = lines.findIndex((l) => l.includes(basis));
+      if (at === -1) errors.push(`${id} (${entry.skill}) no longer contains its basis quote "${basis}"`);
+      return `${command}: ${claim} ([\`${rel}:${at + 1}\`](../${rel}))`;
+    });
+    const also = (entry.also ?? []).flatMap(({ when, skill: key }) => {
+      const other = mapped.find((s) => `${s.plugin}/${s.skill}` === key);
+      if (!other) {
+        errors.push(`${id} also names "${key}", which is not a listed skill`);
+        return [];
+      }
+      if (other.stage !== entry.stage) {
+        errors.push(`${id} also names "${key}", whose workflow-stage is "${other.stage}"`);
+        return [];
+      }
+      return [`(${when} \`/${other.plugin}:${other.skill}\`)`];
+    });
+    stageCommands.set(entry.stage, { command: [command, ...also].join(" "), runs });
+  }
+}
+
 if (errors.length > 0) fail(errors);
 
 // --- Spine-drift assertion ---------------------------------------------------
 // Each workflow-stage heading must prefix-match its H2 in the session-flow
 // workflow stage definitions, same order — a stage rename upstream fails this
-// gate instead of silently stranding the copy.
+// gate instead of silently stranding the copy. The Task kinds H2 in the same
+// file is the kind-to-stages table, not a stage.
 
+const TASK_KINDS_HEADING = "Task kinds";
 const stepsPath = join(
   root, "plugins", "session-flow", "skills", "workflow", "context", "steps.md",
 );
 if (!existsSync(stepsPath)) fail([`spine source missing: ${stepsPath}`]);
-const stepHeadings = readFileSync(stepsPath, "utf8")
-  .split(/\r?\n/)
-  .filter((l) => l.startsWith("## "))
+const stepsLines = readFileSync(stepsPath, "utf8").split(/\r?\n/);
+const stepHeadings = stepsLines
+  .filter((l) => l.startsWith("## ") && l.slice(3).trim() !== TASK_KINDS_HEADING)
   .map((l) => l.slice(3).trim());
 const workflowStages = STAGES.filter((s) => s.workflow);
 const spineErrors = [];
@@ -317,6 +365,92 @@ if (stepHeadings.length !== workflowStages.length) {
   });
 }
 if (spineErrors.length > 0) fail(spineErrors);
+
+// --- Task kinds ---------------------------------------------------------------
+// steps.md's Task kinds table is the one statement of which stages each kind of
+// task enters and skips. A stage is named by its steps.md heading without the
+// number and without anything after a colon or an opening parenthesis
+// ("## 11. Verify outcome" is "Verify outcome", "## Ship: PR lifecycle ..." is
+// "Ship"). An unknown name fails, so the table cannot rot silently.
+
+const stageByName = new Map(
+  workflowStages.map((s, i) => [
+    stepHeadings[i].replace(/^\d+\.\s+/, "").split(/:|\s\(/)[0].trim(),
+    s,
+  ]),
+);
+// A conditional stage's trigger is the text after "conditional:" in its
+// heading; the by-kind lead-in quotes steps.md's own sentences on conditional
+// stages and detours, so neither rule is restated here.
+const conditionBySlug = new Map(
+  workflowStages.map((s, i) => [s.slug, stepHeadings[i].match(/\(conditional: ([^)]*)\)/)?.[1]]),
+);
+const stepsProse = stepsLines.join("\n").split(/\n\s*\n/).map((p) => p.replace(/\s*\n\s*/g, " "));
+const leadIn = [
+  "A conditional stage runs only when its trigger holds",
+  "Stages 2-4 are detours",
+].map((prefix) => {
+  const sentence = stepsProse
+    .map((p) => p.slice(p.indexOf(prefix)))
+    .find((p) => p.startsWith(prefix))
+    ?.match(/^.*?\.(?=\s|$)/)?.[0];
+  if (!sentence) fail([`${stepsPath} has no sentence starting "${prefix}"`]);
+  return sentence;
+});
+const kindsStart = stepsLines.findIndex((l) => l.trim() === `## ${TASK_KINDS_HEADING}`);
+if (kindsStart === -1) fail([`${stepsPath} has no Task kinds table (## ${TASK_KINDS_HEADING})`]);
+const kindsEnd = stepsLines.findIndex((l, j) => j > kindsStart && l.startsWith("## "));
+const kindRows = stepsLines
+  .slice(kindsStart + 1, kindsEnd === -1 ? undefined : kindsEnd)
+  .filter((l) => l.trim().startsWith("|"))
+  .slice(2)
+  .map((l) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim()));
+if (kindRows.length === 0) fail([`${stepsPath} has no Task kinds table rows`]);
+const kindErrors = [];
+const kinds = kindRows.map(([kind, enters = "", skips = "", why = ""]) => {
+  const resolve = (list) =>
+    list === "None"
+      ? []
+      : list.split(",").map((n) => n.trim()).map((name) => {
+          const stage = stageByName.get(name);
+          if (!stage) kindErrors.push(`task kinds: "${kind}" names stage "${name}", which steps.md does not define`);
+          return { name, stage };
+        });
+  return { kind, enters: resolve(enters), skips: resolve(skips), why };
+});
+if (kindErrors.length > 0) fail(kindErrors);
+
+// --- Upstream equivalents -----------------------------------------------------
+// Each configured upstream record's "## Attribution table" is read for the
+// skills its Ours column names; a listed skill links that table, named by the
+// row's upstream skill. No other table in the record is read.
+
+const upstreamBySkill = new Map(); // "plugin/skill" -> [markdown link]
+for (const record of UPSTREAM_RECORDS) {
+  const recordPath = join(root, record.path);
+  const lines = existsSync(recordPath) ? readFileSync(recordPath, "utf8").split(/\r?\n/) : [];
+  const start = lines.findIndex((l) => l.trim() === "## Attribution table");
+  if (start === -1) fail([`upstream record ${record.path} has no ## Attribution table`]);
+  const end = lines.findIndex((l, j) => j > start && l.startsWith("## "));
+  const href = `${record.path.replace(/^docs\//, "")}#attribution-table`;
+  const rows = lines
+    .slice(start + 1, end === -1 ? undefined : end)
+    .filter((l) => l.startsWith("|"))
+    .slice(2);
+  for (const row of rows) {
+    const [upstream = "", ours = ""] = row.replace(/^\|/, "").split(" | ");
+    const name = upstream.match(/`([^`]+)`/)?.[1] ?? upstream.match(/\[([^\]]+)\]/)?.[1];
+    if (!name) continue;
+    for (const m of ours.matchAll(/`([a-z0-9-]+):([a-z0-9-]+)[` ]/g)) {
+      const key = `${m[1]}/${m[2]}`;
+      if (!mappedKeys.has(key)) continue;
+      const link = `[${record.label} \`${name}\`](${href})`;
+      const links = upstreamBySkill.get(key) ?? [];
+      if (!links.includes(link)) links.push(link);
+      upstreamBySkill.set(key, links);
+    }
+  }
+}
 
 // --- Render -------------------------------------------------------------------
 
@@ -347,31 +481,70 @@ function cell(text) {
   return text.replace(/\|/g, "&#124;");
 }
 
+// Inside a code span the HTML entity would render literally; GFM tables honor
+// a backslash-escaped pipe there instead.
+function codeCell(text) {
+  return text ? `\`${text.replace(/\|/g, "\\|")}\`` : "";
+}
+
 const sections = [];
 const toc = [];
+const renderedStages = new Set();
 for (const stage of STAGES) {
   const rows = mapped
     .filter((s) => s.stage === stage.slug)
     .sort((a, b) => a.plugin.localeCompare(b.plugin) || a.skill.localeCompare(b.skill));
   if (rows.length === 0) continue;
+  renderedStages.add(stage.slug);
   toc.push(`- [${stage.heading}](#${slugify(stage.heading)})`);
   const operator = stage.slug === "operator";
   const header = operator
-    ? "| Skill | Plugin | Cadence | What it does | Actions | Next |\n| --- | --- | --- | --- | --- | --- |"
-    : "| Skill | Plugin | What it does | Actions | Next |\n| --- | --- | --- | --- | --- |";
+    ? "| Skill | Plugin | Cadence | What it does | Actions | Arguments | Upstream | Next |\n" +
+      "| --- | --- | --- | --- | --- | --- | --- | --- |"
+    : "| Skill | Plugin | What it does | Actions | Arguments | Upstream | Next |\n" +
+      "| --- | --- | --- | --- | --- | --- | --- |";
   const body = rows
     .map((s) => {
       const link = `[\`/${s.plugin}:${s.skill}\`](../plugins/${s.plugin}/skills/${s.skill}/SKILL.md)`;
       const id = `\`${installName.get(s.plugin)}\``;
       const actions = s.meta.actions.map((a) => `\`${a}\``).join(", ");
+      const args = codeCell(s.meta.argumentHint ?? "");
+      const upstream = (upstreamBySkill.get(`${s.plugin}/${s.skill}`) ?? []).join(", ");
       const next = s.meta.successors.map((t) => `\`/${t.replace("/", ":")}\``).join(", ");
+      const tail = `${actions} | ${args} | ${upstream} | ${next} |`;
       return operator
-        ? `| ${link} | ${id} | ${s.cadence} | ${cell(s.summary)} | ${actions} | ${next} |`
-        : `| ${link} | ${id} | ${cell(s.summary)} | ${actions} | ${next} |`;
+        ? `| ${link} | ${id} | ${s.cadence} | ${cell(s.summary)} | ${tail}`
+        : `| ${link} | ${id} | ${cell(s.summary)} | ${tail}`;
     })
     .join("\n");
   sections.push(`## ${stage.heading}\n\n${header}\n${body}`);
 }
+
+// The by-kind view: steps.md's Task kinds joined with each stage's command
+// entry and the stage tables below, each stage linking to its table.
+const BY_KIND_HEADING = "By kind of task";
+const stageLink = ({ name, stage }) =>
+  renderedStages.has(stage.slug) ? `[${name}](#${slugify(stage.heading)})` : name;
+const kindRowsOut = kinds
+  .map((k) => {
+    const steps = k.enters.map((s) => {
+      const command = stageCommands.get(s.stage.slug)?.command;
+      const condition = conditionBySlug.get(s.stage.slug);
+      const stage = condition ? `${stageLink(s)} (conditional: ${cell(condition)})` : stageLink(s);
+      return command ? `${stage}: ${command}` : stage;
+    });
+    const runs = k.enters.flatMap((s) => stageCommands.get(s.stage.slug)?.runs ?? []);
+    const skips = k.skips.length ? k.skips.map((s) => s.name).join(", ") : "None";
+    return `| ${cell(k.kind)} | ${steps.join(" → ")} | ${runs.join("; ")} | ${skips} | ${cell(k.why)} |`;
+  })
+  .join("\n");
+toc.unshift(`- [${BY_KIND_HEADING}](#${slugify(BY_KIND_HEADING)})`);
+sections.unshift(
+  `## ${BY_KIND_HEADING}\n\nFrom the stage definitions: ${cell(leadIn.join(" "))}\n\n` +
+    "| Kind of task | Commands to type, in order | What they run for you | Skips | Why |\n" +
+    "| --- | --- | --- | --- | --- |\n" +
+    kindRowsOut,
+);
 
 if (mapRows.length > 0) {
   toc.push(`- [${REVIEW_PR_MAP_HEADING}](#${slugify(REVIEW_PR_MAP_HEADING)})`);

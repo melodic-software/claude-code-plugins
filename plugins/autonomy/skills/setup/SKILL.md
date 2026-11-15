@@ -315,11 +315,13 @@ security binding), detector-fired temporal signals that carry no routine identit
 scheduling surface recorded in two `surfaces` maps resolving as ambiguous, are catalogued in
 [`context/gotchas.md`](context/gotchas.md).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Wire capability slices that have not shipped yet. Each lands with its own work package and
   extends this skill.
-- Estimate, impute, or backfill the two human-attested return fields. Ever.
+- Estimate, impute, or backfill the two human-attested return fields: the return-accounting
+  contract forbids it, and an eval in this repository showing a model's estimates match
+  human-attested effort bands is only its recheck trigger.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform setup
   contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace
   repository). Nor platform settings.

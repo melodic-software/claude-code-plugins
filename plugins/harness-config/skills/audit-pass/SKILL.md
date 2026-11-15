@@ -473,8 +473,9 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   claims to hold belongs to the canonical source. Refuse; name that source.
 - **A whole-surface (`s:`) suppression survives every edit to the file and dies on a rename.** Not a
   bug: a finding about a file *as a whole* must not be retired by editing a line inside it.
-- **A judged finding does not contribute to the determinism gate, which is the norm rather than a weakness.** Every
-  delegated check passes through model refinement first; the gate belongs to the derived tier.
+- **A judged finding does not contribute to the determinism gate, which is the norm rather than a weakness.** Most
+  delegated checks pass through model refinement first; the gate belongs to the derived tier, which
+  also holds the rows a delegate's script or engine emits with no model in the path.
 - **Never propose an `@path` import as a context saving.** A split remediation must name a
   load-deferring destination and price what it costs. Pointer: when
   judging whether a split saves context, fetch

@@ -1,6 +1,6 @@
 # Lane: docs-prose
 
-Markdown prose: project docs and skill bodies (BODY only, never frontmatter). The narrowest, lowest-risk lane in the rotation: bad tidyings here don't break builds; they just produce noise the next reviewer can ignore.
+Markdown prose: project docs and skill bodies (body only, never frontmatter). The narrowest, lowest-risk lane in the rotation: bad tidyings here don't break builds; they just produce noise the next reviewer can ignore.
 
 ## Scope
 
@@ -41,7 +41,7 @@ Beyond the global HARD/SOFT lists:
 
 - **Skill frontmatter is HARD-EXCLUDED.** Frontmatter changes have functional effects (auto-discovery, permission gates, model selection); not prose tidyings
 - **Skill Action Router / argument-grammar sections are HARD-EXCLUDED.** A skill's argument grammar is a contract with its users, and changing it is behavioral
-- **Skill HARD/SOFT exclusion lists are HARD-EXCLUDED.** Those lists ARE the safety mechanism for autonomous runs
+- **Skill HARD/SOFT exclusion lists are HARD-EXCLUDED.** Those lists are the safety mechanism for autonomous runs
 - **The project's top-level `CLAUDE.md` is SOFT-EXCLUDED.** Too central; prose tidyings there deserve dedicated human review
 - **`.claude/rules/**` is HARD-EXCLUDED** (also caught globally). Convention files are not "prose" in the tidy sense. They're enforcement specs
 - **Append-only / historical records are HARD-EXCLUDED**: changelogs, release notes, accepted ADRs, and any file that declares itself append-only or immutable. Supersede, don't edit history

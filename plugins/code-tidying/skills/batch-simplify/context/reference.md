@@ -13,7 +13,7 @@ Group files by project/ecosystem relatedness. Each group should contain files th
 3. **Root config files**: all root-level config files (`.editorconfig`, build-system props, formatter configs) form one group
 4. **Standalone scripts**: skill/tool scripts group by parent directory
 
-Agent & enforcement configuration (`.claude/hooks/**`, `.claude/settings*.json`, `.mcp.json`, CI workflows, git-hook manager config) is excluded in Phase 2. It never forms a simplification group; changed files there surface as read-only deferred items.
+Agent & enforcement configuration (the Phase 2 list: `.claude/hooks/**`, `.claude/settings*.json`, `.claude/agents/**`, `.mcp.json`, CI workflows, git-hook manager config) is excluded in Phase 2. It forms no simplification group unless one of the override channels (SKILL.md "Flag: `override`") lifts a path; changed files there that stay excluded surface as read-only deferred items.
 
 **Dependency ordering.** Process groups in this order:
 
@@ -68,7 +68,7 @@ Resolve each group's verification command through the registered ecosystem-comma
 Do not maintain a command table here. In order:
 
 1. When the `toolchain` plugin is installed, invoking `/toolchain:check` via the Skill tool
-   (scoped to the group's files) IS the verification step. It resolves the consuming project's tracked
+   (scoped to the group's files) is the verification step. It resolves the consuming project's tracked
    per-ecosystem command config and its own portable defaults.
 2. Otherwise, the consuming project's own canonical commands (its `CLAUDE.md` / CI config
    usually names them, e.g. warnings-as-errors flags, custom test runners).

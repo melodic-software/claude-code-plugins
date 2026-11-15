@@ -118,7 +118,7 @@ timeline with `.source == "event-log"`. A store written before this shape holds 
 keyed `event` instead; retention ages them out, and a one-off pass over such a store folds them
 in with `map(. + {hook_event_name: (.hook_event_name // .event)})`.
 
-Cross-platform: `date -u -d "..."` is GNU. macOS BSD date uses `date -u -v-7d`. Skill detects platform. See fallback in implementation.
+Cross-platform: `date -u -d "..."` is GNU. macOS BSD date has no `-d`: in the `day`, `week` and `month` lines above, replace `-d "1 day ago"`, `-d "7 days ago"` and `-d "30 days ago"` with `-v-1d`, `-v-7d` and `-v-30d`. `cutoff_iso_days_ago` in `scripts/clean.sh` probes for both dialects.
 
 ## 1. ccusage: token + cost
 

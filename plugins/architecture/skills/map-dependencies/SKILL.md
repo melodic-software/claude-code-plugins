@@ -23,8 +23,8 @@ artifact is `dependency-graph.json`. The human render is a mermaid `flowchart` o
 internal edges. This is the model, not a C4 diagram.
 
 The dialect decision lives in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`. Read it.
-Do not restate it, and do not emit a C4 view from this skill. This flowchart does
-not follow `landscape_dialect`. `diagram_dialect.system` stays the planning opt-in.
+Do not restate it, and do not emit a C4 view from this skill. This flowchart follows
+neither `landscape_dialect` nor `diagram_dialect.system`, the key the C4 views read.
 
 ## Resolve home
 
@@ -219,7 +219,7 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
 `${user_config.*}` string in a shell command), and its report line is printed. Procedure:
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Import graphs, call graphs, or runtime discovery.
 - A C4 component, container, context, or deployment view. The component view that reads

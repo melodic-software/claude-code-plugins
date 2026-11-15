@@ -25,7 +25,7 @@ by a prediction (see `/harness-ops:plugins-audit`).
 ## Execution: one script runs Steps 1 through 5b
 
 `scripts/sync-run.sh` is this algorithm's executable form. One invocation runs Steps 1 through 5b
-for every target marketplace and prints ONE JSON digest; the model reads that digest and writes
+for every target marketplace and prints one JSON digest; the model reads that digest and writes
 Step 6's report from it. This file stays the normative statement of what each step does and why.
 The script is bound to it, so a rule changed here is a rule changed in the script and its tests.
 
@@ -40,7 +40,7 @@ sync-run.sh --only-install <ids> --run-dir <dir> [--marketplace <name> | --all]
 ```
 
 Why a script rather than a step-per-turn transcript: every guarantee below is a property of the
-ORDER and the STATUS CHECKS between calls, not of a human-readable narration between them. Running
+order and the status checks between calls, not of a human-readable narration between them. Running
 them in one process keeps the re-read boundary, the `rc` checks, and the journal exactly where this
 file puts them, and it removes the retyping error that a per-step transcript invites.
 
@@ -49,7 +49,7 @@ What the model still owns, because the script cannot:
 - **The `install_new` policy.** The `user_config.install_new` placeholder substitutes only when Claude Code
   renders SKILL.md; a `context/*.md` spoke is read raw. SKILL.md's "Configured value" line is the
   rendered value, and the model passes it as `--install-new`. On `ask` with a non-empty install gap
-  the script reports the gap and STOPS before Step 4, because only the model can run the chunked
+  the script reports the gap and stops before Step 4, because only the model can run the chunked
   prompt; it then re-enters with `--only-install <ids> --run-dir <the digest's run_dir>`, which
   performs Step 4, Step 5, and, when this pass skipped it, Step 5b against the same run journal
   and re-emits the digest.
@@ -130,7 +130,7 @@ The `claude plugin` CLI does not serialize concurrent writes, so this skill keep
 calls serial (see [gotchas.md](gotchas.md), "Never run plugin CLI writes concurrently: the sweep
 stays serial"). There is no separate lock this skill manages.
 
-**The re-read boundary is the STEP, not the individual mutation.** Re-run `fleet-state.sh`
+**The re-read boundary is the step, not the individual mutation.** Re-run `fleet-state.sh`
 immediately before each mutating step rather than mutating off a snapshot taken several steps ago; a
 background `autoUpdate` sweep or a concurrent session can change installed/enabled state between
 steps. Inside a step, the loop body is deliberately snapshot-driven: Step 3 reads its id list once
@@ -231,8 +231,8 @@ Three sources, in precedence order, and **never** a synthesized value:
 3. **`<new>` fallback**: that id's `installed[].version` from one `fleet-state.sh` re-read after
    the Step 2 + Step 3 sweep completes, diffed against the pre-sweep snapshot.
 
-Source 3 is a fallback rather than the primary because `claude plugin update`'s own help says
-"restart required to apply", and this skill has not established when the CLI writes
+Source 3 is a fallback rather than the primary because `claude plugin update --help` (read it live)
+says the update applies after a restart, and this skill has not established when the CLI writes
 `installed_plugins.json` relative to that restart. If the write is deferred, the post-sweep re-read
 shows the pre-update version for a plugin that did update. So: when the CLI reported an update for
 an id and the post-sweep version is unchanged, report the CLI's reported value, or `<unknown>` if it
@@ -293,7 +293,7 @@ Then, for the rest of the run:
 - **Save every `fleet-state.sh` report** the algorithm re-reads, rather than only reading it. These
   are the same calls the re-read-before-each-mutating-step rule already requires, so the journal
   costs a redirect, not an extra read, and `--from` never replaces one of them. It replaces only the
-  second process a step used to launch to project its ids. Name them per marketplace:
+  second process a step would otherwise launch to project its ids. Name them per marketplace:
 
   | File | The re-read it saves |
   |---|---|
@@ -312,14 +312,14 @@ Then, for the rest of the run:
 
 - **Catalog regression check.** Step 6 diffs `catalog_versions` across every consecutive saved
   snapshot for the marketplace, `pre-refresh` then `pre` then `mid` then `post`, and reports the
-  FIRST interval in which any id's catalog version moved backward. Both actions have all four
+  first interval in which any id's catalog version moved backward. Both actions have all four
   snapshots, so both have the full chain. That interval is the signal that names the cause: in
   `sync` a regression across the `pre-refresh` to `pre` boundary is the Step 1 refresh pulling a
   source that moved backward, while one appearing later is the checkout changing under the run. In
   `audit` no refresh runs, and in `sync` a skipped refresh (`refresh.skipped` set) pulls nothing,
   so a regression in that same first interval is the checkout changing under the run as well,
   never this run's doing. The interval names when; the action names what it
-  means. This diff is REPORT-ONLY and its output never becomes an id list handed to the CLI, so
+  means. This diff is report-only and its output never becomes an id list handed to the CLI, so
   the hand-written-`jq` prohibition that governs `--ids` does not apply to it.
 
   The script runs the triple compare per consecutive pair, stops at the first pair that finds a
@@ -395,9 +395,8 @@ ERROR: --ids cannot be combined with --all
   Run --ids once per marketplace with --marketplace <name>.
 ```
 
-(This is `fleet-state.sh`'s own argument guard, not Claude Code CLI behavior. The earlier
-"verified on Claude Code 2.1.240" attribution was a category error. Re-verified 2026-09-05 by
-running the command: the script exits 2 with exactly this text.) `--all` exists for the JSON report, which nests one block per
+(This is `fleet-state.sh`'s own argument guard, not Claude Code CLI behavior: the script exits 2
+with exactly this text.) `--all` exists for the JSON report, which nests one block per
 marketplace; `--ids` projects a single block, so it takes one marketplace at a time. Loop it.
 
 The per-marketplace failure rule from Step 1 carries through: a marketplace whose iteration fails is
@@ -407,7 +406,7 @@ reported inline and never aborts the loop for the rest.
 
 Steps 2–5 all do the same three things: take the live re-read the concurrency rule already requires
 and **redirect it to the run journal**, project the step's selector out of that file with `--from`,
-and loop the result. `--from` replaces only the second process a step used to launch to project its
+and loop the result. `--from` replaces only the second process a step would otherwise launch to project its
 ids; it never replaces the re-read.
 
 **The projection's exit status is checked before the loop: an empty projection is ambiguous and the
@@ -434,7 +433,7 @@ check, and the loop-from-a-file shape are this section's and are not restated at
 For each target marketplace (the resolved default, the named one, or every marketplace when the
 argument is `all`), save that marketplace's pre-refresh snapshot and then refresh it.
 
-**The snapshot is a read, and BOTH actions take it.** It is the earliest link in the catalog
+**The snapshot is a read, and both actions take it.** It is the earliest link in the catalog
 regression check's snapshot chain, and an action that skips it starts that check at `pre` and loses
 its first interval. It is saved as `pre-refresh.<mp>.json`. When no marketplace argument was given,
 that same read is what resolves the default marketplace's name, so resolution costs no extra process.
@@ -504,10 +503,10 @@ Which later steps a stale catalog compromises, and how each one degrades:
   *checkout*, and a checkout that failed to refresh may be behind the real catalog. An id whose
   installed version matches the **stale** catalog version is then withheld from the sweep as
   "already current" when a newer version may exist upstream. That is a real cost, and it is the
-  smaller one: a failed refresh means the checkout is UNTRUSTED, and sweeping every user-scope id
+  smaller one: a failed refresh means the checkout is untrusted, and sweeping every user-scope id
   unconditionally against an untrusted catalog is the rollback path, since a catalog that reads
   lower is exactly what an unrefreshed or misdirected source produces. So Step 3 keeps
-  `update-candidates-user`, and reports the ids it withheld as already-current as a LOWER BOUND:
+  `update-candidates-user`, and reports the ids it withheld as already-current as a lower bound:
   they may still be behind upstream, and the run says so and tells the operator to rerun after the
   refresh succeeds. That is the same shape `audit` already uses for its own unrefreshed prediction.
 - **Steps 4–5 are skipped entirely.** Step 4 derives installations from the catalog
@@ -517,7 +516,7 @@ Which later steps a stale catalog compromises, and how each one degrades:
   they would have done under "Action needed" as deferred until a sync run where the refresh
   succeeds.
 
-**A refresh that SUCCEEDS is not a trust signal about direction.** It establishes that the checkout
+**A refresh that succeeds is not a trust signal about direction.** It establishes that the checkout
 is current with its source, nothing else: a current catalog can still read lower than what is
 installed, because the source itself can have moved backward. The downgrade guard applies on every
 run, refreshed or not.
@@ -634,7 +633,7 @@ correct signal here is "is this entry present": just call `update`, letting the 
 
 Filtered for proven downgrades and delisted ids and for **nothing else**: `update-candidates-project`
 withholds an id the catalog would move backward and an id the catalog no longer names
-(`delisted_project`, the in-repo half of the delisted rule in Step 3), and declines the catalog EQUALITY filter Step 3's selector
+(`delisted_project`, the in-repo half of the delisted rule in Step 3), and declines the catalog equality filter Step 3's selector
 applies. The two filters are not the same kind of thing. Equality is an optimization, and it buys
 nothing here: the in-repo population is small (a handful of records, against Step 3's dozens), so
 the saving is negligible, while a project/local pin is far more likely than a user-scope install to
@@ -752,9 +751,9 @@ established.
 across user scope and this repo's in-repo records both, so it covers what Step 2's selector withheld
 as well as Step 3's. What happens to it is the operator's call, not this step's:
 
-- **`--allow-downgrade` was NOT given.** Do not touch them. Report each under `Action needed` with
+- **`--allow-downgrade` was not given.** Do not touch them. Report each under `Action needed` with
   both versions and the likely cause, per SKILL.md's `downgrade withheld:` row.
-- **`--allow-downgrade` WAS given.** Loop them too, taking `-s <scope>` from field 2 the way Step 2
+- **`--allow-downgrade` was given.** Loop them too, taking `-s <scope>` from field 2 the way Step 2
   takes it off its own line, journaled through the same `tee` plus `PIPESTATUS[0]` shape as every
   other mutating call. Their outcomes render under `Downgraded:`, never under `Updated:`, whatever
   the CLI's own line calls them. The digest carries them in `downgraded`, which is a separate array
@@ -823,7 +822,7 @@ and on Windows a hand-written
 
 ## Steps 4 and 5: install and enable
 
-**Take a fresh live re-read first, and gate on THAT report, never on Step 1's.** Step 4 is a
+**Take a fresh live re-read first, and gate on that report, never on Step 1's.** Step 4 is a
 mutating step, so the concurrency rule already requires its own re-read; it is taken here, before
 either step decides whether it has anything to do, and saved as `pre-install.<mp>.json`.
 
@@ -939,7 +938,7 @@ scope ahead of untouched project records *manufactures* actionable divergences, 
 correct consequence, not drift it discovered. Reporting the total as a single discovered number
 routes the user to `converge` for skew this run just created.
 
-**Attribute it to the right step: that needs THREE snapshots, not two.** Steps 2 and 3 both mutate
+**Attribute it to the right step: that needs three snapshots, not two.** Steps 2 and 3 both mutate
 versions, so a single pre-Step-2 / post-Step-3 bracket cannot tell which one created a new
 divergence, and labeling the whole delta "the user-scope sweep" is wrong whenever Step 2 caused it.
 Concretely: equal project and user records at `v1`, Step 2 updates the project record to `v2`, Step 3's

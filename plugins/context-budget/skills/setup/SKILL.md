@@ -139,7 +139,7 @@ Close by pointing at each resolution. A rerun after everything passes changes no
 
 It takes the stamped baseline once `check` passes.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Measure, attribute, ledger or invoke the audit, even when asked: route to `/context-budget:audit`.
 - Install `node`, the CLI, or the Agent SDK.

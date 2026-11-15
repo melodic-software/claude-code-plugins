@@ -11,8 +11,8 @@ metadata:
 
 ## Repository context
 
-The current repository is both the CONSUMER, whose convention home declares where artifacts land,
-and the DEFAULT SUBJECT, the repository whose tracked files name deployables and stores.
+The current repository is both the consumer, whose convention home declares where artifacts land,
+and the default subject, the repository whose tracked files name deployables and stores.
 
 Collect with an **individual** Bash call, one command per call: the project root,
 `git rev-parse --show-toplevel`. Treat a failure (not a repository, git unavailable) as an unknown
@@ -44,11 +44,12 @@ follow the exit code. Never parse the root instruction file yourself. Exit 0 mea
 home to read.
 
 In order: `--out <dir>` wins for this run alone, then a declared `architecture_dir`, then one
-question. `architecture_dir` has NO default. An undeclared and unconfirmed home, including every
-non-interactive run, STOPS and points at `/architecture:setup`. Do not invent a directory.
+question. `architecture_dir` has no default. An undeclared and unconfirmed home, including every
+non-interactive run, stops and points at `/architecture:setup`. Do not invent a directory.
 
-Resolve `diagram_dialect.system` by restating this ladder, then running the resolver rather than
-parsing the topic doc yourself. The ladder is a resolution order, not a task list:
+Resolve `diagram_dialect.system` by running the resolver rather than parsing the topic doc
+yourself. This skill restates the convention's ladder below; it is a resolution order, not a task
+list:
 
 ```markdown
 1. Anchor at the repository root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
@@ -59,7 +60,7 @@ parsing the topic doc yourself. The ladder is a resolution order, not a task lis
    `<root>/<home>/authoring-formats/README.md` to the resolver.
 4. Layer order is one layer deep: an explicit `--dialect` argument, then the team convention doc.
    There is no personal override.
-5. `diagram_dialect.system` has NO default. Allowed values are `likec4` and `c4-plantuml`. When it
+5. `diagram_dialect.system` has no default. Allowed values are `likec4` and `c4-plantuml`. When it
    is unset, write `containers.json` and `containers.md` with the tables, and draw no diagram block.
 6. Degrade soft, and say so. No pointer, no doc, no key, or an unrecognized value (mermaid
    included, which the convention refuses) each resolve to emitting no view. The resolver names
@@ -216,7 +217,7 @@ hand-written; the shared medium resolver decides the destination, with this plug
 `${user_config.*}` string in a shell command), and its report line is printed. Procedure:
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Draw environment topology, replicas, or scaling. That is `/architecture:map-deployment`.
 - Chart the modules inside one deployable as their own diagram. That is `/architecture:map-components`.

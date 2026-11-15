@@ -30,7 +30,7 @@ outcome gate's artifact-grounded criteria, or not at all.
 - **Treating a curated index as exhaustive.** `llms.txt` is a maintainer hand-pick and deliberately
   partial. A miss there is silence, not evidence of absence, for a rung, for a page, or for a corpus
   item.
-- **Treating ONE exhaustive surface as the whole artifact inventory.** The subtler half of the same
+- **Treating one exhaustive surface as the whole artifact inventory.** The subtler half of the same
   trap, and the one the curated-vs-exhaustive framing hides: a surface is exhaustive only for the
   artifact class it indexes and the host it covers. A docs `sitemap.xml` enumerates that host's
   *pages* and is silent about PDFs it omits, an asset or download host, and a sibling first-party

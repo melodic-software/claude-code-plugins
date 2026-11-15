@@ -25,7 +25,7 @@ whether `node` and `jq` resolve.
 - **Pointer**: when checking whether a Claude Code install brings Node, fetch
   <https://code.claude.com/docs/en/setup#install-with-npm> live.
 
-## Shipped capability (0.7.0)
+## Shipped capability
 
 - **Topology contracts** (`reference/`): role topology for the repositories an adoption spans,
   the binding-seam shape that maps contract roles to an org's real instances, and the

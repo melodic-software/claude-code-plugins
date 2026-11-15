@@ -11,7 +11,7 @@ Setup for the `map-landscape` skill's team configuration, which lives as a conve
 consumer's convention home per the consuming marketplace's config-cascade expression doctrine.
 
 `check` inspects and reports PASS/FAIL/INFO with one remediation line per FAIL; `apply` converges
-exactly TWO consumer artifacts, the marked pointer-line region in the root instruction file and the
+exactly two consumer artifacts, the marked pointer-line region in the root instruction file and the
 topic doc `<home>/architecture/README.md`, and nothing else.
 
 Action routing: no argument or `check` runs the check.
@@ -28,16 +28,16 @@ Run the resolver and report by exit code. The outcomes are distinct and never co
 bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"
 ```
 
-Then read `<home>/architecture/README.md` when a home resolved. Emit ONE table, `Check | Result |
+Then read `<home>/architecture/README.md` when a home resolved. Emit one table, `Check | Result |
 Detail`, with a remediation line under it for every FAIL row. The rows to cover:
 
 | Condition | Result | Remediation line |
 |---|---|---|
 | Resolver exit 1: no pointer line in any root instruction file | FAIL | `/architecture:setup apply home=<dir> architecture_dir=<path>` writes the pointer region and the topic doc. Inference may propose a home; only your confirmation binds it. |
-| Resolver exit 3: FAIL with a cause (two pointer lines in one region, unterminated or nested region, invalid pointer path, missing target directory) | FAIL | Surface the resolver's own message VERBATIM, then route that exact cause through `apply`'s interview. Never guess a home around it. |
+| Resolver exit 3: FAIL with a cause (two pointer lines in one region, unterminated or nested region, invalid pointer path, missing target directory) | FAIL | Surface the resolver's own message verbatim, then route that exact cause through `apply`'s interview. Never guess a home around it. |
 | Resolver exit 2: usage or root error | FAIL | Report the message; the environment, not the declaration, is the fault. |
 | Home resolved, but `<home>/architecture/README.md` does not exist | FAIL | `/architecture:setup apply architecture_dir=<path> [landscape_dialect=<structurizr\|mermaid>]` creates the topic doc at the resolved home. |
-| Topic doc exists and carries an unknown key, a `landscape_dialect` outside `structurizr` / `mermaid`, or a `component_layers` value that is not a comma-separated list of layer names | FAIL | Name the offending key or value and the accepted set from the key reference. The known keys are `architecture_dir`, `landscape_dialect`, and `component_layers`; `adr_template` and `adr_extra_triggers` belong in `<home>/architecture.yaml` instead. Never coerce a bad value to the default and never ignore it. |
+| Topic doc exists and carries an unknown key, a `landscape_dialect` outside `structurizr` / `mermaid`, or a `component_layers` value that is not a comma-separated list of layer names | FAIL | Name the offending key or value and the accepted set from the key reference. The known keys are `architecture_dir`, `landscape_dialect`, and `component_layers`; `adr_template`, `adr_extra_triggers` and `adr_retirement` belong in `<home>/architecture.yaml` instead. Never coerce a bad value to the default and never ignore it. |
 | Topic doc exists, every key known, `architecture_dir` declared | PASS | Report the effective value of each key and which source supplied it (topic doc, or the documented `landscape_dialect` default). |
 | A resolver `duplicate:` warning on stderr (a `CLAUDE.md` copy of the region) | INFO | Report it with the doctrine's remediation, remove the copy. It does not change the resolved home. |
 
@@ -59,19 +59,19 @@ Converge, in order:
    the consumer's own convention directory); with no evidence, ask. **Only the operator's
    confirmation binds a home**: inference proposes, never writes. Write the pointer line inside the
    marked `<!-- BEGIN GENERATED: convention-home -->` region of the root instruction file, creating
-   the region when absent by APPENDING it; never edit a single byte outside the region. `AGENTS.md`
+   the region when absent by appending it; never edit a single byte outside the region. `AGENTS.md`
    is canonical when present. When neither root file exists, or only a non-shim `CLAUDE.md` does,
    root-file shape is the downstream repository's call: recommend an AGENTS.md-canonical root with
    a pure `@AGENTS.md` `CLAUDE.md` shim, but write the region wherever the operator chooses. Exit 3
    remediates that exact cause through the interview, still never editing outside the region.
    Create the home directory when the operator confirms a home that does not exist yet.
 
-   Do this step ONLY when `home=` is supplied or a home is confirmed. An `apply` that carries
+   Do this step only when `home=` is supplied or a home is confirmed. An `apply` that carries
    neither leaves the root instruction file untouched.
 
 2. **Converge the topic doc** `<home>/architecture/README.md` from the arguments
    (`architecture_dir=…`, `landscape_dialect=…`, optional `component_layers=…`) or, absent
-   arguments, a short interview. Validate against the key reference BEFORE writing: an
+   arguments, a short interview. Validate against the key reference before writing: an
    `architecture_dir` that is absolute, escapes the repository, or is empty is refused with the
    reason; a `landscape_dialect` outside the two accepted values is refused with the accepted set;
    a `component_layers` value that is not a comma-separated list of layer names is refused with
@@ -81,7 +81,7 @@ Converge, in order:
    is untrusted input, never executed or interpolated.
 
 3. **Re-read and report.** After writing, re-read the pointer region and the topic doc from disk and
-   report the values you OBSERVED, per key, as `old -> new`. A report built from what was written
+   report the values you observed, per key, as `old -> new`. A report built from what was written
    rather than what was read cannot catch a write that landed somewhere else.
 
 `apply` is idempotent: a second identical `apply` produces no diff, and says so.
@@ -90,11 +90,11 @@ Converge, in order:
 
 - **All three of `home=`, `architecture_dir=`, and `landscape_dialect=` supplied**: run without
   prompting, end to end, and report the read-back values.
-- **Arguments incomplete**: propose the inferred or defaulted value for each missing key and WAIT
+- **Arguments incomplete**: propose the inferred or defaulted value for each missing key and wait
   for confirmation. Do not proceed on inference alone, and do not silently substitute a default for
   `architecture_dir`, which has none.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run a map. Landscape is `/architecture:map-landscape`. The rungs below it are their own skills.
 - Write anything except the pointer-line region and the topic doc.

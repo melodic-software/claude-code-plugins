@@ -168,16 +168,14 @@ Four findings follow, each of which a rubric rule depends on:
 4. **A subagent inherits none of the parent's on-demand loads.** Dispatched *after* the parent had
    already loaded all five surfaces, a general-purpose subagent reported exactly
    `ROOT_CLAUDE_CANARY, ROOT_AGENTS_CANARY`. It inherited none of the parent's deferred loads.
-   *This finding was originally written as "deferred surfaces do not load inside subagents at
-   all", and that generalization is wrong: the run never had the subagent read a covered path, so
-   it measured non-inheritance and not non-triggering.* See
-   [Subagent visibility, re-measured on 2.1.268](#subagent-visibility-re-measured-on-21268), which
-   supersedes the wider reading.
+   The run never had the subagent read a covered path, so it measured non-inheritance and not
+   non-triggering. For what a subagent loads on its own read, see
+   [Subagent visibility, re-measured on 2.1.268](#subagent-visibility-re-measured-on-21268).
 
-## Two claims this plugin makes, now measured
+## Two claims this plugin makes, measured on 2.1.238
 
-Both were asserted in 0.1.0 on documentation and inference. Both were re-run first-party on
-**2.1.238** with the same canary method and now stand as *(measured 2.1.238)*.
+Both were measured first-party on **2.1.238** with the same canary method, so both stand as
+*(measured 2.1.238)*.
 
 - **An undocumented `description:` key in rule frontmatter is harmless.** A rule carrying both
   `description:` and `paths:` still loaded on a matching read. The index generator prefers that key

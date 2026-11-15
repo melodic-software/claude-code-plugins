@@ -24,7 +24,7 @@ but "is this actually right, and would it survive a hostile second look."
 
 Resolve the source of truth per the method doc's ladder: if the consuming project
 states a self-scrutiny / verify-before-acting discipline in its own `CLAUDE.md` or
-`.claude/rules/`, re-anchor THAT. Otherwise re-anchor this portable baseline:
+`.claude/rules/`, re-anchor that. Otherwise re-anchor this portable baseline:
 
 - **Confidence is not correctness.** Output that flows smoothly and reads as
   finished has not thereby been tested. Treat "this looks done" as the cue to
@@ -61,10 +61,10 @@ Declared here per the method doc's "Declared step deltas" allowance:
 The shared method doc's outward-artifact carve-out is unchanged: nothing here files
 a PR, issue, or published comment without the user's explicit opt-in.
 
-## The adversarial pass runs in a fresh context (mandatory)
+## The adversarial pass runs in a fresh context
 
 For every other corrector the method doc's fresh-context re-derivation is an
-escalation; for this one it is the **core step**. It **must** run as a
+escalation; for this one it is the **core step**. It must run as a
 fresh-context (non-fork) subagent, blind to the reasoning that produced the
 output: handed the artifact and the requirement, not the story of how the work
 was reached, and told to find what is wrong. Never use a fork subagent for this
@@ -102,10 +102,10 @@ run there rather than here, so the findings come back concrete and located:
   output;
 - a leap where the reasoning skipped a step and momentum carried it past.
 
-Correct each per the deltas: surface what the pass returns, and work the fix WITH
+Correct each per the deltas: surface what the pass returns, and work the fix with
 the user (fixing trivial mechanical items directly).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Not a pre-implementation plan stress-test.** Attacking a plan or proposal
   *before* the work is built is `/planning:devils-advocate`. This corrector

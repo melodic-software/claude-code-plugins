@@ -3,6 +3,16 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.6] - 2026-11-15
+
+### Changed
+
+- The config reference points at the upstream pages for subagent `model` values and the effort
+  cap's scopes instead of restating them. Skill headings and the drift-audit skeptic prompt use
+  plain emphasis instead of capital letters.
+- The `su-apply-guard-off-confirms` eval no longer expects a local-layer offer, which its own
+  description says cannot arise at a home root.
+
 ## [3.0.5] - 2026-11-15
 
 ### Changed

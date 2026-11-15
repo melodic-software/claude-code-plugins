@@ -3,6 +3,13 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.24] - 2026-11-15
+
+### Changed
+
+- The woodcut-ink style guide names the `style.json` bands instead of restating their numbers, and
+  drops issue references and rebuild notes.
+
 ## [1.0.23] - 2026-11-14
 
 ### Changed

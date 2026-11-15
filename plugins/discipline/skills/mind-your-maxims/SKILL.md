@@ -35,7 +35,7 @@ here would be a second copy that drifts):
 
 Resolve the source of truth per the method doc's ladder: if the consuming
 project declares a communication or writing-quality convention in its own
-`CLAUDE.md` / `.claude/rules/`, re-anchor THAT as well and audit against it.
+`CLAUDE.md` / `.claude/rules/`, re-anchor that as well and audit against it.
 
 ## The rubric this skill audits
 
@@ -63,23 +63,23 @@ Route each axis below by invoking the named sibling skill via the Skill tool.
   claim's truth routes there; this skill owns how the message is shaped, not
   whether it is factually backed.
 - **Pure verbosity remediation → `/discipline:tighten-your-output`.** The
-  Quantity audit here NAMES padding as a finding; route large verbosity
+  Quantity audit here names padding as a finding; route large verbosity
   cleanups there rather than hand-trimming at scale here.
 
 ## Benevolence. Deliberate out-of-scope
 
-The paper's other augmented maxim, Benevolence, is NOT audited here: it is
+The paper's other augmented maxim, Benevolence, is not audited here: it is
 platform / safety-layer territory, not a communication-drift axis a
 mid-session corrector can score.
 
 ## Audit targets and the dual moment
 
-- **Two target kinds.** Audit recent agent RESPONSES and agent-authored
-  ARTIFACTS alike: docs, PR bodies, prompts, commit messages, skill text.
+- **Two target kinds.** Audit recent agent responses and agent-authored
+  artifacts alike: docs, PR bodies, prompts, commit messages, skill text.
   A buried lede in a PR body fails the same rubric as one in a chat reply.
 - **Dual moment.** Valid as posture-setting at any time (the method doc's
   conversation-start case: acknowledge the discipline as active and stop,
-  nothing to audit yet), AND as an audit once output exists.
+  nothing to audit yet), and as an audit once output exists.
 - **Verification level.** Resolve it once with
   `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discipline --skill mind-your-maxims --file docs/conventions/discipline.yaml`
   and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)):

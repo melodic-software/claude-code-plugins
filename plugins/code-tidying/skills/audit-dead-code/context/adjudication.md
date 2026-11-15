@@ -54,8 +54,9 @@ parser recognized, and it is a bug report about the detector, not a finding abou
   reports what was emitted, not what exists.
 - **The consent gate prints the candidate count and the cap**, never a fabricated time or token
   estimate. There is no measurement behind one.
-- **Fan-out:** batch the capped set to fresh-context subagents. If spawn depth is exhausted, say so
-  and adjudicate inline at the same cap. Silently shrinking the set is the failure mode to avoid.
+- **Fan-out:** when the capped set is large, batch it to fresh-context subagents; a smaller set is
+  adjudicated inline. If spawn depth is exhausted, say so and adjudicate inline at the same cap.
+  Silently shrinking the set is the failure mode to avoid.
   Pointer for the depth limit and what a subagent at it can spawn:
   [Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents).
 

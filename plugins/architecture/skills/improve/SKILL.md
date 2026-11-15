@@ -41,7 +41,7 @@ keep its line; Phase 1.5 says what the level does there
 
 ## Purpose
 
-Improvement is distinct from review and planning. Review evaluates a DIFF against criteria (reactive). Planning designs NEW work (forward-looking). This skill scans EXISTING code for friction and proposes candidates for improvement (proactive).
+Improvement is distinct from review and planning. Review evaluates a diff against criteria (reactive). Planning designs new work (forward-looking). This skill scans existing code for friction and proposes candidates for improvement (proactive).
 
 The scan-present-pick process generalizes across improvement **lenses**. Each lens (action) brings its own analysis method and vocabulary via an `actions/<lens>.md` playbook plus a `research/<lens>/` reference set, loaded only when that lens runs. The first lens, `deepening`, implements Ousterhout's deep-module concept: finding shallow modules (interface nearly as complex as implementation) and proposing how to deepen them. The aim is **testability and AI/agent-navigability (AX)**: a deep module's small interface lets a reader, human or agent, grasp its purpose without traversing the whole import graph. The `boundaries` lens checks the module boundaries a repository has recorded against the references its build manifests declare, and hands each rule the user confirms to the enforcement audit as an architecture-test proposal. The `conventions` lens derives the building blocks, owners and feature blueprints the code already follows, proposes each as a rule, and routes each rule the user accepts to the place that records its kind.
 
@@ -60,7 +60,7 @@ One lens per invocation. Lenses don't chain implicitly. Read the action's playbo
 
 ### Adding a lens
 
-A new improvement lens (e.g. `coupling`, `testability`, dependency-direction review) is a pure ADD. Never edit an existing lens's contract to add one (open for extension, closed for modification):
+A new improvement lens (e.g. `coupling`, `testability`, dependency-direction review) is a pure addition. Never edit an existing lens's contract to add one (open for extension, closed for modification):
 
 - `actions/<lens>.md`. The lens playbook (phases, gates, output shape)
 - `research/<lens>/`. Reference for that lens, loaded only when its action runs (per-action progressive disclosure)
@@ -78,7 +78,7 @@ A new improvement lens (e.g. `coupling`, `testability`, dependency-direction rev
 | [research/boundaries/README.md](research/boundaries/README.md) | Running the boundaries lens: what counts as a boundary rule, mapping a rule's module names to graph nodes, what manifest edges cannot show, and the findings-row template |
 | [research/conventions/README.md](research/conventions/README.md) | Running the conventions lens: the kinds it derives and the evidence each needs, where each kind of proposal goes, and how a boundary rule is written into the architecture concern file |
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not plan implementation.** Produces candidates + agreed shape; a planning step plans the work
 - **Does not enforce rules.** A rule-enforcement reviewer does that reactively on a diff. The boundaries lens proposes enforcement through a findings file and writes no test

@@ -30,7 +30,7 @@ repository with no ledger yet gets one from its first `apply`, or from a person 
 docs-conformance recheck the cap recommends.
 
 When no ledger carries a marker, the script falls back to the highest version named in a commit
-SUBJECT of that form on the current branch. Commit bodies are never read: a body that says
+subject of that form on the current branch. Commit bodies are never read: a body that says
 "verified against Claude Code v2.1.252" is a recency stamp on a doc, not an apply, and reading
 bodies reports applies that never happened.
 
@@ -68,10 +68,11 @@ Read the changelog only through the plugin's `scripts/fetch-changelog.sh`, the o
 decides the source: Anthropic's own `CHANGELOG.md` in `anthropics/claude-code` first, the docs
 page only when that read fails. Its header names both sources, the identity check on each, and the
 order. Both reads always ask the server, so a failed fetch is `unread`, never a stale cached copy.
-It writes a complete local copy; search that file. A summarizing fetch truncates a file this long
-and a truncated read supports no absence claim, so never report a version "absent from the
-changelog" from anything but a complete local copy. The status script's `changelog` line names the
-source it read.
+It writes a complete local copy; search that file. Never report a version "absent from the
+changelog" from anything but a complete local copy: a partial read supports no absence claim, and
+what a summarizing fetch returns is read live from
+[tools reference: WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior).
+The status script's `changelog` line names the source it read.
 
 This skill reads release markup only through the plugin's `scripts/changelog-releases.sh`, the one
 parser the status script and the behavior-probes recheck share; its header names the

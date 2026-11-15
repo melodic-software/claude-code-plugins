@@ -77,7 +77,7 @@ that would lose their body records) / `body_dropped=` (whole-line drops that car
 
 Two override surfaces with different reach. Pick by which consumers must honor the value:
 
-- **OS user environment variables (`setx`)** reach CC sessions AND the daily Scheduled
+- **OS user environment variables (`setx`)** reach CC sessions and the daily Scheduled
   Task prune. The recipe for keeping raw bodies a full week and carrying prompts into cold:
 
   ```text

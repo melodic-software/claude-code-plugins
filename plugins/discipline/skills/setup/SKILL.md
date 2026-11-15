@@ -41,7 +41,7 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
    above (the three `batch_*` override options, `research_deep_verification` and
    `lever_scope`). Do not inspect or edit `settings.json`, `settings.local.json`,
    managed settings, or `pluginConfigs` directly.
-2. **Empty or unexpanded is unset.** Treat BOTH an empty value AND a surviving
+2. **Empty or unexpanded is unset.** Treat both an empty value and a surviving
    literal `${user_config.…}` placeholder as unset (the key's own default applies);
    never read the literal token as a value. Substitution is documented at
    [plugin manifest reference: reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
@@ -65,7 +65,7 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
 5. **Report the deep-research verification depth.** `research_deep_verification` sets
    the default depth of `do-your-research`'s fan-out tier. Report the effective value: `tiered`
    (fan subagents out only over load-bearing items) or `full` (subagent-verify every
-   item). An unset value, a surviving literal placeholder, OR any unrecognized string
+   item). An unset value, a surviving literal placeholder, or any unrecognized string
    (not exactly `tiered` or `full`) all resolve to the `tiered` default. Report an
    unrecognized value as a WARN (typo; remediation: fix it via the plugin
    configuration prompt) that still falls back to tiered, never a hard failure. Note
@@ -114,7 +114,7 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
      [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
      live.
 9. Tell the user to rerun `check` after reconfiguration **in a fresh session**, and report the
-   OBSERVED effective values from that fresh run, never an unobserved change. Substitution of the
+   observed effective values from that fresh run, never an unobserved change. Substitution of the
    rendered `${user_config.*}` values is documented at
    [plugin manifest reference: reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
    which does not say when skill content is re-rendered.

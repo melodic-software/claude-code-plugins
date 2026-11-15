@@ -37,10 +37,11 @@ gracefully when absent, no hard dependencies:
 ## Works in any repo
 
 - **Document placement, via the artifact protocol.** Plan progress marks, the
-  autonomous-run `DEVIATIONS.md` log, status summaries, and handoff notes land per the
-  plugin's lifecycle artifact protocol (`reference/artifact-protocol.md`): in the
-  self-ignoring `<memory_dir>/<slug>/` (default `.work/<slug>/`), never committed. Durable
-  plan content is pasted into the pull request body or the linked issue.
+  autonomous-run `DEVIATIONS.md` log, and status summaries land per the plugin's lifecycle
+  artifact protocol (`reference/artifact-protocol.md`): in the self-ignoring
+  `<memory_dir>/<slug>/` (default `.work/<slug>/`), never committed; handoff notes go under
+  `<memory_dir>/handoffs/` (default `.work/handoffs/`), also self-ignored and never committed.
+  Durable plan content is pasted into the pull request body or the linked issue.
 - **Reads your conventions, assumes none.** Testing structure, commit conventions,
   branch policy, and project invariants come from your own `CLAUDE.md` and rules.
 - **Cross-plugin refs degrade gracefully.** Companion plugins (`toolchain`, `testing`,

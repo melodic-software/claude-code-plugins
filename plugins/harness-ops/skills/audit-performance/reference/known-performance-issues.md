@@ -37,7 +37,7 @@ before any reinstall. Our reading of why each matters, in our words:
   regression in one of these areas, or the changelog drops a version anchor.
 
 - **The probed binary may not be your daily `claude`.** `cli.version` is whatever
-  `shutil.which("claude")` found on the ENGINE PROCESS PATH, which is not the operator's login
+  `shutil.which("claude")` found on the engine process PATH, which is not the operator's login
   shell PATH, so a version captured here can belong to a binary the operator never runs: a
   project-local `node_modules/.bin/claude`, a second install earlier on PATH, or a leftover under
   `~/.claude/local/`. The report names `probe_path`, `resolved_path`, the containment base it
@@ -102,7 +102,7 @@ evidence instead of a ritual.
 The layer a slowness audit most often clears every other suspect and then fails to reach. What
 follows is measured behavior from one full manual audit on a 24-core Windows 11 workstation
 running 10 to 13 concurrent sessions, plus the documented product behavior it rests on. Treat the
-absolute numbers as one machine's readings and the SHAPES as the transferable part.
+absolute numbers as one machine's readings and the shapes as the transferable part.
 
 ### Per-spawn cost is the denominator, and it moves with load
 
@@ -143,7 +143,7 @@ work begins:
   median from 10,850 ms to 2,777 ms, roughly 4x, measured back to back at the same load.
 
 The third names a shell the command string cannot show. We treat a shell-form `command` (one
-that OMITS `args`; an explicit `"args": []` is exec form) and the statusline command as always
+that omits `args`; an explicit `"args": []` is exec form) and the statusline command as always
 wrapped in a shell, and exec form as spawned with none. A shell-form command that then spells a
 shell of its own therefore puts at least two shells in the chain, which is
 `shell-form-hook-names-a-second-shell`.
@@ -154,7 +154,7 @@ shell of its own therefore puts at least two shells in the chain, which is
   live.
 
 Two consequences for reading the report: an empty finding list means no row named a
-SECOND shell, never that the rows run unwrapped; and the documented floor is a count of shells in
+second shell, never that the rows run unwrapped; and the documented floor is a count of shells in
 the chain, not of surviving processes, which the engine does not run anything to measure. Which
 bash the wrapping shell is on Windows is `fan_out.shell_resolution`.
 
@@ -277,28 +277,28 @@ session process's start time and says plainly when `/reload-plugins` or a restar
 
 **The truthiness trap.** `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS` is gated by a JavaScript
 truthiness test on the raw string (`if (!process.env.CLAUDE_CODE_...) return false`), and in
-JavaScript the string `"0"` is TRUTHY. Setting it to `0` reads like a disable in a settings file
+JavaScript the string `"0"` is truthy. Setting it to `0` reads like a disable in a settings file
 and is a silent no-op; only removing the variable disables it. Any advisory that says "set it to
 0" is actively wrong. Re-verify the gating shape against the shipped binary before resting a
 conclusion on it. For what each cap accepts, and whether any value disables it, see their rows in
 [env vars: variables](https://code.claude.com/docs/en/env-vars#variables).
 
 The engine reports these three against their documented defaults and flags one that is set but
-undocumented upstream. It deliberately does NOT cross-check env keys against a strings scan of
+undocumented upstream. It deliberately does not cross-check env keys against a strings scan of
 the shipped binary: that capability lives in `/harness-ops:inventory`'s extractor, and reaching
 into another skill's private surface to borrow it would breach the encapsulation convention. An
 operator who wants that check runs that skill.
 
 ### Orphan attribution needs parent liveness, not age
 
-Of 14 `conhost.exe` processes over 24 h old on the audited machine, 12 had LIVE parents (device
+Of 14 `conhost.exe` processes over 24 h old on the audited machine, 12 had live parents (device
 managers, a console host chain, a monitoring service); killing them would have broken running
 software. Exactly one was a true orphan, alongside one 6.2-day `bash.exe` still running a
 statusline script from a plugin version that had since been replaced. Age alone would have
 convicted all 14.
 
 Population trend matters as much as population size, and needs two samples: `conhost` went 34 to
-44 to 49 (mild accumulation) while `bash` went 153 to 137 to 93 to 134 to 112, which is CHURN,
+44 to 49 (mild accumulation) while `bash` went 153 to 137 to 93 to 134 to 112, which is churn,
 not accumulation. A single sample cannot tell the two apart, and the first reading of that bash
 series was written up as accumulation and had to be retracted.
 
@@ -312,7 +312,7 @@ shortlist's processes and drops a row whose every process, all of them examined,
 The classifier is the kernel's own predicate, `PF_KTHREAD`, read two ways: the `Kthread:` line of
 `/proc/<pid>/status` where the kernel publishes one, else bit `0x00200000` of the task flags word,
 field 9 of `/proc/<pid>/stat`. Field 2 of `stat` is the command in parentheses and may itself
-contain spaces and `)`, so the split runs from the LAST `)`.
+contain spaces and `)`, so the split runs from the last `)`.
 
 Three classifiers that look equivalent and are not:
 
@@ -386,7 +386,7 @@ The shape, not the numbers, is the transferable part:
   every spawn-reduction measure in this reference also reduces the leak rate there. That is one
   host's shape, not every host's: the Claude Desktop host in anthropics/claude-code#91265
   stop-tested process-creation churn with no change in its leak rate.
-- **The per-package pwsh ordering is NOT established, and swapping PowerShell packages is not a
+- **The per-package pwsh ordering is not established, and swapping PowerShell packages is not a
   recommendation.** A later background-corrected A/B on the same host (150 spawns per arm, two
   rounds, other sessions active, background 1.5 to 7.1/s) put the portable-zip pwsh at 7.1 per
   spawn and the Store-package pwsh at 0.84, the reverse of the quiet-window ordering above. At
@@ -466,7 +466,7 @@ default, which is the always-armed precondition the foreground-lock write-up nam
 that the write-up linked under "The per-logon workaround" below reports is the likely cause; the
 A/B that would confirm the mechanism there is written and has not been run.
 
-**Four service arms came back NO CANDIDATE.** On 2026-09-18 the elevated runbook below was run
+**Four service arms came back with no candidate.** On 2026-09-18 the elevated runbook below was run
 four times over the NVIDIA display container, Razer Game Manager, THX spatial audio and Wispr
 Flow, covering them singly and in combination. Every arm read 16.8 to 18.7 tokens/s and 0.46 to
 0.49 Token objects per shell spawn at flat driver-only load. A bare `bash -c true` loop with no
@@ -500,7 +500,7 @@ Windows build later than 26200.9106 changes the per-spawn rate.
 
 **Drift record.** *Claim:* on the reference host the leak is minted per process creation and only
 by some binaries (bash and pwsh mint, cmd and python do not), and every `WC*` tag there sits under
-1 KB; on the host of the 2026-09-18 runs four service arms came back NO CANDIDATE and the live
+1 KB; on the host of the 2026-09-18 runs four service arms came back with no candidate and the live
 foreground-lock timeout read 2,147,483,647 ms. *Basis:* the engine's `kernel_objects` census taken
 before and after N `subprocess.run` spawns per binary plus a 1-per-minute sampler (2026-09-14), a
 livekd `!poolused 2` dump at 2 d 20 h uptime (2026-09-14), and four elevated stop-and-resample
@@ -527,10 +527,11 @@ charged it. Both thresholds are calibrated on this one host's two states, ten ti
 clean-boot count and a fifteenth of its leaking count. A second host's readings, healthy or
 leaking, are the recheck trigger for them.
 
-### The per-logon workaround, on trial on one host
+### The per-logon workaround, measured on one host
 
-We reapply the workaround after every logon because the write-up linked below reports that the
-live value is reset at logon; we have not yet observed that reset on the trial host. We run it from
+We reapply the workaround after every logon because the live value is reset at logon: the write-up
+linked below reports it, and on the trial host the log showed the next interactive terminal setting
+it again after a reboot on 2026-10-27. We run it from
 the first interactive terminal because the trial host's own probe (the rendered
 `foreground-lock.ps1` run from a background process over the WSL hop, 2026-10-26) shows a
 background caller is refused: `before=2147483647 after=2147483647 set=False error=87`.
@@ -553,14 +554,17 @@ background caller is refused: `before=2147483647 after=2147483647 set=False erro
   settled at +5.98 per spawn for `bash_5ext` (1,793 for 300) and +1.04 for `cmd_child` (312 for
   300), against null arms of +54 and +12. So the leak and its one-per-creator count are unchanged
   on the 2026-10-13 build.
-- **After-measurement:** the same arms after a logon with the workaround active, then again at
-  day 7, with the log showing one successful set per logon. Expect about 0 per spawn. Results go
-  on melodic-software/claude-code-plugins#4372.
+- **After-measurement:** with the workaround active, both arms settled at about 0 per spawn on
+  2026-10-26 (`bash_5ext` -6 in total for 300, `cmd_child` -42), and again at day 7, 2026-11-02
+  (`bash_5ext` +48 for 300, inside the null arms' band), when the live timeout still read 0 after
+  a reboot and the log showed the next interactive terminal had set it again. Record:
+  melodic-software/claude-code-plugins#4372.
 
-**Probe record.** The baseline and the error-87 refusal come from `measure.py` (the
-2026-09-23 `arms.py` plus the live timeout per row) and the rendered `foreground-lock.ps1`, both
-run on the trial host on 2026-10-26. **As of**: 2026-10-26. **Recheck trigger**: the day-7
-after-measurement on #4372.
+**Probe record.** The baseline, the error-87 refusal and the after-measurements come from
+`measure.py` (the 2026-09-23 `arms.py` plus the live timeout per row) and the rendered
+`foreground-lock.ps1`, run on the trial host from 2026-10-26 to 2026-11-02. **As of**: 2026-11-02.
+**Recheck trigger**: a Windows build that changes the logon reset or the per-creator count, or a
+host whose log shows an interactive terminal refused the set.
 
 ### Attribution runbook (the engine never does this)
 
@@ -616,7 +620,7 @@ The capture a reboot destroys comes first; after that the order is by cost, not 
    the engine's `kernel_objects` basis string points at. Candidates on the audited host, in order:
    `ArmouryCrateService`, `LightingService` (Aura), `ROG Live Service`, `AsusFanControlService`,
    `AsusUpdateCheck`, `asComSvc`, then the Razer Chroma SDK services, NVIDIA's
-   `NvContainerLocalSystem`, and Wispr Flow. The four arms named above came back NO CANDIDATE, but
+   `NvContainerLocalSystem`, and Wispr Flow. The four arms named above came back with no candidate, but
    only two of them, `NvContainerLocalSystem` and Wispr Flow, are on this list: Razer Game Manager
    is not the Chroma SDK services, and THX spatial audio does not appear here at all. Budget
    accordingly.
@@ -669,11 +673,11 @@ audited machine and all four were wrong; without the record, the next operator r
 - **Antivirus.** The `WdFilter` minifilter was Stopped, `WinDefend` and `Sense` were stopped,
   `MsMpEng` was not running, and `DisableAntiVirus` was 1. The Windows Defender guidance this
   skill emits would have pointed at a cause that did not exist. Note that `Get-MpComputerStatus`
-  throwing *Provider load failure* is a symptom of Defender being DISABLED, not evidence of it
+  throwing *Provider load failure* is a symptom of Defender being disabled, not evidence of it
   scanning.
 - **Third-party EDR.** None present; only stock minifilters (`bindflt`, `CldFlt`, `FileInfo`,
   `luafv`, `storqosflt`, `wcifs`).
-- **Filesystem.** The repository volume was ReFS on a VHDX and measured FASTER per file than the
+- **Filesystem.** The repository volume was ReFS on a VHDX and measured faster per file than the
   NTFS system drive (`git status` floor 1,955 ms over 7,238 files versus 1,105 ms over 2,055;
   enumeration 50 ms versus 57 ms). This was asserted as a cause before it was tested, and the
   test refuted it.
@@ -682,8 +686,8 @@ audited machine and all four were wrong; without the record, the next operator r
 
 ## Measurement method
 
-1. **Use a monotonic in-process clock.** The engine's `perf_counter` is correct. Do NOT shell out
-   to `date` around a command: `s=$(date +%s%N); cmd; e=$(date +%s%N)` puts a fork INSIDE the
+1. **Use a monotonic in-process clock.** The engine's `perf_counter` is correct. Do not shell out
+   to `date` around a command: `s=$(date +%s%N); cmd; e=$(date +%s%N)` puts a fork inside the
    measured interval and inflated readings by 1 to 3 s on the loaded machine.
 2. **Bracket, never single-sample.** Report min, median, and max with the concurrent process load
    at sample time.

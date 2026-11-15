@@ -3,6 +3,13 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.6] - 2026-11-15
+
+### Changed
+
+- The delta, migrate and realign instructions and the shared mechanics notes use plain emphasis instead of capital letters, point at the live memory docs for load behavior, and correct stale measurement notes.
+- The load-verification probe forbids the Agent tool, so the probe's Read cannot be delegated to a subagent.
+
 ## [1.2.5] - 2026-11-15
 
 ### Changed

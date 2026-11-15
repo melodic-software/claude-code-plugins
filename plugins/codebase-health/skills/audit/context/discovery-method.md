@@ -16,18 +16,18 @@ For each active dimension, follow the **claim-extraction method**:
 
 Not a checklist to browse. Read every line. The audit config's per-dimension `example-claims` rows
 (`{ claim: "If a doc asserts X", verify-via: "<command/path>" }`) are the ones the agent will
-actually see in THIS repo. Apply the same pattern to every claim encountered: extract the claim,
+actually see in this repo. Apply the same pattern to every claim encountered: extract the claim,
 identify the verification path, run it.
 
 **Verify all claims, not just some.** A single line or bullet list often contains multiple
-factual claims. Finding one issue on a line does NOT mean other claims on that line are correct.
+factual claims. Finding one issue on a line does not mean other claims on that line are correct.
 Verify each one independently. For example:
 
-- A tools list ("tool A, tool B, tool C, tool D") contains separate claims. Verify ALL of them
+- A tools list ("tool A, tool B, tool C, tool D") contains separate claims. Verify all of them
   against the package manifest, not just the first two.
 - A dependency rule ("Layer A → Layer B only") is a verifiable claim. Read the actual build
   manifest to confirm, even if another claim on the same line already has an issue.
-- A line with both a file reference AND a factual assertion needs both verified separately.
+- A line with both a file reference and a factual assertion needs both verified separately.
 
 ## Dimension-specific guidance
 
@@ -37,7 +37,7 @@ off. The primary method is always: read the file, extract claims, verify each on
 
 ## Execution: fan out one subagent per file
 
-Discovery runs as a **parallel subagent fan-out, one agent per primary-source file**, NOT a single
+Discovery runs as a **parallel subagent fan-out, one agent per primary-source file**, not a single
 sequential pass. A single context cannot exhaustively verify many files at once: it skips claims as
 context fills, which is the most common way an audit misses drift. One dedicated subagent per file
 keeps each file's verification in a fresh, focused context.
@@ -45,13 +45,13 @@ keeps each file's verification in a fresh, focused context.
 1. **Enumerate**: expand the active dimensions' `primary-sources` globs (from the resolved audit
    config) to a concrete file list. `verification-sources` are the read-only ground-truth set every
    agent may consult.
-2. **Scope first (MANDATORY, cost gate).** An unscoped run fans out one subagent per doc, config,
-   and source file, a very large token cost. REQUIRE a `[scope]` or dimension filter
+2. **Scope first (mandatory, cost gate).** An unscoped run fans out one subagent per doc, config,
+   and source file, a very large token cost. Require a `[scope]` or dimension filter
    (`--docs-only` etc.) for large targets. If the enumerated list exceeds ~20 files, confirm scope
    with the user before dispatching. Never fan out the whole repo unprompted.
-3. **Dispatch**: one subagent per file. Each agent's ALLOWED surface = its ONE assigned file
-   (read) + all verification-sources (read-only). Verification-sources stay read-only ALLOWED even
-   when the same path also appears as another dimension's primary-source. FORBIDDEN = every other
+3. **Dispatch**: one subagent per file. Each agent's allowed surface = its one assigned file
+   (read) + all verification-sources (read-only). Verification-sources stay read-only allowed even
+   when the same path also appears as another dimension's primary-source. Forbidden = every other
    primary-source file (except those doubling as verification-sources, per the read-only exception),
    any write, any git op. Each agent applies the claim-extraction method above to its file and
    returns findings + a verified-count. It is done when every claim in its file is either a finding or
@@ -64,7 +64,7 @@ a file outside its allowed surface. Use repo-relative paths only (never absolute
    exception.** Cross-file claims, such as DRY duplication across N files, a dependency-direction
    rule, or an architecture boundary, can only be validated by reading peer files, and the fence
    forbids the *other* primary-source files. So for any dimension whose claims are cross-file
-   (notably `code-quality` and `architecture`), the config MUST list the relevant source roots and
+   (notably `code-quality` and `architecture`), the config must list the relevant source roots and
    dependency manifests in `verification-sources` as well. Those paths may also be
    `primary-sources`, and the read-only exception covers that overlap. If a cross-file dimension's
    `verification-sources` omit the peer files its claims reference, those findings are
