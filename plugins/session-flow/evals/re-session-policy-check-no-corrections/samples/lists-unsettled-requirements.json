@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The retro proposes this hook and does not write or prove it. Before it is adopted it must meet: (1) no false positives, so --force-with-lease on a feature branch passes; (2) its block message names the fix; (3) it fails on a planted force push and passes after the revert; (4) it runs in the hook itself, the one place an action-guard runs; (5) a kill switch and exceptions with an expiry.",
+      "why": "all five, in words"
+    },
+    {
+      "answer": "Requirements on the proposed hook: guardrail criterion items 3, 4, 5, 6 and 8 (precision, fix-naming message, planted-violation proof, same command where it runs, kill switch). The retro cannot settle these; the check's author must.",
+      "why": "cited by number as requirements"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The hook must not block --force-with-lease, and its message should say to use a feature branch.",
+      "why": "two of the five"
+    },
+    {
+      "answer": "I wrote .claude/hooks/no-force-push.sh, ran it on a planted push (it failed) and after the revert (it passed). It has no false positives, names the fix, runs in the hook, and honors NO_FORCE_PUSH_GUARD=0.",
+      "why": "states the properties as met by a check the retro wrote"
+    }
+  ]
+}

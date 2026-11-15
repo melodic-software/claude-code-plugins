@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Strongest rung that can decide it: `action-guard` (a hook on an action no file check sees).",
+      "why": "action-guard named"
+    },
+    {
+      "answer": "Rung: harness-setting first (a deny rule), with the PreToolUse hook covering the -f and + refspec forms.",
+      "why": "harness-setting named"
+    },
+    {
+      "answer": "| 1 | Hooks | project | Check (behavior-test rung) | ... |",
+      "why": "any rung id counts, inside punctuation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This belongs on the static-analysis tier as a hook that blocks the push.",
+      "why": "a tier, no rung id"
+    },
+    {
+      "answer": "Add a scaffold for new branches and an instruction line.",
+      "why": "scaffold and instruction are left out of the pattern: both are ordinary words, and instruction is a guidance rung"
+    },
+    {
+      "answer": "Use a reaction-guardrail script before pushing.",
+      "why": "a rung-like token inside another word"
+    }
+  ]
+}
