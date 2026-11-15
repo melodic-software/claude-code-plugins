@@ -1,5 +1,5 @@
 ---
-description: "Set up the formal-verification plugin's toolchain: check reports the script runtime, Java, the TLC model checker jar and the Pele renderer; apply install-model-checker or apply install-renderer downloads the pinned file into the plugin data directory and keeps it only when its checksum matches. Use when: 'set up formal verification', 'install TLC', 'is the chart skill ready', or /formal-verification:chart reported blocked: toolchain missing. Never installs Java."
+description: "Set up the formal-verification toolchain: check reports the script runtime, Java, the TLC jar and the renderer; apply install-model-checker or install-renderer downloads the pinned file into the plugin data directory, kept only on a checksum match. Use when: 'set up formal verification', 'install TLC', or /formal-verification:chart reported blocked: toolchain missing. Never installs Java."
 argument-hint: "[check|apply] [install-model-checker|install-renderer] [--unattended]"
 user-invocable: true
 disable-model-invocation: true
