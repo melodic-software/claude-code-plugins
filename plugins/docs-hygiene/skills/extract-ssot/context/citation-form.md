@@ -37,7 +37,7 @@ Three rules baked in:
 
 ## 1-line inline summary template
 
-For non-trivial citations, append a 1-line summary AFTER the citation so the reader can skim the caller and understand the shape without clicking through:
+For non-trivial citations, append a 1-line summary after the citation so the reader can skim the caller and understand the shape without clicking through:
 
 ```text
 <scope phrase> per `<file>.md` "<heading>": <≤80 char shape description>.
@@ -48,7 +48,7 @@ Examples of the shape pattern (substitute the actual rule file and heading at th
 - A workflow step citation might look like: `<step name> per <workflow>.md "<step heading>": short cadence/cycle description.`
 - A naming citation might look like: `<naming concern> per <style-guide>.md "<rule heading>": short rule shape (kebab-case, 40-char cap, etc).`
 
-Summary format: `: <≤80 char description>`. The colon is the separator, not an em dash: this repository's house style admits a colon where a definition or description follows and admits no em dash at all. Aim for the SHAPE of the cited rule, not its full content.
+Summary format: `: <≤80 char description>`. The colon is the separator, not an em dash: this repository's house style admits a colon where a definition or description follows and admits no em dash at all. Aim for the shape of the cited rule, not its full content.
 
 When to inline a summary:
 
@@ -61,7 +61,7 @@ When to inline a summary:
 
 ## Line-wrap edge case
 
-Heading text MUST stay on one line at the citation site, even if it pushes the surrounding sentence past line width. The literal heading is the grep token; line-wrapped citations are unrecoverable.
+Heading text must stay on one line at the citation site, even if it pushes the surrounding sentence past line width. The literal heading is the grep token; line-wrapped citations are unrecoverable.
 
 ❌ Wrong (heading wraps across lines):
 
@@ -81,7 +81,7 @@ If the heading itself contains characters that confuse grep (parens, em-dashes, 
 
 ## Rename discipline
 
-Headings in an SSOT file are stable contracts. After ANY heading edit in an SSOT, invoke `/docs-hygiene:rename-references` via the Skill tool immediately. It sweeps every form in its pattern library, including:
+Headings in an SSOT file are stable contracts. After any heading edit in an SSOT, invoke `/docs-hygiene:rename-references` via the Skill tool immediately. It sweeps every form in its pattern library, including:
 
 | Form | Example | Pure-token grep catches? |
 |------|---------|--------------------------|

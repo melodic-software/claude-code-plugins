@@ -25,7 +25,7 @@ from recall of them. Resolve a readable copy per the method doc's ladder:
 1. **The consuming project declares its standards source.** When the
    repo's own `CLAUDE.md` / `.claude/rules/` names where the conventions
    live (a shared standards repository, a docs tree, a conventions
-   directory), resolve and read THAT. Prefer a local checkout when one
+   directory), resolve and read that. Prefer a local checkout when one
    exists; a remote read (via the host's CLI or web tree) is the fallback.
 2. **No external source declared → the repo's own conventions.** Read the
    conventions the repo carries itself (its `CLAUDE.md`, `.claude/rules/`,
@@ -74,10 +74,10 @@ the audit runs against.
   silent conformance.** A change that belongs in the shared standards, not
   this repo, is **named and drafted** for that repo's proper change path and
   routed to the human, rather than patched into the downstream copy.
-  "Routed" means proposed and OFFERED: name the change, draft it, and offer
+  "Routed" means proposed and offered: name the change, draft it, and offer
   to open the standards PR. Do not open that PR, or any outward artifact,
   without the user's explicit opt-in (the plugin-wide outward-artifact gate
-  in the method doc, mirroring the OFFER gate the fan-out tier of
+  in the method doc, mirroring the offer gate the fan-out tier of
   `/discipline:recheck-against-upstream` applies to its work-items routing). When the work disagrees with a standard, that
   disagreement goes upstream too: neither quietly ignore the standard nor
   quietly comply with one you have reason to think is wrong. (This is the
@@ -95,7 +95,7 @@ existing managed / locally-owned seam when one is declared.
 
 ## Gotchas
 
-- When only a remote fetch or the portable baseline resolved, cite THAT, not
+- When only a remote fetch or the portable baseline resolved, cite that, not
   an assumed local path a reader might expect, since the standards may live
   in several places.
 - The convention set evolves; trust the source's own index over any doc

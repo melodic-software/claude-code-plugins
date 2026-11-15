@@ -95,7 +95,8 @@ those:
   [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)).
   That machine-level overflow is a configuration concern; route to
   `/harness-config:audit`, invoked via the Skill tool (degrade to prose).
-  `/doctor` estimates the listing's cost.
+  `/doctor` estimates the listing's cost
+  ([skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-%2Fdoctor)).
 - **Deterministic per-prompt routing.** A `UserPromptSubmit` hook that injects a
   task-to-skill mapping on every message is an always-on mechanism with a
   per-prompt token cost, owned by a hooks-capable plugin, not by this corrector.
@@ -106,7 +107,7 @@ The dividing line: if a skill was in the listing and simply went unused, that
 is this skill. If a skill could not surface because its description was thin or
 the listing overflowed its budget, that is the routed territory above.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not force-invoke an ill-fitting skill.** The goal is to use the skill
   that *fits*, not to fire one for its own sake; "no skill fits, proceeding
@@ -124,5 +125,5 @@ the listing overflowed its budget, that is the routed territory above.
   just do the work without the discipline the parent took for granted. The fix
   lives in the *delegation prompt* (name the skills) or the *agent definition*
   (`skills:` preload), not in the subagent's own run.
-- Invoking a skill IS the re-anchor. Reading its description and then
+- Invoking a skill is the re-anchor. Reading its description and then
   improvising the procedure anyway is the exact drift this corrects.

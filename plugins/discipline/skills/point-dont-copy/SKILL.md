@@ -22,7 +22,7 @@ Read it; this file adds only what is specific to duplication discipline.
 ## The discipline this re-anchors
 
 Point at the living source; do not copy what it owns. Convention docs
-already own this doctrine: re-anchor THEM, do not restate them. Resolve the
+already own this doctrine: re-anchor them, do not restate them. Resolve the
 source of truth per the method doc's ladder:
 
 - **Facts you own (in-repo).** Your organization's reference-don't-duplicate
@@ -53,18 +53,18 @@ stale when the source moves.
   contract (a tool's invocation surface, the command and its arguments),
   never the internal script or file names behind it, which break every
   citation the moment they move.
-- **No capability enumeration.** Phrase your OWN duties open-ended, not just
+- **No capability enumeration.** Phrase your own duties open-ended, not just
   upstream-owned inventories. A closed list of what something can do goes
   stale as the surface evolves; name current mechanisms only as
   clearly-marked examples. "mechanisms such as X and Y (examples, not a
   fixed list)", never as the definition.
 
-### What is NOT a copy
+### What is not a copy
 
 Owning a fact is not copying it. A config genuinely adapted for this repo, a
 constraint this project itself pins, a one-shot dated research deliverable,
 and an error string empirically observed in this environment are content
-THIS project authors and owns. They follow the conventions' "describe" and
+this project authors and owns. They follow the conventions' "describe" and
 "empirical findings / operator recipes the repo records" carve-outs, not the
 copy prohibition. Do not flatten them into pointers.
 

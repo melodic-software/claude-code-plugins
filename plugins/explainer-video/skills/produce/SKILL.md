@@ -143,7 +143,7 @@ When the caller hands a `storyboard.json` (version 1,
 instead of a topic, render held still frames instead of a scene. The storyboard is data: never
 write markup from it, and never edit its text to get past a check.
 
-1. Run `scripts/stills.py --storyboard <file> --out <dir> --script-only` to validate, scan and
+1. Run `${CLAUDE_PLUGIN_ROOT}/scripts/stills.py --storyboard <file> --out <dir> --script-only` through the launcher to validate, scan and
    write `<dir>/script.txt`, with one `--scan-pattern <regex>` per pattern the caller passed (here
    and in steps 2 and 3); a storyboard rejection exits 2 (a screenshot moment with no
    `data.sidecar` key is one), a sidecar file that does not exist 3, and a scan hit 4, before any

@@ -11,8 +11,8 @@ metadata:
 
 ## Repository context
 
-The current repository is both the CONSUMER, whose convention home declares where artifacts land,
-and the DEFAULT SUBJECT, whose tracked files declare the schema.
+The current repository is both the consumer, whose convention home declares where artifacts land,
+and the default subject, whose tracked files declare the schema.
 
 Collect with an **individual** Bash call, one command per call: the project root,
 `git rev-parse --show-toplevel`. Treat a failure (not a repository, git unavailable) as an unknown
@@ -38,11 +38,12 @@ follow the exit code; never parse the root instruction file yourself. Exit 0: re
 `<home>/architecture/README.md` for `architecture_dir`. Exit 1, 2, or 3: no declared home.
 
 Per key, in order: `--out <dir>` wins for this run alone, then a declared `architecture_dir`, then
-one question. `architecture_dir` has NO default. An undeclared and unconfirmed home, including
-every non-interactive run, STOPS and points at `/architecture:setup`. Do not invent a directory.
+one question. `architecture_dir` has no default. An undeclared and unconfirmed home, including
+every non-interactive run, stops and points at `/architecture:setup`. Do not invent a directory.
 
-Resolve `diagram_dialect.data` by restating this ladder, then running the resolver rather than
-parsing the topic doc yourself. The ladder is a resolution order, not a task list:
+Resolve `diagram_dialect.data` by running the resolver rather than parsing the topic doc
+yourself. This skill restates the convention's ladder below; it is a resolution order, not a task
+list:
 
 ```markdown
 1. Anchor at the repository root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
@@ -167,7 +168,7 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
 `${user_config.*}` string in a shell command), and its report line is printed. Procedure:
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Open a database connection, read production data, or compare live rows to the declaration.
 - Indexes, data volumes, query plans, lineage, or ETL.

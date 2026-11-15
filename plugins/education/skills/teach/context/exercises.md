@@ -15,7 +15,7 @@ Exercises bridge Knowledge → Skills. Each exercise targets 1-2 specific concep
 
 ## Design Rules
 
-- **One concept per exercise:** don't combine debugging AND new syntax AND architecture in one problem
+- **One concept per exercise:** don't combine debugging and new syntax and architecture in one problem
 - **Immediate feedback:** user gets response right after attempt, not after a batch
 - **Equal-length quiz answers:** in any multiple-choice question, write options of roughly equal length and formatting weight; a longest-or-most-detailed correct answer leaks itself through presentation alone
 - **Effortful retrieval over recognition:** prefer recall-from-memory prompts to "which of these looks right"; interleave related concepts across practice tasks (skills practice only) per [pedagogy.md](pedagogy.md) "Fluency vs storage strength"
@@ -55,7 +55,7 @@ Exercises bridge Knowledge → Skills. Each exercise targets 1-2 specific concep
 
 For repo-grounded exercises (grounding discovered per SKILL.md "Codebase mode"):
 
-- Use ACTUAL repo code as setup material (Read the file, present the relevant section)
+- Use actual repo code as setup material (Read the file, present the relevant section)
 - Create exercises against real patterns the repo defines: "Add a new variant following the existing convention in {located file}"
 - Reference real tests as examples of expected behavior
 - Connect to the repo's own architectural rules: "Why would adding this dependency violate the repo's dependency-direction rule?"

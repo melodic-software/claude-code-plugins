@@ -1,12 +1,12 @@
 # Flavor vs content matrix
 
-Canonical FLAVOR / CONTENT taxonomy for the `/docs-hygiene:compress` semantic-diff pass, plus per-content-type variants tuning expected yield and revert-pass focus.
+Canonical flavor / content taxonomy for the `/docs-hygiene:compress` semantic-diff pass, plus per-content-type variants tuning expected yield and revert-pass focus.
 
 ## Canonical taxonomy
 
 ### Flavor (safe to cut)
 
-- Articles (a/an/the), only when `compress_articles` is `cut`. Under the default, `keep`, an article is CONTENT for this run: every one stays, and a dropped article is reverted
+- Articles (a/an/the), only when `compress_articles` is `cut`. Under the default, `keep`, an article is content for this run: every one stays, and a dropped article is reverted
 - Filler (just/really/basically/actually/simply)
 - Hedging (perhaps/somewhat/might)
 - Pleasantries
@@ -15,7 +15,7 @@ Canonical FLAVOR / CONTENT taxonomy for the `/docs-hygiene:compress` semantic-di
 - Conversational connectives ("that said", "in other words") (Edit fallback under `cut`; batch LATITUDE and every `keep` run are word-level)
 - Verbose verb phrases ("make use of" → "use")
 
-### Content (NEVER cut)
+### Content (never cut)
 
 - (a) every directive, including imperative force: "must have" ≠ "has"
 - (b) every concrete prohibited-pattern example with a literal token
@@ -30,19 +30,19 @@ Canonical FLAVOR / CONTENT taxonomy for the `/docs-hygiene:compress` semantic-di
 
 ## Per-content-type variants
 
-The taxonomy is invariant across content types; the EXPECTED YIELD and the RISK PROFILE (which (a)–(j) Content items are most often at stake) vary. Variants tune revert-pass strictness and the audit-action expected-yield estimate per `context/target-types.md`.
+The taxonomy is invariant across content types; the expected yield and the risk profile (which (a)–(j) Content items are most often at stake) vary. Variants tune revert-pass strictness and the audit-action expected-yield estimate per `context/target-types.md`.
 
 | Content type | Expected yield | At-risk content items (per (a)–(j) above) | Variant guidance |
 |---|---|---|---|
 | **Always-loaded instruction file** (`.claude/rules/**`, `AGENTS.md`, `CLAUDE.md`, `**/SKILL.md`) | 2-3% | (a) directives, (d) scope qualifiers, (e) rule-unique rationale, (f) cross-references | Author-time-disciplined. Default action will revert per SKILL.md "Hard rules" (<3% AND 0SL → REVERT). `--force` only when a targeted sub-3% diff is intentional. Empirical baseline: 3/3 attempts reverted |
 | **Onboarding doc** (README onboarding, `docs/onboarding-*.md`, contributor guides) | 8-15% | (b) prohibited-pattern tokens, (c) counter-examples, (h) thresholds | Verbose-prose baseline. Hedging + pleasantries dense; restatement of policy across sections common. Revert-pass strictness: keep every "X not Y" pair intact (counter-example loss = ambiguity in onboarding) |
 | **README** (`README.md`, `*/README.md` at app/lib/service roots) | 5-12% | (f) cross-references, (g) exception clauses, (j) inline-code tokens | Project-front-door surface. Inline-code density usually high (commands, paths); revert any (j) drop. Navigation depends on the cross-references |
-| **Drifted skill body** (`**/SKILL.md` past ~250 lines AND not author-time-disciplined) | 4-7% (Edit-fallback / explicit target only) | (a) directives, (e) rule-unique rationale, (i) enumeration items | **Unreachable via the audit gate's batch path:** signal 1 unconditionally SKIPs every `**/SKILL.md`, so a drifted skill body needs an explicitly-named single-file target (or Edit fallback). Revert any directive softening ("must" → "should"); revert any enumeration-item drop |
-| **Third-party pasted prose** (vendor docs, external policy text, copied research notes) | 10-20% | (b) prohibited-pattern tokens, (h) thresholds, (j) inline-code tokens | Highest yield + highest risk: pasted prose carries flavor its authors did not edit. Inline-code tokens (CLI flags, schema field names) MUST survive verbatim; treat any (j) loss as SEMANTIC LOSS not AMBIGUITY |
+| **Drifted skill body** (`**/SKILL.md` past ~250 lines and not author-time-disciplined) | 4-7% (Edit-fallback / explicit target only) | (a) directives, (e) rule-unique rationale, (i) enumeration items | **Unreachable via the audit gate's batch path:** signal 1 unconditionally SKIPs every `**/SKILL.md`, so a drifted skill body needs an explicitly-named single-file target (or Edit fallback). Revert any directive softening ("must" → "should"); revert any enumeration-item drop |
+| **Third-party pasted prose** (vendor docs, external policy text, copied research notes) | 10-20% | (b) prohibited-pattern tokens, (h) thresholds, (j) inline-code tokens | Highest yield + highest risk: pasted prose carries flavor its authors did not edit. Inline-code tokens (CLI flags, schema field names) must survive verbatim; treat any (j) loss as SEMANTIC LOSS not AMBIGUITY |
 
 ## Variants never relax the preservation contract
 
-The (a)–(j) Content list is the universal preservation contract: every item is preserved on every content type, and per-type CONTENT relaxation is forbidden. The variant table tunes only EXPECTED YIELD + revert-pass FOCUS.
+The (a)–(j) Content list is the universal preservation contract: every item is preserved on every content type, and per-type content relaxation is forbidden. The variant table tunes only expected yield + revert-pass focus.
 
 ## Audit-action expected-yield mapping
 

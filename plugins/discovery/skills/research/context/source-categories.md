@@ -6,7 +6,7 @@ serve them are not, which is the point of naming categories rather than tools.
 ## Discover your tools first, never assume a fixed set
 
 Research tools vary by session: MCP servers connect and disconnect, CLIs come and go. Before
-launching, take stock of what is actually available THIS session: the active and deferred tool list,
+launching, take stock of what is actually available this session: the active and deferred tool list,
 the MCP server-instruction blocks already injected into context, and the project's MCP registry. Map
 the categories below onto whatever is there, and never hard-depend on one server: a docs-MCP server
 absent means WebFetch the docs site directly, not a category skipped.
@@ -19,7 +19,7 @@ absent means WebFetch the docs site directly, not a category skipped.
 | **Upstream source + releases** | Ground truth + recency for a tool/library | the GitHub repo, releases, `CHANGELOG.md`, required for the recency gate |
 | **Package registry** | Versions, dependencies, publish dates | the ecosystem's registry (NuGet / PyPI / npm / crates.io / Maven Central) |
 | **Spec / standard** | Definitive behavior for a protocol/language | the RFC, language spec, or standard document |
-| **AI-synthesis, DISCOVERY ONLY** | Fast breadth + citations to chase | a synthesis tool to FIND primaries and corroborators, never the terminal source for a claim. When it exposes a depth/quality knob, max it (accuracy over speed) |
+| **AI-synthesis, discovery only** | Fast breadth + citations to chase | a synthesis tool to find primaries and corroborators, never the terminal source for a claim. When it exposes a depth/quality knob, max it (accuracy over speed) |
 | **Community corroborators** | Independent agreement / dissent | named-author blogs, top-voted Q&A, practitioner posts, all corroborators rather than primaries |
 
 ## Two standing preferences

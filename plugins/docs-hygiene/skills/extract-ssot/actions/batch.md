@@ -6,7 +6,7 @@
 - [Inputs](#inputs)
 - [Steps](#steps)
 - [Step 1: Pre-flight](#step-1-pre-flight)
-- [Step 2: Verify filter (HARD GATE for batches ≥5)](#step-2-verify-filter-hard-gate-for-batches-5)
+- [Step 2: Verify filter (hard gate for batches ≥5)](#step-2-verify-filter-hard-gate-for-batches-5)
 - [Step 3: Filter](#step-3-filter)
 - [Step 4: File-overlap matrix](#step-4-file-overlap-matrix)
 - [Step 5: Wave grouping (graph coloring)](#step-5-wave-grouping-graph-coloring)
@@ -19,7 +19,7 @@
 - [Recheck triggers](#recheck-triggers)
 - [Cross-references](#cross-references)
 
-Multi-candidate orchestration. Computes a file-overlap matrix across candidates, dispatches refuse-fast `verify` to filter, then runs `plan`/`execute` in non-overlapping parallel waves OR strict sequential order (concurrent-write risk → sequential by default). Accumulates lessons in `context/lessons.md` between subagent dispatches.
+Multi-candidate orchestration. Computes a file-overlap matrix across candidates, dispatches refuse-fast `verify` to filter, then runs `plan`/`execute` in non-overlapping parallel waves or strict sequential order (concurrent-write risk → sequential by default). Accumulates lessons in `context/lessons.md` between subagent dispatches.
 
 Loaded by `/docs-hygiene:extract-ssot batch <cluster-list>`. Private surface. Invoke via `/docs-hygiene:extract-ssot batch`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
 
@@ -32,7 +32,7 @@ Loaded by `/docs-hygiene:extract-ssot batch <cluster-list>`. Private surface. In
 | Single candidate | NO. Use `/docs-hygiene:extract-ssot plan <name>` directly |
 | < 3 candidates | NO. Manual sequential dispatch is simpler |
 
-This is NOT the bundled Claude Code `/batch` skill, which is codebase-wide parallel change orchestration. This `batch` action is local SSOT-cluster orchestration instead.
+This is not the bundled Claude Code `/batch` skill, which is codebase-wide parallel change orchestration. This `batch` action is local SSOT-cluster orchestration instead.
 
 - **Pointer**: for what bundled `/batch` does, read its entry at [All commands](https://code.claude.com/docs/en/commands#all-commands) live.
 
@@ -44,7 +44,7 @@ This is NOT the bundled Claude Code `/batch` skill, which is codebase-wide paral
   [--commit-mode=<per-wave|single|none>]
 ```
 
-OR resume from working notes if a `batch` phase is mid-flight.
+Or resume from working notes if a `batch` phase is mid-flight.
 
 Candidate names match `/docs-hygiene:extract-ssot identify` output's cluster names.
 
@@ -62,7 +62,7 @@ how many commits the batch lands (`context/orchestrated-mode.md` "Cadence and co
 3. Filter: drop REFUSE-* candidates; keep PROCEED + WARN
 4. Compute file-overlap matrix across surviving candidates
 5. Group into non-overlapping waves (graph coloring on overlap matrix)
-6. Dispatch wave-by-wave; SEQUENTIAL within wave when shared files exist
+6. Dispatch wave-by-wave; sequential within wave when shared files exist
 7. Inject lesson snapshot into each subagent's prompt
 8. Per dispatch: capture verdict + new lessons surfaced
 9. Append new lessons to context/lessons.md (Lesson N+1 entries)
@@ -73,11 +73,11 @@ how many commits the batch lands (`context/orchestrated-mode.md` "Cadence and co
 
 Read `context/lessons.md` once at batch start. The snapshot is the lesson set injected into all subagent dispatches in this batch. Avoids race conditions where subagent A and B both append simultaneously.
 
-## Step 2: Verify filter (HARD GATE for batches ≥5)
+## Step 2: Verify filter (hard gate for batches ≥5)
 
 For each candidate, invoke `verify` (a private action, see `actions/verify.md`). Capture per-candidate output.
 
-**HARD GATE rule (per Lesson 10):** when `<cluster-list>` size ≥ 5, `verify` is MANDATORY before any `plan`/`execute` dispatch. Refuse fast at this step rather than spawning subagents on false-positive candidates. Subagent identify passes routinely produce ~95% FP rates without per-cluster Tier 0 verification; gating here prevents wasted dispatches. Smaller batches (1-4 candidates) may skip `verify` per user discretion (the action is still OPTIONAL there).
+**Hard-gate rule (per Lesson 10):** when `<cluster-list>` size ≥ 5, `verify` is mandatory before any `plan`/`execute` dispatch. Refuse fast at this step rather than spawning subagents on false-positive candidates. Subagent identify passes routinely produce ~95% FP rates without per-cluster Tier 0 verification; gating here prevents wasted dispatches. Smaller batches (1-4 candidates) may skip `verify` per user discretion (the action is still optional there).
 
 If the batch fails the verify-gate (≥80% candidates REFUSE), abort the batch and surface the diagnostic to the user. It likely signals the identify pass needs hardening per the Discrimination rules in `actions/identify.md`. Don't dispatch `plan`/`execute` on the surviving 20%; the user picks scope manually.
 
@@ -152,13 +152,13 @@ waves:
 
 ## Step 6: Dispatch policy
 
-**SEQUENTIAL within wave when ANY of:**
+**Sequential within wave when any of:**
 
-- Wave has > 1 candidate AND any pair has shared files
+- Wave has > 1 candidate and any pair has shared files
 - Wave touches files that another wave already touched in this batch (chronological dependency)
 - Candidate has `verify-status: WARN` (an extra adversarial-review step is warranted)
 
-**PARALLEL within wave allowed when ALL of:**
+**Parallel within wave allowed when all of:**
 
 - All candidates in the wave are pairwise disjoint per the overlap matrix
 - No candidate touches files already edited in earlier waves
@@ -184,7 +184,7 @@ Lesson 1: Discriminating-phrase grep beats keyword density
 ... (full lessons.md body)
 ```
 
-The subagent treats lessons as advisory. It applies them in its own decision-making but does NOT modify `lessons.md` directly. New lessons from THIS subagent's run are returned in the deliverable summary, not committed by the subagent.
+The subagent treats lessons as advisory. It applies them in its own decision-making but does not modify `lessons.md` directly. New lessons from this subagent's run are returned in the deliverable summary, not committed by the subagent.
 
 ## Step 8: Per-dispatch capture
 
@@ -211,7 +211,7 @@ After all waves complete, the orchestrator (main session) reviews `new-lessons` 
 
 - Cross-check against existing lessons.md (avoid duplicate Lesson N entries)
 - For genuinely novel patterns: append `## Lesson N+1: <name>` per `context/lessons.md` "Append guidance for future batches"
-- The Source field references THIS batch's audit log
+- The Source field references this batch's audit log
 - The Encoded-in field documents which downstream artifacts (anti-patterns.md, verify gates) should consume the new lesson
 
 Subagent-reported lessons are synthesis until the orchestrator re-verifies them with its own grep. Verify each novel-lesson claim before the lessons.md append.
@@ -261,7 +261,7 @@ The log doubles as the batch retrospective and as source material for the PR des
 
 Keep side notes to the ones a reader must act on now:
 
-- If multiple candidates surface the SAME refuse-pattern (e.g. 3 candidates REFUSE-already-cites-canonical for the same canonical file), surface ONE side observation suggesting the canonical file document a stable heading for its audience; batch the rest into the log
+- If multiple candidates surface the same refuse-pattern (e.g. 3 candidates REFUSE-already-cites-canonical for the same canonical file), surface one side observation suggesting the canonical file document a stable heading for its audience; batch the rest into the log
 - If all candidates in a wave PROCEED but the wave's parallel-vs-sequential choice was nontrivial, surface the rationale (so the user can adjust `--parallel-waves` next time)
 
 ## Recheck triggers
@@ -280,6 +280,6 @@ Keep side notes to the ones a reader must act on now:
 - `context/lessons.md`: Step 1 snapshot source; Step 9 append destination
 - `context/decision-framework.md` "Pre-extraction Tier 0 checklist": the same gates `verify` runs, documented for human-readable batch review
 - `context/anti-patterns.md` #11 / #12 / #13: REFUSE patterns the verify filter encodes
-- SKILL.md "Evidence discipline": subagent return values are synthesis by default; the orchestrator MUST verify novel-lesson claims before the lessons.md append
+- SKILL.md "Evidence discipline": subagent return values are synthesis by default; the orchestrator must verify novel-lesson claims before the lessons.md append
 - `/docs-hygiene:extract-ssot identify`: produces the ranked candidate list this batch action consumes
 - Bundled Claude Code `/batch` skill: a distinct concern (worktree-parallelized polyglot refactor); the record for what it does sits above the Inputs section of this file, and SKILL.md "What this skill does NOT do" carries the same boundary

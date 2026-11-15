@@ -65,7 +65,7 @@ tidy sweep (that is `/code-tidying:tidy`).
    watch-for pattern: FAIL, naming the file and the token.
 4. **Tracked, not ignored.** Per lane file, run both halves of the tracked-file pair:
    `git check-ignore -v <file>` (non-empty means a `.gitignore` pattern excludes the lane: FAIL with
-   the pattern, since a directory can be tracked while a pattern excludes one `.md` inside it) AND
+   the pattern, since a directory can be tracked while a pattern excludes one `.md` inside it) and
    `git ls-files --error-unmatch <file>` (non-zero means un-ignored but untracked: report "commit it
    to share with the team", downgraded to INFO only when the user confirms a deliberately private,
    uncommitted lane).

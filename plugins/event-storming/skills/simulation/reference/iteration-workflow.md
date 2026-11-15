@@ -117,7 +117,7 @@ For each phase overall:
 
 ## Step 4 DIFF: Version Comparison
 
-**Inputs:** Current version metrics + previous version metrics (from memory)
+**Inputs:** Current version metrics + previous version metrics (from the run-state store, `${CLAUDE_PLUGIN_DATA}/history.jsonl`)
 
 **Process:**
 
@@ -205,7 +205,8 @@ For prompt improvements and process gates: run a MINI simulation (single phase, 
 
 ### Periodically (every 2-3 versions)
 
-- Re-read the EPUB source chapters cover to cover. The book is on Leanpub and may be updated
+- If you own the book, re-read the EPUB source chapters cover to cover. The book is on Leanpub and
+  may be updated
 - Check for new practitioner insights (web-research search, Perplexity MCP if present, else
   `WebSearch`: "EventStorming new techniques", restricted to the past year)
 - Review whether the evaluation rubric itself is still calibrated correctly

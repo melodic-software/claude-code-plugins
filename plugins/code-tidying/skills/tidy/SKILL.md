@@ -56,7 +56,7 @@ Parse `$ARGUMENTS` to determine the action:
 | `<lane>` (from the catalog below) | **Targeted lane run** | Load the lane file, run the full Workflow on that lane's scope. |
 | `<glob>...` | **Ad hoc scope** | No lane covers the files. Run the full Workflow on those globs per **Ad hoc scope when no lane fits** below. Combines with `dry-run`. |
 | `dry-run [<lane>]` | **Plan + present, no edits** | Run Phases A-D (triage, explore, research, hunt). Present the prioritized findings table and the proposed PR scope. No edits, no branch, no push, no tracker items. The user reviews and decides whether to proceed. |
-| `self-update` | **Maintainer lane** | Shorthand for `<lane>=self-update`. Operates on this plugin's own files. Valid ONLY in a working-tree checkout of the plugin (marketplace clone or `--plugin-dir`), never an installed copy. Manual-merge always. |
+| `self-update` | **Maintainer lane** | Shorthand for `<lane>=self-update`. Operates on this plugin's own files. Valid only in a working-tree checkout of the plugin (marketplace clone or `--plugin-dir`), never an installed copy. Manual-merge always. |
 | `help` | **Print this Action Router + lane catalog** | Diagnostic / orientation. |
 | `override` (flag, combines with any row above) | **Lift the GLOBAL HARD path list for this run, behind an enumeration gate** | The user wants this lane's tidyings to reach a path the HARD list would otherwise drop (agent config, a CI workflow, lint config). Strip the token before reading the rest of `$ARGUMENTS`; match it whole, never as a substring, and treat `./override` as a path. Because a lane is a glob set rather than a named file, Phase D enumerates the specific HARD paths it intends to touch and takes a go-ahead on that list before Phase E edits any of them; non-interactive, the run reports the list and proceeds without those edits (`reference/exclusions.md` section 4). `dry-run override` produces the enumeration alone. Path entries only: the behavioral guards, the work-tracking entries, SELF-UPDATE EXTRA HARD, and the override machinery itself hold regardless. Every lifted path is named in Phase H's report with the channel that lifted it. |
 | `in-place` or `in-place=commit` (flag, combines with the smart default, `<lane>`, and `override`) | **Run on the current branch, no branch, no PR** | A caller already holds the branch and PR (a repo-sweep playbook, a feature branch). Strip the token before reading the rest of `$ARGUMENTS`, matched whole like `override`. Phase B stays on the current branch and refuses the default branch; Phase E stages tidyings without committing; Phase H opens no PR and posts no comment, and prints its report to the user instead. `in-place` leaves the changes staged; `in-place=commit` makes one commit of them. The backlog throttle does not apply; every other gate (exclusions, scope budget, verification, self-review) still runs, measured on the staged diff. |
@@ -118,7 +118,7 @@ Run in order. Each phase has one job, and every phase runs whatever the tidying'
 1. Resolve the lane from `$ARGUMENTS` per the Action Router.
 2. Load the lane per **Lane resolution** and read the full file(s), merging both layers when the project lane declares `## Merge semantics`. The resolved lane owns scope globs, watch-for list, lane-specific exclusions, verification commands, Conventional Commits type, and preferred research sources.
 3. Resolve the HARD-path override channels per `reference/exclusions.md` section 4 (the `override` argument, `.claude/code-tidying/exclusion-overrides.md`, then `hard_exclusions`) and write down the lifted set with the channel that lifted each entry. Empty is the normal answer.
-4. Backlog throttle (skipped under `in-place`): if the pre-computed context above reports `Throttle active: yes` (open `chore/tidy-*` PRs at the `upkeep_max_open` limit, [reference/config.md](../../reference/config.md)), STOP, surface a one-line note, and exit cleanly. It is a stop signal, not a warning: reviews are backed up, so do not queue one more.
+4. Backlog throttle (skipped under `in-place`): if the pre-computed context above reports `Throttle active: yes` (open `chore/tidy-*` PRs at the `upkeep_max_open` limit, [reference/config.md](../../reference/config.md)), stop, surface a one-line note, and exit cleanly. It is a stop signal, not a warning: reviews are backed up, so do not queue one more.
 5. Find the anchor commit: the most recent merged `chore/tidy-<lane>-` PR for this lane (or `git log --grep` if none merged yet), the "what has drifted since the last sweep" baseline.
 
 ### Phase B. Branch
@@ -143,7 +143,7 @@ Understand before changing; this holds even for a one-line tidying, since rework
 5. **Override enumeration gate**, only for paths lifted by the `override` argument. List those specific HARD paths the surviving candidates would touch, each with its tidying, and take a go-ahead on that list before Phase E. Interactive: the user answers. Non-interactive: report the list and continue with those argument-lifted candidates dropped, since a blanket token is not a decision about paths nobody has seen yet. Paths lifted by `hard_exclusions=advisory` or by `.claude/code-tidying/exclusion-overrides.md` skip this gate: those channels already are a standing decision, and a non-interactive run must honor them. A `dry-run` presents the argument-lifted enumeration and stops there. An argument-lifted path that no candidate touches never reaches this gate.
 6. Overflow → file one work item per deferred candidate using the template in `reference/scope-budget.md`: invoke `/work-items:track add` via the Skill tool when that plugin is installed, else read the house style (`${CLAUDE_PLUGIN_ROOT}/reference/issue-house-style.md`), apply it, and run `gh issue create` (or present the list to the user when no tracker is reachable). **In `dry-run` mode, present the overflow list instead. Dry-run never files tracker items or causes any other external side effect.**
 
-Zero applicable improvements: clean exit with a one-line note and NO PR. Do not produce empty-PR churn.
+Zero applicable improvements: clean exit with a one-line note and no PR. Do not produce empty-PR churn.
 
 ### Phase E. Implement
 
@@ -161,7 +161,7 @@ Tidying is behavior-preserving, so verification confirms exactly that: run the p
 ### Phase G. Self-review + simplify
 
 1. Review the full diff yourself (`git diff origin/<default-branch>...HEAD`; under `in-place`, `git diff --cached`) hunting for accidental behavior change, scope creep, and convention violations. Drive real findings to zero before push.
-2. Run `/simplify` on the touched files (NOT scope creep. Only files already edited). Rebuild and re-verify after simplify. Under `in-place`, stage what `/simplify` changed and re-review `git diff --cached` so Phase H ships it.
+2. Simplify the touched files yourself, and only files already edited: reuse, simplification and efficiency cleanups that stay structure-only. Do not invoke the bundled `/simplify` (see "Mutation gate" below). Rebuild and re-verify after these edits. Under `in-place`, stage what changed and re-review `git diff --cached` so Phase H ships it.
 
 Self-review by the producing context is enough here: a fresh-context verifier is the rule where a verdict is subjective, and Phase F is an objective build/test/lint pass/fail. A change that turns out behavioral fails Phase F and is backed out, never verdict-reviewed into acceptance.
 
@@ -248,5 +248,5 @@ It carries the opened tidy PR through CI and review findings; the merge is the r
 
 ## Gotchas
 
-- **Beck's New Interface, Old Implementation is context-dependent.** Safe ONLY when the new interface has zero existing consumers. If consumers exist, treat it as behavioral and skip. Do not trust the "structural" label blindly.
+- **Beck's New Interface, Old Implementation is context-dependent.** Safe only when the new interface has zero existing consumers. If consumers exist, treat it as behavioral and skip. Do not trust the "structural" label blindly.
 - **Do not tidy your way around a banned or deprecated API.** If the lane scope contains call sites of an API the project bans, migrating them is behavioral. File an issue and defer.

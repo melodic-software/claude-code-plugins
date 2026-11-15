@@ -22,7 +22,7 @@ Read it; this file adds only what is specific to research discipline.
 Research and verification before assertion. Resolve its source of truth
 per the method doc's ladder: if the consuming project states a
 research/verification discipline in its own `CLAUDE.md` or `.claude/rules/`,
-re-anchor THAT. Otherwise re-anchor this portable baseline:
+re-anchor that. Otherwise re-anchor this portable baseline:
 
 - **Assert nothing you cannot point to a source for.** A claim labeled
   "known", "obvious", or "from memory" is unverified until a fetched
@@ -55,7 +55,7 @@ plugin is installed; failing both, the floor below. The floor is this skill's
 own baseline, deliberately lighter than a research pass's numbers, because it
 settles one claim mid-conversation:
 
-- **Tier**. At least one source fetched THIS turn: the live environment, tool
+- **Tier**. At least one source fetched this turn: the live environment, tool
   output, or the upstream artifact itself. Recall, and a summary of a source
   read in place of the source, are both below the floor. An upstream docs
   page is read through the shared docs lookup
@@ -64,7 +64,7 @@ settles one claim mid-conversation:
   `<scripts>` = `${CLAUDE_PLUGIN_ROOT}/scripts` and `<session>` =
   `${CLAUDE_SESSION_ID}`), not a WebFetch summary of it.
 - **Corroboration**, before a claim carries a decision, a second source from a
-  DIFFERENT upstream pool. One pool restated by three intermediaries is one
+  different upstream pool. One pool restated by three intermediaries is one
   source; where no second pool exists, say that instead of counting the
   restatements.
 - **Recency**. For anything that ships releases, a check against the current
@@ -75,13 +75,13 @@ actually applied.
 
 ## Two directions: grounding, and checking what was already said
 
-- **Preventive**. Grounding a claim BEFORE it is asserted. Skipping it ships a
+- **Preventive**. Grounding a claim before it is asserted. Skipping it ships a
   wrong claim.
-- **Detective**. Checking claims ALREADY asserted, which is what "fact-check
+- **Detective**. Checking claims already asserted, which is what "fact-check
   that" asks for. Skipping it leaves a wrong claim standing while later work
   builds on it.
 
-Direction is not the tier boundary. DEPTH is. Both directions run in the
+Direction is not the tier boundary. Depth is. Both directions run in the
 inline audit and in the fan-out tier below.
 
 ## Audit. What to look for
@@ -133,7 +133,7 @@ step delta.
 
 The inline audit above is the default. Take the fan-out tier instead when the
 invocation argument is `tiered` or `full`, or when your own judgment is the
-suspected source of bias across MANY load-bearing claims, or a request to
+suspected source of bias across many load-bearing claims, or a request to
 "fact-check everything" / "verify every claim" wants provable coverage of the
 whole session. A single fact-check or a short session stays inline: there the
 fan-out's subagent cost buys nothing.

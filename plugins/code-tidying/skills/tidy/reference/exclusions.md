@@ -4,7 +4,7 @@ Three exclusion lists gate every tidy run, in order of how they apply:
 
 1. **GLOBAL HARD EXCLUSIONS**: not touched, regardless of lane. Applies to every run, and the path entries are lifted only through the section 4 channels.
 2. **GLOBAL SOFT EXCLUSIONS**: technically allowed but an autonomous run is not equipped to verify changes safely. Touch only with explicit user override.
-3. **SELF-UPDATE EXTRA HARD**: additional restrictions that ONLY apply when the `self-update` lane is the active lane. Applied on top of the global lists.
+3. **SELF-UPDATE EXTRA HARD**: additional restrictions that only apply when the `self-update` lane is the active lane. Applied on top of the global lists.
 
 Section 4 then defines the three channels that **lift** the section 1 path entries for a run, an operator, or a repository, and names what no channel lifts.
 
@@ -30,7 +30,7 @@ Branch-protection rule changes are out of scope for any lane. Security workflows
 
 ### Behavioral changes (regardless of file location)
 
-These are NOT path-list entries (they're not glob-matchable). They apply as agent-judgment guards regardless of which path the edit targets:
+These are not path-list entries (they're not glob-matchable). They apply as agent-judgment guards regardless of which path the edit targets:
 
 - DB migrations against real instances (autonomous runs have no ephemeral test DB)
 - Breaking API changes: any change to public symbols that downstream consumers depend on
@@ -64,9 +64,9 @@ The consuming project's instructions may declare additional areas its verificati
 
 ## 3. SELF-UPDATE EXTRA HARD
 
-This list applies ONLY when the active lane is `self-update`. The self-update lane operates on this plugin's own files in a maintainer working-tree checkout, and these EXTRA HARD entries protect the skill's CONTRACT SURFACE from being modified by an autonomous run of itself.
+This list applies only when the active lane is `self-update`. The self-update lane operates on this plugin's own files in a maintainer working-tree checkout, and these EXTRA HARD entries protect the skill's contract surface from being modified by an autonomous run of itself.
 
-If during a self-update run you find drift in any of the following, **clean exit, NO PR, report what was found to the user.** Do NOT file an issue (the "file deferrals" pattern is for in-scope work). The user reviews and decides.
+If during a self-update run you find drift in any of the following, **clean exit, no PR, report what was found to the user.** Do not file an issue (the "file deferrals" pattern is for in-scope work). The user reviews and decides.
 
 ### Frontmatter (entire YAML block of every skill file)
 
@@ -176,10 +176,10 @@ Not overridable, in any channel, at any value:
 
 ## How to apply these lists during a run
 
-1. **Phase A (Triage)**: re-read this file AND the consuming project's declared protections. Resolve the three override channels in section 4 and write down the lifted set before hunting. Note the active lane's lane-specific extra exclusions on top of these globals.
+1. **Phase A (Triage)**: re-read this file and the consuming project's declared protections. Resolve the three override channels in section 4 and write down the lifted set before hunting. Note the active lane's lane-specific extra exclusions on top of these globals.
 2. **Phase D (Hunt)**: when classifying candidates, drop anything that touches a GLOBAL HARD path that section 4 did not lift. Move SOFT candidates to the deferred-items list unless the user has explicitly authorized them in interactive mode.
 3. **Phase E (Implement)**: every Edit / Write call has the file path validated against the HARD list above, minus the lifted set. If a tidying would require touching an unlifted HARD file, abort the tidying and continue with the next candidate. Stage with `git add <path>` only, never `-A` or `.`.
 4. **Report**: every lifted path is named in the run's report with the channel that lifted it (section 4, "Reviewability is the price").
 5. **Self-update specifically**: `lanes/self-update.md` summarizes the EXTRA HARD list; this file is the canonical version, so the two are reconciled here when they differ. Section 4 does not reach it.
 
-If a HARD-list entry is wrong for a whole repository (the file moved, the concern is stale), the durable fix is the overrides file in section 4 or a deliberate user-driven edit here, NOT an autonomous tidying that "discovers" the entry should change.
+If a HARD-list entry is wrong for a whole repository (the file moved, the concern is stale), the durable fix is the overrides file in section 4 or a deliberate user-driven edit here, not an autonomous tidying that "discovers" the entry should change.

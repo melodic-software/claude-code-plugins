@@ -23,7 +23,7 @@ Inherited content, a repo's docs, conventions, structure, processes, is
 evidence of what *is*, never a self-justifying argument for what *should
 be*. Resolve the source of truth per the method doc's ladder: if the
 consuming project states an incumbency / first-principles rule in its own
-`CLAUDE.md` / `.claude/rules/`, re-anchor THAT. Otherwise re-anchor this
+`CLAUDE.md` / `.claude/rules/`, re-anchor that. Otherwise re-anchor this
 portable baseline:
 
 - **Precedent describes, it does not justify.** Existing structure,
@@ -41,8 +41,8 @@ portable baseline:
   merits.
 
 This is a distinct axis from `/discipline:do-your-research`. That skill
-acquires external evidence you LACK; this one questions internal evidence
-you INHERITED and took on faith. The audit may find every inherited choice
+acquires external evidence you lack; this one questions internal evidence
+you inherited and took on faith. The audit may find every inherited choice
 is well justified.
 
 ## Audit. What to look for
@@ -69,7 +69,7 @@ and report its line ([levels](https://github.com/melodic-software/claude-code-pl
 
 ## Reciprocal boundaries
 
-Conformance to an EXTERNAL vendor's current docs is
+Conformance to an external vendor's current docs is
 `/discipline:recheck-against-upstream`'s axis; the production-side rule that
 new work reuses or openly replaces an established way (never a silent second
 way) is `/discipline:reuse-or-replace`'s; a technology/dependency selection is
@@ -92,5 +92,5 @@ not installed.
   that's what's there". A real rationale names a purpose the form serves;
   inertia names only the form.
 - Confirming an inherited choice is a valid outcome. Re-derivation often
-  confirms the incumbent form; the mandate is to know WHY, and to re-derive
+  confirms the incumbent form; the mandate is to know why, and to re-derive
   when the only answer is "it's always been like this", not to overturn.

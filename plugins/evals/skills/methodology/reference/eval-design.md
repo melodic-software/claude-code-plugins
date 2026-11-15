@@ -21,7 +21,7 @@ Four parts per case:
 2. **Output**: what the model under evaluation produced for that input.
 3. **Golden answer**: what the output is compared against. Two legitimate forms: a mandatory
    exact-match answer, or an example/description of a perfect answer that gives a grader a point of
-   comparison. For human or LLM graders, the golden answer is best written as INSTRUCTIONS on what
+   comparison. For human or LLM graders, the golden answer is best written as instructions on what
    to look for: what must be included, what is allowed, what is disqualifying.
 4. **Score**: produced by a grading method (see `grading.md`), representing how the model did.
 
@@ -44,7 +44,7 @@ Four parts per case:
 ## The cost asymmetry: design for cheap re-runs
 
 Writing questions and golden answers is roughly a one-time fixed cost. Grading is a cost you incur
-on EVERY re-run, in perpetuity, and you will re-run the eval a lot. Build evals that can be
+on every re-run, in perpetuity, and you will re-run the eval a lot. Build evals that can be
 quickly and cheaply graded; put that at the center of design choices.
 
 Constrain the output format to make cheap grading possible: e.g. "return just the number of legs as

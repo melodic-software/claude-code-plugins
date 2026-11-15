@@ -75,7 +75,8 @@ or as a daily routine. Four properties matter before you rely on it:
   may propose a check, such as a test; an interactive run asks you before each one, and a run
   passed `--unattended` runs none and labels every finding `verified-by-reading`.
 - **A bare run is read-only toward your repository and stays within a budget**. It stops at
-  three verified findings or a complete lane sample. Filing happens only when you pass
+  the verified-finding count the [skill's Effort table](skills/scan/SKILL.md#effort) sets for the
+  session's effort level, or at a complete lane sample. Filing happens only when you pass
   `--track`, and a complete lane sample is never reported as the lane being bug-free.
 - **Cost follows the scope, never the precision.** Hunters and gates take their models from the
   multi-agent role map (the skill's sizing table names the roles); hunters pass no effort and gates
@@ -186,7 +187,7 @@ Let `gh` prompt for the title interactively. On a repository without native Issu
 `--type Bug` and add a `type: bug` label instead. When checking what `--type` takes, fetch
 [gh issue create: Options](https://cli.github.com/manual/gh_issue_create#options) live. If filing
 non-interactively, never paste the reporter's title text into the command string. Write it to a file and pass
-`--title "$(cat <title-file>)"`: the substitution result is a quoted argument value and
+`--title "$(cat <title-file>)"`. The substitution result is a quoted argument value and
 is not re-parsed, so backticks or `$( )` in reporter text cannot execute.
 
 If a work-item tracker MCP tool is available, the skill can hand off to that instead.

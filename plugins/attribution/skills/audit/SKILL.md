@@ -269,7 +269,7 @@ Real failure history, each with the symptom it presents as, in
 [`context/gotchas.md`](context/gotchas.md): a detector's surprising zero, a stamp finding that
 fired on an identifier, a test runner exiting non-zero without failing.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not fix on bare invocation.** Mutation rides only the explicit `fix` or `sweep`
   argument.

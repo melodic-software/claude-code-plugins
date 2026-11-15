@@ -18,12 +18,13 @@ Env vars, global flags, and built-in defaults for the `firecrawl-cli` binary. SK
 | `--api-url <url>` | One-shot override of API endpoint |
 | `-o`, `--output <path>` | Write result to file (mandatory for non-trivial output, see Core pattern) |
 | `--json` | Force JSON output even for single-format calls |
-| `--pretty` | Pretty-print JSON |
 | `--status` | Print version + auth + concurrency + credits in one call |
 | `-V`, `--version` | CLI version only |
 | `-h`, `--help` | Subcommand help |
 
-**Built-in defaults** (knobs NOT exposed as env vars). Their current values are in the README's [Check Status](https://github.com/firecrawl/cli#check-status) example and per-command option tables such as [Search Options](https://github.com/firecrawl/cli#search-options):
+Some subcommands also take `--pretty` (pretty-print JSON); it is not global, so check the subcommand's `--help` (`search` has none).
+
+**Built-in defaults** (knobs not exposed as env vars). Their current values are in the README's [Check Status](https://github.com/firecrawl/cli#check-status) example and per-command option tables such as [Search Options](https://github.com/firecrawl/cli#search-options):
 
 - **Concurrency**: the CLI throttles itself; `firecrawl --status` shows the real limit for the account
 - **Retry / backoff**: built in. If you need deterministic control, fail-fast with `--timeout` and handle retry in the agent turn

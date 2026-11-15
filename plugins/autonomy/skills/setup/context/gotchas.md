@@ -3,16 +3,16 @@
 Failure modes when running this skill.
 
 - **Two-binding split.** The `routines`, `triggers`, `telemetry`, and `capture` sections live in
-  the repo-local autonomy binding under `.claude/autonomy/`. The security binding is a SEPARATE
+  the repo-local autonomy binding under `.claude/autonomy/`. The security binding is a separate
   artifact on the settings-as-code home carrying only the guardrail security axes and
   `admission.classification.temporal`. A change that puts a repo-local section (routines included)
   into the security binding schema, or a security axis into the repo-local binding, is wrong.
-  Both artifacts are "schema-versioned," so always qualify WHICH artifact every section names.
+  Both artifacts are "schema-versioned," so always qualify which artifact every section names.
 - **Detector-fired temporal carries no routine identity.** A poll-fallback detector emission is
   not a routine run: it carries no `signal.routine`, no `signal.producer_identity`, and stamps no
   `signal.work_class`. Any of the three on a claimless or detector-fired signal is rejected
-  fail-closed. Routine-fired status is the envelope's `signal.routine` CLAIM validated against
-  `routines.enabled` (entry exists, enabled, `source_surface` agrees), NOT the section owning
+  fail-closed. Routine-fired status is the envelope's `signal.routine` claim validated against
+  `routines.enabled` (entry exists, enabled, `source_surface` agrees), not the section owning
   the surface record: a routine may reuse a `triggers`-recorded surface. Only a surface recorded
   under `routines` itself makes the claim mandatory.
 - **One surface per section.** A scheduling surface recorded in both the `triggers` and `routines`

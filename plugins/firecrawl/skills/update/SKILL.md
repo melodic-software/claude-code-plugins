@@ -77,14 +77,14 @@ Nothing destructive happens without explicit approval. Four guarantees:
    flagged before the skill-content integration step begins.
 
 **Network requirement.** The update path needs `registry.npmjs.org` and `www.firecrawl.dev`
-reachable. Some sandboxed/cloud egress proxies intermittently 503 with "DNS cache overflow". Retry
-after ~30s, or run the update from an unrestricted session.
+reachable. When a sandboxed or cloud egress proxy answers a fetch with a 503 reading "DNS cache
+overflow" (it is intermittent), retry after ~30s, or run the update from an unrestricted session.
 
 **Idempotency.** Running the update action with `--check` twice with no upstream change: "no drift,
 current." Running a full update when already at latest: reports "no drift" and exits before Gate 1.
 Safe to schedule or re-run.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not run against an installed marketplace copy**. Maintainer-facing; the apply path writes
   `upstream.md` in this skill directory. Consumers update via `/plugin marketplace update`.
@@ -92,7 +92,7 @@ Safe to schedule or re-run.
   (`upstream.md`); skill-content integration is Claude's step behind Gate 2, governed by the
   Preservation rules above.
 - **Does not run `firecrawl init` or `firecrawl login`**. Those install a parallel shadow copy /
-  second auth source of truth. This plugin IS the maintained integration.
+  second auth source of truth. This plugin is the maintained integration.
 
 ## Related
 

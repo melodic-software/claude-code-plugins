@@ -45,7 +45,7 @@ guess. The usual way a debugging session goes wrong is starting on causes before
 exists. Phase 1 and Phase 6 (the check, and the cleanup that removes what the run added) carry the
 weight; the three phases between them follow from the check.
 
-Scope boundary: this skill starts from an **observed failure**: UI behaving wrong, a log line that should not appear, a performance regression, a screenshot of a bug, a production symptom. Its first job is to **construct** a reproduction loop. If the symptom is already a failing test with no reproduction gap, you do not need this skill. Cycle that test directly (reproduce → fix → retest → regression). What `/debugging:debug` adds over a bare fix loop is a critical edge case: **if no correct test seam exists, that absence IS the finding**, filed as an architectural recommendation, not a forced test in the wrong place.
+Scope boundary: this skill starts from an **observed failure**: UI behaving wrong, a log line that should not appear, a performance regression, a screenshot of a bug, a production symptom. Its first job is to **construct** a reproduction loop. If the symptom is already a failing test with no reproduction gap, you do not need this skill. Cycle that test directly (reproduce → fix → retest → regression). What `/debugging:debug` adds over a bare fix loop is a critical edge case: **if no correct test seam exists, that absence is the finding**, filed as an architectural recommendation, not a forced test in the wrong place.
 
 Running example. The phases below follow one case: a photo larger than 20 MB uploaded through the
 mobile API gets a 502 from the media service, while smaller photos upload normally.
@@ -71,7 +71,7 @@ excerpt on your own.
 
 ## Emit checklist
 
-For any diagnostic run (Phases 1-6), track phase completion. A ready-to-fill checklist is bundled at `${CLAUDE_PLUGIN_ROOT}/skills/debug/templates/checklist.md`. If your project has a working-notes or scratch location, copy it there; otherwise track the six phases inline. Phase 4 is SKIPPED when Phase 2 repro conclusively verifies the Phase 3 hypothesis without instrumentation.
+For any diagnostic run (Phases 1-6), track phase completion. A ready-to-fill checklist is bundled at `${CLAUDE_PLUGIN_ROOT}/skills/debug/templates/checklist.md`. If your project has a working-notes or scratch location, copy it there; otherwise track the six phases inline. Phase 4 is skipped when Phase 2 repro conclusively verifies the Phase 3 hypothesis without instrumentation.
 
 ## Phase 1: Build the reproduction loop
 
@@ -114,7 +114,7 @@ stays an `instruct` step the user does on their own.
 
 ### Loop-recursion hazard
 
-When the loop IS a test the suite/runner discovers and runs, watch for self-invocation: a test file that invokes the very runner (or pre-push lane) which re-discovers and re-runs it recurses until the box saturates. Each nested run re-triggers the test. The symptom reads as a *hang*, but it is fork-bombing, not a slow test. Guard with a re-entrancy sentinel: set an env marker before the inner run; a nested invocation that sees the marker exits early. Same pattern for any loop that shells out to a command which re-enters the loop.
+When the loop is a test the suite/runner discovers and runs, watch for self-invocation: a test file that invokes the very runner (or pre-push lane) which re-discovers and re-runs it recurses until the box saturates. Each nested run re-triggers the test. The symptom reads as a *hang*, but it is fork-bombing, not a slow test. Guard with a re-entrancy sentinel: set an env marker before the inner run; a nested invocation that sees the marker exits early. Same pattern for any loop that shells out to a command which re-enters the loop.
 
 ### Phase 1 exit check
 
@@ -295,7 +295,7 @@ The run is not done until every line below holds. They fall into three groups.
 - The Phase 1 loop, run again, no longer reproduces the failure.
 - The regression test passes, or the missing correct seam is written up as an architecture finding.
 - The user report and the PR description each carry two redacted runs of the Phase 1 loop: the red one from before the fix and the green one from after it. When no red run exists (say the loop was built only after a hotfix), the report records that gap and the evidence used in its place
-- Confirm the fix outcome: run the mechanical build/test/lint, then check the original symptom is resolved with no regression, and record the evidence. The context that produced the fix converges on approval rather than detection, so beyond those objective checks the outcome verdict should be rendered by an agent that did NOT produce the fix. If your environment has an outcome-verification capability, use it; otherwise dispatch a fresh-context verifier with the symptom, the fix diff, and pass/fail criteria. Boundary: `/debugging:debug` DOES the fix + regression test; a verifier VERIFIES the outcome. Before that dispatch, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin debugging --skill debug` and copy its line into the record ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)); it governs only this skill's own dispatch, since an outcome-verification capability applies its own level. Under `light`, and `off`, which acts as `light` here, dispatch no verifier and never render the outcome verdict yourself in its place: the record writes `verification: skipped (<level>)` and the outcome stays unverified. The mechanical checks and the Phase 1 loop rerun still run at every level
+- Confirm the fix outcome: run the mechanical build/test/lint, then check the original symptom is resolved with no regression, and record the evidence. The context that produced the fix converges on approval rather than detection, so beyond those objective checks the outcome verdict should be rendered by an agent that did not produce the fix. If your environment has an outcome-verification capability, use it; otherwise dispatch a fresh-context verifier with the symptom, the fix diff, and pass/fail criteria. Boundary: `/debugging:debug` does the fix + regression test; a verifier verifies the outcome. Before that dispatch, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin debugging --skill debug` and copy its line into the record ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)); it governs only this skill's own dispatch, since an outcome-verification capability applies its own level. Under `light`, and `off`, which acts as `light` here, dispatch no verifier and never render the outcome verdict yourself in its place: the record writes `verification: skipped (<level>)` and the outcome stays unverified. The mechanical checks and the Phase 1 loop rerun still run at every level
 
 **Leave a record.**
 
@@ -362,7 +362,7 @@ on the person's behalf.
 host; this section states what to do when the person can run it, never that it is present. The
 four-part records live in [reference/native-debug.md](reference/native-debug.md).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not ship without a feedback loop**. Phase 1 is a hard gate. If a loop cannot be built, that is the report you deliver
 - **Does not retry blindly**. "tried it again and it worked" is not a fix. Intermittent passes mean the root cause is still present
