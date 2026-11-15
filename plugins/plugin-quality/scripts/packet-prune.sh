@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Retention pruning for the plugin-quality evidence tree.
 #
-# Three properties are enforced HERE, not in prose:
+# Three properties are enforced here, not in prose:
 #
 #   1. Dry run by default. Nothing is deleted without an explicit `--apply`.
-#   2. A packet holding `item*.md` (item.md, or item-<owner>.md) ANYWHERE beneath it is NEVER deleted, at any
+#   2. A packet holding `item*.md` (item.md, or item-<owner>.md) anywhere beneath it is never deleted, at any
 #      age. That file is a drafted-but-unemitted deliverable; step 6's
-#      unattended clause makes it the ONLY copy of the audit's entire output.
+#      unattended clause makes it the only copy of the audit's entire output.
 #      Retention must not be the thing that destroys it. The search is recursive
 #      and case-insensitive, because a deliverable one directory down is exactly
 #      as unrecoverable as one at the top. Retained packets are reported, so an
@@ -18,11 +18,11 @@
 #      is elsewhere, and `rm -rf` follows real locations. Such candidates are
 #      reported as ESCAPED and skipped, and deletion targets the canonical path.
 #
-# Age comes from the nonce directory NAME (`YYYYMMDDTHHMMSSZ`), not from mtime:
+# Age comes from the nonce directory name (`YYYYMMDDTHHMMSSZ`), not from mtime:
 # mtime is rewritten by any tool that touches the tree (including the sibling
 # PostToolUse formatters that rewrite packet files in place), so grading age by
 # mtime would make retention depend on the same mutation the packet exists to
-# resist. FAIL CLOSED: a directory whose name is not a parsable nonce is never
+# resist. Fail closed: a directory whose name is not a parsable nonce is never
 # deleted — it is reported as unparsable. Parsable means a real UTC instant, not
 # merely the right characters: `00000000T000000Z` has a nonce's exact shape and
 # names no date, so it is graded UNPARSABLE rather than compared as an ancient

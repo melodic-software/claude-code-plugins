@@ -220,7 +220,7 @@ Two limits, reported rather than worked around:
 
 ## Gotchas
 
-Observed during empirical verification (2026-07-24):
+Observed during empirical verification (2026-07-24). Recheck when xtomd or Thread Reader App changes an endpoint or response shape, or a package is published under `@xtomd/mcp-server`:
 
 - **A GET to `/api/markdown` returns HTTP `200`.** Not a success. The body is a self-describing
   stub reading `"method":"POST"`.

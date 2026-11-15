@@ -1,7 +1,7 @@
 # Line / Section Brainstorm Prompt Template
 
-Use this template when the writer asks for HIGH VOLUME options for ONE
-line or ONE section. Per [line-brainstorm.md](../research/line-brainstorm.md)
+Use this template when the writer asks for high volume options for one
+line or one section. Per [line-brainstorm.md](../research/line-brainstorm.md)
 and [response-filter.md](../research/response-filter.md) §1 + §2 + §7.
 
 ## When to use this template
@@ -11,7 +11,7 @@ and [response-filter.md](../research/response-filter.md) §1 + §2 + §7.
 - Writer says "what else could go here"
 - Writer says "I don't know what to do with this line"
 - Writer says "give me a big list"
-- Pre-revision dump, NOT polished alternates
+- Pre-revision dump, not polished alternates
 
 Not for: rhyme-only search (use `rhyme-generation`), 5-7 polished
 alternates (use `variations`), or single-rhyme lookup (use `rhyme`).
@@ -103,7 +103,7 @@ If the load-bearing word is a NOUN-IMAGE:
   (~5)
 
 If the load-bearing word is an ABSTRACTION:
-  - REPLACE with sense-bound image (route to Column 4 image alternates)
+  - Replace with sense-bound image (route to Column 4 image alternates)
 
 ──────────────────────────────────────────────
 COLUMN 3: INTERNAL RHYME PARTNERS
@@ -177,15 +177,15 @@ Identity-disguise flags caught (rejected):
 - <rejected candidate>: pre-vowel consonant identical
 
 Hand-off:
-- `/variations <line>`: for 5-7 polished alternates
-- `/audit <line>`: for pre-lock check on a chosen candidate
-- `/rhyme-generation`: for more rhyme tiers if Column 1 felt thin
-- `/mosaic <word>`: for deeper mosaic search if Column 1 mosaic was rich
+- `/songwriting:diagnose variations <line>`: for 5-7 polished alternates
+- `/songwriting:diagnose audit <line>`: for pre-lock check on a chosen candidate
+- `/songwriting:rhyme`: for more rhyme tiers if Column 1 felt thin
+- `/songwriting:rhyme mosaic <word>`: for deeper mosaic search if Column 1 mosaic was rich
 ```
 
 ## Section-level template additions
 
-When the writer asks for a whole SECTION (Scope B per
+When the writer asks for a whole section (Scope B per
 [line-brainstorm.md](../research/line-brainstorm.md)), run the 5-column
 template for each line, then append:
 
@@ -242,8 +242,8 @@ Per *Writing Better Lyrics* (2009), Chapters 7 + 24:
 
 Per [coaching-protocol.md](../research/coaching-protocol.md):
 
-- Surface the columns; do NOT pick a single winner
-- Name the TOP-3 directions as suggestions with Pat's craft reason
+- Surface the columns; do not pick a single winner
+- Name the top-3 directions as suggestions with Pat's craft reason
 - Ask the writer which direction feels closest to the song's pull
 - Hand off to specialized action when the writer commits
 
@@ -262,7 +262,7 @@ Chapter 24: "Ask Stephen Sondheim: He uses worksheets all the time."
 four books. Full audit note in
 [line-brainstorm.md](../research/line-brainstorm.md).
 
-The line-brainstorm IS the worksheet process applied to a single line.
+The line-brainstorm is the worksheet process applied to a single line.
 
 ## Cross-references
 

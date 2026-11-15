@@ -160,7 +160,7 @@ cites #13671's head, the change that made `gh_read` the one retry layer.
 ## pr-unblock
 
 The lane runs from `.github/workflows/pr-unblock.yml`, with the dispatchers
-`.github/workflows/pr-unblock-dispatch.yml` and `.github/workflows/pr-feedback-dispatch.yml`.
+`.github/workflows/pr-unblock-dispatch.yml` and `.github/workflows/pr-dispatch-feedback.yml`.
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
@@ -766,9 +766,8 @@ Outside this repository, `melodic-software/ci-workflows` fixed both gaps (lines 
   rate limit once, within `rate-limit-wait-seconds`. It resends a 5xx or a network error after a
   full-jitter wait, but never a GraphQL mutation ([`:222`](https://github.com/melodic-software/ci-workflows/blob/96ea8d4cfef63b9f903fdd47df12fd4ce016cb25/.github/actions/pr-require-checks/gh-api.sh#L222)), a comment create or a
   `rerun-failed-jobs`. A repeated GET sends `If-None-Match` ([`:123`](https://github.com/melodic-software/ci-workflows/blob/96ea8d4cfef63b9f903fdd47df12fd4ce016cb25/.github/actions/pr-require-checks/gh-api.sh#L123)). This repository pins both
-  composites to commits from before that change (`check-contract@2476d5dd`,
-  `aggregate-results@226dad32`), so the fix reaches `ci-status` only when the pins move to a commit
-  that contains `03d2e3dc`.
+  composites to commits that contain that change (`check-contract@60b15bf6`,
+  `aggregate-results@ac4d8780`, both descendants of `03d2e3dc`), so the fix reaches `ci-status`.
 - **pr-review and pr-review-security, elements 1, 2 and 6.**
   [ci-workflows#1033](https://github.com/melodic-software/ci-workflows/pull/1033) changed
   `pr-review-cli.yml`. Each read in the hosted leg goes out at most 3 times: the scope step's

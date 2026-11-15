@@ -43,9 +43,9 @@ Chapters 22-23.
   images**, and they carry the argument. Chapter 6's entire scansion and
   rhyme-column argument lives in figures, not in the text layer. The prose
   runs "…the seventh phrase only continues the pattern:" and then stops. Any
-  audit of this chapter that reads only extracted text will miscount phrases;
-  that is exactly how the "Southern Comfort" seven-phrase error entered this
-  file. Read the figures.
+  audit of this chapter that reads only extracted text will miscount phrases
+  (it gives the "Southern Comfort" verse seven phrases; the figures show
+  eight). Read the figures.
 - *Writing Better Lyrics* (2009), Chapter 22: no linked images.
 - *Writing Better Lyrics* (2009), Chapter 23: no linked images.
 
@@ -57,7 +57,7 @@ it, and return to it.
 
 > "The same principles apply on each level."
 
-Use song form to decide how the whole lyric breathes: repetition builds home
+Use song form to decide how the whole lyric paces repetition and contrast: repetition builds home
 base; contrast creates tension; return resolves it.
 
 ## Potent and impotent packages
@@ -1029,7 +1029,7 @@ form asks the listener to absorb four verses. Four-times verse exposure
 risks boredom even with strong verses.
 
 **The warning is 2009's alone.** *Essential Guide to Lyric Form and Structure*
-(1991), Chapter 6, now read in full with its figures, does not carry it.
+(1991), Chapter 6, read in full with its figures, does not carry it.
 Chapter 6 never discusses V/V/Ch/V/V/Ch, never counts verses, and never names
 four. Its related-but-different claim is about *pattern-size monotony*: running
 the same structural pattern too long "gets boring fast," and the remedy Pat
@@ -1067,7 +1067,7 @@ third arrival.
 Chapter 23's worked lyric ("Love Her or Leave Her to Me"), Pat's three
 numbered Options, and his bridge material are all above under
 [Three-System Verse/Chorus Risk](#three-system-versechorus-risk). That
-section is the canonical treatment and this one no longer restates it.
+section is the canonical treatment.
 
 Diagnose at form-planning: count the systems, name what each is
 supposed to add, choose the Option if needed.

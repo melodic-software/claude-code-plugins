@@ -4,7 +4,6 @@ The skills of `plugins/bash-format`. Each one is driven with `<plugin-dir>` set 
 
 ## Parts
 
-- `check`: Report whether shfmt, shellcheck and node are installed. Never installs.
 - `setup`: Verify bash-format's prerequisites and configuration here, and register its git pre-commit entry. No plain-words entry.
 
 ## Sub-features

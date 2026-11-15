@@ -166,8 +166,6 @@ lanes:
         needs: [fix-docs]
       - activity: report-escalation
         needs: [resolve-conflicts, apply-conflict-patch]
-      # Fixing CI and addressing review feedback join this lane as composites
-      # (a `children:` list of leaves) once their designs land.
   pr-merge:
     stage: merge
     slots:

@@ -9,9 +9,9 @@ Contract enforced here (encoded as code, not convention):
 
 - Owner must be in the caller-supplied `--allowed-owners` allowlist; an empty or
   missing allowlist hard-refuses (fail closed) rather than merging anything.
-- Default action is READ-ONLY: report merge readiness plus every branch rule and
+- Default action is read-only: report merge readiness plus every branch rule and
   check that governs the merge, and the exact blockers, so the caller can react.
-- A merge only happens with `--merge` AND only when every readiness gate passes.
+- A merge only happens with `--merge` and only when every readiness gate passes.
 - A `--merge` run held on a failed AI review check re-runs that check's
   workflow run when its check run carries a failure annotation the review
   evidence binds a re-run after and the gate re-runs (a `rate-limit` lane-outcome record or
@@ -20,7 +20,7 @@ Contract enforced here (encoded as code, not convention):
   (cancelled, timed out) before its lane posted on the head, at once; once per
   run on the pinned live head. No other failure class is re-run, and the
   re-run never counts as a pass: auto-merge still arms only on SUCCESS.
-- Merges use the repository's allowed method (squash preferred) and NEVER pass
+- Merges use the repository's allowed method (squash preferred) and never pass
   `--admin` or `bypass_rules`. This helper cannot bypass branch protection,
   resolve or reply to review threads, force-push, or change settings.
 - A ready PR on the default branch merges through the async merge API with the
@@ -45,17 +45,17 @@ Contract enforced here (encoded as code, not convention):
 - A PR authored by a dependency manager (Dependabot/Renovate-class) is held --
   never merged -- unless `--allow-dependency` is passed, or the pr-merge lane
   (`--authority pr-merge`) reads it as a mergeable Dependabot pull request.
-- A PR on an unprotected base (zero required reviews AND zero required contexts)
+- A PR on an unprotected base (zero required reviews and zero required contexts)
   is held unless `--allow-unprotected` is passed: on such a base `CLEAN` proves
   nothing. A configured self login is exempt only when that base is the
   repository's default branch -- the solo-owner repo the exemption exists for.
-  A self-authored PR onto an unprotected NON-default base (a stack layer, or any
+  A self-authored PR onto an unprotected non-default base (a stack layer, or any
   feature-onto-feature merge) is held: the default branch's required checks never
   governed it. `--stacked-prs` replaces that hold for a native stack layer only.
 - A head behind its base is held on a base that requires neither up-to-date
   branches nor a merge queue, where GitHub reports a behind head `CLEAN`. One
   base compare per otherwise-ready PR proves it; an unreadable compare holds.
-- A merge is held while a configured review bot still owes the LIVE head a
+- A merge is held while a configured review bot still owes the live head a
   review (`--review-bot-logins` with `--review-settle-minutes`, both or
   neither). A reviewer that re-reviews on push posts minutes after the head
   moves, and GitHub reports the PR mergeable throughout that window, so the

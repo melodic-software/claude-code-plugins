@@ -131,8 +131,7 @@ reader can tell the two apart.
 **A supporting control gets the same scrutiny as the artifact.** A verdict may lean on a comparison:
 "the sibling mechanism costs almost nothing, so this one's cost is anomalous". Before that
 comparison is admitted, the control's own liveness is checked by §3. A control that never ran
-produces a number that measures the refusal to start, not the thing being compared, and such a
-number has shipped inside a ratified decision before now.
+produces a number that measures the refusal to start, not the thing being compared.
 
 ## 3. Liveness: three independent questions
 
@@ -449,8 +448,7 @@ human place it.
    Make the off state explicit and verify it took effect.
 2. **Observe** for one window, default about **30 days or one release cycle**, whichever is longer,
    and **consumer-configurable**. Record what would have fired and what escaped. State the window's
-   end date on the finding: an observation with no end date is an abandonment wearing an
-   experiment's clothes.
+   end date on the finding: an observation with no end date is an abandoned experiment.
 3. **Delete, with recorded rationale.** The deletion carries the evidence and the observation result
    in its change description, so the next reader of the absence knows it was a decision rather than
    an omission. Where a re-add surface exists, preserve it. Emptying a file while keeping its

@@ -34,7 +34,7 @@ or prompt-only), confirms it with the operator, then routes to the normal resume
 
 `/session-flow:handoff`'s output shape is a **stable detection contract** (documented in
 [`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md)
-"Detection contract"). This skill depends on three DETECTION signals, in precision order, plus one
+"Detection contract"). This skill depends on three detection signals, in precision order, plus one
 resolution input, `Handoff origin:`, described after them:
 
 1. **The file directive**. `Read @<path>/handoffs/<TS>-handoff-<topic>.md …`. It embeds the exact
@@ -61,7 +61,7 @@ resolution input, `Handoff origin:`, described after them:
 
 **`Handoff origin:` is a resolution input, not a detection signal.** It cannot admit or reject a
 candidate, a block is already qualified by the three signals above before it is read. What the ladder depends on it for is step 3's existence check: it names the
-repository and repo-relative path that let a ROOTED directive survive a machine or checkout change,
+repository and repo-relative path that let a rooted directive survive a machine or checkout change,
 which is the one failure an absolute path has that a relative one does not. Only the file-mode
 shape emits it, and only alongside an absolute directive, so its absence disqualifies nothing:
 prompt-only never emits it, and a repo-relative directive never has one. It
@@ -76,8 +76,8 @@ goal applied), so rung 1 can hand back the prompt from the file alone, without a
 that still carries a `<!-- FILL` slot is an unfinished skeleton the producer never completed; it
 is named as such and never presented as the lost handoff.
 
-**The resume prompt this skill recovers is the resume region PLUS the goal region (when one
-applies) PLUS every below-rail `/loop` re-arm message** (save-point.md "Detection contract"). The
+**The resume prompt this skill recovers is the resume region plus the goal region (when one
+applies) plus every below-rail `/loop` re-arm message** (save-point.md "Detection contract"). The
 goal region is a second rail pair headed by the `Type /goal` instruction line, above or below the
 resume region; recover both regions in the order emitted, each with its own instruction line. The
 `/loop` re-arm sits outside every region: the producer emits it as a separate follow-up message,
@@ -168,7 +168,7 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    - **Rootless**. The path has no root, and the transcript `cwd` it was resolved against did not
      hold it. Say which `cwd` was tried. Closing it takes one fact: the operator names the
      repository the work was in, and the relative path resolves under it.
-   - **Rooted**. The path is absolute and nothing is at it on THIS machine, which is what a resume
+   - **Rooted**. The path is absolute and nothing is at it on this machine, which is what a resume
      on a different machine or checkout looks like. Say the absolute path that was tried, and the
      repository the `Handoff origin:` line named. Closing it takes the local checkout of that
      repository.
@@ -217,7 +217,7 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
   userinfo component (`https://<token>@host/…`), where it reads as a path segment rather than as a
   secret. This skill surfaces that value at the confirm gate and derives a widening root from it, so
   it is checked for an `@` ahead of its host before either. **Drop the userinfo and keep the rest. Do
-  NOT replace the URL with a shape marker.** Its host and path are not secret, and this line is the
+  not replace the URL with a shape marker.** Its host and path are not secret, and this line is the
   input that re-resolves a rooted miss, so a `<REDACTED: remote URL>` marker would destroy the
   identity recovery depends on. So `https://<token>@github.com/<owner>/<repo>.git` is
   surfaced as `https://github.com/<owner>/<repo>.git`, never a marker; when the userinfo boundary is
@@ -237,7 +237,7 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
   known, for a where-we-stand briefing. find-handoff is the recovery step for when that location is
   unknown.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Writes nothing during recovery**, no files, no memory, no `/clear`, no resume execution
   before the confirm gate. Post-confirmation work belongs to the selected resume path, not to this
@@ -263,7 +263,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 
 ## Gotchas
 
-- **`/clear` writes a NEW transcript file** in the **same** project directory. The pre-clear
+- **`/clear` writes a new transcript file** in the **same** project directory. The pre-clear
   content is in a sibling `.jsonl`; searching only the current session's file finds nothing. Always
   exclude the current `$CLAUDE_CODE_SESSION_ID` and scan siblings. A listing of one directory
   `transcript_dirs.sh` prints (`ls "<dir>"/*.jsonl`) shows the sibling files that scan reads.
@@ -287,7 +287,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   a session working in a repo that is not cwd's project root. So a rootless miss is UNRESOLVED,
   not absent. Surface it with its directive and say the path has no root, never that the file is
   missing.
-- **Markers in user messages, tool results, and tool INPUTS are not handoffs.** A pasted sample or
+- **Markers in user messages, tool results, and tool inputs are not handoffs.** A pasted sample or
   an echoed doc puts the rails on a `"type":"user"` line, and an assistant `Write`/`Edit` call
   carrying rails in its file content serializes on a `"type":"assistant"` line. The same-line role
   check is only the cheap pre-filter; confirm on the per-candidate decode that the marker sits in
@@ -305,7 +305,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   Take each region by its own instruction line and rail pair, so the goal condition comes back with
   the resume prompt instead of a continuation that has forgotten its goal. A file stores both, so
   rung 1 returns them; a transcript scan has to keep reading past the first bottom rail.
-- **The `/loop` re-arm sits OUTSIDE every region, and recovering only the regions loses it.** The
+- **The `/loop` re-arm sits outside every region, and recovering only the regions loses it.** The
   goal comes back with the goal region; the loop re-arm cannot be inside any region, because the
   re-arm has to be its own message (where a command is recognized: the pointer in "The detection
   contract this keys off" above).
@@ -321,13 +321,13 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   uniquely resolves). "Successful" always means verified-visible. Transcript evidence the agent
   appeared, never exit-0 alone, since the producer itself warns a zero-exit launch can be
   invisible; unverified → ambiguous, keep the candidate. Exclusion also turns on the
-  continuation's CURRENT state, because historical visibility is launch-time only, and that state
+  continuation's current state, because historical visibility is launch-time only, and that state
   must be read with **`claude agents --json --all`**. The bare `--json` lists active sessions only,
-  so a continuation that COMPLETED SUCCESSFULLY is absent from it and indistinguishable there from
+  so a continuation that completed successfully is absent from it and indistinguishable there from
   one that died; treating that absence as failure surfaces a finished continuation's save-point as
   a lost handoff, which invites redoing done work and can bury the older manual handoff. Apply
   step 1's four-way resolution: live → exclude (running); terminal and completed → exclude, saying
-  it FINISHED and pointing at that session's output; terminal and not completed → keep, as the
+  it finished and pointing at that session's output; terminal and not completed → keep, as the
   restart artifact; absent even from `--all` → UNKNOWN (the history is bounded), keep, and do not
   call it a failure.
   Prompt-only continuations screen the same way, bound by content: a rails block whose exact

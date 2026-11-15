@@ -24,12 +24,6 @@ conversation. Each entry is a self-contained exercise the writer can
 do alone, given in Pat's own instruction wording with his numbering,
 his word lists and rhyme schemes, and the answer keys the book prints.
 
-Earlier revisions summarized the exercises instead, which meant none of
-them were actually Pat's and the item counts were invented. That has since
-been undone: the exercises are given in Pat's printed instruction wording,
-with the titles, hooks, word lists and answer slots he supplies alongside
-them.
-
 ## How to use
 
 1. Pick an exercise by craft area (phrasing, meter, rhyme, form,

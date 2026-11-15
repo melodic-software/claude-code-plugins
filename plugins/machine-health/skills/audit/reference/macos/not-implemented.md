@@ -1,6 +1,6 @@
 # machine-health: macOS is not yet implemented
 
-Scaffolding placeholder. When `machine-health` is invoked on a macOS host, the skill **must** emit a clear `UNKNOWN`-severity report explaining this gap and **must not** attempt to execute scripts from `scripts/windows/` on macOS.
+Scaffolding placeholder. When `machine-health` is invoked on a macOS host, the skill must emit a clear `UNKNOWN`-severity report explaining this gap and must not attempt to execute scripts from `scripts/windows/` on macOS.
 
 ## What the skill should do on macOS today
 
@@ -36,7 +36,7 @@ Goal is "populate two folders," not "refactor the skill." Everything under `refe
 
 ## Explicit prohibition
 
-**Do not attempt to execute any script under `scripts/windows/` on macOS.** Windows scripts call `Get-CimInstance Win32_*`, `powercfg`, registry paths, and PowerShell Windows-only assemblies. Running them on macOS fails in noisy, confusing ways and pollutes the run log. Detection first, then stub first. That is the contract.
+Do not attempt to execute any script under `scripts/windows/` on macOS. Windows scripts call `Get-CimInstance Win32_*`, `powercfg`, registry paths, and PowerShell Windows-only assemblies. Running them on macOS fails in noisy, confusing ways and pollutes the run log. Detection first, then stub first. That is the contract.
 
 ## When to remove this file
 

@@ -46,7 +46,7 @@ run-watch (metadata harvest → harvested-links.json)
 | GitHub repos | `harvested-links` + optional `harvested-repo-analysis.json` | research clusters |
 | Synthesis PNG images | `key-frames/frames/` | `key-frames-manifest.md` |
 
-`synthesis/` is PNG images only, not markdown, decks, or link lists.
+`key-frames/frames/` holds PNG images only, not markdown, decks, or link lists.
 
 ## Verify-script stance
 

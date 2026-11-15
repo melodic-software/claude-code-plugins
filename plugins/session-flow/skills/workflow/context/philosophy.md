@@ -2,10 +2,10 @@
 
 ## Universal applicability
 
-**This applies to ALL technical claims**, including "just adding a bullet point" to a rules file,
+**This applies to all technical claims**, including "just adding a bullet point" to a rules file,
 writing a comment, or answering a question. No size threshold below which verification is skipped.
 
-- **Task size does NOT reduce research depth.** A one-line config change gets the same
+- **Task size does not reduce research depth.** A one-line config change gets the same
   verification rigor as a multi-file feature
 - **Analyzing existing research is not summarizing it.** Restating a document's conclusions skips
   the research stage. Analysis requires independent verification of the claims and a fit check
@@ -20,18 +20,18 @@ work.
 
 ## Task tracking
 
-For non-trivial work (3+ stages), when this session has the task tools, create tasks at the START
+For non-trivial work (3+ stages), when this session has the task tools, create tasks at the start
 and update status as you go (`SKILL.md` step 5 covers sessions without them). Tasks make
 progress visible; for state that must survive `/clear`, use the durable checklist or a `/session-flow:handoff`
 save-point. In-memory tasks do not persist.
 
 ## Current information is non-negotiable
 
-**Never operate on stale knowledge.** Exploration establishes what IS; research establishes what
-SHOULD BE. Together they are the knowledge-gathering prerequisite for every task.
+**Never operate on stale knowledge.** Exploration establishes what is; research establishes what
+should be. Together they are the knowledge-gathering prerequisite for every task.
 
-- **When in doubt, look it up.** A quick doc fetch is near-free; acting on outdated information is
-  expensive
+- **Look up a fact the work depends on unless you can confirm it is current.** A quick doc fetch is
+  near-free; acting on outdated information is expensive
 - **Flag uncertainty explicitly.** If current information cannot be obtained, say so; never
   present training-data-era knowledge as current fact
 - **File/directory placement is a technical claim.** When creating files for a specific tool,

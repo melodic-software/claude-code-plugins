@@ -16,10 +16,9 @@ anti-pattern (checks P1/P2/P3).
 
 ## Why this convention exists
 
-Running this convention's own detector against this marketplace surfaced six pre-existing
-interpreter/runner-led frontmatter grants (shapes like `Bash(bash <script>:*)`, `Bash(bash <dir>/*)`,
-and `Bash(npx:*)`) across unrelated plugins, none of them the portable bare-name pattern, and the
-broad forms among them (a globbed script target, a package runner) are exactly what auto mode drops.
+Interpreter- or runner-led frontmatter grants (shapes like `Bash(bash <script>:*)`,
+`Bash(bash <dir>/*)`, and `Bash(npx:*)`) are not the portable bare-name pattern, and their broad
+forms (a globbed script target, a package runner) are exactly what auto mode drops.
 When a grant is dropped the failure is silent: it parses, looks correct, and does nothing the moment
 the session enters auto mode, so the action falls through to the classifier and can be denied even when
 the operator intended to pre-approve it. A convention plus an enforceable check is the durable fix.
@@ -28,8 +27,9 @@ the operator intended to pre-approve it. A convention plus an enforceable check 
 
 Read every "under auto mode" clause below as the **default** condition, not as a conditional one. We
 assume any session that loads a rule may have started in auto mode without its operator choosing
-it, and this repository's unattended lanes launch with `--permission-mode auto` (the root
-`AGENTS.md`), so every rule in this convention is written for the auto-mode case. Which mode a
+it, and this repository's local lanes launch with `--permission-mode auto` (the
+[loop-lane convention, "Permission modes"](../loop-lane/README.md#permission-modes)), so every rule
+in this convention is written for the auto-mode case. Which mode a
 particular session starts in is not something the convention tracks.
 
 - **Pointer**: when you need to know which mode a given session starts in, fetch
@@ -43,19 +43,15 @@ particular session starts in is not something the convention tracks.
 
 Two consequences for this convention, and one non-consequence:
 
-- **A dropped rule is the expected outcome now, not the edge case.** Before the switch, an
-  interpreter-wildcard grant worked until someone entered auto mode, so the anti-patterns below were
-  latent, correct-looking rules that failed on a mode change nobody made on most days. After it, a
-  session that **takes** the new default starts with the broad grant already suspended, so the
-  silent-failure mode described above is that session's *first* run, not a later one. Sessions
-  that start in another mode keep the anti-patterns latent, but the default path alone is enough to
-  make writing for the auto-mode case the only safe authoring posture; it is not a claim that every
-  session is in auto mode.
-- **"Run it outside auto mode" is a downgrade, not a remedy.** The escape stays true, since the mode is
-  switchable at any time, but it now asks an operator to leave the default rather than to decline an
-  opt-in. It is the fallback for the one case with no better answer (an `Agent` allow rule, which has
-  no bare-command-on-PATH analog to re-scope to), never the first-resort fix. Re-scoping to the
-  [correct pattern](#the-correct-pattern) is.
+- **A dropped rule is the expected outcome, not the edge case.** A session that **takes** the
+  default starts with the broad grant already suspended, so the silent-failure mode described above
+  is that session's *first* run, not a later one. Sessions that start in another mode keep the
+  anti-patterns latent, but the default path alone is enough to make writing for the auto-mode case
+  the only safe authoring posture; it is not a claim that every session is in auto mode.
+- **"Run it outside auto mode" is a downgrade, not a remedy.** The mode is switchable at any time,
+  but this asks an operator to leave the default. It is the fallback for the one case with no better
+  answer (an `Agent` allow rule, which has no bare-command-on-PATH analog to re-scope to), never the
+  first-resort fix. Re-scoping to the [correct pattern](#the-correct-pattern) is.
 - **Nothing about *which* rules get dropped changes**, and a repository still cannot grant itself
   auto mode: we never ship a repository settings file that tries to, and treat the mode as arriving
   with the session, not from the repository (for where a start mode can come from, fetch the
@@ -232,10 +228,8 @@ repeated: re-survey with fresh sessions instead. The guidance below stands. No p
 repository ships a `bin/` today, and the bundled-path form works whether or not the gap recurs.
 **Recheck:** a plugin here adds a `bin/`, or a report of a bare plugin command missing from `PATH`.
 
-**Per-session absence is what makes the bare name unusable, not permanent non-delivery.** An earlier
-revision of this section read the gap as categorical ("no plugin directory of any kind is on
-`PATH`"); that came from sampling only degraded sessions. The operational conclusion is unchanged and
-if anything firmer: an intermittent capability cannot carry a permission story. A degraded session
+**Per-session absence is what makes the bare name unusable, not permanent non-delivery**: an
+intermittent capability cannot carry a permission story. A degraded session
 measured on Windows 11 / Git Bash, Claude Code **v2.1.219**, with the owning plugin installed at user
 scope and reported `enabled` by `claude plugin list`, looks like this:
 

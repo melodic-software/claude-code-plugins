@@ -22,7 +22,7 @@ source: the session health scores `/session-flow:retro` records, with delivery m
 presents the report, and routes each finding to the skill that would act on it. It never applies a
 finding itself.
 
-**What this skill is NOT:** not a retrospective of one session (that is `/session-flow:retro`), not
+**What this skill is not:** not a retrospective of one session (that is `/session-flow:retro`), not
 a code or config review, and not Claude Code's built-in `/insights` (see "Boundary" below).
 
 ## Arguments

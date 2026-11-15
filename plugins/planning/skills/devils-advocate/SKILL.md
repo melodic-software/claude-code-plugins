@@ -44,7 +44,7 @@ replacing it.
 
 Dispatch the stress-test to a fresh-context sub-agent in two cases:
 
-- **Plan-review mode**, when the plan under review was produced in THIS context/session: the
+- **Plan-review mode**, when the plan under review was produced in this context/session: the
   producing context shares the plan's blind spots and drifts toward approving its own work. When
   invoked on an artifact this context did not author (a file, a plan from another session, a
   diff), you are already the fresh pair of eyes. Proceed directly.
@@ -52,7 +52,7 @@ Dispatch the stress-test to a fresh-context sub-agent in two cases:
   sub-agent invokes `/discovery:explore` via the Skill tool (if enabled, else explores directly)
   on the incumbent itself (Alternatives Sweep, Step 1).
 
-The dispatch prompt carries only WHAT to investigate (the plan artifact, or the incumbent's identity
+The dispatch prompt carries only what to investigate (the plan artifact, or the incumbent's identity
 and location), never your conclusions: "here is the target; go look yourself," not "here is what I
 found; confirm it." Where the verdict is high-stakes and correlated blind spots are the risk, prefer
 a cross-vendor advisor **when one is enabled and set up** (for example the OpenAI Codex plugin, when
@@ -154,13 +154,14 @@ Check for:
 - **Version-specific changes** that may have broken assumptions since training cutoff
 - **Cross-platform issues** (Windows/Git Bash, macOS, Linux)
 - **Conflicts with the consuming project's conventions**: `CLAUDE.md` is already in context; also
-  read every rule file under `.claude/rules/`, path-scoped and unscoped alike, since neither
-  reliably reaches a plan review's context on its own
+  read every rule file under `.claude/rules/`, path-scoped and unscoped alike, so a rule whose
+  trigger the review never fired still counts (when each loads:
+  [path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules))
 
 | # | Assumption | Verified? | Evidence | Impact |
 |---|-----------|-----------|----------|--------|
 | 1 | `transcript_path` in stdin | YES | Official docs confirm base field | None. Assumption holds |
-| 2 | `if` field fires under skip-perms | NO | silently no-ops (known issue) | CRITICAL. Use explicit guards |
+| 2 | `if` field fires under skip-perms | NO | silently no-ops (issue `#<number>`, linked) | CRITICAL. Use explicit guards |
 
 **Incumbency-only support fails this check.** An assumption whose *only* backing is that the status
 quo already relies on it ("we already use X", no requirement, benchmark, or doc behind the original
@@ -310,7 +311,7 @@ Suggest the follow-ups the findings call for:
 - Filing deferred research or monitoring items in the project's work-item tracker
   (`/work-items:track` if enabled)
 
-## What This Skill Does NOT Do
+## What This Skill Does Not Do
 
 - **Does not block execution**. It advises, the user decides
 - **Does not replace code review**. It reviews plans, not code (use your code-review tooling for

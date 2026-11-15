@@ -55,7 +55,7 @@ playwright-cli -s=smoke close
 | **Visual regression** | Playwright CLI screenshot + image diff; when `/testing:check-visual-parity` is among the available skills, it holds the baseline and counts the differing pixels |
 | Performance (Core Web Vitals, Lighthouse) | Chrome DevTools tooling |
 
-Playwright CLI complements the orchestrator's own observability and `curl`. It does NOT replace them. Reach for it when the test needs actual DOM/UI interaction, not HTTP.
+Playwright CLI complements the orchestrator's own observability and `curl`. It does not replace them. Reach for it when the test needs actual DOM/UI interaction, not HTTP.
 
 ## Framework gotcha: Blazor Interactive Auto
 
@@ -85,7 +85,7 @@ Never commit `.playwright-cli/` content. Add it to the project's `.gitignore`. R
 
 ## Cross-worktree notes
 
-Each git worktree has its own `.playwright-cli/` (gitignored, relative to CWD). Session state (`-s=<name>`) is keyed by daemon process, per-user, NOT per-worktree. Two worktrees running `-s=smoke` concurrently share the same browser. For concurrent isolation, use distinct session names per worktree:
+Each git worktree has its own `.playwright-cli/` (gitignored, relative to CWD). Session state (`-s=<name>`) is keyed by daemon process, per-user, not per-worktree. Two worktrees running `-s=smoke` concurrently share the same browser. For concurrent isolation, use distinct session names per worktree:
 
 ```bash
 # In worktree A

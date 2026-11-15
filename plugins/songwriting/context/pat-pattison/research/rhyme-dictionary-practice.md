@@ -35,9 +35,9 @@ Chapter 1:
 
 > "Rhyme is a connection between the sounds of syllables, not words."
 
-The future skill should not coach a writer to wait for rhymes to arrive from
-inspiration. It should coach them to build a useful sound inventory, then make
-artistic choices from that inventory.
+Do not coach a writer to wait for rhymes to arrive from inspiration. Coach them
+to build a useful sound inventory, then make artistic choices from that
+inventory.
 
 ## Syllables, not printed words
 

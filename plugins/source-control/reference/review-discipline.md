@@ -11,10 +11,10 @@ Restating a clause of this file elsewhere is a declared act: the copy carries a
 qualifiers within its own bounds. This file declares the same markers around the passages it
 owns, so the rule is measured where it is written, not anywhere in the file. An untagged copy is
 reported. Reducing a restatement to a pointer is always the stronger answer; the marker makes a
-NEW copy visible enough to argue about, not copying cheap. The clause set and its qualifiers live
+new copy visible enough to argue about, not copying cheap. The clause set and its qualifiers live
 in the marketplace's own `scripts/contract-clause-registry.json`.
 
-The deterministic companion scripts live beside this file:
+The deterministic companion scripts live in the plugin's `scripts/` directory:
 
 - `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh <pr>`: fetches every comment from all
   3 GitHub API surfaces (issue-level, review-level, inline review comments) as one JSON array
@@ -38,19 +38,19 @@ multi-finding comments. Every pass re-derives comment state from GitHub:
 
 1. **Filter out own prior replies.** Comments authored by your own posting identities
    (`gh api user --jq .login`, plus any project bot identity, the same set the readiness gate's
-   `--self` / `--extra-self` covers) that ARE classification replies are NOT findings. A reply
+   `--self` / `--extra-self` covers) that are classification replies are not findings. A reply
    is one when a line in it opens with the D5 label marker `<!-- d5 finding=` (§2), or, for a
    reply posted before the marker existed, when it carries the
    `| # | Finding | Classification |` table pattern. Skip them. Own follow-up
-   replies citing commit SHAs are also not findings. Only comments from OTHER authors are
+   replies citing commit SHAs are also not findings. Only comments from other authors are
    potential finding sources.
 2. **Classify each remaining comment** as addressed or unaddressed by checking GitHub for
    evidence:
-   - **Addressed (skip):** the comment has a substantive reply (from ANY author) containing
-     BOTH: (a) a classification token (VALID, INCORRECT, UNCERTAIN, or INTENTIONAL), AND (b) evidence (code
+   - **Addressed (skip):** the comment has a substantive reply (from any author) containing
+     both: (a) a classification token (VALID, INCORRECT, UNCERTAIN, or INTENTIONAL), and (b) evidence (code
      reference, test output, or reasoning).
    - **Unaddressed (process):** no reply meeting both criteria. "Noted" or "will fix" without
-     classification + evidence does NOT count.
+     classification + evidence does not count.
 3. **Extract findings** per §2. One comment may contain multiple work items.
 
 ## 2. Structured finding extraction
@@ -92,7 +92,7 @@ multi-paragraph analyses. Each finding is a separate work item requiring its own
 ```
 
 The reaction is per-comment (GitHub allows one reaction type per user per comment). Post it
-BEFORE the reply, so reviewers scanning a PR see 👍/👎 without expanding threads.
+before the reply, so reviewers scanning a PR see 👍/👎 without expanding threads.
 
 **Label marker, one line per finding, required in every D5 answer.** Below the table, write one
 `<!-- d5 finding=<#> label=<LABEL> lane=<lane> -->` line for each row, with nothing else on the
@@ -115,7 +115,7 @@ markers, from a reply posted before the marker existed, and the pr-unblock lane'
 `**pr-unblock / address-feedback: <LABEL>, <state>**` line, which is that lane's label line in
 place of the marker.
 
-**MANDATORY subagent dispatch for multi-finding comments (≥3 findings):**
+**Required subagent dispatch for multi-finding comments (≥3 findings):**
 
 When a single PR comment packs 3+ findings, dispatch a finding-extractor subagent instead of
 extracting inline. The subagent:
@@ -124,8 +124,8 @@ extracting inline. The subagent:
    stay in the subagent's context window; only the structured ledger returns
 2. Structurally enforces the per-finding work-item shape. The subagent returns a fixed-schema
    ledger; missing entries trigger main-session escalation
-3. Is scope-fenced. ALLOWED: read PR-branch files + `gh api` against the specific PR;
-   FORBIDDEN: edits, commits, pushes, reactions, replies on GitHub (those stay in the main
+3. Is scope-fenced. Allowed: read PR-branch files + `gh api` against the specific PR;
+   forbidden: edits, commits, pushes, reactions, replies on GitHub (those stay in the main
    session)
 
 **Subagent dispatch prompt (compose verbatim, substitute `<PR>`, `<COMMENT_ID>` /
@@ -136,7 +136,7 @@ Extract individual findings from the multi-finding bot/human review at:
   https://github.com/<owner>/<repo>/pull/<PR>#issuecomment-<COMMENT_ID>
   (or pull/<PR>#pullrequestreview-<REVIEW_ID>)
 
-ALLOWED scope (read-only on PR branch <BRANCH>):
+Allowed scope (read-only on PR branch <BRANCH>):
 - `gh api repos/<owner>/<repo>/issues/<PR>/comments` and per-id endpoints
 - `gh api repos/<owner>/<repo>/pulls/<PR>/{comments,reviews}` and per-id endpoints
 - `Read` / `Grep` / `Glob` against the repo working tree at the PR's assigned
@@ -144,33 +144,33 @@ ALLOWED scope (read-only on PR branch <BRANCH>):
   explicit absolute `${CLAUDE_PLUGIN_ROOT}/…` path for bundled plugin references);
   never a bare relative path that resolves against the session's default checkout
 - `Bash` for git inspection (`git -C "<absolute-worktree-path>" show`, `git -C
-  "<absolute-worktree-path>" log`, `git -C "<absolute-worktree-path>" diff`). NEVER
-  state-mutating and NEVER bare `git` without `-C "<absolute-worktree-path>"`
+  "<absolute-worktree-path>" log`, `git -C "<absolute-worktree-path>" diff`). Never
+  state-mutating and never bare `git` without `-C "<absolute-worktree-path>"`
 
-FORBIDDEN:
+Forbidden:
 - Any Edit / Write of repo files
 - Any `git add` / `git commit` / `git push`
 - Any reaction / reply / comment POST to GitHub
 - Any Skill invocation other than read-only exploration
 
-Return a SINGLE markdown ledger with this exact shape (one row per finding):
+Return a single markdown ledger with this exact shape (one row per finding):
 
 | # | Severity | File:Line | Finding (≤120 chars) | Validation status | Evidence | Suggested classification |
 |---|---|---|---|---|---|---|
-| 1 | CRITICAL | path/to/file.cs:42 | <one-line summary> | VERIFIED: code matches claim | <quote 1-3 lines of code OR test output OR doc text> | VALID (fix now) |
+| 1 | CRITICAL | path/to/file.cs:42 | <one-line summary> | VERIFIED: code matches claim | <quote 1-3 lines of code or test output or doc text> | VALID (fix now) |
 | 2 | IMPORTANT | path/to/file.cs:73 | <one-line summary> | INCORRECT: code already does X | <counter-evidence> | INCORRECT |
 | 3 | SUGGESTION | path/to/file.md:12 | <one-line summary> | UNCERTAIN: behavior depends on Y | <what's missing> | UNCERTAIN |
 
 Ledger constraints:
-- Severity column MUST match the parent comment's severity labels verbatim (CRITICAL / IMPORTANT / SUGGESTION / P1 / P2 / P3)
-- Validation status MUST come from your own code reading, not a paraphrase of the bot claim
-- Evidence MUST cite line numbers + verbatim snippets (≤3 lines) OR direct command output
-- Suggested classification MUST be one of: VALID (fix now) | VALID (defer) | INCORRECT | UNCERTAIN | INTENTIONAL. VALID (defer) only for a structural, urgent-but-cannot-land, or fix-blocked-on-research finding; a small or medium one is VALID (fix now), placed per D4.6's scope test
+- Severity column must match the parent comment's severity labels verbatim (CRITICAL / IMPORTANT / SUGGESTION / P1 / P2 / P3)
+- Validation status must come from your own code reading, not a paraphrase of the bot claim
+- Evidence must cite line numbers + verbatim snippets (≤3 lines) or direct command output
+- Suggested classification must be one of: VALID (fix now) | VALID (defer) | INCORRECT | UNCERTAIN | INTENTIONAL. VALID (defer) only for a structural, urgent-but-cannot-land, or fix-blocked-on-research finding; a small or medium one is VALID (fix now), placed per D4.6's scope test
 - One row per finding. If the parent comment has 6 findings, the ledger has 6 rows. No collapsing.
 
 If the parent comment is genuinely single-finding, return a 1-row ledger anyway.
 
-Report ONLY the ledger + a one-line summary count ("Extracted N findings: X CRITICAL, Y IMPORTANT, Z SUGGESTION"). No prose framing.
+Report only the ledger + a one-line summary count ("Extracted N findings: X CRITICAL, Y IMPORTANT, Z SUGGESTION"). No prose framing.
 ```
 
 **Main-session contract after the subagent returns:**
@@ -178,11 +178,11 @@ Report ONLY the ledger + a one-line summary count ("Extracted N findings: X CRIT
 1. Receive the ledger. Verify the row count matches the source comment's finding count
    (independent count via grep on the parent comment body for severity markers)
 2. For each ledger row, the main session runs D4.5 (react) + D4.6 (ground any `VALID (defer)`:
-   provenance and scope tests first; tracker item filed and verified BEFORE the D5 reply cites it) + D5
+   provenance and scope tests first; tracker item filed and verified before the D5 reply cites it) + D5
    (reply with the per-finding sub-row from the ledger) + D6 (fix if `VALID (fix now)`) + D7
    (follow-up SHA) with verification gates between each step. A subagent ledger row saying
    `VALID (defer)` is a classification, not a grounding. D4.6 runs on it like any other
-3. The subagent ledger is the D1–D4 work product. The main session NEVER skips D4.5–D7 by
+3. The subagent ledger is the D1–D4 work product. The main session never skips D4.5–D7 by
    trusting the ledger alone. The ledger feeds the work, it doesn't replace it
 
 **Single-finding comments** (1-2 findings): inline extraction in the main session is fine;
@@ -192,12 +192,12 @@ subagent overhead is not warranted.
 main session produce near-zero per-finding D1–D7 cycles, with dozens of findings glossed in one
 pass. The ledger contract structurally forces the per-finding shape.
 
-**Mechanical enforcement (gate, not prose):** advisory "MANDATORY" wording alone still
+**Mechanical enforcement (gate, not prose):** advisory "required" wording alone still
 under-decomposed in practice, so a gate enforces it:
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" <pr>` counts source findings
 (severity markers in reviewer comments) vs classification rows (VALID/INCORRECT/UNCERTAIN in
 your replies) and exits non-zero when rows < findings. The subagent-dispatch rule above says
-HOW to decompose; the gate enforces THAT you did. An iteration cannot complete while it
+how to decompose; the gate enforces that you did. An iteration cannot complete while it
 reports `READINESS_BLOCKED`. It says nothing about whether the PR can merge; that is the merge
 gate's `ready` field alone
 (`${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/reference/safety.md`
@@ -222,7 +222,7 @@ flow the PR's base repository takes `<owner>/<repo>`'s place, named explicitly.
   when the fix would change a shared artifact (a reusable workflow or action, shared config, a
   published package), list its consumers and check the change against each before D4
 - [ ] D4. Classify with evidence: VALID (fix now) / VALID (defer) / INCORRECT / UNCERTAIN /
-  INTENTIONAL. Classification MUST cite evidence from D2–D3. `VALID (defer)` must pass D4.6's scope test.
+  INTENTIONAL. Classification must cite evidence from D2–D3. `VALID (defer)` must pass D4.6's scope test.
   `INTENTIONAL` is for a finding that describes the code correctly where the code is that way on
   purpose: the D5 reply states the reason (the decision, contract or constraint that makes it
   deliberate), no code changes, and no tracker item is filed. It is not available for a defect this
@@ -234,12 +234,12 @@ flow the PR's base repository takes `<owner>/<repo>`'s place, named explicitly.
   [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../context/recommendation-basis.md);
   full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#basis-label)
 - [ ] D4.5. React to the parent comment via `gh api .../reactions`. One reaction per comment
-  (not per finding). **Tiebreaker for mixed-finding comments:** `+1` if ANY finding is VALID
-  (signals action taken), `-1` only when ALL are INCORRECT, `eyes` when all UNCERTAIN or INTENTIONAL, or a
+  (not per finding). **Tiebreaker for mixed-finding comments:** `+1` if any finding is VALID
+  (signals action taken), `-1` only when all are INCORRECT, `eyes` when all UNCERTAIN or INTENTIONAL, or a
   mix of those with INCORRECT and zero VALID
   - [ ] **verify reaction exists:** GET the same reactions endpoint filtered by your posting
     identities. Non-zero confirms. Use `pulls/comments/<id>/reactions` for inline review
-    comments. **Exemption:** PR review BODIES have no reactions endpoint in the REST API, so skip
+    comments. **Exemption:** PR review bodies have no reactions endpoint in the REST API, so skip
     the reaction there; the D5 reply is the audit signal
 - [ ] D4.6. **Ground a `VALID (defer)`.** <!-- contract-restatement-begin: D4.6-deferral-grounding --> A deferral ships the change without the fix, so it
   counts as a disposition only when it is durable and someone else can find it: file a tracker
@@ -297,10 +297,10 @@ flow the PR's base repository takes `<owner>/<repo>`'s place, named explicitly.
     confirm the entry is under `## Follow-ups` with its `Pre-existing (advisory):` marker
 - [ ] D5. Reply with the per-finding classification table + evidence (before fixing). Table
   format per §2, which includes the Reacted column and the required `<!-- d5 finding=` label
-  marker line for each finding. **Route the reply by comment type, REQUIRED
-  and not interchangeable:** inline review comments (diff-anchored, `pulls/comments`) MUST reply
-  THREADED via `gh api repos/<owner>/<repo>/pulls/<pr>/comments/<comment-id>/replies -f
-  body='...'` so the reply lands under the source thread, NEVER a detached `pr comment`.
+  marker line for each finding. **Route the reply by comment type, required
+  and not interchangeable:** inline review comments (diff-anchored, `pulls/comments`) must reply
+  threaded via `gh api repos/<owner>/<repo>/pulls/<pr>/comments/<comment-id>/replies -f
+  body='...'` so the reply lands under the source thread, never a detached `pr comment`.
   Issue-level / review-level comments (no thread) →
   `gh pr comment <pr> -R <owner>/<repo> --body '...'`. Use the project's bot-identity wrapper for
   these writes when it has one; plain `gh` otherwise.
@@ -336,7 +336,7 @@ flow the PR's base repository takes `<owner>/<repo>`'s place, named explicitly.
     `pulls/<pr>/comments` filtered by `in_reply_to_id`; issue-level → `gh api --paginate
     "repos/<owner>/<repo>/issues/<pr>/comments?per_page=100" --jq '.[] |
     select((.body | contains("<sha>")) and .user.login == "<posting-identity>") | .body'`.
-    Constrain on BOTH the SHA and the posting identity, and never on `.[-1]`. `.[-1]` is wrong
+    Constrain on both the SHA and the posting identity, and never on `.[-1]`. `.[-1]` is wrong
     because these endpoints return oldest-first, so on an unpaginated list it is the 30th-oldest
     comment. SHA alone is wrong because this is a control gate you act on: anyone else quoting the
     fix SHA, a reviewer or another bot, satisfies it, and the check reports your reply as posted
@@ -363,11 +363,11 @@ flow the PR's base repository takes `<owner>/<repo>`'s place, named explicitly.
   tooling, and this list never overrides that.** A disposition making a thread eligible here does
   not by itself authorize a resolve the invoking tier's guards refuse (see the tier notes below).
   The author conditions apply in full; they narrow the eligible set, never widen it. Resolve
-  ONLY threads whose OPENING comment is authored by a
-  BOT reviewer that you addressed. NEVER resolve HUMAN-authored threads; the human resolves
-  their own after verifying the fix. NEVER resolve your OWN threads (any of your posting
+  only threads whose opening comment is authored by a
+  bot reviewer that you addressed. Never resolve human-authored threads; the human resolves
+  their own after verifying the fix. Never resolve your own threads (any of your posting
   identities, the same self set as §1 step 1). Skip issue-level comments (no thread). **Thread
-  author = login of the THREAD-OPENING comment** (replying into it does not change the author).
+  author = login of the thread-opening comment** (replying into it does not change the author).
   (The `source-control:babysit-prs` worker and autopilot tiers resolve threads through that
   skill's guarded `source-control-babysit-resolve-thread` wrapper, which adds an
   `--allowed-owners` allowlist, bot-vs-human classification, and a JSON receipt, instead of the

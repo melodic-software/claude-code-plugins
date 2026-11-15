@@ -16,7 +16,7 @@ response. The report gives it its own group for that reason.
 
 ## Every emitted finding kind
 
-The collector emits exactly the kinds below. What a kind IS lives in one registry inside
+The collector emits exactly the kinds below. What a kind is lives in one registry inside
 `scripts/audit-fleet.sh`: its confidence tier, its disposition sentence, and whether it is an
 actionable branch or worktree handoff. Emitters name only the kind, and
 `scripts/audit-fleet.sh --print-finding-registry` prints that registry as tab-separated rows.
@@ -43,7 +43,7 @@ reader; the registry's disposition is the shorter sentence the report itself pri
 | `missing-worktree` | Registered path is absent but Git has not marked it prunable under its current expiry policy | `MEDIUM` | Manual review/dry-run handoff |
 | `locked-worktree` | Git porcelain marks a non-main registration locked | `HIGH` | Manual review of the lock reason before cleanup |
 | `worktree-admin-mismatch` | Registered directory exists and resolves to a different common Git directory, or cannot resolve as the registered repository | `HIGH` | Manual admin-directory decision; never automatic repair/removal |
-| `worktree-not-a-root` | Registered path exists but `git rev-parse --show-prefix` is non-empty, so it is a subdirectory of a work tree rather than its root. `git -C` answers for the CONTAINING repository at exit 0, which is indistinguishable from a healthy clean worktree | `HIGH` | Manual review; never read a `git -C` probe of the path as this worktree's own state |
+| `worktree-not-a-root` | Registered path exists but `git rev-parse --show-prefix` is non-empty, so it is a subdirectory of a work tree rather than its root. `git -C` answers for the containing repository at exit 0, which is indistinguishable from a healthy clean worktree | `HIGH` | Manual review; never read a `git -C` probe of the path as this worktree's own state |
 | `worktree-root-unverifiable` | `git rev-parse --show-prefix` failed at the registered path, so root-ness is unproven | `UNKNOWN` | Stop worktree classification for that registration; do not infer either way |
 | `worktree-nested-in-repository` | A non-main registration's root is inside the canonical checkout's own working tree, rather than at an external root outside every repository | `MEDIUM` | Manual placement decision; never auto-move or auto-remove |
 | `worktree-outside-configured-root` | A linked worktree is outside the configured worktree root (`worktreeroot.path` or source-control `worktree_root`); evidence names the expected `<root>/<owner>-<repo>-<slug>` location and the config origin | `MEDIUM` | Manual placement decision; never auto-move |
@@ -54,7 +54,7 @@ reader; the registry's disposition is the shorter sentence the report itself pri
 | `worktree-root-unconfigured` | No `worktreeroot.path` and no source-control `worktree_root`; linked worktree placement is listed without asserting a convention | `LOW` | Descriptive only; configure a root then rerun for conformance |
 | `worktree-root-pluginconfigs-unreadable` | `worktreeroot.path` unset and the source-control `pluginConfigs` fallback could not be read because `jq` is missing from PATH | `UNKNOWN` | Do not treat as unconfigured; install `jq` or set `worktreeroot.path` |
 | `worktree-status-handoff` | One or more linked, unlocked registrations with reliable admin exist; disposability is owned by `/source-control:worktree status` (stranded / unknown / safe), not by fleet `git status` | `MEDIUM` | Delegate stranded-work classification; never treat porcelain emptiness as reclaimable; cleanup `--dry-run` only after Work is safe |
-| `worktree-placement-unverifiable` | A non-bare canonical checkout gave no working-tree root, so no registration under it could be placement-checked. A BARE hub is not this finding. It has no working tree for a worktree to be nested inside, so the check is legitimately skipped rather than unanswered | `UNKNOWN` | Do not infer that this repository's worktrees are correctly placed |
+| `worktree-placement-unverifiable` | A non-bare canonical checkout gave no working-tree root, so no registration under it could be placement-checked. A bare hub is not this finding. It has no working tree for a worktree to be nested inside, so the check is legitimately skipped rather than unanswered | `UNKNOWN` | Do not infer that this repository's worktrees are correctly placed |
 | `bare-repo-with-working-tree` | `core.bare=true` coincides with populated working-tree content and/or registered linked worktrees, so the path is a Git repository but not a work tree | `MEDIUM` | Manual review only; prefer `git config --local core.bare false` (linked worktrees are unaffected); never auto-rewrite |
 | `github-remote-moved` | GitHub REST resolves the requested `owner/repo` to a different canonical `full_name`. Branch and worktree analysis continues against the resolved identity; this finding does not stop local classification | `HIGH` | Human-reviewed remote update; local classification is not deferred |
 | `duplicate-checkout` | Two or more distinct checkouts resolve to one normalized GitHub identity | `LOW` | Informational only; same-identity clones legitimately diverge |

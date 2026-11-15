@@ -15,7 +15,7 @@ here exactly as [brainstorm.md](brainstorm.md) prints it:
 
 That sentence carries no Challenge or Day locator anywhere in this corpus. It is
 the book's own framing, so it is cited as book-and-year only (per
-[book-references.md](book-references.md)). It licenses the TARGET: the writer's
+[book-references.md](book-references.md)). It licenses the target: the writer's
 voice is what the work explores. It licenses nothing about the method. Pat does not
 say how to characterize a register from accepted lines, and this file does not claim
 he does.
@@ -32,14 +32,14 @@ A voiceprint is a tool. It describes; it does not legislate.
 ## The principle already exists here, but the mechanism did not
 
 [response-filter.md](response-filter.md) states the principle twice. §4's coaching
-checklist carries **Coach toward writer's voice**, "the AI does NOT impose its
+checklist carries **Coach toward writer's voice**, "the AI does not impose its
 preference", and the filter's posture table opens on the row `Voice | The writer's
 voice | The AI's preferred voice`. [coaching-protocol.md](coaching-protocol.md) says
 it again: "The author posture imposes the AI's voice. The coach posture surfaces the
 writer's voice," closing on "the writer's voice arrives at the writer's song."
 
 All of that is posture: *do not impose mine*. None of it says what the writer's voice
-IS. With no answer to that, "don't impose mine" degrades into "guess", and a guess
+is. With no answer to that, "don't impose mine" degrades into "guess", and a guess
 about register defaults to a fancy-plain dial, which is the failure recorded below.
 This file is the mechanism underneath those statements. It is not a second way of
 saying them, and it does not restate them.
@@ -62,18 +62,18 @@ Same word, two reference objects; keep them apart.
 ## The failure this file exists to prevent
 
 *One writer's judgments, from the Sofía sessions (2026-08-12), recorded as evidence
-that a voiceprint is needed, NOT as this plugin's target register.*
+that a voiceprint is needed, not as this plugin's target register.*
 
 | Candidate | Writer's verdict | The lesson the AI drew | Why that lesson was wrong |
 | --- | --- | --- | --- |
 | `silt` | rejected as too literary | "go plainer" | plainness was never the target |
 | `cruel`, `too` | rejected as too basic | "go fancier" | fanciness was never the target |
-| `picturesque` | accepted | (unexplained) | a multisyllable that PAYS |
+| `picturesque` | accepted | (unexplained) | a multisyllable that pays |
 | `so` | never | (unexplained) | a plain word below the writer's floor |
 
 The assistant read these as points on a single fancy-plain dial and oscillated along
 it, correcting one rejection into the next. They are not on one dial. They are four
-observations about ONE band, whose upper edge is set by whether a long word earns its
+observations about one band, whose upper edge is set by whether a long word earns its
 length and whose lower edge is set by whether a short word carries any weight.
 
 These specific words are that writer's, on that night. Shipping them as the plugin's
@@ -94,7 +94,7 @@ nouns" is not a voiceprint entry. The quoted line is.
 
 ### Stage 1: gather the accepted corpus
 
-Only material the writer has ACCEPTED counts:
+Only material the writer has accepted counts:
 
 - lines locked into a song's canonical `LYRIC.md`
 - lines the writer drafted themselves: worksheets, ideation, notebook material
@@ -114,7 +114,7 @@ answered from quoted lines:
 
 | Dimension | The question it answers | Evidence form |
 | --- | --- | --- |
-| Vocabulary band | Which multisyllables PAY at this writer's standard, and which register as showing off? Which plain words fall below their floor? | accepted words and rejected words, both quoted |
+| Vocabulary band | Which multisyllables pay at this writer's standard, and which register as showing off? Which plain words fall below their floor? | accepted words and rejected words, both quoted |
 | Syntax shapes | Which sentence forms appear in the accepted lines: fragment, inversion, subordinate clause, direct address, list, question? Which never appear? | the accepted lines quoted whole, not described |
 | Image density | How many concrete sense-bound images does an accepted line carry, and per section? Where do the accepted lines allow abstraction? | the count taken on the quoted lines |
 | Irony level | How much distance sits between what the speaker says and what the song means: sincere, wry, self-accusing, deadpan? | quoted line plus the line's actual meaning named |
@@ -142,7 +142,7 @@ this file exists to stop.
 
 ## Where the artifact lives
 
-Register is a property of the WRITER, not of one song, so the voiceprint is cross-song
+Register is a property of the writer, not of one song, so the voiceprint is cross-song
 and lands with the other reusable cross-song artifacts, the `songwriting/shared/` row
 of [artifact-persistence.md](artifact-persistence.md):
 
@@ -166,14 +166,14 @@ artifact-persistence.md.
 
 ## When it is built, and when it is rebuilt
 
-Built BEFORE line generation. It is an input, not a review step, so the requirement
+Built before line generation. It is an input, not a review step, so the requirement
 lives in the co-write skill's input gate rather than in a post-hoc checklist.
 
 | Condition | Action |
 | --- | --- |
 | Writer rejects a candidate on register grounds | append the rejection and its stated reason to Stage 3; re-read the dimension it lands under |
 | Writer accepts a line falling outside a recorded band | the band was drawn too narrow. Widen it with the new line quoted; do not silently re-judge the old entries |
-| No voiceprint exists and lines are wanted | build one from whatever accepted material exists; if there is none, SAY SO before emitting and name the gate as skipped |
+| No voiceprint exists and lines are wanted | build one from whatever accepted material exists; if there is none, say so before emitting and name the gate as skipped |
 | Writer says "that doesn't sound like me" | this file's own recheck trigger: the dimension that missed gets a quoted counterexample added |
 
 ## Honest limits
@@ -183,8 +183,8 @@ lives in the co-write skill's input gate rather than in a post-hoc checklist.
 - It can only describe what has already been accepted. A writer's register moves, and
   a voiceprint built from one song over-fits that song's world.
 - It does not replace the sing-check. The rubric filters; the writer's ear decides.
-- It says nothing about whether a line is GOOD. It answers a narrower question, the
-  one that went unasked: is this line in this writer's hand?
+- It says nothing about whether a line is good. The narrower question it
+  answers, which went unasked, is whether this line is in this writer's hand.
 
 ## Cross-references
 

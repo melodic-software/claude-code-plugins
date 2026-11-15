@@ -82,7 +82,7 @@ The vendored-baseline update flow (`/playwright:playwright update`) is **not** t
 job. Point at it, do not wrap it. Re-running `apply` when everything already passes changes
 nothing and reports "already configured".
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor project files. The
   one explicitly invoked `apply install-cli` global npm install is the only write it performs.

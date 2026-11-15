@@ -32,7 +32,7 @@ Built by `acquisition/build-yt-dlp-args.js`. Auto-generated captions are in scop
 the caption ladder below deliberately falls through to them.
 
 **Caption ladder:** manual EN → auto EN (the original `en-orig` before a bare auto `en`) →
-auto-translate EN → exhausted: `transcript` mode STOPs and surfaces; `watch` (video downloaded)
+auto-translate EN → exhausted: `transcript` mode stops and surfaces; `watch` (video downloaded)
 proceeds caption-less and the transcript strategy picks `asr` or records a
 `transcriptDegradation`. A live-derived video inside its caption wait (below) waits instead,
 in both modes. A track is manual only when info.json
@@ -74,7 +74,7 @@ taken as `release_timestamp` plus `duration`. The wait is bounded: a re-check ev
 most 12 hours from the stream's end (from the first hold when the end is unknown). Once that
 deadline passes, the run takes the exhausted-ladder path above and records the ended wait. Every
 other value, an absent one, and a `was_live` stream whose end is unknown or older than the window
-keep today's behavior. The constants live in
+take the exhausted-ladder path at once, with no wait. The constants live in
 `extraction/acquisition/caption-wait.js`; the queue side is `../../context/watch-queue.md`
 "Caption wait". The observation behind the decision, auto-captions arriving about 2 hours after
 a stream ended, is [#14743](https://github.com/melodic-software/claude-code-plugins/issues/14743).
@@ -89,7 +89,7 @@ no foreign delegation on the single-video path.
 
 ## Auth and throttle overrides
 
-Four personal `userConfig` options tune YouTube acquisition. Each is wired the **same**
+Four personal `userConfig` options tune YouTube acquisition. Each is wired the same
 cross-platform way as `--work-root` (see `../../context/output-contract.md`): a leading, double-quoted
 flag on the `run.mjs` invocation that the launcher forwards to the extraction child as an
 environment variable. Those env vars are internal plumbing, not a channel to set by hand.
@@ -97,7 +97,7 @@ environment variable. Those env vars are internal plumbing, not a channel to set
 This file arrives through Read unsubstituted. Take each option's value from SKILL.md's "Configured
 options" table, written `<option>` below.
 
-Apply the **same guard** as `library_dir`: pass a flag only when its option holds a non-empty
+Apply the same guard as `library_dir`: pass a flag only when its option holds a non-empty
 value other than the option default, and not still an unexpanded `user_config` token;
 otherwise omit it and the pipeline keeps its built-in default. All are leading and
 order-independent, so they combine with `--work-root` in any order.
@@ -140,13 +140,13 @@ classified, acquisition iterates browser cookie profiles before giving up. Recov
 | Not a YouTube video URL | queue-lane rejection (not an error class) | adapter (`acceptForEnqueue`) | `reject` / `invalid-url` |
 | Unsupported host | unsupported-source | registry, before any adapter | `reject` / `invalid-url`, listing the supported sources |
 | HTTP 403 on media fragments | stale client | this spoke | update yt-dlp first |
-| HTTP 429 / 503 / connection reset / timeout | retryable | **shared retry policy**, not this adapter | backoff + honor the concurrency cap; see `../../context/gotchas.md` |
+| HTTP 429 / 503 / connection reset / timeout | retryable | shared retry policy, not this adapter | backoff + honor the concurrency cap; see `../../context/gotchas.md` |
 
 The HTTP 403 row is this spoke's decision: treat a media-fragment 403 as a stale client and update yt-dlp before any other recovery. The probe that an aging client failed that way and a newer build succeeded is [#6048](https://github.com/melodic-software/claude-code-plugins/issues/6048).
 
 - **Pointer**: when a media download returns HTTP 403, fetch the probe in [#6048](https://github.com/melodic-software/claude-code-plugins/issues/6048) and the current yt-dlp release at <https://github.com/yt-dlp/yt-dlp/releases> live.
 
-The last row is the one to read carefully: this adapter declares **no** retryable patterns of its
+The last row is the one to read carefully: this adapter declares no retryable patterns of its
 own. Transport-level retry is shared machinery applied to every source, so a 429 never reaches
 adapter classification. Cookie fallback fires on a login-required classification only, and only
 because this adapter declares the browser-cookie-fallback capability. An explicit cookies-file or
@@ -154,6 +154,6 @@ cookies-from-browser setting suppresses the profile loop entirely.
 
 ## Prerequisite floor
 
-yt-dlp **2026.6** or newer, for every action. `--js-runtimes node` by default; set the
+yt-dlp 2026.6 or newer, for every action. `--js-runtimes node` by default; set the
 `yt_dlp_js_runtimes` option to `off` to omit it. Install commands are in the hub's
 Prerequisites section.

@@ -69,7 +69,7 @@ did not name.
   bundled default verbatim to `<name>.md` as the starting point for the consumer to edit. If an override
   already exists, show the difference and do not overwrite it without explicit confirmation in this
   conversation. Confirm the scaffolded files are tracked, not gitignored, via the pair:
-  `git check-ignore -v` reports no match (a match is a finding with the pattern) AND
+  `git check-ignore -v` reports no match (a match is a finding with the pattern) and
   `git ls-files --error-unmatch` exits 0 (non-zero right after a fresh scaffold means "written but
   untracked: commit it to share with the team", never success).
 - **`apply remove <name>...`**. Delete the named override(s). Offer this for any override `check` found
@@ -82,7 +82,7 @@ did not name.
 After any change, re-run the `check` inventory and report the resulting override set. Re-running `apply`
 with no scaffold/remove argument changes nothing and reports the current inventory.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run a craft skill. That is `/songwriting:workflow` and the concern skills it routes to.
 - Write machine-local state. Overrides live in the consumer's tracked repo, never in the plugin

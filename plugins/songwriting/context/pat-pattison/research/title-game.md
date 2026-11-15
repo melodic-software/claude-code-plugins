@@ -7,9 +7,8 @@ documentation of the mechanics. Recheck when Pat documents the Title Game in a b
 patpattison.com.
 
 > **Sourcing note.** The Title Game does **not** appear in *Writing
-> Better Lyrics* (2009) or *Songwriting Without Boundaries* (2011). An
-> earlier version of this file claimed it was "referenced briefly in
-> *Writing Better Lyrics* (2009) appendix". That is false. The appendix
+> Better Lyrics* (2009) or *Songwriting Without Boundaries* (2011), not
+> even briefly in the 2009 appendix. The appendix
 > ("Co-Writing: The 'No'-Free Zone") mentions Pat arriving at a Nashville
 > session "with my notes and titles" and contains no title exercise of
 > any kind. This file's cascade mechanics are podcast-sourced and cannot
@@ -22,7 +21,7 @@ patpattison.com.
 
 A chained title-generation exercise. Each new title is generated from the
 prior title's stressed vowel + an adjacent structural / emotional shift.
-The cascade trains rapid title generation under constraint AND surfaces
+The cascade trains rapid title generation under constraint and surfaces
 clusters of titles around a shared phonetic family.
 
 ## When to load
@@ -46,7 +45,7 @@ Trigger phrases: "Title Game", "Pat's title cascade", "co-write warmup",
 6. **Mine.** Which titles want to develop? Which clusters share family
    rhyme territory?
 
-The chain trains rapid generation under sonic constraint AND surfaces
+The chain trains rapid generation under sonic constraint and surfaces
 unexpected adjacencies the writer wouldn't reach by deliberation.
 
 ## Co-write mechanics (Songwriter Trysts ep. 40 protocol)
@@ -94,7 +93,7 @@ emotional altitudes, which prepares them for collaborative drafting.
 ## Why the cascade works
 
 Pat's stance: titles cluster in stressed-vowel families. The strongest
-titles a writer can find in a session are usually NOT the ones they
+titles a writer can find in a session are usually not the ones they
 brought. They're the ones the cascade surfaces by chaining off the
 brought titles' phonetics. The exercise is a forced-search method.
 
@@ -143,11 +142,10 @@ title, be sure to put its key vowel sounds in the list."
 
 ## Title types to feed the cascade
 
-Per `hook.md` "Title generation". **Unverified against the books:** the
-seven-type taxonomy below appears in neither *Writing Better Lyrics*
-(2009) nor *Songwriting Without Boundaries* (2011). It is owned by
-`hook.md` and left as-is here; whoever owns `hook.md` should confirm its
-source.
+Per `hook.md` "Title generation", which owns this taxonomy and marks it
+unaudited: the seven types appear in neither *Writing Better Lyrics*
+(2009) nor *Songwriting Without Boundaries* (2011), and the count "seven" is
+this plugin's, not Pat's.
 
 1. One-word
 2. Place-name
@@ -198,9 +196,9 @@ would have found.
 |---|---|
 | Writer judges each title before generating next | re-establish No-Free Zone; silence = keep going |
 | All titles in chain are the same type | vary type deliberately (One-word → Place-name → Word-play) |
-| Stressed vowel keeps drifting | tighten the vowel constraint OR move to vowel triangle / adjacent-vowel mode |
-| One writer dominates the cascade in co-write | enforce strict turn-taking; partner generates EVERY OTHER title, not every third |
-| Titles all rhyme with cliche partners | run the rhyme-stability test BEFORE the cascade; if stuck-vowel territory, change vowel altogether |
+| Stressed vowel keeps drifting | tighten the vowel constraint or move to vowel triangle / adjacent-vowel mode |
+| One writer dominates the cascade in co-write | enforce strict turn-taking; partner generates every other title, not every third |
+| Titles all rhyme with cliche partners | run the rhyme-stability test before the cascade; if stuck-vowel territory, change vowel altogether |
 
 ## Artifact pattern
 

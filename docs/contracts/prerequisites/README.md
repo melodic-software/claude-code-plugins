@@ -260,10 +260,6 @@ The fix is the declared one: the `install` hints, the repair line, or a `setup` 
 ([install subactions](../../plugin-philosophy.md#install-subactions-and-refusal)), and it never runs
 an undeclared tool.
 
-Observed 2026-10-04: the speech plugin was enabled mid-session, so its install hook never
-ran; the speech check printed commands only, and `espeak-ng` (sudo) and the Kokoro model download
-were left for the user to run by hand.
-
 ## The CI gate
 
 `node scripts/check-declared-prerequisites.mjs` runs in CI and checks three things:

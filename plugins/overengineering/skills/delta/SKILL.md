@@ -63,7 +63,7 @@ Right after the home resolves and before invoking the audit, say: *"Read-only pa
 entered. Files written: the spine baseline at `<resolved path>`, at the end of this cycle, plus
 whatever the composed audit writes."*
 
-## The baseline: the PREVIOUS cycle's post-audit spine
+## The baseline: the previous cycle's post-audit spine
 
 The delta compares against the previous cycle's post-audit spine, stored as `spine-baseline.md`
 beside the findings artifact. Read [context/baseline-model.md](context/baseline-model.md) before the

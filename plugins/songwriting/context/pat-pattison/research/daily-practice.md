@@ -540,7 +540,7 @@ When applying this file:
 
 ## Strict timer: stop mid-word
 
-The single most consequential discipline of *Songwriting Without Boundaries* (2011). The timer is not
+A core discipline of *Songwriting Without Boundaries* (2011). The timer is not
 guidance. The writer stops the moment the buzzer fires, including
 mid-word and mid-letter.
 
@@ -643,8 +643,10 @@ moves Pat applies. Use them when reviewing a writer's daily write:
    access to the body and the scene. Adjectives explain. A line
    built on surprising verbs is mined material.
 
-Use these as critique vocabulary when the writer is ready for
-feedback. Skip them during the timed write itself.
+Use these as critique moves when the writer is ready for feedback, and
+skip them during the timed write itself. The labels are this file's
+shorthand (see § Critique-move vocabulary): quote only Pat's sourced wording
+back to a writer.
 
 ## Day 15: the collision pairs
 
@@ -712,11 +714,11 @@ collision; it is a three-stage chain:
        ↓
 3. Target idea       (e.g., your sneer)
        ↓
-4. Ten-minute object write through the target lens
+4. Ten-minute object write: the target idea through the source lens
 ```
 
-The leap matters. Most beginners skip the linking-quality stage and
-jump directly from source to target, which produces strained
+The leap matters. Skipping the linking-quality stage and
+jumping directly from source to target produces strained
 metaphors. Naming the quality in stage 2 is the craft move.
 
 The reversal pattern: after writing target-through-source, turn the
@@ -892,7 +894,7 @@ material that can recolor from verse to verse without being rewritten.
 using verbatim: "Try Deborah's piece in present tense. Then translate it into
 first person, then second person."
 
-The flips are revision tools, not generation tools. Run them AFTER the
+The flips are revision tools, not generation tools. Run them after the
 object-write or lens-write is on the page; do not interrupt the timer to
 flip mid-write.
 

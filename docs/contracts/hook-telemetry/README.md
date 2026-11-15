@@ -116,7 +116,6 @@ on a payload carrying a whole file, so above 65536 bytes the library falls back 
 region ahead of the first nested container. A key the payload carries after its first nested
 container, such as one after `tool_input`, is omitted on a payload over that size. Absent still
 means absent, never guessed, and never a value from somewhere else.
-Tightening this without paying the cost is [#3784](https://github.com/melodic-software/claude-code-plugins/issues/3784).
 
 - **Pointer**: when checking which fields a hook payload carries, fetch
   [hooks § Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields) live.
@@ -160,7 +159,7 @@ Two rules make that hold:
 
 1. **`data` evolves additive-only**: new keys may be added; existing keys are never silently removed,
    renamed, or type-changed (those require a deprecation cycle and a major bump).
-2. **Consumers MUST ignore unknown keys AND MUST tolerate unknown enum values.** A sink reading an envelope
+2. **Consumers must ignore unknown keys and must tolerate unknown enum values.** A sink reading an envelope
    from a newer producer must skip keys it does not recognize, and must treat an unrecognized `status` (or
    any future enum value) as a catch-all rather than crashing. Ignore-unknown-keys alone is not enough,
    because enum growth (e.g. a future `status`) needs the tolerate-unknown-enum rule too.
@@ -245,7 +244,7 @@ repository, and retention that counts sessions counts those of every worktree to
 anchor. The harness-ops reference sink, its retention hook and its reader share one resolver:
 `slog_anchor_to` in `plugins/harness-ops/hooks/session-log-lib.sh`.
 
-**Sink routing by session (reference sink, harness-ops 0.42.11).** Since contract 1.1 every producer
+**Sink routing by session (reference sink).** Since contract 1.1 every producer
 that emits through `hook::emit_telemetry` carries the payload's `session_id` on the envelope spine
 (see "Correlation keys" above), so a sink needs nothing from the producer to file rows per session.
 The harness-ops reference sink reads the spine key first and falls back to `data.session_id`, the
@@ -253,11 +252,10 @@ key the nine harness-ops audit hooks added under the additive rule before 1.1 an
 envelope carrying a well-formed id is appended to `<root>/sessions/<session_id>.jsonl` beside the
 per-session event log, and an envelope without one (a producer on 1.0, or a hook whose payload
 carries no session) goes to the shared `<root>/hook-events.jsonl`. The per-session report therefore
-covers every fleet producer from their 1.1 versions on (#3758, which finishes the thread #930
-opened).
+covers every fleet producer from their 1.1 versions on.
 
 A sink's own store shape is the sink's business, not this contract's. A store a reader has to
-reconcile per query is the sink's own defect. The harness-ops reference sink writes ONE record shape
+reconcile per query is the sink's own defect. The harness-ops reference sink writes one record shape
 on both routes, alongside the per-session event log's rows: the routes differ by destination and by
 whether the record carries `session_id`, and `hook_event_name` names the event on every row, so no
 reader normalizes an event key. The key set and the group each route contributes are stated once,

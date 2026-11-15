@@ -31,14 +31,14 @@ _cb_clean_at_start() {
   # of them in the target, and its own count assertions then run against the previous
   # run's leftovers. Failing silently here is what turns that into a mystery flake, so
   # the placeholder announces itself on every run rather than passing for finished work.
-  printf 'conformance(gitea): clean-at-start is an UNFILLED placeholder — items created by this run will be left in %s, and count assertions may flap against leftovers from a previous run\n' \
+  printf 'conformance(gitea): clean-at-start is an unfilled placeholder — items created by this run will be left in %s, and count assertions may flap against leftovers from a previous run\n' \
     "${CB_REPO:-the configured scope}" >&2
 }
 
 cb_setup() {
   local host scope
-  host="${WIT_CONFORMANCE_GITEA_HOST:?set WIT_CONFORMANCE_GITEA_HOST to a throwaway Gitea / Forgejo host; NEVER a coordination instance}"
-  scope="${WIT_CONFORMANCE_GITEA_SCOPE:?set WIT_CONFORMANCE_GITEA_SCOPE to a throwaway scope; NEVER a coordination scope}"
+  host="${WIT_CONFORMANCE_GITEA_HOST:?set WIT_CONFORMANCE_GITEA_HOST to a throwaway Gitea / Forgejo host; never a coordination instance}"
+  scope="${WIT_CONFORMANCE_GITEA_SCOPE:?set WIT_CONFORMANCE_GITEA_SCOPE to a throwaway scope; never a coordination scope}"
   CB_REPO="$scope"
   CB_BINDING_TMP="$(mktemp)"
   jq -cn --arg h "$host" --arg s "$scope" \

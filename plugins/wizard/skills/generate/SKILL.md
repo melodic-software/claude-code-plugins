@@ -219,8 +219,8 @@ MAIL_API_TOKEN`, `write_env`, and `set_secret`, in that order.
    yourself in their place, and tell the user at step 3 `verification: skipped (<level>)` for
    those. Step 1 and the step 3 gate run at every level.
 3. **Stop the line. Human approval gate.** Show the user the whole `STAGES` block, everything below
-   the marker, and wait for their explicit approval. Until it arrives, do NOT run `chmod +x` and do
-   NOT give the user a command to run. The order is fixed, not advisory: the person is about to type
+   the marker, and wait for their explicit approval. Until it arrives, do not run `chmod +x` and do
+   not give the user a command to run. The order is fixed, not advisory: the person is about to type
    real credentials into this script, so they read it before it can run.
 4. After approval, run `chmod +x <script>` and tell the user how to start it, and that
    `--dry-run` walks every stage first and writes nothing.

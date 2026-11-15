@@ -4,7 +4,6 @@ The skills of `plugins/explainer-video`. Each one is driven with `<plugin-dir>` 
 
 ## Parts
 
-- `check`: Report whether Python, ManimCE, ffmpeg and ffprobe are ready. Never installs.
 - `produce`: Script, narrate, render and self-check a ManimCE explainer video.
 
 ## Sub-features

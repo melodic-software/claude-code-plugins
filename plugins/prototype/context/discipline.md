@@ -18,7 +18,7 @@ the answer only shows up by doing something to a running model and watching the 
 
 ## Model auto-invoke gate
 
-When the model reaches for a prototype without an explicit request to spike, **STOP** and confirm
+When the model reaches for a prototype without an explicit request to spike, stop and confirm
 scope before writing any throwaway code. Do not detour out of an active workflow without
 checkpointing your current work first (`/session-flow:handoff` when installed).
 

@@ -373,9 +373,8 @@ def main() -> int:
             2,
             "HARNESS BROKEN",
             f"the check command exited 127 (command not found) in the {', '.join(arms)} arm(s). "
-            f"A Windows path spelling handed to bash is one way to produce that, and it is how "
-            f"four of the five source-run harnesses reported a confident verdict for a check "
-            f"that never ran. Hand bash a /d/... path.",
+            f"A Windows path spelling handed to bash is one way to produce that, and a check "
+            f"that never ran must not be read as a verdict. Hand bash a /d/... path.",
         )
 
     if negative_signal is None and positive_signal is None:

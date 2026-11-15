@@ -8,13 +8,13 @@ legacy backfill. Triage's capability-tier stamp and the work-loop frontier quota
 1. **Skip when no binding exists.** Nothing is bound yet.
 2. **Skip when the bound provider has no label listing** (`local-markdown`, read-only `jira`). Report
    INFO and continue; triage verifies at item-edit time.
-3. **Discover** via the adapter's label listing (GitHub: `gh label list --limit 200`, filter
+3. **Discover** via the adapter's label listing (GitHub: `gh label list -R <owner>/<repo> --limit 200`, the repository `check` probe 2 named, filter
    `capability-tier:`). Compare against the canonical member in the reference.
 4. **Present.** Report "capability-tier axis provisioned" and continue.
 5. **Missing, label-as-code owner declared.** Stop. Name the missing label and route remediation to
    that owner; never `gh label create` ad hoc.
 6. **Missing, no label-as-code owner, interactive user present.** Offer to create the label via the
-   adapter's label-creation mechanics (GitHub: `gh label create "capability-tier: frontier"
+   adapter's label-creation mechanics (GitHub: `gh label create "capability-tier: frontier" -R <owner>/<repo>
    --description "<description>" --color "<color>"` using the reference table). RECOMMENDED: create
    it. This pass is the upgrade migration for repos that predate the label axis. Re-list after
    creation and confirm the member exists before continuing.

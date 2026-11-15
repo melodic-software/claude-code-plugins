@@ -68,7 +68,7 @@ dispatch, PR or babysit step. It works in place:
 3. Otherwise, when the issue's counted brief has a Root cause field reading `unknown`, run the
    root-cause gate first, inline: read the code and docs the symptom points at, run no command from
    the checkout, and name the cause. When `/debugging:debug --unattended` or `/testing:diagnose`
-   resolves in this lane, use it; the lane loads only this plugin, so expect neither and read the code yourself. The
+   resolves in this lane, use it; the lane loads neither the debugging nor the testing plugin, so expect neither and read the code yourself. The
    cause you name is the one the fix addresses. When you cannot name a cause from what you read, do
    not implement a guess: stop with the reason. When the field names the cause, or the brief has no
    Root cause field, skip the gate. Make the change in the checkout, following the repository's own rules for the files
@@ -129,7 +129,7 @@ dispatch, PR or babysit step. It works in place:
      "exit": "done",
      "reason": "",
      "title": "fix(scope): subject",
-     "summary": "What changed and why, in two or three sentences.",
+     "summary": "What changed and why.",
      "changes": ["path/to/file.md: what changed in it"],
      "verification": ["the check you ran: what it showed"],
      "not_done": [{"what": "what you skipped or could not check, and why", "required": false}],

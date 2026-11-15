@@ -63,8 +63,8 @@ codes.
 
 ## Sections later slices fill
 
-A section below that still reads "Placeholder" is named so the slice that fills it has a place to
-land (#6594, slices 2 to 4).
+The sections below cover how a settings file records its provenance, how `apply` converges by
+state, and the current-facts check.
 
 ### Provenance
 

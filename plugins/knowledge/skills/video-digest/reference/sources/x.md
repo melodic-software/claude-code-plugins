@@ -3,9 +3,9 @@
 Read when the URL is an `x.com` / `twitter.com` status. Everything here is X-specific; the shared
 pipeline lives in the hub and `../../context/watch-pipeline.md`.
 
-X differs from YouTube in three ways that change how you read a result: a status can carry **zero
-or many** videos rather than exactly one, its captions are platform ASR rather than
-author-authored, and its auth surface moves on a **weeks-to-months** cadence.
+X differs from YouTube in three ways that change how you read a result: a status can carry zero
+or many videos rather than exactly one, its captions are platform ASR rather than
+author-authored, and its auth surface moves on a weeks-to-months cadence.
 
 - [Accepted URLs and canonicalization](#accepted-urls-and-canonicalization)
 - [Slice key and identity](#slice-key-and-identity)
@@ -27,7 +27,7 @@ Status URLs on either host, with or without a pinned media index:
 | Legacy host | `https://twitter.com/<user>/status/<status-id>` |
 | Pinned media index | `https://x.com/<user>/status/<status-id>/video/2` |
 
-Canonicalization re-derives the canonical status URL and happens **inside the source layer**, so
+Canonicalization re-derives the canonical status URL and happens inside the source layer, so
 every entry path gets it by construction: `watch <url>`, `queue <url>` preflight, `watch <n>`
 dequeue, `transcript <url>`, `resume`, and the recovery command emitted by
 `detect-recoverable-bootstrap.js`. Do not canonicalize by hand at a call site.
@@ -43,7 +43,7 @@ duplicates, whatever media the post resolves to. The metadata pair `(display_id,
 
 A quote tweet or retweet can surface the *quoted* post's media under the outer status. The
 snowflake timestamp embedded in an id (`(id >> 22) + 1288834974657`, ms since epoch) is compared
-between the URL's status id and the first media entry's id; a delta over **one hour** (media ids
+between the URL's status id and the first media entry's id; a delta over one hour (media ids
 are minted moments before their own post, so a small positive delta is ordinary composition lag)
 flags probable aliasing under `source:snowflakeAliasing`, with the raw delta alongside so a
 consumer can re-judge. Unflagged deltas are not recorded at all.
@@ -53,7 +53,7 @@ from the acquisition result, not from disk.
 
 ## Result arity: 0..N videos per post
 
-One status is **not** one video. Results are always a collection:
+One status is not one video. Results are always a collection:
 
 | Post shape | Result |
 | --- | --- |
@@ -61,47 +61,47 @@ One status is **not** one video. Results are always a collection:
 | Single-video post | a one-entry collection, never a bare object |
 | `/video/<n>` pinned | the honored index |
 | No video, no outbound link | 0 entries; full post metadata (title, text, counts) |
-| No video, outbound link present | 0 entries; **status id and the refused link only** |
+| No video, outbound link present | 0 entries; status id and the refused link only |
 
-A 0-entry result is **well-formed**, not an error and not null. It enqueues at preflight and
+A 0-entry result is well-formed, not an error and not null. It enqueues at preflight and
 digests text-only end to end: `watching` and `vision` are marked skipped, so the digest rests on
 text and research alone.
 
 **The two 0-cases are not equally rich.** The no-link case comes from a real post info JSON, so
 post text, title, and counts are all present. The link-post case does not: the extractor allow-list
-refuses the delegated URL before any fetch, and yt-dlp writes **no info JSON** for an intermediate
+refuses the delegated URL before any fetch, and yt-dlp writes no info JSON for an intermediate
 url-result, so the post's own text and title are unrecoverable in that invocation, and provenance
 is the URL's status id plus the refused outbound link (recorded under `source:blockedDelegations`
 and appended to harvested links). Do not promise a link post's text to a downstream phase.
 
 Envelope shape: 0..N `entries` plus one shared `metadata` object, whose namespace is open with
 `source:`-prefixed keys reserved for source-specific fields. Transcripts travel as replayable
-caption **file paths** (`captionPaths`, `caption`), never inline text.
+caption file paths (`captionPaths`, `caption`), never inline text.
 
 ## Provenance guard
 
 X posts that link elsewhere would otherwise cause the downloader to chase the outbound target and
 return someone else's media under this status's slice (yt-dlp upstream #9715). Two layers stop
-that, and they resolve **differently**:
+that, and they resolve differently:
 
 1. **Extractor allow-list (`--use-extractors twitter.*`)**, the primary guard, carried on every
-   invocation (probe, media, queue preflight). yt-dlp refuses the delegated URL **without fetching
-   it**; the adapter recognizes the refusal line by `DELEGATION_REFUSAL_PATTERN` in
+   invocation (probe, media, queue preflight). yt-dlp refuses the delegated URL without fetching
+   it; the adapter recognizes the refusal line by `DELEGATION_REFUSAL_PATTERN` in
    `extraction/adapters/x.js`. This does *not* error the
    post: the status resolves as a well-formed 0-entry result with the blocked link recorded.
 2. **Info-JSON extractor check**, defense in depth. A non-`twitter` info JSON on disk means layer
-   1 failed, so the acquisition **hard-fails** with a provenance violation rather than digesting
+   1 failed, so the acquisition hard-fails with a provenance violation rather than digesting
    foreign media. This case is never a 0-result.
 
 ## Captions and transcript strategy
 
-X captions are **platform ASR**, so the transcript ladder differs from YouTube's:
+X captions are platform ASR, so the transcript ladder differs from YouTube's:
 
-- `--write-subs` only. **Never** `--write-auto-subs`, because X has no author-authored caption tier for
+- `--write-subs` only. Never `--write-auto-subs`, because X has no author-authored caption tier for
   it to reach, and requesting it produces misleading rung classification.
 - Subtitle keys arrive as raw `LANGUAGE` values (`en`, `en-US`, `en-GB`, `und`). Never index
   `subtitles['en']` directly; match across the observed key set.
-- An `.en.vtt` from X is **not** a manual-EN rung. The declared class drives the shared ladder,
+- An `.en.vtt` from X is not a manual-EN rung. The declared class drives the shared ladder,
   whose X rungs are `platform-asr-en` → `platform-asr-und` → STOP; every rung is auto-class, so
   nothing can misclassify as author-authored.
 - The downloaded VTT carries X's inline word-timing tags (`<X-word-ms …>`) verbatim. Detecting
@@ -114,7 +114,7 @@ Declared strategy default: `captions+repair`. Selection resolves per entry:
 | Condition | Strategy |
 | --- | --- |
 | Captions present | `captions+repair` |
-| Captions absent, ASR available **and** the media file on disk | `asr` |
+| Captions absent, ASR available and the media file on disk | `asr` |
 | Captions absent, ASR or media missing | explicit degradation: digest without transcript, reason recorded in `transcriptDegradation`, never silent |
 
 The media conjunct is required: the `transcript` action never downloads media, so the ASR rung
@@ -123,7 +123,7 @@ cannot run there at all. A caption-absent `transcript` run always degrades.
 `captions+repair` runs proper-noun repair over the platform VTT, using the title, the post text
 (`description`) and harvested links as the lexicon; ASR cues get the same repair. The ASR rung is
 faster-whisper large-v3 at `batch_size=8`, an optional closed-by-default capability delivered as a
-documented prerequisite plus runtime detection, **never auto-installed**. The lexicon is
+documented prerequisite plus runtime detection, never auto-installed. The lexicon is
 repair-only: feeding it to ASR as an `initial_prompt` was probed and yielded no net proper-noun gain
 while worsening a hallucination, so the rung runs without one.
 
@@ -152,24 +152,28 @@ Only these gate the cookie fallback. Each pattern is anchored to a `[twitter]`-t
 line, so attacker-influenced text elsewhere on stderr, such as a hostile URL echoed back in a
 refusal line, can never classify as login-required and provoke a cookie-bearing retry.
 
+- **Pointer**: when an X error or warning line differs from the patterns in this file, fetch
+  yt-dlp's X extractor at <https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/twitter.py>
+  live; the adapter's own patterns are in `extraction/adapters/x.js`.
+
 ## Rate-limit silent degradation
 
-Under rate limiting X falls back to a syndication endpoint that returns a **partial result that
-looks like a success**. **Either** signal alone classifies the result as retryable with
+Under rate limiting X falls back to a syndication endpoint that returns a partial result that
+looks like a success. Either signal alone classifies the result as retryable with
 degradation metadata set, never as success:
 
 - the warning text `Rate-limit exceeded; falling back to syndication endpoint` on stderr
-- a post payload missing **both** the repost and comment counts, judged only when the payload is
+- a post payload missing both the repost and comment counts, judged only when the payload is
   genuinely post-level (a playlist or metadata-only info), never when a media-entry dict is
   standing in for the post, and never on a blocked delegation, which has no payload at all
 
-Multi-media collapse is an **output** of that judgment, not a third input: once a result is
+Multi-media collapse is an output of that judgment, not a third input: once a result is
 degraded, a single entry marks it as a possible collapse. So a legitimate single-video post does
 not flag. One entry with counts present and no warning is an ordinary success.
 
 ## Link harvest and reply chains
 
-Link harvest covers **post-text links only**.
+Link harvest covers post-text links only.
 
 **Reply-chain harvest is optional and agent-lane.** When the status is the head of a thread whose
 replies carry material the digest needs, invoke `/x:read` via the Skill tool (if the `x` plugin is installed; otherwise say once that the `x` plugin would unroll the replies, and go on without them) to unroll the chain
@@ -184,19 +188,19 @@ watch, not a pipeline stage. The acquisition layer never walks replies.
 | Extractor args | none |
 | Extractor allow-list | `twitter.*`, declared and carried on every invocation |
 | Comment harvest | not available |
-| Browser-cookie-profile fallback | **not available**; a cookies file is the only auth route |
-| Media-optional (0-media is well-formed) | **available**; every yt-dlp call passes `--ignore-no-formats-error` |
+| Browser-cookie-profile fallback | not available; a cookies file is the only auth route |
+| Media-optional (0-media is well-formed) | available; every yt-dlp call passes `--ignore-no-formats-error` |
 
 Because the browser-profile loop is unavailable, X must never iterate browser cookie profiles on
 an auth failure. Supply the `yt_dlp_cookies_file` option (SKILL.md "Configured options"; a Netscape `cookies.txt`, never
 committed) or accept the login-required failure.
 
 **Auth is not a precondition.** A public status acquires media, captions, and metadata
-**anonymously**, with no cookies, no account, and no extractor args (verified 2026-08-15 against yt-dlp
+anonymously, with no cookies, no account, and no extractor args (verified 2026-08-15 against yt-dlp
 2026.07.04; recheck when a yt-dlp release changes X extraction or an anonymous fetch of a public status fails). Cookies buy exactly the three login-required cases above and nothing else, so do not
 demand them up front.
 
-**Auth volatility.** X auth-fallback windows measure in **weeks to months**, not days: an
+**Auth volatility.** X auth-fallback windows measure in weeks to months, not days: an
 anonymous or cookie-based route that works today can stop working within that window, and the
 recovery is a yt-dlp upgrade plus possibly a fresh cookies file. Treat a previously-working X
 acquisition that starts failing as expected maintenance rather than a regression in this skill,

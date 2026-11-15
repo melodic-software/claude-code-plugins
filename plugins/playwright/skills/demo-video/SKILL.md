@@ -138,7 +138,7 @@ removes its layer in either style. Pass them to `build_edl.py` as
   exploring and stop it in the replay with `demo.style(...)`, naming the pseudo-element in the
   selector (`.pill::before { animation: none !important; }`): a rule on the element, or on `*`
   under it, does not reach its pseudo-elements.
-- **Kokoro pads each clip.** The local voice adds about 0.35 s of silence before the first word;
+- **Kokoro pads each clip.** The local voice adds silence before the first word;
   `build_edl.py` trims each clip to its first word using `words.json`, so keep that file beside
   each `narration.wav`.
 - **Crossfades ghost.** Blending two page states shows both at once (double text, half-drawn

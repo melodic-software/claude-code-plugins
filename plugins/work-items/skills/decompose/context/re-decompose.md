@@ -62,7 +62,7 @@ edited spec, never hand-patched into meaning something the spec no longer says.
    frontier ordering). `/work-items:ship` is a router over a container and has nothing to
    stand on without one.
 
-**When NOT to reroute.** A spec that turns out wrong **after ship** is a new idea, not a routing
+**When not to reroute.** A spec that turns out wrong **after ship** is a new idea, not a routing
 error: open a new spec (a new container or a new topic), never patch the closed one, the
 [container-lifecycle.md](container-lifecycle.md) drift doctrine applies (a closed container is
 never edited into a living doc).

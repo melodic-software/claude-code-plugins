@@ -262,16 +262,15 @@ versions used, once it is older than 60 seconds.
 
 ## Invariants and boundaries
 
-- **Single-account-per-machine is a narrowed gap, not a closed one.** The snapshot file is still
+- **Single-account-per-machine is a narrowed gap, not a closed one.** The snapshot file is
   last-writer-wins across every session on the machine: a login to a second account between writes feeds
-  that account's healthy windows to lanes exhausted on the first. What changed is that a snapshot
+  that account's healthy windows to lanes exhausted on the first. A snapshot
   says **whose** windows it carries whenever the writer could attribute it, so a reader can detect
-  the mismatch instead of being blind to it. The loop-lane convention §6 owns the framing. Of the
-  three sides that design named (a writer-side field, reader-side invalidation of latched state, a
-  lane-floor re-audit), the writer-side field has landed as `account.email` above; reader-side
-  invalidation is a **MUST**, taken from the direct `.claude.json` read in the floor's "Account
-  switch" bullet rather than from the snapshot file; and the lane-floor re-audit is the drift gate's job,
-  which fails until every inlined copy carries the floor block (see "Consumers"). Two residuals
+  the mismatch. The loop-lane convention §6 owns the framing. The guard has three sides: a
+  writer-side field, `account.email` above; reader-side invalidation of latched state, which is
+  required and taken from the direct `.claude.json` read in the floor's "Account
+  switch" bullet rather than from the snapshot file; and the lane-floor re-audit, which is the drift gate's job:
+  the gate fails until every inlined copy carries the floor block (see "Consumers"). Two residuals
   keep this a gap rather than an invariant: the field is **absent** whenever the writer could not
   attribute the observation (the cases listed under "Snapshot file shape"), and absence is
   indistinguishable from "the writer never attributes on this platform"; and a reader that cannot

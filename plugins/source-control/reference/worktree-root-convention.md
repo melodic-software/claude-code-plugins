@@ -13,7 +13,7 @@ places is the drift a git-config-readable convention exists to prevent.
   path = ~/worktrees
 ```
 
-- **Name:** `worktreeroot.path`. Deliberately NOT under `worktree.*`,
+- **Name:** `worktreeroot.path`. Deliberately not under `worktree.*`,
   which git owns (`worktree.guessRemote`, `worktree.useRelativePaths`;
   git-worktree(1) Configuration). git-config(1) Variables invites third-party
   tools to invent their own variables if they do not collide with Git or other
@@ -30,7 +30,7 @@ places is the drift a git-config-readable convention exists to prevent.
   a leftover publisher-named key onto `worktreeroot.path` at the winning origin
   and unsets it. Delete that peel after 2026-12-31. Fleet audit stays read-only
   and does not write.
-- **Value:** a directory OUTSIDE every repository, and outside
+- **Value:** a directory outside every repository, and outside
   repository-discovery roots such as a ghq root. For what ghq discovers under
   its root, see the `list` entry under COMMANDS in the
   [ghq README](https://github.com/x-motemen/ghq#commands). On Windows, the
@@ -51,7 +51,7 @@ Two hazards, both verified on git 2.55 in #2610 and both silent:
   scoped read silently skips every `includeIf`, the whole per-identity
   layer.
 - **Gate on `rev-parse --git-dir` first.** Under dubious ownership
-  (`safe.directory`), `git -C <repo> config --get <key>` returns the GLOBAL
+  (`safe.directory`), `git -C <repo> config --get <key>` returns the global
   value as though it were the repository's answer: rc=0, no stderr, and
   `--show-scope` reports `global`.
 
@@ -91,15 +91,15 @@ for the hook seam.
 ## Per-identity and per-repository roots (#2612)
 
 One machine, several git identities: resolve the root through git's own
-conditional configuration. Parse order IS precedence (see hazards), so the
+conditional configuration. Parse order is precedence (see hazards), so the
 machine default goes first and each more-specific include after it:
 
 ```ini
 [user]
   name = <name>
-  useConfigOnly = true            # NO user.email here — see hazards
+  useConfigOnly = true            # no user.email here — see hazards
 [worktreeroot]
-  path = <machine-default>  # plain default FIRST — below an includeIf it would win
+  path = <machine-default>  # plain default first — below an includeIf it would win
 
 [includeIf "gitdir/i:<work-tree-root>/"]
   path = ~/.config/git/identity-work.inc
@@ -152,6 +152,7 @@ so last-wins picks it up) alongside the identity keys. Verified properties
   `hasconfig:remote.*.url:` 2.36, `worktree:`/`worktree/i:` **2.56, unreleased as of
   2026-08-26** (latest tag v2.55.0; the 2.55 docs do not list the condition yet, so verify it
   shipped before authoring for it). A config authored for 2.56 degrades silently on 2.55.
+  Recheck trigger: a v2.56.0 tag.
 - **Per-worktree overrides need `config.worktree`** behind
   `extensions.worktreeConfig`, since no `gitdir:` pattern can distinguish two
   worktrees of one repository.

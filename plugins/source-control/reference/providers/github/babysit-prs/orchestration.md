@@ -11,8 +11,7 @@ merge.
 
 - A conflict worker in its assigned worktree: `gh pr view --json headRefOid`.
 - The orchestrator, whose working directory is never reliably the target repository:
-  `GH_REPO=<owner>/<repo> gh pr view <N> --json headRefOid`, or the equivalent
-  `--repo <owner>/<repo>` spelling.
+  `gh pr view <N> --repo <owner>/<repo> --json headRefOid`.
 
 ## Re-acquire a cross-repo head
 

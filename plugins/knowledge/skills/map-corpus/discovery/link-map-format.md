@@ -4,7 +4,7 @@ Owner doc for the corpus mapper's discovery layer: the deterministic URL extract
 (`parse_discovery.py`) and the classified link map the user approves before any bulk fetch
 (`check_linkmap.py` gates it).
 
-The same denominator discipline as the node manifest, one layer up: the set of URLs that MUST be
+The same denominator discipline as the node manifest, one layer up: the set of URLs that must be
 classified is produced by a script over immutable discovery snapshots, never by an agent's recall
 of what it saw. An agent classifies; it does not get to choose what needs classifying.
 
@@ -14,7 +14,7 @@ of what it saw. An agent classifies; it does not get to choose what needs classi
    user says so), snapshot it into the slice under `discovery/`.
 2. **Rung 2, sitemap**: fetch the site's sitemap (`sitemap.xml`, `sitemap.md`, or a
    robots.txt-declared location), snapshot likewise.
-3. **Rung 3, in-page link extraction: NOT IN V1.** Deferred and USER-RESERVED: reaching it
+3. **Rung 3, in-page link extraction: not in v1.** Deferred and user-reserved: reaching it
    requires either a presence-gated `/firecrawl:firecrawl map` call or a recorded reason to
    reimplement. The trigger is the first corpus whose seeds resolve neither an
    `llms.txt` nor a sitemap. Until then a corpus with neither artifact stops loudly at discovery.
@@ -63,10 +63,10 @@ WebFetch only finds which page to read; read the page itself by the [fetch-route
 - `urls`: normalized (see below), deduplicated, sorted lexicographically. Sorting is part of the
   determinism contract.
 
-**Schema change, kept at v1.** The `repo-tree` rung value (in discovery outputs and in link-map
-row `rungs`) and the `repository` key are additions to `discovery-output/v1` and `link-map/v1`.
-Every output and map that passed the gate before still passes; a gate from before the addition
-rejects a `repo-tree` output as an unknown rung, so the parser and gate ship together.
+**`repo-tree` within v1.** The `repo-tree` rung value (in discovery outputs and in link-map row
+`rungs`) and the `repository` key are part of `discovery-output/v1` and `link-map/v1`. A gate that
+predates them rejects a `repo-tree` output as an unknown rung, so the parser and gate ship
+together.
 
 URL normalization (mirrors `docpage-digest`'s canonical-URL rules, minus the redirect step a
 offline script cannot take): scheme+host lowercased, fragment dropped, tracking-only query
@@ -86,7 +86,7 @@ resource cannot enter the map under two spellings. (Known, disclosed approximati
 is the sole producer of queue URLs, so identity is stable within mapper-driven runs; only a slice
 digested stand-alone earlier under a different spelling would not resume.)
 
-**Sitemap index files:** a `<sitemapindex>`'s `<loc>` entries are child SITEMAPS, not pages. The
+**Sitemap index files:** a `<sitemapindex>`'s `<loc>` entries are child sitemaps, not pages. The
 skill must fetch each child sitemap as an additional rung-2 snapshot and parse it too; the child
 `.xml` URLs themselves are then classified `ignore` (reason: sitemap index member) in the map.
 Skipping the child fetch under-discovers with a clean-looking gate. The gate cannot see URLs
@@ -137,7 +137,7 @@ or repository seed and so no discovery output, is outside gate scope: route it t
 `docpage-digest` runs, or name its repository as a repository seed. Checks:
 
 1. All inputs parse (duplicate JSON keys rejected at any depth); unknown or missing keys rejected
-   in the link map, its rows, AND each discovery output; schema literals exact; seeds and row
+   in the link map, its rows, and each discovery output; schema literals exact; seeds and row
    URLs must be in normalized form. A `repo-tree` output's `repository.seed_url` must be one of
    the map's `seeds`. Failures name the file/row; exit 2 for unusable input.
 2. **Classification coverage**, this gate's reason to exist: every URL in every discovery output
@@ -153,7 +153,7 @@ Exit codes: 0 pass; 1 named check failures; 2 unusable input; 3 internal gate bu
 
 ## What approval means
 
-The user approves the LINK MAP (classifications + bounds), not raw discovery. After approval the
+The user approves the link map (classifications + bounds), not raw discovery. After approval the
 map is frozen for the run; a later discovery change (re-fetch finds new URLs) reopens approval.
 Rows never appear or change classification silently. The approved queue handed to
 `/knowledge:docpage-digest` is exactly the `in-corpus` rows, in map order.

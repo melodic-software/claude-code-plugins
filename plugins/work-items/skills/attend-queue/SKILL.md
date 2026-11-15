@@ -132,10 +132,10 @@ TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 
 `<project root>` is the literal path [`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet.
 
-`<id>` MUST be fully-qualified (`claim` rejects a bare number). Exit `0` → claim held for this row;
+`<id>` must be fully-qualified (`claim` rejects a bare number). Exit `0` → claim held for this row;
 record the claim object's `lease_comment_id`, which the release after disposition needs.
 Exit `7` → another session holds the item: **skip that row**, tell the operator
-`#<n> skipped: claimed by another session`, and advance to the next candidate (do NOT retry the
+`#<n> skipped: claimed by another session`, and advance to the next candidate (do not retry the
 same item in this pass). Exit `2` from a provider whose `claim` takes no `--phase` (linear): claim
 once more without it. Claim identity is the authenticated session user, never the bot.
 
@@ -286,7 +286,7 @@ otherwise apply that discipline inline. It never trims the per-row restatement a
 
 ## Telemetry
 
-This lane maintains exactly ONE sentinel-identified status comment **per lane instance** on its
+This lane maintains exactly one sentinel-identified status comment **per lane instance** on its
 per-lane tracking issue in the target repository (default: the open issue titled exactly
 `Lane telemetry: attend-queue` whose author is the lane's write identity, the login the upsert
 script resolves in the order its reference below gives, `gh api user` first, then
@@ -397,7 +397,7 @@ placeholder before running a command or writing it into a brief.
   and removes the human-gated one; an item wearing both stays excluded from
   `list-frontier --autonomous`.
 - **Never clear the human-gated role off a floor class.** An item carrying
-  `provenance: untrusted`
+  `provenance: untrusted` or `provenance: signal`
   stripped of it is floored out of `list-frontier --autonomous` and matches no row condition
   here, so no lane surfaces it again. Reclassify it in the same edit as the flip, or leave the
   role label alone.

@@ -28,9 +28,9 @@ OVERRIDE="<home>/work-items.local.yaml"  # repo-relative; the legacy pass uses .
 # Is the path IGNORED? Two flags, and both are required:
 #   --no-index answers on gitignore's terms alone, so an already-tracked file cannot mask
 #              the answer the way it does for a bare check-ignore.
-#   NO -v here. With -v, git reports NEGATION patterns too and still exits 0, so the exit
+#   no -v here. With -v, git reports negation patterns too and still exits 0, so the exit
 #              code would mean "some pattern matched", not "the path is ignored". Under a
-#              `*.yaml` + `!<home>/work-items.local.yaml` pair the personal override is NOT ignored
+#              `*.yaml` + `!<home>/work-items.local.yaml` pair the personal override is not ignored
 #              yet `-v` exits 0. Only the bare exit code is a truth value.
 # The personal override path does not need to exist; the rule must be in place first.
 git -C "$REPO_ROOT" check-ignore --no-index -q -- "$OVERRIDE" && IGNORED=1 || IGNORED=0

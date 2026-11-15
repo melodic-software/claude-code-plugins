@@ -13,9 +13,9 @@ What's the song's shape so far?
 - V/Ch/V/Ch → not strict ("four times is a lot" risk → distill or bridge)
 - V/Ch/V/Ch/V/Ch → almost always wants a bridge or AABA reshape
 - V/Ch/V/Ch/Br/Ch → bridge is structural; let's design it
-- AABA → B section IS the bridge
+- AABA → B section is the bridge
 
-What does the song still need to SAY but hasn't said yet?
+What does the song still need to say but hasn't said yet?
 - A perspective the verses don't carry?
 - The "why" underneath the chorus's "what"?
 - A consequence / cost / fear / regret that hasn't surfaced?
@@ -25,7 +25,7 @@ What does the song still need to SAY but hasn't said yet?
 ## Step 2: Find the missing angle (model-side, surface to writer)
 
 Pat's strongest bridge-finding move (*Writing Better Lyrics* (2009), Chapter 23): look at what the song
-has NOT said.
+has not said.
 
 Probe the writer:
 
@@ -39,18 +39,18 @@ Surface 2-3 candidate missing angles. Writer picks one.
 ## Step 3: Three bridge functions check (*Essential Guide to Lyric Form and Structure* (1991), Chapter 6)
 
 ```
-A bridge must do AT LEAST ONE of:
+A bridge must do at least one of:
 
 1. **Break monotony**: contrasts established structure to reset the ear
-2. **Different-size song system**: the SYSTEM changes size, not the bridge's
+2. **Different-size song system**: the system changes size, not the bridge's
    own phrase count. Verse/chorus: the last system gets shorter, so the final
    chorus arrives early. Verse/refrain or AABA: bridge + last verse make a
-   LONGER system than the verse-only ones before it. Different, not shorter.
+   longer system than the verse-only ones before it. Different, not shorter.
 3. **New perspective**: says something the verses haven't said
 
 Your bridge will serve function: <which ones>
 
-If your draft serves NONE → that's not a bridge, that's another verse.
+If your draft serves none → that's not a bridge, that's another verse.
 Rewrite or remove.
 ```
 
@@ -68,7 +68,7 @@ Pick 2-3 axes to contrast against the verses:
 - **Tense**: verses present → bridge past or future
 - **Tone-of-voice**: verses controlled → bridge raw (or vice versa)
 
-Pick 2-3. NOT all 8. That overshoots into chaos.
+Pick 2-3. Not all 8. That overshoots into chaos.
 
 Which axes match the perspective shift?
 ```
@@ -91,7 +91,7 @@ Draft the bridge using:
 - The missing angle (Step 2)
 - The contrast axes chosen (Step 4)
 - The object-write material (Step 5)
-- NOT verse phrase length / rhyme scheme / rhythm
+- Not verse phrase length / rhyme scheme / rhythm
 
 If draft bridge starts to look like a verse, stop. Re-examine: did the
 contrast axes actually contrast?
@@ -102,7 +102,7 @@ contrast axes actually contrast?
 Sing the transition aloud:
 
 - Bridge → final chorus (or B → final A in AABA)
-- Does the return feel like ARRIVAL?
+- Does the return feel like arrival?
 - Does the bridge's structural contrast pay off in the return's familiarity?
 
 If the return doesn't feel earned → bridge didn't depart far enough.
@@ -136,7 +136,7 @@ items:
   → trim; bridge serves chorus, not vice versa
 
 "Bridge too short" → 2 lines doing full-bridge work
-  → extend OR demote to transitional bridge (pre-chorus)
+  → extend or demote to transitional bridge (pre-chorus)
 ```
 
 ## Coach posture

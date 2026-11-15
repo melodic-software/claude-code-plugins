@@ -137,10 +137,10 @@ Prior art, each practicing part of this contract under its own wording:
 
 | Surface | What it practices |
 |---|---|
-| `/improvement:find`, "Evidence ladder" ([`SKILL.md:94`](../../../plugins/improvement/skills/find/SKILL.md)) | Model judgment is the weakest rung, "always labeled as such": the `judgment` label. |
-| `/overengineering:audit`, "Consumer-agnostic" ([`SKILL.md:239-242`](../../../plugins/overengineering/skills/audit/SKILL.md)) | Nothing is assumed about the consumer; every discovery probe resolves what the consumer actually declares: the local side of the bar. |
-| `/github:advise`, "Ground every recommendation" ([`SKILL.md:36-39`](../../../plugins/github/skills/advise/SKILL.md)) | Fetch integrity and a refusal branch that labels unavoidable recall as unverified: the external side and the label. |
-| `/planning:interview`, out-of-band drift ([`loop.md:267-270`](../../../plugins/planning/skills/interview/context/loop.md)) | The old → new → why re-statement this doc adopts. |
+| `/improvement:find`, "Evidence ladder" ([`SKILL.md`](../../../plugins/improvement/skills/find/SKILL.md)) | Model judgment is the weakest rung, "always labeled as such": the `judgment` label. |
+| `/overengineering:audit`, "Custody is detected, never assumed" ([`SKILL.md`](../../../plugins/overengineering/skills/audit/SKILL.md)) | Nothing is assumed about the consumer; every discovery probe resolves what the consumer actually declares: the local side of the bar. |
+| `/github:advise`, "Ground every recommendation" ([`SKILL.md`](../../../plugins/github/skills/advise/SKILL.md)) | Fetch integrity and a refusal branch that labels unavoidable recall as unverified: the external side and the label. |
+| `/planning:interview`, "Out-of-band drift" ([`loop.md`](../../../plugins/planning/skills/interview/context/loop.md)) | The old → new → why re-statement this doc adopts. |
 
 Conforming with this contract's 1.0.0:
 

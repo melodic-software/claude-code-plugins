@@ -6,7 +6,7 @@ Copy into `<memory_dir>/<slug>/work-items-checklist.md` (default `.work/`). Per-
 
 - [ ] Session-start reclaim: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh reclaim "<id>"` over assigned items (idempotent)
 - [ ] Claim: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh claim "<id>"` (exit 7 = lost race, pick next)
-- [ ] Branch: `git checkout -b <type>/<ref>-<short-slug> <base-ref>`, `<ref>` the adapter's `branch_ref`, `<base-ref>` resolved by `/work-items:track start`'s branch step (remote HEAD first, local cache offline); no start-point when it resolves to nothing
+- [ ] Branch: `<type>/<ref>-<short-slug>` from `<base-ref>`, `<ref>` the adapter's `branch_ref`, `<base-ref>` resolved by `/work-items:track start`'s branch step (remote HEAD first, local cache offline); no start-point when it resolves to nothing. Attended: emit `git checkout -b <type>/<ref>-<short-slug> <base-ref>` for the user, never run it. Autonomous: the dispatched worker creates the branch when it provisions its worktree
 - [ ] Run `/session-flow:workflow` chain. Its checklist lands as its own memory-tier ledger (`<memory_dir>/<slug>/workflow-checklist.md`); plan progress is marked in the topic's memory-slice `PLAN.md` (`<memory_dir>/<slug>/PLAN.md`)
 - [ ] Close: `/work-items:track done <N>` after PR merges (or via the PR body's closing line, when the adapter has one)
 

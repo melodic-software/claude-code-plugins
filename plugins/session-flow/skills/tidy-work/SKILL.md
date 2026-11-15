@@ -89,7 +89,7 @@ checklist. In-flight items are kept too:
 
 No flag overrides any of these.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not delete or move anything without `--apply` and a confirmation** naming the paths.
 - **Does not modify anything git tracks.** The script refuses a memory root whose `.gitignore`
