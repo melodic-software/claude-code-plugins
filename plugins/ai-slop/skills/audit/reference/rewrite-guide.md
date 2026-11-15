@@ -186,9 +186,11 @@ Rewrites that need more than a lookup:
   the behavior ("CI gets grumpy about lockfiles" becomes "CI fails when `package-lock.json` is
   out of date"). An act becomes who does what ("flaky tests eat the release week" becomes
   "engineers spend release week rerunning flaky tests"). A slogan becomes the rule, then
-  `because` and its reason. The rewritten sentence carries no figure: a milder one in that
-  sentence, even one not reported alone, is made literal in the same edit; a field's own term is
-  not a figure and stays, as do the idioms in other sentences. Moving or re-punctuating the
+  `because` and its reason. The rewritten sentence carries no figure. Reread it verb by
+  verb: where an object or abstraction is still said to do what only a living thing does (sit,
+  sleep, want, fight), write where it is or what happens instead, even when that verb alone would
+  not have been reported. A field's own term is not a figure and stays, as do the idioms in other
+  sentences. Moving or re-punctuating the
   sentence with the figure still in it is not a fix. The sentence stays about the thing it named;
   never swap its subject for another noun nearby.
 - **Promotional adjectives** (`rule-promotional-language`): "Vibrant", "stunning",
