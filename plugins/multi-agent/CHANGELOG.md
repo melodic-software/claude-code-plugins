@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.5] - 2026-11-15
+
+### Changed
+
+- The worker role's mechanical-model reason records a third fix-docs measurement, in which Sonnet 5.5 passed the meaning-change case after the ai-slop fix guidance changed, and its recheck condition names any audit-fix case that fails a majority of its runs.
+
 ## [3.0.4] - 2026-11-15
 
 ### Changed
