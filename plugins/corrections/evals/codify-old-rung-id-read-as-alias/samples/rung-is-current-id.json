@@ -1,0 +1,86 @@
+{
+  "pass": [
+    {
+      "answer": "Count: 3 occurrences (threshold 2, default).\nRung: `syntax-pattern-rule`\nScope: project rule.",
+      "why": "hand-written: the new id on a labeled line"
+    },
+    {
+      "answer": "| Field | Value |\n|---|---|\n| Rung | `syntax-pattern-rule` |\n| Scope | project rule |",
+      "why": "hand-written: the new id in a vertical table row"
+    },
+    {
+      "answer": "| Mistake | Rung | Scope |\n|---|---|---|\n| shell-string command | `syntax-pattern-rule` | project rule |",
+      "why": "hand-written: the new id in a horizontal table row under a Rung header"
+    },
+    {
+      "answer": "Picking the rung, strongest first against this repository's order.\n\nOne matcher has to cover both the TypeScript and the Python service, so the proposal is\n`syntax-pattern-rule`, written as one rule in `.semgrep/`.",
+      "why": "hand-written: the new id in prose three lines after the word rung"
+    },
+    {
+      "answer": "### Rung\n\n`syntax-pattern-rule`: one rule over both services. Criterion items 1, 2 and 7 decided it.",
+      "why": "hand-written: the new id under a ### Rung heading"
+    },
+    {
+      "answer": "Rung (CLAUDE.md calls it `semgrep-rule`, now an alias): `syntax-pattern-rule`.",
+      "why": "hand-written: the new id after a parenthetical naming the old id"
+    },
+    {
+      "answer": "Rung: `syntax-pattern-rule`\nProof: unproven. The check exited 127 on both the old ref and the current code because semgrep did not run, so it is not proposed for install.",
+      "why": "hand-written: the new id proposed while its check is unproven and not proposed for install"
+    },
+    {
+      "answer": "Rung: `syntax-pattern-rule`\nProof: unproven, semgrep is not installed here.\nUntil it is installed, add this line to CLAUDE.md: \"Never build a shell command string from a variable; pass an argument list.\"",
+      "why": "hand-written: the new id chosen though unproven, with an interim instruction line beside it"
+    },
+    {
+      "answer": "Rung: `syntax-pattern-rule`, one rule in `.semgrep/` over both services.\nThe check replaces the CLAUDE.md line that orders `semgrep-rule` first, so remove that line in the same change.",
+      "why": "hand-written: the new id chosen, plus the removal of the replaced CLAUDE.md line that codify SKILL.md asks for"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Rung considered and rejected: syntax-pattern-rule. Chosen rung: instruction.",
+      "why": "hand-written: the new id only on a rejected-rung line; another rung chosen"
+    },
+    {
+      "answer": "syntax-pattern-rule is ruled out: semgrep is not installed here.\nRung: shared-helper.",
+      "why": "hand-written: the new id on a ruled-out line"
+    },
+    {
+      "answer": "Rung: instruction (syntax-pattern-rule would need semgrep, which this machine lacks).",
+      "why": "hand-written: the new id named only as an alternative inside the rung line"
+    },
+    {
+      "answer": "Rung: shared-helper rather than syntax-pattern-rule.",
+      "why": "hand-written: the new id named as the rung not taken"
+    },
+    {
+      "answer": "Rung ids: make-impossible, shared-helper, editorconfig-severity, analyzer-pack-rule, custom-analyzer, syntax-pattern-rule, architecture-test, harness-setting, action-guard, scaffold, runtime-verification, formal-verification, automated-review, instruction, skill, human-review.",
+      "why": "hand-written: a list of every rung id, no rung proposed"
+    },
+    {
+      "answer": "Chosen rung: semgrep-rule; in ladder 3.0.0 this rung is syntax-pattern-rule.",
+      "why": "hand-written: the old id kept as the chosen rung, the new id only in a note"
+    },
+    {
+      "answer": "Notice: `semgrep-rule` → `syntax-pattern-rule` (renamed in ladder 3.0.0).\nRung: shared-helper.",
+      "why": "hand-written: the new id only in an arrow-form alias notice; another rung chosen"
+    },
+    {
+      "answer": "Rung: `semgrep-rule`, as CLAUDE.md orders it first for dangerous calls.",
+      "why": "hand-written: the old id kept as the chosen rung"
+    },
+    {
+      "answer": "Rung: `semgrep-rule` (alias of `syntax-pattern-rule`).",
+      "why": "hand-written: the rung written under the old id with the new id only in a note beside it"
+    },
+    {
+      "answer": "Rungs, one per service:\n- services/worker (Python): `analyzer-pack-rule`, turning on ruff's S602 for shell=True.\n- services/api (TypeScript): `syntax-pattern-rule`, one rule for exec with a template string.",
+      "why": "hand-written: one rung per service, one of them not syntax-pattern-rule"
+    },
+    {
+      "answer": "Count: 1 occurrence in this session's commits (threshold 2, default). Below the threshold, so no proposal.",
+      "why": "hand-written: a count below the threshold with no rung proposed"
+    }
+  ]
+}
