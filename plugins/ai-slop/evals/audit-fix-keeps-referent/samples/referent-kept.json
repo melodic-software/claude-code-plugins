@@ -11,6 +11,22 @@
     {
       "answer": "# Opening shift\n\nOvens go on at 5:30 and reach `220C` before the first trays go in.\n\nWholesale drivers pull up at the back door at 6:15 to add next-day bread (paperwork friction kills standing orders; the standing-order clipboard lives where the drivers already stop).\n\nOn Tuesdays the supplier leaves the flour delivery invoice on the back-door shelf, and the manager signs it before the sacks go into the store room.\n\nClosing staff wipe the standing-order clipboard after the last driver leaves.\n",
       "why": "unfixed file keeps the referent; figure-gone fails it"
+    },
+    {
+      "answer": "# Opening shift\n\nOvens go on at 5:30 and reach `220C` before the first trays go in.\n\nWholesale drivers pull up at the back door at 6:15 to add next-day bread, so the clipboard for the standing orders hangs there, where drivers already stop.\n\nOn Tuesdays the supplier leaves the flour delivery invoice on the back-door shelf, and the manager signs it before the sacks go into the store room.\n\nClosing staff wipe the standing-order clipboard after the last driver leaves.\n",
+      "why": "'the' inside the paraphrase"
+    },
+    {
+      "answer": "# Opening shift\n\nOvens go on at 5:30 and reach `220C` before the first trays go in.\n\nWholesale drivers pull up at the back door at 6:15 to add next-day bread, so the standing-orders clipboard hangs on the back door, where drivers already stop.\n\nOn Tuesdays the supplier leaves the flour delivery invoice on the back-door shelf, and the manager signs it before the sacks go into the store room.\n\nClosing staff wipe the standing-order clipboard after the last driver leaves.\n",
+      "why": "plural 'orders'"
+    },
+    {
+      "answer": "# Opening shift\n\nOvens go on at 5:30 and reach `220C` before the first trays go in.\n\nWholesale drivers pull up at the back door at 6:15 to add next-day bread. Standing-order clipboard sheets hang on the back door, where drivers already stop.\n\nOn Tuesdays the supplier leaves the flour delivery invoice on the back-door shelf, and the manager signs it before the sacks go into the store room.\n\nClosing staff wipe the standing-order clipboard after the last driver leaves.\n",
+      "why": "sentence-initial capital"
+    },
+    {
+      "answer": "# Opening shift\n\nOvens go on at 5:30 and reach `220C` before the first trays go in.\n\nWholesale drivers pull up at the back door at 6:15 to add next-day bread,\nso the standing-order clipboard hangs on the back door, where drivers already stop.\n\nOn Tuesdays the supplier leaves the flour delivery invoice on the back-door shelf, and the manager signs it before the sacks go into the store room.\n\nClosing staff wipe the standing-order clipboard after the last driver leaves.\n",
+      "why": "soft line break between 6:15 and the clipboard"
     }
   ],
   "fail": [
@@ -21,6 +37,10 @@
     {
       "answer": "# Opening shift\n\nOvens go on at 5:30 and reach `220C` before the first trays go in.\n\nWholesale drivers pull up at the back door at 6:15 to add next-day bread, because paperwork friction kills standing orders.\n\nOn Tuesdays the supplier leaves the flour delivery invoice on the back-door shelf, and the manager signs it before the sacks go into the store room.\n\nClosing staff wipe the standing-order clipboard after the last driver leaves.\n",
       "why": "referent dropped from the 6:15 line"
+    },
+    {
+      "answer": "# Opening shift\n\nOvens go on at 5:30 and reach `220C` before the first trays go in.\n\nWholesale drivers pull up at the back door at 6:15 to add next-day bread,\nso the flour delivery invoice stays on the back-door shelf, where they already stop.\n\nOn Tuesdays the supplier leaves the flour delivery invoice on the back-door shelf, and the manager signs it before the sacks go into the store room.\n\nClosing staff wipe the standing-order clipboard after the last driver leaves.\n",
+      "why": "wrapped, and the referent is swapped"
     }
   ]
 }
