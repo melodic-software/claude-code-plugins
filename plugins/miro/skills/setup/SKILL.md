@@ -115,7 +115,7 @@ convention's record covers only a non-sensitive option. Either way, confirm the 
 `verify-api` in a **fresh session** (or after `/reload-plugins`, as step 3 says); a session that
 has done neither can still hold the old one, so never report an unobserved rotation. Never
 uninstall to rotate either; that section links what an uninstall deletes, and a
-`defaultEnabled: false` plugin reinstalls DISABLED, so a rotation ending at `install` delivers no
+`defaultEnabled: false` plugin reinstalls disabled, so a rotation ending at `install` delivers no
 tools.
 
 - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
@@ -148,6 +148,6 @@ reveal the contents of wherever it keeps them.
 - Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform
   setup contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the
   marketplace repository).
-- Do not make a Miro API request without explicit confirmation.
+- Make a Miro API request only when the invocation passed `verify-api`, and only the read-only call in Task step 5.
 - Do not invoke a mutating Miro tool during setup.
 - Do not claim success from tool presence alone when the user requested API verification.

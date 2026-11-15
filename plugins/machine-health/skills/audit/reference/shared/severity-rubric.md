@@ -26,7 +26,7 @@ Worth knowing but no action required. Surfaces trend or context that shapes futu
 Action recommended this week but system still operable. A WARN today can become CRIT if ignored for a few runs. This is where trend data earns its keep.
 
 - Disk 85–95% full, or temperature 55–65°C, or wear 70–85%.
-- Defender signature age 3–7 days.
+- Defender signature age 3–7 days, or tamper protection disabled.
 - Battery full-charge capacity 50–70% of design.
 - >5 repeat errors from the same source in the System event log over 7 days.
 - >10 apps behind on winget updates.
@@ -42,7 +42,7 @@ Action needed immediately. A pattern of ignored CRIT findings is a trust problem
 - `Get-PhysicalDisk` HealthStatus is anything other than `Healthy`.
 - Any BugCheck event or Kernel-Power 41 (unexpected shutdown) in the last 7 days.
 - Any `disk`-source Error or Critical event in the last 7 days.
-- Defender signature age >7 days, **or** real-time protection disabled, **or** tamper protection disabled, **or** any active threat in the last 30 days. The signature-age and real-time-protection arms do not apply when Defender runs in passive mode behind a third-party AV. See `reference/windows/check-catalog.md` § 5.
+- Defender signature age >7 days, **or** real-time protection disabled, **or** any detection in the last 30 days with no recorded remediation. The signature-age and real-time-protection arms do not apply when Defender runs in passive mode behind a third-party AV. See `reference/windows/check-catalog.md` § 5.
 - CodeIntegrity events in consecutive runs of `drivers`, with a newer event since the prior run (the trend rule below).
 - Pending security update older than 14 days.
 - Battery full-charge capacity <50% of design.

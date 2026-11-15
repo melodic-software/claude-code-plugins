@@ -183,14 +183,14 @@ needed):
   `reason=<text>` argument when supplied, else a short default) to the overlay.
 - `demote=<check-id>`. Write `"cadence": "monthly"` for that check to the overlay.
 - `approve=<remediation-id>`. Approve the remediation in `<StateBase>/state/approvals.json`
-  (`Set-ApprovalState -Action approve -RemediationId <id>`). A supplied `approve=` argument IS the
+  (`Set-ApprovalState -Action approve -RemediationId <id>`). A supplied `approve=` argument is the
   explicit user decision; never approve a remediation not named in the arguments or the interview.
 - `revoke=<remediation-id>`. Set the remediation back to not approved
   (`Set-ApprovalState -Action revoke -RemediationId <id>`).
 - `review-check=<check-id>`. Record the owner's review of one custom check in
   `<StateBase>/state/approvals.json` (`Set-ApprovalState -Action review-check -CheckId <id>`), so
   the custom-check clamp no longer caps its CRIT at WARN. The id must be a custom check the overlay
-  registers. A supplied `review-check=` argument IS the owner's decision that they read the check's
+  registers. A supplied `review-check=` argument is the owner's decision that they read the check's
   script; never record a review for a check not named in the arguments or the interview, and never
   for "all" or a list.
 - `unreview-check=<check-id>`. Withdraw that review, so the clamp holds the check again
@@ -226,7 +226,7 @@ the file. The re-read after the write confirms the entry landed, or for `unmute=
 Reject an argument targeting an unknown check id, remediation or muted key with the same message
 `check` would give, rather than writing a dangling entry.
 
-**Interview** (no write arguments AND an interactive session), one decision at a time:
+**Interview** (no write arguments and an interactive session), one decision at a time:
 
 1. **Read current state first** and present the `check` summary: checks shipped, checks patched by
    the overlay, approvals granted, proposals awaiting a decision.
@@ -434,7 +434,7 @@ yes to refreshing.
 
 /machine-health:audit on-demand, whose next run reads the new overlay, mutes and approvals.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run the audit. That is `/machine-health:audit`.
 - Edit the shipped catalog or anything inside the plugin install directory. A plugin update

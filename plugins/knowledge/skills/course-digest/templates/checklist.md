@@ -11,7 +11,7 @@ Copy into `<work-root>/.work/<slug>/course-digest-checklist.md`. Tick each phase
 - [ ] Phase 2d: Validate with `validate-extraction.js` quality checks before synthesis
 - [ ] Phase 3: Synthesize per-module multi-agent summaries
 - [ ] Phase 4: Analyze, producing course-level synthesis and cross-cutting themes
-- [ ] Phase 5: Recommend what applies to THIS repo (`repo-candidates.md`, `action-items.md`)
+- [ ] Phase 5: Recommend what applies to this repo (`repo-candidates.md`, `action-items.md`)
 
 ## Skip criteria
 

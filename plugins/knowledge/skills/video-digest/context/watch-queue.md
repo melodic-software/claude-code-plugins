@@ -2,7 +2,7 @@
 
 Epic-level durable queue for batching public video URLs before `/knowledge:video-digest watch`. **V1 = markdown table + filesystem claim stubs**, with no JSON queue schema.
 
-**One queue, every source.** The on-disk epic directory stays the literal `youtube-watch` (a stable storage-format identifier, not a source claim), and there is one `claims/` namespace. Source is **never a directory level**. It lives in slice metadata (`watch.json` `sourceUrl`). A mixed YouTube + X batch shares this one queue and these claim stubs; nothing about a consumer's existing `.work/` tree changes.
+**One queue, every source.** The on-disk epic directory stays the literal `youtube-watch` (a stable storage-format identifier, not a source claim), and there is one `claims/` namespace. Source is never a directory level. It lives in slice metadata (`watch.json` `sourceUrl`). A mixed YouTube + X batch shares this one queue and these claim stubs; nothing about a consumer's existing `.work/` tree changes.
 
 - [Artifacts](#artifacts)
 - [Table columns](#table-columns)
@@ -21,7 +21,7 @@ Epic-level durable queue for batching public video URLs before `/knowledge:video
 | `.work/<watch-epic>/claims/<n>.json` | Row-level exclusive claim (concurrency only) |
 | `templates/queue.md` | Empty table copied on first `queue` use |
 
-Per-video work stays under `.work/<watch-epic>/<video-slug>/` (`watch.json`, slices). The queue answers **which URL next**, not phase internals.
+Per-video work stays under `.work/<watch-epic>/<video-slug>/` (`watch.json`, slices). The queue answers which URL next, not phase internals.
 
 Deferred queue evolutions (a JSON queue, a CLI, leases, unattended drain) are recorded in
 [reference/ingest-deferred-decisions.md](../../../reference/ingest-deferred-decisions.md), section 6, "video-digest queue
@@ -46,11 +46,11 @@ Claim metadata (`claimedAt`, `claimedBy`) lives in `claims/<n>.json`, not in the
 
 | Action | Behavior |
 | --- | --- |
-| `queue <url> [url...]` | Ensure `QUEUE.md` exists (from template); **preflight each URL** (validate + fetch title/channel); append rows; **dedupe by video-id** |
+| `queue <url> [url...]` | Ensure `QUEUE.md` exists (from template); preflight each URL (validate + fetch title/channel); append rows; dedupe by video-id |
 | `queue list` | Display table + list active claim files under `claims/`; name each `awaiting_captions` row with the next check time from its `notes` |
 | `watch` (no URL) | FIFO: first row `queue-claim.js next` lists with successful exclusive claim |
 | `watch <n>` | Claim row `#n` only (parallel path across terminals) |
-| `watch <url>` | Unchanged: direct single-video watch |
+| `watch <url>` | Direct single-video watch, outside the queue |
 
 ## Claim protocol (every dequeue)
 
@@ -141,11 +141,11 @@ caption-less. The values that hold a video, the bounds, and their basis are in
 | **Two auto-`watch`** | Claim stub picks winner per row; loser skips to next `pending` or reports queue busy. |
 | **Same row twice** | Second `claim <n>` fails. Stop; do not bootstrap duplicate work. |
 
-**Operator rule:** For predictable parallel, prefer **`watch <n>` per terminal**.
+**Operator rule:** For predictable parallel, prefer `watch <n>` per terminal.
 
 ### Stale reclaim
 
-If `claims/<n>.json` exists and `claimedAt` is older than **7 days**, skill may:
+If `claims/<n>.json` exists and `claimedAt` is older than 7 days, skill may:
 
 ```bash
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/queue-claim.js stale-check
@@ -185,7 +185,7 @@ On first `queue` action (canonical epic dir: `youtube-watch`):
 
 1. `mkdir -p .work/<watch-epic>/claims`
 2. Copy `templates/queue.md` → `.work/<watch-epic>/QUEUE.md` if missing
-3. Preflight each URL (below), then append rows with the next `#` index. **Do not renumber existing rows**
+3. Preflight each URL (below), then append rows with the next `#` index. Do not renumber existing rows
 
 Paths here are relative to the resolved work root, not always the repo root. See `output-contract.md`.
 
@@ -199,7 +199,7 @@ When the operator supplies companion URL(s) with queue intent, record them befor
 
 ## Preflight (every `queue` add)
 
-Before appending rows, validate each URL and fetch its title + channel through the same auth-fallback path acquisition uses (a bot-checked video that `watch` could acquire with cookies is NOT rejected at queue time):
+Before appending rows, validate each URL and fetch its title + channel through the same auth-fallback path acquisition uses (a bot-checked video that `watch` could acquire with cookies is not rejected at queue time):
 
 ```bash
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" acquisition/preflight-metadata.js "<url>" ["<url>"...]
@@ -211,10 +211,10 @@ Emits a JSON array (one entry per URL). Per entry use `action` to decide:
 | --- | --- | --- |
 | `enqueue` | `ok` | Append the row; fill `title`/`channel` from `displayTitle`/`displayChannel`; copy `note` into `notes` (empty, except a live or just-ended stream's live-stream note) |
 | `enqueue` | `transient` | Append the row (link is real, just blocked this session by bot-check/auth/network); copy `note` into `notes` |
-| `reject` | `unavailable` | Do **not** enqueue (removed / private / 404); report to the user |
-| `reject` | `invalid-url` | Do **not** enqueue (no supported source claims the URL); report to the user with the supported-source list |
+| `reject` | `unavailable` | Do not enqueue (removed / private / 404); report to the user |
+| `reject` | `invalid-url` | Do not enqueue (no supported source claims the URL); report to the user with the supported-source list |
 
-URL acceptance and failure classification are the **owning source adapter's** (`acceptForEnqueue`
+URL acceptance and failure classification are the owning source adapter's (`acceptForEnqueue`
 and its declared error patterns), so no YouTube-shaped assumption reaches an X URL. Only a *fatal*
 classification rejects. Everything else, whether bot-check, auth, network, or unclassified, enqueues as
 `transient`.

@@ -112,7 +112,7 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" --data-dir "
 ```
 
 1. **Acquire**. Captions + info JSON (`--skip-download`)
-2. **Caption ladder**. Per-source rungs; STOP and surface if exhausted, since this action
+2. **Caption ladder**. Per-source rungs; stop and surface if exhausted, since this action
    downloads no media for `asr` to fall back on (see the source spoke). A live stream whose
    captions are still in processing exits `3` instead: report its
    `captions pending, next check at <time>` line (caption wait: the YouTube spoke)
@@ -147,7 +147,7 @@ Ordered phase spine. Each phase's procedure, inputs, and outputs: `context/watch
 
 **Bootstrap contract**
 
-1. **Prerequisites gate**. Run `setup-deps.mjs`; STOP if it fails (report its failure text) or the
+1. **Prerequisites gate**. Run `setup-deps.mjs`; stop if it fails (report its failure text) or the
    pre-computed context above shows MISSING, or a version below its floor, for the node
    dependencies, yt-dlp, ffmpeg, or ImageMagick (install fallbacks and the upgrade policy:
    "Prerequisites" below). When the node pipeline cannot run, a hand-run of yt-dlp, ffmpeg or
@@ -244,14 +244,14 @@ writing it into a brief. Those files arrive through the Read tool as plain bytes
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
 `CLAUDE_SKILL_DIR` to expand it from.
 
-Every `run.mjs` and `setup-deps.mjs` command takes the leading `--data-dir` flag shown above.
-The Bash tool's environment does not carry this plugin's `CLAUDE_PLUGIN_DATA`, and another
-plugin's SessionStart hook can put its own data directory there under that name. The scripts
-therefore take the directory from the flag, and accept an inherited value only when it names this
-plugin. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves, or
-lists the Bash tool among the processes that receive the variables.
+Every `run.mjs` and `setup-deps.mjs` command takes the leading `--data-dir` flag shown above. The
+scripts take the plugin data directory from that flag, and accept an inherited `CLAUDE_PLUGIN_DATA`
+only when it names this plugin, since another plugin's SessionStart hook can export its own data
+directory under that name.
+
+- **Pointer**: for which processes receive the plugin variables and where a `${…}` reference
+  resolves, fetch
+  <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves> live.
 
 ## Next
 

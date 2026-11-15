@@ -2,7 +2,7 @@
 
 ## Contents
 
-- [Deliberately NOT `type: review-findings`](#deliberately-not-type-review-findings)
+- [Deliberately not `type: review-findings`](#deliberately-not-type-review-findings)
 - [Where it lives](#where-it-lives)
 - [Frontmatter](#frontmatter)
 - [No branch identity, no artifact](#no-branch-identity-no-artifact)
@@ -35,7 +35,7 @@ The artifact is the single source of truth for a run. Everything that drives the
 here: evidence citations, liveness answers, intent reconstruction, rediscovery, cost weighing, and
 the verdict. An inline terminal summary is a view of it, never a second record.
 
-## Deliberately NOT `type: review-findings`
+## Deliberately not `type: review-findings`
 
 This artifact declares `type: overengineering-findings` and **must never be made to declare
 `type: review-findings`**, nor be written into the directory where a fix relay scans.
@@ -581,8 +581,8 @@ names, so:
 
 The reason is asymmetry: a walk that omits a layer says so in `scope` and rule 4 protects it, but a
 targeted run walks no layer at all, so without this clause rule 3 would read every un-examined
-finding in the target's layer as a deleted artifact and close it. That is the loss the section below
-exists to prevent, arriving through the other door.
+finding in the target's layer as a deleted artifact and close it. That is the same loss the section below
+exists to prevent, reached by a different path.
 
 A re-audit **rewrites the artifact in place**, merging against the prior content by stable id. For
 each finding:
@@ -593,7 +593,7 @@ each finding:
    **the verdict**. A stale verdict is worse than no verdict; a wiped status is worse than
    both.
 2. **Id absent from the prior artifact.** A new finding, `Status: OPEN`.
-3. **Prior id absent from this run, and its layer WAS walked.** The underlying artifact is gone
+3. **Prior id absent from this run, and its layer was walked.** The underlying artifact is gone
    (deleted, renamed, or already retired). The finding is **dropped with a note**: a
    `## Closed since last run` row records the id, **its `Layer`**, its last verdict, its last status,
    and the reason class: `artifact absent`, `renamed to <successor id>` where the rename is
@@ -604,7 +604,7 @@ each finding:
    `overengineering:delta`, which compares only the ten enforcement layers, would report a closure it
    is elsewhere told it never compares. A finding that vanishes with no row is the failure this section
    exists to prevent.
-4. **Prior id absent from this run because its layer was NOT walked** (`scope` says so). The finding
+4. **Prior id absent from this run because its layer was not walked** (`scope` says so). The finding
    is **carried forward untouched**, prose and all, marked not re-evaluated this run and stamped
    with the `date` of the run that produced it. A layer-scoped pass must never read as a retirement
    of everything it did not look at.

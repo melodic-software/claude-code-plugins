@@ -23,7 +23,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 - [ ] **0b.2** Companion URL(s) deep-fetched. Verify: full page per URL by the fetch-route rungs (`companion-primary-sources.md`); not surface skim
 - [ ] **0b.3** Section fan-out complete. Verify: `source/companion-digest/<section-slug>.md` for every row in brief
 - [ ] **0b.4** Hub digest written. Verify: `source/companion-digest/README.md` links all section shards
-- [ ] **0b.5** `mark-phase <slice-dir> companion` only after 0b.1–0b.4. Verify: `watch.json`; run **before** Phase 1 on fresh watch
+- [ ] **0b.5** `mark-phase <slice-dir> companion` only after 0b.1–0b.4. Verify: `watch.json`; run before Phase 1 on fresh watch
 
 ## Phase 1: CLI bootstrap
 
@@ -42,7 +42,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 
 ## Phase 3: Claim landscape (before research)
 
-- [ ] **3.1** `research/claim-inventory.md`. Verify: one `## <n>. <name>` heading plus `**Boundary:** [m:ss] … [m:ss]` line per session (format in `watch-pipeline.md` Phase 2; a table is not parsed); ≥4 claims/session (conference); ≥40 claims if ≥4h
+- [ ] **3.1** `research/claim-inventory.md`. Verify: one `## <n>. <name>` heading plus `**Boundary:** [m:ss] … [m:ss]` line per session (format in `watch-pipeline.md` Phase 3; a table is not parsed); ≥4 claims/session (conference); ≥40 claims if ≥4h
 - [ ] **3.2** `research/research-agenda.md` drafted from inventory. Verify: cluster rows map to claim IDs
 - [ ] **3.3** No research fan-out started before 3.1. Verify: agenda exists before first research cluster
 
@@ -79,7 +79,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 - [ ] **6.3** Pre-promotion: read each candidate PNG. Verify: no promote from filename/cell index alone
 - [ ] **6.4** Vision-gated promote → `key-frames/frames/`. Verify: semantic filenames only (`synthesis-contract.md`); count floor warn-only
 - [ ] **6.5** On-screen URLs merged. Verify: `source/harvested-links.json` updated if URLs found
-- [ ] **6.6** Post-promotion review of every `frames/*.png`. Verify: failures **deleted**, not kept under `key-frames/frames/`
+- [ ] **6.6** Post-promotion review of every `frames/*.png`. Verify: failures deleted, not kept under `key-frames/frames/`
 - [ ] **6.7** `key-frames/key-frames-manifest.md` + `key-frames/key-frame-quality-audit.md`. Verify: files exist; audit covers each synthesis file
 - [ ] **6.8** `mark-phase <slice-dir> vision` only after 4.x–6.7. Verify: `watch.json` vision metrics honest vs triage log
 
