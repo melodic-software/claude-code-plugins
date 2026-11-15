@@ -182,7 +182,7 @@ check() { # name python-assertions json
 
 out=$(relocate)
 check "after a reload the note re-locates by its test id, confirmed, with B / empty / worst, its viewport and its data log restored" \
-  'assert r["matched"] == "testid" and r["confirmed"] and not r["positionOnly"]; assert r["restored"] == {"viewport": True, "data": True, "variant": True, "state": True, "content": True}' "$out"
+  'assert r["matched"] == "testid" and r["confirmed"] and not r["positionOnly"]; assert r["restored"] == {"viewport": True, "data": True, "scroll": True, "variant": True, "state": True, "content": True}' "$out"
 check "every rung reports its candidates" \
   'assert [(x["rung"], x["candidates"]) for x in r["rungs"]] == [("testid", 2), ("cssPath", 1)]' "$out"
 check "the shot's clip lies inside the frame's box" \

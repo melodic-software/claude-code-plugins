@@ -40,13 +40,13 @@ A note's element is found again by structure, never by node identity: the varian
 state give the scope, then the anchor rungs run in order, test id and its index in the scope, role,
 then the structural path, then a text note's quote, and the first that finds one element matches. A match is
 confirmed only when no stronger rung the note carries found nothing, and a text note's match only
-when its quote is still there. When no rung matches, the
+when its quote is still there, on or inside the matched element. When no rung matches, the
 note's `rect` (the element's box in percent of the page) is the only position left, labeled
 position only. `relocate-note.mjs` reads one note from the bridge's log, checks it against
 `note.schema.json`, and writes a `playwright-cli run-code` script that carries it as one JSON
 literal. The script opens the host page, so the mockup stays in its sandboxed frame, sets the
 note's viewport, restores the view through the switcher's `vs:show` event, replays the note's
-data log, and cuts the shot from inside the frame's box, so no host-page pixel is in it. A
+data log, scrolls the frame to the note's scroll position, and cuts the shot from inside the frame's box, so no host-page pixel is in it. A
 region note's shot is its box. Shot files are named from the bridge's integer `seq` only.
 
 The frame helper owns both rules a re-located note depends on: the data log (the presses of the
