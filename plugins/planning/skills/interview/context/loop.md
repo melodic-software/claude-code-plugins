@@ -283,7 +283,7 @@ A question whose recommendation, option or `Commits you to:` part coins a name w
 
 ### Terminology matrix
 
-The ledger's `## Terminology matrix` holds one row per term the rounds rely on, built before the first decision question (SKILL.md "Agree the terms before the first decision"):
+The ledger's `## Terminology matrix` holds one row per sourced term the rounds rely on, built before the first decision question (SKILL.md "Agree the terms before the first decision"):
 
 ```markdown
 | Term | Definition | Source | Status |
@@ -292,7 +292,7 @@ The ledger's `## Terminology matrix` holds one row per term the rounds rely on, 
 | cluster step | upstream's grouping of reports that share a fingerprint | vendor/upstream-triage/README.md:8 | proposed |
 ```
 
-Status is `proposed` until the user agrees the row, then `agreed`. The agreement question is registered like any other; its resolution names the rows it agreed. A term the user redefines keeps its row with the user's definition and source `user, round <N>`. The shorthand glossary above holds the session's own coinages; the matrix holds every term a reader must share to answer, coined or not.
+Status is `proposed` until the user agrees the row, then `agreed`. The agreement question is registered like any other; its resolution names the rows it agreed. A term the user redefines keeps its row with the user's definition and source `user, round <N>`. The shorthand glossary above holds the session's own coinages; the matrix holds every sourced term a reader must share to answer. A coinage gets no row; SKILL.md "Agree the terms before the first decision" says how it is agreed, in a withheld question whose resolution names the definitions it agreed; a definition the user corrects takes a row with source `user, round <N>`.
 
 ### Dialogue + recommendation revision
 
