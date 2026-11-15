@@ -29,13 +29,9 @@ A static field on a `hooks.json` **handler object**, sibling of `type`/`command`
 
 It labels the spinner while the hook runs. **A hook script never emits this, because it is configuration,
 not a runtime output field.** Pointer: for the field, see
-<https://code.claude.com/docs/en/hooks#common-fields>. **Rollout status: near-complete.** As of
-2026-07-23, 30 of the 31 wired `type: "command"` handlers across the fleet's 15 hook-bearing
-plugins declare `statusMessage`; the sole remaining holdout is
-`plugins/disk-hygiene/hooks/hooks.json`. Tracked against
-melodic-software/claude-code-plugins#836 (this doc landed first per the convention-registry rule;
-adoption was the follow-up wave, now all but one site complete. Close #836 once `disk-hygiene`
-declares it or is recorded as a deliberate exception). Wording convention: a present-tense gerund
+<https://code.claude.com/docs/en/hooks#common-fields>. **Rollout status: incomplete.** A plugin whose
+`hooks/hooks.json` holds fewer `statusMessage` keys than `"type": "command"` handlers still has
+rows to convert. Wording convention: a present-tense gerund
 phrase naming what the hook is doing, specific to the tool or check
 (`"Formatting Go imports..."`, `"Checking for secrets..."`, `"Recording tool-failure
 telemetry..."`), not a generic `"Running hook..."`.
@@ -64,7 +60,7 @@ definition. (The `dim-N` numbers are conformance dimension ids, for example dim-
 setup-skill wave and dim-11 = seam phrasing; [the conformance registry](../../conformance-dimensions.md)
 defines the numbering.)
 
-**Also required: a hook that CHANGED the user's file content without being asked.** An autofix hook
+**Also required: a hook that changed the user's file content without being asked.** An autofix hook
 edits a file the user is working in, on the strength of an unrelated tool call, with no prompt and no
 diff. The harness's own signal for it is a generic "PostToolUse hook modified `<file>` after your
 edit (likely a formatter)" line that names no hook and shows no change, quoted from an observed
@@ -149,14 +145,9 @@ external binary keeps the same cadence, with the install route in its user notic
 **Important exit-code caveat:** a bare `echo "..." >&2; exit 0` skip is **not a notice**; only
 stdout JSON carries one. Pointer: for where exit-0 stderr goes, see
 <https://code.claude.com/docs/en/hooks#exit-code-0>. As of: 2026-10-04. Recheck trigger: that
-section starts showing exit-0 stderr in the transcript or to the model. `scripts/check-silent-skips.sh` **still treats a bare
-stderr write as a sanctioned visibility signal as of this doc's introduction.** That is incorrect
-for the exit-0 skip shapes the gate inspects, and the gate does not yet enforce the rule this doc
-states. **Gate correction is pending**, scoped into the same fleet-adoption follow-up PR (against
-issue #836) that converts the 9 fleet sites currently relying on that leniency
-(`plugins/guardrails/hooks/*.sh`). The gate and its dependent sites land together so CI never
-regresses between them. Once corrected, a quiet skip must use one of the sanctioned helper calls
-or an explicit `# silent-skip-ok: <reason>` annotation.
+section starts showing exit-0 stderr in the transcript or to the model. `scripts/check-silent-skips.sh`
+rejects a bare stderr write on the exit-0 skip shapes it inspects: a quiet skip there uses one of the
+sanctioned helper calls or an explicit `# silent-skip-ok: <reason>` annotation.
 
 **The annotation, precisely.** `# silent-skip-ok: <reason>` is a comment line placed directly
 above the quiet exit it sanctions (the `exit 0` behind a `command -v` gate, or the
@@ -331,20 +322,8 @@ carrying the exact text sent, so the debug log holds what the model read.
   > nothing to the user or the model, so the assumption this bullet rests on stands and the rule is
   > unchanged. The clause is narrowed above to the fields that could falsify it.
 
-  > **Correction, 2026-08-11.** This bullet previously read "No native 'verbose hooks' toggle
-  > exists in Claude Code," verified against a `hooks`-page fetch. The literal phrase "verbose
-  > hooks" appears on no page, but the word `verbose` appears across at least 13 Claude Code
-  > pages including four hook-related mentions on `hooks` itself. Absence from one page is not
-  > absence. The negative was scoped to the page searched and stated about the product. See
-  > [upstream-drift, "Reading the basis"](../upstream-drift/README.md#reading-the-basis-the-fetch-route):
-  > a claim of the form "X does not exist" has to name the surfaces searched.
-  >
-  > The counts above illustrate that error and support no rule: nothing in this doc's rules
-  > depends on how many pages carry the word. They are deliberately floored ("at least 13") and
-  > need no recheck, since a count that only ever grows cannot falsify the point it illustrates. The
-  > one fact here that the rules *do* rest on is the background-hook surface the pointer above
-  > names, and it argues **for** the rule rather than against it, so its recheck trigger is the one
-  > on the paragraph above.
+  > A claim that a surface does not exist names the surfaces searched
+  > ([upstream-drift, "Reading the basis"](../upstream-drift/README.md#reading-the-basis-the-fetch-route)).
 
 ## Conformance
 
@@ -379,10 +358,8 @@ Fleet audits check, per wired producer hook:
   melodic-software/claude-code-plugins#6312 lands.
 
 `scripts/check-silent-skips.sh` mechanically enforces the second point for the `command -v`-gated
-shapes it recognizes, **once its pending gate correction lands** (see the systemMessage section
-above). A bare stderr write does not actually satisfy the doctrine (see the exit-code caveat
-above), even though the gate does not yet reject it. After that correction, a
-quiet skip needs a sanctioned helper call or an explicit `# silent-skip-ok:` annotation.
+shapes it recognizes: a bare stderr write fails it, and a quiet skip needs a sanctioned helper call
+or an explicit `# silent-skip-ok:` annotation.
 
 ### Recorded exception: the guard mods' lines and telemetry (owner-approved, 2026-10-03)
 

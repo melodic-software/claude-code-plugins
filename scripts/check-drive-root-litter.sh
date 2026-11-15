@@ -178,10 +178,10 @@ it claims. Re-check the run's results before trusting them, then:
 
   * fix the emitter - see docs/contracts/windows-path-emit/README.md, and
     scripts/emit-windows-path.sh for the conversion itself;
-  * CHECK FOR A REGISTERED GIT WORKTREE BEFORE REMOVING ANYTHING. A phantom
+  * check for a registered git worktree before removing anything. A phantom
     tree can contain one: a `git worktree add` given an unconverted path
     registers the worktree in the parent repository, so the directory is live
-    state and not merely residue. Look for a `.git` FILE (not directory) whose
+    state and not merely residue. Look for a `.git` file (not directory) whose
     contents read `gitdir: <repo>/.git/worktrees/<name>`; that names the parent
     repository. Deregister with `git -C <parent-repo> worktree remove --force
     <path>` - which removes the directory too - rather than deleting the

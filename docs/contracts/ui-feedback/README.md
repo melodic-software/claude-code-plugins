@@ -14,7 +14,7 @@ The canonical files live in `lib/ui-feedback/`:
 | `lib/ui-feedback/host.html` | The host page: a checked-in page the notes bridge serves. It frames the model-written page in a sandbox, shows the notes panel, validates every message from the frame, and sends notes to the session |
 | `lib/ui-feedback/proto-pin.js` | The frame helper, inlined into the framed page. It picks elements, text and regions, renders the controls, holds the state-snapshot function, and talks to the host page only by `postMessage` |
 | `lib/ui-feedback/note.schema.json` | The note contract |
-| `lib/ui-feedback/controls.schema.json` | The controls manifest contract |
+| `lib/ui-feedback/controls.schema.json` | The controls manifest contract (not written yet: nothing in `lib/ui-feedback/` defines or validates a controls manifest) |
 | `lib/ui-feedback/fixtures/` | Valid and invalid notes and manifests |
 | `lib/ui-feedback/relocate-note.mjs` | The relocation script: finds a note's element again in a fresh page and shoots it (see [Re-locating a note](#re-locating-a-note)) |
 | `lib/ui-feedback/notes_bridge.py`, `notes-bridge.sh` | The notes bridge app on the session bridge's loopback adapter, shaped like the view app ([`lib/session-bridge/README.md`](../../../lib/session-bridge/README.md#the-view-app), "The view app") |

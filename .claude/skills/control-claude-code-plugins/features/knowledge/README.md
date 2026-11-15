@@ -6,7 +6,6 @@ The skills of `plugins/knowledge`. Each one is driven with `<plugin-dir>` set to
 
 - `absorb-upstream`: An outside source absorbed into a tracked docs/upstream record.
 - `distill`: Technical book (PDF or EPUB file) or an author's published web corpus distilled into concept-organized reference files for a named target skill, a few chapters or pieces per session.
-- `check`: Read-only check that the external tools the knowledge plugin declares (node, python, yt-dlp, ffmpeg, ImageMagick and the rest) resolve.
 - `course-digest`: Online video course extracted lesson by lesson and synthesized into recommendations for the current repository.
 - `docpage-digest`: One online documentation page turned into a verified knowledge slice.
 - `map-corpus`: Verified, classified map of a multi-resource documentation corpus, ending in an approved queue for /knowledge:docpage-digest.

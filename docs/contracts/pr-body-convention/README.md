@@ -45,13 +45,13 @@ Why this shape. **What the change does and why, plus evidence it was verified**,
 near-universal core of a reviewable PR description (GitHub's own PR-description guidance, Google's
 engineering-practices CL-description doc, GitLab's dogfooded default merge-request template, and a
 cross-section of OSS project PR templates, weighed against anti-heavy-template falsification cases).
-The earlier two-section default met that core but had no place for excluded work or for the callers
-a change affects. `briefing` adds `Scope` and `Risk` for those, caps each section at a few sentences
-or bullets, and drops the two optional sections when they are empty. `Risk` says what the change
+A two-section body meets that core but has no place for excluded work or for the callers a change
+affects. `briefing` adds `Scope` and `Risk` for those, caps each section at a few sentences or
+bullets, and drops the two optional sections when they are empty. `Risk` says what the change
 reaches and how it is undone; the author states no door or risk tier, since an independent rater
 (`/review:merge-risk`) sets that.
 
-A consumer that wants the earlier default declares the keyword `summary-test-plan` (`Summary` and
+A consumer that wants the two-section body declares the keyword `summary-test-plan` (`Summary` and
 `Test plan`, both required). The keyword `briefing` states the default explicitly, for a layer that
 must override a lower layer's list.
 

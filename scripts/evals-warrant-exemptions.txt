@@ -6,7 +6,7 @@
 # gate honors these rows; anything unlisted still FAILs when its SKILL.md is
 # new or modified.
 #
-# This is an AUDIT TRAIL, not a mute list. Each row records that one skill is
+# This is an audit trail, not a mute list. Each row records that one skill is
 # an explicit skip under the warrant rule (pure-reference, or a hook plugin
 # with no judgment-bearing skill). A setup skill is warrantable and must not
 # appear here.
@@ -15,7 +15,7 @@
 # Blank lines and `#` lines are ignored.
 #
 # The gate FAILS on a stale row — a path that no longer exists, or a skill that
-# now ships evals/evals.json — so the list can only shrink. NEVER add a row
+# now ships evals/evals.json — so the list can only shrink. Never add a row
 # because CI is red on a skill that warrants evals. Write the evals.
 
 plugins/tdd/skills/principles  # pure-reference: answers test-design questions from a knowledge corpus; no decision contract

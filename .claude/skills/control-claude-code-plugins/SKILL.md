@@ -47,10 +47,9 @@ The driving tool's `## Mask`.
 
 - A local drive launches Claude Code with `--restricted`. A skill step that needs a tool that launch
   removes stops there: record the step and its entry point, and never drop the flag. Which tools it
-  removes: the `--restricted` row of <https://code.claude.com/docs/en/cli-reference#cli-flags> (as
-  of 2026-10-28; recheck when that row changes which tools it removes). The pr-verify capture's
-  driven session launches through the broker with `--in-sandbox`, without `--restricted`, so Bash is
-  there.
+  removes: the `--restricted` row of <https://code.claude.com/docs/en/cli-reference#cli-flags>. The
+  pr-verify capture's driven session launches through the broker with `--in-sandbox`, without
+  `--restricted`, so Bash is there.
 - A Parts line marked `No slash command.` or `No plain-words entry.` names the entry points that
   skill lacks.
 
@@ -136,10 +135,10 @@ The driving tool's `## Mask`.
 - songwriting | features/songwriting/README.md | entry points: 4 | sources: plugins/songwriting/skills/*/SKILL.md
 - source-control | features/source-control/README.md | entry points: 4 | sources: plugins/source-control/skills/*/SKILL.md
 - speech | features/speech/README.md | entry points: 4 | sources: plugins/speech/skills/*/SKILL.md
+- spelling | features/spelling/README.md | entry points: 4 | sources: plugins/spelling/skills/*/SKILL.md
 - tdd | features/tdd/README.md | entry points: 4 | sources: plugins/tdd/skills/*/SKILL.md
 - testing | features/testing/README.md | entry points: 4 | sources: plugins/testing/skills/*/SKILL.md
 - toolchain | features/toolchain/README.md | entry points: 4 | sources: plugins/toolchain/skills/*/SKILL.md
-- spelling | features/spelling/README.md | entry points: 4 | sources: plugins/spelling/skills/*/SKILL.md
 - user-experience | features/user-experience/README.md | entry points: 4 | sources: plugins/user-experience/skills/*/SKILL.md
 - user-interface | features/user-interface/README.md | entry points: 4 | sources: plugins/user-interface/skills/*/SKILL.md
 - verification | features/verification/README.md | entry points: 4 | sources: plugins/verification/skills/*/SKILL.md

@@ -81,8 +81,7 @@ Report the diff summary and anything you could not verify from this session.
 For each claude.ai account, at [claude.ai/code](https://claude.ai/code) → environment selector →
 edit **Default** (one environment per account; see the rationale at the end):
 
-1. **Network access**: **Full** (operator decision 2026-08-22, superseding the Custom +
-   four-.NET-host recipe; rationale in
+1. **Network access**: **Full** (operator decision 2026-08-22; rationale in
    [cloud-fleet-setup.md](../docs/cloud-fleet-setup.md#step-1-the-shared-environment-claudeai-ui-one-time)).
    **Full** removes the blocked-host failure class, including the `dot.net` special case, so
    [#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654) Blocker 1 is moot
@@ -130,7 +129,7 @@ anything a SessionStart hook installs is invisible to the session that ran the
 hook. Our account environments fetch the standards cloud-environment component
 at cache build; after cloning, it runs the repo's committed
 .claude/cloud-bootstrap.sh (that exact path only, with no session-start.sh
-fallback) with CLAUDE_CODE_REMOTE=true BEFORE the session process launches.
+fallback) with CLAUDE_CODE_REMOTE=true before the session process launches.
 That pre-launch call is what makes plugins live at turn one, so this migration
 is what switches it on for this repo. The SessionStart hook stays registered
 and runs the same script per
@@ -180,5 +179,3 @@ network access from Part 2, which every account needs anyway, rather than adding
 environment; add a second environment later only when a class of work needs isolation (an account
 handling sensitive material that has to run narrower than Full, or an SDK heavy enough that its
 cache churn should be contained).
-This supersedes the "add a *Melodic* environment so Default stays pristine" option in
-[docs/cloud-fleet-setup.md](../docs/cloud-fleet-setup.md) for the paste-once fleet play.

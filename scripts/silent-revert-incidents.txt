@@ -76,10 +76,10 @@
 # `check-silent-revert.sh --verify-restoration [<rev>]` reads EXACTLY the one
 # file each marker names, at that rev, defaulting to the working tree, and exits
 # non-zero for any marker that is absent and undispositioned. A `fires` row
-# carrying NO marker is refused outright (exit 2), so this cannot be satisfied
+# carrying no marker is refused outright (exit 2), so this cannot be satisfied
 # by pinning one historical incident and covering no future one.
 #
-# The path must name ONE FILE. It is resolved with `git cat-file <rev>:<path>`,
+# The path must name one file. It is resolved with `git cat-file <rev>:<path>`,
 # not as a pathspec, and a directory or a glob is refused rather than searched.
 # That is deliberate: a widened path would search a SUPERSET of the bound file,
 # and since every marker string below is also written on this very page, a
@@ -92,7 +92,7 @@
 # with nothing after it is rejected, not read as a mute.
 #
 # PATH-SCOPED is load-bearing, not tidiness. Each marker on the f603880da row
-# also occurs on current main in a file of the same plugin that is NOT the file
+# also occurs on current main in a file of the same plugin that is not the file
 # it binds to -- the README marker in the engine script and in that script's
 # test file, the evals marker in CHANGELOG.md. The sites differ per marker; what
 # both share is a sibling copy, so a repo-wide grep for either one matches today
@@ -104,7 +104,7 @@
 # disposition with a reason, or an updated marker recorded as a decision --
 # never deleting the row, which is the mute button this file exists not to have.
 #
-# Do NOT relax a row to make CI pass, and do NOT loosen a count to a minimum or
+# Do not relax a row to make CI pass, and do not loosen a count to a minimum or
 # a tolerance. A row that no longer holds means the canary stopped detecting the
 # thing it exists to detect; fix the canary. If a number legitimately moves,
 # measure the new one and record why -- that is a decision, not a threshold.
@@ -180,7 +180,7 @@ marker 9239f1541b1b15a2a183ad6b4067e577f931e3f1 plugins/disk-hygiene/skills/clea
 # went 2178 -> 1700 lines with every `rollup` and `graphql` marker at zero;
 # #2640 restored both surfaces by hand.
 #
-# This event was NOT unfiled. Issue #2656 recorded it, pinned to the same
+# This event was not unfiled. Issue #2656 recorded it, pinned to the same
 # commits, roughly 23 hours before this canary merged -- and recorded it AS a
 # silent revert ("#2633 was a stale-base squash that silently reverted two
 # merged features"), though what it ASKED for was the test coverage the hand

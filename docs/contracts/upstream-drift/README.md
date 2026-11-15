@@ -24,16 +24,9 @@ carries no date. A **stored value**, a number or string we copied or measured fr
 adds an **as-of date** and a **recheck trigger**, the stated observable event that obliges
 re-deriving the value. The upstream text itself is never stored.
 
-The fleet previously practiced this in five-plus places under four names: "recheck triggers"
-([hook-config-delivery](../hook-config-delivery/README.md)), "revisit triggers"
-([ecosystem-commands](../ecosystem-commands/README.md), the
-[migration playbook](../../migration-playbook.md)), "re-trigger" (the plugin-acceptance review
-records, [ADR 0093](../../adr/0093-record-plugin-acceptance-security-reviews.md)), "re-derivation triggers"
-([loop-lane](../loop-lane/README.md)), with no shared definition of what a trigger must contain
-and no statement of what makes one checkable. Under the
-[convention registry](../../plugin-philosophy.md#convention-registry)'s one-owner-per-concern rule
-that is the fragmentation this doc closes
-([melodic-software/claude-code-plugins#1638](https://github.com/melodic-software/claude-code-plugins/issues/1638)).
+Under the [convention registry](../../plugin-philosophy.md#convention-registry)'s one-owner-per-concern
+rule this doc is the one owner of the concept; a surface that calls it "revisit trigger",
+"re-trigger" or "re-derivation trigger" adopts this name as [Adopters](#adopters) describes.
 
 ## Boundary
 
@@ -288,16 +281,9 @@ being cut. The PostToolUse payloads of those three fetches, from Claude Code 2.1
 `plugins/discovery/hooks/fixtures/`. **As of**: 2026-10-04. **Recheck trigger**: the tools reference
 changes its WebFetch limits, or a re-probe of the same three pages shows a different visible share.
 
-The route is not new here; it is **hoisted from two surfaces that each derived it independently**.
-`/harness-ops:changelog`'s read-actions context carried it page-scoped ("`curl` the
-`.md` and slice locally … Never report a version 'absent from the changelog' on a truncated
-fetch"), and `/knowledge:docpage-digest`'s Anthropic publisher profile carried it claim-scoped,
-binding any absence-establishing fetch to the raw `.md` channel with `curl` plus a recorded length,
-on the asymmetry that "a truncated fetch cannot fabricate a PRESENCE, only an ABSENCE", after two
-of its runs asserted a false absence exactly this way. Two independent derivations of one rule means
-it needs a single owner. Per the
-[convention registry](../../plugin-philosophy.md#convention-registry)'s one-owner-per-concern rule,
-the general form belongs in this doc and those surfaces keep their page-specific detail.
+Per the [convention registry](../../plugin-philosophy.md#convention-registry)'s one-owner-per-concern
+rule, the general form of this route belongs in this doc; `/harness-ops:changelog`'s read-actions
+context and `/knowledge:docpage-digest`'s Anthropic publisher profile keep their page-specific detail.
 
 **The `.md` channel is per-page, not universal.** `docpage-digest`'s profile records that a
 raw-markdown channel working for one doc can 404 for another, so a run verifies the channel for the
@@ -359,15 +345,10 @@ it, and both produce a claim that reads as researched:
   was false, from a complete, untruncated read of the right page.
 
 So an absence claim states the corpus and the terms tried, and a claim that a *capability* is
-missing searches the capability's plausible vocabulary, not one phrasing of it. This bit the fleet
-for real: the same 2026-08-11 sweep advertised a nonexistence claim of exactly this shape and
-withdrew it on re-check ([#2190](https://github.com/melodic-software/claude-code-plugins/pull/2190)).
-The conclusion it supported survived on a different premise. That is worth stating as its own rule,
-since it is the reason to care: **a sound conclusion resting on a false premise is not safe, it is
-fragile**, because the next reader who
-checks the premise discards the conclusion with it. Fix the
-premise and keep the conclusion; never keep a premise because the conclusion it supports is
-convenient.
+missing searches the capability's plausible vocabulary, not one phrasing of it. A sound conclusion
+resting on a false premise is fragile, because the next reader who checks the premise discards the
+conclusion with it: fix the premise and keep the conclusion, and never keep a premise because the
+conclusion it supports is convenient.
 
 ### The mirror rung and its freshness step
 
@@ -401,11 +382,10 @@ recheck trigger: those endpoints start serving an `ETag` or a stable per-page `L
 **Content hashing of a fetched page body is therefore the only viable mechanical drift signal** for
 these pages.
 
-The docs cache (`lib/docs-cache.sh`) now stores, per URL, the sha256 of the bytes it last read and
+The docs cache (`lib/docs-cache.sh`) stores, per URL, the sha256 of the bytes it last read and
 of each section's own body, and revalidates with `ETag` or `Last-Modified` where a host sends them.
-That changes one thing: a model-written note about a page is served only while every section it
-cites still hashes the same, so a note expires when its sections change and survives edits elsewhere
-on the page.
+A model-written note about a page is served only while every section it cites still hashes the
+same, so a note expires when its sections change and survives edits elsewhere on the page.
 
 What stays **deferred** is a hash store for stored-value stamps. The cache is per machine, expires
 by age and is pruned by size, and no stamp records the hash of the page it was derived from, so a
