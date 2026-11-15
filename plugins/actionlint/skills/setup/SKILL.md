@@ -192,7 +192,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
   path, which would replace the local reproduction with an upstream-confirmed cause and a fixed
   version to pin against. Deep run-block linting belongs in CI.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run the linter. `git commit` exercises the installed pre-commit entry.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.

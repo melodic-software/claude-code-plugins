@@ -31,7 +31,7 @@ and worked examples: [../reference/triage.md](../reference/triage.md).
 | **C, same test failed** | Inexpressible, but criterion 2 fails: recoverable from version control, an ADR or an external source | Under `explanatory`: deleted behind the token proof, narrative staged first; proposed under `safe`. Outside `explanatory` criterion 2 is not run on a comment off the keep list |
 
 The two class-C rows are one class and one test, whose three criteria must **all** hold. A
-criterion-1 failure is not this branch: expressible is class B, redundant with code that IS present
+criterion-1 failure is not this branch: expressible is class B, redundant with code that is present
 is class A. Class-B moves and their tiers: [../reference/dissolving-moves.md](../reference/dissolving-moves.md).
 
 **Class B applies less than it looks**: 2 of 17 moves need no test net, none apply with tree-sitter
@@ -42,7 +42,10 @@ absent, and no move dissolves a *why* ("Apply capacity" in dissolving-moves.md).
 1. **Scope.** An explicit `<path>` target is the whole scope: the pre-computed scope line is void,
    `scope-code-files.sh` is not run, and nothing outside the target is triaged or reported. With
    `--added-since <base>`, the scope is the files and lines `added-lines.sh` prints, inside the
-   target when one is given. Empty argument: run `<skill-dir>/scripts/scope-code-files.sh` (never
+   target when one is given. With `--base <ref>` and no target, run
+   `<skill-dir>/scripts/scope-code-files.sh --branch-only --base <ref>`: it stays on the `branch`
+   rung with `<ref>` as its base, `files=0` is reported and ends the run, and exit 2 is reported and
+   stops it. Empty argument: run `<skill-dir>/scripts/scope-code-files.sh` (never
    the truncated preview). On the `uncommitted` and `branch` rungs, `comment_edit_scope: diff`
    narrows the triage to comments on the lines the change adds (`added-lines.sh <base>` with the
    rung's base, `HEAD` on the `uncommitted` rung; an untracked file counts whole); `files` triages
@@ -229,9 +232,9 @@ from them.
 ## Report mode
 
 `report` runs steps 1 to 5 as written, skips step 6, and reports in step 7 with every treatment as
-a proposal. It is the mode pull-request prep runs over a change's added lines when unattended without
-pre-approval (`report --pipeline --added-since <base>`), and these rules keep that run safe to
-start unattended:
+a proposal. It is the mode pull-request prep runs over a change when unattended without
+pre-approval (`report --pipeline --base <ref>`, at the granularity `comment_edit_scope` sets), and
+these rules keep that run safe to start unattended:
 
 - **It never asks.** `report` takes any widened rung without asking, keeps the posture or token in
   effect there because it edits nothing, and names the rung and its file count. It never calls

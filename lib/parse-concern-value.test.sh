@@ -105,7 +105,7 @@ assert_eq 'trailing slash normalized (unquoted)' ".work" "$(resolve 'memory_dir:
 assert_eq 'trailing slash normalized (quoted)' "foo/bar" "$(resolve 'memory_dir: "foo/bar/"')"
 
 # --- Regression 2: absent/empty key falls back to the caller-supplied location ---
-assert_eq 'absent key returns fallback (declared save-point)' \
+assert_eq 'absent key returns fallback (declared fallback)' \
   ".notes" "$(resolve 'other_key: x' memory_dir '.notes')"
 assert_eq 'empty value returns fallback' \
   ".notes" "$(resolve 'memory_dir:' memory_dir '.notes')"

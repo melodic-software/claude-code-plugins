@@ -44,7 +44,7 @@
 // on each head; refine-event-dispatch.mjs keeps none, so each event's run
 // starts from an empty one;
 // once `limit-stops-per-head` are kept, each one's status and jobs are read
-// through the Actions API, and a head with that many whose broker-allowed job
+// through the Actions API, and a head with that many whose record-broker-allow job
 // succeeded (which no run job can write: handoff-evidence.sh's allowed) goes
 // into the dispatch record with one `::warning::`, until a new push. For this
 // cap, a run the broker refused, or one a hold skipped, ended with no model
@@ -55,6 +55,10 @@ import { LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { allLaneCommits, laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
 import { isHandled, markHandled, emptyRecord, sendDispatch } from "./dispatch-record.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
+
+// pr-run-activity-read.yml's record-broker-allow job id: its id before the
+// rename, then its id.
+const ALLOW_JOBS = ["broker-allowed", "record-broker-allow"];
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -72,9 +76,9 @@ export const DEFAULTS = Object.freeze({
   actionsAppId: 15368,
   // fix-docs's applies-when labels-absent (docs/conventions/pr-pipeline.yaml).
   holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
-  // pr-refine.yml's first fix-docs call's broker-allowed job; the other legs
-  // run only after it succeeded.
-  allowedJob: "fix-docs / broker-allowed",
+  // pr-refine.yml's first fix-docs call's record-broker-allow job, by its id
+  // and its id before the rename; the other legs run only after it succeeded.
+  allowedJobs: Object.freeze(ALLOW_JOBS.map((id) => `fix-docs / ${id}`)),
   // fix-docs runs with a broker allow one head gets:
   // limits.limit-stops-per-head's default, which refine-event-dispatch.mjs passes resolved.
   maxRunsPerHead: 3,
@@ -231,7 +235,7 @@ export function heldHandoff(run, activity = DEFAULTS.activity) {
     return legs.slice(0, -1).some((leg, index) => {
       const scan = conclusion(`${leg} / scan`);
       return (
-        conclusion(`${leg} / broker-allowed`) === "success" &&
+        ALLOW_JOBS.some((id) => conclusion(`${leg} / ${id}`) === "success") &&
         conclusion(`${leg} / run`) === "success" &&
         (scan === undefined || scan === "skipped") &&
         conclusion(`${leg}-handoff`) === "success" &&
@@ -276,13 +280,13 @@ async function docsRunsEnded(runs, title, readRunJobs, activity, maxRuns) {
 }
 
 // What a fix-docs run (its status and the REST listing's latest jobs) shows:
-// "allowed" when its broker-allowed job succeeded, "done" when it ended
+// "allowed" when its record-broker-allow job succeeded, "done" when it ended
 // without that or is gone (null), else "going".
-export function docsRunState(run, allowedJob = DEFAULTS.allowedJob) {
+export function docsRunState(run, allowedJobs = DEFAULTS.allowedJobs) {
   if (run === null) {
     return "done";
   }
-  if (run.jobs.some((job) => isJob(job, allowedJob) && job.conclusion === "success")) {
+  if (run.jobs.some((job) => allowedJobs.some((id) => isJob(job, id)) && job.conclusion === "success")) {
     return "allowed";
   }
   return run.status === "completed" ? "done" : "going";
@@ -302,7 +306,7 @@ export async function dispatchDocsFixes({
   excludedAuthorIds = DEFAULTS.excludedAuthorIds,
   actionsAppId = DEFAULTS.actionsAppId,
   holdLabels = DEFAULTS.holdLabels,
-  allowedJob = DEFAULTS.allowedJob,
+  allowedJobs = DEFAULTS.allowedJobs,
   maxRunsPerHead = DEFAULTS.maxRunsPerHead,
   gateLabel = null,
   appSenderId,
@@ -410,7 +414,7 @@ export async function dispatchDocsFixes({
       const states = [];
       try {
         for (const id of kept) {
-          states.push(docsRunState(await api.readRunJobs(id), allowedJob));
+          states.push(docsRunState(await api.readRunJobs(id), allowedJobs));
         }
       } catch (error) {
         if (error.rateLimited) {

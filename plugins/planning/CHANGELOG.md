@@ -3,6 +3,68 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.2] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
+- The session bridge watch, events and unwatch tool descriptions now say what each tool needs first, what it returns, and when it errors.
+
+- Shared `publish-gate.mjs` synced where this plugin carries it: a comment now names the fold-corpus test that guards its backslash fold; the gate's behavior does not change.
+
+- Planning skill, agent and reference text reads in plain case instead of capital-letter emphasis, and stale paths, counts, test lists and resolver exit codes now match the repository.
+- Restated upstream facts in the planning docs point at their source with an as-of date and a recheck trigger.
+
+## [5.2.1] - 2026-11-15
+
+### Changed
+
+- `shared/web/proto-pin.js`, the generated copy of `lib/ui-feedback/proto-pin.js`, gains the
+  notes host's region and text-selection modes, a view snapshot on each pin, and a data-control
+  log. The prototype page sends none of the new messages and reads only `selector`, `rect` and
+  `label` from a pin, so it behaves as before.
+
+## [5.2.0] - 2026-11-15
+
+### Added
+
+- `/planning:plan` reads the repository's review-criteria index and lists each file whose row
+  matches the plan's paths in the "Standards grounding" table.
+
+## [5.1.7] - 2026-11-15
+
+### Changed
+
+- `/planning:interview` now says the round is the turn's last message and where a later note goes, that the mechanism question's basis is the fact behind the mechanism rather than the interview's own rule, and that a definition the session coins gets no terminology-matrix row and no `Basis:` claim and is agreed in a withheld question.
+
+## [5.1.6] - 2026-11-15
+
+### Changed
+
+- The plan template's `frontier` routing row points at the loop-lane convention's capability tiers
+  for the scope of security-surface work; the routing is unchanged.
+
+## [5.1.5] - 2026-11-15
+
+### Changed
+
+- `/planning:wayfind` gets its label prefix and human-gated label from
+  `/work-items:track wayfind-labels` and stops on its refusal, instead of finding and reading the
+  tracker binding itself. It needs the work-items release that adds that action; with an older
+  one it stops and asks for the plugin to be updated.
+- The three wayfind label eval cases that scaffolded a binding file are replaced by five that
+  supply the `/work-items:track wayfind-labels` reply, one of them a refusal and one an older
+  release's action table, since an eval sandbox loads no other plugin.
+
+- The interview loop, its eval cases, the design reversibility reference and the PRD skill name
+  the trigger a captured assumption or open question carries with the glossary term "recheck
+  trigger"; `interview-defenses.test.sh` re-pins the four digests that cover those lines. No
+  rule changes.
+
+- The plan template's `sonnet` and `frontier` routing rows say "security-surface work" where they
+  called it a work class; the routing is unchanged.
+
 ## [5.1.4] - 2026-11-14
 
 ### Changed

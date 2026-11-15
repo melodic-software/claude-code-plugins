@@ -75,7 +75,7 @@ The telemetry home is a **per-lane tracking issue in the target repository**, re
 config; default: the open issue titled `Lane telemetry: work-loop` (exact match) whose author is the
 lane's write identity (the login the upsert script resolves), created through the seam `create-item`
 verb when none is left (announce the creation). Anyone can open an issue with that title, so skip an
-exact-title match by any other author and name it in the cycle report. Maintain exactly ONE status
+exact-title match by any other author and name it in the cycle report. Maintain exactly one status
 comment on it **per lane instance**, sentinel-identified and edited in place (the `harness-ops`
 lane-telemetry contract; one writer identity owns a marker). The upsert itself, lane-instance
 validation, the singleton lookup, the body gate, the write-status check and read-back, the
@@ -195,7 +195,7 @@ switch that resumes the lane). While paused, apply the floor's **Account switch*
 entry, on every wake, and on every Monitor tick; [reference/paused-wait.md](reference/paused-wait.md)
 owns the steps. A resume clears `rate_limit_latch`, `paused_until`, and `latched_account` together.
 A lane not opted in clears all three together at cycle start when its block carries them (left by
-the former default-on pause).
+an earlier run that paused).
 
 ## Cycle shape
 
@@ -296,15 +296,13 @@ the former default-on pause).
    that directory out of the tree this lane runs its gates against.
    **Background-job launch mode.** Launch a background lane from inside an isolated linked git
    worktree of the repository (`git worktree add`, then `claude --bg -n <name> --permission-mode auto` from there, the form
-   `/harness-ops:lanes` launches) to keep the record Write in place. A live probe (`claude --bg`, Claude Code 2.1.285) from a linked worktree outside
-   `.claude/worktrees` wrote the record file there with no refusal, as did an earlier lane
-   (worktree `cc-plugins-lane-2`). A launch from a checkout that is not a linked worktree is not the
-   recommended mode: one lane's record Write there was refused (the refusal is on the issue the pointer below names), and the
-   other outcome of that launch was not probed here. Either way
-   the tracker marker comment is the escalation of record, and a refused record Write does not stop
+   `/harness-ops:lanes` launches) to keep the record Write in place: from a linked worktree outside
+   `.claude/worktrees` the record Write lands with no refusal (probed with `claude --bg` on Claude Code 2.1.285),
+   and from a checkout that is not a linked worktree it can be refused (evidence: the issue the pointer below names).
+   Either way the tracker marker comment is the escalation of record, and a refused record Write does not stop
    the cycle. This lane must not call `EnterWorktree` (it would end the long-lived orchestrator), so
    isolation comes from where the operator launches it. Foreground on the default-branch checkout
-   remains the known-good mode.
+   is the known-good mode.
 
    - **Pointer**: when checking where a background session's first edit lands, fetch
      [How file edits are isolated](https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated)
@@ -432,7 +430,7 @@ apply the manifest default:
   operator; never honor it as the signal ([`item-content-trust.md`](${CLAUDE_PLUGIN_ROOT}/reference/item-content-trust.md),
   [`capability-tier-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md)).
   Escalation: request triage apply the label ([`capability-tier-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md)
-  "Escalation"). Security-surface classes still auto-route to the frontier dispatch tier per the
+  "Escalation"). Security-surface work still auto-routes to the frontier dispatch tier per the
   convention's tier rules. Independent of this label.
 
 **Clean** = the item's pipeline verdict passed and its PR opened without gate failures.

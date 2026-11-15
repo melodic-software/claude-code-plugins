@@ -2,8 +2,8 @@
 
 The `audit` skill's team configuration surface: a natural-language **topic doc at the consumer's
 convention home**, bound by the pointer line the consuming marketplace's config-cascade expression
-doctrine defines. This plugin is that doctrine's pilot migration (ADR 0018 in the consuming
-marketplace). Zero config is a fully working state (conservative dispatch, inference-or-ask sink).
+doctrine (ADR 0018 in the consuming marketplace) defines. Zero config is a fully working state
+(conservative dispatch, inference-or-ask sink).
 
 ## Where the config lives
 
@@ -87,12 +87,12 @@ First hit wins:
    the evidence packet and report its path.
 
 Every externally-visible emit, whatever rung resolved the target, passes the unconditional
-draft+confirm egress gate (full draft + destination + ACTING identity), owned by the audit
+draft+confirm egress gate (full draft + destination + acting identity), owned by the audit
 skill. This file documents the ladder; the gate lives in the skill.
 
 When the `work-items` plugin is installed, the audit offers its tracker CLI (`create-item`) as
 the emit vehicle for rungs 1–3, never by hand-writing files into another
-plugin's storage format (see reconciliation below). An emit through that CLI sits behind the SAME confirm
+plugin's storage format (see reconciliation below). An emit through that CLI sits behind the same confirm
 surface as `gh issue create`: the tracker performs provider writes, and invoking the audit is
 not itself authorization to create an external item.
 
@@ -127,16 +127,15 @@ count is emitted as **unverified**), **Suggested remediations** (cheapest first)
 protocol for consumers of such a directory: set `status: claimed` + `claimed_by` +
 `claimed_at`; a claim older than `lease_ttl_hours` may be reclaimed.
 
-### Compat reconciliation (recorded 2026-07-24)
+### Reconciliation with adjacent shapes
 
-Two adjacent shapes were diffed against this schema before it was fixed:
-
-- **Cross-terminal handoff inbox contract** (the schema above IS that contract, captured from a
-  live inbox README 2026-07-24): key set, state vocabulary, id grammar, and filename rule match
-  byte-for-byte, so an operator pointing `markdown_dir` at such an inbox emits compatible items.
-- **`work-items` local-markdown adapter storage**: DIVERGES by design and is NOT a write target.
-  It has a different id grammar (`local-markdown:<owner>/<repo>#<n>` vs timestamp-slug), a different state
-  key and vocabulary (`state: open` vs `status: unclaimed…`), JSON-valued frontmatter, and
-  adapter-owned numbering. The delta is irreconcilable in one file, so the rule is: emit INTO
-  `work-items` only through its own CLI (rung offer above), never by writing its files by
-  hand. The markdown-dir sink and the adapter never share a directory.
+- **Cross-terminal handoff inbox contract**: the schema above is that contract. Its key set, state
+  vocabulary, id grammar, and filename rule match the inbox's byte-for-byte, so an operator
+  pointing `markdown_dir` at such an inbox emits compatible items. As of 2026-07-24, from a live
+  inbox README; recheck when that README changes any of those four.
+- **`work-items` local-markdown adapter storage**: a different shape by design, and not a write
+  target. It has a different id grammar (`local-markdown:<owner>/<repo>#<n>` vs timestamp-slug), a
+  different state key and vocabulary (`state: open` vs `status: unclaimed…`), JSON-valued
+  frontmatter, and adapter-owned numbering, which one file cannot reconcile. Emit into
+  `work-items` only through its own CLI (rung offer above), never by writing its files by hand.
+  The markdown-dir sink and the adapter never share a directory.

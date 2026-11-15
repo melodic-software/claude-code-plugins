@@ -13,7 +13,7 @@ Each dimension carries:
 - **verification-sources**: glob patterns for files where claims are verified against ground
   truth (build config, manifests, source, tests).
 - **example-claims**: optional `{ claim, verify-via }` rows teaching the claim-extraction pass
-  what drifts in THIS repo. The more concrete, the better the audit.
+  what drifts in this repo. The more concrete, the better the audit.
 
 ## documentation
 
@@ -29,7 +29,7 @@ Each dimension carries:
 
 **example-claims:**
 
-- claim: "<!-- e.g. Doc lists tools 'A, B, C'. Verify EACH against the package manifest -->"
+- claim: "<!-- e.g. Doc lists tools 'A, B, C'. Verify each against the package manifest -->"
   - verify-via: "<!-- e.g. Grep the package manifest for each tool; check for commented-out entries -->"
 
 ## configuration
@@ -56,7 +56,7 @@ Each dimension carries:
 **verification-sources:**
 
 - <!-- test roots + the convention docs that set the quality bar -->
-- <!-- ALSO list the source roots here: a cross-file DRY/SOLID claim is validated by reading peer
+- <!-- Also list the source roots here: a cross-file DRY/SOLID claim is validated by reading peer
        source files, which a discovery agent can only read when they are in verification-sources -->
 
 **example-claims:**
@@ -73,7 +73,7 @@ Each dimension carries:
 **verification-sources:**
 
 - <!-- analyzers, architecture tests, dependency-rule enforcement -->
-- <!-- ALSO list the dependency manifests and source roots here: dependency-direction and boundary
+- <!-- Also list the dependency manifests and source roots here: dependency-direction and boundary
        claims need peer manifests readable under the same read-only fence -->
 
 **example-claims:**

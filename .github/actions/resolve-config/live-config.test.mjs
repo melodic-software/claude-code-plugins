@@ -723,7 +723,7 @@ test("live config: fix-docs applies to a Markdown change and waits on do-not-mer
   );
 });
 
-// The config as pr-refine's plan job reads it (write-pass-plan.mjs).
+// The config as pr-refine's select-passes job reads it (write-pass-plan.mjs).
 const PLAN_CONFIG = configFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) });
 
 // The issue's rule (#13717): a changelog fragment alone does not qualify.
@@ -739,7 +739,7 @@ test("live config: fix-docs skips a PR whose only Markdown is a changelog fragme
   assert.deepEqual(planPasses({ slots, changedPaths: withDoc.changedPaths }).batches, [["fix-docs"]]);
 });
 
-// The plan job and the runner read one evaluator: for every Refine pass and
+// The select-passes job and the runner read one evaluator: for every Refine pass and
 // each path list, the plan holds the pass exactly when the runner's resolve
 // of the same PR (ready, unlabeled) applies it.
 test("live config: the Refine plan agrees with resolve's applies for every pr-refine pass", () => {

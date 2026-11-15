@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Labels: prefix `decide:` (binding), not the default `wayfind:`; human-gated `owner-call` (binding).\n/work-items:track add --label 'decide: map' --body-file map-body.md \"Map: notification digest\"\n/work-items:track add --parent <map-id> --label 'decide: interview' --label 'owner-call' --body-file item-2.md \"Decide the promise\"",
+      "why": "only the supplied labels are written"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/work-items:track add --label 'wayfind: map' --body-file map-body.md \"Map: notification digest\"",
+      "why": "the default prefix"
+    },
+    {
+      "answer": "/work-items:track add --parent <map-id> --label 'decide: interview' --label needs-human --body-file item-2.md \"Decide the promise\"",
+      "why": "the default human-gated label"
+    }
+  ]
+}

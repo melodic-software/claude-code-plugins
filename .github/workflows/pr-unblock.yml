@@ -112,8 +112,8 @@ jobs:
   # Here and not in the read runner, because the jobs after a select job that
   # proceeded mint a token whatever the model call did. Only base code and a
   # read-only token; a dispatch with no dispatcher run skips the steps.
-  dispatcher-current:
-    name: Dispatcher Current
+  check-dispatcher-current:
+    name: Check Dispatcher Current
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -178,11 +178,11 @@ jobs:
   # forge.
   resolve-conflicts-select:
     name: Resolve Conflicts Select
-    needs: dispatcher-current
+    needs: check-dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'resolve-conflicts'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-      && needs.dispatcher-current.outputs.stale != 'true'
+      && needs.check-dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
@@ -820,8 +820,8 @@ jobs:
   # are not documented to reach this caller), and escalates
   # unresolved-conflict when one says the scan refused
   # (conflict-scan-refusal.mjs). No marker escalates nothing.
-  conflict-scan-refusal:
-    name: Conflict Scan Refusal
+  check-conflict-scan-refusal:
+    name: Check Conflict Scan Refusal
     needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-subscription, resolve-conflicts-fallback]
     if: >-
       ${{ !cancelled() && needs.resolve-conflicts-select.outputs.proceed == 'true'
@@ -907,11 +907,11 @@ jobs:
   # refusal.
   sync-shared-copies-select:
     name: Sync Shared Copies Select
-    needs: dispatcher-current
+    needs: check-dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'sync-shared-copies'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-      && needs.dispatcher-current.outputs.stale != 'true'
+      && needs.check-dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -1352,11 +1352,11 @@ jobs:
   # runner head code could forge.
   address-feedback-select:
     name: Address Feedback Select
-    needs: dispatcher-current
+    needs: check-dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'address-feedback'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-      && needs.dispatcher-current.outputs.stale != 'true'
+      && needs.check-dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -1955,8 +1955,8 @@ jobs:
   # inside the window names the subscription leg, with no refused key attempt
   # first. No secret, no model, no checkout; every failure runs the key
   # (next-leg empty). Probing is off.
-  adjudicate-key-credit:
-    name: Adjudicate Key Credit
+  check-adjudicator-key-credit:
+    name: Check Adjudicator Key Credit
     needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback]
     # adjudicate-feedback's own condition: a round with a disputed reply.
     if: >-
@@ -2018,7 +2018,7 @@ jobs:
   # feedback-unadjudicated.
   adjudicate-feedback:
     name: Adjudicate Feedback
-    needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback, adjudicate-key-credit]
+    needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback, check-adjudicator-key-credit]
     if: >-
       ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true'
       && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != ''
@@ -2117,7 +2117,7 @@ jobs:
 
       # Which legs can run, never a secret's value (ci-workflows
       # select-model-credential, one call per leg for the whole job). The key
-      # runs unless it is empty or adjudicate-key-credit named the
+      # runs unless it is empty or check-adjudicator-key-credit named the
       # subscription leg. Each slot's next-leg calls take these states.
       - name: Check the API key
         id: key
@@ -2127,7 +2127,7 @@ jobs:
           leg: key
           role: pr-unblock
           credential-set: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY != '' }}
-          selected: ${{ needs.adjudicate-key-credit.outputs.next-leg }}
+          selected: ${{ needs.check-adjudicator-key-credit.outputs.next-leg }}
 
       - name: Check the subscription token
         id: sub
@@ -2943,13 +2943,13 @@ jobs:
           bash .base/.github/scripts/read-patch/check-permission-mode.sh
           cp "$OUTPUT_FILE" "$SLOT_DIR/verdict.json"
 
-      # Read by the next runs' credit gate (adjudicate-key-credit): the
+      # Read by the next runs' credit gate (check-adjudicator-key-credit): the
       # artifact its `marker` output names (check-key-credit gate.cjs
       # markerName), uploaded only after a key leg's credit-stop handoff. The
       # name is written out so its retention row claims it.
       - name: Write the key's credit-stop marker
         id: credit-marker
-        if: always() && needs.adjudicate-key-credit.outputs.marker == 'key-credit-stop-pr-unblock.yml-adjudicate-feedback' && (steps.judge-0.outputs.handoff-reason == 'credit-stop' || steps.judge-1.outputs.handoff-reason == 'credit-stop' || steps.judge-2.outputs.handoff-reason == 'credit-stop')
+        if: always() && needs.check-adjudicator-key-credit.outputs.marker == 'key-credit-stop-pr-unblock.yml-adjudicate-feedback' && (steps.judge-0.outputs.handoff-reason == 'credit-stop' || steps.judge-1.outputs.handoff-reason == 'credit-stop' || steps.judge-2.outputs.handoff-reason == 'credit-stop')
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -3137,11 +3137,11 @@ jobs:
   # whose runner head code could forge.
   review-dependency-select:
     name: Review Dependency Select
-    needs: dispatcher-current
+    needs: check-dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'review-dependency'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-      && needs.dispatcher-current.outputs.stale != 'true'
+      && needs.check-dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -3780,11 +3780,11 @@ jobs:
   # context file the model job reads. Logs and annotations are data.
   fix-ci-context:
     name: Fix CI Context
-    needs: dispatcher-current
+    needs: check-dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'fix-ci'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-      && needs.dispatcher-current.outputs.stale != 'true'
+      && needs.check-dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -4566,7 +4566,7 @@ jobs:
   # fix-ci-dispatch.mjs to count, so it would dispatch the head again with no
   # end. This job reads this run's jobs as fix-ci-handoff does and posts
   # fix-ci failure on the gated head, which counts toward fix-ci-restarts. As
-  # the report job does, it posts nothing unless a call's broker-check job
+  # the report job does, it posts nothing unless a call's check-broker job
   # allowed the lane: a kill switch, read there with its repository shadow,
   # or a broker refusal is no merge blocker and spends no restart.
   fix-ci-unreported:
@@ -4666,7 +4666,7 @@ jobs:
     needs:
       - resolve-conflicts-select
       - apply-conflict-patch
-      - conflict-scan-refusal
+      - check-conflict-scan-refusal
       - address-feedback-select
       - apply-feedback-patch
       - publish-feedback
@@ -4686,7 +4686,7 @@ jobs:
       || needs.sync-shared-copies-select.outputs.head-sha || '') != ''
       && (needs.resolve-conflicts-select.outputs.escalation-reason != ''
       || needs.apply-conflict-patch.outputs.escalation-reason != ''
-      || needs.conflict-scan-refusal.outputs.escalation-reason != ''
+      || needs.check-conflict-scan-refusal.outputs.escalation-reason != ''
       || needs.address-feedback-select.outputs.escalation-reason != ''
       || needs.publish-feedback.outputs.escalation-reason != ''
       || needs.publish-feedback.result == 'failure'
@@ -4771,7 +4771,7 @@ jobs:
           ESCALATION_REASON: >-
             ${{ needs.resolve-conflicts-select.outputs.escalation-reason
             || needs.apply-conflict-patch.outputs.escalation-reason
-            || needs.conflict-scan-refusal.outputs.escalation-reason
+            || needs.check-conflict-scan-refusal.outputs.escalation-reason
             || needs.address-feedback-select.outputs.escalation-reason
             || needs.publish-feedback.outputs.escalation-reason
             || needs.publish-feedback.result == 'failure' && 'feedback-publish-failed'
@@ -4803,7 +4803,7 @@ jobs:
     needs:
       - resolve-conflicts-select
       - apply-conflict-patch
-      - conflict-scan-refusal
+      - check-conflict-scan-refusal
       - address-feedback-select
       - apply-feedback-patch
       - publish-feedback
@@ -4825,7 +4825,7 @@ jobs:
     # comment posts.
     # escalation-reason is set only by the write runner's own steps, the
     # base's reply, verdict and apply-patch scripts, and the base scripts of
-    # resolve-conflicts-select, conflict-scan-refusal, address-feedback-select,
+    # resolve-conflicts-select, check-conflict-scan-refusal, address-feedback-select,
     # review-dependency-select, fix-ci-context and sync-shared-copies-select.
     # At most one escalates: one activity runs per dispatch, a reply, verdict
     # or push job runs only after a select job proceeded, and a select job,
@@ -4838,7 +4838,7 @@ jobs:
       ${{ (!cancelled() && needs.report-stop-status.outputs.status-withheld != 'true'
       && (needs.resolve-conflicts-select.outputs.escalation-reason != ''
       || needs.apply-conflict-patch.outputs.escalation-reason != ''
-      || needs.conflict-scan-refusal.outputs.escalation-reason != ''
+      || needs.check-conflict-scan-refusal.outputs.escalation-reason != ''
       || needs.address-feedback-select.outputs.escalation-reason != ''
       || needs.publish-feedback.outputs.escalation-reason != ''
       || needs.publish-feedback.result == 'failure'
@@ -4872,7 +4872,7 @@ jobs:
       escalation-reason: >-
         ${{ needs.resolve-conflicts-select.outputs.escalation-reason
         || needs.apply-conflict-patch.outputs.escalation-reason
-        || needs.conflict-scan-refusal.outputs.escalation-reason
+        || needs.check-conflict-scan-refusal.outputs.escalation-reason
         || needs.address-feedback-select.outputs.escalation-reason
         || needs.publish-feedback.outputs.escalation-reason
         || needs.publish-feedback.result == 'failure' && 'feedback-publish-failed'
@@ -4896,13 +4896,13 @@ jobs:
         && needs.apply-feedback-patch.outputs.pushed-commit || '' }}
       trusted-base: default-tip
 
-  # The key's credit-stop markers, read by the read runner's broker-check in
+  # The key's credit-stop markers, read by the read runner's check-broker in
   # later runs (each first call's key-credit-job). Each comes from a jobs-API
   # read of the call's run job (handoff-evidence.sh credit-stop), never from a
   # call's output. No job needs this one, so the read, which waits for the
   # jobs listing's steps, delays no handoff.
-  key-credit-markers:
-    name: Key Credit Markers
+  upload-key-credit-markers:
+    name: Upload Key Credit Markers
     needs: [resolve-conflicts, address-feedback, review-dependency, fix-ci, fix-ci-rung-up]
     if: ${{ !cancelled() && (needs.resolve-conflicts.result != 'skipped' || needs.address-feedback.result != 'skipped' || needs.review-dependency.result != 'skipped' || needs.fix-ci.result != 'skipped' || needs.fix-ci-rung-up.result != 'skipped') }}
     runs-on: ubuntu-24.04

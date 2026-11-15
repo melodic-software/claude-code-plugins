@@ -1555,7 +1555,7 @@ test("main closes a report-delivered stop the same after a security or a plain e
   }
 });
 
-// An issue whose author is outside the trusted list stops at the admit job;
+// An issue whose author is outside the trusted list stops at the check-admission job;
 // report-skip says so on the issue and takes agent-ready off, with no
 // needs-human: a listed human re-files the work, and a retry stops again.
 test("main on an outside-author stop moves agent-ready to needs-triage and posts one comment telling a listed human to re-file", async () => {
@@ -3032,7 +3032,7 @@ test("a marked run's branch behind main starts fresh instead of resuming", () =>
   }
 });
 
-// The issue-fields job re-derives a resume claimed before the model ran;
+// The check-issue-fields job re-derives a resume claimed before the model ran;
 // main moving during the run must not void it.
 test("with keepBehind a marked run's branch behind main still resumes at its tip", () => {
   for (const behindBy of [0, 1, 865]) {
@@ -3389,7 +3389,7 @@ test("--find-prior holds when a read fails: green with a notice and proceed=fals
   assert.ok(!logged.some((line) => line.startsWith("::error")), logged.join("\n"));
 });
 
-// The issue-fields job's re-derive publishes a branch claim only on this
+// The check-issue-fields job's re-derive publishes a branch claim only on this
 // step's success (pr-run-activity-read.yml), so a read it could not make still
 // fails, and its job continues on the error.
 test("--find-prior re-deriving a claim (FIND_PRIOR_KEEP_BEHIND) still fails on a failed read, with no output", async () => {
@@ -4836,7 +4836,7 @@ test("main closes an already-done issue only when its cited commit is on the def
 
 // #12456 class A: a finished parent's run checks its own done-when and stops
 // verified-done, which closes it only when its sub-issues, read fresh, are each
-// closed as completed and among the admit job's trusted closes (VERIFY_CLOSE).
+// closed as completed and among the check-admission job's trusted closes (VERIFY_CLOSE).
 const subs = (...children) => ["GET", /\/issues\/77\/sub_issues/, 200, children];
 const doneSub = (number, reason = "completed", repo = "o/r") => ({ number, state: "closed", state_reason: reason, repository_url: `https://api.github.com/repos/${repo}` });
 const VERIFIED = "verified-done: every done-when item checks out: the guide names each flag (#80), the tests cover each (#81)";
@@ -4857,7 +4857,7 @@ test("main closes a verified-done parent only when every sub-issue is closed as 
     ["no VERIFY_CLOSE", [subs(doneSub(80), doneSub(81))], {}],
     ["a sub-issue closed not planned", [subs(doneSub(80), doneSub(81, "not_planned"))], { VERIFY_CLOSE: "80,81" }],
     ["an open sub-issue", [subs(doneSub(80), { ...doneSub(81), state: "open", state_reason: null })], { VERIFY_CLOSE: "80,81" }],
-    ["a sub-issue the admit job did not trust", [subs(doneSub(80), doneSub(81))], { VERIFY_CLOSE: "80" }],
+    ["a sub-issue the check-admission job did not trust", [subs(doneSub(80), doneSub(81))], { VERIFY_CLOSE: "80" }],
     ["no sub-issue", [subs()], { VERIFY_CLOSE: "80" }],
     // The listing can name an issue in another repository; VERIFY_CLOSE's
     // numbers are this repository's, so #81 there is no trusted close.

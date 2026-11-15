@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "ls tracker-export"}}],
+      "why": "a workspace read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "printenv WORK_ITEM_TRACKER_BINDING"}}],
+      "why": "reads the binding variable itself"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "bash /tmp/eval/plugins/planning/lib/resolve-convention-home.sh --root ."}}],
+      "why": "runs a script in a plugin directory"
+    }
+  ]
+}

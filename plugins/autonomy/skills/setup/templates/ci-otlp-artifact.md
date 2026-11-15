@@ -2,7 +2,7 @@
 
 Snippet shapes the telemetry slice wires on the file-artifact free default. Everything below
 is surface-class parameterized. `<...>` placeholders are resolved from the binding at wire
-time; no org, fleet, or vendor value is baked in. All output lands in ONE artifact directory
+time; no org, fleet, or vendor value is baked in. All output lands in one artifact directory
 per run (`<artifact-dir>`), uploaded as a build artifact; the OTLP JSON encoding uses
 lowerCamelCase keys (`resourceSpans`, `schemaUrl`).
 
@@ -11,7 +11,7 @@ lowerCamelCase keys (`resourceSpans`, `schemaUrl`).
 Emit one pipeline/task span per run as a single OTLP JSON line appended to
 `<artifact-dir>/pipeline.jsonl`, with no dependency beyond a shell and the platform's own run
 metadata. When a traced trigger already ran, the inbound `TRACEPARENT`
-(`00-<trace-id>-<parent-span-id>-<flags>`) supplies BOTH the shared trace ID and the
+(`00-<trace-id>-<parent-span-id>-<flags>`) supplies both the shared trace ID and the
 `parentSpanId`, so the pipeline span joins the trigger's tree instead of rooting a second
 one; with no inbound context, generate a fresh trace ID and omit `parentSpanId`:
 

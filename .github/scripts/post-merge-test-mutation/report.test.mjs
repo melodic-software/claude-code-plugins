@@ -244,8 +244,8 @@ const field = (step, key) => new RegExp(`\\n {8,10}${key}: (.*)\\n`).exec(step)?
 
 test("only the model-free report job writes, the model jobs read contents only, and the mutants run in a job with no secret", () => {
   const jobs = jobsOf(LANE);
-  assert.deepEqual(Object.keys(jobs), ["prep", "key-credit", ...MODEL_JOBS.slice(0, 3), "mutate", ...MODEL_JOBS.slice(3), "report"]);
-  for (const block of [...Object.values(jobsOf(GATE)), jobs.prep, jobs["key-credit"], jobs.mutate, ...MODEL_JOBS.map((id) => jobs[id])]) {
+  assert.deepEqual(Object.keys(jobs), ["check-range", "check-key-credit", ...MODEL_JOBS.slice(0, 3), "run-mutants", ...MODEL_JOBS.slice(3), "report"]);
+  for (const block of [...Object.values(jobsOf(GATE)), jobs["check-range"], jobs["check-key-credit"], jobs["run-mutants"], ...MODEL_JOBS.map((id) => jobs[id])]) {
     assert.ok(Object.values(permissionsOf(block)).every((value) => value === "read"), block.split("\n")[0]);
   }
   for (const id of MODEL_JOBS) {
@@ -254,10 +254,10 @@ test("only the model-free report job writes, the model jobs read contents only, 
     assert.match(jobs[id], /\n {10}permission-mode: dontAsk\n/, id);
     assert.doesNotMatch(jobs[id].replace(/^\s*#.*$/gm, ""), /run-covering-tests|execute\.mjs|setup-env\.sh/, `${id} runs no test and no head install`);
   }
-  assert.deepEqual(permissionsOf(jobs.mutate), { contents: "read" });
-  assert.doesNotMatch(jobs.mutate, /secrets\.|github\.token|run-claude-cli/, "the mutate job holds no secret and runs no model");
-  assert.match(jobs.mutate, /post-merge-test-mutation\/execute\.mjs "\$GENERATION"/);
-  assert.match(jobs.mutate, /\n {10}install-subprocess-isolation: true\n/);
+  assert.deepEqual(permissionsOf(jobs["run-mutants"]), { contents: "read" });
+  assert.doesNotMatch(jobs["run-mutants"], /secrets\.|github\.token|run-claude-cli/, "the run-mutants job holds no secret and runs no model");
+  assert.match(jobs["run-mutants"], /post-merge-test-mutation\/execute\.mjs "\$GENERATION"/);
+  assert.match(jobs["run-mutants"], /\n {10}install-subprocess-isolation: true\n/);
   assert.deepEqual(permissionsOf(jobs.report), { contents: "read", "pull-requests": "write" });
   assert.doesNotMatch(jobs.report, /claude-code-action|run-claude-cli|secrets\./, "the writing job runs no model and holds no secret");
   assert.doesNotMatch(LANE, /anthropics\/claude-code-action@/);
@@ -306,16 +306,16 @@ test("the stop step passes a usage or capacity limit and fails every other class
   }
 });
 
-test("the mutate job applies mutants under the config's mutate globs and checks the tree it leaves", () => {
+test("the run-mutants job applies mutants under the config's mutate globs and checks the tree it leaves", () => {
   const jobs = jobsOf(LANE);
-  const execute = stepOf(jobs.mutate, "execute");
+  const execute = stepOf(jobs["run-mutants"], "execute");
   assert.match(execute, /CONFIG=docs\/conventions\/mutation-testing\.yaml/);
   assert.match(execute, /cp -R scripts "\$HARNESS\/"\n\s*chmod -R a-w "\$HARNESS"/, "a mutant of the harness cannot break the harness");
-  assert.match(stepOf(jobs.mutate, "restored"), /git diff --quiet HEAD/);
+  assert.match(stepOf(jobs["run-mutants"], "restored"), /git diff --quiet HEAD/);
   // Each handoff between jobs is one artifact pinned by the SHA-256 its job recorded.
-  assert.match(field(stepOf(jobs.mutate, "mutants"), "WANT"), /needs\.generate-fallback\.outputs\.sha256/);
+  assert.match(field(stepOf(jobs["run-mutants"], "mutants"), "WANT"), /needs\.generate-fallback\.outputs\.sha256/);
   for (const id of ["triage", "triage-subscription", "triage-fallback"]) {
-    assert.equal(field(stepOf(jobs[id], "Check the executed mutants"), "WANT"), "${{ needs.mutate.outputs.sha256 }}", id);
+    assert.equal(field(stepOf(jobs[id], "Check the executed mutants"), "WANT"), "${{ needs.run-mutants.outputs.sha256 }}", id);
   }
   assert.match(stepOf(jobs.report, "report"), /pinned "\$EXECUTED" "\$EXECUTED_SUM"/);
 });

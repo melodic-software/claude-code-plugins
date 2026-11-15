@@ -2271,7 +2271,7 @@ test("createGitHub waits at most 60 s on 5xx answers across all its calls", asyn
 });
 
 // A connection that never answers: undici would wait its own header timeout
-// per attempt, past a 3-minute gate step (pr-merge.yml's gate-check).
+// per attempt, past a 3-minute gate step (pr-merge.yml's report-gate-checks).
 const hung = (sent) => async (url, init) => {
   sent.push(url);
   return new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason)));
@@ -3212,7 +3212,7 @@ test("re-runner by id: app-label, a failed own-run read stops", async () => {
   assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
 });
 
-// work-resolve-issue.yml's admit job: require-pr false, require-kind human,
+// work-resolve-issue.yml's check-admission job: require-pr false, require-kind human,
 // app-label agent-ready and the lanes App id.
 test("re-runner by id: the admit inputs admit a listed human's or the App's agent-ready label", async () => {
   assert.deepEqual(await appLabel({ sender: KYLE, triggeringActor: "kyle-sexton", deniedActorIds: "" }), {

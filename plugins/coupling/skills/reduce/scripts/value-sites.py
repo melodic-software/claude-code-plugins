@@ -326,7 +326,7 @@ def render(tag: str, new: str) -> str | None:
     return f"{prefix}{m.group(1).lower()}/{rest}"
 
 
-def bounded(line: str, start: int, end: int, tag: str = "exact") -> bool:
+def bounded(line: str, start: int, end: int, tag: str) -> bool:
     if (
         tag in ("msys", "wsl")
         and start > 0

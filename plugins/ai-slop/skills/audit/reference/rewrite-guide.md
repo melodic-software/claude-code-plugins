@@ -1,6 +1,6 @@
 # Rewrite guide
 
-Fix-time guidance for `/ai-slop:audit fix`: what to write INSTEAD of a flagged tell. The
+Fix-time guidance for `/ai-slop:audit fix`: what to write instead of a flagged tell. The
 [catalog](catalog.md) decides what flags; this file decides what replaces it. Loaded at fix
 step 1, applied under the same semantic-diff guard as every rewrite (meaning over style: a
 rewrite that changes what a sentence asserts is skipped and recorded).
@@ -16,7 +16,7 @@ launders provenance fails the test and is not applied. Perplexity and burstiness
 in this guide as targets: they are detector-side statistics, defined relative to a model and
 tokenizer, and cannot function as writing goals.
 
-## Legitimate-hit taxonomy (when NOT to rewrite)
+## Legitimate-hit taxonomy (when not to rewrite)
 
 Five classes of detector hit are legitimate as written. What the detector skips depends on the
 rule's class (catalog "Quotation exemption"; the detector's rule registry assigns the class):
@@ -60,7 +60,7 @@ whose line no longer trips any rule is residue to remove on the next pass.
 ## Risky rewrite classes (disambiguate before restating)
 
 Three flagged constructions carry systematic meaning-change risk. Each demands a
-disambiguation step BEFORE the rewrite, and the semantic-diff verifier is told to treat these
+disambiguation step before the rewrite, and the semantic-diff verifier is told to treat these
 classes adversarially:
 
 - **Negative parallelism** ("not just X but Y", "not only X, but also Y"): the construction is
@@ -68,7 +68,7 @@ classes adversarially:
   restatement must pick one, and picking wrong inverts the criterion. Resolve the intended
   reading from surrounding context first; when the context does not settle it, keep the original
   and flag the ambiguity to the author instead of guessing.
-- **Triad collapse**: keep the single strongest item ONLY when the surviving text still entails
+- **Triad collapse**: keep the single strongest item only when the surviving text still entails
   every deleted item. An enumeration whose items are independent claims ("no endpoint tables,
   no scope lists, no prices") loses assertions when collapsed; restate without the cadence
   ("no endpoint tables, scope lists, or prices") rather than dropping items.
@@ -92,8 +92,9 @@ A rewrite that swaps one tell for another is not a fix:
   split it into two sentences. A colon that
   introduces a list or an example is not a crutch and stays, and so does a terse `rule: reason`
   line in a list of operative rules (the catalog's `rule-colon-crutch` boundary).
-- **Triads** collapse toward the single strongest item (the fix flow's standing rule), not
-  toward a two-item list that keeps the cadence.
+- **Triads** collapse toward the single strongest item only under the entailment condition in
+  "Triad collapse" above (the fix flow's standing rule), never toward a two-item list that keeps
+  the cadence.
 - **Vocabulary swaps** must not reach for the next-fanciest synonym. "Utilize" becomes "use",
   not "employ".
 
@@ -119,6 +120,9 @@ sentence a finding touches, and puts these questions to it:
 | Is an adverb holding up the verb? | The verb is the wrong one. Delete the adverb, choose a stronger verb, or give the measured figure. | "Responds very rapidly", then "responds in 40 ms"; "greatly reduces load", then "cuts load by 30%" |
 | Does the reader have to go back and reread it? | It holds more than one idea. Split it, or remove clauses until one idea is left. | |
 | Is there a plainer word? | Use it. See the plain-word rows below. | |
+
+The figures in the after-forms are illustrative. A fix writes a number only when the text or
+its sources already state it; with no figure at hand, it names the behavior without one.
 
 ## Replacements for flagged phrases
 
@@ -184,7 +188,15 @@ Rewrites that need more than a lookup:
   requests"). A small drama becomes the trigger and its consequence ("the on-call phone lights
   up at 3 a.m." becomes "the nightly job fails and pages the on-call engineer"). A mood becomes
   the behavior ("CI gets grumpy about lockfiles" becomes "CI fails when `package-lock.json` is
-  out of date"). A slogan becomes the rule, then `because` and its reason.
+  out of date"). An act becomes who does what ("flaky tests eat the release week" becomes
+  "engineers spend release week rerunning flaky tests"). A slogan becomes the rule, then
+  `because` and its reason. The rewritten sentence carries no figure. Reread it verb by
+  verb: where an object or abstraction is still said to do what only a living thing does (sit,
+  sleep, want, fight), write where it is or what happens instead, even when that verb alone would
+  not have been reported. A field's own term is not a figure and stays, as do the idioms in other
+  sentences. Moving or re-punctuating the
+  sentence with the figure still in it is not a fix. The sentence stays about the thing it named;
+  never swap its subject for another noun nearby.
 - **Promotional adjectives** (`rule-promotional-language`): "Vibrant", "stunning",
   "breathtaking", "groundbreaking", "renowned", "seamless", "robust", "nestled". These are
   travel-brochure words. Describe the thing; let the reader supply the adjective.
@@ -250,7 +262,7 @@ Planted imperfection, typos included, changes how the text would score, not how 
 fails this guide's improve-it-anyway test and is the evasion posture the guide refuses. It is
 left off the list on purpose; do not re-add it as a technique.
 
-This section never overrides meaning preservation: voice is added in HOW a kept claim is
+This section never overrides meaning preservation: voice is added in how a kept claim is
 phrased, never by inventing new claims during a fix pass.
 
 ## Self-audit
@@ -258,6 +270,6 @@ phrased, never by inventing new claims during a fix pass.
 Last pass over each rewritten file, before the semantic-diff verification: read it asking "what
 still makes this read machine-written?" and fix what surfaces, whether or not a rule flagged
 it: a leftover "leverage", a triad that came back, a word from the judgment rows above, a
-paragraph with no verdict in it. Then read it once more; what that second read finds is fixed or
+paragraph with no verdict in it, a figure still in a sentence rewritten for one. Then read it once more; what that second read finds is fixed or
 reported, and the self-audit ends there. Findings from this pass are reported like rubric findings
 (quoted text, catalog entry when one fits).

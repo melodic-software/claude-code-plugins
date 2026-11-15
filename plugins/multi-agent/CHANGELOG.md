@@ -3,6 +3,43 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.6] - 2026-11-15
+
+### Changed
+
+- The config reference points at the upstream pages for subagent `model` values and the effort
+  cap's scopes instead of restating them. Skill headings and the drift-audit skeptic prompt use
+  plain emphasis instead of capital letters.
+- The `su-apply-guard-off-confirms` eval no longer expects a local-layer offer, which its own
+  description says cannot arise at a home root.
+
+## [3.0.5] - 2026-11-15
+
+### Changed
+
+- The worker role's mechanical-model reason records a third fix-docs measurement, in which Sonnet 5.5 passed the meaning-change case after the ai-slop fix guidance changed, and its recheck condition names any audit-fix case that fails a majority of its runs.
+
+## [3.0.4] - 2026-11-15
+
+### Changed
+
+- The worker role's mechanical-model reason now says the fix-docs measurement's cases did not check whether a fix changed a sentence's meaning, and records a six-case Sonnet 5.5 and Opus 5.5 measurement that left the default on Sonnet.
+
+## [3.0.3] - 2026-11-15
+
+### Changed
+
+- The mechanical worker default's measurement note in `reference/defaults.yaml` states its
+  limits: five cases, no Opus arm run, and no claim about how the two models compare.
+
+## [3.0.2] - 2026-11-15
+
+### Changed
+
+- The mechanical worker default's reason in `reference/defaults.yaml` records a measurement:
+  Sonnet 5.5 passed every run of the `ai-slop` `audit-fix-*` eval cases, so the default stays on
+  Sonnet. No default changes.
+
 ## [3.0.1] - 2026-11-14
 
 ### Changed

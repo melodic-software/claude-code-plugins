@@ -50,7 +50,10 @@ refuses above a variance threshold: pyperf, Criterion, JMH and benchstat all war
 number anyway.
 
 - **Pointer**: when you need pyperf's own stability thresholds, fetch
-  [pyperf check](https://pyperf.readthedocs.io/en/latest/cli.html#check-cmd) live.
+  [pyperf check](https://pyperf.readthedocs.io/en/latest/cli.html#check-cmd) live. Recheck the
+  other tools at [Criterion command-line output](https://bheisler.github.io/criterion.rs/book/user_guide/command_line_output.html),
+  [benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat) and
+  [JMH](https://github.com/openjdk/jmh).
 
 ### 1b. Measuring-tool integrity (before timing)
 

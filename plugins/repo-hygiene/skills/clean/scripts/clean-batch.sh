@@ -58,7 +58,7 @@ Usage:
 
 Default: --dry-run (inventory only; writes a batch plan, no mutations).
 
-Tiers (mirror the single-repo tiers; `tree` is NOT batched here — use
+Tiers (mirror the single-repo tiers; `tree` is not batched here — use
 git-tree-reset-batch.sh):
   scan    read-only inventory per repo (scan.sh); writes no plan, and --apply /
           --batch-plan are usage errors. Prints `Outcome: scanned` per repo and
@@ -98,7 +98,7 @@ Gate:
                      git_bytes=B; all also appends caches_bytes=C build_bytes=D).
                      The git tier counts prunable worktrees, plus loose objects
                      and garbage when `git gc --auto` would run (above gc.auto
-                     or gc.autoPackLimit). NEVER mutates.
+                     or gc.autoPackLimit). Never mutates.
   --batch-plan FILE  with --dry-run, write the plan to FILE (a stable path)
                      instead of the default. The default is a new run
                      directory under one durable directory per tier, repo set

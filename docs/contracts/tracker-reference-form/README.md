@@ -50,7 +50,8 @@ list is the `exclude:` input in [`pr-require-checks.yml`](../../../.github/workf
 ## What this convention is not
 
 - Not a commit-message or PR-title rule. Those are [`commit-convention`](../commit-convention/README.md);
-  a PR body may reference issues freely, and the linkage gate in fact requires a closing keyword there.
+  a PR body may reference issues freely, and the advisory body contract expects a closing keyword, a
+  `Refs: #<issue>` line, or a `No related issue:` line there.
 - Not a ban on issue numbers in comments. The bare `(#N)` form exists precisely so a comment can cite
   its origin.
 - Not locally enforceable. Check the form by reading it before pushing; there is no local command.

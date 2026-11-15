@@ -150,6 +150,51 @@ assert_contains "the missing list's path is named" "$out" "$lone/code-extensions
 assert_absent "no rung is reported without the list" "$out" "rung="
 assert_absent "only the script's own message is printed" "$out" "No such file"
 
+bo="$TEST_TMPDIR/branch-only"
+mkrepo "$bo"
+printf 'x=1\n' >"$bo/a.sh"
+printf 'y=2\n' >"$bo/b.py"
+commit_all "$bo" init
+git -C "$bo" checkout -q -b feature
+printf 'w=4\n' >"$bo/feat.cs"
+printf 'doc\n' >"$bo/NOTES.md"
+commit_all "$bo" feat
+out=$(cd "$bo" && bash "$SCRIPT" --branch-only --base main)
+assert_equal "--branch-only on a clean branch lists the branch's code files" "rung=branch base=main files=1" "$(printf '%s\n' "$out" | head -1)"
+assert_contains "--branch-only on a clean branch lists the committed feat.cs" "$out" "feat.cs"
+assert_absent "--branch-only excludes the branch's markdown" "$out" "NOTES.md"
+
+printf 'x=2\n' >"$bo/a.sh"
+out=$(cd "$bo" && bash "$SCRIPT" --branch-only --base main)
+assert_equal "--branch-only on a dirty tree stays on the branch rung and adds the edited file" "rung=branch base=main files=2" "$(printf '%s\n' "$out" | head -1)"
+assert_contains "--branch-only on a dirty tree keeps the committed feat.cs" "$out" "feat.cs"
+assert_contains "--branch-only on a dirty tree lists the uncommitted a.sh" "$out" "a.sh"
+assert_absent "--branch-only on a dirty tree omits the untouched b.py" "$out" "b.py"
+
+printf 'z=3\n' >"$bo/fresh.ts"
+printf 'notes\n' >"$bo/fresh.md"
+out=$(cd "$bo" && bash "$SCRIPT" --branch-only --base main)
+assert_equal "--branch-only counts an untracked code file" "rung=branch base=main files=3" "$(printf '%s\n' "$out" | head -1)"
+assert_contains "--branch-only lists the untracked fresh.ts" "$out" "fresh.ts"
+assert_absent "--branch-only omits the untracked markdown" "$out" "fresh.md"
+mkdir -p "$bo/src" "$bo/lib"
+printf 'q=5\n' >"$bo/src/inner.ts"
+printf 'r=6\n' >"$bo/lib/other.ts"
+out=$(cd "$bo/src" && bash "$SCRIPT" --branch-only --base main)
+assert_contains "--branch-only from a subdirectory lists its own untracked file from the root" "$out" "src/inner.ts"
+assert_contains "--branch-only from a subdirectory lists an untracked file elsewhere" "$out" "lib/other.ts"
+git -C "$bo" checkout -q -- .
+rm -rf "${bo:?}/fresh.ts" "${bo:?}/fresh.md" "${bo:?}/src" "${bo:?}/lib"
+
+git -C "$bo" checkout -q -b no-commits main
+out=$(cd "$bo" && bash "$SCRIPT" --branch-only --base main)
+assert_equal "--branch-only on a branch with no commits of its own reports zero files, never the repository" "rung=branch base=main files=0" "$(printf '%s\n' "$out" | head -1)"
+assert_equal "--branch-only with nothing changed prints no paths" "1" "$(printf '%s\n' "$out" | grep -c .)"
+
+err=$(cd "$bo" && bash "$SCRIPT" --branch-only --base no-such-ref 2>&1 >/dev/null)
+assert_equal "--branch-only with a base that does not resolve exits 2" "2" "$?"
+assert_contains "--branch-only names the base that does not resolve" "$err" "no-such-ref"
+
 if [[ "$FAILED" -eq 0 ]]; then printf '\nall passed\n'; else
   printf '\n%d failed\n' "$FAILED"
   exit 1

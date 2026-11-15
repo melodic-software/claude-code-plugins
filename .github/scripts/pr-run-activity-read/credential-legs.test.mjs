@@ -2,7 +2,7 @@
 // the key, its second the subscription token, its third the fallback token,
 // chosen by the caller's fallback input. Its presence steps (key-present,
 // token-present, fallback-present) are ci-workflows' select-model-credential
-// leg calls, fetched at the pin the workflow names, and broker-check's credit
+// leg calls, fetched at the pin the workflow names, and check-broker's credit
 // read is its start call. The callers chain their next call on this file's
 // workflow_call outputs, which keep their names and values: this table drives
 // the run job's own step conditions, inputs and outputs through every
@@ -110,8 +110,8 @@ function context(s) {
     "inputs.role": "pr-unblock",
     "steps.launch.outcome": s.reached ? "success" : "skipped",
     "steps.go.outputs.run": s.reached ? "true" : "",
-    // broker-check reads the credit history on the first call alone.
-    "needs.broker-check.outputs.skip-key": s.fallback === "" ? s.gate : "",
+    // check-broker reads the credit history on the first call alone.
+    "needs.check-broker.outputs.skip-key": s.fallback === "" ? s.gate : "",
     [`secrets.${SECRETS.key}`]: s.key ? "set" : "",
     [`secrets.${SECRETS.sub}`]: s.sub ? "set" : "",
     [`secrets.${SECRETS.fallback}`]: s.fallbackSet ? "set" : "",
@@ -123,7 +123,7 @@ function oldRun(s) {
   const presence = {};
   const set = (leg, present) => Object.assign(presence, { [`steps.${STEPS[leg]}.outcome`]: "success", [`steps.${STEPS[leg]}.outputs.present`]: String(present) });
   for (const leg of Object.keys(STEPS)) presence[`steps.${STEPS[leg]}.outcome`] = "skipped";
-  if (runs(OLD.keyIf, base)) set("key", base["needs.broker-check.outputs.skip-key"] === "true" ? false : s.key);
+  if (runs(OLD.keyIf, base)) set("key", base["needs.check-broker.outputs.skip-key"] === "true" ? false : s.key);
   if (runs(OLD.tokenIf, base)) set("sub", s.sub);
   if (runs(OLD.fallbackIf, base)) set("fallback", s.fallbackSet);
   return after(base, presence, s, OLD.outputs, OLD.reason, OLD.reason);
@@ -203,16 +203,17 @@ test("pr-run-activity-read's run job runs the same leg and sets the same outputs
   t.diagnostic(`${count} states`);
 });
 
-test("the workflow_call outputs the run and broker-check jobs set, and their sources, are unchanged from 5599e627fc", () => {
-  // Quoted from 5599e627fc.
+test("the workflow_call outputs the run and check-broker jobs set, and their sources, are unchanged from 5599e627fc", () => {
+  // Quoted from 5599e627fc, with the broker job under its id since its rename,
+  // check-broker.
   const call = {
     "head-sha": "${{ jobs.run.outputs.head-sha }}",
     "lane-class": "${{ jobs.run.outputs.lane-class }}",
     "credential-present": "${{ jobs.run.outputs.credential-present }}",
     "handed-off": "${{ jobs.run.outputs.handed-off }}",
-    "skip-reason": "${{ jobs.broker-check.outputs.skip-reason }}",
-    lease: "${{ jobs.broker-check.outputs.lease }}",
-    "lease-comment-id": "${{ jobs.broker-check.outputs.lease-comment-id }}",
+    "skip-reason": "${{ jobs.check-broker.outputs.skip-reason }}",
+    lease: "${{ jobs.check-broker.outputs.lease }}",
+    "lease-comment-id": "${{ jobs.check-broker.outputs.lease-comment-id }}",
   };
   const brokerCheck = {
     allowed: "${{ steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true' }}",
@@ -229,15 +230,15 @@ test("the workflow_call outputs the run and broker-check jobs set, and their sou
     assert.equal(new RegExp(`^ {6}${name}:\\n(?: {8}.*\\n)*? {8}value: (.*)$`, "m").exec(outputsBlock)?.[1], expression, name);
   }
   // skip-run feeds only this file's run and report conditions, checked by value below.
-  const { "skip-run": skipRun, ...kept } = wf.outputs("broker-check");
+  const { "skip-run": skipRun, ...kept } = wf.outputs("check-broker");
   assert.equal(typeof skipRun, "string");
   assert.deepEqual(kept, brokerCheck);
   // The run job's caller-visible outputs, quoted above, are the same text.
   for (const [name, expression] of Object.entries(OLD.outputs)) assert.equal(wf.outputs("run")[name], expression, name);
 });
 
-test("broker-check's start call reads the credit history on the first call alone, as check-key-credit did", () => {
-  const credit = wf.step("broker-check", "credit");
+test("check-broker's start call reads the credit history on the first call alone, as check-key-credit did", () => {
+  const credit = wf.step("check-broker", "credit");
   assert.equal(credit.inputs.leg, "start");
   assert.equal(credit.inputs["key-job"], "${{ inputs.key-credit-job }}");
   assert.equal(credit.inputs["probe-minutes"], '"0"');
@@ -246,7 +247,7 @@ test("broker-check's start call reads the credit history on the first call alone
   assert.match(credit.text, /^ {8}continue-on-error: true$/m, "a failed read runs the key");
 });
 
-// A first call whose key broker-check's credit read skipped hands off before
+// A first call whose key check-broker's credit read skipped hands off before
 // its run job when declines are posted: no run job, no report, so the
 // caller's handoff read finds no check posted and starts the subscription
 // call, as it did when the run job ran only to hand off. The job conditions
@@ -254,9 +255,9 @@ test("broker-check's start call reads the credit history on the first call alone
 // sender id's format('{0}', ...) read as the id itself, which the evaluator
 // takes as a context name.
 const OLD_GATES = {
-  run: "!(github.event_name == 'pull_request' && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID) && needs.broker-check.outputs.skip-reason == ''",
+  run: "!(github.event_name == 'pull_request' && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID) && needs.check-broker.outputs.skip-reason == ''",
   report:
-    "always() && (inputs.issue-number == '' && needs.run.outputs.handed-off != 'true' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && !(github.event_name == 'pull_request' && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID) || inputs.issue-number != '' && needs.broker-check.outputs.lease == 'held' && needs.broker-check.outputs.lease-comment-id != '' && !(inputs.caller-releases-lease && needs.run.outputs.handed-off != 'true' && (needs.issue-fields.outputs.issue-run-started == 'true' || needs.issue-fields.outputs.reuse-branch != '')))",
+    "always() && (inputs.issue-number == '' && needs.run.outputs.handed-off != 'true' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && !(github.event_name == 'pull_request' && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID) || inputs.issue-number != '' && needs.check-broker.outputs.lease == 'held' && needs.check-broker.outputs.lease-comment-id != '' && !(inputs.caller-releases-lease && needs.run.outputs.handed-off != 'true' && (needs.check-issue-fields.outputs.issue-run-started == 'true' || needs.check-issue-fields.outputs.reuse-branch != '')))",
 };
 const SENDER = "format('{0}', github.event.sender.id)";
 const gate = (text) => {
@@ -264,7 +265,7 @@ const gate = (text) => {
   return text.replace(SENDER, "github.event.sender.id");
 };
 const NEW_GATES = { run: gate(wf.jobIf("run")), report: gate(wf.jobIf("report")) };
-const SKIP_RUN = wf.outputs("broker-check")["skip-run"];
+const SKIP_RUN = wf.outputs("check-broker")["skip-run"];
 
 function* gateContexts() {
   for (const event of ["pull_request", "workflow_dispatch"])
@@ -290,20 +291,20 @@ function* gateContexts() {
                               "inputs.post-decline": postDecline,
                               "inputs.caller-releases-lease": releases,
                               "steps.credit.outputs.skip-key": skipKey,
-                              "needs.broker-check.outputs.skip-reason": skipReason,
-                              "needs.broker-check.outputs.skip-key": skipKey,
-                              "needs.broker-check.outputs.lease": lease,
-                              "needs.broker-check.outputs.lease-comment-id": leaseId,
+                              "needs.check-broker.outputs.skip-reason": skipReason,
+                              "needs.check-broker.outputs.skip-key": skipKey,
+                              "needs.check-broker.outputs.lease": lease,
+                              "needs.check-broker.outputs.lease-comment-id": leaseId,
                               "needs.run.outputs.handed-off": handedOff,
-                              "needs.issue-fields.outputs.issue-run-started": started,
-                              "needs.issue-fields.outputs.reuse-branch": reuse,
+                              "needs.check-issue-fields.outputs.issue-run-started": started,
+                              "needs.check-issue-fields.outputs.reuse-branch": reuse,
                             };
-                            ctx["needs.broker-check.outputs.skip-run"] = value(SKIP_RUN, ctx);
+                            ctx["needs.check-broker.outputs.skip-run"] = value(SKIP_RUN, ctx);
                             yield ctx;
                           }
 }
 
-test("broker-check skips the key leg's run only for a pull-request first call whose key was skipped and whose declines are posted", () => {
+test("check-broker skips the key leg's run only for a pull-request first call whose key was skipped and whose declines are posted", () => {
   const skip = (issue, postDecline, skipKey) =>
     value(SKIP_RUN, { "inputs.issue-number": issue, "inputs.post-decline": postDecline, "steps.credit.outputs.skip-key": skipKey });
   assert.equal(skip("", true, "true"), "true", "pr-unblock's key leg after a credit stop");
@@ -313,12 +314,12 @@ test("broker-check skips the key leg's run only for a pull-request first call wh
   assert.equal(skip("", true, ""), "false", "no credit read: the key runs");
 });
 
-test("the run and report job conditions keep their old values unless broker-check skips the key leg's run, and both skip when it does", () => {
+test("the run and report job conditions keep their old values unless check-broker skips the key leg's run, and both skip when it does", () => {
   let same = 0;
   let skipped = 0;
   for (const ctx of gateContexts()) {
     const label = JSON.stringify(ctx);
-    if (ctx["needs.broker-check.outputs.skip-run"] !== "true") {
+    if (ctx["needs.check-broker.outputs.skip-run"] !== "true") {
       same++;
       assert.equal(runs(NEW_GATES.run, ctx), runs(gate(OLD_GATES.run), ctx), `run, ${label}`);
       assert.equal(runs(NEW_GATES.report, ctx), runs(gate(OLD_GATES.report), ctx), `report, ${label}`);
@@ -334,9 +335,9 @@ test("the run and report job conditions keep their old values unless broker-chec
 test("without the report guard a skipped key-leg run would post the check, which starts no subscription call", () => {
   const ctx = [...gateContexts()].find(
     (c) =>
-      c["needs.broker-check.outputs.skip-run"] === "true" &&
+      c["needs.check-broker.outputs.skip-run"] === "true" &&
       c["github.event_name"] === "workflow_dispatch" &&
-      c["needs.broker-check.outputs.skip-reason"] === "" &&
+      c["needs.check-broker.outputs.skip-reason"] === "" &&
       c["needs.run.outputs.handed-off"] === "",
   );
   assert.equal(runs(gate(OLD_GATES.run), ctx), true, "the old run job ran on a skipped key");
@@ -346,11 +347,11 @@ test("without the report guard a skipped key-leg run would post the check, which
 
 test("with the key leg's run and report skipped, the jobs after them skip as they did on its handoff", () => {
   const ctx = { "inputs.issue-number": "", "needs.run.result": "skipped", "needs.run.outputs.handed-off": "", "needs.scan.result": "skipped" };
-  assert.equal(runs(wf.jobIf("issue-fields"), ctx), false, "issue-fields");
+  assert.equal(runs(wf.jobIf("check-issue-fields"), ctx), false, "check-issue-fields");
   assert.equal(runs(wf.jobIf("scan"), ctx), false, "scan");
   assert.equal(runs(wf.jobIf("scan-refusal"), ctx), false, "scan-refusal");
-  assert.equal(runs(wf.jobIf("summary"), ctx), false, "summary");
-  assert.equal(runs(wf.jobIf("broker-allowed"), { "needs.broker-check.outputs.allowed": "true" }), true, "broker-allowed still records the allow");
+  assert.equal(runs(wf.jobIf("generate-reuse-summary"), ctx), false, "generate-reuse-summary");
+  assert.equal(runs(wf.jobIf("record-broker-allow"), { "needs.check-broker.outputs.allowed": "true" }), true, "record-broker-allow still records the allow");
 });
 
 // handoff-evidence.sh on a stub gh that answers one jobs listing.
@@ -381,15 +382,15 @@ test("pr-unblock starts each subscription call on a skipped key-leg run exactly 
     assert.doesNotMatch(unblock.job(leg), /post-decline/, `${leg} posts its declines`);
     const named = leg.replace(/[a-z0-9]+/g, (w) => (w === "ci" ? "CI" : w[0].toUpperCase() + w.slice(1))).replaceAll("-", " ");
     const job = (callee, conclusion, steps = []) => ({ name: `${named} / ${callee}`, conclusion, steps });
-    const common = [job("Broker Check", "success", [{ name: "Ask the broker whether the lane may run", conclusion: "success" }]), job("Broker Allowed", "success")];
+    const common = [job("Check Broker", "success", [{ name: "Ask the broker whether the lane may run", conclusion: "success" }]), job("Record Broker Allow", "success")];
     const handoff = evidence([...common, job("Run", "success", [{ name: "Mark a key credit stop", conclusion: "skipped" }]), job("Scan", "skipped"), job("Report", "skipped")], leg, ["posted", "allowed", "credit-stop"]);
     const skippedRun = evidence([...common, job("Run", "skipped"), job("Scan", "skipped"), job("Report", "skipped")], leg, ["posted", "allowed", "credit-stop"]);
     assert.deepEqual(skippedRun, { posted: "false", allowed: "true", "credit-stop": "false" }, leg);
     assert.deepEqual(skippedRun, handoff, `${leg}: the same facts as the run job's handoff`);
-    // A call whose run job skipped while its broker-check succeeded is not
+    // A call whose run job skipped while its check-broker succeeded is not
     // `skipped` to the caller: run 42742077371's address-feedback call had
-    // broker-check and report success and every other job skipped, and
-    // key-credit-markers, whose if needs one call's result != 'skipped' with
+    // check-broker and report success and every other job skipped, and
+    // upload-key-credit-markers, whose if needs one call's result != 'skipped' with
     // the other four calls skipped, ran. Only != 'skipped' is read here.
     const ctx = {
       [`needs.${leg}-select.outputs.proceed`]: "true",

@@ -38,7 +38,7 @@ required-ness, by the reference implementation rather than by reading.
 **`negative.mjs`** is the control that makes a green run mean something. It feeds deliberately
 broken variants, and **every one must fail**: wrong field name, wrong mutation name, wrong argument,
 bogus enum member, wrong variable type, missing required input field, bad `pageInfo` field. A
-validator that cannot fail is not evidence. When this was first run it caught 10 of 10.
+validator that cannot fail is not evidence.
 
 **`fidelity.sh`** proves the operations `validate.mjs` checked are the adapter's own text rather
 than a paraphrase, by matching each one as a fixed string against **both** sides: the adapter

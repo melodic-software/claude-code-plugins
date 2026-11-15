@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Frontier (unattended, owner-call items filtered out; #61 carries no needs-human label but is owner-call): 'Pick the digest batching window' (#62). Claiming it: /work-items:track start <#62>. Routing by decide: design: /planning:design.",
+      "why": "only the supplied labels are used"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Open maps: `/work-items:track list --label 'wayfind: map' --state open` found none.",
+      "why": "the default prefix"
+    }
+  ]
+}

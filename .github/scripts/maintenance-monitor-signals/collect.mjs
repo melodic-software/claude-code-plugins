@@ -381,7 +381,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   };
 
   // pr-merge's runs on main, any status, listed once for the sources that
-  // read them: post-merge-dispatch keeps its report while the run's merge
+  // read them: dispatch-post-merge-runs keeps its report while the run's merge
   // jobs still run, so the report source needs runs in progress too; the
   // budget source keeps completed ones only.
   let prMergeList = null;
@@ -623,7 +623,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     if (data.heldSweeps.length > 0) gaps.push(`pr-merge listed sweep: none in the ${LIMITS.sweepArtifacts} newest summaries`);
   });
 
-  // The report post-merge-dispatch keeps per sweep (pr-merge-post-merge-report:
+  // The report dispatch-post-merge-runs keeps per sweep (pr-merge-post-merge-report:
   // the post-merge check's exit code and JSON), from trusted pr-merge runs
   // only, a run still in progress included, newest first, stopping at the first that is not exit 3 or at
   // POST_MERGE_UNREADABLE_SWEEPS. A run that kept no report (not live, a rate
@@ -736,9 +736,10 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       // of them, so the next run reads the rest and this one reports a gap.
       let readThrough = now.getTime();
       const cut = [];
-      for (const { lane, workflow, jobs: ids, names, holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, holdStep, statuses = ["success"] } of HOLD_LANES) {
-        // A job by its name, or by its id on a run from before the job rename.
-        const jobs = [...names, ...ids];
+      for (const { lane, workflow, jobs: ids, names, earlier = [], holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, holdStep, statuses = ["success"] } of HOLD_LANES) {
+        // A job by its name, or by its id on a run from before the job rename,
+        // or by the name or id it had before a later rename.
+        const jobs = [...names, ...ids, ...earlier];
         // By id: a run that starts between two page reads shifts one onto the next page.
         const runs = new Map();
         for (const status of statuses) {

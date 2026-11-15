@@ -50,7 +50,7 @@ Present the diff to the user before making changes.
 
 **Plugin-form caveat:** the bundled reference files live in the plugin's read-only install cache,
 so durable updates land through a plugin release, not a local edit. Present the Step 2 diff as findings
-the user can act on: apply criteria adjustments for THIS audit run in-conversation, and surface the
+the user can act on: apply criteria adjustments for this audit run in-conversation, and surface the
 diff as a contribution/issue against the plugin's repository so the shipped criteria catch up.
 
 With that framing, the content updates are:

@@ -429,6 +429,13 @@ class StatusJobNameTests(Base):
             "other / Claude": "",
             "Status": "",
             "Claude": "",
+            # The status job's planned name.
+            "PR Review / Publish Review": "claude-review",
+            "pr-review / Publish Review": "claude-review",
+            "PR Review Security / Publish Review": "claude-security-review",
+            "pr-review-security / Publish Review": "claude-security-review",
+            "other / Publish Review": "",
+            "Publish Review": "",
             None: "",
         }.items():
             with self.subTest(job=name):
@@ -1039,7 +1046,7 @@ CONTEXT = {
 
 
 def recorded(reviews: Any, context: Any) -> Any:
-    """`context` with the record job's check runs for each review in
+    """`context` with the report-review-counts job's check runs for each review in
     `reviews` on the head, as a completed run leaves them, unless the test
     set `head_records` itself."""
     if not isinstance(context, dict) or "head_records" in context:
@@ -1438,7 +1445,7 @@ class MainRunReviewTests(Base):
         self,
     ) -> None:
         # A whitespace push makes a new tree whose clean review would bind at
-        # zero; the CRITICAL the record job left on the earlier head holds.
+        # zero; the CRITICAL the report-review-counts job left on the earlier head holds.
         context = dict(
             CONTEXT, carried_critical={"claude-review": 0, "claude-security-review": 2}
         )
@@ -2351,6 +2358,18 @@ class KillSwitchRerunTests(Base):
             [self.lane_run("claude-review", first, self.ok("claude-review"))]
         )
         self.assertTrue(result["claude-review"].bound)
+
+    def test_a_stop_by_the_kill_switch_job_under_its_current_name_binds(
+        self,
+    ) -> None:
+        for lane in LANES:
+            with self.subTest(lane=lane):
+                first = kill_switched(lane, kill_name="Check Kill Switch")
+                result = self.bind([self.lane_run(lane, first, self.ok(lane))])
+                self.assertTrue(result[lane].bound)
+                other = kill_switched(lane, kill_name="Check Kill")
+                result = self.bind([self.lane_run(lane, other, self.ok(lane))])
+                self.assertFalse(result[lane].bound)
 
     def test_the_other_lanes_notice_does_not_bind(self) -> None:
         for lane, other in zip(LANES, reversed(LANES), strict=True):

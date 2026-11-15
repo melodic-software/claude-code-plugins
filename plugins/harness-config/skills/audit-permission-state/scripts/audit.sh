@@ -16,10 +16,10 @@
 #
 # DEFAULT BREADTH
 #
-# Bare invocation runs every READ-ONLY stage. The full pipeline is sub-second, and
+# Bare invocation runs every read-only stage. The full pipeline is sub-second, and
 # the stages a narrower default skipped (the plane lint, managed conformance, the
 # autoMode block lint) are the ones most likely to carry an actionable finding.
-# Flags NARROW; they never widen.
+# Flags narrow; they never widen.
 #
 # Two lanes stay opt-in because neither is read-only in the way the rest are:
 #   --oracle    spawns a real `claude -p` session (rewrites ~/.claude.json and

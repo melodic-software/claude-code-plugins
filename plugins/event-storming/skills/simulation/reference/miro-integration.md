@@ -148,7 +148,6 @@ Persona 1 sits at the `y=0` timeline baseline.
 | Persona 5 events | 2000 | |
 | Persona 6 events | 2500 | |
 | Persona 7 events | 3000 | |
-| Persona 8 (Beneficiary, MANDATORY) | 3500 | Mandatory beneficiary row |
 | Walk-through new events | 4200 | |
 | [STUMBLE] markers | 4500 | 300px below walk-through |
 | Reverse narrative events | 4800 | |
@@ -214,7 +213,7 @@ Next Event       x=1600    row: Domain Events
 
 - Place at x=-800, y=-600 (top-left, out of the main flow)
 - **Frame size formula:** `width=500, height = (sticky_count * 200) + 200`, because each sticky is ~199px tall with ~50px gap, plus 200px padding top/bottom
-- Big Picture legend (4-6 types): `500w x 1400h`
+- Big Picture legend (up to 11 types by Problems & Opportunities, per `agentic-simulation.md` "Legend completeness requirements"; size it once for the final count, since the frame is never resized): `500w x 2400h`
 - Process Modeling legend (7 types): `500w x 1600h`
 - Design-Level legend (8+ types): `500w x 1800h`
 - Legend stickies inside: stack vertically with 200px spacing, starting at the frame's top y + 100px offset

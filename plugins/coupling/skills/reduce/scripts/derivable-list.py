@@ -41,11 +41,11 @@ import argparse
 import io
 import json
 import posixpath
-from pathlib import Path
 import re
 import subprocess
 import sys
 import unicodedata
+from pathlib import Path
 
 # Judgment values, stated in the skill: 80% leaves room for the stale entries a
 # drifting list carries while ruling out a list whose entries mostly hold data

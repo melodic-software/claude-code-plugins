@@ -1,4 +1,4 @@
-// pr-review-main.yml's trusted-text job reads the PR's trusted text once per
+// pr-review-main.yml's collect-trusted-text job reads the PR's trusted text once per
 // run (outage posture element 6). Each leg takes that read only when it is this
 // run attempt's, read at the leg's main commit for its PR and head, with the
 // bytes the job's sha256 names; anything else, a missing artifact included,
@@ -16,7 +16,7 @@ import { admits } from "../lib/gate-expression.mjs";
 const text = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
 const TAKE = new URL("./take-shared-text.sh", import.meta.url).pathname;
 const LEGS = ["review", "review-subscription", "review-fallback"];
-const TEXT = "trusted-text";
+const TEXT = "collect-trusted-text";
 const jobText = (id) => {
   const found = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(text);
   assert.ok(found, `a job ${id}`);
@@ -134,7 +134,7 @@ test("a leg takes the shared read only when its hash, main commit, PR, head and 
   }
 });
 
-test("each leg reads its own text unless the shared read was taken, from the trusted-text job's outputs", () => {
+test("each leg reads its own text unless the shared read was taken, from the collect-trusted-text job's outputs", () => {
   for (const job of LEGS) {
     const names = stepsOf(job).map((s) => s.name);
     const at = names.indexOf("Select the trusted PR text");
@@ -149,12 +149,12 @@ test("each leg reads its own text unless the shared read was taken, from the tru
     assert.match(take, /^ {8}run: bash \.base\/\.github\/scripts\/pr-review-main\/take-shared-text\.sh$/m, job);
     for (const [key, value] of Object.entries({
       SHARED_FILE: "${{ runner.temp }}/pr-review-main-shared-text/context.json",
-      SHARED_SHA256: "${{ needs.trusted-text.outputs.sha256 }}",
-      SHARED_ATTEMPT: "${{ needs.trusted-text.outputs.run-attempt }}",
-      SHARED_MAIN: "${{ needs.trusted-text.outputs.main-sha }}",
-      SHARED_PR: "${{ needs.trusted-text.outputs.pr-number }}",
-      SHARED_HEAD: "${{ needs.trusted-text.outputs.head-sha }}",
-      SHARED_READ_AT: "${{ needs.trusted-text.outputs.read-at }}",
+      SHARED_SHA256: "${{ needs.collect-trusted-text.outputs.sha256 }}",
+      SHARED_ATTEMPT: "${{ needs.collect-trusted-text.outputs.run-attempt }}",
+      SHARED_MAIN: "${{ needs.collect-trusted-text.outputs.main-sha }}",
+      SHARED_PR: "${{ needs.collect-trusted-text.outputs.pr-number }}",
+      SHARED_HEAD: "${{ needs.collect-trusted-text.outputs.head-sha }}",
+      SHARED_READ_AT: "${{ needs.collect-trusted-text.outputs.read-at }}",
       RUN_ATTEMPT: "${{ github.run_attempt }}",
       PR_NUMBER: "${{ steps.trigger.outputs.pr-number }}",
       HEAD_SHA: "${{ steps.trigger.outputs.head-sha }}",
@@ -187,22 +187,22 @@ test("each leg reads its own text unless the shared read was taken, from the tru
 const upstreamRun = { ref: "refs/heads/main", repository: "o/r", run_attempt: "1", event: { workflow_run: { event: "pull_request", conclusion: "success", head_repository: { full_name: "o/r" } } } };
 const triggered = { result: "success", outputs: { "run-attempt": "1", proceed: "true", review: "true", judged: "", held: "" } };
 
-test("every leg needs the trusted-text job and still runs when it failed, was skipped or left no hash", () => {
+test("every leg needs the collect-trusted-text job and still runs when it failed, was skipped or left no hash", () => {
   const needs = (job) => /^ {4}needs: \[(.*)\]$/m.exec(jobText(job))?.[1].split(", ") ?? [];
   for (const job of LEGS) assert.ok(needs(job).includes(TEXT), job);
   // Without a status function GitHub adds success(), which a failed
-  // trusted-text job would fail; each leg's gate starts with its own.
+  // collect-trusted-text job would fail; each leg's gate starts with its own.
   for (const job of LEGS) assert.ok(/^(?:\S+ != '[a-z-]+' && )?!cancelled\(\) && /.test(jobGate(job)), `${job}: ${jobGate(job)}`);
   for (const result of ["failure", "skipped", "success"]) {
     const text = { result, outputs: {} };
-    assert.ok(admits(jobGate("review"), { github: upstreamRun, needs: { trigger: triggered, "review-handoffs-credit": { result: "success", outputs: {} }, [TEXT]: text } }), `review: ${result}`);
+    assert.ok(admits(jobGate("review"), { github: upstreamRun, needs: { "check-trigger": triggered, "review-handoffs-credit": { result: "success", outputs: {} }, [TEXT]: text } }), `review: ${result}`);
     assert.ok(admits(jobGate("review-subscription"), { github: upstreamRun, needs: { "review-handoffs": { result: "success", outputs: {} }, [TEXT]: text } }), `subscription: ${result}`);
-    assert.ok(admits(jobGate("review-fallback"), { github: upstreamRun, needs: { "subscription-handoffs": { result: "success", outputs: {} }, [TEXT]: text } }), `fallback: ${result}`);
+    assert.ok(admits(jobGate("review-fallback"), { github: upstreamRun, needs: { "collect-subscription-handoffs": { result: "success", outputs: {} }, [TEXT]: text } }), `fallback: ${result}`);
   }
-  for (const job of LEGS) assert.doesNotMatch(jobGate(job), /needs\.trusted-text/, job);
+  for (const job of LEGS) assert.doesNotMatch(jobGate(job), /needs\.collect-trusted-text/, job);
 });
 
-test("the trusted-text job never fails the run, and runs only where this attempt's trigger job starts the legs", () => {
+test("the collect-trusted-text job never fails the run, and runs only where this attempt's check-trigger job starts the legs", () => {
   const job = jobText(TEXT);
   assert.match(job, /^ {4}continue-on-error: true$/m);
   assert.match(job, /^ {4}permissions:\n {6}contents: read #.*\n {6}pull-requests: read #.*\n {4}outputs:/m);
@@ -212,7 +212,7 @@ test("the trusted-text job never fails the run, and runs only where this attempt
     if (s.name === "Report the kill switch") continue;
     assert.match(s.block, /^ {8}continue-on-error: true$/m, s.name);
   }
-  const runs = (trigger, github = upstreamRun) => admits(jobGate(TEXT), { github, needs: { trigger } });
+  const runs = (trigger, github = upstreamRun) => admits(jobGate(TEXT), { github, needs: { "check-trigger": trigger } });
   assert.ok(runs(triggered));
   for (const outputs of [{ "run-attempt": "2" }, { proceed: "" }, { review: "false" }, { judged: "true" }, { held: "true" }]) {
     assert.ok(!runs({ ...triggered, outputs: { ...triggered.outputs, ...outputs } }), JSON.stringify(outputs));
@@ -248,7 +248,7 @@ test("the trusted-text job never fails the run, and runs only where this attempt
   assert.match(job, /^ {6}run-attempt: \$\{\{ github\.run_attempt \}\}$/m);
 });
 
-test("the trusted-text job's record holds only fixed shapes, hashing the uploaded bytes", () => {
+test("the collect-trusted-text job's record holds only fixed shapes, hashing the uploaded bytes", () => {
   const record = step(TEXT, "Record what was read");
   const script = /^ {8}run: \|\n((?: {10}.*\n)+)/m.exec(`${record}\n`)[1].replace(/^ {10}/gm, "");
   const h = harness();

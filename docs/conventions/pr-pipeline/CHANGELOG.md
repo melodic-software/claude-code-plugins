@@ -1,5 +1,65 @@
 # Changelog for the PR pipeline convention
 
+## [10.3.5] - 2026-11-15
+
+### Changed
+
+- The PR pipeline contract docs state rules as current facts, with stale figures corrected and capital-letter emphasis removed.
+
+## [10.3.4] - 2026-11-15
+
+### Changed
+
+- The convention names the read runner's broker jobs, the issue lane's admission gate, the
+  main-run review's gate job and the hosted review callers' kill-switch job by their verb-first
+  ids: `check-broker` (was `broker-check`), `record-broker-allow` (was `broker-allowed`),
+  `check-admission` (was `admit`), `check-trigger` (was `trigger`) and `check-kill-switch` (was
+  `kill-switch`). The "The check-broker job" section replaces "The broker-check job". Each job's
+  display name is its id in Title Case. Skip reasons, gate keys and limit keys named
+  `kill-switch` are unchanged.
+
+## [10.3.3] - 2026-11-15
+
+### Changed
+
+- The convention names the renamed intake, maintenance and post-merge jobs by their verb-first
+  ids, among them intake-triage's `check-born-triaged` and `dispatch-refined-triage`, the lane
+  audit's `assess-units` legs and `collect-key-handoffs`, the tidy lane's `select-areas` and
+  `sweep-areas` legs, the mutation run's `check-range`, `check-key-credit` and `run-mutants`, and
+  the changelog lane's `select-release`, `apply-changelog` and `verify-env-scrub` legs. Each job's
+  display name is its id in Title Case. `key-job` inputs, markers and artifact names not built
+  from a job id are unchanged.
+
+## [10.3.2] - 2026-11-15
+
+### Changed
+
+- The convention names the renamed pull request jobs by their verb-first ids: pr-merge's
+  `dispatch-post-merge-runs`, `report-unarmed-status` and `report-gate-checks`; pr-refine's
+  `check-dispatcher-current`, `select-passes` and `upload-key-credit-markers`; pr-unblock's
+  `check-conflict-scan-refusal` and `check-adjudicator-key-credit`; the hosted reviews'
+  `wait-for-refine`; pr-review-main's `collect-trusted-text`, `collect-subscription-handoffs` and
+  `report-review-counts`; and the read runner's `check-issue-fields` and `generate-reuse-summary`.
+  Each job's display name is its id in Title Case. Check-run names, statuses, markers and artifact
+  names are unchanged.
+
+## [10.3.1] - 2026-11-15
+
+### Changed
+
+- The Verifier verdict section says the capture job matches the changed path names to the control skill's features before its credit gate and records a change that touches none `not-applicable` without starting a model session, and no longer names a `capture-subscription` job.
+
+## [10.3.0] - 2026-11-15
+
+### Added
+
+- The Merge-Risk record's marker names the lane run that opened the pull request:
+  `<!-- merge-risk-line head=<sha> lane=<lane> run=<run id> -->`, read from its
+  `<lane>/issue-<n>-<run id>-<attempt>` branch. A marker for any other branch has neither field,
+  and a record in the earlier shape still reads; the arm's next write for that head adds them,
+  unless the record holds a rating and the new read is unrated. The arm reads the branch from the
+  listing it already makes, so it makes no more calls.
+
 ## [10.2.7] - 2026-11-14
 
 ### Changed

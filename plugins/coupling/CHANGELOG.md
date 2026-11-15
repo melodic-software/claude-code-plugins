@@ -3,6 +3,12 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.20] - 2026-11-15
+
+### Changed
+
+- Tidied the reduce scripts: import order in derivable-list.py, an unused parameter default in value-sites.py, and a missing shellcheck disable reason in collision-hotspots.sh.
+
 ## [0.4.19] - 2026-11-13
 
 ### Changed

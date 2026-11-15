@@ -26,6 +26,13 @@ Rules:
 - **Memory only.** The controls change in-memory data; reloading the page is the same as Reset.
 - **No test ids.** The bar's controls carry no `data-testid`, so the copy-out terminator's
   test-id list holds only the design's own elements.
+- **Seed is deterministic: record *i* is generated from index *i*.** The same presses in the same
+  order rebuild the same records, so a note taken on a seeded row finds that row again after a
+  reload.
+- **Marked for notes.** Each control carries `data-data-control` naming what it does: `seed:<n>`
+  on a Seed button that adds *n* records, `clear`, `reset`, and `toggle:pagination`,
+  `toggle:filter` or `toggle:sort` on a list toggle. The notes host logs presses by these marks,
+  and a re-located note replays them ([feedback.md](feedback.md)).
 
 ## Pagination, filter and sort
 

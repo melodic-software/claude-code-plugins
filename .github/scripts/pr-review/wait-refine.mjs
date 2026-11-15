@@ -1,5 +1,5 @@
 // Decides whether a hosted review run reviews its head now or leaves it to
-// the review a Refine push starts. Run by the wait-refine job of
+// the review a Refine push starts. Run by the wait-for-refine job of
 // pr-review-hosted.yml and pr-review-security-hosted.yml before the review
 // spends a model turn.
 //

@@ -199,6 +199,73 @@ doc comments. Old values still resolve: `strict` and `balanced` as `explanatory`
 deletion still carries the token proof and every tier-2 or tier-3 move still needs a test net. A
 value outside the set is named and its layer dropped.
 
+### Comment lint (git hook and CI)
+
+A `pre-commit` git-hook entry, `comment-lint`, fails a comment a change adds outside the comment
+posture. It detects and never edits; `/code-tidying:remove-comments` is the fix. Two team-file
+settings drive it, both read from `<home>/code-tidying.yaml` only, with no personal override and no
+`userConfig` option:
+
+| Setting | Default | Effect |
+|---|---|---|
+| `comment_lint` | `off` | `off` runs nothing; `report` prints the findings and exits 0; `block` prints them and fails the commit. `off` is the kill switch. |
+| `comment_lint_allow` | `[]` | Extended regular expressions (matched with `grep -E`) for the repository's own comment markers, such as a gate's `# silent-skip-ok:`, and for a tool directive the built-in list lacks. A comment whose text matches one passes. |
+
+The posture comes from `comment_posture` in the team file and its personal override. A git hook
+runs outside Claude Code, so a `userConfig` posture never reaches it; unset reads as `auto`, which
+is `necessary`. Under `explanatory` (and `strict`, `balanced`, `conservative`) the lint does not
+run.
+
+A comment is a comment token of the pygments lexer for the file's name. The lint judges files whose
+extension `scripts/code-extensions.txt` lists, skips a file whose first 10 lines match a line of
+`scripts/generated-marker.ere`, and judges only the lines the change adds. That file counts
+`sync-managed` and `@generated` anywhere, and `do not edit` only as a whole-file notice: at the
+end of the line, before punctuation or `this file`, `this copy`, `by hand`, `manually` or
+`directly`, or on a line that also says `generated`. A hand-written `# do not edit the order
+below` is judged. Under
+`necessary` these pass:
+
+1. A shebang on line 1, an encoding cookie on line 1 or 2.
+2. A tool directive: lint, type-checker, coverage and scanner pragmas, editor modelines, region
+   markers.
+3. A comment run with a license or copyright cue.
+4. `TODO(#issue)`.
+5. A trailing comment on a `uses:` line pinned to a full commit id.
+6. A line carrying `remove-comments-ignore`.
+7. A structured doc comment: a docstring, `///`, `/** */`, PowerShell comment-based help, a Go
+   comment directly above an exported declaration. A script's opening `#` header is not one.
+8. A comment run holding a URL or an RFC number.
+9. The line after a `remove-comments-ignore` or `dissolve-comments-ignore` marker, the
+   `dissolve-comments-ignore` line itself, `FIXME(#issue)`, PowerShell `#Requires` and the
+   signature block, and a suppression's reason on the waiver's line or the line before it.
+
+Under `none`, all but 8 pass. Any other added comment prints
+`<path>:<line>: comment outside the <posture> posture: delete it, move the reason into the code or
+the commit message, or link the outside constraint; /code-tidying:remove-comments fixes it`. An
+outside-constraint note the keep list keeps fails until it carries a link or
+`remove-comments-ignore`.
+
+The lint also judges paths the comment pass excludes by default, such as a workflow file or a hook
+manager's config. Fix a finding there by hand, or run the pass with its `override` argument.
+
+Install it with `/code-tidying:setup apply install-git-hooks`; `check` reports its drift, and the
+session-start probe names a missing or stale copy. It needs `python3` with pygments importable
+(`python3 -m pip install pygments`); either missing follows the check-placement skip key,
+`git -c checks.skipmissing=python3` or `checks.skipmissing=pygments`.
+
+**CI recipe.** CI re-runs the lint on the pull request's change, judged against the base branch's
+settings, so a branch cannot lower its own level:
+
+1. Fetch the base branch and add a detached worktree of the pull request head.
+2. In it, `git reset --soft "$(git merge-base origin/<base> HEAD)"`, so the whole change is the
+   staged diff.
+3. Take the files the settings come from as the base commit holds them, restoring each with
+   `git restore --source=<merge base> --worktree` or deleting it when the base has none: first the
+   root `AGENTS.md` and `CLAUDE.md`, which bind `<home>`, then `<home>/code-tidying.yaml` and
+   `<home>/code-tidying.local.yaml`.
+4. From the worktree, run `sh <plugin>/git-hooks/comment-lint.sh` with Python 3 and pygments on
+   `PATH`; under `block` it exits 1 on a finding.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference

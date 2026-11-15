@@ -291,7 +291,7 @@ test("the done marker uploads only when publish says the release is done", () =>
 // gate.cjs at the pinned SHA): next-leg is `subscription` only while the
 // newest marker named by its `marker` output,
 // `key-credit-stop-<workflow file>-<key-job>`, is inside the window; the
-// model job uploads that name after a credit-stop handoff.
+// apply-changelog job uploads that name after a credit-stop handoff.
 // credential-legs.test.mjs holds every leg's start and credential to the
 // expressions before the action.
 const WORKFLOW = readFileSync(new URL("../../workflows/upstream-apply-changelog.yml", import.meta.url), "utf8");
@@ -311,36 +311,36 @@ const ifOf = (text) => /^ {8}if: (.*)$/m.exec(text)?.[1];
 const MARKER = "key-credit-stop-upstream-apply-changelog.yml-model";
 
 // The scrub probe (#12836): capture-probe.mjs on run-claude-cli, on the release.
-const PROBE_JOB = "scrub-probe";
+const PROBE_JOB = "verify-env-scrub";
 const PROBE_STEP = "Probe what a Bash child can reach";
 const CHECK_STEP = "Check the probe";
 
 test("the scrub probe runs once per release the gate takes, on a read-only token, and nothing waits on it", () => {
   const job = jobOf(PROBE_JOB);
-  assert.match(job, /^ {4}needs: gate$/m);
-  assert.match(job, /^ {4}if: needs\.gate\.outputs\.proceed == 'true' && needs\.gate\.outputs\.next-leg != 'subscription' && github\.run_attempt == '1'$/m);
+  assert.match(job, /^ {4}needs: select-release$/m);
+  assert.match(job, /^ {4}if: needs\.select-release\.outputs\.proceed == 'true' && needs\.select-release\.outputs\.next-leg != 'subscription' && github\.run_attempt == '1'$/m);
   assert.match(job, /^ {4}cache-mode: read$/m);
   assert.deepEqual(/^ {4}permissions:\n((?: {6}.*\n)+)/m.exec(job)[1].trim().split("\n").map((line) => line.trim().split(" #")[0]), ["contents: read"]);
   // Only the later probe legs wait on a probe; no publishing job does.
   const needers = [...WORKFLOW.matchAll(/^ {2}([a-z0-9-]+):\n(?: {4}name: .*\n)? {4}needs: (.*)$/gm)].filter(([, , list]) => list.includes(PROBE_JOB)).map(([, id]) => id);
-  assert.deepEqual(needers, ["scrub-probe-subscription", "scrub-probe-fallback"]);
-  for (const id of ["scan", "push-branches", "publish"]) assert.doesNotMatch(jobOf(id), /needs\.scrub-probe/, id);
+  assert.deepEqual(needers, ["verify-env-scrub-subscription", "verify-env-scrub-fallback"]);
+  for (const id of ["scan", "push-branches", "publish"]) assert.doesNotMatch(jobOf(id), /needs\.verify-env-scrub/, id);
 });
 
 test("the scrub probe runs on each credential a model leg may use, after the same handoffs", () => {
   const probe = (job) => stepIn(job, PROBE_STEP);
-  assert.match(probe("scrub-probe"), /^ {10}api-key: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_API_KEY \}\}$/m);
-  assert.match(probe("scrub-probe-subscription"), /^ {10}subscription-token: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN \}\}\n {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}$/m);
-  assert.match(probe("scrub-probe-fallback"), /^ {10}fallback-token: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN \}\}$/m);
+  assert.match(probe("verify-env-scrub"), /^ {10}api-key: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_API_KEY \}\}$/m);
+  assert.match(probe("verify-env-scrub-subscription"), /^ {10}subscription-token: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN \}\}\n {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}$/m);
+  assert.match(probe("verify-env-scrub-fallback"), /^ {10}fallback-token: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN \}\}$/m);
   // Each leg's probe looks for its own credential's name.
-  for (const [job, name] of [["scrub-probe", "ISSUE_LANE_CLAUDE_API_KEY"], ["scrub-probe-subscription", "ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN"], ["scrub-probe-fallback", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"]]) {
+  for (const [job, name] of [["verify-env-scrub", "ISSUE_LANE_CLAUDE_API_KEY"], ["verify-env-scrub-subscription", "ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN"], ["verify-env-scrub-fallback", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"]]) {
     assert.match(probe(job), new RegExp(`^ {10}CAPTURE_PROBE_EXTRA_NAMES: ${name}$`, "m"), job);
     assert.match(stepIn(job, CHECK_STEP), new RegExp(`^ {10}KEY_NAME: ${name}$`, "m"), job);
     assert.equal(ifOf(stepIn(job, CHECK_STEP)), "always() && steps.probe.outcome != 'skipped' && steps.probe.outputs.handoff != 'true'", job);
   }
   const folded = (job) => (/^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobOf(job))?.[1] ?? "").replace(/\s+/g, " ").trim();
-  assert.match(folded("scrub-probe-subscription"), /\(needs\.scrub-probe\.outputs\.next-leg == 'subscription' \|\| needs\.gate\.outputs\.next-leg == 'subscription'\)/);
-  assert.match(folded("scrub-probe-fallback"), /needs\.scrub-probe-subscription\.outputs\.next-leg == 'fallback'/);
+  assert.match(folded("verify-env-scrub-subscription"), /\(needs\.verify-env-scrub\.outputs\.next-leg == 'subscription' \|\| needs\.select-release\.outputs\.next-leg == 'subscription'\)/);
+  assert.match(folded("verify-env-scrub-fallback"), /needs\.verify-env-scrub-subscription\.outputs\.next-leg == 'fallback'/);
 });
 
 test("the key reaches the probe's run-claude-cli step alone, and that step runs the release's CLI after isolation", () => {
@@ -350,7 +350,7 @@ test("the key reaches the probe's run-claude-cli step alone, and that step runs 
   const probe = stepIn(PROBE_JOB, PROBE_STEP);
   assert.match(probe, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} /m);
   assert.match(probe, /^ {10}api-key: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_API_KEY \}\}$/m);
-  assert.match(probe, /^ {10}cli-version: \$\{\{ needs\.gate\.outputs\.release \}\}$/m);
+  assert.match(probe, /^ {10}cli-version: \$\{\{ needs\.select-release\.outputs\.release \}\}$/m);
   assert.match(probe, /^ {10}CAPTURE_PROBE_EXTRA_NAMES: ISSUE_LANE_CLAUDE_API_KEY$/m);
   assert.match(probe, /^ {10}permission-mode: dontAsk$/m);
   // A handoff ends the job green; the check carries every other failure.
@@ -447,7 +447,7 @@ const SELECT = /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/se
 
 test("the gate reads the key's credit history through select-model-credential's start call once a release is picked", () => {
   assert.doesNotMatch(WORKFLOW, /check-key-credit@/);
-  const gate = stepIn("gate", "Read the key's credit history");
+  const gate = stepIn("select-release", "Read the key's credit history");
   assert.match(gate, /^ {8}id: credit$/m);
   assert.equal(ifOf(gate), "steps.gate.outputs.proceed == 'true'");
   assert.match(gate, /^ {8}continue-on-error: true$/m);
@@ -459,22 +459,22 @@ test("the gate reads the key's credit history through select-model-credential's 
   assert.match(gate, /^ {10}window-hours: \$\{\{ vars\.KEY_CREDIT_WINDOW_HOURS \}\}$/m);
   assert.match(gate, /^ {10}reset-at: \$\{\{ vars\.KEY_CREDIT_RESET_AT \}\}$/m);
   assert.match(gate, /^ {10}probe-minutes: "0"$/m);
-  assert.ok(indexIn("gate", "Pick the release") < indexIn("gate", "Read the key's credit history"));
-  assert.ok(indexIn("gate", "Report the credit skip") > indexIn("gate", "Read the key's credit history"));
-  assert.match(jobOf("gate"), /^ {6}actions: read\b/m);
+  assert.ok(indexIn("select-release", "Pick the release") < indexIn("select-release", "Read the key's credit history"));
+  assert.ok(indexIn("select-release", "Report the credit skip") > indexIn("select-release", "Read the key's credit history"));
+  assert.match(jobOf("select-release"), /^ {6}actions: read\b/m);
   // Every credential call is the same pinned action.
   const uses = [...WORKFLOW.matchAll(/^ {8}uses: (melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@.*)$/gm)].map((m) => m[1]);
   assert.equal(new Set(uses).size, 1, uses.join("\n"));
 });
 
 test("a skipped key runs no key leg, records no start in the gate, and names the run whose credit stop holds it off", (t) => {
-  assert.ok(!jobOf("gate").includes("upstream-apply-changelog-started"));
-  assert.match(jobOf("gate"), /^ {6}next-leg: \$\{\{ steps\.credit\.outputs\.next-leg \}\}$/m);
-  assert.match(jobOf("gate"), /^ {6}credit-marker: \$\{\{ steps\.credit\.outputs\.marker \}\}$/m);
-  assert.match(jobOf("model"), /^ {4}if: needs\.gate\.outputs\.proceed == 'true' && needs\.gate\.outputs\.next-leg != 'subscription' && github\.run_attempt == '1'$/m);
-  const report = stepIn("gate", "Report the credit skip");
+  assert.ok(!jobOf("select-release").includes("upstream-apply-changelog-started"));
+  assert.match(jobOf("select-release"), /^ {6}next-leg: \$\{\{ steps\.credit\.outputs\.next-leg \}\}$/m);
+  assert.match(jobOf("select-release"), /^ {6}credit-marker: \$\{\{ steps\.credit\.outputs\.marker \}\}$/m);
+  assert.match(jobOf("apply-changelog"), /^ {4}if: needs\.select-release\.outputs\.proceed == 'true' && needs\.select-release\.outputs\.next-leg != 'subscription' && github\.run_attempt == '1'$/m);
+  const report = stepIn("select-release", "Report the credit skip");
   assert.equal(ifOf(report), "steps.credit.outputs.next-leg == 'subscription'");
-  assert.equal(ifOf(stepIn("gate", "Report the skipped key leg")), "steps.credit.outputs.next-leg == 'subscription'");
+  assert.equal(ifOf(stepIn("select-release", "Report the skipped key leg")), "steps.credit.outputs.next-leg == 'subscription'");
   assert.match(report, /ORIGIN_RUN: \$\{\{ steps\.credit\.outputs\.origin-run \}\}/);
   const run = report.split(/^ {8}run: \|\n/m)[1].replace(/^ {10}/gm, "");
   const dir = mkdtempSync(join(tmpdir(), "credit-skip-"));
@@ -488,19 +488,19 @@ test("a skipped key runs no key leg, records no start in the gate, and names the
   assert.equal(readFileSync(summary, "utf8"), out.replace(/^::notice::/, ""));
 });
 
-test("the model job uploads the gate's marker only after the leg's credit-stop handoff, scanned, for one day", () => {
-  const write = stepIn("model", "Write the key's credit-stop marker");
+test("the apply-changelog job uploads the gate's marker only after the leg's credit-stop handoff, scanned, for one day", () => {
+  const write = stepIn("apply-changelog", "Write the key's credit-stop marker");
   assert.match(write, /^ {8}id: credit-marker$/m);
-  assert.equal(ifOf(write), `always() && needs.gate.outputs.credit-marker == '${MARKER}' && steps.run.outputs.handoff-reason == 'credit-stop'`);
+  assert.equal(ifOf(write), `always() && needs.select-release.outputs.credit-marker == '${MARKER}' && steps.run.outputs.handoff-reason == 'credit-stop'`);
   assert.match(write, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-stop\/run-id"/);
-  assert.ok(indexIn("model", "Run the changelog apply") < indexIn("model", "Write the key's credit-stop marker"));
-  assert.ok(indexIn("model", "Check out the base for the sealer") < indexIn("model", "Write the key's credit-stop marker"));
-  const scan = stepIn("model", "Scan the key's credit-stop marker for credentials");
+  assert.ok(indexIn("apply-changelog", "Run the changelog apply") < indexIn("apply-changelog", "Write the key's credit-stop marker"));
+  assert.ok(indexIn("apply-changelog", "Check out the base for the sealer") < indexIn("apply-changelog", "Write the key's credit-stop marker"));
+  const scan = stepIn("apply-changelog", "Scan the key's credit-stop marker for credentials");
   assert.match(scan, /^ {8}id: credit-marker-scan$/m);
   assert.equal(ifOf(scan), "always() && steps.credit-marker.outcome == 'success'");
   assert.match(scan, /^ {8}uses: \.\/\.lane-trusted\/\.github\/actions\/scan-upload /m);
   assert.match(scan, /^ {10}path: \$\{\{ runner\.temp \}\}\/key-credit-stop\/run-id$/m);
-  const upload = stepIn("model", "Upload the key's credit-stop marker");
+  const upload = stepIn("apply-changelog", "Upload the key's credit-stop marker");
   assert.equal(ifOf(upload), "(always() && steps.credit-marker.outcome == 'success') && steps.credit-marker-scan.outputs.clean == 'true'");
   assert.match(upload, new RegExp(`^ {10}name: ${MARKER.replace(/\./g, "\\.")}$`, "m"));
   assert.match(upload, /^ {10}path: \$\{\{ runner\.temp \}\}\/key-credit-stop\/run-id$/m);
@@ -523,7 +523,7 @@ const evalIf = (expr, values) =>
   )();
 // The steps that write the start record, one per leg: the cap counts one
 // record per such write, and only one leg of a run writes it.
-const LEGS = ["model", "model-subscription", "model-fallback"];
+const LEGS = ["apply-changelog", "apply-changelog-subscription", "apply-changelog-fallback"];
 const startWrite = (job) => ifOf(stepIn(job, "Record the start"));
 test("only the three model legs write a start record", () => {
   const found = WORKFLOW.split(/\n(?= {6}- name: )/).filter((s) => /\/started\b/.test(s) && /printf '%s\\n' "\$RELEASE" >"[^"]*\/release\.txt"$/m.test(s));
@@ -539,7 +539,7 @@ const leg = (over) => ({
 });
 
 test("a leg that hands off writes no start record, so only the leg that runs the release counts toward the cap", () => {
-  for (const job of ["model", "model-subscription"]) {
+  for (const job of ["apply-changelog", "apply-changelog-subscription"]) {
     for (const reason of ["credit-stop", "auth", "limit-stop"]) {
       assert.equal(evalIf(startWrite(job), leg({ "steps.run.outputs.handoff": "true", "steps.run.outputs.handoff-reason": reason })), false, `${job} ${reason}`);
     }
@@ -547,8 +547,8 @@ test("a leg that hands off writes no start record, so only the leg that runs the
     assert.equal(evalIf(startWrite(job), leg({ "steps.credential.outputs.present": "false", "steps.run.outcome": "skipped" })), false, `${job} empty credential`);
   }
   // The last leg never hands off, so a set token always counts.
-  assert.equal(evalIf(startWrite("model-fallback"), leg({ "steps.run.outputs.handoff": "true" })), true);
-  assert.equal(evalIf(startWrite("model-fallback"), leg({ "steps.credential.outputs.present": "false", "steps.run.outcome": "skipped" })), false);
+  assert.equal(evalIf(startWrite("apply-changelog-fallback"), leg({ "steps.run.outputs.handoff": "true" })), true);
+  assert.equal(evalIf(startWrite("apply-changelog-fallback"), leg({ "steps.credential.outputs.present": "false", "steps.run.outcome": "skipped" })), false);
 });
 
 test("a leg that ran writes a start record on success and on any failure it does not hand off", () => {
@@ -595,7 +595,7 @@ test("each leg writes, scans and uploads the start record after the leg", () => 
     const record = stepIn(job, "Record the start");
     assert.match(record, /^ {8}id: start$/m);
     assert.match(record, /rm -rf "\$\{RUNNER_TEMP:\?\}\/started"/);
-    assert.match(record, /^ {10}RELEASE: \$\{\{ needs\.gate\.outputs\.release \}\}$/m);
+    assert.match(record, /^ {10}RELEASE: \$\{\{ needs\.select-release\.outputs\.release \}\}$/m);
     const scan = stepIn(job, "Scan the start record for credentials");
     assert.equal(ifOf(scan), "always() && steps.start.outcome == 'success'");
     assert.match(scan, /^ {8}uses: \.\/\.lane-trusted\/\.github\/actions\/scan-upload /m);
@@ -609,13 +609,13 @@ test("each leg writes, scans and uploads the start record after the leg", () => 
     assert.ok(indexIn(job, "Record the start") < indexIn(job, "Scan the start record for credentials"));
     assert.ok(indexIn(job, "Scan the start record for credentials") < indexIn(job, "Upload the start record"));
   }
-  assert.ok(indexIn("model", "Upload the key's credit-stop marker") < indexIn("model", "Record the start"));
+  assert.ok(indexIn("apply-changelog", "Upload the key's credit-stop marker") < indexIn("apply-changelog", "Record the start"));
   const row = JSON.parse(readFileSync(new URL("../../artifact-retention.json", import.meta.url), "utf8")).families[STARTED_ARTIFACT];
   assert.equal(row.scan, "upload");
 });
 
 test("a key handoff writes a job summary line naming the subscription leg that takes the release", (t) => {
-  const step = stepIn("model", "Report the key's handoff");
+  const step = stepIn("apply-changelog", "Report the key's handoff");
   assert.equal(ifOf(step), "always() && steps.run.outputs.handoff == 'true'");
   const run = step.split(/^ {8}run: \|\n/m)[1].replace(/^ {10}/gm, "");
   const dir = mkdtempSync(join(tmpdir(), "credit-stop-"));
@@ -630,31 +630,31 @@ test("a key handoff writes a job summary line naming the subscription leg that t
     assert.equal(readFileSync(summary, "utf8"), out.replace(/^::warning::/, ""));
     return out;
   };
-  assert.match(report("credit-stop"), /^::warning::ISSUE_LANE_CLAUDE_API_KEY hit a credit stop \(class credit-stop\); model-subscription runs release 2\.1\.318 on the subscription token$/m);
-  assert.match(report("auth"), /^::warning::the API refused ISSUE_LANE_CLAUDE_API_KEY \(class auth\);.*model-subscription runs release 2\.1\.318/m);
+  assert.match(report("credit-stop"), /^::warning::ISSUE_LANE_CLAUDE_API_KEY hit a credit stop \(class credit-stop\); apply-changelog-subscription runs release 2\.1\.318 on the subscription token$/m);
+  assert.match(report("auth"), /^::warning::the API refused ISSUE_LANE_CLAUDE_API_KEY \(class auth\);.*apply-changelog-subscription runs release 2\.1\.318/m);
 });
 
 test("the subscription leg runs after a key handoff, an empty key or a credit-gate skip, and the fallback leg after a subscription handoff", () => {
   const folded = (job) => (/^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobOf(job))?.[1] ?? "").replace(/\s+/g, " ").trim().replace(/^\$\{\{ (.*) \}\}$/, "$1");
   // Each leg starts on the leg the one before it names (credential-legs.test.mjs
   // drives these through every state).
-  assert.equal(folded("model-subscription"), "!cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1' && (needs.model.outputs.next-leg == 'subscription' || needs.gate.outputs.next-leg == 'subscription')");
-  assert.equal(folded("model-fallback"), "!cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1' && needs.model-subscription.outputs.next-leg == 'fallback'");
+  assert.equal(folded("apply-changelog-subscription"), "!cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1' && (needs.apply-changelog.outputs.next-leg == 'subscription' || needs.select-release.outputs.next-leg == 'subscription')");
+  assert.equal(folded("apply-changelog-fallback"), "!cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1' && needs.apply-changelog-subscription.outputs.next-leg == 'fallback'");
   // The empty-token run counts toward the cap once, on the fallback leg.
-  assert.equal(evalIf(startWrite("model-subscription"), leg({ "steps.credential.outputs.present": "false", "steps.run.outcome": "skipped" })), false);
-  assert.equal(evalIf(startWrite("model-fallback"), leg({ "steps.run.outcome": "success" })), true);
-  assert.match(jobOf("model-subscription"), /^ {4}needs: \[gate, model\]$/m);
-  assert.match(jobOf("model-fallback"), /^ {4}needs: \[gate, model-subscription\]$/m);
+  assert.equal(evalIf(startWrite("apply-changelog-subscription"), leg({ "steps.credential.outputs.present": "false", "steps.run.outcome": "skipped" })), false);
+  assert.equal(evalIf(startWrite("apply-changelog-fallback"), leg({ "steps.run.outcome": "success" })), true);
+  assert.match(jobOf("apply-changelog-subscription"), /^ {4}needs: \[select-release, apply-changelog\]$/m);
+  assert.match(jobOf("apply-changelog-fallback"), /^ {4}needs: \[select-release, apply-changelog-subscription\]$/m);
   // One credential per leg, each passed to run-claude-cli alone.
   const run = (job) => stepIn(job, "Run the changelog apply");
-  assert.match(run("model"), /^ {10}api-key: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_API_KEY \}\}$/m);
-  assert.match(run("model-subscription"), /^ {10}subscription-token: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN \}\}\n {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}$/m);
-  assert.match(run("model-fallback"), /^ {10}fallback-token: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN \}\}$/m);
+  assert.match(run("apply-changelog"), /^ {10}api-key: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_API_KEY \}\}$/m);
+  assert.match(run("apply-changelog-subscription"), /^ {10}subscription-token: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN \}\}\n {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}$/m);
+  assert.match(run("apply-changelog-fallback"), /^ {10}fallback-token: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN \}\}$/m);
   // Each leg seals under its own job id, and the scan opens the leg that ran.
   for (const job of LEGS) assert.match(stepIn(job, "Seal the plan and the branches"), new RegExp(`^ {10}JOB_ID: ${job}$`, "m"), job);
-  assert.match(stepIn("scan", "Open the model job's sealed payloads"), /job-id: \$\{\{ needs\.model-fallback\.result != 'skipped' && 'model-fallback' \|\| needs\.model-subscription\.result != 'skipped' && 'model-subscription' \|\| 'model' \}\}/);
+  assert.match(stepIn("scan", "Open the apply-changelog job's sealed payloads"), /job-id: \$\{\{ needs\.apply-changelog-fallback\.result != 'skipped' && 'apply-changelog-fallback' \|\| needs\.apply-changelog-subscription\.result != 'skipped' && 'apply-changelog-subscription' \|\| 'apply-changelog' \}\}/);
   // Only the key leg writes the credit gate's marker.
-  for (const job of ["model-subscription", "model-fallback"]) assert.doesNotMatch(jobOf(job), /key-credit-stop/, job);
+  for (const job of ["apply-changelog-subscription", "apply-changelog-fallback"]) assert.doesNotMatch(jobOf(job), /key-credit-stop/, job);
 });
 
 // The legs are the key leg's steps but for the credential, the marker, the
@@ -671,8 +671,8 @@ test("the subscription and fallback legs repeat the key leg's steps", () => {
           .replace(/^ {10}(?:api-key|subscription-token|fallback-token|fallback-ready|fallback-reason|JOB_ID): .*(?:\n|$)/gm, "")
           .replace(/ && steps\.run\.outputs\.handoff != 'true'/, ""),
       );
-  assert.deepEqual(shape("model-subscription"), shape("model"));
-  assert.deepEqual(shape("model-fallback"), shape("model"));
+  assert.deepEqual(shape("apply-changelog-subscription"), shape("apply-changelog"));
+  assert.deepEqual(shape("apply-changelog-fallback"), shape("apply-changelog"));
 });
 
 test("the gate stops a fourth real run inside 24 hours and lets a third through", async (t) => {

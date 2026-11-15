@@ -50,7 +50,7 @@ Suno documents none of these techniques. They are probabilistic rather than dete
 
 **Evidence note:** Three community guides/wikis were read for the harmony question above, not forum threads. `site:reddit.com` search returned nothing relevant to it, and **r/SunoAI has still not been read on the Cover-harmony question specifically**. The documented-absence finding above rests on the guides and on first-party silence.
 
-**Reaching r/SunoAI.** Web-search and direct-fetch routes to reddit.com both fail; a browser session reaches it, so sweep this subreddit through the browser route rather than search. A voice-cloning thread read that way on 2026-08-11 is recorded in `voices.md` under "Two-stage bootstrap for non-singers"; nothing in it bears on Cover harmony.
+**Reaching r/SunoAI.** Sweep this subreddit through a browser session rather than web search or a direct fetch. A voice-cloning thread read that way on 2026-08-11 is recorded in `voices.md` under "Two-stage bootstrap for non-singers"; nothing in it bears on Cover harmony.
 
 **Recheck trigger:** a first-party Suno source (`help.suno.com` or `suno.com/blog`) documents chord-progression or harmonic-nudge support for Cover, **or** a further r/SunoAI sweep run through the browser route above turns up a thread bearing on Cover harmony specifically, **or** `suno.com/pricing` changes the Free / Pro / Premier upload-limit figures used throughout the recipes below. Not a date.
 

@@ -174,7 +174,7 @@ them, that is a finding to raise, not a guard to delete.
   state, assignees, labels, type, blocked_by_count, blocked_by_wont_do_count, parent_id,
   url, created_at, milestone`. A mapping that plans to carry spec text through the seam is designing against a
   field that does not exist.
-- **`blocked_by_count` counts OPEN blockers, plus any closed as won't-do.** Counting every
+- **`blocked_by_count` counts open blockers, plus any closed as won't-do.** Counting every
   closed one is the bug that keeps an item off the frontier forever. GitHub's own
   `totalCount` gets this wrong, which is why the bundled adapter counts nodes itself.
   Reading a close reason is optional: when the provider records one, a blocker closed as

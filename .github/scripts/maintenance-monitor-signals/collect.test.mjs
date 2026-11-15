@@ -247,7 +247,7 @@ const routes = () => [
   ],
 ];
 
-// A pr-merge-post-merge-report artifact's two files, as post-merge-dispatch
+// A pr-merge-post-merge-report artifact's two files, as dispatch-post-merge-runs
 // writes them: the exit code with a newline, and the check's JSON.
 // The reason a real exit-3 report carried (pr-merge run 41067582241, 2026-10-30).
 const CAP = "unreadable: post-merge-detect-silent-revert.yml push runs: total_count 1239, 1000 returned, at the 1000-run search cap";
@@ -984,7 +984,7 @@ test("post-merge reports: none from the last 70 minutes is a gap, not a clear", 
   }
 });
 
-// post-merge-dispatch keeps its report before the merge and enable-auto-merge
+// dispatch-post-merge-runs keeps its report before the merge and enable-auto-merge
 // jobs that need it finish, so the newest report usually comes from a run
 // still in progress (#11382 review).
 test("post-merge reports: a still-running sweep's report is read first; the budget source waits for it to complete", async () => {
@@ -1590,15 +1590,15 @@ test("lane holds: pr-verify reads up to its own cap of 80 runs and 5 list pages"
 });
 
 // pr-review-main green runs: 7000 held in a matrix leg, 7001 held in the
-// trigger job, 7002 reviewed with no hold. Listed through REST, only 70001
+// check-trigger job, 7002 reviewed with no hold. Listed through REST, only 70001
 // and 70010 have their annotations read; Record (70021) is no hold job.
 const reviewJob = (id, name, held) => ({ id, name, conclusion: "success", steps: [{ name: "Select a lane-source pull request", conclusion: "success" }, { name: "Note the hold", conclusion: held ? "success" : "skipped" }] });
 const unreadList = "held: the file list did not read (HTTP 502); no review, and the lost-run reconciler re-runs this run once";
 const reviewRoutes = () => [
   [/workflows\/pr-review-main\.yml\/runs/, { workflow_runs: [7000, 7001, 7002].map((id, i) => run(id, { event: "workflow_run", updated_at: `2026-10-19T16:0${i}:00Z` })).reverse() }],
-  [/runs\/7000\/jobs/, { jobs: [reviewJob(70000, "Trigger", false), reviewJob(70001, "Review (claude-review, claude-review)", true), reviewJob(70002, "Review (claude-security-review, claude-security-review)", false)] }],
-  [/runs\/7001\/jobs/, { jobs: [reviewJob(70010, "Trigger", true)] }],
-  [/runs\/7002\/jobs/, { jobs: [reviewJob(70020, "Trigger", false), reviewJob(70021, "Record", true)] }],
+  [/runs\/7000\/jobs/, { jobs: [reviewJob(70000, "Check Trigger", false), reviewJob(70001, "Review (claude-review, claude-review)", true), reviewJob(70002, "Review (claude-security-review, claude-security-review)", false)] }],
+  [/runs\/7001\/jobs/, { jobs: [reviewJob(70010, "Check Trigger", true)] }],
+  [/runs\/7002\/jobs/, { jobs: [reviewJob(70020, "Check Trigger", false), reviewJob(70021, "Record", true)] }],
   [/check-runs\/70001\/annotations/, [notice("pr-review-main", unreadList)]],
   [/check-runs\/70010\/annotations/, [notice("pr-review-main", unreadList)]],
   [/check-runs\/700[02][02]\/annotations/, []],
@@ -1607,7 +1607,7 @@ const reviewRoutes = () => [
 
 const REVIEW_JOBS = [70000, 70001, 70002, 70010, 70020, 70021];
 
-test("lane holds: pr-review-main counts a held trigger job or matrix leg, reading REST-listed annotations only where Note the hold ran", async () => {
+test("lane holds: pr-review-main counts a held check-trigger job or matrix leg, reading REST-listed annotations only where Note the hold ran", async () => {
   const api = fakeApi(reviewRoutes());
   const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
   assert.deepEqual(data.gaps, []);
@@ -1616,6 +1616,15 @@ test("lane holds: pr-review-main counts a held trigger job or matrix leg, readin
     [7000, "file list unread"],
   ]);
   assert.deepEqual(restAnnotationReads(api, REVIEW_JOBS), [70001, 70010]);
+});
+
+test("lane holds: pr-review-main counts a held check-trigger job under its name or id from before the rename", async () => {
+  const withTrigger = (name) =>
+    reviewRoutes().map(([pattern, body]) => (String(pattern) === String(/runs\/7001\/jobs/) ? [pattern, { jobs: [reviewJob(70010, name, true)] }] : [pattern, body]));
+  const held = async (name) =>
+    (await collect(input(fakeApi(withTrigger(name)), { holds: { rule: RULE, carried: CARRIED } }))).laneHolds.filter((h) => h.lane === "pr-review-main").map((h) => h.runId);
+  for (const name of ["Trigger", "trigger", "check-trigger"]) assert.deepEqual(await held(name), [7001, 7000], name);
+  for (const name of ["Check Triggers", "Triggers"]) assert.deepEqual(await held(name), [7000], `${name}: a job of another name is no hold job`);
 });
 
 test("lane holds: pr-review-main's runs are listed through GraphQL, with no REST jobs or annotations read, and find the same holds", async () => {
@@ -1897,7 +1906,7 @@ test("with node ids listed, job lists and annotations are read through GraphQL a
     .concat(["check-runs/100/", "check-runs/300/", "check-runs/810/", "check-runs/850/", "check-runs/870/", "check-runs/70001/"]);
   assert.deepEqual(restGets(gql), restGets(rest).filter((c) => !replaced.some((p) => c.includes(p))));
   for (const path of replaced) assert.ok(restGets(rest).some((c) => c.includes(path)), `the REST read makes ${path}`);
-  // pr-review-main's trigger job, whose Note the hold was skipped: a REST list
+  // pr-review-main's check-trigger job, whose Note the hold was skipped: a REST list
   // shows it, so its annotations go unread; a GraphQL list does not, so they are read in the batch.
   assert.ok(!restGets(rest).some((c) => c.includes("check-runs/70000/")));
   assert.ok(nodeQueries(gql).some((q) => q.variables.ids.includes("CR_70000")));

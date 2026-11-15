@@ -18,7 +18,7 @@ name: PR Review Main
 # (write-verdict.mjs); only a
 # run's own steps can upload its artifacts, so the gate authenticates the
 # name through this run's record (path, workflow_run event, main, completed
-# success). The review job's token can only read; the record job, which runs
+# success). The review job's token can only read; the report-review-counts job, which runs
 # no model, posts only each verdict's counts as a check run.
 #
 # Each lane runs one leg on the reviews role's credentials, in the review
@@ -35,9 +35,9 @@ name: PR Review Main
 # when that leg started (workflow.test.mjs holds them equal). A matrix job's
 # outputs merge, so each lane's handoff reason is its own output, set after
 # run-claude-cli restored the step files; review-handoffs and
-# subscription-handoffs, which hold no secret and run no model, check each
+# collect-subscription-handoffs, which hold no secret and run no model, check each
 # reason against a closed set and give the next leg fixed lane rows. Every
-# leg writes the same verdict, so the record job and the gate never see
+# leg writes the same verdict, so the report-review-counts job and the gate never see
 # which leg ran; the lane record names the credential and why it ran. A
 # lane no leg leaves a verdict for (a kill switch, a failure, the last leg
 # stopping) stays unbound, as it was before this workflow. A run that failed
@@ -46,13 +46,13 @@ name: PR Review Main
 # first attempt held green on a file list it could not read (Note the hold);
 # otherwise the next push reviews again.
 #
-# The trigger job reads the PR's files, then runs the trigger gate only for a
+# The check-trigger job reads the PR's files, then runs the trigger gate only for a
 # lane-source PR whose head both lanes have not already reviewed (a verdict the
 # merge gate binds), once per run; no leg starts otherwise. The key leg
 # takes its result, a boolean, the PR number and two SHAs checked against
 # fixed shapes, only from the same run attempt, and gates
 # itself otherwise. The later legs gate themselves at their own start. The
-# trusted-text job reads the trusted pull request text once per run; a leg
+# collect-trusted-text job reads the trusted pull request text once per run; a leg
 # takes it only when it matches the leg, and otherwise reads its own.
 #
 # Every local action runs from the main checkout at ./.base. zizmor's
@@ -90,7 +90,7 @@ defaults:
     shell: bash
 
 env:
-  # How old the trusted-text job's read may be when a leg takes it
+  # How old the collect-trusted-text job's read may be when a leg takes it
   # (take-shared-text.sh): past it the leg reads its own. It covers the read
   # job's 10-minute timeout and the key leg's start; a later leg that waited
   # out a key leg's 22-minute model step reads its own.
@@ -101,12 +101,12 @@ jobs:
   # per run for both of the review job's lanes. Its outputs are fixed shapes
   # only (booleans, the PR number, SHAs, the run attempt), each checked
   # against a fixed shape by the lane; never head-ref or other PR text. A lane uses them only from this run attempt: a lane a person re-runs
-  # alone ("re-run failed jobs" or one job) keeps an earlier attempt's trigger
+  # alone ("re-run failed jobs" or one job) keeps an earlier attempt's check-trigger
   # job, so it gates itself, as every later leg does. The lost-run reconciler
   # re-runs a lane run in full (reconcile.mjs, the lane kind), so this job
   # re-runs too and its own gate checks the reconciler's record.
-  trigger:
-    name: Trigger
+  check-trigger:
+    name: Check Trigger
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
@@ -118,7 +118,7 @@ jobs:
       contents: read # check out main
       pull-requests: read # the PR and its files
       actions: read # the upstream run the trigger gate reads; the verdicts already uploaded
-      checks: read # the record job's check runs on the head
+      checks: read # the report-review-counts job's check runs on the head
     outputs:
       run-attempt: ${{ github.run_attempt }}
       proceed: ${{ steps.gate.outputs.proceed }}
@@ -152,7 +152,7 @@ jobs:
           path: .base
           persist-credentials: false
 
-      # The main commit the trusted-text job checks out, and a lane's later
+      # The main commit the collect-trusted-text job checks out, and a lane's later
       # leg when the credit gate skipped its key leg, which would have
       # recorded its own.
       - name: Record the main commit
@@ -227,7 +227,7 @@ jobs:
       # on what this step reads as the gate does (babysit_gh
       # collect_main_reviews, collect_main_review_counts): a verdict artifact
       # for the PR and the head's tree, from a pr-review-main run on main that
-      # completed with success, naming this head, beside the record job's
+      # completed with success, naming this head, beside the report-review-counts job's
       # check run with its counts. A verdict counts only when its run's main
       # commit (the run's head_sha) has no diff from main's tip over the paths
       # criteria.txt lists, so one judged under other criteria reviews again;
@@ -442,20 +442,20 @@ jobs:
   # is tried once it ends. Once that stop is past the window but still kept,
   # a second read lists the probing marker: the first gate after the window
   # uploads it and passes the key, and later gates skip while it is fresh, so
-  # one run tries the key. Only a run whose trigger job starts the key legs
+  # one run tries the key. Only a run whose check-trigger job starts the key legs
   # reports them skipped or hands them on. It holds no secret, checks
   # nothing out and reads only this repository's marker artifacts. Every
   # failure runs the key and writes no probe: the review job's `if` starts
   # with !cancelled().
   review-handoffs-credit:
     name: Review Handoffs Credit
-    needs: trigger
+    needs: check-trigger
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
-      && needs.trigger.outputs.run-attempt == github.run_attempt
+      && needs.check-trigger.outputs.run-attempt == github.run_attempt
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     cache-mode: none
@@ -489,7 +489,7 @@ jobs:
       # artifact upload uses the runner's token, so the job keeps actions: read.
       - name: Write the key's probing marker
         id: probe-marker
-        if: always() && steps.gate.outputs.probing-marker == 'key-credit-probing-pr-review-main.yml-review-handoffs' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true'
+        if: always() && steps.gate.outputs.probing-marker == 'key-credit-probing-pr-review-main.yml-review-handoffs' && needs.check-trigger.outputs.proceed == 'true' && needs.check-trigger.outputs.review != 'false' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true'
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -519,7 +519,7 @@ jobs:
       # Each skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped claude-review key leg
-        if: steps.gate.outputs.next-leg == 'subscription' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true'
+        if: steps.gate.outputs.next-leg == 'subscription' && needs.check-trigger.outputs.proceed == 'true' && needs.check-trigger.outputs.review == 'true' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -531,7 +531,7 @@ jobs:
           handoff: "true"
 
       - name: Report the skipped claude-security-review key leg
-        if: steps.gate.outputs.next-leg == 'subscription' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true'
+        if: steps.gate.outputs.next-leg == 'subscription' && needs.check-trigger.outputs.proceed == 'true' && needs.check-trigger.outputs.review == 'true' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -557,21 +557,21 @@ jobs:
   # was read for; a leg takes it only when all of those match its own, and
   # otherwise reads its own (take-shared-text.sh). It never fails the run: a
   # read, scan or upload that fails leaves no hash, so each leg reads its own.
-  trusted-text:
-    name: Trusted Text
-    needs: trigger
+  collect-trusted-text:
+    name: Collect Trusted Text
+    needs: check-trigger
     if: >-
       !cancelled()
-      && needs.trigger.result == 'success'
+      && needs.check-trigger.result == 'success'
       && github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
-      && needs.trigger.outputs.run-attempt == github.run_attempt
-      && needs.trigger.outputs.proceed == 'true'
-      && needs.trigger.outputs.review == 'true'
-      && needs.trigger.outputs.judged != 'true'
-      && needs.trigger.outputs.held != 'true'
+      && needs.check-trigger.outputs.run-attempt == github.run_attempt
+      && needs.check-trigger.outputs.proceed == 'true'
+      && needs.check-trigger.outputs.review == 'true'
+      && needs.check-trigger.outputs.judged != 'true'
+      && needs.check-trigger.outputs.held != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     continue-on-error: true
@@ -590,7 +590,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         continue-on-error: true
         with:
-          ref: ${{ needs.trigger.outputs.main-sha }}
+          ref: ${{ needs.check-trigger.outputs.main-sha }}
           path: .base
           persist-credentials: false
 
@@ -638,7 +638,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
-          pr-number: ${{ needs.trigger.outputs.pr-number }}
+          pr-number: ${{ needs.check-trigger.outputs.pr-number }}
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           output-path: ${{ runner.temp }}/pr-review-main-text/context.json
           github-token: ${{ github.token }}
@@ -672,8 +672,8 @@ jobs:
         continue-on-error: true
         env:
           FILE: ${{ runner.temp }}/pr-review-main-text/context.json
-          PR_NUMBER: ${{ needs.trigger.outputs.pr-number }}
-          HEAD_SHA: ${{ needs.trigger.outputs.head-sha }}
+          PR_NUMBER: ${{ needs.check-trigger.outputs.pr-number }}
+          HEAD_SHA: ${{ needs.check-trigger.outputs.head-sha }}
         run: |
           main=$(git -C .base rev-parse --verify HEAD)
           sum=$(sha256sum "$FILE" | awk '{ print $1 }')
@@ -693,23 +693,23 @@ jobs:
         with:
           tokens: github-token
 
-  # No leg starts when the trigger job of this attempt found no lane source
+  # No leg starts when the check-trigger job of this attempt found no lane source
   # or a head both lanes already reviewed: the leg would review nothing. A
   # leg re-run alone in a later attempt starts and gates itself. With the
   # key out of credit, review-handoffs-credit skips this job.
   review:
     name: Review
-    needs: [trigger, review-handoffs-credit, trusted-text]
+    needs: [check-trigger, review-handoffs-credit, collect-trusted-text]
     if: >-
       needs.review-handoffs-credit.outputs.next-leg != 'subscription'
       && !cancelled()
-      && needs.trigger.result == 'success'
+      && needs.check-trigger.result == 'success'
       && github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
-      && (needs.trigger.outputs.run-attempt != github.run_attempt
-      || needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true')
+      && (needs.check-trigger.outputs.run-attempt != github.run_attempt
+      || needs.check-trigger.outputs.review != 'false' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true')
     strategy:
       fail-fast: false
       matrix:
@@ -819,7 +819,7 @@ jobs:
       # on the trusted-actor list.
       - name: Check the trigger
         id: gate
-        if: steps.switch.outputs.proceed == 'true' && needs.trigger.outputs.run-attempt != github.run_attempt
+        if: steps.switch.outputs.proceed == 'true' && needs.check-trigger.outputs.run-attempt != github.run_attempt
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
@@ -879,7 +879,7 @@ jobs:
           # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
           { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-review-main $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-review-main"; } || true
 
-      # One source for the gate's result: the trigger job's, or this leg's
+      # One source for the gate's result: the check-trigger job's, or this leg's
       # own gate when it ran. Each value must have its fixed shape, so no
       # other text leaves this step. A held select leaves none, so the lane
       # reviews nothing.
@@ -887,13 +887,13 @@ jobs:
         id: trigger
         if: steps.switch.outputs.proceed == 'true' && steps.select.outputs.held != 'true'
         env:
-          # The trigger job's result, only from this run attempt.
-          CARRIED: ${{ needs.trigger.outputs.run-attempt == github.run_attempt }}
-          CARRIED_PROCEED: ${{ needs.trigger.outputs.proceed }}
-          CARRIED_REVIEW: ${{ needs.trigger.outputs.review }}
-          CARRIED_PR: ${{ needs.trigger.outputs.pr-number }}
-          CARRIED_HEAD: ${{ needs.trigger.outputs.head-sha }}
-          CARRIED_BASE: ${{ needs.trigger.outputs.base-sha }}
+          # The check-trigger job's result, only from this run attempt.
+          CARRIED: ${{ needs.check-trigger.outputs.run-attempt == github.run_attempt }}
+          CARRIED_PROCEED: ${{ needs.check-trigger.outputs.proceed }}
+          CARRIED_REVIEW: ${{ needs.check-trigger.outputs.review }}
+          CARRIED_PR: ${{ needs.check-trigger.outputs.pr-number }}
+          CARRIED_HEAD: ${{ needs.check-trigger.outputs.head-sha }}
+          CARRIED_BASE: ${{ needs.check-trigger.outputs.base-sha }}
           GATE_PROCEED: ${{ steps.gate.outputs.proceed }}
           GATE_REVIEW: ${{ steps.select.outputs.review }}
           GATE_PR: ${{ steps.gate.outputs.pr-number }}
@@ -935,7 +935,7 @@ jobs:
       # patch that still shows a binary file, holds a file over the
       # cap, or needs more than MAX_CHUNKS chunks gets no verdict: the step
       # stops green with the reason
-      # as an output, the record job posts it as `verdict=none
+      # as an output, the report-review-counts job posts it as `verdict=none
       # reason=<reason>` on the head, and the lanes stay unbound under that
       # reason. Any other failure fails the step. The tree the verdict is
       # keyed on comes from git, never from the model.
@@ -967,7 +967,7 @@ jobs:
           LONG_LINE_BYTES: "1800"
         run: |
           # A designed stop: the reason, from this script's own literals, and
-          # the head, as the lane's outputs for the record job.
+          # the head, as the lane's outputs for the report-review-counts job.
           stop() {
             echo "::notice title=pr-review-main stop::reason=$1 lane=$LANE pr=$PR_NUMBER; $2; no verdict, so the lanes stay unbound"
             { echo "stop=$1"; echo "$LANE-stop=$1"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
@@ -1040,11 +1040,11 @@ jobs:
           echo "::notice title=pr-review-main chunks::lane=$LANE pr=$PR_NUMBER chunks=$chunks bytes=$bytes manifest_paths=$paths"
           echo "diff: $(cat "$DATA"/diff/chunk-*/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
-      # The trusted-text job's read, used only when it matches this leg
+      # The collect-trusted-text job's read, used only when it matches this leg
       # (take-shared-text.sh); a missing or mismatched one leaves the leg to
       # read its own.
       - name: Download the shared trusted PR text
-        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && needs.trusted-text.outputs.sha256 != '' && needs.trusted-text.outputs.run-attempt == github.run_attempt
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && needs.collect-trusted-text.outputs.sha256 != '' && needs.collect-trusted-text.outputs.run-attempt == github.run_attempt
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -1058,12 +1058,12 @@ jobs:
         continue-on-error: true
         env:
           SHARED_FILE: ${{ runner.temp }}/pr-review-main-shared-text/context.json
-          SHARED_SHA256: ${{ needs.trusted-text.outputs.sha256 }}
-          SHARED_ATTEMPT: ${{ needs.trusted-text.outputs.run-attempt }}
-          SHARED_MAIN: ${{ needs.trusted-text.outputs.main-sha }}
-          SHARED_PR: ${{ needs.trusted-text.outputs.pr-number }}
-          SHARED_HEAD: ${{ needs.trusted-text.outputs.head-sha }}
-          SHARED_READ_AT: ${{ needs.trusted-text.outputs.read-at }}
+          SHARED_SHA256: ${{ needs.collect-trusted-text.outputs.sha256 }}
+          SHARED_ATTEMPT: ${{ needs.collect-trusted-text.outputs.run-attempt }}
+          SHARED_MAIN: ${{ needs.collect-trusted-text.outputs.main-sha }}
+          SHARED_PR: ${{ needs.collect-trusted-text.outputs.pr-number }}
+          SHARED_HEAD: ${{ needs.collect-trusted-text.outputs.head-sha }}
+          SHARED_READ_AT: ${{ needs.collect-trusted-text.outputs.read-at }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
           HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
@@ -1525,7 +1525,7 @@ jobs:
 
       # A chunked review that wrote no verdict and handed nothing on (a
       # chunk's review failed, or one left no result or skipped a part) is a
-      # designed stop too: no chunk's counts bind, and the record job names
+      # designed stop too: no chunk's counts bind, and the report-review-counts job names
       # it on the head. The job still fails.
       - name: Record a failed chunk
         id: chunk-stop
@@ -1603,18 +1603,18 @@ jobs:
   # The lanes the key leg handed on, as review-subscription's matrix: fixed
   # lane rows, each reason checked against the closed set the key leg hands
   # on with. With the review job skipped by review-handoffs-credit, every
-  # enabled lane is handed on as credit-stop, at the trigger job's main
+  # enabled lane is handed on as credit-stop, at the check-trigger job's main
   # commit. It holds no secret, runs no model and checks nothing out.
   review-handoffs:
     name: Review Handoffs
-    needs: [trigger, review-handoffs-credit, review]
+    needs: [check-trigger, review-handoffs-credit, review]
     if: >-
       !cancelled()
       && github.ref == 'refs/heads/main'
       && (needs.review.outputs.claude-review != '' || needs.review.outputs.claude-security-review != ''
       || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.next-leg == 'subscription'
-      && needs.trigger.outputs.run-attempt == github.run_attempt && needs.trigger.outputs.proceed == 'true'
-      && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true')
+      && needs.check-trigger.outputs.run-attempt == github.run_attempt && needs.check-trigger.outputs.proceed == 'true'
+      && needs.check-trigger.outputs.review == 'true' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
@@ -1626,8 +1626,8 @@ jobs:
         env:
           CODE: ${{ needs.review.outputs.claude-review || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.next-leg == 'subscription' && vars.CLAUDE_REVIEW_DISABLED != 'true' && needs.review-handoffs-credit.outputs.next-reason || '' }}
           SECURITY: ${{ needs.review.outputs.claude-security-review || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.next-leg == 'subscription' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true' && needs.review-handoffs-credit.outputs.next-reason || '' }}
-          CODE_BASE: ${{ needs.review.outputs.claude-review-base-sha || needs.trigger.outputs.main-sha }}
-          SECURITY_BASE: ${{ needs.review.outputs.claude-security-review-base-sha || needs.trigger.outputs.main-sha }}
+          CODE_BASE: ${{ needs.review.outputs.claude-review-base-sha || needs.check-trigger.outputs.main-sha }}
+          SECURITY_BASE: ${{ needs.review.outputs.claude-security-review-base-sha || needs.check-trigger.outputs.main-sha }}
           REASONS: credit-stop auth no-key
         run: |
           matrix=$(jq -cn --arg code "$CODE" --arg security "$SECURITY" --arg code_base "$CODE_BASE" --arg security_base "$SECURITY_BASE" --arg reasons "$REASONS" '
@@ -1675,7 +1675,7 @@ jobs:
   # again. Only this job's launcher steps get the subscription token.
   review-subscription:
     name: Review Subscription
-    needs: [trusted-text, review-handoffs]
+    needs: [collect-trusted-text, review-handoffs]
     # !cancelled(): the implicit success() also needs every ancestor, so one
     # lane's failed leg would skip the other lane's next leg.
     if: >-
@@ -1832,7 +1832,7 @@ jobs:
           # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
           { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-review-main $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-review-main"; } || true
 
-      # One source for the gate's result: the trigger job's, or this leg's
+      # One source for the gate's result: the check-trigger job's, or this leg's
       # own gate when it ran. Each value must have its fixed shape, so no
       # other text leaves this step. A held select leaves none, so the lane
       # reviews nothing.
@@ -1882,7 +1882,7 @@ jobs:
       # patch that still shows a binary file, holds a file over the
       # cap, or needs more than MAX_CHUNKS chunks gets no verdict: the step
       # stops green with the reason
-      # as an output, the record job posts it as `verdict=none
+      # as an output, the report-review-counts job posts it as `verdict=none
       # reason=<reason>` on the head, and the lanes stay unbound under that
       # reason. Any other failure fails the step. The tree the verdict is
       # keyed on comes from git, never from the model.
@@ -1914,7 +1914,7 @@ jobs:
           LONG_LINE_BYTES: "1800"
         run: |
           # A designed stop: the reason, from this script's own literals, and
-          # the head, as the lane's outputs for the record job.
+          # the head, as the lane's outputs for the report-review-counts job.
           stop() {
             echo "::notice title=pr-review-main stop::reason=$1 lane=$LANE pr=$PR_NUMBER; $2; no verdict, so the lanes stay unbound"
             { echo "stop=$1"; echo "$LANE-stop=$1"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
@@ -1987,11 +1987,11 @@ jobs:
           echo "::notice title=pr-review-main chunks::lane=$LANE pr=$PR_NUMBER chunks=$chunks bytes=$bytes manifest_paths=$paths"
           echo "diff: $(cat "$DATA"/diff/chunk-*/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
-      # The trusted-text job's read, used only when it matches this leg
+      # The collect-trusted-text job's read, used only when it matches this leg
       # (take-shared-text.sh); a missing or mismatched one leaves the leg to
       # read its own.
       - name: Download the shared trusted PR text
-        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && needs.trusted-text.outputs.sha256 != '' && needs.trusted-text.outputs.run-attempt == github.run_attempt
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && needs.collect-trusted-text.outputs.sha256 != '' && needs.collect-trusted-text.outputs.run-attempt == github.run_attempt
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -2005,12 +2005,12 @@ jobs:
         continue-on-error: true
         env:
           SHARED_FILE: ${{ runner.temp }}/pr-review-main-shared-text/context.json
-          SHARED_SHA256: ${{ needs.trusted-text.outputs.sha256 }}
-          SHARED_ATTEMPT: ${{ needs.trusted-text.outputs.run-attempt }}
-          SHARED_MAIN: ${{ needs.trusted-text.outputs.main-sha }}
-          SHARED_PR: ${{ needs.trusted-text.outputs.pr-number }}
-          SHARED_HEAD: ${{ needs.trusted-text.outputs.head-sha }}
-          SHARED_READ_AT: ${{ needs.trusted-text.outputs.read-at }}
+          SHARED_SHA256: ${{ needs.collect-trusted-text.outputs.sha256 }}
+          SHARED_ATTEMPT: ${{ needs.collect-trusted-text.outputs.run-attempt }}
+          SHARED_MAIN: ${{ needs.collect-trusted-text.outputs.main-sha }}
+          SHARED_PR: ${{ needs.collect-trusted-text.outputs.pr-number }}
+          SHARED_HEAD: ${{ needs.collect-trusted-text.outputs.head-sha }}
+          SHARED_READ_AT: ${{ needs.collect-trusted-text.outputs.read-at }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
           HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
@@ -2486,7 +2486,7 @@ jobs:
 
       # A chunked review that wrote no verdict and handed nothing on (a
       # chunk's review failed, or one left no result or skipped a part) is a
-      # designed stop too: no chunk's counts bind, and the record job names
+      # designed stop too: no chunk's counts bind, and the report-review-counts job names
       # it on the head. The job still fails.
       - name: Record a failed chunk
         id: chunk-stop
@@ -2562,8 +2562,8 @@ jobs:
           exit 1
 
   # The lanes the subscription leg handed on, as review-fallback's matrix.
-  subscription-handoffs:
-    name: Subscription Handoffs
+  collect-subscription-handoffs:
+    name: Collect Subscription Handoffs
     needs: review-subscription
     if: >-
       !cancelled()
@@ -2601,19 +2601,19 @@ jobs:
   # unbound and fails the job.
   review-fallback:
     name: Review Fallback
-    needs: [trusted-text, subscription-handoffs]
+    needs: [collect-trusted-text, collect-subscription-handoffs]
     # !cancelled(): the implicit success() also needs every ancestor, so one
     # lane's failed leg would skip the other lane's next leg.
     if: >-
       !cancelled()
-      && needs.subscription-handoffs.result == 'success'
+      && needs.collect-subscription-handoffs.result == 'success'
       && github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.subscription-handoffs.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.collect-subscription-handoffs.outputs.matrix) }}
     runs-on: ubuntu-24.04
     # Each chunk's review has 22 minutes.
     timeout-minutes: 100
@@ -2753,7 +2753,7 @@ jobs:
           # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
           { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-review-main $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-review-main"; } || true
 
-      # One source for the gate's result: the trigger job's, or this leg's
+      # One source for the gate's result: the check-trigger job's, or this leg's
       # own gate when it ran. Each value must have its fixed shape, so no
       # other text leaves this step. A held select leaves none, so the lane
       # reviews nothing.
@@ -2803,7 +2803,7 @@ jobs:
       # patch that still shows a binary file, holds a file over the
       # cap, or needs more than MAX_CHUNKS chunks gets no verdict: the step
       # stops green with the reason
-      # as an output, the record job posts it as `verdict=none
+      # as an output, the report-review-counts job posts it as `verdict=none
       # reason=<reason>` on the head, and the lanes stay unbound under that
       # reason. Any other failure fails the step. The tree the verdict is
       # keyed on comes from git, never from the model.
@@ -2835,7 +2835,7 @@ jobs:
           LONG_LINE_BYTES: "1800"
         run: |
           # A designed stop: the reason, from this script's own literals, and
-          # the head, as the lane's outputs for the record job.
+          # the head, as the lane's outputs for the report-review-counts job.
           stop() {
             echo "::notice title=pr-review-main stop::reason=$1 lane=$LANE pr=$PR_NUMBER; $2; no verdict, so the lanes stay unbound"
             { echo "stop=$1"; echo "$LANE-stop=$1"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
@@ -2908,11 +2908,11 @@ jobs:
           echo "::notice title=pr-review-main chunks::lane=$LANE pr=$PR_NUMBER chunks=$chunks bytes=$bytes manifest_paths=$paths"
           echo "diff: $(cat "$DATA"/diff/chunk-*/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
-      # The trusted-text job's read, used only when it matches this leg
+      # The collect-trusted-text job's read, used only when it matches this leg
       # (take-shared-text.sh); a missing or mismatched one leaves the leg to
       # read its own.
       - name: Download the shared trusted PR text
-        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && needs.trusted-text.outputs.sha256 != '' && needs.trusted-text.outputs.run-attempt == github.run_attempt
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && needs.collect-trusted-text.outputs.sha256 != '' && needs.collect-trusted-text.outputs.run-attempt == github.run_attempt
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -2926,12 +2926,12 @@ jobs:
         continue-on-error: true
         env:
           SHARED_FILE: ${{ runner.temp }}/pr-review-main-shared-text/context.json
-          SHARED_SHA256: ${{ needs.trusted-text.outputs.sha256 }}
-          SHARED_ATTEMPT: ${{ needs.trusted-text.outputs.run-attempt }}
-          SHARED_MAIN: ${{ needs.trusted-text.outputs.main-sha }}
-          SHARED_PR: ${{ needs.trusted-text.outputs.pr-number }}
-          SHARED_HEAD: ${{ needs.trusted-text.outputs.head-sha }}
-          SHARED_READ_AT: ${{ needs.trusted-text.outputs.read-at }}
+          SHARED_SHA256: ${{ needs.collect-trusted-text.outputs.sha256 }}
+          SHARED_ATTEMPT: ${{ needs.collect-trusted-text.outputs.run-attempt }}
+          SHARED_MAIN: ${{ needs.collect-trusted-text.outputs.main-sha }}
+          SHARED_PR: ${{ needs.collect-trusted-text.outputs.pr-number }}
+          SHARED_HEAD: ${{ needs.collect-trusted-text.outputs.head-sha }}
+          SHARED_READ_AT: ${{ needs.collect-trusted-text.outputs.read-at }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
           HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
@@ -3366,7 +3366,7 @@ jobs:
 
       # A chunked review that wrote no verdict and handed nothing on (a
       # chunk's review failed, or one left no result or skipped a part) is a
-      # designed stop too: no chunk's counts bind, and the record job names
+      # designed stop too: no chunk's counts bind, and the report-review-counts job names
       # it on the head. The job still fails.
       - name: Record a failed chunk
         id: chunk-stop
@@ -3448,8 +3448,8 @@ jobs:
   # carries (babysit_review_evidence `_main_lane`). A forged one can only add
   # a hold. No model runs in this job; it reads only the legs' stop outputs
   # and the counts write-verdict.mjs checked, from this run's own artifacts.
-  record:
-    name: Record
+  report-review-counts:
+    name: Report Review Counts
     needs: [review, review-subscription, review-fallback]
     # A key leg skipped by its own gate reviewed nothing, so no later leg ran:
     # nothing to record. One the credit gate skipped handed every lane on.

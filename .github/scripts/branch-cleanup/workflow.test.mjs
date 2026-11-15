@@ -1,5 +1,5 @@
 // maintenance-delete-stale-branches.yml's hardening (README.md, "Branch
-// cleanup"): the kill switch stops each job before it reads, the plan job's
+// cleanup"): the kill switch stops each job before it reads, the select-stale-branches job's
 // token writes nothing, only the delete job's token writes contents and it
 // reads no issue text, a manual run is a dry-run by default and starts no
 // delete job, and the ledger is uploaded even after a failed step.
@@ -23,15 +23,15 @@ const grants = (body) =>
     .sort();
 const step = (body, name) => body.slice(body.indexOf(`- name: ${name}`)).split("\n      - name:")[0];
 
-test("the plan job's token writes nothing; the delete job's writes contents and reads no issues", () => {
+test("the select-stale-branches job's token writes nothing; the delete job's writes contents and reads no issues", () => {
   assert.match(text, /\npermissions: \{\}\n/);
-  assert.deepEqual(grants(job("plan")), ["contents: read", "issues: read", "pull-requests: read"]);
+  assert.deepEqual(grants(job("select-stale-branches")), ["contents: read", "issues: read", "pull-requests: read"]);
   assert.deepEqual(grants(job("delete")), ["contents: write", "pull-requests: read"]);
 });
 
 test("each job checks the kill switch before every step that reads or deletes", () => {
   for (const [name, steps] of [
-    ["plan", ["Install resolve-config's dependencies", "Plan the deletes"]],
+    ["select-stale-branches", ["Install resolve-config's dependencies", "Plan the deletes"]],
     ["delete", ["Install resolve-config's dependencies", "Download the candidate list", "Delete stale branches", "Upload the ledger"]],
   ]) {
     const body = job(name);
@@ -40,26 +40,26 @@ test("each job checks the kill switch before every step that reads or deletes", 
   }
 });
 
-test("only the plan stage reads issue and pull request text; the delete stage takes the plan job's list", () => {
-  assert.match(step(job("plan"), "Plan the deletes"), /STAGE: plan\n/);
+test("only the plan stage reads issue and pull request text; the delete stage takes the select-stale-branches job's list", () => {
+  assert.match(step(job("select-stale-branches"), "Plan the deletes"), /STAGE: plan\n/);
   assert.match(step(job("delete"), "Delete stale branches"), /STAGE: delete\n/);
-  assert.match(job("delete"), /needs: plan\n/);
+  assert.match(job("delete"), /needs: select-stale-branches\n/);
 });
 
-// Re-running only a failed delete job keeps the plan job's outputs from the
+// Re-running only a failed delete job keeps the select-stale-branches job's outputs from the
 // attempt that uploaded the list, so the download names that attempt's
 // artifact, never the re-run's own attempt.
-test("the delete job downloads the artifact name the plan job uploaded", () => {
+test("the delete job downloads the artifact name the select-stale-branches job uploaded", () => {
   const name = "branch-cleanup-candidates-${{ github.run_id }}-${{ github.run_attempt }}";
-  assert.ok(job("plan").includes(`\n      candidates: ${name}\n`));
-  assert.ok(step(job("plan"), "Upload the candidate list").includes(`\n          name: ${name}\n`));
-  assert.match(step(job("delete"), "Download the candidate list"), /\n {10}name: \$\{\{ needs\.plan\.outputs\.candidates \}\}\n/);
+  assert.ok(job("select-stale-branches").includes(`\n      candidates: ${name}\n`));
+  assert.ok(step(job("select-stale-branches"), "Upload the candidate list").includes(`\n          name: ${name}\n`));
+  assert.match(step(job("delete"), "Download the candidate list"), /\n {10}name: \$\{\{ needs\.select-stale-branches\.outputs\.candidates \}\}\n/);
   assert.doesNotMatch(step(job("delete"), "Download the candidate list"), /github\.run_attempt/);
 });
 
 test("a manual run is a dry-run unless set and starts no delete job, and the schedule deletes", () => {
   assert.match(text, /dry-run:\n {8}description: .+\n {8}type: boolean\n {8}default: true\n/);
-  for (const name of ["plan", "delete"]) {
+  for (const name of ["select-stale-branches", "delete"]) {
     assert.match(
       job(name),
       /DRY_RUN: \$\{\{ github\.event_name == 'workflow_dispatch' && format\('\{0\}', inputs\.dry-run\) \|\| 'false' \}\}/,
@@ -76,7 +76,7 @@ test("the ledger artifact uploads after a failed step too", () => {
 });
 
 test("each job runs only on main and checks out no branch code, with no credential kept", () => {
-  for (const name of ["plan", "delete"]) {
+  for (const name of ["select-stale-branches", "delete"]) {
     const body = job(name);
     assert.match(body, /github\.ref == 'refs\/heads\/main'/, name);
     assert.match(body, /ref: \$\{\{ github\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false/, name);

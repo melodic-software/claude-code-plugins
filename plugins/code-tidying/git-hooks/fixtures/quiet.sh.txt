@@ -1,0 +1,6 @@
+run --flag value
+echo ${#name}
+echo 'a # b' "c # d"
+cat <<EOF
+# a heredoc body line
+EOF

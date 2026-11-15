@@ -9,18 +9,18 @@ name: Maintenance Audit Lane Runs
 # The audit jobs:
 # - collect: a script with the job's read-only token writes one data file per
 #   unit of model work (at most 8) within a budget of 350 REST calls.
-# - judge: one model leg per unit on ci-workflows' run-claude-cli as the
+# - assess-units: one model leg per unit on ci-workflows' run-claude-cli as the
 #   automations role, on its API key. Read permissions only; it reads its
 #   unit file and the main checkout with Read, Grep and Glob, has no shell,
 #   and returns structured findings. CI logs and titles reach it as data.
 #   A unit whose key leg hands off (a credit stop, a 401 or 402, or an empty
-#   key) is judged by judge-subscription on the role's subscription token, and
+#   key) is judged by assess-units-subscription on the role's subscription token, and
 #   with FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, a unit that leg hands off (a
-#   limit stop, a credit stop, a 401 or 402) by judge-fallback on that token:
+#   limit stop, a credit stop, a 401 or 402) by assess-units-fallback on that token:
 #   one leg per unit judges. Each leg is its own job on a new VM holding one
 #   credential. A matrix job's outputs are not per unit, so a leg that hands
-#   off uploads a marker artifact, and judge-handoffs and
-#   judge-subscription-handoffs, which hold no secret, turn the markers into
+#   off uploads a marker artifact, and collect-key-handoffs and
+#   collect-subscription-handoffs, which hold no secret, turn the markers into
 #   the next leg's matrix (handoff.mjs).
 # - file: a script with no model checks every quoted line against main,
 #   fingerprints each finding, and replaces the digest issue's body with the
@@ -120,7 +120,7 @@ jobs:
 
       # The key-credit gate (ci-workflows select-model-credential, its start
       # call: check-key-credit's one artifact-list call for the marker
-      # judge-handoffs uploads after a key leg's credit stop). A credit stop
+      # collect-key-handoffs uploads after a key leg's credit stop). A credit stop
       # inside the window names the subscription leg and skips the key leg.
       # Every failure runs the key. Probing is off.
       - name: Read the key's credit history
@@ -177,11 +177,11 @@ jobs:
           tokens: github-token
 
   # The key leg, one per unit, on the automations role's API key.
-  judge:
-    name: Judge
+  assess-units:
+    name: Assess Units
     needs: collect
-    # A key the credit gate skipped runs nothing here; judge-handoffs routes
-    # every unit to judge-subscription.
+    # A key the credit gate skipped runs nothing here; collect-key-handoffs routes
+    # every unit to assess-units-subscription.
     if: needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]' && needs.collect.outputs.next-leg != 'subscription'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -294,7 +294,7 @@ jobs:
       # reports by failing this step, from ending the job before the outcome
       # step; "Fail without findings" carries the red. A handoff skips the
       # findings steps; the outcome step records the leg as handed off, and
-      # judge-subscription judges the unit.
+      # assess-units-subscription judges the unit.
       # One leg of leg-timeout-minutes and the CLI install fit in
       # timeout-minutes, which the outcome step repeats, and that fits in the
       # job's 30. The launcher's --restricted keeps the file tools inside the
@@ -483,13 +483,13 @@ jobs:
           echo "::error::the judgment left no findings for this unit"
           exit 1
 
-  # The units the key leg handed on, as judge-subscription's matrix. It holds
+  # The units the key leg handed on, as assess-units-subscription's matrix. It holds
   # no secret and reads only the markers' names and closed-set values.
-  judge-handoffs:
-    name: Judge Handoffs
-    needs: [collect, judge]
+  collect-key-handoffs:
+    name: Collect Key Handoffs
+    needs: [collect, assess-units]
     if: >-
-      ${{ !cancelled() && (needs.judge.result != 'skipped'
+      ${{ !cancelled() && (needs.assess-units.result != 'skipped'
       || needs.collect.outputs.next-leg == 'subscription' && needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -528,7 +528,7 @@ jobs:
           path: ${{ runner.temp }}/lane-sweep-handoffs
           merge-multiple: true
 
-      - name: Route the handed-off units to judge-subscription
+      - name: Route the handed-off units to assess-units-subscription
         id: route
         if: steps.download.outcome == 'success'
         env:
@@ -576,10 +576,10 @@ jobs:
   # Only this job references the subscription token. matrix.reason reaches
   # only the credential call's reason input, which the action checks against
   # its closed list of fallback reasons.
-  judge-subscription:
-    name: Judge Subscription
-    needs: judge-handoffs
-    if: ${{ !cancelled() && needs.judge-handoffs.result == 'success' && needs.judge-handoffs.outputs.count != '' && needs.judge-handoffs.outputs.count != '0' }}
+  assess-units-subscription:
+    name: Assess Units Subscription
+    needs: collect-key-handoffs
+    if: ${{ !cancelled() && needs.collect-key-handoffs.result == 'success' && needs.collect-key-handoffs.outputs.count != '' && needs.collect-key-handoffs.outputs.count != '0' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     cache-mode: read
@@ -589,7 +589,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 4
-      matrix: ${{ fromJson(needs.judge-handoffs.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.collect-key-handoffs.outputs.matrix) }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -695,7 +695,7 @@ jobs:
       # step; "Fail without findings" carries the red. With the fallback
       # token set, a limit stop, a credit stop or a 401 or 402 hands off, which
       # skips the findings steps; the outcome step records the leg as handed
-      # off, and judge-fallback judges the unit.
+      # off, and assess-units-fallback judges the unit.
       # One leg of leg-timeout-minutes and the CLI install fit in
       # timeout-minutes, which the outcome step repeats, and that fits in the
       # job's 30. The launcher's --restricted keeps the file tools inside the
@@ -774,7 +774,7 @@ jobs:
           HANDOFF_REASON: ${{ steps.judge.outputs.handoff-reason }}
         run: |
           node .base/.github/scripts/maintenance-audit-lane-runs/handoff.mjs check-leg
-          echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); judge-fallback judges on the fallback token"
+          echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); assess-units-fallback judges on the fallback token"
 
       # The leg this unit goes to next, from this job's credential decision
       # and a clean handoff (select-model-credential). No if:, as the record
@@ -884,11 +884,11 @@ jobs:
           echo "::error::the judgment left no findings for this unit"
           exit 1
 
-  # The units the subscription leg handed on, as judge-fallback's matrix.
-  judge-subscription-handoffs:
-    name: Judge Subscription Handoffs
-    needs: judge-subscription
-    if: ${{ !cancelled() && needs.judge-subscription.result != 'skipped' }}
+  # The units the subscription leg handed on, as assess-units-fallback's matrix.
+  collect-subscription-handoffs:
+    name: Collect Subscription Handoffs
+    needs: assess-units-subscription
+    if: ${{ !cancelled() && needs.assess-units-subscription.result != 'skipped' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -926,7 +926,7 @@ jobs:
           path: ${{ runner.temp }}/lane-sweep-handoffs
           merge-multiple: true
 
-      - name: Route the handed-off units to judge-fallback
+      - name: Route the handed-off units to assess-units-fallback
         id: route
         if: steps.download.outcome == 'success'
         env:
@@ -939,10 +939,10 @@ jobs:
   # subscription leg's but for the credential, the leg check and the
   # fallback reason. It is the last leg and never hands off: an empty
   # subscription token fails the subscription leg instead.
-  judge-fallback:
-    name: Judge Fallback
-    needs: judge-subscription-handoffs
-    if: ${{ !cancelled() && needs.judge-subscription-handoffs.result == 'success' && needs.judge-subscription-handoffs.outputs.count != '' && needs.judge-subscription-handoffs.outputs.count != '0' }}
+  assess-units-fallback:
+    name: Assess Units Fallback
+    needs: collect-subscription-handoffs
+    if: ${{ !cancelled() && needs.collect-subscription-handoffs.result == 'success' && needs.collect-subscription-handoffs.outputs.count != '' && needs.collect-subscription-handoffs.outputs.count != '0' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     cache-mode: read
@@ -952,7 +952,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 4
-      matrix: ${{ fromJson(needs.judge-subscription-handoffs.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.collect-subscription-handoffs.outputs.matrix) }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -1185,7 +1185,7 @@ jobs:
 
   file:
     name: File
-    needs: [collect, judge, judge-subscription, judge-fallback]
+    needs: [collect, assess-units, assess-units-subscription, assess-units-fallback]
     # A failed leg loses its own unit's findings only.
     if: ${{ !cancelled() && needs.collect.result == 'success' && needs.collect.outputs.units != '[]' }}
     runs-on: ubuntu-24.04

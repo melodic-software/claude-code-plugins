@@ -1,6 +1,6 @@
 # Spec-first workflow (context-budget-aware)
 
-Alternative execution mode for the staged workflow. Instead of running every stage in ONE long
+Alternative execution mode for the staged workflow. Instead of running every stage in one long
 session, where every turn re-processes the growing conversation, each stage persists its output to
 disk, so the next stage can work from that artifact.
 
@@ -10,7 +10,7 @@ each stage boundary carry on by whichever continuation fits without losing the s
 **When to use:** multi-phase features spanning hours, work known in advance to have distinct
 interview + design + plan + implement stages, cross-session work that may pause overnight.
 
-**When NOT to use:** one-line fixes, quick config tweaks, tightly-coupled
+**When not to use:** one-line fixes, quick config tweaks, tightly-coupled
 exploration+implementation (e.g. debugging where findings shape the fix in real time). The default
 is still the single-session pattern; spec-first is opt-in.
 

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Routing by decide: design: /planning:design.",
+      "why": "routes to the design skill"
+    },
+    {
+      "answer": "Hand-off:\n```\nSkill: planning:design   args: https://example.com/acme/mail/issues/62\n```",
+      "why": "the hand-off written as skill and arguments"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Routing to /planning:interview.",
+      "why": "wrong route"
+    },
+    {
+      "answer": "Hand-off:\n```\nSkill: planning:design-handoff\n```",
+      "why": "routes to the handoff skill, not to design"
+    }
+  ]
+}

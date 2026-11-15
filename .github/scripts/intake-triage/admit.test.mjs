@@ -845,6 +845,63 @@ describe("decide", () => {
       }
     });
 
+    // A seat is the billing noun (owner decision 2026-11-15); the singular
+    // verb "seat" followed by its object is not.
+    test("reads seat as a charge only as the billing noun", () => {
+      for (const [text, words] of [
+        ["This needs a plan or seat change.", ["seat"]],
+        ["Add a seat for the new lane.", ["seat"]],
+        ["Add 3 seats.", ["seats"]],
+        ["Buy seats for the team.", ["seats"]],
+        ["Purchase another seat.", ["seat"]],
+        ["It costs $19 per seat.", ["seat"]],
+        ["The org pays per seat the team adds.", ["seat"]],
+        ["Each seat the org adds is billed.", ["seat", "billed"]],
+        ["Assign Copilot seats to the lane.", ["seats"]],
+        ["Assign Copilot seats the team requested.", ["seats"]],
+        ["Give the lane a paid seat.", ["paid seat"]],
+        ["Raise the seat count.", ["seat"]],
+        ["- seats\n- runners", ["seats"]],
+        ["## Seats\n\nThe team grows.", ["seats"]],
+        ["Seats this month: 12.", ["seats"]],
+        ["The lane needs a seat.", ["seat"]],
+        ["Seat a new member.", ["seat"]],
+        ["Raise the number of seats the org pays for.", ["seats"]],
+        ["Buy seats the team needs.", ["seats"]],
+        ["Add seats our contractors use.", ["seats"]],
+        ["Copilot charges by seat the day a user joins.", ["seat"]],
+        ["Bill for seats them included.", ["seats"]],
+        ["Keep fewer seats this team holds.", ["seats"]],
+        ["We purchased seats their staff use.", ["seats"]],
+        // The plural always holds: a false hold costs a question, a missed
+        // charge can bill the owner.
+        ["The check seats the guard.", ["seats"]],
+        ["- seats the team uses", ["seats"]],
+        ["A hook that seats the guard.", ["seats"]],
+        // The singular is a charge unless it is the marked verb on a thing.
+        ["Add a GitHub seat that the bot uses.", ["seat"]],
+        ["Buy one Enterprise seat that each contractor shares.", ["seat"]],
+        ["We need a single seat the bot can use.", ["seat"]],
+        ["Add a developer seat their team pays for.", ["seat"]],
+        // Seating a person is the billing action.
+        ["Seat the new contractors in Copilot.", ["seat"]],
+        ["Seat our interns before the sprint.", ["seat"]],
+        ["Then seat them on the org plan.", ["seat"]],
+      ]) {
+        assert.deepEqual(chargeHits(text, chargePattern()), words, text);
+      }
+      for (const text of [
+        "seat the guard when the file exists",
+        "Then seat it.",
+        "Seat this hook first.",
+        "- seat the guard when managed settings are absent",
+      ]) {
+        assert.deepEqual(chargeHits(text, chargePattern()), [], text);
+      }
+      const body = `${BODY}\n\n## Plan\n\n- seat the guard when \`$(dirname "$base")/managed-mcp.json\` exists and managed settings are absent.`;
+      assert.deepEqual(decide(facts({ issue: issueOf({ body }) })), { verdict: "admit", reasons: [] });
+    });
+
     test("an issue that names no charge is still admitted", () => {
       assert.deepEqual(decide(facts({ issue: issueOf({ body: `${BODY}\n\nThe sweep deletes runs older than a week.` }) })), { verdict: "admit", reasons: [] });
     });

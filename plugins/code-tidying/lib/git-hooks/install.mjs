@@ -1,0 +1,1542 @@
+#!/usr/bin/env node
+// GENERATED from lib/git-hooks/install.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
+// edit the canonical source, then rerun the script.
+// Register a plugin's git-hook entries with the repository's hook manager.
+// The contract is the check-placement convention: the entry manifest, the
+// HookManager port (detect, list, plan, copy, decline) and verify's drift states.
+//
+//   install.mjs detect   [common]
+//   install.mjs list     [common]
+//   install.mjs plan     --scope local|shared|remote [--manager <m>] [common]
+//   install.mjs copy     --scope local|shared [--entry <name>]... [--manager <m>] [--force] [common]
+//   install.mjs decline  --entry <name> [--undo|--opt-in] [--global] [common]
+//   install.mjs verify   [--quiet] [common]
+//   install.mjs config-hook --include-if <condition> [--force] [common]
+//   common: [--repo <dir>] [--plugin-root <dir>]
+//
+// The plugin root defaults to two directories up from this file, where the
+// vendored copy sits (plugins/<plugin>/lib/git-hooks/install.mjs).
+//
+// Scripts decide nothing that needs judgment (rule D1). copy writes only files
+// the plugin owns outright: the copied check scripts and check lib, the plain
+// dispatcher and its <event>.d/ markers, a new .gitattributes, and the
+// `git config --local` decline key. Everything else (edits to lefthook or husky
+// config, a foreign hook, a manager conflict, an exclude line, a migration, a
+// missing tool) comes back from plan as a decisions[] item for the setup agent.
+// --scope remote, for a plugin whose entries.json names a lefthook remote,
+// writes nothing: plan returns the `remotes:` entry for the lefthook config.
+// config-hook writes a stable copy of each commit-msg entry and an include file
+// holding its `[hook "<plugin>-<entry>"]` block under the user's git config
+// directory; the includeIf line that loads it comes back as a decision.
+//
+// After a rename, the plugin lists its former names as earlierNames in
+// entries.json, and only those names are looked at: plan offers to retire the
+// copies, markers, lefthook jobs and config-hook keys an install under one of
+// them left, and a decline key left under one still counts, as git resolves it. plan carries this clone's resolved value to the
+// entry's own key in this clone's local config, and lists for removal only the
+// earlier-name lines in this clone's own local and worktree config files. Lines
+// in system or global files, in what they include, or in a file a local
+// include pulls in may decide other clones or files, so plan only reports them.
+//
+// Exit 0 done; 1 verify found drift, or copy or config-hook refused a locally
+// modified copy, or copy a target that is or passes through a symlink;
+// 2 usage, a bad manifest, or not a git repository (verify --quiet exits 0).
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import {
+  chmodSync,
+  closeSync,
+  constants,
+  existsSync,
+  fstatSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+
+export const EVENTS = ["pre-commit", "pre-push", "commit-msg"];
+export const MANAGERS = ["lefthook", "husky", "plain"];
+// Entry, tool and plugin names; an earlier plugin name read from a repository
+// path or a git config key that fails it is skipped, never listed.
+const NAME_PART = "[a-z0-9][a-z0-9-]*";
+const NAME_RE = new RegExp(`^${NAME_PART}$`);
+const SCRIPT_RE = /^[A-Za-z0-9._-]+\.sh$/;
+const STAMP_RE = /^# (\S+) (\S+) sha256:([0-9a-f]{64})$/;
+const SENTINEL = "# checks-dispatcher v1";
+const SHARED_DIR = ".githooks";
+const ATTRIBUTES_LINE = ".githooks/** text eol=lf";
+const LIB_NAME = "check-lib.sh";
+
+const LEFTHOOK_NAMES = ["yml", "yaml", "toml", "json", "jsonc"].flatMap((ext) => [
+  `lefthook.${ext}`,
+  `.lefthook.${ext}`,
+  `.config/lefthook.${ext}`,
+]);
+
+// Hook managers this installer does not drive; finding one is a manager-conflict decision.
+const FOREIGN = [
+  { manager: "pre-commit", files: [".pre-commit-config.yaml", ".pre-commit-config.yml"] },
+  {
+    manager: "simple-git-hooks",
+    files: [".simple-git-hooks.json", ".simple-git-hooks.js", ".simple-git-hooks.cjs", "simple-git-hooks.json"],
+    packageKey: "simple-git-hooks",
+  },
+  { manager: "overcommit", files: [".overcommit.yml"] },
+  { manager: "husky-v4", files: [".huskyrc", ".huskyrc.json", ".huskyrc.js", "husky.config.js"], packageKey: "husky" },
+];
+
+// The plain dispatcher: one file per event, POSIX sh. It runs a chained
+// pre-existing hook first, then every entry registered in <event>.d/ and in the
+// clone-only local/<event>.d/, and fails if any failed. An entry whose first
+// line is #!/bin/sh, as every entry is now, runs under sh and finds its own
+// bash (check-lib.sh); any other, a copy an earlier release installed for
+// another plugin, runs by its own first line until copy refreshes it. It never
+// names bash: on Windows a bash found by name can be System32's WSL launcher.
+// A marker's first line is its script's path relative to the marker's base.
+export const DISPATCHER = `#!/bin/sh
+${SENTINEL}
+# Runs every check registered for this git hook event: <event>.d/ (this
+# directory) and local/<event>.d/ (this clone only). Written by a plugin's
+# git-hooks installer; a pre-existing hook kept as <event>.pre-checks runs first.
+dir=$(dirname "$0")
+event=$(basename "$0")
+input=""
+if [ "$event" = pre-push ]; then
+  input=$(mktemp) || exit 1
+  trap 'rm -f "$input"' EXIT
+  cat >"$input"
+fi
+feed() {
+  if [ -n "$input" ]; then "$@" <"$input"; else "$@"; fi
+}
+status=0
+if [ -f "$dir/$event.pre-checks" ]; then
+  feed "$dir/$event.pre-checks" "$@" || status=1
+fi
+for base in "$dir" "$dir/local"; do
+  for marker in "$base/$event.d"/*; do
+    [ -f "$marker" ] || continue
+    rel=""
+    IFS= read -r rel <"$marker" || [ -n "$rel" ] || continue
+    if [ ! -f "$base/$rel" ]; then
+      echo "checks: $base/$rel is registered but missing" >&2
+      status=1
+      continue
+    fi
+    first=""
+    IFS= read -r first <"$base/$rel"
+    case "$first" in
+    '#!/bin/sh'*) feed sh "$base/$rel" "$@" || status=1 ;;
+    *) feed "$base/$rel" "$@" || status=1 ;;
+    esac
+  done
+done
+exit $status
+`;
+
+// Dispatchers an earlier release wrote, LF-normalized. copy replaces one as its
+// own rather than refusing it as a modified hook.
+export const PRIOR_DISPATCHERS = [
+  `#!/bin/sh
+${SENTINEL}
+# Runs every check registered for this git hook event: <event>.d/ (this
+# directory) and local/<event>.d/ (this clone only). Written by a plugin's
+# git-hooks installer; a pre-existing hook kept as <event>.pre-checks runs first.
+dir=$(dirname "$0")
+event=$(basename "$0")
+input=""
+if [ "$event" = pre-push ]; then
+  input=$(mktemp) || exit 1
+  trap 'rm -f "$input"' EXIT
+  cat >"$input"
+fi
+feed() {
+  if [ -n "$input" ]; then "$@" <"$input"; else "$@"; fi
+}
+status=0
+if [ -f "$dir/$event.pre-checks" ]; then
+  feed "$dir/$event.pre-checks" "$@" || status=1
+fi
+for base in "$dir" "$dir/local"; do
+  for marker in "$base/$event.d"/*; do
+    [ -f "$marker" ] || continue
+    rel=""
+    IFS= read -r rel <"$marker" || [ -n "$rel" ] || continue
+    if [ ! -f "$base/$rel" ]; then
+      echo "checks: $base/$rel is registered but missing" >&2
+      status=1
+      continue
+    fi
+    feed bash "$base/$rel" "$@" || status=1
+  done
+done
+exit $status
+`,
+];
+
+class UsageError extends Error {}
+
+const lf = (text) => text.replace(/\r\n/g, "\n");
+const posix = (p) => p.split(path.sep).join("/");
+
+function git(cwd, args) {
+  const r = spawnSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  return { ok: !r.error && r.status === 0, status: r.status, out: (r.stdout ?? "").trim() };
+}
+
+// readText(file) -> the text of a regular file of at most MAX_READ bytes, else
+// null. Repository contents are untrusted: a symlink as the last component, a
+// device, a FIFO or an oversize file reads as absent rather than being followed,
+// blocked on, or read whole.
+const MAX_READ = 1024 * 1024;
+const READ_FLAGS = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0);
+
+function readText(file) {
+  let fd;
+  try {
+    fd = openSync(file, READ_FLAGS);
+    const st = fstatSync(fd);
+    return st.isFile() && st.size <= MAX_READ ? readFileSync(fd, "utf8") : null;
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+// realOr(p) -> p's physical path, or p itself when it does not exist. The
+// native resolver also expands a Windows short name, as git does.
+const realOr = (p) => {
+  try {
+    return realpathSync.native(p);
+  } catch {
+    return p;
+  }
+};
+
+// repoInfo(dir) -> the paths every action needs, or null outside a work tree.
+// ownConfig: this clone's local and worktree config files, as physical paths,
+// so a symlinked or short-name spelling of dir still matches what git reports.
+export function repoInfo(dir) {
+  const paths = ["hooks", "info/exclude", "config", "config.worktree"].flatMap((p) => ["--git-path", p]);
+  const r = git(dir, ["rev-parse", "--show-toplevel", ...paths]);
+  const [root, hooks, exclude, config, worktreeConfig] = r.out.split("\n");
+  if (!r.ok || !root || worktreeConfig === undefined) return null;
+  const abs = (p) => path.resolve(dir, p); // --git-path answers relative to dir
+  return {
+    top: root,
+    hooksDir: abs(hooks),
+    excludeFile: abs(exclude),
+    ownConfig: [abs(config), abs(worktreeConfig)].map(realOr),
+    hooksPath: git(root, ["config", "--get", "core.hooksPath"]).out,
+  };
+}
+
+function entryErrors(entry, i) {
+  const where = `entries[${i}]`;
+  const errors = [];
+  if (!NAME_RE.test(entry?.name ?? "")) errors.push(`${where}.name must match ${NAME_RE.source}`);
+  if (!EVENTS.includes(entry?.event)) errors.push(`${where}.event must be one of ${EVENTS.join(", ")}`);
+  if (!SCRIPT_RE.test(entry?.script ?? "")) errors.push(`${where}.script must be a .sh file name`);
+  if (!Array.isArray(entry?.tools) || !entry.tools.every((t) => NAME_RE.test(t))) {
+    errors.push(`${where}.tools must be a list of tool names`);
+  }
+  if (typeof entry?.rewrites !== "boolean") errors.push(`${where}.rewrites must be true or false`);
+  if (entry?.rewrites === true && entry.event === "pre-push") errors.push(`${where}: a pre-push entry cannot rewrite`);
+  return [...errors, ...assetErrors(entry?.assets, where)];
+}
+
+// assets: optional plugin-relative files copied beside the script under their
+// base names, so the names must be distinct and none may be the lib or the script.
+function assetErrors(assets, where) {
+  if (assets === undefined) return [];
+  if (!Array.isArray(assets)) return [`${where}.assets must be a list of paths`];
+  const bad = assets.filter((a) => typeof a !== "string" || !a || path.isAbsolute(a) || a.split(/[\\/]/).includes(".."));
+  if (bad.length) return [`${where}.assets must be relative paths inside the plugin`];
+  const names = assets.map((a) => path.posix.basename(a.replace(/\\/g, "/")));
+  if (new Set(names).size !== names.length || names.includes(LIB_NAME)) {
+    return [`${where}.assets need distinct base names other than ${LIB_NAME}`];
+  }
+  return [];
+}
+
+const assetName = (asset) => path.posix.basename(asset.replace(/\\/g, "/"));
+
+// remote: optional { git_url, ref, config } naming a lefthook remote config,
+// config being its path inside that repository.
+function remoteErrors(remote) {
+  if (remote === undefined) return [];
+  const errors = [];
+  if (!/^(https:\/\/|git@)\S+$/.test(remote?.git_url ?? "")) errors.push("remote.git_url must be an https or ssh git URL");
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(remote?.ref ?? "")) errors.push("remote.ref must be a branch or tag name");
+  const config = remote?.config ?? "";
+  if (!/\.ya?ml$/.test(config) || path.isAbsolute(config) || config.split(/[\\/]/).includes("..")) {
+    errors.push("remote.config must be a relative .yml path inside the remote repository");
+  }
+  return errors;
+}
+
+// validateEntries(manifest) -> list of errors; empty means valid.
+// earlierNames: optional, the plugin names this plugin had before a rename,
+// whose git-hook artifacts plan offers to retire. Each is a migration line,
+// removed once no consumer repository still holds artifacts under that name.
+function earlierErrors(names) {
+  if (names === undefined) return [];
+  if (!Array.isArray(names) || !names.every((n) => typeof n === "string" && NAME_RE.test(n))) {
+    return [`entries.json earlierNames must be a list of plugin names matching ${NAME_RE.source}`];
+  }
+  return new Set(names).size === names.length ? [] : ["entries.json names an earlier name twice"];
+}
+
+export function validateEntries(manifest) {
+  if (!Array.isArray(manifest?.entries) || manifest.entries.length === 0) {
+    return ["entries.json needs a non-empty entries list"];
+  }
+  const errors = [...manifest.entries.flatMap(entryErrors), ...remoteErrors(manifest.remote), ...earlierErrors(manifest.earlierNames)];
+  const names = manifest.entries.map((e) => e?.name);
+  if (new Set(names).size !== names.length) errors.push("entries.json names an entry twice");
+  return errors;
+}
+
+function installHint(root, tool) {
+  try {
+    const req = JSON.parse(readFileSync(path.join(root, "prerequisites.json"), "utf8")).requires ?? [];
+    const found = req.find((r) => r.id === tool);
+    return found ? Object.values(found.install).join("; ") : null;
+  } catch {
+    return null;
+  }
+}
+
+// loadPlugin(root) -> { name, root, entries, libText }; throws UsageError on a bad manifest.
+export function loadPlugin(root) {
+  let name = path.basename(path.resolve(root));
+  try {
+    name = JSON.parse(readFileSync(path.join(root, ".claude-plugin", "plugin.json"), "utf8")).name || name;
+  } catch {
+    // The directory name stands in when plugin.json is absent.
+  }
+  const file = path.join(root, "git-hooks", "entries.json");
+  const text = readText(file);
+  if (text === null) throw new UsageError(`${name}: no git-hooks/entries.json`);
+  let manifest;
+  try {
+    manifest = JSON.parse(text);
+  } catch (err) {
+    throw new UsageError(`${name}: entries.json is not valid JSON: ${err.message}`);
+  }
+  const errors = validateEntries(manifest);
+  if (manifest.earlierNames?.includes?.(name)) errors.push("entries.json earlierNames lists the plugin's own name");
+  if (errors.length) throw new UsageError(`${name}: ${errors.join("; ")}`);
+  const libText = readText(path.join(root, "lib", "git-hooks", LIB_NAME));
+  if (libText === null) throw new UsageError(`${name}: lib/git-hooks/${LIB_NAME} is missing`);
+  return { name, root, entries: manifest.entries, remote: manifest.remote, earlierNames: manifest.earlierNames ?? [], libText };
+}
+
+// stampHash(script, lib, assets): sha256 over the LF-normalized script, a NUL,
+// the LF-normalized lib, then for each asset in manifest order a NUL and its
+// LF-normalized text.
+export function stampHash(scriptText, libText, assetTexts = []) {
+  const h = createHash("sha256").update(lf(scriptText)).update("\0").update(lf(libText));
+  for (const text of assetTexts) h.update("\0").update(lf(text));
+  return h.digest("hex");
+}
+
+function sourceScript(plugin, entry) {
+  const text = readText(path.join(plugin.root, "git-hooks", entry.script));
+  if (text === null) throw new UsageError(`${plugin.name}: git-hooks/${entry.script} is missing`);
+  return text;
+}
+
+function sourceAssets(plugin, entry) {
+  return (entry.assets ?? []).map((asset) => {
+    const text = readText(path.join(plugin.root, asset));
+    if (text === null) throw new UsageError(`${plugin.name}: asset ${asset} is missing`);
+    return { name: assetName(asset), text };
+  });
+}
+
+const sourceHash = (plugin, entry) =>
+  stampHash(
+    sourceScript(plugin, entry),
+    plugin.libText,
+    sourceAssets(plugin, entry).map((a) => a.text),
+  );
+
+// The installed copy: the source with `# <plugin> <name> sha256:<hex>` as line 2.
+export function renderCopy(plugin, entry, scriptText) {
+  const lines = lf(scriptText).split("\n");
+  const stamp = `# ${plugin.name} ${entry.name} sha256:${sourceHash(plugin, entry)}`;
+  return [lines[0], stamp, ...lines.slice(1)].join("\n");
+}
+
+// readStamp(copyText) -> { plugin, name, hash, body } or null; body is the copy without its stamp line.
+export function readStamp(copyText) {
+  const lines = lf(copyText).split("\n");
+  const m = STAMP_RE.exec(lines[1] ?? "");
+  if (!m) return null;
+  return { plugin: m[1], name: m[2], hash: m[3], body: [lines[0], ...lines.slice(2)].join("\n") };
+}
+
+function packageKeys(top) {
+  try {
+    return Object.keys(JSON.parse(readText(path.join(top, "package.json"))) ?? {});
+  } catch {
+    return [];
+  }
+}
+
+function foreignEvidence(top) {
+  const keys = packageKeys(top);
+  return FOREIGN.flatMap((f) => {
+    const hits = f.files.filter((file) => existsSync(path.join(top, file)));
+    if (f.packageKey && keys.includes(f.packageKey)) hits.push(`package.json "${f.packageKey}"`);
+    return hits.map((hit) => ({ manager: f.manager, evidence: hit }));
+  });
+}
+
+const isHuskyPath = (p) => /^\.husky(\/_)?\/?$/.test(p);
+
+function managerEvidence(info) {
+  const found = [];
+  const config = LEFTHOOK_NAMES.find((n) => existsSync(path.join(info.top, n)));
+  if (config) found.push({ manager: "lefthook", evidence: config });
+  if (isHuskyPath(info.hooksPath)) found.push({ manager: "husky", evidence: `core.hooksPath=${info.hooksPath}` });
+  else if (existsSync(path.join(info.top, ".husky"))) found.push({ manager: "husky", evidence: ".husky/" });
+  if (info.hooksPath === SHARED_DIR) found.push({ manager: "plain", evidence: `core.hooksPath=${SHARED_DIR}` });
+  else if (info.hooksPath && !isHuskyPath(info.hooksPath)) {
+    found.push({ manager: "unknown", evidence: `core.hooksPath=${info.hooksPath}` });
+  }
+  return found;
+}
+
+// detect(info) -> { manager: lefthook|husky|plain|conflict, evidence[] }
+export function detect(info) {
+  const evidence = [...managerEvidence(info), ...foreignEvidence(info.top)];
+  if (evidence.length === 0) return { manager: "plain", evidence };
+  const managers = new Set(evidence.map((e) => e.manager));
+  const only = [...managers][0];
+  if (managers.size === 1 && MANAGERS.includes(only)) return { manager: only, evidence };
+  return { manager: "conflict", evidence };
+}
+
+// The directory a scope's copies live in, and the dispatcher directory for plain.
+function layout(info, scope, manager) {
+  const shared = path.join(info.top, SHARED_DIR);
+  if (scope === "shared") return { root: shared, dispatchDir: shared };
+  if (manager === "plain" && info.hooksPath === SHARED_DIR) {
+    return { root: path.join(shared, "local"), dispatchDir: shared };
+  }
+  return { root: info.hooksDir, dispatchDir: info.hooksDir };
+}
+
+// anchor: the directory trusted as is. Inside the work tree that is its top
+// level, since a clone can commit a symlink anywhere below it; a hooks dir under
+// the git directory holds nothing committed, so it is its own anchor.
+function entryPaths(info, plugin, entry, scope, manager) {
+  const { root, dispatchDir } = layout(info, scope, manager);
+  const dir = path.join(root, plugin.name);
+  return {
+    root,
+    anchor: root === info.hooksDir ? root : info.top,
+    script: path.join(dir, entry.script),
+    lib: path.join(dir, LIB_NAME),
+    marker: path.join(root, `${entry.event}.d`, `${plugin.name}.${entry.name}`),
+    dispatcher: path.join(dispatchDir, entry.event),
+  };
+}
+
+// The path a hook-manager config names: repo-relative inside the work tree,
+// absolute outside it (a local copy under the git directory of a linked worktree).
+const configPath = (info, file) => {
+  const rel = posix(path.relative(info.top, file));
+  return rel.startsWith("..") ? posix(file) : rel;
+};
+// sh, never bash: the entry finds its own bash (check-lib.sh).
+const runLine = (info, file) => {
+  const p = configPath(info, file);
+  return p === posix(file) ? `sh "${p}"` : `sh ${p}`;
+};
+
+function lefthookSnippet(info, plugin, entry, file) {
+  const lines = [`${entry.event}:`, "  jobs:", `    - name: ${plugin.name}-${entry.name}`];
+  const args = entry.event === "pre-commit" ? "" : " {0}";
+  lines.push(`      run: ${runLine(info, file)}${args}`);
+  if (entry.event === "pre-push") lines.push("      use_stdin: true");
+  return lines.join("\n");
+}
+
+function lefthookFile(info, scope) {
+  const main = LEFTHOOK_NAMES.find((n) => existsSync(path.join(info.top, n))) ?? "lefthook.yml";
+  if (scope === "shared") return main;
+  const dir = path.posix.dirname(main);
+  const base = path.posix.basename(main).replace(/^(\.?)lefthook\./, "$1lefthook-local.");
+  return dir === "." ? base : `${dir}/${base}`;
+}
+
+// wiring(info, plugin, entry, scope, manager) -> { wired, decision? }: whether
+// the manager runs the copy, and the edit the agent makes when it does not.
+function wiring(info, plugin, entry, scope, manager) {
+  const p = entryPaths(info, plugin, entry, scope, manager);
+  if (manager === "plain") {
+    const wired = isDispatcher(readText(p.dispatcher)) && lf(readText(p.marker) ?? "") === markerText(plugin, entry);
+    return { wired: wired && (scope === "local" || info.hooksPath === SHARED_DIR) };
+  }
+  const file = manager === "lefthook" ? lefthookFile(info, scope) : `.husky/${entry.event}`;
+  const wired = Boolean(readText(path.join(info.top, file))?.includes(configPath(info, p.script)));
+  if (wired) return { wired };
+  const snippet =
+    manager === "lefthook" ? lefthookSnippet(info, plugin, entry, p.script) : `${runLine(info, p.script)}${entry.event === "pre-commit" ? "" : ' "$@"'}`;
+  const kind = manager === "lefthook" ? "lefthook-config" : "husky-config";
+  return { wired, decision: { kind, entry: entry.name, file, snippet } };
+}
+
+// isDeclined: the entry's key at any git config scope (git's precedence, so a
+// local false beats a global true); unset, the master key declines every entry.
+// A value that is not a boolean reads as not declined, never as unset.
+const MASTER_DECLINE_KEY = "checks.git-hooks.declined";
+const declineKey = (plugin, entry) => `checks.${plugin.name}.${entry.name}.declined`;
+function configBool(info, key) {
+  const r = git(info.top, ["config", "--type=bool", "--get", key]);
+  return r.ok ? r.out : r.status === 1 ? "" : "invalid";
+}
+// A decline recorded under one of the plugin's declared earlier names
+// (earlierNames in entries.json): an install made before the plugin was
+// renamed. It counts between the entry's own key and the master key.
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// configEntries(info, re, args) -> [{ scope, origin, file, key, value }] for
+// every config line whose key matches re: file is the absolute path of the
+// config file that sets it (an included file included), or null when it comes
+// from no file; value is null for a key with no value.
+function configEntries(info, re, args = []) {
+  const tokens = git(info.top, ["config", ...args, "--show-origin", "--show-scope", "--null", "--get-regexp", re]).out.split("\0");
+  const out = [];
+  for (let i = 0; i + 2 < tokens.length; i += 3) {
+    const [key, ...value] = tokens[i + 2].split("\n");
+    const origin = tokens[i + 1];
+    const file = origin.startsWith("file:") ? path.resolve(info.top, origin.slice("file:".length)) : null;
+    out.push({ scope: tokens[i], origin, file, key, value: value.length ? value.join("\n") : null });
+  }
+  return out;
+}
+// fileLines(info, file, re) -> [{ file, key, value }], one per line of that one
+// file (its includes not followed) whose key matches re, in file order; value
+// is git's boolean reading of that line, or null when git does not take it as one.
+function fileLines(info, file, re) {
+  const all = git(info.top, ["config", "--file", file, "--no-includes", "--type=bool", "--null", "--get-regexp", re]);
+  if (all.ok || all.status === 1) {
+    return all.out
+      .split("\0")
+      .filter(Boolean)
+      .map((t) => {
+        const [key, value] = t.split("\n");
+        return { file, key, value: value === "true" };
+      });
+  }
+  // A value git does not take as a boolean fails the whole listing: read each key's values.
+  const lines = configEntries(info, re, ["--file", file, "--no-includes"]);
+  const bools = new Map();
+  for (const key of new Set(lines.map((l) => l.key))) {
+    const r = git(info.top, ["config", "--file", file, "--no-includes", "--type=bool", "--null", "--get-all", key]);
+    bools.set(key, r.ok ? r.out.split("\0").map((v) => v === "true") : []);
+  }
+  const seen = new Map();
+  return lines.map((l) => {
+    const i = seen.get(l.key) ?? 0;
+    seen.set(l.key, i + 1);
+    return { file, key: l.key, value: bools.get(l.key)[i] ?? null };
+  });
+}
+// priorDecline -> the effective value (git's precedence per key) of the entry's
+// decline key under a declared earlier name: "true" when any such key reads true,
+// else "false" when one reads false (an opt-in, as copy writes over a master or
+// global decline), else "". The entry's own key, when set, wins over it.
+function priorDecline(info, plugin, entry) {
+  const values = plugin.earlierNames.map((from) => configBool(info, `checks.${from}.${entry.name}.declined`));
+  return values.includes("true") ? "true" : values.includes("false") ? "false" : "";
+}
+const isDeclined = (info, plugin, entry, prior = true) =>
+  (configBool(info, declineKey(plugin, entry)) ||
+    (prior ? priorDecline(info, plugin, entry) : "") ||
+    configBool(info, MASTER_DECLINE_KEY)) === "true";
+
+// copyState(file, entry, current) -> missing | modified | stale | ok, for one
+// installed script, its lib and its assets beside it. The stamp is checked over
+// the assets present beside the copy, so an asset the manifest gained after the
+// install leaves an unedited copy stale, not modified; deleting an asset the
+// stamp covers still fails the check.
+function copyState(file, entry, currentHash) {
+  const text = readText(file);
+  if (text === null) return "missing";
+  const stamp = readStamp(text);
+  const dir = path.dirname(file);
+  const lib = readText(path.join(dir, LIB_NAME));
+  const assets = (entry.assets ?? []).map((a) => readText(path.join(dir, assetName(a)))).filter((t) => t !== null);
+  if (!stamp || lib === null || stampHash(stamp.body, lib, assets) !== stamp.hash) {
+    return "modified";
+  }
+  return stamp.hash === currentHash ? "ok" : "stale";
+}
+
+function whichTool(tool) {
+  const exts = process.platform === "win32" ? ["", ".exe", ".cmd", ".bat"] : [""];
+  for (const dir of (process.env.PATH ?? "").split(path.delimiter)) {
+    if (dir && exts.some((ext) => existsSync(path.join(dir, tool + ext)))) return true;
+  }
+  return false;
+}
+
+function ciMentions(top, tool) {
+  const files = [".gitlab-ci.yml", "azure-pipelines.yml", ".circleci/config.yml"].map((f) => path.join(top, f));
+  const wf = path.join(top, ".github", "workflows");
+  if (existsSync(wf)) files.push(...readdirSync(wf).map((f) => path.join(wf, f)));
+  return files.some((f) => readText(f)?.includes(tool));
+}
+
+function toolDecisions(info, plugin, entry) {
+  return entry.tools.flatMap((tool) => {
+    const out = [];
+    if (!whichTool(tool)) {
+      out.push({ kind: "missing-tool", entry: entry.name, tool, install: installHint(plugin.root, tool) });
+    }
+    if (!ciMentions(info.top, tool)) out.push({ kind: "no-ci-rerun", entry: entry.name, tool });
+    return out;
+  });
+}
+
+function entryPlan(info, plugin, entry, scope, manager) {
+  const decisions = [];
+  if (manager === "husky" && scope === "local") {
+    decisions.push({ kind: "husky-shared-only", entry: entry.name, detail: "husky has no per-clone hooks; use scope shared" });
+    return { actions: [], decisions };
+  }
+  if (isDeclined(info, plugin, entry)) decisions.push({ kind: "declined", entry: entry.name });
+  const p = entryPaths(info, plugin, entry, scope, manager);
+  const unsafe = unsafeTarget(info, plugin, entry, scope, manager);
+  if (unsafe) decisions.push({ kind: "unsafe-path", entry: entry.name, file: unsafe });
+  const state = copyState(p.script, entry, sourceHash(plugin, entry));
+  if (state === "modified") decisions.push({ kind: "modified", entry: entry.name, file: p.script });
+  if (manager === "plain" && dispatcherState(p.dispatcher) === "modified") {
+    decisions.push({ kind: "modified", entry: entry.name, file: p.dispatcher });
+  }
+  const assets = (entry.assets ?? []).map((a) => path.join(path.dirname(p.script), assetName(a)));
+  const action = { op: "copy", entry: entry.name, scope, manager, state, files: [p.script, p.lib, ...assets] };
+  if (manager === "plain") action.files.push(p.marker);
+  const wire = wiring(info, plugin, entry, scope, manager);
+  if (wire.decision) decisions.push(wire.decision);
+  decisions.push(...toolDecisions(info, plugin, entry));
+  return { actions: [action], decisions };
+}
+
+function attributesStep(info) {
+  const file = path.join(info.top, ".gitattributes");
+  const text = readText(file);
+  if (text === null) return { action: { op: "gitattributes", file, line: ATTRIBUTES_LINE } };
+  if (text.split(/\r?\n/).includes(ATTRIBUTES_LINE)) return {};
+  return { decision: { kind: "gitattributes", file, line: ATTRIBUTES_LINE } };
+}
+
+const ignored = (info, rel) => git(info.top, ["check-ignore", "-q", "--no-index", rel]).ok;
+
+function excludeDecision(info, rel) {
+  if (ignored(info, rel)) return [];
+  return [{ kind: "exclude", file: info.excludeFile, line: `/${rel}` }];
+}
+
+// dirNames(dir) -> [{ name, isDir }], isDir following a symlink as the
+// dispatcher's glob does; [] when dir cannot be read.
+function dirNames(dir) {
+  try {
+    return readdirSync(dir).map((name) => {
+      try {
+        return { name, isDir: statSync(path.join(dir, name)).isDirectory() };
+      } catch {
+        return { name, isDir: false };
+      }
+    });
+  } catch {
+    return [];
+  }
+}
+
+// sharedEntries(info, plugin) -> repo-relative paths, sorted, of what setting
+// core.hooksPath may run that this plugin did not put there: every marker in a
+// .githooks/<event>.d/ other than this plugin's own, this plugin's own marker
+// with the script it names when that script is not the copy copy would write,
+// every *.pre-checks hook, any other hook file (a dotless name that is not a
+// dispatcher), and every tracked file under .githooks/local/. Names compare
+// case-insensitively, as the dispatcher's lookups do on a case-insensitive filesystem.
+function sharedEntries(info, plugin) {
+  const dir = path.join(info.top, SHARED_DIR);
+  // Only a marker of one of this plugin's entries, naming its script, is its own.
+  const own = new Map(plugin.entries.map((e) => [`${e.event}.d/${plugin.name}.${e.name}`, e]));
+  const isOwn = (rel, file) => own.has(rel) && lf(readText(file) ?? "") === markerText(plugin, own.get(rel));
+  // The dispatcher runs whatever script the marker names. A stamp is no
+  // signature, so a stale copy cannot be told from a forged one: only an absent
+  // script or the current copy goes unlisted.
+  const scriptRel = (e) => `${plugin.name}/${e.script}`;
+  const genuine = (e) => ["missing", "ok"].includes(copyState(path.join(dir, scriptRel(e)), e, sourceHash(plugin, e)));
+  const found = [];
+  for (const d of dirNames(dir)) {
+    const lower = d.name.toLowerCase();
+    if (d.isDir && lower.endsWith(".d")) {
+      for (const m of dirNames(path.join(dir, d.name))) {
+        const rel = `${d.name}/${m.name}`;
+        if (m.isDir) continue;
+        if (!isOwn(rel, path.join(dir, rel))) found.push(`${SHARED_DIR}/${rel}`);
+        else if (!genuine(own.get(rel))) found.push(`${SHARED_DIR}/${rel}`, `${SHARED_DIR}/${scriptRel(own.get(rel))}`);
+      }
+      continue;
+    }
+    if (d.isDir) continue;
+    const file = path.join(dir, d.name);
+    const dispatcher = ["ours", "prior"].includes(dispatcherState(file));
+    if (lower.endsWith(".pre-checks") || (!lower.includes(".") && !dispatcher)) found.push(`${SHARED_DIR}/${d.name}`);
+  }
+  const local = git(info.top, ["ls-files", "-z", "--", `:(icase)${SHARED_DIR}/local`]).out;
+  found.push(...local.split("\0").filter(Boolean));
+  return [...new Set(found)].sort();
+}
+
+function plainDecisions(info, plugin, scope) {
+  const out = [];
+  const { dispatchDir } = layout(info, scope, "plain");
+  for (const event of new Set(plugin.entries.map((e) => e.event))) {
+    const file = path.join(dispatchDir, event);
+    if (dispatcherState(file) === "foreign") {
+      out.push({ kind: "foreign-hook", file, chainAs: `${file}.pre-checks` });
+    }
+  }
+  if (scope === "shared" && info.hooksPath !== SHARED_DIR) {
+    const files = sharedEntries(info, plugin);
+    if (files.length) out.push({ kind: "shared-entries", files });
+    out.push({ kind: "hooks-path", command: `git config core.hooksPath ${SHARED_DIR}`, perClone: true });
+  }
+  if (scope === "local" && info.hooksPath === SHARED_DIR) out.push(...excludeDecision(info, `${SHARED_DIR}/local/`));
+  return out;
+}
+
+function managerDecisions(info, plugin, scope, manager) {
+  if (manager === "plain") return plainDecisions(info, plugin, scope);
+  if (manager === "husky") {
+    return isHuskyPath(info.hooksPath)
+      ? []
+      : [{ kind: "husky-install", detail: "core.hooksPath is not .husky/_ in this clone; run the project's husky install" }];
+  }
+  const out = [];
+  if (!plugin.entries.some((e) => lefthookHook(info, e.event))) out.push({ kind: "lefthook-install", command: "lefthook install" });
+  if (scope === "local") out.push(...excludeDecision(info, lefthookFile(info, "local")));
+  return out;
+}
+
+// Local copies that a shared install would leave behind, for the agent to remove.
+function migrateDecision(info, plugin, scope, manager) {
+  if (scope !== "shared") return [];
+  const files = plugin.entries
+    .map((e) => entryPaths(info, plugin, e, "local", manager).script)
+    .filter((f) => existsSync(f));
+  return files.length ? [{ kind: "migrate", from: "local", files }] : [];
+}
+
+// The plugin's lefthook remote: the `remotes:` entry, whether the lefthook
+// config carries it, and whether lefthook fetched it, into
+// <git-path info>/lefthook-remotes/<repository name>-<ref>/, where lefthook
+// 2.2.2 writes each "-" of the ref as "--" and each "/" as "-"
+// (RemoteDirectoryName in its internal/git/remote.go); an earlier lefthook used the ref as is.
+const repoName = (url) => path.posix.basename(url.slice(0, url.length - path.posix.extname(url).length));
+
+function remoteSnippet(remote) {
+  const lines = ["remotes:", `  - git_url: ${remote.git_url}`, `    ref: ${remote.ref}`, "    refetch_frequency: 1h"];
+  return [...lines, "    configs:", `      - ${remote.config}`].join("\n");
+}
+
+// The lefthook config's `remotes` entries as { git_url, ref, configs }: YAML
+// list items in any key order, TOML [[remotes]] tables, or JSON. Comments are
+// skipped, so a comment naming the URL is no entry.
+function lefthookRemotes(file, text) {
+  const unquote = (s) => s.replace(/[ \t]+#.*$/, "").trim().replace(/^(["'])(.*)\1$/, "$2");
+  if (/\.jsonc?$/.test(file)) {
+    try {
+      const remotes = JSON.parse(text.replace(/^[ \t]*\/\/.*$/gm, "")).remotes;
+      return Array.isArray(remotes) ? remotes : [];
+    } catch {
+      return [];
+    }
+  }
+  if (file.endsWith(".toml")) {
+    return text
+      .split(/^[ \t]*\[\[remotes\]\][ \t]*$/m)
+      .slice(1)
+      .map((table) => {
+        const body = table.split(/^[ \t]*\[/m)[0];
+        const val = (key) => new RegExp(`^[ \\t]*${key}[ \\t]*=(.*)$`, "m").exec(body)?.[1];
+        const list = /^[ \t]*configs[ \t]*=[ \t]*\[([^\]]*)\]/m.exec(body)?.[1] ?? "";
+        const ref = val("ref");
+        return { git_url: unquote(val("git_url") ?? ""), ref: ref && unquote(ref), configs: [...list.matchAll(/["']([^"']+)["']/g)].map((m) => m[1]) };
+      });
+  }
+  const block = /^remotes:[ \t]*(?:#.*)?\n((?:[ \t#-].*(?:\n|$)|\n)*)/m.exec(text)?.[1] ?? "";
+  const indent = /^([ \t]*)-/m.exec(block)?.[1] ?? "";
+  return block
+    .split(new RegExp(`^${indent}-[ \\t]+`, "m"))
+    .slice(1)
+    .map((raw) => {
+      // Block and flow forms alike: `key: value` lines, `{key: value, ...}`, `configs: [a, b]`.
+      const item = raw.replace(/^[ \t]*#.*$/gm, "").replace(/[ \t]+#.*$/gm, "");
+      const val = (key) => {
+        const v = new RegExp(`(?:^|[\\s{,])${key}:[ \\t]*([^\\n,}]*)`).exec(item)?.[1];
+        return v === undefined ? undefined : unquote(v);
+      };
+      const flow = /(?:^|[\s{,])configs:[ \t]*\[([^\]]*)\]/.exec(item)?.[1].split(",") ?? [];
+      const listed = item.split("\n").map((l) => /^[ \t]*-[ \t]+(.*)$/.exec(l)?.[1]).filter((v) => v !== undefined);
+      return { git_url: val("git_url"), ref: val("ref"), configs: [...flow, ...listed].map(unquote).filter(Boolean) };
+    });
+}
+
+// The ref of the remotes entry whose git_url is exactly the plugin's and whose
+// configs name its config: "" when that entry names no ref, null when none does.
+function remoteRef(info, plugin) {
+  const { git_url: url, config } = plugin.remote;
+  const file = lefthookFile(info, "shared");
+  const entry = lefthookRemotes(file, readText(path.join(info.top, file)) ?? "").find(
+    (r) => r?.git_url === url && Array.isArray(r.configs) && r.configs.includes(config),
+  );
+  return entry ? String(entry.ref ?? "") : null;
+}
+
+function remoteFetched(info, plugin) {
+  const { git_url: url, ref, config } = plugin.remote;
+  const names = [ref.replaceAll("-", "--").replaceAll("/", "-"), ref];
+  const root = path.join(path.dirname(info.excludeFile), "lefthook-remotes");
+  const prefixes = names.map((name) => `${repoName(url)}-${name}`);
+  // A cache directory with a suffix after the ref counts too; another ref's, or
+  // another repository's whose name extends this one, does not.
+  const dirs = existsSync(root) ? readdirSync(root).filter((d) => prefixes.some((p) => d === p || d.startsWith(`${p}-`))) : [];
+  return dirs.some((d) => readText(path.join(root, d, config)) !== null);
+}
+
+const lefthookHook = (info, event) => Boolean(readText(path.join(info.hooksDir, event))?.includes("lefthook"));
+
+// The shared copies and their lefthook jobs that the remote replaces.
+function sharedLeftovers(info, plugin) {
+  const files = plugin.entries.map((e) => entryPaths(info, plugin, e, "shared", "lefthook").script).filter((f) => existsSync(f));
+  const config = readText(path.join(info.top, lefthookFile(info, "shared"))) ?? "";
+  const jobs = plugin.entries
+    .map((e) => `${plugin.name}-${e.name}`)
+    .filter((job) => new RegExp(`(name:\\s*(["']?)${job}\\2|^\\s+${job}:)\\s*$`, "m").test(config));
+  if (!files.length && !jobs.length) return [];
+  return [{ kind: "migrate", from: "shared", dir: `${SHARED_DIR}/${plugin.name}`, files, jobs }];
+}
+
+function remotePlan(info, plugin, override) {
+  if (!plugin.remote) throw new UsageError(`${plugin.name} names no lefthook remote; use --scope local or shared`);
+  const found = detect(info);
+  const manager = override ?? (found.evidence.length ? found.manager : "lefthook");
+  if (manager === "conflict") {
+    return { manager, actions: [], decisions: [{ kind: "manager-conflict", evidence: found.evidence }] };
+  }
+  if (manager !== "lefthook") {
+    return { manager, actions: [], decisions: [{ kind: "remote-needs-lefthook", evidence: found.evidence }] };
+  }
+  // Lefthook looks up a remote's scripts under the consumer's source_dir inside
+  // the fetched copy, so a source_dir other than the default finds none of them.
+  const file = lefthookFile(info, "shared");
+  const text = readText(path.join(info.top, file)) ?? "";
+  const sourceDir = /\.jsonc?$/.test(file)
+    ? /"source_dir"\s*:\s*"([^"]+)"/.exec(text)?.[1]
+    : /^source_dir[ \t]*[:=][ \t]*["']?([^"'\s#]+)/m.exec(text)?.[1];
+  if (sourceDir && sourceDir.replace(/^\.\//, "").replace(/\/+$/, "") !== ".lefthook") {
+    return { manager, actions: [], decisions: [{ kind: "remote-source-dir", file, sourceDir }] };
+  }
+  const decisions = [];
+  const ref = remoteRef(info, plugin);
+  if (ref === null) decisions.push({ kind: "lefthook-config", file, snippet: remoteSnippet(plugin.remote) });
+  else if (ref !== plugin.remote.ref) {
+    decisions.push({ kind: "lefthook-config", file, snippet: remoteSnippet(plugin.remote), foundRef: ref });
+  }
+  if (!plugin.entries.every((e) => lefthookHook(info, e.event)) || !remoteFetched(info, plugin)) {
+    decisions.push({ kind: "lefthook-install", command: "lefthook install" });
+  }
+  decisions.push(...sharedLeftovers(info, plugin), ...migrateDecision(info, plugin, "shared", manager), ...supersededDecisions(info, plugin));
+  for (const entry of plugin.entries) {
+    if (isDeclined(info, plugin, entry)) decisions.push({ kind: "declined", entry: entry.name });
+    decisions.push(...toolDecisions(info, plugin, entry));
+  }
+  return { manager, actions: [], decisions };
+}
+
+// plan(info, plugin, scope, manager?) -> { manager, actions[], decisions[] }
+// A local install writes into `git rev-parse --git-path hooks`. With
+// core.hooksPath set to anything but the plain shared .githooks, that directory
+// belongs to whatever set it (husky's .husky/_, or a foreign tool), so a local
+// copy there would either be ignored or overwrite that tool's files.
+function hooksDirOwned(info, scope, manager) {
+  if (scope !== "local" || manager === "husky" || !info.hooksPath) return null;
+  if (manager === "plain" && info.hooksPath === SHARED_DIR) return null;
+  return { kind: "hooks-path-owned", hooksPath: info.hooksPath, dir: info.hooksDir };
+}
+
+export function plan(info, plugin, scope, override) {
+  if (scope === "remote") return remotePlan(info, plugin, override);
+  const found = detect(info);
+  const manager = override ?? found.manager;
+  if (manager === "conflict") {
+    return { manager, actions: [], decisions: [{ kind: "manager-conflict", evidence: found.evidence }] };
+  }
+  const owned = hooksDirOwned(info, scope, manager);
+  if (owned) return { manager, actions: [], decisions: [owned] };
+  const actions = [];
+  const decisions = [
+    ...managerDecisions(info, plugin, scope, manager),
+    ...migrateDecision(info, plugin, scope, manager),
+    ...supersededDecisions(info, plugin),
+  ];
+  for (const entry of plugin.entries) {
+    const step = entryPlan(info, plugin, entry, scope, manager);
+    actions.push(...step.actions);
+    decisions.push(...step.decisions);
+  }
+  if (scope === "shared" && actions.length) {
+    const step = attributesStep(info);
+    if (step.action) actions.push(step.action);
+    if (step.decision) decisions.push(step.decision);
+  }
+  return { manager, actions, decisions };
+}
+
+// Every file copy writes for one entry, the dispatcher and .gitattributes included.
+function copyTargets(info, plugin, entry, scope, manager) {
+  const p = entryPaths(info, plugin, entry, scope, manager);
+  const dir = path.dirname(p.script);
+  const files = [p.lib, ...(entry.assets ?? []).map((a) => path.join(dir, assetName(a))), p.script];
+  if (manager === "plain") files.push(p.marker, p.dispatcher);
+  if (scope === "shared") files.push(path.join(info.top, ".gitattributes"));
+  return { anchor: p.anchor, files };
+}
+
+// symlinkOnPath(anchor, file) -> the first path below anchor, down to and
+// including file, that is a symbolic link (or file itself when it is not below
+// anchor), else null. A write through such a path could land outside the repository.
+function symlinkOnPath(anchor, file) {
+  const rel = path.relative(anchor, file);
+  if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) return file;
+  let at = anchor;
+  for (const part of rel.split(path.sep)) {
+    at = path.join(at, part);
+    try {
+      if (lstatSync(at).isSymbolicLink()) return at;
+    } catch {
+      return null; // absent from here down: copy creates it
+    }
+  }
+  return null;
+}
+
+function unsafeTarget(info, plugin, entry, scope, manager) {
+  const { anchor, files } = copyTargets(info, plugin, entry, scope, manager);
+  for (const file of files) {
+    const link = symlinkOnPath(anchor, file);
+    if (link) return link;
+  }
+  return null;
+}
+
+// A copy that starts with a shebang is executable, on disk and in the index,
+// as a consumer's repository hygiene check expects; any other copy is not.
+const copyMode = (text) => (text.startsWith("#!") ? 0o755 : 0o644);
+
+// Whether file's owner exec bit already matches mode; Windows has no exec bit.
+function execBitMatches(file, mode) {
+  if (process.platform === "win32") return true;
+  try {
+    const st = lstatSync(file);
+    return st.isFile() && Boolean(st.mode & 0o100) === Boolean(mode & 0o100);
+  } catch {
+    return false;
+  }
+}
+
+// Written beside the target and renamed over it, so a link planted after the
+// check is replaced rather than followed; the mode is set on that new file only.
+// A copy whose text matches but whose exec bit does not is rewritten the same way.
+function writeIfChanged(file, text, mode) {
+  if (readText(file) === text && (!mode || execBitMatches(file, mode))) return false;
+  mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  try {
+    writeFileSync(tmp, text, { flag: "wx" });
+    if (mode) chmodSync(tmp, mode);
+    renameSync(tmp, file);
+  } finally {
+    rmSync(tmp, { force: true });
+  }
+  return true;
+}
+
+// Only the exact dispatcher is ours, or one an earlier release wrote; any other
+// text at the path, even one that carries the sentinel, belongs to someone else.
+const isDispatcher = (text) => text !== null && lf(text) === DISPATCHER;
+
+// dispatcherState(file) -> absent | ours | prior (an earlier release's, which
+// copy replaces) | modified (carries the sentinel, but edited) | foreign (some
+// other hook, or a file too odd to read).
+function dispatcherState(file) {
+  const text = readText(file);
+  if (isDispatcher(text)) return "ours";
+  if (text !== null && PRIOR_DISPATCHERS.includes(lf(text))) return "prior";
+  if (text?.includes(SENTINEL)) return "modified";
+  try {
+    lstatSync(file);
+    return "foreign";
+  } catch {
+    return "absent";
+  }
+}
+
+// The marker names the script the dispatcher runs; anything else is drift.
+const markerText = (plugin, entry) => `${plugin.name}/${entry.script}\n`;
+
+// stage(info, files, executable) -> whether git add staged every file, at
+// index mode 100755 when executable and 100644 otherwise.
+function stage(info, files, executable) {
+  if (!files.length) return true;
+  const rel = files.map((f) => path.relative(info.top, f));
+  return git(info.top, ["add", `--chmod=${executable ? "+x" : "-x"}`, "--", ...rel]).ok;
+}
+
+// copy(info, plugin, entry, scope, manager, force) -> installed | refreshed | unchanged | refused | blocked | unsafe-path | stage-failed
+// (blocked: a local install whose hooks dir another manager owns; unsafe-path: a
+// target is or passes through a symlink; nothing is written for either.
+// stage-failed: a shared install wrote its files but git add failed, so the
+// team would not receive them)
+export function copy(info, plugin, entry, scope, manager, force = false) {
+  if (manager === "husky" && scope === "local") throw new UsageError("husky has no local scope; use --scope shared");
+  if (hooksDirOwned(info, scope, manager)) return "blocked";
+  if (unsafeTarget(info, plugin, entry, scope, manager)) return "unsafe-path";
+  const p = entryPaths(info, plugin, entry, scope, manager);
+  const source = sourceScript(plugin, entry);
+  const before = copyState(p.script, entry, sourceHash(plugin, entry));
+  const hook = manager === "plain" ? dispatcherState(p.dispatcher) : null;
+  if ((before === "modified" || hook === "modified") && !force) return "refused";
+  const exec = [];
+  const plainFiles = []; // staged without the exec bit at shared scope
+  const support = [
+    { file: p.lib, text: plugin.libText },
+    ...sourceAssets(plugin, entry).map((a) => ({ file: path.join(path.dirname(p.script), a.name), text: a.text })),
+  ];
+  let changed = false;
+  for (const { file, text } of support) {
+    const mode = copyMode(text);
+    changed = writeIfChanged(file, text, mode) || changed;
+    (mode & 0o100 ? exec : plainFiles).push(file);
+  }
+  changed = writeIfChanged(p.script, renderCopy(plugin, entry, source), 0o755) || changed;
+  exec.push(p.script);
+  if (manager === "plain") {
+    changed = writeIfChanged(p.marker, markerText(plugin, entry)) || changed;
+    if (hook !== "foreign" && writeIfChanged(p.dispatcher, DISPATCHER, 0o755)) exec.push(p.dispatcher);
+    plainFiles.push(p.marker);
+  }
+  if (scope === "shared") {
+    const attributes = attributesStep(info).action;
+    if (attributes) writeIfChanged(attributes.file, `${ATTRIBUTES_LINE}\n`);
+    const staged = stage(info, exec, true) && stage(info, [...plainFiles, ...(attributes ? [attributes.file] : [])], false);
+    if (!staged) return "stage-failed";
+  }
+  git(info.top, ["config", "--local", "--unset", declineKey(plugin, entry)]);
+  // An install opts this clone back in over a global or master decline, and
+  // over a prior-name key, which the setup agent unsets afterwards.
+  if (isDeclined(info, plugin, entry) || isDeclined(info, plugin, entry, false)) {
+    git(info.top, ["config", "--local", declineKey(plugin, entry), "false"]);
+  }
+  if (before === "missing") return "installed";
+  return changed ? "refreshed" : "unchanged";
+}
+
+// decline(info, plugin, entry, undo, global, optIn) -> sets the entry's decline
+// key (false with optIn, an opt-in over a wider decline) or clears it, in this
+// clone, or with global in the user's global config.
+export function decline(info, plugin, entry, undo = false, global = false, optIn = false) {
+  const scope = [global ? "--global" : "--local"];
+  const key = declineKey(plugin, entry);
+  const args = undo ? ["config", ...scope, "--unset", key] : ["config", ...scope, key, optIn ? "false" : "true"];
+  const r = git(info.top, args);
+  return r.ok || (undo && r.status === 5); // 5: the key was not set
+}
+
+// Config hooks: git 2.54 and later run `hook.<name>.command` on each
+// `hook.<name>.event` from any config scope, before the hooks-directory hook,
+// so one user-scope block under an includeIf covers every clone and linked
+// worktree the condition matches, beside whatever hook manager each one uses.
+// An older git ignores the keys without a word.
+const CONFIG_HOOK_EVENTS = ["commit-msg"];
+const CONFIG_HOOK_FLOOR = [2, 54];
+// The worktree keyword is newer than config hooks; an older git skips such an include.
+const WORKTREE_INCLUDE_FLOOR = [2, 56];
+const INCLUDE_IF_RE = /^(?:gitdir|gitdir\/i|onbranch|worktree|worktree\/i|hasconfig:remote\.\*\.url):[^\n\0]+$/;
+const INCLUDE_FILE = "hooks.gitconfig";
+
+const hookName = (plugin, entry) => `${plugin.name}-${entry.name}`;
+
+// configHookDir(plugin) -> <XDG config home>/git/checks/<plugin>, the stable
+// copy's directory: outside every repository, so removing a clone or a
+// worktree leaves it in place.
+function configHookDir(plugin) {
+  const xdg = process.env.XDG_CONFIG_HOME;
+  const home = xdg && path.isAbsolute(xdg) ? xdg : path.join(homedir(), ".config");
+  return path.join(home, "git", "checks", plugin.name);
+}
+
+function gitAtLeast(info, [floorMajor, floorMinor]) {
+  const m = /(\d+)\.(\d+)/.exec(git(info.top, ["--version"]).out);
+  if (!m) return false;
+  const [major, minor] = [Number(m[1]), Number(m[2])];
+  return major > floorMajor || (major === floorMajor && minor >= floorMinor);
+}
+
+const hasConfigHooks = (info) => gitAtLeast(info, CONFIG_HOOK_FLOOR);
+
+// The events this repository's git config gives the entry's config hook; an
+// empty value clears the ones before it.
+function configHookEvents(info, plugin, entry) {
+  // --null keeps a trailing empty value, which git() would otherwise trim away.
+  const out = git(info.top, ["config", "--null", "--get-all", `hook.${hookName(plugin, entry)}.event`]).out;
+  const values = out.split("\0").slice(0, -1);
+  return values.slice(values.lastIndexOf("") + 1);
+}
+
+// The command runs through the shell with the hook's arguments after it, so
+// the script path sits in double quotes and must hold nothing they expand.
+const hookCommand = (script) => `sh "${posix(script)}"`;
+
+function includeText(plugin, entries, dir) {
+  const lines = [
+    `# ${plugin.name} git-hook entries as git config hooks, for git 2.54 or later.`,
+    "# Written by install.mjs config-hook, which rewrites this file on every run.",
+  ];
+  for (const entry of entries) {
+    const command = hookCommand(path.join(dir, entry.script)).replaceAll('"', '\\"');
+    lines.push(`[hook "${hookName(plugin, entry)}"]`, `\tevent = ${entry.event}`, `\tcommand = "${command}"`);
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+// configHook(info, plugin, condition, force) -> { dir, include, installed[],
+// decisions[] }: writes the stable copies and the include file. Each installed
+// row is installed | refreshed | unchanged | refused (a locally edited copy,
+// left as it is without force).
+export function configHook(info, plugin, condition, force = false) {
+  const entries = plugin.entries.filter((e) => CONFIG_HOOK_EVENTS.includes(e.event));
+  if (!entries.length) throw new UsageError(`${plugin.name} has no ${CONFIG_HOOK_EVENTS.join(" or ")} entry`);
+  if (/^worktree(?:\/i)?:/.test(condition) && !gitAtLeast(info, WORKTREE_INCLUDE_FLOOR)) {
+    throw new UsageError(`this git does not support the ${condition.split(":")[0]} includeIf keyword; use gitdir`);
+  }
+  const dir = configHookDir(plugin);
+  if (/["$`\\\n]/.test(posix(dir))) throw new UsageError(`${dir} holds a character a hook command cannot quote`);
+  const decisions = [];
+  const installed = entries.map((entry) => {
+    const row = { entry: entry.name, name: hookName(plugin, entry) };
+    const script = path.join(dir, entry.script);
+    const before = copyState(script, entry, sourceHash(plugin, entry));
+    if (before === "modified" && !force) {
+      decisions.push({ kind: "modified", entry: entry.name, file: script });
+      return { ...row, status: "refused" };
+    }
+    let changed = writeIfChanged(path.join(dir, LIB_NAME), plugin.libText, copyMode(plugin.libText));
+    for (const asset of sourceAssets(plugin, entry)) {
+      changed = writeIfChanged(path.join(dir, asset.name), asset.text, copyMode(asset.text)) || changed;
+    }
+    changed = writeIfChanged(script, renderCopy(plugin, entry, sourceScript(plugin, entry)), 0o755) || changed;
+    return { ...row, status: before === "missing" ? "installed" : changed ? "refreshed" : "unchanged" };
+  });
+  const include = path.join(dir, INCLUDE_FILE);
+  writeIfChanged(include, includeText(plugin, entries, dir));
+  const key = `includeIf.${condition}.path`;
+  const value = posix(include);
+  if (!git(info.top, ["config", "--global", "--get-all", key]).out.split("\n").includes(value)) {
+    decisions.push({ kind: "include-if", key, value });
+  } else if (!entries.every((e) => configHookEvents(info, plugin, e).includes(e.event))) {
+    decisions.push({ kind: "include-if-unmatched", condition, repo: info.top });
+  }
+  if (!hasConfigHooks(info)) {
+    decisions.push({ kind: "git-too-old", version: git(info.top, ["--version"]).out, floor: CONFIG_HOOK_FLOOR.join(".") });
+  }
+  return { dir, include, installed, decisions };
+}
+
+// configHookVerdict -> the state of the entry's config hook when this
+// repository's git config gives it one, else null. A hook this repository
+// disables, or points at another command, is missing.
+function configHookVerdict(info, plugin, entry) {
+  if (!CONFIG_HOOK_EVENTS.includes(entry.event) || !configHookEvents(info, plugin, entry).includes(entry.event)) {
+    return null;
+  }
+  if (!hasConfigHooks(info)) return null;
+  const name = hookName(plugin, entry);
+  const script = path.join(configHookDir(plugin), entry.script);
+  const command = git(info.top, ["config", "--get", `hook.${name}.command`]).out;
+  if (command !== hookCommand(script) || configBool(info, `hook.${name}.enabled`) === "false") {
+    return { state: "missing", detail: `hook.${name} does not run ${posix(script)} in this repository` };
+  }
+  const state = copyState(script, entry, sourceHash(plugin, entry));
+  return state === "ok" ? { state } : { state, detail: script };
+}
+
+function scopesFor(info) {
+  const scopes = [{ scope: "shared", manager: "lefthook" }, { scope: "local", manager: "lefthook" }];
+  if (info.hooksPath === SHARED_DIR) scopes.push({ scope: "local", manager: "plain" });
+  return scopes;
+}
+
+// list(info, plugin) -> [{ entryId, event, scope, file, stamp }] for every installed copy.
+export function list(info, plugin) {
+  const out = [];
+  for (const entry of plugin.entries) {
+    const seen = new Set();
+    for (const { scope, manager } of scopesFor(info)) {
+      const file = entryPaths(info, plugin, entry, scope, manager).script;
+      const text = seen.has(file) ? null : readText(file);
+      seen.add(file);
+      if (text === null) continue;
+      out.push({ entryId: entry.name, event: entry.event, scope, file, stamp: readStamp(text)?.hash ?? null });
+    }
+  }
+  return out;
+}
+
+function entryVerdict(info, plugin, entry, manager) {
+  if (isDeclined(info, plugin, entry)) return { state: "declined" };
+  const ref = plugin.remote ? remoteRef(info, plugin) : null;
+  if (ref !== null) {
+    if (ref !== plugin.remote.ref) {
+      return { state: "missing", detail: `lefthook remote ref is "${ref}", not ${plugin.remote.ref}; set ref: ${plugin.remote.ref}` };
+    }
+    if (lefthookHook(info, entry.event) && remoteFetched(info, plugin)) return { state: "ok" };
+    return { state: "missing", detail: "lefthook remote not fetched or hook not installed; run lefthook install" };
+  }
+  const hooked = configHookVerdict(info, plugin, entry);
+  if (hooked) return hooked;
+  const current = sourceHash(plugin, entry);
+  const copies = list(info, plugin).filter((c) => c.entryId === entry.name);
+  if (copies.length === 0) return { state: "missing", detail: "not installed" };
+  const states = copies.map((c) => copyState(c.file, entry, current));
+  for (const state of ["modified", "stale"]) {
+    if (states.includes(state)) return { state, detail: copies[states.indexOf(state)].file };
+  }
+  const wired = copies.some((c) => manager !== "conflict" && wiring(info, plugin, entry, c.scope, manager).wired);
+  return wired ? { state: "ok" } : { state: "missing", detail: "installed but not wired into the hook manager" };
+}
+
+// leftovers(info, plugin) -> [{ entry, from, dirs[], markers[], scripts[],
+// jobs[{ name, file }], declines[{ key, scope, file, value, keep?, shared?, included? }],
+// config[{ key, scope, file, value? }], carry?: decline | opt-in }],
+// one per entry and declared earlier name (`from`, from earlierNames in
+// entries.json) with anything installed under that name, as an install made
+// before the plugin was renamed leaves: copies whose stamp names the entry and
+// that name (in a repository hooks directory or the user config-hook
+// directory), <event>.d markers, lefthook jobs that run such a copy, decline
+// keys, config-hook keys and the includeIf that loads them. No other plugin
+// name is ever looked at, so with no earlierNames there is nothing. install.mjs
+// removes none of it: plan hands it to the setup agent as a superseded decision (D1).
+function leftovers(info, plugin) {
+  const earlier = new Set(plugin.earlierNames);
+  if (!earlier.size) return [];
+  const found = new Map();
+  const at = (entry, from) => {
+    const k = `${entry.name}\0${from}`;
+    if (!found.has(k)) {
+      found.set(k, { entry: entry.name, from, dirs: [], markers: [], scripts: [], jobs: [], declines: [], config: [] });
+    }
+    return found.get(k);
+  };
+  const shared = path.join(info.top, SHARED_DIR);
+  const checksRoot = path.dirname(configHookDir(plugin));
+  const roots = new Set([
+    ...scopesFor(info).map(({ scope, manager }) => layout(info, scope, manager).root),
+    shared,
+    path.join(shared, "local"),
+    path.join(path.dirname(path.dirname(info.excludeFile)), "hooks"),
+    checksRoot,
+  ]);
+  const ownConfig = new Set(info.ownConfig);
+  for (const entry of plugin.entries) {
+    const name = escapeRe(entry.name);
+    for (const root of roots) {
+      for (const d of dirNames(root)) {
+        if (!d.isDir || !earlier.has(d.name)) continue;
+        const script = path.join(root, d.name, entry.script);
+        const stamp = readStamp(readText(script) ?? "");
+        if (!stamp || stamp.name !== entry.name || stamp.plugin !== d.name) continue;
+        const l = at(entry, d.name);
+        l.dirs.push(configPath(info, path.join(root, d.name)));
+        l.scripts.push(configPath(info, script));
+        if (root !== checksRoot) continue;
+        const include = posix(path.join(root, d.name, INCLUDE_FILE));
+        for (const c of configEntries(info, "^includeif\\..*\\.path$", ["--global"])) {
+          if (c.value === include) l.config.push({ key: c.key, scope: c.scope, file: c.file, value: c.value });
+        }
+      }
+      const suffix = `.${entry.name}`;
+      for (const m of dirNames(path.join(root, `${entry.event}.d`))) {
+        const from = m.name.slice(0, -suffix.length);
+        if (m.isDir || !m.name.endsWith(suffix) || !earlier.has(from)) continue;
+        at(entry, from).markers.push(configPath(info, path.join(root, `${entry.event}.d`, m.name)));
+      }
+    }
+    // A job counts only when the file also names a copy under that plugin name.
+    const job = new RegExp(`(?:name:[ \\t]*(["']?)(${NAME_PART})-${name}\\1|^[ \\t]+(${NAME_PART})-${name}:)[ \\t]*$`, "gm");
+    for (const file of new Set([lefthookFile(info, "shared"), lefthookFile(info, "local")])) {
+      const text = readText(path.join(info.top, file)) ?? "";
+      for (const m of text.matchAll(job)) {
+        const from = m[2] ?? m[3];
+        if (earlier.has(from) && text.includes(`${from}/${entry.script}`)) at(entry, from).jobs.push({ name: `${from}-${entry.name}`, file });
+      }
+    }
+    // Earlier-name decline lines as this clone reads them. Git resolves each
+    // key; when this clone sets no own key, the resolved value is carried to
+    // the own key in this clone's local config (`carry`), unless keys under
+    // different earlier names resolve differently, or one resolves to no
+    // boolean. Only lines in this clone's own local and worktree config files
+    // are listed for removal; a line in a system or global file or anything it
+    // includes (shared), in a file a local include pulls in (included), or from
+    // the command line is listed and never edited, since other clones or files
+    // may rely on it.
+    const declineRe = `^checks\\.[^.]+\\.${name}\\.declined$`;
+    const lines = configEntries(info, declineRe)
+      .map((d) => ({ ...d, from: d.key.split(".")[1] }))
+      .filter((d) => earlier.has(d.from));
+    const resolved = [...new Set(lines.map((d) => d.key))].map((k) => configBool(info, k));
+    const values = new Set(resolved.filter((v) => v !== "invalid"));
+    const ownUnset = configBool(info, declineKey(plugin, entry)) === "";
+    const unclear = ownUnset && (values.size > 1 || resolved.includes("invalid"));
+    const carry = ownUnset && !unclear && values.size === 1 ? ([...values][0] === "true" ? "decline" : "opt-in") : null;
+    const fileValues = new Map();
+    const valueOf = (d) => {
+      if (!d.file) return null;
+      if (!fileValues.has(d.file)) fileValues.set(d.file, fileLines(info, d.file, declineRe));
+      const next = fileValues.get(d.file).findIndex((l) => l.key === d.key);
+      return next < 0 ? null : fileValues.get(d.file).splice(next, 1)[0].value;
+    };
+    for (const d of lines) {
+      const where = !d.file ? {} : ["system", "global"].includes(d.scope) ? { shared: true } : ownConfig.has(realOr(d.file)) ? null : { included: true };
+      const l = at(entry, d.from);
+      l.declines.push({ key: d.key, scope: d.scope, file: d.file, value: valueOf(d), ...(where || unclear ? { keep: true, ...where } : {}) });
+      if (carry) l.carry = carry;
+    }
+    // Config-hook keys set in this repository's config; those the removed
+    // include file sets go with it.
+    if (!CONFIG_HOOK_EVENTS.includes(entry.event)) continue;
+    for (const c of configEntries(info, `^hook\\.${NAME_PART}-${name}\\.`)) {
+      const from = c.key.slice("hook.".length, c.key.lastIndexOf(".") - entry.name.length - 1);
+      if (!earlier.has(from) || (c.file && posix(c.file).startsWith(`${posix(checksRoot)}/`))) continue;
+      const l = at(entry, from);
+      if (!l.config.some((k) => k.key === c.key && k.file === c.file)) l.config.push({ key: c.key, scope: c.scope, file: c.file });
+    }
+  }
+  return [...found.values()];
+}
+
+// The removal a leftover needs, in words, for verify's detail. Decline lines
+// outside this clone's own config files are for plan and setup only.
+const ownDeclines = (l) => l.declines.filter((d) => d.file && !d.shared && !d.included);
+function leftoverDetail(plugin, l) {
+  const parts = [];
+  const remove = [...l.dirs, ...l.markers, ...l.scripts.map((s) => `any hook-manager line that runs ${s}`)];
+  if (remove.length) parts.push(`remove ${remove.join(" and ")}`);
+  for (const j of l.jobs) parts.push(`remove the lefthook job ${j.name} from ${j.file}`);
+  for (const c of l.config) parts.push(`unset git config ${c.key} (${c.scope})`);
+  if (l.carry) parts.push(`set checks.${plugin.name}.${l.entry}.declined ${l.carry === "decline"} in this clone's local config`);
+  for (const d of ownDeclines(l)) {
+    parts.push(d.keep ? `keep ${d.key} (${d.scope}): earlier names disagree, so resolve it by hand` : `unset git config ${d.key} (${d.scope})`);
+  }
+  return parts.join("; ");
+}
+
+const supersededDecisions = (info, plugin) => leftovers(info, plugin).map((l) => ({ kind: "superseded", ...l }));
+
+// verify(info, plugin) -> [{ entry, state, detail?, missingTools[] }]
+export function verify(info, plugin) {
+  const { manager } = detect(info);
+  const rows = plugin.entries.map((entry) => ({
+    entry: entry.name,
+    ...entryVerdict(info, plugin, entry, manager),
+    missingTools: entry.tools.filter((t) => !whichTool(t)),
+  }));
+  // A decline left under an earlier name is reported beside the entry's own
+  // declined row, silent at session start; anything else left is drift. A
+  // decline line only outside this clone's own config, once this clone has its
+  // own key, is no row at all: plan and setup report it.
+  const superseded = [];
+  for (const l of leftovers(info, plugin)) {
+    const row = rows.find((r) => r.entry === l.entry);
+    const onlyDeclines = !l.dirs.length && !l.markers.length && !l.jobs.length && !l.config.length;
+    if (onlyDeclines && !l.carry && !ownDeclines(l).length) continue;
+    if (onlyDeclines && row.state === "declined") {
+      row.detail = [row.detail, leftoverDetail(plugin, l)].filter(Boolean).join("; ");
+    } else {
+      superseded.push({ entry: l.entry, state: "superseded", detail: leftoverDetail(plugin, l), missingTools: [] });
+    }
+  }
+  return [...rows, ...superseded];
+}
+
+export const DRIFT = ["stale", "modified", "missing", "superseded"];
+
+export function driftLine(plugin, row) {
+  if (row.state === "superseded") {
+    return `${plugin.name}: git hook ${row.entry} left under an earlier plugin name (${row.detail}); run /${plugin.name}:setup apply install-git-hooks`;
+  }
+  return `${plugin.name}: git hook ${row.entry} ${row.state}; run /${plugin.name}:setup apply install-git-hooks`;
+}
+
+const USAGE = [
+  "usage: install.mjs detect|list [--repo <dir>] [--plugin-root <dir>]",
+  "       install.mjs plan --scope local|shared|remote [--manager lefthook|husky|plain]",
+  "       install.mjs copy --scope local|shared [--entry <name>]... [--manager <m>] [--force]",
+  "       install.mjs decline --entry <name> [--undo|--opt-in] [--global]",
+  "       install.mjs verify [--quiet]",
+  "       install.mjs config-hook --include-if <condition> [--force]",
+].join("\n");
+
+const VALUE_FLAGS = {
+  "--repo": "repo",
+  "--plugin-root": "pluginRoot",
+  "--scope": "scope",
+  "--manager": "manager",
+  "--include-if": "includeIf",
+};
+const BOOL_FLAGS = { "--force": "force", "--quiet": "quiet", "--undo": "undo", "--global": "global", "--opt-in": "optIn" };
+const ACTIONS = ["detect", "list", "plan", "copy", "decline", "verify", "config-hook"];
+
+function parseArgs(argv, defaults) {
+  const [action, ...rest] = argv;
+  if (!ACTIONS.includes(action)) throw new UsageError(action ? `unknown action: ${action}` : "no action given");
+  const opts = { action, entries: [], ...defaults };
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i];
+    if (BOOL_FLAGS[arg]) opts[BOOL_FLAGS[arg]] = true;
+    else if (VALUE_FLAGS[arg] && rest[i + 1]) opts[VALUE_FLAGS[arg]] = rest[++i];
+    else if (arg === "--entry" && rest[i + 1]) opts.entries.push(rest[++i]);
+    else throw new UsageError(`unexpected argument: ${arg}`);
+  }
+  if (action === "plan" && !["local", "shared", "remote"].includes(opts.scope)) {
+    throw new UsageError("plan needs --scope local, shared or remote");
+  }
+  if (action === "copy" && !["local", "shared"].includes(opts.scope)) {
+    throw new UsageError("copy needs --scope local or --scope shared; a remote install writes nothing, so apply plan's decisions");
+  }
+  if (opts.manager && !MANAGERS.includes(opts.manager)) throw new UsageError(`unknown manager: ${opts.manager}`);
+  if (action === "decline" && opts.entries.length !== 1) throw new UsageError("decline needs one --entry");
+  if (action === "config-hook" && !INCLUDE_IF_RE.test(opts.includeIf ?? "")) {
+    throw new UsageError("config-hook needs --include-if <condition>, such as gitdir:~/work/");
+  }
+  return opts;
+}
+
+function pickEntries(plugin, names) {
+  if (names.length === 0) return plugin.entries;
+  return names.map((n) => {
+    const found = plugin.entries.find((e) => e.name === n);
+    if (!found) throw new UsageError(`${plugin.name} has no entry named ${n}`);
+    return found;
+  });
+}
+
+function runVerify(info, plugin, opts, io) {
+  const rows = verify(info, plugin);
+  const drift = rows.filter((r) => DRIFT.includes(r.state));
+  if (opts.quiet) {
+    for (const row of drift) io.stdout(driftLine(plugin, row));
+    return 0;
+  }
+  for (const row of rows) {
+    io.stdout([row.state, row.entry, row.detail ?? ""].join("\t").trimEnd());
+    for (const tool of row.state === "declined" ? [] : row.missingTools) io.stdout(`tool\t${tool}\tmissing`);
+  }
+  return drift.length ? 1 : 0;
+}
+
+function runCopy(info, plugin, opts, io) {
+  const manager = opts.manager ?? detect(info).manager;
+  if (manager === "conflict") throw new UsageError("hook managers conflict; run plan and pass --manager");
+  const owned = hooksDirOwned(info, opts.scope, manager);
+  if (owned) {
+    io.stdout(JSON.stringify({ installed: [], decisions: [owned] }));
+    return 1;
+  }
+  const results = pickEntries(plugin, opts.entries).map((entry) => ({
+    entry: entry.name,
+    status: copy(info, plugin, entry, opts.scope, manager, opts.force),
+  }));
+  io.stdout(JSON.stringify(results));
+  return results.some((r) => ["refused", "unsafe-path", "stage-failed"].includes(r.status)) ? 1 : 0;
+}
+
+function dispatch(info, plugin, opts, io) {
+  switch (opts.action) {
+    case "detect":
+      io.stdout(JSON.stringify(detect(info)));
+      return 0;
+    case "list":
+      io.stdout(JSON.stringify(list(info, plugin)));
+      return 0;
+    case "plan":
+      io.stdout(JSON.stringify(plan(info, plugin, opts.scope, opts.manager)));
+      return 0;
+    case "copy":
+      return runCopy(info, plugin, opts, io);
+    case "decline":
+      return decline(info, plugin, pickEntries(plugin, opts.entries)[0], opts.undo, opts.global, opts.optIn) ? 0 : 2;
+    case "config-hook": {
+      const result = configHook(info, plugin, opts.includeIf, opts.force);
+      io.stdout(JSON.stringify(result));
+      return result.installed.some((r) => r.status === "refused") ? 1 : 0;
+    }
+    default:
+      return runVerify(info, plugin, opts, io);
+  }
+}
+
+// main(argv, ctx, out) -> exit code. ctx and out are injectable for tests.
+export function main(argv, ctx = {}, out = {}) {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const io = { stdout: out.stdout ?? ((s) => console.log(s)), stderr: out.stderr ?? ((s) => console.error(s)) };
+  let opts;
+  try {
+    opts = parseArgs(argv, { repo: ctx.cwd ?? process.cwd(), pluginRoot: path.resolve(here, "..", "..") });
+    const info = repoInfo(opts.repo);
+    if (!info) {
+      if (opts.quiet) return 0;
+      throw new UsageError(`not inside a git work tree: ${opts.repo}`);
+    }
+    return dispatch(info, loadPlugin(opts.pluginRoot), opts, io);
+  } catch (err) {
+    if (!(err instanceof UsageError)) throw err;
+    if (opts?.quiet) return 0;
+    io.stderr(`install.mjs: ${err.message}\n${USAGE}`);
+    return 2;
+  }
+}
+
+function realPath(p) {
+  try {
+    return realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
+if (process.argv[1] && realPath(process.argv[1]) === realPath(fileURLToPath(import.meta.url))) {
+  process.exitCode = main(process.argv.slice(2));
+}

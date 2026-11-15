@@ -38,7 +38,7 @@ const ALLOWED = new Map([
   // to check one out with; each counts its own POSTs and writes the api-calls
   // notice itself.
   [
-    "intake-triage.yml:redispatch-refined",
+    "intake-triage.yml:dispatch-refined-triage",
     `${NO_LOG}; step "Triage the refined issue again" calls gh without api_budget_wrap_gh`,
   ],
   [
@@ -62,13 +62,13 @@ const ALLOWED = new Map([
     `${NO_LOG}; step "File the revert demotion issue" calls gh without api_budget_wrap_gh`,
   ],
   [
-    "pr-review-main.yml:record",
+    "pr-review-main.yml:report-review-counts",
     `${NO_LOG}; step "Record the stops" calls gh without api_budget_wrap_gh; step "Record the counts" calls gh without api_budget_wrap_gh`,
   ],
   // Steps whose own gh calls run unwrapped, on the release App's
   // token, which has no api-budget token name yet.
   [
-    "release-generate-dependabot-changelog-fragments.yml:write",
+    "release-generate-dependabot-changelog-fragments.yml:generate-changelog-fragments",
     'step "Write the fragments and open the pull request" calls gh without api_budget_wrap_gh',
   ],
   [
@@ -89,7 +89,7 @@ const ALLOWED = new Map([
   ],
   // Node scripts that run gh through child_process with no counted helper.
   [
-    "post-merge-file-demotion-issues.yml:alert",
+    "post-merge-file-demotion-issues.yml:file-demotion-issue",
     ".github/scripts/post-merge-demotion-alert/failing-checks.mjs runs gh outside a counted helper (1 call site)",
   ],
 ]);

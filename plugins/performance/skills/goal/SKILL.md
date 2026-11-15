@@ -35,7 +35,7 @@ Read the ranking `/performance:target` produced and quote the chosen candidate's
 object this goal is about, and its tier is the one the Output's `Target` line carries.
 
 - **The ranking says to instrument this candidate first** (tier E3 or E4, or its closing line
-  recommends instrumenting, not optimizing): **STOP.** A goal cannot be set on a cost nobody has
+  recommends instrumenting, not optimizing): **Stop.** A goal cannot be set on a cost nobody has
   measured. Run the named instrument, then `/performance:target` again.
 - **No ranking exists** (the user came straight here with a chosen, measured target): record the
   evidence the user names and the tier it earns under `/performance:target`'s tier table. Never
@@ -90,7 +90,7 @@ the query returning one row.
 `lib/spawn_noise.py`'s `spawn_probe()` gives the process-spawn floor for this host. Pass its summary
 to `is_measurable(summary)` and quote the returned reason verbatim before stating any wall-clock
 floor. Contention is a two-part predicate: a spread at or above 3.0x across identical no-op spawns
-AND a slow mode at or above 500 ms. A wide spread alone is a healthy cold-then-warm host, so never
+and a slow mode at or above 500 ms. A wide spread alone is a healthy cold-then-warm host, so never
 assert "this host drifts with load" from `spread_ratio` alone. A False keeps the floor in counter
 terms (spawns per operation), not milliseconds.
 
@@ -99,7 +99,7 @@ Then compare:
 - **target > floor**: proceed.
 - **target close to floor**: the goal is reachable only by removing the irreducible operation, not
   by making it faster. Say that explicitly; it is a different piece of work.
-- **target < floor**: **STOP and surface it.** No code change reaches this target. The user
+- **target < floor**: **Stop and surface it.** No code change reaches this target. The user
   decides: reframe the goal, change the target, remove the operation, or accept the floor.
 
 ### 3. Two targets, held separately

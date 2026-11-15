@@ -11,8 +11,8 @@ metadata:
 
 ## Repository context
 
-The current repository is both the CONSUMER, whose convention home declares where artifacts land,
-and the DEFAULT SUBJECT, the repository whose tracked files name the rest of the landscape.
+The current repository is both the consumer, whose convention home declares where artifacts land,
+and the default subject, the repository whose tracked files name the rest of the landscape.
 
 Collect with an **individual** Bash call, one command per call: the project root,
 `git rev-parse --show-toplevel`. Treat a failure (not a repository, git unavailable) as an unknown
@@ -38,10 +38,10 @@ line), 2 (usage), and 3 (FAIL, surface the resolver's own message) all mean ther
 home to read.
 
 Per key, in order: `--out <dir>` wins for this run alone, then a declared topic-doc value, then an
-inference PROPOSED from repository evidence and confirmed by the operator, then one question. Two
-outcomes are non-negotiable when nothing answers: `landscape_dialect` falls back to `mermaid`, and
-`architecture_dir` has NO default, so an undeclared and unconfirmed home, including every
-non-interactive run, STOPS and points at `/architecture:setup`.
+inference proposed from repository evidence and confirmed by the operator, then one question. When
+nothing answers, `landscape_dialect` falls back to `mermaid`, and `architecture_dir` has no
+default, so an undeclared and unconfirmed home, including every non-interactive run, stops and
+points at `/architecture:setup`.
 
 This skill never writes the consumer's root instruction file or its topic doc. `/architecture:setup
 apply` owns both.
@@ -60,7 +60,7 @@ apply` owns both.
    running this mode; the collaborator's plan is wider than the roots you asked for, and charting it
    unfiltered grows the landscape to the operator's whole configured fleet.
 
-The session's working directory is never WALKED for nested repositories under any mode. Reading the
+The session's working directory is never walked for nested repositories under any mode. Reading the
 current repository as the default subject is not a walk: it is one path, resolved from
 `git rev-parse --show-toplevel`.
 
@@ -97,8 +97,8 @@ Anything no probe could derive is the literal `unknown`. Carry it through to the
 never replace it with a guess, and never fill it from a commit author, a directory name, or
 ecosystem memory.
 
-`runtime` and `dependencies` are runtime scope, what the repository RUNS ON. `tooling` and
-`dev_dependencies` are development scope, what it is BUILT WITH: npm `devDependencies`, PEP 735
+`runtime` and `dependencies` are runtime scope, what the repository runs on. `tooling` and
+`dev_dependencies` are development scope, what it is built with: npm `devDependencies`, PEP 735
 dependency groups, a `requirements-ci.txt`, anything under a dot-directory. Report them as separate
 facts; a linter is not a runtime.
 
@@ -106,7 +106,7 @@ Edge `relation` is `internal` when the target owner matches the subject's own an
 otherwise. An external repository is reference material: drawn and recorded, never written to, never
 fetched from unless `--remote=all`. Edges are the script's output, not your judgment: do not add one
 the script did not extract, and do not delete one for looking incidental, because a low `cites`
-count IS the signal that the reference is weak.
+count is the signal that the reference is weak.
 
 ## Report drift, and honor --check
 
@@ -119,14 +119,14 @@ When `<architecture_dir>/landscape.json` already exists, compare before writing 
 
 Exit 0 means the committed record still matches. Exit 3 means it drifted; the report names
 repositories and edges added or removed, facts whose value changed, and cited evidence files that no
-longer exist. A `last_touched` that moved is reported as `moved on <repo>` and does NOT set the exit
+longer exist. A `last_touched` that moved is reported as `moved on <repo>` and does not set the exit
 code, because the subject repository advances its own HEAD on every commit. Surface the whole
 report, gating and non-gating lines alike, before the artifacts. Exit 1 naming the
 one-object-per-line layout means someone reformatted the committed record (compacted, or one key per
 line), so neither the comparison nor the renderer can read it. Report that, not drift and not a thin
 result, and regenerate the record.
 
-`--check` stops there: run the comparison, print the report, write NOTHING, and report the
+`--check` stops there: run the comparison, print the report, write nothing, and report the
 comparison's exit code as the run's outcome, so a lane invoking the script directly fails on drift.
 That is the CI shape, and the only mode in which this skill writes no file at all when a home is
 declared. Do not "helpfully" refresh the record so the next run is clean.
@@ -164,9 +164,9 @@ The renderer prints one summary line on stdout and nothing else:
 `landscape: internal=<i> external=<e> drawn_systems=<s> edges=<n> drawn_edges=<d> unresolved_edges=<u> thin=<yes|no>`.
 Keep it for the report; `--help` defines each field and the thin threshold.
 
-`landscape-notes.md` is the ONLY file in the architecture directory you author, and the only one you
+`landscape-notes.md` is the only file in the architecture directory you author, and the only one you
 never overwrite: read it, extend it, leave what a person wrote alone, and mark an annotation as an
-annotation. Annotations say what a system is FOR, which the extractor cannot know.
+annotation. Annotations say what a system is for, which the extractor cannot know.
 
 ## Close with the report
 
@@ -209,7 +209,7 @@ hand-written; the shared medium resolver decides the destination, with this plug
 `${user_config.*}` string in a shell command), and its report line is printed. Procedure:
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Baseline-versus-target gap analysis, capability maps, or work-breakdown structures.
 - The rungs below this one. Modules inside one deployable are `/architecture:map-components`.

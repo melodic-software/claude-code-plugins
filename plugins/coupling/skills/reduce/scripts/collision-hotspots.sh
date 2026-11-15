@@ -143,7 +143,7 @@ while IFS= read -r path; do
   for glob in "${excludes[@]}"; do
     target="$base"
     [[ "$glob" == */* ]] && target="$path"
-    # shellcheck disable=SC2053
+    # shellcheck disable=SC2053 # the right side is a glob by design
     [[ "$target" == $glob ]] && hit=1
   done
   ((hit)) && excluded+="$path"$'\n'

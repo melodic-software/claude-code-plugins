@@ -31,6 +31,27 @@ def run(*args):
     return subprocess.run([sys.executable, str(STILLS), *map(str, args)], capture_output=True, text=True)
 
 
+def run_1080p(*args):
+    """stills.py's main in this process with frames captured at scale 1, 1920x1080 (the min_height floor) instead of
+    3840x2160: the encode and the SSIM check, most of a render's time, handle a quarter of the pixels. Pagination and
+    the fit check work in CSS pixels, which scale does not change. Only the narrated render asserts 4K."""
+    import stills
+    out, err = io.StringIO(), io.StringIO()
+    with mock.patch.dict(stills.FRAMES, scale=1), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        code = stills.main([str(a) for a in args])
+    return subprocess.CompletedProcess(args, code, out.getvalue(), err.getvalue())
+
+
+def board_of(folder, ids, extra=()):
+    """storyboard.json in folder holding only the fixture moments named in ids, then extra: a shorter video, so a
+    render that checks structure and not the full fixture encodes fewer frames."""
+    data = json.loads(BOARD.read_text(encoding='utf-8'))
+    data['moments'] = [m for m in data['moments'] if m['id'] in ids] + list(extra)
+    folder.mkdir(exist_ok=True)
+    (folder / 'storyboard.json').write_text(json.dumps(data), encoding='utf-8')
+    return folder / 'storyboard.json'
+
+
 def streams(video):
     out = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type,codec_name,pix_fmt', '-of',
                           'json', str(video)], capture_output=True, text=True, check=True).stdout
@@ -167,11 +188,16 @@ class Renders(unittest.TestCase):
             if REQUIRE:
                 raise AssertionError('a REQUIRE_DEPS variable is 1 but Playwright, ffmpeg or ffprobe is missing')
             raise unittest.SkipTest('Playwright for Python, ffmpeg or ffprobe not installed')
+        sys.path.insert(0, str(HERE))   # run_1080p imports stills
+        cls.addClassCleanup(sys.path.remove, str(HERE))
         cls.dir = Path(tempfile.mkdtemp())
-        script = run('--storyboard', BOARD, '--out', cls.dir / 'probe', '--no-audio')
+        script = run_1080p('--storyboard', BOARD, '--out', cls.dir / 'probe', '--no-audio')
         cls.silent = (script, cls.dir / 'probe')
-        narration = tone_narration(cls.dir / 'narration', (cls.dir / 'probe' / 'script.txt').read_text())
-        cls.narrated = (run('--storyboard', BOARD, '--out', cls.dir / 'narrated', '--narration', narration),
+        # The 4K render needs one moment per chapter, not the whole fixture: about a third of its length to encode.
+        small = board_of(cls.dir / 'small', ('title', 'compare', 'rest'))
+        run('--storyboard', small, '--out', cls.dir / 'small-script', '--script-only')
+        narration = tone_narration(cls.dir / 'narration', (cls.dir / 'small-script' / 'script.txt').read_text())
+        cls.narrated = (run('--storyboard', small, '--out', cls.dir / 'narrated', '--narration', narration),
                         cls.dir / 'narrated')
 
     @classmethod
@@ -219,7 +245,7 @@ class Renders(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         limit_mb = (whole / 'video.mp4').stat().st_size * 0.8 / 10 ** 6   # under the whole video, over any one chapter
         out = self.dir / 'split'
-        r = run('--storyboard', BOARD, '--out', out, '--no-audio', '--upload-limit-mb', limit_mb)
+        r = run_1080p('--storyboard', BOARD, '--out', out, '--no-audio', '--upload-limit-mb', limit_mb)
         self.assertIn(r.returncode, (0, 1), r.stdout + r.stderr)
         m = self.manifest(out)
         self.assertIsNone(m['oversize'])
@@ -231,20 +257,19 @@ class Renders(unittest.TestCase):
             self.assertEqual(part['sha256'], hashlib.sha256(data).hexdigest(), f'{part["path"]} digest')
 
     def test_each_screenshot_is_published_with_its_own_scanned_sidecar_inside_the_output(self):
-        board = json.loads(BOARD.read_text(encoding='utf-8'))
         src = self.dir / 'shots'
         src.mkdir()
         texts = {'one': 'Settings page\nRetry count: 3\n', 'two': 'Audit log\nNo entries yet\n'}
+        moments = []
         for name, text in texts.items():
             subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=c=0x336699:s=640x360', '-frames:v',
                             '1', str(src / f'{name}.png')], check=True)
             (src / f'{name}.txt').write_text(text, encoding='utf-8')
-            board['moments'].append({'id': f'shot-{name}', 'chapter': 'risk', 'template': 'screenshot',
-                                     'data': {'image': f'{name}.png', 'sidecar': f'{name}.txt', 'alt': name},
-                                     'narration': f'The {name} page.', 'covers': []})
-        (src / 'storyboard.json').write_text(json.dumps(board), encoding='utf-8')
+            moments.append({'id': f'shot-{name}', 'chapter': 'risk', 'template': 'screenshot',
+                            'data': {'image': f'{name}.png', 'sidecar': f'{name}.txt', 'alt': name},
+                            'narration': f'The {name} page.', 'covers': []})
         out = self.dir / 'screens'
-        r = run('--storyboard', src / 'storyboard.json', '--out', out, '--no-audio')
+        r = run_1080p('--storyboard', board_of(src, ('title',), moments), '--out', out, '--no-audio')
         self.assertIn(r.returncode, (0, 1), r.stdout + r.stderr)
         shots = self.manifest(out)['screenshots']
         self.assertEqual(len(shots), 2)
@@ -282,7 +307,7 @@ class Renders(unittest.TestCase):
         self.assertEqual(run('--storyboard', src, '--out', self.dir / 'long-script', '--script-only').returncode, 0)
         narration = tone_narration(self.dir / 'long-narration', (self.dir / 'long-script' / 'script.txt').read_text())
         out = self.dir / 'long'
-        r = run('--storyboard', src, '--out', out, '--narration', narration)
+        r = run_1080p('--storyboard', src, '--out', out, '--narration', narration)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         m = self.manifest(out)
         rows = [row for row in m['quality']['frames'] if row['id'] == 'rest']
@@ -319,16 +344,12 @@ class Renders(unittest.TestCase):
     def test_a_frame_that_overflows_or_is_held_under_its_reading_minimum_fails_the_render(self):
         """One cheap render covers both checks: with pagination and the hold minimums both switched off, the
         list lands on one frame too small for it, held only as long as its paragraph."""
-        sys.path.insert(0, str(HERE))
-        self.addCleanup(sys.path.remove, str(HERE))
         import stills
         out = self.dir / 'forced'
         with mock.patch.object(stills, 'paginate', lambda board, *_: [[None] for _ in board['moments']]), \
-                mock.patch.object(stills, 'moment_minimums', lambda *_: None), \
-                contextlib.redirect_stdout(io.StringIO()):
-            code = stills.main(['--storyboard', str(self.list_board(self.dir / 'forced-src')), '--out', str(out),
-                                '--no-audio'])
-        self.assertEqual(code, 1)
+                mock.patch.object(stills, 'moment_minimums', lambda *_: None):
+            r = run_1080p('--storyboard', self.list_board(self.dir / 'forced-src'), '--out', out, '--no-audio')
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         m = self.manifest(out)
         self.assertEqual(m['status'], 'defect')
         self.assertTrue(any(d.startswith('moment rest: content does not fit the frame') for d in m['defects']),
@@ -350,8 +371,9 @@ class Renders(unittest.TestCase):
             'subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-vf", "fps=30",'
             ' "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p", sys.argv[2]], check=True)\n')
         out = self.dir / 'custom'
-        r = run('--storyboard', BOARD, '--out', out, '--no-audio', '--stylesheet', css,
-                '--stitcher', f'"{sys.executable}" "{stitcher}" {{inputs}} {{out}}')
+        r = run_1080p('--storyboard', board_of(self.dir / 'custom-src', ('title',)), '--out', out, '--no-audio',
+                      '--stylesheet', css,
+                      '--stitcher', f'"{sys.executable}" "{stitcher}" {{inputs}} {{out}}')
         self.assertIn(r.returncode, (0, 1), r.stderr)
         m = self.manifest(out)
         self.assertEqual(m['encode']['profile'], 'stitcher')

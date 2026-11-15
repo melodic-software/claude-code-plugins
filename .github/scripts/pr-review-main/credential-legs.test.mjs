@@ -66,11 +66,12 @@ const named = memo((job, name) => {
 const CASE = /case "\$REASON" in\n\s+([a-z| -]+)\) ;;/.exec(named(KEY, "Hand the lane on").run)[1].split("|").map((r) => r.trim());
 
 // The old conditions, reasons and route env, at a6a9c686f3 (main before this
-// change, with #13836's held terms).
+// change, with #13836's held terms), with the trigger job under its id since
+// its rename, check-trigger.
 const OLD = {
-  key: "needs.review-handoffs-credit.outputs.skip-key != 'true' && !cancelled() && needs.trigger.result == 'success' && github.ref == 'refs/heads/main' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository && (needs.trigger.outputs.run-attempt != github.run_attempt || needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true')",
-  report: (sw) => `steps.gate.outputs.skip-key == 'true' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true' && vars.${sw} != 'true'`,
-  route: "!cancelled() && github.ref == 'refs/heads/main' && (needs.review.outputs.claude-review != '' || needs.review.outputs.claude-security-review != '' || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.skip-key == 'true' && needs.trigger.outputs.run-attempt == github.run_attempt && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true')",
+  key: "needs.review-handoffs-credit.outputs.skip-key != 'true' && !cancelled() && needs.check-trigger.result == 'success' && github.ref == 'refs/heads/main' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository && (needs.check-trigger.outputs.run-attempt != github.run_attempt || needs.check-trigger.outputs.review != 'false' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true')",
+  report: (sw) => `steps.gate.outputs.skip-key == 'true' && needs.check-trigger.outputs.proceed == 'true' && needs.check-trigger.outputs.review == 'true' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true' && vars.${sw} != 'true'`,
+  route: "!cancelled() && github.ref == 'refs/heads/main' && (needs.review.outputs.claude-review != '' || needs.review.outputs.claude-security-review != '' || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.skip-key == 'true' && needs.check-trigger.outputs.run-attempt == github.run_attempt && needs.check-trigger.outputs.proceed == 'true' && needs.check-trigger.outputs.review == 'true' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true')",
   routeEnv: (lane, sw) => `\${{ needs.review.outputs.${lane} || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.skip-key == 'true' && vars.${sw} != 'true' && 'credit-stop' || '' }}`,
   handoffIf: `${SLOTS.map((k) => `steps.review-${k}.outputs.handoff == 'true'`).join(" || ")} || steps.credential.outputs.present == 'false'`,
   handoffReason: `\${{ steps.credential.outputs.present == 'false' && 'no-key' || ${SLOTS.map((k) => `steps.review-${k}.outputs.handoff-reason`).join(" || ")} }}`,
@@ -164,13 +165,13 @@ function chain(version, s) {
     "github.event.workflow_run.event": "pull_request",
     "github.event.workflow_run.conclusion": "success",
     "github.event.workflow_run.head_repository.full_name": "o/r",
-    "needs.trigger.result": "success",
-    "needs.trigger.outputs.run-attempt": "1",
-    "needs.trigger.outputs.proceed": "true",
-    "needs.trigger.outputs.review": "true",
-    "needs.trigger.outputs.judged": "",
-    "needs.trigger.outputs.held": s.held,
-    "needs.trigger.outputs.main-sha": SHA,
+    "needs.check-trigger.result": "success",
+    "needs.check-trigger.outputs.run-attempt": "1",
+    "needs.check-trigger.outputs.proceed": "true",
+    "needs.check-trigger.outputs.review": "true",
+    "needs.check-trigger.outputs.judged": "",
+    "needs.check-trigger.outputs.held": s.held,
+    "needs.check-trigger.outputs.main-sha": SHA,
     ...Object.fromEntries(s.lanes.map((l, i) => [`vars.${LANES[i].sw}`, l.off ? "true" : ""])),
   };
   const out = { reports: [], started: [], legs: {} };
@@ -234,7 +235,7 @@ function chain(version, s) {
       rows = r.rows;
     } else ctx[`needs.${nextRoute}.result`] = "skipped";
   };
-  later(SUB, "subscription", "subscription-handoffs");
+  later(SUB, "subscription", "collect-subscription-handoffs");
   later(FB, "fallback", null);
   return out;
 }

@@ -292,11 +292,11 @@ test("a failed budget read proceeds", async () => {
 // existing work (reviews, merges, verdicts, post-model writes, model legs that
 // take over a handed-off turn) and check the switches only.
 const GATES = {
-  "pr-run-plugin-evals.yml": { eval: "switch", "eval-subscription": "switch", "eval-fallback": "switch" },
-  "maintenance-measure-skill-edit-pass.yml": { pass: "switch", "pass-subscription": "switch", "pass-fallback": "switch" },
+  "pr-run-plugin-evals.yml": { "run-eval": "switch", "run-eval-subscription": "switch", "run-eval-fallback": "switch" },
+  "maintenance-measure-skill-edit-pass.yml": { "run-eval": "switch", "run-eval-subscription": "switch", "run-eval-fallback": "switch" },
   "intake-reenter.yml": { reenter: "start" },
   "intake-triage.yml": {
-    "kill-switch": "start",
+    "check-kill-switch": "start",
     "apply-verdict": "switch",
     "refine-select": "start",
     "refine-issue": "switch",
@@ -306,31 +306,31 @@ const GATES = {
   },
   "maintenance-audit-lane-runs.yml": {
     collect: "start",
-    judge: "switch",
-    "judge-handoffs": "switch",
-    "judge-subscription": "switch",
-    "judge-subscription-handoffs": "switch",
-    "judge-fallback": "switch",
+    "assess-units": "switch",
+    "collect-key-handoffs": "switch",
+    "assess-units-subscription": "switch",
+    "collect-subscription-handoffs": "switch",
+    "assess-units-fallback": "switch",
     file: "switch",
     "triage-sweep": "start",
   },
-  "maintenance-delete-stale-branches.yml": { plan: "start", delete: "switch" },
+  "maintenance-delete-stale-branches.yml": { "select-stale-branches": "start", delete: "switch" },
   "maintenance-file-recurring-issues.yml": { "file-recurring-issues": "start" },
-  "maintenance-measure-skill-edit.yml": { gate: "start", propose: "switch", "push-branch": "switch", publish: "switch" },
+  "maintenance-measure-skill-edit.yml": { "check-inputs": "start", "generate-edit": "switch", "push-branch": "switch", publish: "switch" },
   "maintenance-monitor-signals.yml": { monitor: "start" },
   "maintenance-reconcile-lost-runs.yml": { reconcile: "start" },
-  "maintenance-tidy-code-upkeep.yml": { gate: "start", model: "switch", "model-subscription": "switch", "model-fallback": "switch", "push-branches": "switch", publish: "switch" },
+  "maintenance-tidy-code-upkeep.yml": { "select-areas": "start", "sweep-areas": "switch", "sweep-areas-subscription": "switch", "sweep-areas-fallback": "switch", "push-branches": "switch", publish: "switch" },
   "post-merge-file-demotion-issues.yml": { "report-red-main": "switch" },
-  "post-merge-test-mutation.yml": { prep: "start" },
+  "post-merge-test-mutation.yml": { "check-range": "start" },
   "pr-dispatch-feedback.yml": { "post-verify-notes": "switch", dispatch: "switch", "rerun-ci-status": "switch" },
-  "pr-merge.yml": { "post-merge-dispatch": "switch", merge: "switch", "enable-auto-merge": "switch" },
+  "pr-merge.yml": { "dispatch-post-merge-runs": "switch", merge: "switch", "enable-auto-merge": "switch" },
   "pr-rate-merge-risk.yml": { "rate-merge-risk": "switch", "rate-merge-risk-subscription": "switch", "rate-merge-risk-fallback": "switch" },
-  "pr-review-hosted.yml": { "kill-switch": "switch" },
-  "pr-review-main.yml": { trigger: "switch", "trusted-text": "switch", review: "switch", "review-subscription": "switch", "review-fallback": "switch" },
-  "pr-review-security-hosted.yml": { "kill-switch": "switch" },
-  // broker-check reads the budget only for a caller passing start-gate, and
+  "pr-review-hosted.yml": { "check-kill-switch": "switch" },
+  "pr-review-main.yml": { "check-trigger": "switch", "collect-trusted-text": "switch", review: "switch", "review-subscription": "switch", "review-fallback": "switch" },
+  "pr-review-security-hosted.yml": { "check-kill-switch": "switch" },
+  // check-broker reads the budget only for a caller passing start-gate, and
   // only on a call that is the first in its slot (FIRST_CALL).
-  "pr-run-activity-read.yml": { "broker-check": "first-call", run: "switch" },
+  "pr-run-activity-read.yml": { "check-broker": "first-call", run: "switch" },
   "pr-run-activity-write.yml": { run: "switch" },
   "pr-unblock-dispatch.yml": { dispatch: "switch", refine: "switch" },
   "pr-unblock.yml": {
@@ -344,20 +344,20 @@ const GATES = {
   "pr-verify-capture.yml": { capture: "switch" },
   "pr-verify.yml": { "check-intent": "switch", "check-intent-subscription": "switch", "check-intent-fallback": "switch" },
   "upstream-apply-changelog.yml": {
-    gate: "start",
-    model: "switch",
-    "model-subscription": "switch",
-    "model-fallback": "switch",
-    "scrub-probe": "switch",
-    "scrub-probe-subscription": "switch",
-    "scrub-probe-fallback": "switch",
+    "select-release": "start",
+    "apply-changelog": "switch",
+    "apply-changelog-subscription": "switch",
+    "apply-changelog-fallback": "switch",
+    "verify-env-scrub": "switch",
+    "verify-env-scrub-subscription": "switch",
+    "verify-env-scrub-fallback": "switch",
     "push-branches": "switch",
     publish: "switch",
   },
-  // The issue lane's budget is read at broker-check's first call (START_CALLS),
-  // the one place label-unblocked reads a budget stop from; admit and pick-slot
+  // The issue lane's budget is read at check-broker's first call (START_CALLS),
+  // the one place label-unblocked reads a budget stop from; check-admission and pick-slot
   // check the switches only.
-  "work-resolve-issue.yml": { admit: "switch", "pick-slot": "switch" },
+  "work-resolve-issue.yml": { "check-admission": "switch", "pick-slot": "switch" },
   "work-unblock.yml": { "label-unblocked": "start", "publish-lane-level": "switch", "sync-status": "switch" },
 };
 

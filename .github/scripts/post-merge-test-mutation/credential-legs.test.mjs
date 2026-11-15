@@ -27,15 +27,23 @@ const FALLBACK = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
 const SAME_REPO = "github.event.workflow_run.head_repository.full_name == github.repository";
 
 // Each chain's own upstream term, as the old conditions wrote it, and the
-// context that makes it true or false.
+// context that makes it true or false, under the old job ids (prep, mutate)
+// and the new ones (check-range, run-mutants) the workflow reads now.
 const CHAINS = {
   generate: {
     upstream: "needs.prep.outputs.proceed == 'true'",
-    context: (open) => ({ "needs.prep.outputs.proceed": open ? "true" : "" }),
+    context: (open) => ({ "needs.prep.outputs.proceed": open ? "true" : "", "needs.check-range.outputs.proceed": open ? "true" : "" }),
   },
   triage: {
     upstream: "needs.mutate.result == 'success' && needs.mutate.outputs.survivors != '' && needs.mutate.outputs.survivors != '0'",
-    context: (open) => ({ "needs.prep.outputs.proceed": "true", "needs.mutate.result": open ? "success" : "failure", "needs.mutate.outputs.survivors": open ? "3" : "" }),
+    context: (open) => ({
+      "needs.prep.outputs.proceed": "true",
+      "needs.check-range.outputs.proceed": "true",
+      "needs.mutate.result": open ? "success" : "failure",
+      "needs.mutate.outputs.survivors": open ? "3" : "",
+      "needs.run-mutants.result": open ? "success" : "failure",
+      "needs.run-mutants.outputs.survivors": open ? "3" : "",
+    }),
   },
 };
 
@@ -159,10 +167,10 @@ const runReady = (id, outputs) => value(wf.step(id, "run").inputs["fallback-read
 function newChain(stage, s) {
   const [key, sub, fb] = [stage, `${stage}-subscription`, `${stage}-fallback`];
   const gate = s.gate === "failed" ? {} : S.start({ skipKey: s.gate === "skip" });
-  const gateOutputs = wf.outputs("key-credit");
+  const gateOutputs = wf.outputs("check-key-credit");
   const ctx = {
     ...baseContext(stage, s),
-    ...Object.fromEntries(["next-leg", "next-reason"].map((n) => [`needs.key-credit.outputs.${stage}-${n}`, value(gateOutputs[`${stage}-${n}`], prefixed(`steps.credit-${stage}.outputs`, gate))])),
+    ...Object.fromEntries(["next-leg", "next-reason"].map((n) => [`needs.check-key-credit.outputs.${stage}-${n}`, value(gateOutputs[`${stage}-${n}`], prefixed(`steps.credit-${stage}.outputs`, gate))])),
     [`secrets.${KEY}`]: s.key ? "set" : "",
     [`secrets.${TOKEN}`]: s.sub ? "set" : "",
     [`secrets.${FALLBACK}`]: s.fallback ? "set" : "",

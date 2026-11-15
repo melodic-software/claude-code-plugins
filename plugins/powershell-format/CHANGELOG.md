@@ -3,6 +3,14 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.11] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
+- The setup skill's text reads in plain case instead of capital-letter emphasis.
+
 ## [1.1.10] - 2026-11-14
 
 ### Changed

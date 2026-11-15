@@ -12,12 +12,12 @@ session or after a PR merges.
 
 When handoff save-points exist (the sibling `handoff` skill's directory, meaning the resolved
 `<memory_dir>/handoffs/` (default `.work/handoffs/`), or the consuming repo's documented
-location), the retro analyzes EVERY chained session across
+location), the retro analyzes every chained session across
 `/session-flow:handoff` + `/clear` cycles, not just the current one. The parser walks the chain itself via
 `--chain-from` (newest handoff file → its `previous_handoff` pointer → repeat; breaks cleanly at
 the first entry lacking `session_id`).
 
-**Continuity gate first.** Use `--chain-from` ONLY when the newest handoff belongs to the current
+**Continuity gate first.** Use `--chain-from` only when the newest handoff belongs to the current
 work: this session resumed from it (the resume prompt loaded it), this session wrote it, or its
 `topic` frontmatter and stated goal clearly match the current task. A shared directory can hold
 save-points
@@ -71,7 +71,7 @@ usage + rejections, compactions, turn durations, stop reasons, files modified, s
 and, in multi-session form, an `aggregate` block and a `chain_coverage` block. Exit codes:
 0 = success, 1 = warning, 2 = error.
 
-`--sessions` accepts its ids space-separated OR comma-joined; both spell the same list.
+`--sessions` accepts its ids space-separated or comma-joined; both spell the same list.
 
 ### Check chain coverage before presenting
 
@@ -134,7 +134,7 @@ itself, unless the verification level is `light` or `off` (Phase 2, "Review lens
 
 ## Phase 2: Analyze (qualitative assessment)
 
-Analyze across five dimensions using BOTH Phase 1 metrics AND conversation context. Derive the
+Analyze across five dimensions using both Phase 1 metrics and conversation context. Derive the
 convention baseline from the consuming repo's own instruction files: its `CLAUDE.md`, the
 `.claude/rules/` files relevant to the ecosystems touched this session, and any review-criteria
 docs it names. Read only the relevant ones.
@@ -337,7 +337,7 @@ judged against it." A sentence saying only that the yardstick was not run does n
 Present as a GFM table with a **Scope** column distinguishing:
 
 - **project.** Git-tracked, shared with the team (the repo's `CLAUDE.md`, rules, skills, settings)
-- **personal.** Machine-specific, NOT committed (auto-memory, user settings)
+- **personal.** Machine-specific, not committed (auto-memory, user settings)
 
 | # | Target | Scope | Type | Recommendation | Justification | Priority |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -350,7 +350,7 @@ that would settle it. Contract:
 [`context/recommendation-basis.md`](../../../context/recommendation-basis.md);
 full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#basis-label).
 
-### Skill candidate analysis (REQUIRED, always include)
+### Skill candidate analysis (required, always include)
 
 Evaluate whether the session revealed a genuinely repeatable multi-step workflow worth
 encapsulating as a skill:
@@ -373,7 +373,7 @@ between sessions, and a skill written ad hoc at the end of a retro is the one mo
 miss the conventions that playbook exists to carry. It is a knowledge surface with no arguments
 and no actions, so it informs the drafting rather than doing it: there is nothing to hand it.
 
-### Follow-up candidates (REQUIRED, always include)
+### Follow-up candidates (required, always include)
 
 Evaluate whether the session produced follow-up work for the consumer's work-item tracker:
 deferred research, discovered gaps (missing tests, undocumented conventions), research context
@@ -390,12 +390,12 @@ score; until such a set exists for a surface, every change to it waits for the p
 
 - **Personal (not committed):** proposed auto-memory entries, created only on approval
 - **Project (already validated this session):** rule/instruction-file updates codifying what
-  HAPPENED (a gotcha discovered through failures, a convention established through implementation).
+  happened (a gotcha discovered through failures, a convention established through implementation).
   Apply on approval
 - **Queue for follow-up (needs further research):** recommendations beyond what this session
-  validated. List them; do NOT make those changes now
+  validated. List them; do not make those changes now
 
-Apply the team-shared-first lens: if a learning generalizes to ANY contributor, it belongs in a
+Apply the team-shared-first lens: if a learning generalizes to any contributor, it belongs in a
 tracked surface (the repo's instruction files), not personal memory. Reserve auto-memory for facts
 true only for this machine/person.
 

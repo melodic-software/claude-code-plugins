@@ -1537,6 +1537,9 @@ class AutoMergeArming(unittest.TestCase):
             ("PR Review / Claude", "PR Review Security / Claude"),
             ("pr-review / Claude", "pr-review-security / Claude"),
             ("pr-review-no-bots / Claude", "pr-review-security / Claude"),
+            # The status job's planned name.
+            ("PR Review / Publish Review", "PR Review Security / Publish Review"),
+            ("pr-review / Publish Review", "pr-review-security / Publish Review"),
         ):
             with self.subTest(code=code, security=security):
                 result = self._evaluate(
@@ -1558,6 +1561,8 @@ class AutoMergeArming(unittest.TestCase):
             (("other / Claude", "other / Status"), ("claude-review-status", "claude-security-review-status")),
             (("PR Review Security / Claude", "PR Review Security / Status"), ("claude-review-status",)),
             (("PR Review / Claude", "pr-review / Status"), ("claude-security-review-status",)),
+            (("Publish Review", "other / Publish Review"), ("claude-review-status", "claude-security-review-status")),
+            (("PR Review Security / Publish Review",), ("claude-review-status",)),
         ):
             with self.subTest(names=names):
                 result = self._evaluate(

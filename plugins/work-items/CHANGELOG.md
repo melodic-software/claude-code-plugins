@@ -3,6 +3,48 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.3.2] - 2026-11-15
+
+### Changed
+
+- The session bridge watch, events and unwatch tool descriptions now say what each tool needs first, what it returns, and when it errors.
+
+- Shared `publish-gate.mjs` synced where this plugin carries it: a comment now names the fold-corpus test that guards its backslash fold; the gate's behavior does not change.
+
+- Skill, reference, tracker contract and seed instructions state their rules in plain case instead of capital-letter emphasis, and stale paths, facts and cross-file contradictions in them are corrected.
+- Comments and messages in the preflight, adapter generator and conformance scripts use plain case; their behavior is unchanged.
+
+## [15.3.1] - 2026-11-15
+
+### Fixed
+
+The charge words no longer read "seat the guard" and similar lines, where the verb "seat" opens a line or follows a word such as "then" or "to" and takes a thing as its object, as a paid seat, so intake admission stops holding such issues for a cost decision; every other "seat" and every "seats" still counts.
+
+## [15.3.0] - 2026-11-15
+
+### Added
+
+- Seam verb `wayfind-labels` and the `/work-items:track wayfind-labels` action print the wayfind
+  label prefix and the human-gated label the binding sets, each with its source. They refuse, with
+  nothing on stdout, when the convention-home pointer is broken or declined, when no home applies,
+  or when the binding is invalid.
+
+### Changed
+
+- `/work-items:work-loop`'s tier-label note names security-surface work, rather than
+  security-surface classes, as what still routes to the frontier dispatch tier; the routing is
+  unchanged.
+
+## [15.2.0] - 2026-11-15
+
+### Added
+
+- `/work-items:measure-delivery --merge-risk` counts, per merge-risk `demote` group, the rated
+  merges and those later met by a post-merge demotion record, a silent-revert canary record or a
+  revert on the default branch, with a per-lane breakdown where the rating names the lane run. It
+  prints "not enough failures to compare" in place of a rate while either group has fewer than 5
+  failures, reads the forge only on GitHub, and writes nothing.
+
 ## [15.1.3] - 2026-11-15
 
 ### Changed

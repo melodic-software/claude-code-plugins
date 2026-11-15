@@ -76,7 +76,9 @@ lanes through the Skill tool and keeps one human gate for the whole pass. A back
 would return before the lane's report exists, so result timing and that one-gate flow would
 diverge. Blocking (`background: false`) keeps the caller's wait. The harness also waits without
 that key when `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` or when an earlier invocation of the same
-skill is still running; those are harness fallbacks, not a reason to omit the key.
+skill is still running (<https://code.claude.com/docs/en/skills#run-skills-in-a-subagent>, as of
+2026-11-15; recheck when that section drops either case); those are harness fallbacks, not a
+reason to omit the key.
 
 ## Pilot (2026-09-27)
 

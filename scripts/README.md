@@ -79,14 +79,13 @@ Basis, from the shell medians in [`suite-seconds.txt`](suite-seconds.txt) (measu
 `ubuntu-24.04` CI runners through 2026-10-28):
 
 - 120 s is the work the planner packs into one `test-bash` leg, so a suite
-  over it fills a leg on its own. Twelve shell suites are over it.
-- 300 s is more than half of a leg's 9-minute limit. No shell suite outside
-  the exception list has a median over 150 s, half the ceiling.
+  over it fills a leg on its own.
+- 300 s is more than half of a leg's 9-minute limit.
 
 A suite that needs more gets a row with its own ceiling in
 [`suite-budget-exceptions.txt`](suite-budget-exceptions.txt),
-so the exception shows in review. The ten suites with a median over 150 s
-start there at 480 s. Outside CI the check is off, since the numbers are CI
+so the exception shows in review. A suite with a median over 150 s, half the
+ceiling, starts there at 480 s. Outside CI the check is off, since the numbers are CI
 runner times; `PLUGIN_TEST_SUITE_BUDGET=1` turns it on. Python suites in the
 `test-python` lane are not budgeted. Every run, in CI or not, prints a
 `TIME: <suite> <seconds>s` line after each suite's result, so a leg's log shows

@@ -3,6 +3,13 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.4] - 2026-11-15
+
+### Changed
+
+- Skill, agent and Pat Pattison reference text drops capital-letter emphasis, past-tense revision history and incident references, and states each rule in the present.
+- Passages that disagreed between files (rhyme types, citation shape, Suno style negatives, command names) now say one thing, matching the file that owns it.
+
 ## [2.0.3] - 2026-11-15
 
 ### Changed

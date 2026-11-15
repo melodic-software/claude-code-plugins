@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Guarded resolver for BOT-authored review threads on babysit PRs.
+"""Guarded resolver for bot-authored review threads on babysit PRs.
 
 Narrow, self-validating privileged helper -- the resolve counterpart to
 `babysit_merge.py`. It grants exactly one capability, "resolve a bot review
 thread," instead of a broad `gh api graphql` allow rule, and it enforces only
-DETERMINISTIC guards. Every judgment that needs reasoning -- is this finding
+deterministic guards. Every judgment that needs reasoning -- is this finding
 security-sensitive, is it genuinely addressed, should it be resolved or
 escalated -- stays with the evaluating agent, which vets threads and either
 passes a specific `--thread-id` or restricts to the mechanical outdated set.
@@ -13,10 +13,10 @@ Deterministic guards encoded here:
 
 - Owner must be in the caller-supplied `--allowed-owners` allowlist; an empty or
   missing allowlist hard-refuses (fail closed).
-- HUMAN-authored threads are NEVER touched, and neither are the caller's OWN.
-  Eligibility requires BOTH that the thread's OPENING comment is a Bot's (GraphQL
+- Human-authored threads are never touched, and neither are the caller's own.
+  Eligibility requires both that the thread's opening comment is a Bot's (GraphQL
   `__typename == "Bot"`, or the structural `*[bot]` App-login suffix) -- a thread
-  belongs to whoever opened it, and replying into it never changes that -- AND
+  belongs to whoever opened it, and replying into it never changes that -- and
   that every other fetched participant is a Bot too; a human thread is always
   skipped + reported. Bot identity comes from API-provided signals, with no
   hardcoded login list to go stale -- the sole exception is
@@ -27,19 +27,19 @@ Deterministic guards encoded here:
   that human's threads resolvable -- the flag is a deliberate operator opt-in,
   not a heuristic, and omitting it instead classifies a configured bot's threads
   as human.
-- Default action is READ-ONLY: list eligible/ineligible threads and what WOULD
+- Default action is read-only: list eligible/ineligible threads and what would
   happen. Nothing is resolved without `--resolve`.
-- `--autonomous` is the UNATTENDED-worker guard: a self-resolved thread would
+- `--autonomous` is the unattended-worker guard: a self-resolved thread would
   otherwise satisfy the merge gate's "zero unresolved threads" predicate -- the
   actor signing its own permission slip. It requires the one deterministic
   "addressed" signal GitHub exposes, `isOutdated` (the referenced code changed
   since the finding), so the worker cannot resolve a still-current finding. It
-  additionally REFUSES to bulk-resolve: a `--resolve` in `--autonomous` mode must
+  additionally refuses to bulk-resolve: a `--resolve` in `--autonomous` mode must
   carry a single pinned `--thread-id` (with its `--expected-comment-count` and
   `--expected-last-updated` pins), turning the call into a per-thread vetted loop.
-  Those pins enforce comment-state ONLY: they refuse a thread whose comment count
+  Those pins enforce comment-state only: they refuse a thread whose comment count
   or latest comment-edit timestamp drifted after it was vetted (a reply added or a
-  comment edited between vetting and execution). They do NOT catch displacement -- a
+  comment edited between vetting and execution). They do not catch displacement -- a
   worker's own push flips `isOutdated` to `true` without touching a comment, so both
   pins still match and such a thread is still resolved even though the push only
   moved the finding's anchored lines rather than addressing it. Keeping a
@@ -82,16 +82,16 @@ Deterministic guards encoded here:
   one (`repo_lane_identity`), never read from the PR head; with neither, the
   own-PR refusal above is unchanged. The flag wins when set.
   `--independent-resolver` keeps the own-PR refusal with no exception.
-- `--independent-resolver` is a THIRD mode, parallel to `--autonomous` and not a
+- `--independent-resolver` is a third mode, parallel to `--autonomous` and not a
   relaxation of it. `--autonomous`'s `isOutdated` requirement is right about the
   merging worker, but `isOutdated` means "the referenced code moved" -- on a prose
   or documentation PR a finding is usually addressed by rewriting elsewhere in the
   file, so the anchor never moves, the finding is genuinely addressed, and the
   guard refuses. That leaves an autonomous prose lane with no sanctioned route to
   zero unresolved threads. This mode replaces `isOutdated` with two other
-  properties: INDEPENDENCE (the caller is a fresh context that is not the merging
+  properties: independence (the caller is a fresh context that is not the merging
   worker and did not author the fix -- the actor resolving is not the actor whose
-  permission slip it is) and validated DISPOSITION EVIDENCE. Independence is a
+  permission slip it is) and validated disposition evidence. Independence is a
   property of the dispatch, not something this script can verify, which is exactly
   why the evidence half is machine-checked here. Everything else `--autonomous`
   guards stays: bot-authored threads only, a single pinned `--thread-id` with both
@@ -100,23 +100,23 @@ Deterministic guards encoded here:
   P1 thread" still holds. `--include-human` is refused too: widening authorship and
   dropping `isOutdated` in the same call is the combination nothing would guard.
   `--disposition` names one of four claims and its matching evidence flag, and the
-  script validates the evidence AGAINST THE WORLD rather than trusting the claim:
+  script validates the evidence against the world rather than trusting the claim:
   `fixed` + `--fix-commit <sha>` (must be reachable from the PR's head commit),
   `deferred` + `--tracker-item <id>` (must exist and be open), `incorrect` +
   `--counter-evidence <text>` (must appear in a reply already on the thread,
-  posted by someone other than the thread's OPENER, so the finding's own author
+  posted by someone other than the thread's opener, so the finding's own author
   cannot supply the words that rebut it), `linked-pr` + `--linked-pr <N>` (a
   different PR in this repository, cited in such a reply, open or merged).
-  Missing, unparsable, or unverifiable evidence REFUSES the resolve rather than
+  Missing, unparsable, or unverifiable evidence refuses the resolve rather than
   warning: refusing leaves the thread unresolved, which is the recoverable
-  direction, while a suppressed finding is not. A refusal names WHICH answer it
+  direction, while a suppressed finding is not. A refusal names which answer it
   got: only a confirmed HTTP 404 reports the evidence-specific refusal, while
   every other operational failure reports `refused-evidence-unverifiable`, so an
   outage is never read as a caller lying about its evidence. Evidence is validated
   in list mode too, so a dry run proves the evidence instead of merely predicting
   the resolve.
-- Because one `--disposition` is a claim about ONE finding while resolution clears
-  the WHOLE thread, this mode additionally refuses a thread carrying more than one
+- Because one `--disposition` is a claim about one finding while resolution clears
+  the whole thread, this mode additionally refuses a thread carrying more than one
   source finding (`skipped-multi-finding-thread`). Resolving it on a single
   evidence tuple would drop the thread's other, unaddressed findings out of the
   readiness denominator and let the merge gate pass over them. The count fails
@@ -124,20 +124,20 @@ Deterministic guards encoded here:
   refuses too.
 - `--only-outdated` independently restricts to `isOutdated` threads in any mode.
 - `--thread-id` operates on one agent-vetted thread. Combined with `--resolve`,
-  it requires `--expected-comment-count` AND `--expected-last-updated` to pin
+  it requires `--expected-comment-count` and `--expected-last-updated` to pin
   the comment count and the latest comment-edit timestamp observed when the
   thread was vetted -- a TOCTOU re-vetting guard mirroring
   `babysit_merge.py`'s `--expected-head`. The live thread is re-fetched at
   execution time regardless of how long ago it was vetted, so a stale pin would
   let a reply added after vetting but before execution be silently swept in.
-  `--expected-comment-count` alone only catches a NEW reply; it stays unchanged
-  when a reviewer instead EDITS an already-vetted comment, so
+  `--expected-comment-count` alone only catches a new reply; it stays unchanged
+  when a reviewer instead edits an already-vetted comment, so
   `--expected-last-updated` independently pins the latest `updatedAt` among the
   thread's fetched comments, closing that gap. Either live value drifting from
   its pin refuses that thread's resolve; `--allow-unpinned-thread` overrides for
   interactive-only use. Either pin flag without `--thread-id` is a usage error.
 - `--include-human` is the autopilot power-user opt-in: it lifts the bot-only
-  bright line so human and AI-review threads are also eligible. It is OFF by
+  bright line so human and AI-review threads are also eligible. It is off by
   default (safe and worker modes never touch human threads), and the caller
   must opt in explicitly. Bulk resolution (no pinned `--thread-id`) additionally
   refuses a thread whose most recent human reply carries explicit defer language
@@ -146,7 +146,7 @@ Deterministic guards encoded here:
   A pinned `--thread-id` call is an explicit per-thread vet and may still proceed.
   The caller still owns the judgment that each finding is genuinely addressed
   before resolving.
-- `--self-logins` neutralizes the CALLER'S OWN posting identity for the
+- `--self-logins` neutralizes the caller's own posting identity for the
   bot-only test. The worker replies to a bot thread under its own login (a
   classification reply, a `Fixed in <sha>` follow-up) before ever resolving
   it, and that reply is a real API comment like any other -- so without this
@@ -155,15 +155,15 @@ Deterministic guards encoded here:
   falls out of the default bot-only scope, `--include-human` is unset by
   default (by design: worker/safe modes must never touch a genuine human
   thread), and nothing lifts it back in -- the thread is then stranded outside
-  BOTH resolution scopes forever, even though replying was exactly the correct,
+  both resolution scopes forever, even though replying was exactly the correct,
   documented action. `--self-logins` (comma-separated; `@me` resolves to your
   `gh` login, matching `babysit_merge.py`'s `--self-logins`) marks the caller's
-  own logins as neutral rather than bot or human -- neutral as a REPLY only.
-  The thread's OPENING comment must still be an ACTUAL bot's for `botOnly`, so
+  own logins as neutral rather than bot or human -- neutral as a reply only.
+  The thread's opening comment must still be an actual bot's for `botOnly`, so
   a thread the caller itself opened is never misclassified as a bot thread
   just because a bot later replied to it (the canonical rule in
   `reference/review-discipline.md` forbids resolving your own threads); what
-  the flag changes is only that a self-authored reply UNDER a bot opener no
+  the flag changes is only that a self-authored reply under a bot opener no
   longer counts against it. The same flag also protects the `--autonomous`
   severity guard above: the mandated classification-reply table
   (`reference/review-discipline.md`)

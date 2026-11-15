@@ -302,4 +302,4 @@ If `/planning:prd` is invoked without an explicit tier, use this to drive the ti
 | Phased rollout / feature flag? | No | Sometimes | Yes |
 | Verbosity | ½ page | 1 page | 2 pages |
 
-When in doubt: pick the lower tier. Sections are present in all three: tier governs how much you write, not what's missing.
+When the answers do not settle the tier, recommend the lower one. Sections are present in all three: tier governs how much you write, not what's missing.

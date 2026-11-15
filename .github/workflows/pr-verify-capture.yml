@@ -62,8 +62,12 @@ name: PR Verify Capture
 # head_repository_id. A forged one can only skip the key leg, which leaves
 # the capture blocked: no credential leak.
 #
-# The job uploads at most one pr-capture-<pr>-<head-sha>, the capture or a
-# blocked one; find-capture.mjs reads the run's conclusion and the run's
+# A change that touches no feature of the control skill is recorded
+# not-applicable by the job's match step, before the credit gate, from the
+# changed path names alone: the key is not read and no model session starts.
+#
+# The job uploads at most one pr-capture-<pr>-<head-sha>, the capture, a
+# blocked one or a not-applicable one; find-capture.mjs reads the run's conclusion and the run's
 # artifacts. The judges wait find-capture.mjs WAIT_MS (35 minutes) from
 # their find step's start, which comes about when this run starts, so the
 # job's 30 minutes fit; one that starts more than about 5 minutes after this
@@ -242,6 +246,78 @@ jobs:
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
         run: bash .base/.github/scripts/pr-verify/assert-gate-agrees.sh
 
+      # Whether the change touches a feature, decided before any credential
+      # read or model session: main's affected_features.py, the script
+      # run-e2e's capture session would run, with the control skill the
+      # capture prompt's trusted-root names. Nothing of the pull request is
+      # fetched: the changed paths come from the compare API (base...head,
+      # the diff the script would take), each old and new name, and are
+      # committed as empty files into a scratch repository for the script to
+      # diff, so only path names reach it. With no feature matched it writes
+      # run-e2e's not-applicable summary and sets applicable false, so every
+      # credential, proxy, sandbox and session step skips and the summary
+      # uploads. A failed read or script, a compare at its 300-file limit, a
+      # path that is also another path's folder, or a control skill that is
+      # not main's project one leaves applicable unset, and the capture
+      # session decides as before.
+      - name: Match the change to the control skill's features
+        id: match
+        if: steps.agree.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP: ${{ steps.config.outputs.app }}
+          BASE_SHA: ${{ steps.pr.outputs.base-sha }}
+          HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
+          TRUSTED: ${{ github.workspace }}/.base
+          WORK: ${{ runner.temp }}/capture-match
+          OUT: ${{ runner.temp }}/pr-capture
+        run: |
+          { . "$TRUSTED/.github/actions/log-api-budget/api-budget.bash" 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          if ! [[ $BASE_SHA =~ ^[0-9a-f]{40}$ && $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the base or head SHA is malformed"
+            exit 1
+          fi
+          hub="$TRUSTED/.claude/skills/control-$APP/SKILL.md"
+          if ! [ -f "$hub" ]; then
+            echo "::notice::main has no project control skill for $APP; the capture session decides"
+            exit 0
+          fi
+          rm -rf "${WORK:?}"
+          mkdir -p "$WORK"
+          gh api "repos/$GITHUB_REPOSITORY/compare/$BASE_SHA...$HEAD_SHA?per_page=1" >"$WORK/compare.json"
+          jq -j '.files[] | (.filename, .previous_filename // empty) | strings | ., "\u0000"' "$WORK/compare.json" | sort -zu >"$WORK/paths"
+          if [ "$(jq '.files | length' "$WORK/compare.json")" -ge 300 ]; then
+            echo "::notice::the compare is at its 300-file limit; the capture session decides"
+            exit 0
+          fi
+          repo() { git -C "$WORK/repo" -c user.name=capture -c user.email=capture@invalid -c commit.gpgsign=false "$@"; }
+          git init --quiet "$WORK/repo"
+          repo commit --quiet --allow-empty -m base
+          blob=$(repo hash-object -w --stdin </dev/null)
+          while IFS= read -r -d '' file; do printf '100644 %s\t%s\0' "$blob" "$file"; done <"$WORK/paths" | repo update-index -z --index-info
+          if [ "$(repo ls-files -z | tr -cd '\0' | wc -c)" -ne "$(tr -cd '\0' <"$WORK/paths" | wc -c)" ]; then
+            echo "::notice::a changed path is also another's folder; the capture session decides"
+            exit 0
+          fi
+          repo commit --quiet --allow-empty -m head
+          python3 -I "$TRUSTED/plugins/app-control/scripts/affected_features.py" \
+            --repo "$WORK/repo" --base HEAD~1 --head HEAD --out "$WORK/out" --app "$APP" \
+            --hub "$hub" --control-skill "control-$APP" --source project --trusted-root "$TRUSTED" >/dev/null
+          count=$(jq '.features | length' "$WORK/out/affected.json")
+          if [ "$count" -gt 0 ]; then
+            echo "applicable=true" >>"$GITHUB_OUTPUT"
+            echo "::notice::features the change touches: $count; the capture runs"
+            exit 0
+          fi
+          rm -rf "${OUT:?}"
+          mkdir -p "$OUT"
+          jq --arg app "$APP" \
+            '{route: "none", app: $app, affected: [], capture: {status: "not-applicable", reason: (.note // "no touched feature"), count: 0}, entry_points: [], publishable: []}' "$WORK/out/affected.json" >"$OUT/e2e-summary.json"
+          echo "applicable=false" >>"$GITHUB_OUTPUT"
+          echo "::notice::the change touches no feature; the capture is recorded not-applicable and no model session runs"
+
       # Whether the key is still out of credit (select-model-credential's
       # start call: check-key-credit's artifact-list read for the `marker`
       # this job uploads after a credit stop). Its own step, under
@@ -250,7 +326,7 @@ jobs:
       # call below does, so a run that skips there spends no call.
       - name: Read the key's credit history
         id: credit
-        if: steps.agree.outcome == 'success'
+        if: steps.agree.outcome == 'success' && steps.match.outputs.applicable != 'false'
         continue-on-error: true
         timeout-minutes: 2
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
@@ -265,7 +341,7 @@ jobs:
       # never its value.
       - name: Check the credential
         id: credential
-        if: steps.agree.outcome == 'success'
+        if: steps.agree.outcome == 'success' && steps.match.outputs.applicable != 'false'
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
           leg: key
@@ -290,7 +366,7 @@ jobs:
       # The verify-pr route's model, turns and effort, as the judge's.
       - name: Resolve the capture's model
         id: models
-        if: steps.agree.outcome == 'success' && steps.credential.outputs.key-skipped != 'true'
+        if: steps.agree.outcome == 'success' && steps.match.outputs.applicable != 'false' && steps.credential.outputs.key-skipped != 'true'
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
@@ -1448,7 +1524,7 @@ jobs:
 
       - name: Scan the capture for credentials
         id: scan-capture
-        if: always() && (steps.collect.outcome == 'success' || steps.handoff-capture.outcome == 'success')
+        if: always() && (steps.collect.outcome == 'success' || steps.handoff-capture.outcome == 'success' || steps.match.outputs.applicable == 'false')
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/pr-capture
@@ -1459,7 +1535,7 @@ jobs:
       # reads the artifact of a successful run alone and records the red one
       # blocked by its conclusion.
       - name: Upload the capture
-        if: (always() && (steps.collect.outcome == 'success' || steps.handoff-capture.outcome == 'success')) && steps.scan-capture.outputs.clean == 'true'
+        if: (always() && (steps.collect.outcome == 'success' || steps.handoff-capture.outcome == 'success' || steps.match.outputs.applicable == 'false')) && steps.scan-capture.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-capture-${{ steps.pr.outputs.pr-number }}-${{ steps.pr.outputs.head-sha }}

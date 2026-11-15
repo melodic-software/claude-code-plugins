@@ -23,7 +23,7 @@ verification_skills:
 | `off` | everything `light` does, and also skips the skill's own real-check steps that its text names as `off`-skippable |
 | `light` | the default: skips the verifier dispatch and writes `verification: skipped (light)` where the verdict would go; it never checks inline in its place |
 | `standard` | runs the verifier dispatches the skill's text describes, its optional passes left optional |
-| `strict` | always runs the verifier passes that are optional today, such as a carve-out for mechanical, behavior-preserving changes |
+| `strict` | always runs the verifier passes that `standard` leaves optional, such as a carve-out for mechanical, behavior-preserving changes |
 
 Where the verifier is the product (a scan whose findings are the verifier's output), `light`
 emits the results labeled unverified instead of skipping them.

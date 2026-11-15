@@ -7,7 +7,7 @@ and never edit silently.
 
 Ask which reach the user wants; recommend based on intent:
 
-- **Machine-wide (RECOMMENDED for "make Claude stateless")** → user settings at
+- **Machine-wide (recommended for "make Claude stateless")** → user settings at
   `${CLAUDE_CONFIG_DIR:-~/.claude}/settings.json`. Applies to every project on this machine.
   Honor `CLAUDE_CONFIG_DIR`: when it is set, the user config root (and this file) live under it,
   not `~/.claude`. The SKILL.md snapshot reports the resolved path.

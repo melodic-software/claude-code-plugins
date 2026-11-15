@@ -31,7 +31,7 @@ Resolve it in this order:
 
 Rung 1 comes first because rung 2 alone makes every offline run report-only and points a
 portable plugin at one organization's URL. The gate is installed-ness of `review`, never a marketplace
-id. Note what rung 1 does and does not give you: the file SHAPE and the merge rules, which is
+id. Note what rung 1 does and does not give you: the file shape and the merge rules, which is
 what composition needs. If the consuming project defines its own severity vocabulary, that
 mapping is still yours to apply (see `Tier` below).
 
@@ -109,10 +109,10 @@ nobody authorized.
   prints the panel size the run declared.
 
 `not-found` is the single name every prose surface of this skill publishes for the neutral
-outcome. The reader also recognizes `source-not-identified`, the name `SKILL.md` published before
-that reconciliation, and that tolerance is permanent: a sidecar is model-authored against
-whatever description was in context, and recognizing one name too many can only withhold a
-record, while one too few walks a judgment verdict onto a relay row.
+outcome. The reader also recognizes the spelling `source-not-identified`, and that tolerance is
+permanent: a sidecar is model-authored against whatever description was in context, and
+recognizing one name too many can only withhold a record, while one too few walks a judgment
+verdict onto a relay row.
 
 The script applies this filter itself rather than trusting the sidecar to arrive pre-filtered,
 and it counts what it withheld in `## Surfaces` rather than dropping it. Two consequences worth
@@ -130,14 +130,14 @@ Those two clauses meet on one record: a judgment verdict carrying no rule id. Th
 not opposed. **Withholding is decided on the declared tier, ahead of any rule lookup**, so that
 record is withheld (the restated-fact class alone is decided ahead of the tier, above, and is
 withheld and counted the same way), and `## Unparsed` covers only what is unmappable for some
-OTHER reason: an unknown rule id, a record that is not an object, a row too malformed to read.
+other reason: an unknown rule id, a record that is not an object, a row too malformed to read.
 Keeping a withheld verdict out of the appendix does not drop it: `## Surfaces` carries it in the "Withheld from the relay: N judgment
 findings" count, which is where the no-silent-drop guarantee is discharged for these records.
 Routing one back into `## Unparsed` would print its tier name and its whole payload into the
 apply relay's input, which is exactly what the clause above forbids. That is a leak, not a
 restored guarantee, so do not "fix" it that way.
 
-`## Surfaces` counts the withheld separately by what they ARE. A finding whose rule this script
+`## Surfaces` counts the withheld separately by what they are. A finding whose rule this script
 maps but whose declaration does not authorize the relay, such as a copy naming no
 `fingerprint-confirmed` or a stamp whose own `tier` field names no tier this reader knows, is not
 relay-eligible and gets its own count; it is not a judgment finding, and counting it as one would
@@ -147,8 +147,8 @@ tell a reader to look for it on the human report, where it is not.
 them separately.** Reading the wrong field is a silent drop; failing to see through a wrapper
 around a real verdict name is a leak.
 
-The KEY is an explicit allowlist, the top-level `tier` and the whole of a top-level `verdict`,
-because a miss THERE is a drop, which is worse than the leak it guards. This sidecar is
+The key is an explicit allowlist, the top-level `tier` and the whole of a top-level `verdict`,
+because a miss there is a drop, which is worse than the leak it guards. This sidecar is
 model-authored against no schema, and `tier` is already overloaded across it (the verdict tier,
 and the crosswalk severity). A reader that took a `tier` key at any depth could not tell a
 declared verdict from a nested mention of one, and would withhold records that declare
@@ -157,7 +157,7 @@ declared verdict from a nested mention of one, and would withhold records that d
 are matched case-folded, but only at those two positions, so
 `{"xref": {"TIER": "prior: not-found"}}` is the cross-reference it reads as.
 
-**The top-level `tier` IS the declaration whenever it DECLARES one, and the `verdict` beside it
+**The top-level `tier` is the declaration whenever it declares one, and the `verdict` beside it
 is then not read at all.** A tier is set by fixed rule from the evidence and a `verdict` holds the
 judges output, different fields by design, so a record declaring `fingerprint-confirmed` and
 carrying `"verdict": {"prior": "llm-suspected"}` has declared a confirmed copy. Reading the
@@ -165,7 +165,7 @@ verdict beside it is the over-capture drop one container in, and it costs more t
 same record with `"superseded_by": "not-found"` there would refuse the whole sidecar for naming
 no searched surfaces.
 
-A record whose `tier` NAMES NO TIER falls back to its `verdict`, which is then the only tier it
+A record whose `tier` names no tier falls back to its `verdict`, which is then the only tier it
 has: the `tier` child when it has one, and otherwise the whole value. `{"verdict": "not-found"}`,
 `{"verdict": ["not-found"]}` and `{"verdict": {"result": {"tier": "llm-suspected"}}}` each say
 what `{"verdict": {"tier": "not-found"}}` says, and reading only the `tier` child would let all
@@ -174,7 +174,7 @@ three past the boundary: onto a relay row when a stamp rule carries one, and ver
 so a sidecar keeping the outcome and its surfaces together is not refused for naming them where
 it declared the outcome.
 
-**Narrowing turns on a tier NAMED, never on a `tier` key present, at both steps and by the
+**Narrowing turns on a tier named, never on a `tier` key present, at both steps and by the
 same rule**, because the two steps are the same question asked twice: prefer the narrower
 reading of a container only when it names a tier, and otherwise take the whole container.
 Keying either step off the key would let one unusable value disarm the whole boundary:
@@ -188,20 +188,20 @@ way.
 the boundary keeps it out of. Such a record is withheld when a verdict name appears anywhere in
 it, as a value or as a key: `[{"tier": "not-found", "excerpt": "..."}]` and
 `[{"not-found": {"excerpt": "..."}}]` are both a verdict in the wrong wrapper, not a future
-record. Naming a verdict EXACTLY is the test, so a malformed record that merely mentions one
+record. Naming a verdict exactly is the test, so a malformed record that merely mentions one
 still takes the appendix path, and one that names none never costs the well-formed findings
 beside it.
 
-The VALUE is read generously about its WRAPPER and exactly about the NAME. Every string anywhere
+The value is read generously about its wrapper and exactly about the name. Every string anywhere
 inside the value the narrowing rule below settles on is a candidate, trimmed and case-folded, and
-it names a tier only when it EQUALS one. So `"  not-found  "`, `["not-found"]`, `{"name": "llm-suspected"}` and
+it names a tier only when it equals one. So `"  not-found  "`, `["not-found"]`, `{"name": "llm-suspected"}` and
 `"LLM-Suspected"` are all the verdicts they say they are, while a future `not-found-v2` is an
 unknown tier rather than the verdict it happens to start with. A valid rule id sitting beside a
 verdict does not readmit it either.
 
-The reader strips and folds by Unicode CLASS rather than by a list of the code points someone
-thought of. That approximates a motive no jq predicate reaches in general: a tier that RENDERS as
-a verdict name in the written file should BE a verdict name.
+The reader strips and folds by Unicode class rather than by a list of the code points someone
+thought of. That approximates a motive no jq predicate reaches in general: a tier that renders as
+a verdict name in the written file should be a verdict name.
 Characters that render as nothing are stripped everywhere, by `Default_Ignorable_Code_Point` plus
 the rest of `Cf`, and hyphen-like code points are folded to ASCII by the dash class, because
 every one of these names is hyphenated. Anything narrower leaks: an enumeration of two
@@ -215,7 +215,7 @@ rendering-equivalence in general, and claiming otherwise would be the defect thi
 to find. Such a tier is an unknown tier, and the record takes the ordinary path for its rule id,
 never a relay row it could have reached by declaring a verdict this reader cannot read. That
 holds for the stamp rules too: they fire on date arithmetic that owes the tier nothing and relay
-whatever a record does or does not declare, but a record whose OWN `tier` field names no tier
+whatever a record does or does not declare, but a record whose own `tier` field names no tier
 this reader knows is not relayed on it.
 
 **Two conditions stop a stamp record short of the relay, and the unreadable `tier` field is the
@@ -242,7 +242,7 @@ already gives a verdict name spelled in a `note`. It has to be: a `verdict.tier`
 llm-suspected nomination was overruled" is a review note, and withholding the
 fingerprint-confirmed copy that carries it is the same drop as reading a `tier` key at any depth.
 
-**One reader for every question about a WELL-FORMED record.** It knows the withheld verdicts,
+**One reader for every question about a well-formed record.** It knows the withheld verdicts,
 counting both spellings of the neutral one, plus `fingerprint-confirmed`, the one tier a copy
 finding may be relayed on. The searched-surfaces refusal, the withhold predicate and the
 eligibility test all ask that one reader. A record that is not an object is the stated exception:
@@ -260,7 +260,7 @@ withheld nor can relay**, and the record takes the ordinary path for its rule id
 when nothing maps it, and the not-relay-eligible count when a rule does map it, meaning a copy
 rule declaring no `fingerprint-confirmed`, or a stamp rule whose own `tier` field names no tier
 this reader knows. And **the scope is
-the DECLARED tier**: a verdict name spelled in some other field, a `note` or a `summary`, is
+the declared tier**: a verdict name spelled in some other field, a `note` or a `summary`, is
 opaque payload rather than a verdict, and if nothing else maps the record it goes to
 `## Unparsed` verbatim like any other unmappable row. That second limit is safe because of what
 the consumer does with the appendix, not merely because of how this producer labels it:
@@ -297,7 +297,7 @@ and never carry a row forward from a previous run.
   report-only, so its row names the two dispositions (a pointer at the point of use, or a
   stamped record when the surface must work offline) and never a fix invocation, because `fix`
   and `sweep` never reach the class.
-- **`Tier`** is LOOKED UP from the rule's crosswalk row, never chosen per finding, then mapped
+- **`Tier`** is looked up from the rule's crosswalk row, never chosen per finding, then mapped
   to the consuming project's severity vocabulary when it defines one.
 - **`Confidence`** is `high` on the three deterministic rules that fired and omitted on
   `rule-restated-upstream-fact`, whose row a panel's judgment selected: the contract allows `high`
@@ -312,10 +312,10 @@ nothing here computes a run-size value, and the relay carries one dimension.
 
 - Findings to emit → write. The input-refusal gates run first and are the one exception: a
   sidecar that does not parse, one with no `findings` key, one whose `findings` is not a list,
-  or one whose `not-found` finding DECLARES that outcome and names no searched surfaces (a
+  or one whose `not-found` finding declares that outcome and names no searched surfaces (a
   malformed record cannot declare one, so it is withheld and counted instead) is refused at exit 3 and
   nothing is written, because a file composed from input that concludes nothing is worse than no
-  file. Each refusal names its own cause. A single malformed RECORD is not one of these cases
+  file. Each refusal names its own cause. A single malformed record is not one of these cases
   and never refuses the sidecar.
 - Files scanned, zero relay-eligible findings → write anyway, with the empty `## Findings`
   header. Coverage is the payload, and a clean corpus is a result.

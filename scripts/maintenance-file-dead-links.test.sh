@@ -68,20 +68,20 @@ if grep -q '^permissions: {}$' "$WORKFLOW"; then
 else
   fail "the workflow-level permissions are not {}"
 fi
-if [[ "$(job read | scopes)" == 'actions: read' ]]; then
-  ok "the read job holds actions: read alone"
+if [[ "$(job download-dead-links | scopes)" == 'actions: read' ]]; then
+  ok "the download-dead-links job holds actions: read alone"
 else
-  fail "the read job's permissions are not exactly actions: read: '$(job read | scopes)'"
+  fail "the download-dead-links job's permissions are not exactly actions: read: '$(job download-dead-links | scopes)'"
 fi
 if [[ "$(job file | scopes)" == 'issues: write' ]] && ! grep -qE 'uses:|actions/checkout' <<<"$(job file)"; then
   ok "the file job holds issues: write alone and checks out nothing"
 else
   fail "the file job's permissions are not exactly issues: write, or it uses an action"
 fi
-if grep -q 'name: link-check-online-dead-links$' <<<"$(job read)"; then
-  ok "the read job downloads the ci-workflows link-check-online-dead-links artifact"
+if grep -q 'name: link-check-online-dead-links$' <<<"$(job download-dead-links)"; then
+  ok "the download-dead-links job downloads the ci-workflows link-check-online-dead-links artifact"
 else
-  fail "the read job does not download link-check-online-dead-links"
+  fail "the download-dead-links job does not download link-check-online-dead-links"
 fi
 if [[ "$MARKER" == '<!-- link-check-dead-pointer rollup -->' ]]; then
   ok "the rollup marker is the fixed link-check-dead-pointer rollup comment"

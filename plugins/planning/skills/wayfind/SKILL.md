@@ -13,16 +13,12 @@ metadata:
 
 ## Pre-computed context
 
-Labels: resolve them first, once per session, with the Read tool from the tracker binding, the
-file the tracker reads: the one `printenv WORK_ITEM_TRACKER_BINDING` names when it prints a path,
-else `<home>/work-items.yaml` (its `tracker` mapping; both keys are team-only, so no personal file
-applies). `<home>` is `docs/conventions` unless the root `AGENTS.md` (else `CLAUDE.md`) holds a
-`<!-- BEGIN GENERATED: convention-home -->` region; then it is the first backticked path in that
-region. A region that does not hold exactly one such path, or a variable naming a missing file, is
-a stop: report it, never take the defaults. `<prefix>` is `config.wayfind_label_prefix`, default
-`wayfind:`; `<human-gated>` is `config.role_labels.human-gated`, default `needs-human`. A missing
-file or key, or an empty value, means the default; any other value that is not a string is a broken
-binding: name the file, key and value and stop. Every wayfind label is `<prefix>`, a space, then
+Labels: resolve them first, once per session, with `/work-items:track wayfind-labels`, invoked via
+the Skill tool; the tracker owns where its binding lives and how it is read. `<prefix>` is the
+`prefix` it prints, default `wayfind:`; `<human-gated>` is its `human_gated`, default `needs-human`.
+Its `REFUSED:` reply is a stop: report it, never take the defaults. So is a reply that shows the
+action table or calls the action unknown: that work-items release predates the action, so ask for
+the plugin to be updated. Every wayfind label is `<prefix>`, a space, then
 its kind (`<prefix> map`, `<prefix> research`), and every label this skill writes or queries uses
 those two values. Report both in one line, each with `(default)` or `(binding)`.
 
@@ -37,7 +33,7 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-For an effort **too big to hold at once AND too foggy to ticket**, where half the questions cannot
+For an effort **too big to hold at once and too foggy to ticket**, where half the questions cannot
 yet be phrased: turn it into a shared **map** on the work-item tracker whose children are
 **decision items**, then work the map's frontier one decision at a time until its destination can
 be handed onward. Say "map" and "decision item"; never "decision map". It is the escalation from an
@@ -151,7 +147,7 @@ Parse the first token of `$ARGUMENTS`.
 | Argument | Action | When |
 |----------|--------|------|
 | *(empty)* | **auto** | Open map exists → list its frontier by title, recommend one item and wait for the user's pick (several open maps: name them and ask which); an unattended session goes straight to `work`. No open map → propose `chart` and wait for the user's yes |
-| `chart [topic]` | **Chart** | Build or extend a map, without asking first. **Interactive only**. Refuses non-interactive sessions (charting burns assumptions that need a human) |
+| `chart [topic]` | **Chart** | Build or extend a map, with no proposal to chart first; step 2's yes still comes before anything is created. **Interactive only**. Refuses non-interactive sessions (charting burns assumptions that need a human) |
 | `work [map] [item]` | **Work** | Work one frontier item: the named one, else the first in creation order |
 | An item reference (URL, `#<n>` or tracker key) | **Work** | Work that item on its map. A reference to a map itself (it carries `<prefix> map`) is handled as *(empty)* for that map |
 | Any other text | **auto** | The text is the topic: an open map for it → as *(empty)*. Else propose `chart` with the topic and wait for the user's yes |
@@ -160,7 +156,7 @@ Parse the first token of `$ARGUMENTS`.
 
 Charting needs a human in the loop, and a session cannot detect that on its own, so the caller
 declares it (the same rule `/planning:interview` applies): when the invocation says the run is
-unattended (a loop, a spawned worker, a `claude -p` run, another skill's chain), STOP and report
+unattended (a loop, a spawned worker, a `claude -p` run, another skill's chain), stop and report
 that charting needs an interactive session. Do not fabricate a map.
 
 1. **Survey, interview, fog test.** Read the repository's glossary and work-item conventions
@@ -183,10 +179,10 @@ that charting needs an interactive session. Do not fabricate a map.
      Only what stays open after that round becomes an item.
    - **No-fog bail-out:** if the survey leaves *both* halves of the trigger unmet (every
      uncertainty is already sharp, or the whole effort fits one session), the effort skips the
-     map. STOP and route out instead of fabricating one: a single contract to lock → invoke
+     map. Stop and route out instead of fabricating one: a single contract to lock → invoke
      `/planning:interview` via the Skill tool; a set of sharp tickets → `/work-items:decompose`
      (or `/work-items:track add` for one ticket); small enough to just do → say so. The trigger
-     is too-big AND foggy, both, never either alone. Seeded rows are sharp by construction, so
+     is too-big and foggy, both, never either alone. Seeded rows are sharp by construction, so
      the fog must come from the survey; a seeded interview with no fog goes back to its own
      handoff and resume.
    - **No interview yet:** only once the bail-out has not fired, when neither the slice nor this
@@ -215,7 +211,7 @@ that charting needs an interactive session. Do not fabricate a map.
    taxonomy (`<prefix> *`, `<human-gated>`; snippet in `context/tracker-mechanics.md`) is present:
    an unknown `--label` fails the create. Honor
    the consuming repository's declared label ownership: if it names a label-as-code source of
-   truth, STOP and report the exact missing set to that owner; otherwise report the set and ask
+   truth, stop and report the exact missing set to that owner; otherwise report the set and ask
    the user how labels are provisioned. Never create labels ad hoc from this skill. Then create
    one issue labeled `<prefix> map` (+ any repo program labels). Its body carries
    five sections:
@@ -264,8 +260,8 @@ that charting needs an interactive session. Do not fabricate a map.
    asked again); open an item's body
    only when the step at hand needs it (the picked item, a blocker, a decision the sweep checks).
 3. **Compute the frontier.** `frontier = open ∧ zero OPEN blockers ∧ unassigned` (count open
-   blockers, not the raw edge count), in creation order. In a non-interactive session, filter OUT
-   `<human-gated>` items; if that empties the frontier, STOP with a truthful "all remaining decisions
+   blockers, not the raw edge count), in creation order. In a non-interactive session, filter out
+   `<human-gated>` items; if that empties the frontier, stop with a truthful "all remaining decisions
    need a human". Never resolve a HITL item by standing in for the human.
 4. **Pick one and claim it.** Take the item the user named, else the first frontier item in
    creation order. A `<human-gated>` item is skipped while the person this session claims as (its
@@ -352,7 +348,7 @@ that charting needs an interactive session. Do not fabricate a map.
 
 `/planning:wayfind`'s description carries the proactive trigger. The sibling skills carry
 **pull-back lines**: when `/planning:interview`, `/planning:plan`, or `/implementation:implement`
-hits a task that is clearly too-big-AND-foggy for their stage, they name `/planning:wayfind` as the escalation, **guiding the
+hits a task that is clearly too-big-and-foggy for their stage, they name `/planning:wayfind` as the escalation, **guiding the
 user, never auto-switching**. Their pull-back wording lives in each of those skills; this skill
 owns the trigger's meaning (too-big + fog, both, not either alone).
 
@@ -360,7 +356,7 @@ owns the trigger's meaning (too-big + fog, both, not either alone).
 
 | When | Skill | How it composes |
 |---|---|---|
-| Effort too big AND foggy to ticket | **`/planning:wayfind`** (this) | Produces a map of decision items; closes to its destination |
+| Effort too big and foggy to ticket | **`/planning:wayfind`** (this) | Produces a map of decision items; closes to its destination |
 | The entry, and a single sharp contract to lock | `/planning:interview` | Suggests wayfind past its size threshold; chart runs it inline when no interview exists; `interview`-typed items route here |
 | Product intent still fuzzy | `/planning:prd` | Closure target when the destination is a PRD |
 | Sharp build work | `/planning:plan`, `/work-items:decompose`, `/work-items:work` | Closure targets for a set of build items (plan, then decompose) or one change |
@@ -373,7 +369,7 @@ Pre-implementation order (blindspot → brainstorm/prototype → interview, call
 intent is unsettled and escalating here when it outgrows one session → reference port → design → plan → decompose): the workflow section of
 `docs/finding-your-unknowns.md` in the marketplace repository.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not do build work.** Build items live on the ordinary tracker (`/work-items:track add`)
   after the map closes; a decision that resolves into buildable work is a graduation, not a map

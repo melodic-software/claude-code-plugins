@@ -44,10 +44,11 @@ git-hook entry copies, `read-deny` touches settings through your edit tools, and
 `identity-domains` writes the `block-cross-domain` map into the plugin data directory.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
-points at each remediation. Both are non-interactive: never prompt when the action is given.
-Only two actions ask questions, and only in an attended run: `read-deny` asks for
-scope and consent, and `identity-domains` asks for the values the profile lacks and for
-confirmation.
+points at each remediation. Both are non-interactive: never prompt when the action is given,
+except for the confirmation bare `apply` asks before each retired-hook cleanup. The other actions
+ask only where their sections say to, and only in an attended run: `install-git-hooks` for scope,
+manager and decisions, `read-deny` for scope and consent, and `identity-domains` for the values
+the profile lacks and for confirmation.
 
 ## `check` (read-only)
 
@@ -293,12 +294,12 @@ full rules. Never runs from bare `apply`.
 5. **Report** the map path and the domains written. The map names this machine's trees, so it
    never goes in a tracked file, a fixture or a doc. The guard compiles it on its next call.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Exercise a guard. Any matching tool call does that end-to-end.
 - Write the plugin cache or `pluginConfigs`, or user settings other than the two
   `read-deny` rules the user said yes to.
-- Install any tool, during either `check` or `apply`. Guidance only. The ONLY writes
+- Install any tool, during either `check` or `apply`. Guidance only. The only writes
   this skill ever performs are `apply install-git-hooks`' entry copies (at `scope=user`, the
   stable copy under the user's git config directory) and the decisions it applies, the
   `apply read-deny` rules in the settings file its scope names, the confirmed

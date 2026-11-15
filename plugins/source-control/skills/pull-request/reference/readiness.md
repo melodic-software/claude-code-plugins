@@ -11,14 +11,14 @@ Monitor must discover and track every PR actor. Actors fall into three categorie
 | Category | How they report | How to discover | Timing |
 |----------|----------------|-----------------|--------|
 | **Check-run actors** | Status/conclusion fields on the PR's checks list | Poll with the [monitor.md](monitor.md) §3.0.1 REST read until all reach terminal state (the checks list is a one-off read only; [GitHub](../../../reference/providers/github/pull-request/readiness.md#discover-actors)) | Deterministic: GitHub triggers them on push |
-| **Check-run + comment actors** | Both a check run AND a PR comment | Poll checks AND comments | Check run arrives first, comment follows |
+| **Check-run + comment actors** | Both a check run and a PR comment | Poll checks and comments | Check run arrives first, comment follows |
 | **Comment-only actors** | PR comments only, no check run | Poll the PR's conversation comments, paginated ([GitHub](../../../reference/providers/github/pull-request/readiness.md#discover-actors)) | Non-deterministic: arrives at an unpredictable time |
 
 ### Discovery (not hardcoded)
 
 **Don't assume a fixed list of actors.** On each monitoring cycle, discover what's present:
 
-1. **Check runs**: the PR's checks list, read with name, state and bucket ([GitHub](../../../reference/providers/github/pull-request/readiness.md#discover-actors)), shows ALL check runs and commit statuses. Every entry here must reach terminal state and be classified
+1. **Check runs**: the PR's checks list, read with name, state and bucket ([GitHub](../../../reference/providers/github/pull-request/readiness.md#discover-actors)), shows all check runs and commit statuses. Every entry here must reach terminal state and be classified
 2. **Comments**: the PR's conversation comments, read paginated ([GitHub](../../../reference/providers/github/pull-request/readiness.md#discover-actors)), list them. Every comment from a `[bot]` account is a PR actor needing evaluation. Unpaginated, a bot that commented early on a busy PR is absent from the actor list
 3. **Security scans**: any check run containing "security", "guardian", "CodeQL", "Snyk", "Dependabot", or similar in the name is a security actor. These get mandatory triage (see Gate 3)
 
@@ -76,9 +76,9 @@ List the PR's checks with name, state and bucket ([GitHub](../../../reference/pr
 - [ ] Every check run is in a terminal state (`SUCCESS`, `FAILURE`, `SKIPPED`), none `PENDING` or `IN_PROGRESS`
 - [ ] No unexpected checks missing (compare against expected actors table)
 
-**Gotcha: one name may show duplicate entries (`SUCCESS` check-run + stuck `PENDING` commit-status).** The checks list aggregates BOTH workflow check-runs AND external commit-statuses, so a workflow and an external app posting under one name produce two rows: the workflow's check-run resolves cleanly, while the app's redundant commit status may sit at `PENDING` indefinitely. When you see two rows for one name, one `pass|SUCCESS` with a `link` and one `pending|PENDING` with no link, treat the check-run as authoritative. Verify by listing every check run on the head with its name, status and conclusion, and finding the duplicated name's row in the output; the name never goes into the query ([GitHub](../../../reference/providers/github/pull-request/readiness.md#verify-a-duplicated-check-name)).
+**Gotcha: one name may show duplicate entries (`SUCCESS` check-run + stuck `PENDING` commit-status).** The checks list aggregates both workflow check-runs and external commit-statuses, so a workflow and an external app posting under one name produce two rows: the workflow's check-run resolves cleanly, while the app's redundant commit status may sit at `PENDING` indefinitely. When you see two rows for one name, one `pass|SUCCESS` with a `link` and one `pending|PENDING` with no link, treat the check-run as authoritative. Verify by listing every check run on the head with its name, status and conclusion, and finding the duplicated name's row in the output; the name never goes into the query ([GitHub](../../../reference/providers/github/pull-request/readiness.md#verify-a-duplicated-check-name)).
 
-Match the name by reading the output, never by typing it into the command: a check name is chosen by whoever wrote the workflow (a fork PR names its own jobs), so inside a shell argument or a jq program it can run shell code or act as a regex. If its row reads `completed success`, the stuck commit-status is the redundant external bot. Classify it as non-blocking, document, and proceed. `mergeStateStatus=UNSTABLE` will reflect the stuck status but does NOT block merge when the repo's required checks are green on GitHub's side. The merge phase still merges or enqueues only on `CLEAN` ([merge.md](merge.md) §4.2), so a PR held at `UNSTABLE` by such a status goes to the user.
+Match the name by reading the output, never by typing it into the command: a check name is chosen by whoever wrote the workflow (a fork PR names its own jobs), so inside a shell argument or a jq program it can run shell code or act as a regex. If its row reads `completed success`, the stuck commit-status is the redundant external bot. Classify it as non-blocking, document, and proceed. `mergeStateStatus=UNSTABLE` will reflect the stuck status but does not block merge when the repo's required checks are green on GitHub's side. The merge phase still merges or enqueues only on `CLEAN` ([merge.md](merge.md) §4.2), so a PR held at `UNSTABLE` by such a status goes to the user.
 
 Pagination and the completeness assertion are required: see [Reading GitHub list APIs](#reading-github-list-apis).
 
@@ -87,7 +87,7 @@ Pagination and the completeness assertion are required: see [Reading GitHub list
 For every check run with `bucket == "fail"`, listed from the PR's checks ([GitHub](../../../reference/providers/github/pull-request/readiness.md#gate-2-list-failing-checks)):
 
 - [ ] Each failure has been **investigated**: logs read via the monitor §3.1 tiered fetch chain (bundled `fetch-annotations.sh` → `fetch-failed-logs.sh` full untruncated ZIP; the CLI's failed-log view only as a last-resort eyeball, since it truncates at the CLI display layer; [GitHub](../../../reference/providers/github/pull-request/readiness.md#gate-2-list-failing-checks))
-- [ ] Each failure is **classified**: real failure (fix required) OR informational (document why safe to proceed)
+- [ ] Each failure is **classified**: real failure (fix required) or informational (document why safe to proceed)
 - [ ] Informational failures explicitly documented in monitoring report with exact error message
 - [ ] A review lane that failed on a usage or rate limit is never informational: it reviewed nothing, so it is ABSENT and Gate 5's lane-substitution item applies to it
 - [ ] **No unclassified failures**: every `FAILURE` state must have an explicit disposition
@@ -128,7 +128,7 @@ Read all three comment surfaces, paginated, printing each item's author and the 
   `commit_id` is the wrong field for this question: it re-anchors to the newest head while a comment's hunk still applies, so it counts surviving prior-round comments as current and short-circuits the wait. Unpaginated, the count also undercounts: the comments you wait on are the newest, exactly what page 1 omits on a PR with prior rounds. Slurp the count rather than passing it to `--jq`, per rule 3.
 
 <!-- contract-restatement-begin: B2-lane-productivity -->
-- [ ] **A review lane that produced nothing for this round is SUBSTITUTED before the gate clears, not merely reported.** Take the roster for this item from the checks roster (the PR's checks list), NOT from the bot authors the reviewer roster above is built from: a lane that posted nothing is missing from every author-derived roster by construction, so that roster would apply this item to an empty set, which is exactly the lane this item exists for. Its own check row cannot settle it either: these lanes report on their session rather than on their output, so a session that ends without error is green whether or not it reviewed anything, and cost is no signal since the session is billed either way. Judge the lane by the artifacts the scoping rule above attributes to this head, bounding a rerun of the same head by timestamp against the run's start, since a rerun's artifacts carry the same SHA; zero attributed artifacts means nothing was reviewed, however green the row, with one exception: when this head is a base merge that passes the fully-empty `git show --remerge-diff` test in B2 of [monitor.md](monitor.md)'s per-iteration checklist, which owns the test, the latest productive review on the pre-merge head counts for this head, and the lane needs no substitute. When that test prints anything or cannot be computed, zero attributed artifacts still means nothing was reviewed. Then run a local review over the same diff (`/review:fanout` for breadth, or the bundled `/code-review` against an explicit target for a correctness lane, whichever resolves in this session), then name every absent lane and its substitute on the verdict's `Review lanes:` line. A lane whose posted body admits it fell back to a manual pass counts as absent on the same terms. This is what the bound above hands off to: reaching the bound ends the wait, it does not supply the review.
+- [ ] **A review lane that produced nothing for this round is substituted before the gate clears, not merely reported.** Take the roster for this item from the checks roster (the PR's checks list), not from the bot authors the reviewer roster above is built from: a lane that posted nothing is missing from every author-derived roster by construction, so that roster would apply this item to an empty set, which is exactly the lane this item exists for. Its own check row cannot settle it either: these lanes report on their session rather than on their output, so a session that ends without error is green whether or not it reviewed anything, and cost is no signal since the session is billed either way. Judge the lane by the artifacts the scoping rule above attributes to this head, bounding a rerun of the same head by timestamp against the run's start, since a rerun's artifacts carry the same SHA; zero attributed artifacts means nothing was reviewed, however green the row, with one exception: when this head is a base merge that passes the fully-empty `git show --remerge-diff` test in B2 of [monitor.md](monitor.md)'s per-iteration checklist, which owns the test, the latest productive review on the pre-merge head counts for this head, and the lane needs no substitute. When that test prints anything or cannot be computed, zero attributed artifacts still means nothing was reviewed. Then run a local review over the same diff (`/review:fanout` for breadth, or the bundled `/code-review` against an explicit target for a correctness lane, whichever resolves in this session), then name every absent lane and its substitute on the verdict's `Review lanes:` line. A lane whose posted body admits it fell back to a manual pass counts as absent on the same terms. This is what the bound above hands off to: reaching the bound ends the wait, it does not supply the review.
 <!-- contract-restatement-end: B2-lane-productivity -->
 
 ### Gate 6: No pending work
@@ -151,7 +151,7 @@ bash "<scripts-dir>/source-control-review-threads" <owner>/<repo>#<pr_number>
 
 ## Readiness verdict
 
-Only when ALL gates pass, present:
+Only when all gates pass, present:
 
 ```markdown
 ## PR Ready for Merge
@@ -171,11 +171,11 @@ Only when ALL gates pass, present:
 **All readiness gates passed. Recommend merge.**
 ```
 
-If ANY gate fails, present which gates failed and what action is needed, leading with any action that needs the user (a decision, an approval, a human reviewer's thread). **Never suggest merge with open gates.**
+If any gate fails, present which gates failed and what action is needed, leading with any action that needs the user (a decision, an approval, a human reviewer's thread). **Never suggest merge with open gates.**
 
 ## `full` mode behavior
 
-In `full` mode, readiness gates are NOT relaxed: the only difference is that monitor → merge is automatic **when all gates pass**. If any gate fails, `full` mode pauses and reports; it never skips gates.
+In `full` mode, readiness gates are not relaxed: the only difference is that monitor → merge is automatic **when all gates pass**. If any gate fails, `full` mode pauses and reports; it never skips gates.
 
 ## Recap
 

@@ -15,7 +15,7 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   the rails prompt ever reaching the screen. The operator is left holding a `/clear` they cannot
   resume from, which is worse than never running the skill, because the skill claimed to have run. The
   inversion is what makes it easy: the engine's optional half (the file) gets delivered and its
-  mandatory half ("A resume prompt is ALWAYS emitted") gets dropped, while every STOP instruction in
+  mandatory half ("A resume prompt is always emitted") gets dropped, while every STOP instruction in
   the skill reads as license to end the turn once the file exists. Two rules exist against it, and
   they are the same rule from both ends: STOP ends the underlying task, never the response before
   the prompt is on screen (SKILL.md, "What STOP means"); and the rails block plus its below-rail
@@ -30,26 +30,27 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   required, not cosmetic: one line per unit, one line per block, elide above 8 units, 16 lines
   total. And when anything about the panel is uncertain, the answer is an abbreviated panel or a
   single line saying the units would not resolve, never a delayed or dropped rails prompt (engine
-  doc, "The panel NEVER gates the rails prompt").
-- **The handoff written free-hand, with no rails at all.** The dominant failure in the transcript
-  audit (10 of 25 handoff writes on this machine): a session wrote a `*-handoff-*.md` file through
-  `Write` or `Edit` without ever invoking `/session-flow:handoff`, so nothing in it had read the
-  engine, and no resume prompt reached the screen. The file looked complete; the operator had
-  nothing to paste. The resume directive now carries the rule into every successor session
+  doc, "The panel never gates the rails prompt").
+- **The handoff written free-hand, with no rails at all.** A frequent failure: a session
+  writes a `*-handoff-*.md` file through `Write` or `Edit` without ever invoking
+  `/session-flow:handoff`, so nothing in it has read the engine, and no resume prompt reaches the
+  screen. The file looks complete; the operator has nothing to paste. The resume directive carries
+  the rule into every successor session
   ("For the next save-point invoke /session-flow:handoff via the Skill tool; never write a
   handoff file free-hand"), and any other surface that still licenses a free-hand write (a hook
   reason, another skill's fallback note) is a defect to close, not a route to take. A handoff
   file that a session did not produce through the skill is a defect to raise, not a save-point
   to resume from.
-- **ASCII rails.** A `-----` or `=====` line typed in place of the U+2500 `─` rail (2 of the 15
-  skill-produced prompts in the audit). It reads as a rail to a human and is invisible to
+- **ASCII rails.** A `-----` or `=====` line typed in place of the U+2500 `─` rail. It reads as a
+  rail to a human and is invisible to
   `find-handoff`, which keys on the U+2500 glyph, so the prompt is unrecoverable after `/clear`.
   On the full path the script writes the rails and the validator refuses any other glyph; on
   screen, paste the `emit` output rather than retyping it, and never let a terminal or editor
   "normalize" the glyph.
 - **Prompt-only when durability is required.** Prompt-only fits small, self-contained follow-ups;
   when a plan artifact, dead-ends, or decisions the work depends on stand behind it, write the
-  durable handoff file. Any doubt → full handoff.
+  durable handoff file. When it is unclear whether they do, write the file: a missing file loses
+  state the next session must rediscover, and an unneeded one costs nothing.
 - **Dropping plan-anticipated work on batch pushback.** When the user rejects N≥2 proposed
   actions, separate by category (plan-anticipated vs invented); never silent-drop all.
 - **Handoff without sanity-check evidence.** A met/unmet mark on a completion criterion needs
@@ -82,7 +83,7 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   re-arming a loop that did come back schedules it twice. Which tasks a resume restores, and
   which it does not, is upstream behavior: read it live at the pointer below. So before the
   re-arm messages are sent, the resumed session lists its scheduled tasks
-  and only the recorded loops missing from that list are re-armed. Each re-arm is a SEPARATE follow-up message carrying the ORIGINAL
+  and only the recorded loops missing from that list are re-armed. Each re-arm is a separate follow-up message carrying the original
   loop prompt, one per missing loop, never the resume
   directive wrapped in `/loop`. The engine's counted entry header labels each re-arm inside the
   save-point's own output so a consumer can find its edges (engine doc, "Emit the copy/paste

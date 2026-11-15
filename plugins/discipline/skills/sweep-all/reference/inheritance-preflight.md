@@ -48,8 +48,8 @@ in every case but the explicit `0` above stage 2 remains the authoritative test.
   live.
 
 **Stage 2, an inheritance-proof canary. The decider, and it costs one fork.**
-Dispatch ONE fork alone, ahead of the first wave, that answers the proof
-question and **nothing else**. No corrector, no audit, no ledger. Gate the
+Dispatch one fork alone, ahead of the first wave, that answers the proof
+question and nothing else. No corrector, no audit, no ledger. Gate the
 whole fan-out on it. Skip this stage only when stage 1b already short-circuited
 on `CLAUDE_CODE_FORK_SUBAGENT=0`; every other state runs it.
 
@@ -62,7 +62,7 @@ that can anchor anyone. Budget the guard as one extra fork; that is what it
 costs to know the other ledgers are real.
 
 Every fork, canary and members alike, answers one inheritance-proof question
-FIRST, before any audit content, and stops and says so plainly if it cannot.
+first, before any audit content, and stops and says so plainly if it cannot.
 Conversations differ, so specify the question's *properties*, not a fixed
 question. All four are required:
 
@@ -92,19 +92,19 @@ opened straight into a full batch over an already-dirty tree. Do not degrade.
 <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>
 live), so emit a fresh
 high-entropy value into the transcript as an ordinary main-thread tool result
-BEFORE the canary spawns, and ask for it back. It is unguessable by
+before the canary spawns, and ask for it back. It is unguessable by
 construction, exists in no file, and a non-inheriting subagent cannot produce
 it, so the proof works at any conversation length, and thin history never
 costs the user the audit they asked for.
 
 **Verify on the main thread, and fail closed.** Check the answer against what
-this context knows. Absent, ambiguous, or unverifiable proof counts as NOT
+this context knows. Absent, ambiguous, or unverifiable proof counts as not
 inherited, a plausible-looking answer is not a pass, because fabrication is the
 exposure being defended against. Canary verified → fan the members out. Canary
 unproven → degrade path (exact token, posture digest only); never re-dispatch
 the batch blind.
 
-A member that returns unproven LATER, mid-fan-out, is a different case: the
+A member that returns unproven later, mid-fan-out, is a different case: the
 canary already established that inheritance works here, and earlier waves'
 ledgers are checkpointed and real. Discard that member's ledger, retry it once,
 and if it is still unproven **keep every verified ledger, correct forward from
@@ -148,7 +148,7 @@ That is the same position `setup` reports as the full-batch prerequisite; this
 runbook is where it executes.
 
 **What is not documented.** What the harness does when the `fork` type is
-requested while fork mode is OFF is **not documented on any current page**.
+requested while fork mode is off is **not documented on any current page**.
 Subagents may come back with no inherited conversation, but
 that is an observation, not a contract; the preflight does not rest on it,
 proving inheritance positively rather than predicting the shape of its absence.

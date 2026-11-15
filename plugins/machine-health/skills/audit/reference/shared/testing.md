@@ -94,7 +94,7 @@ Describe 'Test-DiskHealth' {
 
 ### Default: block-scoped mocks at script scope
 
-Since skill scripts are **dot-sourced, not module-imported**, standard `Mock <CmdletName>` inside `BeforeAll` / `It` blocks works. Pester v5 mocks are block-scoped by default, not Describe-wide.
+Since skill scripts are dot-sourced, not module-imported, standard `Mock <CmdletName>` inside `BeforeAll` / `It` blocks works. Pester v5 mocks are block-scoped by default, not Describe-wide.
 
 ### When the mock target is in a module
 
@@ -162,7 +162,7 @@ pwsh -File tests/helpers/New-Fixture.ps1 -Cmdlet Get-Volume -Scenario healthy-ss
 
 Refresh cadence: opportunistic. When a test fails and investigation reveals the cmdlet's shape changed, refresh that fixture.
 
-## What this skill's tests do NOT do
+## What this skill's tests do not do
 
 - **No tests of the Windows OS itself.** We test our code's response to Windows output, not Windows's correctness.
 - **No tests of PSScriptAnalyzer rules.** That's the linter's job.

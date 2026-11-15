@@ -1,8 +1,7 @@
 # Config Cascade Convention
 
-> Formerly `consumer-config-layering` (renamed #1188). "Cascade" (CSS `@layer`/`!important`) is the
-> established term that natively carries both per-key override and a ratified precedence-inversion,
-> matching this contract's user→team→local + policy-floor model.
+> "Cascade" (CSS `@layer`/`!important`) is the established term that carries both per-key override
+> and a ratified precedence inversion, matching this contract's layers plus its policy floor.
 
 A versioned, marketplace-wide contract for **how** a plugin's consumer-tracked configuration layers
 resolve: which layers exist, what order they resolve in, and what a later layer may do to an earlier one. Every
@@ -50,7 +49,7 @@ the default is `docs/conventions`.
   conventions.
 - **No user-global file layer.** `~/.claude/<name>` and ADR 0061's `~/docs/conventions/` move into
   `userConfig` (ADR 0075 fix 9), so a per-person value has one channel. A surface that still reads
-  one is a declared deviation until its migration (#5906) lands.
+  one is a declared deviation until it migrates in its own change.
 - **Invalid value.** A reader names the file, key and value and drops that layer, so a valid higher
   layer still wins, otherwise the default. A lower layer's value is never used.
 
@@ -81,7 +80,7 @@ value's file, key and value and drops that layer, so a valid higher layer wins, 
 default; a lower layer's value is never used (ADR 0064 Decision 7). A new surface takes this form:
 no fenced config block and no folder form.
 
-Surfaces that already use another location keep working until #5906 migrates them, resolved in
+Surfaces that already use another location keep working until each migrates in its own change, resolved in
 this order:
 
 | Precedence | Team-layer location | Read when |
@@ -113,10 +112,10 @@ first line that is exactly three backticks.
 paths and the one it used. `.claude/<name>` is a supported location, not a retired file: its
 fallback read carries no retirement record and is not the dual-read window below.
 
-**What changed for the user-global and personal override layers.** There is no user-global file layer: a
+**The user-global and personal override layers.** There is no user-global file layer: a
 per-person value lives in `userConfig`. The personal override is `<home>/<concern>.local.<ext>`. A
 surface that still reads `~/.claude/<name>` or `${CLAUDE_PROJECT_DIR}/.claude/<stem>.local.<ext>`
-keeps working until #5906 migrates it. The team-tracked verdict, the root classification
+keeps working until it migrates in its own change. The team-tracked verdict, the root classification
 (resolution step 2), and the merge semantics apply to the home file as the team layer.
 
 **The pointer region is the binding.** A `CLAUDE.md` or `AGENTS.md` line such as "if testing, read
@@ -228,7 +227,7 @@ before the line exists would leak a personal file into the index, which is why t
 line are one step. A repository that declines setup is never asked again (the region's `declined`
 line, see the Expression doctrine).
 
-The pre-0075 surfaces keep their own postures until #5906 migrates them. Two consumer-root appends
+The pre-0075 surfaces keep their own postures until each migrates in its own change. Two consumer-root appends
 were ratified before this contract and stand until then:
 
 - `/source-control:setup apply layer=team` appends the recursive `.claude/**/*.local.*` line when
@@ -236,10 +235,10 @@ were ratified before this contract and stand until then:
   index. `layer=local` never edits `.gitignore`: it fails with a recommendation when the personal override is
   exposed
   ([ADR 0040](../../adr/0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md)).
-- `/work-items:setup apply` appends `.work-item-tracker.local.json`, because that personal override sits at
-  repo root outside the one-liner
+- `/work-items:setup apply` appends `<home>/work-items.local.yaml`, announced, because that personal override
+  sits outside the `.claude/**/*.local.*` line, and keeps a legacy `.work-item-tracker.local.json` ignored and untracked while it exists
   ([ADR 0015](../../adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md),
-  superseded by ADR 0075: the binding moves to `<home>/work-items.yaml` in the work-items thread).
+  superseded by ADR 0075: the binding lives in `<home>/work-items.yaml`).
 
 Discovery, verification, planning, review, harness-ops, and the standards root also write a
 self-ignoring `.gitignore`, but *inside a plugin-owned directory* (memory root or
@@ -285,7 +284,7 @@ content *is*, never by the author's preference:
 The criterion is applied per surface, in that surface's own migration PR, and recorded in the
 Implementers table's row. Nothing in this contract retroactively re-expresses a surface.
 
-**The convention home is bound by one pointer region, and the region IS the binding.** The
+**The convention home is bound by one pointer region, and the region is the binding.** The
 consumer's existing `AGENTS.md` or `CLAUDE.md` carries a marked pointer region naming the convention
 home (and, where the home holds several topics, pointing at its index). The default home is
 `docs/conventions`; setup creates it when missing and conforms to an existing equivalent home (for
@@ -390,7 +389,7 @@ A plugin implementing this contract:
    plugins do not hard-fail on them.
 
 Surfaces that still read `~/.claude/<name>` or a `.claude/` personal override, and surfaces whose rung 5
-differs (see Declared), are deviations until their migration under #5906.
+differs (see Declared), are deviations until each migrates in its own change.
 
 `fleet-state.sh` (harness-ops `plugins` skill) does not adopt the resolver. Its root answers a
 different question: which project-scope install records and `.claude/settings*.json` map belong to
@@ -579,6 +578,7 @@ conformance.
 | `ai-slop` (`verification`) | the team file at the default branch; a skill entry over the plugin value; an invalid value resolves `standard`, no value `light` | per-key |
 | `attribution` (`verification`) | the team file at the default branch; a skill entry over the plugin value; an invalid value resolves `standard`, no value `light` | per-key |
 | `code-tidying` (`upkeep_*`) | team, then the default | per-key |
+| `code-tidying` (`comment_lint*`) | team, then the default | per-key |
 | `code-tidying` (`verification`) | the team file at the default branch; a skill entry over the plugin value; an invalid value resolves `standard`, no value `light` | per-key |
 | `docs-naming` | later layer; team on named policy-floor keys | per-key |
 | `rendered-views` | the publish trust walk, not plain precedence: the argument decides alone; a `terminal` or `file` value from any layer keeps the view local; a publishing value counts only from the untracked, gitignored personal override, then `userConfig`; a team file never publishes; with no layer deciding, the lane's own default | per-key |
@@ -693,8 +693,9 @@ its conformance cell.
 | `ai-slop` (`verification`) | team-only | team: `<home>/ai-slop.yaml` (`<home>` from the convention-home pointer line at the default branch, default `docs/conventions`; schema `plugins/ai-slop/schemas/ai-slop.schema.json`) | team only | the team file at the default branch; a skill entry over the plugin value; an invalid value resolves `standard`, no value `light` | per-key | conforms to the [location axis](#location-of-the-team-layer-a-docs-convention-file-or-claudename) ([ADR 0064](../../adr/0064-home-plugin-customization-in-docs-conventions-yaml.md)); no `userConfig` option, no `~/.claude` file and no personal override. `verification_skills.<skill>` beats `verification`. `lib/read-verification.sh` (the plugin's copy) reads the file at `origin/<default>` after a fetch, never the working tree, so a branch cannot lower its own level, and names a working-tree copy that gives another level. An invalid value or a file that does not parse is named and resolves `standard`; no value resolves `light`. Levels owned by [`docs/contracts/verification-level/README.md`](../verification-level/README.md); read by `/ai-slop:audit`. This row covers `verification` and `verification_skills` |
 | `attribution` (`verification`) | team-only | team: `<home>/attribution.yaml` (`<home>` from the convention-home pointer line at the default branch, default `docs/conventions`; schema `plugins/attribution/schemas/attribution.schema.json`) | team only | the team file at the default branch; a skill entry over the plugin value; an invalid value resolves `standard`, no value `light` | per-key | conforms to the [location axis](#location-of-the-team-layer-a-docs-convention-file-or-claudename) ([ADR 0064](../../adr/0064-home-plugin-customization-in-docs-conventions-yaml.md)); no `userConfig` option, no `~/.claude` file and no personal override. `verification_skills.<skill>` beats `verification`. `lib/read-verification.sh` (the plugin's copy) reads the file at `origin/<default>` after a fetch, never the working tree, so a branch cannot lower its own level, and names a working-tree copy that gives another level. An invalid value or a file that does not parse is named and resolves `standard`; no value resolves `light`. Levels owned by [`docs/contracts/verification-level/README.md`](../verification-level/README.md); read by `/attribution:audit`. This row covers `verification` and `verification_skills` |
 | `code-tidying` (`upkeep_*`) | no-floor | team: `<home>/code-tidying.yaml` (schema `plugins/code-tidying/schemas/code-tidying.schema.json`) | team only | team, then the default | per-key | declared deviation: no `userConfig` option and no personal override, since `upkeep_max_open` protects a shared review queue. A value outside the schema, or a file that does not parse, is named with its file and key and resolves to the default. Keys owned by [`plugins/code-tidying/reference/config.md`](../../../plugins/code-tidying/reference/config.md); read through `skills/tidy/scripts/upkeep-setting.sh` by `open-pr-count.sh` and the upkeep gate. `upkeep_spec_issue` has no default: the upkeep gate fails without it |
+| `code-tidying` (`comment_lint*`) | team-only | team: `<home>/code-tidying.yaml` (schema `plugins/code-tidying/schemas/code-tidying.schema.json`) | team only | team, then the default | per-key | declared deviation: no `userConfig` option and no personal override, since the lint is a shared gate on what a change may add. `comment_lint` defaults to `off` and `comment_lint_allow` to an empty list; a level outside the schema is named with its file and resolves to `off`. The commit-time hook reads the working tree's file; a CI gate reads the merge base's, so a branch cannot lower its own level. Read through `scripts/comment-settings.sh` by the `comment-lint` git-hook entry. This row covers `comment_lint` and `comment_lint_allow` |
 | `code-tidying` (`verification`) | team-only | team: `<home>/code-tidying.yaml` (`<home>` from the convention-home pointer line at the default branch, default `docs/conventions`; schema `plugins/code-tidying/schemas/code-tidying.schema.json`) | team only | the team file at the default branch; a skill entry over the plugin value; an invalid value resolves `standard`, no value `light` | per-key | conforms to the [location axis](#location-of-the-team-layer-a-docs-convention-file-or-claudename) ([ADR 0064](../../adr/0064-home-plugin-customization-in-docs-conventions-yaml.md)); no `userConfig` option, no `~/.claude` file and no personal override. `verification_skills.<skill>` beats `verification`. `lib/read-verification.sh` (the plugin's copy) reads the file at `origin/<default>` after a fetch, never the working tree, so a branch cannot lower its own level, and names a working-tree copy that gives another level. An invalid value or a file that does not parse is named and resolves `standard`; no value resolves `light`. Levels owned by [`docs/contracts/verification-level/README.md`](../verification-level/README.md); read by `/code-tidying:batch-simplify`. This row covers `verification` and `verification_skills` |
-| `docs-naming` | team-only | team: `docs/conventions/docs-naming.yaml` (ADR 0064; schema `plugins/docs-naming/schemas/docs-naming.schema.json`); user-global `~/.claude/docs-naming.json`; personal override `docs/conventions/docs-naming.local.yaml` | all three | later layer; team on named policy-floor keys | per-key | conforms. The old team and personal override files, `.claude/docs-naming.json`, `.claude/docs-naming.local.json` and their retired `docs-hygiene` names, are not read; retirement records `docs-naming-r001` and `docs-naming-r002` are `report-only`, `/docs-naming:setup check` names each old file it finds, and while the YAML is absent the first `/docs-naming:setup apply` write copies the old team file's keys into it. The user-global `~/.claude/docs-hygiene.json` is still read, with a WARN, while `~/.claude/docs-naming.json` is absent; per-key override on `file_names.*`, with a policy-floor class on `tiers`, `generated`, `sweep_exclude`, `sweep_exclude_sites`, and the three `exempt_*` keys: a personal layer may ADD entries and never remove them, and `generated` is team-layer only. Those keys decide what `/docs-naming:realign-file-names` does to a tree (which files are frozen, which reference forms are rewritten, and which shell command runs after a move), so narrowing one from a single machine would weaken a team decision, while adding a scope root or an exemption weakens nothing and stays open. `rule`, `regex`, and `redirect_map` are nearest-wins. Keys owned by [`plugins/docs-naming/reference/config.md`](../../../plugins/docs-naming/reference/config.md), which also partitions them from plugin `userConfig` (this plugin declares none, so a layer naming one is an inert unknown key). Written by `/docs-naming:setup apply`, resolved by `plugins/docs-naming/scripts/resolve-config.sh` |
+| `docs-naming` | team-only | team: `docs/conventions/docs-naming.yaml` (ADR 0064; schema `plugins/docs-naming/schemas/docs-naming.schema.json`); user-global `~/.claude/docs-naming.json`; personal override `docs/conventions/docs-naming.local.yaml` | all three | later layer; team on named policy-floor keys | per-key | conforms. The old team and personal override files, `.claude/docs-naming.json`, `.claude/docs-naming.local.json` and their retired `docs-hygiene` names, are not read; retirement records `docs-naming-r001` and `docs-naming-r002` are `report-only`, `/docs-naming:setup check` names each old file it finds, and while the YAML is absent the first `/docs-naming:setup apply` write copies the old team file's keys into it. The user-global `~/.claude/docs-hygiene.json` is still read, with a WARN, while `~/.claude/docs-naming.json` is absent; per-key override on `file_names.*`, with a policy-floor class on `tiers`, `generated`, `sweep_exclude`, `sweep_exclude_sites`, and the three `exempt_*` keys: a personal layer may add entries and never remove them, and `generated` is team-layer only. Those keys decide what `/docs-naming:realign-file-names` does to a tree (which files are frozen, which reference forms are rewritten, and which shell command runs after a move), so narrowing one from a single machine would weaken a team decision, while adding a scope root or an exemption weakens nothing and stays open. `rule`, `regex`, and `redirect_map` are nearest-wins. Keys owned by [`plugins/docs-naming/reference/config.md`](../../../plugins/docs-naming/reference/config.md), which also partitions them from plugin `userConfig` (this plugin declares none, so a layer naming one is an inert unknown key). Written by `/docs-naming:setup apply`, resolved by `plugins/docs-naming/scripts/resolve-config.sh` |
 | `rendered-views` | no-floor | team `docs/conventions/rendered-views.yaml`, personal override `docs/conventions/rendered-views.local.yaml`, and each view-lane plugin's `medium` `userConfig` option; the retired `~/.claude/rendered-views.md` and `.claude/rendered-views*.md` give a notice, never a value | `userConfig`, team and personal override | the publish trust walk, not plain precedence: the argument decides alone; a `terminal` or `file` value from any layer keeps the view local; a publishing value counts only from the untracked, gitignored personal override, then `userConfig`; a team file never publishes; with no layer deciding, the lane's own default | per-key | declared deviation from later-layer-wins: `medium` decides whether a view leaves the machine, so a branch-writable layer can keep a view local but never publish it. An invalid value is reported and ignored without dropping another layer's value. Keys owned by [`rendered-views`](../rendered-views/README.md#the-rendered-views-settings). Resolved by `lib/view-settings.mjs`, which reads each layer with `readLayers` |
 | `testing` (`run-e2e`) | no-floor | `.claude/testing/e2e.md` for `recording` / `browser_mode`; `docs/conventions/testing.yaml`, `~/.claude/testing.yaml` and `.claude/testing.local.yaml` for `e2e_driver` / `reuse_running_instance` / `browser_driver`, over the plugin's `userConfig` | all three | later layer | per-key | conforms; per-key override, keys owned by `/testing:run-e2e`. The YAML keys are resolved by `resolve-config.sh e2e`, which reports the supplying layer and resolves an unknown or refused value to the default without stopping |
 | `testing` (`write`) | no-floor | `docs/conventions/testing.yaml` and `.claude/testing.local.yaml` for `tdd_refactor_step` (`on` \| `off`, default `on`) and `first_test` (`user-flow` \| `unit`, default `user-flow`); no user-global file, no `userConfig` | team + personal override | later layer | per-key | declared deviation: repository settings, so the user-global layer is skipped with a warning. Keys owned by `/testing:write`; resolved by `resolve-config.sh write`, which reports the supplying layer and resolves an unknown value to the default without stopping |
@@ -791,6 +792,7 @@ model-run skill with no reader script, so the rule lives in the skill text.
 | `architecture` (`record-decision`) | prose only | `/architecture:record-decision` resolves `<home>` with the plugin's `lib/resolve-convention-home.sh` and skips both file layers when it exits 5 (the root is `$HOME`, an ancestor of it, or not a git work tree); no reader script; the `verification` key is read by `lib/read-verification.sh`, which sources the plugin's `lib/config-root.sh` |
 | `plugin-quality`, `architecture`, `authoring-formats` | not yet | each plugin's `lib/resolve-convention-home.sh`: `--root`, else `CLAUDE_PROJECT_DIR`, else git toplevel, else the current directory; team-only via pointer line, no user-global layer to collide with; plugin-quality's `verification` key is read by `lib/read-verification.sh`, which sources the plugin's `lib/config-root.sh` |
 | `ai-briefing`, `code-tidying` | prose only | team-only surfaces read by model-run skills |
+| `code-tidying` (`comment_lint*`) | implements (inline) | `scripts/comment-settings.sh`: the git toplevel of the directory it is given, else of the current directory; `lib/resolve-convention-home.sh` classifies the root, and the team layer is skipped when it is `$HOME`, an ancestor of it, or not a git working tree |
 | `code-tidying` (`upkeep_*`) | implements (inline) | `skills/tidy/scripts/upkeep-setting.sh`: the git toplevel of `CLAUDE_PROJECT_DIR`, else of the current directory; `lib/resolve-convention-home.sh` classifies the root, and the team layer is skipped when it is `$HOME`, an ancestor of it, or not a git working tree; the `verification` key is read by `lib/read-verification.sh`, which sources the plugin's `lib/config-root.sh` |
 | `playbooks` | prose only | `/playbooks:fable-5` reads `docs/conventions/playbooks.yaml` in its skill text only when the working directory's git root is neither `$HOME` nor an ancestor of it, and otherwise skips the team layer and says so; no reader script; the `verification` key is read by `lib/read-verification.sh`, which sources the plugin's `lib/config-root.sh` |
 | `implementation` | prose only | `/implementation:implement-dispatch` and `/implementation:implement` read `docs/conventions/implementation.yaml` only when the root (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`) is inside a git working tree and is neither `$HOME` nor an ancestor of it, and otherwise reports the team layer skipped; `/planning:plan` reads that file's `integration_posture` key under planning's own root rule (git root neither `$HOME` nor an ancestor of it); no reader script for those keys; the `verification` key is read by `lib/read-verification.sh`, which sources the plugin's `lib/config-root.sh` |
@@ -814,19 +816,13 @@ sweep, and each migration updates its own row in the same change.
 
 ### Personal override spelling drift
 
-Every setup surface that owns a `*.local.*` personal override now recommends (or, for
-`source-control`, appends per [ADR 0040](../../adr/0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md)) the recursive line above. The narrow spellings the
-fleet used to ship, `.claude/*.local.*`, `.claude/ecosystems/*.local.*`, and
-`.claude/autonomy/**/*.local.*`, were each narrowly correct for their own
-surface but collectively defeated the one-line promise: a consumer running
-three plugins was asked for three lines, and the non-recursive spellings
-would silently miss a nested personal override if their surface ever grew a folder.
-The recursive `.claude/**/*.local.*` line is the canonical spelling
-([ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md)). Each surface adopts it when its setup is next touched, with no separate
+Every setup surface that owns a `*.local.*` personal override recommends (or, for
+`source-control`, appends per [ADR 0040](../../adr/0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md)) one recursive line. A surface on the convention home uses the `<home>/**/*.local.*` line above; a surface whose personal override still sits under `.claude/` uses the recursive `.claude/**/*.local.*` line
+([ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md)), never a narrow spelling such as `.claude/*.local.*`, `.claude/ecosystems/*.local.*` or `.claude/autonomy/**/*.local.*`, which asks a consumer for one line per plugin, and whose non-recursive forms miss a nested personal override once their surface grows a folder. Each surface adopts its line when its setup is next touched, with no separate
 migration. Five deliberate exceptions remain: the bare `*.local.md` inside the
 setup-owned `<standards_dir>/.gitignore` (a dedicated ignore file scoped to
-the standards root, not the consumer's `.gitignore`); `work-items`' repo-root
-`.work-item-tracker.local.json` line (ADR 0015; outside `.claude/` entirely);
+the standards root, not the consumer's `.gitignore`); `work-items`'
+`<home>/work-items.local.yaml` line (ADR 0015; outside `.claude/` entirely);
 `ai-briefing`, which is team-only and recommends no personal override line at all
 (#3580); `songwriting`; and the `work-items` recurring schedule, both team-only
 too and recommending no personal override line. This contract does not retroactively
@@ -856,7 +852,6 @@ tables above already declare policy-floor.
 | `code-tidying` | `.claude/tidy-lanes/<lane>.md`, `.claude/code-tidying/exclusion-overrides.md` | Markdown | team only |
 | `codebase-health` | `.claude/codebase-health.md` | Markdown | |
 | `disk-hygiene` | `.claude/disk-hygiene.json` | JSON | user-global and team only |
-| `docs-hygiene` | `.claude/docs-hygiene.json` | JSON | policy-floor keys |
 | `github` | `.claude/github/routing.yaml`, `.claude/github/conventions.md` | YAML, Markdown | policy-floor keys in `routing.yaml` |
 | `improvement` | `.claude/improvement.md` | Markdown | |
 | `instruction-placement` | `.claude/instruction-placement.md` | Markdown | policy-floor |

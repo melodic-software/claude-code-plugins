@@ -33,7 +33,7 @@ Beck's framing: small, named refactorings nobody could hate on. Structural-only.
 
 ### #4: New Interface, Old Implementation
 
-- **When to apply:** **ONLY when the new interface has zero existing consumers.** Add a new abstraction layer over an existing implementation without changing the implementation. Tidy the call sites later.
+- **When to apply:** **Only when the new interface has zero existing consumers.** Add a new abstraction layer over an existing implementation without changing the implementation. Tidy the call sites later.
 - **When NOT to apply:** existing consumers exist that would need to migrate. That's not a tidying. That's a migration with breaking-change risk. **Treat as behavioral.**
 - **Example:** wrapping a static helper class behind an injectable interface, when no one currently calls the static directly. If anyone calls it directly today, this is migration work; defer.
 
@@ -93,6 +93,7 @@ Beck's framing: small, named refactorings nobody could hate on. Structural-only.
 
 ### #14: Explaining Comments
 
+- **Posture** (`comment_posture`, resolved in SKILL.md "Variables"): under `necessary`, the default, add only a comment the `/code-tidying:remove-comments` keep list keeps: the `comment_keep_list` file the settings line names, else the shipped list, which keeps a public-API doc comment and a note naming an outside party's limit; give that note its link, which the comment lint needs to pass it. Send every other candidate to the findings table as a rename or an extract (#8, #9, #12, F-3) instead of a comment. Under `none`, add no comment. Under `explanatory`, the rules below.
 - **When to apply:** code does something non-obvious (a workaround for a bug, a subtle invariant, a constraint from outside the code). Add a brief `// Why:` comment. A workaround comment also carries a link (an issue, a URL) or a removal condition, so a reader knows when it can go; without one, `/code-tidying:remove-comments audit` reports it as `unjustified-workaround`.
 - **When NOT to apply:** the code is self-explanatory and the comment would just restate it. Only comment *why*, never *what*.
 - **Example:** `// Workaround: the IDE locks analyzer DLLs; output to bin/cli/ when not building inside it, and remove when the IDE releases the lock after a build`.
@@ -171,6 +172,7 @@ Beck-style structural improvements applied to the prose surface: skill bodies, l
 
 ### P-5: Explaining-comments insertion (in code-shaped prose)
 
+- **Posture:** #14's posture rule applies to the comment this adds.
 - **When to apply:** a CLI command, config snippet, or code example in markdown does something non-obvious. Add a one-line `# explains the next line` comment.
 - **When NOT to apply:** the snippet is self-explanatory. Don't pad code blocks with restating-comments.
 - **Example:** `npx markdownlint-cli2 "**/*.md"` → add `# Lint all markdown files (matches CI)`.

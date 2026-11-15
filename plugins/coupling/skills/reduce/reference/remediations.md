@@ -1,7 +1,7 @@
 # Remediation catalog
 
 Mechanism per finding kind, each with its counterweight. Decoupling has its own failure mode:
-indirection added where no change pressure exists. Every entry therefore states when NOT to
+indirection added where no change pressure exists. Every entry therefore states when not to
 apply it. An abstraction earns its place at a volatile or substitutable boundary; wrapping a
 stable dependency in an interface is not decoupling, it is a second thing to maintain that
 moves in lockstep with the first. The coupling remains, plus a layer.

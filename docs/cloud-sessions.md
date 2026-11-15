@@ -342,29 +342,26 @@ from the two together (see
   uninstall/install/enable cycle for the plugins whose own directory changed between the two, so
   the usual resume stays cheap. Uncommitted edits are out of scope by design. Use
   `claude --plugin-dir ./plugins/<name>`, which takes session precedence over the cached install.
-- **Reading the summary line's `failed` count (corrected 2026-08-28).** That count used to be the
-  exit status of the refresh chain, and the chain's tail step is nonzero on the healthy path:
-  `claude plugin install --scope user` already leaves the plugin enabled, unless the catalog entry
-  sets `defaultEnabled: false`, which the install honors, so the following
+- **Reading the summary line's `failed` count.** The refresh chain's tail step is nonzero on the
+  healthy path: `claude plugin install --scope user` already leaves the plugin enabled, unless the
+  catalog entry sets `defaultEnabled: false`, which the install honors, so the following
   `claude plugin enable --scope user` exits 1 with `Plugin "<id>" is already enabled at user
-  scope`. Startup lines like `plugins 71 enabled, 5 newly installed, 0 refreshed, 65 failed` were
-  therefore false alarms, and dozens of them per session start buried the only health signal this
-  block emits. The script now runs the chain for effect and verifies the end state once per run,
-  over every plugin the fleet list plus this repo's `enabledPlugins` deltas turn on rather than only
-  the ones that run touched, since the plugins most likely to be wrong are the ones it decided to
-  skip. A plugin counts as failed when any of these holds:
+  scope`. So the script runs the chain for effect, does not count its exit status, and verifies
+  the end state once per run, over every plugin the fleet list plus this repo's `enabledPlugins`
+  deltas turn on rather than only the ones that run touched, since the plugins most likely to be
+  wrong are the ones it decided to skip. A plugin counts as failed when any of these holds:
   - `claude plugin list --json` does not list it at user scope, or lists it there with `enabled`
     anything other than the JSON boolean `true`, except a catalog entry marked
     `defaultEnabled: false` whose user-scope record has `enabled` as the JSON boolean
     `false` (a missing, null, or string `enabled` value still fails);
   - its own directory under `plugins/` changed between the `gitCommitSha` recorded for the
     user-scope install and `HEAD`, so the session would serve that plugin's older sources. A
-    recorded sha that merely differs from `HEAD` is NOT a failure: the check is
+    recorded sha that merely differs from `HEAD` is not a failure: the check is
     `git diff <recorded> HEAD -- plugins/<name>`, so unrelated commits since the install are
     correctly ignored;
   - the snapshot cannot be judged at all: no resolvable `HEAD` for the checkout, no registry
     file, no recorded `gitCommitSha`, a `null` one, or a recorded commit this clone does not
-    have. Verification is deliberately fail-CLOSED here, unlike the refresh decision that reuses
+    have. Verification is deliberately fail-closed here, unlike the refresh decision that reuses
     the same inputs and skips what it cannot judge.
 
   Each failure is named on stderr with its reason and the summary line appends the failing ids
@@ -403,7 +400,8 @@ from the two together (see
 - The `plugin-catalog-enablement-gate` CI lane holds the `enabledPlugins` block to the catalog:
   every key for this marketplace must name a catalogued plugin, since a key that names nothing silently
   no-ops, and keys stay in byte order. It also checks that `cloud-bootstrap.sh`'s hardcoded
-  `marketplace_name` still names the marketplace the settings file declares. The bootstrap
+  `marketplace_name` still equals the `name` in `.claude-plugin/marketplace.json`, and that the
+  settings file declares no `extraKnownMarketplaces` entry under that name. The bootstrap
   selects what it installs with `endswith("@" + $n)`, so a rename that updated the settings and
   the catalog but not that constant would leave its install set empty while the lane stayed green
   over it. The lane does not require a key per plugin: with the fleet list derived from the

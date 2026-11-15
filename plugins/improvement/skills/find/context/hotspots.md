@@ -13,9 +13,11 @@ records LOC alongside it.
 
 ## Step 0: history-depth gate (always first)
 
-Every `git` command in this recipe runs against the TARGET repository's root. When the target
+Every `git` command in this recipe runs against the target repository's root. When the target
 is not the session's working directory, prefix each with `git -C <target-root>` (root resolved
-per SKILL.md "Repo as parameter") so the evidence never comes from the invoking repo.
+per SKILL.md "Repo as parameter") so the evidence never comes from the invoking repo. Replace `<target-root>` in the Step 3
+block with the resolved root in every case, including when the target is the session's own
+repository.
 
 Churn from partial history produces confidently-wrong rankings, which are worse than no
 rankings. Run this gate before counting anything:
@@ -30,7 +32,7 @@ git log --reverse --format=%cs | head -n 1
 
 Resolve the gate:
 
-- **`is-shallow-repository` prints `true`** → do NOT compute churn. Record an evidence-gap line
+- **`is-shallow-repository` prints `true`** → do not compute churn. Record an evidence-gap line
   (format: unattended.md), e.g. `gap: churn — shallow clone; history truncated, rankings would be wrong`.
   When repo-history evidence matters for this run, also propose an instrument-first
   candidate per ranking.md ("fetch full history / unshallow the clone so future runs can rank on
@@ -56,6 +58,9 @@ git log --since="90 days ago" --pretty=format: --name-only |
 ```
 
 Each output row is `<churn> <path>`: how many commits touched that path inside the window.
+
+Steps 1, 3 and 4 share `excludes`, `indent_of` and `raw`, so run everything from Step 1's
+`excludes` assignment through Step 4's `rm -f "$raw"` as one Bash call.
 
 ## Step 2: exclusions (bundled defaults, cascade-overridable)
 
@@ -98,8 +103,8 @@ raw="${TMPDIR:-/tmp}/hotspots.$$"
 git log --since="90 days ago" --pretty=format: --name-only |
   grep -v '^$' | grep -Ev "$excludes" | sort | uniq -c | sort -rn | head -50 |
   while read -r churn f; do
-    [ -f "$f" ] || continue
-    printf '%s %s %s\n' "$churn" "$(indent_of "$f")" "$f"
+    [ -f "<target-root>/$f" ] || continue
+    printf '%s %s %s\n' "$churn" "$(indent_of "<target-root>/$f")" "$f"
   done > "$raw"
 ```
 

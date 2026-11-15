@@ -78,7 +78,7 @@ on:
         description: >-
           Issue mode, report-outcome: the sub-issue numbers, comma-joined,
           of a finished parent (each closed as completed by a trusted close,
-          as the caller's admit job read them), which a verified-done stop
+          as the caller's check-admission job read them), which a verified-done stop
           needs before it closes the issue. Empty otherwise.
         required: false
         type: string
@@ -90,7 +90,7 @@ on:
           kept the run from starting, where report-outcome routes the issue
           with the next step and to no person (research-first and probe-first
           park at status: confirmed, split-required goes back through
-          intake's size split); or outside-author, the admit job's stop on
+          intake's size split); or outside-author, the check-admission job's stop on
           an issue neither a listed human nor the lanes App wrote, where it
           removes agent-ready and asks a listed human to re-file the work;
           or workflow-stale, a resolve-issue call's stop on stale workflow
@@ -138,7 +138,7 @@ on:
         default: ""
       lease-comment-id:
         description: >-
-          Issue mode: the lane lease comment id the read runner's broker-check
+          Issue mode: the lane lease comment id the read runner's check-broker
           posted (its lease-comment-id output), which the report job ends with
           the base's work-items tracker once the run job ends, whatever its
           result: for report-outcome always, for any other activity only when
@@ -452,7 +452,7 @@ on:
         description: >-
           Issue mode, apply-patch: the read runner's scan-base-sha output, the
           default branch commit a new run's patch was made on, as its
-          issue-fields job checked it; the new lane branch starts there.
+          check-issue-fields job checked it; the new lane branch starts there.
         required: false
         type: string
         default: ""
@@ -460,7 +460,7 @@ on:
         description: >-
           Issue mode, apply-patch: the read runner's scan-resume-tip output,
           the earlier lane branch tip a resumed run's patch was made on, as its
-          issue-fields job re-derived it; the new lane branch starts there
+          check-issue-fields job re-derived it; the new lane branch starts there
           instead. Empty otherwise.
         required: false
         type: string
@@ -662,7 +662,7 @@ jobs:
               exit 1
             fi
           fi
-          # A dimension skip is one of the issue-dimension reasons, or the admit
+          # A dimension skip is one of the issue-dimension reasons, or the check-admission
           # job's outside-author stop, only in issue mode.
           if [ -n "$DIMENSION_SKIP" ] && { [ -z "$ISSUE_NUMBER" ] ||
             ! [[ $DIMENSION_SKIP =~ ^(split-required|research-first|probe-first|outside-author|workflow-stale)$ ]]; }; then
@@ -2148,7 +2148,7 @@ jobs:
           github-token: ${{ github.token }}
 
       # Issue mode, after the run job opened the PR or stopped: the lease
-      # handle is the caller's, from the read runner's broker-check, which ran
+      # handle is the caller's, from the read runner's check-broker, which ran
       # before any model turn. A failure warns and leaves the lease to expire
       # at its TTL without failing the job.
       - name: Release the lane lease

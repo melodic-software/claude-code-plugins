@@ -40,7 +40,7 @@
 # ERE/BRE define no `\b`/`\<`/`\>`/`\s`/`\S`/`\w`/`\W`; BSD grep/sed either
 # rejects them or (worse) reads `\b` as a literal `b`, silently turning
 # `\brequire\b` into `brequireb` — matches nothing, exactly the near-miss above.
-# Each token matches the literal two-character escape sequence, with NO
+# Each token matches the literal two-character escape sequence, with no
 # required co-located `grep`/`sed` on the line. Requiring one was tried and
 # reverted: a pattern is very often built on its own line and consumed
 # several lines later, so the requirement silently un-catches exactly the
@@ -51,7 +51,7 @@
 # clean. The cost of staying bare is the mirror-image false positive: the
 # same two characters are also legitimate, portable `printf`/`$'...'`
 # escape-sequence syntax (`printf '\b'` — a real backspace byte, identical
-# on GNU and BSD), which this list DOES flag. That is the documented
+# on GNU and BSD), which this list does flag. That is the documented
 # over-flag direction, and `portability-ok: <reason>` is the one-line escape
 # for it. Narrowing the class precisely — knowing which operand of which
 # command is a regex — needs real shell parsing, not a token edit; tracked
@@ -73,7 +73,7 @@
 # (`x=$(grep -P ...)`, `grep -P ...|head`, `grep -P ...; echo`) is still
 # detected; a whitespace-only boundary silently missed those (#1537).
 #
-# Quotes and backticks are deliberately NOT in this class, unlike the
+# Quotes and backticks are deliberately not in this class, unlike the
 # `--sort=WORD` boundary below (#1546). After a SHORT-OPTION CLUSTER a quote is
 # an OPENING delimiter, not a terminator: the shell concatenates it into the
 # same word, so `grep -P"x"` passes the single argument `-Px` and never enables
@@ -136,7 +136,7 @@ grep[^;&|()]*[[:space:]]-[A-Za-z]*P([A-Za-z]|['"][A-Za-z]*['"])*([[:space:]|&;()
 # `echo -e ...|cat`, `echo -e ...; echo` are detected, not only the
 # whitespace-terminated form.
 # echo is the exception to the quoted-continuation class above: bash advertises
-# `echo [-neE]`, so only those letters extend the cluster — QUOTED OR NOT
+# `echo [-neE]`, so only those letters extend the cluster — quoted or not
 # (#1546). A letter outside that set makes the word an unrecognized option
 # rather than a longer cluster, and bash then just prints it: `echo -em`,
 # `echo -me` and `echo -e"n"mail` all emit the option word literally, so every
@@ -152,7 +152,7 @@ echo[[:space:]]+-[neE]*e([neE]|['"][neE]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
 # are GNU's documented long-form spellings of the same option (man7.org
 # sort(1): "-V, --version-sort" and "--sort=WORD ... version -V").
 # `--version-sort` is an unambiguous literal, so (like --perl-regexp above) it
-# needs no command-context prefix. `--sort=WORD` is NOT: `git tag`,
+# needs no command-context prefix. `--sort=WORD` is not: `git tag`,
 # `git for-each-ref` and `git branch` all take a portable `--sort=<key>`, whose
 # keys include `version:refname`. So that spelling carries the same
 # `sort`-command prefix the short-flag pattern uses, and requires a boundary
@@ -186,10 +186,10 @@ sort[^;&|()]*[[:space:]]['"]?--sort['"]?(=|[[:space:]]+)['"]?version([[:space:]|
 # `sed -i` with no suffix argument attached — GNU treats the suffix as
 # optional; BSD sed requires one immediately after `-i`.
 #
-# ONE token covers every spelling of the short form, because `-i` standing
+# One token covers every spelling of the short form, because `-i` standing
 # alone and `-i` ending a cluster are the same option. GNU sed 4.9's
 # `--help` documents `-i[SUFFIX]` alongside the no-argument short options
-# `-n`, `-b`, `-E`, `-r`, `-s`, `-u` and `-z`, so ANY cluster built from those
+# `-n`, `-b`, `-E`, `-r`, `-s`, `-u` and `-z`, so any cluster built from those
 # letters and ending in `i` is an unsuffixed in-place edit: `sed -ni '/keep/p'`
 # is exactly that, and running it confirms the trailing `i` enables in-place
 # editing with no suffix to give BSD sed. Two narrower predecessors read it
@@ -200,13 +200,13 @@ sort[^;&|()]*[[:space:]]['"]?--sort['"]?(=|[[:space:]]+)['"]?version([[:space:]|
 # place, and a letter outside the documented set makes the word an unknown
 # option that sed rejects — no GNU-only behavior to report either way.
 #
-# `i` MUST be the cluster's LAST letter. GNU's own syntax is `-i[SUFFIX]`, so
+# `i` must be the cluster's last letter. GNU's own syntax is `-i[SUFFIX]`, so
 # any character after `i` is an attached backup suffix, not another option:
 # `sed -iE` writes `fileE` (verified against a real GNU sed 4.9), making it the
 # dual-compatible attached-nonempty-suffix form, correctly never flagged — the
 # same shape as `-i.bak` and `-Ei.bak`.
 #
-# The token intentionally ALSO flags the space-separated empty-suffix idiom
+# The token intentionally also flags the space-separated empty-suffix idiom
 # (`-i ''` / `-i ""`): it looks BSD-safe but is not actually portable —
 # verified against a real GNU sed 4.9, that exact invocation exits 2, because
 # GNU consumes the space-separated empty string as sed's SCRIPT argument,
@@ -216,7 +216,7 @@ sort[^;&|()]*[[:space:]]['"]?--sort['"]?(=|[[:space:]]+)['"]?version([[:space:]|
 # real sed-dialect research before encoding, not a quick pattern tweak — see
 # #1513. That deferral is what keeps a quote OUT of the boundary after the
 # cluster, unlike the sibling `sort -V` / `grep -P` / `echo -e` tokens: a quote
-# immediately following `i` with no separating whitespace IS the deferred
+# immediately following `i` with no separating whitespace is the deferred
 # shape, so admitting one would silently un-defer it at the `i`+`'` junction.
 # The boundary is otherwise a control operator, a redirection, or a subshell
 # close, so an operator-terminated form with no trailing whitespace
@@ -237,7 +237,7 @@ sort[^;&|()]*[[:space:]]['"]?--sort['"]?(=|[[:space:]]+)['"]?version([[:space:]|
 # (see check-shell-portability.sh), so a `;` inside a sed script or a filename
 # stays ordinary data and does not end the gap.
 #
-# The gap also excludes a bare `(` or `)`, which are not separators but DO end
+# The gap also excludes a bare `(` or `)`, which are not separators but do end
 # the command that owns the flag: without that, `foo=$(sed -n 'p' "$a")
 # bar=$(tool -i "$b")` misattributes `tool`'s `-i` to `sed`. A PROCESS
 # substitution is the one paren that must survive the gap — the shell
@@ -245,7 +245,7 @@ sort[^;&|()]*[[:space:]]['"]?--sort['"]?(=|[[:space:]]+)['"]?version([[:space:]|
 # its own, so `sed -f <(gen) -Ei "$f"` is a single GNU-only sed call and the
 # earlier `[^;&|()`\n]*` spelling stopped at its `(` and missed the `-Ei`
 # entirely. `[<>]\([^)]*\)` readmits it: `collapse_subs` keeps process
-# substitutions verbatim in BOTH views (see check-shell-portability.sh)
+# substitutions verbatim in both views (see check-shell-portability.sh)
 # precisely because they are not their own word, so the alternative matches on
 # either. A `)` closing a real subshell still ends the gap.
 #
@@ -447,7 +447,7 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # Same attached-redirection separator as `date -d` above (#1544):
 # `stat</dev/null -c %s "$f"` still passes GNU stat its `-c`.
 (^|[^A-Za-z0-9_-])s(\$?['"]|\\)*t(\$?['"]|\\)*a(\$?['"]|\\)*t(\$?['"]|\\)*([[:space:]]+|[<>]&?|&>>?)([^;&|()`\n]*[[:space:]])?(\$?['"]|\\)*(-([A-Za-z]|\$?['"]|\\)*c|--(\$?['"]|\\)*f(\$?['"]|\\)*o(\$?['"]|\\)*r(\$?['"]|\\)*m(\$?['"]|\\)*a(\$?['"]|\\)*t(\$?['"]|\\)*|--(\$?['"]|\\)*p(\$?['"]|\\)*r(\$?['"]|\\)*i(\$?['"]|\\)*n(\$?['"]|\\)*t(\$?['"]|\\)*f(\$?['"]|\\)*)
-# `mktemp -p` (parent-directory flag). NOT an absent flag: FreeBSD 14.2 and
+# `mktemp -p` (parent-directory flag). Not an absent flag: FreeBSD 14.2 and
 # Apple both document `-p tmpdir, --tmpdir[=tmpdir]`, so a claim that BSD/macOS
 # mktemp "has no -p" is false. The hazard is PRECEDENCE, which diverges
 # silently: GNU treats `-p` as authoritative — it overrides `TMPDIR` and
@@ -470,7 +470,7 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # `` tmp=`mktemp` cp -p source target `` the `-p` is `cp`'s. The backtick is
 # already a boundary character in the `sort --sort=version` token above.
 #
-# The short-option token carries NO trailing boundary, unlike the
+# The short-option token carries no trailing boundary, unlike the
 # argument-less `grep -P` / `sort -V` / `echo -e` tokens above. `-p` takes a
 # REQUIRED argument and GNU getopt accepts it ATTACHED to the cluster
 # (`mktemp -p/tmp`, `mktemp -prel/sub`), so the DIR value is an arbitrary
@@ -539,7 +539,7 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # masked run — `&` among them — has been neutralized, and a `${…}` body is
 # masked in its entirety, so there is nothing left for a pattern to match. See
 # the subst_amp_hit()/amp_in_frame() block in check-shell-portability.sh for the
-# grammar it implements, the spellings it deliberately does NOT flag (`\&`,
+# grammar it implements, the spellings it deliberately does not flag (`\&`,
 # `"&"`, `'&'`, and the deletion form `${var//pat}`), and its known limits.
 !subst-replacement-ampersand
 
@@ -573,7 +573,7 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # stays because it is the contract for adding the next one, and because
 # check-shell-portability.sh points here for it.
 #
-# Before enabling ANY staged class below:
+# Before enabling any staged class below:
 #   - Audit and EXTEND is_guarded() in check-shell-portability.sh with the
 #     co-located-BSD-counterpart marker the new class needs (mirroring the
 #     readlink -f / realpath guard above) — or migrate/opt-out the corpus

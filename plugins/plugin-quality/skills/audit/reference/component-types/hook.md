@@ -58,7 +58,8 @@ permissions, not a shell script. Read the module and run `claude plugin validate
   pointer below.
 
 The `notes` placement above was observed by running `claude plugin validate --json` on a
-throwaway mod with Claude Code 2.1.287 on 2026-10-01.
+throwaway mod with Claude Code 2.1.287 on 2026-10-01; recheck when the validator's output shape
+at the pointer below changes.
 
 - **Pointer**: when grading a mod's calls and events, or the validator's output shape, fetch
   [Review what a mod can do](https://code.claude.com/docs/en/plugins/mods/admin#review-what-a-mod-can-do)

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\n\nfetch_status() {\n  local base_url=\"$1\"\n  curl --silent --max-time 5 \"$base_url/status\"\n}\n\nfetch_status \"${1:?usage: fetch-status.sh BASE_URL}\"\n",
+      "why": "unchanged"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\n\nreadonly STATUS_TIMEOUT_SECONDS=5\n\nfetch_status() {\n  local base_url=\"$1\"\n  curl --silent --max-time \"$STATUS_TIMEOUT_SECONDS\" \"$base_url/status\"\n}\n\nfetch_status \"${1:?usage: fetch-status.sh BASE_URL}\"\n",
+      "why": "the reason went to a named constant"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\n\nfetch_status() {\n  local base_url=\"$1\"\n  # Why: stay under the load balancer's 6 second idle cutoff.\n  curl --silent --max-time 5 \"$base_url/status\"\n}\n\nfetch_status \"${1:?usage: fetch-status.sh BASE_URL}\"\n",
+      "why": "a why-comment was added"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\n\nfetch_status() {\n  local base_url=\"$1\"\n  curl --silent --max-time 5 \"$base_url/status\"  # seconds\n}\n\nfetch_status \"${1:?usage: fetch-status.sh BASE_URL}\"\n",
+      "why": "a trailing comment was added"
+    }
+  ]
+}

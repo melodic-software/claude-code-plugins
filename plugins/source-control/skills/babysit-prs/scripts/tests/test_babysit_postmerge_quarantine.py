@@ -730,7 +730,7 @@ class LaneRerunOutsideAWindow(AffectedBase):
     """#9126, owner decision 2026-10-22: in the pr-merge lane's check
     (`--lane-merges-only`), a red attempt 1 of a full run the lane
     dispatched, with a failing suite inside the affected set, is marked for
-    post-merge-dispatch's one re-run even when no lane merge is judged.
+    dispatch-post-merge-runs's one re-run even when no lane merge is judged.
     post-merge-file-demotion-issues.yml then demotes only on a red attempt 2. The
     fixture's one merge is another App's, so the lane judges none."""
 

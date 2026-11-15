@@ -6,7 +6,6 @@ The skills of `plugins/instruction-placement`. Each one is driven with `<plugin-
 
 - `audit`: Find instruction content on the wrong surface and propose validated destinations.
 - `check`: Gate that every path-scoped rule glob resolves and the rules index is current.
-- `check-prerequisites`: Report whether node and jq resolve for instruction-placement. Never installs.
 - `delta`: Report only what moved since the last placement audit.
 - `migrate`: Move a repository's instruction content to AGENTS.md behind an operator gate.
 - `realign`: Apply accepted placement findings behind a per-item human gate.

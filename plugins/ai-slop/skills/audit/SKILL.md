@@ -173,10 +173,9 @@ the fix flow, under [Non-repository targets](#non-repository-targets).
   the root is skipped; the script names each on stderr. Pass a skipped link's target as an
   explicit path.
 - `plugins/` is not in scope; plugin content is audited in its own repository.
-- The detector's user config layer is `$HOME/.claude/ai-slop.json` even when
-  `CLAUDE_CONFIG_DIR` is set; the move to YAML covers the team and personal layers only, so this
-  user-global file keeps its JSON name. Its project layers come from the session's project
-  directory.
+- The detector's user config layer is the JSON file `$HOME/.claude/ai-slop.json`, even when
+  `CLAUDE_CONFIG_DIR` is set; the team and personal layers are YAML. Its project layers come from
+  the session's project directory.
 - A path target such as `~/.claude` covers every `*.md` beneath it.
 
 ### Non-repository targets
@@ -339,7 +338,7 @@ legitimately needs em dashes, the remedy is `em_dash_allowed_paths` or the file 
 threshold. The em-dash rule is zero-tolerance by design; the catalog's `rule-em-dash` entry
 carries the reason.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not fix on bare invocation.** `audit` and `scan` verbs are read-only in this
   marketplace; mutation rides only the explicit `fix` argument.

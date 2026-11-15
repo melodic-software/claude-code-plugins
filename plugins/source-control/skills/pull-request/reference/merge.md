@@ -45,7 +45,7 @@ Re-check all check runs for any state changes, then re-check for new comments si
    consuming repo runs an overlapping-path CI gate, treat it as the tripwire; it covers the
    stale-**base** class only, and only a post-merge silent-revert detector catches a head that is
    current in history but stale in content. A consuming repo may have neither.
-3. **Comprehension quiz (default-on, self-enforced).** When the PR carries substantial work the user didn't author line-by-line (multi-file feature/refactor, or a long agent session outran the user's reading), generate a self-contained HTML change report + quiz before asking for merge approval: the report explains the change with context and intuition (what was done, why, which existing code paths it leans on); the quiz at the bottom tests exactly that. The user merges after passing, self-enforced with no tooling gate; "skip quiz" skips it explicitly. Exempt by size and blast radius, NOT file type: only diffs the user can review at a glance (single-file, mechanical, or a handful of small localized edits). A large multi-file instruction-only change (skills, rules, agent instructions from a long session) still gets the quiz: instruction surfaces steer future agent behavior, so unread changes there carry real blast radius
+3. **Comprehension quiz (default-on, self-enforced).** When the PR carries substantial work the user didn't author line-by-line (multi-file feature/refactor, or a long agent session outran the user's reading), generate a self-contained HTML change report + quiz before asking for merge approval: the report explains the change with context and intuition (what was done, why, which existing code paths it leans on); the quiz at the bottom tests exactly that. The user merges after passing, self-enforced with no tooling gate; "skip quiz" skips it explicitly. Exempt by size and blast radius, not file type: only diffs the user can review at a glance (single-file, mechanical, or a handful of small localized edits). A large multi-file instruction-only change (skills, rules, agent instructions from a long session) still gets the quiz: instruction surfaces steer future agent behavior, so unread changes there carry real blast radius
 4. Wait for user approval (merge is irreversible) unless the PR qualifies for
    the merge after AI review under §4.2.1
 
@@ -113,7 +113,9 @@ for the user.
   `PR Review Security / Claude` or `pr-review-security / Claude`, or the earlier
   `PR Review Security / review-status`, `pr-review-security / review-status`,
   `PR Review Security / security-review`, `pr-review-security / security-review`, its legacy
-  caller `security-review / security-review`, or `claude-security-review-status` (the names
+  caller `security-review / security-review`, or `claude-security-review-status`, or the status
+  job's planned name, `PR Review / Publish Review`, `pr-review / Publish Review`,
+  `PR Review Security / Publish Review` or `pr-review-security / Publish Review` (the names
   `babysit_merge.py` accepts). Both lanes' jobs share the segments `Status` and `Claude`, so those
   count only as the whole caller-qualified name. A missing, running,
   skipped or failed review check holds. The Codex review posts review threads, not a check run,
@@ -204,7 +206,7 @@ git checkout -b <new-type>/<new-desc> "origin/$DEFAULT_BRANCH"
 git branch -D <old-branch>
 ```
 
-If a stash was created, report it and tell the user to inspect it with `git stash list` and restore it on an appropriate branch with `git stash pop`. Then report the transition and suggest `/clear` for fresh conversation context (`/clear` fires any SessionStart hooks the project registers). Use `-D` not `-d` because squash merge changes the commit SHA.
+If a stash was created, report it and tell the user to inspect it with `git stash list` and restore it on an appropriate branch with `git stash pop`. Then report the transition and suggest `/clear` for fresh conversation context (`/clear` fires any SessionStart hooks the project registers; for the matcher values, read [hooks: SessionStart](https://code.claude.com/docs/en/hooks#sessionstart) live). Use `-D` not `-d` because squash merge changes the commit SHA.
 
 The alternative to worktree reuse is `ExitWorktree` with `action: "keep"` (never `"remove"`) + a fresh `EnterWorktree` for a clean slate.
 
@@ -218,7 +220,7 @@ bash "<scripts-dir>/worktree-claim.sh" release <worktree-path> --session-id "${C
 
 **If on a regular branch (not in worktree):**
 
-1. **Check for uncommitted changes BEFORE checkout** with `git status --porcelain`. If any exist, they do not survive the default-branch checkout intact (conflicting changes fail, non-conflicting ones silently carry over). Stash first: `git stash push -u -m "pre-merge-cleanup: <branch-name>"` (`-u` includes untracked files, which would otherwise be skipped). Stashes survive branch deletion (stored in `.git/refs/stash`, not tied to branches)
+1. **Check for uncommitted changes before checkout** with `git status --porcelain`. If any exist, they do not survive the default-branch checkout intact (conflicting changes fail, non-conflicting ones silently carry over). Stash first: `git stash push -u -m "pre-merge-cleanup: <branch-name>"` (`-u` includes untracked files, which would otherwise be skipped). Stashes survive branch deletion (stored in `.git/refs/stash`, not tied to branches)
 2. `git checkout "$DEFAULT_BRANCH"` (the repository's default branch, resolved as in the worktree case above)
 3. `git pull --ff-only`
 4. `git branch -D <merged-branch>`
@@ -230,7 +232,7 @@ If your environment provides a retrospective skill (e.g. `/session-flow:retro`),
 
 If the user declines or says "skip", proceed to step 4.5. In `full` mode, run automatically without pausing.
 
-**Exception:** if using `ExitWorktree` (`action: "keep"`) instead of worktree reuse (rare), run the retrospective BEFORE merge in Phase 4.1, because leaving the worktree orphans `CLAUDE_PROJECT_DIR` and breaks skill discovery.
+**Exception:** if using `ExitWorktree` (`action: "keep"`) instead of worktree reuse (rare), run the retrospective before merge in Phase 4.1, because leaving the worktree orphans `CLAUDE_PROJECT_DIR` and breaks skill discovery.
 
 ## 4.5 Verify clean state and offer next action
 

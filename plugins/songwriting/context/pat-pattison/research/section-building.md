@@ -146,12 +146,12 @@ Figure `image_rsrc32P` sets #1A inside a Song System, transcribed:
         Make your Tootsie Roll
 ```
 
-<!-- The "OH HENRY" chorus is printed TWICE in Chapter 5, in two different
+<!-- The "OH HENRY" chorus is printed twice in Chapter 5, in two different
 figures, and the two differ by one apostrophe: `image_rsrc32P` prints
 "'Till Mars deserts the Milky Way" and `image_rsrc32R` prints "Till Mars
 deserts the Milky Way". Both figures have been rendered and read at zoom 4.
 That is Pat's own inconsistency between his two scans, and both are correct as
-printed. DO NOT normalize either one to match the other. -->
+printed. Do not normalize either one to match the other. -->
 
 Pat then asks whether #1A could be a Bridge and answers no. The quote and
 EXERCISE 29 are preserved once, in [bridge](bridge.md). Figure `image_rsrc32R`
@@ -426,8 +426,7 @@ judgment on each variant, and those judgments are the guidance:
 | #3 | "It is too balanced for a Transitional Bridge, and it pushes forward too hard at the wrong place to be a Chorus. It might be a Bridge. I would use the section as a Verse." |
 | #4 | "The section is pretty well balanced. It would be useful as a verse, perhaps as a second verse in a Verse/Verse/Chorus Song System. It might be a good Chorus Structure …" |
 
-An earlier revision of this file replaced these with four invented "Use it as X
-when …" rules. None of them are Pat's.
+Do not turn these verdicts into "Use it as X when …" rules; Pat prints none.
 
 ## Exercises
 
@@ -444,5 +443,5 @@ paraphrase here.
 > when you write whole lyrics. The same techniques time after time get less and
 > less effective. Always be on the lookout for new ways to turn on the lights.
 
-An earlier revision of this file ended with an eight-step "revision workflow"
-that is not in Chapter 5. It has been removed.
+Chapter 5 prints no step-by-step revision workflow; do not present one (an
+eight-step "revision workflow" or any other) as Pat's.

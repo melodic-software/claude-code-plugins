@@ -48,7 +48,7 @@ This skill adapts to the consuming repo rather than imposing structure:
   files in its `archive/` subdirectory), a fixed-filename checklist there would clobber across two
   in-flight topics.
 - **Quality gates.** The consuming repo's own build/test/lint commands, review criteria and commit conventions govern;
-  this skill names WHERE gates belong in the sequence, not what they contain.
+  this skill names where gates belong in the sequence, not what they contain.
 - **Override boundary.** The stage set itself is fixed. Plugin identity, not consumer config; there
   is no seam to swap in a different taxonomy, and this skill never reads a consumer-supplied one.
   What adapts flows through the conventions above (execution routes to your skills; gate commands
@@ -67,7 +67,7 @@ Read `$ARGUMENTS` whole: its first word is the mode and, when the mode is `conti
 | `philosophy` | **Philosophy** | Load `context/philosophy.md`, depth expectations and verification rigor |
 | `spec-first` | **Spec-first** | Load `context/spec-first.md`, stage-by-stage execution from a written spec |
 | `continue` | **Continuation** | Load `context/continuation.md`, end-of-phase continuation-mechanism router; recommend one mechanism, do not execute it |
-| `continue auto` | **Continuation (autonomous)** | The `continue` mode plus its one modifier. Consume the second token before dispatching, or this row is unreachable and `auto` silently degrades to suggest-only. Same router, plus the per-invocation license to EXECUTE the mechanism it routes to. Authorizes this invocation only, never a standing mode, and never a substitute for a routed skill's own hard gate |
+| `continue auto` | **Continuation (autonomous)** | The `continue` mode plus its one modifier. Consume the second token before dispatching, or this row is unreachable and `auto` silently degrades to suggest-only. Same router, plus the per-invocation license to execute the mechanism it routes to. Authorizes this invocation only, never a standing mode, and never a substitute for a routed skill's own hard gate |
 
 **The verification level, on every route into `context/pre-pr.md`** (this `pre-pr` row, `wrap-up`'s pre-PR step, or a sibling plugin that routes here): before its step 2, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin session-flow --skill workflow --file docs/conventions/session-flow.yaml` once in the session and report its line; step 2 reads that level.
 
@@ -86,7 +86,8 @@ Ship:      PR lifecycle: prep → create → monitor CI → merge (runs after st
 12. Retrospective (optional, /session-flow:retro)
 ```
 
-Work that does not take the quick-change on-ramp starts at stage 1, the interview. Explore,
+Each kind of task starts at the first stage of its row in the Task kinds table
+(`context/steps.md`); on the full path that is stage 1, the interview. Explore,
 research and a PRD are detours it calls only when a question needs them, then the interview
 resumes; none runs before it. Conditional stages run only on their trigger (`context/steps.md`):
 Explore when a question turns on what the code does now, Research when it rests on an external
@@ -133,11 +134,19 @@ satisfies, then continue from there.
 
 ### 3. Suggest next stage
 
-Based on what's been done, recommend the next stage with rationale. For new work whose diff fails
-either quick-change test, with nothing done, suggest stage 1, the interview; explore, research
-and a PRD then run as detours the interview calls. A change that passes both tests takes the quick-change on-ramp below
-instead. If the consuming repo has a
-skill for that stage, name it; otherwise describe the inline work. Add that stage's effort advice per "Effort per stage" in `context/steps.md`.
+Based on what's been done, recommend the next stage with rationale. First name the kind of task
+and read its row in the Task kinds table at the end of `context/steps.md`: that row is the stage
+list, in order, and the stages it skips, each skip with the row's reason. Never state a kind's
+stages from memory. With nothing done, suggest the row's first stage; on the full path that is
+stage 1, the interview, and explore, research and a PRD then run as detours the interview calls.
+A change that passes both quick-change tests takes the quick-change on-ramp below. If the
+consuming repo has a skill for that stage, name it; otherwise describe the inline work. Add that
+stage's effort advice per "Effort per stage" in `context/steps.md`.
+
+To look a kind's sequence up together with the skills that run each stage and their arguments,
+point the user at the "By kind of task" table of the skill cheat sheet,
+[`docs/skill-cheat-sheet.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/skill-cheat-sheet.md#by-kind-of-task)
+in the marketplace repository, generated from that same Task kinds table.
 
 ### 4. Route the continuation mechanism at a phase boundary
 
@@ -164,7 +173,7 @@ the gather above are presence-gated pointers to the siblings that own them; the 
 ### 5. Track progress (tasks ≥3 stages)
 
 For work expected to span 3+ stages, when this session has the task tools (`TaskCreate` is in its
-tool list; branch on that, never on the model), create a task per applicable stage via TaskCreate,
+tool list; branch on that, never on the model), create a task per stage in the kind's Task kinds row via TaskCreate,
 mark completed stages `completed` and the current one `in_progress`. With `TodoWrite` instead,
 keep the same stage list in `TodoWrite`. A stage that will not run stays listed as
 `skip: <reason>`, never deleted. With neither, the checklist
@@ -182,31 +191,33 @@ two files.
 ## On-ramps: work that merges into the flow partway
 
 The stage sequence is the main line, not the only entrance. Work also arrives from the side and
-merges in at a later stage. Recognize the CLASS of arrival and merge at the right point instead of
+merges in at a later stage. Recognize the class of arrival and merge at the right point instead of
 forcing every session through stage 1. Common classes:
 
 - **A quick change**, one whose diff will be quick to review and cheap to retry. Those two tests
   decide, not size; a diff that adds types, public contracts, or module boundaries is not cheap
-  to retry and takes the full path. It enters at stage 8 (reading the code it needs is part of
-  implement), then the diff is reviewed and aligned on there, with test and verify at full
-  rigor. When the diff is tiny, a wrong build costs almost nothing, so aligning on the diff after
+  to retry and takes the full path. Its stages are the Small fix row of the Task kinds table in
+  `context/steps.md`; the diff is reviewed and aligned on once it exists, with test and verify at
+  full rigor. When the diff is tiny, a wrong build costs almost nothing, so aligning on the diff after
   it exists beats aligning before it. If the diff turns out not to be quick to review, stop and route to the interview. Basis for adopting this rule:
   the "Session-start flow and main flow" section of `docs/upstream/mattpocock-skills.md` (under Map)
   in the marketplace repository.
-- **Incoming bug or issue intake**, a report or request that arrived raw from outside. An
-  already-diagnosed, agent-ready item merges at implement; observed-but-undiagnosed breakage routes
-  through a diagnosis capability first (if the consuming setup installs one, e.g. from a diagnose
-  or debugging plugin), then rejoins at implement with the root cause in hand.
+- **Incoming bug or issue intake**, a report or request that arrived raw from outside. A bug takes
+  the Bug row of the Task kinds table in `context/steps.md`. An already-diagnosed, agent-ready
+  item carries its Brief and root cause, so position detection credits the stages before
+  implement; observed-but-undiagnosed breakage is diagnosed through a diagnosis capability (if the
+  consuming setup installs one, e.g. from a diagnose or debugging plugin) before that row reaches
+  implement.
 - **A foggy, too-big-to-plan effort**, the destination is clear but the route is not, and no
   single plan can hold it yet. Start at the interview anyway; when that interview
   outgrows one session, escalate to a wayfinding or route-charting capability (if installed, e.g.
-  from a planning plugin), which converts the remaining unknowns into decisions BEFORE the plan
+  from a planning plugin), which converts the remaining unknowns into decisions before the plan
   stage. Never start there: work that fails either quick-change test is interview-first, and an
   effort too big and too foggy for one session is reached from the interview (the planning
   plugin's wayfind sends a cold start back to the interview). Without a wayfinding capability, run explore/research
   cycles until a plan becomes writable.
 - **Codebase-upkeep findings**. Audits, tidy sweeps, and architecture surveys surface candidate
-  improvements rather than mid-flight work. Each finding the user picks up is a NEW idea entering a
+  improvements rather than mid-flight work. Each finding the user picks up is a new idea entering a
   fresh cycle at the interview; it never merges into an in-progress cycle's later stages.
 
 These are classes, not an inventory. Match the arriving situation to its class, then check what the
@@ -216,7 +227,7 @@ skill names, and degrade to inline work when nothing is installed.
 ## When two capabilities both fit
 
 Adjacent capabilities overlap at their edges. Intake vs diagnosis, wayfinding vs planning, upkeep
-vs review. Route to exactly ONE owner and state why; never present both and leave the user to
+vs review. Route to exactly one owner and state why; never present both and leave the user to
 disambiguate. Precedence:
 
 1. **Exclusion language wins.** A capability whose own description disclaims the situation ("skip
@@ -226,7 +237,7 @@ disambiguate. Precedence:
 3. **Still tied → the earlier stage wins**, every downstream stage remains reachable from it, but
    a skipped upstream stage is gone.
 
-**This rule governs STAGE routing, not option surfacing.** "Never present both" is about refusing to
+**This rule governs stage routing, not option surfacing.** "Never present both" is about refusing to
 hand the user two candidate owners for one stage decision and letting them sort it out. It is not a
 prohibition on ever showing a set: deliberately laying out the whole option set, ranked and
 annotated, for a human to choose from is a different job, and `/session-flow:recommend-skills` owns it.
@@ -247,8 +258,9 @@ the menu. When a request could be either, "what comes next" is a stage question 
 - **Marking a stage done from conversation vibes**. Verify the artifact or output exists before
   suggesting the next stage.
 - **Skipping the interview on behavior-changing work that takes the full path**. Fuzzy
-  intent becomes silent plan assumptions; lock the goal and acceptance criteria first. Only the
-  quick-change on-ramp skips it, and only while its diff stays quick to review.
+  intent becomes silent plan assumptions; lock the goal and acceptance criteria first. Only a
+  Task kinds row that skips the interview skips it, and the small fix only while its diff stays
+  quick to review.
 - **Skipping design because the task is small**. Size does not decide it: on the full path, new
   types, contracts, or module boundaries go through the design stage, or the implementer gets no
   design guardrails.

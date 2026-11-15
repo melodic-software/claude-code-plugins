@@ -38,13 +38,13 @@ Claim a work item through the seam (assignee + lease record).
    ```
 
    - Exit `0`: claim held; the emitted object carries `holder`, `lease_comment_id`, `acquired_at`, `ttl_hours`. Record `lease_comment_id` if you may renew later (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh renew-lease "<id>" --lease-comment-id <n>`).
-   - Exit `7`: another session won; report it and pick a different item (do NOT retry the same one).
+   - Exit `7`: another session won; report it and pick a different item (do not retry the same one).
 
    Claim identity is the authenticated session user, never the bot (seam identity routing: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Identity routing (GitHub adapter)").
 
 1. **Confirm:** "Claimed **`<id>`**: {title}. Ready to work. Follow the project's development workflow."
 
-1. **Suggest branch name.** The branch name carries the item, so `/source-control:pull-request create` can resolve it from the branch and write the bound adapter's link line. The token it carries is the adapter's `branch_ref` for the claimed `<id>` (`42` on GitHub, `ENG-123` on Linear): `bash "${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh" change-link <id>`, field `.branch_ref` (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Change links"). `<ref>` below is that value. On exit `6` (an adapter that predates `change-link`), use the number after `#` in `<id>`. The agent NEVER runs `git checkout` itself; it emits the command for the user.
+1. **Suggest branch name.** The branch name carries the item, so `/source-control:pull-request create` can resolve it from the branch and write the bound adapter's link line. The token it carries is the adapter's `branch_ref` for the claimed `<id>` (`42` on GitHub, `ENG-123` on Linear): `bash "${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh" change-link <id>`, field `.branch_ref` (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Change links"). `<ref>` below is that value. On exit `6` (an adapter that predates `change-link`), use the number after `#` in `<id>`. The agent never runs `git checkout` itself; it emits the command for the user.
 
    **Derive the branch `<type>` vocabulary** (the commit-layer prefix: `feat`/`fix`/`chore`/…) from the item's **issue type**. Prefer the native GitHub Issue Type when present: `Bug` → `fix`, `Feature` → `feat`, `Task` → `chore`. Fall back to a `type:` label (personal / non-org repos, or a not-yet-migrated org item). The coarse long-form labels map like the native types: `type: bug` → `fix`, `type: feature` → `feat`, `type: task` → `chore`. A legacy commit-style label maps by this priority: `feat > fix > refactor > docs > chore > test > build > perf`, first match wins, strip the `type:` prefix. Default to `chore` when neither is present.
 
@@ -104,9 +104,9 @@ Claim a work item through the seam (assignee + lease record).
    fi
    ```
 
-   `<base-ref>` below is a placeholder the agent substitutes with the resolved value, exactly as it substitutes `<type>` / `<ref>` / `<slug>`. The emitted command runs in the USER's terminal, which never saw the agent's `BASE_REF` assignment, so emitting the variable unexpanded would hand over an empty pathspec. Substitute the value verbatim, in its `refs/remotes/origin/<name>` form: the abbreviation is what a same-named local tag hijacks, and the qualified ref still sets the branch's upstream exactly as the abbreviation does.
+   `<base-ref>` below is a placeholder the agent substitutes with the resolved value, exactly as it substitutes `<type>` / `<ref>` / `<slug>`. The emitted command runs in the user's terminal, which never saw the agent's `BASE_REF` assignment, so emitting the variable unexpanded would hand over an empty pathspec. Substitute the value verbatim, in its `refs/remotes/origin/<name>` form: the abbreviation is what a same-named local tag hijacks, and the qualified ref still sets the branch's upstream exactly as the abbreviation does.
 
-   **`BASE_REF` empty** (offline, no `origin` remote, a remote with no HEAD, a name outside the accepted charset, or one that still does not resolve after a fetch): do NOT substitute a guessed default branch, which is the failure this resolution exists to prevent. Emit the command with no start-point (`git checkout -b <type>/<ref>-<slug>`, which branches from the current `HEAD`) and say the default branch could not be resolved, so the user can supply a base explicitly.
+   **`BASE_REF` empty** (offline, no `origin` remote, a remote with no HEAD, a name outside the accepted charset, or one that still does not resolve after a fetch): do not substitute a guessed default branch, which is the failure this resolution exists to prevent. Emit the command with no start-point (`git checkout -b <type>/<ref>-<slug>`, which branches from the current `HEAD`) and say the default branch could not be resolved, so the user can supply a base explicitly.
 
    - **`CURRENT_ID` == claimed `<id>`** → acknowledge: "Already on `<current-branch>`. Branch matches claimed `<id>`. No rename needed." Skip prompt. Done.
    - **`CURRENT_ID` is a different item** → multi-claim 3-option (below).
@@ -114,7 +114,7 @@ Claim a work item through the seam (assignee + lease record).
 
    **Multi-claim 3-option**, used when on a branch naming `<other-id>` and just claimed `<id>` (different item):
 
-   1. **Switch to `<type>/<ref>-<slug>`.** WARN: uncommitted work on the current branch must be committed or stashed first; the agent never runs `git stash` on a shared branch without confirming. Emit `git checkout -b <type>/<ref>-<slug> <base-ref>` for the user.
+   1. **Switch to `<type>/<ref>-<slug>`.** Uncommitted work on the current branch must be committed or stashed first; the agent never runs `git stash` on a shared branch without confirming. Emit `git checkout -b <type>/<ref>-<slug> <base-ref>` for the user.
    1. **Stay on current branch and cover both in one PR.** `/source-control:pull-request create` will add the adapter's closing line for both items at PR-time via its multi-issue prompt.
    1. **Skip.** Decide later; continue on current branch without rename.
 

@@ -1,5 +1,40 @@
 # Changelog: session-flow plugin
 
+## [9.0.10] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
+- The enforcement ladder reference now points at the Claude Code memory docs for how rule files load, instead of restating it.
+
+## [9.0.9] - 2026-11-15
+
+### Changed
+
+- Skill and reference text drops all-caps emphasis and history notes; the README counts eighteen skills, and `continue-in-background` now says the launched agent gets the `/goal` payload and cites the loop-lane convention for `--permission-mode auto`.
+- `running-retro` passes its analysis spec to the subagent by absolute path, and scheduled-task limits and `@` path forms point at the upstream docs.
+
+## [9.0.8] - 2026-11-15
+
+### Changed
+
+- The pre-PR sequence no longer says the comment pass covers only the comments a change adds; the
+  comment pass's own `comment_edit_scope` decides that.
+
+## [9.0.7] - 2026-11-15
+
+### Changed
+
+- `running-retro` no longer lists 'checkpoint this session' as a trigger, leaving 'checkpoint this' to `handoff`.
+
+## [9.0.6] - 2026-11-15
+
+### Changed
+
+- `/session-flow:workflow`'s step notes say "green commits to return to" where they said "save
+  points", which the glossary keeps for the handoff save-point.
+
 ## [9.0.5] - 2026-11-15
 
 ### Changed

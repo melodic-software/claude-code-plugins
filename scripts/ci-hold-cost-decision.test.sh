@@ -636,9 +636,12 @@ for lane in "pr-review-hosted.yml $OLD_CODE_CHECK" "pr-review-security-hosted.ym
   expect "a cost notice from a head tested before the rename, under '${lane#* }', decides its head" yes yes yes
 done
 # pr-review-cli.yml's status job before its Title Case name, under the callers'
-# display names, and its Title Case name under the caller job ids.
+# display names, its Title Case name under the caller job ids, and its planned
+# name `Publish Review` under both.
 for lane in 'pr-review-hosted.yml PR Review / review-status' 'pr-review-security-hosted.yml PR Review Security / review-status' \
-  'pr-review-hosted.yml pr-review / Status' 'pr-review-security-hosted.yml pr-review-security / Status'; do
+  'pr-review-hosted.yml pr-review / Status' 'pr-review-security-hosted.yml pr-review-security / Status' \
+  'pr-review-hosted.yml PR Review / Publish Review' 'pr-review-security-hosted.yml PR Review Security / Publish Review' \
+  'pr-review-hosted.yml pr-review / Publish Review' 'pr-review-security-hosted.yml pr-review-security / Publish Review'; do
   nodecided
   decided "$HEAD" 2026-10-23T13:12:00Z cost "${lane%% *}" "${lane#* }"
   expect "a cost notice under '${lane#* }' decides its head" yes yes yes
@@ -654,7 +657,7 @@ for lane in 'pr-review-hosted.yml pr-review / claude-review-status' 'pr-review-s
   decided "$HEAD" 2026-10-23T13:12:00Z cost "${lane%% *}" "${lane#* }"
   expect "a cost notice from the retired status job name '${lane#* }' decides nothing" no no no "covering this head"
 done
-for name in 'other / review-status' 'review-status' 'other / Status' 'Status'; do
+for name in 'other / review-status' 'review-status' 'other / Status' 'Status' 'other / Publish Review' 'Publish Review' 'PR Review Security / Publish Review'; do
   nodecided
   decided "$HEAD" 2026-10-23T13:12:00Z cost pr-review-hosted.yml "$name"
   expect "a notice from a job named '$name' decides nothing" no no no "covering this head"

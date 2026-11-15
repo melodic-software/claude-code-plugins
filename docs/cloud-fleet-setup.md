@@ -80,7 +80,7 @@ Pinned toolchains found:
 
 ## Bootstrap adoption (2026-08-16)
 
-Adoption is no longer a per-repo decision surface: as of 2026-08-16, every non-archived
+Adoption is no longer decided per repo: as of 2026-08-16, every non-archived
 melodic-software repository (`gh repo list melodic-software --no-archived --limit 100 --json name`;
 the `--limit` matters, since `gh repo list` returns only 30 by default) carried
 `.claude/cloud-bootstrap.sh`, registered it as a `startup|resume` SessionStart hook, and declared
@@ -107,8 +107,7 @@ from a session started on a `kyle-sexton` repo if they ever matter).
 ## Step 1: the shared environment (claude.ai UI, one time)
 
 > **Rollout:** the paste kit for this step lives in
-> [prompts/cloud-bootstrap-rollout.md](../prompts/cloud-bootstrap-rollout.md), and it supersedes
-> any older advice to stand up a separate named Melodic environment. One environment per
+> [prompts/cloud-bootstrap-rollout.md](../prompts/cloud-bootstrap-rollout.md). One environment per
 > account, the **Default** one, edited in place. The committed bootstrap has one name
 > (`.claude/cloud-bootstrap.sh`) and two callers: the environment's cache build pre-launch, and
 > the SessionStart hook per session. The standards `cloud-environment` component invokes only
@@ -123,9 +122,8 @@ so this step is manual. Edit **Default** in place. The paste-once rollout settle
 than a separate named environment (see
 [One environment per account?](../prompts/cloud-bootstrap-rollout.md#one-environment-per-account)):
 
-- **Network access**: **Full**, by operator decision 2026-08-22, superseding this doc's earlier
-  Custom allowlist (`dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`,
-  `download.visualstudio.microsoft.com`). The access level is an exfiltration control, but the
+- **Network access**: **Full**, by operator decision 2026-08-22. The access level is an
+  exfiltration control, but the
   default allowlist already opens publish-capable package registries
   ([Default allowed domains](https://code.claude.com/docs/en/cloud-environments#default-allowed-domains)),
   several paths bypass the level at every setting
@@ -138,7 +136,7 @@ than a separate named environment (see
   reproduced the .NET installer's redirect chain being `403`-blocked under *Trusted* even with
   NuGet and dotnet.microsoft.com reachable, and that
   blocker is moot under Full: no host list to keep current, and no narrower level left to choose
-  between. The host list above is superseded history, not a recipe. The one exception that still
+  between. The one exception that still
   needs a recipe: an account handling sensitive material drops back to **Custom**, and only a
   complete Custom is safe. That means **Also include default list of common package managers**
   checked, plus `dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`, and
@@ -270,6 +268,11 @@ and a `locally-owned` repo, this one included, owns its whole file instead, so i
 
 ## Step 3: routines
 
+The owner keeps cloud sessions, routines included, off for work and state, because accounts
+rotate and a routine belongs to one claude.ai account
+([How this repository is set up](cloud-sessions.md#how-this-repository-is-set-up)). No lane runs
+the starters below; they stay here for when that decision changes.
+
 Prereqs and constraints, then starters. Routines run as autonomous cloud sessions that belong
 to the account; how they run, their usage and run limits, and which triggers each surface can
 add are on the [Routines](https://code.claude.com/docs/en/routines) page
@@ -348,23 +351,13 @@ session on this repo in the new environment and ask Claude to verify:
 
 ## Findings
 
-- **Resolved: this repo's bootstrap was unwired; it is now registered.** The doc's original
-  finding (committed `settings.json` carried neither the SessionStart hook nor `enabledPlugins`)
-  was confirmed live by the 2026-08-14 verification run (#2654 check 2/4: empty
-  `node_modules/.bin`, zero plugins). #2631 enabled the catalog; #2655 registered the SessionStart hook
-  on a `startup|resume` matcher, and #2657 closed the last hook blocker (the
-  `--require-hashes` pin list lacked cp311 wheels for the cloud VM's Python 3.11, so the hook
-  failed deterministically; verified against PyPI's published digests, a coverage gap rather
-  than tampering). A 2026-08-15 session then confirmed the wiring end to end, with the hook
-  running at startup and installing all 65 plugins, and established the follow-on limit now recorded in
-  `docs/cloud-sessions.md` §"Plugins in sessions on this repo": hook-time installs land on disk
-  but are never loaded by the session that ran them (the registry is read before the hook), so
-  plugins go live at turn one only when the cache build runs the bootstrap pre-launch, which the
-  standards `cloud-environment` component does. Remaining #2654 actions are environment-side,
-  not repo-side: set the environment's network access to **Full**
-  ([Step 1](#step-1-the-shared-environment-claudeai-ui-one-time)), which moots Blocker 1 rather
-  than working around it, and rebuild the interrupted cache, then re-run the
-  [checklist](#verification-checklist).
+- **This repo's bootstrap is registered** as a `startup|resume` SessionStart hook. Hook-time
+  installs land on disk but are never loaded by the session that ran them (the registry is read
+  before the hook), so plugins go live at turn one only when the cache build runs the bootstrap
+  pre-launch, which the standards `cloud-environment` component does (`docs/cloud-sessions.md`
+  §"Plugins in sessions on this repo"). An environment still short of that needs its network
+  access set to **Full** ([Step 1](#step-1-the-shared-environment-claudeai-ui-one-time)) and an
+  interrupted cache rebuilt, then the [checklist](#verification-checklist) re-run.
 - **`dotfiles` cannot deliver user config to the cloud.** By platform design nothing from
   `~/.claude` reaches cloud sessions; the repo remains editable in the cloud, but any behavior it
   installs locally must be re-homed (repo `.claude/`, plugins, or the environment) to exist

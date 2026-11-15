@@ -10,6 +10,11 @@ Usage: python notes_bridge.py --dir DATA_DIR <command>
   serve --port P --nonce N [--page NAME] [--idle-seconds S]
                              run the server in the foreground (ensure-running spawns this)
   apply --file F             merge the session's replies from F into replies.json, then remove F
+  import --file F            append the notes of one copy-out block in F (Copy all notes on the
+                             host page) to actions.json, every note checked against
+                             note.schema.json and all or none taken, then remove F; a note
+                             already in the log is skipped. Needs no server, and refuses while
+                             one runs on the data dir
   stop                       stop the server and its watcher
   lease [--release]          show (or clear) the watcher lease
   status                     list the unhandled notes; needs no server or watcher
@@ -65,6 +70,8 @@ PAGE_CSP_META = (
 )
 # A leading doctype stays first, so the page keeps its rendering mode; the meta goes right after it.
 DOCTYPE = re.compile(rb"\A(?:\xef\xbb\xbf)?\s*<!doctype[^>]*>", re.IGNORECASE)
+# The copy-out block host.html's Copy all notes makes; import takes it, or its JSON alone.
+FENCE = re.compile(r"\s*```prototype-notes[ \t]*\r?\n(.*?)\r?\n```\s*", re.DOTALL)
 STATIC = {
     "/note-model.mjs": ("note-model.mjs", "text/javascript"),
     "/note.schema.json": ("note.schema.json", "application/json"),
@@ -83,6 +90,8 @@ KNOWN = {
     "properties",
     "required",
     "additionalProperties",
+    "items",
+    "maxItems",
     "minLength",
     "maxLength",
     "pattern",
@@ -109,7 +118,9 @@ def is_number(v):
 
 FITS = {
     "object": lambda v: isinstance(v, dict),
+    "array": lambda v: isinstance(v, list),
     "string": lambda v: isinstance(v, str),
+    "boolean": lambda v: isinstance(v, bool),
     # JSON Schema counts 1.0 as an integer; a bool is never one.
     "integer": lambda v: is_number(v) and float(v).is_integer(),
     # json.loads accepts NaN and Infinity; JSON Schema numbers are finite.
@@ -153,6 +164,15 @@ def problems(value, node=None, at="note"):
             return [f"{at}: below {node['minimum']}"]
         if "maximum" in node and value > node["maximum"]:
             return [f"{at}: above {node['maximum']}"]
+    if isinstance(value, list):
+        if "maxItems" in node and len(value) > node["maxItems"]:
+            return [f"{at}: more than {node['maxItems']} items"]
+        items = node.get("items")
+        if not isinstance(items, dict):
+            return []
+        return [
+            p for i, v in enumerate(value) for p in problems(v, items, f"{at}[{i}]")
+        ]
     if not isinstance(value, dict):
         return []
     props = node.get("properties", {})
@@ -272,6 +292,77 @@ def cmd_status(d, a):
         if e["seq"] not in handled
     ]
     print(bridge.dumps_line({"note": bridge.DATA_NOTE, "events": events}))
+
+
+def parse_block(text):
+    """The notes in one copy-out block the host page made, or ValueError.
+
+    The text is one ```prototype-notes fence around `{"notes": [...]}`, or that object alone.
+    Every note must pass note.schema.json, or nothing is taken.
+    """
+    m = FENCE.fullmatch(text)
+    try:
+        block = json.loads(m[1] if m else text)
+    except ValueError:
+        raise ValueError(
+            "not one prototype-notes block: paste the block Copy all notes made, unchanged"
+        ) from None
+    if not isinstance(block, dict) or set(block) != {"notes"}:
+        raise ValueError('the block must be {"notes": [...]} and nothing else')
+    notes = block["notes"]
+    if not isinstance(notes, list):
+        raise ValueError("notes must be a list")
+    for i, note in enumerate(notes, 1):
+        found = problems(note)
+        if found:
+            raise ValueError(f"note {i}: {found[0]}")
+    return notes
+
+
+def cmd_import(d, a):
+    view.private_dir(d)
+    s = bridge.read_session(d, NAME)
+    if s and bridge.running(d, s):
+        sys.exit(
+            "import: the notes server is running on this dir; its page sends notes itself. "
+            "Run stop, then import, then ensure-running."
+        )
+    f = Path(a.file)
+    limit = MAX_NOTES * NotesHandler.max_body
+    try:
+        with f.open("rb") as fh:
+            raw = fh.read(limit + 1)
+    except OSError as e:
+        sys.exit(f"import: cannot read {f}: {e.strerror}")
+    if len(raw) > limit:
+        sys.exit(f"import: {f} is over {limit} bytes")
+    try:
+        notes = parse_block(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as e:
+        sys.exit(f"import: {e}")
+    log = view.load_log(d / "actions.json")
+    seen = [
+        {k: v for k, v in e.items() if k not in ("seq", "at", "deliveredAt")}
+        for e in log["events"]
+    ]
+    new = []
+    for note in notes:
+        if note not in seen:
+            seen.append(note)
+            new.append(note)
+    if len(log["events"]) + len(new) > MAX_NOTES:
+        sys.exit(
+            f"import: the run already holds {len(log['events'])} notes and stores at most "
+            f"{MAX_NOTES}; nothing imported"
+        )
+    seqs = []
+    for note in new:
+        log["seq"] += 1
+        log["events"].append({"seq": log["seq"], "at": bridge.now_iso(), **note})
+        seqs.append(log["seq"])
+    view.write_json(d / "actions.json", log)
+    f.unlink()
+    print(json.dumps({"imported": seqs, "skipped": len(notes) - len(new)}))
 
 
 def cmd_serve(d, a):
@@ -401,8 +492,9 @@ def main(argv=None):
         s.add_argument("--idle-seconds", type=float, default=view.IDLE_SECONDS)
         if name == "serve":
             s.add_argument("--nonce", default="")
-    s = sub.add_parser("apply")
-    s.add_argument("--file", required=True)
+    for name in ("apply", "import"):
+        s = sub.add_parser(name)
+        s.add_argument("--file", required=True)
     sub.add_parser("stop")
     s = sub.add_parser("lease")
     s.add_argument("--release", action="store_true")
@@ -413,6 +505,7 @@ def main(argv=None):
         "ensure-running": cmd_ensure_running,
         "serve": cmd_serve,
         "apply": view.cmd_apply,
+        "import": cmd_import,
         "stop": cmd_stop,
         "lease": cmd_lease,
         "status": cmd_status,

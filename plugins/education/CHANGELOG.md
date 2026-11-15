@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.2] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
 ## [2.1.1] - 2026-11-14
 
 ### Changed

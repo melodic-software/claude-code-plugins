@@ -83,7 +83,7 @@ reason: <one line naming the size, the dependency shape, and any downgrade>
 shape: <sections|race (<selection rule>)|mixed>
 ```
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Launch a workflow, spawn an agent, or write a file.
 - Pick models or effort. That is `/multi-agent:route`.

@@ -55,12 +55,11 @@ You’ll need a rhyming dictionary. I use *The Complete Rhyming Dictionary*, edi
 ## Image inventory
 
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 4: **40 linked
-page-scan figures, 40 unique**, read at 3x upscale. Earlier revisions of this
-file carried no inventory line at all. The chapter argues in its scans: the
-six balance paradigms, every through-written/fragmented pair, all three closure
-types, and the printed answer keys to its exercises exist only as images. The
-`abba` correction below came from a figure and from an exercise key, neither of
-which is in the text layer.
+page-scan figures, 40 unique**, read at 3x upscale. The chapter argues in its
+scans: the six balance paradigms, every through-written/fragmented pair, all
+three closure types, and the printed answer keys to its exercises exist only as
+images. The `abba` ruling below comes from a figure and from an exercise key,
+neither of which is in the text layer.
 
 *Essential Guide to Rhyming* (2014), Introduction (printed pages ix–xii; spine
 items 010–013): **4 linked figures, 4 unique**: `image_2-page10.jpg` …
@@ -447,9 +446,8 @@ CONTENTS lists them (*Essential Guide to Rhyming* (2014), Contents, spine items
 6. "KISSIN' COUSINS": assonance, consonance, partial rhyme (same file).
 7. "THE FRUITS OF FRIENDSHIP": what the widened field buys you.
 
-The metaphor is a single unbroken arc from handshake to family: an earlier
-revision of this paragraph named only items 4-7 and dropped the first three,
-which are the ones that actually establish the personification.
+The metaphor is a single unbroken arc from handshake to family; items 1-3 are
+the ones that establish the personification, so never cite items 4-7 alone.
 
 <!-- ai-slop-ignore-start: verbatim quote from Essential Guide to Rhyming, Introduction -->
 The chapter's closing stance under that personification: "Rhyme can be your
@@ -647,8 +645,8 @@ repetition of sound and repetition of order:
 abab      xaxa      aa      aabb      abcabc      xxaxxa
 ```
 
-**`abba` is not among them, and is not a balanced pattern.** An earlier
-revision of this list included it. The chapter uses `abba` as the explicit
+**`abba` is not among them, and is not a balanced pattern.** The chapter
+uses `abba` as the explicit
 counterexample: an opening `abb` is *not* balanced by adding a fourth line
 that returns to `a`. It is balanced by repeating the whole series,
 `abbabb`, or by answering it with a fresh pair, `abbacc`. The chapter's
@@ -950,9 +948,9 @@ to resolve, there is no tension, so the ear hears a repeat instead of a
 connection. Identities sound like repeats. Mark them `I` in
 scheme notation, not as a rhyme letter.
 
-The failure is the whole test. An earlier revision of this file said
-identity "also matches 3," which inverts the one condition that
-distinguishes the two and would pass every identity as a rhyme.
+The failure is the whole test: reading identity as also meeting condition
+3 inverts the one condition that distinguishes the two and would pass every
+identity as a rhyme.
 
 Use identity only when deliberate repetition serves the song.
 Otherwise filter at the worksheet stage.
@@ -983,10 +981,8 @@ Chapter 4:
 > other, the faster your lyric moves. And, like the accelerator and the
 > car floor, the further apart they are, the slower you move.
 
-An earlier revision of this file printed a compressed invention, "Rhyme is
-like the accelerator pedal," in quotation marks and attributed it to Pat.
-He never wrote that sentence; the paragraph above is what the chapter
-prints. The ceiling is his too:
+Quote the paragraph above as printed; "Rhyme is like the accelerator pedal"
+is not Pat's sentence. The ceiling is his too:
 
 > As you can see in number two, once you have consecutive rhymes, the
 > pedal is to the metal. You cannot accelerate. The only way to go faster

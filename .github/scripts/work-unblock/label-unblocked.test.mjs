@@ -2752,10 +2752,14 @@ const UNTRUSTED_STOPPED = [
 ];
 
 test("a run the gate stopped on untrusted provenance is never re-fired, past any wait or bound, and gets no needs-human", async () => {
-  for (const ended of ["2026-10-16T10:05:00Z", "2026-10-15T00:00:00Z"]) {
-    const { github, actions, calls } = stalledRun({ jobs: UNTRUSTED_STOPPED, conclusion: "success", ended });
-    assert.equal(await sweep({ github, actions }), 0);
-    assert.deepEqual(writes(calls), [], ended);
+  // The job's name since its rename, `Check Admission`, stops it the same way.
+  const renamed = UNTRUSTED_STOPPED.map((job) => (job.name === "Admit" ? { ...job, name: "Check Admission" } : job));
+  for (const jobs of [UNTRUSTED_STOPPED, renamed]) {
+    for (const ended of ["2026-10-16T10:05:00Z", "2026-10-15T00:00:00Z"]) {
+      const { github, actions, calls } = stalledRun({ jobs, conclusion: "success", ended });
+      assert.equal(await sweep({ github, actions }), 0);
+      assert.deepEqual(writes(calls), [], `${jobs[0].name} ${ended}`);
+    }
   }
 });
 
@@ -2836,6 +2840,7 @@ test("a run cancelled before resolve-issue started is re-fired like a failed run
   for (const [name, jobs] of [
     ["at pick-slot", CANCELLED_AT_PICK_SLOT],
     ["in the slot queue", CANCELLED_IN_SLOT_QUEUE],
+    ["in the slot queue, admit under its name since the rename", [{ ...ADMITTED, name: "Check Admission" }, ...CANCELLED_IN_SLOT_QUEUE.slice(1)]],
   ]) {
     const fresh = stalledRun({ jobs, conclusion: "cancelled" });
     assert.equal(await sweep({ github: fresh.github, actions: fresh.actions }), 0, name);
@@ -4126,6 +4131,12 @@ const PRE_MODEL_LIMITED = {
     { name: "Report Outcome", conclusion: "skipped", steps: [] },
   ],
 };
+// The jobs under their names and ids since the rename to check-admission and check-broker.
+const renamedTo = (jobs, from, to) => jobs.map((job) => (job.name === from ? { ...job, name: to } : job));
+PRE_MODEL_LIMITED["admit under its id since the rename"] = renamedTo(PRE_MODEL_LIMITED.admit, "admit", "check-admission");
+PRE_MODEL_LIMITED["admit under its name since the rename"] = renamedTo(PRE_MODEL_LIMITED.admit, "admit", "Check Admission");
+PRE_MODEL_LIMITED["broker-check under its id since the rename"] = renamedTo(PRE_MODEL_LIMITED["broker-check"], "resolve-issue / broker-check", "resolve-issue / check-broker");
+PRE_MODEL_LIMITED["broker-check under its name since the rename"] = renamedTo(PRE_MODEL_LIMITED["broker-check under its display name"], "Resolve Issue / Broker Check", "Resolve Issue / Check Broker");
 const AFTER_RESET = Date.parse("2026-10-16T12:31:00Z");
 // A rate-limit stop's records name the GitHub API rate limit and the reset, never the broker.
 const limitCause = (reset) => `The work-resolve-issue run that \`agent-ready\` started stopped on GitHub's API rate limit before any model turn; the limit reset at ${reset}.`;
@@ -4313,6 +4324,8 @@ const PICK_SLOT_KILLED = [
 test("an admit or pick-slot kill-switch skip is a breaker trip at broker-check, read from the job listing alone and re-fired at the first sweep", async () => {
   for (const [name, jobs] of [
     ["admit", ADMIT_KILLED],
+    ["admit under its id since the rename", renamedTo(ADMIT_KILLED, "admit", "check-admission")],
+    ["admit under its name since the rename", renamedTo(ADMIT_KILLED, "admit", "Check Admission")],
     ["pick-slot", PICK_SLOT_KILLED],
   ]) {
     const { github, actions, calls } = stalledRun({ jobs, conclusion: "success" });
@@ -4384,7 +4397,7 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   assert.ok(steps(unblock["label-unblocked"]).includes("Label the unblocked issues"));
   const caller = jobs(workflow("work-resolve-issue.yml"));
   for (const [id, name] of [
-    ["admit", "Admit"],
+    ["check-admission", "Check Admission"],
     ["pick-slot", "Pick Slot"],
     ["report-outcome", "Report Outcome"],
     ["resolve-issue", "Resolve Issue"],
@@ -4394,11 +4407,11 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
     assert.equal(shown(caller[id]), name, id);
   }
   assert.ok(steps(caller["pick-slot"]).includes("Check the WIP cap"));
-  assert.ok(steps(caller.admit).includes("Wait for open blockers"));
-  assert.ok(steps(caller.admit).includes("Stop on untrusted provenance"));
-  // A kill-switch skip in admit or pick-slot is read as its first API step skipped after the check.
+  assert.ok(steps(caller["check-admission"]).includes("Wait for open blockers"));
+  assert.ok(steps(caller["check-admission"]).includes("Stop on untrusted provenance"));
+  // A kill-switch skip in check-admission or pick-slot is read as its first API step skipped after the check.
   for (const [id, step] of [
-    ["admit", "Check the trigger"],
+    ["check-admission", "Check the trigger"],
     ["pick-slot", "Check the WIP cap"],
   ]) {
     const names = steps(caller[id]);
@@ -4409,32 +4422,32 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   const calls = Object.keys(caller).filter((id) => /^ {4}uses: \.\/\.github\/workflows\/pr-run-activity-read\.yml\b/m.test(caller[id]));
   assert.deepEqual(calls, ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]);
   const read = jobs(workflow("pr-run-activity-read.yml"));
-  assert.ok(steps(read["broker-check"]).includes("Ask the broker whether the lane may run"));
-  assert.ok(steps(read["broker-check"]).includes("Check the kill switch"));
+  assert.ok(steps(read["check-broker"]).includes("Ask the broker whether the lane may run"));
+  assert.ok(steps(read["check-broker"]).includes("Check the kill switch"));
   // A green broker ask is a stop exactly when the lease step after it, which runs only on an allow, skipped.
-  const checkSteps = steps(read["broker-check"]);
+  const checkSteps = steps(read["check-broker"]);
   assert.ok(checkSteps.indexOf("Claim the issue with a lane lease") > checkSteps.indexOf("Ask the broker whether the lane may run"));
-  assert.match(read["broker-check"], /^ {6}- name: Claim the issue with a lane lease\n {8}id: lease\n {8}if: inputs\.issue-number != '' && steps\.broker\.outcome == 'success' && steps\.broker\.outputs\.allowed == 'true'\n/m);
+  assert.match(read["check-broker"], /^ {6}- name: Claim the issue with a lane lease\n {8}id: lease\n {8}if: inputs\.issue-number != '' && steps\.broker\.outcome == 'success' && steps\.broker\.outputs\.allowed == 'true'\n/m);
   // The in-slot blocker stop runs after the lease, so a green check with it is no check stop.
   assert.ok(checkSteps.indexOf("Stop on an open blocker") > checkSteps.indexOf("Claim the issue with a lane lease"));
   assert.ok(read.run !== undefined);
   assert.ok(steps(read.run).includes("Stop on stale workflow files"));
-  // broker-check's budget step follows its kill-switch step, runs exactly on a
+  // check-broker's budget step follows its kill-switch step, runs exactly on a
   // budget stop, and carries the gate's reset in its name; its gate reads the
   // budget. The model job's gate checks the switches only.
   const budgetName = "Stop on a low GITHUB_TOKEN budget until ${{ steps.kill.outputs.reset }}";
-  const checkNamed = steps(read["broker-check"]);
+  const checkNamed = steps(read["check-broker"]);
   assert.equal(checkNamed.indexOf(budgetName), checkNamed.indexOf("Check the kill switch") + 1);
-  assert.match(read["broker-check"], /^ {6}- name: Stop on a low GITHUB_TOKEN budget until \$\{\{ steps\.kill\.outputs\.reset \}\}\n {8}if: steps\.kill\.outputs\.cause == 'budget'\n/m);
+  assert.match(read["check-broker"], /^ {6}- name: Stop on a low GITHUB_TOKEN budget until \$\{\{ steps\.kill\.outputs\.reset \}\}\n {8}if: steps\.kill\.outputs\.cause == 'budget'\n/m);
   // Its gate reads the budget on a starting caller's first call, and a budget
   // stop sets skip-reason budget, which skips the run job.
-  assert.match(read["broker-check"], /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop'\) && 'true' \|\| 'false' \}\}$/m);
-  assert.match(read["broker-check"], /^ {6}skip-reason: \$\{\{ steps\.kill\.outputs\.cause == 'budget' && 'budget' \|\| steps\.broker\.outputs\.skip-reason \}\}$/m);
-  assert.match(read.run, /^ {6}&& needs\.broker-check\.outputs\.skip-reason == ''$/m);
+  assert.match(read["check-broker"], /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop'\) && 'true' \|\| 'false' \}\}$/m);
+  assert.match(read["check-broker"], /^ {6}skip-reason: \$\{\{ steps\.kill\.outputs\.cause == 'budget' && 'budget' \|\| steps\.broker\.outputs\.skip-reason \}\}$/m);
+  assert.match(read.run, /^ {6}&& needs\.check-broker\.outputs\.skip-reason == ''$/m);
   assert.match(caller["resolve-issue"], /^ {6}start-gate: true$/m);
   assert.ok(!steps(read.run).some((name) => name.startsWith("Stop on a low GITHUB_TOKEN budget")));
   assert.doesNotMatch(read.run, /^ {10}budget:/m);
-  assert.equal(shown(read["broker-check"]), "Broker Check");
+  assert.equal(shown(read["check-broker"]), "Check Broker");
   assert.equal(shown(read.run), "Run");
   // The write runner mints; the read runner resolve-issue calls never does.
   assert.ok(Object.values(jobs(workflow("pr-run-activity-write.yml"))).some((block) => steps(block).includes("Request the lane token")));

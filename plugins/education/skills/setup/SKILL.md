@@ -52,9 +52,9 @@ Report a PASS/INFO/WARN table. Write nothing.
      repo-tree guard refuses it and falls back to `${CLAUDE_PLUGIN_DATA}` (same effective root
      as unset).
 4. Explain the effective teach workspace root:
-   - empty or unexpanded `workspace_root`. FIRST read the rung-3 pointer file
+   - empty or unexpanded `workspace_root`. First read the rung-3 pointer file
      `${CLAUDE_PLUGIN_DATA}/workspace-root`: when present and it names an existing directory,
-     report THAT path as the effective topic-mode root (it persists a prior one-time ask, and
+     report that path as the effective topic-mode root (it persists a prior one-time ask, and
      also records the migration-offer outcome); when absent or invalid, report the documented
      ladder (project declaration → this setting → one-time ask → OS Documents `Claude Learning/`
      home for topic mode → plugin data); codebase-mode workspaces stay under plugin data by

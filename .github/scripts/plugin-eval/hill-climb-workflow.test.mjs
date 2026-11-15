@@ -39,13 +39,13 @@ test("only push-branch and publish hold id-token, each for its one lane token; e
       const writer = file === "maintenance-measure-skill-edit.yml" && Object.hasOwn(WRITERS, name);
       const permissions = block.match(/\n {4}permissions:\n((?: {6}.+\n)+)/)?.[1] ?? "";
       const keys = [...permissions.matchAll(/^ {6}([a-z-]+): (\w+)/gm)].map(([, key, level]) => `${key}: ${level}`);
-      // The gate also reads this run's re-runner (check-trusted-trigger); a
-      // key-credit gate reads only the credit-stop markers, and a pass's
-      // caller grants its pass workflow's gate that read.
-      const creditGate = name === "propose-key-credit" || (file === "maintenance-measure-skill-edit-pass.yml" && name === "gate");
+      // check-inputs also reads this run's re-runner (check-trusted-trigger);
+      // a check-key-credit job, in either file, reads only the credit-stop
+      // markers, and a pass's caller grants its pass workflow's check-key-credit that read.
+      const creditGate = name === "check-key-credit";
       const reads = creditGate
         ? ["actions: read"]
-        : name === "gate" || /^pass-(?:a|a2|b)$/.test(name)
+        : name === "check-inputs" || /^measure-(?:baseline|baseline-again|edit)$/.test(name)
           ? ["contents: read", "actions: read"]
           : ["contents: read"];
       assert.deepEqual(keys, writer ? ["contents: read", "id-token: write"] : reads, `${file} ${name}`);
@@ -55,12 +55,12 @@ test("only push-branch and publish hold id-token, each for its one lane token; e
     }
   }
   // The model step's job holds no write token and no OIDC token.
-  assert.doesNotMatch(jobs(main).propose, /id-token|lane-token|GH_TOKEN/);
+  assert.doesNotMatch(jobs(main)["generate-edit"], /id-token|lane-token|GH_TOKEN/);
 });
 
 test("the writes run only after a verified win, check what they carry before the mint, and run no model", () => {
   const { "push-branch": push, publish } = jobs(main);
-  assert.match(push, /\n {4}needs: \[gate, scan, verdict\]\n {4}if: \$\{\{ !cancelled\(\) && needs\.verdict\.outputs\.win == 'true' && needs\.verdict\.outputs\.artifact-id != '' \}\}\n/);
+  assert.match(push, /\n {4}needs: \[check-inputs, scan, compare-passes\]\n {4}if: \$\{\{ !cancelled\(\) && needs\.compare-passes\.outputs\.win == 'true' && needs\.compare-passes\.outputs\.artifact-id != '' \}\}\n/);
   assert.match(publish, /needs\.push-branch\.result == 'success'\n\s+&& needs\.push-branch\.outputs\.skip-reason == ''/);
   for (const block of [push, publish]) {
     assert.doesNotMatch(block, /run-claude-cli|claude plugin eval|claude -p|secrets\./);
@@ -73,14 +73,14 @@ test("the writes run only after a verified win, check what they carry before the
   assert.match(step(push, "Push the branch"), /hill-climb-publish\.mjs push\n/);
   assert.match(step(push, "Push the branch"), /EDIT_DIR: \$\{\{ github\.workspace \}\}\/\.edit\n/);
   assert.ok(publish.indexOf("- name: Scan the pull request text") < publish.indexOf("- name: Request the lane token"));
-  assert.match(step(publish, "Write the pull request text"), /WANT: \$\{\{ needs\.verdict\.outputs\.manifest-sha256 \}\}/);
+  assert.match(step(publish, "Write the pull request text"), /WANT: \$\{\{ needs\.compare-passes\.outputs\.manifest-sha256 \}\}/);
   assert.match(step(publish, "Write the pull request text"), /sha256sum --check --strict --quiet manifest\.sha256/);
   assert.match(step(publish, "Request the lane token"), /if: steps\.scan-text\.outputs\.clean == 'true'\n/);
   assert.match(step(publish, "Open the draft pull request"), /hill-climb-publish\.mjs publish\n/);
   // A win that ends with no pull request names its stop in the job summary.
   assert.match(step(push, "Report a stop before the push"), /if: always\(\) && steps\.push\.outcome == 'skipped'\n[^]*echo "gate: push-branch: [^"]*" \| tee -a "\$GITHUB_STEP_SUMMARY"/);
   assert.match(step(publish, "Report a stop before the pull request"), /if: always\(\) && steps\.open\.outcome == 'skipped'\n[^]*echo "gate: publish: [^"]*" \| tee -a "\$GITHUB_STEP_SUMMARY"/);
-  assert.match(step(jobs(main).verdict, "Report a win that was not kept"), /steps\.upload-win\.outcome != 'success'[^]*gate: win-upload: /);
+  assert.match(step(jobs(main)["compare-passes"], "Report a win that was not kept"), /steps\.upload-win\.outcome != 'success'[^]*gate: win-upload: /);
   // The workflow names no merge, ready flip or auto-merge.
   assert.doesNotMatch(code(main), /gh pr (merge|ready)|enable-auto-merge|markPullRequestReadyForReview|draft: false/);
   assert.match(main, /^on:\n {2}workflow_dispatch:\n/m);
@@ -89,12 +89,12 @@ test("the writes run only after a verified win, check what they carry before the
 
 test("pass a, a2 and b run the one pass workflow, and only pass b gets the scanned edit", () => {
   const all = jobs(main);
-  for (const name of ["pass-a", "pass-a2", "pass-b"]) {
+  for (const [name, arm] of [["measure-baseline", "a"], ["measure-baseline-again", "a2"], ["measure-edit", "b"]]) {
     assert.match(all[name], /\n {4}uses: \.\/\.github\/workflows\/maintenance-measure-skill-edit-pass\.yml /, name);
-    assert.match(all[name], new RegExp(`\\n {6}pass: ${name.slice(5)}\\n`), name);
+    assert.match(all[name], new RegExp(`\\n {6}pass: ${arm}\\n`), name);
   }
-  assert.doesNotMatch(all["pass-a"] + all["pass-a2"], /edit-(?!pass\.yml)/);
-  assert.match(all["pass-b"], /edit-sha256: \$\{\{ needs\.scan\.outputs\.sha256 \}\}/);
+  assert.doesNotMatch(all["measure-baseline"] + all["measure-baseline-again"], /edit-(?!pass\.yml)/);
+  assert.match(all["measure-edit"], /edit-sha256: \$\{\{ needs\.scan\.outputs\.sha256 \}\}/);
   assert.match(step(pass, "Apply the edit"), /\[ "\$\{sum%% \*\}" != "\$WANT" \]/);
 });
 
@@ -124,7 +124,7 @@ test("no trace leaves a pass runner: a pass uploads its result, summary and vali
     "besides the copied results.json, the pass writes only its summary, verdict line and manifest",
   );
   assert.match(step(pass, "Upload the pass"), /path: \$\{\{ runner\.temp \}\}\/upload\/\n/);
-  assert.doesNotMatch(step(jobs(main).propose, "Write the prompt and schema"), /traces\//);
+  assert.doesNotMatch(step(jobs(main)["generate-edit"], "Write the prompt and schema"), /traces\//);
 });
 
 test("every ci-workflows action is pinned to one full commit", () => {
@@ -147,7 +147,7 @@ test("every ci-workflows action is pinned to one full commit", () => {
 test("the model steps are read-only, on the maintenance key, then its token, then the fallback token, and frame what they read as data", () => {
   assert.equal(main.match(/run-claude-cli@/g).length, 3);
   assert.doesNotMatch(pass, /run-claude-cli@/);
-  const propose = jobs(main).propose;
+  const propose = jobs(main)["generate-edit"];
   const key = step(propose, "Propose the edit on the API key");
   const leg = step(propose, "Propose the edit");
   const fallback = step(propose, "Propose the edit on the fallback token");
@@ -164,9 +164,9 @@ test("the model steps are read-only, on the maintenance key, then its token, the
   assert.match(fallback, /if: steps\.prompt\.outcome == 'success' && steps\.fallback\.outputs\.present == 'true'\n/);
   assert.match(step(propose, "Check the fallback token"), /if: steps\.next\.outputs\.next-leg == 'fallback'\n/);
   // A credit-stopped key skips the key leg, and only a key credit stop uploads its marker.
-  assert.match(step(propose, "Check the API key"), /selected: \$\{\{ needs\.propose-key-credit\.outputs\.next-leg \}\}/);
+  assert.match(step(propose, "Check the API key"), /selected: \$\{\{ needs\.check-key-credit\.outputs\.next-leg \}\}/);
   assert.match(step(propose, "Write the key's credit-stop marker"), /'key-credit-stop-maintenance-measure-skill-edit\.yml-propose' && steps\.run-key\.outputs\.handoff-reason == 'credit-stop'/);
-  assert.match(jobs(main)["propose-key-credit"], /leg: start\n {10}key-job: propose\n/);
+  assert.match(jobs(main)["check-key-credit"], /leg: start\n {10}key-job: propose\n/);
   for (const model of [key, leg, fallback]) {
     assert.match(model, /role: maintenance\n/);
     assert.match(model, /permission-mode: dontAsk\n/);
@@ -194,8 +194,8 @@ test("the scan job applies the edit with no secret and refuses it by the path ru
 });
 
 test("the verdict names the stopping gate, and only a win is kept, for 3 days", () => {
-  const verdict = jobs(main).verdict;
-  assert.match(verdict, /if: \$\{\{ always\(\) && needs\.gate\.outputs\.go == 'true' \}\}/);
+  const verdict = jobs(main)["compare-passes"];
+  assert.match(verdict, /if: \$\{\{ always\(\) && needs\.check-inputs\.outputs\.go == 'true' \}\}/);
   assert.match(step(verdict, "Decide"), /win-test\.py "\$\{args\[@\]\}"/);
   assert.match(step(verdict, "Decide"), /echo "gate: \$1: \$2" \| tee -a "\$GITHUB_STEP_SUMMARY"/);
   const upload = step(verdict, "Upload the win");
@@ -213,7 +213,7 @@ test("the verdict names the stopping gate, and only a win is kept, for 3 days", 
 // green with its line already written, and any other failure names its gate
 // and fails the job.
 test("the verdict fails and names the gate when win-test.py cannot read a pass file", () => {
-  const decide = step(jobs(main).verdict, "Decide");
+  const decide = step(jobs(main)["compare-passes"], "Decide");
   const tail = decide.slice(decide.indexOf('if [ "$status" = 0 ]'), decide.lastIndexOf("fi") + 2);
   const dir = mkdtempSync(join(tmpdir(), "hill-climb-decide-"));
   try {
@@ -238,7 +238,7 @@ test("the verdict fails and names the gate when win-test.py cannot read a pass f
 });
 
 test("the gate admits only a listed human's first attempt on the default branch", () => {
-  const gate = jobs(main).gate;
+  const gate = jobs(main)["check-inputs"];
   assert.match(gate, /if: github\.ref == format\('refs\/heads\/\{0\}', github\.event\.repository\.default_branch\) && github\.run_attempt == '1'\n/);
   const who = step(gate, "Check who started the run");
   assert.match(who, /check-trusted-trigger/);

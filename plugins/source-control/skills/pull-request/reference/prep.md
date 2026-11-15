@@ -82,13 +82,13 @@ Present the findings in a structured table, leading with the verified findings y
 Unless `quick` or `review-only` scope:
 
 1. Run `/simplify` over the branch diff when that capability resolves in this session; otherwise do a manual pass for dead code, needless indirection, and duplication introduced by the branch
-2. **Run the comment pass** over the comments the branch adds, after simplify and before any review of the result: `/code-tidying:remove-comments --pipeline --added-since <remote>/<base-branch>` when the `code-tidying` plugin is enabled. Its default posture, `necessary`, deletes warnings about this repository's own code, a security warning included, and stages each in its report. An unattended run (invoked with `--unattended`, or no person drives it: a loop lane, a CI lane, a `dontAsk` session, a dispatched worker) applies no comment edit unless the consuming project's instructions pre-approve applied comment edits in unattended runs: without that, run `/code-tidying:remove-comments report --pipeline --added-since <remote>/<base-branch>` and put its proposals in the 1.6 report. Without the plugin, put `comment pass not run: code-tidying plugin not enabled` in the 1.6 report
-3. **Show the simplify and comment-pass diff**: run `git diff` and present what changed. Automated simplification fixes and comment deletions are NOT research-verified; treat them like any code-review finding: inspect each change, approve or revert
+2. **Run the comment pass** over the branch's changed code files, after simplify and before any review of the result: `/code-tidying:remove-comments --pipeline --base <remote>/<base-branch>` when the `code-tidying` plugin is enabled. Its default posture, `necessary`, deletes warnings about this repository's own code, a security warning included, and stages each in its report. An unattended run (invoked with `--unattended`, or no person drives it: a loop lane, a CI lane, a `dontAsk` session, a dispatched worker) applies no comment edit unless the consuming project's instructions pre-approve applied comment edits in unattended runs: without that, run `/code-tidying:remove-comments report --pipeline --base <remote>/<base-branch>` and put its proposals in the 1.6 report. Without the plugin, put `comment pass not run: code-tidying plugin not enabled` in the 1.6 report
+3. **Show the simplify and comment-pass diff**: run `git diff` and present what changed. Automated simplification fixes and comment deletions are not research-verified; treat them like any code-review finding: inspect each change, approve or revert
 4. **Pause for user review**: let the user approve/reject simplify and comment-pass changes before proceeding
 5. Re-run tests on approved changes
 6. Run the verify gate (1.5)
 
-## 1.5 Verify gate (HARD: blocks PR creation)
+## 1.5 Verify gate (hard: blocks PR creation)
 
 Run the project's full build + test + lint surface, via `/verification:confirm` when the `verification` plugin is enabled (or `/toolchain:check` for the mechanical half alone) and otherwise the ecosystem-native commands (`dotnet build && dotnet test`, `npm test`, `pytest`, shellcheck, markdownlint, …) for every ecosystem the branch touches. **All results must be clean before proceeding to PR creation.** A `/verification:confirm` `NOT VERIFIED` whose only cause is `verification: skipped (<level>)`, from the default branch's level, counts as clean here (`/verification:confirm`'s PR-prep gate rule).
 
@@ -96,8 +96,8 @@ Run the project's full build + test + lint surface, via `/verification:confirm` 
 
 **Decision rule:**
 
-- Any FAIL → STOP. Address each before reattempting. Do not proceed to PR creation
-- Any skip due to "tool missing" → install the tool OR document why the skip is acceptable in this PR (rare, since it is almost always faster to install)
+- Any FAIL → stop. Address each before reattempting. Do not proceed to PR creation
+- Any skip due to "tool missing" → install the tool or document why the skip is acceptable in this PR (rare, since it is almost always faster to install)
 - All clean (or only non-applicable skips like "no `.md` changes") → proceed to PR creation
 
 **This gate runs last**, so nothing that edits the tree may run after it.

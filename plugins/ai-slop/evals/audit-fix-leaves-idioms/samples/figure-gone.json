@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Ingest worker notes\n\nThe retry limit lives in `config/ingest.toml`, under the `[worker]` table.\n\nAfter a deploy, the upload queue drains in about four minutes.\n\nThe export thread starves when the nightly batch job holds every database connection.\n\nThe thumbnail cache is warm once the first hundred requests have been served.\n\nThe `02:00` nightly build fails when a lockfile is stale.\n",
+      "why": "figure replaced by the trigger and its result"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Ingest worker notes\n\nThe retry limit lives in `config/ingest.toml`, under the `[worker]` table.\n\nAfter a deploy, the upload queue drains in about four minutes.\n\nThe export thread starves when the nightly batch job holds every database connection.\n\nThe thumbnail cache is warm once the first hundred requests have been served.\n\nStale lockfiles murder the `02:00` nightly build.\n",
+      "why": "file left unfixed"
+    },
+    {
+      "answer": "# Ingest worker notes\n\nThe retry limit lives in `config/ingest.toml`, under the `[worker]` table.\n\nAfter a deploy, the upload queue drains in about four minutes.\n\nThe export thread starves when the nightly batch job holds every database connection.\n\nThe thumbnail cache is warm once the first hundred requests have been served.\n\nStale lockfiles murder the `02:00` nightly build, so clear them first.\n",
+      "why": "figure kept with a reason added"
+    }
+  ]
+}

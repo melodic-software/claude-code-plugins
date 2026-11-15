@@ -285,15 +285,15 @@ say(byId("act-script").env?.REUSE_BRANCH === "${{ inputs.reuse-branch }}", "the 
 // run job, started only by the earlier-work check's reuse-branch (which skips
 // the model). It holds no id-token, reads the branch as data, and no step can
 // turn it red.
-const sjob = rwf.jobs.summary ?? {};
+const sjob = rwf.jobs["generate-reuse-summary"] ?? {};
 const ssteps = sjob.steps ?? [];
 const sById = (id) => ssteps.find((s) => s.id === id) ?? {};
 const summaryIds = ["summary-data", "summary-models", "summary-prompt", "summary-key", "summary-token", "summary-collect"];
 say(!rsteps.some((s) => summaryIds.includes(s.id) || /claude-code-action/.test(s.uses ?? "")),
   "the run job runs no summary step and no claude-code-action step");
-say(JSON.stringify(sjob.needs) === '["run","issue-fields"]' && /needs\.issue-fields\.outputs\.reuse-branch != ''/.test(String(sjob.if ?? ""))
-  && /needs\.issue-fields\.outputs\.checked == 'true'/.test(String(sjob.if ?? "")) && /!cancelled\(\)/.test(String(sjob.if ?? "")),
-  "the summary job runs after the run and issue-fields jobs, only on the checked reuse branch");
+say(JSON.stringify(sjob.needs) === '["run","check-issue-fields"]' && /needs\.check-issue-fields\.outputs\.reuse-branch != ''/.test(String(sjob.if ?? ""))
+  && /needs\.check-issue-fields\.outputs\.checked == 'true'/.test(String(sjob.if ?? "")) && /!cancelled\(\)/.test(String(sjob.if ?? "")),
+  "the generate-reuse-summary job runs after the run and check-issue-fields jobs, only on the checked reuse branch");
 say(JSON.stringify(sjob.permissions) === JSON.stringify({ contents: "read" }),
   "the summary job holds contents: read and nothing else, no id-token");
 say(rwf.jobs.run.outputs?.["reuse-branch"] === "${{ steps.issue-prior.outputs.reuse-branch }}",
@@ -336,7 +336,7 @@ say(summaryLegs.every(([id]) => {
 }) && summaryData.env?.DATA === "${{ github.workspace }}/.summary",
   "the summary model reads the data directory under the workspace and nothing else, under dontAsk, and returns structured output");
 const summaryCollect = sById("summary-collect");
-say(summaryCollect.env?.REUSE_BRANCH === "${{ needs.issue-fields.outputs.reuse-branch }}"
+say(summaryCollect.env?.REUSE_BRANCH === "${{ needs.check-issue-fields.outputs.reuse-branch }}"
   && summaryCollect.env?.TIP === "${{ steps.summary-data.outputs.tip }}" && /try fromjson catch null/.test(summaryCollect.run ?? ""),
   "the summary file binds the model's output to the runner's branch and tip");
 const summaryDownload = steps.find((s) => s.name === "Download the reused branch's summary");

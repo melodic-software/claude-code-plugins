@@ -23,8 +23,8 @@ the pointer. A blog post is never the pointer; it appears only as a correlate be
 - Decompose by the context each piece needs, not by the kind of work. Sequential phases of one
   feature stay in one agent.
 - Coding parallelizes less than research: never split one feature across agents.
-- This plugin's operating cost figure for multi-agent work is 3–10× a single agent's tokens, and
-  roughly 15× for a research-shaped fan-out.
+- This plugin's operating cost figure for multi-agent work is 3–10× a single agent's tokens, a
+  floor that a research-shaped fan-out exceeds.
 - Delegate only for context protection, parallelism, or a tool-restricted specialist; outside
   those, coordination costs more than it returns.
 
@@ -208,7 +208,7 @@ interrupt, the setting decides whether it is.
 
 ## Imperative 6: SURFACE DRIFT
 
-Authoring convention, NOT canonical Anthropic orchestration guidance (it appears in none of the
+Authoring convention, not canonical Anthropic orchestration guidance (it appears in none of the
 multi-agent sources). Kept in the brief because drift-flagging is useful for any worker: a one-line
 flag preserves the signal without derailing the task.
 
@@ -226,7 +226,7 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   tighter specs. Pointer:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#capability-improvements>.
 - **Advisor / verifier availability and context pressure** are operational authoring
-  convention, NOT canonical Anthropic orchestration guidance. They scale the same underlying
+  convention, not canonical Anthropic orchestration guidance. They scale the same underlying
   trade-offs (a fresh-context verifier is worth leaning on when one is on hand; a filling window is
   itself the context-protection trigger imperative 1 names). Usage or rate-limit headroom is not a
   sizing input: it never lowers tier, effort, review depth or worker count (maintainer rule,
@@ -242,7 +242,7 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   the parent session's model: the mechanism behind premium-model fan-outs (imperatives 2 and 7's
   tiering clauses). Pointer: <https://code.claude.com/docs/en/sub-agents#choose-a-model> and
   <https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model>.
-- **Tier is model AND effort.** A cheaper tier is a cheaper model, a lower effort, or both, and an
+- **Tier is model and effort.** A cheaper tier is a cheaper model, a lower effort, or both, and an
   agent definition can set its own effort. This backs imperative 7's "match the reasoning depth
   (effort) to the subtask too" clause. Pointer:
   <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields> (the `effort` field).

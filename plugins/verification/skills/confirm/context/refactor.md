@@ -10,7 +10,7 @@ Structured confirmation that a refactoring preserved existing behavior while imp
 
 ## The fundamental rule
 
-A refactor changes structure, not behavior. If tests passing before still pass after, that's strong evidence of behavior preservation. If ANY test previously passing now fails, the refactor introduced a behavioral change, intentional or not.
+A refactor changes structure, not behavior. If tests passing before still pass after, that's strong evidence of behavior preservation. If any test previously passing now fails, the refactor introduced a behavioral change, intentional or not.
 
 ## Process
 
@@ -26,7 +26,7 @@ A refactor changes structure, not behavior. If tests passing before still pass a
 
 **Replace needs differential evidence.** Passing tests prove only the tested behavior, and a Replace swaps all of it. Run the old implementation (or its recorded output) and the new one on the same inputs, a recorded corpus first, and report counts: inputs run, mismatches, mismatches explained by an intentional-differences ledger entry (cite each id), and unexplained mismatches. Each ledger entry names the difference, why it is intended, and who accepted it; widening the comparator to make the run match is not an explanation. A recorded baseline proves sameness with the old behavior, not correctness, so a bug the old code had passes this check. Recorded outputs captured for the comparison are stored and timed like any baseline: see `/verification:measure` "Behavior baselines".
 
-Basis: the differential-testing slice of the agent-self-check research (Scientist ignore blocks and reviewed snapshot re-approval for intentional differences; Feathers and the snapshot tools for sameness, not correctness), prompted by Addy Osmani's 2026-10-05 post (<https://x.com/addyosmani/status/2106995301802541481>). No accepted source shows agents validating rewrites this way; the rule extrapolates human-led practice. Recheck trigger: a source on agent-run rewrite validation that changes it.
+Basis: the differential-testing slice of the agent-self-check research (Scientist ignore blocks and reviewed snapshot re-approval for intentional differences; Feathers and the snapshot tools for sameness, not correctness). No accepted source shows agents validating rewrites this way; the rule extrapolates human-led practice. Recheck trigger: a source on agent-run rewrite validation that changes it.
 
 ### 2. Identify the behavior boundary
 
@@ -46,7 +46,7 @@ The Stage 1 mechanical-prerequisite results from `/verification:confirm` provide
 
 ### 4. Check for untested behavior
 
-Tests only prove preservation of TESTED behavior. Look for:
+Tests only prove preservation of tested behavior. Look for:
 
 - **Public methods without tests**: if a public method was refactored but has no test, behavior preservation is unverified for that method
 - **Integration points without integration tests**: if refactored code interacts with external systems and those interactions aren't tested, preservation is assumed, not proven

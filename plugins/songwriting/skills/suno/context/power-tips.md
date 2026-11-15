@@ -10,7 +10,7 @@
 - [Punctuation for vocal cadence](#punctuation-for-vocal-cadence)
 - [Bracket-only structural gaps](#bracket-only-structural-gaps)
 - [Genre-adjacency fallback](#genre-adjacency-fallback)
-- [The "describe THIS song" technique](#the-describe-this-song-technique)
+- [The "describe this song" technique](#the-describe-this-song-technique)
 - [Empirical Custom Model trick](#empirical-custom-model-trick)
 - [Bonus: rotating prompt synonyms across regenerations](#bonus-rotating-prompt-synonyms-across-regenerations)
 - [v5.5-specific empirical findings (post-March 2026)](#v55-specific-empirical-findings-post-march-2026)
@@ -84,7 +84,7 @@ Surgical refinement of a single instrument layer without losing the rest:
 
 1. Generate full song
 2. **Auto Split stem export** (up to 12 stems; Pro / Premier)
-3. Upload ONE stem back as Audio Influence at 80% (community-derived starting point; not officially confirmed)
+3. Upload one stem back as Audio Influence at 80% (community-derived starting point; not officially confirmed)
 4. Prompt narrowly for that element only (`punchy 808 trap drums, no other elements`)
 5. Regenerate
 
@@ -114,9 +114,9 @@ Cheap iteration before committing to final Custom prompt:
 
 1. Save a known-good song as Persona ("Make Persona" from song menu)
 2. Generate 4-8 drafts with Persona + minimal new prompt: fast, low effort
-3. Use drafts to test ARRANGEMENT ideas (verse/chorus pacing, bridge placement)
+3. Use drafts to test arrangement ideas (verse/chorus pacing, bridge placement)
 4. Lock the arrangement you like
-5. Regenerate that arrangement with FULL Custom prompt (precise instrumentation, mood, production layers) for the production take
+5. Regenerate that arrangement with full Custom prompt (precise instrumentation, mood, production layers) for the production take
 
 Personas trade fidelity for speed; full Custom mode trades speed for fidelity. Use both.
 
@@ -177,9 +177,9 @@ If a specific subgenre tag doesn't trigger (output is generic), use a near-neigh
 
 The neighbor anchors the model in known territory; the descriptor pulls toward the target.
 
-## The "describe THIS song" technique
+## The "describe this song" technique
 
-For a specific reference song, describe what you HEAR rather than naming artist or song. Higher fidelity than artist-name workarounds.
+For a specific reference song, describe what you hear rather than naming artist or song. Higher fidelity than artist-name workarounds.
 
 **Method:**
 
@@ -208,27 +208,27 @@ Lyrics field with section overrides:
 [Final Chorus: explosive, gang vocals, double-tracked]
 ```
 
-Beats `like The Killers` (filtered) AND beats generic `2000s indie rock`. Specificity wins.
+Beats `like The Killers` (filtered) and beats generic `2000s indie rock`. Specificity wins.
 
 ## Empirical Custom Model trick
 
-Train Custom Model on YOUR own reference catalog of songs you LOVE the sonic DNA of (must own, 6+ tracks):
+Train Custom Model on your own reference catalog of songs you love the sonic DNA of (must own, 6+ tracks):
 
-- Style tags now operate relative to YOUR baseline, not generic averages
-- Effectively produces "songs that sound like ME but new"
+- Style tags now operate relative to your baseline, not generic averages
+- Effectively produces "songs that sound like me but new"
 - Especially powerful when your catalog is sonically coherent (same genre, similar production)
 
-**Critical: train separate models per coherent sound.** A model trained on lo-fi + thrash metal in the same set averages into incoherent middle-ground. Train one Custom Model per sonic identity.
+**Train separate models per coherent sound.** A model trained on lo-fi + thrash metal in the same set averages into incoherent middle-ground. Train one Custom Model per sonic identity.
 
 **Combine with Voices for the full identity stack:**
 
 - Custom Model = your sonic DNA (production, instrumentation patterns)
 - Voice = your singing identity (vocal timbre)
-- Both active = "you wrote, produced, AND sang this" output
+- Both active = "you wrote, produced, and sang this" output
 
 ## Bonus: rotating prompt synonyms across regenerations
 
-After 3-4 regenerations on identical prompt, output diminishes (cached patterns). Rotate synonyms to break the loop without changing intent:
+After 3-4 regenerations on identical prompt, output diminishes (community-reported; Suno documents no cause). Rotate synonyms to break the loop without changing intent:
 
 | Stuck on | Try rotating to |
 |----------|-----------------|
@@ -238,15 +238,15 @@ After 3-4 regenerations on identical prompt, output diminishes (cached patterns)
 | `nostalgic` | `wistful` → `bittersweet` → `vintage` → `reminiscent` |
 | `intimate` | `close-mic'd` → `whispered` → `bedroom` → `confessional` |
 
-Same intent, different cache hits. Often unblocks stuck regenerations.
+Same intent, different wording. Often unblocks stuck regenerations.
 
 ## v5.5-specific empirical findings (post-March 2026)
 
-These are tips discovered AFTER v5.5 release, validated through multi-user community testing. Several CONTRADICT earlier-era advice, flagged where applicable.
+These are tips discovered after v5.5 release, validated through multi-user community testing. Several contradict earlier-era advice, flagged where applicable.
 
 ### v5.5 = personalization layer over v5 audio engine
 
-v5.5 is NOT a new audio model; it's v5's audio engine + Voices/Custom Models/My Taste personalization layers stacked on top.
+v5.5 is not a new audio model; it's v5's audio engine + Voices/Custom Models/My Taste personalization layers stacked on top.
 
 Practical implication: **detailed prompts override My Taste**; vague prompts let it dominate. If output feels repetitive across sessions, prompt more verbosely to neutralize My Taste's silent biasing.
 
@@ -264,7 +264,7 @@ Full detail in [voices.md](voices.md#audio-influence-with-an-active-voice).
 
 ### Delivery tags are now per-section local in v5.5
 
-`[Whispered]`, `[Belted]`, `[Falsetto]`, `[Humming]`, `[Scream]`, `[Ad-lib]`, `[Call and Response]` reshape the cloned voice WITHIN the section they appear in. They no longer apply globally.
+`[Whispered]`, `[Belted]`, `[Falsetto]`, `[Humming]`, `[Scream]`, `[Ad-lib]`, `[Call and Response]` reshape the cloned voice within the section they appear in. They no longer apply globally.
 
 This enables **single-voice album-arc dynamics**: same Voice clone, different delivery character per song or per section, just by adding the right delivery tag inside the section.
 
@@ -276,11 +276,11 @@ First 5-10 generations from a freshly-trained Custom Model feel generic. Quality
 
 ### My Taste creative flattening (community debate)
 
-Community blind tests found disabled-MyTaste batches show MORE instrumentation/tonal variety than enabled-MyTaste batches. Effect is real but bounded: **detailed verbose prompting neutralizes the flattening**.
+Community blind tests found disabled-MyTaste batches show more instrumentation/tonal variety than enabled-MyTaste batches. Effect is real but bounded: **detailed verbose prompting neutralizes the flattening**.
 
 Advanced creators with verbose prompting see no difference. Casual users with terse prompts get flattened toward their voting history.
 
-For maximum diversity: prompt verbosely OR temporarily disable My Taste in settings (if exposed).
+For maximum diversity: prompt verbosely or temporarily disable My Taste in settings (if exposed).
 
 ### Replace Section is the v5.5 economy workflow
 
@@ -305,9 +305,9 @@ Three-dot menu on any song → `Create` → `Make Persona` → select 30s vocal 
 
 Enables **album-vocal continuity across genre-diverse tracks**: same vocal character on a synth-pop song and an acoustic ballad and a hip-hop track.
 
-### Studio "Remove Effects" per-stem (v5.5)
+### Studio "Remove FX" per-stem (v5.5)
 
-In Suno Studio with Auto Split stems: right-click an individual stem → `Remove Effects`. Strips processing from JUST that stem (e.g., strip reverb from vocals only) before DAW export.
+In Suno Studio with Auto Split stems: right-click an individual stem → `Remove FX` (see [studio.md](studio.md#remove-fx)). Strips processing from just that stem (e.g., strip reverb from vocals only) before DAW export.
 
 Cleaner external mixing; you keep the production on stems you like and dry the ones you'll re-process.
 
@@ -325,7 +325,7 @@ Some creators retain v4.5 Plus access for vocal-critical work and use v5.5 for i
 
 The new Editor's Extend function often produces glitchy output in v5.5. Workaround: switch to Legacy Editor via the `...` menu, run Extend there, get reliable output.
 
-Suno is aware; treat as known issue until fixed.
+No source records Suno acknowledging this; drop the workaround once Extend in the new Editor runs clean.
 
 ## Confidence note
 
@@ -335,4 +335,4 @@ There is no per-file rung. Read the flag on the section you are using: an unflag
 
 - **My Taste override behavior:** Suno docs say it never overrides explicit prompts; community reports show it can lock cycles requiring temporary disable to escape. Unresolved.
 - **Voice cloning consistency across mics/environments:** known unstable; root cause undocumented.
-- **Audio Influence behavior split** between voice-clone context vs audio-reference context: community-reported as different (community-derived 25-30% sweet spot for voice clone; community-derived 60-80% sweet spot for audio-reference upload), but the behavior split and exact thresholds are not officially confirmed.
+- **Audio Influence behavior split** between voice-clone context vs audio-reference context: community-reported as different (for a voice clone, Suno says to raise it when resemblance is poor and publishes no number, see [voices.md](voices.md#audio-influence-with-an-active-voice); community-derived 60-80% sweet spot for audio-reference upload), but the behavior split and exact thresholds are not officially confirmed.

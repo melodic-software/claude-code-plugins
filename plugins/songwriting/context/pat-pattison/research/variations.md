@@ -8,7 +8,7 @@
 - [Step 2: Generate 4-6 labeled variations](#step-2-generate-4-6-labeled-variations)
 - [Presenting the candidates: chat vs file (writer-requested, 2026-08-12)](#presenting-the-candidates-chat-vs-file-writer-requested-2026-08-12)
 - [Step 3: Highlight the trade-offs](#step-3-highlight-the-trade-offs)
-- [Step 4: Do NOT pick a winner](#step-4-do-not-pick-a-winner)
+- [Step 4: Do not pick a winner](#step-4-do-not-pick-a-winner)
 - [Artifact pattern](#artifact-pattern)
 - [Common failure modes](#common-failure-modes)
 - [Cross-references](#cross-references)
@@ -17,7 +17,7 @@ When the writer asks for "5 versions of this line" / "another way to say
 this" / "what else could verse 2 be", generate variations along a chosen
 axis with explicit labels so the writer compares deliberately.
 
-Pat's stance: more options = better choices. Variations are not waste; they
+Pat's stance: more options mean better choices. Variations are not waste; they
 are the writer choosing rather than settling.
 
 ## When to load
@@ -157,15 +157,15 @@ VARIATION 6 — [axis: tone-of-voice shift, controlled → raw]
   ...
 ```
 
-If the writer chose ONE axis in Step 1, do not span 6 axes. Generate 4-6
+If the writer chose one axis in Step 1, do not span 6 axes. Generate 4-6
 variations within that axis.
 
 ## Presenting the candidates: chat vs file (writer-requested, 2026-08-12)
 
 *This file's own additions, not book claims:* everything in this section is
-the writer's own stated convention, requested 2026-08-12 after the candidates
-he was shown could not be judged for singability. The `►` marker and the 3-4
-chat-menu cap are HIS notation and HIS number, not Pat's. No book claim is
+the writer's own stated convention, set so that every candidate shown can be
+judged for singability. The `►` marker and the 3-4 chat-menu cap are the
+writer's notation and number, not Pat's. No book claim is
 made for either, and none of it carries a citation. The craft it protects
 (the writer's sing-check as the final test) is cited where it lives, in
 [audit-checklist.md](audit-checklist.md) and
@@ -174,23 +174,23 @@ made for either, and none of it carries a citation. The craft it protects
 The Step 2 format block above is the **file** shape: every candidate with its
 full metadata (vowel, stress count, POV, rhyme position) plus its
 per-candidate craft notes, persisted per the "Artifact pattern" section below.
-It is NOT the chat shape. A bare one-line candidate in a table forces the
+It is not the chat shape. A bare one-line candidate in a table forces the
 writer to re-embed it in the section by hand before he can sing it, and the
 singing is where the judgment actually happens.
 
 ### Dump vs menu: the distinction the word "inline" is about
 
 [artifact-persistence.md](artifact-persistence.md) and the co-write skill both
-forbid an "inline dump." That prohibition is about the DUMP: the whole generated
+forbid an "inline dump." That prohibition is about the dump: the whole generated
 set pasted into chat, unlabeled and untrimmed. It is not a prohibition on
-candidates appearing in chat at all. The MENU is the opposite thing: 3-4 curated
+candidates appearing in chat at all. The menu is the opposite thing: 3-4 curated
 candidates, each rendered as a complete singable passage. The dump goes to the
 file. The menu goes to chat, and it is required. A variations response with
 nothing singable in it has not been delivered.
 
 ### The chat shape
 
-- **Always show candidates IN CONTEXT**: render the full section, or the
+- **Always show candidates in context**: render the full section, or the
   changed lines plus at least the neighboring line on each side. When the
   edit sits at a section boundary, include the last line of the previous
   section or the first line of the next.
@@ -201,7 +201,7 @@ nothing singable in it has not been delivered.
 - **Keep the chat menu to 3-4 candidates.** The full analysis lives in the
   `variations/` file, not inline: scansion maps, rubric results, rhyme-type
   labels.
-- **Scansion / slot detail appears in chat only when the discussion IS the
+- **Scansion / slot detail appears in chat only when the discussion is the
   meter**; otherwise reference the worksheet file.
 
 ### Worked example: the shape
@@ -231,7 +231,7 @@ Three different moments, three different numbers, no contradiction:
 |---|---|---|
 | [line-brainstorm.md](line-brainstorm.md) dump | its own "30-50+ across 5 columns" | the song's `variations/` or `worksheets/` file |
 | Variations generated per axis, per Step 2 above | 4-6 | the `variations/<section>-<line>.md` menu |
-| Candidates SHOWN in one chat menu | 3-4 | the chat, as full-context blocks |
+| Candidates shown in one chat menu | 3-4 | the chat, as full-context blocks |
 
 Generate wide, record everything, show few. [line-brainstorm.md](line-brainstorm.md)
 is unchanged by this section: it still dumps every column, and those columns
@@ -242,7 +242,7 @@ them later.
 
 ### Scope of this section
 
-This governs only the SHAPE of what is shown. Whether a candidate is *ready*
+This governs only the shape of what is shown. Whether a candidate is *ready*
 to be shown is [line-edit-rubric.md](line-edit-rubric.md), the per-edit cycle the
 writer requested in the same 2026-08-12 breath, whose pass 1 must be clean before
 anything reaches the menu, and whose closing sing-check is always the final gate.
@@ -251,7 +251,7 @@ through it.
 
 ## Step 3: Highlight the trade-offs
 
-For each variation, name what the variation gains AND what it loses
+For each variation, name what the variation gains and what it loses
 compared to the original.
 
 - "Variation 1 gains intimacy (2nd person); loses universality (1st
@@ -261,7 +261,7 @@ compared to the original.
 
 The writer chooses by trade-off, not by what reads best in isolation.
 
-## Step 4: Do NOT pick a winner
+## Step 4: Do not pick a winner
 
 Surface the labeled list with trade-offs. Let the writer choose.
 
@@ -319,7 +319,7 @@ same file rather than deleting them. They may help later songs.
 - `rhyme-generation.md`: vowel-shift rhyme implications
 - `line-brainstorm.md`: the high-volume dump that feeds this menu; its
   volume and this file's 3-4 chat cap are different moments
-- `line-edit-rubric.md`: the per-candidate cycle a variation clears BEFORE it
+- `line-edit-rubric.md`: the per-candidate cycle a variation clears before it
   reaches the menu this file shapes
 - `artifact-persistence.md`: where the `variations/` file lives, and the
   "don't dump options inline" wording this file qualifies

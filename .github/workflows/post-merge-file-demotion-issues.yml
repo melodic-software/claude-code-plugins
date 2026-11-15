@@ -53,7 +53,7 @@ name: Post Merge File Demotion Issues
 # file it once and never again after a person closes its record. A failed
 # canary still files its canary record too. A revert of a pull request someone
 # else enqueued files nothing; an unproven one demotes, a reverted commit whose
-# pull request cannot be read included. The alert job finds the revert and hands
+# pull request cannot be read included. The file-demotion-issue job finds the revert and hands
 # the record to the file-revert job, whose token holds issues: write alone,
 # through its outputs; that job re-reads the records first and files nothing
 # when one already lists every revert commit. A revert record gets Work status
@@ -91,15 +91,15 @@ name: Post Merge File Demotion Issues
 # second intake dispatch. Closing a fix issue changes nothing on the record.
 #
 # A full run pr-merge.yml starts for main's merges uses GITHUB_TOKEN, so its
-# completion raises no workflow_run event. pr-merge's post-merge-dispatch job
+# completion raises no workflow_run event. pr-merge's dispatch-post-merge-runs job
 # sends a red one here on its next scheduled run, through workflow_dispatch
 # with its run id and head SHA, instead; the first step reads that run and
 # refuses anything but a red pr-require-checks run on this repository's main
 # that github-actions[bot] dispatched, at that head SHA. Red is any conclusion
 # in babysit_postmerge.py's FAILED_CONCLUSIONS. A red run inside a lane merge's
 # attribution window, or one that demotes by the affected-set rule, gets its
-# one re-run from pr-merge's post-merge-dispatch job, and any other gets none,
-# so the alert waits for a re-run as long as the report job does
+# one re-run from pr-merge's dispatch-post-merge-runs job, and any other gets none,
+# so the file-demotion-issue waits for a re-run as long as the report job does
 # (red-main.confirm-wait-minutes) and starts none itself. Once a newer
 # pr-require-checks run on this repository's main has passed, main already
 # recovered: no record, fix issue or report is filed. The wait checks for one
@@ -114,12 +114,12 @@ name: Post Merge File Demotion Issues
 # and one log issue. While `red-main.dry-run` is true it pushes, opens and
 # merges nothing.
 #
-# Test: scripts/post-merge-demotion-alert.test.sh runs the alert's retry and
+# Test: scripts/post-merge-demotion-alert.test.sh runs the file-demotion-issue's retry and
 # filing step bodies;
 # .github/scripts/post-merge-demotion-alert/ tests the report job.
 
 on:
-  # Both jobs check out main's tip and run its scripts; the alert's --judge-run
+  # Both jobs check out main's tip and run its scripts; the file-demotion-issue's --judge-run
   # also runs scripts/plan-test-lanes.sh from main's last green full run's
   # commit (never the failing one, which the judged merges wrote), with every
   # *TOKEN* variable removed from its environment. No code from outside main
@@ -129,7 +129,7 @@ on:
     workflows: [PR Require Checks, Post Merge Detect Silent Revert]
     types: [completed]
     branches: [main]
-  # pr-merge.yml's post-merge-dispatch job, with GITHUB_TOKEN, or a listed
+  # pr-merge.yml's dispatch-post-merge-runs job, with GITHUB_TOKEN, or a listed
   # human (trusted-actors.json on main) names a red full run that raised no
   # workflow_run event. Both inputs are checked before use, and the head SHA
   # must be the run's own.
@@ -140,15 +140,15 @@ on:
         required: true
         type: string
       head-sha:
-        description: The run's head SHA (40 lowercase hex digits), which keys the alert's concurrency group
+        description: The run's head SHA (40 lowercase hex digits), which keys the file-demotion-issue's concurrency group
         required: true
         type: string
 
 permissions: {}
 
 jobs:
-  alert:
-    name: File The Demotion Issue
+  file-demotion-issue:
+    name: File Demotion Issue
     # The file step's early exits, read from the event before any checkout: a
     # workflow_run event that is not a signal, a full run's pass on attempt 1
     # or action_required, or a run off this repository's main starts no job.
@@ -1285,14 +1285,14 @@ jobs:
   # merge-path: <path>, and the pull requests it reverts on one also
   # post-merge: reverted (merge-path.mjs; README.md, "Merge paths"). Record
   # only: no issue, comment, demotion or hold, and GITHUB_TOKEN's label
-  # writes start no workflow run. It runs whatever the alert job concluded,
+  # writes start no workflow run. It runs whatever the file-demotion-issue job concluded,
   # as file-revert does, from the main tip that job checked out.
   label-paths:
     name: Label The Merge Paths
-    needs: [alert]
+    needs: [file-demotion-issue]
     if: >-
       !cancelled()
-      && (needs.alert.outputs.merged-prs != '' || needs.alert.outputs.reverted-prs != '')
+      && (needs.file-demotion-issue.outputs.merged-prs != '' || needs.file-demotion-issue.outputs.reverted-prs != '')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -1310,7 +1310,7 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.alert.outputs.tip }}
+          ref: ${{ needs.file-demotion-issue.outputs.tip }}
           path: .base
           persist-credentials: false
 
@@ -1324,8 +1324,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BASE_PATH: .base
-          MERGED_PRS: ${{ needs.alert.outputs.merged-prs }}
-          REVERTED_PRS: ${{ needs.alert.outputs.reverted-prs }}
+          MERGED_PRS: ${{ needs.file-demotion-issue.outputs.merged-prs }}
+          REVERTED_PRS: ${{ needs.file-demotion-issue.outputs.reverted-prs }}
         run: node .base/.github/scripts/post-merge-demotion-alert/merge-path.mjs label --merged "$MERGED_PRS" --reverted "$REVERTED_PRS"
 
       - name: Log the API budget at the end
@@ -1336,36 +1336,36 @@ jobs:
         with:
           tokens: github-token
 
-  # The revert record the alert job found for a canary push run, filed under
-  # a token that holds issues: write alone. It runs whatever the alert job
+  # The revert record the file-demotion-issue job found for a canary push run, filed under
+  # a token that holds issues: write alone. It runs whatever the file-demotion-issue job
   # concluded, since that job can fail after it handed the record over (a
   # canary record or hand-off that did not file). It checks out nothing.
   file-revert:
     name: File The Revert Demotion Issue
-    needs: [alert]
+    needs: [file-demotion-issue]
     if: >-
       !cancelled()
-      && needs.alert.outputs.revert-title != ''
+      && needs.file-demotion-issue.outputs.revert-title != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       issues: write # read the records and file the revert record
-    # One group per SHA, as the alert's: a pending filer another of the same
+    # One group per SHA, as the file-demotion-issue's: a pending filer another of the same
     # SHA replaces carries the same revert commits.
     concurrency:
-      group: post-merge-demotion-alert-revert-${{ needs.alert.outputs.sha }}
+      group: post-merge-demotion-alert-revert-${{ needs.file-demotion-issue.outputs.sha }}
       cancel-in-progress: false
     steps:
       - name: File the revert demotion issue
         env:
           GH_TOKEN: ${{ github.token }}
-          RUN_SHA: ${{ needs.alert.outputs.sha }}
-          REVERT_TITLE: ${{ needs.alert.outputs.revert-title }}
-          REVERT_BODY: ${{ needs.alert.outputs.revert-body }}
-          REVERT_COMMITS: ${{ needs.alert.outputs.revert-commits }}
-          REVERT_FILER: ${{ needs.alert.outputs.revert-filer }}
+          RUN_SHA: ${{ needs.file-demotion-issue.outputs.sha }}
+          REVERT_TITLE: ${{ needs.file-demotion-issue.outputs.revert-title }}
+          REVERT_BODY: ${{ needs.file-demotion-issue.outputs.revert-body }}
+          REVERT_COMMITS: ${{ needs.file-demotion-issue.outputs.revert-commits }}
+          REVERT_FILER: ${{ needs.file-demotion-issue.outputs.revert-filer }}
         run: |
-          # The alert job's record, checked for shape before any write.
+          # The file-demotion-issue job's record, checked for shape before any write.
           if [[ ! "$RUN_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::head SHA '$RUN_SHA' is not a full commit SHA"
             exit 1
@@ -1380,10 +1380,10 @@ jobs:
           title_re="^Post-merge revert( of #[1-9][0-9]*(, #[1-9][0-9]*)*)? at ${RUN_SHA:0:12}: unattended merging demoted\$"
           if ((${#commits[@]} == 0)) || [[ ! "$REVERT_TITLE" =~ $title_re ||
               "${REVERT_BODY%%$'\n'*}" != "<!-- babysit-merge-demotion sha=$RUN_SHA signal=revert -->" ]]; then
-            echo "::error::the alert job handed over no well-formed revert record for ${RUN_SHA:0:12}"
+            echo "::error::the file-demotion-issue job handed over no well-formed revert record for ${RUN_SHA:0:12}"
             exit 1
           fi
-          # Re-read the revert records of both filers, as the alert job did,
+          # Re-read the revert records of both filers, as the file-demotion-issue job did,
           # so an overlapping run that filed since files no second record. A
           # failed read files anyway: a duplicate record beats a missed one.
           filers=(github-actions%5Bbot%5D)
@@ -1432,26 +1432,26 @@ jobs:
           fi
           echo "filed the revert demotion issue for ${RUN_SHA:0:12}"
 
-  # The red-main report. It runs after the alert job, so a re-run the alert
+  # The red-main report. It runs after the file-demotion-issue job, so a re-run the file-demotion-issue
   # started is already under way, and only for a full run on main that
   # concluded failure: a cancelled, timed-out or not-started run, and the
   # canary, never trigger it. It holds the job's own GITHUB_TOKEN, never a
   # lanes App token, writes only its log issue, and skips an event the lanes
-  # App sent. It reads the run from the alert job's outputs, which a refused
-  # dispatch leaves empty, and skips a dispatched run the alert found main
-  # already recovered from, and a run the alert excused by suite.
+  # App sent. It reads the run from the file-demotion-issue job's outputs, which a refused
+  # dispatch leaves empty, and skips a dispatched run the file-demotion-issue found main
+  # already recovered from, and a run the file-demotion-issue excused by suite.
   report-red-main:
     name: Report The Red-Main Culprit
-    needs: [alert]
+    needs: [file-demotion-issue]
     if: >-
       !cancelled()
-      && needs.alert.outputs.name == 'PR Require Checks'
-      && contains(fromJSON('["schedule", "workflow_dispatch"]'), needs.alert.outputs.event)
-      && needs.alert.outputs.conclusion == 'failure'
-      && needs.alert.outputs.branch == 'main'
-      && needs.alert.outputs.repo == github.repository
-      && needs.alert.outputs.recovered != 'true'
-      && needs.alert.outputs.excused != 'true'
+      && needs.file-demotion-issue.outputs.name == 'PR Require Checks'
+      && contains(fromJSON('["schedule", "workflow_dispatch"]'), needs.file-demotion-issue.outputs.event)
+      && needs.file-demotion-issue.outputs.conclusion == 'failure'
+      && needs.file-demotion-issue.outputs.branch == 'main'
+      && needs.file-demotion-issue.outputs.repo == github.repository
+      && needs.file-demotion-issue.outputs.recovered != 'true'
+      && needs.file-demotion-issue.outputs.excused != 'true'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
     runs-on: ubuntu-24.04
     # Up to red-main.confirm-wait-minutes (at most 60) waiting on the re-run.
@@ -1530,11 +1530,11 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           BASE_PATH: .base
           CALL_BUDGET: "300"
-          RUN_ID: ${{ needs.alert.outputs.id }}
-          RUN_SHA: ${{ needs.alert.outputs.sha }}
-          RUN_URL: ${{ needs.alert.outputs.url }}
-          RUN_WORKFLOW_ID: ${{ needs.alert.outputs.workflow-id }}
-          RUN_CREATED: ${{ needs.alert.outputs.created }}
+          RUN_ID: ${{ needs.file-demotion-issue.outputs.id }}
+          RUN_SHA: ${{ needs.file-demotion-issue.outputs.sha }}
+          RUN_URL: ${{ needs.file-demotion-issue.outputs.url }}
+          RUN_WORKFLOW_ID: ${{ needs.file-demotion-issue.outputs.workflow-id }}
+          RUN_CREATED: ${{ needs.file-demotion-issue.outputs.created }}
         run: node .base/.github/scripts/post-merge-demotion-alert/report.mjs
 
       - name: Log the API budget at the end

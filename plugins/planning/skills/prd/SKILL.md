@@ -38,15 +38,15 @@ The PRD is **never an implementation plan**: problem, users, success, yes; archi
 
 ## Trigger conditions. When to invoke `/planning:prd`
 
-Invoke `/planning:prd` when ALL of these are true:
+Invoke `/planning:prd` when all of these are true:
 
 - The work has a **user-facing surface**: new feature, screen, flow, public API, or external behavior
 - The change is **business- or product-driven**: solves a user problem, opens a market, hits a metric. Not engineering-internal cleanup
 - **Alignment matters**: multiple stakeholders, cross-team work, or a written reference for future agents
 
-## Skip conditions. When to NOT invoke `/planning:prd`
+## Skip conditions. When to not invoke `/planning:prd`
 
-If ANY of these hold, do NOT write a PRD. Tell the user explicitly: *"This is engineering-internal. No PRD. Recommend `/planning:interview` (if intent is fuzzy) or `/planning:plan` (if it's clear)."*
+If any of these hold, do not write a PRD. Tell the user explicitly: *"This is engineering-internal. No PRD. Recommend `/planning:interview` (if intent is fuzzy) or `/planning:plan` (if it's clear)."*
 
 - **Refactors** (no behavior change)
 - **Infrastructure** (build, CI, hooks, config, dependency bumps, lockfiles)
@@ -82,9 +82,9 @@ Tier choice rationale: [`context/templates.md`](context/templates.md). When the 
 Before any other work, run this mandatory check: validate the request matches the trigger conditions. If it matches the skip conditions, STOP and tell the user:
 
 > *"This looks engineering-internal (`<reason>`). PRDs add cost without value here. Recommend:
-> `/planning:interview` for fuzzy intent OR `/planning:plan` directly if scope is clear."*
+> `/planning:interview` for fuzzy intent or `/planning:plan` directly if scope is clear."*
 
-Do not proceed unless the user explicitly overrides ("write the PRD anyway") OR clarifies the user-facing/business framing.
+Do not proceed unless the user explicitly overrides ("write the PRD anyway") or clarifies the user-facing/business framing.
 
 ### Step 2. Survey before you write
 
@@ -123,7 +123,7 @@ With `synthesize`, skip Step 4 Q&A and produce the PRD from existing conversatio
 
 `synthesize` also skips the always-on coverage prompt and reports it unexamined, per "Acceptance-criteria capture" below.
 
-If after the survey a required section has NO answerable content in the conversation, record it as an open question rather than forcing Q&A; `/planning:interview` or `/planning:plan` picks it up downstream.
+If after the survey a required section has no answerable content in the conversation, record it as an open question rather than forcing Q&A; `/planning:interview` or `/planning:plan` picks it up downstream.
 
 ### Step 4. Drive frontier-rounds Q&A
 
@@ -151,7 +151,7 @@ Question shapes that recur, in priority order:
 | Assumptions | "What are we taking as true without proof, and what would show it false?" |
 | Open questions | "What is genuinely undecided that `/planning:plan` needs an answer to?" |
 
-Stop asking once every required section has either a resolved answer or an explicit "open question with revisit trigger".
+Stop asking once every required section has either a resolved answer or an explicit "open question with recheck trigger".
 
 ### Step 5. Persist the PRD
 
@@ -219,7 +219,7 @@ While capturing them, ask ONE question: are they missing an **unwanted-behavior*
 
 ### Non-interactive runs skip the ask and say so
 
-The **`synthesize` action skips it**, along with any run that has nobody to answer: a dispatched worker, a forked subagent, a headless invocation, or any caller that declared the run unattended. In every one of those the ask is SKIPPED rather than blocking, and the returned summary states that **unwanted-behavior and state-driven coverage went unexamined**. Record the same line in the PRD's **Open questions** section so it outlives the summary.
+The **`synthesize` action skips it**, along with any run that has nobody to answer: a dispatched worker, a forked subagent, a headless invocation, or any caller that declared the run unattended. In every one of those the ask is skipped rather than blocking, and the returned summary states that **unwanted-behavior and state-driven coverage went unexamined**. Record the same line in the PRD's **Open questions** section so it outlives the summary.
 
 The unattended condition is **declared by the caller, never sniffed**: never read an environment variable to decide it; `synthesize` is an explicit argument, which is a declaration.
 
@@ -262,7 +262,7 @@ When invoked with `review`:
 
 Review checks structure and convention; `/planning:devils-advocate` (run later against `/planning:plan`'s plan, not the PRD) checks failure modes.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not plan implementation**. Architecture, files, tests, code is `/planning:plan`'s job. If you find yourself writing "we'll add `XHandler` to module Y", move that to open questions as an architecture decision for later
 - **Does not run exploration or research**. Step 2's survey is a fast grounding pass. If product framing requires deep external research (competitive analysis, market data), pause the PRD and recommend the research capability first

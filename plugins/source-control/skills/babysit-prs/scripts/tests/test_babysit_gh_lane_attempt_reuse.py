@@ -170,6 +170,25 @@ class LaneAttemptReuseTests(unittest.TestCase):
         first = runs[0]["attempts"][0]["jobs"]
         self.assertEqual(first[0]["annotations"], [error])
 
+    def test_a_kill_switch_job_under_its_current_name_is_read(self) -> None:
+        rerun = {**self.run_record, "run_attempt": 2}
+        notice = {
+            "annotation_level": "notice",
+            "message": "a kill switch stops this review (lanes: kill-switch)",
+        }
+        jobs = {
+            1: [
+                {"id": 11, "name": "Check Kill Switch", "conclusion": "success"},
+                {"id": 12, "name": "Check Kill", "conclusion": "success"},
+                {"id": 13, "name": "PR Review", "conclusion": "skipped"},
+            ],
+            2: [{"id": 22, "name": "PR Review / review-status"}],
+        }
+        runs = self.collect(rerun, {1: self.attempt}, jobs, {11: [notice], 22: []})
+        first = runs[0]["attempts"][0]["jobs"]
+        self.assertEqual(first[0]["annotations"], [notice])
+        self.assertNotIn("annotations", first[1])
+
 
 if __name__ == "__main__":
     unittest.main()

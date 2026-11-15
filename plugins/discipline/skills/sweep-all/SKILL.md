@@ -9,8 +9,8 @@ metadata:
 
 # Sweep all disciplines
 
-A **declared second species** in this plugin: NOT a corrector. It carries no
-discipline of its own; it is a pure router that COMPOSES the correctors into a
+A **declared second species** in this plugin: not a corrector. It carries no
+discipline of its own; it is a pure router that composes the correctors into a
 single batched re-anchor pass. The disciplines live in the correctors, the
 shared method lives in
 [`${CLAUDE_PLUGIN_ROOT}/context/re-anchor-audit-correct.md`](../../context/re-anchor-audit-correct.md),
@@ -21,7 +21,7 @@ names no members: it globs and reads them.
 
 1. **Session-start digest (cheap, default when nothing has happened yet).**
    Derive the posture from the skill listing and each corrector's tier
-   metadata. NO corrector bodies load, NO audit runs. Report which
+   metadata. No corrector bodies load, no audit runs. Report which
    correctors are core (run every session), which are situational
    (relevance-gated), and which are never-batched. This is the
    conversation-start case: set posture, audit nothing.
@@ -39,7 +39,7 @@ Glob the sibling corrector directories and read each one's
 `metadata.discipline-batch-rank`.
 
 - **core**. In scope every session.
-- **situational**. In scope only when relevant to THIS conversation. Route
+- **situational**. In scope only when relevant to this conversation. Route
   from the corrector's own listing description (its trigger phrases and
   "at conversation start on …" clause), not from a guess. Report which
   situational correctors were included and which were skipped and why. A
@@ -103,8 +103,8 @@ through Claude Code's native plugin-config flow, see the plugin README, never a 
 - Promoted to always-run: `${user_config.batch_promote}`
 - Demoted to relevance-gated: `${user_config.batch_demote}`
 
-Each is a comma-separated list of corrector names. Treat BOTH an empty value
-AND a surviving literal `${user_config.…}` placeholder as unset, no override
+Each is a comma-separated list of corrector names. Treat both an empty value
+and a surviving literal `${user_config.…}` placeholder as unset, no override
 from that key, and never read the literal token as a corrector name. Substitution is documented at
 [plugin manifest reference: reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
 which does not say what an unset option renders. Apply
@@ -122,9 +122,9 @@ promote entry, resolve the name against the globbed correctors' tier metadata:
 Report the net effect whenever the override changes the set, and surface every
 never/core/unknown promote warning in that report, never silently drop them.
 
-## What this skill does NOT do
+## What this skill does not do
 
-- **Not `use-your-skills`.** That corrector routes to the ONE skill fitting a
+- **Not `use-your-skills`.** That corrector routes to the one skill fitting a
   task; this composes the whole posture bundle.
 - **Not a session or SDLC orchestrator.** Staged navigation and session
   lifecycle belong to the `session-flow` plugin; this only sequences the
@@ -155,7 +155,7 @@ never/core/unknown promote warning in that report, never silently drop them.
 
   Never present the audit fan-out's read-only posture as harness-enforced. If you
   want assurance that the fan-out honored it, capture the working tree's state
-  before the FIRST dispatch (the canary included) and compare afterwards, and
+  before the first dispatch (the canary included) and compare afterwards, and
   treat any difference as a fork that wrote. Untrusted output, stop rather
   than correct on top of it. That is detection after the fact, not prevention,
   and a robust comparison is more than a `git status` diff; this skill does not

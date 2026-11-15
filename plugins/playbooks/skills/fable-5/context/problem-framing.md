@@ -31,8 +31,8 @@ When a signal fires, spend one investigation step, 1-3 tool calls, connecting th
 
 - Evidence fits the mechanism → execute as asked; the framing survived contact with evidence.
 - Evidence inconclusive after the step → execute as asked and flag the unverified mechanism-symptom link in one line, since the user may hold the context that closes it.
-- Evidence contradicts AND the ask is reversible-tier per the planning chapter → deliver the ask plus a one-line note of the mismatch; the note is insurance, not obstruction.
-- Evidence contradicts AND the ask is expensive- or permanent-tier → stop and present the evidence and your alternative before writing anything.
+- Evidence contradicts and the ask is reversible-tier per the planning chapter → deliver the ask plus a one-line note of the mismatch; the note is insurance, not obstruction.
+- Evidence contradicts and the ask is expensive- or permanent-tier → stop and present the evidence and your alternative before writing anything.
 
 Never take either silent path: silently substituting your own solution (the user may hold context you lack), or silently building what your evidence says is wrong (you become an amplifier of the error, with your competence as its credential).
 
@@ -57,7 +57,7 @@ TRIGGER: run the sort at frame time, and again any moment you catch yourself cho
 
 ## Hunt the request's unknowns, quadrant by quadrant
 
-TRIGGER: the task is large enough to consume a session or more, OR the user has disclosed inexperience with the domain, OR the request is confident in its center and silent at its edges (states the feature precisely, says nothing about failure, migration, or the second consumer), OR the work sits in territory you have read no prior art for this session and the request names none of the domain's standard concerns.
+TRIGGER: the task is large enough to consume a session or more, or the user has disclosed inexperience with the domain, or the request is confident in its center and silent at its edges (states the feature precisely, says nothing about failure, migration, or the second consumer), or the work sits in territory you have read no prior art for this session and the request names none of the domain's standard concerns.
 
 The gap between the request and reality sorts into four cells; each cell has a different clearing move, and the work's quality ceiling is set by the cells nobody clears:
 
@@ -80,7 +80,7 @@ The gate is their ability, not their disclosure of it. Someone who has never see
 
 With the bar in hand, show instead of asking: a sketch, a throwaway prototype, or one fully worked example surfaces the preference for a fraction of what a full build costs, which is the pricing prior at the top of this chapter applied to elicitation. When the preference is one they can only recognize on sight, several deliberately different directions beat one refined candidate, and the divergence has to run along the dimension they cannot put words to, not produce N variations of a single idea, which surfaces nothing but polish. What you hand over is a deliverable for them to react to, never an option survey you owe a pick on.
 
-TRIGGER for the hunt below: the user describes a desired pattern in prose, OR describing what they want would cost them more than pointing at an example of it. Hunt a concrete exemplar rather than interpreting the description, because a reference carries the dozen decisions their prose dropped. Three rules govern the hunt, and one governs what you do with what you find:
+TRIGGER for the hunt below: the user describes a desired pattern in prose, or describing what they want would cost them more than pointing at an example of it. Hunt a concrete exemplar rather than interpreting the description, because a reference carries the dozen decisions their prose dropped. Three rules govern the hunt, and one governs what you do with what you find:
 
 - **Take the form that most directly carries the aspect you need**, whether behavior, structure, or interface, and say which aspect that is. A screenshot is the highest-fidelity form for a layout; a working implementation is, for edge-case handling. No ranking of media survives the next task, so name the aspect instead of ranking the forms.
 - **A reference in another language, framework, or stack still qualifies.** What ports is the semantics and the structure, never the syntax; the form the port takes is governed by the execution chapter, section "Write in the codebase's dialect, not yours".
@@ -91,14 +91,14 @@ What these moves produce is a distinct kind of artifact, and the standing rules 
 
 ## Falsify the frame before you commit to it
 
-TRIGGER: before locking the frame on anything multi-file, behavior-changing, or in territory you have not touched this session. SKIP only when you can already enumerate every consumer of the behavior you will change, since that enumeration is the evidence this pass exists to gather.
+TRIGGER: before locking the frame on anything multi-file, behavior-changing, or in territory you have not touched this session. Skip only when you can already enumerate every consumer of the behavior you will change, since that enumeration is the evidence this pass exists to gather.
 
 Your frame is assembled from what you happened to notice; the constraint that kills it lives in what you did not. Run a breadth pass whose explicit goal is to break the frame, because confirmation passes always succeed and therefore prove nothing. Moves with disproportionate payoff:
 
 - Search the codebase for prior art on the same problem: a half-finished or superseded attempt converts your task from "create" to "extend, or explain why not," and its scars tell you what already failed.
 - Read the version-control history of the exact code you will change: an absence you are about to fill may be deliberate. Something removed on purpose reads identically to something never built, until you check.
 - Enumerate consumers you do not know about: callers, scheduled jobs, anything depending on the behavior you will change; census mechanics are owned by the planning chapter, section "Blast radius census".
-- Ask one deliberate question: "what would make this whole task unnecessary or wrong?" If you cannot explain why the obvious simpler alternative was not already done, that unexplained gap IS a finding. Someone may have tried it.
+- Ask one deliberate question: "what would make this whole task unnecessary or wrong?" If you cannot explain why the obvious simpler alternative was not already done, that unexplained gap is a finding. Someone may have tried it.
 
 Budget the pass by reversibility tier (the planning chapter, section "Reversibility tiers", owns the tiers): reversible-tier changes get 3-5 tool calls; expensive- or permanent-tier changes get 10+ tool calls plus the consumer census. Stop when a pass surfaces no new constraint, not when you feel confident, because confidence without a falsification attempt is just familiarity. Failure mode prevented: the frame collapse at 80% complete, the pricing prior at its worst, where the constraint you never hunted surfaces as a rewrite.
 
@@ -126,7 +126,7 @@ Write one to three completion criteria, each checkable by observation rather tha
 Two properties are mandatory:
 
 - Every criterion names an observable: an output, a test result, a measurement, a demonstrable behavior. "Better," "cleaner," "more robust" are verdicts, not criteria.
-- Every fix gets a negative criterion naming the behavior that must survive: a fix is symptom-gone AND no-collateral, and leaving the second half implicit is how regressions ship inside fixes.
+- Every fix gets a negative criterion naming the behavior that must survive: a fix is symptom-gone and no-collateral, and leaving the second half implicit is how regressions ship inside fixes.
 
 If you cannot write a checkable criterion, treat it as a frame defect rather than a formality to skip: either you do not yet understand the problem (return to the sections above), or the task is genuinely judgment-shaped, so say so and agree on a proxy or a review checkpoint before starting, instead of discovering the disagreement at delivery. How criteria get verified is the verification chapter's business; framing's whole job is that they exist, are checkable, and predate the work.
 

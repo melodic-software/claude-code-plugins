@@ -3,6 +3,15 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.13] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
+- The design and write-css skills and the web and animation reference pages state their rules in plain case and literal terms, point at upstream sources instead of restating them, and settle points where two files disagreed.
+- The `appearance-keeps-layout-box` grader accepts only `font-variant-numeric: tabular-nums`, matching the typography rule, and the `deliberate-typeface` grader states its rule without an origin note.
+
 ## [0.27.12] - 2026-11-14
 
 ### Changed

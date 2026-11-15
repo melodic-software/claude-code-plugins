@@ -58,12 +58,12 @@ value and its unset fallback.
   `git merge origin/<baseRefName>` + push from a behind-head tip silently reverts the newest branch
   commit(s). Safety comes from this assertion, not from the assigned `HEAD` happening to match. The
   assertion is also on **identity, not just the commit**: a clean worktree whose tip merely equals
-  `headRefOid` while checked out on some OTHER local branch must not enter full mode. A fix committed
+  `headRefOid` while checked out on some other local branch must not enter full mode. A fix committed
   there advances that unrelated branch while only the refspec push lands on the PR branch, leaving the
   other branch locally carrying this PR's work. Require the checkout to be on the PR branch or in
   detached HEAD (a coincidental same-tip match on another branch heals via the forge's PR checkout,
-  [GitHub](../../../reference/providers/github/babysit-prs/safety.md#true-pr-head-and-push-destination)). This
-  extends the head-SHA re-check below, which covered only the head moving *mid-work*, to the moment
+  [GitHub](../../../reference/providers/github/babysit-prs/safety.md#true-pr-head-and-push-destination)). The
+  head-SHA re-check below covers the head moving *mid-work*; this assertion covers the moment
   the worktree is first assigned. **One codified exception:** the conflict-resolution push in
   `orchestration.md`'s Orchestrator Contract. There `HEAD` is by construction the local merge commit
   the conflict worker produced, which the live PR does not carry yet, so the assertion is checked
@@ -210,7 +210,7 @@ loop's own escalation contract is not outside it.
   signal a round count only approximates. The test is scoped to advisory rounds because those are
   the rounds the ledger records. A blocking-defect round in between neither counts nor resets it.
   It survives context rollover because the classification itself is durable, and two duties follow:
-  - **Classify at record time on EVERY advisory round, not only when an escalation is already
+  - **Classify at record time on every advisory round, not only when an escalation is already
     being prepared.** This section's heading scopes when to *escalate*; the classification itself
     is a per-round duty, because a round that runs it only at escalation time has already lost the
     history the tripwire consumes. Run the (a)/(b)/(c) taxonomy over the round's findings before
@@ -226,13 +226,13 @@ loop's own escalation contract is not outside it.
     plus the `basis` it was decided on, covers the rounds already recorded, so at round start it
     reports whether the lane arrived here already non-converging. The **decisive** read for the
     round about to be dispatched is the verdict `record-advisory-round` returns once this round's
-    own classes are recorded: that is what answers "is THIS round all-(c) after an all-(c)
+    own classes are recorded: that is what answers "is this round all-(c) after an all-(c)
     predecessor", and it is why the classification is recorded before the fix is dispatched rather
     than after it. Either read is a field a fresh worker with no prior context can just read,
     instead of reconstructing the previous round's composition from GitHub threads. A round
     recorded before per-finding classes were persisted reads as UNKNOWN, not (a)/(b), and the
     tripwire **fails closed** on it: a current all-(c) round following an UNKNOWN round arms, and
-    the escalation says so rather than silently resetting the count. Armed means change METHOD
+    the escalation says so rather than silently resetting the count. Armed means change method
     rather than stopping: rewrite the contested section whole in one commit, or report it for a
     human decision. It is never a license to ship a known defect.
 - Escalate a bounding/cap-policy question only when verification shows (a), a second consecutive
@@ -536,7 +536,7 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   a merge request left pending on GitHub stays visible to later runs (§Async Merge Path); the gate
   writes nothing else there.
 - **`babysit_review_settle_minutes` set with `babysit_review_bot_logins` unset is a configuration
-  error, and it must be refused HERE rather than rendered away.** Omitting both flags because one
+  error, and it must be refused here rather than rendered away.** Omitting both flags because one
   key is missing is the one case the CLI's exit `2` cannot catch: the lone flag never reaches it,
   so the merge proceeds with the hold silently dormant under a setting that looks active. Stop and
   report the misconfiguration instead of constructing the merge command. The converse is not an
@@ -544,15 +544,15 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   leaves the settle hold correctly dormant.
 - **`--self-logins @me,<self-logins>` rides on every resolve-thread form too**, listing and
   mutating alike, always (`@me` resolves your own `gh` login; append `babysit_self_logins`
-  extras). The bot-only classifier (`project_thread`'s `botOnly`) requires a BOT OPENER **and**
-  inspects every other fetched participant, so the worker's OWN reply to a bot thread (a
+  extras). The bot-only classifier (`project_thread`'s `botOnly`) requires a bot opener **and**
+  inspects every other fetched participant, so the worker's own reply to a bot thread (a
   classification reply, a `Fixed in <sha>` follow-up) is itself a comment the classifier sees.
   Without `--self-logins` that reply is indistinguishable from a genuine third-party human joining the
   thread: `botOnly` goes false, which locks the thread out of the default bot-only scope, and
   `--include-human` stays unset by design in worker/safe modes, so nothing lifts it back in and a
   bot thread the worker correctly handled is permanently unresolvable by the normal flow.
   `--self-logins` marks the caller's own posting identity as neutral for that test instead, and
-  neutral as a REPLY only: the OPENING comment must still be an ACTUAL bot's, so a thread the
+  neutral as a reply only: the opening comment must still be an actual bot's, so a thread the
   worker itself opened stays out of scope even after a bot replies to it (`review-discipline.md`
   D7.5 forbids resolving your own threads). Omit the flag only when `babysit_self_logins` is unset.
 - The merge wrapper mutates only with `--merge --expected-head <post-push-head-sha> --method
@@ -565,7 +565,7 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 - The merge wrapper never uses `--admin`, and it cannot resolve threads, post replies, or
   force-push. It merges or it refuses.
 - The merge CLI refuses a dependency-manager-authored PR absent `--allow-dependency`, and refuses
-  to merge on an unprotected base, meaning zero required reviews AND zero required status contexts,
+  to merge on an unprotected base, meaning zero required reviews and zero required status contexts,
   when the PR author is not one of `<self-logins>`, or when a `<self-logins>` author's base is not
   the repository's default branch, absent `--allow-unprotected`. The self exemption covers the
   solo-owner repository whose default branch carries no rules; it does not cover a merge onto
@@ -583,14 +583,14 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   `--lane-logins` and `--approver-bot-logins` are non-empty and the effective block labels are
   non-empty (the `--block-labels` fallback plus the target repository's `babysit_merge_block_labels`;
   the gate checks that set after it reads the repository's policy). Supplying any of those three
-  flags without the umbrella is a usage error (exit `2`). Absent the flag the gate is
-  exactly its prior self, so worker/autopilot's existing gate-proven merges are unchanged. This
+  flags without the umbrella is a usage error (exit `2`). Absent the flag the gate applies only
+  its base criteria, so worker and autopilot merges are gated as on the base path. This
   tier is only ever wired when `babysit_autopilot_merge_tier` is enabled.
 - The resolve wrapper's mutating forms are `--autonomous --resolve` (worker tier, constrained by
   the pre-push-outdated rule in `orchestration.md`), `--resolve --include-human` (autopilot's
   addressed-thread widening), and `--independent-resolver --resolve` (the evidence-gated third
   mode below). `--autonomous` admits only threads GitHub marks `isOutdated`. The worker must
-  additionally confine its resolves to threads already outdated in the PRE-push snapshot; that
+  additionally confine its resolves to threads already outdated in the pre-push snapshot; that
   pre-push-outdated rule is agent discipline, not machine-enforced, so a thread a worker's own push
   merely displaced (`isOutdated` flipped while both comment pins still match) is still resolvable by
   the script. Under `--resolve --include-human` the script still cannot merge, post replies, or
@@ -613,10 +613,10 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   `--independent-resolver` keeps the own-PR refusal. No permission is added: the resolve runs under
   the PR author's own login ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#resolve-identity-on-a-person-opened-pr)).
 - **`--independent-resolver` is a third mode, not a widening of `--autonomous`.** `--autonomous`
-  admits only `isOutdated` threads, and `isOutdated` means the referenced code MOVED, so on a
+  admits only `isOutdated` threads, and `isOutdated` means the referenced code moved, so on a
   prose or documentation PR, where a finding is normally addressed by rewriting elsewhere in the
-  file, the anchor never moves and the guard refuses a genuinely addressed finding forever. That
-  left an autonomous prose lane with no sanctioned route to zero unresolved threads. This mode
+  file, the anchor never moves and the guard refuses a genuinely addressed finding forever, which
+  leaves an autonomous prose lane with no sanctioned route to zero unresolved threads. This mode
   replaces `isOutdated` with two other properties. The first is **independence**: it is dispatched
   to a fresh context that is neither the merging worker nor the author of the fix, so the actor
   resolving is not the actor whose permission slip it is. That is a property of the dispatch and
@@ -669,7 +669,7 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   `--thread-id` whose pins have already drifted reports `refused-stale-pin` in list mode as well.
   A dry run predicts what `--resolve` would actually do, in every mode.
 - **A multi-finding thread is refused outright** (`skipped-multi-finding-thread`). One
-  `--disposition` is a claim about ONE finding, while `resolveReviewThread` clears the whole
+  `--disposition` is a claim about one finding, while `resolveReviewThread` clears the whole
   thread and drops every comment it carries out of the readiness denominator, so evidence for
   finding A would suppress an unaddressed finding B and let the merge gate pass over it. This is
   the D7.5 whole-thread eligibility rule (`reference/review-discipline.md`) enforced
@@ -849,7 +849,9 @@ segment under any caller, e.g. `review /` or `pr-review /`) and the security lan
 `pr-review-security / security-review` (matched by its
 whole name, never by the job segment alone; every name holds while old and new callers coexist),
 plus any `claude-security-review-status` check the rollup carries. ci-workflows' Title Case job
-names count too, each only as a whole name, since both lanes share the segment: the review lane's
+names count too, each only as a whole name, since both lanes share the segment, as do the status
+job's planned names (`PR Review / Publish Review`, `PR Review Security / Publish Review`, under
+the caller's display name or its id): the review lane's
 `PR Review / Status`, `pr-review / Status`, `PR Review / Claude`, `pr-review / Claude` or
 `pr-review-no-bots / Claude`, and the security lane's `PR Review Security / Status`,
 `pr-review-security / Status`, `PR Review Security / Claude` or `pr-review-security / Claude`.
@@ -892,11 +894,11 @@ second attempt after the lane's own `<lane>: failure-class=auth:` failure line (
 credential, which left no verdict), but the gate never starts that rerun: a person or session reruns
 it once the secret is fixed, since a rerun before then would spend the one attempt. A spent key
 already reports as `rate-limit`. It also binds a second attempt after a kill switch stopped the
-first: the caller's `kill-switch` job succeeded with its lane's `a kill switch stops this review (`
+first: the caller's `check-kill-switch` job succeeded with its lane's `a kill switch stops this review (`
 (or `security review (`) notice, and the first attempt has no lane job, so the review never
 started. The gate never starts that rerun either, since it cannot read the switch: ci-status asks a
 person to rerun the run once the switch is off. The same holds after the upstream-status gate
-stopped the first attempt (class `upstream-degraded`): the caller's `kill-switch` job failed with
+stopped the first attempt (class `upstream-degraded`): the caller's `check-kill-switch` job failed with
 its lane's `an upstream outage stops this review (` (or `security review (`) error and the first
 attempt has no lane job. The gate never starts that rerun; the lost-run reconciler reruns the
 run's failed jobs once GitHub Actions is operational and the upstream gate would let it run. A first
@@ -941,7 +943,7 @@ standalone invocation, `/source-control:pull-request`. The one thing that does i
 `enable-auto-merge.mjs`, which arms the lanes App's own pull requests natively and re-arms one
 whose auto-merge an App turned off; a person's disarm keeps it off.
 
-A push by a writer leaves an auto-merge armed (by a person, or before this rule), and the new head
+A push by a writer leaves an auto-merge armed (by a person, or by `enable-auto-merge.mjs`), and the new head
 would merge on `CI Status` alone.
 Verified 2026-09-26 against GitHub's [Automatically merging a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request),
 which disables auto-merge only when "someone without write permissions pushes new changes to the
@@ -958,9 +960,11 @@ disarm, so a lanes App pull request's new head can merge natively (see the post-
 ### Security/P1 escalation has no exception; the pre-escalation resolver is bound by it too
 
 Escalating a security/P1 thread instead of resolving it holds in every tier and every mode,
-autopilot and `--independent-resolver` included. The wrappers refuse a severity-flagged thread
-whoever asks, so no dispatch path can reach past it (`--independent-resolver` above, "the security/P1
-bright line, because this is still an unattended path"). The loop-lane convention's one named
+autopilot and `--independent-resolver` included. The resolve wrapper refuses a severity-flagged
+thread under `--autonomous` and `--independent-resolver` (`--independent-resolver` above, "the
+security/P1 bright line, because this is still an unattended path"); a vetted pinned `--resolve
+--thread-id` and autopilot's `--resolve --include-human` apply no severity screen, so there the
+escalation rests on the agent ([independent-resolution.md](independent-resolution.md)). The loop-lane convention's one named
 paired-argument exception (§1) widens the **merge rung** for a single run; it never widens the
 severity bright line, and reading it as an exception to this rule would describe an unreachable
 path.
@@ -975,7 +979,7 @@ that path is this narrow:
   orchestrator-side independent resolution dispatch
   ([`independent-resolution.md`](independent-resolution.md)) is **not** a second path to it: the
   wrapper's severity bright line refuses a security/P1 thread on that route
-  (`skipped-severity-marked`), so it escalates exactly as it did before.
+  (`skipped-severity-marked`), so it escalates.
 - **Only a fresh, independent context.** The dispatch must share no conversation history with
   whatever produced the PR or previously replied on the blocking thread (the convention's §3
   independence requirement). A continuation of the authoring session, or a re-invocation of the
@@ -1041,7 +1045,7 @@ announced operator step.
   Never approve on an unclean pass, and never under the author or a lane identity. Either
   collapses author ≠ approver and the gate refuses the merge fail-closed.
 
-- **Review-workflow requiredness precondition (enabling).** Enable the tier ONLY on a base branch
+- **Review-workflow requiredness precondition (enabling).** Enable the tier only on a base branch
   whose ruleset makes the review workflow a **required status context** *and* whose review workflow
   always runs to a non-skipped conclusion on every PR to that base. The gate proves the review ran
   solely through `mergeStateStatus == CLEAN`, which guarantees only that *required* contexts passed;
@@ -1056,7 +1060,7 @@ announced operator step.
   is an operator enabling precondition, verified before the flip, not something the merge gate can
   self-enforce.
 
-- **Bot-review precision precondition (enabling).** Enable the tier ONLY after the fleet's bot-review
+- **Bot-review precision precondition (enabling).** Enable the tier only after the fleet's bot-review
   lane has demonstrated recorded precision over a sustained window, the same earned-promotion trigger
   ADR 0002 sets for flipping an advisory review lane to a blocking gate. The tier lets a
   fleet-produced approval satisfy a required-review ruleset, which promotes that lane from advisory to
@@ -1238,9 +1242,8 @@ Named residuals:
   means one armed before it shipped, or one whose pin was edited or deleted after the enqueue.
 - A native merge's head is compared with no vetted head: a writer's push after the arm (the
   pr-unblock writers above) leaves auto-merge armed, and that head merges natively with no
-  read-back. `ci-status` still runs the hold rules on the merge-group head. The pending
-  synchronize disarm in [#9450](https://github.com/melodic-software/claude-code-plugins/pull/9450)
-  closes this once it lands.
+  read-back. `ci-status` still runs the hold rules on the merge-group head, including its
+  pr-verify pass at the queued head.
 - Event times have one-second resolution, so an identity arm in the same second as a gate enqueue
   counts as at or before it, and that gate merge reads as native and skips its read-back. So does
   an arm between the gate's disarm check and its enqueue.

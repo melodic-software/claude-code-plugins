@@ -467,8 +467,7 @@ to intake first: no person answers a split. Every intake hold for a person
 A session does not hold a pull request that a lane already judges (a Dependabot tier, the security
 review lane's verdict), or ask the owner about it, on its own concern. It routes the concern to that lane's owner as an issue,
 and labels the pull request only for a HIGH or CRITICAL risk it can evidence (a published advisory
-or malicious-package report, a leaked secret, a compromised publisher). A held Dependabot update
-went to the owner on 2026-10-28 although its tier was `auto`.
+or malicious-package report, a leaked secret, a compromised publisher).
 
 ### The owner's standing direction
 
@@ -504,9 +503,7 @@ and 10 (2026-10-29) are quoted in [When work stops for the owner](#when-work-sto
 Holding a **pull request** is a different act from escalating a tracker item, and this section owns
 it separately because the two acts fail differently: a tracker escalation waits for the attended
 queue, while a merge-capable lane may act on a PR within minutes, so a hold carries a hard
-real-time deadline. A hold that lands after the merge is not a hold (the incident behind this
-clause: an escalating lane decided to hold, drafted its explanation first, and applied the label
-~30 minutes later, 3 minutes *after* the PR had merged).
+real-time deadline. A hold that lands after the merge is not a hold.
 
 - **The `do-not-merge` label is the only cross-lane hold.** A lanes App hold line, a member's veto
   comment on a lanes App pull request and a person merging by hand use it; ci-status reads no body
@@ -737,15 +734,20 @@ Claude Code alias (see "Alias binding" below):
 
 | Tier | Role | Alias |
 |---|---|---|
-| frontier | Complex-stamped items; every security-surface work class, always; orchestrator where the organization chooses it | `best` |
+| frontier | Complex-stamped items; all security-surface work, always; orchestrator where the organization chooses it | `best` |
 | strong | Orchestrator by default ([ADR 0100](../../adr/0100-run-the-orchestrator-on-the-session-model-opus-by-default.md)); default implementer / worker for unrouted or complex work | `opus` |
 | fast | Mechanical items an objective check backs (a build, a test run, a schema or exit-code check), and phases a plan routes `sonnet` as well-scoped | `sonnet` |
+
+**Security-surface work** is work that changes authentication, authorization, the handling of
+tokens or secrets, permissions, or a network boundary. It is a property of the work, judged beside
+its work class, not one of the work classes. This is the one statement of its scope; other
+surfaces point here.
 
 Fixed rules: the orchestrator runs at the strong or frontier tier, in the coordinator shape where
 the larger model plans and coordinates and the workers execute; workers stay strong, and a
 mechanical item drops to the fast tier only when an objective check decides whether its output is
 correct; a reviewer or verifier is never on a weaker model than the implementer it checks (equal
-pairings are valid); a security-surface work class routes to the frontier tier unconditionally.
+pairings are valid); security-surface work routes to the frontier tier unconditionally.
 
 - **Pointer:** for the coordinator shape and when delegation pays, see
   [optimizing for cost and intelligence: orchestrator strategy](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work);
@@ -773,9 +775,9 @@ from the model page whenever it matters, and never restated in this convention.
 The reasons behind each binding:
 
 - **frontier binds `best`, not `fable`.** We bind the frontier tier to `best` because that alias
-  already carries the tier's meaning, Fable where the organization has it and Opus otherwise, so a
-  frontier dispatch self-heals where Fable is unavailable instead of failing or silently running a
-  stale pin. For Fable's access, version and billing requirements, see
+  names the tier rather than a model family, so the binding does not pin a stale model; what it
+  resolves to today is in the 2026-11-09 note below. For Fable's access, version and billing
+  requirements, see
   [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable).
 
   *Note, 2026-11-01:* `best` is a launch alias, not a value the Agent tool's per-invocation
@@ -791,8 +793,7 @@ The reasons behind each binding:
   the Fable rung is off, that run escalates instead of dispatching.
 
   *Note, 2026-11-09:* from Claude Code v2.1.321, `best` resolves to the same model as `opus`, so
-  the "Fable where the organization has it" reading above no longer holds and a frontier launch on
-  `best` runs Opus. The binding stays `best` by owner decision (2026-11-09): lane dispatch already
+  a frontier launch on `best` runs Opus. The binding stays `best` by owner decision (2026-11-09): lane dispatch already
   names `opus` while the Fable rung waits on the owner, so nothing a lane runs changes. Binding the
   frontier tier to `fable` is part of that same pending decision. Pointer:
   [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases). As of: 2026-11-09.
@@ -837,8 +838,8 @@ here rather than left as an unstated assumption:
 - **Classifier fallback, on every tier.** The models the `best`, `opus` and `sonnet` aliases
   resolve to run safety classifiers. A flagged request can re-run on a different model, after
   which the session stays there, or end in a refusal for a category with nowhere to fall back
-  to. Security work trips them most often, and frontier is the tier every security-surface work
-  class routes to, but the strong and fast tiers carry the same gap: a lane's tier can drop
+  to. Security work trips them most often, and frontier is the tier all security-surface work
+  routes to, but the strong and fast tiers carry the same gap: a lane's tier can drop
   mid-run, or a cycle can stop on a refusal, with nothing in the lane noticing.
 - **Pointer:** for the fallback targets, the categories without one, and the provider setup, see
   [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback)
@@ -1030,8 +1031,10 @@ per-session random `writer_nonce`, an ISO-8601 UTC `heartbeat_at` rewritten ever
 - `writer_nonce` differs **and** the block is stale (`heartbeat_at` older than **2 hours**, and past
   `paused_until` when set): a previous session of this same instance restarted or died. Adopt the
   block, write my nonce, continue. This is the ordinary restart path. Two hours is twice the
-  one-hour `ScheduleWakeup` ceiling above, so a healthy lane at maximum idle backoff can never look
-  stale.
+  one-hour `ScheduleWakeup` delay ceiling (Pointer:
+  [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval);
+  as of 2026-11-15; recheck trigger: that section changes the ceiling), so a healthy lane at
+  maximum idle backoff can never look stale.
 - `writer_nonce` differs **and** the block is fresh: **another live lane is using my instance id.**
   Write nothing to the block, escalate per §2 (role label + machine-marked comment), and stop the
   loop cleanly.
@@ -1090,8 +1093,8 @@ detector measures the queue moving, not the lane retrying. When progress resumes
 escalation is still open, the lane records the resumption as a comment on it and leaves the
 disposition to the operator.
 
-**Per-cycle usage sample (measure-only).** No lane's spend was measured: nothing recorded how much
-of the shared subscription windows a cycle consumed. Each lane therefore records a `usage_sample` in
+**Per-cycle usage sample (measure-only).** So that a cycle's share of the shared subscription
+windows is measured, each lane records a `usage_sample` in
 that same durable-state block every cycle, holding the two window percentages the rate-limits floor
 (§6) already read that cycle plus each window's rise since the previous sample. The reading is
 already in hand, so measuring costs nothing beyond the write. **The one permitted readback.** The
@@ -1219,9 +1222,6 @@ presence-gated with this inline fallback per the
 | `attend-queue` | `work-items` | attended triage / escalation queue |
 | `babysit-loop` | `source-control` | merge lane over `/source-control:babysit-prs` |
 
-All three adopters have shipped. This owner doc landed ahead of them, per the convention-registry
-rule; the table above is a live consumer list, not a forward reference.
-
 **Launch surfaces.** A lane launches interactively via `/loop`, the primary surface and a bundled
 skill needing no install (Pointer: [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills)),
 or headless via the `harness-ops` `lanes` launcher, which stores the one-line lane prompt through its `prompt_dir` interface (#480). `lanes` is a **supporting, strictly one-directional**
@@ -1325,8 +1325,8 @@ All three lanes consume the shared subscription rate-limit windows (§3). An ins
 read a sibling plugin's files or this repo's `docs/` at runtime, so each consuming lane body
 **inlines the operable floor**, the fixed snapshot-file path, the pause threshold, the staleness rule,
 and drain-then-pause, and cites the guard's reader contract for provenance only. This section names
-those four items and deliberately restates none of their values: a number written here would be a
-seventh copy, outside the block the check below compares.
+those four items and deliberately restates none of their values: a number written here would be
+one more copy, outside the block the check below compares.
 That reader contract is
 [`plugins/rate-limits/reference/reader-contract.md`](../../../plugins/rate-limits/reference/reader-contract.md),
 shipped with the `rate-limits` plugin. This convention records the inline-floor rule so the
@@ -1386,23 +1386,19 @@ list. It is deliberately not phrased as an equality: an exception list exists, a
 "provably equal" would be exactly the unbacked assurance this section was rewritten to remove.
 
 **A file cannot excuse itself, and that is why the exception list is not an in-file annotation.**
-The first version of this check used one, on the shape `# lane-coverage-ok:` and `# silent-skip-ok:`
-use. Those anchor to a syntactic site, a job key or a guard line, which bounds what the annotation
-can excuse; a file has no such site, so any file mentioning the token anywhere, in prose or in a
-fixture string, silently exempted its own floor copy. A real lane could inline the floor, apply it,
-name the token in a sentence, and drift unwatched. Moving the exception list into the check removes
-that: a new data carrier costs an edit to the gate, which is the review the exception needs.
+An annotation on the shape `# lane-coverage-ok:` and `# silent-skip-ok:` use anchors to a syntactic
+site, a job key or a guard line, which bounds what it can excuse; a file has no such site, so any
+file mentioning the token anywhere, in prose or in a fixture string, would exempt its own floor
+copy and drift unwatched. With the exception list in the check, a new data carrier costs an edit to
+the gate, which is the review the exception needs.
 
 **Neither half is optional, and path shape cannot supply either.**
 `scripts/check-cross-plugin-source-drift.sh`, the repo's general copy-drift gate, is blind here by
 construction: it skips `SKILL.md` by basename, and it clusters copies by identical
-path-within-plugin, while these six sit at six unrelated paths. Until the check above landed, this
-section claimed conformance was audited per consumer and nothing audited it. What that cost is on
-the record: two uncoordinated de-slop shards rewrote punctuation inside the staleness bullet of all
-three lane bodies and touched neither the reader contract nor the other copies, so the lanes stayed
-identical to each other, which is the half a reviewer notices, while all three drifted from their
-source. The scan exists because a registry alone repeats that shape one level up: the first report
-of this coupling named five copies, and building the registry found six.
+path-within-plugin, while these copies sit at unrelated paths. Copies can stay identical to each
+other, which is the half a reviewer notices, while all of them drift from the reader contract, so
+the check compares each copy against the contract. The scan exists because a registry alone can
+miss a copy nobody registered.
 
 **Single-account-per-machine is a known gap, not a safe assumption.** The snapshot file is
 last-writer-wins, and before it carried an account identifier a machine running lanes under more
@@ -1410,14 +1406,13 @@ than one account fed one account's healthy windows to lanes running on the exhau
 way for the guard to detect it. Same-machine account rotation is real operating practice, not a
 hypothetical.
 
-This is recorded as a **gap** rather than as an invariant because the previous framing, "operation
-assumes one account per machine", was descriptive of how the guard happened to be built rather
-than normative, and it fail-**opened** in a contract that fail-closes on every other unresolvable
-input. It also baked a solo-operator posture into a contract whose sibling states that it "assumes
-no machine, org size, or budget"
+This is a **gap**, not an invariant. Assuming one account per machine describes how the guard is
+built, not a rule, and it fails open in a contract that fails closed on every other unresolvable
+input. It would also bake a solo-operator posture into a contract whose sibling "assumes no
+machine, org size, or budget"
 ([`routines.md`](../../../plugins/autonomy/reference/routines.md) §Hosting stance): a
-multi-account machine is an ordinary team and multi-tenant shape, not an exotic one. Naming it a
-gap removes the false assurance that nothing is missing.
+multi-account machine is an ordinary team and multi-tenant shape. Calling it a gap keeps anyone
+from assuming nothing is missing.
 
 **The resolution is account identity, and all three sides have landed.** The snapshot file carries an
 `account.email` field naming the account whose windows a snapshot describes, present whenever the
@@ -1425,7 +1420,7 @@ writer could attribute the observation and absent rather than wrong when it coul
 (`plugins/rate-limits/reference/reader-contract.md`, "Snapshot file shape"). Reader-side
 invalidation of latched state is a **MUST** in the inlined floor's "Account switch" bullet: a paused
 lane records the account of the snapshot that tripped the pause (not the account `.claude.json`
-names at pause entry, because the snapshot can be up to 10 minutes old), reads
+names at pause entry, because the snapshot can be as old as the floor's staleness rule allows), reads
 `.oauthAccount.emailAddress` directly from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json` at pause entry
 and on every wake and Monitor tick, and on a change drops the latch and resumes when the new account is
 below the pause threshold, or re-latches against the new account's `resets_at`. One branch goes
@@ -1593,7 +1588,7 @@ trigger discipline). Two. A firing that finds drift lands its outcome as a chang
 no-drift firing refreshes the record's as-of date in place, with no entry and no bump:
 
 - Any new model on Claude Code's model page re-reads the §3 alias binding and its known gaps.
-- Any change to this convention, or to a consuming lane, that RELIES on an upstream-pointed record
+- Any change to this convention, or to a consuming lane, that relies on an upstream-pointed record
   re-reads that record's pointer first and refreshes its as-of date with the outcome.
 
 The upstream surfaces these records point at, the `/loop` seven-day expiry, the `ScheduleWakeup`

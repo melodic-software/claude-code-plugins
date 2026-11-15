@@ -1,0 +1,5 @@
+# The gateway closes idle sockets at 60s,
+# https://example.com/docs/idle-timeout
+keepalive=45
+# PLANTED the gateway closes idle sockets at 60s
+retry=3

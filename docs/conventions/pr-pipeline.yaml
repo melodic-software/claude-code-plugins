@@ -5,7 +5,7 @@ activities:
   fix-docs:
     skill: ai-slop:audit
     args: fix
-    # A Refine pass: pr-refine.yml's plan job runs it before review on a PR
+    # A Refine pass: pr-refine.yml's select-passes job runs it before review on a PR
     # whose changed files match applies-when's paths and paths-ignore.
     stage: refine
     order: 10
@@ -591,7 +591,7 @@ activities:
     # most 24) with one comment it
     # edits, never needs-human (a run the token broker refused for the lanes
     # kill switch re-fires on its own count and never spends that once, on the
-    # first sweep after the switch clears when broker-check stopped it before
+    # first sweep after the switch clears when check-broker stopped it before
     # any model turn); and
     # it hands an agent-ready issue whose
     # lanes-App PR merged with `Refs:` or closed unmerged back to intake
@@ -730,7 +730,7 @@ activities:
     inputs: [issue]
   apply-changelog:
     # Runs `/harness-ops:changelog apply --ci <release>` in the
-    # upstream-apply-changelog model job, which commits one local branch per
+    # upstream-apply-changelog apply-changelog job, which commits one local branch per
     # owner plugin and writes ci-plan.json; apply-changelog-branches and
     # publish-changelog-intake act on what it leaves. The job holds no write
     # token, so no broker mint names it.
@@ -742,7 +742,7 @@ activities:
     reads-untrusted: true
   apply-changelog-branches:
     # Recreates each changelog/<plugin>/v<release> branch the
-    # upstream-apply-changelog model job's `/harness-ops:changelog apply --ci`
+    # upstream-apply-changelog apply-changelog job's `/harness-ops:changelog apply --ci`
     # committed, as lanes App commits through the Git Data API, after
     # checking every commit changes only plugins/<plugin>/ and
     # .changes/<plugin>/ as regular files and that the result holds the
@@ -1060,9 +1060,9 @@ models:
           "85127655": knowable
           "85127656": unknown
     sizes:
-      # 75 turns is the cap every lane run had; a 50-minute leg covers the
-      # high factor at the 20 seconds a turn the old 75-turn, 25-minute run
-      # allowed, and the job holds 15 minutes more, for the steps around the
+      # 75 turns is the standard profile's max-turns; a 50-minute leg covers
+      # the high factor at the 20 seconds a turn a 75-turn, 25-minute run
+      # allows, and the job holds 15 minutes more, for the steps around the
       # launcher's leg (pr-run-activity-read.yml's launch step).
       small:
         base-turns: 75
@@ -1079,7 +1079,7 @@ models:
     # never splits again, so holding it would park it for good.
     split-child-size: medium
     complexity:
-      # Base turns as they are: a small low-complexity issue runs as before.
+      # Base turns as they are: a small low-complexity issue runs at 75 turns.
       low: 1
       # Half again, for an issue with several moving parts.
       medium: 1.5
@@ -1232,7 +1232,7 @@ limits:
   # decision Q109).
   refire-queue-per-slot: 2
   # A work-resolve-issue run still `queued` this many minutes after it was
-  # created is not counted toward that room. The admit job runs on a
+  # created is not counted toward that room. The check-admission job runs on a
   # GitHub-hosted runner and the slot wait comes after it, so a healthy run
   # leaves `queued` within minutes; one that stays is lost and never starts,
   # and counting it would hold the room at 0. Nor does a reopened fix issue's
@@ -1262,8 +1262,8 @@ limits:
     failed-again: 3
     failed-mint: 1
     kill-switch: 1
-  # upstream-apply-changelog model jobs past the kill switch in any 24 hours, a setup
-  # failure before the leg included (counted from the start records the model job
+  # upstream-apply-changelog apply-changelog legs past the kill switch in any 24 hours, a setup
+  # failure before the leg included (counted from the start records the leg job
   # writes after the leg, as red-main.daily-cap counts reverts; a credit-stopped leg
   # whose marker uploaded writes none). Each run
   # takes one release, so 3 is the most anthropics/claude-code releases
@@ -1523,7 +1523,7 @@ merge:
     - trust-path-hold-off[bot]
   # true: report each decision and write nothing.
   report-only: false
-  # true: post-merge-dispatch starts a full run of main inside its 30-minute
+  # true: dispatch-post-merge-runs starts a full run of main inside its 30-minute
   # cap when an unverified lane merge has no started full run covering it,
   # one run for the whole batch, so the lane's in-flight room frees after one
   # verify instead of waiting out the cap. false: the cap holds for every
@@ -1605,7 +1605,7 @@ merge:
   # 39187691831 and 39183126369 (the last three scheduled sweeps that ran
   # the gate) checked 37-39 candidates each: median 30-39 s, longest
   # 157-164 s, about 1 minute before the loop. 10 keeps a run, its longest
-  # candidate included, inside the 15 minutes between scheduled runs.
+  # candidate included, inside the 30 minutes between scheduled runs.
   gate-budget-minutes: 10
   # Minutes one candidate's gate may spend reading before it stops at its next
   # read, reported unknown; a write in progress always finishes. The first
@@ -1615,7 +1615,7 @@ merge:
   gate-candidate-minutes: 4
   # Minutes the deferred candidate's gate may read; one stopped here is warned
   # about and goes back to the capped rotation. 20 fits inside the merge job's
-  # 30-minute timeout with the minute before the loop and the closing steps
+  # 48-minute timeout with the minute before the loop and the closing steps
   # (judgment).
   gate-deferred-minutes: 20
   # Minutes a reasons comment must stand unchanged at the head before the
@@ -1629,8 +1629,9 @@ merge:
   # refusal instead of gated again (babysit_merge_skip.py, and for a lanes
   # App pull request's lane refusal enable-auto-merge.mjs); it is gated again
   # once its refusal is max-minutes old or has been skipped max-skips runs in
-  # a row. 3 skips at the 15-minute schedule gate it about hourly; 60 caps
-  # the wait whatever else starts runs (judgment). 0 in either: no skips.
+  # a row. 3 skips at the 30-minute schedule span about 90 minutes, so on the
+  # schedule alone 60 ends the wait first; 60 caps it whatever else starts
+  # runs (judgment). 0 in either: no skips.
   skip-unchanged:
     max-minutes: 60
     max-skips: 3

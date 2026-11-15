@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml .github/standards/runner-policy/package.json plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh plugins/work-items/tools/work-item-tracker/work-item-tracker.sh docs/conventions/work-items.yaml .github/workflows/work-resolve-issue.yml .github/workflows/pr-run-activity-write.yml
-# Runs the shell of two read-lane broker-check steps, lifted from their YAML,
+# Runs the shell of two read-lane check-broker steps, lifted from their YAML,
 # against the cases the contract states
-# (docs/conventions/pr-pipeline/pr-run-activity.md, "The broker-check job"):
+# (docs/conventions/pr-pipeline/pr-run-activity.md, "The check-broker job"):
 #   - the run job's "Assert the broker allowed this attempt" step passes only
-#     when broker-check allowed this same run attempt;
+#     when check-broker allowed this same run attempt;
 #   - request-lane-token's check mode accepts only an https URL whose last path
 #     segment is /token;
-#   - broker-check's issue lease step backs off as already-leased on a live
+#   - check-broker's issue lease step backs off as already-leased on a live
 #     lease older than its own, and the run job's go step then runs no model;
 #   - exactly one of the read runner's report job and the caller's write runner
 #     report job releases each lease, the write side after the PR opens.
@@ -64,7 +64,7 @@ gate_case() {
 gate_case "an allow from this attempt proceeds" 0 true 1 1
 gate_case "an allow reused from an earlier attempt fails" 1 true 1 2
 gate_case "no allow (the broker was skipped) fails" 1 false 2 2
-gate_case "no broker-check outputs at all fails" 1 "" "" 1
+gate_case "no check-broker outputs at all fails" 1 "" "" 1
 
 # url_case <label> <url> <must-name> [dispatcher-run-id] [release]: runs check mode with no OIDC
 # grant, so a URL that passes validation stops at the OIDC check instead.
@@ -92,12 +92,12 @@ CHECK_ONLY="check mode takes no effect, grant, PR or issue number, release, or d
 url_case "check mode refuses a dispatcher run id" "https://h.example/api/token" "$CHECK_ONLY" 123
 url_case "check mode refuses a release" "https://h.example/api/token" "$CHECK_ONLY" "" 2.1.312
 
-# --- Issue lease (#9791): broker-check's claim step against a stub gh. ---
+# --- Issue lease (#9791): check-broker's claim step against a stub gh. ---
 LEASE_STEP="$WORK/lease.sh"
 GO_STEP="$WORK/go.sh"
 lift "$ROOT/.github/workflows/pr-run-activity-read.yml" \
-  'd.jobs["broker-check"].steps.find((s) => s.name === "Claim the issue with a lane lease")?.run' "$LEASE_STEP" ||
-  fail "broker-check has no 'Claim the issue with a lane lease' step"
+  'd.jobs["check-broker"].steps.find((s) => s.name === "Claim the issue with a lane lease")?.run' "$LEASE_STEP" ||
+  fail "check-broker has no 'Claim the issue with a lane lease' step"
 lift "$ROOT/.github/workflows/pr-run-activity-read.yml" \
   'd.jobs.run.steps.find((s) => s.id === "go")?.run' "$GO_STEP" ||
   fail "the run job has no go step"
@@ -189,7 +189,7 @@ holds "the read runner takes caller-releases-lease, a boolean defaulting to fals
   'const i = d.on.workflow_call.inputs["caller-releases-lease"]; i?.type === "boolean" && i.default === false'
 # shellcheck disable=SC2016 # the ${{ }} text is a literal the workflow must hold, compared as a string
 holds "the read runner hands its lease handle to the caller" "$READ_YML" \
-  'const o = d.on.workflow_call.outputs; o.lease?.value === "${{ jobs.broker-check.outputs.lease }}" && o["lease-comment-id"]?.value === "${{ jobs.broker-check.outputs.lease-comment-id }}"'
+  'const o = d.on.workflow_call.outputs; o.lease?.value === "${{ jobs.check-broker.outputs.lease }}" && o["lease-comment-id"]?.value === "${{ jobs.check-broker.outputs.lease-comment-id }}"'
 # portability-ok: \s is in a JavaScript regex run by node, not a shell tool
 holds "every read call of work-resolve-issue.yml runs in caller-releases mode" "$CALLER_YML" \
   'Object.values(d.jobs).filter((j) => /pr-run-activity-read\.yml/.test(j.uses ?? "")).every((j) => j.with["caller-releases-lease"] === true)'
@@ -230,8 +230,8 @@ who() {
     const leaseId = lease === "held" ? "41" : "";
     const runCtx = {
       "inputs.issue-number": "7", "steps.config.outputs.applies": "true", "steps.config.outputs.kind": "skill",
-      "steps.workflow-current.outputs.stale": "", "needs.broker-check.outputs.lease": lease,
-      "needs.broker-check.outputs.blocked": blocked,
+      "steps.workflow-current.outputs.stale": "", "needs.check-broker.outputs.lease": lease,
+      "needs.check-broker.outputs.blocked": blocked,
     };
     const priorRuns = on(step((s) => s.id === "issue-prior").if, runCtx);
     const reuse = priorRuns && prior === "branch" ? "work-resolve-issue/issue-7-1-1" : "";
@@ -245,10 +245,10 @@ who() {
     const started = String(expr(read.jobs.run.outputs["issue-run-started"], { ...runCtx, "steps.go.outputs.run": go }));
     const readReleases = on(read.jobs.report.if, {
       "github.event_name": "issues", "github.event.pull_request.head.repo.full_name": "", "github.repository": "acme/widgets", "github.event.sender.id": "", "vars.AUTOMATION_LANES_APP_SENDER_ID": "987654", "inputs.issue-number": "7", "inputs.caller-releases-lease": crl === "true",
-      "needs.broker-check.outputs.lease": lease, "needs.broker-check.outputs.lease-comment-id": leaseId,
-      "needs.broker-check.outputs.skip-run": "false",
-      "needs.run.outputs.handed-off": handedOff, "needs.issue-fields.outputs.issue-run-started": started,
-      "needs.issue-fields.outputs.reuse-branch": reuse,
+      "needs.check-broker.outputs.lease": lease, "needs.check-broker.outputs.lease-comment-id": leaseId,
+      "needs.check-broker.outputs.skip-run": "false",
+      "needs.run.outputs.handed-off": handedOff, "needs.check-issue-fields.outputs.issue-run-started": started,
+      "needs.check-issue-fields.outputs.reuse-branch": reuse,
     });
     const callerCtx = {
       "needs.resolve-issue-fallback.result": "skipped", "needs.resolve-issue-subscription.result": "skipped",
@@ -284,7 +284,7 @@ who "a started run whose apply-issue-patch failed still releases in report-outco
 who "an already-leased run releases nothing and reports nothing" none no already-leased true false none none ""
 who "an already-leased run with a lane branch opens no PR from it" none no already-leased true false branch none ""
 who "caller-releases-lease=false: the read run releases, and report-outcome's release is a no-op" both yes held false false none written ""
-who "a broker-check that posted no lease releases nothing" none yes "" true false none written ""
+who "a check-broker that posted no lease releases nothing" none yes "" true false none written ""
 who "a run the in-slot blocker re-check stopped releases its own lease and reports nothing" read no held true false branch none "" true
 who "a handed-off call that started: both sides release, the second a no-op" both yes held true true none written ""
 

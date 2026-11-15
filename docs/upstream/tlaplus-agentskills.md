@@ -12,7 +12,7 @@ HEAD of `main` when read; the repository has no tags or releases). Git history o
 **Recheck trigger:** a change, between the pinned commit and upstream HEAD, to a path a row we took
 or rejected something from links, a unit removed or added under the scope: re-audit the affected
 rows. This page has no rows and no scope, so the drift check lists it as `untracked` and never
-reports it as drift. The revisit trigger below says when to re-read it.
+reports it as drift. The decision's recheck trigger below says when to re-read it.
 
 ## What the pinned commit holds
 
@@ -24,7 +24,7 @@ states the instructions are not tied to one agent product.
 ## Decision
 
 - **A `formal-verification` plugin is planned.** On 2026-11-12 the owner reopened the earlier "no
-  TLA+ skill" decision outside its revisit trigger (map
+  TLA+ skill" decision outside its recheck trigger (map
   [#15651](https://github.com/melodic-software/claude-code-plugins/issues/15651)). The plugin is
   built in three slices:
   [#15648](https://github.com/melodic-software/claude-code-plugins/issues/15648),
@@ -37,7 +37,7 @@ states the instructions are not tied to one agent product.
 - **No vendored copy.** No file from this upstream is stored here. If a slice takes anything from
   it, this page gains attribution rows linking the upstream paths at a new pin.
 
-## Revisit trigger
+## Recheck trigger
 
 Re-read the upstream at its then-current HEAD, and move the pin to that commit, when a slice above
 writes or changes TLA+ authoring guidance.

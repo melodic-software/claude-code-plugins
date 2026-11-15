@@ -76,7 +76,7 @@ playwright-cli click "getByTestId('submit-button')"
 
 ## Inspecting attributes not shown in snapshot
 
-`id`, `class`, `data-*`, and computed styles are NOT in the YAML. Use `eval` with a ref:
+`id`, `class`, `data-*`, and computed styles are not in the YAML. Use `eval` with a ref:
 
 ```bash
 playwright-cli eval "el => el.id" e7

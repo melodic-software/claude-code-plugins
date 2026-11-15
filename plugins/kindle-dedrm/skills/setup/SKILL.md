@@ -72,8 +72,8 @@ confirmation.
   (`${CLAUDE_PLUGIN_ROOT}/skills/manage/reference/versions.md`). The DeDRM_tools tag resolves
   dynamically via the authenticated `gh` CLI and **falls back to the pinned tag in the versions
   reference** when `gh` is unavailable or returns nothing; the guard refuses to compose a URL with the
-  placeholder still in place. The Key_Finder zip URL resolves from the tutorial article and **stops with
-  the mirror-procedure pointer on an empty match**. On a SHA mismatch, stop and re-fetch.
+  placeholder still in place. The Key_Finder zip URL is the pinned direct URL in the versions reference,
+  and the download **stops with the repair-the-pin message on an empty match**. On a SHA mismatch, stop and re-fetch.
 - **Full `apply`.** Steps 1-9 of the workflow reference: download (as above) → extract → user runs
   the installer (UAC/EULA hand-off, CHECKPOINT) → sign-in race window (CHECKPOINT) → verify books on
   disk → firewall block (`${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/firewall.ps1 enable`) →

@@ -4,9 +4,9 @@ Two reusable workflows run one activity of one lane each and end in one check ru
 `<lane> / <activity>`: `success`, `failure`, or `neutral` with a skip reason.
 
 - [`pr-run-activity-read.yml`](../../../.github/workflows/pr-run-activity-read.yml) runs an
-  activity whose effect is `read`. It declares no App key secret. Only its `broker-check` job,
+  activity whose effect is `read`. It declares no App key secret. Only its `check-broker` job,
   which runs no head code, holds `id-token: write`, to ask the lanes token broker's check endpoint
-  whether the lane may run ([below](#the-broker-check-job)). It fails red with `effect-not-read`
+  whether the lane may run ([below](#the-check-broker-job)). It fails red with `effect-not-read`
   before the head checkout for any other effect.
 - [`pr-run-activity-write.yml`](../../../.github/workflows/pr-run-activity-write.yml) runs every
   other effect. It declares no App key either: its run job holds `id-token: write` and gets the
@@ -62,7 +62,7 @@ permissions, and passes no App key.
 | `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` or `pr-dispatch-feedback.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
-| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, or `outside-author`, the admit job's stop on an issue neither a listed human nor the lanes App wrote; any other value, or one outside issue mode, fails step 1 |
+| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, or `outside-author`, the check-admission job's stop on an issue neither a listed human nor the lanes App wrote; any other value, or one outside issue mode, fails step 1 |
 | `collect-refused` | `''` | Write file, issue mode, `report-outcome`: the model run's `scan-collect-refused`; only `true` counts, and stops the issue on the `collect-refused` route, which holds it for a person |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the select job's `run.json` and the model run's replies |
@@ -103,7 +103,7 @@ The read file has five `workflow_call` outputs: `head-sha`, as in the write file
 `skill-reply-<lane>-<activity>-<attempt>` artifact when the skill ran; the last four are the
 [scan job](#the-scan-job)'s in both modes. In issue mode it also outputs `scan-base-sha`,
 `scan-resume-tip`, `scan-issue-run-started`, `scan-reuse-branch`, `scan-resume-branch` and `scan-prune-branches`, the run
-job's pre-model fields as the [issue-fields job](#the-issue-fields-job) checked them ([Issue mode](#issue-mode)). In PR mode it also outputs
+job's pre-model fields as the [check-issue-fields job](#the-check-issue-fields-job) checked them ([Issue mode](#issue-mode)). In PR mode it also outputs
 `lane-class`, `credential-present` and `handed-off`, from the launcher and the credential steps,
 never from model text ([Two calls on one credential each](#two-calls-on-one-credential-each)),
 and, set by the scan job alone, `feedback-attempt` and `feedback-sha256`, the attempt naming a
@@ -126,7 +126,7 @@ patch, and `output` otherwise, so a throw before the judge holds a patch no scan
 read `fault` as `output`; only issue mode's routes tell them apart. In the write file, `review-replies` and `dependency-verdict` download
 every such marker for the model call's activity in the run, and the reply and verdict scripts
 read a marker, or a failed download, as the refusal. A forged marker only hands the round to a
-person. In issue mode the [issue-fields job](#the-issue-fields-job), which ends green, sets
+person. In issue mode the [check-issue-fields job](#the-check-issue-fields-job), which ends green, sets
 `scan-issue-run-started`, so the caller's report job still runs on a failed or skipped scan; it
 downloads the `resolve-issue` markers, and a run that left no readable outcome is stopped with a
 fixed sentence naming the refusal (the patch cap for `patch`) instead of a missing outcome file:
@@ -154,7 +154,7 @@ The caller must:
 - Grant the calling job `actions: read`, `contents: read`, `pull-requests: write`,
   `checks: write`, `issues: write` and `id-token: write`. The `run` job narrows this to
   `contents: read` and `pull-requests: read`, plus `actions: read` and `id-token: write` in the
-  write file; in the read file only the `broker-check` job uses `id-token: write`, and only the
+  write file; in the read file only the `check-broker` job uses `id-token: write`, and only the
   `report` job uses `checks: write` and `pull-requests: write` (the lane run report comment,
   which GitHub refuses with `issues: write` alone).
 - Put the calling job in a per-PR concurrency group with `queue: max`, or an equivalent that never
@@ -169,7 +169,7 @@ The caller must:
   it as a `workflow_dispatch` input, so no dispatch can point the reader at another YAML file in the
   base tree.
 
-## The broker-check job
+## The check-broker job
 
 Read file only, before the run job, which `needs` it. It holds `contents: read`,
 `id-token: write` and `issues: write` (for step 5 alone), runs only actions from the default branch tip, never checks out the PR head, and
@@ -209,20 +209,20 @@ run job and every job after it skip, no lease is claimed, the report job posts n
 comment, and its check is neutral `kill-switch` (`not-run-reason`). The read file exposes the
 output as `skip-reason`. A caller's later leg that still starts asks the broker again, which reads
 the switch live, so it stops the same way while the switch is on. Any other answer but an allow, or
-no answer, fails the job, which skips the run job. The report job passes the broker-check job's
+no answer, fails the job, which skips the run job. The report job passes the check-broker job's
 result as `run-result` whenever it is not `success`, so a failure posts a failure check and a
 cancel follows `report-check-run`'s cancel rule. Off `pull_request`, a failed or stopped
-broker-check job posts no check, since no head SHA was gated
+check-broker job posts no check, since no head SHA was gated
 ([Runs that post no check](#runs-that-post-no-check)).
 
 The job outputs `allowed` (`true` only when step 4 succeeded with the broker's allow), `skip-reason`
-and `attempt` (`github.run_attempt`). "Re-run failed jobs" reuses a successful broker-check job and its outputs,
+and `attempt` (`github.run_attempt`). "Re-run failed jobs" reuses a successful check-broker job and its outputs,
 so in the read file, right after its own kill-switch step proceeds, the run job fails red with
 `kill-switch` unless `allowed` is `true` and `attempt` equals its own run attempt. That also fails
-a run whose broker-check job skipped the broker on a kill-switch stop its run job no longer sees.
+a run whose check-broker job skipped the broker on a kill-switch stop its run job no longer sees.
 Re-running all jobs asks the broker again.
 
-The read file's `broker-allowed` job `needs` broker-check alone, runs only when `allowed` is
+The read file's `record-broker-allow` job `needs` check-broker alone, runs only when `allowed` is
 `true`, holds no permission (`permissions: {}`) and runs one `echo` step. Its conclusion (`success`, else `skipped`) is
 the caller's job-level record of the allow: the Actions API returns a job's conclusion as the job
 ends, where a step's can stay empty for minutes, and no run job output reaches it.
@@ -432,9 +432,9 @@ mints nothing. `collect-base-activity` fails red on a path outside that name set
 `reads-untrusted` activity the step gets the `select-trusted-text` output's path as
 `TRUSTED_CONTEXT_FILE`, and only there: the prompt holds the command line alone, so nothing after
 the slash command reaches the skill's arguments. A `reads-untrusted` skill must read PR text (title, body, comments,
-reviews, linked issues) only from that file, never through the API. Existing skills are not yet
-adapted to this and still read PR text themselves; until each is, its untrusted-text exposure is a
-known residual. Every skill runs in the read file, on run-claude-cli, whose steps pass it no
+reviews, linked issues) only from that file, never through the API. `verification:confirm` reads it
+there; a skill not yet adapted still reads PR text itself, and until it is, its untrusted-text
+exposure is a known residual. Every skill runs in the read file, on run-claude-cli, whose steps pass it no
 GitHub token; the write file runs no skill. `claude_args` passes `--setting-sources user`, so no
 project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from the PR head load;
 `--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"`, so the skill's own
@@ -681,8 +681,8 @@ gate must judge the head it is posted on, unchanged.
 ### Two calls on one credential each
 
 Read file: a skill runs on ci-workflows'
-[`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/7b362428c76085a160e28656cd2c75c3147a69ff/README.md)
-(v0.54.0), which takes exactly one credential and falls back to the subscription only as a second
+[`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/fc442ad3e808adafe3b195e9d12fff901220db50/README.md)
+(at the commit `pr-run-activity-read.yml` pins), which takes exactly one credential and falls back to the subscription only as a second
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
 `pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`PR_UNBLOCK_CLAUDE_API_KEY`), and
 `fix-ci-subscription` passes only `claude-code-oauth-token`
@@ -705,7 +705,7 @@ fact set; `fix-docs-handoff` still sets `fallback-ready`, which starts nothing w
 Each read after the first sends each listing page that came with an `etag` as a conditional request,
 and a `304` reuses the page it already read. A failed read runs the fallback too, except for
 `fix-docs`.
-`fix-docs-subscription` also needs the first call's `<call> / broker-allowed` job to show the
+`fix-docs-subscription` also needs the first call's `<call> / record-broker-allow` job to show the
 broker's allow (the broker step, when that job is absent): `fix-docs` posts nothing on a
 decline, so a kill switch or a refusal starts no second leg, and a failed read starts none either.
 A `fix-docs` or `fix-docs-subscription` read that fails, or whose listing does not parse, stops after
@@ -738,7 +738,7 @@ check as a first-call handoff does. A `<subscription>-handoff` job then reads th
 `fallback-claude-code-oauth-token` alone with `fallback: fallback`, as the last leg. With the
 secret empty, `fallback-ready` is `false`, so neither job runs and the second call is the last.
 Every job after the calls takes its inputs from the third call when it ran, else the second, else
-the first. `resolve-issue-handoff` needs `admit`, since it reads that secret's presence.
+the first. `resolve-issue-handoff` needs `check-admission`, since it reads that secret's presence.
 
 1. Before any head code, the run job fails red unless the `role` is lower-case kebab, the model
    route resolves an alias and the skill is advisory. While sudo
@@ -887,14 +887,14 @@ the repeat cap counts by), `loop.no-progress` as `LOOP_NO_PROGRESS` and
    `Merge <default branch> into <head ref>` with trailer
    `Lane-Activity: pr-unblock/resolve-conflicts` and parents `[gated head, pinned base]`, so
    GitHub signs it as the App, and moves the PR branch with `force: false`.
-5. `conflict-scan-refusal` runs on a `conflicted` round whose answering leg handed on no patch
+5. `check-conflict-scan-refusal` runs on a `conflicted` round whose answering leg handed on no patch
    state, which a scan that refused the model's output leaves. With no model and no head code it
    downloads the read runner's `scan-refused-pr-unblock-resolve-conflicts-*` markers by name, never
    a job output, and escalates `unresolved-conflict` when one says the scan refused or the
    download failed (`conflict-scan-refusal.mjs`, through `scanRefusal`); no marker escalates
    nothing.
 6. `report-stop-status` posts a failing `pr-unblock/conflict` status on the select job's head
-   when the select, push or `conflict-scan-refusal` job stops on a reason routed `fail`;
+   when the select, push or `check-conflict-scan-refusal` job stops on a reason routed `fail`;
    `report-escalation` takes any of their reasons.
 
 The three merges of one round must agree on the conflict tree; one that does not fails red and
@@ -909,7 +909,7 @@ stops for a hold only at the push job's label and draft re-read. Every path and 
 | A later merge reaches another tree | model call or push | none | empty | failure |
 | Head moved since the select job | push | `superseded-sha` | empty | neutral `apply-conflict-patch` |
 | Empty patch, or a conflicted path left with markers | push | `lane-stopped` | `unresolved-conflict` | neutral `apply-conflict-patch` |
-| The scan refused the model's output (leak-scan block, oversize patch) | conflict-scan-refusal | none | `unresolved-conflict` | failure `resolve-conflicts` |
+| The scan refused the model's output (leak-scan block, oversize patch) | check-conflict-scan-refusal | none | `unresolved-conflict` | failure `resolve-conflicts` |
 | A model edit outside the conflicted set | push | `lane-stopped` | `unexpected-path-staged` | neutral `apply-conflict-patch` |
 | A model edit a refusal names | push | `awaiting-human` | `conflict-patch-protected-path` / `conflict-patch-invalid` | neutral `apply-conflict-patch` |
 | A `.github/workflows/` change that is not the base's own | push | `lane-stopped` | `workflow-staged` | neutral `apply-conflict-patch` |
@@ -1311,8 +1311,8 @@ base job selects the pull request; the model job, a read skill leaf whose config
 pushes a fix verdict's patch; and the verdict job, a `publish-artifact` script leaf with no
 model called with `dependency-verdict: true`, acts on the verdict. The scripts are the base's
 `.github/scripts/pr-unblock/review-dependency.mjs`, `apply-patch.mjs` and
-`apply-dependency-verdict.mjs`. Both this lane's dispatcher and select job sort pull requests with `dependency-classify.mjs`, a port of
-the pr-merge lane's `babysit_dependabot.py` and its content step, so the tiers, the content rule
+`apply-dependency-verdict.mjs`. Both this lane's dispatcher and select job sort pull requests with `dependency-classify.mjs`, which applies
+the pr-merge lane's `babysit_dependabot.py` rules and its content step, so the tiers, the content rule
 and the `directories` globs are the ones
 [README, "Dependabot pull requests"](README.md#dependabot-pull-requests) states. They read the
 same inputs: the pull request, its REST commits and files with patches, each non-Dependabot
@@ -1529,7 +1529,7 @@ mode as `patch-prepare` (`ci-context`). The job runs on a `written` or `empty` p
 call's `scan-collect-refused`, which reaches `select` with no `patch-state` and so escalates
 `ci-fix-invalid`.
 `fix-ci-unreported`, after every fix-ci call, reads this run's jobs with `handoff-evidence.sh` as
-`fix-ci-handoff` does and, when a call's broker-allowed job shows the allow and no call's report
+`fix-ci-handoff` does and, when a call's record-broker-allow job shows the allow and no call's report
 posted, posts fix-ci
 failure on `fix-ci-context`'s head, so fix-ci-dispatch counts the round toward
 `fix-ci-restarts` whatever the calls reported. As in the report job, a kill switch or a broker
@@ -1616,7 +1616,7 @@ parents, message and trailer, and the row's escalation reasons.
 
 ## The scan job
 
-Read file: runs after the run job (and in issue mode the issue-fields job) when the run job
+Read file: runs after the run job (and in issue mode the check-issue-fields job) when the run job
 succeeded or failed, unless the run was cancelled or the call handed off, on a fresh `ubuntu-24.04` VM, in the `pr-pipeline-scan-carrier` environment with `deployment: false`, which keeps the
 environment's secret and branch policy and records no deployment
 ([Using environments without deployments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments#using-environments-without-deployments)). It
@@ -1624,7 +1624,7 @@ holds `contents: read`, one secret (`SCAN_CARRIER_PRIVATE_KEY`, that environment
 caller passes by name as `scan-carrier-private-key`, read by its open step alone), no `id-token`, no cache, and nothing from the run job but its outputs. run-claude-cli's
 contract puts the reporting and uploads of a lane that grants unrestricted Bash in a downstream
 job that validates its inputs
-([`action.yml`](https://github.com/melodic-software/ci-workflows/blob/7b362428c76085a160e28656cd2c75c3147a69ff/.github/actions/run-claude-cli/action.yml)).
+([`action.yml`](https://github.com/melodic-software/ci-workflows/blob/fc442ad3e808adafe3b195e9d12fff901220db50/.github/actions/run-claude-cli/action.yml)).
 
 The carrier. After the collector, the run job stages each of `reply.txt`, `act-turns.json`,
 `patch.diff` and, for a `prepare: review-threads` skill, the review-thread tool's
@@ -1646,7 +1646,7 @@ id and the `run` job, as `carry-sealed-length` and `carry-sealed-<n>` job output
 chunks of 98304 characters, each fitting one environment variable). None is a `workflow_call`
 output, so no caller can echo one.
 
-In issue mode its first step fails the job, publishing nothing, unless the issue-fields job
+In issue mode its first step fails the job, publishing nothing, unless the check-issue-fields job
 checked the run job's issue fields; the start commit and the resume branch come from that job.
 Then, in order:
 
@@ -1700,7 +1700,7 @@ skill's verdict ([Leak-scan limits](#leak-scan-limits)). That holds for the YAML
 for a hostile run job: code on its runner holds the job's own artifact credentials and can upload
 under any name the run has not taken. No consumer binds an artifact to the job that uploaded it.
 
-## The issue-fields job
+## The check-issue-fields job
 
 Read file, issue mode only: runs after the run job whatever its result, unless it was skipped, with
 `contents: read` and `pull-requests: read`, no environment and no secret, so a run job that was
@@ -1734,7 +1734,7 @@ Recorded, not fixed:
 - The scan blocks credential formats only (owner ruling Q37). Beside the per-line scan it reads
   each text with its NUL bytes removed, so a UTF-16LE credential is caught, and each pair of
   adjacent lines joined (in the patch, hunk lines without their `+`, `-` or space prefix), so a
-  credential split across two lines is caught (N16). The split-line pass leaves out the OpenAI key
+  credential split across two lines is caught. The split-line pass leaves out the OpenAI key
   pattern (`sk-` and 20 token characters): it is too loose to join safely, since a line ending in
   an `sk-` word joined to the next line's first word matches it, and a false block fails fix-ci
   closed and asks for a rotation. A split OpenAI key and a credential wrapped in base64 still
@@ -1746,7 +1746,7 @@ Recorded, not fixed:
   text.
 - On a resumed issue run the scan covers this run's patch and outcome, not the earlier run's
   commits on the branch it resumes. Those commits were scanned when their run made them, against
-  the pattern list of that day, unless the branch predates issue-mode scanning (GAPS X5). A reused branch's
+  the pattern list of that day, unless the branch predates issue-mode scanning. A reused branch's
   commits are scanned again at reuse: `run-checks` runs the same `scanLeak` on the diff from the
   branch's merge base with the default branch tip and on every file that diff makes, and
   `report-outcome` holds the PR on any result but clean. A plain `password or secret assignment`,
@@ -1762,8 +1762,8 @@ Recorded, not fixed:
 
 ## The summary job
 
-Read file, issue mode only: runs after the run job and the issue-fields job, unless the run was
-cancelled, when the issue-fields job checked a non-empty reuse branch. It holds `contents: read` and nothing else, and it
+`generate-reuse-summary`, read file, issue mode only: runs after the run job and the check-issue-fields job, unless the run was
+cancelled, when the check-issue-fields job checked a non-empty reuse branch. It holds `contents: read` and nothing else, and it
 times out after 20 minutes. Every step is
 `continue-on-error` and runs only when the one before it succeeded, so a failed or limit-stopped
 pass turns no job red and leaves no summary. In order:
@@ -1835,7 +1835,7 @@ outputs are sent), so the report job differs:
   call posts that check.
 - An empty run head (the run stopped before its trigger gate passed) never posts failure, which
   babysit reads as a merge blocker. After the kill switch, which the report job reads from its
-  variables, or the broker-check job's refusal, it posts what it did before (the event's head on
+  variables, or the check-broker job's refusal, it posts what it did before (the event's head on
   `pull_request`, otherwise nothing), so the owner's switch blocks no merge and the head is
   dispatched again once the switch is off (fix-docs excepted: its completed run ends the PR). Otherwise it posts neutral `not-assessed` on the
   caller's or the event's head: babysit counts a neutral check as passing, and fix-ci-dispatch
@@ -1915,7 +1915,7 @@ trust-root paths is off by owner decision; the controls a lane relies on instead
 are in [Trust-root paths](README.md#trust-root-paths). With the broker,
 the write file references no key either, so one caller may call both files: the read file's run
 job sets its own permissions, without `id-token`, so its head code holds neither the key nor an
-OIDC token. `id-token: write` in the read file is allowed only in its `broker-check` job, which
+OIDC token. `id-token: write` in the read file is allowed only in its `check-broker` job, which
 runs no head code, on its own runner. The run job lacks the permission, so its runner gets no OIDC
 request URL.
 [`scripts/check-read-caller-keys.sh`](../../../scripts/check-read-caller-keys.sh) enforces the
@@ -1933,7 +1933,7 @@ workflow's own entry of the caller map: `pr-refine.yml` and `pr-unblock.yml` may
 `secrets[...]` and bare `secrets` fail. A workflow whose run reaches the read file and has no entry
 in the map fails too. It also fails when any file of such a run sets
 `permissions: write-all`, and, in the read file, when the top level is not `permissions: {}`, a
-job has no permissions map, `id-token` is named anywhere outside the `broker-check` job, that job
+job has no permissions map, `id-token` is named anywhere outside the `check-broker` job, that job
 is a reusable-workflow call or has no `steps`, or one of its `actions/checkout` steps has a `ref`
 other than `${{ github.event.repository.default_branch }}` or a `with` key other than `ref`,
 `path` and `persist-credentials`. One exception, the scan-carrier key: the read file declares
@@ -2110,7 +2110,7 @@ from its `skip-reason` output. The pr-unblock dispatchers count a `kill-switch` 
 did no work (`limit-stop.mjs` `killSwitchStop`): on the activity's own check it does not handle the
 head, and on a push, reply or verdict job's check it releases the head's earlier activity checks as
 a lane stop does, both under the per-head caps. They run only with the switch off, so the head is
-dispatched again once the switch lifts. An issue run's stopped mint, or its broker-check stopped
+dispatched again once the switch lifts. An issue run's stopped mint, or its check-broker stopped
 green, is a breaker trip work-unblock re-fires from the stop notice. A `report-escalation` run's
 denial stays red, since no dispatcher re-fires it and a skip would drop the escalation's comment
 and label.
@@ -2140,14 +2140,14 @@ file the compare does not list, and a compare that cannot be read stay red.
 
 ### The check endpoint
 
-The read file's `broker-check` job sends `POST` to `LANES_BROKER_URL` with its final `/token`
+The read file's `check-broker` job sends `POST` to `LANES_BROKER_URL` with its final `/token`
 replaced by `/check`, with `Authorization: Bearer <OIDC token>` and the body
 `{"lane": "<lane>", "activity": "<activity>"}`; any other body field is a 400. The broker runs the
 same token, claim, repository and kill-switch checks as a mint, with `pr-run-activity-read.yml` as
 the job's workflow, and mints and reserves nothing, so re-running all jobs asks again. It answers 200
 `{"decision": "allow", "lane", "activity"}`; the client fails red with `lane-check-denied` unless
 `decision` is `allow` and `lane` and `activity` are its own. A 403 `kill-switch` is the stop
-[above](#the-broker-check-job). Any other status fails red with
+[above](#the-check-broker-job). Any other status fails red with
 `lane-check-denied`, the status and the broker's reason, from the table above minus the
 mint-only rows; no response is `broker-unreachable`. The lanes bot is refused only on a mint, so
 a `workflow_run` read lane still runs after a bot push. It checks no actor either, so a
@@ -2179,7 +2179,7 @@ in [patch output mode](#patch-output-mode), so the model job holds no write toke
 `pull-requests: read` only, and the skill runs on `run-claude-cli` like a PR-mode skill
 ([Two calls on one credential each](#two-calls-on-one-credential-each)), whose leg environment
 holds its one Claude credential and no GitHub token. Before any job that
-gets the lane's Claude credential, the caller's `admit` job runs `check-trusted-trigger` from the
+gets the lane's Claude credential, the caller's `check-admission` job runs `check-trusted-trigger` from the
 default branch tip, with `contents: read` and no secret (`require-pr: false`, `require-kind:
 human`, `app-label: agent-ready`, the lanes App id): `pick-slot` and `resolve-issue` need it and
 run only on its `proceed` output `true`, so an unlisted account's label on an issue anyone can
@@ -2210,14 +2210,14 @@ mint included) and re-fires the issue once per version of the two files. A stale
 outcome marker, so it never counts against `limits.stop-retries`. An issue that
 `pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first` or
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
-which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
+which needs `check-admission` and `pick-slot` only, runs `report-outcome` in the write file with
 `dimension-skip`, and the reason takes its route, to no person: `research-first` and
 `probe-first` take the `park` route, which writes admission's comment naming the next step (so
 `intake-reenter` lifts the park on a listed human's decision comment), adds `status: confirmed`,
 removes `agent-ready`, `status: ready` and `admission-deferred`, and comments under an
 `outcome=parked` marker; `split-required` takes the `intake` route, so intake's split
 files its sub-issues (owner Q93), or says on the issue why it cannot; a sub-issue that split filed
-runs at `split-child-size` instead ([Models](README.md#models)). When the admit job stops the run because the issue's author is
+runs at `split-child-size` instead ([Models](README.md#models)). When the check-admission job stops the run because the issue's author is
 neither a listed human nor the lanes App, `report-skip` runs with `dimension-skip: outside-author`:
 it removes `agent-ready` and comments, under an `outcome=outside-author` marker and with no label,
 that a listed human re-files the work as a new issue. What changes from the PR flow:
@@ -2314,11 +2314,11 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `scan-issue-run-started` is `true` once the run chose to run the skill, before any model turn.
   The read file also outputs `scan-base-sha` and `scan-resume-tip`, the commit the patch was made
   on; every issue output reaches the caller through the
-  [issue-fields job](#the-issue-fields-job)'s checks.
+  [check-issue-fields job](#the-check-issue-fields-job)'s checks.
 - `resolve-issue` passes `ISSUE_LANE_CLAUDE_API_KEY` alone. Its handoff skips the read file's scan
   job, so `resolve-issue-handoff` runs the default branch tip's `handoff-evidence.sh handed-off`
   as the pr-unblock handoff jobs run it, deciding from job conclusions alone: when
-  `resolve-issue / broker-allowed` succeeded (the broker step, when that job is absent),
+  `resolve-issue / record-broker-allow` succeeded (the broker step, when that job is absent),
   `resolve-issue / run` succeeded and `resolve-issue / scan` never ran, `resolve-issue-subscription`
   runs the activity again on `ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN` alone, with `fallback: handoff`,
   in the same slot. A stale-workflow stop, an earlier run's work and a reuse still run the scan
@@ -2531,13 +2531,13 @@ that a listed human re-files the work as a new issue. What changes from the PR f
 - A fork PR, whose read-only `GITHUB_TOKEN` cannot write checks: the report job's `if:` skips it.
 - A `pull_request` event sent by the lanes App (`AUTOMATION_LANES_APP_SENDER_ID`): both jobs skip.
 - Any event other than `pull_request` whose run job gated no head SHA, including a read run whose
-  `broker-check` job failed: the fallback there would be `github.sha`, the dispatch ref, not the
+  `check-broker` job failed: the fallback there would be `github.sha`, the dispatch ref, not the
   PR's commit. The report job notes it in its step summary.
 - A dispatched `pr-unblock.yml` or `pr-refine.yml` run whose dispatcher's file at the commit that
   run ran differs from the tip's, which the broker would refuse as `workflow-modified`. That commit
   is the run's head, or for a `pull_request_target` run the one its
   `pr-unblock-target-dispatched-<commit>-<run id>` record names, never its head, which is the PR's.
-  The caller's `dispatcher-current` job (`dispatcher-current.sh`) compares the two before any
+  The caller's `check-dispatcher-current` job (`dispatcher-current.sh`) compares the two before any
   select job, so nothing runs and the run ends green with no check and no stop, and the next
   dispatcher finds the head unhandled. A read it cannot make, or a record not yet uploaded, leaves
   the run to the broker.

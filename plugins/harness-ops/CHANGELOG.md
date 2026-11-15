@@ -3,6 +3,21 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.0.8] - 2026-11-15
+
+### Changed
+
+- The skills' instructions and script notes use plain emphasis instead of capital letters, and point at the live Claude Code docs for plugin environment variables and version floors instead of restating them.
+- Stale paths and facts across the audit, changelog, lanes, observability and plugins skills are corrected, and the README lists `/harness-ops:inventory`.
+
+## [9.0.7] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
+- Shared `publish-gate.mjs` synced where this plugin carries it: a comment now names the fold-corpus test that guards its backslash fold; the gate's behavior does not change.
+
 ## [9.0.6] - 2026-11-14
 
 ### Changed

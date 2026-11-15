@@ -698,5 +698,35 @@ assert_doc "a CRLF interpreter honors scope.default all, scope.exclude, and lane
   'd["scope"]["mode"]=="all" and d["scope"]["excluded"]==1 and not any(r["file"]=="gen/b.py" for r in d["measures"]) and any(r["file"]=="x.bats" and r["lane"]=="bash" for r in d["measures"]) and any(r["file"]=="a.py" and r["lane"]=="python" for r in d["measures"])'
 rm -rf "$repo" "$home" "$crlf"
 
+# A lane id the team file lists beside the bundled ones: `rust` has a record
+# and no shipped collector, `python` is a shipped lane listed with globs, and
+# an unlisted `markdown` record (this repository records one for linting) is
+# the control that creates no lane. Fixture names are composed for the reason
+# case 10 gives.
+repo="$(mktemp -d)"
+home="$(mktemp -d)"
+mkdir -p "$repo/.claude/ecosystems" "$repo/docs/conventions"
+printf 'lanes:\n  rust:\n    enabled: true\n  python:\n    enabled: true\n' >"$repo/docs/conventions/code-metrics.yaml"
+extra_lane=rust shipped_lane=python unlisted_lane=markdown
+printf 'globs: ["*.rs"]\n' >"$repo/.claude/ecosystems/$extra_lane.yaml"
+printf 'globs: ["*.py"]\n' >"$repo/.claude/ecosystems/$shipped_lane.yaml"
+printf 'globs: ["**/*.md"]\n' >"$repo/.claude/ecosystems/$unlisted_lane.yaml"
+printf 'fn main() {\n}\n' >"$repo/main.rs"
+printf 'a = 1\n' >"$repo/a.py"
+printf '# notes\n' >"$repo/notes.md"
+(cd "$repo" && git init -q -b main && git config user.email t@example.com && git config user.name t && git add -A && git commit -q -m fixture)
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-complexity --measures cyclomatic,file_lines --all)"
+rc=$?
+assert_eq "a listed lane with no shipped collector exits 0" 0 "$rc"
+assert_doc "a listed lane with no shipped collector reports each measure unavailable by name" "$out" \
+  'next(r for r in d["run"] if r["lane"]=="rust" and r["measure"]=="cyclomatic")["status"]=="unavailable" and next(r for r in d["run"] if r["lane"]=="rust" and r["measure"]=="cyclomatic")["reason"]=="no shipped collector for the rust lane"'
+assert_doc "the listed lane keeps its file_lines count through the other lane's ladder" "$out" \
+  'next(r for r in d["run"] if r["lane"]=="rust" and r["measure"]=="file_lines")["status"]=="ok" and any(r["file"]=="main.rs" and r["lane"]=="rust" and r["values"]["lines_non_blank"]==2 for r in d["measures"])'
+assert_doc "a listed id matching a shipped lane still walks its collectors" "$out" \
+  '"lizard: " in next(r for r in d["run"] if r["lane"]=="python" and r["measure"]=="cyclomatic")["reason"] and any(r["file"]=="a.py" and r["lane"]=="python" for r in d["measures"])'
+assert_doc "an unlisted record creates no lane" "$out" \
+  'not any(r["lane"]=="markdown" for r in d["run"]) and any(r["file"]=="notes.md" and r["lane"]=="other" for r in d["measures"])'
+rm -rf "$repo" "$home"
+
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))

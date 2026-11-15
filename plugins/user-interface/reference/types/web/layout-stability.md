@@ -31,9 +31,6 @@ A recording pill shows a running timer, and the request is:
 The vague prompt gets `font-family: ui-monospace, monospace;`. The precise one, "use tabular-nums
 on the recording timer", gets `font-variant-numeric: tabular-nums;`.
 
-Technically, both prompts fix the issue we are pointing at, but we obviously don't want to switch to
-a mono font here. With enough experience, you know that using tabular-nums is the right fix here.
-
 The monospace face holds the width too, but it sets the timer in a different face from the label
 beside it. Equal-width digits keep the timer in the interface's own font. Section 3 holds the rule.
 

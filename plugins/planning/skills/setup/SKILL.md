@@ -26,7 +26,7 @@ an update rather than overwriting blind.
 
 ## `check` (read-only)
 
-Report a PASS/FAIL/INFO table with one remediation line per FAIL. Modify nothing, and do NOT run a
+Report a PASS/FAIL/INFO table with one remediation line per FAIL. Modify nothing, and do not run a
 planning stage. Those are the pipeline skills.
 
 1. **Standards index**. The index presence test at the resolved `<standards_dir>/README.md`
@@ -128,7 +128,7 @@ implement it by reference, do not restate it. Plugin-side notes only:
   `<standards_dir>/.gitignore` containing `*.local.md` (the personal override ignore). Write
   `.claude/standards.yaml` only when the user relocates the root from the documented default.
   After a bootstrap write, run the tracked-file pair on each written team file:
-  `git check-ignore -v` reports no match (a match is FAIL with the pattern) AND
+  `git check-ignore -v` reports no match (a match is FAIL with the pattern) and
   `git ls-files --error-unmatch` exits 0 (non-zero right after a fresh write means "written but
   untracked: commit it to share with the team", never success).
 - **Optional offers, never demands:** pointer-rule generation for indexed ecosystem surfaces
@@ -179,7 +179,7 @@ before and after, the diff when one was shown, the written path, and whether the
 
 /planning:plan
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run a planning stage. That is the pipeline skills (`/planning:brainstorm`, `/planning:prd`,
   `/planning:interview`, `/planning:design`, `/planning:design-handoff`,

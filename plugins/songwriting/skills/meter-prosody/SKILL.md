@@ -13,10 +13,10 @@ body.
 
 Before emitting a scansion verdict, stability call, phrasing judgment, or any rewrite, run
 **§3 Critique filter** of [response-filter](../../context/pat-pattison/research/response-filter.md)
-(add **§2 Line-writing** when producing lines). NAME each box's pass / fail / skip-with-reason
+(add **§2 Line-writing** when producing lines). Name each box's pass / fail / skip-with-reason
 (aloud or in reasoning); correct before emission. Skips are valid; silent skips are not.
 
-§3 is the filter for findings delivered on a draft, which is what this skill emits. §6 Form is NOT
+§3 is the filter for findings delivered on a draft, which is what this skill emits. §6 Form is not
 the gate here: its boxes decide song shape (chorus versus refrain, whether a bridge is needed), and
 this skill's own boundary forbids it from making that call.
 
@@ -46,7 +46,7 @@ default. No action → route on context (a pasted line → `meter`; a "does this
 
 ## Handlers
 
-- Scan concretely: mark stresses, name the paradigm, and say what the meter does FOR the meaning,
+- Scan concretely: mark stresses, name the paradigm, and say what the meter does for the meaning,
   not scansion for its own sake.
 - Stability is a tool, not a verdict: name whether a section reads stable or unstable and whether
   that serves the section's job; the writer chooses.
@@ -63,7 +63,7 @@ default. No action → route on context (a pasted line → `meter`; a "does this
 - Replacement lines over an already-sung melody (demo, cover, AI-generated track) get a
   **positional template** first: the sung line's syllables numbered with its stressed slots
   bracketed, per [meter](../../context/pat-pattison/research/meter.md) "fitting a replacement line
-  to an already-sung melody". Matching the stress COUNT is not fitting: the positions are the
+  to an already-sung melody". Matching the stress count is not fitting: the positions are the
   template, and the singer's actual phrasing outranks the inferred grid. This skill emits the
   template, never the fitted line; the line goes to `/songwriting:co-write` per the boundary table
   below.
@@ -77,7 +77,7 @@ one. Before loading any bundled `templates/<name>.md`, check
 `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
 override wins over the bundled default, first match, per that file's "Template override".
 
-## Boundary. What this skill must NOT emit
+## Boundary. What this skill must not emit
 
 This skill measures. It does not write the line it measures, and it does not choose the words that
 fix a bad scan.

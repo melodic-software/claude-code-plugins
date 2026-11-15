@@ -9,7 +9,7 @@ below them; then Memory, which reaches one user on one machine.
 capabilities against current official docs before recommending; never recommend features from
 training-data assumptions. WebSearch only finds which page to read. Read the page itself through
 the docs lookup: follow `<plugin-root>/reference/docs-lookup-procedure.md` with `<scripts>` =
-`<plugin-root>/scripts` and `<session>` = `${CLAUDE_SESSION_ID}`, fetching with
+`<plugin-root>/scripts` and `<session>` = this session's id (`printenv CLAUDE_CODE_SESSION_ID`), fetching with
 `bash "<plugin-root>/scripts/fetch-docs.sh" --cache` and taking the section with `docs-cache.sh`
 `slice`. Use `--max-age 0` when the recommendation rests on a feature being absent. WebFetch is
 the fallback only when the manifest records the page unread with reason `curl-missing` or the
@@ -43,15 +43,15 @@ banned API, a file written in the wrong place, a step skipped before a commit.
 
 ## Placement Decision Tree
 
-When a finding gets no check row, determine WHERE it should live. The key distinction is
+When a finding gets no check row, determine where it should live. The key distinction is
 **scope**: who needs this knowledge, and what happens if it is lost?
 
 **Two scopes:**
 
 - **project.** Git-tracked in the consuming repo (`CLAUDE.md`, `.claude/rules/`,
   `.claude/skills/`, `.claude/settings.json`). Committed, shared, survives machine loss.
-- **personal.** Machine-local (auto-memory under the session data directory, user settings). NOT
-  committed, NOT backed up. Only affects this user's sessions.
+- **personal.** Machine-local (auto-memory under the session data directory, user settings). Not
+  committed, not backed up. Only affects this user's sessions.
 
 **Decision questions (ask in order, stop at first match):**
 
@@ -81,7 +81,7 @@ or would just this user's convenience suffer (→ memory is fine)?
 
 **Common misplacements to watch for:**
 
-- Technical gotchas in memory instead of rules. These affect ALL contributors, not just one user
+- Technical gotchas in memory instead of rules. These affect all contributors, not just one user
 - Convention decisions in memory instead of CLAUDE.md. If it's how the project works, commit it
 - **Guard rails for skills/artifacts in feedback memory instead of the artifact itself.** If a
   correction prevents corrupting a git-tracked file, it belongs in that file, not in memory
@@ -186,12 +186,12 @@ Conventions and guidelines that should be documented.
 
 ### Important
 
-Do NOT recommend content that duplicates source-of-truth files (linter configs, analyzer rule
+Do not recommend content that duplicates source-of-truth files (linter configs, analyzer rule
 lists, formatter settings). CLAUDE.md documents that enforcement exists; it doesn't reproduce it.
 
 ## Memory
 
-Personal learnings that persist across THIS USER's sessions on THIS machine. NOT committed, NOT
+Personal learnings that persist across this user's sessions on this machine. Not committed, not
 shared. It is either rediscoverable (preferences, references) or ephemeral (work status).
 
 ### When to recommend
@@ -206,7 +206,7 @@ shared. It is either rediscoverable (preferences, references) or ephemeral (work
 Match the consumer's existing auto-memory conventions. Read a sibling memory file first and follow
 its naming, structure, and any index it maintains rather than inventing a new format.
 
-### What NOT to save
+### What not to save
 
 No code patterns derivable from the codebase, no git history, no debugging recipes, no duplicates
 of instruction-file content, no ephemeral task details.

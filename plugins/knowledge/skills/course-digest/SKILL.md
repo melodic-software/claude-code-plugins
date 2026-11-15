@@ -67,9 +67,9 @@ Slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars, Windows-res
 ## Prerequisites (verify before starting)
 
 1. **course-extraction deps**. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`. Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin updates) and provisions Playwright's Chromium into `${CLAUDE_PLUGIN_DATA}/ms-playwright`. Idempotent. Safe to re-run, and re-run after a plugin update.
-2. **Platform auth**. Set `COURSE_EMAIL`/`COURSE_PASSWORD` (Dometrain → Clerk) or `TEACHABLE_EMAIL`/`TEACHABLE_PASSWORD` (Teachable) in your shell before invoking; they inherit into the pipeline's node subprocess. The env-var prefix is course-config-driven via `platformConfig.authEnvPrefix`. Session cookies persist under `${CLAUDE_PLUGIN_DATA}/auth/<platform>.auth-state.json` and are reused across runs. **Interactive manual login is the fallback** when no credentials are set. It opens a browser window for you to log in. NOTE: the manual-login prompt (`node:readline` + headed browser) may not function under headless plugin execution; env-var + cookie-reuse carry the skill regardless, and manual login is a known limitation there, not a blocker. These credentials live in shell environment variables, not in plugin `userConfig`: this plugin's `userConfig` options are non-secret scalars. Where option values are kept: <https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored>.
+2. **Platform auth**. Set `COURSE_EMAIL`/`COURSE_PASSWORD` (Dometrain → Clerk) or `TEACHABLE_EMAIL`/`TEACHABLE_PASSWORD` (Teachable) in your shell before invoking; they inherit into the pipeline's node subprocess. The env-var prefix is course-config-driven via `platformConfig.authEnvPrefix`. Session cookies persist under `${CLAUDE_PLUGIN_DATA}/auth/<platform>.auth-state.json` and are reused across runs. **Interactive manual login is the fallback** when no credentials are set. It opens a browser window for you to log in. The manual-login prompt (`node:readline` + headed browser) may not function under headless plugin execution; env-var + cookie-reuse carry the skill regardless, and manual login is a known limitation there, not a blocker. These credentials live in shell environment variables, not in plugin `userConfig`: this plugin's `userConfig` options are non-secret scalars. Where option values are kept: <https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored>.
 3. **ffmpeg**, required for video frame extraction (scene detection, interval capture). Check: `ffmpeg -version`. Install: `winget install Gyan.FFmpeg` (Windows), `brew install ffmpeg` (macOS), `sudo apt install ffmpeg` (Linux). Floor 7.1+ (newer codecs, AV1, Opus, degrade or fail below this).
-4. **ImageMagick 7**, required by `classify-frames.js` for contact sheet generation (`magick montage`). Check: `magick -version`. Install: `winget install ImageMagick.ImageMagick` (Windows), `brew install imagemagick` (macOS), `sudo apt install imagemagick` (Linux). Ubuntu <26.04 ships v6. V7 may require building from source.
+4. **ImageMagick 7**, required by `classify-frames.js` for contact sheet generation (`magick montage`). Check: `magick -version`. Install: `winget install ImageMagick.ImageMagick` (Windows), `brew install imagemagick` (macOS), `sudo apt install imagemagick` (Linux). Where the distribution's package is v6 (`magick` is missing or reports 6.x), v7 may require building from source.
 5. **A browser tool for Phase 1 (course discovery)**, picked by the browser-tool rubric `/testing:run-e2e` owns. A missing tool is a prerequisite gap to report, not a reason to switch tools. Frame extraction needs no browser tool: the scripts read HLS URLs themselves.
 
 If any prerequisite fails, stop and inform the user. Re-run `setup-deps.mjs` for the node dependencies + Chromium; the media binaries (ffmpeg, ImageMagick) are OS-level installs via your platform's package manager per the commands above.
@@ -102,12 +102,12 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" --data-dir 
 node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" extract-course.js --course-dir <path-to-course-data> --metadata-only
 ```
 
-Script uses Playwright's bundled Chromium with a fresh temp context (not Chrome itself. Chrome 136+ blocks CDP on default profiles). Auth handled via `addCookies()` after context launch: with credentials set it logs in and saves state; subsequent runs inject cached cookies automatically. Skips already-extracted lessons (crash-safe, resumable). Runs headless by default (`--show-browser` to show the browser).
+Script uses Playwright's bundled Chromium with a fresh temp context (not Chrome itself, which ignores the remote-debugging switches on its default data directory; the version and switches: <https://developer.chrome.com/blog/remote-debugging-port>). Auth handled via `addCookies()` after context launch: with credentials set it logs in and saves state; subsequent runs inject cached cookies automatically. Skips already-extracted lessons (crash-safe, resumable). Runs headless by default (`--show-browser` to show the browser).
 
 **Key technical details:**
 
 - Uses `--disable-blink-features=AutomationControlled` to bypass automation detection on course platform logins
-- Chrome profiles are NOT used. Playwright's own Chromium with a dedicated temp context dir in the OS temp directory
+- Chrome profiles are not used. Playwright's own Chromium with a dedicated temp context dir in the OS temp directory
 - Auth state saved to `${CLAUDE_PLUGIN_DATA}/auth/<platform>.auth-state.json` (session expiry depends on the platform's auth provider, configured in `platformConfig.authWarnDays`)
 - HLS video URLs captured via DOM read from the video player element (selector from `platformConfig.videoPlayerSelector`). No claude-in-chrome needed
 - Frame extraction via ffmpeg scene detection (threshold 0.1), with interval fallback for sparse results
@@ -200,7 +200,7 @@ Multi-modal extraction gaps beyond these three (code OCR from frames, slide-text
 
 ### Dedup semantics
 
-Dedup phase (`classify-frames.js --phase dedup`) **reports** near-duplicates but does NOT
+Dedup phase (`classify-frames.js --phase dedup`) **reports** near-duplicates but does not
 delete frame files. Actual frame curation happens in `generate-manifests.js` which sets
 `keep: true/false` per frame. Frame PNG files remain on disk. Manifests define which frames to use
 during synthesis.

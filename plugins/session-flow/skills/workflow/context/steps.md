@@ -4,12 +4,10 @@ The staged development workflow, including its optional and conditional stages. 
 repo defines a skill for a stage, invoke it; otherwise execute the stage inline per its definition
 here. A conditional stage runs only when its trigger holds; otherwise it is skipped and marked SKIPPED, with the reason, on its checklist box.
 
-These definitions govern the full path. A change whose diff is quick to review and cheap to retry
-takes the quick-change on-ramp (SKILL.md "On-ramps") instead: it enters at stage 8, where reading
-the code it needs is part of implement, and returns to stage 1 if its diff turns out not to be
-quick to review. A diff that adds types, public contracts, or module boundaries is not cheap to
-retry and takes the full path. New work whose diff fails either test enters at stage 1, the
-interview, which calls stages 2-4 as detours when a question needs them.
+These definitions govern the full path. Which stages each kind of task enters, in what order, and
+which it skips is stated once, in [Task kinds](#task-kinds) at the end of this file. A diff that
+adds types, public contracts, or module boundaries is not cheap to retry and takes the full path.
+On the full path, the interview (stage 1) calls stages 2-4 as detours when a question needs them.
 
 **The level each stage decides.** The interview decides behavior (the Brief), design decides
 interfaces and contracts, and plan decides files and symbols. A question at another stage's level
@@ -36,7 +34,7 @@ interfaces and contracts wait for design, files and symbols for plan.
 - Trigger conditions: intent is fuzzy, scope is uncalibrated, or, on the full path, the work
   changes behavior, structure, or contracts
 - Skip conditions: a change whose diff is quick to review and cheap to retry (the quick-change
-  on-ramp), or follow-ups where the Brief IS the conversation
+  on-ramp), or follow-ups where the Brief is the conversation
 - Front-loads clarification cost in one round-trip; ask the questions the design turns on one at a
   time, highest architectural blast radius first
 - Calls explore, research or a PRD (stages 2-4), or a prototype, only when a question it asks
@@ -75,7 +73,7 @@ External verification of technical claims: official docs, primary sources, curre
 - Skip conditions: no claim the work depends on comes from outside the repository
 - No claim the work depends on is accepted without verified, current information from authoritative
   sources
-- **Task size does NOT reduce research depth.** A one-line config change gets the same
+- **Task size does not reduce research depth.** A one-line config change gets the same
   verification rigor as a multi-file feature
 - Reading a document and restating its conclusions is not research. Analysis requires independent
   verification
@@ -90,7 +88,7 @@ the work returns to the stage that called it.
 Write down the problem, the users, and the success metrics when the interview finds that product
 intent is unsettled, so the Brief aims at an agreed outcome.
 
-- Trigger conditions: the change is user-facing AND business-driven AND alignment across people
+- Trigger conditions: the change is user-facing and business-driven and alignment across people
   matters (a new user-facing surface, a cross-team initiative)
 - Skip conditions: engineering-internal work (refactors, infrastructure, conventions, bug fixes)
 - Before it, a rough problem may be diverged into candidate approaches. A too-big and still-foggy
@@ -152,7 +150,7 @@ plan's design section it touches, so an agent that picks it up cold still builds
   will be picked up across sessions or by more than one person or agent
 - Skip conditions: the plan is one ticket; implement it directly
 - A closed wayfind map whose destination is a set of build items enters here directly, past
-  design and plan: its resolved decisions stand in for them (owner decision Q531, #12477)
+  design and plan: its resolved decisions stand in for them
 - **Effort:** cutting the plan along its seams, where a thick slice stalls the agent that picks it
   up
 
@@ -161,7 +159,7 @@ plan's design section it touches, so an agent that picks it up cold still builds
 Structured execution with incremental validation and commit checkpoints.
 
 - Validate (build/test) after each logical block using the consuming repo's own commands
-- Commit after green. Small, frequent commits are save points
+- Commit after green. Small, frequent commits are green commits to return to
 - If implementation diverges from the approved plan or hits unexpected complexity, stop and
   re-plan rather than pushing through a broken approach
 - At phase boundaries, route the continuation with the skill's default-mode section 4 (`context/continuation.md`)
@@ -224,3 +222,21 @@ across sessions are `/session-flow:audit-sessions trends`.
 
 Prep (review + verify evidence) → create → monitor CI → address review findings → merge. Standalone
 sequence, not a numbered stage. See `context/pre-pr.md` for the ordered gate checklist.
+
+## Task kinds
+
+The stages each kind of task enters, in order, and the stages it skips. This table is the one
+place that mapping is stated; it names stages, never skills, because which skill runs a stage is
+the consuming repo's choice. A stage is named by its heading above without the number and without
+anything after a colon or a parenthesis. A conditional stage listed here still runs only on its
+trigger, and a skipped stage is marked SKIPPED with this row's reason. The retrospective is
+optional after any kind.
+
+| Kind | Stages, in order | Skips | Why |
+| --- | --- | --- | --- |
+| Small fix | Implement, Test, Review, Verify outcome, Ship | Interview, Explore, Research, PRD, Design, Plan, Decompose | The quick-change on-ramp: the diff is quick to review and cheap to retry, so reading the code it needs is part of implement; a diff that turns out not to be quick to review goes back to the interview |
+| Bug | Interview, Explore, Research, Design, Plan, Decompose, Implement, Test, Review, Verify outcome, Ship | PRD | The full path less the PRD, whose skip conditions name bug fixes; design records a one-line early exit for a single-file fix, and undiagnosed breakage is diagnosed before implement |
+| Feature | Interview, Explore, Research, PRD, Design, Plan, Decompose, Implement, Test, Review, Verify outcome, Ship | None | The full path |
+| Refactor | Interview, Explore, Research, Design, Plan, Decompose, Implement, Test, Review, Verify outcome, Ship | PRD | Engineering-internal work, which the PRD's skip conditions name |
+| UI change | Interview, Explore, Research, PRD, Design, Plan, Decompose, Implement, Test, Review, Verify outcome, Ship | None | The full path; design starts from the flow and the screens, and review adds an interface review |
+| Release | Verify outcome, Ship | Interview, Explore, Research, PRD, Design, Plan, Decompose, Implement, Test, Review | The changes being released went through their own stages; what is left is proving the release candidate and shipping it |

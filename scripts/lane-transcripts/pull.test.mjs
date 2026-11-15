@@ -209,7 +209,7 @@ test("a budget-stopped pull's successor starts listing at the name it stopped on
   const sink = sinkDir();
   seedState(sink, { last_success_at: iso(NOW - 86400_000) });
   const listedNames = (deps) => listings(deps).map((c) => /name=([^&]+)&/.exec(c)[1]);
-  const budget = 300;
+  const budget = 500;
   const first = { ...fakeDeps([]), ghCallBudget: budget };
   run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: first });
   const second = { ...fakeDeps([]), ghCallBudget: budget };

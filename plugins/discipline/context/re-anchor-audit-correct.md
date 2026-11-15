@@ -1,6 +1,6 @@
 # The re-anchor / audit / correct-forward loop
 
-Shared by every skill in this plugin. Each corrector re-anchors ONE
+Shared by every skill in this plugin. Each corrector re-anchors one
 standing discipline, applies it to the current conversation, and corrects
 what has drifted. This file owns the common method; each skill's `SKILL.md`
 adds only its own delta: which discipline, where that discipline's source
@@ -34,11 +34,11 @@ Run these in order. Skip a step only when its input is genuinely absent
 
 1. **Re-anchor.** Re-read the discipline's source of truth (the skill names
    it) with fresh attention and treat it as active for the rest of the
-   task. Loading the skill IS the re-anchor. The point is not to reprint
+   task. Loading the skill is the re-anchor. The point is not to reprint
    the rules but to make them govern the next actions. State in one line
    that the discipline now governs the work.
 2. **Self-audit the work in flight.** Walk back over the conversation and
-   name CONCRETE, located findings, not a generic mea culpa. Each finding
+   name concrete, located findings, not a generic mea culpa. Each finding
    points at a specific turn, claim, or artifact and at the specific part
    of the discipline it breaks. If there are none, say so plainly. Do not
    invent findings to look diligent. For work that others depend on (code,
@@ -54,7 +54,7 @@ Run these in order. Skip a step only when its input is genuinely absent
    batched fork) returns "clean (unconfirmed)"; the pass that dispatched it
    runs the confirmation. A corrector whose step 2 already runs in a
    fresh-context subagent (a declared delta) has met this.
-3. **Correct forward now.** For each finding, do the missing work THIS
+3. **Correct forward now.** For each finding, do the missing work this
    turn rather than merely noting it: edit the file, fix the config,
    re-derive the choice, in the working tree, now. Where your own
    judgment is the suspected source of the drift, re-derive it in a
@@ -113,7 +113,7 @@ context, never from a baked-in path. Apply the resolution ladder:
 
 1. **Declared → use it.** When the consuming project states the discipline
    in its own instruction layer, whether its `CLAUDE.md`, its
-   `.claude/rules/`, or a team conventions doc it points to, re-anchor THAT
+   `.claude/rules/`, or a team conventions doc it points to, re-anchor that
    text. It is already
    in the model's context; the skill raises its salience and audits
    against it.

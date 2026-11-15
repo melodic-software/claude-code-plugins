@@ -165,7 +165,7 @@ refreshed=0
 for tool in "${TOOLS[@]}"; do
   real="$(resolve_tool "$tool")"
   if [[ -z "$real" || "$real" != /* ]]; then
-    harness_die "requested tool '$tool' does not resolve to an executable on PATH (got '${real:-<nothing>}'). The source harness skipped an unresolvable tool silently, which undercounts every run and reports a confident wrong number; harness-integrity.md rule 2 requires a failure instead. Drop it from --tool, or install it."
+    harness_die "requested tool '$tool' does not resolve to an executable on PATH (got '${real:-<nothing>}'). Skipping an unresolvable tool silently undercounts every run and reports a confident wrong number; harness-integrity.md rule 2 requires a failure instead. Drop it from --tool, or install it."
   fi
   desired="$(printf '#!/usr/bin/env bash\nprintf "%%s\\n" %q >>%q\nexec %q "$@"\n' "$tool" "$LOG" "$real")"
   shim="$HARNESS_SHIM_DIR/$tool"

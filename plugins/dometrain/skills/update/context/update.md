@@ -20,7 +20,7 @@ The script does three things:
    stripping the baseline's own attribution comment first since upstream never carries it.
 3. **Report** prints "no drift" or the diff as "what Dometrain changed since the last review."
 
-**The script does NOT auto-write changes into `grounding/SKILL.md`.** Dometrain's own prose
+The script does not auto-write changes into `grounding/SKILL.md`. Dometrain's own prose
 style, frontmatter shape, and structure differ from this plugin's conventions and would clobber
 this plugin's additions (the standing untrusted-data instruction, this plugin's own
 frontmatter). The human in the loop decides what to port.

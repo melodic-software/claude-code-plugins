@@ -3,6 +3,22 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.34] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
+## [0.26.33] - 2026-11-15
+
+### Changed
+
+- The audit skill says the orchestrator writes the report, `latest.json` and the history line,
+  and the session writes none of them.
+- The severity rubric and remediation policy now match the checks: tamper protection off is WARN,
+  a detection is CRIT only with no recorded remediation, Clear-TempFiles triggers on the
+  `disk-space` check, and a first run is a dry run. Capital-letter emphasis is lower-cased.
+
 ## [0.26.32] - 2026-11-14
 
 ### Changed

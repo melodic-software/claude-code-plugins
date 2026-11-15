@@ -4,7 +4,7 @@ Usage: `/corrections:codify group [--by <field>[,<field>...]] [--since <UTC ISO-
 
 - An argument other than these two options, a `--by` value other than up to 8 comma-separated
   field names of letters, digits, `_` and `-`, or a `--since` value that is not UTC ISO-8601: print
-  `usage: /corrections:codify group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` and STOP.
+  `usage: /corrections:codify group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` and stop.
 
 `group` writes nothing. It does not change the buffer, write a file, write a proposal or run a proof.
 

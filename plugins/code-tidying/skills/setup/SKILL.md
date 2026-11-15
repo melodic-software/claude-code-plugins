@@ -1,6 +1,6 @@
 ---
-description: "Checks or scaffolds this repository's code-tidying configuration: tracked project tidy lanes and the optional HARD-exclusion overrides file. Use when 'set up code-tidying' is asked or the tidy skill reports no project lanes."
-argument-hint: "[check|apply] [<lane>]"
+description: "Checks or scaffolds this repository's code-tidying configuration: tracked project tidy lanes, the optional HARD-exclusion overrides file, and the comment-lint git pre-commit entry. Use when 'set up code-tidying' is asked, the tidy skill reports no project lanes, or a session-start line says the comment-lint git hook is missing or stale. Actions: check (read-only, default), apply (one named lane or all), apply install-git-hooks (scope local or shared)."
+argument-hint: "[check|apply [<lane>|install-git-hooks [scope=local|shared]]]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -65,7 +65,7 @@ tidy sweep (that is `/code-tidying:tidy`).
    watch-for pattern: FAIL, naming the file and the token.
 4. **Tracked, not ignored.** Per lane file, run both halves of the tracked-file pair:
    `git check-ignore -v <file>` (non-empty means a `.gitignore` pattern excludes the lane: FAIL with
-   the pattern, since a directory can be tracked while a pattern excludes one `.md` inside it) AND
+   the pattern, since a directory can be tracked while a pattern excludes one `.md` inside it) and
    `git ls-files --error-unmatch <file>` (non-zero means un-ignored but untracked: report "commit it
    to share with the team", downgraded to INFO only when the user confirms a deliberately private,
    uncommitted lane).
@@ -84,6 +84,21 @@ tidy sweep (that is `/code-tidying:tidy`).
    does: every GLOBAL HARD **path** entry is reported instead of blocking, in every run this operator
    makes. If the value changed this session, say the
    running session's behavior is not yet established: the stored value is current, the session lags.
+8. **Comment-lint git entry.** Outside a git repository, INFO and skip this step. Probe `node`
+   (`command -v node && node --version`): absent is a FAIL, since the installer and the
+   session-start drift probe run on it; an installed entry still runs at commit. Then run
+   `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify` from the repository. Each line
+   is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is INFO, and `missing`, `stale`,
+   `modified` or `superseded` is a FAIL whose remediation is `apply install-git-hooks`.
+9. **Comment-lint settings and tools.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/comment-settings.sh"`
+   and report `comment_lint` (`off` when unset), `comment_posture`, and the file each came from;
+   `comment-settings.sh --list comment_lint_allow` lists the allow patterns. A `comment_lint`
+   `invalid` line is a FAIL naming the file. When the level is `report` or `block`, probe
+   `python3 -c 'import pygments'` with the `python3` on `PATH`: a failure is a FAIL, since the entry
+   then reports pygments missing at every commit. Report `python3` and `pygments` as the tools to
+   provision before an unattended session. When no workflow under `.github/workflows/` runs
+   `comment-lint.sh`, say so: the missing-tool pass and `checks.skipmissing` rely on CI re-running
+   the lint on the change (the plugin README gives the CI recipe).
 
 ## `apply` (idempotent)
 
@@ -149,6 +164,43 @@ answer unambiguous; ask only where a lane's scope genuinely needs the user's cal
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
+## `apply install-git-hooks [scope=local|shared]`
+
+Registers the plugin's git-hook entry (`git-hooks/entries.json`, `comment-lint` at `pre-commit`)
+with the repository's hook manager. The installer only detects, renders and writes files the
+plugin owns; every step that needs judgment comes back as a `decisions[]` item, which you reason
+about and apply with your own edit tools. The entry exits 0 while `comment_lint` is `off` or unset,
+so installing it changes no commit until the team file sets a level.
+
+1. **Scope.** Use the argument when given. Otherwise, when the user is present, ask: `local` (this
+   clone only, nothing committed) or `shared` (committed under `.githooks/code-tidying/`, so every
+   teammate and agent gets it). When nobody can answer, use `local`.
+2. **Plan.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" plan --scope <scope>` and
+   read the JSON: `manager`, `actions[]`, `decisions[]`.
+3. **Manager conflict.** A `manager-conflict` decision lists the evidence. Show it and ask which
+   manager should carry the entry; rerun `plan` with `--manager lefthook|husky|plain`. Without an
+   answer, stop and report.
+4. **Actions.** When `actions[]` holds `copy` items, run
+   `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (with the same
+   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused` or
+   `blocked` per entry; `refused` is a locally edited copy (the `modified` decision) and `blocked`
+   is another tool owning the local hooks directory (the `hooks-path-owned` decision).
+5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for what
+   each kind asks of you, apply each one, then rerun `plan` until only the decisions you chose to
+   leave remain.
+6. **Verify.** Run `verify` and report its lines as `check` step 8 does.
+
+A repository that runs its hooks from this marketplace's main branch through lefthook uses
+`plan --scope remote` instead, which returns the `remotes:` snippet for
+`git-hooks/lefthook-remote.yml`.
+
+When the user does not want the entry in this clone, run
+`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry comment-lint`; the
+session-start drift line then stays silent until `verify` runs by hand, and `--undo` reverses it.
+Add `--global` to decline it in every clone. The [adoption
+path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md)
+explains each install scope to the user.
+
 ## Personal configuration (`userConfig`)
 
 Not `apply` surface: Claude Code owns the storage, and this contract forbids setup to write
@@ -178,7 +230,8 @@ blocks) or `advisory` (every one is reported and none blocks); any other value i
 Tracked `.claude/tidy-lanes/<lane>.md` file(s) in the consuming repo, plus a one-paragraph summary
 of which lanes were written, the source of each (template or bundled lane), and how to re-run this
 setup to add or retune lanes. When an overrides file was written or already exists, the summary
-names it and the globs it lifts.
+names it and the globs it lifts. `apply install-git-hooks` writes only the entry's copies and
+its hook-manager wiring, and reports `verify`'s lines.
 
 ## Boundaries
 

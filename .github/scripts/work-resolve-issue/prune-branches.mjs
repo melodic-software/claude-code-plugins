@@ -1,6 +1,6 @@
 // work-resolve-issue.yml's prune-lane-branches job: deletes the lane branches
 // of stopped runs that report-outcome.mjs --find-prior named (pruneBranches),
-// which the read runner's issue-fields job held to the lane-branch shape.
+// which the read runner's check-issue-fields job held to the lane-branch shape.
 // The run job that named them ran the model, so the list is only a claim:
 // this script drops any name that is not this issue's lane branch, is this
 // run's own (any attempt), or is the reuse or resume branch, then reads every

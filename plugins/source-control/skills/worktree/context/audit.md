@@ -47,7 +47,7 @@ claude plugin list --json | jq -r '
   | .[] | [.path, (.count|tostring), (.scopes|join("+")), (.marketplaces|join(","))] | join("\t")' | tr -d '\r'
 ```
 
-**Precondition: check this FIRST, and stop the step if it fails.** Confirm the resolved worktree
+**Precondition: check this first, and stop the step if it fails.** Confirm the resolved worktree
 root itself exists as a directory right now. If not, the volume holding every worktree is detached
 or unmounted, and *every* path under it would classify as orphaned on identical evidence. Report
 "orphaned-record check unavailable: the worktree root `<root>` does not resolve" and offer nothing.
@@ -196,7 +196,7 @@ Read-only: neither the scan nor this step removes anything.
 - 108 plugin install records name `<candidate-orphan-path>`: under your worktree root, not registered
   here, and not a live work tree of any repository right now. That is two negatives, not proof of
   death. Confirm it is not an unmounted share or a detached volume before acting. `cleanup` reaps
-  these at teardown; these predate that step. Removing them needs the directory recreated. The
+  records only at a teardown it runs; these came from a removal it did not run. Removing them needs the directory recreated. The
   commands are in Step 2b, and they are yours to run, not the audit's.
 ```
 

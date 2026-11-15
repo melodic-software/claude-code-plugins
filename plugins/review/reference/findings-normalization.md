@@ -19,7 +19,7 @@ The 5-stage main-thread pipeline that turns heterogeneous free-text findings fro
 
 Line numbers from LLM reviewers drift. Treat inferred lines as approximate and keep dedup noise-tolerant.
 
-**One row's raw text is not returned to the session:** `/review:fanout` dispatches the `code-review` plugin only in its `--comment` form, which ends by posting its findings to the PR, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment and feed the body to Stage 0 as this surface's raw text, identified as the comment THIS invocation created, never by position.
+**One row's raw text is not returned to the session:** `/review:fanout` dispatches the `code-review` plugin only in its `--comment` form, which ends by posting its findings to the PR, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment and feed the body to Stage 0 as this surface's raw text, identified as the comment this invocation created, never by position.
 
 Fanout's SKILL.md "Orchestrator plugins" takes the pre-dispatch comment-ID snapshot, because that is the step that runs before the dispatch. Splice the array it printed in here as a literal. A shell variable set in an earlier tool call is gone by the time this one runs:
 
@@ -34,7 +34,7 @@ gh pr view <n> --json comments |
 
 Identity, not position or time. `.comments[-1]` is whatever landed most recently, with no filter at all. Any bot or reviewer commenting between the dispatch and this fetch is normalized as `code-review` findings and corrupts the persisted report. A timestamp cutoff narrows the window but still cannot say who wrote a comment inside it, so a third party quoting the `### Code review` heading mid-dispatch would win it. The ID-set difference answers the question actually being asked: which comment did not exist before this invocation.
 
-Identity says a comment is NEW, not whose it is, so shape is the second filter. A third party quoting the review mid-dispatch posts a genuinely new comment carrying the heading, and when the dispatch itself posted nothing that quotation is the only new match, so a substring test would normalize it as this surface's findings. The plugin's command file mandates ("follow the following format precisely") a body that BEGINS with the `### Code review` heading and carries the `🤖 Generated with [Claude Code]` trailer; a quotation fails both, because `> ### Code review` is not a `startswith`. Match the trailer by that prefix, never its full link. The URL is free to change upstream and would silently un-match. Author is deliberately not a third filter: the plugin posts via `gh pr comment` under whatever credential invoked it, so there is no fixed login to match and a hardcoded one would break for the next consumer.
+Identity says a comment is new, not whose it is, so shape is the second filter. A third party quoting the review mid-dispatch posts a genuinely new comment carrying the heading, and when the dispatch itself posted nothing that quotation is the only new match, so a substring test would normalize it as this surface's findings. The plugin's command file mandates ("follow the following format precisely") a body that begins with the `### Code review` heading and carries the `🤖 Generated with [Claude Code]` trailer; a quotation fails both, because `> ### Code review` is not a `startswith`. Match the trailer by that prefix, never its full link. The URL is free to change upstream and would silently un-match. Author is deliberately not a third filter: the plugin posts via `gh pr comment` under whatever credential invoked it, so there is no fixed login to match and a hardcoded one would break for the next consumer.
 
 The `length == 1` guard is the refusal to guess. Zero new heading-bearing comments means the dispatch produced none; two or more means the window is genuinely ambiguous. Both yield empty output. The row has no input, so the surface is not normalized and belongs in `## Surfaces` as a skip. Never widen the filter or fall back to the latest comment to fill it.
 
@@ -45,8 +45,8 @@ The `length == 1` guard is the refusal to guess. Zero new heading-bearing commen
 Per-surface free-text → records `{surface, file, line, line_basis, category, native_severity, native_confidence, raw_text}`.
 
 - **Line normalization**: permalink range → start line. `file:line` → as-is, `line_basis: inferred`. No-line findings → `line: null`, file-scoped bucket. Doc-drift lines → `space: doc` (never bucket against source lines).
-- **Category normalization**: a small enum (`security`, `architecture`, `performance`, `testing`, `error-handling`, `concurrency`, `docs`, …; unmappable → `other`), NOT raw per-source strings (they false-split).
-- **Parse-failure accounting**: record raw vs normalized counts per surface; preserve unparsable findings as raw text in the report's `## Unparsed` appendix. NEVER drop.
+- **Category normalization**: a small enum (`security`, `architecture`, `performance`, `testing`, `error-handling`, `concurrency`, `docs`, …; unmappable → `other`), not raw per-source strings (they false-split).
+- **Parse-failure accounting**: record raw vs normalized counts per surface; preserve unparsable findings as raw text in the report's `## Unparsed` appendix. Never drop.
 - **Reviewer coverage**: judge a `code-reviewer` or `security-reviewer` report by its closing `Coverage:` line as [`reviewer-handback.md`](reviewer-handback.md) "Incomplete reply" says. Extract its findings, and when that section makes the report partial or no result, add one record for that surface saying so and naming what it did not reach, so the surface never merges as clean.
 
 ## Stage 1: Severity crosswalk (deterministic)
@@ -55,9 +55,9 @@ Map native severity → the tier vocabulary in effect (the project's own, else `
 
 - security-reviewer: P1/P2 → CRITICAL; P3 → IMPORTANT; P4/P5 → SUGGESTION; A04/tier-less → SUGGESTION + `forward-flag: design-review`.
 - code-reviewer, slice-subagents, pr-review-toolkit: identity mapping (Critical/Important-or-Warning/Suggestion).
-- architecture-guardian: Violation → CRITICAL (broken rule today) or IMPORTANT (drift) by content; **Risk → SUGGESTION + `forward-flag: future` (NEVER a blocking tier)**; Opportunity → SUGGESTION.
+- architecture-guardian: Violation → CRITICAL (broken rule today) or IMPORTANT (drift) by content; **Risk → SUGGESTION + `forward-flag: future` (never a blocking tier)**; Opportunity → SUGGESTION.
 - doc-drift: Stale → IMPORTANT; Missing/Aspirational → SUGGESTION.
-- **Surfaces emitting no severity** → DERIVE from content: bug/correctness → CRITICAL or IMPORTANT by impact; convention-adherence → IMPORTANT; ambiguous → IMPORTANT + `pending: human-tier`. A confidence filter having passed is confidence-of-realness, NOT severity. A high-confidence nitpick is still a nitpick.
+- **Surfaces emitting no severity** → derive from content: bug/correctness → CRITICAL or IMPORTANT by impact; convention-adherence → IMPORTANT; ambiguous → IMPORTANT + `pending: human-tier`. A confidence filter having passed is confidence-of-realness, not severity. A high-confidence nitpick is still a nitpick.
 
 ## Stage 2: Confidence enum (deterministic)
 
@@ -65,14 +65,14 @@ Per `<plugin-root>/context/severity.md` "Confidence axis": the `code-review` plu
 
 ## Stage 3: Dedup (`review:stage-normalizer`)
 
-Key = normalized file path + line-proximity bucket (±3 lines), NOT category. File-scoped findings (null `line`) bucket by path + category + a content-gist check: merge two line-less records only when their `raw_text` describes the same issue. Path alone would collapse distinct architecture/doc findings in the same file. Doc-space never merges with source-space. **Minimize FALSE-MERGE over FALSE-SPLIT.** A false merge silently drops a real issue; a false split only adds noise. When in doubt, do NOT merge.
+Key = normalized file path + line-proximity bucket (±3 lines), not category. File-scoped findings (null `line`) bucket by path + category + a content-gist check: merge two line-less records only when their `raw_text` describes the same issue. Path alone would collapse distinct architecture/doc findings in the same file. Doc-space never merges with source-space. **Minimize false-merge over false-split.** A false merge silently drops a real issue; a false split only adds noise. When in doubt, do not merge.
 
 ## Stage 4: Agreement / rank (deterministic)
 
-- **Cross-surface merge takes MAX severity + MAX confidence**, never a filtered value.
-- **Agreement = positive presence only.** Count the surfaces that flagged the issue; a surface's ABSENCE carries no signal (it may have been confidence-filtered, not judged absent).
+- **Cross-surface merge takes max severity + max confidence**, never a filtered value.
+- **Agreement = positive presence only.** Count the surfaces that flagged the issue; a surface's absence carries no signal (it may have been confidence-filtered, not judged absent).
 - **Rank:** (1) tier CRITICAL → IMPORTANT → SUGGESTION; (2) agreement count descending; (3) confidence, in the rank order [`context/severity.md`](../context/severity.md) "Confidence axis" owns. Render `pending: human-tier` and `forward-flag` markers visibly.
-- **Two-axis presentation:** the merged ranked queue is the primary view; the report ALSO regroups the same findings by review dimension (the Stage-0 category enum) under per-dimension headings. A merged rank can mask one dimension failing badly while the others pass.
+- **Two-axis presentation:** the merged ranked queue is the primary view; the report also regroups the same findings by review dimension (the Stage-0 category enum) under per-dimension headings. A merged rank can mask one dimension failing badly while the others pass.
 
 ## Axis assignment
 

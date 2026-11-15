@@ -6,8 +6,8 @@ token-efficient live browser automation: named sessions,
 accessibility-ref snapshots (click/fill by ref, not CSS selector),
 screenshots, console and network capture, network mocking, tracing, video,
 and auth-state persistence. Snapshots and screenshots write to disk and only
-paths come back into context, a substantial token reduction versus
-Playwright MCP's in-context payloads.
+paths come back into context, so the page payloads Playwright MCP returns
+in context never enter it. We have not measured the token savings.
 
 Invoke it with `/playwright:playwright`, or let Claude reach for it when you
 ask for an E2E test, a screenshot, or any live browser flow.
@@ -97,7 +97,7 @@ marketplace follows:
 - Seven of its ten reference files run past 100 lines (up to 433) with no
   contents list.
 
-This wrapper is a 116-line hub with trigger phrases, routes to eleven
+This wrapper is a 163-line hub with trigger phrases, routes to eleven
 topic files that each carry a contents list when long, and adds gotchas
 observed in the marketplace's browser-tools benchmark. Recheck when the
 upstream version moves: if its skill closes these gaps, plan the switch

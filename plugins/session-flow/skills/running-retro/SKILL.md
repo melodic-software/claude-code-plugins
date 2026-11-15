@@ -1,5 +1,5 @@
 ---
-description: "Mid-session retro checkpoint: a subagent files findings from the transcript so far into a running ledger, never applied; `arm` runs it after the session ends. Use when: 'running retro', 'checkpoint this session', 'watch this session in the background', or on a /loop."
+description: "Mid-session retro checkpoint: a subagent files findings from the transcript so far into a running ledger, never applied; `arm` runs it after the session ends. Use when: 'running retro', 'watch this session in the background', or on a /loop."
 argument-hint: "[topic|arm]"
 user-invocable: true
 disable-model-invocation: false
@@ -84,13 +84,15 @@ So resolve every input to a concrete value and pass it in the delegation prompt,
 - **Prior running-retro ledger**, if this session's ledger (or its chain) carries a
   `previous_running_retro` pointer, resolve that prior ledger's absolute path and pass it so the
   subagent carries forward earlier checkpoints' findings (the "running" = cumulative guarantee). This
-  is the ledger's OWN continuity chain, walked by reading the ledger files, NOT the parser's
+  is the ledger's own continuity chain, walked by reading the ledger files, not the parser's
   `--chain-from`, so a session continued from an earlier checkpoint without a handoff still keeps
   its prior findings.
 - **Repo convention docs**, the consuming repo's `CLAUDE.md`, the relevant `.claude/rules/` files,
   and any convention READMEs, so the subagent judges convention/workflow drift against the repo's
   documented rules. These are trusted local reads; transcript content is not (see checkpoint.md's
   trust boundary).
+- **Analysis spec (absolute path)**. Resolve `${CLAUDE_PLUGIN_ROOT}/skills/running-retro/context/checkpoint.md`
+  to its absolute form and pass it in the template's Analysis spec slot.
 - **The subjective-state note** from step 1.
 
 ### 3. Delegate the analysis
@@ -107,8 +109,8 @@ The ledger lives at `<memory_dir>/running-retros/` (default `.work/running-retro
 
 **One ledger file per session, appended. Discover before creating.** Name it
 `<TS>-running-retro-<topic>.md` (`TS = date -u +%Y%m%dT%H%M%SZ`, topic = argument or inferred),
-created on this session's FIRST checkpoint with frontmatter `session_id: $CLAUDE_CODE_SESSION_ID`. On
-every LATER checkpoint do NOT create a second file: locate this session's existing ledger by globbing
+created on this session's first checkpoint with frontmatter `session_id: $CLAUDE_CODE_SESSION_ID`. On
+every later checkpoint do not create a second file: locate this session's existing ledger by globbing
 `<memory_dir>/running-retros/*-running-retro-*.md` and matching the one whose frontmatter `session_id`
 equals the current `$CLAUDE_CODE_SESSION_ID`, then re-read it from disk and **append** a new
 `## Checkpoint <TS>` section. Create a new file only when no such match exists.
@@ -131,8 +133,8 @@ contract.
 
 **Chaining across `/clear`.** When this session resumed a prior one through a handoff chain (retro's
 Phase 1.0 continuity gate), record `previous_running_retro` (the prior session's ledger path) and
-`previous_session_id` in this ledger's frontmatter. These are ledger-continuity pointers THIS skill
-walks to present the cumulative running history; they are NOT parser input, the parser's
+`previous_session_id` in this ledger's frontmatter. These are ledger-continuity pointers this skill
+walks to present the cumulative running history; they are not parser input, the parser's
 `--chain-from` consumes handoff files only (it reads `session_id` / `previous_handoff`), never
 running-retro ledgers. Honor the contract's runtime guards from the binding (the once-per-session
 self-ignore guard on the resolved memory root; never edit the consumer's root `.gitignore`).
@@ -143,7 +145,7 @@ subagent's own pass: the ledger outlives the session and travels to other sessio
 
 ### 5. Offer routing, never auto-apply
 
-Present the checkpoint findings, then OFFER the forward routes; act only on the ones the user picks:
+Present the checkpoint findings, then offer the forward routes; act only on the ones the user picks:
 
 - **Codify a durable learning** → `/corrections:codify "<the learning>"` when the `corrections`
   plugin is installed, otherwise `/session-flow:retro`, whose session mode codifies approved
@@ -168,7 +170,7 @@ Tick each in the response so the exit shape is verifiable:
 
 - [ ] Subjective-state note written before delegating (step 1)
 - [ ] Analysis delegated to a fresh subagent with resolved absolute inputs (step 2-3)
-- [ ] **Redaction swept the subagent findings AND the ledger append** (both hops. Step 3 and step 4)
+- [ ] **Redaction swept the subagent findings and the ledger append** (both hops. Step 3 and step 4)
 - [ ] Findings appended to this session's single ledger file (located by `session_id` match, not a
   new per-checkpoint file; self-ignore guard verified on the first memory-tier write)
 - [ ] `plugin_usage` stamped into the ledger frontmatter, or the failed stamp noted (step 4)
@@ -177,7 +179,7 @@ Tick each in the response so the exit shape is verifiable:
 ## Arming a detached observer (`arm`)
 
 When `$ARGUMENTS` is `arm` (or the user asks to watch/observe this session in the background), do
-NOT run the in-session checkpoint above. Instead launch the **detached observer** for the current
+not run the in-session checkpoint above. Instead launch the **detached observer** for the current
 session: a substrate that outlives the session, tails its transcript out-of-band at zero context
 cost, detects end by mtime-idle, and (unless analysis is disabled) runs this same checkpoint method
 headless afterwards, appending its findings to this session's ledger. The substrate, lifecycle,
@@ -197,10 +199,10 @@ and [§ Where each variable resolves](https://code.claude.com/docs/en/plugins/ma
 - `OBS_IDLE` ← `${user_config.observer_idle_seconds}` (default `900`); `OBS_MAX` ←
   `${user_config.observer_max_seconds}` (default `86400`)
 - `OBS_ANALYSIS` ← `${user_config.observer_analysis_enabled}` (default `true`), an operator who set it
-  `false` to avoid autonomous spend must NOT get a `claude -p` run from a manual arm
+  `false` to avoid autonomous spend must not get a `claude -p` run from a manual arm
 - `OBS_BARE` ← `${user_config.observer_analysis_bare}` (default `false`)
 - `DECLARED_MEMORY_DIR` ← a `memory_dir` the consuming repo documents in prose (its `CLAUDE.md` /
-  rules). Retro's rung-2 inference; empty otherwise. Being in-session, the manual arm CAN honor this
+  rules). Retro's rung-2 inference; empty otherwise. Being in-session, the manual arm can honor this
   (and cross-session continuity below); the headless hook uses the `.work` default and cannot infer a
   prose-documented root.
 - `PREV_LEDGER` / `PREV_SID` ← for cross-session continuity, if this session resumed from a handoff
@@ -232,7 +234,7 @@ args=(--transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$MEMORY_DI
 "$PY" "$PLUGIN_ROOT/skills/running-retro/scripts/arm_observer.py" "${args[@]}"
 ```
 
-This is the SAME launcher the opt-in SessionStart hook (`observer_enabled`) uses; manual `arm` works
+This is the same launcher the opt-in SessionStart hook (`observer_enabled`) uses; manual `arm` works
 whether or not the auto-arm is on, and is the primary entry. The launcher prints
 the observer pid and returns at once; it never blocks the session.
 
@@ -244,7 +246,7 @@ task continues in this same session. The detached observer (`arm`) is the push/e
 counterpart. When checking when a `/loop` task stops firing, fetch
 [scheduled tasks, Limitations](https://code.claude.com/docs/en/scheduled-tasks#limitations) live.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not score the session**. The five scored dimensions are `/session-flow:retro`'s.
 - **Does not codify learnings**, capture + route only; codification is `/session-flow:retro` or
@@ -266,7 +268,7 @@ It scores the session and codifies the learnings this checkpoint only captured.
   cannot reconstruct from disk.
 - **Pass resolved absolute paths to the subagent**, its fresh context expands no plugin variables
   and inherits none of this conversation's paths.
-- **Redact on both hops**, the subagent's findings pass AND the ledger write; memory-tier output
+- **Redact on both hops**, the subagent's findings pass and the ledger write; memory-tier output
   outlives the session.
 - **One ledger file per session, appended**. Discover this session's file by matching `session_id`
   in frontmatter before writing (never create a second file per checkpoint); re-read from disk before

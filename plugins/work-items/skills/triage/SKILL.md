@@ -64,7 +64,7 @@ State names follow the plugin's vocabulary and the canonical roles ([`${CLAUDE_P
 | **raw** | unlabeled or the raw marker (bare `needs-triage`) | Untouched intake; every claim in it is unverified |
 | **verified** | `status: confirmed` + a verification comment | The claim held up: bug reproduced to the repro bar, request judged valid, or PR diff confirmed to do what it says |
 | **briefed** | brief posted + `status:ready` | Fully specified as a behavioral contract (per [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) |
-| **autonomous-eligible** | role label (default `agent-ready`) | Briefed AND delegable. Eligible for autonomous pickup from the frontier |
+| **autonomous-eligible** | role label (default `agent-ready`) | Briefed and delegable. Eligible for autonomous pickup from the frontier |
 
 Side exits from any state: `needs-reporter-info` (returns to raw when the reporter replies), `needs-owner-decision` (awaiting a human or maintainer judgment call), `needs-spec` (from raw only: an idea issue awaiting its `/planning:interview`, step 1; returns to raw once the interview records its intent), the human-gated role label (default `needs-human`), or close (wontfix / duplicate / already implemented).
 
@@ -349,8 +349,8 @@ layer only (no `userConfig` option), each through step 1 above with its `--confi
 | `triage_cluster.min_members` | `2` | open items, this one included, that must share a signature before they cluster |
 | `triage_cluster.parent` | `oldest-reproduced` | `oldest-reproduced`: oldest member with a confirmed reproduction, else the oldest; `oldest`: the oldest |
 
-A value outside these is named (file, key, value) and that key takes its default. The defaults
-are provisional until tuned on the first 20 clusters. When a cluster forms, report
+A value outside these is named (file, key, value) and that key takes its default. When a
+cluster forms, report
 `Settings: triage_cluster.signatures=<list> (<layer>), triage_cluster.min_members=<n> (<layer>), triage_cluster.parent=<rule> (<layer>)`,
 each layer `repository` or `default`.
 
@@ -431,7 +431,7 @@ Classify **bug vs enhancement** first (bugs get reproduced; rejected enhancement
 
 A lane triaging many items holds to the provider's API budget ([`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Gotchas"): its writes go one at a time, and a rate-limit error stops the run's tracker calls, never a retry.
 
-### 3. Verify, BEFORE any interview
+### 3. Verify, before any interview
 
 Never interview anyone about the fix for a claim nobody has confirmed. Verification precedes questioning. An idea issue (step 1) carries no claim to verify and has already gone to its interview:
 

@@ -40,7 +40,7 @@ with cognitive load below; the two are distinct budgets and cutting one can over
 **cognitive load**
 
 The attention a human maintainer pays to hold where things live across a doc set. Ten small
-fragment files can be cheap in context load and ruinous in cognitive load.
+fragment files can be cheap in context load and expensive in cognitive load.
 
 Avoid: mental overhead
 
@@ -62,7 +62,7 @@ The moment a stage has produced its artifact and the next has not begun.
 What a session leaves for a fresh session to resume from: a resume prompt, always, plus an optional
 handoff file the prompt points to.
 
-Avoid: checkpoint
+Avoid: checkpoint; save point for pushed commits with no pull request (that state is PR-less)
 
 **primary source**
 
@@ -172,6 +172,16 @@ reversibility, input provenance and verifiability, not by its description.
 
 Avoid: risk class
 
+**security-surface work**
+
+Work that changes how the system authenticates, authorizes, handles tokens or secrets, grants
+permissions, or crosses a network boundary: a property of the work beside its work class, not a
+work class. Owned by the loop-lane convention's
+[capability tiers](contracts/loop-lane/README.md#3-capability-tiers). Distinct from the `autonomy`
+plugin's security surface, the security binding agents cannot write.
+
+Avoid: security-surface work class
+
 ### Lanes and pull requests
 
 **loop lane**
@@ -197,8 +207,10 @@ Avoid: human queue
 
 **PR hold**
 
-A stop on merging a pull request until it is lifted. Only the do-not-merge label binds every lane
-and person; any other hold binds only the gate that reads it.
+A stop on merging a pull request until it is lifted. Only the do-not-merge label is enforced across
+every lane and person; ci-status also enforces a member's veto comment on a lanes App pull request.
+Any other hold is enforced only by the gate that reads it, and a merging session still stops on a
+body hold or a human comment asking to wait until the owner lifts it (AGENTS.md, Merging).
 
 **merge rung**
 

@@ -3,6 +3,43 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.1] - 2026-11-15
+
+### Changed
+
+- The implement and implement-dispatch instructions use plain emphasis instead of capital letters, and stale facts in them are corrected.
+- The README says handoff notes go under `<memory_dir>/handoffs/`.
+
+## [0.44.0] - 2026-11-15
+
+### Added
+
+- `/implementation:implement-dispatch` briefs carry a `Review criteria:` line: the review-criteria
+  files the phase's paths match, from the plan's "Standards grounding" table, else the repository's
+  index, so a worker reads them before its first edit.
+
+## [0.43.5] - 2026-11-15
+
+### Changed
+
+- `implement-dispatch`'s frontier dispatch bullet points at the loop-lane convention's capability
+  tiers for the scope of security-surface work; the routing is unchanged.
+
+## [0.43.4] - 2026-11-15
+
+### Changed
+
+- The `implementer` and `scoped-implementer` agents, `/implementation:implement-dispatch` and its
+  frontier-routing eval prompt say "security-surface work" where they called it a work class; the
+  routing is unchanged.
+
+## [0.43.3] - 2026-11-15
+
+### Changed
+
+- `/implementation:implement` says "a green commit to return to" where it said "save point",
+  which the glossary keeps for the session-flow handoff.
+
 ## [0.43.2] - 2026-11-15
 
 ### Changed

@@ -444,7 +444,7 @@ const JOBS = [
   "address-feedback-subscription-handoff",
   "address-feedback-fallback",
   "apply-feedback-patch",
-  "adjudicate-key-credit",
+  "check-adjudicator-key-credit",
   "adjudicate-feedback",
   "publish-feedback",
 ];
@@ -454,7 +454,7 @@ const JOBS = [
 // too, so the push and the reply would never run.
 test("pr-unblock.yml: every address-feedback job after a model call starts its if: with !cancelled()", () => {
   const after = JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => need === "address-feedback" || need === "address-feedback-subscription" || need === "address-feedback-fallback"));
-  assert.deepEqual(after, ["address-feedback-handoff", "address-feedback-subscription", "address-feedback-subscription-handoff", "address-feedback-fallback", "apply-feedback-patch", "adjudicate-key-credit", "adjudicate-feedback", "publish-feedback"]);
+  assert.deepEqual(after, ["address-feedback-handoff", "address-feedback-subscription", "address-feedback-subscription-handoff", "address-feedback-fallback", "apply-feedback-patch", "check-adjudicator-key-credit", "adjudicate-feedback", "publish-feedback"]);
   for (const job of [...after, "address-feedback", "address-feedback-not-run"]) {
     assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
   }
@@ -1008,19 +1008,19 @@ const DISPATCHER = "pr-unblock-dispatch.yml";
 // no later job, publish-feedback and apply-dependency-verdict included, starts.
 for (const [file, jobs] of [
   ["pr-unblock.yml", ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context"]],
-  ["pr-refine.yml", ["plan", "fix-docs-head"]],
+  ["pr-refine.yml", ["select-passes", "fix-docs-head"]],
 ]) {
   test(`${file}: a dispatcher on an older copy of its file starts no first job`, () => {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
-    assert.match(text, /\n {2}dispatcher-current:\n(?: {4}.*\n| {6}.*\n|\n)*? {8}run: bash \.base\/\.github\/scripts\/pr-unblock\/dispatcher-current\.sh\n/);
+    assert.match(text, /\n {2}check-dispatcher-current:\n(?: {4}.*\n| {6}.*\n|\n)*? {8}run: bash \.base\/\.github\/scripts\/pr-unblock\/dispatcher-current\.sh\n/);
     const blocks = text.slice(text.indexOf("\njobs:\n")).split(/\n {2}(?=[a-z-]+:\n)/).slice(1);
     const starts = blocks.filter((block) => !/^ {4}needs:/m.test(block)).map((block) => block.split(":")[0]);
-    assert.deepEqual(starts, ["dispatcher-current"], "every other job waits on a job");
+    assert.deepEqual(starts, ["check-dispatcher-current"], "every other job waits on a job");
     for (const job of jobs) {
-      // needs: dispatcher-current, alone or first in a list.
-      const block = new RegExp(`\\n  ${job}:\\n(?: {4}name: .*\\n)?    needs: (?:dispatcher-current|\\[dispatcher-current(?:, [a-z-]+)*\\])\\n    if: >-\\n((?: {6}.*\\n)+)`).exec(text);
-      assert.ok(block, `${job} needs dispatcher-current`);
-      assert.match(block[1], /needs\.dispatcher-current\.outputs\.stale != 'true'/, job);
+      // needs: check-dispatcher-current, alone or first in a list.
+      const block = new RegExp(`\\n  ${job}:\\n(?: {4}name: .*\\n)?    needs: (?:check-dispatcher-current|\\[check-dispatcher-current(?:, [a-z-]+)*\\])\\n    if: >-\\n((?: {6}.*\\n)+)`).exec(text);
+      assert.ok(block, `${job} needs check-dispatcher-current`);
+      assert.match(block[1], /needs\.check-dispatcher-current\.outputs\.stale != 'true'/, job);
     }
   });
 }
@@ -1134,7 +1134,7 @@ test("every read-runner lane starts its fallback call only on its handoff jobs' 
         ? {
             "github.event.issue_field.id": 48484079,
             "github.event.issue_field_value.option.id": 84879220,
-            "needs.admit.outputs.proceed": "true",
+            "needs.check-admission.outputs.proceed": "true",
             "needs.pick-slot.outputs.capped": "false",
           }
         : {};
@@ -1146,7 +1146,7 @@ test("every read-runner lane starts its fallback call only on its handoff jobs' 
     assert.equal(starts("true", "false"), false, `${fallback} with the fallback token empty`);
     if (file === "work-resolve-issue.yml") {
       assert.equal(
-        evaluate(third.gate, { ...base, "needs.admit.outputs.proceed": "false", [`needs.${evidence}.outputs.handed-off`]: "true", [`needs.${handoff}.outputs.fallback-ready`]: "true" }),
+        evaluate(third.gate, { ...base, "needs.check-admission.outputs.proceed": "false", [`needs.${evidence}.outputs.handed-off`]: "true", [`needs.${handoff}.outputs.fallback-ready`]: "true" }),
         false,
         `${fallback} without admission`,
       );

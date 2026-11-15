@@ -31,7 +31,7 @@ Orchestrator consults this list after check execution and before any action.
 
 ## 2. Clear-TempFiles
 
-- **Trigger:** `storage` check returns `WARN` or `CRIT` for disk space on `C:` (free space <15%). Remediation targets temp paths regardless of which volume is low, since temp bloat is the most common single cause on `C:`.
+- **Trigger:** `disk-space` check returns `WARN` or `CRIT` for free space (any fixed volume under 15% free). Remediation targets temp paths regardless of which volume is low, since temp bloat is the most common single cause on `C:`.
 - **Action:** delete files older than **7 days** from:
   - `$env:TEMP` (user-scoped)
   - `$env:LOCALAPPDATA\Temp` (same as TEMP in most cases; handle duplicate gracefully)
@@ -40,7 +40,7 @@ Orchestrator consults this list after check execution and before any action.
 - **Abort conditions:**
   - `DryRun -eq $true`.
   - User-load heuristic tripped.
-  - Free space on `C:` >15%, no longer WARN/CRIT, so no action (idempotent re-run safety).
+  - `disk-space` no longer `WARN`/`CRIT`, so no action (idempotent re-run safety).
 - **Default state:** **DISABLED** until the user runs `/machine-health:setup apply approve=clear-temp-files` (see [`../shared/approvals.md`](../shared/approvals.md)). First run dry-modes it regardless.
 - **Output contract:**
   - `before`: `{ "temp_usage_bytes": <int>, "count": <int> }` for each target path.
@@ -70,7 +70,7 @@ These remediations are proposed periodically in online discussions but are **not
 
 ## Approval workflow
 
-1. First scheduled run produces a report with remediations flagged `DISABLED (pending approval)`.
+1. The first run (`first-run` mode) is a dry run; its report's Remediations section says no remediation was attempted, and an unapproved remediation is never attempted on any run.
 2. Human reviews the report, then approves with `/machine-health:setup apply approve=<id>`, per [`../shared/approvals.md`](../shared/approvals.md).
 3. Next run sees the approval, flips authorization to enabled, and attempts the remediation.
 4. If the remediation causes trouble, the human runs `/machine-health:setup apply revoke=<id>`; the skill respects the revocation immediately on next run.

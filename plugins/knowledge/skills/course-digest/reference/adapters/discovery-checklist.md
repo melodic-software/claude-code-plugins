@@ -132,7 +132,7 @@ Adapt selector for non-Teachable platforms. The class pattern will differ.
 - **text**: plain text content, embedded links (label + href), heading presence
 - **file**: download link labels, CDN domain, file extensions (.zip, .sql, .json)
 - **code_display**: code content, language, length
-- **pdf_embed**: iframe src OR download link (platforms vary)
+- **pdf_embed**: iframe src or download link (platforms vary)
 - **code_embed**: iframe domain (may be third-party widget, low extraction value)
 - **image**: direct img src or linked image
 - Any other types discovered
@@ -198,11 +198,11 @@ Verify it on the platform in front of you before designing around it: on Hotmart
 
 Steps:
 
-1. Set up `page.on("response")` listener BEFORE navigating
+1. Set up `page.on("response")` listener before navigating
 2. Filter for subtitle manifest: URL containing `textstream_eng` + `.m3u8`
 3. Capture manifest response body (contains all segment URLs with auth tokens)
 4. Parse manifest to get segment filenames
-5. Fetch all segments from WITHIN iframe context (`hotmartFrame.evaluate(fetch(...))`)
+5. Fetch all segments from within iframe context (`hotmartFrame.evaluate(fetch(...))`)
 6. Parse WebVTT cues, deduplicate overlapping segments, sort by timestamp
 
 ```javascript
@@ -223,13 +223,13 @@ page.on("response", async (response) => {
 - CORS blocks `fetch()` from parent page to video CDN, so fetch from inside iframe context
 - HLS subtitle segments overlap by design (each ~6s segment includes adjacent cues for smooth playback), so deduplicate by `startTime + text` key
 - Subtitle manifest only loads after video playback starts, so trigger play first
-- Seeking the video does NOT reliably trigger new subtitle segment loads. The player caches them
+- Seeking the video does not reliably trigger new subtitle segment loads. The player caches them
 
 ### 3.4 Check for platform API transcript endpoints
 
 Some platforms expose transcripts via API:
 
-- **Teachable**: `/api/v2/hotmart/private_video?attachment_id={id}` returns video metadata (video_id, duration, signature) but NOT transcripts
+- **Teachable**: `/api/v2/hotmart/private_video?attachment_id={id}` returns video metadata (video_id, duration, signature) but not transcripts
 - **Wistia Data API**: has a captions endpoint but requires the account owner's API token, so it is unusable for third-party courses
 - **Single public YouTube videos**: use `/knowledge:video-digest` (`transcript` / `watch` actions). Caption acquisition via yt-dlp is `/knowledge:video-digest`'s concern, not course adapters
 
@@ -240,7 +240,7 @@ If no subtitle source exists:
 1. Capture HLS master URL via network intercept
 2. Extract audio with ffmpeg: `ffmpeg -i "HLS_URL" -vn -acodec pcm_s16le -ar 16000 -ac 1 audio.wav`
 3. Transcribe with Whisper (local or API)
-4. FFmpeg 8.0+ has native Whisper filter support
+4. An FFmpeg build that includes the native `whisper` audio filter can transcribe directly (**Pointer**: <https://ffmpeg.org/ffmpeg-filters.html#whisper> for the filter and what a build needs to include it)
 
 Slower and less accurate than platform-provided captions but works universally.
 
@@ -402,7 +402,7 @@ Common gotchas across platforms:
 - **Automation detection**: use `--disable-blink-features=AutomationControlled` in Playwright to bypass basic detection
 - **Lazy-loaded content**: video players, subtitle tracks, and some attachments only load after user interaction (play button click, scroll). Wait for specific DOM elements or network requests, not just `domcontentloaded`
 - **HLS subtitle segment overlap**: segments contain overlapping cues for smooth playback. Deduplicate by `startTime + text` composite key
-- **CORS on fetch**: fetching video CDN resources from parent page context fails due to CORS. Fetch from WITHIN video player's iframe context using `frame.evaluate(async () => { await fetch(...) })`
+- **CORS on fetch**: fetching video CDN resources from parent page context fails due to CORS. Fetch from within video player's iframe context using `frame.evaluate(async () => { await fetch(...) })`
 - **Platform API != documented API**: platforms often have undocumented internal APIs (like Teachable's `/api/v2/hotmart/private_video`) that are more useful than official public API. Inspect network traffic during normal page loads
 
 ## Regression Checklist (for existing providers)

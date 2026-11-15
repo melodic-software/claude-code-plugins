@@ -1,6 +1,6 @@
 # Lane: self-update
 
-The recursive lane: tidy operating on its own plugin files. **Maintainer-facing:** valid ONLY in a working-tree checkout of this plugin (the marketplace clone, or a directory loaded via `--plugin-dir`), never against an installed marketplace copy. **This lane is permanently manual-merge.** The risk profile is unique: a bad change here can disable the safety mechanisms that protect every other lane.
+The recursive lane: tidy operating on its own plugin files. **Maintainer-facing:** valid only in a working-tree checkout of this plugin (the marketplace clone, or a directory loaded via `--plugin-dir`), never against an installed marketplace copy. **This lane is permanently manual-merge.** The risk profile is unique: a bad change here can disable the safety mechanisms that protect every other lane.
 
 ## Scope
 
@@ -19,16 +19,16 @@ skills/*/context/**.md
 Restricted to the safest tidyings only, with no behavioral grammar changes, no exclusion-list edits, and no Action Router edits:
 
 - **Beck #5, Reading Order**: within SKILL.md body sections, fix flow issues (e.g., "Gotchas" placed before "Workflow", where Workflow should come first)
-- **Beck #14, Explaining Comments**: add a one-line clarifier where a watch-for pattern's intent is non-obvious. Only ADD; never remove existing explanatory text
+- **Beck #14, Explaining Comments**: a watch-for pattern whose intent is non-obvious, when #14's posture rule allows the addition ([../reference/tidyings.md](../reference/tidyings.md)). Only ADD; never remove existing explanatory text
 - **Beck #15, Delete Redundant Comments**: remove paragraphs that restate the section heading
 - **Typo fixes**: straightforward typo corrections in prose. Not in frontmatter (HARD-EXCLUDED), not in code-shaped content (CLI commands, glob patterns)
 - **P-2, Stale cross-reference repair**: references to files that have moved within the plugin
 
 ## Lane-specific extra exclusions (SELF-UPDATE EXTRA HARD)
 
-In addition to global HARD/SOFT, this lane has an extra-HARD list that gates ALL its modifications. Read `reference/exclusions.md` SELF-UPDATE EXTRA HARD section in full before any edit.
+In addition to global HARD/SOFT, this lane has an extra-HARD list that gates all its modifications. Read `reference/exclusions.md` SELF-UPDATE EXTRA HARD section in full before any edit.
 
-Summary of what this lane CANNOT modify, even though the files are technically in scope:
+Summary of what this lane cannot modify, even though the files are technically in scope:
 
 - **All skill frontmatter**, every field, in every `skills/*/SKILL.md` this plugin ships
 - **The HARD/SOFT exclusion lists themselves** in `reference/exclusions.md`: the safety net cannot tidy itself
@@ -39,7 +39,7 @@ Summary of what this lane CANNOT modify, even though the files are technically i
 - **Watch-for tidying lists**: the lane files' `## Watch-for patterns` blocks
 - **`<plugin-root>/reference/pr-scope-budget.md`**: a generated copy of the shared PR scope budget convention; its numbers change in the convention, never in a tidy
 
-If during a self-update run you find drift in any of the EXTRA HARD areas: **clean exit, NO PR, report what was found to the user.** The user reviews and decides.
+If during a self-update run you find drift in any of the EXTRA HARD areas: **clean exit, no PR, report what was found to the user.** The user reviews and decides.
 
 ## Verification commands
 

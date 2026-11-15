@@ -18,7 +18,7 @@ Four homes own the runner between them; the split is a pre-committed seam, not a
   docs by citation and never duplicates them; until the trigger fires it does not exist.
 - **Settings-as-code home, the security-sensitive bindings.** The runner's governance lives
   here: level→substrate isolation bindings, merge policy, escalation routes, and admission
-  rules. The runner READS its governance and never writes it: the agent-writable-binding
+  rules. The runner reads its governance and never writes it: the agent-writable-binding
   bypass channel the rest of the contract fail-closes against generalizes to the runner itself,
   so no runner-editable surface may supply a binding the runner is governed by.
 - **Deployment-owned, non-security operational config.** Executor hosting configuration that is
@@ -35,7 +35,7 @@ it for the work the trigger admits. Backend classes are cited from the
   backend the launch set requires.
 - **`L3` deferred, fail-closed until bound.** An `L3` backend is deferred with its trigger: the
   first `C5`-class work admitted to the autonomous drain. Until an `L3` binding exists, `C5`
-  dispatch is BLOCKED, never dropped to a lower floor: the `L3` floor for `C5` work is the one
+  dispatch is blocked, never dropped to a lower floor: the `L3` floor for `C5` work is the one
   the [work-classes `C5` cell](../guardrails/work-classes.md) fixes and this gate cites, not a
   value asserted here.
 - **Paid and cloud backends: advisory, explicit opt-in.** No paid or cloud backend is a

@@ -106,19 +106,16 @@ bash tools/work-item-tracker/conformance/run-conformance.sh --binding gitea
   explicitly named throwaway target. Until that pass happens, treat the live behavior
   as documented-and-tested-against-the-documentation, not as verified.
 
-  **An instance is obtainable. A privileged host for it is not.**
-  Gitea ships as a single self-contained binary with sqlite built in, and a real one was
-  downloaded and version-verified in the build environment. What stopped the pass is that
-  serving it needs privileged setup: a dedicated unprivileged user plus
-  `cap_net_bind_service`, because Gitea declines to run as root. That setup is
-  gated by the sandbox's permission policy, not by reachability.
+  **A live pass needs a privileged host.** Gitea ships as a single self-contained binary with
+  sqlite built in, but serving it needs privileged setup: a dedicated unprivileged user plus
+  `cap_net_bind_service`, because Gitea declines to run as root.
 
   Port 443 and TLS are **not preferences**: `wit_gitea_http` builds `https://<host>/api/v1`
   under `--proto '=https'`, and `config.gitea.host` must be a BARE hostname, so a high
   port is not expressible. **Do not "unblock" this by relaxing the bare-hostname rule.**
   That rule exists so a PR-modifiable binding cannot smuggle URL structure and redirect
-  the credential off the intended tenant; widening it to make a test run would trade a
-  real security control for a green check. Run the suite against a genuine TLS instance
+  the credential off the intended tenant; widening it to make a test run would remove a
+  real security control so that one test could pass. Run the suite against a genuine TLS instance
   on 443, or leave it unrun and honestly recorded, as here.
 
 ## Provider notes

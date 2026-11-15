@@ -6,11 +6,11 @@ are silent, so do not infer this model from the run steps in the hub.
 
 ## Contents
 
-- [The load-bearing mechanic: the baseline is the PREVIOUS cycle's post-audit spine](#the-load-bearing-mechanic-the-baseline-is-the-previous-cycles-post-audit-spine)
+- [The load-bearing mechanic: the baseline is the previous cycle's post-audit spine](#the-load-bearing-mechanic-the-baseline-is-the-previous-cycles-post-audit-spine)
 - [The bootstrap cycle. The one pre-audit capture](#the-bootstrap-cycle-the-one-pre-audit-capture)
 - [The spine baseline](#the-spine-baseline)
 
-## The load-bearing mechanic: the baseline is the PREVIOUS cycle's post-audit spine
+## The load-bearing mechanic: the baseline is the previous cycle's post-audit spine
 
 Two independent things have to be right here, and each fails silently on its own.
 

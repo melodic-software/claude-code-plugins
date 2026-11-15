@@ -1210,7 +1210,7 @@ CONFIRM_WAIT = 40
 
 class IdleRefusal(unittest.TestCase):
     """`idle_refusal`: the rest of what the post-merge check reads that can
-    change its verdict with no new lane merge, for post-merge-dispatch's
+    change its verdict with no new lane merge, for dispatch-post-merge-runs's
     reuse of an earlier tick's report. Expected from the check's own rules:
     `_judge` and `_lane_reruns` read verifying runs, quarantine issues
     (`expired`, `demoting`) and pins (`read_pin`), and a pending merge fails
@@ -1789,7 +1789,7 @@ class SettleCommand(unittest.TestCase):
         self.assertIn("head 502", out["reason"])
 
     def test_an_idle_tick_also_needs_the_idle_rule(self) -> None:
-        # post-merge-dispatch's reuse of an earlier tick's report: every part
+        # dispatch-post-merge-runs's reuse of an earlier tick's report: every part
         # of `idle_refusal` on the same answer as well as the lane room's
         # rule, at the default branch with the head config's confirm wait.
         idle = ("--idle-tick",)

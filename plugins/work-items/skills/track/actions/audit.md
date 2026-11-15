@@ -36,7 +36,7 @@ A **harness denial of the `reclaim` call itself** takes the same posture. The sc
 
 ### 2. Orphaned recurring entries
 
-Entries in `.github/recurring-schedule.json` with no corresponding open or recently-closed item (skip when the repo has no recurring schedule). Only **due** entries can be orphaned. The automation creates an item only once `next_due <= today`, so a healthy future entry legitimately has no open item and is NOT orphaned:
+Entries in `.github/recurring-schedule.json` with no corresponding open or recently-closed item (skip when the repo has no recurring schedule). Only **due** entries can be orphaned. The automation creates an item only once `next_due <= today`, so a healthy future entry legitimately has no open item and is not orphaned:
 
 ```bash
 SCHEDULE="<project root>/.github/recurring-schedule.json"

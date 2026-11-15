@@ -47,10 +47,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  write:
+  generate-changelog-fragments:
     # A push runs it only when one of its commits is Dependabot's, by the
     # author scripts/dependabot-fragments.sh walks.
-    name: Write
+    name: Generate Changelog Fragments
     if: >-
       github.ref == 'refs/heads/main'
       && (github.event_name != 'push'

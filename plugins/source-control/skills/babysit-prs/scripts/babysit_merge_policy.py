@@ -3637,7 +3637,8 @@ def _after(value: Any, opened: datetime | None) -> bool:
 # rename, or a repository whose caller job has no display name), then the one
 # pr-review.yml and pr-review-security.yml give it, under the caller's display
 # name and its job id, then the Title Case names ci-workflows gives the same
-# jobs (`Status`, `Claude`). The notice's head and
+# jobs (`Status`, `Claude`), then the status job's planned name
+# (`Publish Review`). The notice's head and
 # criteria, and the base branch name a compare takes, as the hold step reads it.
 REVIEW_LANES = (
     (
@@ -3651,6 +3652,8 @@ REVIEW_LANES = (
             "pr-review / Status",
             "PR Review / Claude",
             "pr-review / Claude",
+            "PR Review / Publish Review",
+            "pr-review / Publish Review",
         ),
     ),
     (
@@ -3664,6 +3667,8 @@ REVIEW_LANES = (
             "pr-review-security / Status",
             "PR Review Security / Claude",
             "pr-review-security / Claude",
+            "PR Review Security / Publish Review",
+            "pr-review-security / Publish Review",
         ),
     ),
 )
@@ -4096,6 +4101,7 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/work-items/tools/work-item-tracker/**",
     _skill_scripts("harness-ops:changelog"),
     "plugins/instruction-placement/scripts/**",
+    "plugins/app-control/scripts/**",
 )
 
 
@@ -7950,7 +7956,7 @@ def settle_shared(
     is read again with `post_merge` (`_recompute_shared`), or with none
     refuses. Without `code_unchanged` (`check_code_unchanged`), `shared` came
     from other check code: `code-changed`, never reused or kept. One rule for
-    the lane room and the merge job's reuse of post-merge-dispatch's report.
+    the lane room and the merge job's reuse of dispatch-post-merge-runs's report.
 
     `outcome`, when given, is filled with how it settled: `answer` is
     `reused`, `kept`, `recomputed` or `refused`, `reason` the

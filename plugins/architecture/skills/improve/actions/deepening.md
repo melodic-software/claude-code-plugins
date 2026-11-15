@@ -93,7 +93,7 @@ Each candidate gets a card with: files involved, problem (one sentence), solutio
 
 Two acceptance heuristics gate the badge:
 
-- **Deletion test (acceptance form)**: would a future maintainer, finding this module gone, rebuild it substantially the same way? If not, the module boundary is arbitrary and the candidate is weak.
+- **Deletion test (acceptance form)**: would a future maintainer, finding this module gone, rebuild it substantially the same way? If not, the module is cut in an arbitrary place and the candidate is weak.
 - **Two-adapter rule**: an abstraction or port earns its existence only with two real consumers/adapters (typically production + test). A candidate whose value hinges on a one-adapter abstraction is speculative indirection. Badge it `Speculative` at best.
 
 The last section of the report is the **Top recommendation**. The scaffold and the diagram patterns are in [../research/deepening/html-report.md](../research/deepening/html-report.md).

@@ -5,6 +5,19 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.4] - 2026-11-15
+
+### Changed
+
+- Audit and setup skill text, config reference and the packet-prune script comments read in plain case instead of capital-letter emphasis.
+- The README lists Write among the audit agent's tools (for the evidence packet only), and the config reference states the inbox schema match with an as-of date and recheck trigger.
+
+## [0.21.3] - 2026-11-15
+
+### Changed
+
+- The two session-flow eval stubs carry the `running-retro` description without 'checkpoint this session', matching the shipped skill.
+
 ## [0.21.2] - 2026-11-15
 
 ### Changed

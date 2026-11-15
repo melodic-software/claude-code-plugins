@@ -21,7 +21,7 @@ const answer = (status, headers = {}, body) =>
   [`HTTP/2.0 ${status}`, ...Object.entries(headers).map(([name, value]) => `${name}: ${value}`), "", body === undefined ? "" : JSON.stringify(body)].join("\r\n");
 const listing = (...jobs) => ({ total_count: jobs.length, jobs });
 
-const BROKER = { name: "Fix Docs / Broker Check", conclusion: "success", steps: [] };
+const BROKER = { name: "Fix Docs / Check Broker", conclusion: "success", steps: [] };
 // A report job the listing shows before its steps, then with them.
 const UNLISTED = { name: "Fix Docs / Report", conclusion: "success", steps: [] };
 const POSTED = { name: "Fix Docs / Report", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] };
@@ -101,6 +101,26 @@ test("a run started before the rename is read by its job ids", () => {
   const out = run([[answer("200 OK", {}, listing({ ...POSTED, name: "fix-docs / report" })), 0]]);
   assert.equal(out.status, 0, out.stdout + out.stderr);
   assert.equal(out.output, "posted=true\n");
+});
+
+// The broker allow job alone answers `allowed`; with it absent, the broker
+// check job answers through its broker step. Each is read under its name and
+// its id, current and from before the rename.
+test("the broker jobs are read under their current and earlier names and ids", () => {
+  const ask = [{ name: "Ask the broker whether the lane may run", conclusion: "success" }];
+  for (const [check, allow] of [
+    ["Fix Docs / Broker Check", "Fix Docs / Broker Allowed"],
+    ["fix-docs / broker-check", "fix-docs / broker-allowed"],
+    ["Fix Docs / Check Broker", "Fix Docs / Record Broker Allow"],
+    ["fix-docs / check-broker", "fix-docs / record-broker-allow"],
+  ]) {
+    const allowed = run([[answer("200 OK", {}, listing({ name: allow, conclusion: "success", steps: [] })), 0]], "0", { facts: ["allowed"] });
+    assert.equal(allowed.output, "allowed=true\n", `${allow}: ${allowed.stdout}`);
+    const checked = run([[answer("200 OK", {}, listing({ name: check, conclusion: "success", steps: ask })), 0]], "0", { facts: ["allowed"] });
+    assert.equal(checked.output, "allowed=true\n", `${check}: ${checked.stdout}`);
+  }
+  const other = run([[answer("200 OK", {}, listing({ name: "Fix Docs / Check Brokers", conclusion: "success", steps: ask })), 0]], "0", { facts: ["allowed"] });
+  assert.equal(other.output, "allowed=false\n", "a job of another name is no broker check");
 });
 
 // Each CALLS id a workflow passes, in Title Case, is the display name of that
@@ -298,19 +318,19 @@ function refineJobEnv(name) {
 
 // An empty output starts a second leg in pr-unblock.yml, so the opt-in stays on
 // the two jobs whose empty facts start nothing.
-// Beside pr-refine.yml's two fix-docs handoff jobs, the key-credit-markers
+// Beside pr-refine.yml's two fix-docs handoff jobs, the upload-key-credit-markers
 // jobs name it: their empty outputs start nothing, so a read that cannot
 // settle ends with a notice and uploads no marker.
-test("only the fix-docs handoff jobs and the key-credit-markers jobs name HANDOFF_EVIDENCE_LAG", () => {
+test("only the fix-docs handoff jobs and the upload-key-credit-markers jobs name HANDOFF_EVIDENCE_LAG", () => {
   const dir = new URL("../../workflows/", import.meta.url);
   const text = (file) => readFileSync(new URL(file, dir), "utf8");
   const files = readdirSync(dir).filter((file) => /\.ya?ml$/.test(file) && text(file).includes("HANDOFF_EVIDENCE_LAG"));
   assert.deepEqual(files, ["pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"]);
   const jobsNaming = (file) =>
     text(file).split(/^(?=  [\w-]+:$)/m).filter((block) => block.includes("HANDOFF_EVIDENCE_LAG")).map((block) => /^ {2}([\w-]+):$/m.exec(block)?.[1]);
-  assert.deepEqual(jobsNaming("pr-refine.yml"), ["fix-docs-handoff", "key-credit-markers", "fix-docs-subscription-handoff"]);
-  assert.deepEqual(jobsNaming("pr-unblock.yml"), ["key-credit-markers"]);
-  assert.deepEqual(jobsNaming("work-resolve-issue.yml"), ["key-credit-markers"]);
+  assert.deepEqual(jobsNaming("pr-refine.yml"), ["fix-docs-handoff", "upload-key-credit-markers", "fix-docs-subscription-handoff"]);
+  assert.deepEqual(jobsNaming("pr-unblock.yml"), ["upload-key-credit-markers"]);
+  assert.deepEqual(jobsNaming("work-resolve-issue.yml"), ["upload-key-credit-markers"]);
 });
 
 test("a fact still unsettled in a listing that was read fails with no output by default", () => {

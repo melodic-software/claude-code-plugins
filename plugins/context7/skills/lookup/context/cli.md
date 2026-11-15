@@ -34,9 +34,9 @@ Set it wherever your project manages local environment variables (shell profile,
 | `ctx7 library <name> [query]` | Resolve library name to a Context7 library ID (the query argument is optional, but pass one: it drives ranking) |
 | `ctx7 docs <libraryId> <query>` | Fetch documentation for a resolved library |
 | `ctx7 search <query>` | An option, not the default (record below) |
-| `ctx7 setup [flags]` | Configure Context7 for an IDE (this plugin does NOT use it, see below) |
-| `ctx7 login` / `logout` / `whoami` | OAuth flow (this plugin does NOT use it, since the env var is enough) |
-| `ctx7 remove` / `uninstall` | Remove a `setup`-installed agent configuration (this plugin does NOT use it) |
+| `ctx7 setup [flags]` | Configure Context7 for an IDE (this plugin does not use it, see below) |
+| `ctx7 login` / `logout` / `whoami` | OAuth flow (this plugin does not use it, since the env var is enough) |
+| `ctx7 remove` / `uninstall` | Remove a `setup`-installed agent configuration (this plugin does not use it) |
 | `ctx7 upgrade` | Self-upgrade the CLI |
 
 **This plugin does not use `ctx7 skills` or `ctx7 generate`,** and no behavior here depends on them.
@@ -91,7 +91,7 @@ the two steps.
 
 Whether and what the CLI sends as telemetry is [Context7 CLI § Telemetry](https://context7.com/docs/clients/cli#telemetry). In privacy-sensitive environments, disable it per invocation (`CTX7_TELEMETRY_DISABLED=1 ctx7 docs ...`) or permanently by exporting the variable in your shell profile.
 
-## Windows Git Bash gotcha (REQUIRED for `docs`)
+## Windows Git Bash gotcha (required for `docs`)
 
 On Windows with Git Bash / MSYS2, any CLI argument starting with `/` is rewritten to a Windows path. When you run:
 

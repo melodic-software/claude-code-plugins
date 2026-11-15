@@ -4,10 +4,9 @@ The marketplace-wide contract for person-facing rendered views: when a skill's
 deliverable defaults to a self-contained HTML page, when it stays markdown or terminal
 output, how interactive a view is, which content may carry model-written script, how the
 choice is overridden, and what every rendered view owes for security and accessibility.
-Adopted from the "Unreasonable Effectiveness of HTML" corpus (the article,
-its example gallery, and the "Know your unknowns" collection) through a full interview,
-stress-test, and validation chain; the decision record travels with the pull request that
-introduced this document.
+The view genres and patterns below come from the "Unreasonable Effectiveness of HTML" corpus (the
+article, its example gallery, and the "Know your unknowns" collection); the decision record is
+[ADR 0025](../../adr/0025-adopt-the-rendered-views-doctrine-with-a-cascade-carried-preference.md).
 
 This directory is the source of truth for the concern. The shared chrome and token
 reference lives in the adopting plugins (canonical copy: `lib/html-chrome.html`). Where a record and the
@@ -24,10 +23,10 @@ contract are logged in `CHANGELOG.md`.
   no view may sit beside the record it renders: a view is written outside the record's
   [record bundle](../record-bundle/README.md).
 - A person-facing deliverable in one of the corpus genres (see the rubric below) emits
-  an interactive view by default, tailored to its use case (see View tiers), when BOTH
+  an interactive view by default, tailored to its use case (see View tiers), when both
   hold: the next consumer is a person, and the environment can serve a viewable file.
 - A dual-audience report, one that another agent pass re-reads (audit findings feeding a
-  fix pass, scan results feeding triage, quiz records feeding recall), OFFERS the view
+  fix pass, scan results feeding triage, quiz records feeding recall), offers the view
   instead of emitting it by default. The markdown record is the deliverable; the view is
   an option.
 
@@ -115,7 +114,7 @@ came from, not by who wrote it down.
   interactive profile) or by `lib/html-escape.mjs`, never a page with model-written
   markup or script.
 - **K1 is trusted for rendering only.** It decides who may write a page's script and
-  nothing else. Repository files are still DATA, never instructions, under the
+  nothing else. Repository files are still data, never instructions, under the
   [untrusted-content framing contract](../untrusted-content/README.md#the-framing-contract).
 - **K2 is builder-only.** A K2 page is assembled by the checked-in builder from a
   checked-in template plus the K2 text as escaped JSON data. The model chooses the
@@ -289,9 +288,17 @@ from the one the browser runs. It checks the runtime body by hash before any oth
      data block. The session resolves each id against its own copy of the record. This
      bullet also binds every copy, export, and download payload on a K2 page at every
      tier, and text pasted or exported from a K2 page is K2, never K0 user input (see
-     View tiers).
+     View tiers). One exception, for model-written pages only: a note the ui-feedback host
+     page sends about a model-written K0 or K1 page it frames may carry a text quote taken
+     from that page (`anchor.textQuote`: the selected text and a little visible text either
+     side, limits in `lib/ui-feedback/note.schema.json`), so the session can find the text
+     again. The quote is data everywhere: the host page keeps it only when the note schema
+     admits it and renders it through `textContent`, the bridge validates it again and
+     delivers it under the framing contract below, and the session quotes it, never acts on
+     it ([ui-feedback, "Trust rules"](../ui-feedback/README.md#trust-rules)). A K2 page never
+     uses the host page.
    - The bridge delivers every page-originated field, the reader's input included, to
-     the session as DATA under the untrusted-content framing contract, never as the
+     the session as data under the untrusted-content framing contract, never as the
      user's own message.
    - The bridge authenticates every message by an unguessable per-session token and
      rejects any message without it. The token is minted per server run; the server exits
@@ -388,10 +395,10 @@ then terminal**, exactly as those surfaces and their evals ship today; the other
 emitters keep the local default each one ships.
 Two sentences reconcile this with the local-first residence decision:
 
-1. Local-first governs NEW rendered-view lanes and any operator's personal environment:
-   the native Artifact disable switches (`enableArtifact: false` in settings, the
-   `CLAUDE_CODE_DISABLE_ARTIFACT=1` environment variable, or a `permissions.deny`
-   `Artifact` rule) are the sanctioned day-one flip that makes the local file the first
+1. Local-first governs new rendered-view lanes and any operator's personal environment:
+   the native Artifact disable switches (Pointer:
+   [Disable artifacts](https://code.claude.com/docs/en/artifacts#disable-artifacts))
+   are the sanctioned day-one flip that makes the local file the first
    reachable medium for every lane, with zero plugin changes.
 2. An existing publishing surface starts at the published artifact only by default: each one
    reads `medium` from the argument and the cascade first (see Wave-1 adoption and
@@ -687,7 +694,7 @@ the account's Slides type, gated by `plugins/visualization/skills/present/script
 
 Retrofit list (existing lanes rendering untrusted-ish content, aligned to the security
 baseline by the tracked retrofit issue, not silently): `adhd:clarify`,
-`architecture:improve`. Both were retrofitted by #3609: each HTML lane repeats the
+`architecture:improve`. Each HTML lane repeats the
 baseline's rules in its own instruction text (a skill runs where this file is not on
 disk) and keeps only additions specific to that surface. `architecture:improve` also
 carries the third bullet's exception: the escape helper has shipped
@@ -703,12 +710,12 @@ Instruction-level discipline for a lane that is not on the helper: markup lintin
 validates syntax, not escaping. A lane that renders attacker-controlled input uses
 the checked-in helper in the third bullet instead of this skeleton alone.
 
-- Everything interpolated into a rendered view is untrusted DATA: escape `&`, `<`, `>`, <!-- contract-restatement-begin: rendered-views-security-baseline -->
+- Everything interpolated into a rendered view is untrusted data: escape `&`, `<`, `>`, <!-- contract-restatement-begin: rendered-views-security-baseline -->
   `"`, and `'` in text and attribute positions; never interpolate unescaped content into
   `<script>` or `<style>`; never build event-handler attributes from input.
 - Views are self-contained: no external requests, no remote scripts, assets inline. <!-- contract-restatement-end: rendered-views-security-baseline -->
 - A lane that renders attacker-controlled input (a PR diff, fetched web content, another
-  repo's files) MUST NOT ship on this skeleton alone. It routes every interpolated
+  repo's files) must not ship on this skeleton alone. It routes every interpolated
   string through `lib/html-escape.mjs` (the same path inside each adopting plugin,
   generated and drift-gated by `scripts/sync-shared-copies.sh`). The page carries the generator marker
   `validateRenderedPage` checks, so a page assembled without the helper is detectable.
@@ -717,7 +724,7 @@ the checked-in helper in the third bullet instead of this skeleton alone.
   same helper and adds the interactive profile.
 - Escaping reaches text and quoted-attribute positions and nothing else. A value that
   lands in URL position (`href`, `src`, `action`, `formaction`, SVG `xlink:href`) is
-  checked against a scheme allowlist BEFORE it is escaped: `javascript:` and `data:`
+  checked against a scheme allowlist before it is escaped: `javascript:` and `data:`
   carry none of the escaped characters, so they pass through escaping unchanged and
   still execute. An export builds a `Blob` and an object URL rather than concatenating
   content into a `data:` URL, and reduces any filename it puts in a `download`
@@ -765,8 +772,8 @@ a dead end. Loop closure is the family of patterns that hands the reader a terse
 give back; export is the pattern that gets live page state off the page.
 
 **When a view owes an export.** A custom editor always ends with one: a view that lets a
-person change state and then offers no way to get that state out has thrown the work
-away. A view that asks the reader to choose, rank, accept, or correct owes a loop-closure
+person change state and then offers no way to get that state out loses the work
+when it closes. A view that asks the reader to choose, rank, accept, or correct owes a loop-closure
 payload for the same reason. A view that only presents owes neither.
 
 **Where the family belongs.** Editors, explorations and option spreads, and

@@ -22,11 +22,11 @@ const permissions = (job) => {
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(jobs[job])[1];
   return Object.fromEntries([...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => [m[1], m[2]]));
 };
-const KEY = "judge";
-const SUB = "judge-subscription";
-const FB = "judge-fallback";
+const KEY = "assess-units";
+const SUB = "assess-units-subscription";
+const FB = "assess-units-fallback";
 const LEGS = [KEY, SUB, FB];
-const ROUTES = ["judge-handoffs", "judge-subscription-handoffs"];
+const ROUTES = ["collect-key-handoffs", "collect-subscription-handoffs"];
 const FALLBACK = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
 const CREDENTIAL = {
   [KEY]: ["api-key", "AUTOMATIONS_CLAUDE_API_KEY"],
@@ -69,11 +69,11 @@ test("the jobs run collect, the three legs with a route job between each, file a
   assert.deepEqual(Object.keys(jobs), ["collect", KEY, ROUTES[0], SUB, ROUTES[1], FB, "file", "triage-sweep"]);
   assert.match(jobs[KEY], /\n {4}needs: collect\n/);
   // The key route job also needs collect: a skipped key leg routes every collected unit.
-  assert.match(jobs[ROUTES[0]], /\n {4}needs: \[collect, judge\]\n/);
-  assert.match(jobs[SUB], /\n {4}needs: judge-handoffs\n/);
-  assert.match(jobs[ROUTES[1]], /\n {4}needs: judge-subscription\n/);
-  assert.match(jobs[FB], /\n {4}needs: judge-subscription-handoffs\n/);
-  assert.match(jobs.file, /\n {4}needs: \[collect, judge, judge-subscription, judge-fallback\]\n/);
+  assert.match(jobs[ROUTES[0]], /\n {4}needs: \[collect, assess-units\]\n/);
+  assert.match(jobs[SUB], /\n {4}needs: collect-key-handoffs\n/);
+  assert.match(jobs[ROUTES[1]], /\n {4}needs: assess-units-subscription\n/);
+  assert.match(jobs[FB], /\n {4}needs: collect-subscription-handoffs\n/);
+  assert.match(jobs.file, /\n {4}needs: \[collect, assess-units, assess-units-subscription, assess-units-fallback\]\n/);
 });
 
 test("only the file and triage-sweep jobs write, and no job can mint a token", () => {
@@ -168,13 +168,13 @@ test("the later legs repeat the key leg's steps but for the credential, the leg 
 });
 
 test("a unit reaches the next leg only through a clean handoff its route job reads from a marker", () => {
-  assert.match(jobs[SUB], /\n {4}if: \$\{\{ !cancelled\(\) && needs\.judge-handoffs\.result == 'success' && needs\.judge-handoffs\.outputs\.count != '' && needs\.judge-handoffs\.outputs\.count != '0' \}\}\n/);
-  assert.match(jobs[SUB], /\n {6}matrix: \$\{\{ fromJson\(needs\.judge-handoffs\.outputs\.matrix\) \}\}\n/);
+  assert.match(jobs[SUB], /\n {4}if: \$\{\{ !cancelled\(\) && needs\.collect-key-handoffs\.result == 'success' && needs\.collect-key-handoffs\.outputs\.count != '' && needs\.collect-key-handoffs\.outputs\.count != '0' \}\}\n/);
+  assert.match(jobs[SUB], /\n {6}matrix: \$\{\{ fromJson\(needs\.collect-key-handoffs\.outputs\.matrix\) \}\}\n/);
   assert.match(
     jobs[FB],
-    /\n {4}if: \$\{\{ !cancelled\(\) && needs\.judge-subscription-handoffs\.result == 'success' && needs\.judge-subscription-handoffs\.outputs\.count != '' && needs\.judge-subscription-handoffs\.outputs\.count != '0' \}\}\n/,
+    /\n {4}if: \$\{\{ !cancelled\(\) && needs\.collect-subscription-handoffs\.result == 'success' && needs\.collect-subscription-handoffs\.outputs\.count != '' && needs\.collect-subscription-handoffs\.outputs\.count != '0' \}\}\n/,
   );
-  assert.match(jobs[FB], /\n {6}matrix: \$\{\{ fromJson\(needs\.judge-subscription-handoffs\.outputs\.matrix\) \}\}\n/);
+  assert.match(jobs[FB], /\n {6}matrix: \$\{\{ fromJson\(needs\.collect-subscription-handoffs\.outputs\.matrix\) \}\}\n/);
   // The key leg hands off on the launcher's handoff after a denial-free leg,
   // or on an empty key; the subscription leg on the launcher's handoff, or
   // on an empty token, and only with the fallback token set; the fallback
@@ -267,9 +267,9 @@ test("the daily schedule runs the audit, the hourly one only the triage sweep", 
 });
 
 // The key-credit gate (#13586): collect reads the key's credit history, a
-// credit-stopped key skips judge, and judge-handoffs routes every unit to
-// judge-subscription as a credit-stop handoff; a key leg's credit-stop marker
-// makes judge-handoffs upload the gate's marker.
+// credit-stopped key skips assess-units, and collect-key-handoffs routes every
+// unit to assess-units-subscription as a credit-stop handoff; a key leg's
+// credit-stop marker makes collect-key-handoffs upload the gate's marker.
 test("a credit-stopped key skips the key leg and every unit goes to the subscription leg", () => {
   assert.match(jobs.collect, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@[0-9a-f]{40} /);
   assert.match(jobs.collect, /\n {10}leg: start\n {10}key-job: judge\n/);

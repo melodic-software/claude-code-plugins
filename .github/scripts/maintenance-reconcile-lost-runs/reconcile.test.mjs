@@ -2356,13 +2356,13 @@ test("a ci-status that failed on a pr-unblock stop note is not re-run, even once
   assert.ok(!calls.some((c) => c.includes("/statuses")));
 });
 
-// A hosted review run the upstream-status gate stopped: its kill-switch job
+// A hosted review run the upstream-status gate stopped: its check-kill-switch job
 // failed at the callers' `Stop on upstream status` step (pr-review-hosted.yml,
 // pr-review-security-hosted.yml) and the review job was skipped.
 const SECURITY_REVIEW = ".github/workflows/pr-review-security-hosted.yml";
 const NPM_COMPONENTS = "https://status.npmjs.org/api/v2/components.json";
 // The hosted callers' job names, and the ids a head tested before the rename shows.
-const NEW_NAMES = { model: "Resolve Model", kill: "Kill Switch", review: "PR Review" };
+const NEW_NAMES = { model: "Resolve Model", kill: "Check Kill Switch", review: "PR Review" };
 const OLD_NAMES = { model: "resolve-model", kill: "kill-switch", review: "pr-review" };
 const gatedJobs = ({ stop = "failure", kill = "failure", review = "skipped", names = NEW_NAMES } = {}) => [
   { id: 301, name: names.model, status: "completed", conclusion: "success", steps: [] },
@@ -2403,6 +2403,14 @@ test("a hosted review run from before the job rename, its gate named kill-switch
   const { code, failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1), {}, gatedJobs({ names: OLD_NAMES }))] });
   assert.equal(code, 0);
   assert.deepEqual(failedJobReruns, [201]);
+});
+
+test("a hosted review run whose gate has its name from before the rename to Check Kill Switch, Kill Switch, is re-run the same way", async () => {
+  const { code, failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1), {}, gatedJobs({ names: { ...NEW_NAMES, kill: "Kill Switch" } }))] });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [201]);
+  const other = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1), {}, gatedJobs({ names: { ...NEW_NAMES, kill: "Check Kill" } }))] });
+  assert.deepEqual(other.failedJobReruns, [], "a job of another name is no gate");
 });
 
 // An outage stops both review lanes at one head, so one PR's set can hold more

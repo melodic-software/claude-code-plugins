@@ -124,7 +124,7 @@ This is when discussion gets heated. Local sequences ("this is how it works in m
 - Apply chapter structure back to the main flow
 - "Why didn't we start with chapters?" Because we couldn't be sure before chaotic exploration
 
-**Hot Spots appear here:** The facilitator captures discussions and inconsistencies on purple stickies. Hot Spots provide "a safer target for finger-pointing": go hard on the problem (on the wall), soft on the people.
+**Hot Spots appear here:** The facilitator captures discussions and inconsistencies on magenta (hot pink) stickies. Hot Spots provide "a safer target for finger-pointing": go hard on the problem (on the wall), soft on the people.
 
 ### Phase 4: People and Systems
 
@@ -170,7 +170,7 @@ If the exploration looks naive about financial flows, call a short focused round
 
 With the whole system visible, offer a **10-15 minute time-box** for everyone to add:
 
-- **Problems** (purple/hot pink stickies): issues, risks, pain points
+- **Problems** (magenta/hot pink stickies): issues, risks, pain points
 - **Opportunities** (green stickies): ideas, value, improvements
 
 This provides a safe way to make opinions visible without raising explicit conflict. Works especially well in corporate scenarios.
@@ -184,7 +184,7 @@ This provides a safe way to make opinions visible without raising explicit confl
 3. Voting happens simultaneously, with no catwalk
 4. Facilitator prevents power play (ask the alpha to wait before casting)
 
-**When NOT to vote:**
+**When not to vote:**
 
 - Wrong people mix in the room (partisan perspective, not system-wide)
 - Wrong scope (real constraint might be hidden elsewhere)

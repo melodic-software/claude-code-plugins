@@ -1,0 +1,4 @@
+# Copyright 2026 Example Ltd.
+# Use of this file is governed by the terms below.
+x=1
+# PLANTED governed by the terms below
