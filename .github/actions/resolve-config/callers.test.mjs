@@ -9744,19 +9744,9 @@ const EVAL_LEG_CREDENTIALS = {
   fallback: ["CLAUDE_CODE_OAUTH_TOKEN", "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"],
 };
 const CLASSIFIER_PIN = "fc442ad3e808adafe3b195e9d12fff901220db50";
-<<<<<<< HEAD
 for (const [file, gateId, [keyId, subId, fbId], keyJob, marker] of [
-  ["maintenance-measure-skill-edit-pass.yml", "gate", ["pass", "pass-subscription", "pass-fallback"], "pass", "key-credit-stop-maintenance-measure-skill-edit.yml-pass"],
+  ["maintenance-measure-skill-edit-pass.yml", "check-key-credit", ["run-eval", "run-eval-subscription", "run-eval-fallback"], "pass", "key-credit-stop-maintenance-measure-skill-edit.yml-pass"],
   ["pr-run-plugin-evals.yml", "check-key-credit", ["run-eval", "run-eval-subscription", "run-eval-fallback"], "eval", "key-credit-stop-pr-run-plugin-evals.yml-eval"],
-||||||| parent of ba590d3b34 (ci: rename the noun job ids in the maintenance, intake and post-merge workflows)
-for (const [file, gateId, [keyId, subId, fbId], marker] of [
-  ["maintenance-measure-skill-edit-pass.yml", "gate", ["pass", "pass-subscription", "pass-fallback"], "key-credit-stop-maintenance-measure-skill-edit.yml-pass"],
-  ["pr-run-plugin-evals.yml", "eval-key-credit", ["eval", "eval-subscription", "eval-fallback"], "key-credit-stop-pr-run-plugin-evals.yml-eval"],
-=======
-for (const [file, gateId, [keyId, subId, fbId], marker] of [
-  ["maintenance-measure-skill-edit-pass.yml", "check-key-credit", ["run-eval", "run-eval-subscription", "run-eval-fallback"], "key-credit-stop-maintenance-measure-skill-edit.yml-pass"],
-  ["pr-run-plugin-evals.yml", "eval-key-credit", ["eval", "eval-subscription", "eval-fallback"], "key-credit-stop-pr-run-plugin-evals.yml-eval"],
->>>>>>> ba590d3b34 (ci: rename the noun job ids in the maintenance, intake and post-merge workflows)
 ]) {
   test(`${file}: the eval runs key, subscription and fallback legs, each with one credential`, () => {
     const { jobs } = workflow(file);
@@ -9857,14 +9847,7 @@ for (const [file, gateId, [keyId, subId, fbId], marker] of [
     assert.equal(claudeReads(withoutPresenceChecks(jobs[gateId])).length, 0, "the gate reads no Claude credential");
     const credit = jobs[gateId].steps.find((s) => s.id === "credit");
     assert.equal(credit.with.leg, "start");
-<<<<<<< HEAD
     assert.equal(credit.with["key-job"], keyJob);
-||||||| parent of ba590d3b34 (ci: rename the noun job ids in the maintenance, intake and post-merge workflows)
-    assert.equal(credit.with["key-job"], keyId);
-=======
-    // key-job names the marker, which keeps the key job's id from before any rename.
-    assert.equal(credit.with["key-job"], marker.split(".yml-").at(-1));
->>>>>>> ba590d3b34 (ci: rename the noun job ids in the maintenance, intake and post-merge workflows)
     assert.equal(credit.with["probe-minutes"], "0");
     const upload = jobs[keyId].steps.find((s) => s.id === "credit-marker-upload");
     assert.equal(upload.with.name, marker);
