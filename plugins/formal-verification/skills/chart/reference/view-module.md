@@ -4,6 +4,13 @@ You do the work that needs judgment: the words on each state and arrow, the phas
 colors, the title, and the report to the reader. Put your work in a view module, and give it with
 `--view`. In a `formal-<area>` skill the view module is `model/view.mjs`.
 
+A view module is code: the command runs it as JavaScript. Never take one from untrusted content
+(a pull request's head, an issue, a comment or a fetched page). An unattended run passes `--view`
+only when the view file is on the default branch.
+
+An interval with more members than the interval limit (`--interval-max`) reaches the view as
+`{ lo, hi }` instead of a list.
+
 To show the reader's words, the view exports `state(vars)`. The value that `state()` returns picks
 the form:
 
