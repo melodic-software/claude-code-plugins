@@ -102,6 +102,9 @@ export function readRecord(body) {
   if (!marker) return null;
   const prs = lines.flatMap((line) => /^- Pull request: \S*\/pull\/([0-9]+)/.exec(line)?.[1] ?? []).map(Number);
   const range = lines.flatMap((line) => /^ +- .*`([0-9a-f]{40})`/.exec(line)?.[1] ?? []);
+  // The babysitter's shared record charges several merges on one line; none is singled out.
+  const also = lines.flatMap((line) => (line.startsWith("- Also charged by this run: ") ? [...line.matchAll(/`([0-9a-f]{40})`/g)].map((m) => m[1]) : []));
+  if (also.length) range.push(marker[1], ...also);
   return { signal: marker[2], sha: marker[1], prs, range };
 }
 

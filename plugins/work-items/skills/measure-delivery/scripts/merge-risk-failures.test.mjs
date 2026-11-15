@@ -44,6 +44,8 @@ test("readRecord reads a demotion record's marker, its pull request line and its
   assert.deepEqual(readRecord(single), { signal: "canary", sha: sha("e"), prs: [31], range: [] });
   const range = `<!-- post-merge-failure sha=${sha("f")} signal=schedule -->\n\n- Commits in the range, oldest first:\n  - https://github.com/o/r/pull/40, merge commit \`${sha("1")}\`, by someone\n  - https://github.com/o/r/pull/41, merge commit \`${sha("f")}\`, by someone\n- Main at the failing run: \`${sha("f")}\``;
   assert.deepEqual(readRecord(range), { signal: "schedule", sha: sha("f"), prs: [], range: [sha("1"), sha("f")] });
+  const shared = `${single}\n- Also charged by this run: #32 (\`${sha("2")}\`), #33 (\`${sha("3")}\`)`;
+  assert.deepEqual(readRecord(shared).range, [sha("e"), sha("2"), sha("3")]);
   assert.equal(readRecord(`quoted\n${single}`), null);
   assert.equal(readRecord(`<!-- babysit-merge-demotion sha=${sha("e")} signal=nonsense -->`), null);
 });
