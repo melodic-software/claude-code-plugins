@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.0.6] - 2026-11-15
+
+### Changed
+
+- The enforcement ladder copy is at 3.1.0: the "Compiler or type settings" and "Tests" rows carry the rung ids `compiler-setting` and `behavior-test`.
+
 ## [5.0.5] - 2026-11-15
 
 ### Changed

@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [9.1.2] - 2026-11-15
+
+### Changed
+
+- The enforcement ladder copy is at 3.1.0: the "Compiler or type settings" and "Tests" rows carry the rung ids `compiler-setting` and `behavior-test`.
+
 ## [9.1.1] - 2026-11-15
 
 ### Changed
