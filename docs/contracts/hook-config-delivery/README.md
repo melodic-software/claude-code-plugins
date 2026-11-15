@@ -117,7 +117,7 @@ exists to close exactly that residual for per-session values a plugin cannot do 
 5. **Sensitive value** → **B** or **C**; never argv (visible in process listings), never **E**
    (model-visible), and **F** cannot read them at all (fact 8).
 
-**Meta-rule: do not enshrine the outage as law.** The standing preference is *the most
+**Meta-rule: do not turn today's outage into a permanent rule.** The standing preference is *the most
 tamper-resistant channel that reliably delivers*. Argv is the most tamper-resistant delivery there
 is; it is excluded today only because fact 3 makes it unreliable for optional-with-default keys.
 If upstream implements `default` substitution, rows A/B/D change and this rule is re-derived. That

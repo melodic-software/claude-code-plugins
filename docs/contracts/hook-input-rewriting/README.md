@@ -37,7 +37,7 @@ because the hook was written against the schema of the day it shipped.
 **Permission rules are re-evaluated against the hook's version, not the user's.** The rewritten
 input is what the permission layer then judges. A rewrite that widens a call, even accidentally,
 even while narrowing the part the hook cared about, is a rewrite that can clear rules the original
-call would have tripped. A guard that can launder a call past the permission layer is not a guard.
+call would have tripped. A hook that can carry a call past the permission rules defeats those rules.
 
 ## The sanctioned escape hatch
 

@@ -1456,7 +1456,7 @@ upstream-owned: resolve it from the model page at decision time, never from this
   for the field itself, see
   [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference).
 
-We treat a lane pin as a posture, never a switch. Thinking is adaptive, so a lane pinned `low` still
+A lane pin guides effort and does not force it. Thinking is adaptive, so a lane pinned `low` still
 thinks where the model judges it worth the cost, and a turn with no thinking is not a pin
 misfiring. Authoring conformance follows: pin the lane, then let allocation vary per request
 instead of writing prose that tries to force it uniform (Pointer: for how the model decides when to

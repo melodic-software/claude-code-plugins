@@ -40,7 +40,7 @@ with cognitive load below; the two are distinct budgets and cutting one can over
 **cognitive load**
 
 The attention a human maintainer pays to hold where things live across a doc set. Ten small
-fragment files can be cheap in context load and ruinous in cognitive load.
+fragment files can be cheap in context load and expensive in cognitive load.
 
 Avoid: mental overhead
 

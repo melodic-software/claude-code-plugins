@@ -124,13 +124,13 @@ These four are therefore computed by the producer, and each has a failure mode t
 
 ## Rule ids and thresholds
 
-A `Tier` nobody can re-derive is a `Tier` nobody can audit. Two obligations make it re-derivable from
+A `Tier` that cannot be re-derived cannot be audited. Two obligations make it re-derivable from
 the emitted file alone, without re-reading the detector:
 
 - **A rule id is `<plugin>/<skill>/rule-<slug>`**, lowercase `[a-z0-9-]` in each segment. **One form,
   everywhere**: the crosswalk's own column, the emitted `Finding` cell, and any prose. There is no
-  short form. This crosswalk is a cross-producer registry, so an unqualified id in it would be a
-  collision waiting for the second detector, and the gate this enables (Enforceability, below)
+  short form. This crosswalk is a cross-producer registry, so an unqualified id in it would clash
+  as soon as a second detector used the same id, and the gate this enables (Enforceability, below)
   resolves an emitted id against a row by exact match. Qualification makes that resolution correct by
   construction rather than by a uniqueness rule nothing enforces. The `rule-` segment is kept so the
   id stays self-identifying wherever it appears.

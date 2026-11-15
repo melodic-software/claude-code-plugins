@@ -4,7 +4,7 @@ Owner doc for the classes of standing instruction that survive an instruction-au
 consequence grounds, whatever a length, redundancy, or model-era check says about them.
 
 The register exists because subtraction guidance has no natural floor. The current generation of
-prompting guidance is explicitly subtractive: strip prescriptive scaffolding, let the model use
+prompting guidance is explicitly subtractive: strip prescriptive step-by-step instructions, let the model use
 judgment, delete rules written for older models. That guidance is sound and this repo follows it,
 but it is stated for behavioral rules and carries a carve-out its own wording leaves undefined,
 "avoid making them overconstrained, **except in highly important areas**". Without a written

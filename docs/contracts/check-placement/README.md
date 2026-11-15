@@ -31,8 +31,8 @@ and what reaches the model.
    commit budget but within 60 s, `pre-push`; beyond 60 s, CI only.
 4. **Report-only findings never reach the model per edit.** A shipped hook must not send a
    report-only check's findings to the model on a per-edit `PostToolUse` event. A per-edit report fires on
-   in-between states the model is about to change anyway, and it can pull an open-ended task
-   toward unrelated fixes.
+   in-between states the model is about to change anyway, and it can lead the model to make
+   unrelated fixes during an open-ended task.
 5. **Measured cost and model-facing output both decide placement.** A cheap check that prints
    to the model each edit is still misplaced; a silent check that costs seconds per edit is too.
 6. **One local place per report-only check.** Each report-only check runs in exactly one local

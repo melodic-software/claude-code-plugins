@@ -123,7 +123,7 @@ Contract points:
   and a symlink escape would let untracked external content steer the gate.
 - **Monorepo per-directory scoping is out of scope** (recorded, not designed for).
 
-**Incumbent steelman, walked before replacing.** Markdown-H2 was chosen (#913) so the config file
+**What the incumbent format was for, checked before replacing it.** Markdown-H2 was chosen (#913) so the config file
 doubles as human-readable documentation: a self-describing preamble, prose beside values, one file
 readable with no schema knowledge. Those purposes survive the move: YAML `#` comments carry the
 preamble and per-value prose (the example above is self-describing), and the human document proper

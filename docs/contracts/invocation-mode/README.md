@@ -300,8 +300,8 @@ from the model is a near-total trade, not a listing-budget optimization. (2) *Av
 collision with `session-flow:workflow`*, the same shape as #2969's candidate, and it dissolves the
 same way: ADR 0016 itself resolved that collision reciprocally, amending `workflow`'s
 "never present both" mandate to govern **stage** routing and cede option surfacing, and each
-description now routes to the other on that axis. Hiding is redundant belt-and-braces over a
-collision already fixed by another mechanism. (3) *Graduation is evidence-gated*, the real
+description now routes to the other on that axis. Hiding adds nothing, since another
+mechanism already fixed the collision. (3) *Graduation is evidence-gated*, the real
 objection, but its own criterion measures the bucket cut rather than the mode (the ADR says to
 revisit the buckets first and the posture second), and the evidence cannot accrue while the
 recursion the ADR names goes unsolved: the operator must remember to invoke the skill about
@@ -310,7 +310,7 @@ forgetting skills.
 *The two costs of the `true`, both now paid*, are the same pair #2969 surfaced. Its trigger phrases
 were dead, because a hidden skill's description is never matched against user text: a human who
 says "what are my options" out loud got nothing. And the invocation-reach invariant made
-`workflow`'s shipped boundary paragraph a dangler, pointing the model at a target it could not
+`workflow`'s shipped boundary paragraph a pointer to a target the model could not
 reach. The cost the flip incurs is one description entering the listing budget, which the default
 section holds is manageable and not a forcing function.
 

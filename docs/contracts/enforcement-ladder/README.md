@@ -21,7 +21,7 @@ is named in prose only.
 
 ### Tier 1: Codebase
 
-The code is shaped so the mistake has no place to go.
+The code is changed so the mistake cannot be expressed.
 
 1. **`make-impossible`**: change a type, a data structure or an API so the wrong state cannot be
    written at all. Examples: an order that is either draft or submitted becomes one status field

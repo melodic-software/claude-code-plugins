@@ -99,7 +99,7 @@ procedure before choosing plugin and skill directories:
    invocation from a clean consumer repo. Do not retire the source skill until each mapped trigger
    routes to its intended successor and ambiguous prompts choose the correct facet.
 
-The result is a smaller loading surface per invocation without losing discovery behavior. Do not
+The result is less text loaded per invocation without losing discovery behavior. Do not
 split merely to shorten a file: progressive disclosure into supporting files handles size when the
 skill still has one discovery intent.
 
@@ -1007,7 +1007,7 @@ in-repo hook had that the generalized plugin dropped to one of these, in order:
 If a genuine specific has **no** extension point, that is a real plugin gap → add a declared extension
 (`userConfig`, or a tracked consumer-project config key), but only when it carries
 real behavior, not cosmetic prose a consumer's `CLAUDE.md` already establishes. Resist adding config
-surface to a published plugin for a single consumer's low-value nicety.
+options to a published plugin for a single consumer's low-value nicety.
 
 **Cutover checklist:**
 

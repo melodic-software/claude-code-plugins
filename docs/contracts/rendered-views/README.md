@@ -772,8 +772,8 @@ a dead end. Loop closure is the family of patterns that hands the reader a terse
 give back; export is the pattern that gets live page state off the page.
 
 **When a view owes an export.** A custom editor always ends with one: a view that lets a
-person change state and then offers no way to get that state out has thrown the work
-away. A view that asks the reader to choose, rank, accept, or correct owes a loop-closure
+person change state and then offers no way to get that state out loses the work
+when it closes. A view that asks the reader to choose, rank, accept, or correct owes a loop-closure
 payload for the same reason. A view that only presents owes neither.
 
 **Where the family belongs.** Editors, explorations and option spreads, and

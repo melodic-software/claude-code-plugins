@@ -11,8 +11,8 @@ versions independently, per its own boundary rule.
 
 ## What this is for, and what it is not
 
-A finding an operator has judged and decided to keep must not be re-reported forever. An audit
-whose report is permanently noisy is an audit nobody reads. But a suppression can also hide a real
+A finding an operator has judged and decided to keep must not be re-reported forever. A report
+that is permanently noisy stops being read. But a suppression can also hide a real
 defect, so the shape below is deliberately stricter than a bare id list.
 
 Not for: a finding that is simply wrong (fix the check), a file the audit should never have read
