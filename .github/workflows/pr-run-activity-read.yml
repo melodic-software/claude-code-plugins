@@ -330,9 +330,10 @@ on:
         value: ${{ jobs.scan.outputs.feedback-sha256 }}
       feedback-disputed:
         description: >-
-          `true` when the review-thread replies the scan job uploaded hold an
-          INCORRECT reply or a line that is not JSON, else empty. Only the
-          scan job sets it, from the bytes it uploaded.
+          `true` when the review-thread replies the scan job uploaded hold a
+          reply whose disposition is `INCORRECT`, `UNCERTAIN` or `VALID-defer`,
+          or a line that is not JSON, else empty. Only the scan job sets it,
+          from the bytes it uploaded.
         value: ${{ jobs.scan.outputs.feedback-disputed }}
       dependency-attempt:
         description: >-

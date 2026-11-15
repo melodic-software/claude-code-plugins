@@ -38,7 +38,8 @@ name: Work Unblock
 #
 # The hourly sweep also restarts an issue the usage limit stopped: once the
 # limit has reset, the App removes and re-adds agent-ready (at most five a run);
-# after three limit stops since a person added agent-ready it adds needs-human.
+# after limits.limit-stops-per-issue limit or funding stops since a person added
+# agent-ready it stops restarting the issue, removes agent-ready and adds no label.
 # It re-fires the same way an issue whose work-resolve-issue run did no work and
 # left no report: a crash, a rerun the token broker refused as workflow-modified
 # (a rerun keeps its first event's workflow files), a run that waited in its

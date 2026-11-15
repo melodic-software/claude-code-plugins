@@ -128,7 +128,7 @@ that profile's `model`, `effort` (null when unset), `subagent-model` (`inherit` 
 `max-turns`, from its activity's route, else `models.default-profile`, else, with no `models`
 block, the built-in `standard` profile (model `opus`, 75 turns); a model outside `haiku`,
 `sonnet` and `opus` resolves to `opus`. That excludes `fable` and `best` on purpose (`best` names
-Fable on Claude Code before v2.1.321, and CI pins 2.1.319): the lanes run no frontier model until
+Fable on Claude Code before v2.1.321): the lanes run no frontier model until
 the owner sets a Fable allowance for them, and the schema refuses both on a profile (`pr-pipeline.schema.json`, `model` and `subagent-model`), so
 this rule catches a config that reached the resolver unchecked. The upstream alias list is
 [model-config, Model aliases](https://code.claude.com/docs/en/model-config#model-aliases), as of
@@ -147,7 +147,7 @@ known; an option no entry maps fails the step (`unmapped-dimension`); an applyin
 reads them; beside it, `issue-status.mjs` collapses an issue's labels to its
 `models.issue-status` state and reads its Work status field under the same setter rule plus
 `bot-setters` for every state but agent-ready, failing on an option no entry maps
-(`unmapped-status`); no slot uses it yet. `resolve-config.mjs`'s `fieldEvents` reads an issue's
+(`unmapped-status`); a slot's `labels` and `labels-absent` predicates read it on an `issues` event, as above. `resolve-config.mjs`'s `fieldEvents` reads an issue's
 field events with actor, time and values, and `fieldSetters` folds them to each field's latest
 setter. `write-status.mjs` holds the state writer (`statusWriter`, whose `set` and
 `leaveAgentReady` throw `StatusWriteError`). `read-status.mjs` hands the
