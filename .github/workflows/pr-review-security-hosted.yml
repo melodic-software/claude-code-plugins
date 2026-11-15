@@ -14,17 +14,16 @@ name: PR Review Security Hosted
 # owns the triggers, concurrency, and the GITHUB_TOKEN permission grant.
 #
 # There is no workflow-level path gating. The `docs-only-paths` passed below
-# is empty, so a documentation-only pull request is reviewed too. A
-# `.github/claude-security-paths` file is no longer read.
+# is empty, so a documentation-only pull request is reviewed too.
 #
-# NEVER add workflow-level `paths:`/`paths-ignore:` to this caller: a check
+# Never add workflow-level `paths:`/`paths-ignore:` to this caller: a check
 # whose workflow never triggers is missing, not green, so a required check
 # would stay Pending forever, and the babysit merge gate, which waits for
 # `pr-review-security / security-review`, never arms.
 #
 # The reusable skips fork PRs (they receive no secrets and a read-only token),
 # Dependabot, and every `[bot]` actor whose sender id is not in
-# `allowed-bot-sender-ids` (below); a required check does NOT prove a fork PR
+# `allowed-bot-sender-ids` (below); a required check does not prove a fork PR
 # was reviewed (see the reusable's header). On a public repository the lane
 # reviews only pull requests from branches of this repository: fork and
 # Dependabot pull requests get no secrets.
@@ -49,7 +48,7 @@ on:
     # success on the head and fails while the hold label is on (github-iac
     # ADR 0017).
     #
-    # NO `merge_group:`: the reusable runs only on `pull_request`; see
+    # No `merge_group:`: the reusable runs only on `pull_request`; see
     # melodic-software/ci-workflows#272 before enabling a merge queue.
     types: [opened, synchronize, ready_for_review, reopened]
 
@@ -358,8 +357,8 @@ jobs:
       # empty and the reusable reviews no bot.
       allowed-bot-sender-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
       # Empty: the security lane reviews every change, documentation included.
-      # A skipped review binds no evidence to the head, so pr-merge scored a
-      # docs-only pull request medium and held it for a person; a review with
+      # A skipped review binds no evidence to the head, so pr-merge would score a
+      # docs-only pull request medium and hold it for a person; a review with
       # no findings binds to the head and scores low.
       docs-only-paths: ''
       # Copies scripts/sync-shared-copies.sh generates, read at the merge base:

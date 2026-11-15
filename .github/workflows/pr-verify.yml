@@ -489,8 +489,9 @@ jobs:
           path: ${{ github.workspace }}/pr-verify-data/capture
           merge-multiple: true
 
-      # Files, not step outputs: run-claude-cli reads both. A `default` model
-      # resolves to an empty model, which the launcher cannot pass. started-at
+      # Files, not step outputs: run-claude-cli reads both. resolve-config's
+      # schema refuses a `default` model and maps any other non-alias to opus,
+      # so MODEL is never empty; the check below guards a resolver change. started-at
       # lets the outcome step tell a step timeout from other failures.
       - name: Write the prompt and schema
         id: prompt

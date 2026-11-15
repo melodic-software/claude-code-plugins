@@ -18,7 +18,7 @@ condition 1 and the actor and author parts of condition 2).
 | `github-token` | `${{ github.token }}` | Reads this run's own record on every path, the PR on `workflow_dispatch` and `workflow_run`, and its branch ref on `workflow_dispatch` |
 | `denied-actor-ids` | empty | Comma- or space-separated user ids that stop the lane with `bot-actor` |
 | `triggering-actor` | `${{ github.triggering_actor }}` | The login that started this run attempt; only routes `github-actions[bot]` to the reconciler check |
-| `dispatcher-run-id` | empty | The dispatcher run that sent a `github-actions[bot]` `workflow_dispatch`; empty keeps today's rules |
+| `dispatcher-run-id` | empty | The dispatcher run that sent a `github-actions[bot]` `workflow_dispatch`; empty leaves the sender check in place |
 | `dispatcher-workflow` | empty | The workflow path that run must have; empty stops every dispatcher-sent run |
 | `run-dispatcher-workflow` | empty | The workflow path a dispatcher run started by `workflow_run` must have; empty stops every such run |
 | `run-dispatcher-upstreams` | empty | Space-separated workflow paths that dispatcher's upstream run may have; empty stops every such run |
