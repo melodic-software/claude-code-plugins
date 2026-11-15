@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: fanout-require-unattended-keeps-findings
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: opens-with-nothing-checked
+    type: tool_used
+    tool: Write
+    input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*type: review-findings)(?=.*---(?:\\n| )*Nothing could be checked)'
+  - name: dismissed-not-reproduced
+    type: tool_used
+    tool: Write
+    input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*type: review-findings)(?=.*## Dismissed(?:(?!\\n## ).)*not reproduced)'
+  - name: both-planted-findings-listed
+    type: tool_used
+    tool: Write
+    input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*type: review-findings)(?=.*## Findings(?:(?!\\n## ).)*(?:[Ii]sWeekend|[Ss]unday|SUNDAY|getDay))(?=.*## Findings(?:(?!\\n## ).)*(?:[Cc]ustomer e-?mails?|raw e-?mails?|PII|personal data|[Ee]mail address))'

@@ -32,6 +32,16 @@
       "minimum": 1,
       "default": 2
     },
+    "reproduce_findings": {
+      "description": "The proof stage of /review:fanout and /review:council. off: skipped, and the report is unchanged. label: each finding at or above reproduce_findings_floor goes to a read-only refute gate, and every finding is labelled reproduced, verified-by-reading, refuted or not-attempted. require: as label, and every finding at or above the floor that was not reproduced stays in the report at low confidence, not acted on, with a Dismissed line. No value runs reviewed code without a person's yes to that exact command. Skipped for a change set that edits this file.",
+      "enum": ["off", "label", "require"],
+      "default": "off"
+    },
+    "reproduce_findings_floor": {
+      "description": "The lowest tier the proof stage sends to its refute gate when reproduce_findings is label or require. Findings below it are labelled not-attempted. Skipped for a change set that edits this file.",
+      "enum": ["CRITICAL", "IMPORTANT", "SUGGESTION"],
+      "default": "IMPORTANT"
+    },
     "smell_baseline": {
       "description": "Which design-smell list the code-reviewer agent checks. default: the shipped baseline in the plugin's reference/design-smells.md. off: no smell check. A repository-relative path to a .md file: the repository's own list; a missing file falls back to the shipped baseline. Skipped for a change set that edits this file.",
       "type": "string",

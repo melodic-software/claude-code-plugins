@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/orders-export/20261115T120000Z-orders-export.md",
+            "content": "---\ntype: review-findings\n---\n\n## Findings\n\n| 1 | IMPORTANT | low | src/calendar.js:2 | code-reviewer | isWeekend checks 6 and 7, but getDay() returns 0 for Sunday. | Check 0 and 6 |\n| 2 | IMPORTANT | low | src/export-orders.js:4 | security-reviewer | The CSV writes raw customer emails. | Mask or drop the address |\n\n## Dismissed\n\n- 1, src/calendar.js:2: not reproduced (verified-by-reading): unattended run.\n- 2, src/export-orders.js:4: not reproduced (verified-by-reading): unattended run.\n"
+          }
+        }
+      ],
+      "why": "both planted defects stay in Findings"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/orders-export/20261115T120000Z-orders-export.md",
+            "content": "---\ntype: review-findings\n---\n\n## Findings\n\n| 1 | IMPORTANT | low | src/calendar.js:2 | code-reviewer | isWeekend checks 6 and 7, but getDay() returns 0 for Sunday. | Check 0 and 6 |\n\n## Dismissed\n\n- src/export-orders.js:4 raw customer emails in the CSV: not reproduced, removed.\n"
+          }
+        }
+      ],
+      "why": "the email finding was dropped from Findings and survives only in Dismissed"
+    }
+  ]
+}

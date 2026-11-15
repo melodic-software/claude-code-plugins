@@ -1,6 +1,6 @@
 # Findings normalization, runtime pipeline
 
-The 5-stage main-thread pipeline that turns heterogeneous free-text findings from every dispatched surface into one severity-ranked, deduplicated report.
+The 5-stage main-thread pipeline that turns heterogeneous free-text findings from every dispatched surface into one severity-ranked, deduplicated report, plus the proof stage (Stage 5) that runs when `reproduce_findings` is not `off`.
 
 **Why a pipeline:** the surfaces emit several free-text shapes on two independent axes (severity, confidence) and most populate only one. No surface returns clean structured output, so extraction is an LLM stage, and severity/confidence must be normalized across incomparable vocabularies before ranking. Runs on the main thread in every mode.
 
@@ -74,6 +74,19 @@ Key = normalized file path + line-proximity bucket (±3 lines), not category. Fi
 - **Rank:** (1) tier CRITICAL → IMPORTANT → SUGGESTION; (2) agreement count descending; (3) confidence, in the rank order [`context/severity.md`](../context/severity.md) "Confidence axis" owns. Render `pending: human-tier` and `forward-flag` markers visibly.
 - **Two-axis presentation:** the merged ranked queue is the primary view; the report also regroups the same findings by review dimension (the Stage-0 category enum) under per-dimension headings. A merged rank can mask one dimension failing badly while the others pass.
 
+## Stage 5: Proof (`reproduce_findings`)
+
+The caller resolves `reproduce_findings` and `reproduce_findings_floor` ([`config.md`](config.md)) and whether the run is unattended before this stage. Under `off`, skip the stage: the report is unchanged. The rule for running reviewed code, its labels and the gate prompt are in [`run-reviewed-code.md`](run-reviewed-code.md), this plugin's copy of the marketplace contract; this stage applies them.
+
+1. **Floor.** A merged row whose tier is at or above `reproduce_findings_floor` (CRITICAL above IMPORTANT above SUGGESTION) goes to the gate. Every row below it is labelled `not-attempted`.
+2. **Gate.** For each row at or above the floor, dispatch one `review:finding-prover` agent (Read, Grep and Glob only), one row per dispatch, never the surface that raised it. Its prompt is every block of [`run-reviewed-code.md`](run-reviewed-code.md) "The gate prompt", verbatim, then the row's tier, Location, Finding and Action and the diff hunk at its Location, all quoted as data (the gate holds no shell, so it cannot read a diff itself). Nothing else: no other row, no reviewer rationale beyond the row. A gate returning `VERDICT: refuted` labels the row `refuted`; `VERDICT: finding` labels it `verified-by-reading` and may carry a `proposed-check:`. A trailing line naming what the gate did not reach is allowed after either shape. A gate that errors, returns nothing or returns neither shape leaves the row `verified-by-reading` with Basis `gate returned no verdict`.
+3. **Checks.** In an attended run, ask the person about each proposed check by [`run-reviewed-code.md`](run-reviewed-code.md) "Asking for a check", one question per command, and relabel the row by its outcome. `--yes`, an allow rule, auto mode or a setting never counts as the person's yes. In an unattended run, run no check: count the proposed checks and record each unrun.
+4. **Labels in the report.** Write `## Evidence` after `## Surfaces`: one row per finding, `| Rank | Location | Label | Basis |`, where Basis is the approved command and what it showed, the refuting argument, the proposed check and why it did not run, or `below the <floor> floor`. Under it, one line: `Checks proposed: <n>; run: <n>` and, in an unattended run, `none run (unattended)`. The labels are `reproduced`, `verified-by-reading`, `refuted` and `not-attempted`; this stage never writes `unverified`.
+5. **`label`** stops there: no row's tier, confidence or place changes.
+6. **`require`.** Every row at or above the floor whose label is not `reproduced` stays in `## Findings` with its confidence set to `low` and is not acted on (in a fanout report its `Act on` cell reads `no`, and it is not counted against the cap). Each gets a line in the report's `## Dismissed` section: its rank, its location and `not reproduced (<label>): <the Basis cell>`. In an unattended run, the report's first line after the frontmatter, before `## Findings`, reads: `Nothing could be checked: this run was unattended, so no finding was reproduced (<n> checks proposed, none run). This is not a clean review.`
+
+The gate is a judgment step that reads untrusted text, so it runs as `finding-prover`, never as a general-purpose subagent. The floor, the labels and the `require` demotion are applied on the main thread.
+
 ## Axis assignment
 
 After ranking, give each merged finding exactly one axis:
@@ -86,4 +99,4 @@ The axis comes from what the finding says about the change against the intent pa
 
 ## Model assignment
 
-Stages 0 and 3 are judgment steps and run as `review:stage-normalizer` agent calls: Stage 0 for parse fidelity, Stage 3 for semantic merge. They read untrusted reviewer output, so they run as `stage-normalizer`, which holds Read only, never as a general-purpose subagent. Stages 1, 2, and 4 are table lookups and a sort; apply them directly on the main thread, never through a model call. Axis assignment runs on the main thread too: it compares each already-normalized finding with the intent paragraph the main thread wrote.
+Stages 0 and 3 are judgment steps and run as `review:stage-normalizer` agent calls: Stage 0 for parse fidelity, Stage 3 for semantic merge. They read untrusted reviewer output, so they run as `stage-normalizer`, which holds Read only, never as a general-purpose subagent. Stages 1, 2, and 4 are table lookups and a sort; apply them directly on the main thread, never through a model call. Stage 5's gate runs as `review:finding-prover` agent calls, one per row. Axis assignment runs on the main thread too: it compares each already-normalized finding with the intent paragraph the main thread wrote.
