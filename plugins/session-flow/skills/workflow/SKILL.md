@@ -48,7 +48,7 @@ This skill adapts to the consuming repo rather than imposing structure:
   files in its `archive/` subdirectory), a fixed-filename checklist there would clobber across two
   in-flight topics.
 - **Quality gates.** The consuming repo's own build/test/lint commands, review criteria and commit conventions govern;
-  this skill names WHERE gates belong in the sequence, not what they contain.
+  this skill names where gates belong in the sequence, not what they contain.
 - **Override boundary.** The stage set itself is fixed. Plugin identity, not consumer config; there
   is no seam to swap in a different taxonomy, and this skill never reads a consumer-supplied one.
   What adapts flows through the conventions above (execution routes to your skills; gate commands
@@ -67,7 +67,7 @@ Read `$ARGUMENTS` whole: its first word is the mode and, when the mode is `conti
 | `philosophy` | **Philosophy** | Load `context/philosophy.md`, depth expectations and verification rigor |
 | `spec-first` | **Spec-first** | Load `context/spec-first.md`, stage-by-stage execution from a written spec |
 | `continue` | **Continuation** | Load `context/continuation.md`, end-of-phase continuation-mechanism router; recommend one mechanism, do not execute it |
-| `continue auto` | **Continuation (autonomous)** | The `continue` mode plus its one modifier. Consume the second token before dispatching, or this row is unreachable and `auto` silently degrades to suggest-only. Same router, plus the per-invocation license to EXECUTE the mechanism it routes to. Authorizes this invocation only, never a standing mode, and never a substitute for a routed skill's own hard gate |
+| `continue auto` | **Continuation (autonomous)** | The `continue` mode plus its one modifier. Consume the second token before dispatching, or this row is unreachable and `auto` silently degrades to suggest-only. Same router, plus the per-invocation license to execute the mechanism it routes to. Authorizes this invocation only, never a standing mode, and never a substitute for a routed skill's own hard gate |
 
 **The verification level, on every route into `context/pre-pr.md`** (this `pre-pr` row, `wrap-up`'s pre-PR step, or a sibling plugin that routes here): before its step 2, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin session-flow --skill workflow --file docs/conventions/session-flow.yaml` once in the session and report its line; step 2 reads that level.
 
@@ -182,7 +182,7 @@ two files.
 ## On-ramps: work that merges into the flow partway
 
 The stage sequence is the main line, not the only entrance. Work also arrives from the side and
-merges in at a later stage. Recognize the CLASS of arrival and merge at the right point instead of
+merges in at a later stage. Recognize the class of arrival and merge at the right point instead of
 forcing every session through stage 1. Common classes:
 
 - **A quick change**, one whose diff will be quick to review and cheap to retry. Those two tests
@@ -200,13 +200,13 @@ forcing every session through stage 1. Common classes:
 - **A foggy, too-big-to-plan effort**, the destination is clear but the route is not, and no
   single plan can hold it yet. Start at the interview anyway; when that interview
   outgrows one session, escalate to a wayfinding or route-charting capability (if installed, e.g.
-  from a planning plugin), which converts the remaining unknowns into decisions BEFORE the plan
+  from a planning plugin), which converts the remaining unknowns into decisions before the plan
   stage. Never start there: work that fails either quick-change test is interview-first, and an
   effort too big and too foggy for one session is reached from the interview (the planning
   plugin's wayfind sends a cold start back to the interview). Without a wayfinding capability, run explore/research
   cycles until a plan becomes writable.
 - **Codebase-upkeep findings**. Audits, tidy sweeps, and architecture surveys surface candidate
-  improvements rather than mid-flight work. Each finding the user picks up is a NEW idea entering a
+  improvements rather than mid-flight work. Each finding the user picks up is a new idea entering a
   fresh cycle at the interview; it never merges into an in-progress cycle's later stages.
 
 These are classes, not an inventory. Match the arriving situation to its class, then check what the
@@ -216,7 +216,7 @@ skill names, and degrade to inline work when nothing is installed.
 ## When two capabilities both fit
 
 Adjacent capabilities overlap at their edges. Intake vs diagnosis, wayfinding vs planning, upkeep
-vs review. Route to exactly ONE owner and state why; never present both and leave the user to
+vs review. Route to exactly one owner and state why; never present both and leave the user to
 disambiguate. Precedence:
 
 1. **Exclusion language wins.** A capability whose own description disclaims the situation ("skip
@@ -226,7 +226,7 @@ disambiguate. Precedence:
 3. **Still tied → the earlier stage wins**, every downstream stage remains reachable from it, but
    a skipped upstream stage is gone.
 
-**This rule governs STAGE routing, not option surfacing.** "Never present both" is about refusing to
+**This rule governs stage routing, not option surfacing.** "Never present both" is about refusing to
 hand the user two candidate owners for one stage decision and letting them sort it out. It is not a
 prohibition on ever showing a set: deliberately laying out the whole option set, ranked and
 annotated, for a human to choose from is a different job, and `/session-flow:recommend-skills` owns it.

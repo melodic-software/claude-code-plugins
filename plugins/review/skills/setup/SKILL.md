@@ -13,7 +13,7 @@ section of the plugin's contract binding
 [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md).
 The procedure (state reading via the index presence test, the conforming-index short-circuit, the
 hand-authored-README confirmation gate, interview, skeleton write, row-path validation,
-DIRECTIONAL version-delta detection with guided migration, idempotent re-run) lives there. Implement it by reference; do not restate it.
+directional version-delta detection with guided migration, idempotent re-run) lives there. Implement it by reference; do not restate it.
 
 Idempotent: re-running reads the current state and offers an update rather than overwriting blind;
 a re-run against a conforming, current-version index proposes no changes.
@@ -22,7 +22,7 @@ Action routing per the uniform setup contract
 ([`docs/plugin-philosophy.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/plugin-philosophy.md)
 "Setup is explicit and repeatable"): no argument or `check` runs
 the binding's state-reading procedure read-only and reports index presence and resolved
-standards root, per-row path validation, and the DIRECTIONAL version delta as a PASS/FAIL/INFO
+standards root, per-row path validation, and the directional version delta as a PASS/FAIL/INFO
 table with one remediation line per FAIL, writing nothing. `apply` runs `check` first, then the
 binding's bootstrap / reconfigure / migration flow below; after any write it re-runs the relevant
 probe and reports the actual result. Non-interactive when the state admits exactly one conforming
@@ -164,7 +164,7 @@ Plugin-side notes on top of the binding's procedure:
    `<standards_dir>/.gitignore` containing `*.local.md` (the personal override ignore). Write
    `.claude/standards.yaml` only when the user relocates the root from the documented default.
    After a bootstrap write, run the tracked-file pair on each written team file:
-   `git check-ignore -v` reports no match (a match is FAIL with the pattern) AND
+   `git check-ignore -v` reports no match (a match is FAIL with the pattern) and
    `git ls-files --error-unmatch` exits 0 (non-zero right after a fresh write means "written but
    untracked: commit it to share with the team", never success).
 3. **Validate every index row path** on each run (external-row validation duty); surface broken
@@ -185,7 +185,7 @@ the value `check` reads back, and whether the file is tracked.
 
 `/review:quality-gate`, which resolves review criteria through the index this setup bootstraps.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run a review. That is `/review:quality-gate` and this plugin's reviewer agents; they resolve
   criteria through the index this setup bootstraps.

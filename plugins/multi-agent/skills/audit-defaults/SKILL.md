@@ -142,7 +142,7 @@ file:line with the reason, then any `skippedAreas` by name.
 Both modes: state how many sources were read and how many were not, and name
 every label in `nulls`.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Edit `defaults.yaml`, a consumer layer, any script, or any file a `repo`
   finding names. Proposed diffs and dispositions are for a reviewed edit.

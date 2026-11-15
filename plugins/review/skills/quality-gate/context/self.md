@@ -20,7 +20,7 @@ For large diffs, dispatch two parallel `code-reviewer` workers with the same tem
 ## Subagent prompt template
 
 ```text
-You are a fresh-context reviewer. You did NOT author this work.
+You are a fresh-context reviewer. You did not author this work.
 
 Read in order:
 1. The project's own review criteria and conventions when present (REVIEW.md,

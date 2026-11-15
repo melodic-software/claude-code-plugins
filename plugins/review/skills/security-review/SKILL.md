@@ -125,7 +125,7 @@ nothing else):
 
 ## Criteria
 
-Perform a security review of THIS pull request. Review ONLY the files changed
+Perform a security review of this pull request. Review only the files changed
 in this PR: read the diff from "Inputs" above, then read those files. Reading a changed
 plugin's files to find the code that consumes a changed `userConfig` key is in scope. Do not
 audit unrelated parts of the codebase.

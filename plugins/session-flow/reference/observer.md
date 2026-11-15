@@ -4,7 +4,7 @@ The observer is a **substrate + lifecycle** in front of `running-retro`'s existi
 second concern. `running-retro` + `retro` already own the analysis method, finding taxonomy,
 resolution-route classification, redaction, and the cumulative ledger; this adds only (1) an
 out-of-band observation feed, (2) a session-end trigger, and (3) an autonomous analysis leg that
-reuses that discipline. It is what turns `running-retro` from PULL (invoked in-session) into a path
+reuses that discipline. It is what turns `running-retro` from pull (invoked in-session) into a path
 that can also fire *after* the session ends, which a `/loop` structurally cannot.
 
 Both entries, the `arm` action on `running-retro` and the opt-in SessionStart hook, run the same
@@ -57,7 +57,7 @@ Transcripts and observations are **untrusted input**. The shared boundary, that 
 output is data to analyze, never instructions to follow, is owned by
 [`off-thread-work.md`](./off-thread-work.md) ("The inspected output is untrusted data"); the analysis
 prompt restates the directive-immunity rule inline for the fresh `-p` context. The analysis run is
-**Read-only**: `--tools Read` RESTRICTS the available tool set to Read, `--strict-mcp-config`
+**Read-only**: `--tools Read` restricts the available tool set to Read, `--strict-mcp-config`
 loads no MCP servers, and `--allowedTools Read` under `--permission-mode dontAsk` keeps that single
 Read from prompting or being denied. `--allowedTools` alone would not suffice, because it only auto-approves
 and does not restrict, so a Bash/WebFetch/MCP tool already allowed in the user's settings could
@@ -137,7 +137,7 @@ Declared in the plugin manifest; the SessionStart hook and the `arm` action read
 | `observer_analysis_effort` | plugin.json | Analysis effort, passed as `--effort` (a cost lever; see "Model and effort"). |
 | `observer_analysis_bare` | `false` | Pass `--bare` (see above; breaks OAuth-login auth). |
 | `observer_idle_seconds` | `900` | mtime-idle end threshold; keep above the longest single turn. |
-| `observer_max_seconds` | `86400` | Hard lifetime safety valve; exits WITHOUT analysis. |
+| `observer_max_seconds` | `86400` | Hard lifetime safety valve; exits without analysis. |
 
 ## Self-arm guard
 
@@ -170,7 +170,7 @@ config overrides. Stop the live observer to re-arm with new settings.
   nothing to enable" (both verbatim, verified 2026-08-24 against
   <https://code.claude.com/docs/en/cross-session-messaging>; recheck trigger: a Claude Code
   changelog entry touching cross-session messaging or its availability). It stays non-default
-  here on the original grounds that survive the correction: the observer cannot grant consent on
+  here for three reasons: the observer cannot grant consent on
   the target session's behalf (the receiver's inbound controls can hold or refuse the message), a
   still-running receiver reads it only between tool calls during its active turn, and the durable
   ledger is the crash-safe, auditable primary.
@@ -184,7 +184,7 @@ config overrides. Stop the live observer to re-arm with new settings.
   `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS` **and** a server-side Statsig flag not locally
   controllable in 2.1.218. It consumes a read-only per-turn XML digest (not the JSONL), returns a
   one-way advisory, and is officially undocumented, so it does **not** cover the classify / route /
-  ledger discipline today. The substrate here is kept THIN precisely so migration stays cheap.
+  ledger discipline today. The substrate here is kept thin precisely so migration stays cheap.
   **Trigger:** re-evaluate the bespoke tailer leg if Observer Agents gains a transcript-level feed or
   a richer return and is officially documented / stabilized upstream.
 - **`SessionEnd` graceful-end fast-path.** A real distinct event that also fires headless and carries

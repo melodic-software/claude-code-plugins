@@ -43,8 +43,8 @@ final section, and the confirm gate still holds before any resume. Locate the pr
 own `session_id` (`<session_id>.jsonl` in a directory
 `bash "<plugin-root>/scripts/transcript_dirs.sh" --scope repo` prints, the store under
 `$CLAUDE_CONFIG_DIR` or by default the home `.claude` folder; the same lookup step 5
-performs, pulled ahead). That is a bounded, read-only read of ONE already-named file, not the
-step-2 scan reintroduced. **Bind the note to THIS candidate by content, never by taking the
+performs, pulled ahead). That is a bounded, read-only read of one already-named file, not the
+step-2 scan reintroduced. **Bind the note to this candidate by content, never by taking the
 transcript's last one:** one session can emit several handoffs, so find the rails prompt whose
 `Read @…` directive names this exact file and capture only the note adjacent to that block. A
 tail read would hand back a later handoff's note, and if the loop was stopped and relaunched
@@ -70,25 +70,26 @@ verified-visible, not exit-0**, the producer itself warns a zero-exit `claude --
 be invisible and verifies the agent actually appeared, so exclusion requires transcript
 evidence of that verification (the agent listed/confirmed); this definition governs every
 screening site in this skill. Matched launch references this candidate and verifiably
-succeeded → **recheck the CURRENT agent state before excluding**. Transcript evidence proves
+succeeded → **recheck the current agent state before excluding**. Transcript evidence proves
 only launch-time persistence, and a continuation that has since died leaves this save-point as
 the artifact needed to restart the work.
 
 **Read that state with `claude agents --json --all`, never the bare `--json`.** The bare form
-lists ACTIVE sessions only. A background session that has reached a terminal state is excluded
+lists active sessions only. A background session that has reached a terminal state is excluded
 by the CLI and surfaces only under `--all`, where it carries a `state` (observed: `done`, which
 reports completion, and `stopped`, which does not) in place of the active `status` (observed:
 `idle`, `busy`). That is `claude agents --help` ("`--all`. With --json: also include completed
 background sessions"), the same verified contract the `harness-ops` lane launcher relies on when
-that plugin is installed. **So absence from the bare list is
-NOT evidence of failure: a continuation that finished the work successfully looks exactly like
+that plugin is installed (as of 2026-08-09; recheck when `claude agents --help` changes the
+`--all` description or the `state` and `status` values). **So absence from the bare list is
+not evidence of failure: a continuation that finished the work successfully looks exactly like
 one that died.** Resolve four ways, and never collapse them:
 
 - **Live**. Present with an active `status`. The work is in progress, so the save-point is not
   the lost handoff: exclude it from the default winner, say so, point the operator at
   `claude agents`, and keep looking for the older manual handoff.
 - **Terminal and completed**. Present under `--all` with a `state` reporting completion.
-  **Also exclude it from the default winner**, and say the continuation FINISHED rather than
+  **Also exclude it from the default winner**, and say the continuation finished rather than
   failed. This branch is why the recheck cannot key on presence alone: presenting a completed
   continuation's save-point as the lost handoff invites the operator to redo work already done,
   and it can bury the older manual handoff they were actually looking for. Point them at that
@@ -103,12 +104,12 @@ one that died.** Resolve four ways, and never collapse them:
 
 Read the `state` value as reported and say which branch it took, the values above are observed,
 not a closed set, so an unfamiliar one is reported rather than forced into a branch. **Key the
-lookup on the launched session's `sessionId`/`id`, the `claude agents --json` field, NOT the
+lookup on the launched session's `sessionId`/`id`, the `claude agents --json` field, not the
 `session_id` this file uses elsewhere for transcript frontmatter, when the launch-verification
 listing recorded one in the transcript.** With no recorded ID the recheck is UNKNOWN and the
 candidate is kept, and that holds even when the `--name "continue-<topic>"` slug matches exactly
 one entry: `--all`'s history is bounded, so the candidate's own session may have aged out while a
-newer same-topic continuation remains, and a unique match is then a DIFFERENT session wearing the
+newer same-topic continuation remains, and a unique match is then a different session wearing the
 same name. Uniqueness at snapshot time is not identity across time. The slug is the same
 ambiguous key here as at launch time, and no match count makes it unambiguous. Launch references
 a different file, failed at launch, or is unverified/ambiguous → keep the candidate (surfacing

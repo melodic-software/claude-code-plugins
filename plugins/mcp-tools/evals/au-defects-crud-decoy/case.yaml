@@ -35,7 +35,7 @@ graders:
     target: last_message
   - name: fail-first
     type: llm
-    criteria: "PASS only if the reply's fix guidance (what to fix first, a priority list, or a recommended order) puts every FAIL item ahead of every WARN and info item, or explicitly labels the FAIL items as the first to fix. FAIL if a WARN or info item is recommended before a FAIL item, or the reply gives no fix order at all (legacy expectation: FAIL items are prioritized ahead of WARN and info items)."
+    criteria: "PASS only if the reply's fix guidance (what to fix first, a priority list, or a recommended order) puts every FAIL item ahead of every WARN and info item, or explicitly labels the FAIL items as the first to fix. FAIL if a WARN or info item is recommended before a FAIL item, or the reply gives no fix order at all."
   - name: audit-skill-fired
     type: tool_used
     tool: 'Skill'

@@ -12,8 +12,7 @@ Apply the tests in order; the first tier whose test the finding satisfies is its
 | **IMPORTANT** | Nothing produces a wrong result today, but the finding names a stated rule the change violates, behavior it adds that no test covers, or a degradation or maintenance cost with a named trigger | convention drift, missing tests for new behavior, code duplication, error-handling gaps that degrade but do not break | Fix before or shortly after merge |
 | **SUGGESTION** | Neither test holds: the finding is a preference among alternatives that all work, or hardening with no path reachable today | naming improvements, minor refactoring opportunities, hardening with no current exploitability | Optional; author's judgment |
 
-We state each tier's bar as a decidable test, not a qualitative label. The tests restate the
-existing bars rather than moving any finding between tiers.
+We state each tier's bar as a decidable test, not a qualitative label.
 
 - **Pointer**: for how a review prompt should state its reporting bar, see
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#code-review-harnesses>.
@@ -27,7 +26,7 @@ Independent of severity, this records how sure the reviewer is that the finding 
 | `high` | Verified at the call site (data flow traced, file read, behavior confirmed) |
 | `medium` | Pattern match with partial verification |
 | `low` | Suspicious pattern, unverified |
-| `unscored` | The emitting surface reported no confidence. Absence of a score is NOT low confidence; it is no claim at all |
+| `unscored` | The emitting surface reported no confidence. Absence of a score is not low confidence; it is no claim at all |
 
 **Rank order: `high` > `medium` > `low` > `unscored`.** Ranking reads the axis in that order, which
 puts every labeled finding above an unlabeled one: a `low` label still records that the reviewer
@@ -45,8 +44,7 @@ independent scales every finding carries, and merging and ranking findings acros
 A *review perspective* is a **lens**, not an axis: standards conformance vs spec conformance, code
 vs architecture vs security. Lenses are not comparable to each other and are presented
 separately (`quality-gate` runs one per invocation; `fanout` regroups its merged queue by dimension
-alongside the ranked view). Three incompatible senses of "axis" were live across this plugin's docs
-before this note; use "lens" for perspectives and keep "axis" for severity and confidence.
+alongside the ranked view). Use "lens" for perspectives and keep "axis" for severity and confidence.
 
 ## Security severity mapping
 

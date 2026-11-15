@@ -1,9 +1,9 @@
 # Method sources for name-it-better
 
-The naming CRITERIA are owned elsewhere (the consuming org's conventions,
-see the skill body). This file grounds the skill's METHOD: how candidates
+The naming criteria are owned elsewhere (the consuming org's conventions,
+see the skill body). This file grounds the skill's method: how candidates
 are generated, why generators run blind, and what the `tournament` mode is
-adapted from. It also grounds the RESEARCH ORDERING behind the fallback
+adapted from. It also grounds the research ordering behind the fallback
 general criteria (semantic accuracy → scope fit → comprehensibility →
 trigger utility) the skill applies only when no convention is declared.
 Read it when judging a method question, weighing the fallback criteria,
@@ -49,7 +49,7 @@ concept → word → structure shape. Peer-reviewed, primary-fetched.
 - Alpern et al., "Reproducing, Extending, and Analyzing Naming
   Experiments," arXiv:2402.10022, 2024: [alpern-repro]. PRIMARY.
   Independent reproduction (~6% agreement); instructing "longer names are
-  better" alone produced NO improvement. The three-step process, not
+  better" alone produced no improvement. The three-step process, not
   length, drives the gain.
 - Avidan & Feitelson, "Effects of Variable Names on Comprehension," ICPC
   2017: [avidan-feitelson]. PRIMARY. Misleading names measured as bad as
@@ -88,7 +88,7 @@ vocabulary" criterion.
 
 ## Blind generation → human convergence (anti-anchoring)
 
-Why generators run BLIND to the conversation and the human always makes
+Why generators run blind to the conversation and the human always makes
 the final pick: diverge widely from independent perspectives, then
 converge once, and keep the first-seen suggestion from anchoring the
 choice.
@@ -100,11 +100,11 @@ choice.
   (open PDF: [tk-1974-pdf]). PRIMARY. First value seen biases
   the final judgment; independent-before-shared review reduces it.
 
-## `tournament` mode: adapted, NOT a documented naming technique
+## `tournament` mode: adapted, not a documented naming technique
 
-HONEST FLAG: there is no primary source describing a "naming tournament"
+There is no primary source describing a "naming tournament"
 or "naming bracket" method for choosing identifiers. The mode is an
-ADAPTATION, presented as a local convergence mechanism, not an
+adaptation, presented as a local convergence mechanism, not an
 established naming standard. It borrows two documented, unrelated things:
 
 - Elimination brackets (single/double elimination): [elim-bracket].

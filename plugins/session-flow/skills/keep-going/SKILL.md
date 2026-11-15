@@ -135,7 +135,7 @@ itself the thing this skill removes.
    A field with no reading says `unknown` and why (plugin not installed,
    mods off, tool answer with no windows, no transcript); a value is never
    guessed. The cause line states evidence only and picks no recovery.
-3. **Goal alignment, before any recovery ACTION.** When the resume
+3. **Goal alignment, before any recovery action.** When the resume
    follows a `/session-flow:handoff`, read that file rather than trusting
    memory, and when the handoff's path was lost (a `/clear` without
    copying the resume prompt), recover it first with
@@ -279,15 +279,15 @@ For any "is it stuck / check the monitor / poke it":
   status notes in the same message as the next action; never end on an
   offer to continue, a summary naming the next step without taking it, or
   a list of options that block nothing.
-- **GATE** before RE-FIRING anything with external side effects, a push,
+- **Gate** before re-firing anything with external side effects, a push,
   a PR comment, a sent message, a deploy, a mutation, **and** before
-  KILLING or RESTARTING off-thread work whose death you cannot prove from
-  step 2. When the inspection cannot prove the action did NOT already
+  killing or restarting off-thread work whose death you cannot prove from
+  step 2. When the inspection cannot prove the action did not already
   land, or cannot prove the work is actually dead, stop and ask.
   Double-firing a side effect, or killing live work, is worse than
   pausing.
 
-## After a usage limit lifts. GO, don't summarize
+## After a usage limit lifts. Go, don't summarize
 
 - If you are executing again, the block is already over: **continue the
   work**. Do not produce a summary and stop. Summarize-and-stall is the
@@ -323,7 +323,7 @@ For any "is it stuck / check the monitor / poke it":
   reset clause parsed but the IANA timezone could not be resolved (rare when
   the bundled `tzdata` under `scripts/vendor` is present); report the timezone
   failure rather than treating the message as unparsable. In a single
-  interactive session, if you are running, the answer is already GO. A date-bearing
+  interactive session, if you are running, the answer is already go. A date-bearing
   form such as `resets Sep 8, 6pm (America/New_York)` is unparsed (exit `2`); never
   treat exit `2` as lifted.
 - The limit **message text** (e.g. `resets 3:45pm`) is a capture bound to the
@@ -388,7 +388,7 @@ step 5: reconcile the main thread from its real state and continue. The
 interruption may have hit mid-turn on the main thread alone. Recovering
 that is still the job.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not choose a recovery from the interruption type.** A short
   limit, a weekly limit, or a crash all take the same recovery. The

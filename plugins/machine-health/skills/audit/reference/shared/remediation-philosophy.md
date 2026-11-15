@@ -24,8 +24,8 @@ Every remediation attempt writes **both** before and after state to `<StateBase>
 
 - **Before:** the observation that justified the remediation (service state, file count, bytes used).
 - **After:** the same observation, re-taken immediately after the attempt.
-- **Success bool:** whether the intended state change occurred, not whether the cmdlet threw.
-- **Error:** populated when `success: false`, with the exception message or exit code.
+- **`succeeded` bool:** whether the intended state change occurred, not whether the cmdlet threw.
+- **Error:** populated when `succeeded: false`, with the exception message or exit code.
 
 The remediation script returns this as structured JSON; the orchestrator persists it and embeds it in the run snapshot under `remediations`.
 

@@ -10,7 +10,7 @@ allowed-tools: ["Workflow(knowledge:docpage-digest-batch)"]
 
 # Map Corpus
 
-Turn a topic plus seed URLs into a corpus slice that PROVES what was read: every discovered URL
+Turn a topic plus seed URLs into a corpus slice that proves what was read: every discovered URL
 classified, every in-corpus resource decomposed by a deterministic script into a node manifest,
 every node carrying a relevance verdict backed by a byte-verified quote. The mapper supplies
 the layer `docpage-digest` names as its own non-goal ("Does not crawl. One page per run")
@@ -32,7 +32,7 @@ means say so and stop. There is no agent-judgment fallback for a deterministic d
 - `--epic <slug>`, the epic under the work root (default: the topic slug).
 - `--max-resources N`, the in-corpus bound declared in the link map (default 30). A breach stops
   the run and re-asks; it never silently proceeds.
-- `--granularity deep|section`. JUDGMENT granularity, never row granularity: the inventory
+- `--granularity deep|section`. Judgment granularity, never row granularity: the inventory
   always carries exactly one row per manifest node (the gate's coverage invariant). `deep`
   (default) judges each node independently; `section` lets child rows inherit their top-level
   section's verdict/rationale (via `parent_id`), each keeping its own in-node evidence quote.
@@ -108,7 +108,7 @@ Seeds come in three kinds, told apart by their normalized URL:
   decision, a presence-gated `/firecrawl:firecrawl map` seam with a documented in-skill fallback,
   versus a recorded reason this skill reimplements in-page extraction (a bare unguarded
   cross-plugin reference is barred, and `dependencies` are reserved for hard requires). This stop
-  IS that decision's trigger: report it and ask, never crawl unasked. Full deferred-with-trigger
+  is that decision's trigger: report it and ask, never crawl unasked. Full deferred-with-trigger
   record: `${CLAUDE_PLUGIN_ROOT}/reference/ingest-deferred-decisions.md` §1.
 - **Repository seed** (a forge URL naming a repository and a ref), a repository whose files to
   enumerate with the `repo-tree` rung. Follow the forge's repository-tree adapter,
@@ -120,7 +120,7 @@ Seeds come in three kinds, told apart by their normalized URL:
   enumerates files itself. A repository seed is a discovery basis on its own: a corpus may have
   no origin seed.
 - **Resource seed** (non-root path, e.g. a raw repo file URL). Itself a corpus resource: a
-  link-map row with rung `seed`, no discovery at its origin. A corpus of resource seeds ONLY has no
+  link-map row with rung `seed`, no discovery at its origin. A corpus of resource seeds only has no
   discovery basis for the link-map gate: route it to direct `/knowledge:docpage-digest` runs, one
   per URL, each invoked via the Skill tool (recorded in `discovery/link-map-format.md`), or name the
   repository as a repository seed instead.
@@ -158,7 +158,7 @@ parse failure is a failed discovery to report, never a skipped file.
    bound, never quietly raising it.
 4. **Present the map for approval**: per-classification tally, the in-corpus list with reasons,
    and the declared bounds. Resource count vs `max_resources`, depth (the rungs that ran), batch size,
-   and estimated agent dispatches (0 when inline). The user approves the MAP, not raw discovery.
+   and estimated agent dispatches (0 when inline). The user approves the map, not raw discovery.
    After approval the map is frozen; any later discovery change reopens approval.
 
 Within the approved bounds the run proceeds without interruption; it stops to ask only on a
@@ -182,7 +182,7 @@ to state):
 3. **Inventory (agent judgment, pinned to script facts):** author `inventory.json`
    (`node-inventory/v1`, see `verification/inventory-format.md`). Exactly one row per manifest
    node, always: `verdict` (`relevant` | `not-relevant` | `uncertain`), one-line `rationale`,
-   and an evidence quote located by BYTE-SEARCH within the claimed node's span (never
+   and an evidence quote located by byte search within the claimed node's span (never
    decoded-text indexes. Char offsets fail the gate on any non-ASCII page). Under
    `--granularity section` child rows inherit their section's verdict/rationale, each keeping
    its own in-node quote. The evidence token is proof of reading, not decoration.
@@ -219,7 +219,7 @@ resources get digests); the parent's invariant governs each downstream run untou
 
 Emit a continuation prompt when pausing mid-pipeline (slug, first unticked phase, work root).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not digest.** Verdicts and evidence tokens, yes; digests are `docpage-digest`'s job.
   Renaming `docpage-digest` is deliberately out of scope here. See
@@ -236,8 +236,7 @@ Emit a continuation prompt when pausing mid-pipeline (slug, first unticked phase
 
 - **A clean gate covers only what it printed.** Every bundled gate names the files, rows, and
   fields it exercised; silence is never a pass. All three fail loudly on unparsable or
-  unrecognized input (duplicate JSON keys included). That behavior was verified adversarially
-  BEFORE the gates became required artifacts.
+  unrecognized input (duplicate JSON keys included).
 - **Effort depends on the dispatch surface.** Which surfaces take a per-call effort setting is
   recorded in [Effort tiers](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/plugin-philosophy.md#effort-tiers), in its "Where
   per-task effort is set" record, which covers the Agent tool's per-spawn `effort` and Workflow;

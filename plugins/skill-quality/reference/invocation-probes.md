@@ -1,6 +1,6 @@
 # Invocation probes
 
-On-demand harness for #3526: whether a skill's `description` would win the
+On-demand harness: whether a skill's `description` would win the
 requests it should, and stay quiet on the ones it should not.
 
 ## What this measures

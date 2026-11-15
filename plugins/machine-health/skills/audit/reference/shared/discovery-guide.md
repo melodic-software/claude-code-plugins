@@ -25,7 +25,7 @@ A proposal is **straightforward** when *all* of these hold:
 - **Read-only.** Only calls cmdlets/CLIs inspecting state. No writes, no service restarts, no temp file generation beyond PowerShell's normal pipeline handling.
 - **No new permissions.** Runs fine non-elevated, or clearly degrades to `UNKNOWN` with `needs_admin: true` without prompting.
 - **No new egress.** Either no network calls, or only to URLs already on the egress allowlist (Microsoft Update, winget sources, CISA KEV).
-- **No parsing risk.** If check depends on vendor CLI output, either CLI emits structured JSON or the parser is trivial. "Fragile regex against English prose" does not qualify. Trivial syntax is not enough: the semantics must hold too. `chezmoi status` marks always-run scripts `R` on every run, so a pending count built from its second column never reaches zero; `chezmoi status --exclude=scripts` counts only files that drifted.
+- **No parsing risk.** If check depends on vendor CLI output, either CLI emits structured JSON or the parser is trivial. "Fragile regex against English prose" does not qualify. Trivial syntax is not enough: the semantics must hold too. A `chezmoi status` pending count excludes scripts (`chezmoi status --exclude=scripts`), so that always-run scripts cannot hold it above zero; what each status column means is in [chezmoi status](https://www.chezmoi.io/reference/commands/status/).
 - **Narrow scope.** One metric, one category. Don't pack five unrelated signals into one check.
 - **Schema-compliant.** Emits the `CheckResult` schema from `output-schema.md`.
 
@@ -53,13 +53,13 @@ no script and no overlay entry):
 
 **Proposing removal** of a deprecated check:
 
-- After **3 consecutive crashes** (`crash_count: 3`), propose removal in `<StateBase>/TODO.md`. Human decides whether to delete script + catalog entry or keep for investigation.
+- After 3 consecutive crashes (`crash_count: 3`), propose removal in `<StateBase>/TODO.md`. Human decides whether to delete script + catalog entry or keep for investigation.
 
 **Proposing demotion** of a chronically quiet check:
 
-- After **4 consecutive identical outputs** (`identical_streak: 4`), propose in `<StateBase>/TODO.md` that the check move to monthly cadence. Cadence changes are never applied automatically. Only the human redefines "how often."
+- After 4 consecutive identical outputs (`identical_streak: 4`), propose in `<StateBase>/TODO.md` that the check move to monthly cadence. Cadence changes are never applied automatically. Only the human redefines "how often."
 
-**Never** rewrite `state/history.jsonl`. If historical data was wrong, add a correction entry; don't mutate old lines.
+Never rewrite `state/history.jsonl`. If historical data was wrong, add a correction entry; don't mutate old lines.
 
 ## Candidate directions per OS
 

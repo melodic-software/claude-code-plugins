@@ -191,7 +191,7 @@ progressive disclosure, not filtering: nothing was withheld, only deferred a key
   remaining work. That is a durable artifact written for a cold reader resuming later; this is a live
   ephemeral menu for the operator right now.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not decide.** It ranks and annotates, and question mode names one fit. Picking is the
   operator's.

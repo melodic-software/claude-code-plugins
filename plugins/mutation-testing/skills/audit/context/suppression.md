@@ -89,7 +89,7 @@ effect, and this record's do not.
    contributing layer, **and every entry that did not suppress**: each `personal-only, not applied`
    entry and each malformed one, with what makes it malformed. Suppression is visible, never silent,
    and so is a suppression the operator wrote that the contract declined to enact.
-3. **Resolve every IN-SCOPE entry to one of four dispositions**, reporting all but the first.
+3. **Resolve every in-scope entry to one of four dispositions**, reporting all but the first.
 
    **Scope first, and the qualification below is what keeps this skill's self-check from failing on
    every run.** The convention's obligation is written

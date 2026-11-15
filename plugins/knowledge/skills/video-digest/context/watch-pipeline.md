@@ -29,7 +29,7 @@ Phase 1; `vision` closes Phase 6; `research` is Phase 7; `synthesis` is Phase 8'
 
 ## Phase 0b: companion deep-dive
 
-Runs **before** CLI bootstrap, when `source/companion-sources.md` exists. **SSOT:**
+Runs before CLI bootstrap, when `source/companion-sources.md` exists. **SSOT:**
 `companion-primary-sources.md`.
 
 Read companion URL(s) by the fetch-route rungs → subagent fan-out per section table → `source/companion-digest/<section-slug>.md`
@@ -112,7 +112,7 @@ Before `watch` or `resume` when frames are needed:
 node "<skill-dir>/extraction/setup-deps.mjs" --data-dir "<plugin-data>"
 ```
 
-STOP if the hub's pre-computed context shows MISSING for yt-dlp, ffmpeg, or ImageMagick. Cloud
+Stop if the hub's pre-computed context shows MISSING for yt-dlp, ffmpeg, or ImageMagick. Cloud
 agents without the media toolchain: fail closed. Do not run watch.
 
 ## Execution model: subagent fan-out
@@ -154,7 +154,7 @@ Promote only via vision-gated decisions:
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/vision-gated-promote.js "<slice-dir>"
 ```
 
-(`promote-key-frames.js` remains for ad-hoc single copies, not the completion path.)
+(`promote-key-frames.js` makes ad-hoc single copies; it is not the completion path.)
 
 ## Watch checklist
 
@@ -242,7 +242,7 @@ Template: `templates/deck-inventory.md`; contract: `synthesis-contract.md`.
 
 ## Phases 4 to 6: vision absorption (three-pass)
 
-Checklist: `watching/frame-triage-checklist.json`; **JSON SSOT** + rendered markdown.
+Checklist: `watching/frame-triage-checklist.json`; JSON SSOT + rendered markdown.
 
 **Agent-authored JSON.** The fields, allowed values and a valid worked example for
 `sheet_NNN.json`, `promotion-decisions.json` and `key-frame-quality-audit.json` are in
@@ -259,7 +259,7 @@ conversation nor the files already read.
   `node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/merge-triage-json.js "<slice>"`;
   validate: `validate-triage-json.js`; render: `render-triage-log.js`.
 - **Pass 2 detail reads:** All `keep-detail` frames + transcript interleave
-  (`key-frames/selection.json` timeline). Escalate text-dense frames to **1920×1080**.
+  (`key-frames/selection.json` timeline). Escalate text-dense frames to 1920×1080.
 - **Pass 3 transcript alignment:** For each densification window in `coverage-plan.json`, confirm
   ≥1 promoted or logged frame; gaps → `key-frames/visual-gaps.md`.
 - **On-screen URLs:** Merge into `source/harvested-links.json` via `mergeHarvestedLinks()`.
@@ -270,7 +270,7 @@ conversation nor the files already read.
   `synthesis-contract.md`.
 - **Post-promotion review:** One subagent reads every `frames/*.png`; write
   `key-frames/key-frame-quality-audit.json` (substantive `note` per frame, min 20 chars); render
-  `render-quality-audit.js` + `render-key-frames-manifest.js`. **Delete** failures with
+  `render-quality-audit.js` + `render-key-frames-manifest.js`. Delete failures with
   `pass: false`.
 - **Repair pass (when filename verify fails):**
   `node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/repair-synthesis-promotions.js "<slice-dir>"`
@@ -280,14 +280,12 @@ conversation nor the files already read.
 
 When `frameSelection.highVolume` is true, fan out vision subagents; do not truncate frames in temp.
 
-**Context-cost fan-out trigger** (independent of `highVolume`). Pass 2 accumulates a read-count:
-every `keep-detail` frame escalated to 1920×1080 is a full-res Read that will not be reused after
-the vision pass. When that count is high enough that the reads would flood main context with
-output you won't reuse, route to a per-sheet vision subagent returning **only
-JSON** (triage rows), keeping the main watch context lean. The signal is deterministic (the skill
-surfaces the read-count, mirroring the `highVolume` boolean shape); the *decide-to-delegate* is the
-agent acting on that fact. Do not hard-force fan-out in a script. The agent may have context
-reasons to process inline; the skill documents the threshold, the agent routes.
+**Context-cost fan-out trigger** (independent of `highVolume`). Every `keep-detail` frame Pass 2
+escalates to 1920×1080 is a full-res Read that is not reused after the vision pass. When enough of
+them would flood main context with output you won't reuse, route to a per-sheet vision subagent
+that returns only JSON (triage rows), so the main watch context stays lean. No script counts these
+reads or sets a threshold: count the escalations yourself and decide. Do not force fan-out in a
+script, because the agent may have context reasons to process inline.
 
 ## Phase 7: research stage
 
@@ -299,14 +297,14 @@ node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" evals/check-res
 ```
 
 - `research/claim-inventory.md` must exist; draft or expand `research/research-agenda.md` with
-  **claim clusters** mapped to inventory rows
+  claim clusters mapped to inventory rows
 - Per cluster: standard research, or deep external research when 3+ vendors/tools (template:
   `templates/research-cluster.md`)
 - Write slice `RESEARCH.md` + one `research/findings/*.md` per `done` cluster
 - Name each shard `research/findings/<cluster-topic-slug>.md` (e.g. `complex-types.md`) after the
   topic, not an opaque `RA1`/`RA2` ordinal; the agenda carries cluster ordering
 - Each finding: author claim, consensus, staleness, promoted tier
-- WebFetch top harvested URLs; `analyze-harvested-repos.js` clones to **temp only**
+- WebFetch top harvested URLs; `analyze-harvested-repos.js` clones to temp only
 
 ## Phase 8: synthesis
 
@@ -314,8 +312,8 @@ Runs after the research gate. Template: `templates/synthesis-item.md`.
 
 **Synthesis target resolution.** Every menu item and `templates/readme-journey.md`'s TLDR are
 framed against one resolved target, never an implicit "the repo I'm in". Because
-`templates/synthesis-item.md`'s **Target touchpoints** are grep-backed, the target must resolve to
-a **local working tree on disk**, not merely a name. Rungs, in order:
+`templates/synthesis-item.md`'s Target touchpoints are grep-backed, the target must resolve to
+a local working tree on disk, not merely a name. Rungs, in order:
 
 1. Explicit `--target <repo>`, resolved to a local checkout of that repo
 2. The session root `node "<skill-dir>/../../scripts/work-root.mjs"` prints (rule in
@@ -324,11 +322,11 @@ a **local working tree on disk**, not merely a name. Rungs, in order:
 3. Ask
 
 An explicit `--target <repo>` with no local checkout (e.g. run from a separate corpus session where
-that repo isn't cloned locally) does **not** resolve. Stop and ask for its local checkout path
+that repo isn't cloned locally) does not resolve. Stop and ask for its local checkout path
 rather than falling through to the session root, grepping the current directory, or inventing
 touchpoint paths.
 
-Whichever rung resolves it, record the target's **portable name** in `README.md`'s `**Target:**`
+Whichever rung resolves it, record the target's portable name in `README.md`'s `**Target:**`
 line, never the resolved checkout path, which is machine-local while `README.md` is a staged
 artifact. That line is a record for readers and downstream consumers of a finished slice, not
 resume state. An explicit `--target` passed at CLI bootstrap is separately recorded in `watch.json`
@@ -425,7 +423,9 @@ and a frames directory without that file recovers its scene and interval frames 
 
 We take each frame's time from ffmpeg's per-frame report and use it unchanged, with no start-offset
 correction. A probe on ffmpeg 8.0.1 found the reported times already relative to the stream start
-(a stream starting at 12.8 s gave the same cut times as one starting at 0).
+(a stream starting at 12.8 s gave the same cut times as one starting at 0). As of 2026-10-02; no
+probe script is recorded. Recheck when ffmpeg's major version changes or a run's frame times stop
+matching the transcript.
 
 - **Pointer**: for per-frame timing, see <https://ffmpeg.org/ffmpeg-filters.html#showinfo>; for
   start-offset handling, see the `-copyts` entry at
