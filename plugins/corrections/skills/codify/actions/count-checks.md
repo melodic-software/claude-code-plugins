@@ -28,9 +28,12 @@ not. `semgrep-rule` is read as `syntax-pattern-rule`.
 
 From inside the repository, run
 `node "<plugin-root>/scripts/count-checks.mjs"` (`SKILL.md` renders `<plugin-root>`) with `--since`, `--until` and `--bucket`
-when given. With no `--bucket` it buckets by month; with no `--since` the window starts at the first
-record line in history, counted or not; with no `--until` it ends today (UTC), and a `--since`
-after that day is a usage error. It reads the default branch
+when given. With no `--bucket` it buckets by month. With no `--since` the window starts on the
+earliest commit day (UTC) among commits holding a counted record, a reverted record, or a line
+listed as not counted that looks like an attempted record (the text after `Codifies:` starts with
+`#<digit>`, `session` or `<`, or the line contains `rung=`); a `Codifies:` mentioned in a commit
+subject or prose with no such record does not move it. With no `--until` it ends today (UTC), and
+a `--since` after that day is a usage error. It reads the default branch
 (`origin/HEAD`, else `origin/main`, `origin/master`, `main` or `master`) with
 `git log --first-parent`, so a merged branch's own commits are not read twice.
 
@@ -55,20 +58,24 @@ Show the script's output as it printed it:
   advisory record of the same rung (the `(#<p>)` that commit's subject ends with) moves that check
   from the advisory column to the blocking one, counted once, whatever the advisory record's own
   source was. A blocking record naming any other source is a new check
-  ([record line](../reference/finding-classes.md#record-line), "Promotion").
+  ([record line](../reference/finding-classes.md#record-line), "Promotion"). When the advisory
+  record's commit is reverted, the blocking record is a new blocking check, listed with the
+  advisory record it would have promoted and the commit that reverted it.
 - Aliases, reverted records (a later default-branch commit that says `This reverts commit <hash>`,
   or `Reverts [<owner>/<repo>]#<n>` for the pull request a squash subject ends with), and the lines
-  not counted: every line naming `Codifies:` other than at column 0 (a list item such as the
-  task-list form, an indented or quoted line, a code span, other text before it), a line with other
-  text after the record, a malformed or placeholder line, a guidance or `human-review` rung, an
-  unknown rung id, or a `make-impossible` record marked `advisory`. Each comes with its commit and
-  reason. A revert is a commit whose subject starts with the word `Revert`. `Reverts
+  not counted: every line that looks like an attempted record (as above) other than at column 0 (a
+  list item such as the task-list form, an indented or quoted line, a code span, other text before
+  it), a line at column 0 with other text after the record, a malformed or placeholder line, a
+  guidance or `human-review` rung, an unknown rung id, a `make-impossible` record marked
+  `advisory`, or a repeat of a line earlier in the same commit message. Each comes with its commit
+  and reason. A revert is a commit whose subject starts with the word `Revert`. `Reverts
   <owner>/<repo>#<n>` reverts only when `<owner>/<repo>` is the one `origin`'s URL names; with no
-  `origin` URL to compare, the number alone is matched and the output says how many such lines
-  were.
+  `origin` remote, or an `origin` URL with no `<owner>/<repo>` in it, the number alone is matched
+  and the output says how many such lines were.
 
-The same line twice in one commit message is one record: a squash message can repeat the pull
-request body's line.
+The same line twice in one commit message is one record, and the repeat is listed as not counted:
+a squash message can repeat the pull request body's line. So promoting two advisory records of the
+same rung landed by one pull request takes two commits.
 
 An empty history prints zeros; say that no record has landed yet in that window.
 

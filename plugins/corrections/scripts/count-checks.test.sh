@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Tests for count-checks.mjs over fixture repositories: the squash shape, a list-item line, trailing
 # prose, a malformed and a placeholder line, a guidance rung, the semgrep-rule alias, the two 3.1.0
-# rung ids, promotion by the advisory record's landing pull request, the task-list and code-span
-# forms, first-parent history, reverts by hash and by pull request scoped to origin's repository,
-# --since and --bucket, an empty history, usage that stops before history is read, and no file
-# written.
+# rung ids, promotion by the advisory record's landing pull request, a repeated promoting line, a
+# promoted advisory record later reverted, the task-list and code-span forms, prose mentions that
+# are not records, first-parent history, reverts by hash and by pull request scoped to origin's
+# repository, --since and --bucket, an empty history, usage that stops before history is read, and
+# no file written.
 # test-scope: plugins/corrections/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PROJECT_DIR
@@ -143,7 +144,7 @@ DETAIL="out: $OUT"
 check "full history: the promotion is listed" grep -qE '^  [0-9a-f]{12} 2026-02-10 #106 rung=custom-analyzer, advisory in [0-9a-f]{12}$' <<<"$OUT"
 DETAIL="out: $OUT"
 check "full history: with no origin remote, a qualified Reverts line is matched by number and the output says so" \
-  has_line 'no origin remote names this repository: 1 "Reverts <owner>/<repo>#<n>" line(s) matched by number alone'
+  has_line 'no owner/repo read from an origin remote URL: 1 "Reverts <owner>/<repo>#<n>" line(s) matched by number alone'
 DETAIL="out: $OUT"
 check "full history: the alias is listed" grep -qE '^  [0-9a-f]{12} 2026-01-20 rung=semgrep-rule read as rung=syntax-pattern-rule$' <<<"$OUT"
 DETAIL="out: $OUT"
@@ -215,20 +216,25 @@ check "promotion: only the session-sourced check is promoted" has_line "promoted
 DETAIL="out: $OUT"
 check "promotion: the promoting line names the pull request that landed the advisory record" \
   grep -qE '^  [0-9a-f]{12} 2026-04-10 #200 rung=custom-analyzer, advisory in [0-9a-f]{12}$' <<<"$OUT"
+DETAIL="out: $OUT"
+check "promotion: with no advisory record reverted, no line is listed as origin-reverted" \
+  has_line "blocking, its advisory origin reverted, counted as a new blocking check: 0"
 
-# 3b. Every other line naming Codifies: is listed with its reason, the task-list form included.
+# 3b. Every other line holding an attempted record is listed with its reason, the task-list form
+# included; a mention of Codifies: with no record after it is not listed.
 new_repo
 # shellcheck disable=SC2016 # the backticks are literal Markdown code spans
 commit 2026-05-01 'feat: issue form (#300)
 
 - [ ] The PR body carries `Codifies: #9 rung=architecture-test blocking`.
 `Codifies: #9 rung=architecture-test blocking`
+Adds the record Codifies: #9 rung=architecture-test blocking to the body.
 Adds a `Codifies:` line to the body.'
 run "$R" --since 2026-05-01 --until 2026-05-31
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "placement: nothing is counted" has_line '| window | 0 | 0 | 0 | 0 |'
 DETAIL="out: $OUT"
-check "placement: all three lines are listed as not counted" has_line "not counted: 3"
+check "placement: the three record lines are listed as not counted, the bare mention is not" has_line "not counted: 3"
 DETAIL="out: $OUT"
 # shellcheck disable=SC2016 # literal code spans
 check "placement: the task-list item form" \
@@ -239,8 +245,89 @@ check "placement: a record inside a code span" \
   grep -qF 'a code span, not a line of its own at column 0: "`Codifies: #9 rung=architecture-test blocking`"' <<<"$OUT"
 DETAIL="out: $OUT"
 # shellcheck disable=SC2016 # literal code spans
-check "placement: a mention inside prose" \
-  grep -qF 'a line of other text quoting it in a code span, not a line of its own at column 0: "Adds a `Codifies:` line' <<<"$OUT"
+check "placement: a record inside prose" \
+  grep -qF 'a line of other text, not a line of its own at column 0: "Adds the record Codifies: #9' <<<"$OUT"
+DETAIL="out: $OUT"
+# shellcheck disable=SC2016 # literal code spans
+check "placement: a bare mention inside prose is not listed" test "$(grep -c 'Adds a `Codifies:` line' <<<"$OUT")" -eq 0
+
+# 3b-1. A squash message whose subject and prose mention Codifies: without a record adds nothing to
+# not counted and does not open the window.
+new_repo
+commit 2026-08-01 "feat(corrections): count Codifies: records (#600)
+
+> Adds a count of the checks merged changes record with a Codifies: line in the body.
+
+- scripts/report.mjs: copies a Codifies: record from a task-list item naming the PR body."
+commit 2026-09-03 "feat: first real check (#601)
+
+Codifies: #16 rung=custom-analyzer blocking"
+run "$R" --until 2026-10-31
+DETAIL="exit $RC; out: $OUT; stderr: $ERR"
+check "mentions: with no --since the window opens at the first record, not the first mention" \
+  has_line "window: 2026-09-03 to 2026-10-31, bucket: month"
+DETAIL="out: $OUT"
+check "mentions: the record is counted in September" has_line '| 2026-09 | 1 | 0 | 1 | 0 | 1 |'
+DETAIL="out: $OUT"
+check "mentions: nothing is listed as not counted" has_line "not counted: 0"
+run "$R" --since 2026-08-01 --until 2026-10-31
+DETAIL="exit $RC; out: $OUT; stderr: $ERR"
+check "mentions: inside the window, the mentions are still not listed" has_line "not counted: 0"
+
+# 3b-2. Two same-rung advisory records landed by one pull request: one promoting line promotes one,
+# its repeat in the same message is listed, and a second commit promotes the other.
+new_repo
+commit 2026-08-03 "feat: two analyzers (#700)
+
+Codifies: #7 rung=custom-analyzer advisory
+Codifies: #8 rung=custom-analyzer advisory"
+commit 2026-08-10 "feat: both analyzers block (#701)
+
+Codifies: #700 rung=custom-analyzer blocking
+Codifies: #700 rung=custom-analyzer blocking"
+run "$R" --since 2026-08-01 --until 2026-08-11
+DETAIL="exit $RC; out: $OUT; stderr: $ERR"
+check "repeat: the repeated promoting line promotes one check" has_line '| window | 1 | 1 | 1 | 1 | 2 |'
+DETAIL="out: $OUT"
+check "repeat: one promotion" has_line "promoted from advisory to blocking: 1"
+DETAIL="out: $OUT"
+check "repeat: the repeated line is listed as not counted, with its reason" \
+  grep -qE '^  [0-9a-f]{12} 2026-08-10 repeats a line earlier in this commit message, which counts once \(two promotions of the same source and rung need two commits\): "Codifies: #700 rung=custom-analyzer blocking"$' <<<"$OUT"
+commit 2026-08-12 "feat: the other analyzer blocks (#702)
+
+Codifies: #700 rung=custom-analyzer blocking"
+run "$R" --since 2026-08-01 --until 2026-08-31
+DETAIL="exit $RC; out: $OUT; stderr: $ERR"
+check "repeat: a promotion in its own commit promotes the second check" has_line '| window | 2 | 0 | 2 | 0 | 2 |'
+DETAIL="out: $OUT"
+check "repeat: two promotions" has_line "promoted from advisory to blocking: 2"
+
+# 3b-3. An advisory record reverted after its promotion: the promoting line stands as a new blocking
+# check and is listed with the reverted advisory record.
+new_repo
+commit 2026-09-01 "feat: analyzer (#800)
+
+Codifies: #9 rung=custom-analyzer advisory"
+ADVISORY="$(head_sha)"
+commit 2026-09-05 "feat: analyzer blocks (#801)
+
+Codifies: #800 rung=custom-analyzer blocking"
+commit 2026-09-10 'Revert "feat: analyzer (#800)" (#802)
+
+Reverts #800'
+REVERTER="$(head_sha)"
+run "$R" --since 2026-09-01 --until 2026-09-30
+DETAIL="exit $RC; out: $OUT; stderr: $ERR"
+check "origin reverted: the promoting line counts as one new blocking check" has_line '| window | 1 | 0 | 1 | 0 | 1 |'
+DETAIL="out: $OUT"
+check "origin reverted: no promotion" has_line "promoted from advisory to blocking: 0"
+DETAIL="out: $OUT"
+check "origin reverted: the promoting line is listed with the reverted advisory record" \
+  grep -qE "^  [0-9a-f]{12} 2026-09-05 #800 rung=custom-analyzer, advisory in ${ADVISORY:0:12} reverted by ${REVERTER:0:12}\$" <<<"$OUT"
+DETAIL="out: $OUT"
+check "origin reverted: one such line" has_line "blocking, its advisory origin reverted, counted as a new blocking check: 1"
+DETAIL="out: $OUT"
+check "origin reverted: the advisory record is listed as reverted" has_line "reverted, not counted: 1"
 
 # 3c. First-parent history: a branch commit and its merge commit both carrying the line count once.
 new_repo
@@ -280,7 +367,24 @@ check "reverts by repository: this repository's #501 is reverted" \
 DETAIL="out: $OUT"
 check "reverts by repository: one record is reverted" has_line "reverted, not counted: 1"
 DETAIL="out: $OUT"
-check "reverts by repository: with origin read, no number-only note" test "$(grep -c 'no origin remote' <<<"$OUT")" -eq 0
+check "reverts by repository: with origin read, no number-only note" test "$(grep -c 'no owner/repo read' <<<"$OUT")" -eq 0
+
+# 3e. An origin URL with no owner/repo in it is treated like no origin: a qualified Reverts line is
+# matched by number and the output says so.
+new_repo
+git -C "$R" remote add origin not-a-url
+commit 2026-07-10 "feat: guard (#900)
+
+Codifies: #92 rung=action-guard blocking"
+commit 2026-07-11 'Revert "feat: guard (#900)" (#901)
+
+Reverts example/repo#900'
+run "$R" --since 2026-07-01 --until 2026-07-31
+DETAIL="exit $RC; out: $OUT; stderr: $ERR"
+check "unreadable origin URL: the number-only note names the URL, not a missing remote" \
+  has_line 'no owner/repo read from an origin remote URL: 1 "Reverts <owner>/<repo>#<n>" line(s) matched by number alone'
+DETAIL="out: $OUT"
+check "unreadable origin URL: the record is reverted by number" has_line "reverted, not counted: 1"
 
 # 4. An empty history prints zeros.
 new_repo

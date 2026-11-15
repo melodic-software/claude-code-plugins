@@ -4,13 +4,15 @@
 //   count-checks.mjs [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--bucket week|month]
 // A record is a whole message line, at column 0, matching
 //   Codifies: <#n | session> rung=<rung id> <blocking|advisory>
-// Any other line naming `Codifies:` is listed as not counted, with its reason.
+// Any other line that looks like an attempted record is listed as not counted, with its reason; a
+// mention of `Codifies:` in prose elsewhere on a line is ignored.
 // Rung ids and their tiers are read from the plugin's copy of the enforcement ladder: codebase,
 // static-analysis and verification rungs count; guidance and human-review rungs are listed as not
 // counted. A blocking record whose source `#p` is the pull request that landed an earlier advisory
 // record of the same rung (the `(#p)` its commit subject ends with) is a promotion: the check moves
 // from the advisory column to the blocking one and is counted once. A record whose commit a later
-// default-branch commit reverts is listed as reverted, not counted.
+// default-branch commit reverts is listed as reverted, not counted; a blocking record that would have
+// promoted a reverted advisory record counts as a new blocking check and is listed as such.
 // Reads git history only: it calls no forge and writes no file. Commit text is data, printed escaped.
 // Exit: 0 ok (an empty history prints zeros), 2 usage, 1 no default branch, a failed git read or an
 // unreadable ladder.
@@ -28,6 +30,9 @@ const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const RECORD = /^Codifies: (#[1-9][0-9]*|session) rung=([a-z0-9-]+) (blocking|advisory)$/;
 const RECORD_PREFIX = /^Codifies: (?:#[1-9][0-9]*|session) rung=[a-z0-9-]+ (?:blocking|advisory)\s/;
 const KEY = "Codifies:";
+const ATTEMPT = /Codifies:[ \t]*(?:#[0-9]|session|<)/;
+/** True when a line naming `Codifies:` looks like an attempted record, not a mention in prose. */
+const recordLike = (line) => ATTEMPT.test(line) || line.includes("rung=");
 const REVERTS_SHA = /^This reverts commit ([0-9a-f]{7,40})\b/;
 const REVERTS_PR = /^Reverts (?:([A-Za-z0-9._-]+\/[A-Za-z0-9._-]+))?#([1-9][0-9]*)\b/;
 const PR_SUFFIX = /\(#([1-9][0-9]*)\)\s*$/;
@@ -168,6 +173,7 @@ const commits = log.stdout
     return { sha, day: new Date(iso).toISOString().slice(0, 10), subject, lines: body.split("\n").map((l) => l.replace(/\r$/, "")) };
   })
   .reverse();
+for (const [index, c] of commits.entries()) c.index = index;
 
 // Reverts: by commit hash, or by the pull request number a squash subject ends with.
 const byPr = new Map();
@@ -177,7 +183,7 @@ for (const c of commits) {
 }
 // Only a commit whose subject starts `Revert ` reverts, and only a commit older than itself.
 // `Reverts owner/repo#n` names a pull request in this repository only when owner/repo is origin's;
-// with no origin URL to compare, the number alone is matched and the output says so.
+// with no origin owner/repo to compare, the number alone is matched and the output says so.
 const revertersOf = new Map();
 let unscopedReverts = 0;
 for (const [index, c] of commits.entries()) {
@@ -213,10 +219,19 @@ const aliased = [];
 for (const c of commits) {
   const seenLines = new Set();
   for (const line of c.lines) {
-    if (!line.includes(KEY) || seenLines.has(line)) continue;
-    seenLines.add(line);
+    if (!line.includes(KEY)) continue;
+    const atColumn0 = line.startsWith(KEY);
+    if (!atColumn0 && !recordLike(line)) continue;
     const entry = { commit: c, line };
-    if (!line.startsWith(KEY)) {
+    if (seenLines.has(line)) {
+      notCounted.push({
+        ...entry,
+        why: "repeats a line earlier in this commit message, which counts once (two promotions of the same source and rung need two commits)",
+      });
+      continue;
+    }
+    seenLines.add(line);
+    if (!atColumn0) {
       notCounted.push({ ...entry, why: placement(line) });
       continue;
     }
@@ -240,7 +255,7 @@ for (const c of commits) {
       continue;
     }
     if (!effective(c)) {
-      reverted.push(entry);
+      reverted.push({ ...entry, rung, kind });
       continue;
     }
     if (rung !== named) aliased.push({ ...entry, named, rung });
@@ -251,30 +266,45 @@ for (const c of commits) {
 // Events: each record adds a check; a promotion moves one from advisory to blocking. An advisory
 // record is known by the pull request that landed it and its rung; a blocking record promotes it by
 // naming that pull request as its source.
+// A reverted advisory record cannot be promoted: the blocking record naming it stands as a new
+// blocking check and is listed with the advisory record it would have promoted.
+const advisoryKey = (r) => {
+  const landedIn = PR_SUFFIX.exec(r.commit.subject)?.[1];
+  return landedIn ? `#${landedIn} ${r.rung}` : undefined;
+};
+const queue = (map, key, r) => map.set(key, [...(map.get(key) ?? []), r]);
 const openAdvisory = new Map();
+const revertedAdvisory = new Map();
+for (const r of reverted) {
+  const key = r.kind === "advisory" ? advisoryKey(r) : undefined;
+  if (key) queue(revertedAdvisory, key, r);
+}
 const events = [];
 const promotions = [];
+const originReverted = [];
 for (const r of records) {
   if (r.kind === "advisory") {
-    const landedIn = PR_SUFFIX.exec(r.commit.subject)?.[1];
-    if (landedIn) {
-      const key = `#${landedIn} ${r.rung}`;
-      openAdvisory.set(key, [...(openAdvisory.get(key) ?? []), r]);
-    }
+    const key = advisoryKey(r);
+    if (key) queue(openAdvisory, key, r);
     events.push({ day: r.commit.day, blocking: 0, advisory: 1, rung: r.rung, rungDelta: 1 });
     continue;
   }
-  const earlier = r.source === "session" ? undefined : openAdvisory.get(`${r.source} ${r.rung}`);
+  const key = `${r.source} ${r.rung}`;
+  const earlier = r.source === "session" ? undefined : openAdvisory.get(key);
   if (earlier?.length) {
     promotions.push({ ...r, from: earlier.shift() });
     events.push({ day: r.commit.day, blocking: 1, advisory: -1, rung: r.rung, rungDelta: 0 });
-  } else {
-    events.push({ day: r.commit.day, blocking: 1, advisory: 0, rung: r.rung, rungDelta: 1 });
+    continue;
   }
+  const gone = r.source === "session" ? undefined : revertedAdvisory.get(key);
+  const goneIndex = gone?.findIndex((a) => a.commit.index < r.commit.index) ?? -1;
+  if (goneIndex >= 0) originReverted.push({ ...r, from: gone.splice(goneIndex, 1)[0] });
+  events.push({ day: r.commit.day, blocking: 1, advisory: 0, rung: r.rung, rungDelta: 1 });
 }
 
-// With no --since the window opens at the first record line in history, counted or not.
-const firstDay = [...records, ...notCounted, ...reverted].map((e) => e.commit.day).sort()[0];
+// With no --since the window opens at the first record line in history: a counted or reverted
+// record, or a line not counted that looks like an attempted record.
+const firstDay = [...records, ...reverted, ...notCounted.filter((e) => recordLike(e.line))].map((e) => e.commit.day).sort()[0];
 let since = opts.since ?? firstDay ?? until;
 if (since > until) since = until;
 
@@ -314,7 +344,7 @@ out.push(`window: ${since} to ${until}, bucket: ${bucket}`);
 out.push(`blocking checks: ${sum(windowEvents, (e) => e.blocking)} new in the window, ${allBlocking} cumulative; advisory: ${sum(windowEvents, (e) => e.advisory)} new, ${allAdvisory} cumulative`);
 out.push("new is the net change in the period: a promotion adds one blocking check and removes one advisory check");
 if (unscopedReverts > 0) {
-  out.push(`no origin remote names this repository: ${unscopedReverts} "Reverts <owner>/<repo>#<n>" line(s) matched by number alone`);
+  out.push(`no owner/repo read from an origin remote URL: ${unscopedReverts} "Reverts <owner>/<repo>#<n>" line(s) matched by number alone`);
 }
 out.push("");
 out.push(`| period | blocking | advisory | cumulative blocking | cumulative advisory | ${rungs.map((id) => `${id} |`).join(" ")}`.trimEnd());
@@ -332,6 +362,11 @@ const listed = (title, list, describe) => {
   for (const e of shown) out.push(`  ${short(e.commit)} ${e.commit.day} ${describe(e)}`);
 };
 listed("promoted from advisory to blocking", promotions, (e) => `${e.source} rung=${e.rung}, advisory in ${short(e.from.commit)}`);
+listed(
+  "blocking, its advisory origin reverted, counted as a new blocking check",
+  originReverted,
+  (e) => `${e.source} rung=${e.rung}, advisory in ${short(e.from.commit)} reverted by ${short(e.from.commit.revertedBy)}`,
+);
 listed("read through an alias", aliased, (e) => `rung=${e.named} read as rung=${e.rung}`);
 listed("reverted, not counted", reverted, (e) => `${show(e.line)} reverted by ${short(e.commit.revertedBy)}`);
 listed("not counted", notCounted, (e) => `${e.why}: ${show(e.line)}`);

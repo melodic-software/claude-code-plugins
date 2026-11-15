@@ -189,7 +189,10 @@ Codifies: #123 rung=architecture-test blocking
   moves the check from the advisory column to the blocking one and counts it once, whatever the
   advisory record's own source was, `session` included. A blocking line whose source is any other
   `#<n>` is a new check, even when an advisory record names the same `#<n>` and rung. An advisory
-  record whose commit subject ends with no `(#<p>)` cannot be promoted.
+  record whose commit subject ends with no `(#<p>)` cannot be promoted. Identical lines in one
+  commit message count once, so each promotion of a record with the same source `#<p>` and rung
+  needs its own commit. A blocking line whose advisory record's commit is later reverted stands as a
+  new blocking check.
 - **Work filed as an issue**: the proposal also gives the task-list item for the issue's done-when
   list, which quotes the line in a code span and names the pull request body:
 
