@@ -4,7 +4,6 @@ The skills of `plugins/guardrails`. Each one is driven with `<plugin-dir>` set t
 
 ## Parts
 
-- `check`: Report whether node and jq resolve for the guardrails hooks. Never installs.
 - `setup`: Verify the guardrails hooks' runtime prerequisites, per-guard toggle state and git-hook entries for this machine, and register those entries. No plain-words entry.
 
 ## Sub-features

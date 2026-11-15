@@ -104,7 +104,7 @@ Writer A reads a title from their list. Writer B generates a new title
 from A's title's stressed vowel + a shift. Writer B's new title goes to A.
 A generates from B's new title. Repeat.
 
-Strict turn-taking: partner generates EVERY OTHER title, not every third.
+Strict turn-taking: partner generates every other title, not every third.
 
 5-10 minutes without judging.
 

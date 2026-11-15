@@ -27,7 +27,7 @@ Determine whether the upstream plugin is installed by its identity, not its word
   authoritative signal.
 - Where the CLI is unavailable to the session, fall back to the session's skill
   listing: a bare `playground` skill whose description says it creates interactive
-  HTML playgrounds. Treat the description comparison as ADVISORY only; upstream may
+  HTML playgrounds. Treat the description comparison as advisory only; upstream may
   reword it at any time. Never conclude "absent" from wording alone when the name is
   present.
 - A local skill can shadow the upstream name. When the listed `playground` skill's
@@ -126,7 +126,7 @@ generated playground for anything beyond personal exploration.
 
 ## Gotchas
 
-- A listed `playground` skill name proves presence of A skill, not THE skill, which
+- A listed `playground` skill name proves presence of a skill, not of the upstream one, which
   is why Step 1 judges by install record and treats wording as advisory.
 - The copy-prompt button is the product; a sandboxed page (an Artifact) can restrict
   clipboard access, so confirm the round trip once before a long exploration.
@@ -135,7 +135,7 @@ generated playground for anything beyond personal exploration.
 
 ## Boundary
 
-- Choosing the best visual FORM for conversation content is the visualization
+- Choosing the best visual form for conversation content is the visualization
   capability's job; this skill fires only when the user wants an interactive,
   manipulable explorer whose output returns as a prompt.
 - Throwaway visual variations of your own project's UI are the prototyping

@@ -102,6 +102,11 @@ Install nothing, and run no mutating tier.
      per-repository value of this toggle. To vary the behavior for one repository, enable or disable
      the plugin in that project's `enabledPlugins` instead.
 
+     - **Pointer**: for which settings sources a plugin option value is read from, fetch
+       [settings reference § pluginConfigs](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+       and [settings § change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session)
+       live.
+
 ## Remediation guidance (printed by `check`; the operator applies it)
 
 The prerequisites are system tools and the one option lives in Claude Code's native

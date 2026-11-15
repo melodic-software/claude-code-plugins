@@ -31,7 +31,7 @@ in one line that the panel was unavailable and why. For the switches that turn w
    JSON it prints. When it does not resolve, omit `roles` and say once that enabling the
    multi-agent plugin makes this routing configurable; the workflow's built-in fallbacks then
    apply.
-2. **Launch** `Workflow({ name: "planning:plan-panel", args: { task, context, angles, rubric, roles, maxConcurrent } })`:
+2. **Launch** `Workflow({ name: "planning:plan-panel", args: { task, context, angles, rubric, roles, judges, maxConcurrent } })`:
    - `task`: the task as Step 1 scoped it (required; a missing `task` returns
      `{ error: "missing-task" }` and runs nothing).
    - `context`: what the planners need that the code does not show: the Brief, the design
@@ -48,8 +48,8 @@ in one line that the panel was unavailable and why. For the switches that turn w
    plan, or the winning draft when `synthesized` is false), `winner`, `rubric` (the criteria used),
    `scores` (per draft: mean per rubric criterion and the total), `judge_winners` (each judge's own
    pick), `judges_split` (true when the judges picked different drafts), `grafted` (idea and
-   source draft), `left_behind` (runner-up ideas not grafted, each with why), `dissent`, `nulls`
-   and `roles`. An `error` return
+   source draft), `left_behind` (runner-up ideas not grafted, each with why), `dissent`, `nulls`,
+   `drafts` (each draft with its full `plan` and `key_ideas`) and `roles`. An `error` return
    (`missing-task`, `no-drafts`, `no-judges`) means no synthesized plan exists: take the
    main-thread fallback, and on `no-judges` start from the returned drafts.
 

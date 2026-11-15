@@ -30,7 +30,7 @@ Full detail for `/source-control:worktree status`. SKILL.md carries the headline
 
    `--merged-pr-proof` makes the engine find each unlanded branch's merged pull request and report `landed` (method `merged-pr-head` or `merged-pr-commits`) when local HEAD equals or is an ancestor of the PR's head commit, or every unpushed local commit is in the PR's commit list. That proves a squash-merged multi-commit branch, which patch-id cannot match. The engine lists merged PRs once per repository and base with a paged `gh api graphql` query, 100 PRs a page (the most recently updated `--merged-pr-limit` PRs, default 1000), matches every worktree's branch against it, and prints its gh call count, one per page, on stderr. Only a PR merged into the resolved base counts. A failed read keeps the prior verdict and names the read in `reason` (`merged-pr-read-failed:...`). Omit the flag when `gh` was unavailable.
 
-   Write the `headRefName` of each merged PR from step 2's per-branch reads to `<file>`, one per line. It marks a row as a likely *superseded draft* (a pull request carrying this branch NAME merged, so the base may already hold a later revision of the same change). The evidence is name-only: a branch name reused after that merge still matches, so `superseded` narrows a row's reading but never authorizes removing it. Omit the flag when `gh` was unavailable; when only some branches' reads failed, pass the merged refs from the reads that succeeded.
+   Write the `headRefName` of each merged PR from step 2's per-branch reads to `<file>`, one per line. It marks a row as a likely *superseded draft* (a pull request carrying this branch name merged, so the base may already hold a later revision of the same change). The evidence is name-only: a branch name reused after that merge still matches, so `superseded` narrows a row's reading but never authorizes removing it. Omit the flag when `gh` was unavailable; when only some branches' reads failed, pass the merged refs from the reads that succeeded.
 
    Join rows to worktrees on the `path` column. The columns this file consumes: `unpushed`, `landed`, `base`, `peers`, `risk`, `reason`.
 
@@ -60,7 +60,7 @@ Two independent axes. **Work** answers whether removal would destroy a commit an
 |------|---------------|---------|
 | `safe` | `landed`, `ok`, `bare` | Nothing unpushed, or every unpushed commit's content is already on `base` |
 | `stranded N` | `STRANDED` | N unpushed commits whose content is not on the base. Removal plus the branch deletion that follows it destroys them |
-| `superseded` | `superseded` | Not landed, but a MERGED PR carried this branch's NAME, probably a draft the base moved past. **Treat exactly as `stranded`**: the match is on the name, so a name reused after that merge carries new commits that are still the only copy |
+| `superseded` | `superseded` | Not landed, but a merged PR carried this branch's name, probably a draft the base moved past. **Treat exactly as `stranded`**: the match is on the name, so a name reused after that merge carries new commits that are still the only copy |
 | `unknown` | `UNKNOWN` | No base resolved, or a probe failed. **Treat exactly as `stranded`**: the engine reports `?` rather than `no` precisely so an ambiguity is never read as safe |
 | `in-progress` | `in-progress` | A merge, rebase, cherry-pick, or revert is paused here. Nothing is unpushed, but the conflict resolutions in the working tree are not recorded anywhere and the sequencer state dies with the directory |
 | `dirty` | `dirty` | Uncommitted edits with nothing unpushed, **or** a working tree whose status could not be read at all, which the count columns show as `-`. The two are not distinguished, and neither is removable unattended |
@@ -82,7 +82,7 @@ A `stranded` row whose `peers` column names another worktree is recoverable from
 | `in-review` | Has an open PR (regardless of commit age) |
 | `merged` | PR was merged, **or** every unpushed commit landed on the base (`landed=yes`). The branch's content is on the base either way |
 | `prunable` | Git flagged as prunable (directory missing or corrupted) |
-| `locked` | Explicitly locked by user |
+| `locked` | Locked, by a helper's claim (every helper-created worktree is locked at creation) or by hand |
 | `unclaimed` | Linked worktree whose row has `locked=yes` with `lock_reason=-`. A plain `git worktree add` that bypassed the helper. `scripts/worktree-claim.sh report` is the check; `claim <path>` arms a session-distinct reason. Not the same as `locked`: there is no claim text for another session to read |
 
 ## Presentation

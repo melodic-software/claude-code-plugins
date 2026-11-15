@@ -4,7 +4,6 @@ The skills of `plugins/desktop-notification`. Each one is driven with `<plugin-d
 
 ## Parts
 
-- `check`: Report whether node and jq resolve for the desktop-notification hooks. Never installs.
 - `setup`: Verify the desktop-notification hook's runtime prerequisites and per-OS channel configuration for this machine. No plain-words entry.
 
 ## Sub-features

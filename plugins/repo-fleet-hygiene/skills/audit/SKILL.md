@@ -299,10 +299,9 @@ verb:
 4. re-derives mutable facts, including relevant branch/worktree OIDs, at execution time. An old
    artifact is evidence, not authorization.
 
-The rollup, the `--apply-plan` dry-run, and `/repo-fleet-hygiene:apply` all ship. Do not
-invent `--cleanup-plan`, `--execute`, or report-and-execute behavior on `audit-fleet.sh`. Return the
-report, rollup, and plan path; tell the user to run `/repo-fleet-hygiene:apply` for execution. A
-`HIGH` evidence tier is never itself permission to delete a branch or worktree.
+Do not invent `--cleanup-plan`, `--execute`, or report-and-execute behavior on `audit-fleet.sh`.
+Return the report, rollup, and plan path; tell the user to run `/repo-fleet-hygiene:apply` for
+execution. A `HIGH` evidence tier is never itself permission to delete a branch or worktree.
 
 Related fleet contracts that remain separate:
 
@@ -314,7 +313,7 @@ Related fleet contracts that remain separate:
 ## Graceful degradation
 
 - Git missing or too old: stop before scanning and give the prerequisite error.
-- Invalid config SYNTAX, invalid override, or an invalid CLI-supplied `--repo`/`--root` path: report
+- Invalid config syntax, invalid override, or an invalid CLI-supplied `--repo`/`--root` path: report
   the exact invalid input and stop; never silently fall back.
 - No scope given and no rung of the no-scope ladder resolves (exit 3): stop, and relay the script's
   remedy block verbatim. The operator did not choose that path, so the rejection alone is not
@@ -363,7 +362,7 @@ Related fleet contracts that remain separate:
 | `merged-worktree`, `prunable-worktree`, `missing-worktree` | Run `/source-control:worktree cleanup --dry-run` in the canonical repository |
 | `worktree-status-handoff` | Run `/source-control:worktree status` in the canonical repository (stranded-work axis); use cleanup `--dry-run` only after Work is safe. If `source-control` is not installed, name the listed worktree targets and the missing collaborator. Emit no porcelain-based substitute verdict |
 | `worktree-admin-mismatch` | Manual inspection; `git worktree repair` is an option only after validating which administrative directory is authoritative |
-| `worktree-not-a-root` | Manual inspection of the registered path; a `git -C` probe of it describes the CONTAINING repository, so no cleanup handoff is safe until the path is resolved |
+| `worktree-not-a-root` | Manual inspection of the registered path; a `git -C` probe of it describes the containing repository, so no cleanup handoff is safe until the path is resolved |
 | `worktree-root-unverifiable` | Manual inspection of the registered path. Root-ness is unproven here rather than disproven. The probe itself failed, so infer nothing about the path in either direction |
 | `worktree-nested-in-repository` | Recreate at an external root with `/source-control:worktree create`, then remove the nested one |
 | `worktree-outside-configured-root` | Recreate at the expected location named in evidence with `/source-control:worktree create`, then remove the misplaced one |

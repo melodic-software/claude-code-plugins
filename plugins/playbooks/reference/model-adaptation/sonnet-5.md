@@ -146,11 +146,11 @@ and planning chapters ask for. `[CC: prompt-authoring]`
 - **Pointer**: for interactive coding products, see
   [Interactive coding products](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#interactive-coding-products).
 
-## What NOT to import from Fable-era practice
+## What not to import from Fable-era practice
 
 - **Do not relax instruction specificity.** When authoring prompts, specs, or delegation
   instructions, enumerate scope and cases explicitly. This is a per-model dial rather than a
-  virtue: the same over-prescription that helps you degrades Fable.
+  virtue. The same over-prescription that helps you degrades Fable.
 - **Size plan granularity to the executor.** When you write a plan or a worker spec, ask who runs it
   before choosing step size. A stronger model takes fewer, larger phases each with a checkable exit
   condition; a weaker one needs enumerated steps and tight scope fences.
@@ -176,8 +176,3 @@ Our reads, recorded so a re-read can tell whether a page moved:
   [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route).
 - <https://code.claude.com/docs/en/model-config>, read 2026-08-04 and re-read 2026-10-01 for the
   fallback and thinking sections.
-
-Re-baselined to the Claude Fable 5.2 author on 2026-11-09: every delta above is stated against
-this model's own guide, none against a Fable 5.1 behavior, so all are kept unchanged. The
-communication chapter's prompt-authoring note removes narration-suppressing lines
-rather than setting a schedule, so "Progress updates" above stands.

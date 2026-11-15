@@ -25,13 +25,12 @@ place where the post and the docs, or two docs pages, disagree is in [Conflicts]
 
 ## Status
 
-Draft on branch `feat/opus-5-5-task-cost-digest`, tracked by parent issue
-[#5763](https://github.com/melodic-software/claude-code-plugins/issues/5763). The branch lands as
-one draft pull request that closes #5763 (Q45).
+Landed in [#5827](https://github.com/melodic-software/claude-code-plugins/pull/5827), which closed
+parent issue [#5763](https://github.com/melodic-software/claude-code-plugins/issues/5763) (Q45).
 
-A row marked ADOPTED names the file a later phase of this branch edits. It is planned work, not
-landed work, until that pull request merges. Rows that other sessions own name their doer and pull
-request in [Decisions and follow-ups](#decisions-and-follow-ups).
+A row marked ADOPTED names the file that pull request edited, or the work item its Verdict cell
+names. Rows that other sessions own name their doer and pull request in
+[Decisions and follow-ups](#decisions-and-follow-ups).
 
 ## Source and verification
 

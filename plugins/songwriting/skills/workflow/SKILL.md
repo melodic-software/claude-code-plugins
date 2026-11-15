@@ -12,7 +12,7 @@ disable-model-invocation: false
 Every craft output in this plugin runs the applicable section of
 [response-filter](../../context/pat-pattison/research/response-filter.md) before emission, the gate
 that activates the discipline. When this skill coaches or produces material directly, run **§4
-Coaching posture** (and the output-type section for anything emitted). NAME each box's pass / fail /
+Coaching posture** (and the output-type section for anything emitted). Name each box's pass / fail /
 skip-with-reason (aloud or in reasoning); correct before emission. Skips are valid; silent skips
 are not.
 
@@ -99,11 +99,11 @@ dive. Every scenario routes through
 
 ## Handlers
 
-- If the user describes a SITUATION (not a craft term), route via `workflow` to the matching
+- If the user describes a situation (not a craft term), route via `workflow` to the matching
   scenario, then hand the deep dive to the concern skill that owns it.
-- If the user names a CRAFT TERM, route straight to the concern skill (table above). Do not
+- If the user names a craft term, route straight to the concern skill (table above). Do not
   re-explain here.
-- If the user wants step-by-step guidance, run `coach`: ask ONE question, wait, apply Pat's tool,
+- If the user wants step-by-step guidance, run `coach`: ask one question, wait, apply Pat's tool,
   surface the next choice point. Never list-and-leave; never monologue 14 steps.
 - If the user gives a draft, that is diagnosis. Invoke `/songwriting:diagnose` via the Skill tool (`demo` for any
   stage, `diagnose` for near-complete).
@@ -111,10 +111,10 @@ dive. Every scenario routes through
 - If a session is heading toward line emission and no writer voiceprint exists, building one is
   the first step, not a polish step. See
   [voiceprint](../../context/pat-pattison/research/voiceprint.md).
-- When this skill emits or coaches on candidate LINES directly (rather than routing), show them as
+- When this skill emits or coaches on candidate lines directly (rather than routing), show them as
   full section blocks in context. Changed lines marked `►`, one labeled block per variation, 3-4
   per chat menu, deeper analysis in the song's `variations/` file. See [variations](../../context/pat-pattison/research/variations.md) "Presenting the candidates: chat vs file".
-- Coaching stops generating when execution keeps missing: after the writer rejects the EXECUTION in
+- Coaching stops generating when execution keeps missing: after the writer rejects the execution in
   one slot twice, hand the concept back instead of a third batch (`/songwriting:co-write` Handlers
   specifies what that handoff contains). Two misses in the same slot say the brief is wrong, not
   that the next batch will land.

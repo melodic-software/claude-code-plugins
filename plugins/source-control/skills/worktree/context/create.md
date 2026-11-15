@@ -35,6 +35,8 @@ For `fresh`, the helper resolves the effective default **remote** first (the cur
 
 **The caller owns this choice.** `worktree.baseRef` is a Claude Code **settings.json** key (`{"worktree": {"baseRef": "head"}}`, governing native `EnterWorktree`/`--worktree`), **not** a git config key, so the helper cannot read it. Since this skill bypasses native creation, it must honor the setting itself: read the effective `worktree.baseRef` by Claude Code's settings precedence, local `.claude/settings.local.json` over project `.claude/settings.json` over user `~/.claude/settings.json`. If it is `head`, pass `--base-ref head` to the helper; otherwise omit it (the helper defaults to `fresh`). Skipping this read, or reading only project/user and missing a local override, silently forces `fresh` for a user who configured `head`.
 
+Pointer: for every settings layer and its rank, read [settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) live.
+
 When a read is refused (a permission rule denies a settings file, for example `Read(./.claude/settings.local.json)`), do not read that file another way: the deny is deliberate, whichever settings layer set it. Name the layer you could not read, resolve from the layers you could, and treat an unknown value as `fresh`. With a user present, ask whether that layer sets `head` before creating. With no user present, create with `fresh` and state in the result that the base assumes `fresh` because that layer was unreadable.
 
 A `fresh` branch has no upstream: the helper passes `--no-track`, so the first `push-branch.sh` run sets `<remote>/<branch>`. When a feature branch's upstream is `<remote>/<default>` rather than its own `<remote>/<branch>`, `push-branch.sh` keeps that wrong upstream; repair it once with `git -C <path> branch --unset-upstream` before the first push.
@@ -53,7 +55,8 @@ Creating worktree (shared helper, external root, outside every repository):
   Dependencies: npm ci when package-lock.json exists (non-fatal on failure)
   Entering: EnterWorktree(path:) switches the session in. Because the path is
             OUTSIDE .claude/worktrees/, Claude Code asks you to APPROVE the move
-            (not suppressible except in bypassPermissions mode). Approve it.
+            (which modes skip that prompt: the EnterWorktree row of
+            https://code.claude.com/docs/en/tools-reference). Approve it.
   Setup: the default branch's Workspace environment setup command (if declared)
          runs before entering; your project's session-start hooks (if any) run on
          next SessionStart; a mid-session entry may need a manual setup re-run
@@ -65,7 +68,7 @@ Optional renames after creation:
 
 **Directory renaming via `git worktree move`:** rename any time with `git worktree move <old-path> <new-path>`, which updates Git's internal references. Run it from outside the worktree being moved (e.g., from main). Caveats:
 
-- **Session history**: Claude Code's `~/.claude/projects/` directory is keyed by worktree path, so moving the directory orphans the old project key and `--resume`/`--continue` from a new session won't find the old transcript. Auto-memory and project config are shared at repo level and are NOT affected.
+- **Session history**: Claude Code's `~/.claude/projects/` directory is keyed by worktree path, so moving the directory orphans the old project key and `--resume`/`--continue` from a new session won't find the old transcript. Auto-memory and project config are shared at repo level and are not affected.
 - **Windows**: works on Git Bash/NTFS within one drive. Use forward slashes or quote paths with spaces. `git worktree move` is `rename()` and cannot cross a volume boundary (EXDEV / "Invalid cross-device link").
 - **Cannot move**: the main worktree, or worktrees containing submodules.
 - **Locked worktrees**: `git worktree move` refuses them, and every helper-created worktree is locked at creation (the liveness guard). `git worktree unlock <path>` before the move, then re-lock with `git worktree lock --reason "<why>" <new-path>` after; `move --force --force` is the blunt alternative that discards the claim.
@@ -102,7 +105,7 @@ Two steps: the helper creates and places the worktree; `EnterWorktree(path:)` en
 
    `Write(file_path: "<printed root_dir>/worktree-root", content: "${user_config.worktree_root}")`: the substituted value is the entire `content`, written byte-exact with nothing appended (no trailing newline).
 
-   `Write(file_path: "<printed root_dir>/data-root", content: "<the plugin data directory carried down from SKILL.md>")`: SKILL.md's own body is the only surface where `${CLAUDE_PLUGIN_DATA}` expands, so write the RESOLVED path here, never the token. This file is what lets an unconfigured `worktree_root` still resolve to a root outside every repository.
+   `Write(file_path: "<printed root_dir>/data-root", content: "<the plugin data directory carried down from SKILL.md>")`: SKILL.md's own body is the only surface where `${CLAUDE_PLUGIN_DATA}` expands, so write the resolved path here, never the token. This file is what lets an unconfigured `worktree_root` still resolve to a root outside every repository.
 
    ```bash
    bash "<scripts-dir>/worktree-create.sh" \
@@ -119,7 +122,7 @@ Two steps: the helper creates and places the worktree; `EnterWorktree(path:)` en
 
    The helper prints the created worktree path as its **sole stdout line**; capture it. Resolution is most-specific-first: `worktreeroot.path` (if set on the target repository) outranks the plugin option in `--fallback-root-file`. When `worktree_root` is unset, Claude leaves the literal `${user_config.worktree_root}` token; `Write` puts it in the file verbatim, the helper reads it as "unconfigured", and the root resolves from the data-root file (`<data-dir>/worktrees`, announced on stderr, exit 0) unless the git config key already supplied one. The helper refuses only when no rung yields a usable root. A value carrying a newline byte anywhere, including a trailing one, is rejected loudly (exit 2); a path containing a newline is malformed configuration, not a root to silently trim.
 
-2. **On a non-zero exit, STOP. Do not create anything else, and never fall back to `EnterWorktree(name:)`** (that would re-create the in-repo `.claude/worktrees/` path the nesting invariant forbids, see [reference/nesting-invariant.md § The nesting invariant, dated measurement](../reference/nesting-invariant.md)). An unset `worktree_root` is NOT an error when another rung resolves: the helper may use `worktreeroot.path` or fall back to `<data-dir>/worktrees`, noting it on stderr and still exiting 0; pass that note along, not as a failure. **Exit 3** means no usable root: none configured or supplied, one the containment guard rejects as inside a repository, **or** (on Windows) a root on a different drive from the repo (including the unconfigured plugin-data-dir default at rung 4). Surface the helper's guidance verbatim, since the user needs to set `worktreeroot.path` or `worktree_root` to a same-drive external path (run the worktree setup skill, or `/plugin` configure), then stop. Other non-zero exits (2 usage, 4 environment, e.g. the target or its branch is held by another worktree or session) surface the helper's stderr and stop likewise. A rerun with the same name and session id returns the worktree the first run made (exit 0), and a branch left without a worktree is checked out again with its commits; the helper's usage text ("Reuse") has the full rule.
+2. **On a non-zero exit, stop. Do not create anything else, and never fall back to `EnterWorktree(name:)`** (that would re-create the in-repo `.claude/worktrees/` path the nesting invariant forbids, see [reference/nesting-invariant.md § The nesting invariant, dated measurement](../reference/nesting-invariant.md)). An unset `worktree_root` is not an error when another rung resolves: the helper may use `worktreeroot.path` or fall back to `<data-dir>/worktrees`, noting it on stderr and still exiting 0; pass that note along, not as a failure. **Exit 3** means no usable root: none configured or supplied, one the containment guard rejects as inside a repository, **or** (on Windows) a root on a different drive from the repo (including the unconfigured plugin-data-dir default at rung 4). Surface the helper's guidance verbatim, since the user needs to set `worktreeroot.path` or `worktree_root` to a same-drive external path (run the worktree setup skill, or `/plugin` configure), then stop. Other non-zero exits (2 usage, 4 environment, e.g. the target or its branch is held by another worktree or session) surface the helper's stderr and stop likewise. A rerun with the same name and session id returns the worktree the first run made (exit 0), and a branch left without a worktree is checked out again with its commits; the helper's usage text ("Reuse") has the full rule.
 
 3. **Run the Workspace environment `setup`** for `<printed-path>` per [Workspace environment setup](#workspace-environment-setup) below. It runs now because nothing may execute after the next step.
 
@@ -172,4 +175,4 @@ If the project has session-start setup hooks, they run on the next SessionStart,
 | Node | `package.json` | dependencies installed | the helper already ran `npm ci` for a `package-lock.json` (check its stderr warning); otherwise the project's package manager install |
 | Python | `pyproject.toml` | environment synced | `uv sync` / `pip install -e .` |
 
-Gitignored files (secrets, `.venv/`, `node_modules/`, build output) do NOT propagate to a fresh worktree; these checks catch that.
+Gitignored files (secrets, `.venv/`, `node_modules/`, build output) do not propagate to a fresh worktree; these checks catch that.

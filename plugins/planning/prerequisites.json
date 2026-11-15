@@ -108,7 +108,7 @@
           "min": "2.1.292"
         }
       },
-      "degrade": "Without the claude CLI, /planning:interview cannot list installed plugins, so it names no installed optional planner and offers no optional plugin. Before 2.1.292, an offer's install command fails, because `claude plugin install --marketplace` needs that version.",
+      "degrade": "Without the claude CLI, /planning:interview cannot list installed plugins, so it names no installed optional planner and offers no optional plugin. Before 2.1.292, an offer's install command fails, because `claude plugin install --marketplace` needs that version (https://code.claude.com/docs/en/changelog#2-1-292, as of 2026-11-03; recheck when a release changes the `plugin install` flags).",
       "install": {
         "docs": "https://code.claude.com/docs/en/setup"
       },

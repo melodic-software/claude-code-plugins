@@ -95,8 +95,8 @@ accepted with the layered gates above, and surface 6 is first-party.
 Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. Since 0.5.0 the
 plugin ships no server and no `userConfig`; the update script stays in `dometrain`.
 
-**This record is stale, and a re-review is owed (recorded 2026-08-28).** The plugin ships `0.2.7`.
-Eleven releases landed between the reviewed version and the shipping one, and no record says
+**This record is stale, and a re-review is owed (recorded 2026-08-28).** The plugin shipped `0.2.7`
+when this note was written. Eleven releases landed between the reviewed version and that one, and no record says
 whether any of them added a trust surface, which is the condition the re-trigger above turns on.
 Answering it takes a review, so it cannot be settled either way by reading this page. Until that
 review runs, the ACCEPT below describes `0.1.0` and states nothing about what a consumer installs

@@ -20,7 +20,7 @@ A worked example: a domains settings page that looks generated, a card with a gr
 badges around a table and an add-domain field. The layout pass asked to fix the hierarchy and
 spacing, and to drop anything that isn't adding value. After it, the card, the gradient, and the
 sparkle are gone. The title is now the biggest thing on the page, the status is a dot with quiet
-text, and there's one primary button. The page finally looks like it belongs to a product.
+text, and there's one primary button. The page now has a clear hierarchy and one next step.
 
 The form is still broken though: no validation, and any text is added to the list. That's fine,
 because layout doesn't own forms. Next comes one concern for whatever the screen is made of:
@@ -36,12 +36,12 @@ because layout doesn't own forms. Next comes one concern for whatever the screen
 1. **One primary action per view.** If three buttons carry equal visual weight, none of them is the
    next step. Demote: primary, secondary ghost, text link. Secondary actions are visually quieter.
 2. **Hierarchy is subtraction.** Make the important thing prominent by making everything else
-   recede; don't make everything louder. Restraint: if everything is emphasized, nothing is. Fewer
+   recede; don't make everything louder. Restraint, because equal emphasis everywhere leaves no focal point. Fewer
    borders, fewer shadows, fewer competing focal points.
 3. **Space with system, not eyeballing.** Spacing follows a consistent scale, not arbitrary one-off
    values, and `gap` over per-child margins.
-4. **Know when to break the rules.** The baseline-grid rule below is a trick question on purpose.
-   The rule is the default; context decides.
+4. **Know when to break the rules.** A rule here is the default; context decides, as the
+   baseline-grid rule in section 5 shows.
 5. **Specific beats generic.** "Save changes" beats "Submit". "Your email must include an @ symbol"
    beats "Invalid input". Empty states say why and what to do next.
 6. **Use semantic tokens and perceptual color spaces.** `--color-border-subtle` over raw hex; OKLCH
@@ -114,10 +114,10 @@ A simple marketing page doesn't need a 12-column grid: `layout.simple_page_colum
 fewer) does the job without configuration overhead.
 
 Baseline grids are an editorial tool: they shine in long-form layouts and are usually overkill in
-dense product UI. (Trick question: know which context you're in.)
+dense product UI, so decide which context the page is in first.
 
-Symmetric two-column layouts are static; a wider column offset by a narrower one creates tension
-and interest.
+Symmetric two-column layouts are static; a wider column offset by a narrower one gives the
+eye an unequal pair to move between.
 
 **Audit: Suggestion.** A 12-column grid or a baseline grid where the page needs neither, or an
 even two-column split where a wider column beside a narrower one would carry the hierarchy.

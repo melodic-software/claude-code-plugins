@@ -55,7 +55,7 @@ instead of this runbook.
    `--autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>`
    call per thread, pins taken from the same snapshot that vetted it. `--autonomous --resolve` refuses
    a bulk (no `--thread-id`) call, so the comment-state pins are always enforced (a reply or edit
-   after vetting blocks the resolve). Those pins do NOT catch displacement: a push that flips
+   after vetting blocks the resolve). Those pins do not catch displacement: a push that flips
    `isOutdated` while the comment count and last-updated still match is still resolved. So keeping
    such a thread unresolved rests on the pre-push-outdated agent-discipline rule. In autopilot,
    after addressing the findings, additionally

@@ -9,7 +9,7 @@ closed with the exact repair command when the install cannot happen. No committe
 no committed bundle of third-party code. Rules 1-4 are the npm form; the [Python](#python) section
 is the same contract for pip.
 
-The operator set this rule repo wide on 2026-10-01, while planning the inventory parser
+The operator set this rule repo wide
 ([#5640](https://github.com/melodic-software/claude-code-plugins/issues/5640)): a one-time install
 of pinned, publicly available packages is preferred over committing a vendored bundle.
 
@@ -92,7 +92,7 @@ exception is recorded here with that reason, not decided silently in the plugin.
 
 ## Python
 
-The operator settled two points for Python on 2026-10-02 ([#5844](https://github.com/melodic-software/claude-code-plugins/issues/5844)):
+The operator settled two points for Python ([#5844](https://github.com/melodic-software/claude-code-plugins/issues/5844)):
 no `uv run` fetching at run time, and hash-locked requirements only. The rules below are the four
 npm rules with pip's frozen install. The reference implementation is the `animation` plugin:
 `requirements.in`, `requirements.txt`, `hooks/install-python-deps.sh` and `scripts/pydeps.py`. The

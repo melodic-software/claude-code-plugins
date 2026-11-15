@@ -49,7 +49,7 @@ diagram_dialect:
 
 `acceptance_criteria_format: ears` selects the five EARS patterns (ubiquitous, event-driven,
 state-driven, unwanted-behavior, optional-feature) as the shape emitted criteria are tagged with.
-`free-text` emits prose criteria, which is what every skill does today.
+`free-text` emits prose criteria, the behavior every reading skill has with no convention doc.
 
 `diagram_dialect` is split by artifact kind because the two kinds have disjoint dialect sets and
 disjoint defaults; one flat key would force a value that is meaningless for the other kind. A
@@ -173,7 +173,7 @@ behavior substituted:
    one, then the team convention doc, then the documented default. A convention-doc
    surface has no personal override, so there is no further layer to consult.
 5. Defaults: `acceptance_criteria_format` is `free-text`; `diagram_dialect.data` is
-   `mermaid`; `diagram_dialect.system` has NO default. When it is unset, emit no C4
+   `mermaid`; `diagram_dialect.system` has no default. When it is unset, emit no C4
    container view and behave exactly as with no convention doc at all.
 6. Degrade soft, and say so. No pointer line, no convention home on disk, no
    `authoring-formats/README.md`, no YAML block, an absent key, or an unrecognized value

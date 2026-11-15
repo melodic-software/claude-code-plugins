@@ -86,7 +86,7 @@ claim/renew/reclaim lease protocol, native sub-items, and dependency edges. Unli
 `gitea`, then, it *is* a coordination surface: `/work-items:work` can claim on it.
 
 Issue numbering lives outside the repository, so GitHub's shared PR/issue numbering never
-bites. Free tier is generous enough for solo use.
+bites. Whether its free plan covers solo use is Linear's to state: [Linear pricing](https://linear.app/pricing).
 
 Auth is a **personal API key**, referenced by env-var name only. That is the deliberate
 posture for headless and cloud agents: OAuth needs an interactive grant no unattended
@@ -122,7 +122,7 @@ than starting from a blank file.
 | `lease_ttl_hours` | every provider | Claim-lease lifetime in hours. RECOMMENDED `24`. |
 | `storage_dir` | `local-markdown` | The item-store directory. |
 | `github` | optional, `github` | `wont_do_labels` (label names, no default, matched case-insensitively): a closed blocker carrying one counts as won't-do whatever its close reason. Written by the "Won't-do classification" pass. |
-| `jira` | `jira` | `site` (Cloud host), non-empty `project_keys[]`, `auth_email`, `auth_env` (env-var NAME holding the token). Optional `blocked_by_link_type` / `done_category_keys` override the deferred live-instance defaults; optional `resolutions` (`{"completed":[ids],"wont_do":[ids]}`, no default, absent = won't-do detection off) classifies resolution ids, written by the "Won't-do classification" pass. |
+| `jira` | `jira` | `site` (Cloud host), non-empty `project_keys[]`, `auth_email`, `auth_env` (env-var name holding the token). Optional `blocked_by_link_type` / `done_category_keys` override the deferred live-instance defaults; optional `resolutions` (`{"completed":[ids],"wont_do":[ids]}`, no default, absent = won't-do detection off) classifies resolution ids, written by the "Won't-do classification" pass. |
 | `gitea` | `gitea` | `host` (bare hostname), non-empty `scopes[]` (each `owner/repo`, the declared read scope **and** the authorization boundary), `auth_env`. Optional `page_size` (default 50, which you lower if the instance sets `api.MAX_RESPONSE_ITEMS` below that), `host_suffix` (your own egress pin; Gitea is self-hosted, so there is no vendor-domain default), `allow_custom_domain`. |
 | `linear` | `linear` | `host` (`api.linear.app`), non-empty `scopes[]` (each `<workspace>/<TEAMKEY>`, all sharing one workspace), `auth_env`. Optional `done_state_types` (which `WorkflowState.type` values count as closed; default `completed`/`canceled`/`duplicate`), `page_size`, `host_suffix`, `allow_custom_domain`. |
 

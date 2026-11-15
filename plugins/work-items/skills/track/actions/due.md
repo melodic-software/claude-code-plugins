@@ -46,7 +46,7 @@ For days-overdue computation, calculate `(today - next_due)` in days when presen
    "Recurring marker"). List an open labeled item with no marker under the orphaned entries as
    `unlinked: #<n>`, never matched to a row.
 
-1. **Check for orphaned entries.** Only **due** entries can be orphaned. The recurring automation creates a tracker item only once an entry reaches `next_due <= today`, so a healthy future entry (`next_due > today`) legitimately has no open item and is NOT orphaned. Filter to due entries before flagging missing items:
+1. **Check for orphaned entries.** Only **due** entries can be orphaned. The recurring automation creates a tracker item only once an entry reaches `next_due <= today`, so a healthy future entry (`next_due > today`) legitimately has no open item and is not orphaned. Filter to due entries before flagging missing items:
 
 ```bash
 SCHEDULE="<project root>/.github/recurring-schedule.json"

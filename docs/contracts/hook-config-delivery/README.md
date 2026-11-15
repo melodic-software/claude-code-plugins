@@ -7,11 +7,6 @@ hook matches, [hook-observability](../hook-observability/README.md) owns how it 
 which **channel** carries a user-configured scalar from settings to the hook process, chosen by rule
 instead of ad hoc.
 
-The fleet previously shipped three coexisting approaches with no documented rule: a plugin-hook argv
-substitution (silently broken for unset defaults), a skill-belt env read (skill hooks never receive
-it), and a floated SessionStart-file design (unbuilt). Each was individually plausible; together they
-were the reuse-or-replace fragmentation this doc closes.
-
 ## Boundary: composes with config-cascade
 
 [config-cascade](../config-cascade/README.md) owns the layering of **consumer-tracked config files**
@@ -122,7 +117,7 @@ exists to close exactly that residual for per-session values a plugin cannot do 
 5. **Sensitive value** → **B** or **C**; never argv (visible in process listings), never **E**
    (model-visible), and **F** cannot read them at all (fact 8).
 
-**Meta-rule: do not enshrine the outage as law.** The standing preference is *the most
+**Meta-rule: do not turn today's outage into a permanent rule.** The standing preference is *the most
 tamper-resistant channel that reliably delivers*. Argv is the most tamper-resistant delivery there
 is; it is excluded today only because fact 3 makes it unreliable for optional-with-default keys.
 If upstream implements `default` substitution, rows A/B/D change and this rule is re-derived. That

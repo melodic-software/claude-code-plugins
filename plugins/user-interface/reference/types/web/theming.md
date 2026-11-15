@@ -101,9 +101,7 @@ setting. Report it for a person with both options; never apply either one as a f
 ## 4. Dark mode flips variables, not classes
 
 Define colors as a numbered scale of CSS variables and swap the values under the dark theme
-selector. Don't scatter manual `dark:` overrides across components.
-
-Use a numbered color scale as CSS variables and flip the values per theme:
+selector, instead of scattering manual `dark:` overrides across components:
 
 ```css
 :root {

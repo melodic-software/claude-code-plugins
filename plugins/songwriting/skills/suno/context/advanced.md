@@ -15,7 +15,7 @@ Suno v5.5 has multiple generation modes, post-generation tools, and personalizat
 
 | Feature | Where to find it | Tier |
 |---------|------------------|------|
-| **Voices** (clone YOUR singing identity) | [voices.md](voices.md), full guide | Pro / Premier; free plans got a **trial** on Aug 7 2026, possibly mobile-only. See [voices.md](voices.md) |
+| **Voices** (clone your singing identity) | [voices.md](voices.md), full guide | Pro / Premier; free plans got a **trial** on Aug 7 2026, possibly mobile-only. See [voices.md](voices.md) |
 | **Custom Models** (fine-tune on your catalog) | [v55-features.md](v55-features.md#2-custom-models-fine-tune-on-your-catalog) | Pro / Premier |
 | **My Taste** (passive preference learning) | [v55-features.md](v55-features.md#3-my-taste-passive-preference-learning) | All tiers |
 | **Personas** (vibe templates from existing songs) | this file, below | All tiers |
@@ -37,7 +37,7 @@ A **Persona** captures the **essence of an existing generated song** and makes i
 - Reusable as vibe template across new prompts
 - Public or private toggle
 - Available in Custom mode under voice/style selector
-- **Persona ≠ Voice**: Voice is YOUR singing identity; Persona is a song-level vibe template
+- **Persona ≠ Voice**: Voice is your singing identity; Persona is a song-level vibe template
 
 ## Cover
 
@@ -45,7 +45,7 @@ Re-styles an existing song while preserving melody.
 
 - Chainable: cover → cover-of-cover → ...
 - Each version traces back to original
-- **Commercial use:** OK on YOUR originals; NOT OK on someone else's track
+- **Commercial use:** OK on your originals; not OK on someone else's track
 - See [workflow-recipes.md](workflow-recipes.md#recipe-6-iterative-cover-chain) for the chain pattern
 
 ## Extend
@@ -101,7 +101,7 @@ Community-empirical starting points:
 
 ## Duration slider (Create form)
 
-**Added after this skill's v5.5 baseline.** Suno's release notes, Jul 20 2026: *"Drag the new Duration slider in the Create form to pick your song length. Available on Web using V5.5 model."*, tagged *Improvement, CREATE, WEB* (<https://suno.com/release-notes/duration-slider-on-web>, fetched 2026-08-12). **HIGH confidence** for the control's existence, its name, its home in the Create form, and that platform scoping. Everything below that line is weaker and says so.
+Suno's release notes, Jul 20 2026: *"Drag the new Duration slider in the Create form to pick your song length. Available on Web using V5.5 model."*, tagged *Improvement, CREATE, WEB* (<https://suno.com/release-notes/duration-slider-on-web>, fetched 2026-08-12). **HIGH confidence** for the control's existence, its name, its home in the Create form, and that platform scoping. Everything below that line is weaker and says so.
 
 **The platform scoping is first-party and narrow.** The entry carries `WEB` and no mobile tag, and no later release note through 2026-08-12 brings the slider to iOS or Android. Treat it as web-only until a release note says otherwise.
 
@@ -120,7 +120,7 @@ Community-empirical starting points:
 
 **A selected duration is a target, not a guarantee**: *"not a guarantee that Suno will end on an exact second"* ([Jack Righteous song-length guide](https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-duration-slider-song-length-guide), fetched 2026-08-12). Record the runtime you actually got rather than assuming the slider value.
 
-**OPEN QUESTION: what a duration target does to a lyric that does not fit it.** Unresolved as of 2026-08-12; **do not advise on this until it is settled.** The single community post above reports a hard cut rather than a fade when the target is reached, rushed delivery when a long lyric meets a short target, and trailing silence when the target overruns the lyric. Nothing first-party addresses it and the Jack Righteous guide cited above explicitly does not. The direction is plausible because this skill already documents the same failure family from the other end, past ~3,000 lyric chars Suno "rushes, skips sections, or cuts output short", but **a shared failure shape is not evidence that the slider causes it.** Settle it by generating one lyric against a short and a long target and recording both runtimes.
+**Open question: what a duration target does to a lyric that does not fit it.** Unresolved as of 2026-08-12; **do not advise on this until it is settled.** The single community post above reports a hard cut rather than a fade when the target is reached, rushed delivery when a long lyric meets a short target, and trailing silence when the target overruns the lyric. Nothing first-party addresses it and the Jack Righteous guide cited above explicitly does not. The direction is plausible because this skill already documents the same failure family from the other end, past ~3,000 lyric chars Suno "rushes, skips sections, or cuts output short", but **a shared failure shape is not evidence that the slider causes it.** Settle it by generating one lyric against a short and a long target and recording both runtimes.
 
 **Recheck trigger:** any `help.suno.com` article on the Duration slider, or a release note extending it beyond Web / V5.5.
 
@@ -132,7 +132,7 @@ The "More Options" expandable section contains five controls. Claims below are c
 
 Operates at **different parsing stage** than inline `no X` negatives: Suno's negative-constraint pipeline vs style-prompt mixed pipeline. **More reliable than inline negatives** for global removal.
 
-**Convention: enter BARE NOUNS, not negation phrases.** This is the documented convention, not a demonstrated requirement. Suno's own instruction for the field is first-party, "Enter any information (instruments, etc) that you do not want in your track" (`help.suno.com/en/articles/3161921`), and community worked examples for the field list bare nouns. **No source shows negation phrases failing.**
+**Convention: enter bare nouns, not negation phrases.** This is the documented convention, not a demonstrated requirement. Suno's own instruction for the field is first-party, "Enter any information (instruments, etc) that you do not want in your track" (`help.suno.com/en/articles/3161921`), and community worked examples for the field list bare nouns. **No source shows negation phrases failing.**
 
 | Convention | Off-convention |
 |------------|----------------|

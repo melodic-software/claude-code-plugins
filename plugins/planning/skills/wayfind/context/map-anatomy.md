@@ -28,7 +28,7 @@ cannot resolve.>
 
 ## Decisions-so-far
 
-<A pointer INDEX: one line per resolved-in-scope decision, NOT the decisions themselves.
+<A pointer index: one line per resolved-in-scope decision, not the decisions themselves.
 Each line names the item by **title**, linked to its absolute URL, and points at the
 item whose resolution comment is the decision's durable home. Closed-as-out-of-scope items
 do not get a line here. A map seeded from an interview has one line for its seed item, whose
@@ -40,14 +40,14 @@ resolution comment lists the interview's settled answers.>
 
 <One bullet per uncertainty you cannot yet phrase as a sharp question, each opening with a short
 bold label. A bullet graduates to a typed decision item only once working the map makes it
-sharp. Fog is expected. An empty fog section on a young map usually means you haven't looked
-hard enough.>
+sharp. Chart builds a map only for a foggy effort, so a young map normally holds fog; record
+only uncertainty you actually found.>
 
 - **<label>**: <what is uncertain, in a line or two>
 
 ## Out-of-scope
 
-<Explicitly excluded, decided NOT to pursue. This ledger is for **scope**, not sharpness.
+<Explicitly excluded, decided not to pursue. This ledger is for **scope**, not sharpness.
 Fog (cannot yet phrase the question) stays in Not-yet-specified and never moves here for being
 unphrasable, only by the user's explicit scope ruling at closure, recorded with its reason.
 Recording an exclusion is itself a decision; note why. A wrongly scoped existing decision item

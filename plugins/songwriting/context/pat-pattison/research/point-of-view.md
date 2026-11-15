@@ -44,13 +44,10 @@ Lyrics* (2009), including the lyrics he analyses, as he prints them. Songs are
 named, with their writers where Pat names them. Several carry no writer credit
 in his text or on the permissions page, and none is invented here.
 
-An earlier pass imposed a "complete third-party song lyrics are not reproduced"
-rule and cut the lyrics down to fragments. **That rule was never the repo
-owner's and has been revoked.** He owns all four books and keeps this as a
-personal reference. Sibling files such as `box-model.md` already reproduce the
-lyrics Pat works with in full; this file is being brought into line with them.
-**Some excerpts here are still short and are a known remaining gap, not a
-policy.**
+This file reproduces the lyrics Pat works with in full, as sibling files such
+as `box-model.md` do; no rule limits it to fragments. The repo owner owns all
+four books and keeps this as a personal reference. **Where an excerpt here is
+still short, that is a known gap to fill, not a policy.**
 
 Source images inspected:
 
@@ -62,9 +59,8 @@ Three sections near the end rest on **non-book sources** (Berklee Online /
 patpattison.com) that could not be read for this pass: audience-centering,
 direct-address-plus-present-tense, and the pronoun-consistency anti-pattern.
 They are marked inline with `<!-- unaudited -->` comments and their paraphrases
-are retained as paraphrase. A fourth section, the cinematic metaphor, was
-sourced the same way but made a claim the book contradicts; it has been
-corrected against Chapter 10 and carries a note saying so.
+are retained as paraphrase. A fourth section, the cinematic metaphor, follows
+Chapter 10 where the non-book source disagrees with it.
 
 Related files: [verse development](verse-development.md),
 [repetition](repetition.md), [object writing](object-writing.md), and
@@ -164,11 +160,9 @@ you as a disguise for I."*
 
 ## One test for second-person narrative
 
-<!-- This heading previously read "Translation tests", plural. CHANGELOG line
-     63 records invented translation "tests" as removed from this file, but the
-     plural heading survived the removal. Pat prints ONE test, singular, and the
-     heading is now his own printed phrase (2009 spine 019:167). There is no set
-     of translation tests; do not reintroduce one. -->
+<!-- The heading is Pat's own printed phrase (2009 spine 019:167). Pat prints
+     one test, singular; there is no set of translation tests, so do not
+     reintroduce one. -->
 
 Pat states the test in one sentence:
 
@@ -518,14 +512,11 @@ And the transfer to lyrics:
 
 ## Direct address: do the facts belong in the song?
 
-<!-- This heading previously read "Direct-address fact test". Pat never uses the
-     phrase "fact test": `grep -i "fact test"` returns zero hits in Writing
-     Better Lyrics (2009), Chapter 11, and the four-question "test" that once
-     sat here was invented and has already been removed. The heading is a
-     PARAPHRASE of Pat's printed question at spine 018:70, "Do you really want
-     the audience to know that it was Saturday and she had braids and she made
-     the first move?", and not printed text itself. Do not reintroduce a numbered
-     test here. -->
+<!-- The heading paraphrases Pat's printed question at spine 018:70, "Do you
+     really want the audience to know that it was Saturday and she had braids
+     and she made the first move?"; it is not printed text. Pat never uses the
+     phrase "fact test" (zero hits in Writing Better Lyrics (2009), Chapter 11).
+     Do not reintroduce a numbered test here. -->
 
 Pat's first two repairs are pure pronoun moves, printed side by side with the
 broken verse, and he sets them up with a warning:
@@ -819,9 +810,8 @@ Swapping the narrator to the woman does not by itself fix it:
 ## Direct-address dialogue
 
 Pat's verdict on this one is flat, and he offers **no** conditions under which it
-works. The paraphrase's list of four "use it only when" exceptions had no source
-in the chapter. He sets it up (*"Next, let's get up close and personal"*), writes
-it out, and then:
+works. He sets it up (*"Next, let's get up close and personal"*), writes it out,
+and then:
 
 <!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics, Chapter 13 -->
 > Total disaster — the worst of history lessons. The you of the song was already
@@ -956,13 +946,9 @@ addition about where the odds sit:
 
 ## Exercises as coaching prompts
 
-<!-- ai-slop-ignore-start: quoted retired headings from an earlier draft of this file -->
 Chapters 10-13 contain exactly **two** numbered exercises, 14 and 15. Chapters
-11 and 13 have none. (An earlier draft of this file listed a "Chapter 11 —
-Hangman rewrite" and a "Chapter 13 — Dialogue POV test"; neither exists in the
-book. What those chapters give instead is un-numbered, and is quoted in place
-above.)
-<!-- ai-slop-ignore-end -->
+11 and 13 have none; what they give instead is un-numbered, and is quoted in
+place above.
 
 **EXERCISE 14** (Chapter 10) names the two songs, and Pat's own phrasing
 depends on the question he asks immediately before it, *"Does that mean we should
@@ -1025,13 +1011,10 @@ end, on every lyric, reading aloud with the pronouns substituted.
 
 ## Close-up vs middle distance: the cinematic metaphor
 
-<!-- corrected against the book: an earlier draft of this section (sourced to
-     patpattison.com / Berklee Online) assigned second-person narrative the
-     middle-distance shot and first-person narrative a "close-up on the
-     interior". Writing Better Lyrics (2009), Chapter 10 assigns the
-     middle-distance shot to FIRST-person narrative, and the printed camera-angle
-     figure places First Person Narrative on the objective side of Second Person
-     Narrative. The book wins. -->
+<!-- Writing Better Lyrics (2009), Chapter 10 assigns the middle-distance shot
+     to first-person narrative, and the printed camera-angle figure places First
+     Person Narrative on the objective side of Second Person Narrative. Where a
+     patpattison.com or Berklee Online source says otherwise, the book wins. -->
 
 The camera metaphor is Pat's own, from Chapter 10, and every rung of it is
 printed in the book. In his words, not a summary:
@@ -1056,9 +1039,8 @@ character's relationship to the audience be.
 ## Audience-centering: the song is about them
 
 <!-- unaudited: non-book source (Berklee Online / interviews); paraphrase
-     retained. The blockquote that stood here was a paraphrase formatted as a
-     direct quotation and has been de-quoted; do not restore quotation marks
-     around it without the primary source. -->
+     retained. Do not put quotation marks around it without the primary
+     source. -->
 
 Paraphrase, unverified against the four books: the song is about the listener as
 much as the singer or addressee, and the closer the camera, the more the
@@ -1074,9 +1056,8 @@ the singer and sing to someone I know"). See
 
 ## Direct address + present tense = maximum intimacy
 
-<!-- unaudited: non-book source (Berklee Online); paraphrase retained. The
-     blockquote that stood here was already labeled "paraphrased" inside
-     quotation marks, a fabricated quote, and has been de-quoted. -->
+<!-- unaudited: non-book source (Berklee Online); paraphrase retained. Do not
+     put quotation marks around it without the primary source. -->
 
 Paraphrase, unverified: Pat is reported to name direct address plus present
 tense as the strongest intimacy combination. The tense half of that claim is
@@ -1098,10 +1079,9 @@ tense) loosens intimacy. Pull deliberately, not by accident.
 
 ## Pronoun-consistency anti-pattern
 
-<!-- unaudited: non-book source (Berklee Online); paraphrase retained. The
-     blockquote here was explicitly labeled a paraphrase inside quotation marks
-     and has been de-quoted. The two named reference songs are from the same
-     unread article and are NOT verified. -->
+<!-- unaudited: non-book source (Berklee Online); paraphrase retained. Do not
+     put quotation marks around it without the primary source. The two named
+     reference songs are from the same unread article and are not verified. -->
 
 Paraphrase, unverified: the most common POV failure in love and address songs is
 a singer switching between `you` (direct address) and `she`/`he`/`they`
@@ -1154,8 +1134,8 @@ file:
    for once?"* / *"C'mon, be clear for once!"* (Chapter 12, see
    [internal second person](#internal-second-person))
 
-The earlier claim that `you` is also *formal and intimate* is not something Pat
-says; his printed distinction is number, not register. What he does say is that
+Pat does not say `you` is *formal and intimate*; his printed distinction is
+number, not register. What he does say is that
 the intimacy comes from the *suggestion* of direct address, and that the payoff
 of the ambiguity is the listener saying *"This character could easily be me."*
 

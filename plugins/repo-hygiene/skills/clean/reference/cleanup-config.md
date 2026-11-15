@@ -51,7 +51,7 @@ Script: `git-tree-reset.sh`. Operations:
 
 Removes ignored and untracked **artifacts** while preserving the same three protected classes the selective tiers honor (below) by default:
 
-- **Secrets / local config** (`.env*`, `*.local.json` / `.jsonc` / `.md`, IDE + cloud-cred + codex config): removed only with `--include-secrets` (UNRECOVERABLE; extra confirmation).
+- **Secrets / local config** (`.env*`, `*.local.json` / `.jsonc` / `.md`, IDE + cloud-cred + codex config): removed only with `--include-secrets` (unrecoverable; extra confirmation).
 - **Runtime deps** (`node_modules/`, `.venv/`, `vendor/`): removed only with `--include-deps` (rebuildable).
 - **Skill data** (`.claude/skills/*/data/`): always preserved; no flag removes it.
 
@@ -59,15 +59,15 @@ Removes ignored and untracked **artifacts** while preserving the same three prot
 
 Gates: blocks on default branch unless `--force-default-branch`; aborts (exit 4) when HEAD is ahead of upstream unless `--allow-unpushed` (prevents silent loss of unpushed commits). Always dry-run before `--apply`. Files git could not delete (locked / in use) are reported (`Unremovable:`), not silently left.
 
-## Protected paths: NEVER cleaned (any tier)
+## Protected paths: never cleaned (any tier)
 
 Three classes:
 
 ### Secrets / config / user data
 
 - `.azure-cli/`, `.aws/`, `.gcloud/`: cloud / CLI credential bundles
-- `.env*` (`.env`, `.env.local`, `.envrc`, `.envrc.local`, …), `**/*.local.json`, `**/*.local.jsonc`, `**/*.local.md`: local-only env / config overrides (gitignored by convention; `.env.example` IS also matched and, being tracked, is never cleaned regardless)
-- `.vscode/`, `.idea/`: IDE user config (the regenerable `.vs/` cache IS cleanable, see caches tier)
+- `.env*` (`.env`, `.env.local`, `.envrc`, `.envrc.local`, …), `**/*.local.json`, `**/*.local.jsonc`, `**/*.local.md`: local-only env / config overrides (gitignored by convention; `.env.example` is also matched and, being tracked, is never cleaned regardless)
+- `.vscode/`, `.idea/`: IDE user config (the regenerable `.vs/` cache is cleanable, see caches tier)
 - `**/*.csproj.user`, `**/*.suo`: .NET IDE user state (VS debug profile, sln docstates)
 - `.codex/config.toml`, `.codex/hooks.json`, `.codex/rules/`: Codex CLI config (only `.codex/logs/` is cleanable, see caches tier)
 
@@ -79,7 +79,7 @@ Three classes:
 
 ### Skill-owned data directories
 
-- `.claude/skills/*/data/`: user-generated synthesis (transcripts, summaries, accumulated LLM outputs). NEVER cleaned. Folder name MAY vary; the owning skill documents its data convention.
+- `.claude/skills/*/data/`: user-generated synthesis (transcripts, summaries, accumulated LLM outputs). Never cleaned. Folder name may vary; the owning skill documents its data convention.
 
 ## Extending the protected set
 

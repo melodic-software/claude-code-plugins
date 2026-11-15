@@ -43,7 +43,7 @@ the same number.
 
 ## Available `--json` fields
 
-Do NOT hardcode the field set. GitHub adds fields over time (the dependency/parent/sub-item
+Do not hardcode the field set. GitHub adds fields over time (the dependency/parent/sub-item
 fields the seam's normalized model reads, `blockedBy`, `parent`, and `subIssues`, are recent
 additions). Derive the current valid set on demand: `gh issue list --json` (no value) prints it.
 
@@ -314,7 +314,7 @@ gh issue edit <N> --repo <owner>/<repo> --add-label "<name>" --remove-label "<na
 gh issue edit <N> --repo <owner>/<repo> --remove-assignee "@me"   # clear this session's own assignment
 ```
 
-**Carve-out: claim assignment stays on the session identity.** The assignee MUST be the session
+**Carve-out: claim assignment stays on the session identity.** The assignee must be the session
 user (not a bot), so it runs on bare `gh`. Coordination claims go through the seam `claim` verb,
 which owns this.
 
@@ -479,23 +479,18 @@ mid-pagination failure would reduce to a spurious `false`. Why GitHub's computed
 linkage instead of a body regex over `gh pr list --search`:
 
 - **No fence-tracking heuristic to maintain.** Whether text in a PR body forms a link is
-  GitHub's call, so an example snippet such as a fenced `Closes #<N>` is judged by GitHub, not by
-  a local parser. The retired approach hand-rolled a
-  `jq` `gsub` that recognized only exactly-three backticks or tildes and silently missed
-  four-or-more-backtick and indented fences. This closes the fence-blindness the prior regex
-  carried.
+  GitHub's call, so an example snippet such as a fenced `Closes #<N>` (any fence length, or an
+  indented block) is judged by GitHub, not by a local parser.
 - **No word-boundary or number-boundary guards.** `#463` cannot collide with `#4630` / `#1463`
   and a keyword cannot match inside a longer word, because the reference is GitHub's parsed issue
   linkage, not a regex over raw text.
-- **Base-branch correctness (behavior change).** The retired raw-body regex counted a
-  `Closes #<N>` on a PR against any base branch. This mechanic counts only what GitHub links, so
-  an issue whose only closing keyword sits on a PR GitHub does not link now stays pickable,
-  matching GitHub's merge-time auto-close. Which base branches link, and which text in a body is
-  ignored, are read at
+- **Base-branch correctness.** This mechanic counts only what GitHub links, so an issue whose only
+  closing keyword sits on a PR GitHub does not link stays pickable, matching GitHub's merge-time
+  auto-close. Which base branches link, and which text in a body is ignored, are read at
   [§ Linking a pull request to an issue using a keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword).
 - **Opt-out is intrinsic.** An intentional `Refs #<num>` (reference without closing) never enters
-  the closing linkage, so it correctly does not exclude its issue. That is the same opt-out the
-  `pr-issue-linkage` gate honors, now with no keyword allow/deny list to keep in sync.
+  the closing linkage, so it does not exclude its issue. That is the same opt-out the
+  `pr-issue-linkage` gate honors, with no keyword allow/deny list to keep in sync.
 
 ## Label-removal provenance
 
@@ -586,7 +581,7 @@ gh issue list --state open --json labels --limit 500 --jq '
 ' | tr -d '\r'
 ```
 
-Claimed/unassigned counts. A seam claim is an **assignee** (+ lease), so count assignees, NOT
+Claimed/unassigned counts. A seam claim is an **assignee** (+ lease), so count assignees, not
 the retired `status:claimed`/`status:considering` labels (which the seam never sets):
 
 ```bash
@@ -613,7 +608,7 @@ gh issue list --state open --json number,title,labels --limit 100 --jq '
 ' | tr -d '\r'
 ```
 
-Stale-claim detection is NOT a label/date query. A claim is a lease, so the `audit` action
+Stale-claim detection is not a label/date query. A claim is a lease, so the `audit` action
 runs the seam `reclaim` verb over assigned items (CONTRACT.md "Lease protocol").
 
 ## API budget
@@ -634,12 +629,12 @@ attend-queue lanes) follows this cadence:
 - **Writes** (label, comment, close, create, assign): one at a time, at least 1 s apart, never in
   a retry loop. `wit_write_pause` in `common.sh` waits 1 s before every adapter write, so a verb
   that writes more than once keeps the spacing.
-- **Rate-limit errors** (seam exit 8 when a verb hits one). Stop at the first one; never retry in
-  a loop or probe for recovery. Exit 8 carries no response headers, so read the primary resets
+- **Rate-limit errors** (seam exit 8 when a verb hits one). Stop at the first one: no immediate
+  retry and no recovery probes. Exit 8 carries no response headers, so read the primary resets
   once: `gh api rate_limit --jq '.resources | .core, .graphql | "\(.remaining) \(.reset)"'`. When a
   bucket shows 0 remaining, wait until its reset (epoch seconds); otherwise the limit was a secondary one
-  (that endpoint does not show them), so wait at least one minute, then back off exponentially and
-  give up after a few tries.
+  (that endpoint does not show them), so wait at least one minute, then retry with exponential
+  back-off and give up after a few tries.
 
 Pointer: [best practices for using the REST API](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api),
 [REST rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),

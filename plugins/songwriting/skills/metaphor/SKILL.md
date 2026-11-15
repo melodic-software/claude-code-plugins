@@ -11,7 +11,7 @@ disable-model-invocation: false
 
 Before emitting any metaphor, simile, or collision, run **§7 Image filter** of
 [response-filter](../../context/pat-pattison/research/response-filter.md) (add **§2 Line-writing**
-when the metaphor arrives inside a finished line). NAME each box's pass / fail / skip-with-reason;
+when the metaphor arrives inside a finished line). Name each box's pass / fail / skip-with-reason;
 correct before emission. Cliché metaphor families are this skill's dominant failure mode and §7 is
 where they are caught.
 
@@ -70,7 +70,7 @@ No action → route on context (a subject named → `collide`; an existing metap
   to the second term and you must commit to it across the song; simile keeps focus on the first
   term, which makes it the right choice for a one-time comparison or a list of them.
 
-## Boundary. What this skill must NOT emit
+## Boundary. What this skill must not emit
 
 This skill produces figurative language and judgments about it. It does not write the finished
 lyric line the metaphor lives in.

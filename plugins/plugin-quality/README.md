@@ -3,7 +3,7 @@
 A Claude Code plugin for **post-use behavioral audits** of other plugins' components. You used a
 skill, hook, agent, command, or config surface and something felt off, or you just want to know
 whether it actually does what it claims. `/plugin-quality:audit <plugin>[:<component>]` runs a
-six-step audit and ends with a work item in the plugin maintainers' lap, never with you patching
+six-step audit and ends by filing a work item for the plugin maintainers, never with you patching
 their repo mid-session.
 
 - **Audit skill** (`skills/audit`), the six-step hub:
@@ -23,13 +23,13 @@ their repo mid-session.
   suggested change is filed agent-ready only after a research pass, otherwise as needs-decision.
   `/session-flow:workflow` offers the `session` mode at wrap-up when a plugin skill ran.
 - **Auditor agent** (`agents/auditor.md`), the fresh-context specialist for steps 2–3. Tools:
-  Read/Grep/Glob/WebFetch plus Bash. Bash is there for `claude plugin validate`,
+  Read/Grep/Glob/WebFetch plus Bash and Write. Bash is there for `claude plugin validate`,
   config-resolution probes, and the fetch ladder's rung-1 `scripts/fetch-docs.sh` read of the
   raw-markdown docs channel, not mutation. That script also stores the page in the shared
-  user-scope docs cache, its own store.
+  user-scope docs cache, its own store. Write is for the evidence packet only.
 - **Reference corpus** (`skills/audit/reference/`), the recurring-concerns checklist plus five
-  component-type lenses (hook, skill, agent, command, config). Extending coverage = one file +
-  one index row; the hub never grows.
+  component-type lenses (hook, skill, agent, command, config). Extending coverage means adding one file
+  and one index row; the hub itself stays the same size.
 - **Config** (`reference/config.md`). A convention doc at the consumer's convention home
   (`<home>/plugin-quality/README.md`, bound by the config-cascade pointer line; sink, zone
   behavior, repo-map overrides), with a documented sink ladder and markdown item schema. The

@@ -1,6 +1,6 @@
 # Community-validated tips & workflow
 
-Techniques here are **MEDIUM confidence**: multi-source consensus across community guides, YouTube tutorials, Reddit threads, but **NOT officially documented by Suno**. Effects are real (everyone agrees they work); exact magnitudes are folk wisdom.
+Techniques here are **MEDIUM confidence**: multi-source consensus across community guides, YouTube tutorials, Reddit threads, but **not officially documented by Suno**. Effects are real (everyone agrees they work); exact magnitudes are folk wisdom.
 
 Surface as **opt-in suggestions**, not commands. Default to HIGH-confidence techniques in `style.md` and `lyrics.md`.
 
@@ -30,7 +30,7 @@ And I can't breathe anymore
 
 ```
 I love yoooou (4 extra o's)     ← natural melisma
-I love yoooooooooooou (12+)      ← glitchy
+I love yooooooooooooooooooooou (20+) ← glitchy
 ```
 
 Best on **emotional peak words** in a chorus.
@@ -129,7 +129,7 @@ LOW-MEDIUM confidence. Use structural tags (`[Intro]`, `[Outro]`) as primary con
 
 **No adherence figure is stated, and none may be added without a citation.** A 2026-08-12 search for a basis for any figure found nothing:
 
-- **In-repo:** `.work/` and `plugins/songwriting/` for `timing cue`, `at 0:15`, `adherence`: nothing states where the figure came from. First recorded at 1.1.1; re-run and still true.
+- **In-repo:** `.work/` and `plugins/songwriting/` for `timing cue`, `at 0:15`, `adherence`: nothing sources an adherence figure.
 - **Official:** `help.suno.com` articles [5782977](https://web.archive.org/web/20250513204947/https://help.suno.com/en/articles/5782977) (805 chars) and [5782849](https://web.archive.org/web/20260902202656/https://help.suno.com/en/articles/5782849) (1,177 chars), read verbatim on 2026-08-12 (the live URLs now return 404; the links are archived captures); both bodies arrived whole, and neither mentions timestamp cues in the Lyrics box or any adherence rate. That absence is scoped to those two pages, not to Suno's documentation as a whole.
 - **Community:** two of the largest public meta-tag references, [Jack Righteous' Suno meta tags guide](https://jackrighteous.com/en-us/pages/suno-ai-meta-tags-guide) (22,687 chars) and [Blake Crosley's Suno guide, v5.5](https://blakecrosley.com/guides/suno) (93,464 chars), carry **zero** occurrences of a `0:1`-style timestamp cue and **zero** occurrences of `70%`. Jack Righteous routes timing problems away from the prompt entirely: *"When timing, balance, cleanup, comping or production precision is the actual problem"* → Studio or DAW.
 - r/SunoAI could not be searched from this environment (the search tool refuses `reddit.com`), so the community corpus above is guides only.
@@ -183,7 +183,7 @@ Variance is high. First generation is rarely best. A/B compare across 4 to find 
 
 ### 2. A/B test one variable at a time
 
-Don't change three things at once. Change mood OR instrumentation OR BPM, regenerate, compare. Document what helped.
+Don't change three things at once. Change mood or instrumentation or BPM, regenerate, compare. Document what helped.
 
 ### 3. Stem-first workflow for production
 
@@ -199,7 +199,7 @@ Vote thumbs up / down on early generations. After 50-100 votes, default model be
 
 ### 6. Custom Model curation (Pro / Premier)
 
-Train Custom Models only on tracks YOU own AND that share a coherent sound. Mixing a synth-pop track and a metal track in the same training set gives you a confused average.
+Train Custom Models only on tracks you own and that share a coherent sound. Mixing a synth-pop track and a metal track in the same training set gives you a confused average.
 
 ### 7. Replace Section over full regeneration
 
@@ -221,8 +221,8 @@ For a sequel-sounding follow-up: reuse exact mood + key + BPM + production tags.
 
 If after 5 regenerations and 3 variable changes the output still misses, the underlying genre/mood/instrumentation triangle may be inconsistent. Examples:
 
-- "country trap with classical violin": pick ONE direction
-- "aggressive lullaby": pick energetic OR soft
-- "ambient drum'n'bass": pick still OR fast
+- "country trap with classical violin": pick one direction
+- "aggressive lullaby": pick energetic or soft
+- "ambient drum'n'bass": pick still or fast
 
 Rebuild the prompt from the 6-layer formula. Sometimes the issue isn't the prompt's wording. The user is asking for something incoherent.

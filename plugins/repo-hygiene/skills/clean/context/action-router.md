@@ -51,7 +51,7 @@ Conflicting tokens → `menu`.
 
 ## Bare invocation (empty `$ARGUMENTS`)
 
-1. **Survey**: conversation triggers, `git status --porcelain`, pre-computed context block.
+1. **Survey**: conversation triggers, `git status --porcelain`, and the repository context SKILL.md gathers first.
 2. **Resolve**: `resolve-clean-action.sh` on `$ARGUMENTS`; if empty, infer from conversation phrases above.
 3. **Route:**
    - **High-confidence match** → run that action starting with dry-run / scan (never jump straight to `--apply`).
@@ -64,10 +64,10 @@ Default when still unsure after one question: **`scan`** (safest).
 | Action | Pre-mutation step | User gate |
 | --- | --- | --- |
 | `scan` | Run `scan.sh` | None |
-| `caches`, `build`, `all` | `preflight.sh` + tier scripts `--dry-run` (writes a manifest; emits `Manifest:` + `Summary: planned=N bytes=K`) | [Confirmation gate](../SKILL.md#confirmation-gate) when preflight non-empty OR before `--apply`. Surface the `bytes` reclaimable total; apply the same manifest (`--apply --manifest <path>`), which emits `Summary: removed=N failed=M bytes=K` and exits non-zero on failure |
+| `caches`, `build`, `all` | `preflight.sh` + tier scripts `--dry-run` (writes a manifest; emits `Manifest:` + `Summary: planned=N bytes=K`) | [Confirmation gate](../SKILL.md#confirmation-gate) when preflight non-empty or before `--apply`. Surface the `bytes` reclaimable total; apply the same manifest (`--apply --manifest <path>`), which emits `Summary: removed=N failed=M bytes=K` and exits non-zero on failure |
 | `git` | `git-prune.sh --dry-run`, `git-branch-audit.sh` (writes the `TipCapture:` file and prints the `LossBlock:`), `git-branch-delete.sh --capture <path> --dry-run`, `git-stash-audit.sh` | Before `--apply` prune; before any branch deletion (which runs only through `git-branch-delete.sh --apply` against the audit's capture); the `LossBlock:` shown as its own section before the deletion question, its LOSSY branches confirmed by a separate answer and deleted only with `--accept-loss`; per-stash keep/drop |
 | `stash` | `git-stash-audit.sh` (read-only) | Per-stash keep/drop, **never** auto-dropped, even a `superseded` advisory |
-| `tree` | `git-tree-reset.sh --dry-run` (always) | **Mandatory** [confirmation gate](../SKILL.md#confirmation-gate) before `--apply` (surface `PreserveDeps`/`PreserveSecrets`/`AheadCount`); a non-zero `AheadCount` or exit 4 needs explicit unpushed-loss confirmation before `--allow-unpushed`; `--include-secrets` is UNRECOVERABLE, confirm separately; never autonomous |
+| `tree` | `git-tree-reset.sh --dry-run` (always) | **Mandatory** [confirmation gate](../SKILL.md#confirmation-gate) before `--apply` (surface `PreserveDeps`/`PreserveSecrets`/`AheadCount`); a non-zero `AheadCount` or exit 4 needs explicit unpushed-loss confirmation before `--allow-unpushed`; `--include-secrets` is unrecoverable, confirm separately; never autonomous |
 | `tree-batch` | `git-tree-reset-batch.sh --dry-run` (always) | **Mandatory** single batch-wide [confirmation gate](../SKILL.md#confirmation-gate) before `--apply` (surface the per-repo `Outcome`/`Reason`, `Summary`, and `UnmatchedSkip:`); one gate for the whole batch, never per repo; `--include-dirty` re-enables the data-loss vector, confirm separately naming the dirty repos, like `--include-secrets`; never autonomous. Detail: [git-tree-reset-batch.md](git-tree-reset-batch.md) |
 | `scan-batch` | `clean-batch.sh --tier scan` (read-only; no plan, `--apply` is a usage error; emits per-repo `Outcome: scanned` + `Summary: repos=N planned=0 bytes=K`) | None |
 | `caches-batch` / `build-batch` / `git-batch` / `all-batch` | `clean-batch.sh --tier <…> --dry-run --data-dir "<plugin-data>"` (writes a batch plan; emits `BatchPlan:` + aggregate `Summary: repos=N planned=P bytes=K`) | **Mandatory** single batch-wide [confirmation gate](../SKILL.md#confirmation-gate) before `--apply` (surface per-repo `Outcome`/`Reason`, `Summary` reclaimable `bytes`, `UnmatchedSkip:`); apply the **same** plan (`CLEAN_GUARD_ACK=1 … --apply --batch-plan <path>`, which errors without the plan). One gate for the whole batch, never per repo; never autonomous. Detail: [clean-batch.md](clean-batch.md) |
