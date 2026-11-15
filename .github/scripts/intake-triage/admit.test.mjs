@@ -877,6 +877,16 @@ describe("decide", () => {
         // charge can bill the owner.
         ["The check seats the guard.", ["seats"]],
         ["- seats the team uses", ["seats"]],
+        ["A hook that seats the guard.", ["seats"]],
+        // The singular is a charge unless it is the marked verb on a thing.
+        ["Add a GitHub seat that the bot uses.", ["seat"]],
+        ["Buy one Enterprise seat that each contractor shares.", ["seat"]],
+        ["We need a single seat the bot can use.", ["seat"]],
+        ["Add a developer seat their team pays for.", ["seat"]],
+        // Seating a person is the billing action.
+        ["Seat the new contractors in Copilot.", ["seat"]],
+        ["Seat our interns before the sprint.", ["seat"]],
+        ["Then seat them on the org plan.", ["seat"]],
       ]) {
         assert.deepEqual(chargeHits(text, chargePattern()), words, text);
       }
