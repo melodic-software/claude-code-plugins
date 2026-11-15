@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   cuesInMediaTime,
+  cuesInRange,
   cuesInVideoTime,
   describeTimeRange,
   downloadSectionSpec,
@@ -114,6 +115,11 @@ describe("cue time moves", () => {
     { startSec: 4795, endSec: 4810, text: "straddles end" },
     { startSec: 4900, endSec: 4905, text: "after" },
   ];
+
+  it("keeps the cues overlapping the range, in full-video time", () => {
+    expect(cuesInRange(cues, { fromSec: 3600, toSec: 4800 })).toEqual(cues.slice(0, 3));
+    expect(cuesInRange(cues, { fromSec: 4800, toSec: null })).toEqual(cues.slice(2));
+  });
 
   it("keeps the cues overlapping the range, in media time", () => {
     expect(cuesInMediaTime(cues, { fromSec: 3600, toSec: 4800 })).toEqual([

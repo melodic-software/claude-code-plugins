@@ -12,7 +12,7 @@ built them could not run the tool; the first live run is that row's recheck trig
 
 | Tool or format | Lane(s) | Measure | Claim the adapter relies on | Basis | Verified | Recheck trigger |
 |---|---|---|---|---|---|---|
-| `scc` 3.7.0 | every lane | `file_lines` | `scc --by-file --format json` prints a list of per-language objects, each with `Files[]` carrying `Location`, `Lines`, `Code`, `Comment`, `Blank`; a file whose language scc does not recognize gets no `Files[]` entry at all, so the adapter counts such a file itself and labels the row `comment-agnostic`; the `Complexity` field is a substring count and is never read | github.com/boyter/scc, probed in this repository | 2026-09-05 | an scc release changes the JSON shape, or ships a parsed per-function cyclomatic mode |
+| `scc` 3.7.0 and 4.1.0 | every lane | `file_lines` | `scc --by-file --format json` prints a list of per-language objects, each with `Files[]` carrying `Location`, `Lines`, `Code`, `Comment`, `Blank`; a file whose language scc does not recognize gets no `Files[]` entry at all, so the adapter counts such a file itself and labels the row `comment-agnostic`; the `Complexity` field is a substring count and is never read | github.com/boyter/scc, both versions run in this repository over the fixture sources and one file of an unknown extension; the per-file field names are the same in both | 2026-11-15 | an scc release changes the JSON shape, or ships a parsed per-function cyclomatic mode |
 | bundled counter | every lane | `file_lines` | total and blank lines only; comment-agnostic by construction, labeled so in every row | this plugin | 2026-09-05 | none; it has no upstream |
 
 ## Complexity

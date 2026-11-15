@@ -16,6 +16,7 @@ import { forbiddenSynthesisFileNameReason } from "../lib/synthesis-filename.js";
 import {
   parseSessionsFromClaimInventory,
   SESSION_FORMAT_HINT,
+  sessionsInTimeRange,
 } from "../lib/watch-slice-sessions.js";
 import {
   listSynthesisPngs,
@@ -207,7 +208,9 @@ export function parseTalkingHeadOnlySessions(visualGapsBody) {
  * @property {number} synthesisCount
  * @property {string} visionPlanBody
  * @property {string} contentClass
- * @property {{ name: string, startSec: number, endSec: number|null }[]} sessions
+ * @property {{ name: string, startSec: number, endSec: number|null }[]} sessions - those that
+ *   overlap `watch.timeRange` on a ranged slice
+ * @property {number} parsedSessionCount - sessions parsed before the range filter
  * @property {ReturnType<typeof outcomeFloors>} floors
  * @property {string} triageBody
  * @property {number} triageSheets
@@ -259,7 +262,8 @@ function loadWatchOutcomeSlice(sliceDir) {
     : 0;
   const visionPlanBody = readTextIfExists(visionPlanPath);
   const contentClass = detectContentClass(visionPlanBody);
-  const sessions = parseSessionsFromClaimInventory(readTextIfExists(claimInventoryPath));
+  const parsedSessions = parseSessionsFromClaimInventory(readTextIfExists(claimInventoryPath));
+  const sessions = sessionsInTimeRange(parsedSessions, watch.timeRange);
   const triageBody = readTextIfExists(triageLogPath);
 
   return {
@@ -273,6 +277,7 @@ function loadWatchOutcomeSlice(sliceDir) {
     visionPlanBody,
     contentClass,
     sessions,
+    parsedSessionCount: parsedSessions.length,
     floors: outcomeFloors(contentClass, durationSec, sessions.length || 1),
     triageBody,
     triageSheets: countTriageSheetsLogged(triageBody),
@@ -377,7 +382,10 @@ function pushSessionCoverageChecks(checks, slice) {
   });
 
   // Zero parsed sessions would make both checks below pass over nothing.
-  const noSessions = `no session parsed from research/claim-inventory.md: ${SESSION_FORMAT_HINT}`;
+  const noSessions =
+    slice.parsedSessionCount > 0
+      ? "no session in research/claim-inventory.md overlaps the watch.json timeRange"
+      : `no session parsed from research/claim-inventory.md: ${SESSION_FORMAT_HINT}`;
 
   const sessionsWithoutFrame = sessionFrameCounts.filter((s) => s.frameCount === 0);
   checks.push({

@@ -9,7 +9,7 @@
   ],
   "edges": [
     {"from":"claude-code-plugins","to":"21st-dev/magic-mcp","type":"cites","relation":"external","count":2,"files":["plugins/user-interface/reference/routing.json"]},
-    {"from":"claude-code-plugins","to":"AnthonyLloyd/CsCheck","type":"cites","relation":"external","count":2,"files":["plugins/tdd/skills/principles/reference/property-based-testing.md","plugins/testing/skills/write/context/property/csharp.md"]},
+    {"from":"claude-code-plugins","to":"AnthonyLloyd/CsCheck","type":"cites","relation":"external","count":1,"files":["plugins/tdd/skills/principles/reference/property-based-testing.md"]},
     {"from":"claude-code-plugins","to":"Azure/azure-quickstart-templates","type":"cites","relation":"external","count":1,"files":["docs/conventions/pr-pipeline/README.md"]},
     {"from":"claude-code-plugins","to":"Brainicism/bgutil-ytdlp-pot-provider","type":"cites","relation":"external","count":1,"files":["plugins/knowledge/skills/video-digest/context/gotchas.md"]},
     {"from":"claude-code-plugins","to":"BtbN/FFmpeg-Builds","type":"cites","relation":"external","count":4,"files":[".github/workflows/eval-browser-dispatch.yml",".github/workflows/pr-require-checks.yml"]},

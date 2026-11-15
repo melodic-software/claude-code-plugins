@@ -100,11 +100,16 @@ jq -n --argjson pids "${#pids[@]}" --arg ps "$status" --arg eg "$egress" --argjs
 
 # The driven session's home is this sandbox's tmpfs: onboarding done, the
 # dummy key approved by its last 20 characters as Claude Code records it, and
-# the empty working directory trusted. The key stays in an unexported variable
+# the working directory trusted. The key stays in an unexported variable
 # and reaches jq and the broker on stdin only.
 key="ccd-dummy-$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
 printf '%s' "${key: -20}" | jq -R --arg w "$HOME/w" \
   '{hasCompletedOnboarding: true, customApiKeyResponses: {approved: [.], rejected: []}, projects: {($w): {hasTrustDialogAccepted: true}}}' >"$HOME/.claude.json"
+
+# The working directory, where the broker and every session it starts run,
+# becomes a clone of the head once the workflow has checked it out and made
+# head-ready, so a driven skill has the head's history and somewhere to write.
+bash /opt/ccd/sibling-workdir.sh "$rt/head-ready" "$ws/head" "$HOME/w" "$probe/workdir.json" </dev/null >>"$rt/log/workdir.log" 2>&1 &
 
 touch "$probe/done"
 printf '%s' "$key" | exec node "$driver/broker.mjs" --socket "$rt/broker/broker.sock" --driver "$driver/driver.mjs" \

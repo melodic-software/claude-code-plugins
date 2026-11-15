@@ -1,5 +1,5 @@
 ---
-enforcement-ladder: 3.1.0
+enforcement-ladder: 3.1.1
 ---
 
 # Enforcement ladder
@@ -18,6 +18,16 @@ backticks instead. `scripts/shared-copies.txt` lists the copies.
 Five tiers, strongest first. Inside a tier the rungs run strongest first too, and cost only breaks
 ties. A rung id in backticks is a value skills write into proposals and stubs; a rung without an id
 is named in prose only.
+
+The tier order follows Lauren Tan's ranking of where to invest: codebase, static analysis,
+verification, prose, human review ("All Code Is Slop (Except Mine)", AI Engineer Code Summit,
+2026-11-11, <https://www.youtube.com/watch?v=ZZ19zhYnDKY&t=3618s>), and her principle "Encode
+recurring fixes in mechanisms (tools, code, metadata, automation) rather than textual instructions"
+(<https://github.com/poteto/brainmaxxing/blob/main/brain/principles/encode-lessons-in-structure.md>).
+Inside the static-analysis tier a compiler setting sits above an architecture test for the reason
+Simon Brown gives: "lean on the compiler to enforce your architectural principles, rather than
+discipline, post-compilation tooling, and automated fitness functions"
+(<https://simonbrown.je/modular-monolith>).
 
 ### Tier 1: Codebase
 

@@ -58,7 +58,12 @@ is extracted; without it the run uses the duration-tier default from `maxFrameGa
 
 Pass `--from <h:mm:ss>` and `--to <h:mm:ss>` through from the invoking `watch <url>` command. Each
 is optional (`m:ss` and plain seconds also parse), and together they download only that range of the video, through yt-dlp `--download-sections`. YouTube only: any
-other source refuses them. Captions and metadata still cover the whole video. Frames are sampled
+other source refuses them. Captions and metadata are still downloaded for the whole video, and
+the transcript keeps only the caption cues that overlap the range, in full-video time. With no
+captions, the `asr` rung transcribes the ranged media. A ranged run whose video is live-derived and
+captionless skips the caption wait when ASR is detected, and the acquire phase's `captionWait`
+note in `watch.json` records the skip. Without ASR, or with an explicit `--transcript-strategy`
+of `captions` or `captions+repair`, the wait holds as on a whole-video run. Frames are sampled
 from the ranged media, and the pipeline adds the range's start to every frame time, densification
 window and timeline entry, and to ASR cues, so every stamp in the slice is full-video time. We do
 not force the cut to `--from`, so the media can begin before it, and `offsetErrorSec` records how

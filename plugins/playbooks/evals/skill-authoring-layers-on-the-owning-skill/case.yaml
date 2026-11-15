@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: skill-authoring-layers-on-the-owning-skill
+description: "Layer on a skill, never restate it: a section that copies four steps another skill owns is rewritten to call that skill and keep only its own two steps. Written from plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md, Body."
+tags: [skill-authoring, composition]
+expected_outcome: "The rewritten section keeps the test step and the docs/fixes.md step, replaces the four copied commit steps with one step that hands the commit to /source-control:commit by name, and restates none of that skill's rules (staging by name, the subject form, the trailer, the heredoc)."
+execution:
+  allowed_tools: [Read, Skill]
+  max_turns: 20
+  timeout_seconds: 600
