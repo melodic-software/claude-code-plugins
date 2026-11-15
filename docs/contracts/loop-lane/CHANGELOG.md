@@ -12,7 +12,7 @@ Minor: additive guidance. No tier, routing rule or §4 invariant changed.
 - **Capability tiers gains the scope of security-surface work.** It is work that changes
   authentication, authorization, token or secret handling, permissions, or a network boundary,
   judged beside the work class. §3 is the one statement of that scope; the glossary, the planning
-  plugin's plan template and stress-test triggers, and `implement-dispatch` point at it.
+  plugin's plan template, and `implement-dispatch` point at it.
 
 ## [19.6.2] - 2026-11-14
 
