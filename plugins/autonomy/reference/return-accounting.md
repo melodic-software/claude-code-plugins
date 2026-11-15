@@ -91,8 +91,8 @@ other ad-hoc correlation. A surface that cannot stamp its identifier leaves its 
 entry unwired and reported.
 
 Capture scope: autonomous-class work only, per the guardrail contract's class vocabulary;
-interactive work is exempt (prompting friction kills compliance; divergence lives where no
-human is in the loop). Expansion trigger: aggregate spend concentrating in interactive work.
+interactive work is exempt (prompting for the identifier lowers compliance, and divergence
+happens where no human is in the loop). Expansion trigger: aggregate spend concentrating in interactive work.
 
 ## The prompt: two fields, never more
 
