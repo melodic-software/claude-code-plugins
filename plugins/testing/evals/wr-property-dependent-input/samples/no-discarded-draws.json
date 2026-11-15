@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "@st.composite\ndef invoices(draw):\n    currency = draw(st.sampled_from(['EUR', 'USD']))\n    lines = draw(st.lists(line_in(currency)))\n    return Invoice(currency, tuple(lines))\n",
+      "why": "builds valid invoices directly"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "@given(st.text(), st.lists(lines()))\ndef test_total(currency, lines):\n    assume(all(l.currency == currency for l in lines))\n",
+      "why": "assume() discards mixed invoices"
+    },
+    {
+      "answer": "valid = invoices().filter(lambda inv: all(l.currency == inv.currency for l in inv.lines))\n",
+      "why": ".filter() discards mixed invoices"
+    }
+  ]
+}

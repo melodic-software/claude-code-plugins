@@ -139,7 +139,6 @@ plugins/testing/skills/run-e2e/context/e2e.md 4
 plugins/testing/skills/setup/SKILL.md 4
 plugins/testing/skills/test-value/SKILL.md 2
 plugins/testing/skills/write/context/characterization.md 1
-plugins/testing/skills/write/context/property/typescript.md 2
 plugins/testing/skills/write/context/write.md 1
 plugins/user-interface/skills/audit/reference/launch-scope.md 1
 plugins/user-interface/skills/glossary/reference/rendering-performance.md 1

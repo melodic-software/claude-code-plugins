@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "@st.composite\ndef invoices(draw):\n    currency = draw(st.sampled_from(['EUR', 'USD']))\n    lines = draw(st.lists(st.builds(Line, sku=st.text(), amount_cents=st.integers(0), currency=st.just(currency))))\n    return Invoice(currency, tuple(lines))\n",
+      "why": "a composite strategy drawing the currency first"
+    },
+    {
+      "answer": "invoices = st.sampled_from(['EUR', 'USD']).flatmap(\n    lambda c: st.lists(lines_in(c)).map(lambda ls: Invoice(c, tuple(ls)))\n)\n",
+      "why": "flatmap from the currency"
+    },
+    {
+      "answer": "@given(st.data())\ndef test_total(data):\n    currency = data.draw(st.sampled_from(['EUR', 'USD']))\n",
+      "why": "interactive draws in order"
+    },
+    {
+      "answer": "from hypothesis.strategies import composite\n\n@composite\ndef invoices(draw):\n    pass\n",
+      "why": "the bare composite import"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "@given(st.sampled_from(['EUR', 'USD']), st.lists(st.builds(Line, sku=st.text(), amount_cents=st.integers(0), currency=st.sampled_from(['EUR', 'USD']))))\ndef test_total(currency, lines):\n    assume(all(l.currency == currency for l in lines))\n",
+      "why": "draws freely and discards"
+    },
+    {
+      "answer": "# could use @st.composite here\n@given(st.lists(st.integers(0)))\ndef test_total(amounts):\n    pass\n",
+      "why": "composite named only in a comment"
+    }
+  ]
+}

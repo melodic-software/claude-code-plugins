@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: wr-python-idempotence-property
+description: 'Legacy write 6, graded on the test written. In a Python repository whose pyproject.toml lists hypothesis, a property test for normalize_tags (lowercases, deduplicates and sorts) goes in tests/test_tags.py as a Hypothesis @given property that states idempotence: a second pass changes nothing. skill-fired reads the Skill calls; uses-given and idempotence read tests/test_tags.py; meets-expectations (llm) reads the run. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [testing, write, property, idempotence, scaffold, no-network]
+expected_outcome: 'tests/test_tags.py holds a @given property asserting normalize_tags(normalize_tags(x)) == normalize_tags(x), or the same check through a saved first result.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'This repository is Python only: a pyproject.toml and pytest, no package.json and no .csproj. Write a property-based test for normalize_tags in src/tags.py, which lowercases, deduplicates and sorts a list of tags. Put it in tests/test_tags.py. Use the `testing:write` skill if you have it.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: uses-given
+    type: regex
+    pattern: '^\s*@(?:hypothesis\.)?given\('
+    flags: m
+    target: { source: file, path: tests/test_tags.py }
+  - name: idempotence
+    type: regex
+    pattern: '\bnormalize_tags\(\s*normalize_tags\(\s*(\w+)\s*\)\s*\)\s*==\s*normalize_tags\(\s*\1\s*\)|\bnormalize_tags\(\s*(\w+)\s*\)\s*==\s*normalize_tags\(\s*normalize_tags\(\s*\2\s*\)\s*\)|\b(\w+)\s*=\s*normalize_tags\(\s*\w+\s*\)[\s\S]{0,400}?\bnormalize_tags\(\s*\3\s*\)\s*==\s*\3\b|\b(\w+)\s*=\s*normalize_tags\(\s*\w+\s*\)[\s\S]{0,400}?\b\4\s*==\s*normalize_tags\(\s*\4\s*\)'
+    target: { source: file, path: tests/test_tags.py }
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for a property-based test of normalize_tags (lowercases, deduplicates and sorts) in tests/test_tags.py of a Python repository whose pyproject.toml lists hypothesis. PASS only if the test the run wrote meets every expectation: "It is a Hypothesis property (@given with a strategy for lists of tags)" "It asserts that a second normalize_tags pass leaves the result unchanged" "Its expected values do not repeat normalize_tags''s own lowercase, dedupe and sort steps". FAIL if any point is missing or contradicted.'
