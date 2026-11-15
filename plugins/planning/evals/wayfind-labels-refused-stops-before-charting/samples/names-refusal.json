@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Stopped: `/work-items:track wayfind-labels` refused (no convention home resolves; run /work-items:setup check). Nothing was created.",
+      "why": "names the refusal and its fix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Map created with the default labels.",
+      "why": "no refusal reported"
+    }
+  ]
+}

@@ -40,7 +40,30 @@ plugin never edits your `.gitignore`.
 
 The consumer's `.claude/ecosystems/<lane>.yaml` files (the ecosystem-commands convention) resolve
 through the same three layers for their `globs` (which replace the bundled extension map for that
-lane) and `enabled` (a resolved `false` opts the lane out).
+lane) and `enabled` (a resolved `false` opts the lane out). Only a lane named under `lanes` reads
+its file: the bundled lanes, plus any extra id a layer lists there. A record whose id is not listed
+creates no lane, because a record need not describe a programming language (a lint-only
+`markdown` or `yaml` record is common).
+
+To add a lane the plugin does not ship, list its id under `lanes` and give it a record with
+`globs`:
+
+```yaml
+# docs/conventions/code-metrics.yaml
+lanes:
+  rust:
+    enabled: true
+```
+
+```yaml
+# .claude/ecosystems/rust.yaml
+globs: ["**/*.rs"]
+```
+
+The id must be lowercase kebab-case, the record's filename stem; any other id is dropped with a
+warning. The files the globs match form the `rust` lane. With no shipped collector for it, every
+measure on that lane reads `unavailable` with the reason `no shipped collector for the rust lane`,
+except `file_lines`, which walks the `other` lane's collectors so the files keep their line count.
 
 The user-global layer is looked up under `$HOME`; `CODE_METRICS_HOME`, when set, replaces that
 directory for one run (the plugin's own suites use it to point at a scratch home, and a consumer
@@ -94,7 +117,7 @@ The third column is written by hand and is not derived from anything. A row whos
 | `coverage.crap.reference` | `null` | Savoia and Evans 2007; not a validated change-risk predictor |
 | `type_debt.reference` | `null` | No standard or CWE anchors the measure |
 | `suppressions.correctness_rules` | `[]` | Rule ids that guard correctness rather than style (for example `no-floating-promises`, `SC2086`, `CA2000`). `/code-metrics:audit-suppressions` marks every suppression that names one, compared case-insensitively, and counts them. A closed list, replaced whole. The plugin ships none: which rules guard correctness is the repository's call |
-| `lanes.<lane>.enabled` | `true` | Opts a lane out even under `--all`; lanes are `typescript`, `python`, `bash`, `go`, `dotnet`, and `other`, the catch-all for every text file no language lane claims, which the ladder serves with `file_lines` alone |
+| `lanes.<lane>.enabled` | `true` | Opts a lane out even under `--all`; lanes are `typescript`, `python`, `bash`, `go`, `dotnet`, and `other`, the catch-all for every text file no language lane claims, which the ladder serves with `file_lines` alone, plus any extra id listed here (see the ecosystem files above) |
 | `lanes.<lane>.collectors.<measure>` | absent | Replaces the bundled ordered collector list for that lane and measure; names are validated against `scripts/collector-ladder.tsv` and an unknown name is dropped with a warning. An empty list is a closed value like any other: no collector runs for that lane and measure, and the run row says so |
 
 A `reference` of `null` means "report the value, count nothing"; a number counts values at or

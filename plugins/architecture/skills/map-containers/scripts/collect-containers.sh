@@ -25,7 +25,9 @@
 # repository, is absolute, or is a glob is not a module. Nothing is matched by
 # project name. A test project (dotnet_is_test_project) is not a deployable, and
 # the count of those that would otherwise be one is the excluded-test-projects
-# finding.
+# finding. Project files are *.csproj, *.fsproj and *.vbproj; each one charted
+# as no deployable, module or excluded test project is named in the
+# uncharted-projects finding.
 #
 # schema_version 1, one object per line:
 #   containers: {"id": ...}
@@ -214,7 +216,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   [[ -n "$rel" ]] || continue
   case "$rel" in
   */obj/* | */bin/*) continue ;;
-  *.csproj | *.fsproj) ;;
+  *.csproj | *.fsproj | *.vbproj) ;;
   *) continue ;;
   esac
   printf '%s\n' "$rel" >>"$all_proj"
@@ -853,6 +855,18 @@ excluded_n="$(awk 'END { print NR }' "$excluded")"
 if [[ "$excluded_n" -gt 0 ]]; then
   json_escape "$(LC_ALL=C sort "$excluded" | join_lines "; ")"
   printf '{"kind":"excluded-test-projects","count":%d,"evidence":"not charted as deployables: %s"}\n' "$excluded_n" "$JSON_ESC" >>"$finding_body"
+fi
+uncharted="$work/uncharted"
+{
+  cut -f1 "$deploy"
+  cut -f3 "$modules"
+  cat "$excluded"
+} | LC_ALL=C sort -u >"$work/charted"
+LC_ALL=C sort -u "$all_proj" | LC_ALL=C comm -23 - "$work/charted" >"$uncharted"
+uncharted_n="$(awk 'END { print NR }' "$uncharted")"
+if [[ "$uncharted_n" -gt 0 ]]; then
+  json_escape "$(join_lines "; " <"$uncharted")"
+  printf '{"kind":"uncharted-projects","count":%d,"evidence":"listed but charted as no deployable, module or excluded test project: %s"}\n' "$uncharted_n" "$JSON_ESC" >>"$finding_body"
 fi
 
 emit_lines() {

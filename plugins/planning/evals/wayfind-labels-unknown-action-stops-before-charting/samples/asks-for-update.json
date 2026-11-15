@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Stopped: `/work-items:track wayfind-labels` came back with the action table, so this work-items release predates the action. Update the work-items plugin, then run this again. Nothing was created.",
+      "why": "names the cause and asks for the update"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The tracker did not know the action, so I used the default labels and created the map.",
+      "why": "no update asked for"
+    }
+  ]
+}

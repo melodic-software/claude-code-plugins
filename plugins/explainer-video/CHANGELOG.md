@@ -3,6 +3,16 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.1] - 2026-11-15
+
+### Fixed
+
+- A long storyboard title, such as a pull request title near 100 characters, fits the title
+  frame: titles over 60 characters set smaller, and over 100 smaller again, instead of failing the
+  frame fit check.
+- A moment that needs more than one frame spreads its entries evenly over its frames, so a list or
+  code hunk one entry over a frame no longer leaves a lone entry on a continuation frame.
+
 ## [2.5.0] - 2026-11-14
 
 ### Added

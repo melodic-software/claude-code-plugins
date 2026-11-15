@@ -523,6 +523,14 @@ ladder_tools() {
   fi
 }
 
+lane_shipped() {
+  # Whether the bundled ladder names the lane at all. A lane the consumer
+  # listed beside the bundled ones has no rows: each of its measures is
+  # reported as having no shipped collector, and its files keep their line
+  # count through the `other` lane's file_lines rungs.
+  awk -F'\t' -v l="$1" '!/^#/ && $1 == l { found = 1; exit } END { exit !found }' "$LADDER"
+}
+
 RUN="$WORK/run.jsonl"
 ROWS="$WORK/measures.jsonl"
 : >"$RUN"
@@ -624,9 +632,19 @@ launch_collect() {
 
 for lane in "${LANES[@]}"; do
   mapfile -t lane_files < <(awk -F'\t' -v l="$lane" '$1 == l { print $2 }' "$LANES_TSV")
+  shipped=1
+  lane_shipped "$lane" || shipped=0
   for measure in "${MEASURE_LIST[@]}"; do
     slot=$SLOT
     SLOT=$((SLOT + 1))
+    tools="$(ladder_tools "$lane" "$measure")"
+    if [[ -z "$tools" && "$shipped" -eq 0 ]]; then
+      if [[ "$measure" != "file_lines" ]]; then
+        run_row "$slot" "$lane" "$measure" '' unavailable "no shipped collector for the $lane lane"
+        continue
+      fi
+      tools="$(ladder_tools other file_lines)"
+    fi
     resolved=0
     reasons=""
     first_hint=""
@@ -669,7 +687,7 @@ for lane in "${LANES[@]}"; do
       launch_collect "$slot" "$adapter" "$lane" "$measure" "${lane_files[@]}"
       resolved=1
       break
-    done < <(ladder_tools "$lane" "$measure")
+    done <<<"$tools"
     if [[ $resolved -eq 0 ]]; then
       run_row "$slot" "$lane" "$measure" '' unavailable "${reasons:-no ladder entry for $lane/$measure}" "$first_hint"
     fi

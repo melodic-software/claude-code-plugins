@@ -737,15 +737,20 @@ Claude Code alias (see "Alias binding" below):
 
 | Tier | Role | Alias |
 |---|---|---|
-| frontier | Complex-stamped items; every security-surface work class, always; orchestrator where the organization chooses it | `best` |
+| frontier | Complex-stamped items; all security-surface work, always; orchestrator where the organization chooses it | `best` |
 | strong | Orchestrator by default ([ADR 0100](../../adr/0100-run-the-orchestrator-on-the-session-model-opus-by-default.md)); default implementer / worker for unrouted or complex work | `opus` |
 | fast | Mechanical items an objective check backs (a build, a test run, a schema or exit-code check), and phases a plan routes `sonnet` as well-scoped | `sonnet` |
+
+**Security-surface work** is work that changes authentication, authorization, the handling of
+tokens or secrets, permissions, or a network boundary. It is a property of the work, judged beside
+its work class, not one of the work classes. This is the one statement of its scope; other
+surfaces point here.
 
 Fixed rules: the orchestrator runs at the strong or frontier tier, in the coordinator shape where
 the larger model plans and coordinates and the workers execute; workers stay strong, and a
 mechanical item drops to the fast tier only when an objective check decides whether its output is
 correct; a reviewer or verifier is never on a weaker model than the implementer it checks (equal
-pairings are valid); a security-surface work class routes to the frontier tier unconditionally.
+pairings are valid); security-surface work routes to the frontier tier unconditionally.
 
 - **Pointer:** for the coordinator shape and when delegation pays, see
   [optimizing for cost and intelligence: orchestrator strategy](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work);
@@ -837,8 +842,8 @@ here rather than left as an unstated assumption:
 - **Classifier fallback, on every tier.** The models the `best`, `opus` and `sonnet` aliases
   resolve to run safety classifiers. A flagged request can re-run on a different model, after
   which the session stays there, or end in a refusal for a category with nowhere to fall back
-  to. Security work trips them most often, and frontier is the tier every security-surface work
-  class routes to, but the strong and fast tiers carry the same gap: a lane's tier can drop
+  to. Security work trips them most often, and frontier is the tier all security-surface work
+  routes to, but the strong and fast tiers carry the same gap: a lane's tier can drop
   mid-run, or a cycle can stop on a refusal, with nothing in the lane noticing.
 - **Pointer:** for the fallback targets, the categories without one, and the provider setup, see
   [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback)

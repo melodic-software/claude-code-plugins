@@ -317,22 +317,7 @@
   ],
   "displayNameLevel": "error",
   "jobNameExceptions": [],
-  "exemptions": [
-    {
-      "path": ".github/workflows/release-deploy.yml",
-      "repository": "melodic-software/github-iac",
-      "rules": ["workflow-name"],
-      "expectedName": "release-deploy",
-      "reason": "The Pulumi issuer policy trusts this exact workflow name in the OIDC `workflow` claim, so renaming it would fail production deploys."
-    },
-    {
-      "path": ".github/workflows/release-deploy-oidc-negative-test.yml",
-      "repository": "melodic-software/github-iac",
-      "rules": ["workflow-name"],
-      "expectedName": "release-deployx",
-      "reason": "OIDC negative test: its name is the deploy workflow's name plus one character, so the Pulumi issuer policy that trusts `release-deploy` must reject it."
-    }
-  ],
+  "exemptions": [],
   "apps": {
     "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
     "names": [

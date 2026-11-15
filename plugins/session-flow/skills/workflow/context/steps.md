@@ -161,7 +161,7 @@ plan's design section it touches, so an agent that picks it up cold still builds
 Structured execution with incremental validation and commit checkpoints.
 
 - Validate (build/test) after each logical block using the consuming repo's own commands
-- Commit after green. Small, frequent commits are save points
+- Commit after green. Small, frequent commits are green commits to return to
 - If implementation diverges from the approved plan or hits unexpected complexity, stop and
   re-plan rather than pushing through a broken approach
 - At phase boundaries, route the continuation with the skill's default-mode section 4 (`context/continuation.md`)

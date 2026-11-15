@@ -360,7 +360,7 @@ would enforce a guide the project may have rejected. The style question stays wi
   brings such a skill back in line after the covered code changes and labels each check in sync,
   updated, bug or blocked. A formal-methods skill is parked:
   [`tlaplus-agentskills.md`](tlaplus-agentskills.md) records that no plugin here ships model
-  checking or TLA+ authoring. Reopen on that page's revisit trigger (a loop-lane concurrency bug a
+  checking or TLA+ authoring. Reopen on that page's recheck trigger (a loop-lane concurrency bug a
   model of the lane protocol would have caught, or a consumer asking for model checking), and read
   both upstreams at their then-current HEAD before deciding. Re-checked at ae5650febf: the first now
   tells a generated skill to read TLA+ results with `statechart`; the parked decision stands.

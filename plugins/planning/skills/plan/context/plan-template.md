@@ -345,9 +345,9 @@ attempts is decided at dispatch, by `/implementation:implement-dispatch`.
 
 The `Model` column decides which implementer agent a worker row dispatches to:
 
-- **`sonnet`:** only when all of these hold: a closed scope fence, binary acceptance criteria, no open design decision, no cross-module contract change, and not a security-surface work class. A clear spec alone does not qualify a row: a migration or a performance optimization stays on `opus` or above however precise its spec. `/implementation:implement-dispatch` sends the row to `implementation:scoped-implementer`.
+- **`sonnet`:** only when all of these hold: a closed scope fence, binary acceptance criteria, no open design decision, no cross-module contract change, and not security-surface work. A clear spec alone does not qualify a row: a migration or a performance optimization stays on `opus` or above however precise its spec. `/implementation:implement-dispatch` sends the row to `implementation:scoped-implementer`.
 - **`opus`:** architectural work, per-file judgment, or multi-step reasoning, and the value to use when in doubt. A row with no `Model` value is treated the same way and goes to `implementation:implementer`.
-- **`frontier`:** security-surface work classes and complex-stamped items, per the loop-lane convention's capability tiers, and major refactors and migrations and architecture planning.
+- **`frontier`:** security-surface work (scope: `docs/contracts/loop-lane/README.md` §3 in this plugin's marketplace repository) and complex-stamped items, per the loop-lane convention's capability tiers, and major refactors and migrations and architecture planning.
 
 This split is our routing rule. Two built-in levers sit beside it and are not part of it: the `opusplan` model setting, and model choice for agent teammates.
 
