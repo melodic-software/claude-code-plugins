@@ -4,6 +4,15 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.35.0] - 2026-11-15
+
+### Added
+
+- **`/playbooks:skill-authoring`, skill criteria, Body.** A rule for a skill that needs a behavior
+  another skill owns: call that skill by name and write only your own steps around the call; its
+  instructions, checklist and defaults stay out of the body, because a copy goes on being
+  followed after the owner changes.
+
 ## [0.34.6] - 2026-11-15
 
 ### Changed
