@@ -38,3 +38,4 @@ remotes:
     refetch_frequency: 1h
     configs:
       - plugins/guardrails/git-hooks/lefthook-remote.yml
+      - plugins/code-tidying/git-hooks/lefthook-remote.yml
