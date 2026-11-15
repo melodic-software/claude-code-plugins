@@ -6,7 +6,7 @@
           "tool": "Write",
           "input": {
             "file_path": "/tmp/ws/.work/reviews/orders-export/20261115T120000Z-orders-export.md",
-            "content": "---\ntype: review-findings\n---\n\n## Findings\n\n| 1 | IMPORTANT | low | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n\n## Dismissed\n\n- 1, src/calendar.js:2: not reproduced (verified-by-reading): unattended run, proposed check `npm test` not run.\n\n## Surfaces\n\nRan: [code-reviewer].\n"
+            "content": "---\ntype: review-findings\n---\n\n## Findings\n\n| 1 | IMPORTANT | low | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n\n## Dismissed\n\n- 1, src/calendar.js:2: not reproduced: unattended run, nothing ran\n\n## Surfaces\n\nRan: [code-reviewer].\n"
           }
         }
       ],
