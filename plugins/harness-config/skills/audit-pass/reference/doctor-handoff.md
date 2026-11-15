@@ -38,19 +38,20 @@ Checking a version number alone is not a presence check. The pass reports **whic
 failed rather than a bare "unavailable", and it distinguishes what official documentation confirms
 from what it does not.
 
-1. **Version floor.** We state no version floor for the `CLAUDE.md` trim check this pass hands off.
-   Where the pointer states one, compare the installed version with it; where it states none, report
-   the installed version without grading it.
+1. **Version floor.** We state no version floor for the `CLAUDE.md` trim check this pass hands off:
+   the pointer gives none today, so the pass reports the installed version without grading it. If
+   the pointer states a floor again, compare the installed version with it.
    - **Pointer**: when checking the floor, fetch
      [memory: my CLAUDE.md is too large](https://code.claude.com/docs/en/memory#my-claude-md-is-too-large)
      live.
 2. **`DISABLE_DOCTOR_COMMAND`: documented.** The variable's row is on the environment-variables
-   page, so it is a documented suppression channel, and its scope is the row's: read which
+   page again, so it is a documented suppression channel, and its scope is the row's: read which
    surface it hides, and which it leaves alone, from the row rather than from here.
    - **Pointer**: when naming it as a cause, fetch the `DISABLE_DOCTOR_COMMAND` row of
      [environment variables: variables](https://code.claude.com/docs/en/env-vars#variables) live.
    - **As of**: 2026-10-11
-   - **Recheck trigger**: the row leaves the table, or changes which surface it hides.
+   - **Recheck trigger**: the row leaves the table, as it did between earlier fetches, or changes
+     which surface it hides.
 
 **Suppression channels.** When the handoff is missing, we also check a `skillOverrides` entry for
 `/doctor`, and name it as a suspected cause only when the pages below say an override reaches a
@@ -84,9 +85,9 @@ feature**, not required for correctness. So the pass:
 It never degrades silently, and it never substitutes a local approximation of the trim. Reporting the
 gap is the floor the design boundary sets; a silently skipped feature is a defect.
 
-## What `/status` and `claude doctor` carry
+## What `/status` and `claude doctor` now carry
 
-This pass cannot observe three facts, and it does not grow a local approximation of them.
+This pass still cannot observe three facts, and it does not grow a local approximation of them.
 `/status` and `claude doctor` report them, each from a version the pointers state:
 
 - whether organization policy loaded, from which source, and why it did not;

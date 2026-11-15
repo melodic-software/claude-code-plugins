@@ -218,7 +218,7 @@ an `UNWIRED` row does, a `NATIVE` row does not.
 
 **Before writing nested shims, look for a gate that classifies changed paths by directory prefix.**
 A hook or CI rule keyed on `apps/`, `libs/` or `services/` reads `<dir>/CLAUDE.md` as code and
-applies a code lane to it, which can trip a runtime-affecting pre-push gate. Grep the
+applies a code lane to it; in `medley` that tripped a runtime-affecting pre-push gate. Grep the
 hook and workflow configs for those prefixes, and report each as an item for the operator. **The
 fix belongs to the repository's gate, through its own tests.** Teach it that an instruction file is
 not code. Never bypass the gate, and never rename or relocate a shim to dodge it.
@@ -322,9 +322,8 @@ Root and nested shims come out **together**: a lone nested `AGENTS.md` never att
 nothing.
 
 **The nested canary runs from the nested directory, and its line has to be unique.** A session
-started there loads that directory's `AGENTS.md` and every ancestor's at session start (for which
-files load when, see <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md>):
-running from the directory is itself the trigger, so no Read is needed. It also
+started there loads that directory's `AGENTS.md` and every ancestor's, measured on 2.1.278 with no
+tools available: running from the directory is itself the trigger, so no Read is needed. It also
 means a line the nested file shares with the root file is answered by the **root** file, so the
 nested surface would pass while loading nothing of its own. The canary line is therefore the longest
 plain line **contained in** no line of any other `AGENTS.md` that loads beside it, ancestors above
@@ -371,8 +370,8 @@ shadow the `AGENTS.md` it carries, at the root or in a subdirectory, and whereve
 lack direct `AGENTS.md` support (the CLI floor is in `reference/sources.md`, "The minimum CLI
 version"; the sessions that cannot read `AGENTS.md` directly are in `reference/shim-droppable.md`,
 condition D). It treats the import as safe to keep: the shim never makes Claude read the file
-twice. Canary runs on Claude Code 2.1.278 observed the shadowing (`reference/sources.md`, "The CI
-canary").
+twice. Canary runs on Claude Code 2.1.278 observed the shadowing; the 2026-09-29 pass did not
+re-run that canary.
 
 - **Pointer**: for when Claude Code reads `AGENTS.md`, when that support is unavailable, and what
   removing a shim involves, see

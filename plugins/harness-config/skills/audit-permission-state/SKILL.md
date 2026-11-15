@@ -324,10 +324,10 @@ collapse it in the report:
 - **Every scope and every managed surface emits a record on every OS**, including the ones that do
   not apply here (`not-applicable`). A surface missing from the output is a defect in this reader,
   not evidence about the machine.
-- **`managed` means the local managed surfaces.** The script does not fold the server-managed cache
-  into the effective set (its path and dated record: `reference/criteria.md` §"Managed policy, and
-  what it does not buy"), and treats the Organization policy line in `/status` as the failure read.
-  The script says so on every run; carry it into the report rather than implying completeness.
+- **`managed` means the LOCAL managed surfaces.** The script does not fold the server-managed cache
+  at `~/.claude/remote-settings.json` into the effective set, and treats the Organization policy
+  line in `/status` as the failure read. The script says so on every run; carry it into the report
+  rather than implying completeness.
 - **An `ask` finding names where the contract lives**: the auto mode config page, and the
   upstream issue anthropics/claude-code#83766 against it. Carry the caveat `reference/criteria.md` §"Ask rules under auto
   mode" words, with its pointer, when reporting an `ask` result, and point at

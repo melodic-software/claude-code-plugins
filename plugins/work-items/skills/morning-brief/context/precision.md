@@ -52,7 +52,7 @@ error names. Fetch is GraphQL only, ten merged PRs per call; stderr counts the P
 - **Agent-labeled precision is an upper bound.** The `bot` and `user-marked` rows record how the
   answering agent labeled a finding under the review discipline, not an independent judgment of
   the reviewer. How much they are inflated is not measured.
-- **The marker cutoff.** The D5 marker was first used on 2026-11-01. Any
+- **The marker cutoff.** The D5 marker first landed in aae9ecdbe3 (#11812) on 2026-11-01. Any
   window before that date shows zero `user-marked` answers by construction, and its
   `user-unmarked` row holds agent answers posted under a person's login beside the person's own.
 - **Reposts** are counted apart: the same lane raised the same path and first line on an earlier

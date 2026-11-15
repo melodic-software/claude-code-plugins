@@ -41,9 +41,8 @@ Per key, in order: `--out <dir>` wins for this run alone, then a declared `archi
 one question. `architecture_dir` has no default. An undeclared and unconfirmed home, including
 every non-interactive run, stops and points at `/architecture:setup`. Do not invent a directory.
 
-Resolve `diagram_dialect.data` by running the resolver rather than parsing the topic doc
-yourself. This skill restates the convention's ladder below; it is a resolution order, not a task
-list:
+Resolve `diagram_dialect.data` by restating this ladder, then running the resolver rather than
+parsing the topic doc yourself. The ladder is a resolution order, not a task list:
 
 ```markdown
 1. Anchor at the repository root: `${CLAUDE_PROJECT_DIR}` when set, otherwise

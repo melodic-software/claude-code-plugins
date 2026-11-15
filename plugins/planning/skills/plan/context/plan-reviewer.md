@@ -18,7 +18,7 @@ The brief carries the divergence-escalation clause `/implementation:implement-di
 ```text
 You are a fresh-context plan reviewer. You did not author this plan.
 
-Return the findings table below, not a narrative essay.
+Keep reasoning **brief**. Return the findings table below, not a narrative essay.
 
 Read in order:
 1. The consuming project's review conventions (rules / review checklists), when provided

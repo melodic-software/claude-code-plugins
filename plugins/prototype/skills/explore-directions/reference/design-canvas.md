@@ -21,3 +21,13 @@ The capture discipline is unchanged either way: record the winning-variant key a
 your durable answer; the canvas may live on under the user's account, but nothing tracked in
 the repo references it. The surface facts and their verified-on record live in
 [bundled-design.md](bundled-design.md).
+
+**Verification record, `design`.** Claim: the bundled `design` skill registers as
+model-invocation-disabled, user-invocable, and gated, and settings can remove it
+(`disableBundledSkills`, or a `skillOverrides` entry naming `design`). Basis: a binary extraction
+of Claude Code 2.1.285 on 2026-09-29 (the `design` registration reads `model_invocable` false,
+`user_invocable` true, `gated` true); the `disableBundledSkills` and `skillOverrides` rows on
+<https://code.claude.com/docs/en/settings-reference>, fetched that day; the canvas gates per
+[bundled-design.md](bundled-design.md). As of 2026-09-29. Recheck when a
+release makes the `design` registration model-invocable, changes its description (the identity
+string the offer quotes), changes its gating, or splits or merges its registrations.

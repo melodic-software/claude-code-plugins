@@ -32,7 +32,8 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
   previous generation are now suspect).
 - The repo's instruction surface has grown past the point anyone can say which lines still earn
   their cost.
-- On a cadence the operator chooses (see Cadence wiring below).
+- On a cadence the operator chooses (see Cadence wiring below). The talk-circuit heuristic is
+  "every six months", but the model release is the real event.
 
 ## Scope and safety rails
 

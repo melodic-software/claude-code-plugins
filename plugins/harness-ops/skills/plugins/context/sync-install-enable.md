@@ -31,8 +31,8 @@ Catalog-dependent: skipped (deferred) for a marketplace whose Step 1 refresh fai
 This step's live `fleet-state.sh --marketplace "$mp"` re-read, the one the
 re-read-before-each-mutating-step rule requires, has already happened: it is the read that gated
 loading this file, saved to the run journal as `pre-install.$mp.json`. Project the ids from that
-file rather than reading a third time. `--from` replaces the second process this step would
-otherwise launch to project the ids, never the re-read itself:
+file rather than reading a third time. `--from` replaces the SECOND process this step used to
+launch, never the re-read itself:
 
 ```bash
 "<skill-dir>/scripts/fleet-state.sh" \
