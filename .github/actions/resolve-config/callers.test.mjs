@@ -251,6 +251,8 @@ for (const [file, job, route, laneSwitch] of [
       GITHUB_TOKEN: "${{ github.token }}",
       PR_NUMBER: "${{ github.event.pull_request.number }}",
       HEAD_SHA: "${{ github.event.pull_request.head.sha }}",
+      PR_BASE_REF: "${{ github.event.pull_request.base.ref }}",
+      PR_HEAD_REPO: "${{ github.event.pull_request.head.repo.full_name }}",
       API_BUDGET_HOLD: "1",
     });
     const checkout = wait.steps.find((s) => s.uses?.startsWith("actions/checkout@"));

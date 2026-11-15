@@ -195,7 +195,7 @@ switch that resumes the lane). While paused, apply the floor's **Account switch*
 entry, on every wake, and on every Monitor tick; [reference/paused-wait.md](reference/paused-wait.md)
 owns the steps. A resume clears `rate_limit_latch`, `paused_until`, and `latched_account` together.
 A lane not opted in clears all three together at cycle start when its block carries them (left by
-an earlier run that paused).
+the former default-on pause).
 
 ## Cycle shape
 
@@ -296,13 +296,15 @@ an earlier run that paused).
    that directory out of the tree this lane runs its gates against.
    **Background-job launch mode.** Launch a background lane from inside an isolated linked git
    worktree of the repository (`git worktree add`, then `claude --bg -n <name> --permission-mode auto` from there, the form
-   `/harness-ops:lanes` launches) to keep the record Write in place: from a linked worktree outside
-   `.claude/worktrees` the record Write lands with no refusal (probed with `claude --bg` on Claude Code 2.1.285),
-   and from a checkout that is not a linked worktree it can be refused (evidence: the issue the pointer below names).
-   Either way the tracker marker comment is the escalation of record, and a refused record Write does not stop
+   `/harness-ops:lanes` launches) to keep the record Write in place. A live probe (`claude --bg`, Claude Code 2.1.285) from a linked worktree outside
+   `.claude/worktrees` wrote the record file there with no refusal, as did an earlier lane
+   (worktree `cc-plugins-lane-2`). A launch from a checkout that is not a linked worktree is not the
+   recommended mode: one lane's record Write there was refused (the refusal is on the issue the pointer below names), and the
+   other outcome of that launch was not probed here. Either way
+   the tracker marker comment is the escalation of record, and a refused record Write does not stop
    the cycle. This lane must not call `EnterWorktree` (it would end the long-lived orchestrator), so
    isolation comes from where the operator launches it. Foreground on the default-branch checkout
-   is the known-good mode.
+   remains the known-good mode.
 
    - **Pointer**: when checking where a background session's first edit lands, fetch
      [How file edits are isolated](https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated)

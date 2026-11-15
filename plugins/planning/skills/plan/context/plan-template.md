@@ -179,7 +179,7 @@ Calibration examples by scale:
 - **Medium:** a new shared library; add a cache to a query handler; a new module in a modular monolith
 - **Large:** module extraction; auth-provider integration; a cross-cutting refactor touching multiple apps and libraries
 
-When a task sits between two scales, use the larger one: rework from a missed assumption costs more than reading a longer plan.
+When in doubt, err toward more detail. A plan that's "too detailed" wastes 30 seconds reading. A plan that's "too brief" wastes 30 minutes fixing assumptions.
 
 ## Script Repeatable Operations (default deliverable)
 
@@ -450,7 +450,7 @@ Review: code-design    # repeated facts, cascades, configurability, testability,
 
 Each tag maps to a `/review:quality-gate` mode: `architecture`, `security` and `code-design` to the mode of the same name, `concurrency` to `/review:quality-gate slice concurrency`. The review rates at the Brief's `Quality bar:` line, which implementation reads from the plan and passes with the phase diff; a phase never repeats it.
 
-Tag `Review: code-design` on any phase that adds or changes a contract, type, module, or a fact or rule several files read, skill and instruction Markdown included; omit it only for trivial edits. A phase that changes only Markdown or a shared value still takes the tag, because the copies it spreads are what that review catches.
+Tag `Review: code-design` on any phase that adds or changes a contract, type, module, or a fact or rule several files read, skill and instruction Markdown included; omit it only for trivial edits. Stumble: phases that only changed Markdown or a shared value went untagged, so no phase-boundary review saw the copies they spread.
 
 A phase that changes what users see or do can also carry one optional evidence value, written as a plain description of the evidence:
 

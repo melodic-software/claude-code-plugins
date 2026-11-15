@@ -3,6 +3,12 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.6] - 2026-11-15
+
+### Changed
+
+- The grounding and update instructions drop capital-letter emphasis.
+
 ## [0.9.5] - 2026-11-13
 
 ### Changed

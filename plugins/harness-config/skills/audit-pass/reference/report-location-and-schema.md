@@ -55,8 +55,9 @@ while excluding its `findings.json`, which is the same unfalsifiable-idempotence
   target at or above it. The default path is *usually* outside the scan set and is **not
   unconditionally** outside it. A dotfiles repository, or `~` itself, is a target where containment
   holds by construction.
-- **`--report-to <dir>` takes a directory, and redirects both artifacts into it.** A file path is
-  refused:
+- **`--report-to <dir>` takes a DIRECTORY, and redirects BOTH artifacts into it.** The flag was
+  specified over "the report" singular, and with two artifacts that reading has to be settled rather
+  than left to the caller. A directory is the answer, and a file path is refused:
 
   - A file path names **one** artifact, so the flag would have to invent the other's destination out
     of it, by appending a second extension or by writing the sibling next to a path the operator
@@ -142,10 +143,10 @@ that classifies it, and a record that is not a well-formed single-line JSON obje
 
 **Assembly is executable, and the selection rules below are what it implements.**
 [`scripts/assemble.sh`](../scripts/assemble.sh) reads the highest-epoch partial, applies the
-highest-terminated-attempt selection, writes `findings.json`, and renders `report.md` from it. A
-script performs it rather than the run improvising it, because it is the one step that decides
-*which rows reach the report*, and a selection rule performed differently on two runs is a P1
-failure the gate cannot attribute. The script needs `python3`, and where that is absent it exits non-zero naming
+highest-terminated-attempt selection, writes `findings.json`, and renders `report.md` from it. It was
+prose before, which put the one step that decides *which rows reach the report* in the same class as
+the steps a run improvises; a selection rule performed differently on two runs is a P1 failure the
+gate cannot attribute. The script needs `python3`, and where that is absent it exits non-zero naming
 the prerequisite and the run performs the selection itself against the rules below, which is why they
 stay stated here in full rather than deferring to the implementation.
 

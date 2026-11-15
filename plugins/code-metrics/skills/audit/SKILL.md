@@ -75,7 +75,7 @@ each plugin variable resolves, and where it is exported: the plugins reference,
 
 - Change scope needs a merge-base with the default branch; outside a git repository, or on a
   branch with no default-branch ancestor, pass paths or `--all` (the usage error says which).
-- The report `skill` field and the dispatcher id are `audit-size`, `audit-complexity` and
-  `audit-type-debt`, not this skill's name: they name the producing script, so a saved report
-  and a new one from the same script compare.
+- The report `skill` field and the dispatcher id stay `audit-size`, `audit-complexity` and
+  `audit-type-debt`: they name the producer, so reports taken before and after the move still
+  compare.
 - Each action's own gotchas are in its file under `actions/`.

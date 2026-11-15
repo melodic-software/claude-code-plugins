@@ -58,6 +58,15 @@ nothing until you say yes. An accepted boundary rule goes into the
 `/corrections:codify`, and a paved-path entry goes to
 `/discipline:reuse-or-replace`, which asks before it writes.
 
+The `layout` lens checks whether the files that change together live together.
+A tested script reads your git history once and finds the files that keep
+changing in the same commits, using code-maat's coupling filters. It groups them
+into clusters and measures how far each cluster spreads over folders. Each
+cluster becomes a card, judged against the layout style your repository has
+written down. Pick one and the lens interviews you on the target layout, then
+hands it to planning. It never moves a file. Its settings are the `layout`
+object in `architecture.yaml`.
+
 ## Across repositories
 
 A second lens works one altitude up, over a *set* of repositories rather than
@@ -187,6 +196,7 @@ your records.
 /architecture:improve deepening  # explicit
 /architecture:improve boundaries # recorded boundary rules against manifest edges
 /architecture:improve conventions # derive conventions and propose rules
+/architecture:improve layout     # do files that change together live together?
 /architecture:principles seam    # define a module-design term
 /architecture:record-decision    # record one decision into the repo's convention
 /architecture:record-decision audit # list ADRs the code no longer backs

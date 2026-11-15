@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [1.1.14] - 2026-11-15
+
+### Changed
+
+- The lever catalogue and setup skill lower-case their capital-letter emphasis.
+
 ## [1.1.13] - 2026-11-15
 
 ### Changed

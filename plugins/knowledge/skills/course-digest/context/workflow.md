@@ -18,7 +18,7 @@
 
 Eight phases executed in order. Each phase produces artifacts consumed by subsequent phases.
 
-**Ordering rule:** all context must be gathered before summarization begins. Module
+**Critical ordering rule:** ALL context must be gathered before summarization begins. Module
 summaries generated from transcripts alone are incomplete. They miss code syntax, visual
 diagrams, repo patterns. Full sequence: Extract → Process Frames → Analyze Code
 Repo → Validate → then Synthesize.

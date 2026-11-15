@@ -3,6 +3,13 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.8] - 2026-11-15
+
+### Changed
+
+- The plugin description counts 18 guards, the two advisory guards' option descriptions say only that they are off by default and how to turn them on, and the README states where the reference verifiers run and how hook budgets are set.
+- The root-delete guard's block messages name the real cause of an unfollowable `cd` and say where a literal path goes for robocopy and .NET delete calls; the setup skill says which actions ask questions.
+
 ## [3.4.7] - 2026-11-15
 
 ### Changed

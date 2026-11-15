@@ -96,7 +96,7 @@ Total typical: 35-50 slides. Order is fixed; sections may be empty (skip the sli
 | 4 | `levels` | AI Generative Levels 0-5 reference | YES |
 | 5 | `open` | "Open share: anyone bring something to share?" | YES, always before news block |
 | 6+ | `news` / `condensed` | Per-bucket HIGH → MED → LOW (see below) | per-bucket |
-| ... | `news` (Legal cluster) | "Legal: <case>" (landmark AI-governance trials, copyright suits) | when window has legal news |
+| ... | `news` (Legal cluster) | "Legal: Musk v. Altman trial" / copyright suits | when window has legal news |
 | ... | `news` (Compute) | NVIDIA / AMD / hyperscaler / datacenter | when window has compute news |
 | ... | `news` (Real-world AI) | Tesla Robotaxi / Waymo / humanoid prod | when window has real-world news |
 | ... | `news` / `condensed` (EXTRAS) | Robotics HIGH → MED → LOW | when extras enabled |
@@ -152,7 +152,7 @@ Every bullet renders all its source URLs. Never drop URLs after the first. Sourc
 
 | Slide | Provider key for logo | When include |
 |---|---|---|
-| **Legal: `<case>`** | `null` (no logo, cross-provider) | major industry-legal news in window: landmark AI-governance trials, copyright suits, state AGs, FTC/DOJ, EU AI Act enforcement |
+| **Legal: `<case>`** | `null` (no logo, cross-provider) | major industry-legal news in window: Musk v. Altman, copyright suits, state AGs, FTC/DOJ, EU AI Act enforcement |
 | **Compute & Infrastructure** | `nvidia` (when dominant) or `null` | chip launches, hyperscaler GPU deals, datacenter capacity |
 | **Real-world AI: autonomous vehicles** | `tesla` (when dominant) or `null` | robotaxi launches, fleet expansions, humanoid production cadence |
 | **Patterns synthesis** | `null` | always when ≥3 cross-bucket themes detected |

@@ -1,6 +1,6 @@
 # Write Tests (TDD Mode)
 
-Write tests in the TDD cadence: Red (failing test) -> Green (make it pass) -> Refactor (clean up), whether test-first or test-alongside. For a testing decision such as whether to mock, whether to test output or state, or which quadrant the code is in, load `/tdd:principles` (when the `tdd` plugin is enabled) for Beck and Khorikov's guidance.
+Write tests in the TDD cadence: Red (failing test) -> Green (make it pass) -> Refactor (clean up), whether test-first or test-alongside. When uncertain about a testing decision (mock this? output or state test? which quadrant is this code in?), load `/tdd:principles` (when the `tdd` plugin is enabled) for Beck and Khorikov's guidance.
 
 ## Vertical slices, not horizontal layers
 
@@ -130,7 +130,7 @@ With `first_test: unit`, start with a unit test of the first behavior on the lis
 
 Name the costs: E2E tests are slower and flakier, and a failure does not say which component broke (poor fault isolation; Wacker, Google Testing Blog, 2015). Offset them: keep the flow count small, retain a trace on failure, and use the failure evidence `/testing:run-e2e` captures (failing step, expected against actual, trace, console and network errors) so the failure report becomes the next prompt. Fault isolation comes from the unit tests inside.
 
-Basis: LLM-written test oracles were measured to assert what the code does rather than what it should do (three papers, measured on LLM test generators over benchmark repositories; the transfer to an interactive agent is inferred). A test written from acceptance criteria before the code exists cannot copy the code's behavior. Recorded in the agent-self-check research slice, 2026-10-06. Recheck trigger: a measurement on interactive coding agents that contradicts it. For acceptance tests written by a separate agent, see [blind-author.md](blind-author.md).
+Basis: LLM-written test oracles were measured to assert what the code does rather than what it should do (three papers, measured on LLM test generators over benchmark repositories; the transfer to an interactive agent is inferred). A test written from acceptance criteria before the code exists cannot copy the code's behavior. Recorded in the agent-self-check research slice, 2026-10-06, prompted by Addy Osmani's 2026-10-05 post (<https://x.com/addyosmani/status/2106995301802541481>). Recheck trigger: a measurement on interactive coding agents that contradicts it. For acceptance tests written by a separate agent, see [blind-author.md](blind-author.md).
 
 ## Verify through the interface, not around it
 

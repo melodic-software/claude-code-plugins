@@ -6,11 +6,11 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **Dependent question in its prerequisite's round:** a question that only makes sense once a sibling in that round is answered makes the user guess or answer out of order. The frontier was computed wrong: move the dependent question to the next round.
 
-- **`AskUserQuestion` without the opt-in, or beyond its cap:** the card surface requires the `use_ask_user_question` user config and a round of mutually independent questions that fits one `AskUserQuestion` call (the per-call question limit: <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>). Prose otherwise.
+- **`AskUserQuestion` without the opt-in, or beyond its cap:** the card surface requires the `use_ask_user_question` user config AND a round of mutually independent questions that fits one `AskUserQuestion` call (the per-call question limit: <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>). Prose otherwise; when in doubt, prose.
 
 - **Silently resolving an unanswered round question to its recommendation:** a partial reply resolves only what was answered; the rest stays open and re-surfaces next round. Only an explicit accept-shorthand ("accept all recommendations") resolves unanswered questions.
 
-- **Asking what a lookup would answer:** a round asks a question the repository's docs and history, current vendor docs, or an already-connected MCP server answers, or a system the user names ("we use Microsoft Teams") gets no offer to connect it. Run the self-answer step on every candidate question (`context/loop.md` "Self-answer gate").
+- **Asking what a lookup would answer:** users saw rounds ask questions the agent could have answered from the repository's docs and history, from current vendor docs, or from an MCP server already connected, and saw a system the user named ("we use Microsoft Teams") get no offer to connect it. Run the self-answer step on every candidate question (`context/loop.md` "Self-answer gate").
 
 - **Silent capture of user design choices:** when a decision has real tradeoffs and no codebase answer, stop and ask; do not fold into the Brief as an assumption.
 
@@ -28,7 +28,7 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **A blocking question fired mid-phase:** a gate that lands after the caller's phase is underway idles a lane nobody is watching. Emit the open set at the phase boundary; justify the exception in one line.
 
-- **Assuming an answer because nobody was there to give one:** unattended, a genuine user decision becomes a named `blocked` row and a `USER-RESERVED` deferred question, never a quietly captured assumption. The caller declares the run unattended; the skill never infers it.
+- **Assuming an answer because nobody was there to give one:** unattended, a genuine user decision becomes a named `blocked` row and a `USER-RESERVED` deferred question, never a quietly captured assumption. There is no way to detect non-interactivity, so the caller declares it.
 
 - **A bundled recommendation locked by accepting its headline:** a design that also picks a platform, a runtime, and a credential reads as one answer, so a "yes" records one row and locks every part the user never saw. List each part under `Commits you to:` with its own row; a part left unlisted is not decided (SKILL.md "A recommendation that fixes more than one decision lists every part").
 

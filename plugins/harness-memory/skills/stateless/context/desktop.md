@@ -9,8 +9,8 @@ versa. Handle both if you want to be stateless everywhere.
 
 ## Guided steps (verify labels in the live app)
 
-These menu labels are not verified against a docs page, and the product UI changes, so treat
-them as directions to the right area, and confirm against what you see:
+The exact menu labels are not verified against a fetched doc in this session and the product
+UI changes, so treat these as directions to the right area, and confirm against what you see:
 
 1. Open **Settings** in Claude Desktop or on claude.ai, and find the **Memory** (or
    personalization) section.

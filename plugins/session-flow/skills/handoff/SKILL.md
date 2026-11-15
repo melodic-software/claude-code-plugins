@@ -56,8 +56,8 @@ save-point engine, different delivery.
   the topic (`/session-flow:handoff phase-3`); with a method present it is the second token. Omitted → inferred
   from context.
 - **Purpose**. Everything after the topic token is optional natural-language purpose text
-  saying what the next session is meant to do, with no quoting or other syntax; an invocation
-  without it parses as method and topic alone. What purpose is allowed to change (emphasis
+  saying what the next session is meant to do, no quoting, no new syntax, and
+  invocations without it parse exactly as before. What purpose is allowed to change (emphasis
   only) and what it may never touch is owned by the engine doc ("The purpose argument tailors
   emphasis only"); parse it from `$ARGUMENTS` in place, never pre-compute.
 

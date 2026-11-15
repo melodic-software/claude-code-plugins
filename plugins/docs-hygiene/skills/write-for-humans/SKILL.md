@@ -18,7 +18,7 @@ holds those rules: the same moment (while the doc is written), a different reade
 
 ## Resolve the standard before you apply one
 
-The project's own style guide wins over anything in this skill it contradicts. Before writing, look for one: a `STYLE.md`, a
+**The project's own style guide wins. Always.** Before writing, look for one: a `STYLE.md`, a
 documentation contributing guide, a house standard named in the contributor docs, or a linter
 config encoding prose rules. A declared standard is authoritative and everything below is a
 fallback you do not reach for. Say which one you resolved, in one line, before you write.

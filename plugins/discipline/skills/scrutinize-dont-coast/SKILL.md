@@ -61,7 +61,7 @@ Declared here per the method doc's "Declared step deltas" allowance:
 The shared method doc's outward-artifact carve-out is unchanged: nothing here files
 a PR, issue, or published comment without the user's explicit opt-in.
 
-## The adversarial pass runs in a fresh context
+## The adversarial pass runs in a fresh context (mandatory)
 
 For every other corrector the method doc's fresh-context re-derivation is an
 escalation; for this one it is the **core step**. It must run as a

@@ -3,6 +3,12 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.13] - 2026-11-15
+
+### Changed
+
+- The README no longer names `spelling` as a formatter that needs repository configuration, and the setup skill drops capital-letter emphasis.
+
 ## [1.1.12] - 2026-11-15
 
 ### Changed

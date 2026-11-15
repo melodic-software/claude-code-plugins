@@ -147,7 +147,8 @@ this loop (evidence-backed properties, failure triage, pinning the minimal input
 than re-deriving it here:
 [`.claude/commands/hypothesis.md`](https://github.com/HypothesisWorks/hypothesis/blob/master/.claude/commands/hypothesis.md).
 
-Basis: the agent-self-check research slice (2026-10-06). Agentic property testing found real bugs
+Basis: the agent-self-check research slice (2026-10-06), prompted by Addy Osmani's 2026-10-05 post
+(<https://x.com/addyosmani/status/2106995301802541481>). Agentic property testing found real bugs
 in mature Python libraries (one workshop paper, NeurIPS 2025), alongside the unsound-property rate
 above. Recheck trigger: a measurement of agents writing properties for their own code under
 development.

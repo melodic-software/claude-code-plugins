@@ -332,6 +332,10 @@ read, so the reload line does not restate it. After the line, answer follow-up q
 and the run directory it names; load [context/sync.md](context/sync.md) when a question is about
 why a step behaved the way it did.
 
+(We observed a plugin updated mid-session keep resolving to the previous version's path, which is
+what the self-update note reports: Claude Code 2.1.240, not re-run on 2.1.261 because it needs an
+interactive session. The record is in [context/gotchas.md](context/gotchas.md).)
+
 ## Stale project records and cache content
 
 Both are findings the render reports and this skill never fixes: a project/local record whose

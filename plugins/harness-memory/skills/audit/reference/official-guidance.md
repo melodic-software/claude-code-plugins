@@ -295,7 +295,8 @@ comes back, and which bodies come back at all, is read at the pointer at run tim
   and [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle)
   (correlate with [Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-hooks-rules-subagents-and-more)).
 
-`AGENTS.md` is its own row's worth of behavior, and the row depends on the repository.
+`AGENTS.md` is its own row's worth of behavior, and the row depends on the repository. The row
+below follows the memory page's current `AGENTS.md` guidance, not its earlier shim-only guidance.
 
 The audit models an `AGENTS.md` as loading either directly, where no `CLAUDE.md`,
 `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it displaces it and
