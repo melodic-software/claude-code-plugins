@@ -68,6 +68,11 @@ wit_wayfind_labels() {
   fi
   if binding="$(wit_find_binding)"; then
     wit_read_binding "$binding" && json="$(wit_effective_binding_json "$binding")" || return 1
+    # wit_role_label stringifies any value, so a list or number would print as the label.
+    jq -e '.config.role_labels["human-gated"] | . == null or type == "string"' <<<"$json" >/dev/null || {
+      wit_invalid "$binding" config.role_labels.human-gated "$(jq -c '.config.role_labels["human-gated"]' <<<"$json")"
+      return 1
+    }
   elif [[ -n "${WORK_ITEM_TRACKER_BINDING:-}" ]]; then
     printf 'work-item-tracker: %s\n' "$(wit_no_binding_reason)" >&2
     return 1

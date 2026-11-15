@@ -614,6 +614,17 @@ run_wayfind_labels "$WREPO"
 assert_eq "wayfind-labels, a non-string prefix → exit 3" "3" "$RC"
 assert_eq "wayfind-labels, a non-string prefix → nothing on stdout" "" "$OUT"
 
+write_binding "$WREPO/$HOME_YAML" 'tracker:
+  schema_version: "1.0"
+  provider: github
+  config:
+    lease_ttl_hours: 24
+    role_labels:
+      human-gated: [owner-call]'
+run_wayfind_labels "$WREPO"
+assert_eq "wayfind-labels, a non-string human-gated label → exit 3" "3" "$RC"
+assert_eq "wayfind-labels, a non-string human-gated label → nothing on stdout" "" "$OUT"
+
 # assert_wayfind_refuses <root> <resolver exit> <what>: the resolver exits as named at
 # <root>, and the verb refuses with nothing on stdout.
 assert_wayfind_refuses() {
