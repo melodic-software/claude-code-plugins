@@ -3,6 +3,21 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.3.0] - 2026-11-15
+
+### Added
+
+- Seam verb `wayfind-labels` and the `/work-items:track wayfind-labels` action print the wayfind
+  label prefix and the human-gated label the binding sets, each with its source. They refuse, with
+  nothing on stdout, when the convention-home pointer is broken or declined, when no home applies,
+  or when the binding is invalid.
+
+### Changed
+
+- `/work-items:work-loop`'s tier-label note names security-surface work, rather than
+  security-surface classes, as what still routes to the frontier dispatch tier; the routing is
+  unchanged.
+
 ## [15.2.0] - 2026-11-15
 
 ### Added

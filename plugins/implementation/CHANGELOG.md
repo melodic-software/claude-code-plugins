@@ -3,6 +3,14 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.4] - 2026-11-15
+
+### Changed
+
+- The `implementer` and `scoped-implementer` agents, `/implementation:implement-dispatch` and its
+  frontier-routing eval prompt say "security-surface work" where they called it a work class; the
+  routing is unchanged.
+
 ## [0.43.3] - 2026-11-15
 
 ### Changed

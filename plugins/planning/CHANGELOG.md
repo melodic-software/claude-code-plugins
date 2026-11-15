@@ -3,6 +3,26 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.5] - 2026-11-15
+
+### Changed
+
+- `/planning:wayfind` gets its label prefix and human-gated label from
+  `/work-items:track wayfind-labels` and stops on its refusal, instead of finding and reading the
+  tracker binding itself. It needs the work-items release that adds that action; with an older
+  one it stops and asks for the plugin to be updated.
+- The three wayfind label eval cases that scaffolded a binding file are replaced by five that
+  supply the `/work-items:track wayfind-labels` reply, one of them a refusal and one an older
+  release's action table, since an eval sandbox loads no other plugin.
+
+- The interview loop, its eval cases, the design reversibility reference and the PRD skill name
+  the trigger a captured assumption or open question carries with the glossary term "recheck
+  trigger"; `interview-defenses.test.sh` re-pins the four digests that cover those lines. No
+  rule changes.
+
+- The plan template's `sonnet` and `frontier` routing rows say "security-surface work" where they
+  called it a work class; the routing is unchanged.
+
 ## [5.1.4] - 2026-11-14
 
 ### Changed
