@@ -1216,7 +1216,7 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
   const jobs = {
     // apply-verdict's resolve-config reads with the job token, recorded under github-token.
     "intake-triage.yml": { "check-born-triaged": "github-token", "apply-verdict": ["lanes-app", "lanes-app github-token"], "refine-select": "github-token", "apply-refinement": "lanes-app" },
-    "work-resolve-issue.yml": { admit: "github-token", "pick-slot": "github-token", "report-statuses": "github-token" },
+    "work-resolve-issue.yml": { "check-admission": "github-token", "pick-slot": "github-token", "report-statuses": "github-token" },
     "pr-verify.yml": { "check-intent": "github-token", "check-intent-subscription": "github-token", "check-intent-fallback": "github-token" },
     // label-unblocked's ACTIONS_TOKEN client records under github-token, so
     // that job logs both: [API_BUDGET_TOKEN, the tokens it logs].
@@ -1232,11 +1232,11 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "pr-unblock.yml": Object.fromEntries(
       ["resolve-conflicts-not-run", "check-conflict-scan-refusal", "address-feedback-not-run", "review-dependency-not-run", "fix-ci-not-run", "fix-ci-unreported", "report-stop-status"].map((job) => [job, "github-token"]),
     ),
-    "pr-review-hosted.yml": { "resolve-model": "github-token", "kill-switch": "github-token", "wait-for-refine": "github-token" },
-    "pr-review-security-hosted.yml": { "resolve-model": "github-token", "kill-switch": "github-token", "wait-for-refine": "github-token" },
+    "pr-review-hosted.yml": { "resolve-model": "github-token", "check-kill-switch": "github-token", "wait-for-refine": "github-token" },
+    "pr-review-security-hosted.yml": { "resolve-model": "github-token", "check-kill-switch": "github-token", "wait-for-refine": "github-token" },
     // Not run, which logs before its head checkout, or scan, which counts its
     // own calls (a key, and no other action from a checkout); both pinned below.
-    "pr-run-activity-read.yml": { "broker-check": "github-token", "check-issue-fields": "github-token", "generate-reuse-summary": "github-token", report: "github-token" },
+    "pr-run-activity-read.yml": { "check-broker": "github-token", "check-issue-fields": "github-token", "generate-reuse-summary": "github-token", report: "github-token" },
     "pr-run-activity-write.yml": { report: "github-token" },
     "maintenance-tidy-code-upkeep.yml": {
       "select-areas": "github-token",

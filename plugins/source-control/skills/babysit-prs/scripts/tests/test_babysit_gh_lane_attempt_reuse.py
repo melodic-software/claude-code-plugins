@@ -170,7 +170,7 @@ class LaneAttemptReuseTests(unittest.TestCase):
         first = runs[0]["attempts"][0]["jobs"]
         self.assertEqual(first[0]["annotations"], [error])
 
-    def test_a_kill_switch_job_under_its_planned_name_is_read(self) -> None:
+    def test_a_kill_switch_job_under_its_current_name_is_read(self) -> None:
         rerun = {**self.run_record, "run_attempt": 2}
         notice = {
             "annotation_level": "notice",

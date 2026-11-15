@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // check-blockers.mjs: the issue lane's admission checks a label added by hand
-// would otherwise skip, in the admit job before any model run. No model, no
+// would otherwise skip, in the check-admission job before any model run. No model, no
 // write; it never fails the job or hands the issue to a person.
 //
 // - Authorship first, by admission's rule (admit.mjs authorAdmitted): an
@@ -40,7 +40,7 @@
 // sweep retries it.
 //
 // With RECHECK=true it is the read runner's in-slot re-check
-// (pr-run-activity-read.yml broker-check), after admission passed and the run
+// (pr-run-activity-read.yml check-broker), after admission passed and the run
 // waited for its slot: one read of the blocked_by list decides when the list
 // is empty (proceed) or names an open blocker (blocked, as above). A list of
 // closed blockers alone takes the full check, since only it judges who

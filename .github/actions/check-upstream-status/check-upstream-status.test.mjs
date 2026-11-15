@@ -165,7 +165,7 @@ test("every gate step fails open: continue-on-error, and no condition requires d
   }
 });
 
-// A hosted review caller's gate skip fails its kill-switch job with this
+// A hosted review caller's gate skip fails its check-kill-switch job with this
 // lane's error, so the run is a failed first attempt the lost-run reconciler
 // re-runs (reconcile.mjs `upstream`), the merge gate binds the re-run
 // (babysit_review_evidence UPSTREAM_STOP_RE) and ci-status names the stop.
@@ -174,7 +174,7 @@ const HOSTED = [
   ["pr-review-security-hosted.yml", "security review", "CLAUDE_SECURITY_REVIEW_DISABLED"],
 ];
 
-test("a hosted review caller fails its kill-switch job when the gate skips the review", () => {
+test("a hosted review caller fails its check-kill-switch job when the gate skips the review", () => {
   for (const [name, what, lane] of HOSTED) {
     const text = workflow(name);
     const step = text.slice(text.indexOf("      - name: Stop on upstream status\n"));

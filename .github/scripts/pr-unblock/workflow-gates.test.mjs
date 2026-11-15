@@ -1134,7 +1134,7 @@ test("every read-runner lane starts its fallback call only on its handoff jobs' 
         ? {
             "github.event.issue_field.id": 48484079,
             "github.event.issue_field_value.option.id": 84879220,
-            "needs.admit.outputs.proceed": "true",
+            "needs.check-admission.outputs.proceed": "true",
             "needs.pick-slot.outputs.capped": "false",
           }
         : {};
@@ -1146,7 +1146,7 @@ test("every read-runner lane starts its fallback call only on its handoff jobs' 
     assert.equal(starts("true", "false"), false, `${fallback} with the fallback token empty`);
     if (file === "work-resolve-issue.yml") {
       assert.equal(
-        evaluate(third.gate, { ...base, "needs.admit.outputs.proceed": "false", [`needs.${evidence}.outputs.handed-off`]: "true", [`needs.${handoff}.outputs.fallback-ready`]: "true" }),
+        evaluate(third.gate, { ...base, "needs.check-admission.outputs.proceed": "false", [`needs.${evidence}.outputs.handed-off`]: "true", [`needs.${handoff}.outputs.fallback-ready`]: "true" }),
         false,
         `${fallback} without admission`,
       );
