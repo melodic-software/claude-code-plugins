@@ -207,7 +207,7 @@ enforce, and content that should become a skill, are routed rather than executed
 replacement mechanism is separate work, and deleting an instruction before its replacement exists
 removes the only thing enforcing it.
 
-## Revisit triggers
+## Recheck triggers
 
 Conditions that should change this plugin, recorded so they are acted on rather than forgotten.
 

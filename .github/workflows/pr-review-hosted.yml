@@ -500,7 +500,7 @@ jobs:
         .github/workflows/maintenance-tidy-code-upkeep.yml
         .github/workflows/post-merge-file-demotion-issues.yml
         .github/workflows/post-merge-test-mutation.yml
-        .github/workflows/pr-feedback-dispatch.yml
+        .github/workflows/pr-dispatch-feedback.yml
         .github/workflows/pr-merge.yml
         .github/workflows/pr-rate-merge-risk.yml
         .github/workflows/pr-refine.yml

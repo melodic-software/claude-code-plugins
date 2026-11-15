@@ -41,7 +41,7 @@ Measured 2026-11-01. The window is pull requests merged in the 7 days before the
 The counter that `loop.review-rounds` caps is the `<!-- pr-unblock:address-feedback-round -->` marker comment on each pull request ([Loop caps](README.md#loop-caps)). `publish-feedback.mjs` posts one marker per address-feedback model run. Counting the markers would take one comment read per pull request, so this baseline counts address-feedback runs instead:
 
 - **Per pull request:** the cohort is the 235 pull requests created and merged in the last day. 193 of them were reviewed.
-  - **Dispatches.** Each `pr-feedback-dispatched-<review run>-<feedback run>` artifact records one dispatched pr-unblock run, not one model run. `pr-feedback-dispatch.yml` uploads it whenever the dispatch step returns a run id.
+  - **Dispatches.** Each `pr-feedback-dispatched-<review run>-<feedback run>` artifact records one dispatched pr-unblock run, not one model run. `pr-dispatch-feedback.yml` uploads it whenever the dispatch step returns a run id.
   - **Join.** A dispatch joins its pull request through the review run's `pr-review-cli-handoff-*` artifact and that artifact's head branch. Both artifacts are kept 1 day.
   - **Where the 80 dispatches landed:**
     - 31 on cohort pull requests.

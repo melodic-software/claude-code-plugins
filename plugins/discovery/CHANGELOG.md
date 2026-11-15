@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [2.1.2] - 2026-11-15
+
+### Changed
+
+- The parent contract points at the plugin philosophy's "Capability tiers" section by its new name.
+
 ## [2.1.1] - 2026-11-14
 
 ### Changed

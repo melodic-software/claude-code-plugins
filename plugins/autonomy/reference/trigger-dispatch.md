@@ -85,7 +85,7 @@ Six class-generic obligations bind every adapter:
 
 ## Work-class classification
 
-Admission and the whole guardrail matrix key on the risk class (`C1`–`C5`), so a queued item
+Admission and the whole guardrail matrix key on the work class (`C1`–`C5`), so a queued item
 needs one. The adapter stamps `signal.work_class` from the classification rules on the org's
 security governance surface; the adapter stamps, never defines, and no repo-local
 (agent-writable) surface may supply the class used for admission:
@@ -158,7 +158,7 @@ every contract schema. Keys:
 | `signal.identity` | dedup identity per obligation 2 |
 | `signal.raw_link` | durable absolute reference to the source event; form branched by origin. Web-origin signals carry an absolute https URL with query and fragment preserved (the telemetry contract's strip rule applies only to the work-item join key); a temporal signal from a local-scheduler surface may carry a durable local/artifact URI (absolute `file:` URI or org artifact-store locator); relative or ephemeral references conform on no branch |
 | `signal.traceparent` | W3C trace context from the trigger hop |
-| `signal.work_class` | optional; the stamped risk class per the classification rules. Absent = evaluated with the work-class axis `"*"` after the `C5` trust tests |
+| `signal.work_class` | optional; the stamped work class per the classification rules. Absent = evaluated with the work-class axis `"*"` after the `C5` trust tests |
 | `signal.parent_item` | required when `signal.class` is `agent-internal`: canonical URL of the emitting session's admitted source item, verified against the queue's lease record |
 | `signal.source_surface` | required when `signal.class` is `temporal`: the originating scheduling surface's id as recorded in the org's trigger/routine binding, the discriminator raw-link form validation branches on |
 | `signal.routine` | required for a routine-fired `temporal` signal, one whose identity a `routines.enabled` entry records against the emitting surface (the surface record itself may live under `triggers` and be reused); forbidden on every non-temporal class, and absent on a detector-fired `temporal` signal. The routine identity the emitting schedule claims ([routine contract](routines.md)); a claim validated against the enablement record and the security binding's protected identity-to-surface association (one identity per surface) before any `signal.work_class` stamp. An unvalidated or mismatched claim fails the routine identity trust hold and enqueues human-gated |

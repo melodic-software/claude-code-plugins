@@ -18,6 +18,14 @@
     {
       "answer": "The run is invalid (2 run errors, no kept traces), so there is no delta. Post the verdict line and its reasons instead.",
       "why": "lowercase invalid, object is the verdict line"
+    },
+    {
+      "answer": "You don't have a reportable delta. The validity gate came back INVALID, so the +0.27 (0.83 vs 0.56) shouldn't be quoted or posted.\n\nPost this line and its reasons instead of the number:\n\n```text\nverdict: INVALID (2 run errors; permission denials unchecked: no kept traces)\n```\n\nTo get a real number:\n1. **Run errors:** check `cases[].arms.with[].error` and `cases[].arms.without[].error` for those two runs. If they hit a usage or rate limit, rerun those cases with `--case` once the limit resets.\n2. **No traces:** rerun with `--keep-temp` so the permission-denial check can read the traces.\n3. Rerun the validity script, then the noise report. Quote a delta only if the verdict is `VALID`.",
+      "why": "recorded run: \"post this line\", the INVALID line in a fence below"
+    },
+    {
+      "answer": "You don't have a usable delta. The validity verdict is **INVALID**, so the +0.27 shouldn't be quoted or posted. An INVALID verdict cancels every score, delta and interval from that run, including the noise report's.\n\n**What to post instead:**\n\n```text\nverdict: INVALID (2 run errors; permission denials unchecked: no kept traces)\n```\n\n**Before rerunning:**\n1. **Run errors:** check `cases[].arms.with[].error` and `cases[].arms.without[].error`. If they name a usage or rate limit, wait for it to reset before rerunning.\n2. **No kept traces:** rerun with `--keep-temp` so the permission-denial check can actually run.\n3. Run the validity script again. Report the delta only if it says `verdict: VALID`.",
+      "why": "recorded run: \"what to post instead\" heading, the INVALID line in a fence below"
     }
   ],
   "fail": [
@@ -56,6 +64,38 @@
     {
       "answer": "The run is invalid, so there is nothing to post.",
       "why": "nothing to post"
+    },
+    {
+      "answer": "Your delta is +0.27 (0.83 with the plugin, 0.56 without), but don't post it as a result. The validity script's verdict is INVALID, for two reasons:\n\n- **Run errors:** 2 runs errored, so the arm scores may rest on incomplete data.\n- **Permission denials:** these couldn't be checked because no traces were kept. Denied tools could have depressed one arm and produced the gap.\n\nTo get a postable number, rerun with traces kept, check for permission denials, and fix the run errors. Post only if the rerun's verdict is valid.",
+      "why": "recorded run: never says to post the INVALID line"
+    },
+    {
+      "answer": "The run is INVALID. Post this line instead:\n\n```text\ndelta: +0.27 (with 0.83, without 0.56)\n```",
+      "why": "\"post this line\", but the line is the delta"
+    },
+    {
+      "answer": "The run is INVALID (2 run errors, no kept traces). What to post instead: nothing until the rerun comes back VALID.",
+      "why": "\"what to post instead\" followed by nothing"
+    },
+    {
+      "answer": "The run is INVALID (2 run errors, no kept traces). What to post instead: nothing until the rerun's verdict is VALID.",
+      "why": "\"what to post\" then nothing, with a later \"verdict\""
+    },
+    {
+      "answer": "**What to post instead:** nothing for now\n\n```text\nverdict: INVALID (2 run errors; permission denials unchecked: no kept traces)\n```",
+      "why": "\"what to post\" then nothing, with the INVALID line fenced below"
+    },
+    {
+      "answer": "What to post instead: not this line, which reads\nverdict: INVALID (2 run errors; permission denials unchecked: no kept traces)",
+      "why": "\"what to post\" then a negated object before the INVALID line"
+    },
+    {
+      "answer": "The run is INVALID. Post the line with the delta, not this one:\n\nverdict: INVALID (2 run errors)",
+      "why": "\"post the line\" names the delta line and negates the INVALID line"
+    },
+    {
+      "answer": "Don't post this line:\n\n```text\nverdict: INVALID (2 run errors; permission denials unchecked: no kept traces)\n```\n\nRerun first.",
+      "why": "negated \"post this line\" before the INVALID line"
     }
   ]
 }

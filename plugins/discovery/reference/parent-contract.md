@@ -172,7 +172,7 @@ subagent-model environment settings is not restated here. Record:
 for a collision or a parallel fan-out. No one can tell from the path alone which ancestor
 is the configured root, and the root is where the self-ignoring `.gitignore` guard belongs. An agent
 that has to derive it derives-and-flags rather than stopping, so the cost is a recoverable wrong
-guess, not a halt: it is the one envelope field an agent repairs by deriving a value. The
+guess, not a halt. It is the one envelope field an agent repairs by deriving a value. The
 `Turn budget:` line is also degradable, but its absence falls back to a fixed default rather than a
 derived guess. Topic/scope, reason and slice path are the hard stop.
 
@@ -215,7 +215,7 @@ Run whichever matches the shell this session actually has. On Windows without Gi
 PowerShell, and the POSIX line fails there in a way that reads as a broken instruction rather than a
 wrong shell.
 
-Creating the directory is not decoration: on a first-time topic the slice does not exist yet, a bare
+The directory has to be created, because on a first-time topic the slice does not exist yet, a bare
 `touch` fails there, and the dispatch either stops before it starts or reaches a gate with no
 baseline to grade against. A baseline the parent *named* but did not create exits 2 rather than
 quietly reporting `freshness=unchecked`. A check the caller asked for and only appeared to get is
@@ -552,7 +552,7 @@ cost defect for the same reason; how it resolves is at the pointer.
 *Decision.* `research-verifier` grades outcome-gate rows 4, 7, 12 and 14, the rows the producer may
 not grade, so it is a verdict lane and pins `model: opus` and `effort: high`; `explorer`,
 mechanical preparation, stays on `sonnet` at `effort: medium`. *Pointer:*
-[docs/plugin-philosophy.md](../../../docs/plugin-philosophy.md), "Model tiers" (the verdict rule
+[docs/plugin-philosophy.md](../../../docs/plugin-philosophy.md), "Capability tiers" (the verdict rule
 in its ladder) and "Effort tiers" (consequential-output lanes pin `high`; the pinned-agents
 record). *Recheck trigger:* an edit to the
 philosophy's tier rule, lane rule, or pinned-agents record.

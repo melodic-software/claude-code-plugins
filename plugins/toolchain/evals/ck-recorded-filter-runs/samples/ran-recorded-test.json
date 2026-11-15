@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "zig build src/sum.zig\nzig test\nzig check src/sum.zig\n",
+      "why": "the recorded test-cmd ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "zig build src/sum.zig\nzig check src/sum.zig\n",
+      "why": "test phase skipped"
+    },
+    {
+      "answer": "",
+      "why": "nothing ran: the filter went to rung 3"
+    }
+  ]
+}

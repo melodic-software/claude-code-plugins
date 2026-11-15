@@ -42,7 +42,7 @@ The row is derived through the catalog's mapping rules, never hand-assigned:
    blocking deterministic and AI review, and auto-merge only after the `C3-auto-merge`
    promotion, regardless of how small the edit looks.
 3. **Composition rule.** Where one derivation matches multiple rules, it composes to the
-   highest-risk class (`C5` > `C4` > `C3` > `C2` > `C1`). A run emitting only the report
+   highest-risk work class (`C5` > `C4` > `C3` > `C2` > `C1`). A run emitting only the report
    and work items stays `C1`; any run producing the gated CI-config change carries the
    composed `C4` row for that change, and the lower advisory row never dilutes it.
 

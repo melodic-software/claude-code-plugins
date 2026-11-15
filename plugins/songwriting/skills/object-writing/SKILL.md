@@ -115,7 +115,7 @@ Dispatch rules:
    to save cost is the writer's call, not the plugin's: ask, and never record the answer as his
    without a source that says so.
 
-   Model tier is not what makes the fleet diverge; rule 2's isolation is. Any creative fan-out this
+   Capability tier is not what makes the fleet diverge; rule 2's isolation is. Any creative fan-out this
    plugin adds later inherits this rule.
 
 **Never transcribe a write into lines.** The whole page is ore; Pat's discipline is to pull one

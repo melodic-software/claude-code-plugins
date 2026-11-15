@@ -3,6 +3,24 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.2.2] - 2026-11-14
+
+### Fixed
+
+- Reviewer media no longer posts a walkthrough with long silent pauses unnoticed: each moment's
+  narration is sized to its frames' reading time, and a `SILENT:` moment from the render is
+  lengthened or split and rendered once more, with any pause left named in the report.
+
+## [9.2.1] - 2026-11-14
+
+### Fixed
+
+- `/review:reviewer-media` checks that `/explainer-video:produce` is loaded before it claims a
+  pull request's head, on a direct run and on `--handoff`. Without it the build skips with reason
+  `producer-unavailable` (`decide.mjs --producer-unavailable`), so no head is left claimed with
+  nothing able to finish it. A missing `/speech:narrate` still builds captions-only and the
+  report says narration is unavailable.
+
 ## [9.2.0] - 2026-11-14
 
 ### Added

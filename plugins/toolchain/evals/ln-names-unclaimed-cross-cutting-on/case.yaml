@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: ln-names-unclaimed-cross-cutting-on
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: cross-cutting-ran
+    type: regex
+    pattern: '^cross-cutting check\b'
+    flags: m
+    target: { source: file, path: .calls.log }
+  - name: rs-cross-cutting-only
+    type: regex
+    pattern: 'cross-cutting text checks only[^\n]{0,200}?\bsrc/lib\.rs\b'
+    flags: i
+    target: last_message
+  - name: rs-not-outside
+    type: regex
+    pattern: '^[^\w\n]{0,6}Outside every ecosystem[^\w\n]{0,6}:[^\n]*\bsrc/lib\.rs\b'
+    flags: im
+    match: not_contains
+    target: last_message
+  - name: overall-pass
+    type: regex
+    pattern: 'Overall\W{0,8}PASS\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is bare `/toolchain:lint` in a repository with tracked markdown and cross-cutting configs (cross-cutting opted in by a _typos.toml), where `docs/guide.md` and `src/lib.rs` changed and no ecosystem other than cross-cutting claims `src/lib.rs`. It passes when the reply runs and reports markdown and cross-cutting, names `src/lib.rs` as a changed file with no ecosystem linter that only cross-cutting''s text checks covered (not passed over in silence, and not called outside every ecosystem, since cross-cutting checked it), and reads the Overall line as PASS: naming the file neither fails the run nor makes it INCOMPLETE.'

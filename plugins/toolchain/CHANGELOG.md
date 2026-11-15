@@ -3,6 +3,32 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.0] - 2026-11-14
+
+### Changed
+
+- `/toolchain:check` and `/toolchain:lint` accept any covered ecosystem id as a filter: one with a
+  record under `.claude/ecosystems/` at any layer, one inferred this run from the repo's build
+  files, or one with a bundled default. Detection, `all` and the outside-every-ecosystem rule read
+  the same set. The resolution ladder's new "Covered ecosystems" section defines it: before
+  detection, a run infers each ecosystem whose build files it finds with no record or bundled
+  default (a `Cargo.toml`, say) and names each inferred id with its globs. A filter that nothing
+  covers is asked about, or, with nobody to ask, runs nothing and is reported. `/toolchain:check`
+  still leaves the lint-only `yaml` and `cross-cutting` surfaces to `/toolchain:lint`.
+- `/toolchain:lint` resolves an ecosystem with no record by inferring from the repo's build files
+  before it falls back to the bundled default, as `/toolchain:check` already did.
+
+## [1.3.0] - 2026-11-14
+
+### Changed
+
+- `/toolchain:lint` and `/toolchain:check` name each changed text file no ecosystem's globs claim,
+  instead of skipping it silently; cross-cutting's `**` is never a claim by itself. Lint puts such a
+  file on `No ecosystem linter (cross-cutting text checks only)` when cross-cutting ran, and on
+  `Outside every ecosystem` when it did not; check, which never runs cross-cutting, uses only the
+  second line. A binary or deleted file is not named, and neither line changes a Status or the
+  Overall line.
+
 ## [1.2.9] - 2026-11-14
 
 ### Fixed

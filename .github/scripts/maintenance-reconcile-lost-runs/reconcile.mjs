@@ -83,7 +83,7 @@
 //   PENDING_BACKOFF_MINUTES ago. rerun-ci-status re-runs that ci-status when
 //   the review completes, unless it was lost or held it: it holds a lanes App
 //   PR's while the kill switch is on. Re-run as a Stop is, with no lookback.
-// - Verdict: a pr-feedback-dispatch.yml run, at attempt 1, whose only failed
+// - Verdict: a pr-dispatch-feedback.yml run, at attempt 1, whose only failed
 //   job is post-verify-notes and whose only failed step there is its
 //   kill-switch stop (VERDICT_STOP_STEP): a pr-verify verdict finished while
 //   the switch was on, so its notes, or its pr-verify-failed label added or
@@ -99,7 +99,7 @@
 //   while GitHub Actions or npm listed an outage, so the head has no review.
 //   Its failed jobs are re-run once, inside the lookback, only while that gate
 //   would now let it run (check-upstream-status.mjs). The re-run carries a
-//   record, which pr-feedback-dispatch.yml's rerun-ci-status reads, so
+//   record, which pr-dispatch-feedback.yml's rerun-ci-status reads, so
 //   pr-verify's gate accepts the ci-status re-run the review's completion causes.
 //   A person's re-run of the review becomes attempt 3, which the merge gate
 //   never binds. The reusable's bot check reads `github.actor`, which a
@@ -295,13 +295,15 @@ export const INTAKE = ".github/workflows/intake-triage.yml";
 // intake-label-needs-triage names it on a run from before the rename.
 export const INTAKE_LABEL_JOBS = ["Intake Label Needs Triage", "intake-label-needs-triage"];
 const isIntakeLabelJob = (job) => INTAKE_LABEL_JOBS.some((name) => String(job?.name ?? "").startsWith(`${name} / `));
-// pr-feedback-dispatch's job that applies a pr-verify verdict to its PR, and
+// pr-dispatch-feedback's job that applies a pr-verify verdict to its PR, and
 // the step that fails that job while the lanes kill switch is on: the failed
 // first attempt is the record of a verdict not yet applied. Re-running its
 // failed jobs, once, applies it (verify-notes.mjs posts only what is missing).
 // A job that failed at any other step (a refused dequeue, a verdict name no
 // reader takes) is a red for a person, never re-run here.
-export const VERDICT_DISPATCH = ".github/workflows/pr-feedback-dispatch.yml";
+export const VERDICT_DISPATCH = ".github/workflows/pr-dispatch-feedback.yml";
+// A run keeps the path it started from: one from before the file was renamed.
+export const PREVIOUS_VERDICT_DISPATCH = ".github/workflows/pr-feedback-dispatch.yml";
 // post-verify-notes names it on a run from before the rename.
 export const VERDICT_JOBS = new Set(["Post Verify Notes", "post-verify-notes"]);
 export const VERDICT_STOP_STEP = "Stop on the kill switch";
@@ -523,7 +525,7 @@ const isLostAgain = (r, since) => r.status === "completed" && LOST.has(r.conclus
 const isFailedIntake = (r, since) =>
   r.path === INTAKE && r.event === "issues" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
 const isStoppedVerdict = (r, since) =>
-  r.path === VERDICT_DISPATCH && r.event === "workflow_run" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
+  (r.path === VERDICT_DISPATCH || r.path === PREVIOUS_VERDICT_DISPATCH) && r.event === "workflow_run" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
 const isLostLane = (r, since) =>
   r.event === "workflow_run" &&
   r.head_branch === "main" &&
@@ -591,9 +593,9 @@ const EXIT_NOTE = /^Process completed with exit code [0-9]+\.$/;
 // reconcile.test.mjs pins both there).
 // Each ends in the step's re-run note: since the step waits for a review
 // (#12447) it names the wait; a run from before writes the older tail.
-const RERUN_TAIL = String.raw`(?:ci-status re-runs when the review finishes\.|ci-status waited [0-9]+s for it; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed\.)`;
+const RERUN_TAIL = String.raw`(?:ci-status re-runs when the review finishes\.|ci-status waited [0-9]+s for it; pr-(?:feedback-dispatch|dispatch-feedback) re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed\.)`;
 export const PENDING_REVIEW_NOTE = new RegExp(String.raw`^'[^']+' has not finished on [0-9a-f]{40} \(https:\/\/[^ ]+\)\. ${RERUN_TAIL}$`);
-const MISSING_TAIL = String.raw`(?:${RERUN_TAIL}|ci-status does not wait for a lane with no run; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed\.)`;
+const MISSING_TAIL = String.raw`(?:${RERUN_TAIL}|ci-status does not wait for a lane with no run; pr-(?:feedback-dispatch|dispatch-feedback) re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed\.)`;
 export const MISSING_REVIEW_NOTE = new RegExp(String.raw`^'[^']+' is missing: no [a-z-]+\.yml run on [0-9a-f]{40} yet\. ${MISSING_TAIL}$`);
 // True when ci-status's only failure is its review-lane step on reviews not
 // done: one or more pending or missing notes and that step's one exit note.
@@ -663,7 +665,7 @@ export function classify(runs, since) {
 
 // A CI item with its record, when its re-run makes attempt 2 of a recorded
 // upstream, or of a stopped hosted review, whose completion re-runs ci-status
-// (pr-feedback-dispatch.yml rerun-ci-status). One PR holds one run per
+// (pr-dispatch-feedback.yml rerun-ci-status). One PR holds one run per
 // workflow, so a place holds at most three records: pr-require-checks' and
 // both hosted reviews'.
 // The attempt an item's re-run starts: the one after the attempt it read (a
@@ -1528,7 +1530,12 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   let stopped = [];
   try {
     const listed = await paginate(runsPage, `/repos/${repo}/actions/workflows/${workflowFile(VERDICT_DISPATCH)}/runs?created=${created}&status=failure`, LANE_RUN_PAGES);
-    stopped = listed.filter((r) => isStoppedVerdict(r, since)).sort(byAge);
+    // The earlier file has no runs to list once they age out or are deleted.
+    const earlier = await paginate(runsPage, `/repos/${repo}/actions/workflows/${workflowFile(PREVIOUS_VERDICT_DISPATCH)}/runs?created=${created}&status=failure`, LANE_RUN_PAGES).catch((error) => {
+      if (error?.status !== 404) noteFailure(PREVIOUS_VERDICT_DISPATCH, error);
+      return [];
+    });
+    stopped = listed.concat(earlier).filter((r) => isStoppedVerdict(r, since)).sort(byAge);
   } catch (error) {
     noteFailure(VERDICT_DISPATCH, error);
   }

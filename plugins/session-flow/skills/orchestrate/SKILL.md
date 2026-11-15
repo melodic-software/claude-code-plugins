@@ -58,10 +58,10 @@ told:
    toward delegating context-heavy legs and shrinking what returns; a healthy zone is license to
    keep sequential, shared-context work inline.
 2. SPEC EVERY SPAWN. Every brief states why the work is wanted, what done looks like, when to
-   stop and ask, and a deliberately chosen model tier, on top of the brief elements the
+   stop and ask, and a deliberately chosen capability tier, on top of the brief elements the
    multi-agent post lists. Pointer: [Give the reason, not only the request](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#give-the-reason-not-only-the-request);
    correlate with <https://www.anthropic.com/engineering/multi-agent-research-system> for the
-   brief elements, which no docs page covers. Name the model tier deliberately rather than leaving
+   brief elements, which no docs page covers. Name the capability tier deliberately rather than leaving
    it unspecified: what an omitted `model` resolves to, with or without a consumer-level
    subagent-model override, is upstream behavior
    (pointer: <https://code.claude.com/docs/en/sub-agents#choose-a-model>).
@@ -118,7 +118,7 @@ told:
    capability (a stronger model reaches further single-agent; a weaker one needs more decomposition
    and tighter specs), whether a capable advisor/verifier is on hand, current context pressure
    (delegate to protect a filling window; stay inline when it is roomy). Usage or rate-limit headroom
-   never lowers model tier, effort, review depth or worker count; pacing is the user's call. Back
+   never lowers capability tier, effort, review depth or worker count; pacing is the user's call. Back
    off only on this session's own rate-limit errors or on live sibling-automation 429s already
    visible to the session (for example review-lane infra comments classifying
    `api_error_status: 429`); scale back up only after those reactive signals stop, never on a

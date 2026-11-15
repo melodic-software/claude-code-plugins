@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.9] - 2026-11-15
+
+### Changed
+
+- The guardrail and routine references call the C1 to C5 classes work classes, the glossary's term, in place of risk classes.
+
 ## [5.0.8] - 2026-11-14
 
 ### Fixed

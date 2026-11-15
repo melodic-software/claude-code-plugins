@@ -237,7 +237,7 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   consumption of that classification, not a second contract. Pointer:
   `plugins/rate-limits/reference/reader-contract.md` ("Capability detection (fail-open)",
   "Cloud / remote sessions").
-- **Per-worker model tier is an explicit spawn decision.** Every spawn names a model tier,
+- **Per-worker capability tier is an explicit spawn decision.** Every spawn names a capability tier,
   because a spawn that names none, for an agent whose definition names none, can fall through to
   the parent session's model: the mechanism behind premium-model fan-outs (imperatives 2 and 7's
   tiering clauses). Pointer: <https://code.claude.com/docs/en/sub-agents#choose-a-model> and

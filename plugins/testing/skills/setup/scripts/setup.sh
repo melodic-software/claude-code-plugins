@@ -331,7 +331,7 @@ check() {
       fi
       ;;
     bash | pwsh | go) report "$l" "-" NONE "no maintained rule" ;;
-    *) ;;
+    *) report "$l" "-" NONE "setup has no lint check for this language" ;;
     esac
   done
 
