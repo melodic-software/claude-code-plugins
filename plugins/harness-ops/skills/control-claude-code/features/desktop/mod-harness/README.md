@@ -26,12 +26,12 @@ First check the mod has a test that mounts a render site for the Desktop app; wi
 that and stop this feature.
 
 1. Run `claude plugin test <plugin-dir>`, and save its output and exit status to
-   `<run-dir>/desktop-mod-harness.txt`. Result: a line per test naming it and whether it passed,
-   such as `(pass) <name>`, then `<n> pass` and `<n> fail`; exit 0 when every test passes, 1 when one fails or the shell cannot load
-   mods (a line starting `claude plugin test: hooks modules are turned off`).
-2. **Proof.** Result: `<run-dir>/desktop-mod-harness.txt` lists the Desktop render-site test as
-   `(pass)`, `0 fail` and exit status 0; that saved output, no `## Capture` kind, is the
-   evidence. Captures: none
+   `<run-dir>/desktop-mod-harness.txt`. Result: the saved file names the Desktop render-site test
+   and shows it passed, and the command succeeded. How the test kit prints its results and how it
+   fails: the test-kit pointer in Gotchas.
+2. **Proof.** Result: `<run-dir>/desktop-mod-harness.txt` shows the Desktop render-site test
+   passed and the command succeeded; that saved output, no `## Capture` kind, is the evidence.
+   Captures: none
 
 ## Gotchas
 

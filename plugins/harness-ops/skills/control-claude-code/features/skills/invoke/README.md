@@ -36,7 +36,7 @@ First read the skill's SKILL.md for its arguments and the text its output starts
 3. For the plain-words entry point, type the request instead, and `wait-for` the same text.
    Result: the same output shows below the request, and the driver prints `seen: <that text>`.
 4. Capture `logs` with the same slash command as the prompt. Result: the driver prints
-   `log: <path> (claude exit 0, apiKeySource <source>)` and exits 0, and the `.jsonl` holds the
+   its `log: <path>` line and exits 0, and the `.jsonl` holds the
    skill's output.
 5. **Proof.** Result: the transcript shows the skill's output, starting with the text its
    SKILL.md gives, for each entry point driven. Captures: screenshot

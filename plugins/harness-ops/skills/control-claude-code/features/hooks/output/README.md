@@ -33,7 +33,7 @@ hook shows.
    `seen: <that text>`, and `screenshot` prints the `.png` path; with no such text by `stepMs`,
    `wait-for` exits 1.
 3. Capture `logs` with the same prompt. Result: the driver prints
-   `log: <path> (claude exit 0, apiKeySource <source>)` and exits 0, and the `.jsonl` holds the
+   its `log: <path>` line and exits 0, and the `.jsonl` holds the
    turn the hook ran in.
 4. **Proof.** Result: the session shows the text the plugin's README says the hook shows when its
    event fires. Captures: screenshot

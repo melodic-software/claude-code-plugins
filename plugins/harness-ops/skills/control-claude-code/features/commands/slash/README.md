@@ -27,7 +27,7 @@ None: the menu keeps no state. Clear the prompt with `type --key Escape --sessio
 First read the plugin's skills and mods for the command names.
 
 1. `type "/<first letters of the name>" --session <session>`. Result: the driver prints `typed`,
-   and the slash menu opens under the prompt.
+   and the slash menu opens.
 2. `wait-for "<command name>" --session <session>`, then capture `screenshot`. Result: the menu,
    narrowed by the typed letters, lists the command, the driver prints `seen: <command name>`,
    and `screenshot` prints the `.png` path; with no such name by `stepMs`, `wait-for` exits 1.
