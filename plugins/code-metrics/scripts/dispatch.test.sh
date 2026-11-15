@@ -61,6 +61,16 @@ GUARD_HOME="$(mktemp -d)"
 guard_lane=python
 mkdir -p "$GUARD_HOME/.claude/ecosystems"
 printf 'globs: ["*.cm-home-guard"]\n' >"$GUARD_HOME/.claude/ecosystems/$guard_lane.yaml"
+# A repository whose own team layer sets the python lane's globs (this one's
+# .claude/ecosystems does) outranks that user-global value, so the globs alone
+# would leave cm_sample.py in the python lane. `enabled`, which no team file
+# here sets, survives the merge and turns the python lane off. A guard lane the
+# user-global layer lists then claims the python fixture, keeping it measured
+# outside the python lane in any repository.
+printf 'enabled: false\n' >>"$GUARD_HOME/.claude/ecosystems/$guard_lane.yaml"
+guard_claim_lane=cm-home-guard
+printf 'lanes:\n  %s:\n    enabled: true\n' "$guard_claim_lane" >"$GUARD_HOME/.claude/code-metrics.yaml"
+printf 'globs: ["*.py"]\n' >"$GUARD_HOME/.claude/ecosystems/$guard_claim_lane.yaml"
 export HOME="$GUARD_HOME"
 trap 'rm -rf "$STUBS" "$EMPTY_PATH" "$TEST_HOME" "$GUARD_HOME"' EXIT
 cat >"$STUBS/scc" <<EOF
