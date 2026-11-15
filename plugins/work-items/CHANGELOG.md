@@ -3,6 +3,16 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.2.0] - 2026-11-15
+
+### Added
+
+- `/work-items:measure-delivery --merge-risk` counts, per merge-risk `demote` group, the rated
+  merges and those later met by a post-merge demotion record, a silent-revert canary record or a
+  revert on the default branch, with a per-lane breakdown where the rating names the lane run. It
+  prints "not enough failures to compare" in place of a rate while either group has fewer than 5
+  failures, reads the forge only on GitHub, and writes nothing.
+
 ## [15.1.3] - 2026-11-15
 
 ### Changed
