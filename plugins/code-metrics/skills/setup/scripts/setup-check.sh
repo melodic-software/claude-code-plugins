@@ -122,35 +122,67 @@ check_layer "local" "$REPO_ROOT/.claude/code-metrics.local.yaml" no
 
 # The resolver reads an ecosystem record only for a lane in the resolved
 # `lanes` mapping whose id matches its LANE_ID pattern, so the configuration
-# resolves before the ecosystem rows.
+# resolves before the ecosystem rows. The pattern is imported from the
+# resolver, never copied, so the rows cannot drift from what it reads.
 RESOLVED="$(mktemp)"
 LIVE="$(mktemp -d)"
 trap 'rm -rf "$RESOLVED" "$RESOLVED.err" "$LIVE"' EXIT
 resolved_ok=0
 "${PY[@]}" "$SCRIPTS/resolve-config.py" --ladder "$SCRIPTS/collector-ladder.tsv" --home "$HOME_DIR" --repo-root "$REPO_ROOT" >"$RESOLVED" 2>"$RESOLVED.err" && resolved_ok=1
-listed_lanes=" "
-if [[ $resolved_ok -eq 1 ]]; then
-  listed_lanes=" $("${PY[@]}" -I -c '
-import json, re, sys
-lanes = json.load(open(sys.argv[1])).get("lanes") or {}
-print(" ".join(k for k in lanes if re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", k)))
-' "$RESOLVED") "
-fi
 
+ecos=()
+lanes=()
 for eco in "$REPO_ROOT"/.claude/ecosystems/*.yaml; do
   [[ -f "$eco" ]] || continue
   lane="${eco##*/}"
   lane="${lane%.yaml}"
   lane="${lane%.local}"
+  ecos+=("$eco")
+  lanes+=("$lane")
+done
+# One status per lane, in order: invalid (not a lane id the resolver accepts),
+# unknown (the configuration did not resolve), listed, or unlisted.
+statuses=()
+if [[ ${#ecos[@]} -gt 0 ]]; then
+  resolved_doc=""
+  [[ $resolved_ok -eq 1 ]] && resolved_doc="$RESOLVED"
+  mapfile -t statuses < <("${PY[@]}" -I -c '
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("cm_resolve_config", sys.argv[1])
+resolver = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(resolver)
+lanes = (json.load(open(sys.argv[2])).get("lanes") or {}) if sys.argv[2] else None
+for lane in sys.argv[3:]:
+    if not resolver.LANE_ID.fullmatch(lane):
+        print("invalid")
+    elif lanes is None:
+        print("unknown")
+    else:
+        print("listed" if lane in lanes else "unlisted")
+' "$SCRIPTS/resolve-config.py" "$resolved_doc" "${lanes[@]}")
+fi
+
+for i in "${!ecos[@]}"; do
+  eco="${ecos[$i]}"
+  lane="${lanes[$i]}"
   if ! err="$("${PY[@]}" "$SCRIPTS/yaml_subset.py" "$eco" 2>&1 >/dev/null)"; then
     row FAIL "ecosystem ${eco##*/}" "outside the YAML subset: ${err#*: }"
-  elif [[ $resolved_ok -eq 0 ]]; then
-    row WARN "ecosystem ${eco##*/}" "parses; whether lane $lane reads it is unknown because the configuration did not resolve (see the config row)"
-  elif [[ "$listed_lanes" == *" $lane "* ]]; then
-    row PASS "ecosystem ${eco##*/}" "parses; its globs and enabled key are honored for lane detection"
-  else
-    row WARN "ecosystem ${eco##*/}" "parses, but no layer lists lane $lane under lanes, so it is not used for lane detection; add a lanes.$lane entry to a layer to use it"
+    continue
   fi
+  case "${statuses[$i]:-unknown}" in
+  invalid)
+    row WARN "ecosystem ${eco##*/}" "parses, but its file name gives lane id $lane, which is not lowercase kebab-case, so no lane can read it; rename the file to a lowercase kebab-case lane id to use it"
+    ;;
+  listed)
+    row PASS "ecosystem ${eco##*/}" "parses; its globs and enabled key are honored for lane detection"
+    ;;
+  unlisted)
+    row WARN "ecosystem ${eco##*/}" "parses, but no layer lists lane $lane under lanes, so it is not used for lane detection; add a lanes.$lane entry to a layer to use it"
+    ;;
+  *)
+    row WARN "ecosystem ${eco##*/}" "parses; whether lane $lane reads it is unknown because the configuration did not resolve (see the config row)"
+    ;;
+  esac
 done
 
 # ---- resolved references -----------------------------------------------------

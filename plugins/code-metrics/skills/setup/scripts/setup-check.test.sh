@@ -185,6 +185,16 @@ mkdir -p "$eco_repo/docs/conventions"
 printf 'lanes:\n  rust:\n    enabled: true\n' >"$eco_repo/docs/conventions/code-metrics.yaml"
 out="$(bash "$SCRIPT" --repo-root "$eco_repo" --home "$fake")"
 assert_row "a lane a layer lists honors its record" "$out" "PASS  ecosystem rust.yaml +parses; its globs and enabled key are honored for lane detection"
+# A file name that is no lane id the resolver accepts gets a rename row, never
+# advice to add a lanes entry the resolver would refuse.
+printf 'globs:\n  - "**/*.zig"\n' >"$eco_repo/.claude/ecosystems/Zig.yaml"
+out="$(bash "$SCRIPT" --repo-root "$eco_repo" --home "$fake")"
+assert_row "an invalid lane id asks for a rename" "$out" "WARN  ecosystem Zig.yaml +parses, but its file name gives lane id Zig, which is not lowercase kebab-case, so no lane can read it; rename the file"
+if grep -q "lanes.Zig" <<<"$out"; then
+  fail "an invalid lane id gets no lanes entry advice" "no lanes.Zig" "$(printf '%s' "$out" | head -c 600)"
+else
+  pass "an invalid lane id gets no lanes entry advice"
+fi
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))

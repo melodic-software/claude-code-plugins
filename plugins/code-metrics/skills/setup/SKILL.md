@@ -52,8 +52,9 @@ Rows, each PASS, FAIL, WARN, or INFO:
 5. **ecosystem `<lane>.yaml`**: each consumer ecosystem file parses. PASS when its lane is in the
    resolved `lanes` mapping (a bundled lane, or one a layer lists): its `globs` and `enabled`
    override lane detection. WARN naming the missing `lanes.<lane>` entry when no layer lists the
-   lane: the resolver ignores that record. WARN when the configuration does not resolve, since
-   the lane list is then unknown.
+   lane: the resolver ignores that record. WARN asking for a rename when the file name is not a
+   lowercase kebab-case lane id, since no `lanes` entry can name it. WARN when the configuration
+   does not resolve, since the lane list is then unknown.
 6. **reference `<measure>`**: the resolved value with the layer that supplied it and its
    provenance, so a personal layer that changed a value is visible.
 7. **collector `<tool>`**: the adapter's probe, then one measure from the ladder run on a bundled
