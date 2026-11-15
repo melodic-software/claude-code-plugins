@@ -186,9 +186,12 @@ catches which** is the part to keep straight, because the guard heals between th
 - **Step 5.** Any consumer-side ignore rule that **re-includes** the path (a later negation pattern),
   which no amount of writing `*` at the root of the memory tier overrides.
 
-Step 5 can still refuse after the guard has healed, as a consumer negation re-including the path
-does. Such a refusal reports the guard's write alongside it rather than leaving it behind
-unannounced.
+The guard's `.gitignore` is the only write this phase makes outside the findings file, and step 3 is
+what proves it rather than disclosing it. Step 3 cannot be folded into step 5: on a fresh root the
+guard's file is exactly what makes step 5 pass, so a single probe after the guard would be testing a
+state the guard had already created. Step 5 can still refuse after the guard has healed, and a
+consumer negation re-including the path is that case. Such a refusal reports the guard's write
+alongside it rather than leaving it behind unannounced.
 
 ## What each cell says
 

@@ -1,7 +1,8 @@
 # Sources
 
 The doctrine this skill enforces, with what each source contributes. Read the whole passage before
-citing any of them: a fragment is easy to misread, and a quoted rule is not a scoped rule.
+citing any of them: two of these were misread from a fragment during authoring, and a quoted rule is
+not a scoped rule.
 
 - [Fowler, Comments smell, Refactoring 2nd ed. excerpt](https://www.informit.com/articles/article.aspx?p=2952392&seqNum=24),
   "refactor the code so that any comment becomes superfluous".

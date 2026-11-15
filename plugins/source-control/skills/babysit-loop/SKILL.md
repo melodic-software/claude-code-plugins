@@ -410,7 +410,7 @@ A trip of an opted-in lane (the floor's **Pause threshold**) also latches `rate_
 at the idle ceiling and starts no new mutating work; clear it on a fresh healthy snapshot after the
 pause end, or on an account switch that resumes the lane. A lane not opted in clears
 `rate_limit_latch`, `paused_until`, and `latched_account` together at cycle start when its block
-carries them.
+carries them (left by the former default-on pause).
 
 While paused, apply the floor's **Account switch** bullet at pause entry, on every wake, and on every
 Monitor tick. The steps, the `latched_account` fingerprint written at pause entry, and the telemetry

@@ -77,9 +77,8 @@ continues.
 On an unresolvable project root, say the scan did not run and
 give the fix: run from inside the repository you mean to scan, or set
 `$PERMISSION_HYGIENE_SCAN_ROOT` explicitly. That variable is a supported operator lever, not a
-test-only seam; `$PERMISSION_HYGIENE_FIXTURE_DIR` is an alias for it, and
-`$PERMISSION_HYGIENE_SCAN_ROOT` wins when both are set. Never report "no fragile permission grants
-found" on an exit 2.
+test-only seam; `$PERMISSION_HYGIENE_FIXTURE_DIR` still works as a back-compatible alias and the new
+name wins when both are set. Never report "no fragile permission grants found" on an exit 2.
 `settings.local.json` is parsed for its `permissions.allow` array only, never echoed wholesale.
 
 ### Report the denominator, always

@@ -58,16 +58,32 @@ Wikipedia; the page's text is read at the pointer, not stored here.
 - **Recheck trigger**: each `ai-slop` release and each fleet audit. Per-revision rechecking was
   rejected: the page was measured at 50+ edits/week (2026-08-17), so a per-revision trigger would
   fire continuously.
-- **Known fetch gap**: closed 2026-08-21. The catalog-time fetch window missed
-  "Comment-specific indicators" and "Ineffective indicators"; both were retrieved from the pin and
-  from live revision
-  [1370403579](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1370403579).
-  See those sections below.
-- **Sections read at the pin**: `action=parse&oldid=1369699198&prop=wikitext`, section 80 =
-  Ineffective indicators, section 62 = Comment-specific indicators, section 29 = Overuse of em
-  dashes.
-- **Candidate for the next recheck**: the live-page general-prose tell "Vague expression of
-  connection or association", which measured 0 qualifying hits on this corpus.
+- **Known fetch gap**: closed 2026-08-21 for both leftover sections. The catalog-time fetch
+  window missed "Comment-specific indicators" and "Ineffective indicators"; this recheck
+  retrieved them from the catalog pin and from the live page. See those sections below.
+- **Recheck logged (2026-08-21)**:
+  - Live page: <https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing>, MediaWiki
+    revisions query returned revision
+    [1370403579](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1370403579)
+    (`timestamp=2026-08-20T23:13:41Z`, user `Superb Owl`). Retrieved via WebFetch of the
+    article URL plus `action=query&prop=revisions`.
+  - Catalog pin: revision
+    [1369699198](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1369699198)
+    (2026-08-16). Retrieved via `action=parse&oldid=1369699198&prop=wikitext` (section 80 =
+    Ineffective indicators; section 62 = Comment-specific indicators; section 29 = Overuse of
+    em dashes).
+  - The inventory pin stays `1369699198`. This recheck closes the two-section gap; it does
+    not re-derive the rest of the inventory.
+- **Recheck logged (2026-08-25, fleet audit + verified research pass)**: live head revision
+  [1371235958](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1371235958)
+  (2026-08-25). Measured drift since the pin: 4 heading changes across 29 edits; the sections
+  this catalog draws on are byte-identical between pin and head. The research verdict was that
+  the catalog's defects were under-extraction from the pin, not staleness, and this recheck
+  closed them: the source Caveats posture (section below), the em-dash spacing qualifier, the
+  knowledge-cutoff words-to-watch families, and the upstream demotion of lexical diversity.
+  The pin stays `1369699198`. One new live-page general-prose tell ("Vague expression of
+  connection or association") measured 0 qualifying hits on this corpus and is recorded as a
+  candidate for the next recheck rather than a rule.
 
 ## Inventory
 
@@ -784,10 +800,10 @@ Fetch gap closed 2026-08-21 (see the upstream-drift record). This section lists 
 page's own editors consider **unreliable** for LLM detection. It is a guardrail on our roster,
 not a source of new rules. A signal listed here must not become a rule.
 
-**Verdict: no shipped rule appears here.** Compared against the `v1: script` slugs in
-`detect.sh` and the two candidates named when this gap was filed (`rule-em-dash`, a script rule,
-and `rule-rule-of-three`, a rubric tell). Both of those live in other source sections as *valid*
-signs (Style / Language and grammar). The eight ineffective indicators are the same on the catalog
+**Verdict: no shipped rule appears here.** Compared against all 15 `v1: script` slugs in
+`detect.sh`, including the two candidates named when this gap was filed (`rule-em-dash`,
+`rule-rule-of-three`). Both of those live in other source sections as *valid* signs
+(Style / Language and grammar). The eight ineffective indicators are the same on the catalog
 pin (revision 1369699198, parse section 80, 2026-08-16) and the live recheck (revision
 1370403579, retrieved 2026-08-21 from
 <https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing>).

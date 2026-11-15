@@ -114,9 +114,8 @@ through. Pointer: for the payload fields, fetch
 
 **`load_path`**, the ordered chain of entry points through which a surface loaded, is carried as a
 **non-identity** field for diagnosis, capped at **5 entries** and truncated with an explicit marker
-beyond that. The cap is meant to admit the deepest import chain the harness allows; for that depth,
-fetch [memory: import additional files](https://code.claude.com/docs/en/memory#import-additional-files)
-live. It is outside the hash because the same file reached through a second import path is the same
+beyond that. Observed import depth is four hops, so the cap admits the real maximum with one to
+spare. It is outside the hash because the same file reached through a second import path is the same
 content and the same defect.
 
 ### `anchor`: content-derived, granularity-discriminated, versioned
@@ -234,7 +233,9 @@ anchor versions that entry itself stores**, which is what gives assertion 4.5 a 
 **Every one of the hard errors above is checked where the record is written, not where it is read.**
 A partial artifact is append-only and permanent, and `--resume` and assembly are its only readers, so
 a record that violates identity is not a report defect the next run can shrug off: it is persisted
-state that nothing downstream can repair.
+state that nothing downstream can repair. A pass has already shipped a record typed as a finding
+carrying `"identity": null` and no `finding_id/v1`, which 1.3 makes a hard error and which a
+validating emitter would have refused at the append.
 
 So the checks run in [`scripts/finding-identity.sh validate-record`](../scripts/finding-identity.sh),
 and the write path the skill prescribes is `finding-identity.sh guarded-append`, which runs them and

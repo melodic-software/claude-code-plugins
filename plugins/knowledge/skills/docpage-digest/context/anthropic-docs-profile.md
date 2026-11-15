@@ -52,10 +52,11 @@ extraction waits for the third (Rule of Three).
 - **Cite a live page by anchor, never by line number.** These pages gain and lose rows between
   reads and the `.md` channel renumbers with them, so a `<page>.md:<line>` citation rots silently
   into a pointer at an unrelated row. Cite the heading, the table row's key, or the variable name,
-  something the page itself carries. Where an earlier record names a line number, resolve it to
-  the row's key before relying on it. Line numbers into an **archived snapshot** this pipeline
-  captured are unaffected: that file is immutable, which is exactly what makes its line numbers
-  citable.
+  something the page itself carries. Rows on these pages move by a few lines between reads, so a
+  citation recorded as a line number points at an unrelated row within weeks. Where an earlier record
+  names a line number, resolve it to the row's key before relying on it. Line numbers into an
+  **archived snapshot** this pipeline captured are
+  unaffected: that file is immutable, which is exactly what makes its line numbers citable.
 - **Blog posts (`claude.com/blog/...`, correlate-only):** no raw-markdown channel known; fetch rendered and
   extract. Record the channel used. **Three extraction artifacts may reproduce on this channel;
   record each one that does, never repair it.** `source.*` is immutable, so the fix belongs in whatever reads the
@@ -128,7 +129,7 @@ extraction waits for the third (Rule of Three).
   [noted source artifact, not a repaired one](#archive-reading-conventions): an observation is
   qualified where it is thin, never rewritten. This rule is the fleet-wide
   [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route)'s
-  rung 1, which the upstream-drift convention owns for every surface; the asymmetry above stays
+  rung 1, which the upstream-drift convention now owns for every surface; the asymmetry above stays
   here because it is this pipeline's reason for binding the rung to absence claims specifically.
 
 ## Archive-reading conventions
@@ -253,8 +254,9 @@ graduation-time verification cycle, never as a bare edit.
     its target covers asserts a fact about the target. Worked examples: a Next steps bullet such
     as "Test a mod: catch problems before they reach a session", and a "For X, see Y" line,
     take a vocabulary tag; a See also link carrying only a topic label stays
-    `navigation-pointer`.
-- **`cc-applicable`/`mixed` boundary:** a claim row is `mixed` only when that row's own quoted
+    `navigation-pointer`. An already-verified slice tagged the other way retags only inside a
+    graduation-time verification cycle.
+- **`cc-applicable`/`mixed` boundary:** a claim row is `mixed` only when that row's OWN quoted
   text names one of the four API surfaces: an API **request** parameter, an endpoint, an SDK
   call, or a model ID. That holds even when its guidance transfers to the harness. `cc-applicable` is
   reserved for claims naming none of those four. The four-surface list is closed; nothing
@@ -272,7 +274,8 @@ graduation-time verification cycle, never as a bare edit.
     `cc-applicable`.
   - **A hostname is a name, not an endpoint.** An endpoint is a callable address. Worked pair:
     `prUrlTemplate` names `github.com` and stays `cc-applicable`; `skipWebFetchPreflight` names
-    `api.anthropic.com` and is also `cc-applicable`.
+    `api.anthropic.com` and is also `cc-applicable`. Any retag of an already-verified slice
+    executes inside a graduation-time verification cycle, never as a bare edit.
   - **A response field is not a request parameter.** Worked pair: a mod event's token-usage
     field such as `result.usage` stays `cc-applicable`; a row that quotes a literal model ID
     beside it is `mixed` on the model ID.
@@ -290,7 +293,8 @@ graduation-time verification cycle, never as a bare edit.
   tables (Name / Description / Example). The Example cell is part of the claim's own quoted
   text for the four-surface letter rule above. A row whose Example names an API request
   parameter, endpoint, SDK call, or model ID is `mixed` even when the Name/Description cells
-  do not.
+  do not. Where this rule changes an already-verified slice's tag, that retag executes inside a
+  graduation-time verification cycle, never as a bare edit.
 - **The vocabulary binds digest prose, not only claim rows.** The evidence burden a tag asserts,
   a live-doc citation for a positive tag or an absence basis for `api-only`, applies to
   Summary, Implications, and candidate-artifact text as well as to Key-claims rows.
