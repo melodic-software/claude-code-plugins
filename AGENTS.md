@@ -19,8 +19,9 @@ request for any reason, a measured regression included, applies the label at onc
 when the hold ends: a hold kept only in a session, a handoff or a message does not stop another
 session's merge. "Do not merge" in the body or a comment is not enforced by `CI Status`, which
 reads only the label, except on a lanes App pull request, where it also fails on a member's veto
-comment; the babysit merge gate still respects a body hold and human comments, so never override
-one. The hold convention is in `docs/contracts/loop-lane/README.md`.
+comment; the babysit merge gate still respects a body hold and human comments, so do not merge
+over one. The owner deciding the pull request in their own words, in a session or on the pull
+request, lifts it. The hold convention is in `docs/contracts/loop-lane/README.md`.
 
 In this repository a small unrelated review fix in the same plugin as the PR also goes into the PR
 (shared changelog fragment); the rule itself is the scope test in
