@@ -2,6 +2,7 @@
 # The morning-brief status report page: a fixture-fed brief goes through the builder, and
 # hostile issue and pull-request titles must reach the page only as escaped JSON data. When a
 # Chrome or Chromium binary is found the page is also opened from file:// and read back.
+# test-scope: docs/conventions/work-items.yaml
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
