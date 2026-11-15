@@ -19,7 +19,7 @@ in any session.
 | It opens an interactive dialog to view rules by scope, add or remove rules, manage working directories, and review recent auto mode denials | Its commands reference row, <https://code.claude.com/docs/en/commands> | 2026-09-29 | The commands page row changes |
 | Its Auto mode tab views and edits auto mode classifier rules | Same commands row; Claude Code changelog 2.1.246 ("Added an Auto mode tab to `/permissions`") | 2026-09-29 | The commands page row changes or a release removes the tab |
 | Recent auto mode denials, with their reasons, appear in the dialog | Claude Code changelog 2.1.193 ("auto-mode denial reasons to ... `/permissions` recent denials") | 2026-09-29 | A release note changes the recent-denials view |
-| It lists rules without resolving which wins, and there is no CLI export of the merged set | The Purpose section's own verification record in `SKILL.md` | 2026-09-12 | A release note mentions a permissions export or a merged-outcome view |
+| It lists rules without resolving which wins, and there is no CLI export of the merged set | Read live at the Purpose section's pointer in `SKILL.md`: <https://code.claude.com/docs/en/cli-reference#cli-commands> and the `/permissions` row of <https://code.claude.com/docs/en/commands#all-commands> | Read live when the question arises; no stored record | A release note mentions a permissions export or a merged-outcome view |
 
 ## Why the verdict is complementary
 

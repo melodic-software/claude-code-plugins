@@ -9,7 +9,7 @@ metadata:
   cadence: weekly
 ---
 
-**Arguments.** `[sync|converge] [<marketplace>|all] [--allow-downgrade] [--update-other-paths]`. Full form: [action] [<marketplace>|all] [--allow-downgrade] [--update-other-paths]. Actions: sync (default; alias update), converge. The read-only `audit` is its own skill, `/harness-ops:plugins-audit`, which the model may start; this skill is user-only because `sync` can update committed plugin pins in every repository on disk
+**Arguments.** `[sync|converge] [<marketplace>|all] [--allow-downgrade] [--update-other-paths]`. Full form: [action] [<marketplace>|all] [--allow-downgrade] [--update-other-paths]. Actions: sync (default; alias update), converge. The read-only `audit` is its own skill, `/harness-ops:plugins-audit`, which the model may start; this skill is user-only because `sync` can update the project and local plugin pins of every repository on disk
 
 ## Variables
 
@@ -97,7 +97,7 @@ read-only dry run of this algorithm. `help` or an unrecognized action → show t
 
 ## Running `sync`
 
-`sync` executes Steps 1 through 5b and renders Step 6's report as ONE bundled script call:
+`sync` executes Steps 1 through 5b and renders Step 6's report as one bundled script call:
 it prints the JSON digest, then the report. The step sequence, and the reason behind every step,
 stay in [context/sync.md](context/sync.md); the script is bound to that file.
 
@@ -122,7 +122,7 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
 
    `<policy>` is the word from the **Configured value** line under "userConfig: `install_new`"
    below: `all`, `none`, or `ask`, and `ask` when that line still shows the unset placeholder
-   token. Pass the WORD, never the token: a placeholder inside a command is a shell substitution
+   token. Pass the word, never the token: a placeholder inside a command is a shell substitution
    error, not a policy. Any other value is treated as `ask` and named back in the digest's
    `install_new_invalid` so the report can flag it, on the first pass and on an `--only-install`
    re-entry alike.
@@ -332,10 +332,6 @@ read, so the reload line does not restate it. After the line, answer follow-up q
 and the run directory it names; load [context/sync.md](context/sync.md) when a question is about
 why a step behaved the way it did.
 
-(We observed a plugin updated mid-session keep resolving to the previous version's path, which is
-what the self-update note reports: Claude Code 2.1.240, not re-run on 2.1.261 because it needs an
-interactive session. The record is in [context/gotchas.md](context/gotchas.md).)
-
 ## Stale project records and cache content
 
 Both are findings the render reports and this skill never fixes: a project/local record whose
@@ -408,7 +404,7 @@ returns, which is why the **Configured value** line lives here and cannot move t
 the common default-config user, with no `pluginConfigs` set anywhere, the **Configured value** line
 above still shows that literal placeholder token, not `ask`.
 
-Read that literal placeholder token as the **expected unset state → use the default `ask`**, and do NOT
+Read that literal placeholder token as the **expected unset state → use the default `ask`**, and do not
 report it as an invalid value. Only a rendered value that is a real word other than
 `ask`/`all`/`none` (i.e. the key *was* set, to something unsupported) is the invalid-value case worth
 flagging. Sync's Step 4 branches on the **Configured value** line's rendered value, or on the `ask`

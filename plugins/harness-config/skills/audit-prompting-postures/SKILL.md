@@ -13,7 +13,7 @@ metadata:
 
 ## Purpose
 
-The official prompting guide prescribes posture guidance that agentic components should CARRY:
+The official prompting guide prescribes posture guidance that agentic components should carry:
 delegation criteria, scope guardrails, grounding instructions, autonomy postures, confirmation
 gates. `audit-instructions` detects instruction text that is present and wrong; this skill detects
 text that is absent and needed. It classifies each component by purpose, checks the postures that
@@ -49,13 +49,13 @@ live).
 ## Phase A: Fetch the guide
 
 The posture catalog in [reference/postures.md](reference/postures.md) carries, per posture, an
-applicability predicate and a POINTER to the guide section that states the recommended wording.
+applicability predicate and a pointer to the guide section that states the recommended wording.
 It carries no copied sample text, so no proposal is written before the page it cites is in hand. It
 names two kinds of page, fetched at different times and failing differently.
 
 **The best-practices page: fetched here, every run, before any judging.** It is this skill's one
 non-negotiable input: nearly every posture points at it. If it cannot be fetched,
-**ABORT the run**, naming the URL and the failure; continuing would emit a catalog of
+**abort the run**, naming the URL and the failure; continuing would emit a catalog of
 `wording-unverified` postures, a report shaped like an audit that audited nothing. Same posture the sibling takes on its
 own single input (`audit-instructions/SKILL.md`, "Fail loud on ambiguity").
 
@@ -88,7 +88,7 @@ says which scopes honor the setting; resolve the **effective** value across them
 copy, which answers the wrong question whichever way the override runs.
 **The mode is the second question, not the only one, and either can rule the file out.** Availability
 comes first and is not a mode question: a session where support is unavailable, for a reason the
-liveness record lists, reads no `AGENTS.md` under ANY mode, and inventorying one would let Phase C
+liveness record lists, reads no `AGENTS.md` under any mode, and inventorying one would let Phase C
 propose posture additions to a surface nothing loads. No hooks setting is among those reasons. A
 mode that loads no `AGENTS.md` rules it out the same way. Exclude on a condition
 known to rule it out; most are readable, so resolve before falling back.
@@ -106,7 +106,7 @@ importing record already covers.
   live.
 
 **The inventory bounds what may produce a finding, not what counts as evidence.** Phase C's
-mechanical-gate rule reads outside it to establish PRESENCE, which can only turn a MISSING into a
+mechanical-gate rule reads outside it to establish presence, which can only turn a MISSING into a
 PRESENT, never add a finding on an excluded surface.
 
 For each component, classify its purpose from its own description and body. The classification
@@ -233,7 +233,7 @@ Verdicts are a closed set of four tokens: `MISSING` (finding, with proposed addi
 `PRESENT` (where it is), `NOT-APPLICABLE` (with the failed predicate), `info` (a Phase D verifier
 refuted it, always kept as a row, never dropped, never a proposal to apply). Two markers are
 orthogonal and ride **alongside** a verdict, never in place of one: `wording-unverified` (a subpage
-fetch failed in Phase C, so the fifth column carries the guide POINTER, and a pointer is never
+fetch failed in Phase C, so the fifth column carries the guide pointer, and a pointer is never
 dressed up as guide wording) and `(unverified)` (Phase D could
 not verify this proposal; see "When dispatch is unavailable"). End with a coverage line naming components
 inventoried, classified and unclassified, and a Sources line citing the pages fetched this run with
@@ -252,7 +252,7 @@ inline, or skipped, and which check the verifier ran on each: `proposals` or `ve
   models, the proposal must be model-neutral or carry the same condition, since components here run on
   any consumer model.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Never edits a component and never auto-applies a proposal. This is held by instruction, since
   `disallowed-tools` narrows the surface but `Write` and `Bash` remain and both can mutate a file.

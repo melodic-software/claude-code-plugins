@@ -35,8 +35,8 @@ set, otherwise `git rev-parse --show-toplevel`), never at the CWD.
 
 ## `check` (read-only)
 
-Inspect the effective merged config and report a PASS/FAIL/INFO table with one remediation line
-per FAIL. Modify nothing, and do NOT run a scan. That is `/improvement:find`.
+Inspect the effective merged config and report a PASS/FAIL/WARN/INFO table with one remediation line
+per FAIL. Modify nothing, and do not run a scan. That is `/improvement:find`.
 
 1. **Layer presence.** Load every layer you can access and report which exist. Look up the user-global layer with one Read of the literal path `~/.claude/improvement.md`, `~` kept; never Glob for it, spell out a home directory, or search the home tree. A Read that finds no file means the layer is absent. All absent →
    INFO: the finder uses bundled defaults and records Tier 2 as an evidence gap; `apply` writes
@@ -54,7 +54,7 @@ per FAIL. Modify nothing, and do NOT run a scan. That is `/improvement:find`.
    evidence-gap line, which may be expected on this machine.
 4. **Tracked, not ignored.** A present team file must be committed to be team-shared, and
    "not ignored" is not "tracked". Probe both: `git check-ignore -v .claude/improvement.md`
-   (non-empty result is FAIL with the matching pattern) AND
+   (non-empty result is FAIL with the matching pattern) and
    `git ls-files --error-unmatch .claude/improvement.md` (non-zero exit is FAIL: the file is
    present but untracked, the state immediately after `apply` writes it, so teammates will not
    receive it until it is committed; report "untracked, commit it" and, if it is staged but
@@ -89,9 +89,9 @@ user.
 4. **Write the team file** in the file format defined by
    `${CLAUDE_PLUGIN_ROOT}/reference/config.md`, a fenced YAML block holding only the keys the
    user confirmed. Never write a vendor-specific default the user did not declare.
-5. **Verify after writing.** Re-run the `check` probes on the written file. BOTH
+5. **Verify after writing.** Re-run the `check` probes on the written file: both
    `git check-ignore -v .claude/improvement.md` (surface a matching pattern and offer a
-   `.gitignore` fix) AND `git ls-files --error-unmatch .claude/improvement.md` (non-zero exit
+   `.gitignore` fix) and `git ls-files --error-unmatch .claude/improvement.md` (non-zero exit
    means the file is un-ignored but still untracked, the guaranteed state right after this
    step writes it, so report "written but untracked: commit it to share with the team", never
    success). Then offer the personal override
@@ -103,11 +103,11 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## Output
 
-`check`: the PASS/FAIL/INFO table plus the effective evidence-source configuration with
+`check`: the PASS/FAIL/WARN/INFO table plus the effective evidence-source configuration with
 per-layer provenance. `apply`: a tracked `.claude/improvement.md`, the re-run check result, and
 one paragraph on what was written and how to re-run this setup to reconfigure.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run an improvement scan. That is `/improvement:find`; `check` only inspects config.
 - Install or configure MCP servers. It declares which configured server carries telemetry;

@@ -193,7 +193,7 @@ Baked phrases live in frontmatter descriptions, which we treat as the routing-ef
 We measure that surface against two budgets, a per-entry cap and a listing-wide cap, whose
 mechanics and values come from the pointers in the table at the end of this file. On overflow our binary reading keeps every skill *name* and drops
 whole descriptions lowest-score-first. The score is decay-weighted and the walk is first-fit, so raw invocation count
-is NOT the exposure ranking and description length matters too; see
+is not the exposure ranking and description length matters too; see
 [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md).
 
 So the report says what the baking would cost. When the `skill-quality` plugin is installed, invoke
@@ -328,7 +328,7 @@ asked for this plugin by name. It emits one clause, front-loaded, carrying the p
 `when_to_use` after baking must fit the per-entry cap the native-references convention records,
 measured by `/skill-quality:check <skill>` (when `skill-quality` is not installed, state "description
 length unmeasured. `skill-quality` not installed" and do not bake); a row that would exceed
-the cap is not baked. Every wrapped or suggesting skill declares `unattended` in its
+the cap is not baked. Every wrapped or suggesting skill declares `--unattended` in its
 `argument-hint`. The
 emitted text cites nothing outside its own plugin, a shipped plugin has no copy of this
 repository's registry, so a citation would be a broken reference at install time.

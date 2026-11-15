@@ -398,6 +398,11 @@ The ordering runs both ways, so state it precisely, and keep the two cases apart
   call through. Nothing downstream runs, including an otherwise-matching ask rule, which never
   gets to prompt. The bullet above describes returned decisions only; it does not apply here.
 
+- **Pointer**: when stating how a hook's returned decision or exit code orders against deny, ask and
+  allow rules, fetch
+  [permissions: precedence among rules, hooks and mods](https://code.claude.com/docs/en/permissions#precedence-among-rules-hooks-and-mods)
+  live.
+
 The consequence for this baseline is the first direction. When a project escalates an operation to a
 permission prompt via its own safety hook (e.g. a git-safety hook that turns `git branch -D` into an
 ask), adding a deny entry for the same pattern suppresses that prompt. Audit such patterns against

@@ -24,7 +24,7 @@ Arguments: `$ARGUMENTS`
 Claude Code ships frequently. Features that worked last week may have new bugs today. This skill serves three purposes:
 
 1. **Quick health check**. Snapshot of registry health and model quality (no args needed)
-2. **Proactive search**. Find known bugs BEFORE you build on top of a feature
+2. **Proactive search**. Find known bugs before you build on top of a feature
 3. **Issue registry**. Maintain single source of truth for the Claude product GitHub issues you track, record what they block, and create follow-up work items when bugs are fixed
 
 ## Data Files
@@ -36,7 +36,7 @@ can keep the registry inside itself, git-tracked and team-shared, with `registry
 the `registry_dir` plugin option or the personal `harness-ops.local.yaml`. The personal file beats the
 team file, which beats the option.
 
-**Registry location. Apply to EVERY `registry_manager.py` invocation:** resolve it once per action,
+**Registry location. Apply to every `registry_manager.py` invocation:** resolve it once per action,
 before the first registry call:
 
 ```bash
@@ -85,7 +85,7 @@ When the first token is not an action, run `search` with the whole argument as t
 
 ## Action: `status`
 
-Read `context/action-status.md` for full status process and output format. DEFAULT action when no args.
+Read `context/action-status.md` for full status process and output format. Default action when no args.
 
 ---
 
@@ -158,7 +158,7 @@ mechanism first. Known bugs reshape plans cheaply before implementation.
 
 ### With `/bugs:write` (if installed)
 
-For bugs in YOUR code (not Claude Code itself), use the `bugs` plugin's skill instead;
+For bugs in your code (not Claude Code itself), use the `bugs` plugin's skill instead;
 without it, write up the defect manually. This skill covers Claude product issues only.
 
 ## Spoke paths
@@ -171,10 +171,10 @@ The same table says the Bash tool's environment does not receive `CLAUDE_PLUGIN_
 registry-location rule relies on. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
-## What This Skill Does NOT Do
+## What This Skill Does Not Do
 
 - **Does not read local telemetry**. OTEL store, collector, hooks, ccusage → invoke `/harness-ops:observability` via the Skill tool
 - **Does not fix bugs**. Reports and tracks them
-- **Does not test features**. Searches for KNOWN issues
+- **Does not test features**. Searches for known issues
 - **Issue creation requires explicit confirmation**. `create` action always shows draft first, never auto-files
 - **Does not monitor continuously**. Re-run `check-all` periodically (e.g. from a recurring work item or schedule)

@@ -15,7 +15,7 @@
 #
 # `autoMode.classifyAllShell` inverts the carry-over answer wholesale: when
 # true it "suspend[s] every Bash and PowerShell allow rule while auto mode is
-# active", so narrow rules do NOT carry over. The classifier reads `autoMode`
+# active", so narrow rules do not carry over. The classifier reads `autoMode`
 # from user settings, managed settings, and inline --settings/SDK JSON only —
 # never project or local settings — so this script resolves the key from the
 # managed and user conf records alone and says so when a non-read scope sets it.
@@ -47,7 +47,7 @@
 # contract. Never spawned without the flag; never spawned silently. Criterion
 # 8's defensive contract binds this read too: exit status is never trusted, a
 # missing or empty capture is reported as "oracle unavailable" and the
-# prediction stands — an empty capture is NEVER read as an empty drop set.
+# prediction stands — an empty capture is never read as an empty drop set.
 #
 # Test seams:
 #   ENTRY_DIFF_ORACLE_CAPTURE  parse this capture file instead of spawning
@@ -71,7 +71,7 @@ Usage: permission-state.sh | permission-merge.sh | automode-entry-diff.sh [--dif
 
   (no arg)      input records pass through, then the diff section
   --diff-only   the diff section alone
-  --oracle      ALSO spawn a claude session (real token cost, real side effects —
+  --oracle      also spawn a claude session (real token cost, real side effects —
                 a cost notice prints before anything is spawned) and cross-check
                 the prediction against the harness's own drop narration
   --help        this message
@@ -82,7 +82,7 @@ Records: "entry-diff dropped class=<class> scopes=<a,b> <rule>",
 and with --oracle one "oracle AGREES <rule>" or "oracle DIVERGES ..." per compared rule.
 
 Writes no settings file. Without --oracle it writes nothing at all; with it, the
-capture goes to a scratch path AND the spawned session leaves its own state
+capture goes to a scratch path and the spawned session leaves its own state
 under your config directory — the cost notice enumerates that. Exits 2 when the
 input carries no records at all.
 EOF
@@ -193,7 +193,7 @@ done <<<"$records"
 cas_active=0
 if [[ "$cas_value" == "true" ]]; then
   cas_active=1
-  echo "DIFF-NOTE: autoMode.classifyAllShell is true in $cas_scope settings — every Bash and PowerShell allow rule is suspended while auto mode is active, so narrow shell rules do NOT carry over. Requires Claude Code v2.1.193 or later; earlier versions ignore the key and carry narrow rules."
+  echo "DIFF-NOTE: autoMode.classifyAllShell is true in $cas_scope settings — every Bash and PowerShell allow rule is suspended while auto mode is active, so narrow shell rules do not carry over. Requires Claude Code v2.1.193 or later; earlier versions ignore the key and carry narrow rules."
 elif [[ "$cas_value" == "false" ]]; then
   # `false` is the documented default and a perfectly valid setting. Describing
   # it as a type error told an operator their correct configuration was wrong.
@@ -201,12 +201,12 @@ elif [[ "$cas_value" == "false" ]]; then
 elif [[ -n "$cas_value" ]]; then
   echo "DIFF-NOTE: autoMode.classifyAllShell in $cas_scope settings is $cas_value, which is neither of the documented boolean values — treated as inactive here; the harness's handling of a non-boolean value is undocumented."
 fi
-# The classifier reads autoMode from THREE sources and this reader can see two.
+# The classifier reads autoMode from three sources and this reader can see two.
 # Inline --settings / SDK JSON has no file to open, and it can invert the whole
 # answer: classifyAllShell true there suspends every shell allow rule while this
-# diff reports them kept. The merge's command-line caveat covers RULES, not this
+# diff reports them kept. The merge's command-line caveat covers rules, not this
 # key, so it is stated here or nowhere.
-echo "DIFF-NOTE: inline --settings and Agent SDK JSON are a third scope the classifier reads autoMode from, and they have no file for this reader to open. If classifyAllShell is set there, every Bash and PowerShell verdict below is inverted — this diff reflects the settings FILES only."
+echo "DIFF-NOTE: inline --settings and Agent SDK JSON are a third scope the classifier reads autoMode from, and they have no file for this reader to open. If classifyAllShell is set there, every Bash and PowerShell verdict below is inverted — this diff reflects the settings files only."
 if [[ -n "$cas_ignored" ]]; then
   echo "DIFF-NOTE: autoMode.classifyAllShell also appears in scope(s) the classifier does not read ($cas_ignored) — the classifier reads autoMode from user settings, managed settings, and inline --settings/SDK JSON only. Those entries have no effect and are not part of this diff."
 fi
@@ -231,7 +231,7 @@ while read -r rec kind scopes_field _basis rule; do
   elif [[ "$rule" == "Monitor" || "$rule" == "Monitor("* ]]; then
     # Upstream added Monitor to the dropped list in v2.1.236, "because Claude
     # Code runs Monitor commands through the shell". It behaves like Agent, not
-    # like Bash: the whole class drops, so a scoped Monitor(...) rule is NOT a
+    # like Bash: the whole class drops, so a scoped Monitor(...) rule is not a
     # narrow carry-over. Reporting one as kept would tell an operator a grant
     # survives that the harness has already suspended.
     #
@@ -243,7 +243,7 @@ while read -r rec kind scopes_field _basis rule; do
     monitor_seen=1
     verdict="dropped class=monitor"
   elif [[ "$rule" == "Bash" || "$rule" == "PowerShell" ]] || rule_matches "$rule" "$CCPERM_P1_BLANKET_ERE"; then
-    # A bare tool name is the WHOLE-TOOL grant -- strictly broader than
+    # A bare tool name is the whole-tool grant -- strictly broader than
     # Bash(*), which this same run classifies as blanket. Reporting it as
     # surviving auto mode while dropping the narrower form would be backwards
     # in the direction that matters: it tells an operator their broadest shell
@@ -288,7 +288,7 @@ echo "DIFF-NOTE: this diff applies only to a session that ENTERS auto mode. Auto
 
 printf '%s' "$diff_lines"
 if [[ -n "$unread_scopes" ]]; then
-  echo "DIFF-NOTE: $unread_scopes scope(s) could not be read, so any allow rules they hold were never classified. The counts below cover the scopes that WERE read."
+  echo "DIFF-NOTE: $unread_scopes scope(s) could not be read, so any allow rules they hold were never classified. The counts below cover the scopes that were read."
 fi
 echo "entry-diff summary allow_before=$n_before dropped=$n_dropped suspended=$n_suspended kept=$n_kept status=$([[ -n "$unread_scopes" ]] && echo incomplete || echo read)"
 
@@ -304,9 +304,9 @@ ORACLE COST NOTICE — nothing has been spawned yet.
   harness's own drop narration. That costs API tokens, and the session writes
   outside the scratch capture path. Measured on 2.1.225 / Windows 11 by
   checksumming before and after a probe run:
-    - Your settings files are NOT modified: ~/.claude/settings.json and
+    - Your settings files are not modified: ~/.claude/settings.json and
       ~/.claude/settings.local.json were byte-identical afterwards.
-    - ~/.claude.json IS rewritten. It is the harness's own state file, not a
+    - ~/.claude.json is rewritten. It is the harness's own state file, not a
       settings file, and it carries no permission rules -- but it does change.
     - New files appear under your config directory: a project entry for the
       session's working directory, a session-env entry, per-session security
@@ -325,12 +325,12 @@ EOF
   trap 'rm -rf "$scratch"' EXIT
   capture="$scratch/capture.log"
   # `--permission-mode auto` is passed so the probe does not depend on the
-  # consumer's own defaultMode. What was actually MEASURED is narrower than that
+  # consumer's own defaultMode. What was actually measured is narrower than that
   # framing suggests, and reference/criteria.md carries the measurement: a `-p`
-  # run with NO mode flag emitted 216 drop lines, on a machine whose defaultMode
+  # run with no mode flag emitted 216 drop lines, on a machine whose defaultMode
   # may already have been auto. So the flag is known-valid (`claude --help`
   # lists `auto`) and known-harmless, but "drops appear only in auto mode" is
-  # NOT established — it is a plausible reading of one capture. The zero-drop
+  # not established — it is a plausible reading of one capture. The zero-drop
   # path below degrades to `unavailable` precisely because this is unproven.
   #
   # Exit status is deliberately not consulted — the capture file is the evidence
@@ -353,7 +353,7 @@ fi
 oracle_raw="$(sed -n 's/^.*Ignoring dangerous permission \(.*\) (bypasses classifier).*$/\1/p' "$capture")"
 
 # Neither field is delimited, so a line carrying more than one " from " must be
-# RESOLVED rather than guessed at. The discriminator is the RULE side, not the
+# resolved rather than guessed at. The discriminator is the rule side, not the
 # path: a permission rule is a tool token, optionally with one parenthesized
 # payload, and that grammar already exists as CCPERM_TOOL_TOKEN_ERE in the shared
 # vocabulary. Each candidate separator is tried and kept only when the text to
@@ -371,7 +371,7 @@ oracle_raw="$(sed -n 's/^.*Ignoring dangerous permission \(.*\) (bypasses classi
 # matter here, and both are cheaper to check directly than to re-escape.
 split_lines="$(printf '%s\n' "$oracle_raw" | awk '
   function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
-  # A rule is a tool token, optionally followed by ONE balanced parenthesized
+  # A rule is a tool token, optionally followed by one balanced parenthesized
   # payload that runs to the end of the text.
   function is_rule(s,   open, i, c, depth) {
     if (s !~ /^[A-Za-z_][A-Za-z0-9_]*(\(|$)/) return 0
@@ -408,7 +408,7 @@ oracle_dropped="$(printf '%s\n' "$split_lines" | sed -n 's/^OK\t//p' | LC_ALL=C 
 oracle_unparsed="$(printf '%s\n' "$split_lines" | sed -n 's/^AMBIGUOUS\t//p')"
 if [[ -n "$oracle_unparsed" ]]; then
   n_unparsed="$(printf '%s\n' "$oracle_unparsed" | grep -c .)"
-  echo "oracle NOTE: $n_unparsed drop line(s) could not be split into rule and source path — the narration delimits neither field, and no candidate split left a well-formed rule on the left (or more than one did). Those drops are real and are NOT reflected in the verdicts below; treat this comparison as incomplete rather than clean."
+  echo "oracle NOTE: $n_unparsed drop line(s) could not be split into rule and source path — the narration delimits neither field, and no candidate split left a well-formed rule on the left (or more than one did). Those drops are real and are not reflected in the verdicts below; treat this comparison as incomplete rather than clean."
 fi
 
 if [[ -z "$oracle_dropped" ]]; then
@@ -417,7 +417,7 @@ if [[ -z "$oracle_dropped" ]]; then
 fi
 
 # Compare on rule text over the union of both sets: one verdict line per rule,
-# exactly — a disagreement in EITHER direction is a finding.
+# exactly — a disagreement in either direction is a finding.
 predicted_sorted="$(printf '%s' "$predicted_dropped" | LC_ALL=C sort -u)"
 while IFS= read -r rule; do
   in_pred=0

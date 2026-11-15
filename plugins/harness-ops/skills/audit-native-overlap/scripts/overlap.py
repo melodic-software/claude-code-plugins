@@ -988,7 +988,7 @@ def validate_dismissal(entry: Any, index: int) -> list[str]:
         for side in ("native", "component")
     ):
         problems.append(
-            f"{label}: `fingerprint` must carry `native` and `component`, each 16 "
+            f"{label}: `fingerprint` must carry `native` and `component`, each {FINGERPRINT_LEN} "
             "lowercase hex chars (use `overlap.py dismiss` to compute them)"
         )
     return problems

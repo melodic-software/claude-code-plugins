@@ -601,7 +601,7 @@ if [[ "$have_managed_lib" -eq 1 ]]; then
   managed_policy_row "$managed_file" "$managed_dropin" "$(dir_status "$managed_dropin")"
 else
   row managed-policy not-probed standing - - - "managed-scope library unavailable"
-  note "Managed policy was NOT probed: $managed_lib could not be read, so no per-OS path was available. This is not evidence that no policy is deployed."
+  note "Managed policy was not probed: $managed_lib could not be read, so no per-OS path was available. This is not evidence that no policy is deployed."
 fi
 plugin_hook_row
 frontmatter_row skill-frontmatter "$skill_list" "$skills_total SKILL.md" "$skills_dir_status"
@@ -724,11 +724,11 @@ note "The frontmatter rows count files that open a hooks: block; the YAML inside
 note "plugin-hooks-json covers plugin roots inside this repository. Plugins installed on this machine from elsewhere also contribute hooks; run /harness-ops:inventory for the machine-scope picture."
 note "Every walk prunes .git and node_modules, so .git/hooks sample scripts and vendored trees are outside these counts."
 if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" ]]; then
-  note "CLAUDE_CODE_REMOTE=true: this is a cloud session, which does not read your own machine's ~/.claude/settings.json or .claude/settings.local.json, and reaches only server-managed settings. The user-settings row above is this container's file, so the effective set here differs from a desktop session's."
+  note "CLAUDE_CODE_REMOTE=true: this is a cloud session, which does not read your own machine's ~/.claude/settings.json or .claude/settings.local.json, and reaches only server-managed settings. The user-settings row above is this container's file, so the effective set here differs from a desktop session's. Which scopes a cloud session reads: https://code.claude.com/docs/en/settings#settings-in-cloud-sessions"
 else
-  note "A cloud session reads a different scope set than this one: it does not read local user settings or .claude/settings.local.json, and only server-managed settings reach it. An effective set measured here is not the effective set there."
+  note "A cloud session reads a different scope set than this one: it does not read local user settings or .claude/settings.local.json, and only server-managed settings reach it. An effective set measured here is not the effective set there. Which scopes a cloud session reads: https://code.claude.com/docs/en/settings#settings-in-cloud-sessions"
 fi
-note "Server-managed settings are fetched at sign-in and cached at ~/.claude/remote-settings.json. The cache is not the live policy; this inventory does not fold it in. The failure read is the Organization policy line in /status."
+note "Server-managed settings have a local cache under the Claude config directory (\$CLAUDE_CONFIG_DIR, else ~/.claude). The cache is not the live policy; this inventory does not fold it in. Cache path: https://code.claude.com/docs/en/server-managed-settings#invalid-entries-in-delivered-settings; when it applies: https://code.claude.com/docs/en/server-managed-settings#fetch-and-caching-behavior; where a failed fetch shows: https://code.claude.com/docs/en/server-managed-settings#verify-settings-delivery"
 
 printf '\nNotes\n'
 for n in "${notes[@]}"; do
