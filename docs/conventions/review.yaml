@@ -1,0 +1,4 @@
+# yaml-language-server: $schema=../../plugins/review/schemas/review.schema.json
+# Team layer for the review plugin's settings.
+# Resolution: plugins/review/reference/config.md (read by the review skills, written by /review:setup apply).
+reproduce_findings: label

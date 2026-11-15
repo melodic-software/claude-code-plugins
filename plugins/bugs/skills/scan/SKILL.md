@@ -17,6 +17,7 @@ Run each as its own Bash call, never combined:
 - Current branch, `git branch --show-current`
 - Recent commits, `git log --oneline -10`
 - Shallow clone, `git rev-parse --is-shallow-repository`
+- Remote session marker, `printenv CLAUDE_CODE_REMOTE` (set means the run is unattended: "Unattended runs")
 
 A failure (not a repository, git unavailable) is an unknown value; carry on. These stay body Bash
 calls rather than pre-compute lines. The dated record for how the pre-compute block is composed is
@@ -77,7 +78,15 @@ the next run has no filed item to read back.
 | *(empty)* | **Rotation** | Self-select the next lane via the cursor ladder, then hunt it. |
 | `--track` | **Filing** | After reporting, file verified findings as raw intake, subject to `filing_posture` and the Step 7 ladder. Composable with any mode. |
 | `--dry-run` | **Plan-and-report only** | Full hunt + verification, report to stdout, zero persistence and zero cursor advance. Composable with any mode; overrides `--track`. |
-| `--unattended` | **Unattended** | The caller declares that nobody is present (a loop, a routine, a lane rule). No scanned code runs, every survivor is `verified-by-reading`, and Step 7 routes as unattended. Composable with any mode. |
+| `--unattended` | **Unattended** | The caller declares that nobody is present (a loop, a routine, a lane rule). No scanned code runs, every survivor is `verified-by-reading`, and Step 7 routes as unattended. Composable with any mode. A run is also unattended without the flag when the environment says nobody is present ("Unattended runs" below). |
+
+### Unattended runs
+
+A run is unattended when `--unattended` is passed or the environment says nobody is present:
+`CLAUDE_CODE_REMOTE` is set, the session runs under `claude -p`, or an autonomous loop started it.
+That test is [`${CLAUDE_PLUGIN_ROOT}/reference/run-reviewed-code.md`](../../reference/run-reviewed-code.md)
+"Who counts as unattended", this plugin's copy of the marketplace contract. Every other run is
+attended. Steps 4, 6 and 7 read "unattended" this way.
 
 `lanes` resolves from `docs/conventions/bugs.yaml`, the team layer, and `filing_posture` from
 `docs/conventions/work-items.yaml` (Filing posture in the reference). Keys,
@@ -266,17 +275,17 @@ for in the report.
 ### Step 4. Verification gate (precision stage)
 
 Dispatch a **separate fresh-context subagent per candidate**, on the gate role, with the prompt
-contract in [`context/verification-gate.md`](context/verification-gate.md). The gate prompt carries the
-scanned-source framing in [`context/verification-gate.md`](context/verification-gate.md). The
-hunter that found a candidate never grades it. The gate's default stance is **refute**: it must construct the concrete
+[`context/verification-gate.md`](context/verification-gate.md) assembles from the contract's gate
+prompt, scanned-source framing included. The hunter that found a candidate never grades it. The gate's default stance is **refute**: it must construct the concrete
 input path that triggers the fault, or the candidate dies. **If uncertain, it is not a finding.**
 
 Hunters and gates run none of the scanned repository's code; a gate may propose a check instead.
-Under `--unattended` no proposed check runs, and every survivor is labeled `verified-by-reading`.
-On an attended run, ask the person before **each** proposed check, showing its exact command, and
-run only the checks they approve; the rules are in
-[`context/verification-gate.md`](context/verification-gate.md) "Running the scanned repository's
-code". Survivors are labeled `reproduced` (an approved check ran and showed the predicted failure)
+On an unattended run ("Unattended runs") no proposed check runs, and every survivor is labeled
+`verified-by-reading`. On an attended run, ask the person before **each** proposed check, showing
+its exact command, and run only the checks they approve; `--yes`, an allow rule, auto mode or a
+setting never counts as that approval. The rules are in
+[`${CLAUDE_PLUGIN_ROOT}/reference/run-reviewed-code.md`](../../reference/run-reviewed-code.md)
+"Asking for a check". Survivors are labeled `reproduced` (an approved check ran and showed the predicted failure)
 or `verified-by-reading` (established from the source, with the reproduction argument stated).
 Refuted candidates are **retained with their refuting argument**: some kills are wrong, a human
 can overturn one, and the record stops the same dead candidate resurfacing. A gate's one-line side
@@ -355,9 +364,9 @@ tracker item and an unattended run never strands work in a transcript:
 | interactive | **local**: its fix stays inside one plugin or module, changes no documented contract, and has an existing test file to extend | fix it now, in this session and branch, through `/implementation:implement` (or the project's own fix lane) |
 | interactive | non-local, or needs a design decision | file it with `--track`, or ask the operator |
 | any | security-relevant | file it, and route to the `/review:security-review` lane, which owns that surface |
-| unattended (`--unattended`: a loop, a routine, a lane rule) | any | file it; nobody is present to fix it, and the tracker is the only durable output |
+| unattended (`--unattended`, or the environment says so: "Unattended runs") | any | file it; nobody is present to fix it, and the tracker is the only durable output |
 
-"Unattended" is declared by the caller with `--unattended`, never inferred from the environment. Recommend the route;
+Recommend the route;
 do not auto-invoke it. A finding worth root-causing first goes to `/debugging:debug`. With nothing
 verified, say so and name the lane and rung, so the next run rotates on.
 

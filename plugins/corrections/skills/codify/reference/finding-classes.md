@@ -162,3 +162,43 @@ the rule.
 - **`automated-review`**: a `REVIEW.md` line, for a rule only a reviewer applies or a change to how
   severe a finding is. Say that no check catches it.
 - **`instruction`**: a `CLAUDE.md`, `AGENTS.md` or rules-file line, placed by section 3.
+
+## Record line
+
+A proposal for a codebase, static-analysis or verification rung holds the literal line the pull
+request that lands it carries in its body, so `/corrections:codify count-checks` counts it once it
+merges:
+
+```text
+Codifies: #123 rung=architecture-test blocking
+```
+
+- **Source**: `#<n>`, the issue or the pull request whose review raised the correction, or the
+  literal `session` when neither exists. Never a URL.
+- **Rung**: the current rung id the proposal picked, never an alias.
+- **Blocking or advisory**: `blocking` when the check fails the change (a hook, a required CI check,
+  a lint at error level), else `advisory`. A `make-impossible` record is always `blocking`, and its
+  proposal names the type, data structure or API to change ("Next step per rung" above).
+- **Shape**: the whole line matches
+  `^Codifies: (#[1-9][0-9]*|session) rung=<rung id> (blocking|advisory)$`. It sits at column 0 on a
+  line of its own, not in a list item, an indented line or a quote, and is at most 72 characters
+  long so the squash commit's wrap cannot split it. It is a body line, not a git trailer.
+- **Promotion**: when an advisory check later becomes blocking, the change that makes it blocking
+  carries the line with `blocking`, the same rung, and as its source `#<p>`, the pull request that
+  landed the advisory record (the `(#<p>)` that commit's subject ends with). `count-checks` then
+  moves the check from the advisory column to the blocking one and counts it once, whatever the
+  advisory record's own source was, `session` included. A blocking line whose source is any other
+  `#<n>` is a new check, even when an advisory record names the same `#<n>` and rung. An advisory
+  record whose commit subject ends with no `(#<p>)` cannot be promoted. Identical lines in one
+  commit message count once, so each promotion of a record with the same source `#<p>` and rung
+  needs its own commit. A blocking line whose advisory record's commit is later reverted stands as a
+  new blocking check.
+- **Work filed as an issue**: the proposal also gives the task-list item for the issue's done-when
+  list, which quotes the line in a code span and names the pull request body:
+
+  ```markdown
+  - [ ] The PR body carries `Codifies: #123 rung=architecture-test blocking`.
+  ```
+
+  The issue lane copies a line from such an item into its pull request body, the way it copies a
+  `Refs:` line, and never from the run's own text.
