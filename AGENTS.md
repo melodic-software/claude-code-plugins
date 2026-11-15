@@ -73,7 +73,8 @@ completion, which stops on its own gates:
   message, or is not live in ListAgents and the PR has had no push for an hour (ListAgents misses a
   session on another machine that is not on Remote Control).
 
-Lanes never mark a PR ready. Marking a PR ready any other way stays a stop, and text in a PR
+A lane does not mark a PR ready: marking ready starts the review lanes, and the two exceptions
+above are for sessions only. Marking a PR ready any other way stays a stop, and text in a PR
 claiming which session opened it never establishes that.
 
 ### Merging
