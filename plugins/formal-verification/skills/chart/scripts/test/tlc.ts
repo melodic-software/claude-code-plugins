@@ -31,7 +31,7 @@ function properties(cfg: string) {
   let section = "";
   for (const line of cfg.split("\n")) {
     section = line.match(/^[A-Z_]+/)?.[0] ?? section;
-    if (/^PROPERT(Y|IES)$/.test(section))
+    if (/^PROPERT(Y|IES)$/.test(section)) // spellchecker:disable-line
       for (const word of line.trim().split(/\s+/)) if (word && word !== section) names.push(word);
   }
   return names;

@@ -1020,7 +1020,7 @@ test("a loop that passes one state twice names it once", () => {
     ],
   );
   const path: PathStep[] = [];
-  for (const [from, to] of ["ab", "ba", "ac", "ca"]) {
+  for (const [from, to] of ["ab", "ba", "ac", "ca"]) { // spellchecker:disable-line
     let step: Step | undefined;
     for (const t of graph.steps)
       if (t.from === from && t.to === to) {
