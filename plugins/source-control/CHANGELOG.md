@@ -3,6 +3,15 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.15.0] - 2026-11-15
+
+### Changed
+
+- Pull-request prep runs the comment pass as `/code-tidying:remove-comments --pipeline --base
+  <remote>/<base-branch>`, so the repository's `comment_edit_scope` decides whether it triages the
+  added lines or each changed file whole. A repository that leaves the setting at `diff` sees no
+  change.
+
 ## [11.14.5] - 2026-11-15
 
 ### Changed
