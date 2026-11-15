@@ -69,7 +69,7 @@ Audits that persist findings hand them to one `/review:fanout fix` pass when the
 For each finding:
 
 1. Extract the specific claim (API, pattern, behavior assertion)
-2. Verify against official docs and actual source for the exact versions in use. When your environment supports verification agents, hand a finding's verification to one only when its research would otherwise fill the main session's context, and run at most 3 in parallel
+2. Verify against official docs and actual source for the exact versions in use (dispatch parallel verification agents when your environment supports them, up to 3 at a time)
 3. Cross-reference against the project's own conventions/rules
 4. Classify: **VERIFIED** (evidence confirms), **INCORRECT** (evidence contradicts), **UNCERTAIN** (cannot confirm)
 

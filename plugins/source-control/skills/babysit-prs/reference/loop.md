@@ -600,6 +600,8 @@ with reason.
 - **Run the D5/D6/D7 verification sub-steps on every pass.** They exist because model
   memory is unreliable across compaction boundaries. One API call to confirm costs seconds;
   acting on false memory costs an entire re-processing cycle
+- **Quality over speed.** Processing 3 findings thoroughly with verified evidence is better
+  than "processing" 10 findings with blanket classifications and no verification
 - **One finding at a time.** Complete per-finding D1-D7 for finding N before starting finding
   N+1. Interleaving findings across comments produces partial work that looks complete but
   isn't

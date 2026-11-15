@@ -161,7 +161,7 @@ if [[ -n "$common_dir" && "$common_dir" != /* && ! "$common_dir" =~ ^[A-Za-z]:/ 
   common_dir="$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')/$common_dir"
 fi
 if [[ -n "$git_dir" && -n "$common_dir" && "$(canon "$git_dir")" != "$(canon "$common_dir")" ]]; then
-  note "linked worktree: gitdir is $git_dir (under the main repository), so gitdir-anchored includeIf conditions classify this worktree with its repository — and a pattern anchored at this worktree's own tree path matches nothing, ever."
+  note "linked worktree: gitdir is $git_dir (under the main repository), so gitdir-anchored includeIf conditions classify this worktree WITH its repository — and a pattern anchored at this worktree's own tree path matches nothing, ever."
 fi
 
 # --- Declared includeIf conditions, and which files actually contributed ------
@@ -309,7 +309,7 @@ else
       fi
     done
     if ((losing_include && !win_from_include)); then
-      warn "a plain $winning_key in $win_origin is parsed after an include-supplied value and silently overrides it — precedence is parse order, not specificity. If the include is meant to win, move the plain default above the includeIf block."
+      warn "a plain $winning_key in $win_origin is parsed AFTER an include-supplied value and silently overrides it — precedence is parse order, not specificity. If the include is meant to win, move the plain default ABOVE the includeIf block."
     elif ((win_from_include)); then
       # The recommended layout: a plain machine default parsed first, the
       # include's more-specific answer after it. Say so — the absence of a
@@ -328,7 +328,7 @@ else
   # The root must satisfy the invariant the key exists for.
   root_expanded="$(expand_tilde "$win_val")"
   if [[ -e "$root_expanded" ]] && git -C "$root_expanded" rev-parse --show-toplevel >/dev/null 2>&1; then
-    warn "the resolved root $win_val sits inside a git working tree — the one placement the convention exists to prevent; point it at a directory outside every repository"
+    warn "the resolved root $win_val sits INSIDE a git working tree — the one placement the convention exists to prevent; point it at a directory outside every repository"
   fi
 fi
 
