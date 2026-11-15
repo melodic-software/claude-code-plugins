@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Ship the fix\n\n1. Run the unit tests for the package you touched.\n2. Commit with the Skill tool: `/source-control:commit`.\n3. Add a line to `docs/fixes.md` naming the bug and the commit.",
+      "why": "calls the owner, restates nothing, keeps both own steps"
+    },
+    {
+      "answer": "## Ship the fix\n\n1. Run the unit tests for the package you touched.\n2. Hand the commit to `source-control:commit`, which stages, words and makes it.\n3. Add a line to `docs/fixes.md` naming the bug and the commit.",
+      "why": "a clause naming what the owner covers is not a restated rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Ship the fix\n\n1. Run the unit tests for the package you touched.\n2. Commit with `/source-control:commit`: stage only the files you changed, by name, never `git add -A`, and use a Conventional Commits subject under 72 characters.\n3. Add a line to `docs/fixes.md` naming the bug and the commit.",
+      "why": "names the owner but still restates its rules"
+    },
+    {
+      "answer": "## Ship the fix\n\n1. Run the unit tests for the package you touched.\n2. Stage only the files you changed, each by name; never `git add -A`, because a blanket add can commit a secret.\n3. Write the subject as `<type>(<scope>): <subject>`, under 72 characters.\n4. Add the co-author trailer last.\n5. Commit with a heredoc.\n6. Add a line to `docs/fixes.md` naming the bug and the commit.",
+      "why": "the copy stays and the owner is never named"
+    },
+    {
+      "answer": "## Ship the fix\n\n1. Commit with `/source-control:commit`.\n2. Add a line to `docs/fixes.md` naming the bug and the commit.",
+      "why": "drops the skill's own test step"
+    }
+  ]
+}
