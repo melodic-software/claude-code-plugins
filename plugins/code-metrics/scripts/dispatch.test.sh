@@ -88,7 +88,7 @@ unset CODE_METRICS_DISABLE_BUNDLED
 # 0. The HOME guard bites: with CODE_METRICS_HOME empty the dispatcher falls
 #    back to $HOME, and the seeded ecosystem file moves the python fixture out of
 #    its lane. Were the guard inert, a case that lost its isolation would pass.
-out="$(PATH="$EMPTY_PATH" CODE_METRICS_HOME= bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
+out="$(PATH="$EMPTY_PATH" CODE_METRICS_HOME='' bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
 assert_doc "a fallback to the guarded HOME moves cm_sample.py out of the python lane" "$out" \
   'any(r["file"].endswith("cm_sample.py") for r in d["measures"]) and not any(r["file"].endswith("cm_sample.py") and r["lane"]=="python" for r in d["measures"])'
 
