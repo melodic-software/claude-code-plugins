@@ -3,13 +3,16 @@
 // written as a lanes App comment whose first line is the head marker
 // (markerBody), so a revert study joins a squash commit's `(#N)` to it.
 //
-//   <!-- merge-risk-line head=<sha> -->
+//   <!-- merge-risk-line head=<sha> [lane=<lane> run=<run id>] -->
 //   Merge-Risk: max=<level> demote=<bool> head=<sha> rubric=<version> rater=<model> checker=<model>
 //   Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-budget>
 //
+// `lane` and `run` name the lane run that opened the pull request, read from
+// its `<lane>/issue-<n>-<run id>-<attempt>` branch (producerOf); a record
+// for any other branch, or written before they were added, has neither.
 // No gate, hold or rung reads it. Every field is a closed value, a validated
-// SHA, version or model id, never text the pull request's author wrote, so
-// it can never read as a hold (merge-holds.mjs BODY_HOLD, LANE_HOLD).
+// SHA, version, model id, lane name or run id, never text the pull request's
+// author wrote, so it can never read as a hold (merge-holds.mjs BODY_HOLD, LANE_HOLD).
 // The record is a comment, not the body: a body edit is a
 // `pull_request: edited` event that re-runs ci-status and its downstream
 // lanes before the queue takes the pull request.
@@ -114,21 +117,32 @@ export function unratedLine(reason) {
 const unrated = (reason) => ({ line: unratedLine(reason), token: `unrated:${reason}` });
 
 export const MERGE_RISK_MARKER = "merge-risk-line";
-const MARKER_LINE = new RegExp(`^<!-- ${MERGE_RISK_MARKER} head=([0-9a-f]{40}) -->$`);
+const LANE = "[a-z][a-z0-9-]{0,63}";
+const RUN = "[1-9][0-9]{0,19}";
+const MARKER_LINE = new RegExp(`^<!-- ${MERGE_RISK_MARKER} head=([0-9a-f]{40})(?: lane=${LANE} run=${RUN})? -->$`);
+const LANE_BRANCH = new RegExp(`^(${LANE})/issue-[1-9][0-9]*-(${RUN})-[1-9][0-9]*$`);
 
-// The record's comment body for `head`: the marker line, then `line`.
-export const markerBody = (head, line) => `<!-- ${MERGE_RISK_MARKER} head=${head} -->\n${line}`;
+// The lane and run id a lane branch names, or null for any other branch.
+export function producerOf(branch) {
+  const match = LANE_BRANCH.exec(String(branch ?? ""));
+  return match ? { lane: match[1], run: match[2] } : null;
+}
+
+// The record's comment body for `head`: the marker line, naming `producer`
+// when there is one, then `line`.
+export const markerBody = (head, line, producer = null) =>
+  `<!-- ${MERGE_RISK_MARKER} head=${head}${producer ? ` lane=${producer.lane} run=${producer.run}` : ""} -->\n${line}`;
 
 const isRated = (line) => String(line ?? "").startsWith("Merge-Risk: max=");
 
 // What the arm does with its record, from `comments` it already read
 // (author, editor, body, createdAt, lastEditedAt, databaseId): the lanes
 // App's (`bot`, its login without `[bot]`) newest marker comment for `head`
-// holding `line`, or a rated line when `line` is unrated, needs nothing; one
-// holding another line is patched. A record last edited by anyone but the App,
+// holding `line` under the marker for `producer`, or a rated line when `line`
+// is unrated, needs nothing; one holding another line or marker is patched. A record last edited by anyone but the App,
 // or by an editor that does not read, is no longer the App's text, so it, like
 // no record or one for another head, gets a new comment.
-export function markerAction(comments, { bot, head, line }) {
+export function markerAction(comments, { bot, head, line, producer = null }) {
   const isApp = (actor) => actor?.__typename === "Bot" && actor.login === bot;
   const newest = (Array.isArray(comments) ? comments : [])
     .filter((c) => isApp(c?.author) && MARKER_LINE.test(String(c.body ?? "").split(/\r?\n/)[0]))
@@ -136,7 +150,7 @@ export function markerAction(comments, { bot, head, line }) {
     .at(-1);
   if (newest === undefined || (newest.lastEditedAt && !isApp(newest.editor)) || MARKER_LINE.exec(String(newest.body).split(/\r?\n/)[0])[1] !== head) return { action: "post" };
   const body = String(newest.body).replace(/\r\n/g, "\n");
-  if (body === markerBody(head, line) || (isRated(body.split("\n")[1]) && !isRated(line))) return { action: "none" };
+  if (body === markerBody(head, line, producer) || (isRated(body.split("\n")[1]) && !isRated(line))) return { action: "none" };
   return Number.isSafeInteger(newest.databaseId) ? { action: "patch", id: newest.databaseId } : { action: "post" };
 }
 
@@ -184,7 +198,8 @@ const within = (promise, ms, fallback) => {
 
 // The arm-side step: read the rating within `readMs` (a synchronous
 // `download` runs to its own timeout first), then write the record within
-// `writeMs` as markerAction says, on `github`, the lanes App client.
+// `writeMs` as markerAction says, on `github`, the lanes App client. The
+// marker names the producer `pull.headRefName` gives (producerOf).
 // `comments` are the pull request's comments the arm already read; no list
 // is read again. Never throws.
 export async function recordMergeRisk({ pull, comments, repository, actions, github, download, bot, readMs = 15_000, writeMs = 5_000, now = Date.now }) {
@@ -206,9 +221,10 @@ export async function recordMergeRisk({ pull, comments, repository, actions, git
     result.readMs = now() - started;
     const wrote = await within(
       (async () => {
-        const next = markerAction(comments, { bot, head, line: read.line });
+        const producer = producerOf(pull.headRefName);
+        const next = markerAction(comments, { bot, head, line: read.line, producer });
         if (next.action === "none") return "exact";
-        const body = markerBody(head, read.line);
+        const body = markerBody(head, read.line, producer);
         if (next.action === "patch") await github("PATCH", `/repos/${repository}/issues/comments/${next.id}`, { body });
         else await github("POST", `/repos/${repository}/issues/${pr}/comments`, { body });
         return "wrote";
