@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: ho-disabled-profile-plugin-no-entry
-description: 'Handoff plugin-profile gate, installed-but-disabled case: the scaffold''s project settings switch the plugin-profiles plugin off, so /plugin-profiles:profile is not among the available skills. /session-flow:handoff takes the fallback the structure reference sets: it makes no plugin-profiles Skill call and writes nothing about plugin profiles into the save-point, while still writing the save-point. Written from MB:plugins/session-flow/reference/structure.md "Plugin profile" and MB:docs/contracts/seam-phrasing/README.md "The shape". A run needs --scaffold and --allow-tools Bash Write Edit.'
+description: 'Handoff plugin-profile gate, installed-but-disabled case: the scaffold writes a user-scope install record in the run''s home for a stub plugin-profiles plugin with a profile skill, and its project settings switch that plugin off, so /plugin-profiles:profile is not among the available skills. /session-flow:handoff takes the fallback the structure reference sets: it makes no plugin-profiles Skill call and writes nothing about plugin profiles into the save-point, while still writing the save-point. Written from MB:plugins/session-flow/reference/structure.md "Plugin profile" and MB:docs/contracts/seam-phrasing/README.md "The shape". A run needs --scaffold and --allow-tools Bash Write Edit.'
 tags: [handoff, seam-phrasing, availability-gate, plugin-profiles]
 runs: 4
 plugins: ["../.."]
