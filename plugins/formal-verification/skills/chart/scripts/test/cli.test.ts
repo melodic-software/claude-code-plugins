@@ -403,7 +403,12 @@ test(
     const closed = once(child, "close");
     while (!fs.existsSync(pidFile) || !read(pidFile)) await sleep(20);
     const ps = spawnSync("ps", ["-o", "ppid=", "-p", read(pidFile)], { encoding: "utf8" });
-    process.kill(Number(ps.stdout), "SIGKILL");
+    const target = Number(String(ps.stdout).trim());
+    assert.ok(
+      Number.isInteger(target) && target > 0 && target !== process.pid,
+      `ps gave no usable parent pid: ${JSON.stringify(ps.stdout)}`,
+    );
+    process.kill(target, "SIGKILL");
     const [status] = await closed;
     assert.equal(stderr, "SIGKILL killed the check, so the command wrote nothing.\n");
     assert.equal(status, 2);
@@ -479,8 +484,11 @@ for (const signal of ["SIGINT", "SIGTERM"] satisfies NodeJS.Signals[]) {
     const sendWhileRead = `const fs = require("node:fs");
 const [dot, pid, signal, graph] = process.argv.slice(1);
 setTimeout(() => process.exit(1), 30_000).unref();
+const target = Number(String(pid).trim());
+if (!Number.isInteger(target) || target <= 0 || target === process.pid || target === process.ppid)
+  process.exit(1);
 fs.open(dot, "w", (error, fd) => {
-  process.kill(Number(pid), signal);
+  process.kill(target, signal);
   fs.writeSync(fd, fs.readFileSync(graph));
   fs.closeSync(fd);
 });`;
