@@ -21,7 +21,7 @@ reason out loud so the writer keeps craft conscious, not accidental.
 **What this file is.** The checklist form is this repo's, not Pat's. He never
 publishes a pre-lock audit. What is his is the material each box invokes, and
 this file quotes it rather than paraphrasing it. Boxes with no book source are
-labelled as this file's own synthesis so you can tell the tooling from the books.
+labeled as this file's own synthesis so you can tell the tooling from the books.
 
 Sources:
 

@@ -278,8 +278,8 @@ interval, or when either runners endpoint changes its permission requirement.
 
 ## Fetch failed logs
 
-`gh run view --log-failed` is the last resort: it truncates at the CLI display layer (cli/cli
-#11059, #10551, #7771, #7642), while the bundled scripts' REST path returns complete logs.
+`gh run view --log-failed` is the last resort: it truncates at the CLI display layer
+(cli/cli #11059, #10551, #7771, #7642), while the bundled scripts' REST path returns complete logs.
 `fetch-annotations.sh` and `fetch-failed-logs.sh` take `--dir "<checkout>"` and resolve the
 repository with `target-repo.sh`, as [Resolve PR identity](#resolve-pr-identity) does. On a
 triangular flow, name the PR's base repository in `GH_REPO`, or in `FETCH_ANNOT_REPO` and
