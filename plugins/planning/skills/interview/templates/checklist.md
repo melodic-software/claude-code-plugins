@@ -30,7 +30,7 @@ One line: what the user disclosed at intake about where they start (SKILL.md Sta
 
 ## Terminology matrix
 
-One row per sourced term the rounds rely on, built and agreed with the user before the first decision question; a later round that adds a term adds a `proposed` row and gets it agreed. Status: `proposed` | `agreed`. With no such term, replace the table with `none`. Rules: `context/loop.md` "Terminology matrix". Replace the example row with this run's terms.
+One row per sourced term the rounds rely on, built and agreed with the user before the first decision question (a definition the session coins gets no row and is agreed in a withheld question); a later round that adds a term adds a `proposed` row and gets it agreed. Status: `proposed` | `agreed`. With no such term, replace the table with `none`. Rules: `context/loop.md` "Terminology matrix". Replace the example row with this run's terms.
 
 | Term | Definition | Source | Status |
 |---|---|---|---|

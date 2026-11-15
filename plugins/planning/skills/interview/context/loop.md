@@ -292,7 +292,7 @@ The ledger's `## Terminology matrix` holds one row per sourced term the rounds r
 | cluster step | upstream's grouping of reports that share a fingerprint | vendor/upstream-triage/README.md:8 | proposed |
 ```
 
-Status is `proposed` until the user agrees the row, then `agreed`. The agreement question is registered like any other; its resolution names the rows it agreed. A term the user redefines keeps its row with the user's definition and source `user, round <N>`. The shorthand glossary above holds the session's own coinages; the matrix holds every sourced term a reader must share to answer, a qualified name citing its clash included, and a definition with nothing to cite is defined inline in each question that uses it instead.
+Status is `proposed` until the user agrees the row, then `agreed`. The agreement question is registered like any other; its resolution names the rows it agreed. A term the user redefines keeps its row with the user's definition and source `user, round <N>`. The shorthand glossary above holds the session's own coinages; the matrix holds every sourced term a reader must share to answer, a qualified name citing its clash included. A coinage a reader must share gets no row and no `Basis:` claim; it is agreed in a withheld question beside the matrix question (SKILL.md "Agree the terms before the first decision").
 
 ### Dialogue + recommendation revision
 
