@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.19.6] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
 ## [0.19.5] - 2026-11-15
 
 ### Changed
