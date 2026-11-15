@@ -218,7 +218,7 @@ eye. The library is the resolved `animation.easing_library`: under `out` (enters
 user-initiated UI) and under `in_out` (elements moving or morphing on screen), the curves `quad`,
 `cubic`, `quart`, `quint`, `expo` and `circ`.
 
-Why ease-out works for enters: the fast start delivers immediate visual feedback: the element
+Ease-out works for enters because its fast start delivers immediate visual feedback: the element
 "jumps" toward its destination, then settles. Ease-in inverts that and back-loads the movement,
 which is why the same duration feels slower and sluggish.
 
