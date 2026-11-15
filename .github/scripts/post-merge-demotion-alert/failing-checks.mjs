@@ -1,5 +1,5 @@
 // failing-checks.mjs <run id> <attempt> [--baseline]: the checks one attempt
-// of a full run failed, one per line, as post-merge-demotion-alert.yml's alert
+// of a full run failed, one per line, as post-merge-file-demotion-issues.yml's alert
 // step judges them: red-main.mjs failingChecks with ALERT_FAILED. --baseline
 // leaves out a job counted only because its steps were unknown. Reads through
 // `gh api` with the step's GH_TOKEN; a failed read exits non-zero, which fails

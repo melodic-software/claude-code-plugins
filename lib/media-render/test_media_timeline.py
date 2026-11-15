@@ -119,6 +119,21 @@ class TimelineTest(unittest.TestCase):
         self.assertEqual(cues[0], (0.0, 0.834, 'One two.'))
         self.assertLessEqual(cues[-1][1], tl['duration'])
 
+    def test_a_minimum_longer_than_the_paragraph_pads_silence_and_moves_everything_after_it(self):
+        words = {'words': [{'word': w, 'start': s, 'end': s + 0.3} for w, s in
+                           [('One', 0.5), ('two.', 0.9), ('Three', 2.0), ('four', 2.4), ('five.', 2.8)]],
+                 'duration': 4.0}
+        tl = mt.timeline(mt.parse(board()), words, minimum=[5.0, 1.0])
+        self.assertEqual([(h['start'], h['end']) for h in tl['holds']], [(0.0, 5.0), (5.0, 7.0)])
+        self.assertEqual(tl['audio'], [('narration', 0.0, 2.0), ('silence', 3.0), ('narration', 2.0, 4.0)])
+        self.assertEqual([w['start'] for w in tl['words']['words']], [0.5, 0.9, 5.0, 5.4, 5.8])
+        self.assertEqual(tl['chapters'][1], {'title': 'Code', 'start_s': 5.0})
+        self.assertEqual(tl['duration'], 7.0)
+
+    def test_a_minimum_lengthens_a_captions_only_hold(self):
+        tl = mt.timeline(mt.parse(board()), None, HOLD, minimum=[4.5, 0])
+        self.assertEqual([(h['start'], h['end']) for h in tl['holds']], [(0.0, 4.5), (4.5, 7.5)])
+
     def test_script_text_is_one_paragraph_per_narrated_moment(self):
         self.assertEqual(mt.script(mt.parse(board())), 'One two.\n\nThree four five.\n')
 

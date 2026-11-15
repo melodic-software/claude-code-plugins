@@ -66,7 +66,7 @@
     "discipline@melodic-software": true,
     "docs-naming@melodic-software": true,
     "evals@melodic-software": true,
-    "explainer-video@melodic-software": false,
+    "explainer-video@melodic-software": true,
     "gaming@melodic-software": false,
     "guardrails@melodic-software": true,
     "harness-config@melodic-software": true,
@@ -77,6 +77,6 @@
     "plugin-quality@melodic-software": true,
     "retro-audio@melodic-software": false,
     "skill-quality@melodic-software": true,
-    "speech@melodic-software": false
+    "speech@melodic-software": true
   }
 }

@@ -1,4 +1,4 @@
-// pr-feedback-dispatch.yml's slot read through the real resolver: the
+// pr-dispatch-feedback.yml's slot read through the real resolver: the
 // dispatcher script resolves only the address-feedback slot of a pr-unblock
 // lane whose resolve-conflicts slot has a mergeable predicate (runs
 // 38838718857 and 38838482787 failed reading that lane with no activity), and

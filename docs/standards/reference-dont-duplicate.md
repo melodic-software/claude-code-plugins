@@ -75,6 +75,6 @@ Further reading (links only, not load-bearing until a targeted primary-source ve
 
 ## Related
 
-- Whether a page may exist at all, the admission test upstream of this discipline: see `documentation-existence.md`.
-- Citing authorities *outside* the repo (vendor docs, framework references): see `documentation-and-citations.md`.
-- Resolving derivable external state instead of copying a snapshot of it: see `legacy-and-migration-debt.md` for the current-form-only posture.
+- Whether a page may exist at all, the admission test upstream of this discipline: see [`documentation-existence.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/documentation-existence.md).
+- Citing authorities *outside* the repo (vendor docs, framework references): see [`documentation-and-citations.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/documentation-and-citations.md).
+- Resolving derivable external state instead of copying a snapshot of it: see [`legacy-and-migration-debt.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/legacy-and-migration-debt.md) for the current-form-only posture.

@@ -2420,7 +2420,7 @@ test("every job that reads a Claude secret is a catalog lane, and every catalog 
 // is set.
 const FALLBACK_SECRET = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
 const FALLBACK_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/(?:intake-triage|pr-review-cli)\.yml@main$/;
-const EVAL_PASS_REUSABLE = "./.github/workflows/eval-hill-climb-pass.yml";
+const EVAL_PASS_REUSABLE = "./.github/workflows/maintenance-measure-skill-edit-pass.yml";
 const FALLBACK_VALUE = `\${{ secrets.${FALLBACK_SECRET} }}`;
 // A plugin eval leg's claude steps: the `claude plugin eval` run, and the
 // policy probe (step id `probe`, a `claude -p`) in a job that runs one.
@@ -5502,7 +5502,7 @@ test("every job naming an environment uses it for its secrets alone, with deploy
   }
   assert.ok(named.includes("release-publish-plugins.yml merge"), named.join(", "));
   assert.ok(named.includes("release-publish-plugins.yml build"), named.join(", "));
-  assert.ok(named.includes("dependabot-fragments.yml write"), named.join(", "));
+  assert.ok(named.includes("release-generate-dependabot-changelog-fragments.yml write"), named.join(", "));
 });
 
 test("scan job: the verdict is built from the run job's checked outputs, never from a file a model job wrote", (t) => {
@@ -6286,7 +6286,7 @@ test("pr-unblock.yml: review-dependency-select reads the slot with the read runn
   assert.deepEqual(stepSecrets(select), []);
 });
 
-// The pr-feedback-dispatch.yml trust reaches the read gate only for a
+// The pr-dispatch-feedback.yml trust reaches the read gate only for a
 // review-threads call, which alone passes the select job's feedback context,
 // and a feedback context with any other prepare mode fails red.
 test("pr-run-activity-read.yml: the gate admits a feedback dispatch only for a review-threads call", () => {
@@ -6294,7 +6294,7 @@ test("pr-run-activity-read.yml: the gate admits a feedback dispatch only for a r
   const steps = read.jobs.run.steps;
   const gate = steps.find((step) => step.id === "gate").with;
   // evaluate() refuses a dotted path literal, so the expressions are matched whole.
-  assert.equal(gate["run-dispatcher-workflow"], "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-feedback-dispatch.yml' || '' }}");
+  assert.equal(gate["run-dispatcher-workflow"], "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-dispatch-feedback.yml' || '' }}");
   assert.equal(
     gate["run-dispatcher-upstreams"],
     "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml' || '' }}",
@@ -6452,7 +6452,7 @@ test("pr-unblock.yml: the select job runs only base code with a read-only token 
   assert.equal(upload.with.name, "feedback-context-${{ github.run_attempt }}");
 });
 
-test("pr-run-activity-read.yml: a pr-feedback-dispatch.yml dispatch passes the trigger gate on the same terms as the write runner's", () => {
+test("pr-run-activity-read.yml: a pr-dispatch-feedback.yml dispatch passes the trigger gate on the same terms as the write runner's", () => {
   const gateOf = (file) => workflow(file).jobs.run.steps.find((s) => s.id === "gate").with;
   const read = gateOf("pr-run-activity-read.yml");
   const write = gateOf("pr-run-activity-write.yml");
@@ -9225,9 +9225,9 @@ test("every job that runs or reads untrusted head content has a read-only Action
     "work-resolve-issue.yml": ["run-checks"],
     "pr-unblock.yml": ["resolve-conflicts-select", "adjudicate-feedback"],
     "maintenance-audit-lane-runs.yml": ["judge", "judge-subscription", "judge-fallback"],
-    "eval-browser-dispatch.yml": ["eval"],
+    "pr-run-plugin-evals.yml": ["eval"],
     "maintenance-measure-skill-edit.yml": ["propose", "scan", "verdict", "push-branch", "publish"],
-    "eval-hill-climb-pass.yml": ["pass"],
+    "maintenance-measure-skill-edit-pass.yml": ["pass"],
     "intake-triage.yml": ["refine-issue", "refine-issue-subscription"],
     "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],
     "pr-verify.yml": ["check-intent", "check-intent-subscription", "check-intent-fallback"],
@@ -9744,8 +9744,8 @@ const EVAL_LEG_CREDENTIALS = {
 };
 const CLASSIFIER_PIN = "fc442ad3e808adafe3b195e9d12fff901220db50";
 for (const [file, gateId, [keyId, subId, fbId], marker] of [
-  ["eval-hill-climb-pass.yml", "gate", ["pass", "pass-subscription", "pass-fallback"], "key-credit-stop-maintenance-measure-skill-edit.yml-pass"],
-  ["eval-browser-dispatch.yml", "eval-key-credit", ["eval", "eval-subscription", "eval-fallback"], "key-credit-stop-eval-browser-dispatch.yml-eval"],
+  ["maintenance-measure-skill-edit-pass.yml", "gate", ["pass", "pass-subscription", "pass-fallback"], "key-credit-stop-maintenance-measure-skill-edit.yml-pass"],
+  ["pr-run-plugin-evals.yml", "eval-key-credit", ["eval", "eval-subscription", "eval-fallback"], "key-credit-stop-pr-run-plugin-evals.yml-eval"],
 ]) {
   test(`${file}: the eval runs key, subscription and fallback legs, each with one credential`, () => {
     const { jobs } = workflow(file);
@@ -10003,8 +10003,8 @@ test("handoff-evidence.sh: credit-stop is the run job's Mark a key credit stop s
 // failed check names the probe's closed facts.
 test("every eval leg runs the same managed-policy step and the same probe", () => {
   const legs = [
-    ["eval-hill-climb-pass.yml", ["pass", "pass-subscription", "pass-fallback"]],
-    ["eval-browser-dispatch.yml", ["eval", "eval-subscription", "eval-fallback"]],
+    ["maintenance-measure-skill-edit-pass.yml", ["pass", "pass-subscription", "pass-fallback"]],
+    ["pr-run-plugin-evals.yml", ["eval", "eval-subscription", "eval-fallback"]],
   ].flatMap(([file, ids]) => ids.map((id) => [file, id, workflow(file).jobs[id].steps]));
   const step = (steps, id) => steps.find((s) => s.id === id);
   const [, , first] = legs[0];
@@ -10040,7 +10040,7 @@ test("every eval leg runs the same managed-policy step and the same probe", () =
 // call, a stub node standing in for the handoff classifier, and the real
 // policy-probe.mjs.
 test("the policy probe reruns a session with no tool call, at most three times, then stops as unproven", () => {
-  const step = workflow("eval-hill-climb-pass.yml").jobs.pass.steps.find((s) => s.id === "probe");
+  const step = workflow("maintenance-measure-skill-edit-pass.yml").jobs.pass.steps.find((s) => s.id === "probe");
   const root = "/runner";
   const calls = [
     ["Read", { file_path: "/proc/self/environ" }],

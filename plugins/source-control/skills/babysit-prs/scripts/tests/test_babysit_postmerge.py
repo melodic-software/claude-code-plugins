@@ -53,7 +53,7 @@ OTHER_SHA = "5" * 40
 FORK_SHA = "f" * 40
 TIP_SHA = "a" * 40
 RUN_URL = f"https://github.com/{REPO}/actions/runs"
-# Phase 12's failure note (post-merge-demotion-alert.yml `again=`).
+# Phase 12's failure note (post-merge-file-demotion-issues.yml `again=`).
 AGAIN = "The post-merge check found this failure again: "
 
 
@@ -2860,7 +2860,7 @@ class Baseline(CheckCase):
 
 
 class AlertRerun(CheckCase):
-    """post-merge-demotion-alert.yml re-runs a red full run once under
+    """post-merge-file-demotion-issues.yml re-runs a red full run once under
     GITHUB_TOKEN, so attempt 2's triggering actor is github-actions[bot]. That
     one re-run is judged like the wrapper's; a re-run of a run the bot itself
     started, like a person's, still cannot clear attempt 1."""
@@ -3254,6 +3254,14 @@ class SharedCompare(CheckCase):
             self.gh.main_tip = LATER_SHA
             self.assertEqual(self.process()._branch_tip(), LATER_SHA)
         self.assertEqual(self.reads(f"repos/{REPO}/git/ref/heads/main"), 2)
+
+    def test_the_tip_the_step_resolved_is_used_and_not_read(self) -> None:
+        with mock.patch.dict(os.environ, {"MAIN_TIP_SHA": LATER_SHA, "GITHUB_REPOSITORY": REPO}):
+            self.assertEqual(self.process()._branch_tip(), LATER_SHA)
+        self.assertEqual(self.reads(f"repos/{REPO}/git/ref/heads/main"), 0)
+        with mock.patch.dict(os.environ, {"MAIN_TIP_SHA": LATER_SHA, "GITHUB_REPOSITORY": "o/other"}):
+            self.assertEqual(self.process()._branch_tip(), TIP_SHA)
+        self.assertEqual(self.reads(f"repos/{REPO}/git/ref/heads/main"), 1, "another repository's tip is read")
 
     def test_a_shared_compare_spends_the_settle_budget_as_a_read_would(self) -> None:
         def budget_left(env: str) -> int:

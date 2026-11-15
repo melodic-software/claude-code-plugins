@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Inferred rust: globs *.rs, Cargo.toml\n\n| rust | PASS | PASS |",
+      "why": "rust ran as an inferred ecosystem"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "rust: no record and nothing to infer it from\n\nNothing ran.",
+      "why": "the inferable id was treated as uncovered"
+    }
+  ]
+}

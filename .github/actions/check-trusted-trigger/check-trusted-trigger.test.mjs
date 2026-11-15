@@ -2607,11 +2607,11 @@ test("commitPulls never logs the REST error's message when it falls back to Grap
 });
 
 // A dispatcher started by workflow_run when a review lane finished on the PR
-// (pr-feedback-dispatch.yml). Its run record reports the default branch and its
+// (pr-dispatch-feedback.yml). Its run record reports the default branch and its
 // tip, as pr-merge.yml's workflow_run runs did (run 38779143370 after review run
 // 38779135732 on release/plugins).
 
-const RUN_DISPATCHER_WORKFLOW = ".github/workflows/pr-feedback-dispatch.yml";
+const RUN_DISPATCHER_WORKFLOW = ".github/workflows/pr-dispatch-feedback.yml";
 const REVIEW_WORKFLOW = ".github/workflows/pr-review-hosted.yml";
 const SECURITY_WORKFLOW = ".github/workflows/pr-review-security-hosted.yml";
 const UPSTREAMS = `${REVIEW_WORKFLOW} ${SECURITY_WORKFLOW}`;
@@ -2632,7 +2632,7 @@ const UPSTREAM = {
 };
 const RUN_DISPATCHER = {
   path: RUN_DISPATCHER_WORKFLOW,
-  name: "pr-feedback-dispatch",
+  name: "pr-dispatch-feedback",
   event: "workflow_run",
   actor: LANES_BOT,
   triggering_actor: LANES_BOT,
@@ -3400,13 +3400,13 @@ test("upstream re-run: a record does not vouch for an unlisted re-runner of this
   assert.deepEqual(await upstreamRerun({ github, runAttempt: "2", rerunner: STRANGER }), STOPPED("untrusted-rerunner"));
 });
 
-// A ci-status job pr-feedback-dispatch.yml's rerun-ci-status job re-ran: the
+// A ci-status job pr-dispatch-feedback.yml's rerun-ci-status job re-ran: the
 // upstream run is at attempt 2 or later, started by github-actions[bot], and
 // that job uploaded rerun-ci-status-<run id>-<attempt>-<head sha> just before
 // the re-run. Its run may poll for up to 10 minutes first, so the record, not
 // the run's start, opens the window.
 
-const CI_STATUS_RERUN_WORKFLOW = ".github/workflows/pr-feedback-dispatch.yml";
+const CI_STATUS_RERUN_WORKFLOW = ".github/workflows/pr-dispatch-feedback.yml";
 const DISPATCH_RUN_ID = 39330000001;
 const dispatchRoute = `GET /repos/${REPOSITORY}/actions/runs/${DISPATCH_RUN_ID}`;
 const ciStatusRecord = (attempt) => `rerun-ci-status-${CI_RERUN_ID}-${attempt}-${HEAD_SHA}`;
@@ -3416,7 +3416,7 @@ const reconcilerListing = artifactsByName(CI_RERUN_RECORD);
 // 19:00:30; the re-run attempt started at 19:00:45.
 const dispatchRun = (overrides = {}) => ({
   id: DISPATCH_RUN_ID,
-  name: "pr-feedback-dispatch",
+  name: "pr-dispatch-feedback",
   path: CI_STATUS_RERUN_WORKFLOW,
   event: "workflow_run",
   status: "in_progress",
@@ -3760,7 +3760,7 @@ test("appCloseKind: an outsider's close comment or an unreadable comment list re
 });
 
 // reconcilerRecordVouches: the reconciler-record check alone, for a recorder
-// that vouches for an attempt another workflow causes (pr-feedback-dispatch.yml
+// that vouches for an attempt another workflow causes (pr-dispatch-feedback.yml
 // rerun-ci-status after the reconciler re-ran a review run). Same rules as the
 // reconciler re-run cases above, read at the run's attempt 2.
 const vouches = ({ github, sleep = async () => {} } = {}) =>

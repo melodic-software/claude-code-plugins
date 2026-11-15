@@ -29,7 +29,11 @@ Tokens are estimated as bytes / 4 and labeled as an estimate throughout.
 
 Usage: comment-census.py [PATH ...] [--top N] [--json] [--baseline FILE]
                          [--layer auto|scc|pygments]
-Exit: 0 counted; 3 no reading layer available; 2 usage.
+Code files are those whose extension is in code-extensions.txt beside this
+script, the list the code-tidying scoping scripts share.
+
+Exit: 0 counted; 3 no reading layer available; 2 usage; 4 the extension list
+cannot be read (its path is named on stderr).
 """
 
 from __future__ import annotations
@@ -44,46 +48,31 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-CODE_EXT = {
-    ".cs",
-    ".ts",
-    ".tsx",
-    ".mts",
-    ".cts",
-    ".js",
-    ".jsx",
-    ".mjs",
-    ".cjs",
-    ".py",
-    ".pyi",
-    ".sh",
-    ".bash",
-    ".ps1",
-    ".psm1",
-    ".go",
-    ".rs",
-    ".java",
-    ".rb",
-    ".lua",
-    ".sql",
-    ".c",
-    ".h",
-    ".cpp",
-    ".hpp",
-    ".yaml",
-    ".yml",
-    ".toml",
-}
+CODE_EXT_FILE = Path(__file__).with_name("code-extensions.txt")
 EXIT_NO_LAYER = 3
 EXIT_USAGE = 2
+EXIT_NO_EXTENSION_LIST = 4
 
 
-def tracked_files(roots: list[Path]) -> list[Path]:
+def code_extensions() -> set[str]:
+    """The shared extension list, dotted and lowercased; OSError when unreadable or empty."""
+    exts = {
+        "." + line.strip().lower()
+        for line in CODE_EXT_FILE.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    }
+    if not exts:
+        raise OSError(f"{CODE_EXT_FILE} lists no extension")
+    return exts
+
+
+def tracked_files(roots: list[Path], code_ext: set[str] | None = None) -> list[Path]:
     """Code files under each root: git-tracked when inside a repo, else walked."""
+    code_ext = code_ext or code_extensions()
     out: list[Path] = []
     for root in roots:
         if root.is_file():
-            if root.suffix.lower() in CODE_EXT:
+            if root.suffix.lower() in code_ext:
                 out.append(root)
             continue
         try:
@@ -99,7 +88,7 @@ def tracked_files(roots: list[Path]) -> list[Path]:
             found = [root / n for n in names]
         except (subprocess.CalledProcessError, FileNotFoundError):
             found = [p for p in root.rglob("*") if p.is_file()]
-        out.extend(p for p in found if p.suffix.lower() in CODE_EXT and p.is_file())
+        out.extend(p for p in found if p.suffix.lower() in code_ext and p.is_file())
     seen: set[Path] = set()
     uniq = []
     for p in out:
@@ -421,7 +410,15 @@ def main(argv: list[str] | None = None) -> int:
         if not r.exists():
             print(f"comment-census: no such path {r}", file=sys.stderr)
             return EXIT_USAGE
-    files = tracked_files(roots)
+    try:
+        code_ext = code_extensions()
+    except (OSError, UnicodeDecodeError):
+        print(
+            f"comment-census: cannot read the extension list {CODE_EXT_FILE}",
+            file=sys.stderr,
+        )
+        return EXIT_NO_EXTENSION_LIST
+    files = tracked_files(roots, code_ext)
     records, sources = census(files, args.layer)
     if "error" in sources:
         print(f"comment-census: UNAVAILABLE: {sources['error']}", file=sys.stderr)

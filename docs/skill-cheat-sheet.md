@@ -47,6 +47,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 - [Anytime / cross-cutting](#anytime--cross-cutting)
 - [Session lifecycle](#session-lifecycle)
 - [Operator cadence](#operator-cadence)
+- [Review and pull-request skill map](#review-and-pull-request-skill-map)
 
 ## 1. Interview
 
@@ -381,5 +382,23 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/work-items:attend-queue`](../plugins/work-items/skills/attend-queue/SKILL.md) | `work-items` | daily | Drive escalations to resolution; list held PRs and post-merge failures; hand intake to triage |  | `/work-items:work-loop` |
 | [`/work-items:morning-brief`](../plugins/work-items/skills/morning-brief/SKILL.md) | `work-items` | daily | Print the operator's read-only morning view. Queues, merge-ready PRs, parked decisions |  |  |
 | [`/work-items:work-loop`](../plugins/work-items/skills/work-loop/SKILL.md) | `work-items` | continuous | Drain the backlog as a self-paced autonomous loop |  | `/work-items:attend-queue` |
+
+## Review and pull-request skill map
+
+| Skill | Job | Who it is for | Posts to the PR |
+| --- | --- | --- | --- |
+| [`/review:quality-gate`](../plugins/review/skills/quality-gate/SKILL.md) | Single-lens review checkpoint of a change before it is ready | author, reviewer | no |
+| [`/review:fanout`](../plugins/review/skills/fanout/SKILL.md) | Every reviewer at once, merged into one ranked report on disk | author, reviewer | no |
+| [`/review:council`](../plugins/review/skills/council/SKILL.md) | Configured panel of reviewers, one ranked report, optional fix rounds | author, reviewer | no |
+| [`/review:explain-change`](../plugins/review/skills/explain-change/SKILL.md) | Digest of one PR: why, before and after, risk map, where to focus | reviewer | no |
+| [`/review:merge-risk`](../plugins/review/skills/merge-risk/SKILL.md) | Checked merge-risk rating of one PR, with a demote-only flag | reviewer | no |
+| [`/review:reviewer-media`](../plugins/review/skills/reviewer-media/SKILL.md) | Decides whether a PR needs a walkthrough video and builds it from the digest | author, CI lane | through another skill |
+| [`/review:code-review`](../plugins/review/skills/code-review/SKILL.md) | CI lane: correctness and maintainability findings on one PR | CI lane | yes |
+| [`/review:security-review`](../plugins/review/skills/security-review/SKILL.md) | CI lane: logic, trust-boundary and Actions security findings on one PR | CI lane | yes |
+| [`/source-control:pull-request`](../plugins/source-control/skills/pull-request/SKILL.md) | Whole PR lifecycle: prep, create, ready, monitor, merge, evidence, media | author | yes |
+| [`/source-control:babysit-prs`](../plugins/source-control/skills/babysit-prs/SKILL.md) | Tiered fleet pass advancing open PRs; resolves threads and merges only at worker and autopilot | author | yes |
+| [`/source-control:babysit-loop`](../plugins/source-control/skills/babysit-loop/SKILL.md) | One repository's PR queue run as a standing merge lane | CI lane | through another skill |
+| [`/playwright:demo-video`](../plugins/playwright/skills/demo-video/SKILL.md) | Produced demo video of a web UI change, quality-checked from frames | author | yes |
+| [`/explainer-video:produce`](../plugins/explainer-video/skills/produce/SKILL.md) | Renders a narrated video from a topic or a storyboard | author | no |
 
 <!-- END GENERATED: cheatsheet -->

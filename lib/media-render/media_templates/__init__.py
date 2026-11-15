@@ -1,12 +1,15 @@
 """Frame templates: one storyboard moment -> one self-contained HTML page.
 
 TEMPLATES: the template names a storyboard moment may use.
-page(moment, board_title, chapter_title, position, size, band, stylesheet=None, base_dir=None) -> html
+page(moment, board_title, chapter_title, position, size, band, stylesheet=None, base_dir=None, part=None) -> html
   Every string from the storyboard is HTML-escaped; class names come only from fixed sets, never from data.
   size: (width, height) in CSS pixels; band: the bottom share of the height kept free for burned captions.
   Both are injected after the stylesheet, so they win over its own size and bottom padding.
   stylesheet: CSS text replacing the bundled frames.css (config `frame_stylesheet`).
   base_dir: where a screenshot moment's image path resolves; the image is inlined as a data URI.
+  part: (j, m) when the moment's list is split over m frames and this is frame j; the header says so.
+entries(moment) -> how many list entries a moment may split across frames (0 for a template that never splits).
+subset(moment, start, stop) -> the moment showing only entries [start, stop) of that list.
 frame_text(moment, board_title, chapter_title) -> every string a frame shows, for the scan.
 Standard library only.
 """
@@ -17,6 +20,7 @@ from pathlib import Path
 STYLESHEET = Path(__file__).with_name('frames.css')
 LINE_KINDS = {'+': 'add', '-': 'del', ' ': 'ctx'}
 RISK_LEVELS = ('low', 'medium', 'high', 'critical')
+DIAGRAM_LAYOUTS = ('flow', 'stack', 'group')
 IMAGE_TYPES = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp'}
 
 
@@ -51,7 +55,11 @@ def _diagram(d):
         detail = f'<div class="detail">{esc(n.get("detail"))}</div>' if n.get('detail') else ''
         nodes.append(f'<div class="node"><div class="label">{esc(n.get("label"))}</div>{detail}</div>')
     note = f'<p class="note">{esc(d["note"])}</p>' if d.get('note') else ''
-    return f'<section class="diagram"><div class="flow">{"<div class=arrow>→</div>".join(nodes)}</div>{note}</section>'
+    center = f'<div class="center">{esc(d["center"])}</div>' if d.get('center') else ''
+    # flow joins the nodes with arrows (a sequence); stack and group claim no order between them.
+    layout = d.get('layout') if d.get('layout') in DIAGRAM_LAYOUTS else 'flow'
+    joiner = '<div class=arrow>→</div>' if layout == 'flow' else ''
+    return f'<section class="diagram">{center}<div class="{layout}">{joiner.join(nodes)}</div>{note}</section>'
 
 
 def _before_after(d):
@@ -100,9 +108,34 @@ _BODIES = {'title': lambda d, board_title, base: _title(d, board_title), 'code-h
            'risk-map': lambda d, *_: _risk_map(d), 'also-changed': lambda d, *_: _also_changed(d),
            'screenshot': lambda d, board_title, base: _screenshot(d, base)}
 TEMPLATES = tuple(_BODIES)
+PAGED = {'also-changed': 'files', 'code-hunk': 'lines', 'risk-map': 'rows'}
 
 
-def page(moment, board_title, chapter_title, position, size, band, stylesheet=None, base_dir=None):
+def entries(moment):
+    key = PAGED.get(moment.get('template'))
+    items = (moment.get('data') or {}).get(key) if key else None
+    return len(items) if isinstance(items, list) else 0
+
+
+def subset(moment, start, stop):
+    """A code hunk's note closes the hunk, so it shows only on the frame holding the last line."""
+    d = dict(moment.get('data') or {})
+    key = PAGED[moment['template']]
+    total = len(d[key])
+    d[key] = d[key][start:stop]
+    if moment['template'] == 'code-hunk' and stop < total:
+        d.pop('note', None)
+    return {**moment, 'data': d}
+
+
+def _part(part):
+    if not part or part[1] < 2:
+        return ''
+    j, m = part
+    return f'<span class="part">{"continued, " if j > 1 else ""}part {j} of {m}</span>'
+
+
+def page(moment, board_title, chapter_title, position, size, band, stylesheet=None, base_dir=None, part=None):
     d, t = moment.get('data') or {}, moment['template']
     body = _BODIES[t](d, board_title, base_dir)
     css = stylesheet if stylesheet is not None else STYLESHEET.read_text(encoding='utf-8')
@@ -111,7 +144,7 @@ def page(moment, board_title, chapter_title, position, size, band, stylesheet=No
             f'body{{padding-bottom:{round(height * band)}px}}')
     k, n = position
     return ('<!doctype html><html><head><meta charset="utf-8"><style>' + css.replace('</', '<\\/') + '</style></head>'
-            f'<body class="t-{t}"><header><span class="chapter">{esc(chapter_title)}</span>'
+            f'<body class="t-{t}"><header><span class="chapter">{esc(chapter_title)}</span>{_part(part)}'
             f'<span class="pos">{k} / {n}</span></header><main>{body}</main></body></html>')
 
 

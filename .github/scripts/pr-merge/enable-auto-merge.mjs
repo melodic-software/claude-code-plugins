@@ -2302,7 +2302,7 @@ export async function main({ env = process.env, github, actions, laneReads, veri
               console.log(`enable-auto-merge: #${pull.number} path holds are off (merge.diff-check.path-holds), so nothing holds it for this: ${escapeCommand(skipped.reason)}`);
             }
             if (!lifters.length && Array.isArray(holdPaths) && pathHoldKind(files, holdPaths, pathHolds)?.kind === "hold-path") {
-              lifters = (await liftersOf(github, repo[0], pull.number, pull.headRefOid, humans, holdPaths)).lifters;
+              lifters = (await liftersOf(github, repo[0], pull.number, pull.headRefOid, humans, holdPaths, { mainTip: env.MAIN_TIP_SHA })).lifters;
             }
             let stops = null;
             try {

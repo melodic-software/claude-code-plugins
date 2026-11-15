@@ -3,6 +3,7 @@
 
   media.py claim <pr> --run-id <id>
   media.py post  <pr> --manifest <file> --run-id <id> [--artifact-url <url> [--retention-days <n>]] [--no-attach]
+                 [--scan-pattern <regex>]...
   media.py stale <pr> [--head <sha>] [--quiet]
   media.py fail  <pr> --run-id <id> --reason <code> [--run-url <url>]
   media.py shows --facts <file>
@@ -12,6 +13,7 @@ shows (posted or out of date), or nothing.
 
 Every action takes --repo <owner/repo>, and the label names as --label-requested, --label-posted and
 --label-failed (`false` turns one off). Only the text between the two marker lines is ever rewritten.
+`post` scans what it places; each --scan-pattern (scan.extra_patterns) adds a regex to that floor.
 
 Exit: 0 done; 1 a gh call failed or the read-back did not match; 2 usage, or a manifest that cannot be
 used; 3 the claim is held by another run, the body changed under the edit, or its markers are broken;
@@ -760,7 +762,8 @@ def _post(
                 "section": sections[False],
                 "stale section": sections[True],
                 **media.unrendered,
-            }
+            },
+            extra=a.scan_pattern,
         )
         if not scan.ok:
             found = (
@@ -990,6 +993,7 @@ def main(argv: list[str]) -> int:
             p.add_argument("--artifact-name", default="")
             p.add_argument("--retention-days", type=int, default=30)
             p.add_argument("--no-attach", action="store_true")
+            p.add_argument("--scan-pattern", action="append", default=[])
         if name == "stale":
             p.add_argument("--head")
             p.add_argument("--quiet", action="store_true")

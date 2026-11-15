@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "markdown check docs/guide.md\ncross-cutting check docs/guide.md src/lib.rs\n",
+      "why": "cross-cutting ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "markdown check docs/guide.md\n",
+      "why": "cross-cutting did not run"
+    }
+  ]
+}

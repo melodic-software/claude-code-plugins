@@ -47,7 +47,7 @@ run-name: "${{ inputs.pr && format('pr-merge: arm #{0}', inputs.pr) || '' }}"
 # for a lane merge no lane run covers while merge.full-run-cap-bypass is on
 # (docs/conventions/pr-pipeline.yaml). That run raises no workflow_run event
 # (GITHUB_TOKEN started it), so when it ends red that job's next live run
-# sends its run id and head SHA to post-merge-demotion-alert.yml through
+# sends its run id and head SHA to post-merge-file-demotion-issues.yml through
 # workflow_dispatch, which files the post-merge record and fix issues and
 # reports the red-main culprit once the re-run fails too. A red run this
 # workflow dispatched gets its one re-run
@@ -83,7 +83,7 @@ on:
   # each one it reads as listed. A pull_request_target run reads only the PR
   # its event names (EVENT_PR); the schedule reads every one.
 
-  # A label came off. This run's completion starts pr-feedback-dispatch.yml,
+  # A label came off. This run's completion starts pr-dispatch-feedback.yml,
   # the only thing that decides again a lanes App head the human gate skipped
   # once needs-human comes off, so `unlabeled` stays. No other PR event starts
   # a run; the schedule picks up each change. Adding a label can only add a
@@ -148,7 +148,7 @@ jobs:
   # token stays read-only. It also starts the one re-run of a red full run the
   # lane dispatched, which the lanes App cannot start, starts main's tip when
   # no full run covers it and none started within the cap, and sends a red
-  # full run to post-merge-demotion-alert.yml. Same mechanics as
+  # full run to post-merge-file-demotion-issues.yml. Same mechanics as
   # dispatch-full-run: ref main, and the pr-merge-dispatched-<id> artifact the
   # post-merge check trusts. Not on pull_request_target, whose dispatch the
   # check does not trust; that event's merge job still runs the check. Not on
@@ -164,7 +164,7 @@ jobs:
     permissions:
       contents: read # check out main
       pull-requests: read # read lane merges and their merge-queue entries
-      actions: write # read full runs and their records; start pr-require-checks.yml on main, re-run a red lane-dispatched run, and send a red one to post-merge-demotion-alert.yml
+      actions: write # read full runs and their records; start pr-require-checks.yml on main, re-run a red lane-dispatched run, and send a red one to post-merge-file-demotion-issues.yml
       checks: read # read a failed full run's annotations
       issues: read # read the demotion records the merge floor depends on
     outputs:
@@ -289,6 +289,7 @@ jobs:
         id: post-merge
         if: steps.mode.outputs.live == 'true'
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
           GH_TOKEN: ${{ github.token }}
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
@@ -785,7 +786,7 @@ jobs:
           if-no-files-found: error
 
       # A full run GITHUB_TOKEN started raises no workflow_run event, so
-      # post-merge-demotion-alert.yml hears of a red one only from here. Each
+      # post-merge-file-demotion-issues.yml hears of a red one only from here. Each
       # scheduled or hand-started run sends the oldest red pr-require-checks.yml
       # dispatch on main that github-actions[bot] started within
       # LOOKBACK_HOURS and no earlier run sent, by its run id and head SHA
@@ -814,6 +815,7 @@ jobs:
           && steps.dispatch.outputs.rate-limited != 'true'
           && steps.rerun.outputs.rate-limited != 'true'
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           LOOKBACK_HOURS: 6
@@ -893,14 +895,14 @@ jobs:
             # full-jitter wait only when gh's error shows the request never
             # left. A rate limit is never sent again.
             for try in 1 2 3; do
-              if gh api -X POST "repos/$REPO/actions/workflows/post-merge-demotion-alert.yml/dispatches" \
+              if gh api -X POST "repos/$REPO/actions/workflows/post-merge-file-demotion-issues.yml/dispatches" \
                 -f ref=main -f "inputs[run-id]=$id" -f "inputs[head-sha]=$sha" >/dev/null 2>"$err"; then
-                echo "sent run $id ($conclusion) to post-merge-demotion-alert.yml"
+                echo "sent run $id ($conclusion) to post-merge-file-demotion-issues.yml"
                 echo "{\"alerter_run_id\":$GITHUB_RUN_ID,\"run_id\":$id}" >"$RUNNER_TEMP/alerted.json"
                 echo "run-id=$id" >>"$GITHUB_OUTPUT"
                 exit 0
               fi
-              stopped "the send of run $id to post-merge-demotion-alert.yml"
+              stopped "the send of run $id to post-merge-file-demotion-issues.yml"
               if [ "$try" = 3 ] || ! grep -qE 'dial tcp|tls: (handshake|first record)|net/http: TLS handshake timeout' "$err"; then
                 break
               fi
@@ -908,7 +910,7 @@ jobs:
               echo "::notice::attempt $try: the connection failed before the send; waiting ${wait}s, then sending again"
               sleep "$wait"
             done
-            echo "::warning::could not send run $id to post-merge-demotion-alert.yml after $try attempt(s); the next run tries again"
+            echo "::warning::could not send run $id to post-merge-file-demotion-issues.yml after $try attempt(s); the next run tries again"
             exit 0
           done <<<"$runs"
 
@@ -1516,6 +1518,7 @@ jobs:
         id: post-merge
         if: steps.lane-token.outputs.token != '' && steps.candidates.outputs.listed == 'true'
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
           GH_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
@@ -1567,7 +1570,7 @@ jobs:
       # A failed lane merge (the check above exited 1) holds the gate until a
       # human closes every open demotion record, and the gate reads only
       # records the lanes App or github-actions[bot] filed.
-      # post-merge-demotion-alert.yml hears of a full run this workflow
+      # post-merge-file-demotion-issues.yml hears of a full run this workflow
       # dispatched only when the push job sends it, and not of one the merge
       # job or post-merge-dispatch started: a run started with GITHUB_TOKEN
       # raises no workflow_run event. So the check runs again with --remediate
@@ -1585,6 +1588,7 @@ jobs:
           steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
           && steps.post-merge.outputs.code == '1'
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
@@ -1628,6 +1632,7 @@ jobs:
               || steps.post-merge.outputs.code == '5')
         continue-on-error: true
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
           REPO: ${{ github.repository }}
@@ -1767,6 +1772,7 @@ jobs:
           BUDGET_MINUTES: ${{ steps.mode.outputs.gate-budget-minutes }}
           CANDIDATE_MINUTES: ${{ steps.mode.outputs.gate-candidate-minutes }}
           DEFERRED_MINUTES: ${{ steps.mode.outputs.gate-deferred-minutes }}
+          GIT_TERMINAL_PROMPT: "0"
         run: |
           set -euo pipefail
           budget=${BUDGET_MINUTES:-}
@@ -1821,7 +1827,12 @@ jobs:
             code=0
             cap=("${limit[@]}")
             [ "$was_deferred" = true ] && cap=("${ceiling[@]}")
-            ".base/$SCRIPT" "${args[@]}" --allowed-owners "$OWNER" \
+            # main's tip as this candidate's gate starts, for its reads of it
+            # (MAIN_TIP_SHA); unresolved, the gate reads it over REST.
+            tip=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" refs/heads/main |
+              awk '$2 == "refs/heads/main" { print $1 }') || tip=''
+            [[ $tip =~ ^[0-9a-f]{40}$ ]] || tip=''
+            MAIN_TIP_SHA=$tip ".base/$SCRIPT" "${args[@]}" --allowed-owners "$OWNER" \
               --lane-kill-switch "$KILL_SWITCH" --lane-rung-cap "$RUNG_CAP" \
               --postmerge-result "$RUNNER_TEMP/post-merge.json" "${cap[@]}" \
               --expected-head "$head" "$REPO#$number" </dev/null >"$out" 2> >(tee "$out.err" >&2) || code=$?
@@ -2166,6 +2177,31 @@ jobs:
       # address-feedback run refused that way is left to the feedback sweep,
       # which dispatches it again on main.
       # Rules: .github/scripts/pr-merge/refire-refused.mjs.
+      #
+      # main's tip again for the two steps below (MAIN_TIP_SHA), since the
+      # gate may have merged since the job's first read; unresolved, each
+      # script reads it over REST.
+      - name: Resolve main's tip after the gate
+        id: late-tip
+        if: >-
+          always() && github.event_name == 'schedule'
+          && steps.lane-token.outputs.token != ''
+          && steps.mode.outputs.report-only == 'false'
+          && steps.gate.outputs.rate-limited != 'true'
+          && steps.candidates.outputs.listed == 'true'
+        continue-on-error: true
+        timeout-minutes: 4
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::warning::the tip of $TIP_BRANCH did not resolve; the steps below read it"; exit 0; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
       - name: Re-fire lane runs refused as workflow-modified
         if: >-
           always() && github.event_name == 'schedule'
@@ -2174,6 +2210,7 @@ jobs:
           && steps.gate.outputs.rate-limited != 'true'
           && steps.candidates.outputs.listed == 'true'
         env:
+          MAIN_TIP_SHA: ${{ steps.late-tip.outputs.sha }}
           LANES_APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
@@ -2216,6 +2253,7 @@ jobs:
           && steps.candidates.outputs.listed == 'true'
         timeout-minutes: 15
         env:
+          MAIN_TIP_SHA: ${{ steps.late-tip.outputs.sha }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           # The job's own token reads a fix-ci stop's head runs and checks and
           # a lane stop's statuses (actions: read, checks: read, statuses:
@@ -2551,6 +2589,8 @@ jobs:
         continue-on-error: true
         timeout-minutes: 1
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
+          BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           API_BUDGET_SCRIPT: uncovered-at
@@ -2705,6 +2745,8 @@ jobs:
         if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr && steps.precheck.outputs.uncovered != 'true'
         timeout-minutes: 5
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
+          BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           API_BUDGET_SCRIPT: settle-idle-tick
@@ -2826,6 +2868,8 @@ jobs:
         if: steps.lane-token.outputs.token != '' && !(github.event_name == 'workflow_dispatch' && inputs.pr && steps.keep-report.outputs.stands != 'true')
         timeout-minutes: 18
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
+          BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
@@ -3109,7 +3153,7 @@ jobs:
   #     this file.
   #   * A push to main, whoever merged: a person, a release App or the lanes
   #     App. The run it starts is a `dispatch` signal for
-  #     post-merge-demotion-alert.yml, and for a lane merge the post-merge
+  #     post-merge-file-demotion-issues.yml, and for a lane merge the post-merge
   #     check credits it through the artifact below.
   # An earlier lane merge the post-merge check still finds unverified is the
   # post-merge-dispatch job's, which is also the catch-up for a push dispatch
@@ -3121,11 +3165,11 @@ jobs:
   # main's dispatches in one group with no `queue` key: one runs, one waits,
   # and a newer one replaces the waiting one before it starts. A running full
   # run is never cancelled: babysit_postmerge.py and
-  # post-merge-demotion-alert.yml both count a cancelled full run as red, and
+  # post-merge-file-demotion-issues.yml both count a cancelled full run as red, and
   # skip a replaced one (cancelled, no job). Push jobs share one group without
   # `cancel-in-progress`, so two pushes never read the cover at once. The job
   # ends once it dispatches: post-merge-dispatch sends a red run to
-  # post-merge-demotion-alert.yml on the next scheduled run. Every other event
+  # post-merge-file-demotion-issues.yml on the next scheduled run. Every other event
   # takes a group of its own and does not wait.
   dispatch-full-run:
     name: Dispatch Full Run

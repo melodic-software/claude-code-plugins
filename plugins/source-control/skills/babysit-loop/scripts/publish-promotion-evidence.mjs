@@ -496,7 +496,7 @@ function checkIssueNumbers(gh, repo, sinceMs, throughMs, filers) {
   }
 }
 
-// The demotion records post-merge-demotion-alert.yml files (and babysit_postmerge.py files under
+// The demotion records post-merge-file-demotion-issues.yml files (and babysit_postmerge.py files under
 // the lane identity), read as babysit_merge_policy.py read_demotion finds candidates: issues a
 // filer opened, updated inside the window, whose body or any revision carries the marker, or
 // whose edit history is not whole. Each yields its creation and every repeat-failure comment a

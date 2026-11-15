@@ -4,7 +4,7 @@
 usage: pydeps.py run --data-dir DIR -- narrate.py --data-dir DIR [--model-dir DIR] --script FILE [--out DIR]
        [--voice NAME] [--speed X]
        pydeps.py run --data-dir DIR -- narrate.py ... --backend-chain NAME[,NAME...] [--voice BACKEND:VOICE]...
-       [--command TEMPLATE] [--timeout S] [--allow-paid-voice]
+       [--command TEMPLATE] [--timeout S] [--allow-paid-voice] [--scan-pattern REGEX]...
 
 Every whitespace-separated token of the script is a word in words.json, with a start and end in seconds.
 
@@ -15,16 +15,22 @@ exit codes: 0 written; 2 a prerequisite is missing (espeak-ng, the model files, 
 its remedy; 1 any other failure.
 
 With --backend-chain the backends are tried in order and one of them voices the whole script, so a video never mixes
-voices. A failed call (a non-zero exit, a network error) is retried after 1, 2 and 4 seconds, then the whole script
-goes to the next backend. A call that passes its hard timeout (--timeout), or a backend that cannot run at all (a
+voices. A failed call (a non-zero exit, a network error) is retried after 1, 2 and 4 seconds (edge-tts: 5, 20 and 60),
+then the whole script goes to the next backend. A call that passes its hard timeout (--timeout), or a backend that cannot run at all (a
 missing package, model or key), goes to the next backend at once. voice.json records {backend, voice, attempts[]}; backend and voice are null when nothing was voiced.
-  edge-tts    online, free; Microsoft's read-aloud endpoint; default voice en-US-AndrewNeural; needs ffmpeg
+A per-paragraph backend sends one request per blank-line separated paragraph, each with its own timeout and retries;
+the paragraphs' audio is joined into one narration.wav and their words moved onto its timeline. If any paragraph
+fails, everything that backend voiced is discarded and the whole script goes to the next backend. Its attempts
+carry the paragraph's number, counted from 1.
+  edge-tts    online, free; Microsoft's read-aloud endpoint; default voice en-US-AndrewNeural; needs ffmpeg;
+              per paragraph
   kokoro      local; the backend above, with --speed, --data-dir and --model-dir
   openai      online, paid; OPENAI_API_KEY; default voice marin; word times estimated
   elevenlabs  online, paid; ELEVENLABS_API_KEY in the environment (no vault-exec relaunch in a chain)
   command     --command TEMPLATE run without a shell, {script} the script file, {out} the WAV to write; its egress
               is unknown, so it counts as online; word times estimated
 Before the first online backend the script passes the secret and machine-data floor (media_scan.py); nothing lowers it.
+--scan-pattern (repeatable) adds a regex the floor also refuses (scan.extra_patterns).
 SPEECH_EGRESS_FLOOR=local skips every online backend. A paid backend runs only with --allow-paid-voice, which the
 caller passes for an attended run the user approved or when allow_unattended_paid_voice is set.
 exit codes: 0 written; 1 a usage error; 3 the chain reached a paid backend without --allow-paid-voice, nothing sent;
@@ -225,6 +231,7 @@ def narrate(text, out, data, voice=DEFAULT_VOICE, speed=1.0, phonemize=None, mod
 
 
 RETRY_DELAYS_S = (1, 2, 4)
+EDGE_RETRY_DELAYS_S = (5, 20, 60)   # the endpoint drops requests for a while, then recovers (rany2/edge-tts#473)
 DEFAULT_TIMEOUT_S = 120.0
 TIMEOUT_GRACE_S = 1.0        # the adapter's own timeout reports first; the thread join is the backstop
 FLOOR_VAR = 'SPEECH_EGRESS_FLOOR'
@@ -250,6 +257,8 @@ class Backend:
     online: bool = True
     paid: bool = False
     timed: bool = False   # the words come from the voice itself, not an estimate
+    per_paragraph: bool = False   # one request per paragraph: a long request drops late and loses everything
+    retry_delays_s: tuple = RETRY_DELAYS_S
 
 
 def estimate_words(text, duration):
@@ -404,7 +413,7 @@ def edge_backend():
         words = [{**w, 'start': min(w['start'], duration), 'end': min(w['end'], duration)}
                  for w in align_boundaries(script, marks)]
         return wav, words
-    return Backend('edge-tts', voice, EDGE_VOICE, timed=True)
+    return Backend('edge-tts', voice, EDGE_VOICE, timed=True, per_paragraph=True, retry_delays_s=EDGE_RETRY_DELAYS_S)
 
 
 def openai_backend(env):
@@ -458,14 +467,41 @@ def registry(command='', data_flag=None, model_dir=None, speed=1.0, env=None):
     return {b.name: b for b in found}
 
 
-def scan_script(text):
+def scan_script(text, extra=()):
     """The finding kinds media_scan reports for the script, or why it could not run; [] when the text may leave."""
     try:
         import media_scan
-        result = media_scan.scan({'narration': text})
+        result = media_scan.scan({'narration': text}, extra=extra)
     except Exception as e:   # the floor fails closed on any error
         return [f'scan-error: {type(e).__name__}']
     return (['rules-failed-to-load'] if result.fail_closed else []) + sorted({f['kind'] for f in result.findings})
+
+
+def paragraphs(text):
+    """The script's blank-line separated paragraphs that hold a word."""
+    return [p.strip() for p in re.split(r'\n\s*\n', text) if p.split()]
+
+
+def join_wavs(parts, path):
+    """One WAV at `path` from the parts' (wav, words) in order, each part's words moved past the audio before it."""
+    fmt, frames, words, offset = None, [], [], 0.0
+    for wav, part_words in parts:
+        with wave.open(str(wav), 'rb') as w:
+            params = (w.getnchannels(), w.getsampwidth(), w.getframerate())
+            if fmt and params != fmt:
+                raise RuntimeError(f'the paragraphs came back in different audio formats: {fmt} and {params}')
+            fmt, n = params, w.getnframes()
+            frames.append(w.readframes(n))
+        length = n / fmt[2]
+        words += [{**x, 'start': round(offset + min(x['start'], length), 3),
+                   'end': round(offset + min(x['end'], length), 3)} for x in part_words]
+        offset += length
+    with wave.open(str(path), 'wb') as w:
+        w.setnchannels(fmt[0])
+        w.setsampwidth(fmt[1])
+        w.setframerate(fmt[2])
+        w.writeframes(b''.join(frames))
+    return path, words
 
 
 def run_chain(text, out, chain, backends, voices=None, timeout=DEFAULT_TIMEOUT_S, allow_paid=False, env=None,
@@ -480,9 +516,36 @@ def run_chain(text, out, chain, backends, voices=None, timeout=DEFAULT_TIMEOUT_S
     out.mkdir(parents=True, exist_ok=True)
     attempts, winner, code, scanned = [], None, EXIT_NO_AUDIO, False
 
-    def note(name, voice, status, error='', seconds=0.0):
+    def note(name, voice, status, error='', seconds=0.0, paragraph=None):
         attempts.append({'backend': name, 'voice': voice, 'status': status, 'seconds': round(seconds, 3),
+                         **({'paragraph': paragraph} if paragraph else {}),
                          **({'error': str(error)[:ERROR_CHARS]} if error else {})})
+
+    def voice_part(b, v, part, paragraph):
+        """One request for `part`, retried; (wav, words, work dir), or None when this backend is done."""
+        expected = part.split()
+        for delay in (0, *b.retry_delays_s):
+            if delay:
+                sleep(delay)
+            work = Path(tempfile.mkdtemp(prefix=f'.voice-{b.name}-', dir=out))
+            began = time.monotonic()
+            try:
+                wav, words = bounded(lambda w=work: b.voice(part, w, v, timeout), timeout)
+                if [w['word'] for w in words] != expected:
+                    raise RuntimeError('the word timings do not cover every word of the script')
+                wav_info(wav)
+            except (Unavailable, CallTimeout) as e:
+                note(b.name, v, 'unavailable' if isinstance(e, Unavailable) else 'timeout', e,
+                     time.monotonic() - began, paragraph)
+                shutil.rmtree(work, ignore_errors=True)
+                return None
+            except Exception as e:   # any other failure of a voice is retried
+                note(b.name, v, 'failed', str(e) or type(e).__name__, time.monotonic() - began, paragraph)
+            else:
+                note(b.name, v, 'ok', '', time.monotonic() - began, paragraph)
+                return wav, words, work
+            shutil.rmtree(work, ignore_errors=True)
+        return None
 
     for name in chain:
         b = backends[name]
@@ -501,42 +564,42 @@ def run_chain(text, out, chain, backends, voices=None, timeout=DEFAULT_TIMEOUT_S
                 code = EXIT_FLOOR
                 break
             scanned = True
-        for delay in (0, *RETRY_DELAYS_S):
-            if delay:
-                sleep(delay)
-            work = Path(tempfile.mkdtemp(prefix=f'.voice-{name}-', dir=out))
-            began = time.monotonic()
-            try:
-                wav, words = bounded(lambda: b.voice(text, work, v, timeout), timeout)
-                if [w['word'] for w in words] != tokens:
-                    raise RuntimeError('the word timings do not cover every word of the script')
-                rate, duration = wav_info(wav)
-            except Unavailable as e:
-                note(name, v, 'unavailable', e, time.monotonic() - began)
-                shutil.rmtree(work, ignore_errors=True)
+        parts = paragraphs(text) if b.per_paragraph else [text]
+        split, voiced = len(parts) > 1, []
+        for i, part in enumerate(parts, 1):
+            got = voice_part(b, v, part, i if split else None)
+            if got is None:
                 break
-            except CallTimeout as e:
-                note(name, v, 'timeout', e, time.monotonic() - began)
-                shutil.rmtree(work, ignore_errors=True)
-                break
-            except Exception as e:   # any other failure of a voice is retried
-                note(name, v, 'failed', str(e) or type(e).__name__, time.monotonic() - began)
+            voiced.append(got)
+        else:
+            if split:
+                works = [work for _, _, work in voiced]
+                works.append(Path(tempfile.mkdtemp(prefix=f'.voice-{name}-', dir=out)))
+                try:
+                    wav, words = join_wavs([(wav, words) for wav, words, _ in voiced], works[-1] / 'narration.wav')
+                    rate, duration = wav_info(wav)
+                except Exception as e:
+                    note(name, v, 'failed', str(e) or type(e).__name__)
+                    shutil.rmtree(works[-1], ignore_errors=True)
+                else:
+                    winner = (b, v, wav, words, rate, duration, works)
             else:
-                note(name, v, 'ok', '', time.monotonic() - began)
-                winner = (b, v, wav, words, rate, duration, work)
-                break
-            shutil.rmtree(work, ignore_errors=True)
+                wav, words, work = voiced[0]
+                winner = (b, v, wav, words, *wav_info(wav), [work])
         if winner:
             break
+        for _, _, work in voiced:
+            shutil.rmtree(work, ignore_errors=True)
 
     if winner:
-        b, v, wav, words, rate, duration, work = winner
+        b, v, wav, words, rate, duration, works = winner
         os.replace(wav, out / 'narration.wav')
         record = {'audio': 'narration.wav', 'sample_rate': rate, 'duration': duration, 'backend': b.name,
                   'voice': v, 'timing': 'measured' if b.timed else 'estimated',
                   'words': [{**w, 'start': min(w['start'], duration), 'end': min(w['end'], duration)} for w in words]}
         (out / 'words.json').write_text(json.dumps(record, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
-        shutil.rmtree(work, ignore_errors=True)
+        for work in works:
+            shutil.rmtree(work, ignore_errors=True)
         code = 0
     (out / 'voice.json').write_text(json.dumps({'backend': winner[0].name if winner else None,
                                                 'voice': winner[1] if winner else None,
@@ -563,7 +626,7 @@ def chain_main(a, out):
         voices[name] = value
     try:
         code = run_chain(a.script.read_text(encoding='utf-8'), out, chain, backends, voices, a.timeout,
-                         a.allow_paid_voice)
+                         a.allow_paid_voice, scan=lambda text: scan_script(text, a.scan_pattern))
     except (ValueError, OSError) as e:
         sys.stderr.write(f'speech: {e}\n')
         return 1
@@ -595,6 +658,7 @@ def main(argv=None):
     ap.add_argument('--command', default='', help='the command backend\'s template: {script} in, {out} WAV out')
     ap.add_argument('--timeout', type=float, default=DEFAULT_TIMEOUT_S, help='seconds per backend call')
     ap.add_argument('--allow-paid-voice', action='store_true', help='let the chain call a paid backend')
+    ap.add_argument('--scan-pattern', action='append', default=[], help='a regex the floor also refuses (repeatable)')
     a = ap.parse_args(argv)
     out = a.out or a.script.parent
     if a.backend_chain is not None:

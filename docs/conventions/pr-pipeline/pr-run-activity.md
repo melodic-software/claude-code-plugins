@@ -60,14 +60,14 @@ permissions, and passes no App key.
 | `pr-number` | `''` | The PR on `workflow_dispatch` |
 | `timeout-minutes` | `30` | The run job's timeout; the report job's is fixed at 10 |
 | `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
-| `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` or `pr-feedback-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
+| `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` or `pr-dispatch-feedback.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
 | `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, or `outside-author`, the admit job's stop on an issue neither a listed human nor the lanes App wrote; any other value, or one outside issue mode, fails step 1 |
 | `collect-refused` | `''` | Write file, issue mode, `report-outcome`: the model run's `scan-collect-refused`; only `true` counts, and stops the issue on the `collect-refused` route, which holds it for a person |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the select job's `run.json` and the model run's replies |
 | `review-run-sha256` | `''` | Write file only: with `review-replies`, the select job's `run-sha256` output |
-| `expected-upstream-head` | `''` | Write file only: for a job after pr-unblock's model job on a `pr-feedback-dispatch.yml` dispatch, the head the select job read, passed to the gate and the broker (step 3) |
+| `expected-upstream-head` | `''` | Write file only: for a job after pr-unblock's model job on a `pr-dispatch-feedback.yml` dispatch, the head the select job read, passed to the gate and the broker (step 3) |
 | `pushed-commit` | `''` | Write file only: with `expected-upstream-head`, the push job's `pushed-commit` output, the one other head the gate accepts (step 3); empty when the push job pushed nothing |
 | `review-run-attempt` | `''` | Write file only: with `review-replies`, the select job's `context-attempt` output, which names its `feedback-context-<attempt>` artifact so a re-run of the reply job alone still finds it |
 | `review-replies-attempt` | `''` | Write file only: with `review-replies`, the read file's `feedback-attempt` output, which names the scanned replies artifact |
@@ -262,7 +262,7 @@ the broker request, and no other permission; it never holds `checks: write` or `
    artifact lists this run's id, and this run is `pr-unblock.yml`; every other bot-sent dispatch
    stops with `untrusted-actor`. The write file, and the read file for a call that passes
    `feedback-context-sha256` (which it fails red unless the skill is `prepare: review-threads`),
-   also pass `run-dispatcher-workflow: .github/workflows/pr-feedback-dispatch.yml` with the two
+   also pass `run-dispatcher-workflow: .github/workflows/pr-dispatch-feedback.yml` with the two
    review workflows as `run-dispatcher-upstreams`: a run of that dispatcher, started by `workflow_run`,
    vouches with no actor check when its `pr-feedback-dispatched-<upstream id>-<this run's id>`
    artifact names a `pull_request` run of one of those workflows in this repository, started by
@@ -1294,7 +1294,7 @@ fix-ci for a head whose lanes failed; on `unsettled`, or on another reply, the r
 `feedback-unadjudicated`. The reply job reads only the snapshot, so it needs no checks permission.
 
 The next round reads the finding-stands reply: `threadAuthors` keeps a thread whose last lanes
-App comment is that reply, so `pr-feedback-dispatch.yml` dispatches it once the review lanes
+App comment is that reply, so `pr-dispatch-feedback.yml` dispatches it once the review lanes
 review the next head, or, after a `finding-stands` skip at an unmoved head, at its next
 half-hourly sweep. The push job waits for this job, so it lands right before the reply job,
 as it did without one: a review run on that head that finished while this run still went would
@@ -2047,7 +2047,7 @@ must be an ancestor of the tip and no tag may be named `main`. This run must be 
 `updated_at` and `run_started_at` plus 10 minutes. The dispatcher run must also hold an unexpired
 `pr-unblock-dispatched-<ids>` artifact whose ids include this run's; the broker reads it once,
 with no wait, since the trusted-trigger gate in step 3 has already waited for it. A
-`pr-feedback-dispatch.yml` run started by `workflow_run` passes the same checks except the actor
+`pr-dispatch-feedback.yml` run started by `workflow_run` passes the same checks except the actor
 check, with a `pr-feedback-dispatched-<upstream id>-<this run's id>` artifact whose upstream run is
 a `pull_request` run of `pr-review-hosted.yml` or `pr-review-security-hosted.yml` in this
 repository, started (and any re-run) by the lanes bot or a listed human, at the PR's current head,

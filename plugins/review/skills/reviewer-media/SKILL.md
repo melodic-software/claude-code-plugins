@@ -28,14 +28,21 @@ Make a fresh directory under the OS temp directory (`mktemp -d`), never in the w
 it `<dir>`. Read the facts with `/source-control:pull-request view <pr> --out <dir>/facts.json`,
 via the Skill tool, and the commit its reviewer-media section shows with
 `/source-control:pull-request media shows --facts <dir>/facts.json`, which prints a sha or nothing.
-Then:
+Then check the renderer, on a direct run and on `--handoff` alike:
+
+1. Look for `explainer-video:produce` in this session's skill list. When it is absent, pass
+   `--producer-unavailable` below: a build then reports `skip` with reason
+   `producer-unavailable` before step 2, so no head is claimed that nothing could finish.
+2. Look for `speech:narrate` there too. Its absence does not stop the build, since step 5 renders
+   captions-only when no voice produced audio; say in the report that narration is unavailable.
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/decide.mjs" [--requested] [--shown <sha>] [--policy <policy>] [--blast-radius <level>] < <dir>/facts.json
+"${CLAUDE_SKILL_DIR}/scripts/decide.mjs" [--requested] [--producer-unavailable] [--shown <sha>] [--policy <policy>] [--blast-radius <level>] < <dir>/facts.json
 ```
 
 - `--requested` when a reader invoked this skill; `--handoff` means `ready` or `monitor` handed the
   pull request over, so leave it off.
+- `--producer-unavailable` when check 1 found no `/explainer-video:produce`.
 - `--shown` with the sha `media shows` printed, left off when it printed nothing.
 - `--policy` only when the reader passed it; `--blast-radius` when a plan or
   `/review:quality-gate downstream` assessed one.
@@ -85,6 +92,9 @@ Three chapters, in reading order:
 
 Narration: one paragraph per moment, saying what that frame shows, in plain words a reviewer
 hears once. Never read code aloud symbol by symbol, never name a secret, a home path or a machine.
+A paragraph should take about as long to speak as its frames take to read: a dense code hunk or a
+long file list needs more words, or splitting into smaller moments, or the video holds it in
+silence.
 
 Then check coverage:
 
@@ -100,10 +110,17 @@ nothing else shows it) and run it again. Never drop a file to pass.
 Run `/explainer-video:produce` via the Skill tool on `<dir>/storyboard.json` (its stills
 renderer), rendering into `<out>` (`--out <out>`), with `--head-sha` the facts' `headRefOid`, `--upload-limit-mb` from `config`, and for
 its narration step the settings from `config`: `voice_chain` as `--backend-chain`, each `voices` entry as
-`--voice <backend>:<voice>`, `voice_command` as `--command`. Pass `--allow-paid-voice` only when
+`--voice <backend>:<voice>`, `voice_command` as `--command`, and each `scan.extra_patterns` entry as `--scan-pattern <regex>` to
+both the renderer and the narration. Pass `--allow-paid-voice` only when
 `allow_unattended_paid_voice` is `true`, or when the reader in this session said yes to that
 paid voice. A narration exit that means no voice produced audio, per `/speech:narrate`'s exit
 list, renders captions-only and says why.
+
+Each `SILENT:` line the render prints names a moment held in silence past its paragraph. Lengthen
+that moment's narration, or split it into smaller moments, still saying only what each frame
+shows; run the step 4 coverage check again, then render once more. After that one retry, post
+with the pauses left and list each remaining `SILENT:` line in the report. A `SILENT:` line is
+not a failure for step 7.
 
 ## 6. Post
 
@@ -111,7 +128,8 @@ Inside GitHub Actions (`GITHUB_ACTIONS` is `true`), stop here and print the mani
 workflow uploads `<out>` and posts it, per the convention's "In GitHub Actions" section.
 
 Elsewhere: `/source-control:pull-request media <pr> --manifest <out>/manifest.json --run-id <id>`
-with the same label flags as step 2 and `--retention-days <artifact_retention_days>`. Report what
+with the same label flags as step 2, `--retention-days <artifact_retention_days>` and the same
+`--scan-pattern` flags as step 5. Report what
 it reports. Its refusals (a scan hit, an unbound file, no host) are final: do not retry them.
 
 ## 7. Failure

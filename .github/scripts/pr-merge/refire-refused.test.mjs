@@ -31,7 +31,7 @@ const LANE = "pr-unblock.yml";
 const UNBLOCK = ".github/workflows/pr-unblock.yml";
 const WRITER = ".github/workflows/pr-run-activity-write.yml";
 const ACTIONS_BOT = { id: 41898282, login: "github-actions[bot]" };
-const FILES = [UNBLOCK, WRITER, ".github/workflows/pr-unblock-dispatch.yml", ".github/workflows/pr-feedback-dispatch.yml"];
+const FILES = [UNBLOCK, WRITER, ".github/workflows/pr-unblock-dispatch.yml", ".github/workflows/pr-dispatch-feedback.yml"];
 const MAIN_BLOBS = Object.fromEntries(FILES.map((file) => [file, BLOB]));
 
 const pr = (number, { user = OWNER, draft = false, repo = REPO, ref = `fix/${number}` } = {}) => ({
@@ -220,6 +220,19 @@ test("a pr-unblock run refused as workflow-modified on the current head gets one
   assert.deepEqual(pushes(w.calls), [`PATCH /repos/${REPO}/git/refs/heads/fix/9 {"sha":"${NEW_SHA}","force":false}`]);
   // The marker is posted before the branch moves.
   assert.ok(w.calls.indexOf(posts(w.calls)[0]) < w.calls.indexOf(pushes(w.calls)[0]));
+});
+
+test("main's tip the job resolved with git ls-remote (MAIN_TIP_SHA) is used, not read again; any other value reads it", async () => {
+  const tipReads = (calls) => calls.filter((call) => call === `GET /repos/${REPO}/git/ref/heads/main`).length;
+  const given = refusedWorld([pr(9)]);
+  assert.equal(await main({ env: { ...env, MAIN_TIP_SHA: MAIN_TIP }, github: given.github, actions: given.actions, now: NOW }), 0);
+  assert.equal(tipReads(given.calls), 0, "no REST read of main's tip when the job passed it in");
+  assert.equal(pushes(given.calls).length, 1, "the same re-fire as with the read");
+  for (const value of [undefined, "", "main", MAIN_TIP.slice(1)]) {
+    const w = refusedWorld([pr(9)]);
+    assert.equal(await main({ env: { ...env, MAIN_TIP_SHA: value }, github: w.github, actions: w.actions, now: NOW }), 0);
+    assert.equal(tipReads(w.calls), 1, `MAIN_TIP_SHA=${value} falls back to one read of main's tip`);
+  }
 });
 
 test("a dispatched pr-unblock run re-fires only when its failed check is on the PR's current head", async () => {

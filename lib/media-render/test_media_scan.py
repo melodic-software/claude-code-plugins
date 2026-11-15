@@ -50,6 +50,11 @@ class ScanTest(unittest.TestCase):
         r = self.scan({'m1': 'internal codename BLUEJAY'}, extra=[r'\bBLUEJAY\b'])
         self.assertEqual(len(r.findings), 1)
 
+    def test_an_extra_pattern_that_does_not_compile_fails_the_scan(self):
+        r = self.scan({'m1': 'fine'}, extra=[r'\bOK\b', '(unclosed'])
+        self.assertFalse(r.ok)
+        self.assertEqual(r.findings, [{'source': 'scan.extra_patterns[1]', 'kind': 'invalid-pattern'}])
+
 
 if __name__ == '__main__':
     unittest.main()

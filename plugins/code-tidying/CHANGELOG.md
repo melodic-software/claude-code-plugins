@@ -3,6 +3,22 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.1] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now says the install `--config` rerun takes the scope `claude plugin list` reports for the plugin, with a `project` or `local` rerun run from the project that install lives in, and passes `user` only when the working directory is the home directory and the list labels the plugin both `user` and `project`.
+
+## [0.47.0] - 2026-11-14
+
+### Changed
+
+- `changed-code-files.sh`, `scope-code-files.sh` and `comment-census.py` read one shared extension
+  list, `scripts/code-extensions.txt`. As an intended change, `changed-code-files.sh` now lists the
+  seven extensions it lacked: `.mts`, `.cts`, `.mjs`, `.cjs`, `.pyi`, `.bash` and `.psm1`.
+- When that list is missing or empty, each of the three scripts exits 4 and prints
+  `cannot read the extension list <path>` on stderr, with nothing on stdout.
+
 ## [0.46.4] - 2026-11-14
 
 ### Fixed

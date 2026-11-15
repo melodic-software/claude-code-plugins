@@ -1,0 +1,1163 @@
+name: PR Dispatch Feedback
+
+# Starts pr-unblock's address-feedback activity when a review lane finishes on
+# a lanes App PR: .github/scripts/pr-unblock/feedback-dispatch.mjs dispatches
+# pr-unblock.yml once both lanes have reviewed the PR's current head and an
+# unresolved thread exists that the reviewer bot left alone or a trusted
+# person answered after the lane escalated it. The write runner denies the
+# lanes App as a workflow_run actor, so the lane cannot run on this event
+# directly; the gate and the broker accept this dispatcher's runs only
+# through the review run its record names, at the PR's current head.
+#
+# No model and no App token: the job's GITHUB_TOKEN can only read and start
+# workflow runs. The script takes the upstream run's own facts (path, event,
+# head SHA, start time) from the event file and reads every PR fact back from
+# the API; no event field reaches a shell but the run id, checked below. The
+# dispatched lane runs its own trigger gate, kill switch, config and round cap.
+#
+# A completed pr-verify run starts it too. When that run uploaded a fail
+# verdict for a lanes App PR still at the head it judged, the
+# post-verify-notes job posts the verdict's summary and notes on the PR as
+# review comments, as github-actions[bot]
+# (.github/scripts/pr-unblock/verify-notes.mjs), which address-feedback works
+# like the reviewer bot's threads. The dispatch job then decides as for a
+# review run, with the newest completed review run at that head as its
+# upstream, so the gate and the broker check the same kind of run either way.
+# When the run uploaded a pass or pass-notes verdict instead, for a lanes App
+# PR still at the head it judged, the job posts nothing and resolves nothing:
+# it reads the PR's review threads, and when a fail-note thread from an
+# earlier head is still open (address-feedback.mjs staleVerifyNotes) it names
+# the head, and the dispatch job sends a pass-only round, whose
+# publish-feedback job resolves those threads as the lanes App (resolving a
+# thread takes more than this job's token holds). A pass with no such thread
+# dispatches nothing. On a PR a person opened, a fail is one PR comment and
+# the pr-verify-failed label, which ci-status holds in the merge queue, and a
+# pass at its head removes the label; neither dispatches. A verdict the lanes
+# kill switch stops is applied late, not dropped: see post-verify-notes'
+# `Stop on the kill switch` and `Name the deferred verdict` steps.
+#
+# A completed scheduled pr-unblock-dispatch.yml run, its half-hourly tick,
+# starts the dispatch job too, which sweeps the open lanes App PRs for a head
+# whose last address-feedback round had no model turn, or left an adjudicated
+# finding standing with the head unmoved, and dispatches one such head again,
+# through its newest completed review run, at most once per tick
+# (feedback-dispatch.mjs sweepReleased). That round released the head only
+# for a next review or pr-verify completion, which may never come. With no
+# such head, it dispatches one head whose pr-unblock/address-feedback status
+# still fails though no review thread is left unresolved, once per stop, so
+# the run finds nothing to fix and report-stop-status clears the status
+# (sweepStale). With neither, it dispatches one head with an unresolved thread
+# and no address-feedback round, whose review completion skipped on a cause
+# that may clear, such as an unreadable pr-verify FAIL cap (sweepUnsent). Taking
+# the tick's completion rather than a schedule of this file's own keeps
+# every dispatch a workflow_run dispatcher's, the one kind the gate and the
+# broker trust with a review run as its upstream.
+#
+# A completed pull_request_target run of pr-merge.yml on a lane branch starts
+# the dispatch job too. That workflow wakes when a label comes off a PR, and
+# both writers that take needs-human off a lanes App PR (a person, and
+# clear-escalations with the lanes App token) start it. A head the human gate
+# skipped at its review completion has no other trigger, so the job decides
+# that head again, through its newest completed review run, with every gate as
+# before (feedback-dispatch.mjs main). The run's head SHA is the PR's, so it
+# waits in that head's concurrency group.
+#
+# A completed pr-review-comment-relay.yml run, which a person's new review
+# comment on a lane branch starts, starts the dispatch job too, so a listed
+# human's reply on a thread the lane escalated leads to an address-feedback
+# round without waiting for the next review (ADR 0088). The relay run is the
+# upstream the record names: the gate and the broker accept it by path, event
+# pull_request_review_comment and a listed human as its actor and re-runner.
+# GitHub runs no such event on a conflicted PR; the review run after
+# resolve-conflicts' push picks that reply up.
+#
+# A completed review run on any same-repository PR also starts the
+# rerun-ci-status job, which re-runs the head's ci-status once the head's
+# last review lane has finished, so it reads both reviews, and records each
+# re-run for pr-verify's trigger gate (see that job). So does a completed
+# pr-review-approved.yml run, a trusted person's approval that lifts a
+# ci-status hold. An approval has no event of its own here: a review event
+# would run the PR's copy of this file.
+#
+# The token's rate-limit readings are logged at the end of each job
+# (.github/actions/log-api-budget).
+
+# API_BUDGET_HOLD (outage posture element 2): no step here sets it: feedback-dispatch.mjs is not yet
+# shown to hold green on every refused read.
+# A step opts in only once its script is shown to hold green with a notice on
+# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
+# a hold would pass what it could not read, so the rest still end red on a
+# rate limit past the guard's budget.
+on:
+  # workflow_run runs this file from the default branch, never a PR's copy.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [PR Review Hosted, PR Review Security Hosted, PR Verify, PR Unblock Dispatch, PR Merge, PR Review Approved, PR Review Comment Relay]
+    types: [completed]
+
+permissions: {}
+
+# Both review lanes finish on the same head; one listing at a time per head.
+# A pr-verify run's head is main's, so each such run has a group of its own;
+# the sweeps share one. Runs at a head wait in line (`queue: max`): GitHub
+# otherwise keeps one pending run per group and cancels it for a newer one,
+# so a pr-merge completion, or a review re-run's, could drop the later review
+# lane's run and with it the one rerun-ci-status after both lanes.
+concurrency:
+  group: >-
+    pr-dispatch-feedback-${{ github.event.workflow_run.path == '.github/workflows/pr-verify.yml'
+    && format('verify-{0}', github.event.workflow_run.id)
+    || github.event.workflow_run.path == '.github/workflows/pr-unblock-dispatch.yml' && 'sweep'
+    || github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  # A pr-verify run of main, which only steps of that run could upload to.
+  # A run GitHub skipped (pr-require-checks did not pass) ran no judgment and
+  # uploaded nothing, so it starts no runner.
+  post-verify-notes:
+    name: Post Verify Notes
+    if: >-
+      github.ref == 'refs/heads/main'
+      && github.event.workflow_run.path == '.github/workflows/pr-verify.yml'
+      && github.event.workflow_run.event == 'workflow_run'
+      && github.event.workflow_run.conclusion != 'skipped'
+      && github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.repository.full_name == github.repository
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # check out main
+      actions: read # the pr-verify run's verdict
+      pull-requests: write # read the PR and its threads; post a fail's notes; add or remove pr-verify-failed
+    outputs:
+      pr-number: ${{ steps.post.outputs.pr-number }}
+      head-sha: ${{ steps.post.outputs.head-sha }}
+      pass-head-sha: ${{ steps.post.outputs.pass-head-sha }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # A verdict the switch stops is deferred, not dropped: this failed
+      # first attempt records it, and the lost-run reconciler's first pass
+      # after the switch lifts re-runs this job (reconcile.mjs
+      # VERDICT_STOP_STEP), which posts what is not on the PR yet. Only a
+      # pr-verify run that succeeded can hold a verdict here: one that failed
+      # (every run while the switch is on fails at its own kill step) is the
+      # reconciler's Lane kind, which re-runs it, whose completion starts this
+      # file again, or holds it for a person.
+      - name: Stop on the kill switch
+        if: steps.kill.outputs.proceed != 'true' && github.event.workflow_run.conclusion == 'success'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: |
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); the verdict is applied when the lost-run reconciler re-runs this job"
+          exit 1
+
+      - name: Download the verdict
+        id: verdict
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::the upstream run id is not a run id"
+            exit 1
+          fi
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          # Every verdict-shaped name, then the ones the readers take (the
+          # grammar write-verdict.mjs NAME and babysit_verify_evidence.NAME_RE
+          # hold: at most 194 characters, the digest optional, `-i` on a FAIL
+          # only, its issues ascending and once each). A verdict-shaped name
+          # no reader takes fails the run rather than being skipped.
+          listing=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100")
+          listed=$(jq -r '.artifacts[] | select(.expired == false) | .name | select(test("\\Apr-verify-[0-9]+-[0-9a-f]{40}-(fail|pass)"))' <<<"$listing")
+          names=$(jq -Rr 'select(length <= 194 and (test("\\Apr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-fail(-[0-9a-f]{16})?(-i[1-9][0-9]{0,9}([.][1-9][0-9]{0,9}){0,9})?\\z") or test("\\Apr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-pass(-notes)?(-[0-9a-f]{16})?\\z")) and ((capture("-i(?<n>[0-9.]+)\\z") // {n: ""}).n | . == "" or ((split(".") | map(tonumber)) as $a | $a == ($a | unique))))' <<<"$listed")
+          if [ "$names" != "$listed" ]; then
+            echo "::error::run $RUN_ID uploaded a verdict whose name no reader takes"
+            exit 1
+          fi
+          if [ -z "$names" ]; then
+            echo "::notice::run $RUN_ID uploaded no verdict; nothing to post"
+            exit 0
+          fi
+          name=$(head -n 1 <<<"$names")
+          # The listing names the artifact's id, so the download is one call;
+          # `gh run download --name` would list the run's artifacts again.
+          id=$(jq -r --arg name "$name" 'first(.artifacts[] | select(.expired == false and .name == $name) | .id)' <<<"$listing")
+          if [[ ! "$id" =~ ^[1-9][0-9]{0,19}$ ]]; then
+            echo "::error::run $RUN_ID listed $name with no artifact id"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/verdict"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" >"$RUNNER_TEMP/verdict.zip"
+          unzip -p "$RUNNER_TEMP/verdict.zip" verdict.json >"$RUNNER_TEMP/verdict/verdict.json"
+          echo "name=$name" >>"$GITHUB_OUTPUT"
+
+      - name: Post a fail's notes, or find a pass's stale ones
+        id: post
+        if: steps.verdict.outputs.name != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          ARTIFACT_NAME: ${{ steps.verdict.outputs.name }}
+          VERDICT_FILE: ${{ runner.temp }}/verdict/verdict.json
+        run: node .base/.github/scripts/pr-unblock/verify-notes.mjs
+
+      # The reconciler's re-run of a verdict the kill switch deferred sends no
+      # round (the dispatch job's gate), so it names the head and the verdict
+      # for the next tick, an attempt-1 dispatcher, which finds the record by
+      # name and sends the round (feedback-dispatch.mjs recoverDeferred). The
+      # name and upload time are the record; the file is a placeholder.
+      - name: Name the deferred verdict
+        id: deferred
+        # The actor test here only saves a write: recoverDeferred re-reads the
+        # uploading run through the API and drops a record whose triggering
+        # actor is not github-actions[bot], so a spoofed name records nothing.
+        if: github.run_attempt != '1' && github.triggering_actor == 'github-actions[bot]' && (steps.post.outputs.head-sha != '' || steps.post.outputs.pass-head-sha != '') # zizmor: ignore[bot-conditions]
+        env:
+          FAIL_HEAD: ${{ steps.post.outputs.head-sha }}
+          PASS_HEAD: ${{ steps.post.outputs.pass-head-sha }}
+        run: |
+          head=${FAIL_HEAD:-$PASS_HEAD} verdict=fail
+          [ -n "$FAIL_HEAD" ] || verdict=pass
+          if [[ ! $head =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the posted head is not a commit SHA"
+            exit 1
+          fi
+          echo "$head" >"$RUNNER_TEMP/pr-feedback-deferred.txt"
+          echo "name=pr-feedback-deferred-$head-$verdict" >>"$GITHUB_OUTPUT"
+
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.deferred.outputs.name != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-feedback-deferred.txt
+
+      - name: Record the deferred verdict
+        if: >-
+          (steps.deferred.outputs.name != '') && steps.scan-upload.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.deferred.outputs.name }}
+          path: ${{ runner.temp }}/pr-feedback-deferred.txt
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  dispatch:
+    # A review run GitHub skipped (a draft PR) has reviewed nothing, and a
+    # cancelled one (most often superseded by a newer push) finished no review.
+    # The lanes App opens PRs only from work-resolve-issue lane branches
+    # (work-resolve-issue/report-outcome.mjs), so a review run on any other
+    # branch is not on a lanes App PR. A pr-verify run dispatches only once its
+    # notes are on the PR, or, for a pass, once its job found a stale fail-note
+    # thread to resolve; a pr-unblock-dispatch.yml run sweeps only when its
+    # schedule started it on main. A pr-merge.yml run counts whatever its
+    # conclusion: it skips the lanes App's own unlabel, which still took the
+    # label off. A pr-verify run's re-run by github-actions[bot] (the
+    # reconciler applying a verdict the kill switch stopped) dispatches
+    # nothing: check-trusted-trigger trusts a dispatcher only at attempt 1 or
+    # re-run by a listed human. A pr-review-comment-relay.yml run dispatches
+    # only when it succeeded on a lane branch of this repository and a person,
+    # not a bot, started it; feedback-dispatch.mjs checks its actors against
+    # the list. A job skipped here starts no runner.
+    name: Dispatch
+    if: >-
+      ${{ !cancelled()
+      && github.ref == 'refs/heads/main'
+      && ((needs.post-verify-notes.outputs.head-sha != ''
+      || needs.post-verify-notes.outputs.pass-head-sha != '')
+      && (github.run_attempt == '1' || github.triggering_actor != 'github-actions[bot]')
+      || github.event.workflow_run.path == '.github/workflows/pr-unblock-dispatch.yml'
+      && github.event.workflow_run.event == 'schedule'
+      && github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.repository.full_name == github.repository
+      || github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && startsWith(github.event.workflow_run.head_branch, 'work-resolve-issue/issue-')
+      && github.event.workflow_run.conclusion != 'skipped'
+      && github.event.workflow_run.conclusion != 'cancelled'
+      || github.event.workflow_run.path == '.github/workflows/pr-merge.yml'
+      && github.event.workflow_run.event == 'pull_request_target'
+      && github.event.workflow_run.repository.full_name == github.repository
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && startsWith(github.event.workflow_run.head_branch, 'work-resolve-issue/issue-')
+      || github.event.workflow_run.path == '.github/workflows/pr-review-comment-relay.yml'
+      && github.event.workflow_run.event == 'pull_request_review_comment'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.repository.full_name == github.repository
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && startsWith(github.event.workflow_run.head_branch, 'work-resolve-issue/issue-')
+      && github.event.workflow_run.actor.type == 'User') }}
+    needs: post-verify-notes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # check out main
+      pull-requests: read # the PR, its comments and review threads
+      checks: read # skip a head that already has an address-feedback check run; a refused round's annotations
+      statuses: read # the sweep's read of a head's pr-unblock/address-feedback stop
+      actions: write # list pr-unblock runs; dispatch pr-unblock.yml
+    env:
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
+      # Each guarded API call's rate-limit reading, for the job-end api-budget
+      # notice (.github/actions/log-api-budget).
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # Skips the run while Actions or npm installs report a degraded component,
+      # with a logged reason; fails open (.github/actions/check-upstream-status).
+      - name: Check upstream status
+        id: upstream
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: |
+          echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); nothing dispatched"
+
+      # The script resolves the pr-unblock lane's address-feedback slot with
+      # the base's resolve-config once it has found the PR and its head, and
+      # dispatches only when the lane and both address-feedback slots are
+      # enabled and the slot applies.
+      - name: Install resolve-config's dependencies
+        timeout-minutes: 5
+        if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
+
+      # The gate's verifier reader (babysit_verify_evidence.py), which the
+      # dispatch reads for a pull request whose pr-verify FAILs are at the cap
+      # (verify-cap.mjs): the repository's pinned interpreter and PyYAML entry.
+      # A failed install warns; the reader then fails and the round runs.
+      - name: Set up Python
+        if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .base/.python-version
+
+      - name: Install the pinned YAML reader
+        if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
+        continue-on-error: true
+        run: bash .base/.github/scripts/lib/install-pinned-pyyaml.sh 'PyYAML did not install; the FAIL-cap read fails and rounds run under their own caps'
+
+      - name: Dispatch address-feedback
+        id: dispatch
+        if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # The review lanes' comment records (actions: read).
+          ARTIFACT_READ_TOKEN: ${{ github.token }}
+          VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
+          # The reader reads the FAIL index by exact name; a pull request with
+          # more index names than one whole listing costs reads that listing,
+          # saved here for the next such read instead of every page again.
+          BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          # The FAIL run records, run heads on main and head refs pr-merge's
+          # last scheduled or hand-started run on main kept, which
+          # verify-cap.mjs fetches on the first FAIL-cap read only, so a run
+          # that reads no FAIL cap spends none of their calls: the reader
+          # otherwise reads them for every FAIL it counts, and each read shares
+          # what it adds here.
+          BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
+          BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
+          # The reader's gh calls, with this job's read scopes.
+          GH_TOKEN: ${{ github.token }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+          DISPATCH_RECORD: ${{ runner.temp }}/pr-dispatch-feedback-record.json
+          VERIFY_HEAD_SHA: ${{ needs.post-verify-notes.outputs.head-sha }}
+          VERIFY_PASS_HEAD_SHA: ${{ needs.post-verify-notes.outputs.pass-head-sha }}
+        run: |
+          # The listed review bots' ids (review-threads.reviewer-ids), one per line.
+          REVIEWER_IDS=$(yq '."review-threads"."reviewer-ids" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
+          export REVIEWER_IDS
+          node .base/.github/scripts/pr-unblock/feedback-dispatch.mjs
+
+      # The record of the run this run dispatched and the review run that
+      # started it: an artifact only steps of this run can upload, read by the
+      # gate and the broker with one list call and no download. A sweep tick
+      # sends up to five rounds (feedback-dispatch.mjs SWEEP_TICK_CAP), each
+      # recorded by its own numbered steps below. A round sent again after a
+      # workflow-modified refusal also names the refused run (refire_of_run_id).
+      - name: Name the dispatched-run record
+        id: record
+        if: always() && steps.dispatch.outputs.run-id != ''
+        env:
+          RUN_ID: ${{ steps.dispatch.outputs.run-id }}
+          UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id }}
+          REFIRE_OF: ${{ steps.dispatch.outputs.refire-of }}
+        run: |
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$REFIRE_OF" =~ ^([1-9][0-9]{0,14})?$ ]]; then
+            echo "::error::run-id, the upstream run id or refire-of is not a run id"
+            exit 1
+          fi
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" "${REFIRE_OF:+,\"refire_of_run_id\":$REFIRE_OF}" >"$RUNNER_TEMP/pr-feedback-dispatched.json"
+          echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
+
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          always() && steps.dispatch.outputs.run-id != '' && steps.record.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-feedback-dispatched.json
+
+      - name: Record the dispatched run
+        if: >-
+          (always() && steps.dispatch.outputs.run-id != '' && steps.record.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.record.outputs.name }}
+          path: ${{ runner.temp }}/pr-feedback-dispatched.json
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Name the dispatched-run record 2
+        id: record-2
+        if: always() && steps.dispatch.outputs.run-id-2 != ''
+        env:
+          RUN_ID: ${{ steps.dispatch.outputs.run-id-2 }}
+          UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id-2 }}
+          REFIRE_OF: ${{ steps.dispatch.outputs.refire-of-2 }}
+        run: |
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$REFIRE_OF" =~ ^([1-9][0-9]{0,14})?$ ]]; then
+            echo "::error::run-id-2, the upstream run id or refire-of-2 is not a run id"
+            exit 1
+          fi
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" "${REFIRE_OF:+,\"refire_of_run_id\":$REFIRE_OF}" >"$RUNNER_TEMP/pr-feedback-dispatched-2.json"
+          echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
+
+      - name: Scan upload 2 for credentials
+        id: scan-upload-2
+        if: >-
+          always() && steps.dispatch.outputs.run-id-2 != '' && steps.record-2.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-feedback-dispatched-2.json
+
+      - name: Record dispatched run 2
+        if: >-
+          (always() && steps.dispatch.outputs.run-id-2 != '' && steps.record-2.outcome == 'success') && steps.scan-upload-2.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.record-2.outputs.name }}
+          path: ${{ runner.temp }}/pr-feedback-dispatched-2.json
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Name the dispatched-run record 3
+        id: record-3
+        if: always() && steps.dispatch.outputs.run-id-3 != ''
+        env:
+          RUN_ID: ${{ steps.dispatch.outputs.run-id-3 }}
+          UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id-3 }}
+          REFIRE_OF: ${{ steps.dispatch.outputs.refire-of-3 }}
+        run: |
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$REFIRE_OF" =~ ^([1-9][0-9]{0,14})?$ ]]; then
+            echo "::error::run-id-3, the upstream run id or refire-of-3 is not a run id"
+            exit 1
+          fi
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" "${REFIRE_OF:+,\"refire_of_run_id\":$REFIRE_OF}" >"$RUNNER_TEMP/pr-feedback-dispatched-3.json"
+          echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
+
+      - name: Scan upload 3 for credentials
+        id: scan-upload-3
+        if: >-
+          always() && steps.dispatch.outputs.run-id-3 != '' && steps.record-3.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-feedback-dispatched-3.json
+
+      - name: Record dispatched run 3
+        if: >-
+          (always() && steps.dispatch.outputs.run-id-3 != '' && steps.record-3.outcome == 'success') && steps.scan-upload-3.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.record-3.outputs.name }}
+          path: ${{ runner.temp }}/pr-feedback-dispatched-3.json
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Name the dispatched-run record 4
+        id: record-4
+        if: always() && steps.dispatch.outputs.run-id-4 != ''
+        env:
+          RUN_ID: ${{ steps.dispatch.outputs.run-id-4 }}
+          UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id-4 }}
+          REFIRE_OF: ${{ steps.dispatch.outputs.refire-of-4 }}
+        run: |
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$REFIRE_OF" =~ ^([1-9][0-9]{0,14})?$ ]]; then
+            echo "::error::run-id-4, the upstream run id or refire-of-4 is not a run id"
+            exit 1
+          fi
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" "${REFIRE_OF:+,\"refire_of_run_id\":$REFIRE_OF}" >"$RUNNER_TEMP/pr-feedback-dispatched-4.json"
+          echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
+
+      - name: Scan upload 4 for credentials
+        id: scan-upload-4
+        if: >-
+          always() && steps.dispatch.outputs.run-id-4 != '' && steps.record-4.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-feedback-dispatched-4.json
+
+      - name: Record dispatched run 4
+        if: >-
+          (always() && steps.dispatch.outputs.run-id-4 != '' && steps.record-4.outcome == 'success') && steps.scan-upload-4.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.record-4.outputs.name }}
+          path: ${{ runner.temp }}/pr-feedback-dispatched-4.json
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Name the dispatched-run record 5
+        id: record-5
+        if: always() && steps.dispatch.outputs.run-id-5 != ''
+        env:
+          RUN_ID: ${{ steps.dispatch.outputs.run-id-5 }}
+          UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id-5 }}
+          REFIRE_OF: ${{ steps.dispatch.outputs.refire-of-5 }}
+        run: |
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$REFIRE_OF" =~ ^([1-9][0-9]{0,14})?$ ]]; then
+            echo "::error::run-id-5, the upstream run id or refire-of-5 is not a run id"
+            exit 1
+          fi
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" "${REFIRE_OF:+,\"refire_of_run_id\":$REFIRE_OF}" >"$RUNNER_TEMP/pr-feedback-dispatched-5.json"
+          echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
+
+      - name: Scan upload 5 for credentials
+        id: scan-upload-5
+        if: >-
+          always() && steps.dispatch.outputs.run-id-5 != '' && steps.record-5.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-feedback-dispatched-5.json
+
+      - name: Record dispatched run 5
+        if: >-
+          (always() && steps.dispatch.outputs.run-id-5 != '' && steps.record-5.outcome == 'success') && steps.scan-upload-5.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.record-5.outputs.name }}
+          path: ${{ runner.temp }}/pr-feedback-dispatched-5.json
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  # ci-status's `Require both review lanes on this head` step reads the
+  # newest pull_request run of each review lane on the head when it runs, and
+  # a review usually finishes after it. So when either review caller
+  # completes on a pull request of this repository, this job re-runs the
+  # ci-status job of the newest pr-require-checks run on that head, which
+  # reads both lanes and the live labels again. Every PR's review starts it,
+  # not only a lanes App PR's. A run GitHub skipped (a draft) reviewed
+  # nothing, and a fork's review never runs, so neither starts it.
+  #
+  # One re-run per head, after the last lane: ci-status fails while the
+  # other lane's newest run has not finished, so a re-run before then can
+  # only be red, and that lane's own completion starts this job again. Each
+  # run of this job starts after its own lane completed, so the later lane's
+  # run finds the earlier lane finished. The earlier lane's run can run after
+  # both finished too (it waits in the per-head queue), so it leaves the
+  # re-run to the later lane's run after that one read: only the lane that
+  # finished last acts, and a ci-status re-run inside the 60 s margin below
+  # is not re-run again. The per-head concurrency group keeps the two from
+  # running at once, and a last read of the run's attempt comes just before
+  # the re-run. A head with no run of the
+  # other lane (one lane only) re-runs on this lane alone. A head the PR has
+  # moved past, or a closed PR, is left alone. A ci-status job not started
+  # yet, or one that began reading the reviews more than 60 s after both
+  # lanes finished (the margin covers a lagging read), reads them anyway, so
+  # it is left alone too. So is one that passed, having begun that read at or
+  # after both lanes finished: it counted both finished reviews, so a re-run
+  # can only pass again, and still starts pr-verify on the head again. The
+  # read's start is ci-status's `Require both review lanes on this head`
+  # step's, else the job's, which is earlier: the jobs API can list a job's
+  # steps empty. One that started earlier and is still in progress waits for
+  # its run, polled every
+  # 60 s for at most 10 minutes, then is re-run. No model, and no checkout
+  # but the trusted-actors list and the api-budget library: the token can
+  # only read contents, runs and the PR and re-run a job. Each call's
+  # rate-limit reading is logged at the end of the job
+  # (.github/actions/log-api-budget).
+  #
+  # The re-run's attempt is started by github-actions[bot], which pr-verify's
+  # trigger gate does not list, so just before the re-run the job uploads
+  # rerun-ci-status-<run id>-<attempt>-<head sha>, naming the attempt the
+  # re-run starts; the gate's ci-status-rerun-workflow input accepts that
+  # attempt through it (check-trusted-trigger's README). Only a review run at
+  # its first attempt, re-run by a human on the default branch's
+  # trusted-actors list, or re-run by the lost-run reconciler at attempt 2
+  # under a record the gate accepts (reconciler-record.mjs), is recorded;
+  # another re-runner's re-run of ci-status goes ahead unrecorded, and the
+  # gate refuses it.
+  #
+  # One more upstream changes what ci-status reads, and is judged as a finished
+  # lane is, with both review lanes as the other lanes: a pr-review-approved.yml
+  # run (an approving review, relayed), re-run only when its triggering actor,
+  # the reviewer, is a listed human, checked before any API call, and recorded.
+  # ci-status still judges the review.
+  # A pr-unblock.yml run is no upstream: ci-status reads no pr-unblock/* status,
+  # and the labels that run writes start their own pull_request run.
+  # Pinned by scripts/ci-rerun-ci-status.test.sh, which runs the find body.
+  rerun-ci-status:
+    name: Rerun CI Status
+    if: >-
+      github.ref == 'refs/heads/main'
+      && ((github.event.workflow_run.path == '.github/workflows/pr-review-hosted.yml'
+      || github.event.workflow_run.path == '.github/workflows/pr-review-security-hosted.yml')
+      && github.event.workflow_run.event == 'pull_request'
+      || github.event.workflow_run.path == '.github/workflows/pr-review-approved.yml'
+      && github.event.workflow_run.event == 'pull_request_review')
+      && github.event.workflow_run.conclusion != 'skipped'
+      && github.event.workflow_run.repository.full_name == github.repository
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # check out the default branch's trusted-actors list
+      actions: write # list review and pr-require-checks runs and jobs; re-run the ci-status job
+      pull-requests: read # the PR's state and live head
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        continue-on-error: true
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      # From the default branch, never the PR head: the trusted-actors list
+      # the record check reads, the reconciler-record check, the api-budget
+      # library, the kill-switch check and the upload scanner. A failed
+      # checkout leaves no list and no scanner:
+      # ci-status is still re-run, unrecorded unless the review run is a first
+      # attempt, and no reading is logged; a lanes App PR's is not re-run, as
+      # its kill switch reads as on.
+      - name: Check out the trusted-actors list
+        if: steps.tip.outputs.sha != ''
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/standards/trusted-actors/
+            /.github/actions/log-api-budget/
+            /.github/actions/check-trusted-trigger/
+            /.github/actions/check-kill-switch/
+            /.github/actions/setup-pinned-node/
+            /.github/actions/scan-upload/
+            /lib/publish-gate.mjs
+            /.node-version
+          sparse-checkout-cone-mode: false
+
+      # Node for the reconciler-record check; a failed setup leaves the
+      # reconciler's review re-runs unrecorded, as a failed checkout does.
+      - name: Set up Node
+        continue-on-error: true
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      # While either switch is on, ci-status fails every lanes App PR, so its
+      # re-run would fail too. A failed checkout or check emits no proceed,
+      # which the find step reads as on.
+      - name: Check the kill switch
+        id: kill
+        continue-on-error: true
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Find the ci-status to re-run
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LANES_PROCEED: ${{ steps.kill.outputs.proceed }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          LANE_PATH: ${{ github.event.workflow_run.path }}
+          LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}
+          POLL_SECONDS: '60'
+          POLL_LIMIT_SECONDS: '600'
+          RECORD_FILE: ${{ runner.temp }}/rerun-ci-status-record.json
+          REVIEW_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}
+          REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+          RECONCILER_WORKFLOW: .github/workflows/maintenance-reconcile-lost-runs.yml
+          RECONCILER_RECORD: .base/.github/actions/check-trusted-trigger/reconciler-record.mjs
+          API_BUDGET_SH: .base/.github/actions/log-api-budget/api-budget.bash
+        run: |
+          # shellcheck source=/dev/null
+          . "$API_BUDGET_SH" 2>/dev/null || true
+          # budget <gh api -i output> <path>: keeps its rate-limit reading, under
+          # the path's route, for the job-end notices; nothing without the library.
+          budget() {
+            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin "$(! declare -F api_budget_route >/dev/null || api_budget_route api "$2")" <<<"$1" >/dev/null
+          }
+          if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the review run's head '$HEAD_SHA' is not a commit SHA."
+            exit 1
+          fi
+          approved=.github/workflows/pr-review-approved.yml
+          # listed_human: the upstream run's triggering actor is a person on the
+          # default branch's list; an unreadable list or id is not.
+          listed_human() {
+            [[ $REVIEW_RERUNNER_ID =~ ^[1-9][0-9]{0,14}$ ]] &&
+              jq -e --argjson id "$REVIEW_RERUNNER_ID" '.actors | any(.id == $id and .kind == "human")' "$TRUSTED_ACTORS" >/dev/null 2>&1
+          }
+          # Only a listed person's approval lifts a hold: any other ends here,
+          # before any API call.
+          if [[ $LANE_PATH == "$approved" ]] && ! listed_human; then
+            echo "The approval is by ${REVIEW_RERUNNER_ID:-an unnamed actor}, not a person on the trusted-actor list; it lifts no ci-status hold."
+            exit 0
+          fi
+          # A relay re-run's triggering actor is the re-runner, not the reviewer, and
+          # its re-run could not be recorded, so pr-verify would refuse it.
+          if [[ $LANE_PATH == "$approved" && $REVIEW_ATTEMPT != 1 ]]; then
+            echo "Relay attempt ${REVIEW_ATTEMPT:-?} names its re-runner, not the reviewer; nothing to re-run."
+            exit 0
+          fi
+          if [[ ! $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
+            echo "::notice::the upstream run names no pull request; nothing to re-run."
+            exit 0
+          fi
+          utc='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+          if [[ ! $LANE_DONE_AT =~ $utc ]]; then
+            echo "::error::the review run's finish time '$LANE_DONE_AT' is not a UTC timestamp."
+            exit 1
+          fi
+          case $LANE_PATH in
+          .github/workflows/pr-review-hosted.yml) others='pr-review-security-hosted.yml' ;;
+          .github/workflows/pr-review-security-hosted.yml) others='pr-review-hosted.yml' ;;
+          "$approved") others='pr-review-hosted.yml pr-review-security-hosted.yml' ;;
+          *)
+            echo "::error::'$LANE_PATH' is not a review lane or an approval relay."
+            exit 1
+            ;;
+          esac
+          # read_api <var> <what> <path>: GET <path> into <var>. A rate limit
+          # (403 or 429) waits retry-after seconds, else, with
+          # x-ratelimit-remaining 0, until one second past x-ratelimit-reset,
+          # both read from the refused response's headers, when the wait fits
+          # in what is left of POLL_LIMIT_SECONDS, shared with the poll below.
+          # A wait past it fails the job, naming the reset: no other run here
+          # re-runs a ci-status this job leaves stale (a later lane's
+          # completion exists only while the other lane is running), and
+          # maintenance-reconcile-lost-runs re-runs one red only on a pending
+          # or missing review, at attempt 1, after its PENDING_BACKOFF_MINUTES.
+          # Should both re-run it, the read_at check below ends this job on
+          # an attempt that started after the lanes finished. What overlap
+          # remains is two POSTs inside check-then-act gaps, which GitHub
+          # would refuse while the first re-run is going (UNVERIFIED) rather
+          # than start a third attempt. Should both land, the extra attempt
+          # has no record of its own, so pr-verify refuses it: the head is
+          # stranded for a person, never let through.
+          # Any other failure is read three times, then fails, or with
+          # read_soft set returns 1 for the caller to read another way.
+          # A path read again (the poll below) is sent as a conditional GET
+          # with the ETag of its last 200; a 304 (gh exits 1 on it) gives that
+          # 200's body back, as request-budget.mjs does. Its reading is kept,
+          # so the notice shows whether GitHub counted it.
+          waited=0 etag_path='' etag='' etag_body=''
+          read_api() {
+            local attempt out hdr status left reset after wait cond
+            for attempt in 1 2 3; do
+              cond=()
+              [[ $3 != "$etag_path" || -z $etag ]] || cond=(-H "If-None-Match: $etag")
+              if out=$(gh api -i "$3" "${cond[@]}"); then
+                budget "$out" "$3"
+                printf -v "$1" '%s' "$(sed '1,/^\r\?$/d' <<<"$out")"
+                etag_path=$3 etag_body=${!1}
+                etag=$(sed '/^\r\?$/q' <<<"$out" | tr -d '\r' | awk -F': *' 'tolower($1) == "etag" { print $2; exit }')
+                return 0
+              fi
+              budget "$out" "$3"
+              hdr=$(sed '/^\r\?$/q' <<<"$out")
+              status=$(awk 'NR == 1 { print $2 }' <<<"$hdr")
+              if [[ $status == 304 && ${#cond[@]} -gt 0 ]]; then
+                printf -v "$1" '%s' "$etag_body"
+                return 0
+              fi
+              read -r left reset after < <(tr -d '\r' <<<"$hdr" | awk -F': *' '{ h[tolower($1)] = $2 }
+                END { print h["x-ratelimit-remaining"] "-", h["x-ratelimit-reset"] "-", h["retry-after"] "-" }')
+              left=${left%-} reset=${reset%-} after=${after%-}
+              if [[ $status =~ ^(403|429)$ && $after =~ ^[0-9]{1,5}$ ]]; then
+                wait=$((10#$after)) reset=$(($(date +%s) + 10#$after))
+              elif [[ $status =~ ^(403|429)$ && $left == 0 && $reset =~ ^[0-9]{1,10}$ ]]; then
+                wait=$((reset - $(date +%s)))
+                wait=$((wait < 0 ? 1 : wait + 1))
+              else
+                wait=
+              fi
+              if [ -n "$wait" ]; then
+                if [ $((waited + wait)) -gt "$POLL_LIMIT_SECONDS" ]; then
+                  echo "::error::the token's rate limit blocks reading $2 until $(date -u -d "@$reset" +%H:%M:%SZ), past this job's ${POLL_LIMIT_SECONDS}s cap; ci-status on $HEAD_SHA is not re-run. Re-run this run after the reset."
+                  exit 1
+                fi
+                echo "Rate limited reading $2; waiting ${wait}s for the reset."
+                sleep "$wait"
+                waited=$((waited + wait))
+                continue
+              fi
+              [ "$attempt" -lt 3 ] || { [ -z "${read_soft:-}" ] || return 1; echo "::error::could not read $2; re-run this run." >&2; exit 1; }
+              sleep $((attempt * 5))
+            done
+            echo "::error::could not read $2 after the rate-limit waits; re-run this run." >&2
+            exit 1
+          }
+          # ci-status's own choice of run: the newest pull_request run of the
+          # file on the head. A fork's run at the same SHA is never it.
+          newest() {
+            jq -c --arg path ".github/workflows/$1" --arg sha "$HEAD_SHA" --arg repo "$GITHUB_REPOSITORY" '[.workflow_runs[]
+              | select(.path == $path and .head_sha == $sha and .event == "pull_request"
+                and .head_repository.full_name == $repo)]
+              | max_by(.id) // empty'
+          }
+          # One listing of the head's pull_request runs of every workflow answers
+          # each file below when it is whole (total_count a number no more than
+          # the runs listed, the rule reconcile.mjs sharedRuns keeps). A
+          # cut-short, malformed or unread one could hide the run that decides,
+          # so then each file's own runs are read, and one of those that cannot
+          # be read fails the step.
+          head_runs=''
+          if read_soft=1 read_api listing "the pull_request runs on $HEAD_SHA" \
+            "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100" &&
+            jq -e '(.total_count | numbers) <= (.workflow_runs | arrays | length)' <<<"$listing" >/dev/null 2>&1; then
+            head_runs=$listing
+          else
+            echo "The pull_request runs on $HEAD_SHA did not come back whole; each workflow's own runs are read."
+          fi
+          # file_runs <file>: sets runs to the head's runs that hold <file>'s.
+          file_runs() {
+            if [ -n "$head_runs" ]; then
+              runs=$head_runs
+            else
+              read_api runs "the $1 runs on $HEAD_SHA" \
+                "repos/$GITHUB_REPOSITORY/actions/workflows/$1/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100"
+            fi
+          }
+          done_at=$LANE_DONE_AT
+          for other in $others; do
+            file_runs "$other"
+            lane=$(newest "$other" <<<"$runs")
+            if [ -n "$lane" ]; then
+              if [ "$(jq -r .status <<<"$lane")" != completed ]; then
+                echo "$other has not finished on $HEAD_SHA; its completion re-runs ci-status."
+                exit 0
+              fi
+              other_at=$(jq -r '.updated_at // ""' <<<"$lane")
+              # Only the lane that finished last re-runs ci-status (ties: the
+              # higher run id), once per head. The other lane's run defers to it
+              # when that run starts this job (the job's `if`: not skipped) and
+              # records its re-run (attempt 1).
+              if [[ $LANE_PATH != "$approved" ]] &&
+                jq -e --arg own "$LANE_DONE_AT" --arg own_id "$REVIEW_RUN_ID" 'try (.conclusion != "skipped" and .run_attempt == 1
+                  and ((.updated_at | fromdateiso8601) as $t | ($own | fromdateiso8601) as $o
+                    | $t > $o or ($t == $o and .id > ($own_id | tonumber)))) catch false' <<<"$lane" >/dev/null; then
+                echo "$other finished on $HEAD_SHA after this lane; its completion re-runs ci-status."
+                exit 0
+              fi
+              if [[ $other_at > $done_at ]]; then
+                done_at=$other_at
+              fi
+            fi
+          done
+          file_runs pr-require-checks.yml
+          run=$(newest pr-require-checks.yml <<<"$runs")
+          if [ -z "$run" ]; then
+            echo "No pr-require-checks run on $HEAD_SHA yet; its ci-status reads the reviews when it runs."
+            exit 0
+          fi
+          id=$(jq -r .id <<<"$run")
+          # The gate job: CI Status, else ci-status on a run from before the
+          # rename. Never the ci-status alias beside CI Status: a re-run of the
+          # alias alone replays its old `needs` result.
+          gate_job='([.jobs[] | select(.name == "CI Status")] | if length > 0 then . else null end) // [.jobs[] | select(.name == "ci-status")] | max_by(.id) // empty'
+          read_api jobs "the jobs of run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?filter=latest&per_page=100"
+          job=$(jq -c "$gate_job" <<<"$jobs")
+          if [ "$(jq -r .status <<<"$run")" != completed ]; then
+            case $(jq -r '.status // "absent"' <<<"${job:-null}") in
+            in_progress | completed) ;;
+            *)
+              echo "ci-status of run $id has not started; it reads the reviews when it runs."
+              exit 0
+              ;;
+            esac
+          fi
+          # When ci-status began reading the reviews: its review-lanes step's
+          # start, else the job's. Read late, or passed on a read after both
+          # lanes finished, it is left alone (see the job comment).
+          read_at=$(jq -r 'first(((.steps // [])[] | select(.name == "Require both review lanes on this head") | .started_at | strings),
+            (.started_at | strings)) // ""' <<<"${job:-null}")
+          case $(jq -r --arg s "$read_at" --arg d "$done_at" 'try (($s | fromdateiso8601) as $r | ($d | fromdateiso8601) as $t
+            | if $r > $t + 60 then "late" elif .conclusion == "success" and $r >= $t then "passed" else "" end) catch ""' <<<"${job:-null}") in
+          late)
+            echo "ci-status of run $id began reading the reviews at $read_at, after both lanes finished ($done_at); it read them."
+            exit 0
+            ;;
+          passed)
+            echo "ci-status of run $id passed, reading the reviews from $read_at, after both lanes finished ($done_at); a re-run can only pass again."
+            exit 0
+            ;;
+          esac
+          while [ "$(jq -r .status <<<"$run")" != completed ]; do
+            if [ "$waited" -ge "$POLL_LIMIT_SECONDS" ]; then
+              echo "::error::run $id on $HEAD_SHA has not finished after ${waited}s; re-run its ci-status job once it does."
+              exit 1
+            fi
+            sleep "$POLL_SECONDS"
+            waited=$((waited + POLL_SECONDS)) polled=1
+            read_api run "run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id"
+          done
+          # ci-status's review-lanes step waits for a review still running
+          # (pr-require-checks.yml REVIEW_WAIT_SECONDS), so one that began
+          # reading before both lanes finished can still judge them after.
+          # Polled to its end, it is read again. Passed, with that step ended
+          # after both lanes finished, a re-run can only pass again.
+          if [ -n "${polled:-}" ]; then
+            read_api jobs "the jobs of run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?filter=latest&per_page=100"
+            job=$(jq -c "$gate_job" <<<"$jobs")
+          fi
+          judged_at=$(jq -r 'first((.steps // [])[] | select(.name == "Require both review lanes on this head") | .completed_at | strings) // ""' <<<"${job:-null}")
+          if jq -e --arg s "$judged_at" --arg d "$done_at" 'try (.conclusion == "success" and ($s | fromdateiso8601) >= ($d | fromdateiso8601)) catch false' <<<"${job:-null}" >/dev/null; then
+            echo "ci-status of run $id passed, judging the reviews by $judged_at, after both lanes finished ($done_at); a re-run can only pass again."
+            exit 0
+          fi
+          job_id=$(jq -r '.id // empty' <<<"${job:-null}")
+          if [[ ! $job_id =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::run $id on $HEAD_SHA has no ci-status job to re-run."
+            exit 1
+          fi
+          # Read again: the poll above can take minutes, and a moved head is left alone.
+          read_api pr "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER"
+          if [ "$(jq -r '"\(.state) \(.head.sha)"' <<<"$pr")" != "open $HEAD_SHA" ]; then
+            echo "#$PR_NUMBER is closed or no longer at $HEAD_SHA; nothing to re-run."
+            exit 0
+          fi
+          attempt=$(jq -r '.run_attempt // empty' <<<"$run")
+          if [[ ! $attempt =~ ^[1-9][0-9]{0,4}$ ]]; then
+            echo "::error::run $id on $HEAD_SHA reports no attempt number."
+            exit 1
+          fi
+          # A lanes App PR's attempt-1 ci-status (merge-holds.mjs switchHold: a
+          # Bot author whose id is the App's) is left while the kill switch is
+          # on, for every upstream: its re-run would fail on the switch and
+          # spend attempt 2, the only re-run the lost-run reconciler makes. Left
+          # at attempt 1, the reconciler re-runs it once the switch is off when
+          # its red matches one of its kinds (Switch, Review, Pending). A later
+          # attempt is re-run as any other: this job's record covers attempt 2
+          # and up (check-trusted-trigger.mjs ciStatusRerunRecorder), and a red
+          # on the switch there is named for a person by the reconciler. An
+          # unread switch counts as on, and an unread author as the App's, as
+          # ci-status reads it: no re-run is safer than a spent attempt.
+          if [[ $attempt == 1 && $LANES_PROCEED != true ]] &&
+            jq -e --arg id "$APP_SENDER_ID" 'try ((.user.id | type) != "number" or (.user.type | type) != "string"
+              or ($id | test("^[1-9][0-9]*$")) and .user.type == "Bot" and .user.id == ($id | tonumber)) catch true' <<<"$pr" >/dev/null; then
+            echo "::notice::the lanes kill switch is on or unread, so ci-status on lanes App #$PR_NUMBER is not re-run; the lost-run reconciler re-runs it once the switch is off."
+            exit 0
+          fi
+          next=$((attempt + 1))
+          # Another re-run may have landed since: read the run once more, last
+          # before the record and the re-run, and leave a moved attempt or a
+          # running one to that re-run.
+          read_api run "run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id"
+          if [ "$(jq -r '"\(.status) \(.run_attempt)"' <<<"$run")" != "completed $attempt" ]; then
+            echo "Run $id on $HEAD_SHA moved past attempt $attempt or is running again; that re-run reads the change."
+            exit 0
+          fi
+          echo "job-id=$job_id" >>"$GITHUB_OUTPUT"
+          echo "Re-running ci-status (job $job_id) of run $id on $HEAD_SHA as attempt $next."
+          # Recorded only for a first review attempt, a listed human's re-run,
+          # or the lost-run reconciler's: anyone with write access can re-run
+          # a review run, and the record vouches for the ci-status attempt that
+          # re-run causes. The reconciler re-runs a review run the upstream
+          # gate stopped at attempt 1, as github-actions[bot] (41898282), and
+          # counts only when its record passes pr-verify's own reconciler
+          # check (reconciler-record.mjs). An unreadable list, attempt,
+          # re-runner or record records nothing, so the gate refuses that
+          # attempt.
+          reconciled() {
+            [[ $REVIEW_ATTEMPT == 2 && $REVIEW_RERUNNER_ID == 41898282 && $REVIEW_RUN_ID =~ ^[1-9][0-9]{0,19}$ ]] &&
+              node "$RECONCILER_RECORD"
+          }
+          # An approval reaches here only at attempt 1, where the triggering actor
+          # is the reviewer, a listed human (both checked above).
+          case $LANE_PATH in
+          "$approved")
+            vouched=true reason='a listed person approved the head after ci-status read it'
+            ;;
+          *)
+            vouched=false reason='the review lanes finished after ci-status read them'
+            if [[ $REVIEW_ATTEMPT == 1 ]] || { [[ $REVIEW_ATTEMPT =~ ^[1-9][0-9]{0,4}$ ]] && listed_human; } || reconciled; then vouched=true; fi
+            ;;
+          esac
+          if [ "$vouched" != true ]; then
+            echo "::notice::upstream attempt ${REVIEW_ATTEMPT:-?} was started by ${REVIEW_RERUNNER_ID:-an unnamed actor}, who is not a listed human, and no reconciler record vouches for it; the re-run is not recorded, so pr-verify's gate refuses it."
+            exit 0
+          fi
+          jq -cn --argjson recorder "$GITHUB_RUN_ID" --argjson run "$id" --argjson attempt "$next" --arg head "$HEAD_SHA" \
+            --argjson pr "$PR_NUMBER" --argjson job "$job_id" --arg lane "$LANE_PATH" --arg reason "$reason" \
+            '{recorder_run_id: $recorder, run_id: $run, attempt: $attempt, head_sha: $head, pr_number: $pr,
+              job_id: $job, lane_path: $lane, reason: $reason}' >"$RECORD_FILE"
+          echo "record=rerun-ci-status-$id-$next-$HEAD_SHA" >>"$GITHUB_OUTPUT"
+
+      # Uploaded last before the re-run, so the record names the attempt the
+      # re-run starts; a re-run someone else lands in between takes that
+      # attempt, and this one's next attempt has no record and is refused.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.find.outputs.record != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/rerun-ci-status-record.json
+
+      - name: Record the re-run
+        if: >-
+          (steps.find.outputs.record != '') && steps.scan-upload.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.find.outputs.record }}
+          path: ${{ runner.temp }}/rerun-ci-status-record.json
+          retention-days: 1
+          if-no-files-found: error
+          # A re-run of this job after a failed POST records the same name.
+          overwrite: true
+
+      - name: Re-run ci-status
+        if: steps.find.outputs.job-id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_ID: ${{ steps.find.outputs.job-id }}
+        run: |
+          if [[ ! $JOB_ID =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::'$JOB_ID' is not a job id."
+            exit 1
+          fi
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/jobs/$JOB_ID/rerun" >/dev/null
+          echo "Re-ran ci-status (job $JOB_ID)."
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

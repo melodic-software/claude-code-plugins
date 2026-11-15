@@ -10,7 +10,7 @@
 # newer...<main's tip, read by heads/main> must each read ahead or identical.
 # A failed listing returns 1; any other failed read or status prints nothing.
 # At most four reads: one listing (newest ten), two compares and the ref.
-# post-merge-demotion-alert.yml sources it to file nothing for a dispatched
+# post-merge-file-demotion-issues.yml sources it to file nothing for a dispatched
 # red run main already recovered from; babysit_postmerge.py's
 # `_Context.superseded` holds the same rule for what pr-merge re-runs.
 newer_green_of() {

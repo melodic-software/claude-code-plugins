@@ -68,7 +68,7 @@ const RECONCILER_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 // the attempt the re-run starts, and the run's head SHA.
 export const rerunRecordName = (runId, attempt, headSha) => `reconcile-rerun-${runId}-${attempt}-${headSha}`;
 
-// The artifact pr-feedback-dispatch.yml's rerun-ci-status job uploads just
+// The artifact pr-dispatch-feedback.yml's rerun-ci-status job uploads just
 // before it re-runs a ci-status job: the run, the attempt the re-run starts,
 // and the run's head SHA.
 export const ciStatusRerunRecordName = (runId, attempt, headSha) => `rerun-ci-status-${runId}-${attempt}-${headSha}`;
@@ -1210,7 +1210,7 @@ async function verifyRecordedRerun({ github, repository, event, list, deniedIds,
 // attempt 2: the reconciler re-runs a hosted review once, as the merge gate
 // binds only that attempt. For a workflow that records an attempt the
 // reconciler's re-run causes
-// (pr-feedback-dispatch.yml rerun-ci-status, through reconciler-record.mjs).
+// (pr-dispatch-feedback.yml rerun-ci-status, through reconciler-record.mjs).
 // Any refusal is false; an unexpected error throws.
 export async function reconcilerRecordVouches({ github, repository, defaultBranch, list, deniedIds, reconcilerWorkflow, runId, sleep = defaultSleep }) {
   if (reconcilerWorkflow === "") {

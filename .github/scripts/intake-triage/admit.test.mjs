@@ -2900,6 +2900,38 @@ describe("unrunnable-rules.json", () => {
     });
   }
 
+  // A before/after eval asked for in any spelling of "before and after" is a
+  // model eval run, so it goes to the host queue.
+  for (const line of [
+    "A before/after eval of `re-session-noop-steering-line` on Sonnet, at least 12 runs per side, both sides run together, is in the pull request body: after the change `says-no-yardstick` passes in at least 11 of 12 runs and `routes-noop-line` in at least 10 of 12, with the before counts beside them. The other `re-session-*` cases run paired and show no loss.",
+    "A before-and-after eval of the skill shows the pass counts.",
+    "The before/after evals are in the pull request body.",
+    "A before-after eval compare is in the pull request body.",
+    "A before/after eval record in the pull request body.",
+  ]) {
+    test(`flags a before/after eval: ${line.slice(0, 60)}`, () => {
+      assert.equal(first(line), "eval", line);
+      const result = decide(facts({ issue: doneWhen(line) }));
+      assert.equal(result.hostRun, true, line);
+      assert.equal(result.hold, undefined, line);
+    });
+  }
+
+  // Before/after wording with no eval run after it stays with the lane.
+  for (const line of [
+    "Add an eval case for the before/after wording.",
+    "validate-cases.py passes on the before/after sample files.",
+    "The before/after screenshots are attached.",
+    "Document the before/after behavior in the README.",
+    "`plugins/review/README.md` states that a PR changing a lane's prompt, model or effort cites a before/after score.",
+    "`measure-invocation.sh compare baseline.json treatment.json` reports the before/after delta.",
+    "`/evals:validate` passes on `plugins/improvement`'s eval suite, before/after the cut.",
+  ]) {
+    test(`passes before/after wording with no eval run: ${line}`, () => {
+      assert.equal(first(line), null, line);
+    });
+  }
+
   test("`unless` clears a row's match", () => {
     assert.equal(first("`claude plugin eval --validate` passes on the suite."), null);
     assert.equal(first("The README says Windows host support is fully implemented."), null);

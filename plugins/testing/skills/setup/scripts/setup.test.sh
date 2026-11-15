@@ -136,6 +136,29 @@ printf 'adapter_dirs: [adapters]\n' >"$L/.claude/testing.yaml"
 rc=0
 out="$(bash "$SETUP" check --root "$L" 2>&1)" || rc=$?
 assert_line "an adapter_dirs adapter's files glob gets it too" "$out" '^js +vitest/valid-expect +FINDING'
+assert_not_contains "a shipped language draws no no-lint-check line" "$out" "has no lint check for"
+
+# A detected language setup has no arm for is named, not passed over. The
+# shipped loader admits only the shipped languages, so this copy of the plugin
+# runs a loader that admits any lowercase name.
+P="$T/plugin"
+PLUGIN_DIR="$(cd "$(dirname "$SETUP")/../../.." && pwd)"
+mkdir -p "$P/skills/setup/scripts" "$P/skills/audit/scripts"
+cp -R "$PLUGIN_DIR/scripts" "$P/scripts"
+cp -R "$PLUGIN_DIR/skills/audit/adapters" "$P/skills/audit/adapters"
+cp "$SETUP" "$P/skills/setup/scripts/setup.sh"
+sed 's/\^(js|cs|python|bash|pwsh|go)\$/^[a-z]+$/' "$PLUGIN_DIR/skills/audit/scripts/adapter-load.awk" >"$P/skills/audit/scripts/adapter-load.awk"
+U="$T/unknownlang"
+mkdir -p "$U/.claude" "$U/adapters"
+git -C "$U" init -q
+printf "id: rs-test\nlanguage: rust\nblock_model: brace\nfiles: ['*_test.rs']\ntest_start: ['^fn ']\n" >"$U/adapters/rs-test.yaml"
+printf 'adapter_dirs: [adapters]\n' >"$U/.claude/testing.yaml"
+printf 'fn checks() {}\n' >"$U/lib_test.rs"
+git -C "$U" add -A
+rc=0
+out="$(bash "$P/skills/setup/scripts/setup.sh" check --root "$U" 2>&1)" || rc=$?
+assert_line "a detected language with no setup arm is named" "$out" '^rust +- +NONE +setup has no lint check for this language$'
+assert_eq "and it is no finding" 0 "$rc"
 
 # The instruction line names the file Claude Code loads here: AGENTS.md only
 # when no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md exists; CLAUDE.local.md

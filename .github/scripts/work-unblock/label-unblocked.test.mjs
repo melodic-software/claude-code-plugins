@@ -4457,7 +4457,7 @@ test("the workflows match a re-runner by id: the dispatch lane refuses a re-run,
     const end = text.indexOf("\n      - name: ", start + 1);
     return text.slice(start, end < 0 ? undefined : end);
   };
-  const dispatch = step("eval-browser-dispatch.yml", "Check the dispatcher is a trusted human");
+  const dispatch = step("pr-run-plugin-evals.yml", "Check the dispatcher is a trusted human");
   assert.match(dispatch, /^ {10}if \[ "\$GITHUB_RUN_ATTEMPT" != 1 \]; then\n {12}echo "::error::rerun-refused: [^\n]*"\n {12}exit 1\n {10}fi$/m);
   assert.ok(dispatch.indexOf("GITHUB_RUN_ATTEMPT") < dispatch.indexOf("jq -e"), "the re-run refusal comes before the list check");
   assert.doesNotMatch(dispatch, /triggering_actor|TRIGGERING_ACTOR/);
@@ -4926,7 +4926,7 @@ test("a label in a span's last second has its whole window from that span's one 
   assert.ok(shared.calls.every((call) => call.includes(`created=${encodeURIComponent("2026-10-16T10:00:00Z..2026-10-16T11:10:00Z")}`)), shared.calls.join("\n"));
 });
 
-// A red-main fix issue post-merge-demotion-alert.yml reopens on a repeat
+// A red-main fix issue post-merge-file-demotion-issues.yml reopens on a repeat
 // failure keeps agent-ready, but the reopen ran on that workflow's
 // GITHUB_TOKEN, which starts no lane run. The sweep finds it by the issue's
 // first body line and the workflow's recurrence comment, both
@@ -4965,8 +4965,8 @@ const relabeled = (n, id = 801) => [
   ...restarted(n),
 ];
 
-test("post-merge-demotion-alert still posts the recurrence comment and the fix-issue marker this sweep matches", () => {
-  const alert = readFileSync(join(HERE, "../../workflows/post-merge-demotion-alert.yml"), "utf8");
+test("post-merge-file-demotion-issues still posts the recurrence comment and the fix-issue marker this sweep matches", () => {
+  const alert = readFileSync(join(HERE, "../../workflows/post-merge-file-demotion-issues.yml"), "utf8");
   assert.ok(alert.includes(`note="${RECURRENCE_PREFIX.replace("`", "\\`")}`), "the recurrence comment's opening words changed");
   assert.ok(alert.includes('fix_marker="<!-- post-merge-fix check=$check -->"'), "the fix issue's first line changed");
 });

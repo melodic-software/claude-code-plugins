@@ -1,0 +1,1741 @@
+name: Post Merge File Demotion Issues
+
+# Files the unattended-merge demotion issue when a post-merge signal fails on
+# main, so a human hears of it while no babysit lane runs. The signals are a
+# scheduled or dispatched pr-require-checks run (the whole-tree run) and a
+# canary push run. The issue is the demotion record the babysit post-merge
+# check files under the agent identity and the merge-policy reader holds the
+# rung off on: first body line `<!-- babysit-merge-demotion sha=<S>
+# signal=<name> -->`, one per (signal, SHA). A record that already exists
+# gets a comment naming the run attempt instead. Records from both filers
+# (github-actions[bot] and merge.agent-identity) are read, so a sighting of
+# either filer's record comments on it, and any record holds the rung off. A
+# record is a state marker, never lane work: it is not sent to intake triage,
+# since the fix issues below carry the work. A schedule or dispatch record
+# carries no label: it clears itself once main is green at a later commit
+# (babysit_merge_policy.py `_recovered_at`). A canary record gets Work status
+# needs-human, since a green main does not clear it: it carries a lift block
+# (babysit_lift.py canary-block) naming the lines the canary found deleted,
+# and lifts once they are back on main or a referencing pull request merges
+# with them (`_lift`), when the close-cleared job closes it, which ends its
+# hold. A canary record with no block (the push's commits were not all read,
+# the scan could not run, or the block was too large) clears only on a person's
+# close. A fix issue not delivered to intake gets a hidden marker comment on
+# it and on its record, a quarantine issue one on the issue, and a check whose
+# fix issue could not be filed or reopened one on the record; each alert run
+# retries what a marker names until it succeeds (handoff.bash). A record gets
+# Work status needs-human when a failing check got no fix issue because it was
+# over the cap or outside the name charset, which no retry can file. A record
+# is filed with no status label, then its Work status field is set (the job's
+# token); a failed field write fails the run.
+# The close-cleared job, on each completed scheduled full run, closes each
+# open, never-edited schedule or dispatch record (either filer's) that a
+# later green full run on main has cleared, by the rule
+# babysit_merge_policy.py `_recovered_at` applies. This workflow merges,
+# reverts and dequeues nothing.
+#
+# Only a failure whose merges include one the lanes App put in the merge queue
+# demotes. When every merge in the failing range was enqueued by someone else
+# (a person, a release App), the issue's first line is `<!-- post-merge-failure
+# sha=<S> signal=<name> -->` instead, and no reader treats it as a demotion. A
+# full-run one is held as a full-run record above, and the close-cleared
+# job closes it too; a canary one gets Work status needs-human, since a canary
+# files no fix issue, and lifts as a canary demotion record does. Anything the
+# lookup cannot prove demotes.
+#
+# A push to main that reverts a pull request the lanes App put in the merge
+# queue files a `revert` record. Every canary push run, whatever it concluded
+# and on every attempt, reads the commits the push brought, a merge-queue
+# batch included: main's first-parent range since the previous canary push
+# run's head, at most 20 commits, and the newest 20 when that head cannot be
+# read or is not an ancestor, read from main's full history. A revert commit
+# any revert record already lists is skipped, so overlapping runs and re-runs
+# file it once and never again after a person closes its record. A failed
+# canary still files its canary record too. A revert of a pull request someone
+# else enqueued files nothing; an unproven one demotes, a reverted commit whose
+# pull request cannot be read included. The alert job finds the revert and hands
+# the record to the file-revert job, whose token holds issues: write alone,
+# through its outputs; that job re-reads the records first and files nothing
+# when one already lists every revert commit. A revert record gets Work status
+# needs-human and carries a lift block of the lines its revert commits
+# deleted; it holds the rung off until those lines are back on main, a pull
+# request that references it merges into main (babysit_merge_policy.py
+# `_lift`), or a person closes it. The close-cleared job closes a lifted
+# canary, revert or read-back record, which ends its Work status hold, and
+# removes a legacy needs-human label if one is left.
+#
+# The canary push run also labels the push's merges on a record-mode path of
+# pr-pipeline.yaml's post-merge.paths (an agent session's merge through the
+# owner login), and the pull requests it reverts on one, and nothing else:
+# merge-path.mjs; README.md, "Merge paths".
+#
+# A red full run files only after one re-run of its failed jobs, which the
+# job waits up to 20 minutes for, fails again or does not finish, and only for
+# checks that were not already failing on main's newest completed run of the
+# same event at an earlier SHA (babysit_postmerge.py applies the same rule). A
+# check is a failed job, or one gate the hygiene aggregator names in a titled
+# annotation; the lane aggregator ci-status adds nothing beside another failed
+# job, and the gitleaks gate, which scans every branch on these events, counts
+# against no merge. Of those, a run whose every newly failing test-leg suite
+# is outside the affected set of the merges since main's last green full run,
+# or quarantined, with a failure on a re-run also having passed on an earlier
+# attempt or failed at green, files nothing but each suite's quarantine issue
+# (babysit_postmerge.py --judge-run, run from main's tip), each locked and
+# sent to intake triage as a fix issue is.
+#
+# Beside a new record of a full run, it files one fix issue per newly failing
+# check (at most 5) and dispatches intake-triage.yml for each, so an agent can
+# fix main once the owner ratifies it. First body line `<!-- post-merge-fix
+# check=<name> -->`, no label, fixed text only; one issue per check across
+# SHAs, reopened when the check fails again, keeping agent-ready and with no
+# second intake dispatch. Closing a fix issue changes nothing on the record.
+#
+# A full run pr-merge.yml starts for main's merges uses GITHUB_TOKEN, so its
+# completion raises no workflow_run event. pr-merge's post-merge-dispatch job
+# sends a red one here on its next scheduled run, through workflow_dispatch
+# with its run id and head SHA, instead; the first step reads that run and
+# refuses anything but a red pr-require-checks run on this repository's main
+# that github-actions[bot] dispatched, at that head SHA. Red is any conclusion
+# in babysit_postmerge.py's FAILED_CONCLUSIONS. A red run inside a lane merge's
+# attribution window, or one that demotes by the affected-set rule, gets its
+# one re-run from pr-merge's post-merge-dispatch job, and any other gets none,
+# so the alert waits for a re-run as long as the report job does
+# (red-main.confirm-wait-minutes) and starts none itself. Once a newer
+# pr-require-checks run on this repository's main has passed, main already
+# recovered: no record, fix issue or report is filed. The wait checks for one
+# at each poll while the re-run is pending and ends early on a hit; a lookup
+# that fails keeps waiting.
+# After the wait (the re-run failed or did not finish) it checks once more.
+#
+# After a failed scheduled or dispatched full run, the report-red-main job
+# applies the red-main rule (docs/conventions/pr-pipeline/README.md, "Red
+# main"): it waits for the run's one re-run, confirms the red, pins the
+# culprit merge and names the revert the bot would open, in its step summary
+# and one log issue. While `red-main.dry-run` is true it pushes, opens and
+# merges nothing.
+#
+# Test: scripts/post-merge-demotion-alert.test.sh runs the alert's retry and
+# filing step bodies;
+# .github/scripts/post-merge-demotion-alert/ tests the report job.
+
+on:
+  # Both jobs check out main's tip and run its scripts; the alert's --judge-run
+  # also runs scripts/plan-test-lanes.sh from main's last green full run's
+  # commit (never the failing one, which the judged merges wrote), with every
+  # *TOKEN* variable removed from its environment. No code from outside main
+  # executes here. Each step reads the event's fields through env and acts
+  # only on runs of this repository's main branch.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [PR Require Checks, Post Merge Detect Silent Revert]
+    types: [completed]
+    branches: [main]
+  # pr-merge.yml's post-merge-dispatch job, with GITHUB_TOKEN, or a listed
+  # human (trusted-actors.json on main) names a red full run that raised no
+  # workflow_run event. Both inputs are checked before use, and the head SHA
+  # must be the run's own.
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: Id of a red pr-require-checks run on main that github-actions[bot] dispatched
+        required: true
+        type: string
+      head-sha:
+        description: The run's head SHA (40 lowercase hex digits), which keys the alert's concurrency group
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  alert:
+    name: File The Demotion Issue
+    # The file step's early exits, read from the event before any checkout: a
+    # workflow_run event that is not a signal, a full run's pass on attempt 1
+    # or action_required, or a run off this repository's main starts no job.
+    # Every canary push run on main runs, to read its push for reverts. A
+    # dispatch always runs; the Read step checks it.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && contains(fromJSON('["PR Require Checks:schedule", "PR Require Checks:workflow_dispatch", "Post Merge Detect Silent Revert:push"]'), format('{0}:{1}', github.event.workflow_run.name, github.event.workflow_run.event))
+      && (github.event.workflow_run.name == 'Post Merge Detect Silent Revert'
+      || contains(fromJSON('["failure", "timed_out", "startup_failure", "cancelled"]'), github.event.workflow_run.conclusion)
+      || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.run_attempt >= 2)))
+    runs-on: ubuntu-24.04
+    # Up to 20 minutes waiting on the re-run; for a dispatched run,
+    # red-main.confirm-wait-minutes, at most 60.
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 70 || 30 }}
+    permissions:
+      issues: write # file the demotion issue or comment on it
+      actions: write # re-run a red full run's failed jobs; read jobs and runs
+      checks: read # read the hygiene aggregator's annotations
+      contents: read # read merge.agent-identity from main's pr-pipeline.yaml
+      pull-requests: read # read each merged PR's merge-queue event
+    # One group per signal and SHA, as records are one per signal and SHA,
+    # found by a read before a create: two attempts of one run, two runs of
+    # one SHA, and a dispatch and a workflow_run event of the same run cannot
+    # both find no record and file two. A dispatch is always a
+    # pr-require-checks workflow_dispatch run and names its head SHA, which
+    # the Read step checks against the run.
+    concurrency:
+      group: post-merge-demotion-alert-${{ github.event.workflow_run.name || 'PR Require Checks' }}-${{ github.event.workflow_run.event || 'workflow_dispatch' }}-${{ github.event.workflow_run.head_sha || inputs['head-sha'] }}
+      cancel-in-progress: false
+    # The run as the step below and the report job read it.
+    outputs:
+      name: ${{ steps.run.outputs.name }}
+      event: ${{ steps.run.outputs.event }}
+      conclusion: ${{ steps.run.outputs.conclusion }}
+      branch: ${{ steps.run.outputs.branch }}
+      repo: ${{ steps.run.outputs.repo }}
+      sha: ${{ steps.run.outputs.sha }}
+      url: ${{ steps.run.outputs.url }}
+      id: ${{ steps.run.outputs.id }}
+      workflow-id: ${{ steps.run.outputs.workflow-id }}
+      created: ${{ steps.run.outputs.created }}
+      # 'true' when a dispatched run stayed red and main recovered since.
+      recovered: ${{ steps.file.outputs.recovered }}
+      # 'true' when every newly failing suite was outside the merges'
+      # affected set or quarantined: no record, and no red-main report.
+      excused: ${{ steps.file.outputs.excused }}
+      # The revert record the file-revert job files, when the push reverted
+      # a pull request: its title, body, revert commits and the agent
+      # identity whose records it re-reads.
+      revert-title: ${{ steps.file.outputs.revert-title }}
+      revert-body: ${{ steps.file.outputs.revert-body }}
+      revert-commits: ${{ steps.file.outputs.revert-commits }}
+      revert-filer: ${{ steps.file.outputs.revert-filer }}
+      # The canary push's merges and the pull requests it reverts, and the
+      # main tip checked out, for the label-paths job.
+      merged-prs: ${{ steps.file.outputs.merged-prs }}
+      reverted-prs: ${{ steps.file.outputs.reverted-prs }}
+      tip: ${{ steps.tip.outputs.sha }}
+    # Each guarded API call's rate-limit reading (the gh wrapper below and
+    # babysit_gh.py under the judge), for the job-end api-budget notice
+    # (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      # main's tip, for babysit_postmerge.py --judge-run and the plan script it
+      # runs in a worktree of the last green SHA, and for a canary run's push
+      # and the commits it reverts; full history for both.
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          fetch-depth: 0
+          persist-credentials: false
+
+      # A workflow_run event's fields pass through as they are. A dispatch's
+      # run id is read back from the API, as attempt 1 of the run: accepted
+      # only from github-actions[bot] (actor id 41898282) or a listed human,
+      # never the lanes App, and only for attempt 1 of a pr-require-checks.yml
+      # run on this repository's main that github-actions[bot] dispatched and
+      # that concluded red: failure, timed_out, cancelled, startup_failure or
+      # action_required, babysit_postmerge.py's FAILED_CONCLUSIONS, at the
+      # head SHA the dispatch named. Anything else writes no output and fails.
+      - name: Read the failed run
+        id: run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_RUN_ID: ${{ inputs.run-id }}
+          INPUT_HEAD_SHA: ${{ inputs.head-sha }}
+          ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          RUN_WORKFLOW: ${{ github.event.workflow_run.name }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
+          RUN_CREATED: ${{ github.event.workflow_run.created_at }}
+          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          RUN_TRIGGERING_ACTOR: ${{ github.event.workflow_run.triggering_actor.login }}
+          RUN_COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+        run: |
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            if [[ ! "$INPUT_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
+              echo "::error::run-id must be a run id (digits only)"
+              exit 1
+            fi
+            if [[ ! "$INPUT_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::head-sha must be a commit SHA (40 lowercase hex digits)"
+              exit 1
+            fi
+            if [[ ! "$APP_SENDER_ID" =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
+              exit 1
+            fi
+            if [[ ! "$ACTOR_ID" =~ ^[1-9][0-9]*$ || "$ACTOR_ID" == "$APP_SENDER_ID" ]]; then
+              echo "::error::untrusted-actor: the lanes App cannot send a run here"
+              exit 1
+            fi
+            if ! gh api -H 'Accept: application/vnd.github.raw' \
+              "repos/$GITHUB_REPOSITORY/contents/.github/standards/trusted-actors/trusted-actors.json?ref=main" |
+              jq -e --argjson id "$ACTOR_ID" --argjson app "$APP_SENDER_ID" --arg login "$TRIGGERING_ACTOR" '
+                def human: .kind == "human" and .id != $app;
+                .version == 1
+                and ($id == 41898282 or any(.actors[]; .id == $id and human))
+                and ($login == "github-actions[bot]"
+                  or any(.actors[]; (.login | ascii_downcase) == ($login | ascii_downcase) and human))
+              ' >/dev/null; then
+              echo "::error::untrusted-actor: the sender or re-runner is neither github-actions[bot] nor a listed human"
+              exit 1
+            fi
+            run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$INPUT_RUN_ID/attempts/1")" || {
+              echo "::error::could not read attempt 1 of run $INPUT_RUN_ID"
+              exit 1
+            }
+            if ! jq -e --arg repo "$GITHUB_REPOSITORY" --argjson id "$INPUT_RUN_ID" '
+                .id == $id and .run_attempt == 1
+                and .path == ".github/workflows/pr-require-checks.yml"
+                and .event == "workflow_dispatch" and .actor.login == "github-actions[bot]"
+                and .head_branch == "main"
+                and .repository.full_name == $repo and .head_repository.full_name == $repo
+                and .status == "completed"
+                and (.conclusion | IN("failure", "timed_out", "cancelled", "startup_failure", "action_required"))
+              ' <<<"$run" >/dev/null; then
+              echo "::error::run $INPUT_RUN_ID is not a red pr-require-checks.yml run on main of $GITHUB_REPOSITORY that github-actions[bot] dispatched"
+              exit 1
+            fi
+            if ! jq -e --arg sha "$INPUT_HEAD_SHA" '.head_sha == $sha' <<<"$run" >/dev/null; then
+              echo "::error::head-sha $INPUT_HEAD_SHA is not the head SHA of run $INPUT_RUN_ID"
+              exit 1
+            fi
+            IFS=$'\t' read -r RUN_WORKFLOW RUN_EVENT RUN_CONCLUSION RUN_BRANCH RUN_REPO RUN_SHA RUN_URL RUN_ID \
+              RUN_WORKFLOW_ID RUN_CREATED RUN_ATTEMPT RUN_TRIGGERING_ACTOR < <(jq -r '[.name, .event, .conclusion,
+                .head_branch, .head_repository.full_name, .head_sha, .html_url, .id, .workflow_id, .created_at,
+                .run_attempt, .triggering_actor.login] | @tsv' <<<"$run")
+            RUN_COMMIT_MESSAGE="$(jq -r '.head_commit.message // ""' <<<"$run")"
+          fi
+          delimiter="EOF_$(openssl rand -hex 16)"
+          {
+            echo "name=$RUN_WORKFLOW"
+            echo "event=$RUN_EVENT"
+            echo "conclusion=$RUN_CONCLUSION"
+            echo "branch=$RUN_BRANCH"
+            echo "repo=$RUN_REPO"
+            echo "sha=$RUN_SHA"
+            echo "url=$RUN_URL"
+            echo "id=$RUN_ID"
+            echo "workflow-id=$RUN_WORKFLOW_ID"
+            echo "created=$RUN_CREATED"
+            echo "attempt=$RUN_ATTEMPT"
+            echo "triggering-actor=$RUN_TRIGGERING_ACTOR"
+            echo "commit-message<<$delimiter"
+            echo "$RUN_COMMIT_MESSAGE"
+            echo "$delimiter"
+          } >>"$GITHUB_OUTPUT"
+
+      # Before filing, re-send what an earlier run could not hand to intake. It
+      # shares main's scripts with the step below, whose run it never stops; a
+      # failure here fails the job at that step's end, so the failure stays
+      # visible and the next run retries it.
+      - name: Retry undelivered hand-offs to intake triage
+        id: retry
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          . .base/.github/scripts/post-merge-demotion-alert/handoff.bash
+          retry_undelivered
+
+      - name: File or comment on the demotion issue
+        id: file
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RETRY_OUTCOME: ${{ steps.retry.outcome }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_WORKFLOW: ${{ steps.run.outputs.name }}
+          RUN_EVENT: ${{ steps.run.outputs.event }}
+          RUN_CONCLUSION: ${{ steps.run.outputs.conclusion }}
+          RUN_BRANCH: ${{ steps.run.outputs.branch }}
+          RUN_REPO: ${{ steps.run.outputs.repo }}
+          RUN_SHA: ${{ steps.run.outputs.sha }}
+          RUN_URL: ${{ steps.run.outputs.url }}
+          RUN_ID: ${{ steps.run.outputs.id }}
+          RUN_WORKFLOW_ID: ${{ steps.run.outputs.workflow-id }}
+          RUN_CREATED: ${{ steps.run.outputs.created }}
+          RUN_ATTEMPT: ${{ steps.run.outputs.attempt }}
+          RUN_TRIGGERING_ACTOR: ${{ steps.run.outputs.triggering-actor }}
+          RUN_COMMIT_MESSAGE: ${{ steps.run.outputs.commit-message }}
+        run: |
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          . .base/.github/scripts/post-merge-demotion-alert/handoff.bash
+          # A hand-off that failed, in the retry step or below, fails the job at
+          # this step's end and takes no needs-human: the next run retries it.
+          handoff_failed=''
+          if [[ "$RETRY_OUTCOME" == failure ]]; then
+            handoff_failed=1
+          fi
+          trap '[[ -z "$handoff_failed" ]] || exit 1' EXIT
+          case "$RUN_WORKFLOW:$RUN_EVENT" in
+            "PR Require Checks:schedule") signal=schedule ;;
+            "PR Require Checks:workflow_dispatch") signal=dispatch ;;
+            "Post Merge Detect Silent Revert:push") signal=canary ;;
+            *)
+              echo "$RUN_WORKFLOW on $RUN_EVENT is not a post-merge signal"
+              exit 0
+              ;;
+          esac
+          # A cancel counts as a failure: pr-require-checks.yml cancels no
+          # running full run, so it came from an actor with actions: write or
+          # a time-budget overrun. A dispatch the main-dispatch concurrency
+          # group replaced before it started is cancelled too, with no job:
+          # that is no signal, and the check below files nothing for it.
+          # A re-run that passes is recorded on the record; it clears nothing.
+          # A dispatched run also files on action_required, as the Read step
+          # accepts every conclusion in babysit_postmerge.py's FAILED_CONCLUSIONS.
+          # A canary push run that files no canary record (`quiet`) still reads
+          # its push for reverts (revert_pass, below).
+          quiet=''
+          case "$RUN_CONCLUSION" in
+            failure | timed_out | startup_failure | cancelled) passed='' ;;
+            action_required)
+              if [[ "$signal" == canary ]]; then
+                quiet=1
+              elif [[ "$EVENT_NAME" != workflow_dispatch ]]; then
+                echo "$RUN_WORKFLOW concluded $RUN_CONCLUSION: nothing to file"
+                exit 0
+              fi
+              passed=''
+              ;;
+            success)
+              if [[ "$RUN_ATTEMPT" =~ ^[0-9]+$ && "$RUN_ATTEMPT" -ge 2 ]]; then
+                passed=1
+              elif [[ "$signal" == canary ]]; then
+                passed='' quiet=1
+              else
+                echo "$RUN_WORKFLOW passed on attempt $RUN_ATTEMPT: nothing to file"
+                exit 0
+              fi
+              ;;
+            *)
+              if [[ "$signal" != canary ]]; then
+                echo "$RUN_WORKFLOW concluded $RUN_CONCLUSION: nothing to file"
+                exit 0
+              fi
+              passed='' quiet=1
+              ;;
+          esac
+          if [[ "$RUN_BRANCH" != main || "$RUN_REPO" != "$GITHUB_REPOSITORY" ]]; then
+            echo "the run is not on this repository's main branch"
+            exit 0
+          fi
+          if [[ ! "$RUN_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::head SHA '$RUN_SHA' is not a full commit SHA"
+            exit 1
+          fi
+          if [[ ! "$RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::run attempt '$RUN_ATTEMPT' is not a positive integer"
+            exit 1
+          fi
+          # A failed read is a run that started: it files as before.
+          if [[ "$RUN_CONCLUSION" == cancelled && "$signal" != canary ]] &&
+            jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/attempts/$RUN_ATTEMPT/jobs?per_page=1" \
+              --jq '.total_count // (.jobs | length)')" && [[ "$jobs" == 0 ]]; then
+            echo "$RUN_WORKFLOW was cancelled before any job started (a newer dispatch replaced it): nothing to file"
+            exit 0
+          fi
+          newly=''
+          if [[ -z "$passed" && "$signal" != canary ]]; then
+            # Re-run the failed jobs once and wait here for that attempt: a
+            # re-run this token starts raises no workflow_run event of its own.
+            # babysit_postmerge.py credits this re-run only on a run the bot
+            # did not start, so a run the bot started (a pr-merge dispatch) is
+            # left to the wrapper's own re-run. When the wrapper re-ran first,
+            # the POST fails and the wait reads its attempt instead. A re-run
+            # that does not finish within 20 minutes leaves attempt 1 judged.
+            # A bot-started run sent by workflow_dispatch starts no re-run
+            # here either: pr-merge re-runs it inside a lane merge's
+            # attribution window or when it demotes, so the wait for a re-run
+            # is red-main.confirm-wait-minutes (55), as the report job's.
+            # A dispatched red files nothing, and the report job skips it,
+            # once a newer full run on this repository's main has passed: main
+            # already recovered (newer-green.bash says which run counts).
+            . .base/.github/scripts/post-merge-demotion-alert/newer-green.bash
+            newer_green() {
+              newer_green_of "$GITHUB_REPOSITORY" "$RUN_WORKFLOW_ID" "$RUN_ID" "$RUN_CREATED" "$RUN_SHA"
+            }
+            main_recovered() {
+              local newer_id newer_sha
+              IFS=$'\t' read -r newer_id newer_sha <<<"$1"
+              echo "::notice::$RUN_URL is red at attempt $RUN_ATTEMPT, but main already recovered: run $newer_id at ${newer_sha:0:12} passed on main after it, so nothing filed"
+              echo 'recovered=true' >>"$GITHUB_OUTPUT"
+              exit 0
+            }
+            if [[ "$RUN_ATTEMPT" -eq 1 && ("$RUN_TRIGGERING_ACTOR" != 'github-actions[bot]' || "$EVENT_NAME" == workflow_dispatch) ]]; then
+              polls=20
+              if [[ "$RUN_TRIGGERING_ACTOR" == 'github-actions[bot]' ]]; then
+                # red-main.confirm-wait-minutes from main's checkout, as the
+                # report job waits; at most 60, which the job timeout covers,
+                # and 40 when it does not read.
+                polls="$(sed -n '/^red-main:/,/^[^[:space:]#]/ s/^  confirm-wait-minutes: \([0-9]*\).*/\1/p' \
+                  .base/docs/conventions/pr-pipeline.yaml 2>/dev/null | head -n 1)" || polls=''
+                [[ "$polls" =~ ^[1-9][0-9]*$ ]] || polls=40
+                ((polls <= 60)) || polls=60
+              elif ! gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null; then
+                echo "::warning::could not re-run $RUN_URL; waiting for any re-run already started"
+              fi
+              for _ in $(seq "$polls"); do
+                sleep "${POLL_SECONDS:-60}"
+                latest="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
+                  --jq '[.run_attempt, .status, (.conclusion // "")] | @tsv')" || continue
+                IFS=$'\t' read -r attempt status conclusion <<<"$latest"
+                if [[ "$attempt" =~ ^[0-9]+$ && "$attempt" -ge 2 && "$status" == completed ]]; then
+                  if [[ "$conclusion" == success ]]; then
+                    echo "attempt $attempt, the re-run of the failed jobs, passed: nothing to file"
+                    exit 0
+                  fi
+                  RUN_ATTEMPT="$attempt"
+                  break
+                fi
+                # While the re-run is pending, a dispatched red ends the wait
+                # once main recovers. A failed lookup keeps waiting.
+                if [[ "$EVENT_NAME" == workflow_dispatch ]] && newer="$(newer_green)" && [[ -n "$newer" ]]; then
+                  main_recovered "$newer"
+                fi
+              done
+              if [[ "$RUN_ATTEMPT" -eq 1 ]]; then
+                echo "::warning::the re-run of $RUN_URL did not finish within $polls minutes: judging attempt 1"
+              fi
+            fi
+            # Checked once more after the wait, since main can recover while
+            # the re-run fails. A failed lookup files.
+            if [[ "$EVENT_NAME" == workflow_dispatch ]] && newer="$(newer_green)" && [[ -n "$newer" ]]; then
+              main_recovered "$newer"
+            fi
+            # failing_checks <run id> <attempt> [--baseline]: one check per
+            # line, by red-main.mjs's rule (failing-checks.mjs, run on the
+            # runner image's node, as the judge runs on its python3).
+            failing_checks() {
+              node .base/.github/scripts/post-merge-demotion-alert/failing-checks.mjs "$@"
+            }
+            now="$(mktemp)"
+            kept="$(mktemp)"
+            before="$(mktemp)"
+            trap 'rm -f -- "$now" "$now.new" "$kept" "$before"; [[ -z "$handoff_failed" ]] || exit 1' EXIT
+            failing_checks "$RUN_ID" "$RUN_ATTEMPT" >"$now"
+            if [[ ! -s "$now" ]]; then
+              echo "::warning::$RUN_URL failed only on checks no merge can cause (the all-branches gitleaks scan): not a demotion"
+              exit 0
+            fi
+            # The checks also failing on the baseline run, for the judge: one
+            # whose suite's quarantine expired demotes all the same.
+            baseline="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?event=$RUN_EVENT&branch=main&status=completed&created=%3C$RUN_CREATED&per_page=20" \
+              --jq '[.workflow_runs[] | select(.head_branch == "main" and .head_sha != env.RUN_SHA and .created_at < env.RUN_CREATED)]
+                | max_by(.created_at) // empty | [.id, .run_attempt, .conclusion] | @tsv')"
+            if [[ -n "$baseline" ]]; then
+              IFS=$'\t' read -r base_id base_attempt base_conclusion <<<"$baseline"
+              if [[ "$base_conclusion" != success ]]; then
+                failing_checks "$base_id" "$base_attempt" --baseline >"$before"
+              fi
+              grep -xFf "$before" "$now" >"$kept" || true
+              grep -vxFf "$before" "$now" >"$now.new" || true
+              mv "$now.new" "$now"
+            fi
+            # Exit 0: every newly failing suite is outside the merges' affected
+            # set or quarantined, so each suite's quarantine issue is filed or
+            # commented and no record is. Exit 1: a suite demotes, which for a
+            # check red on the baseline too means its quarantine expired. Exit 2
+            # to 4 (the judge failed) warns with its error and files as before,
+            # as does any other exit.
+            judged=0
+            judgment="$(python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+              --repo "$GITHUB_REPOSITORY" --judge-run "$RUN_ID" --attempt "$RUN_ATTEMPT" \
+              --checks-file "$now" --baseline-checks-file "$kept" --file-quarantine)" || judged=$?
+            printf '%s\n' "$judgment"
+            # Each quarantine issue the judge filed is locked, then sent to
+            # intake triage: github-actions[bot] issues start no issues run.
+            # One not sent fails the job at its end, and the next run retries it.
+            quarantined="$(jq -r '.quarantine.issues[]? | select(type == "number")' <<<"$judgment" 2>/dev/null)" || quarantined=''
+            for q in $quarantined; do
+              if ! send_to_intake "$q"; then
+                echo "::error::quarantine issue #$q was not sent to intake triage: the next alert run retries it"
+                mark_undelivered "$q" "issue=$q" || true
+                handoff_failed=1
+              fi
+            done
+            if ((judged >= 2 && judged <= 4)); then
+              error="$(jq -r '.error // empty' <<<"$judgment" 2>/dev/null)" || error=''
+              [[ -n "$error" ]] || error='no error in its output'
+              error="${error//'%'/%25}"
+              error="${error//$'\r'/%0D}"
+              echo "::warning::the suite judge exited $judged, so every newly failing check demotes: ${error//$'\n'/%0A}"
+            fi
+            if [[ "$judged" -eq 0 && -s "$now" ]]; then
+              echo "::notice::$RUN_URL failed only in suites outside the merges' affected set or quarantined: not a demotion"
+              echo 'excused=true' >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
+            # Exit 1 names the checks that demote, a baseline-red one among
+            # them; the record and fix issues follow that list when it reads.
+            newly_red="$(cat "$now")"
+            if [[ "$judged" -eq 1 ]] &&
+              demoted="$(jq -r '.demoting[]?' <<<"$judgment" 2>/dev/null)" && [[ -n "$demoted" ]]; then
+              printf '%s\n' "$demoted" >"$now"
+            fi
+            if [[ ! -s "$now" ]]; then
+              echo "::warning::$RUN_URL failed only on checks already failing before ${RUN_SHA:0:12} (run $base_id): not a demotion"
+              exit 0
+            fi
+            if [[ -z "$newly_red" ]]; then
+              echo "::warning::$RUN_URL failed on checks already failing before ${RUN_SHA:0:12}, whose suites' quarantine expired: a demotion"
+            fi
+            newly=1
+          fi
+          # A run's URL names no attempt, so every sighting names its attempt:
+          # a later failing attempt of a recorded run is a new sighting.
+          sighting="$RUN_URL/attempts/$RUN_ATTEMPT"
+          again='The post-merge check found this failure again: '
+          repo_url="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY"
+
+          # A full run covers every first-parent commit since main's last
+          # green full run, so the failure is charged to that whole range.
+          # no_range says, for the record, why there is none. Compare pages
+          # past the first are read only for a range of at most 300 commits,
+          # from the first page's total: the walk needs all of them, and
+          # GitHub lists at most 250 without paging. The subject stays whole
+          # here, for its (#N).
+          range=()
+          no_range=''
+          unknown='so the merges this failure covers are unknown; only the head commit is listed.'
+          declare -A parent=() entry=()
+          if [[ "$signal" != canary ]]; then
+            if ! base="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?branch=main&status=success&created=%3C$RUN_CREATED&per_page=100" \
+              --jq '[.workflow_runs[] | select(.head_branch == "main" and (.event | IN("schedule", "workflow_dispatch"))
+                and .created_at < env.RUN_CREATED)]
+                | max_by(.created_at) // empty | .head_sha')"; then
+              base=''
+              echo "::warning::could not read main's green full runs before $RUN_URL: its range is unknown"
+              no_range="Main's earlier full runs could not be read, $unknown"
+            elif [[ ! "$base" =~ ^[0-9a-f]{40}$ ]]; then
+              no_range="No green full run on main came before this one, $unknown"
+            elif [[ "$base" == "$RUN_SHA" ]]; then
+              no_range="Main's last green full run is at this same commit, so no merge is implicated; only the head commit is listed."
+            else
+              commits='' page=1 pages=1
+              while [[ "$page" -le "$pages" ]]; do
+                if ! got="$(gh api "repos/$GITHUB_REPOSITORY/compare/$base...$RUN_SHA?per_page=100&page=$page" \
+                  --jq '(.total_commits | tostring), (.commits[] | [.sha, (.parents[0].sha // "none"), (.author.login // "unknown"),
+                    (.commit.message | split("\n")[0] | gsub("\r"; "") | gsub("\t"; " "))] | join("\t"))')" ||
+                  [[ ! "${got%%$'\n'*}" =~ ^[0-9]+$ ]]; then
+                  echo "::warning::could not list page $page of the commits from $base to $RUN_SHA: the range is unknown"
+                  no_range="The commits since main's last green full run at \`$base\` could not be listed, $unknown"
+                  break
+                fi
+                if [[ "$page" -eq 1 ]]; then
+                  total="${got%%$'\n'*}"
+                  pages=$(((total + 99) / 100))
+                  if [[ "$total" -gt 300 ]]; then
+                    no_range="The $total commits since main's last green full run at \`$base\` are more than the 300 this check lists, $unknown"
+                    break
+                  fi
+                fi
+                commits="$commits$(sed 1d <<<"$got")"$'\n'
+                page=$((page + 1))
+              done
+              if [[ -z "$no_range" ]]; then
+                while IFS=$'\t' read -r c p a s; do
+                  if [[ -n "$c" ]]; then
+                    parent[$c]="$p"
+                    entry[$c]="$a"$'\t'"$s"
+                  fi
+                done <<<"$commits"
+                at="$RUN_SHA"
+                while [[ -n "$at" && "$at" != "$base" && -n "${entry[$at]+x}" ]]; do
+                  range=("$at" "${range[@]}")
+                  at="${parent[$at]}"
+                done
+                if [[ "$at" != "$base" ]]; then
+                  range=()
+                  no_range="Main's first-parent history from this commit does not reach its last green full run at \`$base\`, $unknown"
+                fi
+              fi
+            fi
+          fi
+
+          # Only a merge the lanes App put in the merge queue demotes the
+          # lane: the test babysit_merge_policy.derive_auto_merge applies, the
+          # agent identity as the actor or enqueuer of each PR's latest
+          # AddedToMergeQueueEvent (never the commit author, which a lane merge
+          # of a human's PR does not carry). Anything unproven demotes: a canary
+          # or an unknown range, a commit with no (#N) subject, an unreadable
+          # identity, or a failed lookup. One GraphQL call covers the range,
+          # or the pull requests a revert names (`reverted`), made only when a
+          # new issue is filed (classify, below).
+          lane=1
+          reverted=()
+          classify() {
+          declare -A numbers=()
+          missing=''
+          if [[ "${#reverted[@]}" -gt 0 ]]; then
+            for n in "${reverted[@]}"; do
+              numbers[$n]=1
+            done
+          elif [[ "${#range[@]}" -gt 0 && "${#range[@]}" -le 100 ]]; then
+            for c in "${range[@]}"; do
+              s="${entry[$c]#*$'\t'}"
+              if [[ "$s" =~ \(#([0-9]+)\)$ ]]; then
+                numbers[${BASH_REMATCH[1]}]=1
+              else
+                missing=1
+              fi
+            done
+          else
+            missing=1
+          fi
+          if [[ "$configured_identity" =~ ^[A-Za-z0-9-]+(\[bot\])?$ && -z "$missing" ]]; then
+            fields=''
+            for n in "${!numbers[@]}"; do
+              fields="$fields p$n: pullRequest(number: $n) { timelineItems(itemTypes: [ADDED_TO_MERGE_QUEUE_EVENT], last: 1) {
+                nodes { ... on AddedToMergeQueueEvent { actor { __typename login } enqueuer { __typename login } } } } }"
+            done
+            query="query(\$owner: String!, \$name: String!) { rateLimit { cost remaining }
+              repository(owner: \$owner, name: \$name) { $fields } }"
+            verdicts="$(IDENTITY="$configured_identity" gh api graphql -f query="$query" \
+              -f owner="${GITHUB_REPOSITORY%%/*}" -f name="${GITHUB_REPOSITORY#*/}" \
+              --jq 'def key: ((.login // "") | ascii_downcase)
+                  + (if .__typename == "Bot" and ((.login // "") | endswith("[bot]") | not) then "[bot]" else "" end);
+                "cost \(.data.rateLimit.cost) remaining \(.data.rateLimit.remaining)",
+                (.data.repository | to_entries[] | .value.timelineItems.nodes[-1]? // null
+                  | if . == null then "unproven"
+                    elif any(.actor, .enqueuer; key == (env.IDENTITY | ascii_downcase)) then "lane"
+                    else "other" end)')" || verdicts=''
+            echo "merge-queue lookup for ${#numbers[@]} pull requests: ${verdicts%%$'\n'*}"
+            others="$(grep -cx other <<<"$verdicts" || true)"
+            if [[ "$verdicts" == cost* && "$others" -eq "${#numbers[@]}" ]]; then
+              lane=''
+            fi
+          fi
+          }
+
+          # An existing record is found by either marker, so an attempt whose
+          # lookup would answer differently still updates the record filed first.
+          marker="<!-- babysit-merge-demotion sha=$RUN_SHA signal=$signal -->"
+          failure_marker="<!-- post-merge-failure sha=$RUN_SHA signal=$signal -->"
+          # Records are read by their filers: github-actions[bot], which is any
+          # workflow's GITHUB_TOKEN, and merge.agent-identity, which files from
+          # pr-merge.yml's merge job keyed on the merge commit, not the run's
+          # head. An issue a user opens with the marker cannot stand in for
+          # either, and a record of either filer naming this run is its record.
+          # Read once (load_records), only when a record is about to be matched
+          # or filed; classify (below) reuses it.
+          load_records() {
+          if [[ -n "${records_read:-}" ]]; then
+            return 0
+          fi
+          records_read=1
+          configured_identity="$(gh api -H 'Accept: application/vnd.github.raw' \
+            "repos/$GITHUB_REPOSITORY/contents/docs/conventions/pr-pipeline.yaml?ref=main" |
+            sed -n '/^merge:/,/^[^[:space:]#]/ s/^  agent-identity: \([^[:space:]]*\)[[:space:]]*$/\1/p')" || configured_identity=''
+          lane_filer="$configured_identity"
+          filers=(github-actions%5Bbot%5D)
+          if [[ "$lane_filer" =~ ^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\[bot\]$ ]]; then
+            filers+=("${lane_filer%\[bot\]}%5Bbot%5D")
+          else
+            lane_filer=''
+          fi
+          # A failed read of github-actions[bot]'s records fails the job; a
+          # failed read of the identity's warns and files from this workflow's
+          # own records, which can add a record but never drop one.
+          # The sixth column lists the record's `- Revert commit:` SHAs; the
+          # seventh says whether its body carries a lift block.
+          read_records() {
+            gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/issues?state=all&creator=$1&per_page=100" \
+              --jq '.[] | select(.pull_request == null) | [.number, .state, (.state_reason // "none"), (.body // "")]
+                | [.[0], .[1], .[2], (.[3] | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")),
+                   ([.[3] | split("\n")[] | select(startswith("- Failing run: "))][0] // ""
+                    | ltrimstr("- Failing run: ") | sub("\\s+$"; "")),
+                   ([.[3] | split("\n")[] | capture("^- Revert commit: \u0060(?<c>[0-9a-f]{40})\u0060").c] | join(" ") | if . == "" then "none" else . end),
+                   (if any(.[3] | split("\n")[]; startswith("<!-- lift-content v1 ")) then "block" else "none" end)]
+                | @tsv'
+          }
+          own_records="$(read_records "${filers[0]}")"
+          records="$own_records"$'\n'
+          if [[ -n "${filers[1]:-}" ]]; then
+            if lane_records="$(read_records "${filers[1]}")"; then
+              records+="$lane_records"
+            else
+              echo "::warning::could not read $lane_filer's records; matching this workflow's own records only"
+            fi
+          fi
+          }
+
+          # The pull request a commit's subject names as `(#N)`, read from
+          # main's history, else from the API for a commit off it; `?` when
+          # neither read answers, which demotes.
+          subject_pr() {
+            local s
+            if ! s="$(git -C .base log -1 --format=%s "$1" -- 2>/dev/null)"; then
+              s="$(gh api "repos/$GITHUB_REPOSITORY/commits/$1" --jq '.commit.message | split("\n")[0]')" || {
+                echo '?'
+                return 0
+              }
+            fi
+            if [[ "$s" =~ \(#([1-9][0-9]*)\)$ ]]; then
+              echo "${BASH_REMATCH[1]}"
+            fi
+          }
+          # revert_pass: the revert record for a canary push run. The push's
+          # commits are main's first-parent range since the previous canary
+          # push run's head (a merge-queue batch pushes several merges at
+          # once; a run's head SHA is set when it is created, so an unfinished
+          # run counts): at most 20, and the newest 20 when that head cannot be
+          # read or is not on this one's history, so a range that cannot be
+          # read is checked rather than passed. The records are read only once
+          # a commit names a revert, and a commit a revert record already lists
+          # is skipped. Each squash message (title, then the PR body) names
+          # what it reverts:
+          # - a body line `Reverts` (after an optional `- ` or `* ` bullet)
+          #   followed by `#N` or `<this repo>#N` references joined by `, ` or
+          #   ` and `, each counted;
+          # - a GitHub revert-button subject, `Revert "... (#N)" (#M)`;
+          # - `This reverts commit <sha>` (git revert) or the red-main bot's
+          #   `<!-- red-main-revert culprit=<sha> -->`, through the subject of
+          #   that commit, `... (#N)`; a commit whose subject cannot be read
+          #   is an unproven revert, which demotes.
+          # Anchored at a line's start, never a substring, so prose, a quoted
+          # line or another repository's pull request names nothing.
+          # push_range: the canary push run's commits into `pushed`, read once;
+          # `in_checkout` is set when they come from main's history, and
+          # `whole_push` when they are the whole push, uncut.
+          pushed=() in_checkout='' whole_push=''
+          push_range() {
+            local prev
+            if ((${#pushed[@]})); then
+              return 0
+            fi
+            prev="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?event=push&branch=main&created=%3C$RUN_CREATED&per_page=20" \
+              --jq '[.workflow_runs[] | select(.head_branch == "main" and .head_sha != env.RUN_SHA and .created_at < env.RUN_CREATED)]
+                | max_by(.created_at) // empty | .head_sha')" || prev=''
+            if ! git -C .base cat-file -e "$RUN_SHA^{commit}" 2>/dev/null; then
+              echo "::warning::${RUN_SHA:0:12} is not in the checkout: reading its own message only"
+            elif [[ "$prev" =~ ^[0-9a-f]{40}$ ]] && git -C .base merge-base --is-ancestor "$prev" "$RUN_SHA" 2>/dev/null; then
+              mapfile -t pushed < <(git -C .base rev-list --first-parent --max-count=21 "$prev..$RUN_SHA" 2>/dev/null)
+              if ((${#pushed[@]} > 20)); then
+                echo "::warning::more than 20 commits since the previous canary push run at ${prev:0:12}: reading the newest 20"
+                pushed=("${pushed[@]:0:20}")
+              elif ((${#pushed[@]})); then
+                whole_push=1
+              fi
+            else
+              echo "::warning::the previous canary push run's head could not be read or is not on ${RUN_SHA:0:12}'s history: reading the newest 20 commits"
+              mapfile -t pushed < <(git -C .base rev-list --first-parent --max-count=20 "$RUN_SHA" 2>/dev/null)
+            fi
+            if ((${#pushed[@]} == 0)); then
+              pushed=("$RUN_SHA")
+            else
+              in_checkout=1
+            fi
+          }
+          # lift_block_of <canary-block|revert-block> <commit>...: the lift
+          # block babysit_lift.py on main writes for those commits, which a
+          # canary or revert record carries so a lane can check its lift
+          # (babysit_merge_policy.py `_lift`); fails when none can be written.
+          lift_block_of() {
+            local tool=.base/plugins/source-control/skills/babysit-prs/scripts/babysit_lift.py
+            [[ -f "$tool" ]] || return 1
+            python3 "$tool" "$1" --repo-dir .base "${@:2}"
+          }
+          revert_pass() {
+            local c n t repo line message rest lines names unproven='' revert_block
+            local -a cs fresh=()
+            local -A named=() listed=() prs=() unread=()
+            push_range
+            local no_revert="no new commit among the ${#pushed[@]} pushed up to ${RUN_SHA:0:12} names a pull request it reverts: no revert record"
+            # prs: the pull requests each commit names; unread: the reverted
+            # commits it names whose subject could not be read.
+            for c in "${pushed[@]}"; do
+              message="$(git -C .base log -1 --format=%B "$c" 2>/dev/null)" || message=''
+              if [[ -z "$message" && "$c" == "$RUN_SHA" ]]; then
+                message="$RUN_COMMIT_MESSAGE"
+              fi
+              line="${message%%$'\n'*}"
+              if [[ "${line%$'\r'}" =~ ^Revert\ \".*\(#([1-9][0-9]*)\)\"(\ \(#[0-9]+\))?$ ]]; then
+                prs[$c]+=" ${BASH_REMATCH[1]}"
+              fi
+              while IFS= read -r line; do
+                line="${line%$'\r'}"
+                if [[ "$line" =~ ^([-*]\ )?Reverts\ (.*)$ ]]; then
+                  rest="${BASH_REMATCH[2]}"
+                  while [[ "$rest" =~ ^([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#([1-9][0-9]*)(.*)$ ]]; do
+                    repo="${BASH_REMATCH[1]}" n="${BASH_REMATCH[2]}" rest="${BASH_REMATCH[3]}"
+                    if [[ "$rest" =~ ^[0-9A-Za-z_] ]]; then
+                      break
+                    fi
+                    if [[ -z "$repo" || "${repo,,}" == "${GITHUB_REPOSITORY,,}" ]]; then
+                      prs[$c]+=" $n"
+                    fi
+                    if [[ ! "$rest" =~ ^(,\ and\ |,\ |\ and\ )(.*)$ ]]; then
+                      break
+                    fi
+                    rest="${BASH_REMATCH[2]}"
+                  done
+                elif [[ "$line" =~ ^This\ reverts\ commit\ ([0-9a-f]{7,40})([^0-9A-Za-z_]|$) ||
+                  "$line" =~ ^\<!--\ red-main-revert\ culprit=([0-9a-f]{40})\ --\>$ ]]; then
+                  t="${BASH_REMATCH[1]}"
+                  n="$(subject_pr "$t")"
+                  if [[ "$n" == '?' ]]; then
+                    unread[$c]+=" $t"
+                  elif [[ -n "$n" ]]; then
+                    prs[$c]+=" $n"
+                  fi
+                fi
+              done <<<"$message"
+            done
+            if ((${#prs[@]} + ${#unread[@]} == 0)); then
+              echo "$no_revert"
+              return
+            fi
+            load_records
+            while read -r -a cs; do
+              for c in "${cs[@]}"; do
+                listed[$c]=1
+              done
+            done < <(awk -F'\t' 'index($4, "<!-- babysit-merge-demotion ") == 1 && index($4, " signal=revert ") { print $6 }' <<<"$records")
+            for c in "${pushed[@]}"; do
+              if [[ -z "${prs[$c]:-}${unread[$c]:-}" ]]; then
+                continue
+              fi
+              if [[ -n "${listed[$c]+x}" ]]; then
+                echo "${c:0:12} is already listed on a revert record"
+                continue
+              fi
+              fresh+=("$c")
+              for n in ${prs[$c]:-}; do
+                named[$n]=1
+              done
+              if [[ -n "${unread[$c]:-}" ]]; then
+                unproven=1
+              fi
+            done
+            if ((${#fresh[@]} == 0)); then
+              echo "$no_revert"
+              return
+            fi
+            reverted=("${!named[@]}")
+            reverted_prs="${reverted[*]}"
+            if [[ -z "$unproven" ]]; then
+              classify
+            fi
+            if [[ -z "$lane" ]]; then
+              echo "no pull request ${RUN_SHA:0:12}'s push reverts was put in the merge queue by the lanes App: no revert record"
+              lane=1 reverted=()
+              return
+            fi
+            lines='' names=''
+            for n in "${reverted[@]}"; do
+              names="${names:+$names, }#$n"
+              lines="$lines- Reverted pull request: $repo_url/pull/$n"$'\n'
+            done
+            for c in "${fresh[@]}"; do
+              for t in ${unread[$c]:-}; do
+                lines="$lines- Reverted pull request could not be read: commit \`$t\`"$'\n'
+              done
+            done
+            for c in "${fresh[@]}"; do
+              lines="$lines- Revert commit: \`$c\`"$'\n'
+            done
+            # The lines the revert deleted, so the record lifts once they are
+            # back on main; without a block only a referencing merge lifts it.
+            revert_block=''
+            if [[ -n "$in_checkout" ]]; then
+              revert_block="$(lift_block_of revert-block "${fresh[@]}")" || revert_block=''
+            fi
+            # The file-revert job files it, holding issues: write alone; this
+            # job hands it the record through its outputs, written before
+            # anything below can fail the step (the runner keeps a failed
+            # step's outputs).
+            local delim
+            delim="EOF_$(openssl rand -hex 16)"
+            {
+              echo "revert-title=Post-merge revert${names:+ of $names} at ${RUN_SHA:0:12}: unattended merging demoted"
+              echo "revert-commits=${fresh[*]}"
+              echo "revert-filer=$lane_filer"
+              echo "revert-body<<$delim"
+              echo "<!-- babysit-merge-demotion sha=$RUN_SHA signal=revert -->
+
+          A push to main reverted a pull request the lanes App put in the merge queue, or one whose enqueuer or pull request could not be read. The unattended merge path stays at rung off while this record, or any other demotion record, holds. It lifts once the reverted lines are back on main, or once a pull request that references this record merges into main, re-landing the reverted change or confirming the revert (babysit_merge_policy.py \`_lift\`); a lane then closes it. A person's direct close also clears it.
+
+          $lines- Main at the push: \`$RUN_SHA\`
+          - Canary run: $sighting
+
+          Find out why the pull request was reverted, then reference this record from the pull request that re-lands it or confirms the revert.${revert_block:+
+
+          $revert_block}"
+              echo "$delim"
+            } >>"$GITHUB_OUTPUT"
+            echo "handed the revert demotion issue for ${RUN_SHA:0:12} to the file-revert job"
+            lane=1 reverted=()
+          }
+          reverted_prs=''
+          if [[ "$signal" == canary ]]; then
+            revert_pass
+            # The push's merges and the pull requests it reverts, for the
+            # merge-path labels (the label-paths job).
+            merged_prs=''
+            for c in "${pushed[@]}"; do
+              n="$(subject_pr "$c")"
+              [[ -z "$n" || "$n" == '?' ]] || merged_prs="$merged_prs $n"
+            done
+            echo "merged-prs=${merged_prs# }" >>"$GITHUB_OUTPUT"
+            echo "reverted-prs=$reverted_prs" >>"$GITHUB_OUTPUT"
+          fi
+          if [[ -n "$quiet" ]]; then
+            echo "$RUN_WORKFLOW concluded $RUN_CONCLUSION on attempt $RUN_ATTEMPT: no canary record to file"
+            exit 0
+          fi
+          load_records
+          number=''
+          state=''
+          filed=''
+          has_block=''
+          while IFS=$'\t' read -r n s _ first failing _; do
+            # A record matched by its failing run must be a demotion record:
+            # anything else names the run without holding the gate.
+            if [[ "$first" == "$marker" || "$first" == "$failure_marker" ||
+              ( "$first" == "<!-- babysit-merge-demotion "* && "$failing" == "$RUN_URL/attempts/"* ) ]]; then
+              number="$n"
+              state="$s"
+              filed="$failing"
+              break
+            fi
+          done <<<"$records"
+          # awk, not read: an empty column would shift read's fields.
+          if [[ -n "$number" ]]; then
+            has_block="$(awk -F'\t' -v n="$number" '$1 == n && $7 == "block" { print 1; exit }' <<<"$records")"
+          fi
+          # canary_block: the lift block of the canary push run's commits, or
+          # empty when none can be written (the record then stays human-close).
+          canary_block=''
+          if [[ "$signal" == canary && -z "$passed" && -z "$has_block" ]]; then
+            push_range
+            # A cut or guessed range could leave out the deleting commit, and
+            # a block that understates the deletion would lift the record.
+            if [[ -n "$whole_push" ]]; then
+              canary_block="$(lift_block_of canary-block "${pushed[@]}")" || canary_block=''
+            fi
+          fi
+
+          if [[ -n "$passed" && -z "$number" ]]; then
+            echo "attempt $RUN_ATTEMPT passed and no record exists: nothing to file"
+            exit 0
+          fi
+          if [[ -n "$number" ]]; then
+            comments="$(LANE_FILER="$lane_filer" gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/issues/$number/comments?per_page=100" \
+              --jq '.[] | select(.user.login | IN("github-actions[bot]", env.LANE_FILER)) | .body')"
+            # A canary record filed without a lift block (babysit_postmerge.py
+            # has no checkout to scan) gets it as a comment, once.
+            if [[ -n "$canary_block" ]] && ! grep -q '^<!-- lift-content v1 ' <<<"$comments"; then
+              if gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$number/comments" \
+                -f body="$canary_block
+          The content the canary found deleted, which this record's lift checks on main (babysit_merge_policy.py \`_lift\`)." >/dev/null; then
+                echo "recorded the deleted content on #$number"
+              else
+                echo "::warning::could not record the deleted content on #$number"
+              fi
+            fi
+            if [[ -n "$passed" ]]; then
+              note="re-run passed: $sighting"
+              # A pass is noted only on a record of this run's failure.
+              if [[ "$filed" != "$RUN_URL/attempts/"* ]] &&
+                ! grep -Fq -- "$again$RUN_URL/attempts/" <<<"$comments"; then
+                echo "#$number records no failure of $RUN_URL: nothing to note"
+                exit 0
+              fi
+            else
+              note="$again$sighting"
+            fi
+            # Whole-line matches, so attempt 1 is not attempt 10 and a pass
+            # note cannot hide a later failing attempt.
+            if grep -Fxq -- "$note" <<<"$comments" || [[ -z "$passed" && "$filed" == "$sighting" ]]; then
+              echo "#$number already records $sighting"
+              exit 0
+            fi
+            # A new failure on a closed record demotes again.
+            if [[ -z "$passed" && "$state" != open ]]; then
+              gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$number" -f state=open >/dev/null
+              echo "reopened #$number"
+            fi
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$number/comments" -f body="$note" >/dev/null
+            echo "commented on #$number"
+            exit 0
+          fi
+
+          classify
+          outcome='unattended merging demoted' kind='demotion issue' record_kind=demotion
+          if [[ -z "$lane" ]]; then
+            marker="$failure_marker" outcome='lane not demoted'
+            kind='post-merge-failure issue (lane not demoted)' record_kind=failure
+          fi
+          pulls="$repo_url/pull"
+          subject="${RUN_COMMIT_MESSAGE%%$'\n'*}"
+          pr='unknown (the head commit names none)'
+          title="Post-merge $signal failure at ${RUN_SHA:0:12}: $outcome"
+          if [[ "$subject" =~ \(#([0-9]+)\)$ ]]; then
+            pr="$pulls/${BASH_REMATCH[1]}"
+            title="Post-merge $signal failure after #${BASH_REMATCH[1]}: $outcome"
+          fi
+          sha_label='Main at the failing run'
+          if [[ "$signal" == canary ]]; then
+            sha_label='Merge commit'
+          fi
+          lead="The post-merge check found a \`$signal\` failure on main."
+          pr_line="- Pull request: $pr
+          "
+          if [[ "${#range[@]}" -gt 1 ]]; then
+            lead="$lead It is attributed to the range of ${#range[@]} commits since main's last green full run at \`$base\`, not to one pull request."
+            pr_line="- Commits in the range, oldest first:
+          "
+            first='' last='' listed=0
+            for c in "${range[@]}"; do
+              IFS=$'\t' read -r a s <<<"${entry[$c]}"
+              # A subject is free text only a bypass push brings: in code
+              # font, without backticks, it mentions no one and renders plain.
+              s_shown="${s//\`/}"
+              name="${c:0:12}" link="direct push \`${s_shown:0:100}\`, commit"
+              if [[ "$s" =~ \(#([0-9]+)\)$ ]]; then
+                name="#${BASH_REMATCH[1]}" link="$pulls/${BASH_REMATCH[1]}, merge commit"
+              fi
+              first="${first:-$name}" last="$name"
+              listed=$((listed + 1))
+              if [[ "$listed" -le 100 ]]; then
+                pr_line="$pr_line  - $link \`$c\`, by $a
+          "
+              fi
+            done
+            if [[ "$listed" -gt 100 ]]; then
+              pr_line="$pr_line  - and $((listed - 100)) more: $repo_url/compare/$base...$RUN_SHA
+          "
+            fi
+            title="Post-merge $signal failure after $first..$last: $outcome"
+          elif [[ "$signal" != canary && "${#range[@]}" -eq 0 ]]; then
+            lead="$lead $no_range"
+          fi
+          # A full-run record clears itself once a full run passes on main at
+          # a later commit (babysit_merge_policy.py `_recovered_at`), and its
+          # fix issues fix main; a canary record with a lift block lifts on
+          # its own evidence (babysit_merge_policy.py `_lift`) and a lane
+          # closes it, and one without clears only on a person's direct close.
+          canary_lift="It lifts once the content whose deletion filed it is on main again, or once a pull request that references this record merges into main with that content in its tree (when nothing was deleted, with a canary run passing at its merge commit); a lane then closes it (babysit_merge_policy.py \`_lift\`)."
+          held="The unattended merge path stays at
+          rung off while this record holds."
+          rung="$held It clears itself once a full run passes on main at a later commit; the fix issues fix main. A new sighting of the same failure reopens it."
+          if [[ "$signal" == canary && -n "$canary_block" ]]; then
+            rung="$held $canary_lift A person's direct close also clears it; a new sighting of the same failure reopens it."
+          elif [[ "$signal" == canary ]]; then
+            rung="$held Only a person's direct close (not through a pull request's closing keyword) clears it, since the deleted content could not be recorded for a lane to check; a new sighting of the same failure reopens it."
+          fi
+          if [[ -z "$lane" ]]; then
+            not_lane='No merge in it was put in the merge queue by the lanes App, so the lane is NOT demoted and keeps merging'
+            canary_hold="$not_lane. A canary failure files no fix issue, so this record keeps Work status needs-human"
+            rung="$not_lane; the fix issues fix main."
+            if [[ "$signal" == canary && -n "$canary_block" ]]; then
+              rung="$canary_hold until it lifts. $canary_lift"
+            elif [[ "$signal" == canary ]]; then
+              rung="$canary_hold for a person to fix main and close it."
+            fi
+            if [[ "${#range[@]}" -eq 1 ]]; then
+              pr_line="- Pull request: $pr, by ${entry[${range[0]}]%%$'\t'*}
+          "
+            fi
+          fi
+          # Fix issues (#7535): one per newly failing check of a full run, at
+          # most 5, for an agent to fix main through intake triage and the
+          # owner's ratification. github-actions[bot] files them, so their text
+          # is fixed: only a check name that passes fix_name_ok, hex SHAs, the
+          # run link built from its numeric id, and the record's number. No
+          # label, no closing keyword, no commit subject or annotation message,
+          # and neither record marker, so no reader takes one for a record.
+          fix_checks=()
+          fix_over=''
+          # The record names newly failing checks by these job names only.
+          newly_named=''
+          if [[ -n "$newly" ]]; then
+            declare -A fix_seen=()
+            while IFS= read -r check; do
+              # The job's name only: it comes from the workflow file on main,
+              # while a gate title is any step's annotation text.
+              check="${check%%: *}"
+              if [[ -n "${fix_seen[$check]+x}" ]]; then
+                continue
+              fi
+              fix_seen[$check]=1
+              if fix_name_ok "$check"; then
+                newly_named="${newly_named:+$newly_named, }$check"
+                if [[ "${#fix_checks[@]}" -lt 5 ]]; then
+                  fix_checks+=("$check")
+                  continue
+                fi
+              fi
+              fix_over=1
+            done <"$now"
+          fi
+          body="$marker
+
+          $lead $rung
+
+          $pr_line- $sha_label: \`$RUN_SHA\`
+          - Failing run: $sighting${newly_named:+
+          - Newly failing: $newly_named}${fix_over:+
+          - More checks failed than were filed as fix issues: a run files at most 5, and none for a name outside A-Z a-z 0-9 space . _ : , / ( ) -}${canary_block:+
+
+          $canary_block}"
+          # A canary record keeps Work status needs-human until it lifts; a
+          # full-run record clears itself once main is green at a later commit,
+          # unless a failing check got no fix issue (over the cap or outside the
+          # charset): then a person holds that work. Reviewed against the
+          # owner's stop rule, these holds and the revert record's stay as
+          # exceptions: a canary or revert hold marks a rung-off hold the
+          # close-cleared job lifts, a canary record with no lift block clears
+          # only on a person's close, and no retry can file a check over the cap
+          # or outside the charset. A failed hand-off to intake is not one of them.
+          # TODO(#10517): move these holds off needs-human.
+          record="$(file_issue Bug -f title="$title" -f body="$body")"
+          if [[ "$signal" == canary || -n "$fix_over" ]]; then
+            # A person holds this work and sizes it, so it gets no dimensions.
+            if [[ ! "$record" =~ ^[1-9][0-9]*$ ]] || ! set_fields "$record" needs-human critical; then
+              echo "::error::record '$record' was filed without Work status needs-human"
+              exit 1
+            fi
+          # The record itself is only read and closed; its fix issues carry the work.
+          elif [[ ! "$record" =~ ^[1-9][0-9]*$ ]] || ! set_fields "$record" needs-triage critical small low known; then
+            echo "::warning::could not set the field values of record '$record'"
+          fi
+          echo "filed the $signal $kind for $RUN_SHA"
+
+          if [[ "${#fix_checks[@]}" -eq 0 ]]; then
+            exit 0
+          fi
+          if [[ ! "$record" =~ ^[1-9][0-9]*$ || ! "$RUN_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::record number '$record' or run id '$RUN_ID' is not a number: no fix issue filed"
+            exit 1
+          fi
+          on_record="$record_kind record #$record"
+          run_link="$repo_url/actions/runs/$RUN_ID/attempts/$RUN_ATTEMPT"
+          merges="unknown, see $on_record"
+          if [[ "${#range[@]}" -gt 0 ]]; then
+            merges="\`${base:0:12}..${RUN_SHA:0:12}\`, listed on $on_record"
+          fi
+          undelivered=()
+          for check in "${fix_checks[@]}"; do
+            fix_marker="<!-- post-merge-fix check=$check -->"
+            note="This check failed on main again at \`$RUN_SHA\`. Merge range: $merges. Run: $run_link"
+            fix_work "$check" "$RUN_SHA" "$signal" "$on_record" "$merges" "$run_link" "$fix_marker" "$note"
+            if [[ -n "$fix_missed" ]]; then
+              # One marker written is enough for the retry to find the work.
+              marked=''
+              if [[ -n "$fix_missed_issue" ]]; then
+                mark_undelivered "$fix_missed_issue" "issue=$fix_missed_issue" && marked=1
+                mark_undelivered "$record" "issue=$fix_missed_issue" && marked=1
+              else
+                mark_undelivered "$record" "check=$check" && marked=1
+              fi
+              if [[ -z "$marked" ]]; then
+                fix_missed+=": no marker could be written, so no run retries it"
+              fi
+              undelivered+=("$fix_missed")
+            fi
+          done
+          if [[ "${#undelivered[@]}" -gt 0 ]]; then
+            note="Fix work not handed to intake on this run. The hand-off failed; the next alert run retries it unless its line says otherwise:"
+            for line in "${undelivered[@]}"; do
+              note+=$'\n'"- $line"
+            done
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$record/comments" -f body="$note" >/dev/null ||
+              echo "::error::could not comment on record #$record"
+            exit 1
+          fi
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  # A canary push's merges on a record-mode post-merge path get
+  # merge-path: <path>, and the pull requests it reverts on one also
+  # post-merge: reverted (merge-path.mjs; README.md, "Merge paths"). Record
+  # only: no issue, comment, demotion or hold, and GITHUB_TOKEN's label
+  # writes start no workflow run. It runs whatever the alert job concluded,
+  # as file-revert does, from the main tip that job checked out.
+  label-paths:
+    name: Label The Merge Paths
+    needs: [alert]
+    if: >-
+      !cancelled()
+      && (needs.alert.outputs.merged-prs != '' || needs.alert.outputs.reverted-prs != '')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # check out main's tip for the config and merge-path.mjs
+      issues: write # create the merge-path labels
+      pull-requests: write # add them to pull requests (GITHUB_TOKEN answers 403 with issues: write alone); read each one's body, commits and merge-queue event
+    env:
+      API_BUDGET_TOKEN: github-token
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.alert.outputs.tip }}
+          path: .base
+          persist-credentials: false
+
+      # merge-path.mjs reads post-merge.paths through the base's resolve-config.
+      - name: Install resolve-config's dependencies
+        timeout-minutes: 5
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
+
+      - name: Label the merge paths
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_PATH: .base
+          MERGED_PRS: ${{ needs.alert.outputs.merged-prs }}
+          REVERTED_PRS: ${{ needs.alert.outputs.reverted-prs }}
+        run: node .base/.github/scripts/post-merge-demotion-alert/merge-path.mjs label --merged "$MERGED_PRS" --reverted "$REVERTED_PRS"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  # The revert record the alert job found for a canary push run, filed under
+  # a token that holds issues: write alone. It runs whatever the alert job
+  # concluded, since that job can fail after it handed the record over (a
+  # canary record or hand-off that did not file). It checks out nothing.
+  file-revert:
+    name: File The Revert Demotion Issue
+    needs: [alert]
+    if: >-
+      !cancelled()
+      && needs.alert.outputs.revert-title != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write # read the records and file the revert record
+    # One group per SHA, as the alert's: a pending filer another of the same
+    # SHA replaces carries the same revert commits.
+    concurrency:
+      group: post-merge-demotion-alert-revert-${{ needs.alert.outputs.sha }}
+      cancel-in-progress: false
+    steps:
+      - name: File the revert demotion issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_SHA: ${{ needs.alert.outputs.sha }}
+          REVERT_TITLE: ${{ needs.alert.outputs.revert-title }}
+          REVERT_BODY: ${{ needs.alert.outputs.revert-body }}
+          REVERT_COMMITS: ${{ needs.alert.outputs.revert-commits }}
+          REVERT_FILER: ${{ needs.alert.outputs.revert-filer }}
+        run: |
+          # The alert job's record, checked for shape before any write.
+          if [[ ! "$RUN_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::head SHA '$RUN_SHA' is not a full commit SHA"
+            exit 1
+          fi
+          read -r -a commits <<<"$REVERT_COMMITS"
+          for c in "${commits[@]}"; do
+            if [[ ! "$c" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::revert commit '$c' is not a full commit SHA"
+              exit 1
+            fi
+          done
+          title_re="^Post-merge revert( of #[1-9][0-9]*(, #[1-9][0-9]*)*)? at ${RUN_SHA:0:12}: unattended merging demoted\$"
+          if ((${#commits[@]} == 0)) || [[ ! "$REVERT_TITLE" =~ $title_re ||
+              "${REVERT_BODY%%$'\n'*}" != "<!-- babysit-merge-demotion sha=$RUN_SHA signal=revert -->" ]]; then
+            echo "::error::the alert job handed over no well-formed revert record for ${RUN_SHA:0:12}"
+            exit 1
+          fi
+          # Re-read the revert records of both filers, as the alert job did,
+          # so an overlapping run that filed since files no second record. A
+          # failed read files anyway: a duplicate record beats a missed one.
+          filers=(github-actions%5Bbot%5D)
+          if [[ "$REVERT_FILER" =~ ^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\[bot\]$ ]]; then
+            filers+=("${REVERT_FILER%\[bot\]}%5Bbot%5D")
+          fi
+          declare -A listed=()
+          for filer in "${filers[@]}"; do
+            if got="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=all&creator=$filer&per_page=100" \
+              --jq '.[] | select(.pull_request == null) | (.body // "") | sub("^\\s+"; "")
+                | select(split("\n")[0] | startswith("<!-- babysit-merge-demotion ") and contains(" signal=revert "))
+                | split("\n")[] | capture("^- Revert commit: \u0060(?<c>[0-9a-f]{40})\u0060").c')"; then
+              for c in $got; do
+                listed[$c]=1
+              done
+            else
+              echo "::warning::could not read $filer's records: filing without that re-check"
+            fi
+          done
+          fresh=''
+          for c in "${commits[@]}"; do
+            if [[ -z "${listed[$c]+x}" ]]; then
+              fresh=1
+            fi
+          done
+          if [[ -z "$fresh" ]]; then
+            echo "every revert commit at ${RUN_SHA:0:12} is already listed on a revert record: nothing to file"
+            exit 0
+          fi
+          filed="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f type=Bug \
+            -f title="$REVERT_TITLE" -f body="$REVERT_BODY" --jq '"\(.number) \(.type.name // "")"')" || filed=''
+          record="${filed%% *}"
+          if [[ ! "$record" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the revert demotion issue was not filed"
+            exit 1
+          fi
+          # GitHub drops a type the token may not set without an error.
+          if [[ "${filed#* }" != Bug ]]; then
+            echo "::warning::revert record #$record came back without Issue Type Bug"
+          fi
+          if ! jq -n '{issue_field_values: [{field_id: 48484079, value: "needs-human"}, {field_id: 49622037, value: "critical"}]}' |
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$record/issue-field-values" \
+              -H 'X-GitHub-Api-Version: 2026-03-10' --input - >/dev/null; then
+            echo "::error::revert record #$record was filed without Work status needs-human"
+            exit 1
+          fi
+          echo "filed the revert demotion issue for ${RUN_SHA:0:12}"
+
+  # The red-main report. It runs after the alert job, so a re-run the alert
+  # started is already under way, and only for a full run on main that
+  # concluded failure: a cancelled, timed-out or not-started run, and the
+  # canary, never trigger it. It holds the job's own GITHUB_TOKEN, never a
+  # lanes App token, writes only its log issue, and skips an event the lanes
+  # App sent. It reads the run from the alert job's outputs, which a refused
+  # dispatch leaves empty, and skips a dispatched run the alert found main
+  # already recovered from, and a run the alert excused by suite.
+  report-red-main:
+    name: Report The Red-Main Culprit
+    needs: [alert]
+    if: >-
+      !cancelled()
+      && needs.alert.outputs.name == 'PR Require Checks'
+      && contains(fromJSON('["schedule", "workflow_dispatch"]'), needs.alert.outputs.event)
+      && needs.alert.outputs.conclusion == 'failure'
+      && needs.alert.outputs.branch == 'main'
+      && needs.alert.outputs.repo == github.repository
+      && needs.alert.outputs.recovered != 'true'
+      && needs.alert.outputs.excused != 'true'
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    runs-on: ubuntu-24.04
+    # Up to red-main.confirm-wait-minutes (at most 60) waiting on the re-run.
+    timeout-minutes: 75
+    permissions:
+      actions: read # read runs, attempts and jobs
+      checks: read # read the hygiene aggregator's annotations
+      contents: read # check out main; compare the failing range
+      issues: write # file and comment on the log issue
+      pull-requests: read # read each merge's merge-queue entry
+    # One report at a time, repository-wide, so two runs cannot both read the
+    # log before either writes: one cap slot, one decision per culprit, one log
+    # issue. A later attempt's event waits, then finds its run logged.
+    concurrency:
+      group: red-main-report
+      cancel-in-progress: false
+    env:
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      # Full history, so the revert's fit to main's tip is checked in memory.
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: echo "::notice::the lanes kill switch stops this report (reason ${REASON:-unreadable}); nothing read or written"
+
+      # report.mjs reads the red-main leaf through the base's resolve-config,
+      # which needs its dependencies.
+      - name: Install resolve-config's dependencies
+        timeout-minutes: 5
+        if: steps.kill.outputs.proceed == 'true'
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
+
+      - name: Report the culprit and the revert it would open
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # Each call's rate-limit reading, for the api-budget notice below.
+          API_BUDGET_TOKEN: github-token
+          REPOSITORY: ${{ github.repository }}
+          BASE_PATH: .base
+          CALL_BUDGET: "300"
+          RUN_ID: ${{ needs.alert.outputs.id }}
+          RUN_SHA: ${{ needs.alert.outputs.sha }}
+          RUN_URL: ${{ needs.alert.outputs.url }}
+          RUN_WORKFLOW_ID: ${{ needs.alert.outputs.workflow-id }}
+          RUN_CREATED: ${{ needs.alert.outputs.created }}
+        run: node .base/.github/scripts/post-merge-demotion-alert/report.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  # Each completed scheduled full run on main, whatever it concluded, closes
+  # the records main has cleared since they were filed, by the rule
+  # babysit_merge_policy.py `_recovered_at` applies. A green run that clears
+  # a record may be a github-actions[bot] dispatch, which raises no
+  # workflow_run event, so the step lists the runs itself. The record is a
+  # state marker: `_recovered_at` still decides whether it holds, and a
+  # record this closes that main has not cleared holds all the same
+  # (closed-by-non-human).
+  close-cleared:
+    name: Close The Records Main Cleared
+    if: >-
+      github.event_name == 'workflow_run'
+      && github.event.workflow_run.name == 'PR Require Checks'
+      && github.event.workflow_run.event == 'schedule'
+      && github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # list green full runs and canary runs on main
+      contents: read # read merge.agent-identity, files and commits on main
+      issues: write # comment on, unlabel and close a cleared record
+      pull-requests: read # read the pull requests that reference a record
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      # main's tip, for babysit_lift.py close; no code from outside main runs.
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Close the records main cleared
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Each open schedule or dispatch record, demotion or post-merge-failure,
+          # that github-actions[bot] or merge.agent-identity filed and nobody
+          # ever edited (`_recovered_at` reads its SHA from the body) is closed
+          # as completed at the oldest green full run on main that clears it:
+          # attempt 1, this repository's main, a schedule or a dispatch both
+          # started by github-actions[bot] (a person dispatching until a run
+          # passes is no recovery), created after the record, at a commit
+          # ahead of the record's SHA and on main's history. Like
+          # `_GreenMain.listed`, it reads GREEN_SPAN windows oldest first, up to
+          # now and at most GREEN_SPANS of them, and stops at the first run that
+          # clears the record. Any failed read, a window past its page bound, or
+          # more windows than GREEN_SPANS closes nothing.
+          identity="$(gh api -H 'Accept: application/vnd.github.raw' \
+            "repos/$GITHUB_REPOSITORY/contents/docs/conventions/pr-pipeline.yaml?ref=main" |
+            sed -n '/^merge:/,/^[^[:space:]#]/ s/^  agent-identity: \([^[:space:]]*\)[[:space:]]*$/\1/p')" || identity=''
+          filers=(github-actions%5Bbot%5D)
+          if [[ "$identity" =~ ^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\[bot\]$ ]]; then
+            filers+=("${identity%\[bot\]}%5Bbot%5D")
+          else
+            echo "::warning::merge.agent-identity '$identity' could not be read or is no App login: its records are not closed"
+            identity=''
+          fi
+          # Each open canary, revert or read-back record either filer opened
+          # that has lifted by the merge gate's own rule (babysit_merge_policy.py
+          # `_lift`, run from main's checkout) is commented on, loses its
+          # human-gated label and is closed as completed; a failed read closes
+          # nothing.
+          lift_tool=.base/plugins/source-control/skills/babysit-prs/scripts/babysit_lift.py
+          if [[ -f "$lift_tool" ]]; then
+            python3 "$lift_tool" close --repo "$GITHUB_REPOSITORY" --identity "$identity" ||
+              echo "::warning::the lifted records could not be closed"
+          fi
+          if ! tip="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" ||
+            [[ ! "$tip" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::warning::main's tip could not be read: no record closed"
+            exit 0
+          fi
+          # The window `_GreenMain.listed` reads and how many, from
+          # babysit_merge_policy.py on main, so the two never disagree.
+          policy="$(gh api -H 'Accept: application/vnd.github.raw' \
+            "repos/$GITHUB_REPOSITORY/contents/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py?ref=main")" || policy=''
+          span_days="$(sed -n 's/^GREEN_SPAN = timedelta(days=\([1-9][0-9]*\))$/\1/p' <<<"$policy")"
+          spans="$(sed -n 's/^GREEN_SPANS = \([1-9][0-9]*\)$/\1/p' <<<"$policy")"
+          if [[ ! "$span_days" =~ ^[1-9][0-9]*$ || ! "$spans" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::warning::GREEN_SPAN or GREEN_SPANS could not be read from babysit_merge_policy.py: no record closed"
+            exit 0
+          fi
+          span_s=$((span_days * 86400))
+          now="$(date -u +%s)"
+          # green <since> <until> <after>: the qualifying green full runs
+          # created from <since> to <until> and after <after>, oldest first, as
+          # `<created_at> <head_sha> <html_url>` lines; fails on a failed read
+          # or more than 5 pages of an event.
+          green() {
+            local event page runs n
+            for event in schedule workflow_dispatch; do
+              for page in 1 2 3 4 5 6; do
+                if [[ "$page" -eq 6 ]]; then
+                  echo "::warning::more than 5 pages of green $event runs from $1 to $2" >&2
+                  return 1
+                fi
+                runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pr-require-checks.yml/runs?branch=main&event=$event&status=success&created=$1..$2&per_page=100&page=$page")" || return 1
+                jq -r --arg e "$event" --arg repo "$GITHUB_REPOSITORY" --arg after "$3" '.workflow_runs[]
+                  | select(.event == $e and .conclusion == "success" and .run_attempt == 1
+                    and .head_branch == "main" and .head_repository.full_name == $repo
+                    and ((.head_sha // "") | test("^[0-9a-f]{40}$")) and .created_at > $after
+                    and ($e == "schedule" or (.actor.login == "github-actions[bot]"
+                      and .triggering_actor.login == "github-actions[bot]")))
+                  | "\(.created_at) \(.head_sha) \(.html_url)"' <<<"$runs" || return 1
+                n="$(jq '.workflow_runs | length' <<<"$runs")" || return 1
+                [[ "$n" -eq 100 ]] || break
+              done
+            done | sort -u
+            return "${PIPESTATUS[0]}"
+          }
+          declare -A seen=()
+          for filer in "${filers[@]}"; do
+            if ! open="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=open&creator=$filer&per_page=100" \
+              --jq '.[] | select(.pull_request == null) | [.number, .created_at, ((.body // "") | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; ""))] | @tsv')"; then
+              echo "::warning::could not read $filer's open records: none of them closed"
+              continue
+            fi
+            while IFS=$'\t' read -r n created first; do
+              if [[ ! "$n" =~ ^[1-9][0-9]*$ || -n "${seen[$n]+x}" ||
+                ! "$created" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ||
+                ! "$first" =~ ^\<!--\ (babysit-merge-demotion|post-merge-failure)\ sha=([0-9a-f]{40})\ signal=(schedule|dispatch)\ --\>$ ]]; then
+                continue
+              fi
+              seen[$n]=1
+              sha="${BASH_REMATCH[2]}"
+              # shellcheck disable=SC2016 # GraphQL variables, not shell ones
+              edited="$(gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){issue(number:$n){lastEditedAt}}}' \
+                -f o="${GITHUB_REPOSITORY%%/*}" -f r="${GITHUB_REPOSITORY#*/}" -F n="$n" \
+                --jq '.data.repository.issue | if . == null then "unread" else (.lastEditedAt // "never") end')" || edited=unread
+              if [[ "$edited" != never ]]; then
+                echo "#$n was edited or could not be read: left open"
+                continue
+              fi
+              # Walk the windows oldest first; any failure ends the walk.
+              cleared='' failed='' span=0
+              from="$(date -u -d "$created" +%s)"
+              while [[ -z "$cleared$failed" ]] && ((from <= now)); do
+                if ((span == spans)); then
+                  echo "::warning::more than $spans spans of green runs after #$n: left open"
+                  failed=1
+                  break
+                fi
+                since="$(date -u -d "@$from" +%Y-%m-%dT%H:%M:%SZ)"
+                until="$(date -u -d "@$((from + span_s))" +%Y-%m-%dT%H:%M:%SZ)"
+                if ! runs="$(green "$since" "$until" "$created")"; then
+                  echo "::warning::could not list the green runs after #$n: left open"
+                  failed=1
+                  break
+                fi
+                while read -r _ head url; do
+                  [[ -n "$head" ]] || continue
+                  if ! ahead="$(gh api "repos/$GITHUB_REPOSITORY/compare/$head...$sha" --jq .status)" ||
+                    { [[ "$ahead" == behind ]] &&
+                      ! on_main="$(gh api "repos/$GITHUB_REPOSITORY/compare/$head...$tip" --jq .status)"; }; then
+                    echo "#$n: a compare did not read: left open"
+                    failed=1
+                    break
+                  fi
+                  [[ "$ahead" == behind ]] || continue
+                  if [[ "$on_main" == ahead || "$on_main" == identical ]]; then
+                    cleared="$head $url"
+                    break
+                  fi
+                done <<<"$runs"
+                span=$((span + 1))
+                from=$((from + span_s))
+              done
+              [[ -z "$failed" ]] || continue
+              if [[ -z "$cleared" ]]; then
+                echo "#$n: no green full run on main clears it yet"
+                continue
+              fi
+              if gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$n/comments" \
+                -f body="Main is green at \`${cleared%% *}\`, a later commit: ${cleared#* }" >/dev/null &&
+                gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$n" -f state=closed -f state_reason=completed >/dev/null; then
+                echo "closed #$n: main is green at ${cleared:0:12}"
+              else
+                echo "::warning::could not close #$n"
+              fi
+            done <<<"$open"
+          done

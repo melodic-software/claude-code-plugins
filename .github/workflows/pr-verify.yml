@@ -218,7 +218,7 @@ jobs:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
-          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+          ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
           # A stop a GitHub fault caused reads read-fault, not the refusal's
           # reason, so the next step can mark it held; it still stops.
           fault-reason: "true"
@@ -2290,7 +2290,7 @@ jobs:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
-          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+          ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
           # A stop a GitHub fault caused reads read-fault, not the refusal's
           # reason, so the next step can mark it held; it still stops.
           fault-reason: "true"
@@ -4136,7 +4136,7 @@ jobs:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
-          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+          ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
           # A stop a GitHub fault caused reads read-fault, not the refusal's
           # reason, so the next step can mark it held; it still stops.
           fault-reason: "true"

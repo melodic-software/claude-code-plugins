@@ -5,7 +5,8 @@
 scan(texts, rules=None, host=None, user=None, extra=()) -> ScanResult
   texts   {source label: text}: narration, frame text, screenshot sidecars, the rendered PR section;
   rules   the gitleaks rules file redact.py loads (its own default when None);
-  extra   regexes a stricter config adds; nothing can remove the floor.
+  extra   regexes a stricter config adds (scan.extra_patterns); nothing can remove the floor, and one that does
+          not compile is a finding, so a team's pattern is never silently dropped.
 A finding names its source and kind, never the matched value. ok is False on any finding or when the redactor
 fails closed (a rule did not load). Standard library plus redact.py beside this file.
 """
@@ -53,8 +54,12 @@ def scan(texts, rules=None, host=None, user=None, extra=()):
         user = ''
     machine = [('hostname', _alone(host))] if host and host.lower() not in GENERIC else []
     machine += [('user-name', _alone(user))] if len(user) >= 3 and user.lower() not in GENERIC else []
-    machine += [('config-pattern', re.compile(p)) for p in extra]
     result = ScanResult(fail_closed=redactor.fail_closed, rule_count=redactor.rule_count)
+    for index, pattern in enumerate(extra):
+        try:
+            machine.append(('config-pattern', re.compile(pattern)))
+        except (re.error, TypeError):
+            result.findings.append({'source': f'scan.extra_patterns[{index}]', 'kind': 'invalid-pattern'})
     for source, text in texts.items():
         text = str(text)
         cleaned = redactor.redact(text)

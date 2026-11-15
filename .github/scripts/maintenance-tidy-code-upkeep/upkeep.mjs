@@ -12,7 +12,7 @@
 //     not read, nor for a pull request with no spec.
 //
 // The gate derives churn from git log, so a push run GitHub lost drops no area
-// (dependabot-fragments.yml records that those happen).
+// (release-generate-dependabot-changelog-fragments.yml records that those happen).
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

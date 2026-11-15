@@ -640,7 +640,7 @@ class AffectedSet(AffectedBase):
 
 
 class JudgeRunCli(AffectedBase):
-    """`--judge-run`, as post-merge-demotion-alert.yml calls it."""
+    """`--judge-run`, as post-merge-file-demotion-issues.yml calls it."""
 
     def judge(
         self,
@@ -731,7 +731,7 @@ class LaneRerunOutsideAWindow(AffectedBase):
     (`--lane-merges-only`), a red attempt 1 of a full run the lane
     dispatched, with a failing suite inside the affected set, is marked for
     post-merge-dispatch's one re-run even when no lane merge is judged.
-    post-merge-demotion-alert.yml then demotes only on a red attempt 2. The
+    post-merge-file-demotion-issues.yml then demotes only on a red attempt 2. The
     fixture's one merge is another App's, so the lane judges none."""
 
     BOT = by("github-actions[bot]")

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| markdown | pass | PASS |\n| cross-cutting | pass | PASS |\n\nNo ecosystem linter (cross-cutting text checks only): src/lib.rs\n\nOverall: PASS (2 of 2 ecosystems passed)",
+      "why": "the skill's line"
+    },
+    {
+      "answer": "**No ecosystem linter (cross-cutting text checks only):** `src/lib.rs`",
+      "why": "bold label and code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| markdown | pass | PASS |\n| cross-cutting | pass | PASS |\n\nOverall: PASS (2 of 2 ecosystems passed)",
+      "why": "the source file is passed over in silence, the issue's demo failing"
+    },
+    {
+      "answer": "Outside every ecosystem: src/lib.rs",
+      "why": "wrong line while cross-cutting ran"
+    }
+  ]
+}

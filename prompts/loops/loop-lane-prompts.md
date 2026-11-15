@@ -298,7 +298,7 @@ into one profile.
      do not run `gh label create` on your own initiative.
 
    Whichever path, the five members are aliases of the autonomy program's
-   C1–C5 risk classes, with the alias map single-sourced in the label
+   C1–C5 work classes, with the alias map single-sourced in the label
    declarations.
 4. Label the autonomous-eligible items, or accept that nothing auto-merges.
    The `work-class:` label is what the merge partition reads; an item whose
@@ -394,7 +394,7 @@ Two consequences of that order:
 - **Overrides remain per-dispatch duties.** The frontmatter binds only the
   default: security-surface work classes and conflict workers still take an
   explicit per-invocation frontier-alias override. The worker-lane bodies below
-  carry only those overrides, not a per-dispatch binding for the model tiers the
+  carry only those overrides, not a per-dispatch binding for the capability tiers the
   agent frontmatter already enforces. The merge-lane bodies additionally keep their
   `opus` binding for CI fixes, review-comment work, and judgment calls:
   babysit dispatches do not route through `implement-dispatch`, so no

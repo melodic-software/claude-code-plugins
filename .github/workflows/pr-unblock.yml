@@ -12,7 +12,7 @@ name: PR Unblock
 # default branch tip into the head and decides, a read model job resolves the
 # conflicts and hands them on as a patch, and a script job commits the merge.
 # address-feedback:
-# pr-feedback-dispatch.yml sends one after a review lane finishes on a lanes App
+# pr-dispatch-feedback.yml sends one after a review lane finishes on a lanes App
 # PR, or an idle adopted owner PR, with unresolved reviewer-bot threads; a base
 # job keeps the threads, a read model job answers them, and script jobs push
 # its patch and post its replies.
@@ -75,7 +75,7 @@ on:
         type: string
         default: ""
       verify-pass-head:
-        description: address-feedback from pr-feedback-dispatch.yml only; the head a pr-verify pass judged, for a pass-only round.
+        description: address-feedback from pr-dispatch-feedback.yml only; the head a pr-verify pass judged, for a pass-only round.
         required: false
         type: string
         default: ""
@@ -85,12 +85,12 @@ on:
         type: string
         default: ""
       verify-earlier-fail-heads:
-        description: address-feedback from pr-feedback-dispatch.yml only, never with verify-pass-head; the FAILed heads behind the merge gate's verify:earlier-fail refusal, space-separated, whose verdict artifacts hold the notes a round with no thread works.
+        description: address-feedback from pr-dispatch-feedback.yml only, never with verify-pass-head; the FAILed heads behind the merge gate's verify:earlier-fail refusal, space-separated, whose verdict artifacts hold the notes a round with no thread works.
         required: false
         type: string
         default: ""
       upstream-relay:
-        description: address-feedback from pr-feedback-dispatch.yml only; true when its upstream is a review-comment relay (a person's reply), so resolve-feedback-threads, with no thread to resolve, starts no job. Setting it can only skip that job.
+        description: address-feedback from pr-dispatch-feedback.yml only; true when its upstream is a review-comment relay (a person's reply), so resolve-feedback-threads, with no thread to resolve, starts no job. Setting it can only skip that job.
         required: false
         type: string
         default: ""

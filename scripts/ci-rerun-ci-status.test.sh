@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the `Find the ci-status to re-run` and `Re-run ci-status` step bodies
-# of .github/workflows/pr-feedback-dispatch.yml's rerun-ci-status job under
+# of .github/workflows/pr-dispatch-feedback.yml's rerun-ci-status job under
 # the shell Actions gives a step with no `shell:` (bash -e), against stub `gh`
 # and `sleep`.
 #
@@ -17,11 +17,11 @@
 # within the cap, or fails past it. Unreadable reads fail. Each
 # path's API call count is pinned, and each response's rate-limit reading is
 # kept for the job-end api-budget notice.
-# test-scope: .github/workflows/pr-feedback-dispatch.yml
+# test-scope: .github/workflows/pr-dispatch-feedback.yml
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORKFLOW="$ROOT/.github/workflows/pr-feedback-dispatch.yml"
+WORKFLOW="$ROOT/.github/workflows/pr-dispatch-feedback.yml"
 
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"

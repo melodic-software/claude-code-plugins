@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## [10.2.6] - 2026-11-14
+
+### Changed
+
+- The convention names the renamed workflows `post-merge-file-demotion-issues.yml`,
+  `intake-label-outside-actor-activity.yml`, `release-generate-dependabot-changelog-fragments.yml`,
+  `pr-run-plugin-evals.yml` and `maintenance-measure-skill-edit-pass.yml`.
+
 ## [10.2.5] - 2026-11-14
 
 ### Fixed

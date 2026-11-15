@@ -149,6 +149,30 @@ class FfmpegTest(unittest.TestCase):
         self.assertEqual(len(media_sheet.sheets([Path(f) for f in frames], quoted / 's')), 1)
 
 
+BAND = 0.24
+SIZE = (1920, 1080)
+PLAYER_WIDTH = 888   # GitHub's inline video player, in pixels
+MIN_TEXT_PX = 14     # the smallest text height a reviewer can read in that player
+SMALLEST_FONT = r"""() => {
+  let least = Infinity;
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = walk.nextNode(); n; n = walk.nextNode())
+    if (n.textContent.trim()) least = Math.min(least, parseFloat(getComputedStyle(n.parentElement).fontSize));
+  return least;
+}"""
+
+
+def also_changed(count):
+    return {'template': 'also-changed', 'chapter': 'c', 'data': {
+        'files': [{'path': f'src/module-{i:02d}/a-fairly-long-file-name-{i:02d}.py', 'summary': f'change {i}'}
+                  for i in range(count)]}}
+
+
+def frame(moment, part=None):
+    import media_templates
+    return media_templates.page(moment, 'Title', 'Chapter', (1, 1), SIZE, BAND, part=part)
+
+
 @needs(HAVE_PLAYWRIGHT, 'Playwright for Python')
 class CaptureTest(unittest.TestCase):
     def test_capture_is_4k_and_blocks_network(self):
@@ -157,6 +181,83 @@ class CaptureTest(unittest.TestCase):
             html = '<html><body style="background:#123"><img src="https://example.invalid/x.png"><h1>Hi</h1></body></html>'
             (out,) = media_capture.capture([(html, Path(d) / 'a.png')])
             self.assertEqual(png_size(out), (3840, 2160))
+
+    def test_the_fit_check_fails_a_list_that_runs_off_the_frame_and_passes_one_that_fits(self):
+        import media_capture
+        with tempfile.TemporaryDirectory() as d:
+            (_, long), (_, short) = media_capture.capture_checked(
+                [(frame(also_changed(30)), Path(d) / 'long.png'), (frame(also_changed(2)), Path(d) / 'short.png')],
+                *SIZE, 1, BAND)
+        self.assertTrue(any('below' in p for p in long), long)
+        self.assertTrue(any('above' in p for p in long), f'the centered list should also run up over the header: {long}')
+        self.assertEqual(short, [])
+
+    def test_a_code_line_that_wraps_at_a_space_fits_the_frame(self):
+        import media_capture
+        text = ('Below the table, name every changed text file outside every ecosystem on one line: '
+                '`Outside every ecosystem: <path>, <path>`. The line changes no Status and no Overall line.')
+        moment = {'template': 'code-hunk', 'chapter': 'c', 'data': {
+            'path': 'plugins/toolchain/skills/check/SKILL.md',
+            'lines': [{'n': 156, 'kind': '+', 'text': text}]}}
+        with tempfile.TemporaryDirectory() as d:
+            ((_, problems),) = media_capture.capture_checked([(frame(moment), Path(d) / 'hunk.png')], *SIZE, 1, BAND)
+        self.assertEqual(problems, [])
+
+    def test_a_flow_diagram_keeps_its_nodes_and_arrows_on_one_row(self):
+        from playwright.sync_api import sync_playwright
+        nodes = [{'label': 'A .rs file changes', 'detail': 'no Rust record'},
+                 {'label': 'Nothing claims it', 'detail': 'lint and check skip it'},
+                 {'label': 'Report says PASS', 'detail': 'the file was never read'},
+                 {'label': 'Reviewer trusts it', 'detail': 'and merges'}]
+        moment = {'template': 'diagram', 'chapter': 'c', 'data': {'layout': 'flow', 'nodes': nodes}}
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={'width': SIZE[0], 'height': SIZE[1]}, java_script_enabled=False)
+            page.set_content(frame(moment))
+            rows = page.evaluate("""() => [...document.querySelectorAll('.flow > *')].map(e => {
+              const r = e.getBoundingClientRect(); return [r.top, r.bottom]; })""")
+            browser.close()
+        self.assertEqual(len(rows), 2 * len(nodes) - 1)
+        top = max(t for t, _ in rows)
+        bottom = min(b for _, b in rows)
+        self.assertLess(top, bottom, f'every node and arrow should share one row: {rows}')
+
+    def test_paginate_covers_the_list_in_order_with_frames_that_each_fit(self):
+        import media_capture
+        import media_templates
+        moment = also_changed(30)
+
+        def render(a, b):
+            return frame(media_templates.subset(moment, a, b), part=(2, 30))
+        (cuts,) = media_capture.paginate([(render, 30)], *SIZE, 1, BAND)
+        self.assertGreater(len(cuts), 1)
+        self.assertEqual(cuts[0][0], 0)
+        self.assertEqual(cuts[-1][1], 30)
+        self.assertTrue(all(a[1] == b[0] for a, b in zip(cuts, cuts[1:])), cuts)
+        with tempfile.TemporaryDirectory() as d:
+            checked = media_capture.capture_checked([(render(a, b), Path(d) / f'{a}.png') for a, b in cuts],
+                                                    *SIZE, 1, BAND)
+        self.assertEqual([p for _, p in checked], [[]] * len(cuts))
+
+    def test_every_template_s_smallest_text_reads_at_least_14_px_tall_in_an_888_px_player(self):
+        from playwright.sync_api import sync_playwright
+        moments = {
+            'title': {'subtitle': 'A walkthrough'},
+            'code-hunk': {'path': 'a.py', 'lines': [{'n': 1, 'kind': '+', 'text': 'x = 1'}], 'note': 'n'},
+            'diagram': {'nodes': [{'label': 'A', 'detail': 'd'}, {'label': 'B'}], 'center': 'c', 'note': 'n'},
+            'before-after': {'before': {'lines': ['a']}, 'after': {'lines': ['b']}},
+            'risk-map': {'rows': [{'area': 'a', 'level': 'low', 'note': 'n'}]},
+            'also-changed': {'files': [{'path': 'a.py', 'summary': 's'}]},
+        }
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={'width': SIZE[0], 'height': SIZE[1]}, java_script_enabled=False)
+            for template, data in moments.items():
+                with self.subTest(template):
+                    page.set_content(frame({'template': template, 'chapter': 'c', 'data': data}, part=(2, 3)))
+                    smallest = page.evaluate(SMALLEST_FONT)
+                    self.assertGreaterEqual(smallest * PLAYER_WIDTH / SIZE[0], MIN_TEXT_PX, f'{smallest} CSS px')
+            browser.close()
 
 
 if __name__ == '__main__':

@@ -18,10 +18,12 @@ accepted finding.
 # Team layer for the mutation-testing plugin. Schema: the plugin's
 # schemas/mutation-testing.schema.json; keys: its skills/setup/templates/config-template.md.
 
-# The mutation tool driving this project's test runner.
-# One of: stryker-js | stryker-net | stryker4s | pitest | infection | mutmut | manual
-# `manual` means no off-the-shelf tool covers this language; the audit falls back
-# to the single-operator manual protocol documented in the principles skill.
+# The mutation tool driving this project's test runner. Any id is accepted.
+# Shipped adapters: stryker-js | stryker-net | stryker4s | pitest | infection | mutmut
+# Any other id (cargo-mutants, say) keeps this file valid, but the audit reports
+# it as having no shipped adapter and offers `manual` instead of running it.
+# `manual` is reserved: no off-the-shelf tool covers this language, and the audit
+# applies each mutant by the single-operator manual protocol in the principles skill.
 tool: <tool-id>
 
 # How to invoke it. Left explicit rather than derived, because every project wraps

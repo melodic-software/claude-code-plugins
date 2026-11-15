@@ -273,7 +273,7 @@
 // that lane already restarted the issue for a fresh attempt or parked it.
 // The issues this path reads carry agent-ready.
 //
-// It relabels a red-main fix issue post-merge-demotion-alert.yml reopened on
+// It relabels a red-main fix issue post-merge-file-demotion-issues.yml reopened on
 // a repeat failure: the reopen keeps agent-ready but ran on that workflow's
 // GITHUB_TOKEN, which starts no run. An open agent-ready issue filed by
 // github-actions[bot] with a `<!-- post-merge-fix check=... -->` first line
@@ -498,7 +498,7 @@ const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const HOLDS = LANE_HOLDS;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-// post-merge-demotion-alert.yml's fix issue and the comment it posts when it
+// post-merge-file-demotion-issues.yml's fix issue and the comment it posts when it
 // reopens one, both under that workflow's GITHUB_TOKEN.
 const ALERT_BOT = "github-actions[bot]";
 const FIX_ISSUE = /^<!-- post-merge-fix check=[^\r\n]+ -->/;
@@ -1259,7 +1259,7 @@ const unstatused = (issue) => labelNames(issue).filter((name) => !isStatusLabel(
 // reads it as waiting. Read fresh: a run queued behind another may land after a reopen,
 // and an open issue keeps them; the sweep hands in the issue its close check
 // just read (`read`) instead. A post-merge fix issue keeps agent-ready
-// across its close, as post-merge-demotion-alert.yml reopens it with the label
+// across its close, as post-merge-file-demotion-issues.yml reopens it with the label
 // and the sweep relabels it (recurrenceRefusal). A Work status of agent-ready
 // moves to needs-triage (write-status.mjs leaveAgentReady), so a reopen does
 // not read as queued work no run picked up; any other state stays.
@@ -1745,7 +1745,7 @@ export const infraComment = (key, cause, refires) =>
 // The relabel's record, posted before the label moves: one per recurrence
 // comment.
 export const recurrenceComment = (id) =>
-  `<!-- work-unblock recurrence ${id} -->\nThis check failed on main again, and post-merge-demotion-alert reopened this issue, which starts no work-resolve-issue run. work-unblock removed and added \`${LABEL}\` back to start one. It does this once per reopen.`;
+  `<!-- work-unblock recurrence ${id} -->\nThis check failed on main again, and post-merge-file-demotion-issues reopened this issue, which starts no work-resolve-issue run. work-unblock removed and added \`${LABEL}\` back to start one. It does this once per reopen.`;
 
 // The hand-offs to triage once the lane PR ended, each posted once per pull
 // request before its labels move.
@@ -2246,7 +2246,7 @@ const staleQueued = (run, now, minutes) => run.status === "queued" && now - run.
 // `issue`'s lowercased names as the Work status field decides them (fieldFirst).
 const fieldNamesOf = (statusOf, issue) => fieldFirst(statusOf, issue.number, labelNames(issue).map((name) => name.toLowerCase()));
 
-// For a fix issue post-merge-demotion-alert reopened on a repeat failure: why
+// For a fix issue post-merge-file-demotion-issues reopened on a repeat failure: why
 // it is not relabeled now, or null with what to do. Null for any other issue,
 // and for one agent-ready was added to since the reopen, which the restart
 // and re-fire rules then take.
