@@ -1642,6 +1642,32 @@ test("a verdict the kill switch kept from its PR is applied once the switch lift
   assert.deepEqual(reruns, []);
 });
 
+test("a stopped verdict under the dispatcher's earlier file name is applied, and that listing's failure is quiet only on a 404", async (t) => {
+  const earlier = ".github/workflows/pr-feedback-dispatch.yml";
+  const { code, failedJobReruns } = await reconcile({ pulls: [], runs: [verdictRun(401, { path: earlier })] });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [401]);
+
+  const failing = (error) => (g) => async (method, apiPath, body) => {
+    if (apiPath.includes("/actions/workflows/pr-feedback-dispatch.yml/runs?")) {
+      throw error;
+    }
+    return g(method, apiPath, body);
+  };
+  const gone = await reconcile({ pulls: [], runs: [verdictRun(401)], github: failing(new GitHubError(404, "Not Found")) });
+  assert.equal(gone.code, 0);
+  assert.deepEqual(gone.failedJobReruns, [401]);
+
+  const lines = [];
+  t.mock.method(console, "log", (line) => lines.push(String(line)));
+  const refused = await reconcile({ pulls: [], runs: [verdictRun(401)], github: failing(new GitHubError(403, "forbidden")) });
+  assert.notEqual(refused.code, 0);
+  assert.ok(
+    lines.some((line) => line.startsWith(`::error title=reconcile::${earlier}: `)),
+    lines.join("\n"),
+  );
+});
+
 test("a stopped verdict from before the job rename, its job named post-verify-notes, is applied the same way", async () => {
   const jobs = [verdictJob(VERDICT_STOP_STEP, { name: "post-verify-notes" }), { id: 4008, name: "dispatch", status: "completed", conclusion: "skipped", steps: [] }];
   const { code, failedJobReruns } = await reconcile({ pulls: [], runs: [verdictRun(401, { jobs })] });
