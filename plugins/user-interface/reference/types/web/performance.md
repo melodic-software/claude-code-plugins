@@ -53,13 +53,10 @@ whose arrival the visitor waits for.
 Hunt for: the LCP image (hero, first product shot) with no preload; gallery and list images without
 `loading="lazy"`; `loading="lazy"` on the hero (delays the one image that matters).
 
-In Next.js, `priority` on the hero `<Image>`, nothing on the rest. Never `priority` on every image;
-that's the same as none.
-
-Read `priority` there as a search token for the hero hint, not a fixed prop name: check the
-project's Next.js version against the pointer and use the hint its docs name for the LCP image, on
-the hero alone, leaving the rest to the framework's default loading. A hint on every image is still
-the same as none.
+In Next.js, put the LCP hint on the hero `<Image>` alone and leave the rest to the framework's
+default loading; a hint on every image is the same as none. Which prop carries the hint depends on
+the project's Next.js version: check it against the pointer and use the one its docs name. Search
+for `priority` to find existing hints.
 
 - **Pointer**: MDN, `<img>`, attributes `loading` and `decoding`,
   <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/img#loading> and

@@ -16,12 +16,12 @@
 #       permissions.additionalDirectories entry, so every write into it
 #       prompts (reference/permission-preflight.md pointer record).
 #
-# REPORT-ONLY by design: the assistant cannot self-apply the
+# Report-only by design: the assistant cannot self-apply the
 # remediation: an agent cannot widen its own permissions.allow, and a
 # permissions block shipped in a plugin settings.json is inert
 # (reference/permission-preflight.md "Why a preflight, not a fixer" holds the
 # pointer record; docs/contracts/permission-rule-hygiene). This script never edits
-# settings; it prints the exact operator remediation and ALWAYS exits 0.
+# settings; it prints the exact operator remediation and always exits 0.
 # Findings never fail the run.
 #
 # Effective settings (union of permissions.allow / additionalDirectories):
@@ -406,7 +406,7 @@ detect_layout
 read_array() {
   # read_array <file> <jq-path> — one element per line; silent on a missing or
   # non-JSON file (a settings file may legitimately not exist).
-  # Read + CR-strip ONCE: `collect` calls this for every settings layer on every
+  # Read + CR-strip once: `collect` calls this for every settings layer on every
   # one of the three permission paths, so a second read-and-tr per file is pure
   # per-layer overhead (worst on Windows, where each fork is expensive).
   local file="$1" path="$2" json
@@ -442,7 +442,7 @@ collect() {
   fi
 }
 
-# Checkout-own local-settings scope for the COVERAGE reads (allow +
+# Checkout-own local-settings scope for the coverage reads (allow +
 # additionalDirectories); a VERIFIED main checkout's local file is in scope
 # regardless:
 #   - A DISTINCT --project-root (a worker worktree whose toplevel differs from this
@@ -475,11 +475,11 @@ verb_in_rules() {
   # verb_in_rules <verb> <rules> <mode> — true when some Bash()/PowerShell() rule
   # in the newline-separated <rules> grants <verb> in a shape the <mode> accepts:
   #   open-glob-only — the open-glob form only (`git commit *` / `git commit:*`).
-  #                    Used for COVERAGE: a bare-exact `Bash(git commit)` permits
+  #                    Used for coverage: a bare-exact `Bash(git commit)` permits
   #                    only the argumentless command, and a work-lane invocation
-  #                    always carries args, so bare does NOT cover.
-  #   bare           — open-glob OR the argumentless bare verb (`git commit`).
-  #                    Used for DENY: erring wide is safe (a bare deny still
+  #                    always carries args, so bare does not cover.
+  #   bare           — open-glob or the argumentless bare verb (`git commit`).
+  #                    Used for deny: erring wide is safe (a bare deny still
   #                    signals the verb is off-limits).
   #   bare-exact-only — the bare verb only. Used to sharpen the gap message when
   #                    open-glob coverage is absent but a bare-only grant exists
@@ -487,7 +487,7 @@ verb_in_rules() {
   #                    lane's argument-carrying call).
   # A rule whose next token is a specific flag or argument (`git commit --amend`,
   # a force-with-lease-only push) never matches — it is a narrower slice.
-  # Exact-shape only, by deliberate design: this does NOT simulate glob semantics,
+  # Exact-shape only, by deliberate design: this does not simulate glob semantics,
   # so a broader deny pattern that would match the verb at runtime is not detected
   # here. The `'*'` is a quoted literal asterisk, so each arm matches one exact
   # rule spelling, not a prefix. Runs in the current shell (heredoc, not a pipe)
@@ -590,9 +590,9 @@ if [[ "$mode" == "count" ]]; then
 fi
 
 if [[ "$layout" == "per-worktree" ]]; then
-  echo "PREFLIGHT: per-worktree approvals layout ($layout_causes) — Claude Code keeps an approval with the worktree it was granted in, so the main checkout's settings.local.json is NOT credited to a worktree; only the worktree's own local file is. Deny rules still include the main checkout's file."
+  echo "PREFLIGHT: per-worktree approvals layout ($layout_causes) — Claude Code keeps an approval with the worktree it was granted in, so the main checkout's settings.local.json is not credited to a worktree; only the worktree's own local file is. Deny rules still include the main checkout's file."
 elif [[ -n "$layout_unread" ]]; then
-  echo "PREFLIGHT: UNREAD LAYER — the main checkout's settings.local.json was NOT credited: whether Claude Code shares approvals through the repository root here cannot be determined ($layout_reason). A grant there is not credited (a verb may be over-reported as a gap); deny rules still include it. Findings below are incomplete."
+  echo "PREFLIGHT: UNREAD LAYER — the main checkout's settings.local.json was not credited: whether Claude Code shares approvals through the repository root here cannot be determined ($layout_reason). A grant there is not credited (a verb may be over-reported as a gap); deny rules still include it. Findings below are incomplete."
 fi
 
 if [[ "$cov_local" == "no-local" ]]; then
@@ -616,7 +616,7 @@ fi
 # interactive one, which prints no header otherwise and would otherwise drop a
 # main-local deny in silence.
 if [[ "$main_state" == "unresolved" ]]; then
-  echo "PREFLIGHT: UNREAD LAYER — the main checkout's settings.local.json was NOT read: $main_reason. Where approvals save at the repository root its rules apply in every worktree, so a grant there is not credited (a verb may be over-reported as a gap) and, worse, a DENY there is not reported at all. Findings below are incomplete. Run the preflight from the main checkout, or pass --project-root naming it, to read that layer."
+  echo "PREFLIGHT: UNREAD LAYER — the main checkout's settings.local.json was not read: $main_reason. Where approvals save at the repository root its rules apply in every worktree, so a grant there is not credited (a verb may be over-reported as a gap) and, worse, a deny there is not reported at all. Findings below are incomplete. Run the preflight from the main checkout, or pass --project-root naming it, to read that layer."
 fi
 
 if [[ "${#findings[@]}" -gt 0 ]]; then

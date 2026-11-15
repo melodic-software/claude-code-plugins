@@ -18,14 +18,14 @@ Per-ecosystem naming and locations come from the consuming project's testing con
 
 ## When to create a new test project
 
-**YES, create a test project when the library has:**
+**Yes, create a test project when the library has:**
 
 - Business logic, conditional branching, or state management
 - Custom implementations of interfaces (not pure delegation)
 - Algorithm or transformation logic
 - Error handling paths that could fail silently
 
-**NO, skip when the library contains only:**
+**No, skip when the library contains only:**
 
 - Pure contracts (interfaces, attributes, records with no logic)
 - Constants (validated by drift guard tests in consumers)
@@ -36,7 +36,7 @@ Per-ecosystem naming and locations come from the consuming project's testing con
 
 ## Fixture patterns
 
-### Architecture-test project: stays as ONE project per ecosystem
+### Architecture-test project: stays as one project per ecosystem
 
 All architecture rules for an ecosystem share one assembly-loading context. Scale with per-app fixtures (one fixture per app, parameterized tests), not separate test projects.
 
@@ -44,9 +44,9 @@ All architecture rules for an ecosystem share one assembly-loading context. Scal
 
 Where a process-global singleton, expensive lifecycle, or framework-side limitation forces a specific fixture pattern, the consuming project's testing conventions name the affected projects and the required pattern. Consult them before writing or moving tests under any such project.
 
-## Web SDK child-directory pitfall (.NET-specific)
+## Nested test projects (.NET)
 
-`Microsoft.NET.Sdk.Web` recursively includes all `.cs` files in subdirectories. **Never** place a test project as a child directory of a Web SDK app. App integration tests go under the project's integration-test location instead.
+Never place a test project as a child directory of another project, for any SDK-style project, not only a Web SDK app; why: [.NET project SDK overview § Default includes and excludes](https://learn.microsoft.com/en-us/dotnet/core/project-sdk/overview#default-includes-and-excludes). App integration tests go under the project's integration-test location instead.
 
 ## Naming
 

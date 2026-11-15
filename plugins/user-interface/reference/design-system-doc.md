@@ -68,14 +68,6 @@ The rule that code uses semantic tokens rather than raw values, with its audit s
 place its values flip, is the `theming` concern. This note documents the layer those rules already
 set.
 
-You should treat agents like new engineers on your team. Think about it: in the past when you
-didn't have a well-defined design system, or at least a few reusable components, how would someone
-know what building blocks to use? They wouldn't, because it's not exposed anywhere. You had to point
-them to the right place.
-
-If you set up your foundation in a way that is readable and easy to use for a human, it will be the
-same for an agent.
-
 ### Components
 
 The second layer is the component API.
@@ -86,15 +78,9 @@ components themselves is a pass on that concern.
 
 ### Docs
 
-Good documentation was extremely important for humans. This way each engineer would know exactly
-when to use which component and what variants were available.
-
-Building out a whole visual documentation system is obviously a lot of work, and for agents it
-doesn't matter that much. We can simply use markdown files to document our system so an agent can
-consume it before building and be aware of the available options.
-
-A few well-written markdown files next to your code get you most of the way there, and they're
-where I'd start.
+The third layer is a few markdown files next to the code, saying when to use which component and
+which variants exist, for an agent to read before building; a visual documentation site matters
+little to an agent.
 
 ## Process
 

@@ -1,4 +1,4 @@
-# Bundled portable default — markdown. Rung-4 fallback ONLY (consumer
+# Bundled portable default — markdown. Rung-4 fallback only (consumer
 # .claude/ecosystems/markdown.yaml overrides key-by-key). Contract + schema:
 # https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
 globs: ["*.md"]

@@ -1,6 +1,6 @@
 # Telemetry comment upsert (per-instance singleton, race-converging)
 
-The upsert this lane runs to maintain its ONE sentinel-identified status comment **for this
+The upsert this lane runs to maintain its one sentinel-identified status comment **for this
 lane instance**. `SKILL.md`'s "Telemetry and durable loop state" owns where the comment lives and
 what goes in it; this file owns the contract of the script that maintains the singleton.
 
@@ -42,7 +42,7 @@ rendered and distinct per writer, so sibling instances each own one comment on t
 The lookup is a `startswith` match on that full sentinel, so a body that merely quotes a sibling's
 sentinel is never adopted, and it counts only comments the write identity authored: the sentinel is
 public text, so a comment anyone else posts with it is never made canonical, written, or tombstoned. Where the lookup finds nothing the script creates the comment; where it
-finds one it edits that comment in place; where it finds several the LOWEST id is canonical
+finds one it edits that comment in place; where it finds several the lowest id is canonical
 (numeric sort, deterministic for every session), the canonical comment receives this cycle's full
 state, and every other sentinel comment is edited to a one-line tombstone, but only once the
 canonical write verifies, so a cycle whose own write is unproven never tombstones a racing
@@ -51,7 +51,7 @@ upsert. A crashed racer's unmerged counters are an accepted loss (durable state 
 cycle); nothing is deleted. A sibling instance's comment carries a different marker, never enters
 the list, and is neither made canonical nor tombstoned.
 
-**`$BODY_FILE` contract.** The file's FIRST line must be exactly the sentinel above, with the
+**`$BODY_FILE` contract.** The file's first line must be exactly the sentinel above, with the
 cycle's telemetry below it and at least 16 payload bytes there. The lookup matches on that prefix,
 so a body composed without it is not merely rejected. It would never be found again, and the next
 cycle would post a second comment. Compose the sentinel into the file; do not rely on anything
@@ -82,16 +82,16 @@ to end the loop: the lane records the outcome and continues.
 | 6 | `--repo` is not `owner/name` | Fix the invocation. |
 | 7 | `--issue` is not a positive integer | Fix the invocation. |
 | 8 | `gh` or `jq` is not on PATH | Carry the telemetry in the cycle report instead. |
-| 9 | The body file is missing, empty, or opens with a literal `@` | NOTHING was written. Fix the body composition; do not re-run blind. |
+| 9 | The body file is missing, empty, or opens with a literal `@` | Nothing was written. Fix the body composition; do not re-run blind. |
 | 10 | The body is not sentinel-prefixed, or carries under 16 payload bytes | Same as code 9. |
 | 11 | The comment lookup failed or returned unparsable JSON | Nothing was written (fail closed). Treat the lane as UNREPORTED. |
 | 12 | No comment available to write to; a create may have landed but was not re-found | Treat the lane as UNREPORTED. |
 | 13 | The PATCH of the canonical comment failed | Treat the lane as UNREPORTED; the comment holds an earlier body, not this cycle's write. |
 | 14 | The canonical comment does not hold this cycle's body after the write (another body, an earlier cycle's included, or none readable) | Treat the lane as UNREPORTED; do not trust the timestamp or the counters the comment shows. |
 | 15 | The write identity is unresolved or `--app-slug` is not a slug (nothing written), or a create landed under another login (a wrong `--app-slug`) | Treat the lane as UNREPORTED; under an App token, pass or fix `--app-slug`. |
-| 16 | No safe body dir (none given, not this plugin's data dir, or `/`, the home dir or an ancestor of it), or the body file is a symlink or resolves outside it | NOTHING was read or written. Compose the body under `--body-dir`. |
-| 17 | The body matches the leak scan, a credential shape or a home path or private hostname (the message names the rule, never the match), or the scan could not run | NOTHING was written. Remove the credential-shaped text and rotate a real credential. |
-| 18 | The resolved lane instance looks like a fleet or private hostname, which the public marker would publish, or that scan could not run | NOTHING was written. Re-run once this cycle with an empty `--instance`, so the script uses the stored random id, and persist that id as `lane_instance`; tell the operator to unset a hostname-shaped `lane_instance` key. |
+| 16 | No safe body dir (none given, not this plugin's data dir, or `/`, the home dir or an ancestor of it), or the body file is a symlink or resolves outside it | Nothing was read or written. Compose the body under `--body-dir`. |
+| 17 | The body matches the leak scan, a credential shape or a home path or private hostname (the message names the rule, never the match), or the scan could not run | Nothing was written. Remove the credential-shaped text and rotate a real credential. |
+| 18 | The resolved lane instance looks like a fleet or private hostname, which the public marker would publish, or that scan could not run | Nothing was written. Re-run once this cycle with an empty `--instance`, so the script uses the stored random id, and persist that id as `lane_instance`; tell the operator to unset a hostname-shaped `lane_instance` key. |
 
 An unreadable comment list is fail-closed rather than read as empty, because treating it as empty
 posts a second comment, the exact failure the singleton exists to prevent.

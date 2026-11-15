@@ -8,7 +8,7 @@ jira-specific operational mechanics a skill needs and does not restate the contr
 **Consume-only.** By default this adapter reads; it never writes. Every coordination write verb
 (create/claim/lease/link/sub-item) and `list-sub-items` are declared `false` in
 `capabilities.json` and exit `6` at the core gate. A skill step that would create, claim, or
-mutate a Jira ticket is unavailable on a Jira binding, by design (issue #379 hard constraint).
+mutate a Jira ticket is unavailable on a Jira binding, by design.
 Enabling writes is a sequenced follow-up, not a local edit.
 
 ## Resolve item ID

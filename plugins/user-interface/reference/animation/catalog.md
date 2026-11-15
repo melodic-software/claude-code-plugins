@@ -160,14 +160,11 @@ project's existing stack does the job.
   The same goes for a toast that travels the full viewport height to arrive. Travel distances stay
   small (`animation.travel_px.medium` to `animation.travel_px.large`) unless the element really is
   coming from off-screen, like a drawer.
-- **Make scaling origin-aware.** Popovers, dropdowns, and tooltips must scale from their trigger,
-  not from center. Set `transform-origin` to the trigger side. The popover recipe in
-  `/user-interface:write-css` shows the CSS, and `behaviors.md` `popover` the behavior.
-- Modals and popovers should scale up from the element that triggered them (shared origin), not
-  pop from screen center: origin creates continuity. (Exception: viewport-centered modals with no
-  anchored trigger stay centered.) In practice the trigger origin applies to anchored surfaces
-  (popovers, dropdowns, tooltips, menus); a modal centered in the viewport, the usual case, stays
-  centered (`behaviors.md` `modal`).
+- **Make scaling origin-aware.** Anchored surfaces (popovers, dropdowns, tooltips, menus) scale
+  from their trigger, not from center, because a shared origin creates continuity: set
+  `transform-origin` to the trigger side. A modal centered in the viewport, the usual case, stays
+  centered (`behaviors.md` `modal`). The popover recipe in `/user-interface:write-css` shows the
+  CSS, and `behaviors.md` `popover` the behavior.
 - **Paired elements share timing.** Modal + overlay, drawer + backdrop, tooltip + arrow: if they
   move as a unit, give them identical duration and easing. Mismatched timing reads as broken. A
   modal at 300ms over a backdrop at 150ms reads as two unrelated things happening near each other.
@@ -288,7 +285,7 @@ from `scale(0.95)`, out of the trigger.
 
 The good one feels better for three reasons. `ease-out` is fast at the beginning, so it feels
 snappy. `scale(0.95)` keeps a visible shape, where `scale(0)` makes the menu appear out of nothing.
-And `200ms` is enough for a dropdown used dozens of times a day, with no reason to slow the user down.
+And `200ms` is enough for a dropdown the user opens occasionally, with no reason to slow the user down.
 
 ## Springs: `springs`
 
@@ -567,10 +564,9 @@ entering list), say so and name the check instead of guessing a value:
   and watch each enter and exit
   for a jump at the start or the end". Report these as checks to run, never as verified.
 - Test gestures on a real device, not an emulator or a laptop trackpad.
-- Don't ship an animation in the same sitting you wrote it. Come back with fresh eyes: the best
-  motion is refined over days, not hours. And use your own product daily: the animations that
-  become annoying through repetition are the ones to remove. Details that go unnoticed are the
-  goal; users should finish their task, not admire the transition.
+- Put on the human list: "look at each new animation again on a later day, and remove the ones
+  that grow annoying through daily use". Details that go unnoticed are the goal; users should
+  finish their task, not admire the transition.
 
 ## Never ship: `never-ship`
 

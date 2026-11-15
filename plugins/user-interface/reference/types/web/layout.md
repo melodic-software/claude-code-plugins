@@ -40,8 +40,8 @@ because layout doesn't own forms. Next comes one concern for whatever the screen
    borders, fewer shadows, fewer competing focal points.
 3. **Space with system, not eyeballing.** Spacing follows a consistent scale, not arbitrary one-off
    values, and `gap` over per-child margins.
-4. **Know when to break the rules.** The baseline-grid rule below is a trick question on purpose.
-   The rule is the default; context decides.
+4. **Know when to break the rules.** A rule here is the default; context decides, as the
+   baseline-grid rule in section 5 shows.
 5. **Specific beats generic.** "Save changes" beats "Submit". "Your email must include an @ symbol"
    beats "Invalid input". Empty states say why and what to do next.
 6. **Use semantic tokens and perceptual color spaces.** `--color-border-subtle` over raw hex; OKLCH
@@ -114,7 +114,7 @@ A simple marketing page doesn't need a 12-column grid: `layout.simple_page_colum
 fewer) does the job without configuration overhead.
 
 Baseline grids are an editorial tool: they shine in long-form layouts and are usually overkill in
-dense product UI. (Trick question: know which context you're in.)
+dense product UI, so decide which context the page is in first.
 
 Symmetric two-column layouts are static; a wider column offset by a narrower one creates tension
 and interest.

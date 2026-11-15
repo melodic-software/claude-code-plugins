@@ -28,8 +28,9 @@ checks; other interface copy is the plain-language rule in `../../principles.md`
 stroke weights are the `icons` concern; typeface selection and pairing, missing font weights,
 heading wraps, typographic characters, casing in CSS and the `lang` attribute are the `typography`
 concern; building a palette is the `color` concern, and so is the contrast a gradient headline
-loses; banding, shadows versus borders and nested radii are the `shape-and-depth` concern; dark
-mode surfaces are the `theming` concern; the framework's default page title and favicon are the
+loses; banding, shadows versus borders and nested radii are the `shape-and-depth` concern; the
+colors dark mode surfaces take are the `color` concern, and a surface that breaks or fails to flip in
+the other theme is the `theming` concern; the framework's default page title and favicon are the
 `marketing-pages` concern; alt text that is a file name is the `accessibility` concern.
 
 Contents: 1 the pass, 2 subtract first, 3 color, 4 typography, 5 layout, 6 decoration, 7

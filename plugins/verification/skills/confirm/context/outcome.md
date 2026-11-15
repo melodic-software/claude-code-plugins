@@ -44,7 +44,7 @@ Rank each piece of test evidence by how independent its expected value is from t
 
 Label every test the producing session wrote as self-authored in the evidence table. A criterion proved only by rank 4 evidence is not COMPLETE. List every plan item whose best evidence is rank 4, or that no check exercised, under "Not proved by these checks", so a reviewer sees what the green checks did not cover.
 
-Basis: LLM-written test oracles were measured to assert what the code does rather than what it should do (three papers, measured on LLM test generators over benchmark repositories; the transfer to an interactive agent is inferred). Recorded in the agent-self-check research slice, prompted by Addy Osmani's 2026-10-05 post (<https://x.com/addyosmani/status/2106995301802541481>). Recheck trigger: a measurement on interactive coding agents that contradicts it.
+Basis: LLM-written test oracles were measured to assert what the code does rather than what it should do (three papers, measured on LLM test generators over benchmark repositories; the transfer to an interactive agent is inferred). Recorded in the agent-self-check research slice. Recheck trigger: a measurement on interactive coding agents that contradicts it.
 
 ### 5. Report
 
@@ -183,4 +183,4 @@ When the change ships anything to a browser, the verdict requires captured evide
 - **Storage.** Binary captures stay gitignored; persist an assertion-only manifest (frontmatter with `verified_at_sha`, a `## Reproduction` fenced block with the exact commands a reviewer runs locally, the artifacts table, the behavior assertion) beside the change's plan/notes artifacts. No absolute paths to gitignored captures
 - **Degraded path.** In sandboxed/cloud sessions that cannot run a browser, say so explicitly and mark UI verification as not performed; never substitute a static read for runtime evidence silently
 
-When `/verification:confirm outcome` produces a verdict, copy the required-artifacts table inline AND cite the manifest path so PR reviewers don't need to follow the link.
+When `/verification:confirm outcome` produces a verdict, copy the required-artifacts table inline in the report and paste the manifest into the pull request body or the linked issue (SKILL.md), so reviewers need no local file.

@@ -120,10 +120,9 @@ missing or mounted per tooltip instead of once.
 
 ## Drawer and sheet: `drawer`
 
-- Slides in from its edge by its own full size (a percent translate), and leaves through the same
-  edge. Slides from its edge with a translate transition (interruptible: users close drawers
-  mid-open). `animation.duration_ms.large` ease-out enter, faster exit. Backdrop fades with the same
-  timing.
+- Slides in from its edge by its own full size (a percent translate) with a translate transition,
+  which stays interruptible because users close drawers mid-open, and leaves through the same
+  edge, faster. The backdrop fades with the same timing.
 - Role `large`, curve `drawer`, on the way in and on the way out: a drawer leaves but stays nearby.
 - Dragging it turns it into a gesture: `drag-to-dismiss` and `gestures.md`. If the drawer is
   draggable (mobile sheet), use a spring so release velocity carries into the animation.
@@ -183,7 +182,7 @@ interval in `catalog.md`. On a marketing page, an entrance that replays on every
 Illustration (Motion for React):
 
 ```tsx
-const list = { show: { transition: { staggerChildren: 0.09 } } };
+const list = { show: { transition: { staggerChildren: {{animation.stagger_ms.section}} / 1000 } } };
 const piece = {
   hide: { opacity: 0, filter: "blur(2px)", y: 8 },
   show: { opacity: 1, filter: "blur(0px)", y: 0 },
@@ -204,7 +203,7 @@ Illustration (CSS; set `--n` per child, 0, 1, 2 and so on, in the markup):
   translate: 0 8px;
   filter: blur(2px);
   animation: rise-in 350ms ease-out forwards;
-  animation-delay: calc(var(--n, 0) * 90ms);
+  animation-delay: calc(var(--n, 0) * {{animation.stagger_ms.section}}ms);
 }
 @keyframes rise-in {
   to { opacity: 1; translate: 0 0; filter: none; }

@@ -12,7 +12,7 @@ metadata:
 
 ## Purpose
 
-`/verification:measure` answers **"did the claimed improvement actually happen, by how much?"**. It MEASURES a delta (before → after) against a baseline captured before the change. It is the measurable-delta twin of `/verification:confirm` (which confirms intent/outcome) and is distinct from a review gate (which reviews design quality for ship-readiness on an absolute axis).
+`/verification:measure` answers **"did the claimed improvement actually happen, by how much?"**. It measures a delta (before → after) against a baseline captured before the change. It is the measurable-delta twin of `/verification:confirm` (which confirms intent/outcome) and is distinct from a review gate (which reviews design quality for ship-readiness on an absolute axis).
 
 Core rule: **never claim improvement without a baseline captured before the change.** If no baseline exists, report honestly, "Baseline not captured. Current measurement: X. Cannot quantify improvement.", and never fabricate a delta.
 
@@ -46,13 +46,13 @@ Each context file owns its family's full discipline: claim-to-metric mapping, me
 
 ## Prerequisite. Green mechanical state (both phases)
 
-Measuring broken code is meaningless, and a baseline captured on a broken tree poisons every later comparison. Before EITHER phase, `baseline` capture or `compare`, confirm the mechanical pass is green: reuse a `/toolchain:check` or `/verification:confirm` Stage-1 result from this conversation if nothing changed since; otherwise invoke `/toolchain:check` via the Skill tool when the `toolchain` plugin is installed, or run the project's own build/test command when it is absent. Do not reimplement build/test/lint here.
+Measuring broken code is meaningless, and a baseline captured on a broken tree poisons every later comparison. Before either phase, `baseline` capture or `compare`, confirm the mechanical pass is green: reuse a `/toolchain:check` or `/verification:confirm` Stage-1 result from this conversation if nothing changed since; otherwise invoke `/toolchain:check` via the Skill tool when the `toolchain` plugin is installed, or run the project's own build/test command when it is absent. Do not reimplement build/test/lint here.
 
 ## Integration
 
 | Condition | Action |
 |-----------|--------|
-| An approved plan states a measurable goal | Run the `baseline` phase BEFORE implementation |
+| An approved plan states a measurable goal | Run the `baseline` phase before implementation |
 | Improvement claimed without data (in `/verification:confirm`, review, or conversation) | Redirect here. `performance` or `metrics` per the claim |
 | Verdict is DEGRADED or NOT CONFIRMED | Surface immediately; the claim does not hold. Fix or withdraw it |
 | Measurement complete | Feed the comparison table into the `/verification:confirm` outcome report; surface the summary in the plan artifact / PR body |
@@ -78,7 +78,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/confirm-verdict.sh" record --of measure --he
 The record is advisory. It never gates the `ready` flip, and a commit after it leaves the new head
 with no verdict. A `baseline` phase records nothing.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not confirm intent/outcome**. "did we build the right thing" is `/verification:confirm` (`outcome` / `fix` / `refactor` criteria).
 - **Does not review for ship-readiness**. That's the project's review gate; the measure-delta vs review-for-ship boundary is stated in "Purpose" above.
@@ -92,7 +92,7 @@ with no verdict. A `baseline` phase records nothing.
 
 ## Gotchas
 
-- **Baseline BEFORE the change, compared under the SAME conditions after.** Condition drift invalidates the comparison, the run/warm-up/conditions methodology is owned by [context/performance.md](context/performance.md).
+- **Baseline before the change, compared under the same conditions after.** Condition drift invalidates the comparison, the run/warm-up/conditions methodology is owned by [context/performance.md](context/performance.md).
 - **Noise floor first.** If the projected saving sits within run-to-run variance, the change is unmeasurable. Surface that before the work, not after (detail: [context/performance.md](context/performance.md)).
 - **A drifting host needs more than a noise-floor warning.** When the machine's own spread makes a wall-clock comparison meaningless (a bimodal no-op-spawn signature, arms that cannot be run in one pass, no drift-immune counter agreed), route to `/performance:snapshot` when the `performance` plugin is enabled: it qualifies the host before measuring, interleaves the arms within one run, ranks a drift-immune counter above any duration, and refuses a wall-clock claim this skill would still report with a warning. This skill remains SSOT for baseline capture, storage, and the compare mechanics that plugin builds on.
 - **Never fabricate numbers.** No baseline, high variance, or differing conditions → INCONCLUSIVE / NOT CONFIRMED, stated plainly.

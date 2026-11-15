@@ -72,9 +72,7 @@ The precise ask:
 > zero) minus padding, floored at zero
 
 With it the photo gets 12px (20px − 0px border − 8px padding), and its corners run
-parallel to the card's with an even 8px gap all the way around. If you say that the corners look
-off, the agent might get it right, but it also might not. You could give it the right formula to
-calculate the correct radius instead. Way more precise, leaves no room for error.
+parallel to the card's with an even 8px gap all the way around.
 
 Nested border radii are a common source of frustration. They are easy to get wrong. But there's a
 formula to calculate the correct value, so why not build a tool that checks whether the correct

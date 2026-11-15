@@ -92,7 +92,7 @@ on a phone is the difference between a signup and a bounce.
 
 Kill noisy browser behaviors when they don't help. Disable `spellcheck` and `autocomplete` most of
 the time for cleaner UX (search fields, slugs, API keys: anything that isn't a real address or
-identity field). Keep autocomplete ON for email, name, username, address, and payment fields: there
+identity field). Keep autocomplete on for email, name, username, address, and payment fields: there
 it genuinely helps. Usernames and one-time codes keep `spellcheck="false"` but take their own
 tokens, `username` and `one-time-code`, so the browser or password manager can fill them. Disable
 1Password's overlay on fields where it doesn't belong (a search box, a project name):
@@ -169,7 +169,7 @@ clear button that leaves focus off the input.
 
 ## 5. Autofocus: yes in modals, never on touch
 
-Autofocus the first input when a modal opens (if the modal contains one). Do NOT autofocus on touch
+Autofocus the first input when a modal opens (if the modal contains one). Do not autofocus on touch
 devices: it pops the keyboard open unexpectedly. Gate it on a coarse pointer:
 
 ```jsx
@@ -358,7 +358,7 @@ typed.
 ## 9. Validate late, not on every keystroke
 
 Don't flag a field as invalid while the user is still typing their first attempt: validate on blur
-or on submit. Once a field HAS shown an error, switch to validating on change so the error clears the
+or on submit. Once a field has shown an error, switch to validating on change so the error clears the
 moment they fix it ("reward early, punish late"). In CSS alone, recipe
 `form-feedback-with-user-invalid` waits for the user the same way.
 
@@ -415,7 +415,7 @@ users can't tell active from broken.
 
 ## 11. No dead zones on checkboxes and controls
 
-The label, the control, AND the gap between them must all be clickable. A 16px checkbox with a label
+The label, the control, and the gap between them must all be clickable. A 16px checkbox with a label
 that doesn't toggle it is a tap target nobody can hit.
 
 ```css

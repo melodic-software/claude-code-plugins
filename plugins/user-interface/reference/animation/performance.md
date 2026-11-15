@@ -72,8 +72,8 @@ every frame.
 `height: auto` isn't animatable. Measure and animate the pixel value once, animate
 `grid-template-rows: 0fr → 1fr`, or clip an inner element. Animating `height` to expand panels
 triggers layout every frame; animate `transform: scaleY()` or use a clip, or measure and animate
-once. A sidebar that opens forty times a session and animates `width` is a blocker; a rarely opened
-settings accordion animating `height` is a should-fix. The measured accordion in `catalog.md`
+once. A sidebar that opens forty times a session and animates `width` is Blocking; a rarely opened
+settings accordion animating `height` is Important. The measured accordion in `catalog.md`
 ("Properties") is the sanctioned exception, not a finding.
 
 **Audit: Blocking.** A layout property (`width`, `height`, `margin`, `padding`, `top`, `left`,
@@ -205,14 +205,11 @@ container whose children read the variable in `transform`.
 
 ## Blur: `blur`
 
-Animated blur gets expensive fast, and its cost grows with the radius and the blurred area; some
-engines are slower than others. A small radius is enough to soften a crossfade. Measure a large or
-full-screen blur on the slowest target device before shipping it.
-
-`filter: blur()` cost explodes past `animation.blur_max_px`, in some engines more than others.
-`animation.blur_px.soften` masks a crossfade; anything larger on an animating or full-screen
-element is a frame-rate problem. Keep blurs subtle and off frequently-animating elements. No
-engine documents a radius limit, so `animation.blur_max_px` is a default a project may move.
+Animated blur gets expensive fast: its cost grows with the radius and the blurred area, explodes
+past `animation.blur_max_px`, and is higher in some engines than others. `animation.blur_px.soften`
+is enough to mask a crossfade; keep blurs that small and off frequently-animating elements, and
+measure a large or full-screen blur on the slowest target device before shipping it. No engine
+documents a radius limit, so `animation.blur_max_px` is a default a project may move.
 
 **Audit: Important.** `blur(` over `animation.blur_max_px` on an animated element;
 `backdrop-filter: blur()` on a full-viewport overlay or on a sticky header over a long scrolling

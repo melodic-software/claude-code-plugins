@@ -14,8 +14,8 @@ repository file after validating it; `/verification:setup check` validates it.
 
 ## What each level requires
 
-- **`path`**: the behavior before this setting existed. A live run is required only when a changed
-  file matches a runtime-affecting path in `/verification:confirm`.
+- **`path`**: a live run is required only when a changed file matches a runtime-affecting path in
+  `/verification:confirm`.
 - **`live`**: any change with a runnable surface is driven in the live app when the app can be
   launched. When it cannot be launched, the change gets the non-UI check from the check-to-change
   table in `skills/confirm/context/outcome.md` (read the stored value back, replay a saved input,
@@ -89,7 +89,7 @@ entry point. It decides only how many workers run that drive; `proof_level` stil
 live drive is required. `/verification:confirm` resolves it once per run, beside `proof_level`, and
 never asks the user.
 
-1. **Default:** `1`, a single drive, the behavior before this key existed.
+1. **Default:** `1`, a single drive.
 2. **User option:** `${user_config.live_workers}`, rendered into the skill. A literal, unexpanded
    placeholder means unset.
 3. **Repository file:** `live_workers` in `docs/conventions/verification.yaml`, read from origin's
