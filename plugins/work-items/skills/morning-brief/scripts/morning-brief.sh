@@ -2567,6 +2567,12 @@ print_lanes() {
 # operator), per the work-items escalation-marker reference. The operator
 # login's actions include any agent session holding that login.
 #
+# The same pages give the share of pull requests merged in the window that no
+# person touched: no commit by a person on the PR, and no review or comment by
+# a person from its open to its merge. A Bot account, a login ending in [bot]
+# and the lane identity are not people; a commit author with no GitHub user is
+# a person unless its email is a [bot] noreply address.
+#
 # One paged GraphQL search per UTC day (`updated:` within that day), so each
 # stays under the search's 1,000-result ceiling; every item with an event in
 # the window was updated on or after the window's start, so it lands in
@@ -2600,7 +2606,14 @@ TOUCH_QUERY='
             @FIELDS@
           }
           ... on PullRequest {
-            number
+            number createdAt mergedAt
+            touch: timelineItems(first:100, itemTypes:[PULL_REQUEST_COMMIT, PULL_REQUEST_REVIEW, ISSUE_COMMENT]) {
+              pageInfo { hasNextPage }
+              nodes { __typename
+                ... on PullRequestCommit { commit { author { email user { login } } } }
+                ... on PullRequestReview { createdAt author { __typename login } }
+                ... on IssueComment { createdAt author { __typename login } } }
+            }
             acts: timelineItems(since:$since, first:100, itemTypes:[ISSUE_COMMENT, PULL_REQUEST_REVIEW, MERGED_EVENT]) {
               pageInfo { hasNextPage }
               nodes { __typename
@@ -2676,6 +2689,11 @@ TOUCH_JQ='
     // first($l[1:2][] | capture("^<!-- babysit-merge-(?<r>[a-z0-9-]+) -->").r)
     // first($l[1:2][] | capture("^<!-- work-resolve-issue outcome=(?<r>[a-z]+(-[a-z]+)*)").r)
     // "unspecified";
+  def bot($a): ($a.__typename // "") == "Bot" or ($a.login // "" | test("\\[bot\\]$"; "i"))
+    or ($a.login // "" | norm) == ($lane | norm);
+  def person($a): ($a.login // "") != "" and (bot($a) | not);
+  def person_commit($g): if ($g.user.login // "") != "" then person($g.user)
+    else ($g.email // "" | test("\\[bot\\]@users\\.noreply\\.github\\.com$"; "i") | not) end;
   ($op | norm) as $op
   | ($trusted | map(norm)) as $trusted
   | [ .. | objects | select(has("data")) | .data.search.nodes[]? | select(type == "object" and .number != null) ]
@@ -2714,6 +2732,19 @@ TOUCH_JQ='
     ( $days[] as $d | [ $ev[] | select(.at[0:10] == $d) ] as $de
       | "  \($d)  " + ($cols | map(. as $c | [ $de[] | select(.k == $c) ] | length | pad(9)) | join(""))
         + ([ $de[] | select(.k == "hold-off" and .op) ] | length | pad(22)) ),
+    ( [ $items[] | select(.__typename == "PullRequest" and .mergedAt != null and (.mergedAt | ep) >= $start)
+        | (.mergedAt | ep) as $end | ((.createdAt // .mergedAt) | ep) as $open
+        | ([ .touch.nodes[]? | select(if .__typename == "PullRequestCommit" then person_commit(.commit.author // {})
+               else .createdAt != null and (.createdAt | ep) >= $open and (.createdAt | ep) <= $end and person(.author // {}) end) ]
+           | length > 0) as $touched
+        | {n: .number, touched: $touched, partial: (($touched | not) and .touch.pageInfo.hasNextPage == true)} ] as $mr
+      | if ($mr | length) == 0 then "  merged with no human touch: no pull request merged in the window"
+        else ([ $mr[] | select(.touched | not) ] | length) as $u
+          | "  merged with no human touch: \($u) of \($mr | length) pull requests merged in the window (\($u * 100 / ($mr | length) | floor)%)",
+            ( [ $mr[] | select(.partial) | "#\(.n)" ] as $p
+              | if ($p | length) > 0 then "  PARTIAL: more than 100 commits, reviews and comments on \($p | join(" ")); read as untouched from the first 100" else empty end )
+        end ),
+    "  note: a touch is a commit on the pull request, or a review or comment from its open to its merge, by a person; a Bot account, a login ending in [bot] and the lane identity are not people, the operator login is, and the merge itself is not a touch",
     ( [ $ev[] | select(.k == "hold-off") ] as $off
       | if ($off | length) == 0 then "  hold waits: no hold lifted in the window"
         else ([ $off[] | .wait | select(. != null) ] | sort) as $w
@@ -2801,7 +2832,7 @@ print_touches() {
     return
   }
   trusted="$(jq -cn --arg a "$op" --arg b "$lane_id" '[$a, $b] | map(select(length > 0))')"
-  out="$(jq -s -r --arg op "$op" --argjson trusted "$trusted" --arg hold "$HOLD_LABEL" --argjson m "${STATUS_MODEL:-null}" \
+  out="$(jq -s -r --arg op "$op" --arg lane "$lane_id" --argjson trusted "$trusted" --arg hold "$HOLD_LABEL" --argjson m "${STATUS_MODEL:-null}" \
     --argjson start "$start" --argjson now "$NOW_EPOCH" --argjson cap "$TOUCH_TOP" "$STATUS_DEFS$TOUCH_JQ" "$pages" 2>&1)" || {
     unreadable touches "could not parse the owner-touch pages: ${out%%$'\n'*}"
     return

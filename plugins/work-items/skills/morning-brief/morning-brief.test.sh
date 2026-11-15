@@ -953,6 +953,57 @@ assert_contains "touches: no repo and no fixture is an empty state" "$(section "
 bash "$BRIEF" --touch-days 0 >/dev/null 2>&1
 assert_exit "touches: --touch-days 0 exits 3" 3 "$?"
 
+# Merges no person touched, over the same window (07-19 and 07-20).
+#  #311 untouched: a bot-email commit, a Bot comment, a lane-identity review,
+#    and a person's comment after the merge.
+#  #312 a person's commit; #313 a person's review; #314 a person's comment.
+#  #315 merged before the window; #316 still open; neither is counted.
+#  #317 untouched in its first 100 timeline items, with more past them.
+cat >"$TMP/touch-merged.json" <<'EOF'
+{"owner": "op-user", "laneIdentity": "lanes-app[bot]", "pages": [{"data": {"search": {"issueCount": 7, "pageInfo": {"hasNextPage": false}, "nodes": [
+  {"__typename": "PullRequest", "number": 311, "createdAt": "2026-07-19T01:00:00Z", "mergedAt": "2026-07-20T05:00:00Z",
+   "touch": {"pageInfo": {"hasNextPage": false}, "nodes": [
+     {"__typename": "PullRequestCommit", "commit": {"author": {"email": "1+lanes-app[bot]@users.noreply.github.com", "user": null}}},
+     {"__typename": "IssueComment", "createdAt": "2026-07-19T02:00:00Z", "author": {"__typename": "Bot", "login": "review-app"}},
+     {"__typename": "PullRequestReview", "createdAt": "2026-07-19T03:00:00Z", "author": {"__typename": "User", "login": "lanes-app"}},
+     {"__typename": "IssueComment", "createdAt": "2026-07-20T06:00:00Z", "author": {"__typename": "User", "login": "someone"}}]}},
+  {"__typename": "PullRequest", "number": 312, "createdAt": "2026-07-19T01:00:00Z", "mergedAt": "2026-07-19T05:00:00Z",
+   "touch": {"pageInfo": {"hasNextPage": false}, "nodes": [
+     {"__typename": "PullRequestCommit", "commit": {"author": {"email": "dev@example.com", "user": {"login": "dev-person"}}}}]}},
+  {"__typename": "PullRequest", "number": 313, "createdAt": "2026-07-19T01:00:00Z", "mergedAt": "2026-07-19T06:00:00Z",
+   "touch": {"pageInfo": {"hasNextPage": false}, "nodes": [
+     {"__typename": "PullRequestReview", "createdAt": "2026-07-19T02:00:00Z", "author": {"__typename": "User", "login": "op-user"}}]}},
+  {"__typename": "PullRequest", "number": 314, "createdAt": "2026-07-19T01:00:00Z", "mergedAt": "2026-07-19T07:00:00Z",
+   "touch": {"pageInfo": {"hasNextPage": false}, "nodes": [
+     {"__typename": "IssueComment", "createdAt": "2026-07-19T02:00:00Z", "author": {"__typename": "User", "login": "someone"}}]}},
+  {"__typename": "PullRequest", "number": 315, "createdAt": "2026-07-17T01:00:00Z", "mergedAt": "2026-07-18T05:00:00Z",
+   "touch": {"pageInfo": {"hasNextPage": false}, "nodes": []}},
+  {"__typename": "PullRequest", "number": 316, "createdAt": "2026-07-19T01:00:00Z", "mergedAt": null,
+   "touch": {"pageInfo": {"hasNextPage": false}, "nodes": []}},
+  {"__typename": "PullRequest", "number": 317, "createdAt": "2026-07-19T01:00:00Z", "mergedAt": "2026-07-19T08:00:00Z",
+   "touch": {"pageInfo": {"hasNextPage": true}, "nodes": []}}
+]}}}]}
+EOF
+TOUCH_MERGED_SEC="$(section "$(run_touch --touch-json "$TMP/touch-merged.json")" "== Owner touches")"
+assert_contains "touches: merges no person touched, of those merged in the window" "$TOUCH_MERGED_SEC" \
+  "  merged with no human touch: 2 of 5 pull requests merged in the window (40%)"
+assert_contains "touches: an untouched merge past the timeline cap is PARTIAL" "$TOUCH_MERGED_SEC" \
+  "  PARTIAL: more than 100 commits, reviews and comments on #317"
+assert_contains "touches: how a touch is counted is printed" "$TOUCH_MERGED_SEC" \
+  "  note: a touch is a commit on the pull request, or a review or comment from its open to its merge, by a person"
+for touch_case in "312 commit" "313 review" "314 comment"; do
+  jq --argjson n "${touch_case%% *}" '.pages[0].data.search.nodes |= map(select(.number == 311 or .number == $n))' \
+    "$TMP/touch-merged.json" >"$TMP/touch-merged-one.json"
+  assert_contains "touches: a person's ${touch_case#* } is a touch" \
+    "$(section "$(run_touch --touch-json "$TMP/touch-merged-one.json")" "== Owner touches")" \
+    "  merged with no human touch: 1 of 2 pull requests merged in the window (50%)"
+done
+assert_contains "touches: --touch-days narrows the merges counted" \
+  "$(section "$(run_touch --touch-json "$TMP/touch-merged.json" --touch-days 1)" "== Owner touches")" \
+  "  merged with no human touch: 1 of 1 pull requests merged in the window (100%)"
+assert_contains "touches: no merge in the window says so" "$TOUCH_SEC" \
+  "  merged with no human touch: no pull request merged in the window"
+
 # --- Degraded-mode contract: an unreadable source is never an all-clear -------
 # A `gh` test double on PATH stands in for the network. MB_GH_MODE selects the
 # host's behavior:
