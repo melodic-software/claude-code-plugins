@@ -43,6 +43,9 @@
     },
     {
       "answer": "**Observation check:** not run.\n**Capture:** the screenshot is stale."
+    },
+    {
+      "answer": "**Observation check:** not run; the capture in the screenshots folder failed."
     }
   ]
 }
