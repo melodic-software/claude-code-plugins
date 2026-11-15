@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.1] - 2026-11-15
+
+### Changed
+
+- `/testing:write` property guidance now states that it covers every target, a running UI included, and that a fuzz test follows it as a property whose only rule is "does not crash". Fuzz requests route to the property guide.
+
 ## [5.1.0] - 2026-11-15
 
 ### Changed
