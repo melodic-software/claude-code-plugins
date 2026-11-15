@@ -1,5 +1,12 @@
 # Changelog: session-flow plugin
 
+## [9.0.6] - 2026-11-15
+
+### Changed
+
+- `/session-flow:workflow`'s step notes say "green commits to return to" where they said "save
+  points", which the glossary keeps for the handoff save-point.
+
 ## [9.0.5] - 2026-11-15
 
 ### Changed
