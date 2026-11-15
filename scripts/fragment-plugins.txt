@@ -45,6 +45,7 @@ event-storming
 explainer-video
 firecrawl
 fleet
+formal-verification
 gaming
 github
 go-format

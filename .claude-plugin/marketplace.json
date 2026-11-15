@@ -612,6 +612,21 @@
       ]
     },
     {
+      "name": "formal-verification",
+      "source": "./plugins/formal-verification",
+      "category": "testing",
+      "tags": [
+        "formal-verification",
+        "tla-plus",
+        "tlc",
+        "model-checking",
+        "statechart",
+        "mermaid",
+        "skill"
+      ],
+      "defaultEnabled": false
+    },
+    {
       "name": "code-tidying",
       "source": "./plugins/code-tidying",
       "category": "maintenance",

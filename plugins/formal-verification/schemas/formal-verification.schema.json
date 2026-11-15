@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/formal-verification/schemas/formal-verification.schema.json",
+  "title": "Formal-verification team config",
+  "description": "Schema for formal-verification.yaml in a repository's convention home (default docs/conventions): version pins and default bounds. Every key is optional; an absent key takes its value from the plugin's defaults.json. scripts/settings.mjs resolves the layers. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "model_checker": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The TLC model checker jar that /formal-verification:setup apply install-model-checker downloads and checks.",
+      "properties": {
+        "version": { "type": "string", "description": "Release of tla2tools.jar, used in the installed file name." },
+        "url": { "type": "string", "description": "Where the jar is downloaded from." },
+        "sha256": { "type": "string", "description": "The jar's SHA-256, lowercase hex. A download that does not match is discarded." }
+      }
+    },
+    "java": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The Java that runs TLC. The plugin never installs Java.",
+      "properties": {
+        "min_version": { "type": "string", "description": "Lowest Java major version setup accepts." },
+        "distribution": { "type": "string", "description": "The Java distribution setup names in its install hint." }
+      }
+    },
+    "renderer": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The image renderer, used only when an image of a chart is asked for.",
+      "properties": {
+        "package": { "type": "string", "description": "npm package name of the renderer." },
+        "version": { "type": "string", "description": "Renderer version." },
+        "url": { "type": "string", "description": "Tarball URL setup downloads." },
+        "integrity": { "type": "string", "description": "The tarball's sha512 Subresource Integrity string. A download that does not match is discarded." },
+        "limit": { "type": "integer", "minimum": 1, "description": "The render call's limit option." },
+        "output_limit": { "type": "integer", "minimum": 1, "description": "The render call's outputLimit option." },
+        "max_edges": { "type": "integer", "minimum": 1, "description": "The render call's maxEdges option." }
+      }
+    },
+    "bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Default bounds for /formal-verification:chart. A model's run command can pass its own.",
+      "properties": {
+        "chart_states": { "type": "integer", "minimum": 1, "description": "The chart budget in distinct states (the script's --chart-states)." },
+        "rerun_states": { "type": "integer", "minimum": 1, "description": "After the first break, each TLC run stops at this many distinct states (the script's --rerun-states)." }
+      }
+    }
+  }
+}
