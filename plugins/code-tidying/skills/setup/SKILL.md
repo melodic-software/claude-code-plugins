@@ -1,5 +1,5 @@
 ---
-description: "Checks or scaffolds this repository's code-tidying configuration: tracked project tidy lanes, the optional HARD-exclusion overrides file, and the comment-lint git pre-commit entry. Use when 'set up code-tidying' is asked, the tidy skill reports no project lanes, or a session-start line says the comment-lint git hook is missing or stale. Actions: check (read-only, default) | apply [<lane>] | apply install-git-hooks [scope=local|shared]."
+description: "Checks or scaffolds this repository's code-tidying configuration: tracked project tidy lanes, the optional HARD-exclusion overrides file, and the comment-lint git pre-commit entry. Use when 'set up code-tidying' is asked, the tidy skill reports no project lanes, or a session-start line says the comment-lint git hook is missing or stale. Actions: check (read-only, default), apply (one named lane or all), apply install-git-hooks (scope local or shared)."
 argument-hint: "[check|apply [<lane>|install-git-hooks [scope=local|shared]]]"
 user-invocable: true
 disable-model-invocation: true
