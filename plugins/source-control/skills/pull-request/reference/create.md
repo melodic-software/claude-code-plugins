@@ -536,7 +536,7 @@ The message names the missing heading(s) and the resolved config source (§2.4.1
 
 **PR states.** Each state has one meaning:
 
-- **Save point:** commits pushed to the feature branch, with no PR. Pushing is how work is saved;
+- **PR-less:** commits pushed to the feature branch, with no PR. Pushing is how work is saved;
   a PR is never opened only to save it.
 - **Draft:** a PR a person asked to see early, or a multi-session container (a PR later sessions
   will keep adding to before it is complete); both carry a `Draft:` body line that holds them

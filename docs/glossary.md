@@ -62,7 +62,7 @@ The moment a stage has produced its artifact and the next has not begun.
 What a session leaves for a fresh session to resume from: a resume prompt, always, plus an optional
 handoff file the prompt points to.
 
-Avoid: checkpoint
+Avoid: checkpoint; save point for pushed commits with no pull request (that state is PR-less)
 
 **primary source**
 

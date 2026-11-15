@@ -131,10 +131,10 @@ Either way the commit checkpoint follows the last green check.
 
 ### Commit discipline
 
-- **Commit after tests pass**. Each commit is a green save point, except a red commit inside a declared planned-breakage span (Execution cadence item 5)
+- **Commit after tests pass**. Each commit is a green commit to return to, except a red commit inside a declared planned-breakage span (Execution cadence item 5)
 - **Default delivery order**. Commits that delete code go ahead of the commits that build on what is left, and in a fix the commit holding the failing test goes ahead of the fix itself. Under a project-declared tests-after cadence the failing-test commit is optional. A baseline (a benchmark run, a captured output) is captured in a commit ahead of the change it measures, since a baseline taken after the change measures the changed code and cannot show what moved; the test is whether the change claims a difference against earlier behavior. A scaffold (the empty module, the wiring, the interface) lands ahead of the feature built on it, so the scaffold's commit is checked green alone and a failure in the feature's commit belongs to the feature; the test is whether the feature's commit would otherwise mix new structure with new behavior (pstack's `sequence-verifiable-units` principle)
 - **Separate structural from behavioral commits**. A rename/extract gets its own commit, separate from new features (Tidy First: "make the change easy, then make the easy change")
-- **Commit before running a simplify pass**. Your working code is a save point. If simplification introduces a bad change, revert cleanly
+- **Commit before running a simplify pass**. Your working code is a known-good commit to return to. If simplification introduces a bad change, revert cleanly
 - **Stage specific files**. `git add <file>`, never `git add -A` or `git add .`
 - **Fix the finding, never silence it**. Do not add a lint or type-checker suppression (`eslint-disable`, `# noqa`, `# type: ignore`, `#pragma warning disable` and the like) to turn a check green. The one exception is a false positive you have shown to be one: its suppression line names the rule id, where the tool's syntax can name one, and states why the finding is wrong there. A project's own instructions override this rule where they say otherwise
 - **Follow the consuming project's commit-message convention** (check its `CLAUDE.md` / rules; Conventional Commits is a common default). On squash-merge workflows, feature-branch messages matter less than the final squash subject

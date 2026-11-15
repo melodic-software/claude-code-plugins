@@ -2,7 +2,7 @@
 
 ## Pull request states
 
-Open pull requests with `/source-control:pull-request create`, which owns what save point, draft
+Open pull requests with `/source-control:pull-request create`, which owns what PR-less, draft
 and ready mean and when a pull request stays a draft; this repository sets `pr_open_state: ready`
 (`docs/conventions/source-control.yaml`), over any per-user value. A draft skips the test lanes and
 both AI review lanes, and once it is ready they run on every push. None of their checks is
