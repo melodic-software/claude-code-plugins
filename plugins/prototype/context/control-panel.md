@@ -69,6 +69,9 @@ same posture as the switcher: harness chrome, not part of the design being judge
 unbranded, no project tokens. If a variant occupies the top-right (a toast stack, a menu), move the
 panel to top-left rather than shrinking it.
 
+When the mockup is served through the notes host, the host page's notes panel docks at the right
+edge outside the mockup's frame, so this panel keeps its place inside the mockup.
+
 ## Replay
 
 When the prototype carries the variant switcher, it already ships a replay button (`R`) that

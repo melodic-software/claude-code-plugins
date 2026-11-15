@@ -10,7 +10,8 @@
   schema refuses is dropped, and the helper's label is never kept. The one page text a note keeps
   is a selection's quote (anchor.textQuote), cut to the schema's limits. Every string reaches the
   screen through textContent. When the server stops answering, the notes written here stay on this
-  page and Copy all notes makes one prototype-notes block for the session to import.
+  page and Copy all notes makes one prototype-notes block for the session to import. A draft stays
+  on this page, out of that block, until it is sent.
 -->
 <html lang="en">
 <head>
@@ -29,13 +30,17 @@
   ol { margin: 0; padding-inline-start: 1.4em; display: grid; gap: 8px; }
   .where, .state { font-size: 0.9em; opacity: 0.75; }
   .reply { margin: 2px 0 0; padding-inline-start: 8px; border-inline-start: 3px solid rgb(13 148 136); }
+  #panel { display: flex; flex-direction: column; gap: 10px; }
+  body.docked { grid-template-columns: minmax(0, 1fr) auto; }
   [hidden] { display: none !important; }
-  @media (max-width: 720px) { body { grid-template-columns: 1fr; grid-template-rows: 60vh auto; } }
+  @media (max-width: 720px) { body, body.docked { grid-template-columns: 1fr; grid-template-rows: 60vh auto; } }
 </style>
 </head>
 <body>
 <iframe id="page" sandbox="allow-scripts" title="The mockup"></iframe>
 <aside aria-label="Notes">
+  <button type="button" id="dock" aria-expanded="true" aria-controls="panel">Hide notes (N)</button>
+  <div id="panel">
   <h1>Notes to Claude</h1>
   <p id="status" role="status" aria-live="polite">Loading the mockup.</p>
   <p id="session" class="state"></p>
@@ -46,14 +51,17 @@
     <p id="picked" class="where"></p>
     <label for="text">Your note</label>
     <textarea id="text"></textarea>
-    <p><button type="button" id="send">Send</button> <button type="button" id="cancel">Cancel</button></p>
+    <p><button type="button" id="send">Send</button> <button type="button" id="save">Save draft</button> <button type="button" id="cancel">Cancel</button></p>
   </div>
-  <h2>Notes</h2>
-  <ol id="notes"></ol>
+  <h2 id="notes-title" tabindex="-1">Notes</h2>
+  <p id="changes" class="state" aria-live="polite"></p>
+  <ol id="notes" aria-labelledby="notes-title"></ol>
+  <button type="button" id="sendall" hidden>Send all drafts</button>
   <button type="button" id="copy">Copy all notes</button>
   <div id="copyout" hidden>
     <label for="block">Paste this block to Claude</label>
     <textarea id="block" readonly></textarea>
+  </div>
   </div>
 </aside>
 <script type="module">
@@ -64,7 +72,11 @@
   const buttons = { element: $("pick"), region: $("region") };
   const say = (t) => { $("status").textContent = t; };
   let schema = null, token = null, ready = false, loads = 0, picking = null, wantText = false, draft = null, noSession = false;
-  const mine = []; // this page load's notes: {note, where, seq}; seq is null until the session has it
+  let editing = null, opener = null, ids = 0;
+  // This page load's notes: {id, note, where, seq, draft}; seq is null until the session has it, and
+  // a draft is one the person has not sent yet.
+  const mine = [];
+  const shown = new Map(); // seq -> the status last shown, so only a change is announced
   let last = { listening: "idle", notes: [] };
 
   const fits = (value, node) => value !== undefined && problems(value, schema, node).length === 0;
@@ -132,54 +144,121 @@
     return parts.join(" · ");
   }
 
-  function openComposer(note) {
+  /** Open the editor on a new note (`entry` null) or on a draft; `from` gives back the control
+   *  that opened it, which gets the focus when the editor closes. */
+  function openComposer(note, from, entry = null) {
     draft = note;
+    editing = entry;
+    opener = from;
     setPick(null);
+    if ($("panel").hidden) setPanel(true);
     $("picked").textContent = `${{ element: "Picked", text: "Selected", region: "Marked" }[note.kind]}: ${where(note)}`;
     composer.hidden = false;
-    text.value = "";
+    text.value = entry ? entry.note.text : "";
     text.focus();
   }
-  function closeComposer() { draft = null; composer.hidden = true; buttons.element.focus(); }
+  function closeComposer() {
+    draft = editing = null;
+    composer.hidden = true;
+    (opener?.() || buttons.element).focus();
+  }
+  const control = (key) => () => document.querySelector(`[data-key="${key}"]`);
 
-  async function send() {
-    if (!draft) return;
+  /** The composer's note with its text, or null after saying why the contract refuses it. */
+  function written(verb) {
     const note = { ...draft, text: text.value.trim() };
     const found = problems(note, schema);
-    if (found.length) return say(`Not sent: ${found[0]}.`);
+    if (found.length) { say(`Not ${verb}: ${found[0]}.`); return null; }
+    return note;
+  }
+
+  /** Post one entry's note. "sent" gives it its seq; "offline" keeps it here for Copy all notes. */
+  async function deliver(entry) {
     let r, body;
     try {
       r = await fetch("/api/note", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Notes-Token": token },
-        body: JSON.stringify(note),
+        body: JSON.stringify(entry.note),
       });
       body = await r.json();
     } catch {
-      // The server ended: keep the note here, for Copy all notes.
-      mine.push({ note, where: where(note), seq: null });
+      entry.draft = false;
       noSession = true;
-      closeComposer();
-      say("Not sent: no session is answering. The note is kept on this page; Copy all notes makes a block to paste to Claude.");
-      return render();
+      return "offline";
     }
-    if (!r.ok) return say(`Not sent: ${body.error || r.status}.`);
-    mine.push({ note, where: where(note), seq: body.seq });
-    closeComposer();
-    say(`Note ${body.seq} sent.`);
+    if (!r.ok) { say(`Not sent: ${body.error || r.status}.`); return "refused"; }
+    entry.seq = body.seq;
+    entry.draft = false;
+    shown.set(body.seq, "sent");
+    return "sent";
+  }
+  const OFFLINE = "Not sent: no session is answering. The note is kept on this page; Copy all notes makes a block to paste to Claude.";
+
+  async function send() {
+    if (!draft) return;
+    const note = written("sent");
+    if (!note) return;
+    const entry = editing || { id: ++ids };
+    Object.assign(entry, { note, where: where(note), seq: null });
+    const got = await deliver(entry);
+    if (got === "refused") return;
+    if (!mine.includes(entry)) mine.push(entry);
     render();
+    closeComposer();
+    say(got === "sent" ? `Note ${entry.seq} sent.` : OFFLINE);
+  }
+  function save() {
+    if (!draft) return;
+    const note = written("saved");
+    if (!note) return;
+    const entry = editing || { id: ++ids };
+    Object.assign(entry, { note, where: where(note), seq: null, draft: true });
+    if (!mine.includes(entry)) mine.push(entry);
+    if (!editing) opener = control(`edit-${entry.id}`);
+    render();
+    closeComposer();
+    say("Draft saved. Edit, delete or send it from the list.");
+  }
+  async function sendDrafts(list) {
+    const sent = [];
+    for (const entry of list) {
+      if ((await deliver(entry)) !== "sent") break;
+      sent.push(entry.seq);
+    }
+    render();
+    if (noSession) say(OFFLINE);
+    else if (sent.length) say(sent.length === 1 ? `Note ${sent[0]} sent.` : `Notes ${sent.join(", ")} sent.`);
+    if (!document.activeElement || document.activeElement === document.body) $("notes-title").focus();
+  }
+  function remove(entry) {
+    mine.splice(mine.indexOf(entry), 1);
+    render();
+    $("notes-title").focus();
+    say("Draft deleted.");
+  }
+
+  /** Show or hide the panel; the dock button stays, and gets the focus back when the panel closes. */
+  function setPanel(open) {
+    $("panel").hidden = !open;
+    document.body.classList.toggle("docked", !open);
+    $("dock").setAttribute("aria-expanded", String(open));
+    $("dock").textContent = open ? "Hide notes (N)" : "Show notes (N)";
+    if (open) (buttons.element.disabled ? $("copy") : buttons.element).focus();
+    else $("dock").focus();
   }
 
   /** One prototype-notes block holding every note written on this page; a backtick is escaped, so no
    *  note can end the fence. The session imports it with notes-bridge.sh import. */
   function copyAll() {
-    if (!mine.length) return say("No notes on this page yet.");
-    const body = JSON.stringify({ notes: mine.map((m) => m.note) }, null, 1).replace(/`/g, "\\u0060");
+    const notes = mine.filter((m) => !m.draft);
+    if (!notes.length) return say("No notes on this page yet; a draft goes in once it is sent.");
+    const body = JSON.stringify({ notes: notes.map((m) => m.note) }, null, 1).replace(/`/g, "\\u0060");
     const block = "```prototype-notes\n" + body + "\n```\n";
     $("block").value = block;
     $("copyout").hidden = false;
     $("block").select();
-    const done = () => say(`Copied ${mine.length} note(s). Paste the block to Claude.`);
+    const done = () => say(`Copied ${notes.length} note(s). Paste the block to Claude.`);
     const manual = () => say("Select the block below and copy it, then paste it to Claude.");
     if (navigator.clipboard) navigator.clipboard.writeText(block).then(done, manual);
     else manual();
@@ -194,7 +273,26 @@
     const byseq = new Map(last.notes.map((n) => [n.seq, n]));
     const ours = new Map(mine.filter((m) => m.seq !== null).map((m) => [m.seq, m]));
     const seqs = [...new Set([...ours.keys(), ...byseq.keys()])].sort((a, b) => a - b);
-    const item = (head, words, status, reply) => {
+    const statusOf = (st) => st.handled ? "handled" : st.delivered ? "delivered to Claude" : "sent";
+    const changed = [];
+    for (const seq of ours.keys()) {
+      const st = byseq.get(seq);
+      if (!st) continue;
+      const now = statusOf(st) + (st.reply ? ", with a reply" : "");
+      if (shown.has(seq) && shown.get(seq) !== now) changed.push(`Note ${seq} ${now}`);
+      shown.set(seq, now);
+    }
+    if (changed.length) $("changes").textContent = `${changed.join("; ")}.`;
+    const focused = document.activeElement?.dataset?.key;
+    const button = (label, key, run) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = label;
+      b.dataset.key = key;
+      b.addEventListener("click", run);
+      return b;
+    };
+    const item = (head, words, status, reply, actions = []) => {
       const li = document.createElement("li");
       const h = document.createElement("div");
       h.className = "where";
@@ -211,16 +309,30 @@
         p.textContent = reply;
         li.append(p);
       }
+      if (actions.length) {
+        const row = document.createElement("p");
+        row.append(...actions);
+        li.append(row);
+      }
       return li;
     };
+    const drafts = mine.filter((m) => m.draft);
     $("notes").replaceChildren(
       ...seqs.map((seq) => {
-        const m = ours.get(seq), st = byseq.get(seq) || {};
-        return item(m ? `#${seq} · ${m.where}` : `#${seq} (sent earlier)`, m ? m.note.text : "",
-          st.handled ? "handled" : st.delivered ? "delivered to Claude" : "sent", st.reply);
+        const m = ours.get(seq);
+        const st = byseq.get(seq) || {};
+        return item(m ? `#${seq} · ${m.where}` : `#${seq} (sent earlier)`, m ? m.note.text : "", statusOf(st), st.reply);
       }),
-      ...mine.filter((m) => m.seq === null).map((m) => item(m.where, m.note.text, "not sent: use Copy all notes")),
+      ...mine.filter((m) => m.seq === null).map((m) => m.draft
+        ? item(m.where, m.note.text, "draft", null, [
+          button("Edit", `edit-${m.id}`, () => openComposer(m.note, control(`edit-${m.id}`), m)),
+          button("Delete", `delete-${m.id}`, () => remove(m)),
+          button("Send", `send-${m.id}`, () => sendDrafts([m])),
+        ])
+        : item(m.where, m.note.text, "not sent: use Copy all notes")),
     );
+    $("sendall").hidden = !drafts.length;
+    if (focused) document.querySelector(`[data-key="${focused}"]`)?.focus();
   }
 
   addEventListener("message", (e) => {
@@ -236,16 +348,16 @@
     else if (m.type === "want-text") askText();
     else if (m.type === "pinned" && picking === "element") {
       const note = noteFrom(m, "element");
-      if (note) openComposer(note);
+      if (note) openComposer(note, () => buttons.element);
       else say("That element cannot carry a note: its tag or path is outside the note contract. Pick its parent.");
     } else if (m.type === "region" && picking === "region") {
       const note = noteFrom(m, "region");
-      if (note) openComposer(note);
+      if (note) openComposer(note, () => buttons.region);
       else say("That region cannot carry a note: the element around it is outside the note contract.");
     } else if (m.type === "selected" && wantText) {
       wantText = false;
       const note = m.none ? null : noteFrom(m, "text");
-      if (note) openComposer(note);
+      if (note) openComposer(note, () => $("quote"));
       else say("Select some text in the mockup first, then press Note on selected text (T).");
     }
   });
@@ -254,6 +366,9 @@
   buttons.region.addEventListener("click", () => setPick(picking === "region" ? null : "region"));
   $("quote").addEventListener("click", askText);
   $("send").addEventListener("click", send);
+  $("save").addEventListener("click", save);
+  $("sendall").addEventListener("click", () => sendDrafts(mine.filter((m) => m.draft)));
+  $("dock").addEventListener("click", () => setPanel($("panel").hidden));
   $("cancel").addEventListener("click", closeComposer);
   $("copy").addEventListener("click", copyAll);
   const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
@@ -268,8 +383,9 @@
       else toFrame({ type: "nudge", dx: ARROWS[e.key][0], dy: ARROWS[e.key][1], grow: e.shiftKey });
       return;
     }
-    if (!ready) return;
     const key = e.key.toLowerCase();
+    if (key === "n") { e.preventDefault(); return setPanel($("panel").hidden); }
+    if (!ready) return;
     if (key === "p") { e.preventDefault(); setPick(picking === "element" ? null : "element"); }
     else if (key === "r") { e.preventDefault(); setPick(picking === "region" ? null : "region"); }
     else if (key === "t") { e.preventDefault(); askText(); }
