@@ -7,7 +7,7 @@ resolves. The coverage prompt asked at the same moment is [`coverage-prompt.md`]
 ## EARS tags, when the convention selects them
 
 Resolve `acceptance_criteria_format` per "Resolving `acceptance_criteria_format`" below. Under `free-text`, the default and every
-degrade, emit criteria in the plain form `- AC<n>: <testable criterion>`, untagged, byte-comparable
+degrade, emit criteria exactly as today: `- AC<n>: <testable criterion>`, untagged, byte-comparable
 in shape to a run with no convention file at all. Under `ears`, every emitted criterion carries a
 bracketed pattern prefix after its id on that same plain-bullet form, `- AC<n>: [<pattern>] <criterion>`:
 
@@ -49,7 +49,7 @@ slice owns everything it grades; a slice keeps only the criterion's id.
 Follow [`<plugin-root>/context/authoring-formats.md`](../../../context/authoring-formats.md)
 "Resolution ladder" (`<plugin-root>` per SKILL.md "Spoke paths"; `<project-root>` is the project
 root SKILL.md "Acceptance-criteria capture" renders). This skill takes no format argument. Default
-and every degrade: `free-text`, untagged plain-bullet criteria.
+and every degrade: `free-text`, untagged plain-bullet criteria, exactly today's shape.
 
 Before reading `AGENTS.md`, `CLAUDE.md` or any `authoring-formats/README.md` for this key, run the
 ladder's step-2 resolver, dropping `--root "<project-root>"` when the project root is unset:

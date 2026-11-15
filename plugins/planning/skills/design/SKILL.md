@@ -47,7 +47,7 @@ Depth scales to the work:
 - Large library or system → full-form (multiple sessions, all phases, all artifact types)
 
 The stage always runs; early-exit is a valid outcome. **Gate artifact:** Tier C and light Tier B
-early-exits must produce `design-resolution.md` in the topic's design slice
+early-exits MUST produce `design-resolution.md` in the topic's design slice
 (`<memory_dir>/<topic-slug>/design/`, default `.work/`) so `/planning:plan`'s prerequisite check
 can verify the gate without conversation memory.
 
