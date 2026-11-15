@@ -4,6 +4,11 @@ A property test states something that must hold for every valid input and lets a
 for an input that breaks it. Use it alongside example tests, not instead of them: the TDD cadence
 in [write.md](write.md) still applies, and each property is one slice.
 
+This guidance covers every target, a running UI included, where generated user actions are a
+generated call sequence on a stateful thing. A fuzz test follows it too: it is a property whose only
+rule is that the code does not crash, so state a stronger rule wherever one holds, and where none
+does, write examples instead, as the next section says.
+
 ## When a property beats examples
 
 Reach for a property when the input space is large and a rule over it is easier to state than a
