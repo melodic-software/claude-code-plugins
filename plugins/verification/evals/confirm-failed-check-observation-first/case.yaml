@@ -3,7 +3,7 @@ name: confirm-failed-check-observation-first
 graders:
   - name: 'names-observation-check'
     type: 'regex'
-    pattern: 'observation check\W{0,4}:?\W{0,4}[^\n]*(?:stale|outdated|predates|before (?:the )?rebuild|old (?:screenshot|capture))'
+    pattern: 'observation check\W{0,4}:?\W{0,4}(?:[^\n]|\n[ \t]*[-*] )*?(?:stale|outdated|predates|older|before (?:the )?(?:rebuild|build|diff)|old (?:screenshot|capture))'
     flags: 'i'
     target: 'last_message'
   - name: 'observation-suspected-first'

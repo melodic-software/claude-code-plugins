@@ -5,6 +5,18 @@
     },
     {
       "answer": "Observation check: ruled in, stale capture (14:02 file, rebuild at 14:09)."
+    },
+    {
+      "answer": "**Observation check:** the failed capture is the first suspect, not the change.\n- The screenshot was modified at 14:02 and the rebuild finished at 14:09.\n- It was taken seven minutes before the build that contains the Export button.\n\n**Capture:** blocked."
+    },
+    {
+      "answer": "**Observation check:** suspected first.\n- The file time is 14:02.\n- The stale screenshot cannot count against the change."
+    },
+    {
+      "answer": "**Observation check:** ruled in. The screenshot shows the page from before the diff was built, so a missing button proves nothing."
+    },
+    {
+      "answer": "**Observation check:** ruled in. The missing button is what that older page should show."
     }
   ],
   "fail": [
@@ -19,6 +31,18 @@
     },
     {
       "answer": ""
+    },
+    {
+      "answer": "The screenshot predates the rebuild. It was taken before the build that contains the diff, so it shows the older page."
+    },
+    {
+      "answer": "**Observation check:** not run.\n\n**Capture:** the screenshot predates the rebuild and is stale."
+    },
+    {
+      "answer": "**Observation check:** suspected first.\n- The file time is 14:02.\n- The rebuild finished at 14:09.\n- No second route was possible."
+    },
+    {
+      "answer": "**Observation check:** not run.\n**Capture:** the screenshot is stale."
     }
   ]
 }
