@@ -15,8 +15,8 @@ exit codes: 0 written; 2 a prerequisite is missing (espeak-ng, the model files, 
 its remedy; 1 any other failure.
 
 With --backend-chain the backends are tried in order and one of them voices the whole script, so a video never mixes
-voices. A failed call (a non-zero exit, a network error) is retried after 1, 2 and 4 seconds, then the whole script
-goes to the next backend. A call that passes its hard timeout (--timeout), or a backend that cannot run at all (a
+voices. A failed call (a non-zero exit, a network error) is retried after 1, 2 and 4 seconds (edge-tts: 5, 20 and 60),
+then the whole script goes to the next backend. A call that passes its hard timeout (--timeout), or a backend that cannot run at all (a
 missing package, model or key), goes to the next backend at once. voice.json records {backend, voice, attempts[]}; backend and voice are null when nothing was voiced.
 A per-paragraph backend sends one request per blank-line separated paragraph, each with its own timeout and retries;
 the paragraphs' audio is joined into one narration.wav and their words moved onto its timeline. If any paragraph
@@ -231,6 +231,7 @@ def narrate(text, out, data, voice=DEFAULT_VOICE, speed=1.0, phonemize=None, mod
 
 
 RETRY_DELAYS_S = (1, 2, 4)
+EDGE_RETRY_DELAYS_S = (5, 20, 60)   # the endpoint drops requests for a while, then recovers (rany2/edge-tts#473)
 DEFAULT_TIMEOUT_S = 120.0
 TIMEOUT_GRACE_S = 1.0        # the adapter's own timeout reports first; the thread join is the backstop
 FLOOR_VAR = 'SPEECH_EGRESS_FLOOR'
@@ -257,6 +258,7 @@ class Backend:
     paid: bool = False
     timed: bool = False   # the words come from the voice itself, not an estimate
     per_paragraph: bool = False   # one request per paragraph: a long request drops late and loses everything
+    retry_delays_s: tuple = RETRY_DELAYS_S
 
 
 def estimate_words(text, duration):
@@ -411,7 +413,7 @@ def edge_backend():
         words = [{**w, 'start': min(w['start'], duration), 'end': min(w['end'], duration)}
                  for w in align_boundaries(script, marks)]
         return wav, words
-    return Backend('edge-tts', voice, EDGE_VOICE, timed=True, per_paragraph=True)
+    return Backend('edge-tts', voice, EDGE_VOICE, timed=True, per_paragraph=True, retry_delays_s=EDGE_RETRY_DELAYS_S)
 
 
 def openai_backend(env):
@@ -522,7 +524,7 @@ def run_chain(text, out, chain, backends, voices=None, timeout=DEFAULT_TIMEOUT_S
     def voice_part(b, v, part, paragraph):
         """One request for `part`, retried; (wav, words, work dir), or None when this backend is done."""
         expected = part.split()
-        for delay in (0, *RETRY_DELAYS_S):
+        for delay in (0, *b.retry_delays_s):
             if delay:
                 sleep(delay)
             work = Path(tempfile.mkdtemp(prefix=f'.voice-{b.name}-', dir=out))

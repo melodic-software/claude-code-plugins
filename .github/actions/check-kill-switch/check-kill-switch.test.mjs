@@ -322,7 +322,7 @@ const GATES = {
   "maintenance-tidy-code-upkeep.yml": { gate: "start", model: "switch", "model-subscription": "switch", "model-fallback": "switch", "push-branches": "switch", publish: "switch" },
   "post-merge-file-demotion-issues.yml": { "report-red-main": "switch" },
   "post-merge-test-mutation.yml": { prep: "start" },
-  "pr-feedback-dispatch.yml": { "post-verify-notes": "switch", dispatch: "switch", "rerun-ci-status": "switch" },
+  "pr-dispatch-feedback.yml": { "post-verify-notes": "switch", dispatch: "switch", "rerun-ci-status": "switch" },
   "pr-merge.yml": { "post-merge-dispatch": "switch", merge: "switch", "enable-auto-merge": "switch" },
   "pr-rate-merge-risk.yml": { "rate-merge-risk": "switch", "rate-merge-risk-subscription": "switch", "rate-merge-risk-fallback": "switch" },
   "pr-review-hosted.yml": { "kill-switch": "switch" },

@@ -1,10 +1,10 @@
 name: PR Review Approved
 
-# Relays an approving review to pr-feedback-dispatch.yml's rerun-ci-status
+# Relays an approving review to pr-dispatch-feedback.yml's rerun-ci-status
 # job, which re-runs the head's ci-status when the reviewer is a person on the
 # default branch's trusted-actor list: such an approval lifts ci-status's
 # trust-gate and merge-hold holds, and no pull_request event re-runs it.
-# pr-feedback-dispatch.yml takes only workflow_run events, which run the
+# pr-dispatch-feedback.yml takes only workflow_run events, which run the
 # default branch's file and are the one recorder kind pr-verify's trigger gate
 # accepts, so the review reaches it as this run's completion.
 #
@@ -29,4 +29,4 @@ jobs:
     timeout-minutes: 1
     steps:
       - name: Relay the approval
-        run: echo "An approval of the head; pr-feedback-dispatch.yml decides whether ci-status re-runs."
+        run: echo "An approval of the head; pr-dispatch-feedback.yml decides whether ci-status re-runs."

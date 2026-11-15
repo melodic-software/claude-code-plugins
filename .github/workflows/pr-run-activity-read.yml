@@ -138,7 +138,7 @@ on:
       dispatcher-run-id:
         description: >-
           On a workflow_dispatch sent by github-actions[bot], the
-          pr-unblock-dispatch.yml or pr-feedback-dispatch.yml run that sent
+          pr-unblock-dispatch.yml or pr-dispatch-feedback.yml run that sent
           it; empty otherwise.
         required: false
         type: string
@@ -953,13 +953,13 @@ jobs:
           # pr-unblock-dispatch.yml run on the default branch, or, for a
           # review-threads call (the only one passing the select job's
           # feedback context, held to that prepare mode below), a
-          # pr-feedback-dispatch.yml run whose recorded review run (started by
+          # pr-dispatch-feedback.yml run whose recorded review run (started by
           # the lanes App or a listed human) reviewed the PR's current head,
           # that sent it to pr-unblock.yml; any other run passes no id and the
           # bot stays unlisted.
           dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
           dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml
-          run-dispatcher-workflow: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-feedback-dispatch.yml' || '' }}
+          run-dispatcher-workflow: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-dispatch-feedback.yml' || '' }}
           run-dispatcher-upstreams: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml' || '' }}
           # Or a listed human's review comment, relayed (ADR 0088).
           run-dispatcher-relay: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-comment-relay.yml' || '' }}
@@ -971,7 +971,7 @@ jobs:
           # setting the caller's app-field-id to app-field-option.
           denied-actor-ids: ${{ inputs.issue-number != '' && vars.AUTOMATION_LANES_APP_SENDER_ID || '' }}
           # Issue mode: the App that may apply the label; a dispatched run: the
-          # App whose review run vouches for a pr-feedback-dispatch.yml
+          # App whose review run vouches for a pr-dispatch-feedback.yml
           # dispatch. Any other run passes none.
           lanes-app-id: >-
             ${{ (inputs.issue-number != '' || inputs.dispatcher-run-id != '')
@@ -1074,7 +1074,7 @@ jobs:
           echo "::error::prepare: $PREPARE is not a read mode, or runs without an applied-by patch or in issue mode"
           exit 1
 
-      # The gate admitted a pr-feedback-dispatch.yml dispatch because the
+      # The gate admitted a pr-dispatch-feedback.yml dispatch because the
       # caller passed a feedback context; only a review-threads skill may.
       - name: Assert a feedback context goes with review-threads
         if: >-

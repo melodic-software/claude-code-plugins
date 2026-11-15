@@ -547,7 +547,7 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         if not shutil.which("jq"):
             self.skipTest("jq not installed")
         workflow = (
-            RESOLVER.parents[2] / "workflows/pr-feedback-dispatch.yml"
+            RESOLVER.parents[2] / "workflows/pr-dispatch-feedback.yml"
         ).read_text()
         listing = re.findall(r"jq -r '(\.artifacts\[\][^']*)'", workflow)
         strict = re.findall(r"jq -Rr '([^']*)'", workflow)

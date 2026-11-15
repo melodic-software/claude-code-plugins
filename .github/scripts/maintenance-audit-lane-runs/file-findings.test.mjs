@@ -23,7 +23,7 @@ const finding = (over = {}) => ({
   problem: "p",
   root_cause: "r",
   proposed_fix: "f",
-  workflow: ".github/workflows/pr-feedback-dispatch.yml",
+  workflow: ".github/workflows/pr-dispatch-feedback.yml",
   job: "dispatch",
   signature: "skipped upstream run started a runner",
   evidence: [{ path: "a.yml", line: 1, quote: "if: true" }],
@@ -102,7 +102,7 @@ test("a finding with any failed claim is dropped before planning", (t) => {
 const dUnit = () => ({
   id: "d1",
   slice: "D",
-  workflow: ".github/workflows/pr-feedback-dispatch.yml",
+  workflow: ".github/workflows/pr-dispatch-feedback.yml",
   sampled_success_runs: [{ id: 5, jobs: [{ name: "dispatch" }, { name: "label" }] }],
 });
 const aUnit = () => ({

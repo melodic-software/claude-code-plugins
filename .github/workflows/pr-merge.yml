@@ -83,7 +83,7 @@ on:
   # each one it reads as listed. A pull_request_target run reads only the PR
   # its event names (EVENT_PR); the schedule reads every one.
 
-  # A label came off. This run's completion starts pr-feedback-dispatch.yml,
+  # A label came off. This run's completion starts pr-dispatch-feedback.yml,
   # the only thing that decides again a lanes App head the human gate skipped
   # once needs-human comes off, so `unlabeled` stays. No other PR event starts
   # a run; the schedule picks up each change. Adding a label can only add a

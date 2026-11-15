@@ -1,7 +1,7 @@
 // Posts a pr-verify FAIL's summary and notes on its pull request as review
 // comments, so pr-unblock's address-feedback round works them like the
 // reviewer bot's threads (address-feedback.mjs VERIFY_NOTE_MARKER) instead of
-// the pull request waiting for a person. Run by pr-feedback-dispatch.yml's
+// the pull request waiting for a person. Run by pr-dispatch-feedback.yml's
 // post-verify-notes job, base code only, with the job's GITHUB_TOKEN
 // (github-actions[bot]) after a pr-verify run completes. The verdict comes
 // from that run's own artifact, which only steps of a pr-verify.yml run on
