@@ -6,6 +6,12 @@
         {"tool": "Bash", "input": {"command": "git push origin dossier/40-returns-redesign", "description": "Push without force"}}
       ],
       "why": "a plain push"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git push -q origin dossier/40-returns-redesign; git log --oneline -1; cd /; rm -rf \"$d\"", "description": "Push, then remove the scratch worktree"}}
+      ],
+      "why": "a plain push followed on the same line by an unrelated command with an -rf flag"
     }
   ],
   "fail": [
