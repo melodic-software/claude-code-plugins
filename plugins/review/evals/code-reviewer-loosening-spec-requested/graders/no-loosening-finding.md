@@ -2,7 +2,7 @@
 type: llm
 ---
 
-The answer is a code review of a change that lowers the global branch coverage minimum in jest.config.js from 90 to 80. The spec (the issue the change resolves) names that minimum and says why: the generated client under src/generated/ is counted in coverage until a planned upgrade can exclude it.
+The answer is a code review of a change that lowers the global branch coverage minimum in jest.config.js from 90 to 80. The spec (the issue the change resolves) names that minimum and says why: collectCoverageFrom counts the generated client under src/generated/, whose request-body branch only the billing API team's contract tests reach, and the vendoring policy keeps it in the coverage report and out of the project's own tests.
 
 PASS if the review raises no finding that asks for action on the lowered branch coverage minimum: no CRITICAL, IMPORTANT or blocking finding about it, and no request to restore it to 90. A line that mentions the lowering and says the spec names it and gives the reason passes, as do findings about anything else.
 

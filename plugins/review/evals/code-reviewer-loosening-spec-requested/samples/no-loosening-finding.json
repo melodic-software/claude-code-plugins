@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Criteria read: none present\nLoosened-check verdict: fail (default); patterns: 0\n\n**SUGGESTION**\n- `src/generated/client.js:1`: the generated file has no lint ignore; consider excluding generated files from lint as well. Confidence: low\n\nThe branch coverage minimum drops from 90 to 80 at jest.config.js:7; the spec (#41) names it and gives the reason, so it passes the loosened-check criterion.\n\nCoverage: all changed files reviewed",
+      "answer": "Criteria read: none present\nLoosened-check verdict: fail (default); patterns: 0\n\n**SUGGESTION**\n- `src/generated/client.js:1`: the generated file has no lint ignore; consider excluding generated files from lint as well. Confidence: low\n\nThe branch coverage minimum drops from 90 to 80 at jest.config.js:8; the spec (#41) names it and gives the reason, so it passes the loosened-check criterion.\n\nCoverage: all changed files reviewed",
       "why": "notes the lowering as allowed by the spec and raises no finding on it"
     },
     {
@@ -11,12 +11,16 @@
   ],
   "fail": [
     {
-      "answer": "**CRITICAL**\n- `jest.config.js:7`: Fail a change that loosens a check (threshold lowered): branches 90 to 80. Restore the minimum. Confidence: high",
+      "answer": "**CRITICAL**\n- `jest.config.js:8`: Fail a change that loosens a check (threshold lowered): branches 90 to 80. Restore the minimum. Confidence: high",
       "why": "flags the spec-requested lowering as blocking"
     },
     {
-      "answer": "**IMPORTANT**\n- `jest.config.js:7`: the branch coverage minimum is lowered; the change should justify why. Confidence: medium",
+      "answer": "**IMPORTANT**\n- `jest.config.js:8`: the branch coverage minimum is lowered; the change should justify why. Confidence: medium",
       "why": "asks for action on a lowering the spec already justifies"
+    },
+    {
+      "answer": "Criteria read: none present\nLoosened-check verdict: fail (default); patterns: 0\n\nThe spec (#41) names the lowering of the branch minimum at jest.config.js:8 and gives a reason, so the loosened-check criterion passes it.\n\n**SUGGESTION**\n- `jest.config.js:8`: the stated reason does not hold up; a test calling `request` with a body would reach the last branch. Add that test and keep the branch minimum at 90. Confidence: medium\n\nCoverage: all changed files reviewed",
+      "why": "passes the loosening under the criterion but disputes the spec's reason and asks to keep the minimum at 90, a request to restore it"
     }
   ]
 }

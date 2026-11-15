@@ -1,7 +1,7 @@
 export const meta = {
   name: 'fanout-sweep',
   description: 'Fan out review leaf surfaces (plugin reviewer agents and project criteria slices) over one diff base, then extract their findings to records',
-  whenToUse: 'Run by /review:fanout run-everything mode, which resolves args: diffBase (required), slices, roles, maxConcurrent, diversity, session, findingsPaths, loosenedCheck, loosenedSettings, spec. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /review:fanout run-everything.',
+  whenToUse: 'Run by /review:fanout run-everything mode, which resolves args: diffBase (required), slices, roles, maxConcurrent, diversity, session, findingsPaths, loosenedCheck or loosenedOverride, loosenedSettings, spec. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /review:fanout run-everything.',
   phases: [
     { title: 'Review', detail: 'named reviewer agents by tier, then one agent per project criteria slice' },
     { title: 'Extract', detail: 'one extraction agent turns raw findings into records' },
@@ -56,10 +56,25 @@ for (const label of HANDBACK_LEAVES) {
 }
 
 // The bundled loosened-check criterion's absolute path, read by each slice beside its own
-// document, and the trusted spec text, the only text that gives a loosening its reason.
+// document, or the consumer document the caller decided replaces it; the caller passes one.
+const ONE_LINE = /^[^\u0000-\u001f\u2028\u2029`"]+$/
 const LOOSENED_IN = typeof input.loosenedCheck === 'string' ? input.loosenedCheck.trim() : ''
-const LOOSENED = /^[^\u0000-\u001f\u2028\u2029`"]*[\\/]loosened-check\.md$/.test(LOOSENED_IN) ? LOOSENED_IN : ''
-if (LOOSENED_IN && !LOOSENED) log('loosenedCheck is not a one-line path to loosened-check.md: slices run without the bundled criterion')
+const LOOSENED = ONE_LINE.test(LOOSENED_IN) && /[\\/]loosened-check\.md$/.test(LOOSENED_IN) ? LOOSENED_IN : ''
+if (LOOSENED_IN && !LOOSENED) log('loosenedCheck is not a one-line path to loosened-check.md: ignored')
+const OVERRIDE_IN = typeof input.loosenedOverride === 'string' ? input.loosenedOverride.trim() : ''
+const OVERRIDE = ONE_LINE.test(OVERRIDE_IN) && OVERRIDE_IN.length <= 300 ? OVERRIDE_IN : ''
+if (OVERRIDE_IN && !OVERRIDE) log('loosenedOverride is not a one-line document path: ignored')
+if (LOOSENED && OVERRIDE) {
+  log('both loosenedCheck and loosenedOverride were given: nothing was dispatched')
+  return {
+    error: 'loosened-conflict',
+    next: 'Pass args.loosenedCheck when the bundled criterion applies, or args.loosenedOverride when a consumer document replaces it, not both.',
+  }
+}
+const LOOSENED_SOURCE = LOOSENED ? 'bundled' : OVERRIDE ? 'override' : 'missing'
+if (LOOSENED_SOURCE === 'missing') {
+  log('no loosenedCheck or loosenedOverride in args: no criterion on loosened checks reaches the slices')
+}
 // The criterion's two settings as scripts/loosened-check-settings.mjs printed them, resolved once
 // by the caller. Only the two value lines pass, rebuilt from their parsed values, so the arg cannot
 // carry other text into a prompt; without them every leaf would fall back to `fail` and no entries.
@@ -181,30 +196,35 @@ const COVERAGE_CLAUSE =
   'done when every changed file has been reviewed for your concern; if part of the change set ' +
   'cannot be reviewed, name that part and return what you have.'
 
-const AGENT_PROMPT =
+const AGENT_HEAD =
   'Review the current change set. Run `git diff ' + DIFF_BASE + '` yourself to see the changes, plus ' +
   '`git ls-files --others --exclude-standard` for untracked files. Read the project review criteria and ' +
-  'conventions relevant to your concern when present. Report findings in your normal output format.' +
-  COVERAGE_CLAUSE + SETTINGS_BLOCK + SPEC_BLOCK
+  'conventions relevant to your concern when present. Report findings in your normal output format.'
+const AGENT_PROMPT = AGENT_HEAD + COVERAGE_CLAUSE + SETTINGS_BLOCK + SPEC_BLOCK
 
-const LOOSENED_CLAUSE = LOOSENED
-  ? ' Also read "' + LOOSENED + '", the bundled criterion "Fail a change that loosens a check", and apply it ' +
-    'to the diff.'
-  : ''
+const LOOSENED_CLAUSE = {
+  bundled: ' Also read "' + LOOSENED + '", the bundled criterion "Fail a change that loosens a check", and apply ' +
+    'it to the diff.',
+  override: '',
+  missing: ' No criterion on changes that loosen a check was supplied to this run: say so in your reply.',
+}[LOOSENED_SOURCE]
+const LOOSENED_SETTINGS_BLOCK = LOOSENED ? SETTINGS_BLOCK : ''
 
 function slicePrompt(slice) {
+  const untouched = LOOSENED ? 'touches neither this document\'s concern nor a check' : 'does not touch this concern'
   return 'Read the project review criteria document "' + slice + '". Run `git diff ' + DIFF_BASE + '` ' +
     'yourself to see the changes. Review the diff against only that document\'s criteria.' + LOOSENED_CLAUSE +
     ' List each finding ' +
     'with file:line, a severity tier, a confidence level (high / medium / low), and a one-line description. ' +
-    'If the diff does not touch this concern, reply "No findings for ' + slice + '."' +
-    COVERAGE_CLAUSE + (LOOSENED ? SETTINGS_BLOCK : '') + SPEC_BLOCK
+    'If the diff ' + untouched + ', reply "No findings for ' + slice + '."' +
+    COVERAGE_CLAUSE + LOOSENED_SETTINGS_BLOCK + SPEC_BLOCK
 }
 
 // Model diversity runs lane-verifier, which inherits the model and pins no effort, so the
-// tier's model and effort apply to it.
+// tier's model and effort apply to it. A tier replaces the slices, so it carries the criterion too.
 const TIER_AGENT = 'review:lane-verifier'
-const TIER_PROMPT = 'Your role is hunter, across every concern rather than one lens. ' + AGENT_PROMPT
+const TIER_PROMPT = 'Your role is hunter, across every concern rather than one lens. ' + AGENT_HEAD +
+  LOOSENED_CLAUSE + COVERAGE_CLAUSE + SETTINGS_BLOCK + SPEC_BLOCK
 
 phase('Review')
 
@@ -319,6 +339,9 @@ return {
   nulls,
   ran: roster.map(l => l.label),
   roles: { extract: EXTRACT },
+  loosened: LOOSENED_SOURCE === 'bundled' ? { source: 'bundled', path: LOOSENED }
+    : LOOSENED_SOURCE === 'override' ? { source: 'override', document: OVERRIDE }
+    : { source: 'missing' },
   diversity: DIVERSITY,
   ...(DIVERSITY === 'model' ? { tiers: TIERS } : {}),
 }

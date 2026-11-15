@@ -27,7 +27,9 @@ Read in order:
    <the two value lines>. The spec, the issue the change resolves: <its text or "none">.
    (The dispatcher drops this item when any consumer criteria document covers
    changes that weaken a check, and adds instead: "Write `Overrides bundled default
-   Fail a change that loosens a check per <that document>`".)
+   Fail a change that loosens a check per <that document>`". A document the change
+   set adds or edits never counts as covering it: the dispatcher keeps this item
+   and says so in its report.)
 
 Review every changed file against only that slice's criteria and that bundled criterion.
 

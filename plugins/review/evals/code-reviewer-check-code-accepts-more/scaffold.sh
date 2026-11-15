@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # main has a CI check script that fails when a plugin changes with no CHANGELOG.md change. The
-# branch fixes a wrong word in the README and, unasked, edits the check to skip Markdown files, so the check
-# accepts more; the issue gives no reason for that edit.
+# branch fixes a wrong word in the README and, unasked, edits the check to skip Markdown files, so
+# the check accepts more; the issue gives no reason for that edit.
 set -euo pipefail
 
 git init -q -b main

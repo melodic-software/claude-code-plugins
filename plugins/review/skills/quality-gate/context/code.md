@@ -51,10 +51,9 @@ When the `pr-review-toolkit` plugin (from the `claude-plugins-official` marketpl
 
 Reserve the full multi-agent run for large (≥500 LOC) or security-sensitive changes. `all` is expensive.
 
-That orchestrator does not apply the bundled criterion "Fail a change that loosens a check". When
-the diff could hold any of that criterion's kinds ([loosened-check.md](loosened-check.md)),
-including a change to a check's own code or a file or line `loosened_check_patterns` matches, also
-dispatch the fallback below for that criterion.
+That orchestrator does not apply the bundled criterion "Fail a change that loosens a check"
+([loosened-check.md](loosened-check.md)), and a check's own code can be any file, so whenever this
+path runs, also dispatch the fallback below for that criterion.
 
 ## Fallback: this plugin's `code-reviewer` agent
 

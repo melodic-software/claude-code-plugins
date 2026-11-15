@@ -67,6 +67,15 @@ lines and when the repository file is read at all: "Resolution" and "Root rule" 
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md). Report one line,
 `fanout_diversity: <value> (<layer>)`, for example `fanout_diversity: lens (default)`.
 
+**Loosened-check settings (run-everything and its fallback only).** The resolver
+[context/run-everything-mode.md](context/run-everything-mode.md) step 5 runs takes the user
+options as `--verdict-option '${user_config.loosened_check_verdict}' --patterns-option
+'${user_config.loosened_check_patterns}'` (a literal, unexpanded placeholder means unset). Write
+each `'` inside either option value as `'\''` first, so a quote in a regex cannot end the single
+quoting; when the run fails and the patterns option is not empty, run it once more without
+`--patterns-option` so the repository's entries still apply, and say the user's entries were
+dropped.
+
 **`fanout_act_on_cap` (both review modes).** How many rows under each `## By axis` heading
 Step 2 marks act on. Resolve it before Step 2 from the same layers and with the same skip rules as
 `fanout_diversity`: the default `2`; the user option `${user_config.fanout_act_on_cap}` (a
