@@ -1,0 +1,6 @@
+sync-managed
+@generated
+do not edit[[:space:]]*([[:punct:]]|$)
+do not edit[[:space:]]+(this file|this copy|by hand|manually|directly)
+(^|[^[:alnum:]_])generated[^[:alnum:]_].*do not edit
+do not edit.*[^[:alnum:]_]generated([^[:alnum:]_]|$)
