@@ -7,7 +7,7 @@ Every changelog item gets one action lens per owner surface it touches. A lens s
 | Lens | Meaning | Row | Outcome |
 |---|---|---|---|
 | **correct** | A component states something now false. Covers scripts and fixtures that encode a claim, not only prose. | Decision row stating the false-versus-true pair | Fix the component |
-| **replace** | A custom component where Claude Code now ships a native surface. Widened: a harness behavior that overlaps a component with no routable native surface also counts. | Decision row stating the problem the component solves | Nominate the native surface; with no routable native surface, keep the component and re-rationalize it |
+| **replace** | A custom component where Claude Code now ships a native surface, or a harness behavior that overlaps a component with no routable native surface. | Decision row stating the problem the component solves | Nominate the native surface; with no routable native surface, keep the component and re-rationalize it |
 | **adopt** | The item solves a problem a component works around or lacks. | Decision row stating the problem solved | Adopt, decline, or defer pending probe |
 | **note** | Worth knowing, changes no component. | One line under the decision table | None |
 | **skip** | Cosmetic, internal, or irrelevant to the repo. | None. Counts toward the read | None |

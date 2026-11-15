@@ -11,14 +11,14 @@ Upstream anchors, cited by URL and not recapped. Anthropic publishes no formal p
 
 ## Public surface
 
-The public surface of a skill is ONLY:
+The public surface of a skill is only:
 
 1. YAML frontmatter (the documented fields)
 2. Documented actions: named action + arg shape + output shape declared in the SKILL.md body
 3. Arguments and flags
 4. The `/skill-name` slash invocation (`/plugin:skill-name` for plugin-packaged skills)
 
-Rules, agents, other skills, prose docs, ADRs, READMEs, and CI configs are the external consumers. Each says WHAT it wants in natural language (`/skill-name <action> <args>`); the skill body decides HOW: which scripts to call, which schemas to validate against, which reference files to load.
+Rules, agents, other skills, prose docs, ADRs, READMEs, and CI configs are the external consumers. Each says what it wants in natural language (`/skill-name <action> <args>`); the skill body decides how: which scripts to call, which schemas to validate against, which reference files to load.
 
 ## Private: everything else
 
@@ -28,13 +28,13 @@ This keeps skills rip-and-paste portable: moving `.claude/skills/<name>/` into a
 
 ## Carve-out: `scripts/` entry surface
 
-A skill's `scripts/` directory is its declared entry surface. Harness surfaces, CI workflows, git hooks, and automation registries outside `plugins/` MAY path-cite `scripts/` entry scripts directly. **Sibling skills may NOT**, because skill-to-skill stays slash-only. That outbound half is out of scope for this inbound audit; a consuming repo that wants it enforced wires its own outbound gate.
+A skill's `scripts/` directory is its declared entry surface. Harness surfaces, CI workflows, git hooks, and automation registries outside `plugins/` may path-cite `scripts/` entry scripts directly. **Sibling skills may not**, because skill-to-skill stays slash-only. That outbound half is out of scope for this inbound audit; a consuming repo that wants it enforced wires its own outbound gate.
 
 In a marketplace monorepo the carve-out narrows: a file under `plugins/<q>/` that path-cites another plugin's `scripts/` is a violation (plugins install independently, so the path can be absent; cite `/plugin:skill`). The same plugin's own files stay legal.
 
 ### Layered convention. Plugin monorepos where the plugin is the shipping unit
 
-A consuming repo whose shipping unit is the PLUGIN rather than the skill may treat intra-plugin
+A consuming repo whose shipping unit is the plugin rather than the skill may treat intra-plugin
 sibling-skill citation as legal, because the portability this contract protects is not at risk
 between two skills that always ship together. The repo must actually be built that way: one manifest and one version per plugin,
 no per-skill manifest, and no installation path that separates two skills in the same plugin.
@@ -58,11 +58,11 @@ a real cite is fixed, never listed.
 This repository layers exactly that convention; `docs/plugin-philosophy.md` states it and bounds it.
 A repo that has not declared such a convention gets the unrelaxed contract above.
 
-A skill MAY expose a `scripts/<name>.sh` entry as a declared public facade (delegating to a private backend directory) that hooks/CI invoke directly, instead of vendoring a copy of the logic. A meta-tooling consumer that only READS a skill-internal path as data, such as a version-drift gate reading a pinned-version file or a path-scoped trigger naming the file it watches, cites that path under the KIND-2 forced-cite exemption (see the filter taxonomy in SKILL.md). Logic invocation goes through the facade; data/path reference is KIND-2.
+A skill may expose a `scripts/<name>.sh` entry as a declared public facade (delegating to a private backend directory) that hooks/CI invoke directly, instead of vendoring a copy of the logic. A meta-tooling consumer that only reads a skill-internal path as data, such as a version-drift gate reading a pinned-version file or a path-scoped trigger naming the file it watches, cites that path under the KIND-2 forced-cite exemption (see the filter taxonomy in SKILL.md). Logic invocation goes through the facade; data/path reference is KIND-2.
 
 ## Carve-out: data files at skill root
 
-Plain data files at skill root (`<skill>/<name>.json` or a `<skill>/<name>.md` data table, NOT `*.schema.json`) are a documented exception to "everything inside is private": legal external cites. The data file is the canonical single source the skill reads at runtime, and a vendored copy would race the skill's writer. Schema files (`*.schema.json`) stay private. Route via `/skill-name <action>` or vendor the schema to a shared tooling location the consumer repo owns.
+Plain data files at skill root (`<skill>/<name>.json` or a `<skill>/<name>.md` data table, not `*.schema.json`) are a documented exception to "everything inside is private": legal external cites. The data file is the canonical single source the skill reads at runtime, and a vendored copy would race the skill's writer. Schema files (`*.schema.json`) stay private. Route via `/skill-name <action>` or vendor the schema to a shared tooling location the consumer repo owns.
 
 ## Cite by slash invocation, never by path or heading anchor
 
@@ -80,7 +80,7 @@ When promoting (Path A), leave the original file in place if the skill still con
 
 ## CI / git-hook consumption: entry surface, not internals
 
-Workflows and git hooks needing logic that ALSO lives in a skill consume the skill's `scripts/` entry surface directly per the entry-surface carve-out. The registry (workflow YAML, hook config) holds a pointer to the entry script or a thin protocol adapter delegating to it, never a reach into `lib/` or any other private subdirectory.
+Workflows and git hooks needing logic that also lives in a skill consume the skill's `scripts/` entry surface directly per the entry-surface carve-out. The registry (workflow YAML, hook config) holds a pointer to the entry script or a thin protocol adapter delegating to it, never a reach into `lib/` or any other private subdirectory.
 
 | Need | Technique |
 |---|---|
@@ -91,8 +91,8 @@ Workflows and git hooks needing logic that ALSO lives in a skill consume the ski
 
 The choice is per-cite. The bundled `scripts/detect.sh` is a candidate enumerator: exit 1 means candidates exist after mechanical filters, not adjudicated violations. Classify via the skill filter taxonomy before treating hits as illegal. Do not hard-gate CI or pre-commit on that exit code alone; a consuming repo that wants a gate must adjudicate (or maintain an explicit baseline) rather than wiring the raw enumerator exit.
 
-## What this contract does NOT cover
+## What this contract does not cover
 
-- **Self-citation** inside a skill's own files (`.claude/skills/<X>/SKILL.md` citing `.claude/skills/<X>/context/<topic>.md`) is LEGAL and expected: progressive disclosure depends on it.
+- **Self-citation** inside a skill's own files (`.claude/skills/<X>/SKILL.md` citing `.claude/skills/<X>/context/<topic>.md`) is legal and expected: progressive disclosure depends on it.
 - **Plugin-cache citations** (`~/.claude/plugins/cache/<plugin>/...`): upstream territory; treat by the upstream's contract, not this one.
 - **Worktree citations**: worktrees share the same `.claude/skills/` tree as the main checkout; the same rules apply at the root path.

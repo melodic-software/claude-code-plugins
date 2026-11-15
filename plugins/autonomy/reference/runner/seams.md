@@ -117,10 +117,10 @@ from cold, and it enforces the caps that bound a single drain. The persisted ses
   and `items_per_run` on the dispatch contract); session persistence is runner-new.
 - **Per-item caps: owning home pinned.** The turn, budget, and wall-clock caps that bound a
   single run, and the retry budget behind the execution-error stop, are admission-policy knobs
-  on the SECURITY binding, siblings of the drain-level pair, on the same agent-unwritable
+  on the security binding, siblings of the drain-level pair, on the same agent-unwritable
   surface, for the same reason: a cap the governed agents could edit is no cap. Their exact
-  keys land as ADDITIVE schema keys with the build (token names resolve when the build trigger
-  fires, like every other deferred seam token); the runner READS them and fail-closes at launch
+  keys land as additive schema keys with the build (token names resolve when the build trigger
+  fires, like every other deferred seam token); the runner reads them and fail-closes at launch
   when they are unbound, so the `cap-exceeded` stop is deterministic and no item ever runs
   unbounded on implicit defaults.
 - **Interface tokens:** the envelope's `resume_handle` is the takeover key; the caps whose

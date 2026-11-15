@@ -3,6 +3,25 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.8] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [1.2.7] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [1.2.6] - 2026-11-15
+
+### Changed
+
+- The delta, migrate and realign instructions and the shared mechanics notes use plain emphasis instead of capital letters, point at the live memory docs for load behavior, and correct stale measurement notes.
+- The load-verification probe forbids the Agent tool, so the probe's Read cannot be delegated to a subagent.
+
 ## [1.2.5] - 2026-11-15
 
 ### Changed

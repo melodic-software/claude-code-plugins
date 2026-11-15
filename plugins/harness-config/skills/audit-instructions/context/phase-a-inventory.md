@@ -33,7 +33,7 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   [reference/agents-md-liveness.md](../../../reference/agents-md-liveness.md). Resolve them there,
   so this phase and the checks downstream of it read one record that carries its own recheck
   trigger. Two things follow that this phase acts on. Under a mode that loads both files a displaced
-  file is read and needs its own record like any other. And **the value to resolve is the EFFECTIVE
+  file is read and needs its own record like any other. And **the value to resolve is the effective
   one across the scopes the record names**, since a user scope naming the default can be overridden
   by a managed one and the reverse; reading only the scope this phase happens to inventory answers
   the wrong question in both directions, dropping a live surface or inventorying an unloaded one.

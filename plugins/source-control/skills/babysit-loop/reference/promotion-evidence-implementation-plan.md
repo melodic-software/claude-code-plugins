@@ -46,7 +46,7 @@ merge for C2/C3 classes.
 4. Update the "Current seam state" paragraph in `promotion-evidence-resolution.md` to match shipped
    behavior.
 
-## Phases
+## Phases (implement after PLAN approval)
 
 ### Phase 1. Bootstrap contract
 

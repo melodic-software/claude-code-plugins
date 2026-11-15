@@ -126,7 +126,7 @@ against a run that produced none):
    [`docs-raw.sh`](../../../scripts/docs-raw.sh) as `bash "<path>/docs-raw.sh" '<url>'` and, when it
    prints `kind=map`, again with the ids of the cited sections after the URL. The URL came from a
    web page, so it is data: percent-encode any `'` in it as `%27` before it goes inside the single
-   quotes, per "The URL is DATA" in [`discipline.md`](discipline.md). It runs
+   quotes, per "The URL is data" in [`discipline.md`](discipline.md). It runs
    `fetch-docs.sh --cache --max-age 0`, so it asks the server every time, and prints raw bytes,
    never a summary or note (section 6 of
    [`../../../reference/docs-lookup-procedure.md`](../../../reference/docs-lookup-procedure.md)).
@@ -435,7 +435,7 @@ which is a custom subagent like `discovery:explorer`. It is pointed at rather th
 copies cannot drift apart on a harness change.
 
 **A refused resume, or exit 1 again after one: discard and re-dispatch with the same envelope, and
-CLEAR THE SLICE FIRST** (or assign the re-dispatch a fresh sub-slice). This rung is research-specific
+clear the slice first** (or assign the re-dispatch a fresh sub-slice). This rung is research-specific
 and it is the one worth remembering: a discarded run's `research-checklist.md` survives the discard,
 the artifact gate's freshness check does not cover it, and a replacement run that finds the corpus
 unbounded writes no ledger of its own, so the dead run's marks would be graded as the new run's

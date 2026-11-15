@@ -119,10 +119,8 @@ pay for the largest fan-out in the pass to produce the section an operator is le
 in the same sitting. Default-off with an explicit flag puts that choice where the operator can price
 it, which is the same reason `--opinion` exists.
 
-**The flag also settles a live cross-plugin contradiction.** That skill's own body states that the
-coordinated pass composes it. This pass names it once, where it derives its report path, and never in
-its dispatch list, so the composition it claims had no invocation behind it. The lane is what makes
-the claim true.
+**The lane is also what makes that skill's own claim true.** Its body states that the coordinated
+pass composes it, and this lane is the invocation behind that composition.
 
 Its findings are judged tier, like every other delegated catalog's.
 

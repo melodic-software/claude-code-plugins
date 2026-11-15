@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "bash scripts/check-secrets.sh .work/shipments/prototype/prototype-notes.md notes-run/explore-directions.html", "description": "Run the secrets check"}}
+      ],
+      "why": "runs the check over the files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "cat scripts/check-secrets.sh", "description": "Read the check"}}
+      ],
+      "why": "reads the script without running it"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "bash scripts/check-secrets.sh README.md", "description": "Check the readme"}}
+      ],
+      "why": "runs the check over a file that is not one of the prototype's"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "ls scripts", "description": "List scripts"}}
+      ],
+      "why": "never runs the check, so not pushed would have no check behind it"
+    }
+  ]
+}

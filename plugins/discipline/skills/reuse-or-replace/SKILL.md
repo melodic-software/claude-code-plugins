@@ -27,7 +27,7 @@ fragmentation: it splits the reader's model, doubles the surface that
 drifts, and taxes every future change with a "which one?" decision. Resolve
 the source of truth per the method doc's ladder: if the consuming project
 states a consistency / one-way rule in its own `CLAUDE.md` /
-`.claude/rules/`, re-anchor THAT. Otherwise re-anchor this portable baseline.
+`.claude/rules/`, re-anchor that. Otherwise re-anchor this portable baseline.
 
 Facing an established way, new work has exactly **two honest options**:
 
@@ -39,7 +39,7 @@ Facing an established way, new work has exactly **two honest options**:
 The **sin is neither of those**: it is leaving the established way in place and
 quietly adding a divergent way alongside it, so both now exist.
 
-### Misconstrual guard. This is NOT "always conform" (mandatory)
+### Misconstrual guard. This is not "always conform" (mandatory)
 
 Reusing is **not** blind conformity, and this skill never demands straight
 obedience to the incumbent way. Replacing the established way is a
@@ -130,7 +130,7 @@ deterministically belong to those tools, not to a judgment corrector.
   established way even right?" is reason-dont-recite's, and the evidence for a
   better way is `/discipline:do-your-research`'s. Reuse-or-replace governs the
   *second way*; those govern the *justification*.
-- **`/discipline:pick-for-the-problem` (carve-out. Does NOT overlap).** That
+- **`/discipline:pick-for-the-problem` (carve-out. Does not overlap).** That
   skill governs selecting a tool, library, framework, or dependency to fit
   the problem, and names incumbency as a *selection sin*. This skill
   **never governs that selection.** Consistency of idioms, structure, and
@@ -159,7 +159,7 @@ Name concrete, located findings (per the method doc's step 2, self-audit; on loa
 
 Correct each forward now: reuse the established way for the new work; or,
 where replacement is warranted, record the rationale at the blast-radius-
-appropriate level AND, if the established way is genuinely superseded, migrate the existing uses and retire it rather than leaving both. Never settle
+appropriate level and, if the established way is genuinely superseded, migrate the existing uses and retire it rather than leaving both. Never settle
 for the silent second way.
 
 Resolve the verification level once with

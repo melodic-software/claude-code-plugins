@@ -77,6 +77,7 @@ Six things this skill ships its own scripts for, because nothing packaged does t
   structured slice is covered per language by the C# compiler's CS1572/CS1573, Ruff's `DOC` rules
   (preview) and `eslint-plugin-jsdoc`, and only where a repository already runs them.
 
-Prose quality of kept comments has one candidate, [Vale](https://vale.sh/), which lifts comments out
-of source through tree-sitter for about 25 languages. It covers none of Bash or YAML, so it is
+Prose quality of kept comments has one candidate, [Vale](https://vale.sh/), which lints comments
+in the languages its [Code format page](https://docs.vale.sh/formats/code) lists. That list named
+neither Bash nor YAML as of 2026-11-15 (recheck it before making Vale more than optional), so it is
 named here as an optional lane, never a dependency.

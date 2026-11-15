@@ -8,7 +8,7 @@ routing gates and the outcome gate; this file is the procedure those gates grade
 
 Read the code before changing it. This skill builds the local knowledge a change depends on: the code, its neighbors, its history, its tests, and the build and tool configuration that constrains the solution. The six dimensions below say what to read; the outcome gate says when it is enough.
 
-Local counterpart to `/discovery:research` (external sources). Together: `/discovery:explore` for what IS, `/discovery:research` for what SHOULD BE.
+Local counterpart to `/discovery:research` (external sources). Together: `/discovery:explore` for what is, `/discovery:research` for what should be.
 
 **Plan-mode for high-risk exploration (optional, inline only)**: when exploring unfamiliar code in a high-blast-radius area (security boundaries, critical infrastructure, code you might accidentally modify mid-investigation), switch into plan mode for harness-level read-only protection. Routine exploration of well-understood code does not need this. **A dispatched run cannot switch into it**. The plan-mode tools are not available to it. The record for that harness behavior is [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md#plan-mode-tools-are-removed-from-every-non-fork-subagent), "Plan-mode tools are removed from every non-fork subagent". `discovery:explorer` lists neither tool in its `tools` allowlist, so it holds neither either way. There the read-only boundary is the agent's own instruction, honored deliberately rather than enforced by the harness.
 
@@ -28,7 +28,7 @@ Read the actual code before forming opinions about it.
 - **Adjacent code**. Read code that calls, is called by, or is structurally similar to the target. Understand the neighborhood, not just the target
 - **Existing patterns**. Before proposing a new pattern, search for how the same concern is handled elsewhere in the repo. Reuse > reinvent (unless the existing pattern is an anti-pattern or well outside modern best practices and not documented as a pragmatic decision)
 - **Convention files**. Read the path-scoped rule files under `.claude/rules/` and any nested `AGENTS.md` covering the target area for conventions that constrain the solution space, without counting on the exploration's other reads to have loaded them. Read the root `CLAUDE.md` and the files it imports only when they are not already in your context. Which instruction files load at the start and which load later is [memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load)'s to say
-- **Reference source as spec**, when the task points at an existing implementation to match (a vendored library, another module, even another language), READ that source as the authoritative spec
+- **Reference source as spec**, when the task points at an existing implementation to match (a vendored library, another module, even another language), read that source as the authoritative spec
 
 ### 2. Git history
 
@@ -51,7 +51,7 @@ Understand how the pieces fit together before moving any of them.
 - **Project references / imports**. Map the dependency graph by grepping the ecosystem's import/reference token across its build-config files (per-ecosystem tokens: [`ecosystem-discovery.md`](ecosystem-discovery.md). Compose `/toolchain:check`'s covered-ecosystem set when the `toolchain` plugin is installed, retaining fallback ecosystems the seam does not cover; otherwise the reference's fallback table)
 - **Solution / workspace membership**. Check the repo's solution or workspace file at the root for what's included
 - **Layer boundaries**. Respect any dependency-direction rules the project declares
-- **Planned direction**. Cross-reference findings with any stated direction in the project's own `CLAUDE.md` or docs. Assess how changes must fit the repo's current state AND planned direction
+- **Planned direction**. Cross-reference findings with any stated direction in the project's own `CLAUDE.md` or docs. Assess how changes must fit the repo's current state and planned direction
 
 ### 4. Test discovery
 
@@ -95,9 +95,9 @@ The resolved scope shapes the exploration focus. Read from `SKILL.md`'s `## Scop
 | `config` | Build and tool configuration | Read `.editorconfig`, build configs, analyzer settings, CI workflows |
 | `<file-path>` | Single file deep-dive | Read file, its tests, its callers, its git history |
 
-Multiple arguments combine: `/discovery:explore payments deps tests` explores that area's dependencies AND test coverage.
+Multiple arguments combine: `/discovery:explore payments deps tests` explores that area's dependencies and test coverage.
 
-> Surfacing the USER's unknown-unknowns before they work in unfamiliar territory, a better-prompt deliverable, not the `EXPLORE.md` artifact, is the sibling [`/discovery:blindspot`](../../blindspot/SKILL.md) skill.
+> Surfacing the user's unknown-unknowns before they work in unfamiliar territory, a better-prompt deliverable, not the `EXPLORE.md` artifact, is the sibling [`/discovery:blindspot`](../../blindspot/SKILL.md) skill.
 
 ## Output format
 
@@ -109,6 +109,6 @@ Present exploration findings as:
 4. **Test coverage**. What's tested, what's not, what test patterns are used
 5. **Constraints**. Analyzers, conventions, layer rules, or CI gates that constrain the solution
 6. **Planned direction alignment**. How findings relate to any direction the project documents
-7. **Open questions**. Anything that needs clarification before proceeding, each with a one-line recommended default + escape hatch. **Inline, surface these to the USER. Dispatched, return them as `open_questions` in the payload and the parent surfaces them**. A dispatched run cannot call `AskUserQuestion`, so the payload is how they reach a human at all; the record is [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md#askuserquestion-is-removed-from-every-non-fork-subagent), "`AskUserQuestion` is removed from every non-fork subagent". Either way, silent downstream resolution of a surfaced open question is an anti-pattern; the hand-off changes, the rule does not
+7. **Open questions**. Anything that needs clarification before proceeding, each with a one-line recommended default + escape hatch. **Inline, surface these to the user. Dispatched, return them as `open_questions` in the payload and the parent surfaces them**. A dispatched run cannot call `AskUserQuestion`, so the payload is how they reach a human at all; the record is [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md#askuserquestion-is-removed-from-every-non-fork-subagent), "`AskUserQuestion` is removed from every non-fork subagent". Either way, silent downstream resolution of a surfaced open question is an anti-pattern; the hand-off changes, the rule does not
 
 If invoked standalone, present findings directly. If invoked as part of a larger workflow, findings feed into subsequent research and planning steps.

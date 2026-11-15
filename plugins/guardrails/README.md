@@ -101,7 +101,7 @@ In a session that loads a mod, don't rely on this plugin's `PreToolUse` hooks al
 | **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Workflow fan-out with no wave cap of its own: a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. The runtime's own concurrency limit still applies ([workflows: Behavior and limits](https://code.claude.com/docs/en/workflows#behavior-and-limits)). Surfaces a one-line advisory via `additionalContext` that points at the workflow-authoring skill and names the overloaded-retry backoff ceiling variable with a link to its docs section, never blocks. **Opt-in. Default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `workflow_resilience_check_enabled=true` to enable). |
 | **block-noncanonical-commit** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | `git commit -m` whose message holds a `$` or a backtick the shell expands before git sees it: double-quoted or unquoted in Bash (`$x`, `$(...)`, backticks), double-quoted in PowerShell (`$x`, and a backtick escape such as `` `f ``), and a PowerShell `@"` here-string. A newline alone is no hazard, so a plain message passes, multi-line included, and so do single quotes, fully escaped double quotes, Bash `"$(cat <<'EOF' ... EOF)"` and a PowerShell `@'` here-string; `-F -` / `--file -` is always safe. Exempt: `--amend`, `-C`/`-c`/`--reuse-message`/`--reedit-message`, `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge/rebase/cherry-pick/revert is in progress. Resolves `bash -lc` wrappers and git aliases (inline `-c` and persisted config alike). |
 | **block-convention-violation** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | A commit subject or `gh pr create --title` that violates the team-tracked convention pattern declared in `docs/conventions/source-control.yaml`, else the folder-form `docs/conventions/source-control/commit-convention.yml`. Where the team tracks no `subject_pattern`, commit subjects are checked against the operator's own in a git-ignored `docs/conventions/source-control.local.yaml`, never merged with a team pattern; PR titles never read it. No tracked or personal pattern means no enforcement. Same exemptions as `block-noncanonical-commit`. |
-| **flag-commit-pr-skill-bypass** | PreToolUse · Bash \| PowerShell | **Advisory** (exit 0) | Any `gh pr create`, bypassing this marketplace's own `/source-control:pull-request` skill. Only fires when the consuming project's own `.claude/settings.json` enables the `source-control` plugin, and is silent otherwise. Surfaces via `additionalContext` once per session and agent, never blocks. **Opt-in. Default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `flag_commit_pr_skill_bypass_enabled=true` to enable). |
+| **flag-commit-pr-skill-bypass** | PreToolUse · Bash \| PowerShell | **Advisory** (exit 0) | Any `gh pr create`, bypassing this marketplace's own `/source-control:pull-request` skill. Only fires when the `source-control` plugin is enabled for the session at user, project or local scope (see Skill-availability gating under Consumer seams), and is silent otherwise. Surfaces via `additionalContext` once per session and agent, never blocks. **Opt-in. Default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `flag_commit_pr_skill_bypass_enabled=true` to enable). |
 | **skill-reference-verify** | git pre-push, `reference-verify` entry, on `.md` | **Fails the push** (exit 1) | A `` `/plugin:skill` `` reference in markdown that does not resolve. Only fires inside a marketplace repo (a `plugins/*/` holding a `.claude-plugin/`, `.codex-plugin/` or `.cursor-plugin/` manifest), and only for a plugin that repo's own manifests own. A reference to another marketplace is left alone. Resolves through manifest and frontmatter `name`, so a renamed directory still matches. |
 | **stale-path-verify** | git pre-push, `reference-verify` entry, on `.md` | **Advisory**: printed, the push goes ahead (exit 0), since a citation can be correct as written (a deletion record) | A repo-relative path cited in a markdown inline code span that this repo's own history shows was **deleted** and that is gone from the pushed tip's tree. The gate is provenance, not absence: the exact path must appear in `git log HEAD --no-renames --diff-filter=D --name-only`, so a path belonging to a consuming project's tree, an example, or a plan is never adjudicated. Names the surviving file when exactly one tracked path now carries that basename. Link destinations are out of scope. |
 
@@ -143,7 +143,7 @@ bash beside git's sh.
 | `commit-msg-convention` | commit-msg | The subject against the team-tracked `subject_pattern` in `docs/conventions/source-control.yaml`, else the folder-form `docs/conventions/source-control/commit-convention.yml`, the pattern `block-convention-violation` reads; where the team tracks none, the operator's own in a git-ignored `docs/conventions/source-control.local.yaml`. No tracked or personal pattern, no enforcement. |
 | `pre-commit-content` | pre-commit | Secrets and machine-specific paths on the lines the commit adds (for a merge, the lines its conflict resolution adds against every parent), with the same pattern libraries and path exemptions as `secret-pattern-detection` and `hardcoded-path-check`, so a file a shell command or script wrote meets the same checks as a Write. It also skips path findings, never secrets, in each path listed in the repository's `docs/conventions/guardrails-content-exempt.tsv` as read from the default branch (`origin/HEAD`), never the index or work tree, so a change cannot exempt its own lines: one `path<TAB>reason` row per file, or per directory with a trailing `/`, `#` starting a comment. No `origin/HEAD` or no file exempts nothing. |
 | `pre-push-content` | pre-push | The same scan as `pre-commit-content` (it shares that entry's `git-hooks/content-scan.sh`), on every pushed ref, for commits that check never judged: made before the hooks were installed, by a tool or clone without them, or rebased or cherry-picked in. Each pushed commit is judged on the lines it adds to its parent, so a secret one commit adds and a later commit removes still fails the push, which would publish it in history; a merge is judged on what it adds against every parent. A new branch starts from its merge-base with the default branch, and commits a remote-tracking ref already holds are not judged again. Each finding names its commit, and the fix is to rewrite that commit. |
-| `reference-verify` | pre-push | `cli-flag-verify`, `skill-reference-verify` and `stale-path-verify` on the lines the pushed commits add, through `hooks/run-guards.sh`. A new branch is judged from its merge-base with the default branch. Any pushed range then starts instead at the nearest of the remote's tracking refs between its base and its tip, so a stacked branch's push does not re-verify the pushed branches below it. Those tracking refs are trusted as verified without a check, including another author's branch, fetched into this clone, that was pushed with `--no-verify`. It skips files in a `samples/` folder below an `evals/` folder, which hold recorded model output; the rest of an eval suite stays checked. A cli-flag or skill-reference finding fails the push; a stale-path finding is printed and the push goes ahead. A file whose verifier input it cannot build or whose verifier run fails, or a pushed tip it cannot check out, is reported as a finding and fails the push, since it went unchecked. It runs at push rather than commit because it costs about 10 s on a 44-file change, over the commit budget (the check-placement convention's measured rows). Needs `jq`; the scanned binaries follow `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` and `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` when set in the pushing environment. A cli-flag finding is unverified, not proven wrong, so its failure names the way out: decline the entry. The entry reads that decline itself, so it also stops on the lefthook remote, where no registration is removed. Each finding names the line holding the flag, path or reference. `git -c checks.skipmissing=jq` skips it only while `jq` is missing. Over ssh, the connection to the remote stays idle while the hook runs. A remote that drops an idle connection leaves a push that reports success but creates no ref. To keep the connection open, set `ServerAliveInterval` (for example `15`) for that host in the ssh config, or set it for one push: `git -c core.sshCommand="ssh -o ServerAliveInterval=15" push`. |
+| `reference-verify` | pre-push | `cli-flag-verify`, `skill-reference-verify` and `stale-path-verify` on the lines the pushed commits add, through `hooks/run-guards.sh`. A new branch is judged from its merge-base with the default branch. Any pushed range then starts instead at the nearest of the remote's tracking refs between its base and its tip, so a stacked branch's push does not re-verify the pushed branches below it. Lines that a merged branch brings in are not judged when one of the remote's tracking refs holds them, whether that branch is the default branch or another one; `pre-push-content` uses the same rule. Lines that the merge resolution or the branch's own commits add are still judged, unless a merged tracking ref already holds the same line. Those tracking refs are trusted as verified without a check, including another author's branch, fetched into this clone, that was pushed with `--no-verify`. A tracking ref is only as current as the last fetch, and the hook never fetches. A ref behind the remote leaves more lines to judge. A ref for a branch the remote deleted or force-pushed, not yet pruned, still counts its commits as pushed, so their lines go unjudged; `git fetch --prune` keeps the refs current. It skips files in a `samples/` folder below an `evals/` folder, which hold recorded model output; the rest of an eval suite stays checked. A cli-flag or skill-reference finding fails the push; a stale-path finding is printed and the push goes ahead. A file whose verifier input it cannot build or whose verifier run fails, or a pushed tip it cannot check out, is reported as a finding and fails the push, since it went unchecked. It runs at push rather than commit because it costs about 10 s on a 44-file change, over the commit budget (the check-placement convention's measured rows). Needs `jq`; the scanned binaries follow `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` and `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` when set in the pushing environment. A cli-flag finding is unverified, not proven wrong, so its failure names the way out: decline the entry. The entry reads that decline itself, so it also stops on the lefthook remote, where no registration is removed. Each finding names the line holding the flag, path or reference. `git -c checks.skipmissing=jq` skips it only while `jq` is missing. Over ssh, the connection to the remote stays idle while the hook runs. A remote that drops an idle connection leaves either a push that reports success but creates no ref, or a failed push that prints `Connection to <host> closed by remote host.` To keep the connection open, set `ServerAliveInterval` (for example `15`) for that host in the ssh config, or set it for one push: `git -c core.sshCommand="ssh -o ServerAliveInterval=15" push`. |
 
 ### Enforceability tiers
 
@@ -153,8 +153,8 @@ the conclusion is a human verdict, never an auto-fix: `skill-reference-verify`,
 because globbing a plugins tree is exact only inside a marketplace repo that owns
 the referenced plugin; and `stale-path-verify`, because a path may be cited
 deliberately as a deletion or completion record and be correct exactly as
-written. `cli-flag-verify` is deterministic in its oracle but advisory in its
-action, because a written claim can be deliberately forward-looking.
+written. `cli-flag-verify` is deterministic in its oracle, and because a written
+claim can be deliberately forward-looking, its push failure names the way out: decline the entry.
 
 `stale-path-verify` detects **staleness, not hallucination**. An invented path was
 never in the repository, so it never enters the deleted-path set and the guard
@@ -358,7 +358,7 @@ out of scope until such a signal exists.
   Three local-only gates are deliberately not applied on this lane, because an
   MCP write names `owner/repo` and a repo-relative path and has no local file:
   the project-scope guard (a relative path is never under `CLAUDE_PROJECT_DIR`,
-  so applying it would skip every MCP write, a silent hole rather than a scope), the
+  so applying it would silently skip every MCP write instead of scoping them), the
   git-working-tree requirement, and `git check-ignore` (which answers what THIS
   checkout ignores, not the destination repo). The path ALLOWLIST is the same
   list, asked of the repo-relative path: an `.env.example` or a test fixture
@@ -796,9 +796,9 @@ detected from `.git/shallow`.
 
 **0.41.2, the remaining PostToolUse execs (#4390).** The cold finding fire's incidental `awk`, `tr`, and `cut` are gone: 25 process creations and execs to 19, and 19 to 13 on the second edit at the same HEAD. What remains on that fire is the shell, the dispatcher, and five `git` processes. The goal, the floor, and why the ideal k × S wall is below that floor are in [`reference/edit-write-guards/PLAN.md`](reference/edit-write-guards/PLAN.md).
 
-The three report-only rows stay synchronous.
+Guard rows stay synchronous.
 
-- **Decision**: do not set `async: true` on `cli-flag-verify`, `skill-reference-verify`, or `stale-path-verify`. These findings are advisory context for the edit that just landed, and an async row would deliver them after that edit, could lose them at the end of a `claude -p` run, and would not be bounded by the row's `timeout`. Blocking guards stay synchronous and fail closed.
+- **Decision**: do not set `async: true` on a guard row. A blocking guard has to decide before the tool call runs, and an async row would not be bounded by the row's `timeout`. Blocking guards stay synchronous and fail closed.
 - **Pointer**: for async delivery, `-p` teardown and `timeout` on an async hook, see <https://code.claude.com/docs/en/hooks#run-hooks-in-the-background> and <https://code.claude.com/docs/en/hooks#how-async-hooks-execute>.
 
 **0.38.0, a long command (#4528).** 2026-09-27, Linux 6.12, bash 5.2.21,
@@ -1324,8 +1324,8 @@ After: one hook process; `RUN_GUARDS_PROFILE=1` reports the per-guard slices ins
 as ≈ 167 / 163 / 197 / 18 / 233 / 253 / 156 / 37 ms, **≈ 1,220 ms** in total, the
 remainder being fork cost, since each guard still runs in its own subshell so that its
 `exit` and `trap` behave as they do standalone. That is a halving of the per-Bash-call
-CPU cost and a drop from eight process spawns to one; it is still above the
-convention's ≤ 1 s typical ceiling on a loaded host, and the remaining remediation is
+CPU cost and a drop from eight process spawns to one; it was still above the
+convention's ≤ 1 s typical ceiling of that time on a loaded host, and the remaining remediation is
 the guards' own per-call work (the subshell fork itself, and the external programs a
 guard spawns on its hot path), not the dispatcher. The per-Write sets fell the same way:
 three PreToolUse processes to one, three PostToolUse processes to one.
@@ -1334,8 +1334,9 @@ Per [`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/RE
 rule 1, widening an always-on hook's matcher states its measured share of the
 fleet budget. `block-windows-drive-tmp` moved from `Bash|PowerShell` to that set
 plus `Write|Edit|MultiEdit|NotebookEdit` in **0.30.0**, so the cost that
-changed is the **per-`Write` tool call**, whose ceiling is ≤ 1 s typical /
-≤ 2 s worst-case.
+changed is the **per-`Write` tool call**, whose ceiling was then ≤ 1 s typical /
+≤ 2 s worst-case. The contract now states each hook's budget as k × S
+([The budget](../../docs/contracts/hook-budget/README.md#the-budget)).
 
 **Method** (the convention's, unchanged): `EPOCHREALTIME` wall-clock around
 direct hook invocation with a benign representative payload, a `Write` of a
@@ -1374,7 +1375,7 @@ a set already walling at ≈ 1 s cannot raise that wall by more than its own cos
 and will usually raise it by less. A re-measurement on a quiet reference host is
 the way to replace this bound with a number, and is the follow-up to do.
 
-**Share of the budget, and the overage.** The convention's ceiling is
+**Share of the budget, and the overage.** The convention's ceiling was then
 ≤ 1 s typical / ≤ 2 s worst-case **per tool call, counting `PreToolUse` and
 `PostToolUse` together for one matcher**, so the set of hooks sharing that budget
 is larger than the table above measures: guardrails also runs three `PostToolUse`
@@ -1431,8 +1432,9 @@ install command:
 claude plugin install guardrails@<marketplace> --config hardcoded_path_check_enabled=false
 ```
 
-How options are scoped (user versus project settings, and the per-repository
-escape hatch) is covered under "How to set these" below.
+Where options are set is covered under "How to set these" below. The per-repository
+team file, `docs/conventions/guardrails.yaml`, is described under Option details
+(`unpinned_lease`, `deny_on_crash`) and in the block-fix-request-post row (`fix_request_post`).
 
 One further option tunes the hooks' shared plumbing rather than a single guard:
 
@@ -1462,7 +1464,7 @@ One further option tunes the hooks' shared plumbing rather than a single guard:
 
 ## Consumer seams
 
-The guards scope and tune themselves to **your** repository. They ship no
+The guards scope and tune themselves to your repository. They ship no
 repo-specific policy of their own:
 
 - **Project scoping.** `secret-pattern-detection` and `hardcoded-path-check`
@@ -1809,8 +1811,8 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `block_noncanonical_commit_allow` | string | *(none)* | Comma-separated form tokens block-noncanonical-commit permits. The only token today is message-flag, which permits a -m message the shell would expand. Empty, the default, permits none. |
 | `block_convention_gate_enabled` | boolean | `true` | Blocks a commit subject or gh pr create --title off the team-tracked pattern in docs/conventions/source-control.yaml, else docs/conventions/source-control/commit-convention.yml. On by default; with no tracked or personal pattern nothing is enforced. Same exemptions as block-noncanonical-commit. |
 | `git_hooks_notice_enabled` | boolean | `true` | At session start, names /guardrails:setup apply install-git-hooks once when this clone lacks a guardrails git-hook entry or holds a drifted one; a declined entry stays quiet. Turning it off also silences the session-start notice that jq is missing. On by default. |
-| `workflow_resilience_check_enabled` | boolean | `false` | Advises on Workflow fan-out with no wave cap of its own; never blocks. Off by default since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in. |
-| `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | Advises when a direct gh pr create bypasses the source-control pull-request skill; never blocks. Off by default since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in. |
+| `workflow_resilience_check_enabled` | boolean | `false` | Advises on Workflow fan-out with no wave cap of its own; never blocks. Off by default: a behavioral-class prose injector, held off by the instruction-economy evidence gate. Set true to turn it on. |
+| `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | Advises when a direct gh pr create bypasses the source-control pull-request skill; never blocks. Off by default: a behavioral-class prose injector, held off by the instruction-economy evidence gate. Set true to turn it on. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | Idle bound on reading the hook payload from stdin: how long a silent pipe is tolerated before a blocking guard fails closed. Default 2. Only a JSON payload the pipe closed on mid-document is allowed with a notice; a stalled pipe stays a block. |
 | `deny_on_crash` | string | *(none)* | Comma-separated guard names (e.g. block-dangerous-git) whose crash denies the tool call instead of allowing it with the guard-did-not-run notice. Empty, the default, lets every crashed guard allow with the notice. An unknown name is reported and ignored. Team-file layer: README Option details. |
 

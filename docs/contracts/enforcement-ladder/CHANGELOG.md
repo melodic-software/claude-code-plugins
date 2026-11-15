@@ -4,6 +4,12 @@ Notable changes to the enforcement ladder (SemVer). Renaming, removing or moving
 bump. Adding a rung, a reader's selection rule or a boundary-rule location is a minor bump.
 Wording-only clarification is a patch.
 
+## [3.1.0] - 2026-11-15
+
+- Added: rung ids for two static-analysis rows that had none, so a skill can write them into a
+  proposal or a `Codifies:` record: `compiler-setting` (the "Compiler or type settings" row) and
+  `behavior-test` (the "Tests" row). No rung moves or is renamed.
+
 ## [3.0.0] - 2026-11-14
 
 The ladder becomes five tiers: a verification tier joins in third place, between static analysis

@@ -100,6 +100,26 @@ rule), Missing concept (a domain idea the prompt never named). The output contra
 `discovery:blindspot`; the taxonomy's rationale in
 [`finding-your-unknowns.md`](finding-your-unknowns.md).
 
+**seam**
+
+A word with five defined senses in this repository, each owned by one file. Say which one is
+meant; a bare "seam" outside these files reads as the module-design sense.
+
+- module design: the spot where one adapter is swapped for another with no edit there
+  ([`plugins/architecture/reference/vocabulary.md`](../plugins/architecture/reference/vocabulary.md)),
+  the only sense an architecture finding uses;
+- a presence-gated reference from one plugin to another
+  ([`contracts/seam-phrasing/README.md`](contracts/seam-phrasing/README.md));
+- the provider-neutral interface to a work-item tracker
+  ([`plugins/work-items/reference/tracker-seam.md`](../plugins/work-items/reference/tracker-seam.md));
+- the autonomy plugin's binding and runner interfaces
+  ([`binding-seam.md`](../plugins/autonomy/reference/binding-seam.md),
+  [`runner/seams.md`](../plugins/autonomy/reference/runner/seams.md));
+- the four channels through which a consumer configures a plugin
+  ([`migration-playbook.md`](migration-playbook.md#extensibility-contract-v21-the-four-seams)).
+
+Avoid: renaming any of the five; each has a recorded decision that keeps it.
+
 ### Work items
 
 **work item** (short: **item**)

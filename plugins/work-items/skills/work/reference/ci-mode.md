@@ -129,7 +129,7 @@ dispatch, PR or babysit step. It works in place:
      "exit": "done",
      "reason": "",
      "title": "fix(scope): subject",
-     "summary": "What changed and why.",
+     "summary": "What changed and why, in two or three sentences.",
      "changes": ["path/to/file.md: what changed in it"],
      "verification": ["the check you ran: what it showed"],
      "not_done": [{"what": "what you skipped or could not check, and why", "required": false}],

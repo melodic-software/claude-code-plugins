@@ -41,7 +41,7 @@ sites    = sorted([(surface, anchor), …])   # one entry, or two for a pairwise
   differently from Y-versus-X.** The same conflict would then be reported twice and would not
   survive a re-run that happened to visit the surfaces in the other order.
 
-**A cross-surface conflict is ONE finding with two sites, never two linked findings.** SARIF reserves
+**A cross-surface conflict is one finding with two sites, never two linked findings.** SARIF reserves
 separate results for "distinct occurrences … which could be corrected independently"
 ([§3.27.12](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), verified 2026-07-24; recheck when a SARIF release rewrites that section).
 A contradiction between two instruction surfaces is retired by fixing *either* side, so the two sides
@@ -90,7 +90,7 @@ where the underlying claims differ. That is the same precision loss the fallback
 arriving in a second field; the report's coverage notes name it there too, and it closes when the
 delegate declares its claim templates.
 
-**`primary_site` and `related_site` are presentation and remediation fields, OUTSIDE the hash.**
+**`primary_site` and `related_site` are presentation and remediation fields, outside the hash.**
 Which side a report leads with, and which side a `--fix` proposes editing, is a routing judgment:
 project scope is editable, user scope is routed, managed policy never. Routing must be free to
 change without renaming the finding.
@@ -108,8 +108,9 @@ symlinked into several repositories yields a different surface in each, and a su
 one is invisible to the rest.
 
 The file that imported the content is a **load edge**, not identity. The harness already emits the
-split: an `InstructionsLoaded` hook payload carries `file_path` (the surface) alongside
-`parent_file_path` (the edge it was loaded through), verified on Claude Code 2.1.220.
+split: an `InstructionsLoaded` hook payload carries the surface alongside the edge it was loaded
+through. Pointer: for the payload fields, fetch
+[hooks: InstructionsLoaded input](https://code.claude.com/docs/en/hooks#instructionsloaded-input) live.
 
 **`load_path`**, the ordered chain of entry points through which a surface loaded, is carried as a
 **non-identity** field for diagnosis, capped at **5 entries** and truncated with an explicit marker
@@ -172,7 +173,7 @@ of two identical sentences in one section is making a decision the record cannot
 one of them. Splitting the heading, or making the sentences differ, resolves it in the document where
 the ambiguity actually lives.
 
-**A whole-surface finding is content-FREE by construction**, and that is the point: a finding about a
+**A whole-surface finding is content-free by construction**, and that is the point: a finding about a
 file *as a whole*, that it should not exist, is unreachable, or duplicates another, must not be
 retired by editing a line inside it. SARIF grounds the same decomposition: "If the region property is
 absent, the `physicalLocation` object refers to the entire artifact"
@@ -232,9 +233,7 @@ anchor versions that entry itself stores**, which is what gives assertion 4.5 a 
 **Every one of the hard errors above is checked where the record is written, not where it is read.**
 A partial artifact is append-only and permanent, and `--resume` and assembly are its only readers, so
 a record that violates identity is not a report defect the next run can shrug off: it is persisted
-state that nothing downstream can repair. A pass has already shipped a record typed as a finding
-carrying `"identity": null` and no `finding_id/v1`, which 1.3 makes a hard error and which a
-validating emitter would have refused at the append.
+state that nothing downstream can repair.
 
 So the checks run in [`scripts/finding-identity.sh validate-record`](../scripts/finding-identity.sh),
 and the write path the skill prescribes is `finding-identity.sh guarded-append`, which runs them and

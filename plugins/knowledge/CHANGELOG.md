@@ -4,6 +4,35 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.1.6] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [3.1.5] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [3.1.4] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
+## [3.1.3] - 2026-11-15
+
+### Changed
+
+- Skill instructions for course-digest, distill, docpage-digest, map-corpus and video-digest use
+  plain emphasis instead of capital letters, and drop notes about how a rule came about.
+- Corrected facts the instructions had wrong: the screenshot file names and folders the
+  extractor writes, the referer header it sends, where key-frame images live, and the claim-inventory
+  phase number. Version-dependent tool facts (Chrome remote debugging, ffmpeg `-ss` and its
+  `whisper` filter, the plugin variables) now point at their upstream pages.
+
 ## [3.1.2] - 2026-11-14
 
 ### Changed

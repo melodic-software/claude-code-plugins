@@ -93,7 +93,9 @@ drive finds a control skill by its hub.
   Drive may add one line naming the harness command that selects the feature; class names and
   internal endpoints stay out. Each Drive step states its action, its exact command or handle,
   and a `Result:`, and the steps end in a `**Proof.**` step with the end state and its
-  `Captures:` (the contract's "Drive steps"). Write a result only from what discovery read or the app showed; a result you
+  `Captures:` (the contract's "Drive steps"). Open `## Drive` with a `Preconditions:` line when
+  the steps need a state Reset and Ready do not set (the contract's "Preconditions"); name the
+  proof's `Captures:`, and a read-back step after a write, per the contract's "Step evidence". Write a result only from what discovery read or the app showed; a result you
   cannot state yet is asked as in step 3, never guessed. A step that sends, signs in or writes to an
   environment is a `cli/` command, never a click.
 - **Config**, per the contract's Config section: `config/defaults.json` with its fields and every
@@ -110,7 +112,9 @@ drive finds a control skill by its hub.
   from the local, environment or flag layers with exit 4, and writes nothing inside its
   control-skill folder (the contract's "Writing the driver CLI" says why). It has that section's
   traits for agents: `--help` on every command and `--dry-run` on each one that writes or sends,
-  beside the floors, never in place of them. When `/developer-experience:build-cli` is
+  beside the floors, never in place of them, each dry run marked `untrusted` in `cli/README.md`
+  unless this run saw it change nothing, and a `trusted` mark naming that run and what it watched
+  (the contract's "Writing the driver CLI"). When `/developer-experience:build-cli` is
   available in this session, invoke it through the Skill tool to write the CLI; otherwise write a
   documented script.
 - **Hub**, per the contract's Hub section, with the app's name, the driving tool, the driving
@@ -136,8 +140,11 @@ Invoke `/app-control:drive` via the Skill tool on one seeded feature, naming the
 control skill. It runs the hub's Ready first and drives the feature's steps, recording each step's
 entry point. Report done only after that run passes. Never repeat a sign-in step for an account
 that already submitted an attempt in this run. When a step fails because the control skill is
-wrong (a handle, a route, a missing precondition), fix the control skill and run again, once; a
-second failure leaves it written but unproven. When the run fails
+wrong (a handle, a route, a state the steps need that `Preconditions:` does not name), fix the
+control skill and run again, once; a second failure leaves it written but unproven. When it fails
+because the data lacks a precondition the feature names, edit no step: write the reason in that
+feature's `## Gotchas` and report the feature unproven until the data holds it (the contract's
+"Preconditions"). When the run fails
 against a healthy app, report the control skill as written but unproven, with drive's evidence; do
 not call it done. When a step cannot run at all (no shell, a missing tool), record it in drive's
 form, `blocked: <reason>`, with its entry point, never a projected or guessed result.
@@ -212,7 +219,9 @@ conversion moves out of.
 5. **Live pass** of every feature (or the one a feature id names) through `/app-control:drive`:
    Ready before the first drive and after any failed one, cleanup after each drive, and every
    evidence path checked after cleanup.
-6. **Triage** each difference as doc drift, driver gap or product regression. A Drive step with no
+6. **Triage** each difference as doc drift, driver gap, missing data or product regression. A
+   step that failed because the data lacks a precondition its feature names is missing data: the
+   steps stay, and the reason goes in the feature's `## Gotchas`. A Drive step with no
    stated `Result:`, or a missing or stale `**Proof.**` step, is doc drift while the feature
    still reaches its end state. So is a stated result the step did not show, but only when the
    source wave cites the source producing the shown result or the stated result was never

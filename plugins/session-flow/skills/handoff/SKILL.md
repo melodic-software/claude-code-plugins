@@ -403,7 +403,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   re-arming every surviving loop, one
   `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine
   doc, "Emit the copy/paste resume prompt")
-- [ ] **EXECUTION STOPS HERE** (for a forked side task, only the side task), the rails prompt and
+- [ ] **Execution stops here** (for a forked side task, only the side task), the rails prompt and
   its below-rail notes follow these ticks as the response's final text ("Output order is fixed")
 
 **Prompt-only path:**
@@ -455,7 +455,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   (or an explicit statement that none were spawned and none were inherited, or that every
   one was cancelled). Named subagents stay live and addressable across `/clear`; prompt-only
   writes no file, so the leftover list travels in the prompt or not at all.
-- [ ] **EXECUTION STOPS HERE** (for a forked side task, only the side task). "Small enough" means the prompt captures the work, not "small
+- [ ] **Execution stops here** (for a forked side task, only the side task). "Small enough" means the prompt captures the work, not "small
   enough to skip `/clear` and finish in-session"; the rails prompt and its below-rail notes follow
   these ticks as the response's final text (see "Output order is fixed" above)
 

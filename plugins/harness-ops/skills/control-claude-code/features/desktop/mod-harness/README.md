@@ -22,10 +22,16 @@ None: the test kit runs no session and keeps no state.
 
 ## Drive
 
-1. Check the mod has a test that mounts a render site for the Desktop app; without one, record
-   that and stop this feature.
-2. Run `claude plugin test <plugin-dir>`, and save its output and exit status to
-   `<run-dir>/desktop-mod-harness.txt`.
+First check the mod has a test that mounts a render site for the Desktop app; without one, record
+that and stop this feature.
+
+1. Run `claude plugin test <plugin-dir>`, and save its output and exit status to
+   `<run-dir>/desktop-mod-harness.txt`. Result: the saved file names the Desktop render-site test
+   and shows it passed, and the command succeeded. How the test kit prints its results and how it
+   fails: the test-kit pointer in Gotchas.
+2. **Proof.** Result: `<run-dir>/desktop-mod-harness.txt` shows the Desktop render-site test
+   passed and the command succeeded; that saved output, no `## Capture` kind, is the evidence.
+   Captures: none
 
 ## Gotchas
 

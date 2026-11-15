@@ -20,7 +20,7 @@ regression, or component bloat was the cause. This skill is the five-minute capt
 
 It deliberately answers "what is true right now" and refuses "so delete X". Remediation routes
 out (see the boundary table). The engine's own phase timings are first-class evidence: a census
-walk that takes minutes IS the cost the product's retention sweep pays on that tree; a
+walk that takes minutes is the cost the product's retention sweep pays on that tree; a
 `claude --version` probe that takes ten seconds is itself a finding.
 
 ## Scope boundary
@@ -174,10 +174,10 @@ spawns. Read `fan_out` in this order:
 
 1. **`fan_out.spawn_cost`** first, because every other number in this section is denominated in
    it. A no-op spawn is the floor a hook, a statusline render, and a subagent each pay before
-   doing any work of their own. The floor MOVES WITH LOAD, so read `min_ms` together with
+   doing any work of their own. The floor moves with load, so read `min_ms` together with
    `concurrent_processes_at_sample` and never quote one without the other. `slow-spawn-floor`
    means the machine is contended before Claude Code does anything; `bimodal-spawn-latency`, a
-   wide spread whose slow mode is itself slow, IS the contention diagnosis rather than a hint
+   wide spread whose slow mode is itself slow, is the contention diagnosis rather than a hint
    toward one.
 2. **`fan_out.hooks`**. `per_tool_call.count` scales with tool-call volume; `per_turn.count` is
    what makes a long conversation degrade and is the bucket most audits never look at.
@@ -198,8 +198,9 @@ spawns. Read `fan_out` in this order:
    command-position rule honors quotes: a quoted executable containing spaces
    (`"C:/Program Files/PowerShell/7/pwsh.exe" -File hook.ps1`) stays one token and is
    recognized, and a shell operator inside a quoted argument (`grep -e 'a|sh' f`) is not read
-   as a delimiter. The two LEGACY findings still flatten quotes and read their own token
-   list, unchanged on every input. The engine treats a row with an `args` key, even
+   as a delimiter. The other two findings, `git-bin-bash-wrapper-costs-an-extra-spawn` and
+   `nested-shell-invocation`, flatten quotes and read their own token list on every input. The
+   engine treats a row with an `args` key, even
    `[]`, as exec form and reports no second shell for it, and a row without the key as shell form.
    Which bash pays the wrapping spawn is item 3. `per_tool_call.count` is the
    registered-row ceiling, so read `by_matcher` and
@@ -218,7 +219,7 @@ spawns. Read `fan_out` in this order:
    - **Pointer**: when naming the wrapping shell, fetch
      [hooks: exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)
      live.
-3. **`fan_out.shell_resolution`**, which names WHICH bash pays that wrapping spawn on Windows:
+3. **`fan_out.shell_resolution`**, which names which bash pays that wrapping spawn on Windows:
    `CLAUDE_CODE_GIT_BASH_PATH`, where the value came from, whether the path exists, whether
    Claude Code accepts the filename, and whether it resolves to Git's `bin` launcher or to
    `usr/bin/bash.exe`. We treat a rejected filename and a path that does not exist alike: a
@@ -250,9 +251,7 @@ spawns. Read `fan_out` in this order:
    against documented defaults. **Never present any value, or removing the variable, as
    disabling either cap**; read what a value does, and where a cap is not enforced, from the
    pointer. The engine's `trap` string beside them describes only the truthiness-gated observer
-   flag and says removing that variable disables it; never relay it for the caps. Rewording it
-   is left undone because `test_the_trap_never_advises_setting_a_flag_to_zero` in
-   `scripts/test_audit_performance.py` pins that text.
+   flag and says removing that variable disables it; never relay it for the caps.
    - **Pointer**: when judging what a cap value does or where it is not enforced, fetch
      [sub-agents: concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit),
      [sub-agents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents),

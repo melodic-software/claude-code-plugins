@@ -49,10 +49,11 @@ deep link. Non-negotiables from the ladder:
 
 ## 4. Compare against declared conventions
 
-When the consumer has declared GitHub conventions (a `.claude/github/conventions.md` in the
-project or user config), audit findings compare current state against them and cite the convention
-being applied. Absent declared conventions, compare against current official-docs recommendations
-and name that provenance instead. Never a from-memory "best practice".
+When the consumer has declared GitHub conventions (any layer in
+`${CLAUDE_PLUGIN_ROOT}/reference/conventions-file.md`: user-global, team or personal override), audit
+findings compare current state against them and cite the convention and its layer. Absent declared
+conventions, compare against current official-docs recommendations and name that provenance
+instead. Never a from-memory "best practice".
 
 ## 5. Report
 

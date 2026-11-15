@@ -212,6 +212,20 @@ without-run lost its judge to the ceiling: `scoreWithout` and `delta` were both 
 `costUsd`, `durationSeconds`, `error`, `graders`, `judgeCostUsd`, `passed`, `score`,
 `skippedPaidGraders`, `startedAt`, `tracePath`, `turns`.
 
+- A run's `costUsd` already includes that run's `judgeCostUsd`, so never add the two: the sum
+  counts the judge twice. The suite `costUsd` is the sum of the per-run `costUsd` values.
+  - **Basis**: the plugin-evals page says `llm` and `baseline` graders "call a judge model and add
+    to the run's cost"
+    (<https://code.claude.com/docs/en/plugin-evals#grade-the-result>) and that the suite
+    `costUsd` includes judge calls
+    (<https://code.claude.com/docs/en/plugin-evals#json-result>); it does not name
+    `judgeCostUsd`. In 171
+    `aggregate-result.json` files with a non-zero judge cost, read 2026-11-14 (the Claude Code
+    version range of those files was not recorded), the suite `costUsd` equaled the sum of the
+    per-run `costUsd` values.
+  - **As of**: 2026-11-15
+  - **Recheck trigger**: the plugin-evals page documents `judgeCostUsd`, or a suite `costUsd`
+    differs from the sum of its per-run `costUsd` values.
 - `error` is `null` or the reason the run ended abnormally, such as a timeout. A non-null `error`
   does **not** by itself imply score 0: some errored runs are still graded, while a run that ended
   on an API error, a rate limit mid-suite included, scores 0 ungraded, which is why that limit reads

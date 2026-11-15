@@ -3,6 +3,27 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-11-15
+
+### Changed
+
+- `/bugs:scan` now treats a run as unattended when `--unattended` is passed or the environment says nobody is present (`CLAUDE_CODE_REMOTE` set, `claude -p`, an autonomous loop). Before, only the flag counted. An unattended run runs none of the scanned code.
+- The rule for running scanned code, the evidence labels and the verification gate's prompt now live in `reference/run-reviewed-code.md`, a generated copy of the marketplace contract `docs/contracts/run-reviewed-code/` that the review plugin shares. `skills/scan/context/verification-gate.md` points at that file instead of keeping its own wording. The gate's verdicts and return shapes are unchanged.
+
+## [0.23.5] - 2026-11-15
+
+### Changed
+
+- The README points at the scan skill's Effort table for the verified-finding count that ends a
+  scan instead of a fixed three; issue numbers leave headings and capital-letter emphasis is
+  lower-cased.
+
+## [0.23.4] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
 ## [0.23.3] - 2026-11-14
 
 ### Changed

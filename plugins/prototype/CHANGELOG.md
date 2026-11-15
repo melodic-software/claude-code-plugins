@@ -3,6 +3,21 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.2] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [0.31.1] - 2026-11-15
+
+### Changed
+
+- The session bridge watch, events and unwatch tool descriptions now say what each tool needs first, what it returns, and when it errors.
+
+- Prototype skill text reads in plain case instead of capital-letter emphasis, and explore-directions states plainly that `--unattended` makes no `/design` suggestion.
+- The `design` verification record lives only in `reference/bundled-design.md`, without the superseded 2.1.263 history row, and the skill's pointers name that file.
+
 ## [0.31.0] - 2026-11-15
 
 ### Added

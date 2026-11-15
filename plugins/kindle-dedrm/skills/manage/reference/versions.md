@@ -1,6 +1,6 @@
 # Captured version pins
 
-URLs and SHA256 hashes as captured at each row's `Captured` date (initial capture 2026-05-10; DeDRM archive re-fetched + SHA-verified and upstream URLs re-probed 2026-07-19). A `Captured` date attests the artifact was downloaded and its hash matched. It does NOT attest that a full single-book extraction was re-run at that date (that is manual and machine-bound; see "How to refresh this file"). The `update` action diffs upstream against these. Treat each row as a Tier 0 fact at the date captured; verify before re-using. A row's recheck trigger is its drift signal in `reference/sources.md`.
+URLs and SHA256 hashes as captured at each row's `Captured` date (initial capture 2026-05-10; DeDRM archive re-fetched + SHA-verified and upstream URLs re-probed 2026-07-19). A `Captured` date attests the artifact was downloaded and its hash matched. It does not attest that a full single-book extraction was re-run at that date (that is manual and machine-bound; see "How to refresh this file"). The `update` action diffs upstream against these. Treat each row as a Tier 0 fact at the date captured; verify before re-using. A row's recheck trigger is its drift signal in `reference/sources.md`.
 
 ## Kindle for PC
 

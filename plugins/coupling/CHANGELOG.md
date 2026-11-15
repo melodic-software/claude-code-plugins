@@ -3,6 +3,13 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.21] - 2026-11-15
+
+### Changed
+
+- The reduce skill routes any finding not shown to meet all four in-place conditions, and change
+  mode writes contract corrections under `<memory_dir>/coupling/` (`.work/` by default).
+
 ## [0.4.20] - 2026-11-15
 
 ### Changed

@@ -105,12 +105,13 @@ Then verify prerequisites with `/eol-normalizer:setup check`. `node "<plugin roo
 
 The normalization policy itself is your repository's `.gitattributes`, which the
 hook reads automatically. To change which files normalize to which endings,
-edit your `.gitattributes`. One `userConfig` option tunes the hook's own
+edit your `.gitattributes`. Two `userConfig` options tune the hook's own
 behavior:
 
 | Option | Type | Default | Effect |
 |--------|------|---------|--------|
 | `eol_normalizer_enabled` | boolean | `true` | Toggle the eol-normalizer hook. Set to `false` for a clean no-op. |
+| `eol_normalizer_lint_gitignored` | boolean | `false` | Set to `true` to also normalize files the repository gitignores and does not track. |
 
 Set it interactively with `/plugin configure eol-normalizer@<marketplace>`, or headless on
 the install command:

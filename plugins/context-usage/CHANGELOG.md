@@ -5,6 +5,15 @@ All notable changes to the `context-usage` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.0.4] - 2026-11-15
+
+### Changed
+
+- The `status` tool description lists every line the model_notices option adds: when the zone
+  worsens, nears a boundary or passes a zones.json threshold, and the restatement after a resume,
+  reload or compaction.
+- Reference docs drop issue numbers and "no longer" phrasing.
+
 ## [6.0.3] - 2026-11-14
 
 ### Fixed

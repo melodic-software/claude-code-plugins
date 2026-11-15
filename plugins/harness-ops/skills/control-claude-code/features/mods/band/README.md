@@ -23,18 +23,27 @@ saved values.
 
 ## Drive
 
-1. Read the mod's README for the command that turns its band on, the text the band shows, and
-   whether it draws only after a response (for `plugins/context-budget`: `/context-budget live
-   band`, which draws nothing before the first response).
-2. When it draws only after a response, first `type "Reply with the number after 41, digits only." --key Enter --session <session>`
-   and `wait-for "42" --session <session>`; the prompt never holds the reply's text.
-3. `type "<command>" --key Enter --session <session>`.
-4. `wait-for "<text the band shows>" --session <session>`.
-5. Capture `screenshot`; for a band that changes over a turn, capture `video` around one prompt.
+Preconditions: the session loads no plugin but the one under test.
+
+First read the mod's README for the command that turns its band on, the text the band shows, and
+whether it draws only after a response (for `plugins/context-budget`: `/context-budget live band`,
+which draws nothing before the first response).
+
+1. When it draws only after a response, first `type "Reply with the number after 41, digits only." --key Enter --session <session>`
+   and `wait-for "42" --session <session>`; the prompt never holds the reply's text. Result: the
+   driver prints `typed`, then `seen: 42` once the reply shows in the transcript.
+2. `type "<command>" --key Enter --session <session>`. Result: the driver prints `typed`.
+3. `wait-for "<text the band shows>" --session <session>`. Result: the band shows the text and the driver prints `seen: <text the band shows>`; with no such text by `stepMs` it
+   exits 1.
+4. Capture `screenshot`; for a band that changes over a turn, capture `video` around one prompt.
+   Result: `screenshot` prints the `.png` path and writes it with a `.png.txt` sidecar holding the
+   band's text; `record stop` prints `recording stopped` and writes the `.mp4.txt` frame text.
+5. **Proof.** Result: the band shows the README's text, and no other mod's
+   content. Captures: screenshot
 
 ## Gotchas
 
-- Every loaded mod can draw in the band. Load only the plugin under test, so a screenshot shows its
-  content alone.
+- Every loaded mod can draw in the band, so the precondition keeps a screenshot to the plugin under
+  test's content alone.
 - Where the band is and how mods share it:
   <https://code.claude.com/docs/en/plugins/mods/interface#pick-where-to-draw>.

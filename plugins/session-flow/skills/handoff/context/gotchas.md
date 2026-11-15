@@ -30,8 +30,8 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   required, not cosmetic: one line per unit, one line per block, elide above 8 units, 16 lines
   total. And when anything about the panel is uncertain, the answer is an abbreviated panel or a
   single line saying the units would not resolve, never a delayed or dropped rails prompt (engine
-  doc, "The panel never gates the rails prompt").
-- **The handoff written free-hand, with no rails at all.** A frequent failure: a session
+  doc, "The panel NEVER gates the rails prompt").
+- **The handoff written free-hand, with no rails at all.** The most common failure: a session
   writes a `*-handoff-*.md` file through `Write` or `Edit` without ever invoking
   `/session-flow:handoff`, so nothing in it has read the engine, and no resume prompt reaches the
   screen. The file looks complete; the operator has nothing to paste. The resume directive carries

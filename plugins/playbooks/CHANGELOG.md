@@ -4,6 +4,25 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.34.6] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [0.34.5] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [0.34.4] - 2026-11-15
+
+### Changed
+
+- Playbook chapters (fable-5, boris, skill-authoring, repo-sweep, model adaptation) read in plain case instead of capital-letter emphasis, and stale facts now match the repository, including which code sends API requests.
+- The boris update steps say to add a changelog fragment rather than bump the plugin version.
+
 ## [0.34.3] - 2026-11-14
 
 ### Changed

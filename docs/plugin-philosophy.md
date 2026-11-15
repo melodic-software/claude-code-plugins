@@ -949,6 +949,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Always-on hook cost ceiling | [`docs/contracts/hook-budget/`](contracts/hook-budget/README.md) |
 | Tracker reference form inside a code comment | [`docs/contracts/tracker-reference-form/`](contracts/tracker-reference-form/README.md) |
 | Untrusted-content framing contract | [`docs/contracts/untrusted-content/`](contracts/untrusted-content/README.md) |
+| Running reviewed code: the two consent forms, the unattended test, the downstream-probe exclusion, evidence labels and the refute-gate prompt | [`docs/contracts/run-reviewed-code/`](contracts/run-reviewed-code/README.md), with generated copies in the bugs and review plugins |
 | Record bundle: a markdown record with its diagrams and media, views kept outside | [`docs/contracts/record-bundle/`](contracts/record-bundle/README.md) |
 | Reply affordance on decision-collecting artifacts | [`docs/contracts/rendered-views/README.md`](contracts/rendered-views/README.md#reply-affordance-rule) |
 | Export button on interactive HTML artifacts | [`docs/contracts/rendered-views/README.md`](contracts/rendered-views/README.md#export-button-rule) |
@@ -1552,7 +1553,8 @@ same depth on two models):
 a session tuned down for cost does not silently cheapen a worker. The `model: inherit` agents pin
 neither: `app-control` `source-reader`; `discovery` `docs-fetcher` and `sweep-worker`;
 `docs-hygiene` `compare-labeler`; `knowledge` `digest-worker`; `multi-agent` `docs-fetcher`,
-`drift-checker` and `drift-reader`; `review` `lane-verifier` and `stage-normalizer`; `testing`
+`drift-checker` and `drift-reader`; `review` `finding-prover`, `lane-verifier` and
+`stage-normalizer`; `testing`
 `green-fixer`, `green-runner`, `green-verifier` and `test-judge`. Each leaves the model to its
 dispatcher (a workflow's role map, a CI lane, or a per-call value), and so leaves the level to that
 dispatch or the session. Every other agent pins the level its lane rule above gives it. In

@@ -15,8 +15,8 @@ policy instead of leaving updates to accumulate until a forced, high-risk catch-
 
 Trigger-taxonomy slot: schedule, entering the queue through the
 [trigger contract](../trigger-dispatch.md)'s `temporal` surface class. Suggested cadence
-default: weekly, WITH event-riding on advisories. A security-advisory event affecting a
-current dependency may WAKE the routine's own ratified emitting surface ahead of cadence,
+default: weekly, with event-riding on advisories. A security-advisory event affecting a
+current dependency may wake the routine's own ratified emitting surface ahead of cadence,
 and the resulting run is always a `temporal`-class signal under the routine's protected
 identity and run-link namespace, identical to a schedule-tick run (the
 [catalog](../routines.md)'s event-riding rule, under which the run never enters through an
@@ -41,8 +41,8 @@ The row is derived through the catalog's mapping rules, never hand-assigned:
 
 1. **Hybrid split.** The class is a hybrid: its detection portion, manifest diff and new
    version availability, is deterministic, so it runs with no agent session and zero
-   agent tokens and is NOT the routine. The judgment portion, breakage assessment and wave
-   composition, IS the routine and derives through the agent-judgment rules.
+   agent tokens and is not the routine. The judgment portion, breakage assessment and wave
+   composition, is the routine and derives through the agent-judgment rules.
 2. **Judgment + output axes.** Agent judgment producing a direct change whose truth is
    mechanically checkable, since the CI verdict decides whether the wave is good, derives
    `C2`, with the `L2` unattended floor.
@@ -105,5 +105,5 @@ escalation rules.
 ## Precedent
 
 The proven manual pattern: recurring hand-run dependency sweeps batched into review
-waves. Productized precedent makes this class THE guardrail-matrix archetype: scheduled
+waves. Productized precedent makes this class the guardrail-matrix archetype: scheduled
 dependency-update bots with test-gated, policy-controlled automerge matrices.

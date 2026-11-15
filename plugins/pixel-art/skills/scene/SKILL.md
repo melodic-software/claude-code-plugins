@@ -104,9 +104,9 @@ recording with `ffmpeg`, trimmed to the recording length. Without `ffmpeg` the W
 
 ## Gotchas
 
-- Browser automation tools may refuse `file:` URLs, which is why review goes through a localhost
-  server. A Linux browser also needs its system libraries; a launch error naming a missing `.so`
-  means those are not installed, not that the scene is broken.
+- Browser automation tools may refuse `file:` URLs (the Playwright CLI blocks the protocol), which is
+  why review goes through a localhost server. A Linux browser also needs its system libraries; a
+  launch error naming a missing `.so` means those are not installed, not that the scene is broken.
 
 - `image-rendering: pixelated` plus `imageSmoothingEnabled = false` both matter; either alone
   smooths somewhere.

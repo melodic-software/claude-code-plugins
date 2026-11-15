@@ -1242,8 +1242,9 @@ Named residuals:
   means one armed before it shipped, or one whose pin was edited or deleted after the enqueue.
 - A native merge's head is compared with no vetted head: a writer's push after the arm (the
   pr-unblock writers above) leaves auto-merge armed, and that head merges natively with no
-  read-back. `ci-status` still runs the hold rules on the merge-group head, including its
-  pr-verify pass at the queued head.
+  read-back. `ci-status` still runs the hold rules on the merge-group head. The pending
+  synchronize disarm in [#9450](https://github.com/melodic-software/claude-code-plugins/pull/9450)
+  closes this once it lands.
 - Event times have one-second resolution, so an identity arm in the same second as a gate enqueue
   counts as at or before it, and that gate merge reads as native and skips its read-back. So does
   an arm between the gate's disarm check and its enqueue.

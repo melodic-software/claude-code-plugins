@@ -3,6 +3,33 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.4.1] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [15.4.0] - 2026-11-15
+
+### Added
+
+- `/work-items:morning-brief` reports, in its Owner touches section, how many of the pull requests merged in the window no person touched, with their share and a note on how a touch is counted: a commit on the pull request, or a review or comment from its open to its merge, by a person. It reads these from the section's own search.
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [15.3.2] - 2026-11-15
+
+### Changed
+
+- The session bridge watch, events and unwatch tool descriptions now say what each tool needs first, what it returns, and when it errors.
+
+- Shared `publish-gate.mjs` synced where this plugin carries it: a comment now names the fold-corpus test that guards its backslash fold; the gate's behavior does not change.
+
+- Skill, reference, tracker contract and seed instructions state their rules in plain case instead of capital-letter emphasis, and stale paths, facts and cross-file contradictions in them are corrected.
+- Comments and messages in the preflight, adapter generator and conformance scripts use plain case; their behavior is unchanged.
+
 ## [15.3.1] - 2026-11-15
 
 ### Fixed

@@ -45,7 +45,7 @@ requirement per surface from fetched docs plus live probes, exactly as the ladde
 
 ## Audit-question checklist
 
-One continuous list, grouped by sub-area. Aim to answer every applicable item; report any the
+One continuous list, grouped by sub-area. Answer every applicable item; report any the
 credential cannot reach as a gate (see the drift section), never as a silent pass.
 
 **Authentication security (2FA, SSO, session/credential policy)**
@@ -114,8 +114,8 @@ Framing to apply when interpreting findings; the exact mechanism behind each res
   or where app-request policy is open, is running a weaker posture than one that admits apps
   deliberately. Prefer the closed stance and flag the open one, even absent a specific declared
   convention, naming it as a fetched-docs recommendation when no convention exists.
-- **Tighten over time.** Authentication and advanced-security controls are expected to ratchet
-  toward stricter, not looser. A control that has loosened since a prior state deserves a why.
+- **Tighten over time.** Authentication and advanced-security controls are expected to get
+  stricter, not looser. A control that has loosened since a prior state deserves a why.
 - **Secure-by-default configuration.** Prefer a single named security configuration applied
   org-wide with new repos auto-enrolled over scattered per-repo toggles; the latter is where
   coverage holes hide.

@@ -54,7 +54,7 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
 - **Human-gated.** Every mutating step (strip, restore, re-add, watch removal) presents its exact change set and
   waits for operator confirmation. Bare invocation of a phase never mutates silently.
 - **Security posture is out of scope.** Hooks that enforce policy (secrets gates, PR-body contracts,
-  permission guards) are classified `policy` at snapshot time and are NOT stripped by default:
+  permission guards) are classified `policy` at snapshot time and are not stripped by default:
   the experiment measures model capability, and policy gates are not model-era workarounds. The
   operator may force-include one explicitly; the manifest records that choice.
 
@@ -243,7 +243,7 @@ Apply the confirmed strip plan:
   a behavioral `CLAUDE.md` beside an `AGENTS.md` the plan classified `policy` or `convention` and
   chose to keep, and a strip of the whole list would delete the surface the plan said to retain;
   `--all` is there for the case where the plan did approve every one.
-  **Both `AGENTS.md` names are strip CANDIDATES wherever the strip could make them live, and each
+  **Both `AGENTS.md` names are strip candidates wherever the strip could make them live, and each
   is then classified like any other file.** Candidacy and classification are separate questions:
   candidacy asks whether removing the `CLAUDE.md` names would put this file in context, and
   classification asks what the file is. Neither is answered by "nothing appears to read it today",
@@ -471,7 +471,7 @@ scheduling surfaces vary per consumer and are the operator's choice.
 - **State writes go through Write or Edit.** Write the manifest and the ledger with those tools,
   never a shell redirect or heredoc: a shell write skips the Write and Edit hook gates.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Never strips managed settings, user-global surfaces (without explicit opt-in), or policy-classified
   hooks by default.

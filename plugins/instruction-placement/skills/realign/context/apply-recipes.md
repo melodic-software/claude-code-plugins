@@ -122,8 +122,8 @@ belong in this destination. Mark the finding `blocked` and say why.
   fetch [memory § When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)
   and [§ When AGENTS.md support is unavailable](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable)
   live.
-- **Recheck trigger**: `/instruction-placement:migrate cutover-check` ships (#4281) and reports
-  every condition met.
+- **Recheck trigger**: `/instruction-placement:migrate cutover-check` reports every graded condition
+  met.
 
 ## Recipe C: promote from ordinary documentation
 

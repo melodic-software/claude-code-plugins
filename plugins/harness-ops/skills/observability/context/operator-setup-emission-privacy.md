@@ -86,14 +86,15 @@ configuration variables](https://code.claude.com/docs/en/monitoring-usage#common
 
 ## Privacy consequence (read before leaving full capture ON)
 
-With the content-capture keys active, the persistent store (`.claude/observability/otel/cc-logs.json`)
+With the content-capture keys active, the persistent store (`$CC_OTEL_STORE/cc-logs.json`, or `.claude/observability/otel/cc-logs.json` when `CC_OTEL_STORE` is unset)
 holds **real prompt text, tool input/output, and raw API bodies**, the full conversation history,
 which can include secrets pasted into prompts. Barriers:
 
-- **Gitignored**: the store is under `.claude/observability/` (never committed). Verify:
+- **Gitignored**: the provisioned store is the absolute `$CC_OTEL_STORE` path; the development
+  fallback under `.claude/observability/` is never committed. Verify the fallback:
   `git check-ignore .claude/observability/otel/`.
 - **Per-developer-local**: each contributor's store is their own machine only; nothing shared.
-- **NOT secret-scanned**: the `secret-pattern-detection` hook does not scan Collector-written
+- **Not secret-scanned**: the `secret-pattern-detection` hook does not scan Collector-written
   files; gitignore + per-dev + retention is the whole barrier.
 - **Retention**: `/harness-ops:observability clean` (or `otel/prune-otel-store.sh` in this skill)
   prunes the store to `CC_OTEL_RETENTION_DAYS` (default 7; `api_*_body` records age out at

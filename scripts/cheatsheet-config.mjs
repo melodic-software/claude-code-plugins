@@ -1,8 +1,10 @@
 // Hand-curated grouping layer for the generated skill cheat sheet
-// (docs/skill-cheat-sheet.md). Owns exactly three things: the stage/group
-// vocabulary and order, the exclusion entries, and the shared summary guard.
-// Per-skill detail (stage, summary, cadence) lives in each SKILL.md's
-// `metadata:` frontmatter, never here.
+// (docs/skill-cheat-sheet.md). Owns the stage/group vocabulary and order, the
+// exclusion entries, the review map, the upstream records read for equivalents,
+// and the shared summary guard. Per-skill detail (stage, summary, cadence,
+// arguments) lives in each SKILL.md's frontmatter, and which stages each kind
+// of task enters lives in the workflow skill's steps.md Task kinds table, never
+// here.
 
 // Workflow-stage headings mirror the H2 headings in
 // plugins/session-flow/skills/workflow/context/steps.md (the generator's
@@ -178,6 +180,70 @@ export const REVIEW_PR_MAP = [
     posts: "no",
     basis: "places a finished video in a pull request",
   },
+];
+
+// The command a person types for each workflow stage in this repository, one
+// entry per stage and never per kind of task (which stages a kind enters is the
+// workflow skill's Task kinds table). Each `runs` claim names a call the skill
+// makes; `basis` is a quote from the line that makes it, which the generator
+// finds and cites as path:line, failing when the quote is gone. An `also`
+// entry is a command of the same stage typed only in the situation `when`
+// names.
+export const STAGE_COMMANDS = [
+  { stage: "interview", skill: "planning/interview" },
+  { stage: "explore", skill: "discovery/explore" },
+  { stage: "research", skill: "discovery/research" },
+  { stage: "prd", skill: "planning/prd" },
+  { stage: "design", skill: "planning/design" },
+  { stage: "plan", skill: "planning/plan" },
+  { stage: "decompose", skill: "work-items/decompose" },
+  {
+    stage: "implement",
+    skill: "implementation/implement",
+    also: [{ when: "when the breakage is not yet diagnosed, first", skill: "debugging/debug" }],
+  },
+  {
+    stage: "test",
+    skill: "testing/write",
+    also: [{ when: "when a test fails,", skill: "testing/diagnose" }],
+  },
+  { stage: "review", skill: "review/quality-gate" },
+  {
+    stage: "verify",
+    skill: "verification/confirm",
+    runs: [
+      {
+        claim: "runs the build, test and lint checks through `/toolchain:check` and `/toolchain:lint`",
+        basis: "invoke `/toolchain:check` and `/toolchain:lint` cross-cutting via the Skill tool",
+      },
+      {
+        claim: "finds the touched features with `/app-control:drive affected`",
+        basis: "invoke `/app-control:drive affected --base <ref> --out <evidence dir>/affected`",
+      },
+      {
+        claim: "drives the touched features with `/testing:run-e2e`",
+        basis: "invoke `/testing:run-e2e` via the Skill tool",
+      },
+    ],
+  },
+  {
+    stage: "pr",
+    skill: "source-control/pull-request",
+    runs: [
+      {
+        claim: "`ready` runs the code and security reviews in fresh-context subagents and the verify gate before marking the PR ready",
+        basis: "run the code and security reviews over the PR diff in fresh-context subagents",
+      },
+    ],
+  },
+];
+
+// Upstream records whose "## Attribution table" names our skills. A skill a
+// row's Ours column lists gets that table linked in its Upstream cell, named by
+// the row's upstream skill; the record's text is never copied.
+export const UPSTREAM_RECORDS = [
+  { path: "docs/upstream/cursor-pstack.md", label: "pstack" },
+  { path: "docs/upstream/mattpocock-skills.md", label: "Pocock" },
 ];
 
 // Characters that make a plain YAML scalar unsafe at value start (flow/block

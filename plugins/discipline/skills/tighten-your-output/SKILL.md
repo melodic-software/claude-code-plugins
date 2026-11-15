@@ -89,7 +89,7 @@ and report its line ([levels](https://github.com/melodic-software/claude-code-pl
   change set when that plugin is installed; otherwise reduce in-thread against
   the simpler-code convention, spending no clarity, test, error handling,
   convention, or observability to do it.
-- **Proactive code-side enforcement is NOT here.** It lives in review and
+- **Proactive code-side enforcement is not here.** It lives in review and
   design gates that cite the simpler-code convention; this corrector
   re-anchors the discipline and corrects the work in flight.
 
