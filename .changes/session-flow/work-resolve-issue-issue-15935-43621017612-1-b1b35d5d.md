@@ -4,7 +4,7 @@ bump: minor
 
 ### Changed
 
-- The `retro` improvement catalog now asks of each finding, before the scope question, whether a check could decide it. When one can, the recommendation is a check proposal handed to `/corrections:codify` when that plugin is installed, or else written in the Hooks format against the retro's enforcement-ladder copy, and the finding gets no `CLAUDE.md` or rules-file line. Session mode's Phase 3 runs this step before it chooses a target.
+- The `retro` improvement catalog now asks of each finding, before the scope question, whether a check could decide it. When one can, the recommendation is a check proposal handed to `/corrections:codify` when that plugin is installed, or else written in the Hooks format against the retro's enforcement-ladder copy, and the finding gets no `CLAUDE.md` or rules-file line. A finding about a steering-file line itself skips this step and is still judged against the steering-file yardstick. Session mode's Phase 3 runs this step before it chooses a target.
 - The catalog's target sections now run strongest first: Hooks and Settings, then CLAUDE.md / Rules, then Memory. The CLAUDE.md / Rules section opens with its condition: no rung above guidance can decide the finding.
 - The catalog's "When to propose a check" no longer keeps its own recurrence count. It points at `/corrections:codify`'s `recurrence.min_occurrences` setting, keeps one occurrence for a policy-class mistake, and falls back to a repeat with the same cause when the `corrections` plugin is not installed.
 

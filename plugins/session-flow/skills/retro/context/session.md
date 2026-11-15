@@ -300,9 +300,11 @@ docs lookup the catalog below describes. Never recommend features from training-
 
 **Load the catalog.** Read `<plugin-root>/skills/retro/reference/ecosystem-improvement-catalog.md`
 before filling the table, and put each finding through its "Check first" step before choosing a
-target: a finding a check could decide gets a check row, not a CLAUDE.md or rules row. The
-placement decision tree and the per-target recommendation formats (hooks, settings, rules, memory,
-skills, agents, MCP servers) live there.
+target: a finding a check could decide gets a check row, not a CLAUDE.md or rules row. A finding
+about a steering-file line itself skips that step and keeps the "No-op in a steering file" route
+and the steering-file yardstick below. The placement decision tree and the per-target
+recommendation formats (hooks, settings, CLAUDE.md and rules, memory, skills, agents, MCP servers)
+live there.
 
 **Repeated corrections.** A finding that is a correction the session needed more than once is
 routed to `/corrections:codify "<the mistake>"` when the `corrections` plugin is installed, which
@@ -322,9 +324,10 @@ allows it; otherwise the row takes that section's fallback.
 | Pointer after a long search | The session searched at length to find something | Proposes a navigation pointer in the steering file that would have led there, placed by the catalog's decision tree |
 
 **Steering-file yardstick.** Every steering-file line the report assesses (`CLAUDE.md`,
-`AGENTS.md`, a rules file), whether as a finding, a no-op row or a judgment call, is judged against
-`/docs-hygiene:write-for-agents`, read through the Skill tool when it is among the available skills.
-Without it, the report says the yardstick was not available, not only that it was not run.
+`AGENTS.md`, a rules file), whether as a finding, a no-op row, a line a tool already enforces or a
+judgment call, is judged against `/docs-hygiene:write-for-agents`, read through the Skill tool when
+it is among the available skills. Without it, the report says in one line that the yardstick was
+not available, not only that it was not run.
 
 Present as a GFM table with a **Scope** column distinguishing:
 

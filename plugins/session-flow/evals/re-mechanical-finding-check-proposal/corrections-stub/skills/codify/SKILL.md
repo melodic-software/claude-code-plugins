@@ -8,7 +8,9 @@ disable-model-invocation: false
 # Codify (eval stand-in)
 
 Proposes, never applies: a proposed check or instruction line is written for the person to accept,
-and no file is edited. This stand-in runs no count and keeps no findings buffer. For a `group` or
+and no file is edited. This stand-in runs no count, keeps no findings buffer, and runs, writes and
+proves nothing; the caller does not try the check out in its place either. For a `group` or
 `note` call, say the buffer holds no rows and hand control back to the caller, which goes on with
-its own steps. For a described mistake, say what it would propose and hand control back the same
-way.
+its own steps. For a described mistake, say which check it would propose (the rung and the rule),
+then hand control back the same way: the hand-off is the caller's own recommendation row naming
+this skill, which the person approves before any check is written.

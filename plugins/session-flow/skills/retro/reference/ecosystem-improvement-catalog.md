@@ -20,14 +20,21 @@ script wrote no manifest.
 Before the scope question, ask one thing of every finding: **could a check decide this?** A check
 can when a machine reaches the same verdict every time, the first item of the "Guardrail
 criterion" in `<plugin-root>/skills/retro/reference/enforcement-ladder.md`: a fixed pattern, a
-banned API, a file written in the wrong place, a step skipped before a commit.
+banned API, a file written in the wrong place, a step skipped before a commit. A finding about a
+steering-file line itself (one the model follows unaided, or one that is stale or conflicting)
+skips this step, even when a tool already enforces what the line says: it keeps session mode's
+"No-op in a steering file" route and is judged against the steering-file yardstick. A retro
+proposes a check and never writes, runs or proves one, with or without the `corrections` plugin:
+it writes no file, a scratch file included, to try a check out.
 
 - **Yes**: the recommendation is a check proposal, never a new prose line. An existing check that
   should have caught it but is unwired or broken comes first: the row wires or repairs that check,
   as "When to propose a check" under [Owner skills](#owner-skills) says. Otherwise, when the
-  `corrections` plugin is installed, the row hands the finding to
-  `/corrections:codify "<the mistake>"`, which counts it, applies the ladder's guardrail
-  criterion, picks the strongest rung that can decide it and proves the check. Without it, judge
+  `corrections` plugin is installed, the finding's own Phase 3 row is the hand-off: its target is
+  `/corrections:codify "<the mistake>"` and its recommendation is the check codify would pick (a
+  lint rule, a hook). Codify counts the mistake, applies the ladder's guardrail criterion, picks
+  the strongest rung that can decide it and proves the check once the person approves that row, so
+  a codify call made during the retro does not stand in for the row. Without the plugin, judge
   the finding on the "Guardrail criterion" items a retro can settle from the finding itself: item
   1 (decidable without reasoning), item 2 (it recurs, by the rule "When to propose a check" under
   [Owner skills](#owner-skills) gives for when the plugin is missing) and item 7 (no stronger rung
