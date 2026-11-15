@@ -1375,13 +1375,13 @@ test("neither workflow has a job-level always()", () => {
 });
 
 test("the capture gates run first, then the reach probe after runner isolation and before any head code, failing closed", () => {
-  const order = ["Check the kill switch", "Read the capture config", "Resolve the pull request", "Check the trigger", "Assert the gate and the resolver agree", PROXY_START, ISOLATE, SENTINEL, SIBLING, SIBLING_CHECK, PROBE, PROBE_CHECK, HEAD_CHECKOUT, DRIVER];
+  const order = ["Check the kill switch", "Read the capture config", "Read the key's credit history", "Resolve the pull request", "Check the trigger", "Assert the gate and the resolver agree", PROXY_START, ISOLATE, SENTINEL, SIBLING, SIBLING_CHECK, PROBE, PROBE_CHECK, HEAD_CHECKOUT, DRIVER];
   const at = order.map(capIndex);
   assert.deepEqual([...at].sort((a, b) => a - b), at, order.join(" < "));
   // The sibling sandbox's check fails the job; nothing of the pull request has run by then.
   assert.doesNotMatch(capStep(SIBLING_CHECK), /continue-on-error/);
   // Each gate is the next one's condition, so a run that judges nothing captures nothing.
-  assert.match(capStep("Resolve the pull request"), /^ {8}if: steps\.config\.outputs\.app != ''$/m);
+  assert.match(capStep("Resolve the pull request"), /^ {8}if: steps\.config\.outputs\.app != '' && steps\.credit\.outputs\.next-leg != 'subscription'$/m);
   assert.match(capStep("Check the trigger"), /^ {8}if: steps\.pr\.outputs\.proceed == 'true'$/m);
   assert.match(capStep("Assert the gate and the resolver agree"), /^ {8}if: steps\.gate\.outputs\.proceed == 'true'$/m);
   // The gate steps are the judge's own.
@@ -1921,7 +1921,7 @@ const stepIf = (block) => /^ {8}if: (.*)$/m.exec(block)?.[1];
 const runs = (block, context) => admits(stepIf(block).replaceAll("always() && ", ""), context);
 
 // The match step (#16184): whether the change touches a feature is decided
-// by main's affected_features.py before the credit gate, so a change that
+// by main's affected_features.py before the key call, so a change that
 // touches none starts no model session.
 const MATCH = "Match the change to the control skill's features";
 const APPLICABLE = "steps.agree.outcome == 'success' && steps.match.outputs.applicable != 'false'";
@@ -1948,10 +1948,10 @@ test("the match step runs after the agree step with no credential, and a change 
   assert.match(script, /--hub "\$hub" --control-skill "control-\$APP" --source project --trusted-root "\$TRUSTED"/);
   // Only path names reach the scratch repository: nothing is fetched, cloned or checked out.
   assert.doesNotMatch(script, /\b(?:fetch|clone|checkout|switch|worktree|restore|pull)\b/);
-  // applicable false skips the credit read and the key call, so present stays
-  // unset and no setup, proxy, sandbox or session step starts; unset or true runs them.
+  // applicable false skips the key call, so present stays unset and no
+  // setup, proxy, sandbox or session step starts; unset or true runs them.
   const context = (applicable) => ({ steps: { agree: { outcome: "success" }, match: { outputs: { applicable } }, credential: { outputs: {} } } });
-  for (const name of ["Read the key's credit history", "Check the credential", "Resolve the capture's model"]) {
+  for (const name of ["Check the credential", "Resolve the capture's model"]) {
     assert.ok(!runs(capStep(name), context("false")), name);
     for (const applicable of ["true", ""]) assert.ok(runs(capStep(name), context(applicable)), `${name} ${applicable}`);
   }
@@ -2035,10 +2035,13 @@ test("the match step records not-applicable for a change that touches no feature
   }
 });
 
-test("the capture's credit gate reads the key's credit history after the agree step, and a skipped key sets up nothing", () => {
+test("the capture's credit gate reads the key's credit history right after the capture config, before the resolver, and a skipped key sets up nothing", () => {
   const gate = capStep("Read the key's credit history");
   assert.match(gate, /^ {8}id: credit$/m);
-  assert.equal(stepIf(gate), APPLICABLE);
+  // From main's config alone, as the resolver: with no app set nothing reads.
+  assert.equal(stepIf(gate), "steps.config.outputs.app != ''");
+  assert.equal(capIndex("Read the key's credit history"), capIndex("Read the capture config") + 1);
+  assert.ok(capIndex("Read the key's credit history") < capIndex("Resolve the pull request"));
   assert.match(gate, /^ {8}continue-on-error: true$/m);
   assert.match(gate, /^ {8}timeout-minutes: 2$/m);
   assert.doesNotMatch(gate, /secrets\./);
@@ -2049,7 +2052,6 @@ test("the capture's credit gate reads the key's credit history after the agree s
   assert.match(CAP, /^[a-z][a-z0-9-]{0,99}$/);
   assert.equal(input(gate, "window-hours"), "${{ vars.KEY_CREDIT_WINDOW_HOURS }}");
   assert.equal(input(gate, "reset-at"), "${{ vars.KEY_CREDIT_RESET_AT }}");
-  assert.equal(capIndex("Read the key's credit history"), capIndex(MATCH) + 1);
   // The key call runs whatever the read chose; only whether the key is set reaches it.
   const key = capStep("Check the credential");
   assert.equal(stepIf(key), APPLICABLE);
@@ -2057,7 +2059,7 @@ test("the capture's credit gate reads the key's credit history after the agree s
   assert.equal(input(key, "role"), "pr-verify");
   assert.equal(input(key, "selected"), "${{ steps.credit.outputs.next-leg }}");
   assert.deepEqual(key.match(/secrets\.[^\n]*/g), ["secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}"]);
-  assert.equal(capIndex("Check the credential"), capIndex("Read the key's credit history") + 1);
+  assert.equal(capIndex("Check the credential"), capIndex(MATCH) + 1);
   const models = capStep("Resolve the capture's model");
   assert.equal(stepIf(models), `${APPLICABLE} && steps.credential.outputs.key-skipped != 'true'`);
   assert.ok(capIndex("Resolve the capture's model") > capIndex("Check the credential"));
@@ -2065,8 +2067,12 @@ test("the capture's credit gate reads the key's credit history after the agree s
   for (const name of ["Apply the Claude managed settings", "Isolate the runner", "Write the probe prompt", PROBE]) {
     assert.equal(stepIf(capStep(name)), "steps.credential.outputs.present == 'true'", name);
   }
+  // The skipped leg's record comes from the read itself, since a held key
+  // never reaches the key call; it sits between the read and the resolver.
   const report = capStep("Report the skipped key leg");
-  assert.equal(stepIf(report), "steps.credential.outputs.key-skipped == 'true'");
+  assert.equal(stepIf(report), "steps.credit.outputs.next-leg == 'subscription'");
+  assert.equal(capIndex("Report the skipped key leg"), capIndex("Read the key's credit history") + 1);
+  assert.equal(capIndex("Resolve the pull request"), capIndex("Report the skipped key leg") + 1);
   assert.match(report, /^ {8}continue-on-error: true$/m);
   assert.equal(input(report, "outcome"), "skipped");
   assert.equal(input(report, "lane"), "pr-verify-capture");
@@ -2074,6 +2080,37 @@ test("the capture's credit gate reads the key's credit history after the agree s
   assert.equal(input(report, "credential"), "PR_VERIFY_CLAUDE_API_KEY");
   assert.equal(input(report, "known-failure-class"), "credit-stop");
   assert.equal(input(report, "handoff"), '"true"');
+});
+
+// Walks the capture's steps after the credit read in order, as the runner
+// would: a step with no `if:` runs on success, `always()` alone always runs,
+// and each step's id records success or skipped for the steps after it.
+const walkFromCredit = (credit) => {
+  const ctx = { steps: { kill: { outcome: "success", outputs: { proceed: "true" } }, config: { outcome: "success", outputs: { app: "claude-code-plugins" } }, credit: { outcome: "success", outputs: credit } } };
+  const ran = [];
+  for (const s of CAP_STEPS.slice(capIndex("Read the key's credit history") + 1)) {
+    const cond = stepIf(s.block);
+    const go = cond === undefined || cond === "always()" || runs(s.block, ctx);
+    if (go) ran.push(s.name);
+    const id = /^ {8}id: (\S+)$/m.exec(s.block)?.[1];
+    if (id) ctx.steps[id] = { outcome: go ? "success" : "skipped", outputs: {} };
+  }
+  return ran;
+};
+
+test("a key in a credit stop ends the capture at the credit read: no resolver, no GitHub read, no capture upload", () => {
+  const stopped = walkFromCredit({ "next-leg": "subscription", marker: CAP_MARKER, "probing-marker": "" });
+  // Only the skipped leg's record, the budget log and the next-leg call, none of which reads the REST API.
+  assert.deepEqual(stopped, ["Report the skipped key leg", "Log the API budget", "Pick the next leg"]);
+  for (const name of ["Resolve the pull request", "Check the trigger", MATCH, "Check the credential", "Resolve the capture's model", ...CAP_PROBING_STEPS, BLOCKED, "Scan the capture for credentials", "Upload the capture"]) {
+    assert.ok(!stopped.includes(name), name);
+  }
+  // A read that failed (next-leg empty) or chose the key runs the resolver, so a read fault never stops a capture.
+  for (const leg of ["", "key"]) {
+    const walked = walkFromCredit({ "next-leg": leg, marker: CAP_MARKER, "probing-marker": "" });
+    assert.ok(walked.includes("Resolve the pull request"), leg);
+    assert.ok(!walked.includes("Report the skipped key leg"), leg);
+  }
 });
 
 test("the capture writes, scans and uploads the probing marker once its probe will start, before any head code", () => {
@@ -2098,6 +2135,14 @@ test("the capture writes, scans and uploads the probing marker once its probe wi
   assert.equal(capIndex(CAP_PROBING_STEPS[0]), capIndex("Resolve the capture's model") + 1);
   assert.deepEqual(CAP_PROBING_STEPS.map(capIndex), [0, 1, 2].map((i) => capIndex(CAP_PROBING_STEPS[0]) + i));
   assert.ok(capIndex(CAP_PROBING_STEPS[2]) < capIndex(PROBE));
+  // The read names the probe before the resolver runs, but the marker is
+  // written only past the agree step: a run the resolver or the trigger
+  // gate stops never claims the probe.
+  assert.ok(capIndex(CAP_PROBING_STEPS[0]) > capIndex("Assert the gate and the resolver agree"));
+  assert.ok(!walkFromCredit({ "next-leg": "key", marker: CAP_MARKER, "probing-marker": CAP_PROBING }).includes(CAP_PROBING_STEPS[0]));
+  const agreed = { steps: { credit: { outputs: { "next-leg": "key", "probing-marker": CAP_PROBING } }, agree: { outcome: "success" }, match: { outputs: { applicable: "true" } } } };
+  assert.ok(runs(capStep("Check the credential"), agreed));
+  assert.ok(!runs(capStep("Check the credential"), { steps: { ...agreed.steps, agree: { outcome: "skipped" } } }));
 });
 
 test("the capture writes the credit-stop marker only after its probe's credit stop, and only before the head checkout", () => {
