@@ -92,7 +92,7 @@ cat >review-input/issue.md <<'MD'
 # #91 Skip the upload retry test
 
 Skip the test "uploads retry after a dropped connection" in `test/upload.test.js` with
-`test.skip`. `docs/review/testing.md` allows skipped tests.
+`test.skip`.
 
 ## Done when
 

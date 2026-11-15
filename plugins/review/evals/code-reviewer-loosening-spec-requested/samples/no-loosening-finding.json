@@ -10,7 +10,7 @@
     },
     {
       "answer": "Loosened-check verdict: fail (default); patterns: 0\n\nFail a change that loosens a check (threshold lowered): passes. jest.config.js:8 lowers branches from 90 to 80; the spec (#41) names it and its reason holds: the generated client's one unreached branch puts coverage at 5 of 6.\n\n**SUGGESTION**\n- `jest.config.js:6`: optional, for the issue author: a `./src/generated/` path threshold would exempt only the generated client, keep it in the report, and leave other code under the global minimum. Not a defect in this change. Confidence: medium\n\nCoverage: all changed files reviewed",
-      "why": "accepts the spec's reason and offers another way to grant it as an optional suggestion, without asking to undo the lowering"
+      "why": "a note for the issue author that asks this pull request to change nothing and says it is not a defect in this change"
     }
   ],
   "fail": [
@@ -25,6 +25,10 @@
     {
       "answer": "Criteria read: none present\nLoosened-check verdict: fail (default); patterns: 0\n\nThe spec (#41) names the lowering of the branch minimum at jest.config.js:8 and gives a reason, so the loosened-check criterion passes it.\n\n**SUGGESTION**\n- `jest.config.js:8`: the stated reason does not hold up; a test calling `request` with a body would reach the last branch. Add that test and keep the branch minimum at 90. Confidence: medium\n\nCoverage: all changed files reviewed",
       "why": "passes the loosening under the criterion but disputes the spec's reason and asks to keep the minimum at 90, a request to restore it"
+    },
+    {
+      "answer": "Loosened-check verdict: fail (default); patterns: 0\n\nThe spec (#41) names the lowering at jest.config.js:8 and gives a reason, so the loosened-check criterion passes it.\n\n**SUGGESTION**\n- `jest.config.js:8`: keep `branches` at 90 and add a `./src/generated/` path threshold instead. Confidence: medium\n\nCoverage: all changed files reviewed",
+      "why": "accepts the reason but asks this pull request, as a SUGGESTION, to keep the global minimum at 90"
     }
   ]
 }
