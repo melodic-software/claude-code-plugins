@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [9.0.10] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
+- The enforcement ladder reference now points at the Claude Code memory docs for how rule files load, instead of restating it.
+
 ## [9.0.9] - 2026-11-15
 
 ### Changed

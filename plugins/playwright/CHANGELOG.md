@@ -3,6 +3,13 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.5] - 2026-11-15
+
+### Changed
+
+- Playwright skill and reference text reads in plain case instead of capital-letter emphasis; the form example fills its password through `fill-secret.sh` and the multi-session example closes each named session instead of every session.
+- Restated upstream facts (route abort error codes, the debug flow, cloud-session network limits, tracing overhead) now point at their upstream pages.
+
 ## [2.0.4] - 2026-11-14
 
 ### Changed

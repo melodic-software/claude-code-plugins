@@ -3,6 +3,12 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.1] - 2026-11-15
+
+### Changed
+
+- The check, lint and setup skills, the resolution ladder and the bundled ecosystem defaults state their rules in plain case instead of capital-letter emphasis, and stale references in them are corrected.
+
 ## [1.4.0] - 2026-11-14
 
 ### Changed
