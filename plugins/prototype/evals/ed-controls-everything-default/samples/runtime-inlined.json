@@ -35,6 +35,10 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node -e 'const fs=require(\\\"fs\\\");let s=fs.readFileSync(\\\"src.html\\\",\\\"utf8\\\");s=s.replace(\\\"/*CONTROLS*/\\\",()=>fs.readFileSync(\\\"/plugin/notes-bridge/controls.js\\\",\\\"utf8\\\"));fs.writeFileSync(\\\"explore-directions.html\\\",s)'\",\"description\":\"x\"}}]}}",
       "why": "spliced in by a Node script and fs.writeFileSync"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node -e 'const fs=require(\\\"fs\\\");fs.appendFileSync(\\\"/tmp/explore-directions-a1B2c3/explore-directions.html\\\", fs.readFileSync(\\\"/plugin/notes-bridge/controls.js\\\",\\\"utf8\\\"))'\",\"description\":\"x\"}}]}}",
+      "why": "appended by a Node script and fs.appendFileSync"
     }
   ],
   "fail": [

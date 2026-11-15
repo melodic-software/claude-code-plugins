@@ -33,6 +33,10 @@
     {
       "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"level\\\":\\\"standard\\\",\\\"layer\\\":\\\"default\\\"}\\nlevel: standard (default)\\n\"}]}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Here is the mockup.\"}]}}",
       "why": "the line only inside a tool result given as a text block"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"levels.md says to print `level: standard (default; resolver unavailable: <reason>)` when node is missing.\"}]}}",
+      "why": "quotes the fallback rule with its placeholder, prints no report line"
     }
   ]
 }
