@@ -46,6 +46,14 @@ reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md -> plugins/*/reference/pr-scope-budget.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# docs/contracts/ecosystem-resolution/generic-resolution.md.
+reference/ecosystem-resolution.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical text and the copies.
+docs/contracts/ecosystem-resolution/generic-resolution.md -> plugins/*/reference/ecosystem-resolution.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # docs/contracts/plugin-reconfiguration/README.md.
 reference/plugin-reconfiguration.md
 
