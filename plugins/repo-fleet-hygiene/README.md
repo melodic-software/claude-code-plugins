@@ -54,9 +54,9 @@ The epic's fleet architecture is intentionally split from the current implementa
 | Complete exact branch merge evidence via GraphQL | `repo-fleet-hygiene` | Shipped |
 | Merged remote-branch reporting and its separate safety gate | `repo-fleet-hygiene` | Shipped; see [Remote branch deletion](#remote-branch-deletion) |
 
-Parts marked "Not shipped" are contracts, not commands this version accepts. Their linked child
-issues become the shipping record when merged; until then, the audit preserves the current detailed
-report and exact per-repository handoffs.
+Parts marked "Not shipped" are contracts, not commands this version accepts, and stay remaining
+contract work until they ship; until then, the audit preserves the current detailed report and
+exact per-repository handoffs.
 
 ## Actions
 

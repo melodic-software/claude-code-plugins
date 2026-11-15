@@ -274,10 +274,10 @@ that charting needs an interactive session. Do not fabricate a map.
    exception: **`research`-typed items may be burned down in parallel**, started per
    `wayfind_research_start`. When the frontier holds several, claim each individually (same
    protocol, one claim per item) and dispatch `/discovery:research` per item (it already runs in a
-   fresh-context subagent). The repository's discovery verification level decides the verifier:
-   under `light` or `off` none runs; under `standard`, skip the verifier for cost as
-   `/discovery:research` allows; under `strict` let the verifier run. Graduate each on completion
-   per step 6; the resolution comment is the
+   fresh-context subagent). Ask `/discovery:research` for its lightest verification level,
+   `light`, with no separate verifier pass. Only the repository sets that level; when it resolves
+   to `standard`, skip the verifier for cost as `/discovery:research` allows, and under `strict`
+   let the verifier run. Graduate each on completion per step 6; the resolution comment is the
    finding's durable home, and the findings file and its sidecars are copied to the item's folder
    on the dossier branch first ([`context/tracker-mechanics.md`](context/tracker-mechanics.md)
    "Graduate a research item"). Never fan out a `<human-gated>` item.
