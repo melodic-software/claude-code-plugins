@@ -39,7 +39,7 @@ The spoke's §5.1.2 procedure. It takes `$PR_NUMBER`, `<headRefName>` and `<watc
 source-control plugin's root.
 
 ```bash
-# Decide checkout mode by asserting this worktree's HEAD against the TRUE PR head
+# Decide checkout mode by asserting this worktree's HEAD against the true PR head
 # — `gh pr view … headRefOid`, queried live, authoritative for same-repo and
 # fork PRs alike (never a possibly-stale `origin/<branch>` remote-tracking ref,
 # which is itself the silent-revert vector this guards; safety.md, Checkout And
@@ -59,7 +59,7 @@ if [ -n "$(git status --porcelain)" ]; then
   echo "Working tree has uncommitted changes (possibly another session's WIP) — processing read-only"
   CHECKOUT_MODE="read-only"
 elif [ "$(git rev-parse HEAD)" = "$PR_HEAD" ] && { [ -z "$CUR_BRANCH" ] || [ "$CUR_BRANCH" = "$BRANCH" ]; }; then
-  # HEAD already IS the true PR head AND we are on $BRANCH or detached — not some
+  # HEAD already is the true PR head and we are on $BRANCH or detached — not some
   # other local branch that merely points at the same commit (a fix committed there
   # would advance that unrelated branch while only the refspec push lands on
   # $BRANCH). A coincidental same-tip match on another branch falls through to the
@@ -68,7 +68,7 @@ elif [ "$(git rev-parse HEAD)" = "$PR_HEAD" ] && { [ -z "$CUR_BRANCH" ] || [ "$C
 elif git worktree list | grep -vF "$CUR_WT " | grep -q "\[$BRANCH\]"; then
   # Branch locked in a sibling worktree — `git checkout $BRANCH` here dead-ends
   # (`already used by worktree at ...`). `gh pr checkout --detach` resolves the
-  # head for same-repo AND fork PRs; operate in detached HEAD at it and push by
+  # head for same-repo and fork PRs; operate in detached HEAD at it and push by
   # refspec below.
   gh pr checkout "$PR_NUMBER" --detach
   [ "$(git rev-parse HEAD)" = "$PR_HEAD" ] && CHECKOUT_MODE="full" || CHECKOUT_MODE="read-only"
@@ -97,7 +97,7 @@ if [ "$CHECKOUT_MODE" = "full" ] &&
   esac
 fi
 
-# EVERY push goes through lane_push, and push-branch.sh is the only push: never
+# Every push goes through lane_push, and push-branch.sh is the only push: never
 # a bare `git push`. It pushes this checkout's HEAD (detached too) to the PR's
 # head branch; inside a lane (a `[bot]` login) it hands the push to
 # lane-push.sh as the target's merge.agent-identity, and attended it takes the
@@ -106,7 +106,7 @@ fi
 # after it (someone may arm the old head mid-push), because a push keeps
 # auto-merge armed and the new head could merge on ci-status alone before the
 # AI reviews re-run (safety.md, "Merge lane: no auto-merge"). It never arms
-# auto-merge; nothing does. A failed read or disarm, or a push-branch.sh
+# auto-merge. A failed read or disarm, or a push-branch.sh
 # refusal (nothing pushed), stops the push.
 disarm_auto_merge() {
   ARMED=$(gh pr view "$PR_NUMBER" --json autoMergeRequest --jq '.autoMergeRequest // empty') || return 1
@@ -118,7 +118,7 @@ lane_push() {
     disarm_auto_merge
 }
 
-# Branch freshness — MERGE-ONLY (full mode only). Rebasing would rewrite history
+# Branch freshness — merge only (full mode only). Rebasing would rewrite history
 # and require a force-push, which safety.md ("Never Do Automatically") and
 # orchestration.md's never-force-push invariant forbid; the final squash merge
 # flattens interim history, so a merge commit here costs nothing the skill cares
@@ -136,8 +136,8 @@ if [ "$CHECKOUT_MODE" = "full" ]; then
       lane_push
     else
       # Graduated conflict handling — attempt simple, abort complex.
-      # conflict-attempting is a TRANSIENT state: resolve it (git merge
-      # --continue) or abort BEFORE any further processing — never leave an
+      # conflict-attempting is a transient state: resolve it (git merge
+      # --continue) or abort before any further processing — never leave an
       # integration in progress (unmerged paths break later checkouts + parking).
       CONFLICT_COUNT=$(git diff --name-only --diff-filter=U | grep -c . || true)
       if [ "$CONFLICT_COUNT" -le 3 ]; then
@@ -153,12 +153,12 @@ if [ "$CHECKOUT_MODE" = "full" ]; then
     INTEGRATION_STATUS="current"
   fi
 
-  # conflict-attempting: resolve NOW — per file, take the mechanical resolution;
-  # if ANY file needs intent judgment, `git merge --abort` and set
+  # conflict-attempting: resolve now — per file, take the mechanical resolution;
+  # if any file needs intent judgment, `git merge --abort` and set
   # INTEGRATION_STATUS="conflict-aborted". On success: `git add <files>` +
   # `git merge --continue`, then `lane_push` (fast-forward, never force). Set INTEGRATION_STATUS="integrated". Only terminal states pass here.
 
-  # Safe fallback: ONLY the terminal success states keep full mode. A
+  # Safe fallback: only the terminal success states keep full mode. A
   # lingering conflict-attempting (resolution skipped) degrades to read-only
   # rather than granting write access mid-merge.
   if [ "$INTEGRATION_STATUS" != "integrated" ] && [ "$INTEGRATION_STATUS" != "current" ]; then

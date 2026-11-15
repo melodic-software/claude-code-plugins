@@ -42,10 +42,11 @@ The five elements:
 
 > **Unaudited.** The "five characteristics" framing comes from Pat's Coursera
 > specialization, which is outside the four books and cannot be checked against
-> the corpus. It is paraphrase, not quotation. Only elements 1–4 are attested in
-> the books as a numbered set (*Essential Guide to Lyric Form and Structure*
-> (1991); see the four-juggling-balls note below); element 5, rhyme type, is the
-> subject of *Essential Guide to Rhyming* (2014).
+> the corpus. It is paraphrase, not quotation. Only elements 1, 2, 3 and 5 (number
+> of lines, line lengths, rhyme scheme, rhythm) are attested in the books as a
+> numbered set (*Essential Guide to Lyric Form and Structure* (1991); see the
+> four-juggling-balls note below); element 4, rhyme type, is the subject of
+> *Essential Guide to Rhyming* (2014).
 
 The five are not a rule; they are the five places where craft choices
 land. A section is "tight" when all five support the central intent, idea,
@@ -461,7 +462,7 @@ an imperfect rhyme (technically, a Consonance Rhyme) with 'despair' and
 and never asks for it in an exercise.
 
 This pedagogical bounding matters: *Essential Guide to Lyric Form and Structure* (1991) exercises should be coached
-WITHOUT rhyme-type substitutions because the bounding is intentional.
+without rhyme-type substitutions because the bounding is intentional.
 Pat wants the writer to feel the first four levers fully before adding
 the fifth.
 

@@ -70,7 +70,7 @@ Which path?
 
 ## Coach posture
 
-- Do not push for commitment. The writer is here BECAUSE they're not ready
+- Do not push for commitment. The writer is here because they're not ready
   to commit yet.
 - Do not analyze the writer's seed choice. First word that arrives is the
   right word.

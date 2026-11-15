@@ -95,7 +95,7 @@ Scope resolves deterministically, most specific first. Read the current git cont
    working-directory inference at any level.
 
 Own-authorship is the default safety boundary, not a preference: never act on another person's
-PR under the safe default. Widen beyond your own authorship ONLY on an explicit user
+PR under the safe default. Widen beyond your own authorship only on an explicit user
 instruction or in `autopilot`, a deliberate opt-in that drops the author filter. The owner
 allowlist (`watched_owners`, inferred as the current repo's owner when unset) is a separate,
 always-on trust boundary: even autopilot never acts on a repository outside the watched owners.
@@ -129,7 +129,7 @@ full convention: [recommendation-basis](https://github.com/melodic-software/clau
 design, it has no tier input, so it emits the same blocker string, `"merge conflict;
 dedicated conflict-resolution agent required"`, for every conflicting PR regardless of tier.
 That string names a capability that exists in this skill, not an instruction to invoke it. In
-the safe tier the table's `no — report` still governs: report the blocker exactly as stated
+the safe tier the table's `no, report` still governs: report the blocker exactly as stated
 and dispatch no conflict worker. Only `worker` and `autopilot` read that same string as
 license to act.
 
@@ -143,11 +143,11 @@ works harder to reach that state but never forces past it. A blocked action esca
 never routed around. Advisory-only fix attempts are bounded per PR (the fix-round cap in
 [reference/orchestration.md](reference/orchestration.md)); blocking defects are never capped.
 **Dependency hold-merge:** a dependency-manager-authored PR (Dependabot/Renovate-class) is
-never merged autonomously by this skill in ANY tier (a pr-merge lane with its Dependabot class on owns those merges);
+never merged autonomously by this skill in any tier (a pr-merge lane with its Dependabot class on owns those merges);
 the merge gate refuses it absent `--allow-dependency`, passed only on an explicit user instruction to merge that specific PR.
 
 **Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge"), or has a line
-starting `Hold:`, is held in ANY tier: the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`
+starting `Hold:`, is held in any tier: the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`
 label is held the same way: the gate blocks on that label unconditionally (an `--unattended` run or the autopilot merge
 tier also on the human-gated label, `needs-human` by default), and `--block-labels` adds further labels in the autopilot
 merge tier. The PR is reported and left unmerged. The hyphenated label name in a body is not a hold.
@@ -178,7 +178,7 @@ That gate merges **only when every criterion holds**, the criteria and the safet
 
 ## Guarded mutations: deterministic gates, agent judgment
 
-The two mutation gates are invoked ONLY through their wrapper scripts, by the bundled `scripts/`-path form,
+The two mutation gates are invoked only through their wrapper scripts, by the bundled `scripts/`-path form,
 never the bare command name nor the raw Python behind them. Each `source-control-babysit-<x>` named in the bullets below is that wrapper launched by its `scripts/`-path form; the exact form is the single
 home in [reference/safety.md](reference/safety.md). Both fail closed without `--allowed-owners`.
 
@@ -207,7 +207,7 @@ silently dropped guard.
 
 - **Thread resolution**. `source-control-babysit-resolve-thread` is the gate, and the mode is the
   tier's: safe lists only and never resolves; worker resolves `--autonomous`, confined further to
-  threads already outdated in the PRE-push snapshot
+  threads already outdated in the pre-push snapshot
   ([reference/orchestration.md](reference/orchestration.md)), a rule that is agent discipline rather
   than machine-enforced; autopilot widens to threads it has addressed, human threads included. The
   wrapper touches only bot-authored threads unless that widening is in play, and it can never merge,
@@ -215,10 +215,10 @@ silently dropped guard.
   Always parse the per-thread JSON `action` field and the run summary before reporting or
   re-checking the merge gate.
 
-- **Independent resolution**. `--independent-resolver` is a THIRD mode, parallel to `--autonomous`
+- **Independent resolution**. `--independent-resolver` is a third mode, parallel to `--autonomous`
   and never a relaxation of it. `isOutdated` means the referenced code moved, so on a prose or
   documentation PR a genuinely addressed finding never becomes outdated and the worker guard refuses
-  forever. This mode is dispatched to a FRESH context that is not the merging worker and did not
+  forever. This mode is dispatched to a fresh context that is not the merging worker and did not
   author the fix, that independence is what replaces `isOutdated` as the anti-self-certification
   property, and the script cannot verify it, which is why the other half is machine-checked: one
   pinned thread per call, and a disposition whose evidence the script validates against the world
@@ -232,8 +232,8 @@ silently dropped guard.
 
 - **The agent** decides severity (is this security/P1?), whether a finding is genuinely addressed,
   what a label means, and every fix-vs-escalate call, never a script. Escalate a security/P1
-  thread instead of resolving it, in every tier and mode and with no exception, the wrappers refuse
-  a severity-flagged thread whoever asks (`safety.md`, "Security/P1 escalation has no exception").
+  thread instead of resolving it, in every tier and mode and with no exception. The resolve wrapper refuses a severity-flagged thread under `--autonomous` and `--independent-resolver`;
+  a vetted pinned `--resolve --thread-id` and autopilot's `--resolve --include-human` apply no severity screen, so there the escalation rests on this agent (`safety.md`, "Security/P1 escalation has no exception").
 
 ## Fan out: one fresh worker per PR that needs one, per cycle
 
@@ -280,7 +280,7 @@ orchestrator performs ([reference/orchestration.md](reference/orchestration.md))
 The values below substitute from this plugin's stored configuration when this skill loads.
 A surviving literal `${user_config.…}` placeholder means that key is unset. Apply its
 documented unset behavior. Reference files use `<angle-bracket>` slots; fill every slot from
-this block. Values reach scripts ONLY as explicit CLI flags (**Pointer**: when checking which processes receive option values, fetch [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value) live). Configuration selects targets and thresholds; it never widens tier authority.
+this block. Values reach scripts only as explicit CLI flags (**Pointer**: when checking which processes receive option values, fetch [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value) live). Configuration selects targets and thresholds; it never widens tier authority.
 
 | Key | Value | Flag delivery | Unset behavior |
 | --- | --- | --- | --- |
@@ -333,7 +333,7 @@ Configure via the `/plugin` dialog, or headless at install time with `claude plu
 The snapshot engine and gates are Python (stdlib-only) under
 `${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/`; every script ships `--help`. Python is a
 declared prerequisite for `worker` and `autopilot` (and for engine-backed safe runs): when it
-is absent, `worker`/`autopilot` STOP at entry with a concise remediation message naming the
+is absent, `worker`/`autopilot` stop at entry with a concise remediation message naming the
 prerequisite, and the safe tier degrades gracefully to the Python-free loop in
 [reference/loop.md](reference/loop.md). Discovery via the forge's PR list, finding classification via the
 plugin-scope gate script, cadence via the static ladder. The merge gate is itself Python, so that
@@ -359,11 +359,11 @@ protected base holds rather than merging on evidence that does not reach it.
 
 ## Per-PR checklist (safe core, each PR, every iteration)
 
-Execute for EACH PR discovered, oldest first. Detailed mechanics: [reference/loop.md](reference/loop.md).
+Execute for each PR discovered, oldest first. Detailed mechanics: [reference/loop.md](reference/loop.md).
 
 - [ ] **Step 0, PR discovery:** open PRs in scope (tier-scoped author filter), oldest-first
   FIFO (§5.0.2). Zero PRs → report and schedule the idle wake
-- [ ] **Step 0.1, Evidence-based fresh rescan:** fetch ALL comments via the bundled
+- [ ] **Step 0.1, Evidence-based fresh rescan:** fetch all comments via the bundled
   `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh` (derives owner/repo from the current directory; from a cwd that is not a checkout of the target repo, export `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` first, also unblocks the readiness gate's exit 4), filter own prior replies, classify
   addressed/unaddressed from forge evidence (§5.0.3). The forge is the source of truth, not model
   memory
@@ -385,10 +385,10 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics: [reference/loo
 - [ ] **Step 7, Self-pace:** schedule the next wake per the cadence contract (§5.3)
 
 **Execution discipline:** the primary failure mode is claiming to process findings without
-running per-finding D1–D7. Every iteration MUST complete the evidence checklist and write
+running per-finding D1–D7. Every iteration must complete the evidence checklist and write
 it to `<working-notes>/babysit-checklist.md` (both defined in §5.5). When any PR materially changed, print the
 Reporting lines below followed by the completed checklist; when none did, print nothing. "Done" means the forge shows evidence. Model memory of "I replied" or "I pushed" is not
-evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instruction.
+evidence; re-query the API. The never-do list (§5.4) overrides any other instruction.
 
 ## Operational runbook (engine-backed cycle)
 

@@ -52,7 +52,7 @@ tell why `/source-control:commit` behaves as it does.
 
 When `REPO_ROOT` is `$HOME` or an ancestor of it, or is not inside a git working tree, team and
 personal override are **not applicable**
-([../../reference/config-resolution.md](../../reference/config-resolution.md), config-cascade #4672):
+([../../reference/config-resolution.md](../../reference/config-resolution.md)):
 do not read `${REPO_ROOT}/docs/conventions/source-control.yaml` or the personal override,
 report both as N/A with the reason (`project root is the home directory (or an ancestor of it)`
 or `project root is not inside a git repository`), and resolve user-global only.
@@ -314,11 +314,11 @@ In brief:
   no git command at all), and report the new **effective merge**, not just what was written.
 
 - **Neutral SSOT:** a `team` write may materialize a tool-agnostic flat-scalar YAML file other tools
-  consume too. It defaults to the well-known path `docs/conventions/source-control/commit-convention.yml`
-  (resolved with no pointer); `## convention_source` is written only to relocate it. **Recommended as
-  the default when a second enforcement consumer exists** (commit-msg hook, CI title check), markdown-only
-  when this plugin is the sole consumer; migration retires markdown keys the neutral file takes over
-  (spoke section "Neutral convention SSOT").
+  consume too, always at the well-known path `docs/conventions/source-control/commit-convention.yml`
+  (resolved with no pointer); setup never writes a `## convention_source` pointer. **Recommended as
+  the default when a second enforcement consumer exists** (commit-msg hook, CI title check); skipped
+  when this plugin is the sole consumer, since `docs/conventions/source-control.yaml` already serves
+  it; migration retires markdown keys the neutral file takes over (spoke section "Neutral convention SSOT").
 
 Every step's exact contract, the interview steps, the written-file template, the per-layer
 verification scripts, and the failure remediations, lives in the spoke; this summary never
@@ -368,10 +368,9 @@ check where the roots actually resolve before assuming the directory is disposab
 worktrees are ephemeral scratch that rebuild from the forge, but the state directory and any
 `/source-control:worktree` tree still holding uncommitted work do not.
 
-Reconfiguring `userConfig` does not reach the already-running session, after any route, the new
-values become visible only in a fresh session. Do not re-run the babysit `check` in the same session
-expecting the change and report a false failure; instead report "reconfigured; verify with `check` in
-a fresh session".
+Do not re-run the babysit `check` in the session that reconfigured `userConfig` expecting the change:
+when a saved value applies is in the plugin configure pointer above, and a same-session `check` can
+report a false failure. Report "reconfigured; verify with `check` in a fresh session".
 
 ## Output
 

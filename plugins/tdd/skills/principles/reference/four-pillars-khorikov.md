@@ -109,7 +109,7 @@ Test accuracy = Signal (bugs found) / Noise (false alarms raised)
 The Test Pyramid represents the optimal trade-off:
 
 - **Unit tests** (majority): fast, cheap, cover edge cases in domain model
-- **Integration tests** (middle): 1-2 per business scenario happy path
+- **Integration tests** (middle): one longest happy path per business scenario, plus the edge cases unit tests can't cover
 - **End-to-end tests** (minority): only for most critical features
 
 Exception: simple CRUD apps with little domain logic → pyramid becomes a rectangle (equal unit and integration tests).

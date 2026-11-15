@@ -12,7 +12,7 @@ disable-model-invocation: false
 
 Before emitting any image, metaphor, sensory prompt, or rewrite, run **§7 Image filter (object
 writing + metaphor)** of [response-filter](../../context/pat-pattison/research/response-filter.md)
-(add **§2 Line-writing** when producing lines). NAME each box's pass / fail / skip-with-reason
+(add **§2 Line-writing** when producing lines). Name each box's pass / fail / skip-with-reason
 (aloud or in reasoning); correct before emission. Skips are valid; silent skips are not. Abstract
 telling and cliche imagery are the defaults this filter catches.
 
@@ -33,7 +33,7 @@ curriculum).
 | Action | Use when the user asks for | Load |
 | --- | --- | --- |
 | `object-writing` (default) | sensory writing, showing instead of telling, raw material | [object-writing](../../context/pat-pattison/research/object-writing.md), [templates/object-writing-prompt](../../context/pat-pattison/templates/object-writing-prompt.md) |
-| `generate` | **YOU** do the object writing. "you write it", "do the object writing", "I don't want to write it", or any request for raw sensory material the writer is not going to produce | dispatch the `object-writer` agent. See below |
+| `generate` | **You** do the object writing. "you write it", "do the object writing", "I don't want to write it", or any request for raw sensory material the writer is not going to produce | dispatch the `object-writer` agent. See below |
 | `cliche` | cliche phrase, cliche image, stale metaphor, cliche rhyme | [cliche](../../context/pat-pattison/research/cliche.md), [worksheets](../../context/pat-pattison/research/worksheets.md), [metaphor](../../context/pat-pattison/research/metaphor.md) |
 | `pov` | first/second/third person, direct address, dialogue, pronoun consistency, camera distance | [point-of-view](../../context/pat-pattison/research/point-of-view.md) |
 | `worksheet` | broader sense-bound worksheets (not rhyme worksheets) | [worksheets](../../context/pat-pattison/research/worksheets.md) |
@@ -51,7 +51,7 @@ curriculum).
 
 **Who writes matters more than what is loaded.** Reading this skill's files and then writing a dive
 in the main thread reliably produces a static scene description, because the discipline was read
-rather than carried. Dispatch the `object-writer` agent, whose system prompt IS the discipline.
+rather than carried. Dispatch the `object-writer` agent, whose system prompt is the discipline.
 
 Dispatch rules:
 
@@ -99,7 +99,7 @@ Dispatch rules:
    Recheck trigger: that section prices a higher tier at or below the fleet default's rate.
 
    **Reach for effort before reaching for a cheaper tier.** Effort scales the tokens one agent
-   spends; tier scales the price of every token AND changes which model wrote the lines. Across a
+   spends; tier scales the price of every token and changes which model wrote the lines. Across a
    fleet both multiply, but only one of them changes the writing. A fan-out that needs the lever
    sets it on the spawn, not through a workflow (the pointer below, to
    [Choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level),
@@ -137,7 +137,7 @@ one. Before loading any bundled `templates/<name>.md`, check
 `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
 override wins over the bundled default, first match, per that file's "Template override".
 
-## Boundary. What this skill must NOT emit
+## Boundary. What this skill must not emit
 
 This skill produces raw sensory material and figurative language. It does **not** produce finished
 lyric lines, and being mid-conversation about a song does not authorize it to.

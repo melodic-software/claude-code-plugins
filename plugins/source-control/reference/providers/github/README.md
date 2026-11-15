@@ -105,14 +105,16 @@ entry and pass it to every later `gh` call in that phase.
 | Operation | GitHub command |
 |---|---|
 | List the PR's checks | `gh pr checks <N>`; never `--watch`, which blocks the foreground |
-| CI logs, last resort | `gh run view --log-failed`, which truncates around 4 MB at the CLI display layer ([cli/cli#11059](https://github.com/cli/cli/issues/11059), [#10551](https://github.com/cli/cli/issues/10551), [#7771](https://github.com/cli/cli/issues/7771)); the `fetch-logs` action's annotation and archive paths return complete data |
+| CI logs, last resort | `gh run view --log-failed`, which truncates large logs at the CLI display layer ([cli/cli#11059](https://github.com/cli/cli/issues/11059), [#10551](https://github.com/cli/cli/issues/10551), [#7771](https://github.com/cli/cli/issues/7771)); the `fetch-logs` action's annotation and archive paths return complete data |
 
 A workflow that exchanges an OIDC token fails when the PR modifies that workflow file: the file
-must match the default branch for the exchange to succeed. Classify that failure as informational.
+must match the default branch for the exchange to succeed (the Claude GitHub App's exchange
+answers "Workflow validation failed", [anthropics/claude-code-action#443](https://github.com/anthropics/claude-code-action/issues/443)).
+Classify that failure as informational.
 
 ## Review surfaces
 
-GitHub splits PR feedback across three surfaces, each paginated at 30 items per page, oldest first.
+GitHub splits PR feedback across three paginated surfaces, oldest first.
 Pass `--paginate` and `per_page=100` on every read, or the newest item (usually your own reply) is
 missed.
 

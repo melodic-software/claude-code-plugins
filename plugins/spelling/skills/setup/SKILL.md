@@ -177,7 +177,7 @@ Never claim resolved without re-verifying. For everything else `apply` only poin
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run the spell-checker. `git commit` exercises the installed pre-commit entry.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
