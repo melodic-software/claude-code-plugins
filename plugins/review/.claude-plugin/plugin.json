@@ -61,7 +61,7 @@
     "reproduce_findings": {
       "type": "string",
       "title": "Reproduce findings",
-      "description": "off (default): fanout and council reports are unchanged. label: findings at or above the floor go to a refute gate and get evidence labels. require: unreproduced ones are not acted on. No value runs reviewed code without your yes. A repository's docs/conventions/review.yaml wins over this option.",
+      "description": "off (default): reports unchanged. label: findings at or above the floor go to a refute gate and get evidence labels; refuted ones are not acted on. require: unreproduced ones are not acted on either. Nothing runs reviewed code without your yes. The repository's docs/conventions/review.yaml wins.",
       "default": "off",
       "options": [
         "off",
@@ -72,7 +72,7 @@
     "reproduce_findings_floor": {
       "type": "string",
       "title": "Reproduce findings floor",
-      "description": "The lowest tier the reproduce_findings gate checks; findings below it are labelled not-attempted. IMPORTANT (default), CRITICAL or SUGGESTION. A repository's docs/conventions/review.yaml reproduce_findings_floor wins over this option.",
+      "description": "The lowest tier the reproduce_findings gate checks; findings below it are labeled not-attempted. IMPORTANT (default), CRITICAL or SUGGESTION; another value is reported and every finding is checked. A repository's docs/conventions/review.yaml reproduce_findings_floor wins over this option.",
       "default": "IMPORTANT",
       "options": [
         "CRITICAL",

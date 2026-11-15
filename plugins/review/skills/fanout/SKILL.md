@@ -91,8 +91,11 @@ same skip rules as `fanout_diversity`: the defaults `off` and `IMPORTANT`; the u
 unexpanded placeholder means unset); the `PASS reproduce_findings:` and
 `PASS reproduce_findings_floor:` lines of the `--check` run above. Report one line each, for
 example `reproduce_findings: label (docs/conventions/review.yaml)` and
-`reproduce_findings_floor: IMPORTANT (default)`. No value makes reviewed code run without a
-person's yes to that exact command.
+`reproduce_findings_floor: IMPORTANT (default)`. A floor layer whose value is not a tier (a
+`WARN` line for the key, or a user option outside the three tiers) is not dropped silently: report
+`reproduce_findings_floor: <value> is not a tier (<layer>); every row attempted`, and unless a later
+layer sets a valid tier, Stage 5 sends every row to the gate ([config.md](../../reference/config.md)).
+No value makes reviewed code run without a person's yes to that exact command.
 
 ## Step 0: Mode
 
@@ -178,13 +181,14 @@ spec or plan document.
 `fanout_act_on_cap` rows in merged-rank order get `yes` in a last `Act on` cell and every later row
 gets `no`. The count restarts at the second heading, so with a cap of 2 the first two Standards
 rows read `yes` whatever their merged rank. A row listed under `## Dismissed` reads `no` and is
-not counted; under `reproduce_findings: require` that includes every row at or above the floor
-that was not reproduced. Every row stays in the report.
+not counted; that includes every row Stage 5 demoted (a `refuted` row under `label` or `require`,
+and under `require` every row at or above the floor that was not reproduced). Every row stays in
+the report.
 
 **Dismissed.** The report gains a `## Dismissed` section after `## By axis`: one line per
 finding this step demoted, giving its rank, its location and the reason in one sentence taken from
-what the cited line shows, or, for a `require` demotion, `not reproduced (<label>): <basis>` as
-Stage 5 words it. The finding itself stays in `## Findings` at its demoted confidence. The
+what the cited line shows, or, for a Stage 5 demotion, `not reproduced (<label>): <basis>` as
+Stage 5 words it. A finding demoted by both keeps one line carrying both reasons. The finding itself stays in `## Findings` at its demoted confidence. The
 section lists demotions only; no finding leaves the report, so nothing is listed as dropped. With
 no demotion, the section reads `none`. The fix action does not parse it.
 

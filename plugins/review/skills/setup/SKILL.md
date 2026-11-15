@@ -80,7 +80,8 @@ a regular file). `apply` is the fix.
    panel, in which case `codex`; `fanout_act_on_cap`: `2`, the default, unless the team wants
    more or fewer rows under each `/review:fanout` `## By axis` heading marked act on;
    `reproduce_findings`: `off`, the default, unless the team wants `/review:fanout` and
-   `/review:council` to label each finding by what a refute gate showed (`label`) or also to stop
+   `/review:council` to label each finding by what a refute gate showed and stop acting on refuted
+   ones (`label`) or also to stop
    acting on findings nobody reproduced (`require`); `reproduce_findings_floor`: `IMPORTANT`, the
    default, unless the team wants the gate to see only CRITICAL findings or SUGGESTION ones too;
    `smell_baseline`: `default`, unless the team wants no smell check (`off`) or its own list, which

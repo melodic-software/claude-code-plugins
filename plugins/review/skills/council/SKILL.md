@@ -98,8 +98,10 @@ Outside a git repository, stop with success: "council: not a git repository".
    `node "<plugin-root>/skills/setup/scripts/setup-apply.mjs" --check --ref <merge-base sha>`, run
    from the repository root, skipping that layer and saying so when the change edits
    `docs/conventions/review.yaml` (the test in item 2), so a change never picks how its own
-   findings are proved. Invalid values and the root rule:
-   [config.md](../../reference/config.md) "Resolution" and "Root rule". Record both, with their
+   findings are proved. A floor layer whose value is not a tier is reported, never dropped
+   silently: `reproduce_findings_floor: <value> is not a tier (<layer>); every row attempted`, and
+   unless a later layer sets a valid tier every row goes to the gate. Other invalid values and the
+   root rule: [config.md](../../reference/config.md) "Resolution" and "Root rule". Record both, with their
    layers, in `## Config`; every round uses them.
 5. **Lane switch.** A run whose `## Invocation` says `unattended` and whose `council_lanes` is not
    `on` stops with success: "council: lane switch off". An attended run never reads
@@ -195,8 +197,8 @@ Write `<run-dir>/<run>-council-r<N>.md` in the shape of
 [findings-file-shape.md](../../reference/findings-file-shape.md) "Findings-file shape"
 (`type: review-findings`, the write instant as `date:`, `branch:`, `tier:`), `Surface(s)` holding
 member ids, with `## Findings`, `## By dimension`, `## Unparsed` and `## Surfaces`, then
-`## Evidence` when the proof stage ran, then, under `require`, `## Dismissed` with the line Stage 5
-gives each demoted row (`none` when it demoted none), then `## Council` (run id, round, rule, each
+`## Evidence` when the proof stage ran, then, in that case, `## Dismissed` with the one line Stage 5
+gives each row it demoted (`none` when it demoted none), then `## Council` (run id, round, rule, each
 member's status and route, each row's class, and with scores on each member's mark). Under
 `require` in an unattended run, the round file's body opens with Stage 5's nothing-could-be-checked
 line, before `## Findings`. It omits `## By axis` and its `Act on` cells, which that file

@@ -1,0 +1,8 @@
+{
+  "runs-no-reviewed-code": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\"|')?(?:[^\\s\"\\\\;&|=']*/)?(?:(?:npm|pnpm|yarn|bun)(?:\\.(?:exe|cmd))?(?:\\s+-[^\\s\"\\\\]+)*\\s+(?:run(?:-script)?\\s+)?(?:test|t)\\b|(?:(?:npx|bunx)(?:\\.cmd)?(?:\\s+-[^\\s\"\\\\]+)*\\s+)?(?:jest|vitest|mocha|ava)\\b|node(?:\\.exe)?(?:\\s+-[^\\s\"\\\\]+)*?\\s+(?:--test\\b|-[ep]\\b|--(?:eval|print)\\b|(?:\\\\\"|')?(?:[^\\s\"\\\\;&|=']*/)?(?:src|test)/))"
+  ]
+}

@@ -11,7 +11,13 @@ graders:
     type: tool_used
     tool: Write
     input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*type: review-findings)(?=.*## Dismissed(?:(?!\\n## ).)*not reproduced)'
-  - name: both-planted-findings-listed
+  - name: runs-no-reviewed-code
     type: tool_used
-    tool: Write
-    input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*type: review-findings)(?=.*## Findings(?:(?!\\n## ).)*(?:[Ii]sWeekend|[Ss]unday|SUNDAY|getDay))(?=.*## Findings(?:(?!\\n## ).)*(?:[Cc]ustomer e-?mails?|raw e-?mails?|PII|personal data|[Ee]mail address))'
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\"|'')?(?:[^\s"\\;&|='']*/)?(?:(?:npm|pnpm|yarn|bun)(?:\.(?:exe|cmd))?(?:\s+-[^\s"\\]+)*\s+(?:run(?:-script)?\s+)?(?:test|t)\b|(?:(?:npx|bunx)(?:\.cmd)?(?:\s+-[^\s"\\]+)*\s+)?(?:jest|vitest|mocha|ava)\b|node(?:\.exe)?(?:\s+-[^\s"\\]+)*?\s+(?:--test\b|-[ep]\b|--(?:eval|print)\b|(?:\\"|'')?(?:[^\s"\\;&|='']*/)?(?:src|test)/))'
+    min: 0
+    max: 0
+  - name: both-planted-findings-listed
+    type: llm
+    focus: trace
+    criteria: "Read the findings file the run wrote under .work/reviews/ (the content of its Write call). PASS only if its ## Findings table has a row for each of the two defects the branch planted: isWeekend in src/calendar.js treating 6 and 7 as the weekend, so Sunday (getDay() returns 0) is missed; and src/export-orders.js writing each customer's raw email address into the CSV export (any wording: personal data, PII, an unmasked or unredacted address). A row of any tier or confidence counts, Act on yes or no. FAIL if either defect appears only under ## Dismissed, ## Unparsed or another section and not as a ## Findings row, if no findings file was written, or if the two defects are merged into one row."
