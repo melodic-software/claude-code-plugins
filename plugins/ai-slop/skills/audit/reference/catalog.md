@@ -29,7 +29,7 @@ below, plus the additions in the "General-prose additions" section. Each tell is
 detectability and applicability, with its V1 disposition. Script rules are implemented in `../scripts/detect.sh`
 and carry argued severity-crosswalk rows; rubric tells are applied by the skill's judgment layer;
 `recorded-only` tells are catalogued but not run in V1 (the entry says why). Fix-time rewrite
-guidance (what to write INSTEAD of a tell) lives in [`rewrite-guide.md`](rewrite-guide.md), not
+guidance (what to write instead of a tell) lives in [`rewrite-guide.md`](rewrite-guide.md), not
 here: this file decides what flags, that file decides what replaces it.
 
 ## Attribution and license
@@ -51,36 +51,23 @@ Wikipedia; the page's text is read at the pointer, not stored here.
 - **Pointer**: for the source inventory, see revision
   [1369699198](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1369699198)
   of <https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing>.
-- **As of**: 2026-08-17
+- **As of**: 2026-08-25, live head revision
+  [1371235958](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1371235958):
+  the sections this catalog draws on are byte-identical between the pin and that head, so the pin
+  stays `1369699198`.
 - **Recheck trigger**: each `ai-slop` release and each fleet audit. Per-revision rechecking was
   rejected: the page was measured at 50+ edits/week (2026-08-17), so a per-revision trigger would
   fire continuously.
-- **Known fetch gap**: closed 2026-08-21 for both leftover sections. The catalog-time fetch
-  window missed "Comment-specific indicators" and "Ineffective indicators"; this recheck
-  retrieved them from the catalog pin and from the live page. See those sections below.
-- **Recheck logged (2026-08-21)**:
-  - Live page: <https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing>, MediaWiki
-    revisions query returned revision
-    [1370403579](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1370403579)
-    (`timestamp=2026-08-20T23:13:41Z`, user `Superb Owl`). Retrieved via WebFetch of the
-    article URL plus `action=query&prop=revisions`.
-  - Catalog pin: revision
-    [1369699198](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1369699198)
-    (2026-08-16). Retrieved via `action=parse&oldid=1369699198&prop=wikitext` (section 80 =
-    Ineffective indicators; section 62 = Comment-specific indicators; section 29 = Overuse of
-    em dashes).
-  - The inventory pin stays `1369699198`. This recheck closes the two-section gap; it does
-    not re-derive the rest of the inventory.
-- **Recheck logged (2026-08-25, fleet audit + verified research pass)**: live head revision
-  [1371235958](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1371235958)
-  (2026-08-25). Measured drift since the pin: 4 heading changes across 29 edits; the sections
-  this catalog draws on are byte-identical between pin and head. The research verdict was that
-  the catalog's defects were under-extraction from the pin, not staleness, and this recheck
-  closed them: the source Caveats posture (section below), the em-dash spacing qualifier, the
-  knowledge-cutoff words-to-watch families, and the upstream demotion of lexical diversity.
-  The pin stays `1369699198`. One new live-page general-prose tell ("Vague expression of
-  connection or association") measured 0 qualifying hits on this corpus and is recorded as a
-  candidate for the next recheck rather than a rule.
+- **Known fetch gap**: closed 2026-08-21. The catalog-time fetch window missed
+  "Comment-specific indicators" and "Ineffective indicators"; both were retrieved from the pin and
+  from live revision
+  [1370403579](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1370403579).
+  See those sections below.
+- **Sections read at the pin**: `action=parse&oldid=1369699198&prop=wikitext`, section 80 =
+  Ineffective indicators, section 62 = Comment-specific indicators, section 29 = Overuse of em
+  dashes.
+- **Candidate for the next recheck**: the live-page general-prose tell "Vague expression of
+  connection or association", which measured 0 qualifying hits on this corpus.
 
 ## Inventory
 
@@ -124,10 +111,10 @@ principle of minimal change for quoted material (quotations are not the repo's o
 restyle) and the detector implements it mechanically. No rule scans fenced code, inline code
 spans, generated regions, or ignore-marked lines, whatever its class. Each rule carries a class:
 
-- **wording**: the rule judges prose the repo AUTHORS. It never scans quoted material:
+- **wording**: the rule judges prose the repo authors. It never scans quoted material:
   blockquote lines and double-quoted spans are removed from its input.
   Quote-exempt candidates are counted as declined, never silently dropped.
-  This is also the use/mention boundary: a document that QUOTES a tell to document it (a style
+  This is also the use/mention boundary: a document that quotes a tell to document it (a style
   guide, a forbidden-phrase list, a changelog citing the phrase a fix removed) is mentioning,
   not using, and backticking or double-quoting the mention is the marker-free suppression.
 - **typography**: the rule targets artifacts that are defects wherever they sit (em-dash
@@ -166,7 +153,7 @@ defaults. Outcomes:
   authoritative list of shipped script rules.
 - Density rules gained a minimum-hits floor (3) after short files fired on a single
   normal-prose occurrence (one triad in a 201-word document hit 5.0/1000 words).
-- `rule-knowledge-cutoff-disclaimer` has a known false-positive class: prose ABOUT model
+- `rule-knowledge-cutoff-disclaimer` has a known false-positive class: prose about model
   knowledge cutoffs (documentation discussing models). Remedy is the in-file marker or config
   exclusion, recorded here rather than weakening the rule. **Measured on the 1214-file dogfood
   corpus (2026-08-19): all 8 findings fall in that class**. They are model-spec sentences
@@ -515,7 +502,7 @@ then-current 1,361-file tracked-markdown corpus:
   - Source-gap (RAG-era) half: "while specific details are limited/scarce", "not widely
     available/documented/disclosed", "in/from the provided/available sources (or search
     results)", "based on (the) available information". The bare, unqualified "in the search
-    results" is deliberately NOT matched: it is ordinary prose in any document describing a
+    results" is deliberately not matched: it is ordinary prose in any document describing a
     search feature, so the ERE requires the provided/available qualifier that marks the
     RAG-disclaimer register.
 
@@ -763,10 +750,10 @@ wikipedia-specific, recorded-only:
 
 ## Signs of human writing
 
-Counter-signs: evidence AGAINST AI authorship. Catalogued for the rubric's calibration, never
+Counter-signs: evidence against AI authorship. Catalogued for the rubric's calibration, never
 emitted as findings.
 
-A leading `U+26A0` (warning sign) opening a caveat line is NOT a counter-sign. It is an emoji
+A leading `U+26A0` (warning sign) opening a caveat line is not a counter-sign. It is an emoji
 used as a section marker, which the detector reports under `rule-emoji-formatting` (the fix is
 a text label such as "Caveat:"), so it never lowers a rubric verdict.
 
@@ -797,10 +784,10 @@ Fetch gap closed 2026-08-21 (see the upstream-drift record). This section lists 
 page's own editors consider **unreliable** for LLM detection. It is a guardrail on our roster,
 not a source of new rules. A signal listed here must not become a rule.
 
-**Verdict: no shipped rule appears here.** Compared against all 15 `v1: script` slugs in
-`detect.sh`, including the two candidates named when this gap was filed (`rule-em-dash`,
-`rule-rule-of-three`). Both of those live in other source sections as *valid* signs
-(Style / Language and grammar). The eight ineffective indicators are the same on the catalog
+**Verdict: no shipped rule appears here.** Compared against the `v1: script` slugs in
+`detect.sh` and the two candidates named when this gap was filed (`rule-em-dash`, a script rule,
+and `rule-rule-of-three`, a rubric tell). Both of those live in other source sections as *valid*
+signs (Style / Language and grammar). The eight ineffective indicators are the same on the catalog
 pin (revision 1369699198, parse section 80, 2026-08-16) and the live recheck (revision
 1370403579, retrieved 2026-08-21 from
 <https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing>).
@@ -927,7 +914,7 @@ either layer, and those rows say so.
   that" (for "because"), "it is important to note that", "it is worth noting that", "it should
   be noted that" (all deletable). Fires per occurrence; each hit has a mechanical rewrite.
 - **Recorded divergence from the source (2026-08-25):** the source's Syntax counter-sign list
-  counts the "in order to" construction among signs of HUMAN writing (an uncited bullet, and the
+  counts the "in order to" construction among signs of human writing (an uncited bullet, and the
   study its neighboring bullet cites does not measure this construction). This rule keeps
   flagging it deliberately: the plugin's goal is concise house
   style, not authorship attribution, and "in order to" -> "to" is de-verbosing every style
@@ -958,7 +945,7 @@ either layer, and those rows say so.
 - applicability: general-prose
 - v1: rubric
 - A colon splicing two clauses for rhythm. The rule's one test: report when the text after
-  the colon neither lists items nor gives an example of the clause before it, AND the pair
+  the colon neither lists items nor gives an example of the clause before it, and the pair
   reads as one sentence spliced for rhythm in explanatory prose. Whether the first clause
   could stand alone is not this rule's test. Colons before lists and examples are fine; the
   connector use needs a reader to distinguish, so no script core ships.
@@ -986,8 +973,8 @@ either layer, and those rows say so.
   "seam" join the cue list as the flagship 2026 Claude-family metaphor words (both measured far
   above their Stack Overflow base rate in Claude Code output; the figures are at the
   archiewood/claudeisms pointer under "Model-era additions"). Their
-  literal boundary is BROAD, deliberately: a Feathers seam in refactoring/testing prose, a
-  load-bearing wall, and a load-bearing invariant or instruction NAMED as such deliberately in
+  literal boundary is broad, deliberately: a Feathers seam in refactoring/testing prose, a
+  load-bearing wall, and a load-bearing invariant or instruction named as such deliberately in
   architecture prose are all terms of art, not tells. The tell is the reflexive metaphor where
   a plainer word served ("this comment is load-bearing" for "this comment matters"). These cues
   carry no config lever, because the rubric layer reads no config. The boundary text here and
@@ -1008,7 +995,7 @@ either layer, and those rows say so.
   split across lines) are counted as prose; and an inline comment's `-->` is sought past a
   block start up to the next blank line. The usage
   text of `rubric-fanout.sh` states the exact rules. A cue is saturated
-  when it appears in at least 10 files AND in at least 10% of the readable files in scope.
+  when it appears in at least 10 files and in at least 10% of the readable files in scope.
   `rubric-fanout.sh plan` computes the counts and the verdict into `cues.txt` in the batch
   directory; a batch reads the verdict there and never judges saturation from its own batch.
   Saturated hits are not reported per finding. The batch records one
@@ -1113,7 +1100,7 @@ either layer, and those rows say so.
 
 ## Model-era additions (repo-owned)
 
-The repo-owned, evolving inventory of CURRENT-generation model-vocabulary tells, the layer
+The repo-owned, evolving inventory of current-generation model-vocabulary tells, the layer
 the Wikipedia source page has not absorbed yet (verified against its head; see the model-era record below). This section is
 this repository's own work, not adapted from the Wikipedia page, so the CC BY-SA statement at the
 top of this file (scoped to "the adapted material in this file") does not cover it; each entry
@@ -1125,17 +1112,17 @@ Wikipedia-derived inventory only if upstream later absorbs it.
 Every entry in this section carries an **evidence grade**, and the grade gates placement:
 
 - `locally-observed`: seen by this repo's owner in the wild; no indexed external attestation.
-  Eligible for `recorded-only` or the rubric ONLY. Never a shipped script rule on one
+  Eligible for `recorded-only` or the rubric only. Never a shipped script rule on one
   observer's evidence.
 - `community-attested`: documented by independent community sources (threads, catalogs,
   filter lists). Eligible for any layer its false-positive measurement supports.
-- `measured`: carried by at least one quantitative frequency measurement. A SINGLE pool is
-  still single-pool: the measured-narrowing gate (density stays quiet on legitimate files AND
+- `measured`: carried by at least one quantitative frequency measurement. A single pool is
+  still single-pool: the measured-narrowing gate (density stays quiet on legitimate files and
   firing files are genuine residue, measured on a real corpus) governs promotion into any
   shipped default word list.
 
 Consumer repos extend the phrase layer via `phrase_add`/`phrase_remove` and the vocabulary
-layer via `vocab_add` (README "Configuration"); the update workflow for THIS section is in the
+layer via `vocab_add` (README "Configuration"); the update workflow for this section is in the
 README's "Updating the model-era inventory".
 
 ### rule-model-era-phrases: Distinctive model-phrase constructions
@@ -1149,15 +1136,15 @@ README's "Updating the model-era inventory".
   cross-model
 - evidence: community-attested
 - Multiword constructions distinctive enough to fire per occurrence. The shipped roster is the
-  ANCHORED forms only (apostrophes spelled `.` per the detector's ERE convention):
+  anchored forms only (apostrophes spelled `.` per the detector's ERE convention):
   - `the part most people skip`: "X is the part most people skip" and kin. Four in-the-wild
     hits on HN, all 2025-2026, all in AI-tooling threads; no catalog documents it yet. Rare in
     human prose; near-zero expected yield is accepted.
   - `(the|my) honest take`: the opinion-opener construction ("The honest take is..."). The
-    bare bigram "honest take" is recognized but NOT shipped: in blog-register prose it is
+    bare bigram "honest take" is recognized but not shipped: in blog-register prose it is
     ordinary human writing, and this corpus (which measured 0 hits) is the wrong corpus to
     prove otherwise.
-  - `that.s the unlock`: the punchline form. The bare "the unlock" is recognized but NOT
+  - `that.s the unlock`: the punchline form. The bare "the unlock" is recognized but not
     shipped: it has a measured domain-literal false positive in this very repo (prose about an
     actual worktree lock), and any corpus documenting locks, auth, or feature flags would fire
     the same way.
@@ -1211,10 +1198,10 @@ README's "Updating the model-era inventory".
   <https://github.com/archiewood/claudeisms> (README and `claudeisms.csv`). We class it
   single-pool: one author, one workflow. As of: 2026-10-01. Recheck trigger: the README's ranked
   tables change, or a second independent frequency pool appears.
-- ONE of these ships in the default vocabulary list: `pre-existing` passed the measured
+- One of these ships in the default vocabulary list: `pre-existing` passed the measured
   quiet-gate test on this corpus (2026-08-27: 61 files contain the word, the density gate
   fired on none of them, the same measurement that admitted "leverage"), so it joined the
-  shipped `rule-ai-vocabulary` list. The rest do NOT ship. Measured on this repository's
+  shipped `rule-ai-vocabulary` list. The rest do not ship. Measured on this repository's
   corpus, even the pruned distinctive core fires on domain-literal prose (`uncommitted` in a
   git document, `dedup` in a dedup-pass reference), the exact class the shipped list's own
   admission rule excludes. The broad list would flag 47% of the corpus. Each remaining

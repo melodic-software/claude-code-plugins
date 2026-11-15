@@ -2,7 +2,7 @@
 
 Usage: `/corrections:codify note [--applied] "<observation>" [#PR | <commit>]`
 
-- No observation text: print `usage: /corrections:codify note [--applied] "<observation>" [#PR | <commit>]` and STOP.
+- No observation text: print `usage: /corrections:codify note [--applied] "<observation>" [#PR | <commit>]` and stop.
 
 `--applied` marks a change a retro or person already made, so a later session can judge whether it
 worked. It is read only as the first token after `note`, unquoted.

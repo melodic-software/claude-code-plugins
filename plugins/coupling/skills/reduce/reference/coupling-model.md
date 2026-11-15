@@ -10,7 +10,7 @@ scanning; the scan's job is to emit findings typed against this model, not ad-ho
 - [Connascence](#connascence-the-finer-instrument). Static and dynamic forms; the strength, degree, and locality axes
 - [Volatility weighting](#volatility-weighting-coupling-only-costs-where-change-happens). Co-change evidence, blast radius, the ranking formula
 - [Altitudes](#altitudes). The same model at code, module, application, repository, and document scale
-- [What is NOT a finding](#what-is-not-a-finding). The carve-outs that keep the scan honest
+- [What is not a finding](#what-is-not-a-finding). The carve-outs that keep the scan honest
 
 ## What counts as coupling
 
@@ -138,7 +138,7 @@ The same model applies at every altitude; only the mechanisms differ.
   A doc that must be edited whenever code changes, without any check forcing it, is the silent
   form: it does not break, it rots.
 
-## What is NOT a finding
+## What is not a finding
 
 - A dependency on a stable, owned, in-process abstraction. Dependency count is not coupling
   badness; direction, strength, and volatility are.

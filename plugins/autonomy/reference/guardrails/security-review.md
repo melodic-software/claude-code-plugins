@@ -14,7 +14,7 @@ defaults.
 | 1 | Deterministic scanners | Machine-adjudicated: same input, same verdict |
 | 2 | AI security review | Model-adjudicated: judgment findings over the change |
 
-**Layer 1: deterministic scanners.** Scanner CLASSES, instances org-bound: secret
+**Layer 1: deterministic scanners.** Scanner classes, instances org-bound: secret
 detection, dependency vulnerability audit, static analysis. Deterministic verdicts make
 this layer safe to run blocking wherever the matrix requires it.
 
@@ -36,7 +36,7 @@ That a failing verdict can gate the merge at all is this contract's own instanti
 Boris playbook keeps automated review a default feeding a human merge, never a gate, so the
 `blocking` knob layers a gate onto that advisory posture rather than inheriting it.
 
-Knobs are security-sensitive and bind ONLY on the org's security governance surface (the
+Knobs are security-sensitive and bind only on the org's security governance surface (the
 settings-as-code home, outside the blast radius of the agents they govern, since an
 agent-writable blocking knob is a bypass channel). Shipped defaults:
 
@@ -48,7 +48,7 @@ agent-writable blocking knob is a bypass channel). Shipped defaults:
 | `C4` | `blocking` | `blocking` |
 | `C5` | `blocking` | `blocking`; full-gate cell. The zero-secret-exposure execution constraint is owned by the [isolation floor](isolation-ladder.md), not this leaf |
 
-Shipped defaults are FLOORS: a binding may tighten any cell (`advisory` → `blocking`) but
+Shipped defaults are floors: a binding may tighten any cell (`advisory` → `blocking`) but
 never weaken one below its shipped default. A binding that tries is invalid. An absent
 or invalid binding fail-closes: every knob resolves to its shipped default and every
 promoted posture is unavailable. No silent degrade on any path.
@@ -62,7 +62,7 @@ in the [per-class detail leaf](work-classes.md).
 
 ## Cost posture
 
-- The DEFAULT path is free: Layer 1's blocking obligations are satisfied by free-path
+- The default path is free: Layer 1's blocking obligations are satisfied by free-path
   scanner classes with zero paid dependencies.
 - Entitlement-gated tools, the paid code-scanning SKUs, are `advisory` + explicit opt-in,
   with the cost surfaced at opt-in time. They never hold a blocking cell's obligation,
@@ -73,6 +73,6 @@ in the [per-class detail leaf](work-classes.md).
 
 The guardrail slice of guided setup configures this policy; no separate security-review
 setup capability exists (near-duplicate ban). Setup always detect-diff-reconciles against
-the org's EXISTING review surfaces, meaning scanner configuration, review workflows, and
+the org's existing review surfaces, meaning scanner configuration, review workflows, and
 branch protections. It never greenfield-assumes and never silently overwrites; the same
 detect-diff-reconcile obligation generalizes matrix-wide.

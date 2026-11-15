@@ -11,8 +11,8 @@ metadata:
 
 ## Repository context
 
-The current repository is both the CONSUMER, whose convention home declares where artifacts land,
-and the DEFAULT SUBJECT, whose tracked IaC declares the topology.
+The current repository is both the consumer, whose convention home declares where artifacts land,
+and the default subject, whose tracked IaC declares the topology.
 
 Collect with an **individual** Bash call, one command per call: the project root,
 `git rev-parse --show-toplevel`. Treat a failure (not a repository, git unavailable) as an unknown
@@ -37,11 +37,12 @@ follow the exit code; never parse the root instruction file yourself. Exit 0: re
 `<home>/architecture/README.md` for `architecture_dir`. Exit 1, 2, or 3: no declared home.
 
 Per key, in order: `--out <dir>` wins for this run alone, then a declared `architecture_dir`, then
-one question. `architecture_dir` has NO default. An undeclared and unconfirmed home, including
-every non-interactive run, STOPS and points at `/architecture:setup`. Do not invent a directory.
+one question. `architecture_dir` has no default. An undeclared and unconfirmed home, including
+every non-interactive run, stops and points at `/architecture:setup`. Do not invent a directory.
 
-Resolve `diagram_dialect.system` by restating this ladder, then running the resolver rather than
-parsing the topic doc yourself. The ladder is a resolution order, not a task list:
+Resolve `diagram_dialect.system` by running the resolver rather than parsing the topic doc
+yourself. This skill restates the convention's ladder below; it is a resolution order, not a task
+list:
 
 ```markdown
 1. Anchor at the repository root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
@@ -52,7 +53,7 @@ parsing the topic doc yourself. The ladder is a resolution order, not a task lis
    `<root>/<home>/authoring-formats/README.md` to the resolver.
 4. Layer order is one layer deep: an explicit `--dialect` argument, then the team convention doc.
    There is no personal override.
-5. `diagram_dialect.system` has NO default. Allowed values are `likec4` and `c4-plantuml`. When it
+5. `diagram_dialect.system` has no default. Allowed values are `likec4` and `c4-plantuml`. When it
    is unset, emit no C4 deployment view. The record is still written.
 6. Degrade soft, and say so. No pointer, no doc, no key, or an unrecognized value (mermaid
    included) each resolve to emitting nothing. The resolver names the cause on stderr. Do not
@@ -286,7 +287,7 @@ when that reads empty or unsubstituted (never put a `${user_config.*}` string in
 its report line is printed. Procedure:
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Call a cloud API, use credentials, or compare live state to the declaration.
 - Run `terraform`, read Terraform state, or fetch a remote module.

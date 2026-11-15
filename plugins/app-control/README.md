@@ -40,7 +40,7 @@ control skill.
 
 ## Not yet in this plugin
 
-Reading an `app-control.yaml` override and attaching to a process drive did not start.
+Reading an `app-control.yaml` override.
 
 ## Attribution
 
