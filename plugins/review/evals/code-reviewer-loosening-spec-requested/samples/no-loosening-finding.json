@@ -9,8 +9,8 @@
       "why": "no finding at all"
     },
     {
-      "answer": "Loosened-check verdict: fail (default); patterns: 0\n\nFail a change that loosens a check (threshold lowered): passes. jest.config.js:8 lowers branches from 90 to 80; the spec (#41) names it and its reason holds: the generated client's one unreached branch puts coverage at 5 of 6.\n\n**SUGGESTION**\n- `jest.config.js:6`: optional, for the issue author: a `./src/generated/` path threshold would exempt only the generated client, keep it in the report, and leave other code under the global minimum. Not a defect in this change. Confidence: medium\n\nCoverage: all changed files reviewed",
-      "why": "a note for the issue author that asks this pull request to change nothing and says it is not a defect in this change"
+      "answer": "Loosened-check verdict: fail (default); patterns: 0\n\nFail a change that loosens a check (threshold lowered): passes. jest.config.js:8 lowers branches from 90 to 80; the spec (#41) names it and gives the reason: the generated client's one unreached branch puts coverage at 5 of 6. This gets no finding at any tier.\n\nOne note for the spec's author, not a finding: the 80 minimum applies to every file under src/, so handwritten code can now drop to 80% branch coverage without failing the run.\n\nNo findings.\n\nCoverage: all changed files reviewed",
+      "why": "passes the lowering, raises no finding on it, and puts a doubt in one line for the spec's author outside the findings"
     }
   ],
   "fail": [
