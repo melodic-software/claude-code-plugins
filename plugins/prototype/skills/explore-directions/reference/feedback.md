@@ -135,13 +135,13 @@ you:
 When the person is done pinning notes, keep what the run directory holds before it goes:
 
 1. **Memory slice.** Write `prototype-notes.md`, one row per note as step 5 restates it, and copy
-   `shots/` beside it, into `prototype/` in the memory slice
-   (`plugins/planning/reference/artifact-protocol.md` "Ownership and placement" in the marketplace
-   repository). The mockup stays in its run directory.
+   `shots/` beside it, into `prototype/` in the memory slice: the topic's folder under the
+   repository's gitignored working-notes directory, `.work/` unless the repository names another
+   (with the `planning` plugin installed, its artifact protocol, "Ownership and placement", owns
+   the folder). The mockup stays in its run directory.
 2. **Map item.** Only when the invocation names a map item (a `/planning:wayfind` prototype item),
    also put those files and the mockup page in that item's folder on the map's dossier branch,
-   with the branch, folder and push as `plugins/planning/skills/wayfind/SKILL.md` "Shared files"
-   in the marketplace repository says. This push is not the evidence step's branch, which still
+   with the branch, folder and push as `/planning:wayfind` says under "Shared files". This push is not the evidence step's branch, which still
    leaves the mockup out.
 3. **Check first.** Before that commit, run the repository's secrets and machine-data check over
    every file in it, found as the [evidence step](../../../context/discipline.md#evidence-step)
