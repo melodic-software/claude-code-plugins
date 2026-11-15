@@ -5,9 +5,12 @@
   sandbox="allow-scripts" and never allow-same-origin, so the page runs with an opaque origin and
   reaches nothing but this window, by postMessage. This page alone holds the token and the network.
   It trusts a message only from the frame's own window, takes the first ready only, and stops
-  listening when the frame loads a second document. A pick becomes a note only through
-  note.schema.json: each anchor field and a box the schema refuses are dropped, and page text (the helper's
-  label) is never kept. Every string reaches the screen through textContent.
+  listening when the frame loads a second document. A pick, a region or a text selection becomes a
+  note only through note.schema.json: each anchor field, box, quote, data log and viewport the
+  schema refuses is dropped, and the helper's label is never kept. The one page text a note keeps
+  is a selection's quote (anchor.textQuote), cut to the schema's limits. Every string reaches the
+  screen through textContent. When the server stops answering, the notes written here stay on this
+  page and Copy all notes makes one prototype-notes block for the session to import.
 -->
 <html lang="en">
 <head>
@@ -37,45 +40,82 @@
   <p id="status" role="status" aria-live="polite">Loading the mockup.</p>
   <p id="session" class="state"></p>
   <button type="button" id="pick" aria-pressed="false" disabled>Pick an element (P)</button>
+  <button type="button" id="region" aria-pressed="false" disabled>Mark a region (R)</button>
+  <button type="button" id="quote" disabled>Note on selected text (T)</button>
   <div id="composer" hidden>
     <p id="picked" class="where"></p>
     <label for="text">Your note</label>
     <textarea id="text"></textarea>
     <p><button type="button" id="send">Send</button> <button type="button" id="cancel">Cancel</button></p>
   </div>
-  <h2>Sent</h2>
+  <h2>Notes</h2>
   <ol id="notes"></ol>
+  <button type="button" id="copy">Copy all notes</button>
+  <div id="copyout" hidden>
+    <label for="block">Paste this block to Claude</label>
+    <textarea id="block" readonly></textarea>
+  </div>
 </aside>
 <script type="module">
   import { problems } from "/note-model.mjs";
 
   const $ = (id) => document.getElementById(id);
-  const frame = $("page"), pickButton = $("pick"), composer = $("composer"), text = $("text");
+  const frame = $("page"), composer = $("composer"), text = $("text");
+  const buttons = { element: $("pick"), region: $("region") };
   const say = (t) => { $("status").textContent = t; };
-  let schema = null, token = null, ready = false, loads = 0, picking = false, draft = null;
-  const sent = new Map(); // seq -> {where, text}, this page load's notes
+  let schema = null, token = null, ready = false, loads = 0, picking = null, wantText = false, draft = null, noSession = false;
+  const mine = []; // this page load's notes: {note, where, seq}; seq is null until the session has it
   let last = { listening: "idle", notes: [] };
 
   const fits = (value, node) => value !== undefined && problems(value, schema, node).length === 0;
   const toFrame = (m) => { if (ready && loads < 2) frame.contentWindow.postMessage(m, "*"); };
+  const live = () => ready && loads < 2;
+  const QUOTE = () => schema.$defs.anchor.properties.textQuote;
 
-  function setPick(on) {
-    picking = !!on && ready && loads < 2;
-    pickButton.setAttribute("aria-pressed", String(picking));
-    toFrame({ type: "mode", on: picking });
-    say(picking ? "Click an element in the mockup to pin a note to it. Esc cancels." : "");
+  /** Turn pick mode on for one kind ("element" or "region"), or off. */
+  function setPick(kind) {
+    picking = kind && live() ? kind : null;
+    for (const [k, b] of Object.entries(buttons)) b.setAttribute("aria-pressed", String(picking === k));
+    toFrame({ type: "mode", on: !!picking, kind: picking || "element", max: schema?.properties.elements.maxItems });
+    say(picking === "element" ? "Click an element in the mockup to pin a note to it. Esc cancels."
+      : picking === "region" ? "Drag a box over the mockup, or move it with the arrow keys (Shift+arrows resize) and press Enter. Esc cancels."
+      : "");
+  }
+  function askText() {
+    if (!live()) return;
+    setPick(null);
+    wantText = true;
+    const q = QUOTE().properties;
+    toFrame({ type: "text", exact: q.exact.maxLength, context: q.prefix.maxLength });
   }
 
-  /** The note a pick becomes: only the fields note.schema.json admits, never the helper's label. */
-  function noteFrom(a, rect) {
+  /** An anchor's fields the contract admits; null when what is left is not an anchor. */
+  function anchorFrom(a) {
     if (!a || typeof a !== "object") return null;
-    const p = schema.properties, A = p.anchor.properties, anchor = {};
-    for (const k of Object.keys(A)) if (fits(a[k], A[k])) anchor[k] = a[k];
-    if (!("testid" in anchor)) delete anchor.testidIndex;
-    const note = { kind: "element", anchor };
-    for (const k of ["variant", "state"]) if (fits({ key: a[k] }, p[k])) note[k] = { key: a[k] };
-    if (fits(a.content, p.content)) note.content = a.content;
-    if (fits(rect, p.rect)) note.rect = { x: rect.x, y: rect.y, w: rect.w, h: rect.h };
+    const A = schema.$defs.anchor.properties, out = {};
+    for (const k of Object.keys(A)) if (k !== "textQuote" && fits(a[k], A[k])) out[k] = a[k];
+    if (!("testid" in out)) delete out.testidIndex;
+    return fits(out, schema.$defs.anchor) ? out : null;
+  }
+  /** The note a message becomes: only the fields note.schema.json admits, never the helper's label. */
+  function noteFrom(m, kind) {
+    const anchor = anchorFrom(m.anchor);
+    if (!anchor) return null;
+    const P = schema.properties, s = m.snapshot && typeof m.snapshot === "object" ? m.snapshot : {};
+    const note = { kind, anchor };
+    for (const k of ["variant", "state"]) if (fits({ key: s[k] }, P[k])) note[k] = { key: s[k] };
+    if (fits(s.content, P.content)) note.content = s.content;
+    if (fits(m.rect, P.rect)) note.rect = { x: m.rect.x, y: m.rect.y, w: m.rect.w, h: m.rect.h };
+    if (fits(s.data, P.data)) note.data = JSON.parse(JSON.stringify(s.data));
+    if (fits(s.viewport, P.viewport)) note.viewport = { ...s.viewport };
+    if (kind === "text") {
+      if (!fits(m.quote, QUOTE())) return null;
+      anchor.textQuote = { exact: m.quote.exact };
+      for (const k of ["prefix", "suffix"]) if (m.quote[k] !== undefined) anchor.textQuote[k] = m.quote[k];
+    }
+    if (kind === "region") {
+      note.elements = (Array.isArray(m.elements) ? m.elements : []).map(anchorFrom).filter(Boolean).slice(0, P.elements.maxItems);
+    }
     return problems({ ...note, text: "x" }, schema).length ? null : note;
   }
 
@@ -83,67 +123,104 @@
     const a = n.anchor, parts = [];
     if (n.variant) parts.push(`variant ${n.variant.key}`);
     if (n.state) parts.push(`state ${n.state.key}`);
-    parts.push(a.testid ? `${a.testid} #${a.testidIndex + 1}` : `<${a.tag}>${a.cssPath ? ` at ${a.cssPath}` : ""}`);
+    if (n.kind === "text") {
+      const q = [...a.textQuote.exact];
+      parts.push(`text “${q.slice(0, 60).join("")}${q.length > 60 ? "…" : ""}”`);
+    } else if (n.kind === "region") {
+      parts.push(`region at ${Math.round(n.rect?.x ?? 0)}%, ${Math.round(n.rect?.y ?? 0)}% over ${n.elements.length} marked element(s)`);
+    } else parts.push(a.testid ? `${a.testid} #${a.testidIndex + 1}` : `<${a.tag}>${a.cssPath ? ` at ${a.cssPath}` : ""}`);
     return parts.join(" · ");
   }
 
   function openComposer(note) {
     draft = note;
-    setPick(false);
-    $("picked").textContent = `Picked: ${where(note)}`;
+    setPick(null);
+    $("picked").textContent = `${{ element: "Picked", text: "Selected", region: "Marked" }[note.kind]}: ${where(note)}`;
     composer.hidden = false;
     text.value = "";
     text.focus();
   }
-  function closeComposer() { draft = null; composer.hidden = true; pickButton.focus(); }
+  function closeComposer() { draft = null; composer.hidden = true; buttons.element.focus(); }
 
   async function send() {
     if (!draft) return;
     const note = { ...draft, text: text.value.trim() };
     const found = problems(note, schema);
     if (found.length) return say(`Not sent: ${found[0]}.`);
+    let r, body;
     try {
-      const r = await fetch("/api/note", {
+      r = await fetch("/api/note", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Notes-Token": token },
         body: JSON.stringify(note),
       });
-      const body = await r.json();
-      if (!r.ok) return say(`Not sent: ${body.error || r.status}.`);
-      sent.set(body.seq, { where: where(note), text: note.text });
-      closeComposer();
-      say(`Note ${body.seq} sent.`);
-      render();
+      body = await r.json();
     } catch {
-      say("Not sent: the session's server is not answering. Keep this tab open and ask Claude to serve the mockup again.");
+      // The server ended: keep the note here, for Copy all notes.
+      mine.push({ note, where: where(note), seq: null });
+      noSession = true;
+      closeComposer();
+      say("Not sent: no session is answering. The note is kept on this page; Copy all notes makes a block to paste to Claude.");
+      return render();
     }
+    if (!r.ok) return say(`Not sent: ${body.error || r.status}.`);
+    mine.push({ note, where: where(note), seq: body.seq });
+    closeComposer();
+    say(`Note ${body.seq} sent.`);
+    render();
+  }
+
+  /** One prototype-notes block holding every note written on this page; a backtick is escaped, so no
+   *  note can end the fence. The session imports it with notes-bridge.sh import. */
+  function copyAll() {
+    if (!mine.length) return say("No notes on this page yet.");
+    const body = JSON.stringify({ notes: mine.map((m) => m.note) }, null, 1).replace(/`/g, "\\u0060");
+    const block = "```prototype-notes\n" + body + "\n```\n";
+    $("block").value = block;
+    $("copyout").hidden = false;
+    $("block").select();
+    const done = () => say(`Copied ${mine.length} note(s). Paste the block to Claude.`);
+    const manual = () => say("Select the block below and copy it, then paste it to Claude.");
+    if (navigator.clipboard) navigator.clipboard.writeText(block).then(done, manual);
+    else manual();
   }
 
   function render() {
-    const listening = { listening: "Claude is listening.", reading: "Claude is reading your notes." }[last.listening]
-      || "No session is listening right now; your notes wait until Claude checks them.";
+    const listening = noSession
+      ? "No session: the notes server is not answering. Your notes stay on this page; press Copy all notes and paste the block to Claude."
+      : { listening: "Claude is listening.", reading: "Claude is reading your notes." }[last.listening]
+        || "No session is listening right now; your notes wait until Claude checks them.";
     $("session").textContent = listening;
     const byseq = new Map(last.notes.map((n) => [n.seq, n]));
-    const seqs = [...new Set([...sent.keys(), ...byseq.keys()])].sort((a, b) => a - b);
-    $("notes").replaceChildren(...seqs.map((seq) => {
-      const li = document.createElement("li"), mine = sent.get(seq), st = byseq.get(seq) || {};
-      const head = document.createElement("div");
-      head.className = "where";
-      head.textContent = mine ? `#${seq} · ${mine.where}` : `#${seq} (sent earlier)`;
-      const body = document.createElement("div");
-      body.textContent = mine ? mine.text : "";
-      const state = document.createElement("div");
-      state.className = "state";
-      state.textContent = st.handled ? "handled" : st.delivered ? "delivered to Claude" : "sent";
-      li.append(head, body, state);
-      if (st.reply) {
-        const reply = document.createElement("p");
-        reply.className = "reply";
-        reply.textContent = st.reply;
-        li.append(reply);
+    const ours = new Map(mine.filter((m) => m.seq !== null).map((m) => [m.seq, m]));
+    const seqs = [...new Set([...ours.keys(), ...byseq.keys()])].sort((a, b) => a - b);
+    const item = (head, words, status, reply) => {
+      const li = document.createElement("li");
+      const h = document.createElement("div");
+      h.className = "where";
+      h.textContent = head;
+      const b = document.createElement("div");
+      b.textContent = words;
+      const st = document.createElement("div");
+      st.className = "state";
+      st.textContent = status;
+      li.append(h, b, st);
+      if (reply) {
+        const p = document.createElement("p");
+        p.className = "reply";
+        p.textContent = reply;
+        li.append(p);
       }
       return li;
-    }));
+    };
+    $("notes").replaceChildren(
+      ...seqs.map((seq) => {
+        const m = ours.get(seq), st = byseq.get(seq) || {};
+        return item(m ? `#${seq} · ${m.where}` : `#${seq} (sent earlier)`, m ? m.note.text : "",
+          st.handled ? "handled" : st.delivered ? "delivered to Claude" : "sent", st.reply);
+      }),
+      ...mine.filter((m) => m.seq === null).map((m) => item(m.where, m.note.text, "not sent: use Copy all notes")),
+    );
   }
 
   addEventListener("message", (e) => {
@@ -153,24 +230,49 @@
     if (m.type === "ready") {
       if (ready) return;
       ready = true;
-      pickButton.disabled = false;
-      say("Press Pick an element (or P), then click the part of the mockup your note is about.");
-    } else if (m.type === "escape") setPick(false);
-    else if (m.type === "pinned" && picking) {
-      const note = noteFrom(m.anchor, m.rect);
+      for (const b of [...Object.values(buttons), $("quote")]) b.disabled = false;
+      say("Pick an element (P), mark a region (R), or select text in the mockup and press Note on selected text (T).");
+    } else if (m.type === "escape") setPick(null);
+    else if (m.type === "want-text") askText();
+    else if (m.type === "pinned" && picking === "element") {
+      const note = noteFrom(m, "element");
       if (note) openComposer(note);
       else say("That element cannot carry a note: its tag or path is outside the note contract. Pick its parent.");
+    } else if (m.type === "region" && picking === "region") {
+      const note = noteFrom(m, "region");
+      if (note) openComposer(note);
+      else say("That region cannot carry a note: the element around it is outside the note contract.");
+    } else if (m.type === "selected" && wantText) {
+      wantText = false;
+      const note = m.none ? null : noteFrom(m, "text");
+      if (note) openComposer(note);
+      else say("Select some text in the mockup first, then press Note on selected text (T).");
     }
   });
 
-  pickButton.addEventListener("click", () => setPick(!picking));
+  buttons.element.addEventListener("click", () => setPick(picking === "element" ? null : "element"));
+  buttons.region.addEventListener("click", () => setPick(picking === "region" ? null : "region"));
+  $("quote").addEventListener("click", askText);
   $("send").addEventListener("click", send);
   $("cancel").addEventListener("click", closeComposer);
+  $("copy").addEventListener("click", copyAll);
+  const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { if (draft) closeComposer(); else setPick(false); return; }
+    if (e.key === "Escape") { if (draft) closeComposer(); else setPick(null); return; }
     if (e.target instanceof HTMLElement && (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if ((e.key === "p" || e.key === "P") && ready) { e.preventDefault(); setPick(!picking); }
+    if (picking === "region" && (ARROWS[e.key] || e.key === "Enter")) {
+      // The region's keys go to the frame; Enter there sends it.
+      e.preventDefault();
+      if (e.key === "Enter") toFrame({ type: "commit" });
+      else toFrame({ type: "nudge", dx: ARROWS[e.key][0], dy: ARROWS[e.key][1], grow: e.shiftKey });
+      return;
+    }
+    if (!ready) return;
+    const key = e.key.toLowerCase();
+    if (key === "p") { e.preventDefault(); setPick(picking === "element" ? null : "element"); }
+    else if (key === "r") { e.preventDefault(); setPick(picking === "region" ? null : "region"); }
+    else if (key === "t") { e.preventDefault(); askText(); }
   });
 
   try {
@@ -186,14 +288,15 @@
       loads += 1;
       if (loads > 1) {
         ready = false;
-        picking = false;
-        pickButton.disabled = true;
+        picking = null;
+        for (const b of [...Object.values(buttons), $("quote")]) b.disabled = true;
         say("The mockup loaded another page in its frame, so this page stopped listening to it. Reload to start again.");
       }
     });
     frame.srcdoc = await page.text();
     const events = new EventSource("/events");
-    events.addEventListener("state", (e) => { last = JSON.parse(e.data); render(); });
+    events.addEventListener("state", (e) => { last = JSON.parse(e.data); noSession = false; render(); });
+    events.addEventListener("error", () => { noSession = true; render(); });
   } catch (err) {
     say(`No session is connected (${err.message || "the server is not answering"}). Use the mockup's own copy-out control instead.`);
   }

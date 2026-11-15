@@ -289,7 +289,15 @@ from the one the browser runs. It checks the runtime body by hash before any oth
      data block. The session resolves each id against its own copy of the record. This
      bullet also binds every copy, export, and download payload on a K2 page at every
      tier, and text pasted or exported from a K2 page is K2, never K0 user input (see
-     View tiers).
+     View tiers). One exception, for model-written pages only: a note the ui-feedback host
+     page sends about a model-written K0 or K1 page it frames may carry a text quote taken
+     from that page (`anchor.textQuote`: the selected text and a little visible text either
+     side, limits in `lib/ui-feedback/note.schema.json`), so the session can find the text
+     again. The quote is data everywhere: the host page keeps it only when the note schema
+     admits it and renders it through `textContent`, the bridge validates it again and
+     delivers it under the framing contract below, and the session quotes it, never acts on
+     it ([ui-feedback, "Trust rules"](../ui-feedback/README.md#trust-rules)). A K2 page never
+     uses the host page.
    - The bridge delivers every page-originated field, the reader's input included, to
      the session as DATA under the untrusted-content framing contract, never as the
      user's own message.

@@ -299,6 +299,125 @@ class TestNotes(NotesCase):
                 nb.main(["--dir", str(self.dir), "serve", "--page", bad])
 
 
+def block(notes):
+    """A copy-out block shaped as host.html's Copy all notes makes it."""
+    body = json.dumps({"notes": notes}, ensure_ascii=False).replace("`", "\\u0060")
+    return f"```prototype-notes\n{body}\n```\n"
+
+
+class TestImport(unittest.TestCase):
+    """import with no server: a copy-out block written to a file goes through the note contract."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="nb-import-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.dir = self.tmp / "run"
+        self.dir.mkdir(mode=0o700)
+        self.file = self.dir / "import.json"
+
+    def run_import(self, text):
+        self.file.write_text(text, encoding="utf-8")
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                nb.main(["--dir", str(self.dir), "import", "--file", str(self.file)])
+            except SystemExit as e:
+                return e.code, out.getvalue() + str(e.code)
+        return 0, out.getvalue()
+
+    def events(self):
+        return view_log(self.dir)["events"]
+
+    def test_a_block_is_appended_with_seqs_and_its_file_removed(self):
+        text = INJECTION.format(canary=self.tmp / "canary") + " ```"
+        notes = [NOTE, {**NOTE, "text": text}, FIXTURES["valid"][10]["note"]]
+        code, out = self.run_import(block(notes))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(json.loads(out), {"imported": [1, 2, 3], "skipped": 0})
+        self.assertFalse(self.file.exists())
+        got = self.events()
+        self.assertEqual([e["seq"] for e in got], [1, 2, 3])
+        self.assertEqual(got[1]["text"], text)
+        strip = [{k: v for k, v in e.items() if k not in ("seq", "at")} for e in got]
+        self.assertEqual(strip, notes)
+        self.assertFalse((self.tmp / "canary").exists())
+
+    def test_the_blocks_json_alone_is_taken_too(self):
+        code, out = self.run_import(json.dumps({"notes": [NOTE]}))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(len(self.events()), 1)
+
+    def test_a_note_already_in_the_log_is_skipped(self):
+        self.assertEqual(self.run_import(block([NOTE]))[0], 0)
+        code, out = self.run_import(block([NOTE, {**NOTE, "text": "New."}, NOTE]))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(json.loads(out), {"imported": [2], "skipped": 2})
+
+    def assert_refused(self, text, why):
+        code, out = self.run_import(text)
+        self.assertNotEqual(code, 0, out)
+        self.assertIn(why, out)
+        self.assertEqual(self.events(), [])
+        self.assertTrue(self.file.exists())
+
+    def test_an_unknown_field_refuses_the_whole_block(self):
+        self.assert_refused(
+            block([NOTE, {**NOTE, "label": "Export"}]),
+            "note 2: note.label: unknown field",
+        )
+
+    def test_an_oversize_note_refuses_the_whole_block(self):
+        limit = nb.SCHEMA["properties"]["text"]["maxLength"]
+        self.assert_refused(
+            block([NOTE, {**NOTE, "text": "a" * (limit + 1)}]), "longer than"
+        )
+
+    def test_a_file_over_the_runs_note_budget_is_refused_unread(self):
+        cap = nb.MAX_NOTES
+        nb.MAX_NOTES = 1
+        self.addCleanup(setattr, nb, "MAX_NOTES", cap)
+        self.assert_refused(" " * (nb.NotesHandler.max_body + 1), "bytes")
+
+    def test_the_cap_counts_the_notes_already_logged(self):
+        log = {
+            "seq": nb.MAX_NOTES - 1,
+            "events": [
+                {
+                    "seq": i + 1,
+                    "kind": "element",
+                    "anchor": NOTE["anchor"],
+                    "text": str(i),
+                }
+                for i in range(nb.MAX_NOTES - 1)
+            ],
+        }
+        nb.view.write_json(self.dir / "actions.json", log)
+        code, out = self.run_import(block([NOTE, {**NOTE, "text": "Two."}]))
+        self.assertNotEqual(code, 0)
+        self.assertIn(str(nb.MAX_NOTES), out)
+        self.assertEqual(len(self.events()), nb.MAX_NOTES - 1)
+        code, out = self.run_import(block([NOTE]))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(len(self.events()), nb.MAX_NOTES)
+
+    def test_anything_but_one_block_is_refused(self):
+        one = block([NOTE])
+        for text, why in (
+            (one + one, "not one prototype-notes block"),
+            ("Here are my notes:\n" + one, "not one prototype-notes block"),
+            (one.replace("prototype-notes", "json"), "not one prototype-notes block"),
+            (block([]).replace('{"notes": []}', "[]"), '{"notes": [...]}'),
+            (json.dumps({"notes": [NOTE], "run": "x"}), '{"notes": [...]}'),
+            (json.dumps({"notes": {"1": NOTE}}), "notes must be a list"),
+        ):
+            with self.subTest(text=text[:40]):
+                self.assert_refused(text, why)
+
+
+def view_log(d):
+    return nb.view.load_log(d / "actions.json")
+
+
 @unittest.skipUnless(
     shutil.which("curl") and shutil.which("bash"), "needs curl and bash"
 )
@@ -429,6 +548,28 @@ class TestLoop(unittest.TestCase):
             self.assertIn(b"<p>second.html</p>", conn.getresponse().read())
         finally:
             conn.close()
+
+    def test_import_waits_for_the_server_to_stop_and_status_then_lists_the_notes(self):
+        r = self.control("ensure-running")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.post(self.session(), NOTE), 200)
+        f = self.dir / "import.json"
+        f.write_text(
+            block([NOTE, {**NOTE, "text": "Written after the stop."}]), encoding="utf-8"
+        )
+        r = self.control("import", "--file", str(f))
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("server is running", r.stderr)
+        self.assertEqual(self.control("stop").returncode, 0)
+        r = self.control("import", "--file", str(f))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout), {"imported": [2], "skipped": 1})
+        out = json.loads(self.control("status").stdout)
+        self.assertEqual(out["note"], sb.DATA_NOTE)
+        self.assertEqual(
+            [e["text"] for e in out["events"]],
+            [NOTE["text"], "Written after the stop."],
+        )
 
     def test_a_note_sent_with_no_watcher_is_listed_by_status_until_handled(self):
         r = self.control("ensure-running")

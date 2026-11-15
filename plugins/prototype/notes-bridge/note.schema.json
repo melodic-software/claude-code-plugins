@@ -2,17 +2,64 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "note.schema.json",
   "title": "UI feedback note",
-  "description": "One note a person pins to a non-final UI. The only definition of a note's fields, enums and limits (docs/contracts/ui-feedback). x-version moves on any change; x-maxNotesPerRun caps the notes one bridge run stores. Text is 1 to 4000 characters: long enough for a paragraph of review, short enough that a batch of notes stays readable in one session turn. Every string the page supplies is an id or a key; none is page text. rect is the element's box in percent of the page's scrollable box when the note was taken: the position-only last step of the anchor ladder when no anchor finds the element.",
-  "x-version": 2,
+  "description": "One note a person pins to a non-final UI. The only definition of a note's fields, enums and limits (docs/contracts/ui-feedback). x-version moves on any change; x-maxNotesPerRun caps the notes one bridge run stores, and an import counts toward it. Text is 1 to 4000 characters: long enough for a paragraph of review, short enough that a batch of notes stays readable in one session turn. kind says what the note is pinned to: an element, a text selection (anchor.textQuote holds it) or a dragged region (rect is the region and elements lists the anchors it intersects; anchor is the element that holds it). Every string the page supplies is an id, a key or an enum, except anchor.textQuote: text copied from a model-written page, allowed there only (docs/contracts/rendered-views, rule 9) and data wherever it goes. Its exact text is the selection with whitespace runs collapsed, and prefix and suffix are the visible text of the scope just before and after it, so it finds the text again where Seed and Clear move it. rect is a box in percent of the page's scrollable box when the note was taken: the position-only last step of the anchor ladder when no anchor finds the element. data.log is the data controls pressed since the page loaded, in order, so a re-locating script can replay it; a log longer than its limit is left out. viewport is the framed page's size, scroll, color scheme and reduced-motion setting.",
+  "x-version": 3,
   "x-maxNotesPerRun": 500,
   "type": "object",
   "additionalProperties": false,
   "required": ["kind", "anchor", "text"],
   "properties": {
-    "kind": { "enum": ["element"] },
+    "kind": { "enum": ["element", "text", "region"] },
     "variant": { "$ref": "#/$defs/keyed" },
     "state": { "$ref": "#/$defs/keyed" },
     "content": { "enum": ["demo", "worst"] },
+    "anchor": { "$ref": "#/$defs/anchor" },
+    "elements": { "type": "array", "maxItems": 10, "items": { "$ref": "#/$defs/anchor" } },
+    "rect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "w", "h"],
+      "properties": {
+        "x": { "$ref": "#/$defs/percent" },
+        "y": { "$ref": "#/$defs/percent" },
+        "w": { "$ref": "#/$defs/percent" },
+        "h": { "$ref": "#/$defs/percent" }
+      }
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["log"],
+      "properties": {
+        "log": { "type": "array", "maxItems": 50, "items": { "$ref": "#/$defs/dataStep" } }
+      }
+    },
+    "viewport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["w", "h", "dpr", "scrollX", "scrollY", "colorScheme", "reducedMotion"],
+      "properties": {
+        "w": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "h": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "dpr": { "type": "number", "minimum": 0.1, "maximum": 16 },
+        "scrollX": { "type": "number", "minimum": 0, "maximum": 10000000 },
+        "scrollY": { "type": "number", "minimum": 0, "maximum": 10000000 },
+        "colorScheme": { "enum": ["light", "dark"] },
+        "reducedMotion": { "type": "boolean" }
+      }
+    },
+    "text": { "type": "string", "minLength": 1, "maxLength": 4000 }
+  },
+  "$defs": {
+    "percent": { "type": "number", "minimum": 0, "maximum": 100 },
+    "keyed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key"],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,32}$" }
+      }
+    },
     "anchor": {
       "type": "object",
       "additionalProperties": false,
@@ -26,30 +73,27 @@
           "type": "string",
           "maxLength": 1000,
           "pattern": "^(?:[a-z][a-z0-9]{0,15}(?:-[a-z0-9]{1,15}){0,3}:nth-of-type\\([1-9][0-9]{0,3}\\)(?: > [a-z][a-z0-9]{0,15}(?:-[a-z0-9]{1,15}){0,3}:nth-of-type\\([1-9][0-9]{0,3}\\)){0,31})?$"
+        },
+        "textQuote": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["exact"],
+          "properties": {
+            "exact": { "type": "string", "minLength": 1, "maxLength": 500 },
+            "prefix": { "type": "string", "maxLength": 64 },
+            "suffix": { "type": "string", "maxLength": 64 }
+          }
         }
       }
     },
-    "rect": {
+    "dataStep": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["x", "y", "w", "h"],
+      "required": ["op"],
       "properties": {
-        "x": { "$ref": "#/$defs/percent" },
-        "y": { "$ref": "#/$defs/percent" },
-        "w": { "$ref": "#/$defs/percent" },
-        "h": { "$ref": "#/$defs/percent" }
-      }
-    },
-    "text": { "type": "string", "minLength": 1, "maxLength": 4000 }
-  },
-  "$defs": {
-    "percent": { "type": "number", "minimum": 0, "maximum": 100 },
-    "keyed": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["key"],
-      "properties": {
-        "key": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,32}$" }
+        "op": { "enum": ["seed", "clear", "reset", "toggle", "content"] },
+        "n": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "name": { "enum": ["pagination", "filter", "sort", "demo", "worst"] }
       }
     }
   }
