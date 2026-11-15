@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [10.3.7] - 2026-11-15
+
+### Changed
+
+- The example config's `sweep-comments` activity passes `--unattended` to `/review:fanout`, which now accepts the flag, so a lane run proposes checks without running any.
+
 ## [10.3.6] - 2026-11-15
 
 ### Changed

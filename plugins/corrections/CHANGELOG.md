@@ -3,6 +3,17 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.0] - 2026-11-15
+
+### Added
+
+- `/corrections:codify count-checks [--since <day>] [--until <day>] [--bucket week|month]`: a read-only count of the checks merged changes record with a `Codifies:` line, per week or month and cumulative, read from the default branch's first-parent git history only. Blocking checks lead, advisory checks have their own column, each rung that occurs has a column, and malformed, list-item, guidance-rung and reverted records are listed as not counted.
+- A proposal for a checking rung or `make-impossible` now holds the `Codifies:` record line for the pull request body, and the task-list item form for work filed as an issue.
+
+### Changed
+
+- The enforcement ladder copy is at 3.1.0: the "Compiler or type settings" and "Tests" rows carry the rung ids `compiler-setting` and `behavior-test`.
+
 ## [1.0.4] - 2026-11-15
 
 ### Changed
