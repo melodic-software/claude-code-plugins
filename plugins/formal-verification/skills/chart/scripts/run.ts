@@ -20,6 +20,8 @@ import {
   type CheckResult,
   type ConfigSection,
   DEFAULT_BOUNDS,
+  DEFAULT_LIMITS,
+  type Limits,
   hasSection,
   type Lasso,
   LEVEL,
@@ -39,6 +41,7 @@ import {
 } from "./ir.ts";
 import { addPast, deadEnds, finder, lasso, mark } from "./passes/annotate.ts";
 import { pathGraph } from "./passes/paths.ts";
+import { childEnv, stageSpec } from "./stage.ts";
 
 export function* fileLines(file: string) {
   const fd = fs.openSync(file, "r");
@@ -84,7 +87,9 @@ export const messageOf = (error: unknown) =>
     ? error.message
     : inspect(error);
 
-const joined = (files: string[]): Output => {
+type Held = Output & { settle(): void };
+
+const joined = (files: string[]): Held => {
   const fds: number[] = [];
   const sizes: number[] = [];
   for (const f of files) {
@@ -92,16 +97,29 @@ const joined = (files: string[]): Output => {
     fds.push(fd);
     sizes.push(fs.fstatSync(fd).size);
   }
+  let held: Uint8Array[] | undefined;
+  function* read() {
+    for (let f = 0; f < fds.length; f++)
+      for (let pos = 0; pos < sizes[f];) {
+        const buf = Buffer.allocUnsafe(Math.min(PART, sizes[f] - pos));
+        const n = fs.readSync(fds[f], buf, 0, buf.length, pos);
+        if (!n) break;
+        pos += n;
+        yield buf.subarray(0, n);
+      }
+  }
   return {
     *[Symbol.iterator]() {
-      for (let f = 0; f < fds.length; f++)
-        for (let pos = 0; pos < sizes[f];) {
-          const buf = Buffer.allocUnsafe(Math.min(PART, sizes[f] - pos));
-          const n = fs.readSync(fds[f], buf, 0, buf.length, pos);
-          if (!n) break;
-          pos += n;
-          yield buf.subarray(0, n);
-        }
+      if (held) yield* held;
+      else yield* read();
+    },
+    settle() {
+      if (held) return;
+      try {
+        held = [...read()];
+      } finally {
+        for (const fd of fds) fs.closeSync(fd);
+      }
     },
   };
 };
@@ -137,7 +155,18 @@ type FileResult = {
 const runToFiles = (
   file: string,
   args: string[],
-  { out, ...options }: { out: string; cwd: string; env: NodeJS.ProcessEnv },
+  {
+    out,
+    limits,
+    opened,
+    ...options
+  }: {
+    out: string;
+    cwd: string;
+    env: NodeJS.ProcessEnv;
+    limits: Limits;
+    opened: Held[];
+  },
 ) =>
   new Promise<FileResult>((resolve) => {
     const files = [`${out}.stdout`, `${out}.stderr`];
@@ -150,13 +179,27 @@ const runToFiles = (
       for (const fd of fds) fs.closeSync(fd);
     }
     let error: Error | undefined;
-    const settle = (code: number | null) =>
-      resolve({
-        status: error ? null : code,
-        stdout: files[0],
-        output: joined(files),
-        error,
-      });
+    const stopRun = (e: Error) => {
+      error ??= e;
+      child.kill("SIGKILL");
+    };
+    const timer = setTimeout(
+      () => stopRun(new Error(`TLC ran past the ${limits.timeoutSeconds}-second limit, so it was stopped.`)),
+      limits.timeoutSeconds * 1000,
+    );
+    const watch = setInterval(() => {
+      let size = 0;
+      for (const f of files) size += fs.statSync(f, { throwIfNoEntry: false })?.size ?? 0;
+      if (size > limits.outputBytes)
+        stopRun(new Error(`TLC printed more than ${limits.outputBytes} bytes, so it was stopped.`));
+    }, 500);
+    const settle = (code: number | null) => {
+      clearTimeout(timer);
+      clearInterval(watch);
+      const output = joined(files);
+      opened.push(output);
+      resolve({ status: error ? null : code, stdout: files[0], output, error });
+    };
     child.on("error", (e) => {
       error = e;
       if (child.pid === undefined) settle(null);
@@ -176,14 +219,15 @@ const tail = (r: FileResult) => {
   for (const chunk of plainText(messagesOf(r.output))) {
     kept.push(chunk);
     size += chunk.length;
-    while (size - kept[0].length >= 1 << 28) size -= kept.shift()!.length;
+    while (size - kept[0].length >= 1 << 20) size -= kept.shift()!.length;
   }
   return kept.join("").trim().split("\n").slice(-30).join("\n");
 };
 
 const stopOf = (r: FileResult): Stop => {
   const errors: Part[] = [];
-  for (const m of r.error ? [] : messagesOf(r.output))
+  for (const m of r.error ? [] : messagesOf(r.output)) {
+    if (errors.length >= 200) break;
     if (
       typeof m !== "string" &&
       (m.level === LEVEL.ERROR ||
@@ -191,6 +235,7 @@ const stopOf = (r: FileResult): Stop => {
         (errors.length && m.level === LEVEL.STATE))
     )
       errors.push(m);
+  }
   if (!errors.length) return { status: r.status, message: tail(r) };
   const lines = [...plainText(errors)].join("").trim().split("\n");
   if (lines.length > 40) lines.splice(40, Infinity, `... ${lines.length - 40} more lines`);
@@ -226,13 +271,20 @@ export async function check(
   configFile: string,
   tlc: Tlc,
   bounds: Bounds = DEFAULT_BOUNDS,
+  limits: Limits = DEFAULT_LIMITS,
 ): Promise<CheckResult> {
   const { chartStates: CHART_STATES, rerunStates: RERUN_STATES } = bounds;
   const cfg = readConfig({ file: configFile, text: fs.readFileSync(configFile, "utf8") });
   const checks = readChecks({ configFile, config: cfg });
   const folder = path.dirname(path.resolve(specFile));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "statechart-"));
+  const opened: Held[] = [];
   try {
+    const library = path.join(dir, "spec");
+    const staged = stageSpec(specFile, library, limits.modules);
+    const home = path.join(dir, "home");
+    fs.mkdirSync(home);
+    const env = childEnv(home, process.platform === "darwin" ? {} : { LC_ALL: "C.UTF-8" });
     const config = (name: string, sections: ConfigSection[], extra: string[]) => {
       fs.writeFileSync(path.join(dir, `${name}.cfg`), configText(sections, extra));
       return [`-metadir`, path.join(dir, `meta-${name}`), "-config", path.join(dir, `${name}.cfg`)];
@@ -243,25 +295,23 @@ export async function check(
       return runToFiles(
         tlc.java,
         [
+          `-Xmx${limits.heap}`,
           `-Djava.io.tmpdir=${tmp}`,
-          `-DTLA-Library=${folder}`,
+          `-DTLA-Library=${library}`,
+          "-Dtlc2.overrides.TLCOverrides=",
           ...jvm,
           "-cp",
           tlc.jar,
           main,
           ...args,
         ],
-        {
-          cwd: dir,
-          out: path.join(dir, name),
-          env: process.platform === "darwin" ? process.env : { ...process.env, LC_ALL: "C.UTF-8" },
-        },
+        { cwd: dir, out: path.join(dir, name), env, limits, opened },
       );
     };
     const xml = await runJava(
       "sany",
       "tla2sany.xml.XMLExporter",
-      ["-o", "-I", folder, path.resolve(specFile)],
+      ["-o", "-I", library, staged],
       ["-XX:TieredStopAtLevel=1"],
     );
     if (xml.status !== 0)
@@ -436,6 +486,10 @@ export async function check(
       drawing: undefined,
     };
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
+    try {
+      for (const output of opened) output.settle();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   }
 }

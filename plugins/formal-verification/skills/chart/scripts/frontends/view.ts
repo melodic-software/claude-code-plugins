@@ -1,8 +1,14 @@
-import { type CheckedView, checked, list, type Value, type Vars } from "../ir.ts";
+import { type CheckedView, checked, DEFAULT_LIMITS, list, type Value, type Vars } from "../ir.ts";
 
 type Json = boolean | number | string | Json[] | { [key: string]: Json };
 
 const projected = new WeakMap<object, Json>();
+
+let intervalMax = DEFAULT_LIMITS.intervalMax;
+
+export const setIntervalMax = (n: number) => {
+  intervalMax = n;
+};
 
 export const json = (v: Value): Json => {
   if (typeof v !== "object") return v;
@@ -10,9 +16,12 @@ export const json = (v: Value): Json => {
   let j = projected.get(v);
   if (j === undefined) {
     if (v.kind === "interval") {
-      const members: Json[] = [];
-      for (let k = v.lo; k <= v.hi; k++) members.push(k);
-      j = members;
+      if (v.hi - v.lo + 1 > intervalMax) j = { lo: v.lo, hi: v.hi };
+      else {
+        const members: Json[] = [];
+        for (let k = v.lo; k <= v.hi; k++) members.push(k);
+        j = members;
+      }
     } else if (v.kind === "set") {
       const members: Json[] = [];
       for (const m of v.members) members.push(json(m));

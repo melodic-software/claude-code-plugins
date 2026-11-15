@@ -4,11 +4,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { CHART_STATES, RERUN_STATES } from "./ir.ts";
+import { CHART_STATES, DEFAULT_LIMITS, RERUN_STATES } from "./ir.ts";
 import { killGroup, messageOf } from "./run.ts";
+import { checkSpecName, childEnv, freshOut } from "./stage.ts";
 
 const USAGE = `Usage: statechart SPEC.tla --jar FILE [--java FILE] [--chart-states N] [--rerun-states N]
-                  [--config FILE] [--view FILE] [--out DIR]
+                  [--timeout-seconds N] [--heap SIZE] [--output-bytes N] [--interval-max N]
+                  [--modules A,B] [--config FILE] [--view FILE] [--out DIR]
 
 Checks SPEC.tla with TLC and draws its state graph as Mermaid. Above the chart budget, the
 chart draws only the paths to the rules that break, and with no rule broken there is no
@@ -18,6 +20,12 @@ chart.mmd. The command installs nothing: it runs the jar and the Java you name.
   --chart-states N    The chart budget in distinct states. Default: ${CHART_STATES}.
   --rerun-states N    After the first break, each TLC run stops at N distinct states.
                       Default: ${RERUN_STATES}.
+  --timeout-seconds N Each Java run is killed after N seconds. Default: ${DEFAULT_LIMITS.timeoutSeconds}.
+  --heap SIZE         The Java heap cap, as -Xmx takes it. Default: ${DEFAULT_LIMITS.heap}.
+  --output-bytes N    Each Java run is killed once it prints N bytes. Default: ${DEFAULT_LIMITS.outputBytes}.
+  --interval-max N    A larger interval reaches the view as {lo, hi}. Default: ${DEFAULT_LIMITS.intervalMax}.
+  --modules A,B       The standard modules a spec may use. Default: ${DEFAULT_LIMITS.modules.join(",")}.
+  The view file is code: never pass one taken from untrusted content.
   --config FILE  TLC config. Default: SPEC.cfg beside the spec.
   --view FILE    A module that exports state(vars) and, if you want, step(action, from, to),
                  group(vars), colors, and title. state() returns a string for a flat chart, an
@@ -52,16 +60,32 @@ try {
       java: { type: "string" },
       "chart-states": { type: "string" },
       "rerun-states": { type: "string" },
+      "timeout-seconds": { type: "string" },
+      heap: { type: "string" },
+      "output-bytes": { type: "string" },
+      "interval-max": { type: "string" },
+      modules: { type: "string" },
     },
   });
   flags = args.values;
   [specFile] = args.positionals;
   if (args.positionals.length !== 1) throw new Error("Give one SPEC.tla.");
+  checkSpecName(specFile);
   if (!flags.jar)
     throw new Error("Give --jar with the path of tla2tools.jar. The command installs nothing.");
-  for (const name of ["chart-states", "rerun-states"] as const)
+  for (const name of [
+    "chart-states",
+    "rerun-states",
+    "timeout-seconds",
+    "output-bytes",
+    "interval-max",
+  ] as const)
     if (flags[name] !== undefined && !/^[1-9][0-9]*$/.test(flags[name]))
       throw new Error(`--${name} must be a positive whole number.`);
+  if (flags.heap !== undefined && !/^[1-9][0-9]*[kKmMgG]?$/.test(flags.heap))
+    throw new Error("--heap must be a size such as 4g or 512m.");
+  if (flags.modules !== undefined && !/^\w+(,\w+)*$/.test(flags.modules))
+    throw new Error("--modules must be module names separated by commas.");
 } catch (error) {
   console.error(`${messageOf(error)}\n\n${USAGE}`);
   process.exit(2);
@@ -75,28 +99,22 @@ try {
   if (!fs.existsSync(configFile))
     throw new Error(`Cannot find the TLC config ${configFile}. Pass --config FILE.`);
   const out = flags.out ?? specFile.replace(/\.tla$/, "-chart");
-  let entries: string[] = [];
-  let dest: string;
-  try {
-    entries = fs.readdirSync(out);
-    dest = fs.realpathSync(out);
-  } catch (error) {
-    if (codeOf(error) !== "ENOENT")
-      throw new Error(
-        `${out} cannot be the output folder. ${messageOf(error)}. Pass --out with a new folder.`,
-        { cause: error },
-      );
-    if (fs.lstatSync(out, { throwIfNoEntry: false }))
-      throw new Error(
-        `${out} cannot be the output folder. It is a broken link. Pass --out with a new folder.`,
-        { cause: error },
-      );
-    dest = path.resolve(out);
-  }
-  if (entries.length)
-    throw new Error(
-      `${out} is not empty. It has ${entries.sort()[0]}. The command writes only to a new or empty folder. Pass --out with a new folder.`,
-    );
+  const dest = freshOut(out);
+  const options = {
+    jar: flags.jar,
+    java: flags.java ?? "java",
+    bounds: {
+      chartStates: Number(flags["chart-states"] ?? CHART_STATES),
+      rerunStates: Number(flags["rerun-states"] ?? RERUN_STATES),
+    },
+    limits: {
+      timeoutSeconds: Number(flags["timeout-seconds"] ?? DEFAULT_LIMITS.timeoutSeconds),
+      heap: flags.heap ?? DEFAULT_LIMITS.heap,
+      outputBytes: Number(flags["output-bytes"] ?? DEFAULT_LIMITS.outputBytes),
+      intervalMax: Number(flags["interval-max"] ?? DEFAULT_LIMITS.intervalMax),
+      modules: flags.modules ? flags.modules.split(",") : DEFAULT_LIMITS.modules,
+    },
+  };
 
   let base = path.dirname(dest);
   while (!fs.existsSync(base)) base = path.dirname(base);
@@ -126,16 +144,13 @@ try {
         stage,
         specFile,
         configFile,
-        flags.jar,
-        flags.java ?? "java",
-        flags["chart-states"] ?? String(CHART_STATES),
-        flags["rerun-states"] ?? String(RERUN_STATES),
+        JSON.stringify(options),
         ...(flags.view ? [flags.view] : []),
       ],
       {
         detached: true,
         stdio: ["ignore", "inherit", "inherit"],
-        env: { ...process.env, TMPDIR: tmp },
+        env: childEnv(tmp),
       },
     );
     janitor = spawn(

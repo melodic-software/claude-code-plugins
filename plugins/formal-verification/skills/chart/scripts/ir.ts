@@ -1,5 +1,3 @@
-import defaults from "../../../defaults.json" with { type: "json" };
-
 export type Value =
   | boolean
   | number
@@ -137,13 +135,29 @@ export type CheckResult = {
   bounds?: Bounds;
 };
 
-export const RERUN_STATES: number = defaults.bounds.rerun_states;
+export const RERUN_STATES = 100_000;
 
-export const CHART_STATES: number = defaults.bounds.chart_states;
+export const CHART_STATES = 500;
 
 export type Bounds = { chartStates: number; rerunStates: number };
 
 export const DEFAULT_BOUNDS: Bounds = { chartStates: CHART_STATES, rerunStates: RERUN_STATES };
+
+export type Limits = {
+  timeoutSeconds: number;
+  heap: string;
+  outputBytes: number;
+  intervalMax: number;
+  modules: string[];
+};
+
+export const DEFAULT_LIMITS: Limits = {
+  timeoutSeconds: 1800,
+  heap: "4g",
+  outputBytes: 1 << 30,
+  intervalMax: 10_000,
+  modules: ["Naturals", "Integers", "Reals", "Sequences", "FiniteSets", "Bags", "TLC", "TLCExt"],
+};
 
 export type View = {
   state?: (vars: Vars) => unknown;
