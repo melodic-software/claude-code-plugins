@@ -1,9 +1,9 @@
 ---
 description: "Council review: a panel of configured reviewer members (provider, model, brief, effort), chosen for this change by its paths, size or merge risk, reviews one change and writes one ranked findings report; optional repeated rounds run /review:fanout fix between them and stop on a checkable condition. Use when asked for a council review, a panel or multi-model review of a change, or a cross-vendor second opinion."
-argument-hint: "[--yes]"
+argument-hint: "[--yes] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/council-plan.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/council-plan.mjs:*)", "Bash(bash \"${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/snapshot-tree.sh\")", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/snapshot-tree.sh)", "Bash(bash \"${CLAUDE_PLUGIN_ROOT}/scripts/codex-review.sh\":*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/codex-review.sh:*)"]
+allowed-tools: ["Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/council-plan.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/council-plan.mjs:*)", "Bash(bash \"${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/snapshot-tree.sh\")", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/snapshot-tree.sh)", "Bash(bash \"${CLAUDE_PLUGIN_ROOT}/scripts/codex-review.sh\":*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/codex-review.sh:*)"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -12,8 +12,9 @@ metadata:
 
 # Council review (`/review:council`)
 
-**Arguments.** `[--yes]`, passed on to `/review:fanout fix` between rounds and nowhere else. e.g.,
-/review:council, /review:council --yes
+**Arguments.** `[--yes] [--unattended]`. `--yes` is passed on to `/review:fanout fix` between
+rounds and nowhere else. `--unattended` declares that nobody is present (Step 1). e.g.,
+/review:council, /review:council --yes, /review:council --unattended
 
 A panel of members reviews one change. Each member is a catalog entry (provider, model, brief,
 effort) from the `council_*` keys in [config.md](../../reference/config.md); a
@@ -54,9 +55,10 @@ Outside a git repository, stop with success: "council: not a git repository".
    `<run-dir>/<run>-council.md`; round files are `<run-dir>/<run>-council-r<N>.md`.
 2. **Invocation.** Before reading any PR text or diff, write the run file with `## Invocation`:
    `yes: true|false` (this run's own arguments held `--yes`) and `session: attended|unattended`.
-   A session is unattended when `CLAUDE_CODE_REMOTE` is set, it runs under `claude -p`, or an
-   autonomous loop started it (the test `/review:fanout fix` uses). Later steps read both from
-   there.
+   A session is unattended when this run's own arguments held `--unattended`, `CLAUDE_CODE_REMOTE`
+   is set, it runs under `claude -p`, or an autonomous loop started it
+   ([`${CLAUDE_PLUGIN_ROOT}/reference/run-reviewed-code.md`](../../reference/run-reviewed-code.md) "Who counts as
+   unattended"). Later steps read both from there.
 3. Run the gate in [change-set.md](../../reference/change-set.md) "Pre-flight gate"
    and resolve the "Review diff base" there. A whole-repository security audit ask or an
    unresolvable base **fails** the run with its reason; nothing to review stops with **success**.
@@ -88,10 +90,23 @@ Outside a git repository, stop with success: "council: not a git repository".
    --user-file <run-dir>/<run>-user.json --ref <ref>` and Write its stdout to
    `<run-dir>/<run>-config.json`. Every later step reads that file, never the config again, so an
    edit the fix pass makes to review.yaml cannot change this run.
-4. **Lane switch.** A run whose `## Invocation` says `unattended` and whose `council_lanes` is not
+4. **Proof settings.** Resolve `reproduce_findings` and `reproduce_findings_floor` as
+   `/review:fanout` does: the defaults `off` and `IMPORTANT`; the user options
+   `${user_config.reproduce_findings}` and `${user_config.reproduce_findings_floor}` (a literal,
+   unexpanded placeholder means unset); then the `PASS reproduce_findings:` and
+   `PASS reproduce_findings_floor:` lines of
+   `node "<plugin-root>/skills/setup/scripts/setup-apply.mjs" --check --ref <merge-base sha>`, run
+   from the repository root, skipping that layer and saying so when the change edits
+   `docs/conventions/review.yaml` (the test in item 2), so a change never picks how its own
+   findings are proved. A floor layer whose value is not a tier is reported, never dropped
+   silently: `reproduce_findings_floor: <value> is not a tier (<layer>); every row attempted`, and
+   unless a later layer sets a valid tier every row goes to the gate. Other invalid values and the
+   root rule: [config.md](../../reference/config.md) "Resolution" and "Root rule". Record both, with their
+   layers, in `## Config`; every round uses them.
+5. **Lane switch.** A run whose `## Invocation` says `unattended` and whose `council_lanes` is not
    `on` stops with success: "council: lane switch off". An attended run never reads
    `council_lanes`.
-5. Add `## Config` to the run file (shape under "Run file") and rewrite it after every later step.
+6. Add `## Config` to the run file (shape under "Run file") and rewrite it after every later step.
 
 ## Step 3: Merge risk, only when a rule needs it
 
@@ -162,6 +177,13 @@ ran, with the member id as the surface (its "council member" parse-contract row)
 each member id once. Before a CRITICAL row enters the file, read its cited line; one the code does
 not bear out drops to `low` confidence with that note.
 
+**Proof.** When `reproduce_findings` in `## Config` is `label` or `require`, run that file's
+"Stage 5: Proof" on the round's rows, with the floor from `## Config` and the session from
+`## Invocation`. An attended run asks the person before each proposed check, one question per
+exact command, and runs only what they approve; `--yes`, an allow rule, auto mode or a setting is
+never that approval. An unattended run runs no check and states how many were proposed. Under
+`off`, skip it.
+
 **Classify each CRITICAL or IMPORTANT row** (round 1 rows are all new) against earlier rows: this
 run's earlier round files, and the Not applied rows of the fix records whose `source-findings` name
 one of them by name and digest. Map each earlier row's line forward through every later fix pass's
@@ -175,8 +197,11 @@ Write `<run-dir>/<run>-council-r<N>.md` in the shape of
 [findings-file-shape.md](../../reference/findings-file-shape.md) "Findings-file shape"
 (`type: review-findings`, the write instant as `date:`, `branch:`, `tier:`), `Surface(s)` holding
 member ids, with `## Findings`, `## By dimension`, `## Unparsed` and `## Surfaces`, then
-`## Council` (run id, round, rule, each member's status and route, each row's class, and with
-scores on each member's mark). It omits `## By axis` and its `Act on` cells, which that file
+`## Evidence` when the proof stage ran, then, in that case, `## Dismissed` with the one line Stage 5
+gives each row it demoted (`none` when it demoted none), then `## Council` (run id, round, rule, each
+member's status and route, each row's class, and with scores on each member's mark). Under
+`require` in an unattended run, the round file's body opens with Stage 5's nothing-could-be-checked
+line, before `## Findings`. It omits `## By axis` and its `Act on` cells, which that file
 requires of fanout's writer only and which fix does not parse. **Never modify a round file after
 it is written**: fix identifies a consumed file by its digest. Record its name and
 `sha256sum <file> | cut -c1-12` in the run file. Nothing is posted anywhere.
@@ -218,8 +243,9 @@ After writing round N, in this order:
    the operator to check; the round still reviews them.
 8. Round N+1 runs Step 5 with the panel from item 3.
 
-Between rounds nothing commits, builds or runs a test suite; fix's own red test before each
-correctness fix is the one test that runs, as fix defines it.
+Between rounds nothing commits, builds or runs a test suite. The only reviewed code that runs is
+fix's own red test before each correctness fix, as fix defines it, and in an attended run a
+proof-stage check the person approved by its exact command.
 
 ## Run file
 
@@ -235,7 +261,7 @@ branch: <branch>
 run: <run id>
 ---
 ## Invocation    <yes: true|false; session: attended|unattended>
-## Config        <each key: value (layer); read_at; problems; base-branch read note>
+## Config        <each key: value (layer), reproduce_findings keys included; read_at; problems; base-branch read note>
 ## Panel         <rule, tier, risk, member table as printed in Step 4>
 ## Rounds        | Round | File | sha256 | Before | After | Fix record | Outcome |
 ## Marks         <scores on, last round only: Member | r1 | r2 ...>
@@ -248,8 +274,10 @@ reads "none (not given)". Marks never gate, rank or stop anything.
 
 ## Report
 
-Print: run outcome and reason; the panel block from Step 4; config layers and any problems; for
-each round its file path and finding counts by tier; with scores on, the mark table; unresolved rows; files changed outside fix;
+Print: under `require` in an unattended run, Stage 5's nothing-could-be-checked line first, with
+the checks proposed across all rounds; run outcome and reason; the panel block from Step 4; config
+layers and any problems; for each round its file path and finding counts by tier, and when the
+proof stage ran its counts by evidence label and its `## Dismissed` lines; with scores on, the mark table; unresolved rows; files changed outside fix;
 other producers' Not applied rows listed, not reviewed; the run file path. A run whose fix pass
 changed any file adds: "Fixes from the council's rounds are unbuilt and untested; run
 /verification:confirm before committing."

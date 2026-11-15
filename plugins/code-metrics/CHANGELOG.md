@@ -3,6 +3,16 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.3] - 2026-11-15
+
+### Fixed
+
+- `/code-metrics:setup check` reported every parsed ecosystem file
+  (`.claude/ecosystems/<lane>.yaml`) as honored for lane detection, but the resolver ignores a
+  file whose lane no layer lists under `lanes`. Such a file is now a WARN row that names the
+  missing `lanes.<lane>` entry. A file for a listed lane keeps its PASS row. A file whose name
+  is not a lowercase kebab-case lane id is a WARN row asking for a rename.
+
 ## [1.2.2] - 2026-11-15
 
 ### Changed

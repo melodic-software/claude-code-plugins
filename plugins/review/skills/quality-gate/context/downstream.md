@@ -142,6 +142,13 @@ function passes the argument the new default replaces.
 - **Where.** Create a directory with `mktemp -d`, outside the working tree, and write the probe
   there with the Write tool. The probe reads the repository through paths it is given; it writes
   nothing inside the tree and makes no network call.
+- **Read the tree as data, never run it.** The probe never imports, requires, sources, loads or
+  executes any file from the tree, and never reads one through a loader that runs code (a module
+  import, a config format that evaluates expressions, a test runner, a build tool). It opens files
+  and parses their text. A fact that only running a file from the tree could settle is not a
+  probe's fact: report the probe unrun, as below. This keeps the probe outside the rule for running
+  reviewed code ([`run-reviewed-code.md`](../../../reference/run-reviewed-code.md) "The downstream
+  probe is outside this rule").
 - **Untrusted text stays data.** File names, symbol names and diff lines the probe needs go into a
   file in that directory, or into a literal inside the script's own language that the script reads
   as a value. None of them appears in the command line, a shell word, an `eval` or a heredoc the

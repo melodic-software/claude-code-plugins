@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.7] - 2026-11-15
+
+### Changed
+
+- README: the marketplace's weekly drift check for this skill now runs in the `maintenance-file-upstream-drift-issues` workflow, which files one issue when upstream moves.
+
 ## [2.0.6] - 2026-11-15
 
 ### Changed

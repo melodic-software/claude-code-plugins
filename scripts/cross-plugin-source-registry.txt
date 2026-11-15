@@ -38,6 +38,14 @@ reference/standards-contract.md
 docs/contracts/standards/README.md -> plugins/*/reference/standards-contract.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# docs/contracts/run-reviewed-code/README.md.
+reference/run-reviewed-code.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical contract and the copies.
+docs/contracts/run-reviewed-code/README.md -> plugins/*/reference/run-reviewed-code.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # docs/contracts/pr-scope-budget/README.md.
 reference/pr-scope-budget.md
 

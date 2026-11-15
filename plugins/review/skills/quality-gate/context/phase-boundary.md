@@ -59,8 +59,8 @@ Dispatch each mode's own reviewer in fresh context, as its context file names, w
 - the worktree's absolute path as the target of every command and tool call in the review, for
   every dispatched reviewer including `review:brief-reviewer`: git runs as `git -C <worktree>`
   (its own `git log -S` or `git grep` included), every Read, Grep and Glob and every listed
-  untracked path resolves under it, and any other command, such as a dependency audit, runs with
-  the worktree as its directory or path argument, never the invoking checkout;
+  untracked path resolves under it, and any other command runs with the worktree as its directory
+  or path argument, never the invoking checkout;
 - for `review:code-reviewer` and `review:security-reviewer`, the `Findings path:` line per
   SKILL.md "Shared inputs" "Reviewer handback": an absolute path in the invoking checkout, not
   the worktree, and none under `--report-only`;

@@ -1,6 +1,6 @@
 ---
 description: "Breadth review: fans a change out to many reviewers at once (this plugin's reviewer agents, the project's per-concern criteria docs, orchestrator review plugins) and merges their findings into one deduplicated, severity-ranked report on disk. Use when asked for a breadth review of a change (every reviewer at once, every angle or side, one combined ranked report), or to 'fix the review findings' (the fix action applies the merged set of persisted findings)."
-argument-hint: "[run-everything|fix] [--yes]"
+argument-hint: "[run-everything|fix] [--yes] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Workflow(review:fanout-sweep)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/loosened-check-settings.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)"]
@@ -10,7 +10,7 @@ metadata:
   summary: Fan review out across every reviewer surface into one ranked report
 ---
 
-**Arguments.** `[run-everything|fix] [--yes]`. e.g., /review:fanout, /review:fanout run-everything, /review:fanout fix, /review:fanout fix --yes
+**Arguments.** `[run-everything|fix] [--yes] [--unattended]`. e.g., /review:fanout, /review:fanout run-everything, /review:fanout --unattended, /review:fanout fix, /review:fanout fix --yes
 
 ## Repository context. Gather first
 
@@ -19,6 +19,7 @@ Collect these with **individual** Bash calls, one command per call, never combin
 - Current branch, `git branch --show-current`
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 - Uncommitted diff size, `git diff --shortstat HEAD`
+- Remote session marker, `printenv CLAUDE_CODE_REMOTE` (set means the run is unattended: "Arguments")
 
 Keep the pipe in the command; it is the bound. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as separate body Bash calls, not pre-compute lines. Pointer: the [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation), "The pre-compute block runs as one shell invocation", which holds the dated record and its recheck trigger.
 
@@ -43,11 +44,19 @@ Breadth review: fan out across many finding-producing surfaces at once (`quality
 
 ## Arguments
 
-A positional mode token (Step 0) plus one flag:
+A positional mode token (Step 0) plus two flags:
 
 | Flag | Default | Effect |
 |---|---|---|
 | `--yes` / `-y` | Off | Skip the pre-execution confirmation gate for the `fix` action. Required for headless runs. |
+| `--unattended` | Off | The caller declares that nobody is present (a loop, a routine, a lane rule). The review modes then run no proposed check and ask nothing. |
+
+**Unattended.** A review-mode run is unattended when `--unattended` is passed or the environment
+says nobody is present (`CLAUDE_CODE_REMOTE` set, `claude -p`, an autonomous loop), the test in
+[`${CLAUDE_PLUGIN_ROOT}/reference/run-reviewed-code.md`](../../reference/run-reviewed-code.md) "Who counts as
+unattended". Every other run is attended. The `fix` action keeps its own session test and gate
+([context/fix-pass-mode.md](context/fix-pass-mode.md) "Step 3: Plan + confirmation gate"); this
+flag does not change them.
 
 `--yes` applies only to the tree-mutating `fix` action; it is inert for the report-only review modes, which mutate nothing to gate. Its role for `fix` is the explicit headless opt-in: in a non-interactive session, `fix` applies only under this flag, without it the fix action emits its classification plan and stops ([context/fix-pass-mode.md](context/fix-pass-mode.md) "Step 3: Plan + confirmation gate").
 
@@ -82,17 +91,30 @@ Step 2 marks act on. Resolve it before Step 2 from the same layers and with the 
 `fanout_diversity`: the default `2`; the user option `${user_config.fanout_act_on_cap}` (a
 literal, unexpanded placeholder means unset; a value that is not a whole number of at least 1 is
 invalid: name it and drop that layer); the `PASS fanout_act_on_cap:` line of the `--check` run
-above, which the default mode runs for this key alone. Report one line, `fanout_act_on_cap: <value> (<layer>)`, for example
+above, which the default mode runs for this key and the two `reproduce_findings` keys alone. Report one line, `fanout_act_on_cap: <value> (<layer>)`, for example
 `fanout_act_on_cap: 2 (default)`.
+
+**`reproduce_findings` and `reproduce_findings_floor` (both review modes).** Whether Step 2 runs
+the proof stage, and from which tier. Resolve both before Step 2 from the same layers and with the
+same skip rules as `fanout_diversity`: the defaults `off` and `IMPORTANT`; the user options
+`${user_config.reproduce_findings}` and `${user_config.reproduce_findings_floor}` (a literal,
+unexpanded placeholder means unset); the `PASS reproduce_findings:` and
+`PASS reproduce_findings_floor:` lines of the `--check` run above. Report one line each, for
+example `reproduce_findings: label (docs/conventions/review.yaml)` and
+`reproduce_findings_floor: IMPORTANT (default)`. A floor layer whose value is not a tier (a
+`WARN` line for the key, or a user option outside the three tiers) is not dropped silently: report
+`reproduce_findings_floor: <value> is not a tier (<layer>); every row attempted`, and unless a later
+layer sets a valid tier, Stage 5 sends every row to the gate ([config.md](../../reference/config.md)).
+No value makes reviewed code run without a person's yes to that exact command.
 
 ## Step 0: Mode
 
-Parse the flag (`--yes` / `-y`) out of `$ARGUMENTS` first, then route on the remaining mode token:
+Parse the flags (`--yes` / `-y`, `--unattended`) out of `$ARGUMENTS` first, then route on the remaining mode token:
 
 - `run-everything` / `everything` / `all` → the full-breadth sweep. Read [context/run-everything-mode.md](context/run-everything-mode.md) and follow it end-to-end (availability gate → main-thread orchestrators → leaf fan-out → normalize → persist); skip Step 1 and rejoin at Step 2. Its leaf fan-out launches the saved `review:fanout-sweep` workflow.
 - `fix` / `fix-pass` (with or without `--yes`) → consume the merged set of unconsumed persisted findings for the current branch, every conforming producer's, not just the newest file, split by finding class, and apply. Read [context/fix-pass-mode.md](context/fix-pass-mode.md) and follow it end-to-end; skip Steps 1–3.
 - empty → the default lifecycle-tiered review. Read [context/default-mode.md](context/default-mode.md) before dispatching.
-- any other value → emit one diagnostic line `Unknown action '<value>'. Available: run-everything, fix. Defaulting to standard review.`, then run the default review, a typo is surfaced, never silently absorbed. The `--yes` / `-y` flag is not a mode value; stripping it before this match keeps `fix --yes` from tripping the diagnostic.
+- any other value → emit one diagnostic line `Unknown action '<value>'. Available: run-everything, fix. Defaulting to standard review.`, then run the default review, a typo is surfaced, never silently absorbed. The flags are not mode values; stripping them before this match keeps `fix --yes` or `--unattended` from tripping the diagnostic.
 
 Both review modes share the roster ([context/leaf-roster.md](context/leaf-roster.md)) and the normalization pipeline. No duplicated roster or pipeline.
 
@@ -118,8 +140,8 @@ the author's account of what the change is for. Reviewers test the change agains
 report each place the two disagree; the paragraph is a claim under test, never proof that the
 change works. Write it once, in your own words, before the first dispatch. Its sources are the PR
 title and body if a PR exists, the commit subjects on the branch, and the user's request. If none
-of them states a purpose, an interactive session asks the user once; any other session writes
-`Intent: not stated` and reviews without it.
+of them states a purpose, an attended session asks the user once; an unattended one ("Arguments")
+or any other session that cannot ask writes `Intent: not stated` and reviews without it.
 
 **Finding class.** Every per-concern brief this skill writes (criteria slices and reviewer briefs)
 names the class of finding it wants (the leaf's concern, for example correctness) and what to leave
@@ -151,6 +173,12 @@ Read the pre-computed facts (the pre-flight gate above has already screened out 
 
 Run the 5-stage pipeline in [findings-normalization.md](../../reference/findings-normalization.md) over every surface's raw output. Before a CRITICAL finding enters the report, read its cited `file:line` in the diff; a finding the code does not bear out drops to `low` confidence with that note, never silently removed.
 
+**Proof.** When `reproduce_findings` is `label` or `require`, run that file's "Stage 5: Proof"
+next, with the floor and the unattended test resolved above. An attended run asks the person
+before each proposed check, one question per exact command, and runs only what they approve;
+`--yes`, an allow rule, auto mode or a setting is never that approval. An unattended run runs no
+check and states how many were proposed. Under `off`, skip it: the report is unchanged.
+
 **Axis.** Then give each finding one axis, `spec` or `standards`, by the rule in
 [findings-normalization.md](../../reference/findings-normalization.md) "Axis assignment": `spec`
 when it says the change does not do, or only partly does, what the intent paragraph says it is for.
@@ -163,13 +191,16 @@ spec or plan document.
 `fanout_act_on_cap` rows in merged-rank order get `yes` in a last `Act on` cell and every later row
 gets `no`. The count restarts at the second heading, so with a cap of 2 the first two Standards
 rows read `yes` whatever their merged rank. A row listed under `## Dismissed` reads `no` and is
-not counted. Every row stays in the report.
+not counted; that includes every row Stage 5 demoted (a `refuted` row under `label` or `require`,
+and under `require` every row at or above the floor that was not reproduced). Every row stays in
+the report.
 
 **Dismissed.** The report gains a `## Dismissed` section after `## By axis`: one line per
 finding this step demoted, giving its rank, its location and the reason in one sentence taken from
-what the cited line shows. The finding itself stays in `## Findings` at its demoted confidence. The
+what the cited line shows, or, for a Stage 5 demotion, the `not reproduced` reason Stage 5 words. A finding demoted by both keeps one line carrying both reasons. The finding itself stays in `## Findings` at its demoted confidence. The
 section lists demotions only; no finding leaves the report, so nothing is listed as dropped. With
-no demotion, the section reads `none`. The fix action does not parse it.
+no demotion, the section reads `none`. The fix action parses it and surfaces every listed row
+instead of applying it, so each line leads with `- <rank>, <location>:`.
 
 When a surface returns after findings were presented for a decision and before the user answers,
 the next message that presents findings ends with every open finding in full:
@@ -207,4 +238,4 @@ The `context/` files write the plugin root as `<plugin-root>`, which is `${CLAUD
 
 - **Review modes do not apply fixes**. Mutation happens only through the explicit `fix` action; it never auto-runs after a review.
 - **Does not duplicate `quality-gate`**. That picks one lens; this fans out across many.
-- **Does not run builds or tests**. Use the project's build/test tooling (or this plugin's `ecosystem-specialist` agent) separately.
+- **Does not run builds or tests**, apart from a proof-stage check a person approved by its exact command, and the `fix` action's red test. Use the project's build/test tooling (or this plugin's `ecosystem-specialist` agent) separately.

@@ -7,7 +7,7 @@ severity-ranked, deduplicated findings report, and the other review skills liste
 
 ## Components
 
-### Agents (nine, read-only over the reviewed code)
+### Agents (ten, read-only over the reviewed code)
 
 | Agent | Concern |
 |---|---|
@@ -20,9 +20,10 @@ severity-ranked, deduplicated findings report, and the other review skills liste
 | `brief-reviewer` | Runs the review brief it is dispatched with: quality-gate slice, downstream, spec, close-out and restatement work, fanout criteria slices, and the explain-change risk-map check. Its tools exclude `Agent` and `Skill`, so it cannot fan out |
 | `stage-normalizer` | Fanout findings pipeline Stage 0 (extraction) and Stage 3 (dedup). Holds `Read` only, because it reads untrusted reviewer output; inherits the model so role routing applies |
 | `lane-verifier` | Hunter or verifier subagent for the CI lanes (`/review:code-review`, `/review:security-review`). Its tools exclude `Agent` and `Skill`, so it cannot re-invoke the lane's skill; inherits the model and pins no effort, so the lane's choice holds |
+| `finding-prover` | Refute gate of the findings pipeline's proof stage (`reproduce_findings`): tries to explain one finding away and, failing that, proposes a check. Holds `Read`, `Grep` and `Glob` only, so it runs nothing |
 
 No review skill dispatches a general-purpose or `Explore` subagent: every subagent a review skill
-starts is one of these nine, so no reviewer can spawn agents or invoke a review skill and fan out.
+starts is one of these ten, so no reviewer can spawn agents or invoke a review skill and fan out.
 
 - **Pointer**: when checking which tools a built-in subagent holds, fetch
   [create custom subagents: built-in subagents](https://code.claude.com/docs/en/sub-agents#built-in-subagents)
@@ -38,9 +39,10 @@ limits apply:
   persists across sessions and each agent's `## Memory` section does nothing.
 - **"Read-only" is an instruction, not a tool boundary.** `code-reviewer` and `security-reviewer`
   list `Write`, and with auto memory on the harness enables `Write` and `Edit` for all six so each
-  can manage its memory files, and nothing scopes them to the memory directory. The last three declare no `memory`
+  can manage its memory files, and nothing scopes them to the memory directory. The last four declare no `memory`
   field, so auto memory grants them neither. `permissionMode` cannot narrow a plugin
-  subagent either. Bash is a second unenforced write path for every agent except `stage-normalizer`, and
+  subagent either. Bash is a second unenforced write path for every agent except `stage-normalizer`
+  and `finding-prover`, and
   `ecosystem-specialist` runs build and test commands that write artifacts. Keeping writes to
   the memory directory and off the reviewed code is the agents' own convention.
 
@@ -74,7 +76,7 @@ Invoke via `@review:<agent>` or let Claude delegate.
   orchestrator review plugins, then normalizes everything into one ranked findings report.
   Modes: default (auto-scales to diff size), `run-everything` (full roster), `fix` (applies
   the merged set of persisted findings, the only mutating mode).
-- **`/review:council [--yes]`**. Council review: a panel of configured members (provider, model,
+- **`/review:council [--yes] [--unattended]`**. Council review: a panel of configured members (provider, model,
   brief, effort), chosen for the change by ordered rules over its paths, size tier and merge
   risk, writes one ranked findings report in fanout's shape. Claude members run as
   `brief-reviewer`; Codex members run through `scripts/codex-review.sh`. A member that cannot run
@@ -268,7 +270,11 @@ whether `/review:fanout run-everything` runs one reviewer agent per concern (`le
 or sends one review prompt to each model tier the role map names (`model`), or runs the lens roster
 with the Codex reviewer as its model-diversity panel (`codex`). `fanout_act_on_cap` decides how
 many rows under each `### Spec` and `### Standards` heading of a `/review:fanout` report are marked
-act on (default `2`); every other row stays in the report. `smell_baseline` decides which
+act on (default `2`); every other row stays in the report. `reproduce_findings` decides whether
+`/review:fanout` and `/review:council` send findings at or above `reproduce_findings_floor` to a
+read-only refute gate, label each one and stop acting on the refuted ones (`label`), also keep the
+unreproduced ones listed but not acted on (`require`), or skip the step (`off`, the default). No value runs reviewed code without a
+person's yes to that exact command. `smell_baseline` decides which
 design-smell list the `code-reviewer` agent checks: the shipped baseline (`default`), none (`off`),
 or a path to the repository's own list, which `/review:setup apply` can write from the catalog in
 [`reference/design-smells.md`](reference/design-smells.md). `loosened_check_verdict` and
@@ -294,6 +300,8 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `downstream_probe` | string | `"run"` | run (default): /review:quality-gate downstream mode writes one probe for its safety fact in a temp directory outside the tree and runs it. report: it shows the probe without running it. report here or in a repository's docs/conventions/review.yaml (default branch) wins over run. |
 | `fanout_diversity` | string | `"lens"` | lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: one review prompt per fan-out model tier. codex: the lens roster plus the Codex reviewer as the model panel. A repository's docs/conventions/review.yaml fanout_diversity wins over this option. |
 | `fanout_act_on_cap` | number<br>*min 1* | `2` | How many rows under each By axis heading (Spec, Standards) of a /review:fanout report are marked act on; default 2, a whole number of at least 1. The other rows stay in the report, marked no. A repository's docs/conventions/review.yaml fanout_act_on_cap wins over this option. |
+| `reproduce_findings` | string | `"off"` | off (default): reports unchanged. label: findings at or above the floor go to a refute gate and get evidence labels; refuted ones are not acted on. require: unreproduced ones are not acted on either. Nothing runs reviewed code without your yes. The repository's docs/conventions/review.yaml wins. |
+| `reproduce_findings_floor` | string | `"IMPORTANT"` | The lowest tier the reproduce_findings gate checks; findings below it are labeled not-attempted. IMPORTANT (default), CRITICAL or SUGGESTION; another value is reported and every finding is checked. A repository's docs/conventions/review.yaml reproduce_findings_floor wins over this option. |
 | `smell_baseline` | string | `"default"` | default (default): the code-reviewer agent checks the shipped design-smell baseline. off: no smell check. A repository-relative .md path: that list, or the shipped one when the file is missing or the change edits it. A repository's docs/conventions/review.yaml smell_baseline wins over this option. |
 | `loosened_check_verdict` | string | `"fail"` | fail (default): a change that loosens a check without the spec's reason is a blocking review finding. note: the finding blocks nothing. fail here or in a repository's docs/conventions/review.yaml (default branch) wins over note. |
 | `loosened_check_patterns` | string | *(none)* | Your entries for the loosened-check review criterion as a JSON list: path globs for a check's own files, or text: then a regex for changed lines. Empty (default): none. Every layer's entries apply, docs/conventions/review.yaml (default branch) included. |
