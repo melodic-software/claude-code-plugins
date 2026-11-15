@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.14.5] - 2026-11-15
+
+### Changed
+
+- `CARRY_REFUSES` lists `plugins/app-control/scripts/**`, since this repository's `pr-verify-capture.yml` now runs `affected_features.py` from it: a push touching that directory stops an approval carrying, the same as every other script a hold path runs ([#16184](https://github.com/melodic-software/claude-code-plugins/issues/16184)).
+
 ## [11.14.4] - 2026-11-15
 
 ### Changed
