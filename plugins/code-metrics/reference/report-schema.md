@@ -21,6 +21,7 @@ read, so its shape is stable within the `v2` schema string.
 | `summary` | object | `files`, `functions`, `over_reference` (measure name to count); when clone-group rows are present, `duplicated_lines` (sum of each group's `values.lines`, one group counted once, after registry exclusions), `clone_groups`, `by_lane`, and `by_directory` (see below) |
 | `excluded` | array | Duplication only: clone groups dropped by a sanctioned-replication registry (intentional clones the repository declares about itself), each naming the registry path and line |
 | `unavailable` | array | `lane/measure` strings for every `run` row whose status is `unavailable` |
+| `file_commits` | object | Size only, and only under `--commits-since`: `since` (the date as passed), `excludes` (the author-name mark left out, `[bot]`), and `rows`, one per file at or above the `file_lines` reference with `file`, `lines_non_blank` and `commits`, most commits first |
 | `trend` | object | Duplication only, and only when an earlier document qualifies: see "Clone trend" |
 
 A reader ignores keys it does not know: fields are added within the current version (the rollups
