@@ -1,12 +1,12 @@
 {
   "pass": [
     {
-      "answer": "Skips: Interview, Research, PRD, Design, Plan, Decompose.",
-      "why": "names the skipped stages"
+      "answer": "Skips: PRD, because bug fixes are engineering-internal.",
+      "why": "names the skipped stage"
     },
     {
-      "answer": "Interview, Design and Plan are skipped for a bug.",
-      "why": "stages first, then the word skipped"
+      "answer": "The PRD is skipped for a bug.",
+      "why": "stage first, then the word skipped"
     }
   ],
   "fail": [
@@ -19,7 +19,7 @@
       "why": "names no skipped stage"
     },
     {
-      "answer": "Do not skip Design for this one.",
+      "answer": "Do not skip the PRD for this one.",
       "why": "negated"
     }
   ]

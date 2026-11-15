@@ -9,4 +9,4 @@ bump: minor
 
 ### Changed
 
-- The quick-change and bug on-ramps point at their Task kinds rows instead of stating their entry stage.
+- The quick-change and bug on-ramps, the overview's starting stage and the interview gotcha point at the Task kinds rows instead of stating an entry stage.

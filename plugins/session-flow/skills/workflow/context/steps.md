@@ -7,8 +7,7 @@ here. A conditional stage runs only when its trigger holds; otherwise it is skip
 These definitions govern the full path. Which stages each kind of task enters, in what order, and
 which it skips is stated once, in [Task kinds](#task-kinds) at the end of this file. A diff that
 adds types, public contracts, or module boundaries is not cheap to retry and takes the full path.
-New work whose diff fails either quick-change test (SKILL.md "On-ramps") enters at stage 1, the
-interview, which calls stages 2-4 as detours when a question needs them.
+On the full path, the interview (stage 1) calls stages 2-4 as detours when a question needs them.
 
 **The level each stage decides.** The interview decides behavior (the Brief), design decides
 interfaces and contracts, and plan decides files and symbols. A question at another stage's level
@@ -236,7 +235,7 @@ optional after any kind.
 | Kind | Stages, in order | Skips | Why |
 | --- | --- | --- | --- |
 | Small fix | Implement, Test, Review, Verify outcome, Ship | Interview, Explore, Research, PRD, Design, Plan, Decompose | The quick-change on-ramp: the diff is quick to review and cheap to retry, so reading the code it needs is part of implement; a diff that turns out not to be quick to review goes back to the interview |
-| Bug | Explore, Implement, Test, Review, Verify outcome, Ship | Interview, Research, PRD, Design, Plan, Decompose | Observed breakage is diagnosed first, from what the code does now, and rejoins at implement with the root cause in hand; an already-diagnosed, agent-ready item starts at implement |
+| Bug | Interview, Explore, Research, Design, Plan, Decompose, Implement, Test, Review, Verify outcome, Ship | PRD | The full path less the PRD, whose skip conditions name bug fixes; design records a one-line early exit for a single-file fix, and undiagnosed breakage is diagnosed before implement |
 | Feature | Interview, Explore, Research, PRD, Design, Plan, Decompose, Implement, Test, Review, Verify outcome, Ship | None | The full path |
 | Refactor | Interview, Explore, Research, Design, Plan, Decompose, Implement, Test, Review, Verify outcome, Ship | PRD | Engineering-internal work, which the PRD's skip conditions name |
 | UI change | Interview, Explore, Research, PRD, Design, Plan, Decompose, Implement, Test, Review, Verify outcome, Ship | None | The full path; design starts from the flow and the screens, and review adds an interface review |

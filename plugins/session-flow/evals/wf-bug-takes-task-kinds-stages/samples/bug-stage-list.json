@@ -1,12 +1,12 @@
 {
   "pass": [
     {
-      "answer": "This is the Bug row of the Task kinds table: Explore → Implement → Test → Review → Verify outcome → Ship.",
+      "answer": "This is the Bug row of the Task kinds table: Interview → Explore → Research → Design → Plan → Decompose → Implement → Test → Review → Verify outcome → Ship.",
       "why": "the row's stages on one line, in order"
     },
     {
-      "answer": "Stages, in order:\n1. Explore: find the root cause from what the export code does now.\n2. Implement the fix.\n3. Test with a regression test.\n4. Review the diff.\n5. Verify outcome.\n6. Ship: open the PR.",
-      "why": "the same stages as a numbered list; lowercase words in the descriptions are not stage names"
+      "answer": "Stages, in order:\n1. Interview: lock what correct export output is.\n2. Explore: find the root cause from what the export code does now.\n3. Design: a one-line early exit for a single-file fix.\n4. Plan the fix.\n5. Implement it.\n6. Test with a regression test.\n7. Review the diff.\n8. Verify outcome.\n9. Ship: open the PR.",
+      "why": "the same stages as a numbered list, conditional ones left out; lowercase words in the descriptions are not stage names"
     }
   ],
   "fail": [
@@ -15,15 +15,15 @@
       "why": "empty"
     },
     {
-      "answer": "Interview → Explore → Design → Plan → Implement → Test → Review → Verify outcome → Ship.",
-      "why": "the full path: design and plan sit between Explore and Implement"
+      "answer": "Interview → Explore → PRD → Design → Plan → Implement → Test → Review → Verify outcome → Ship.",
+      "why": "the feature row: a PRD sits between Interview and Implement"
     },
     {
       "answer": "Implement → Test → Review → Verify outcome → Ship.",
-      "why": "the small-fix row: no Explore stage to diagnose the bug first"
+      "why": "the small-fix row: no interview first"
     },
     {
-      "answer": "Explore the export code, then Implement the fix.",
+      "answer": "Interview, then Implement the fix.",
       "why": "stops before test, review, verify and ship"
     }
   ]

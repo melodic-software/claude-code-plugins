@@ -86,7 +86,8 @@ Ship:      PR lifecycle: prep → create → monitor CI → merge (runs after st
 12. Retrospective (optional, /session-flow:retro)
 ```
 
-Work that does not take the quick-change on-ramp starts at stage 1, the interview. Explore,
+Each kind of task starts at the first stage of its row in the Task kinds table
+(`context/steps.md`); on the full path that is stage 1, the interview. Explore,
 research and a PRD are detours it calls only when a question needs them, then the interview
 resumes; none runs before it. Conditional stages run only on their trigger (`context/steps.md`):
 Explore when a question turns on what the code does now, Research when it rests on an external
@@ -136,9 +137,9 @@ satisfies, then continue from there.
 Based on what's been done, recommend the next stage with rationale. First name the kind of task
 and read its row in the Task kinds table at the end of `context/steps.md`: that row is the stage
 list, in order, and the stages it skips, each skip with the row's reason. Never state a kind's
-stages from memory. For new work whose diff fails either quick-change test, with nothing done,
-suggest stage 1, the interview; explore, research and a PRD then run as detours the interview
-calls. A change that passes both tests takes the quick-change on-ramp below instead. If the
+stages from memory. With nothing done, suggest the row's first stage; on the full path that is
+stage 1, the interview, and explore, research and a PRD then run as detours the interview calls.
+A change that passes both quick-change tests takes the quick-change on-ramp below. If the
 consuming repo has a skill for that stage, name it; otherwise describe the inline work. Add that
 stage's effort advice per "Effort per stage" in `context/steps.md`.
 
@@ -202,9 +203,11 @@ forcing every session through stage 1. Common classes:
   the "Session-start flow and main flow" section of `docs/upstream/mattpocock-skills.md` (under Map)
   in the marketplace repository.
 - **Incoming bug or issue intake**, a report or request that arrived raw from outside. A bug takes
-  the Bug row of the Task kinds table in `context/steps.md`; observed-but-undiagnosed breakage is
-  diagnosed through a diagnosis capability (if the consuming setup installs one, e.g. from a
-  diagnose or debugging plugin) before that row reaches implement.
+  the Bug row of the Task kinds table in `context/steps.md`. An already-diagnosed, agent-ready
+  item carries its Brief and root cause, so position detection credits the stages before
+  implement; observed-but-undiagnosed breakage is diagnosed through a diagnosis capability (if the
+  consuming setup installs one, e.g. from a diagnose or debugging plugin) before that row reaches
+  implement.
 - **A foggy, too-big-to-plan effort**, the destination is clear but the route is not, and no
   single plan can hold it yet. Start at the interview anyway; when that interview
   outgrows one session, escalate to a wayfinding or route-charting capability (if installed, e.g.
@@ -255,8 +258,9 @@ the menu. When a request could be either, "what comes next" is a stage question 
 - **Marking a stage done from conversation vibes**. Verify the artifact or output exists before
   suggesting the next stage.
 - **Skipping the interview on behavior-changing work that takes the full path**. Fuzzy
-  intent becomes silent plan assumptions; lock the goal and acceptance criteria first. Only the
-  quick-change on-ramp skips it, and only while its diff stays quick to review.
+  intent becomes silent plan assumptions; lock the goal and acceptance criteria first. Only a
+  Task kinds row that skips the interview skips it, and the small fix only while its diff stays
+  quick to review.
 - **Skipping design because the task is small**. Size does not decide it: on the full path, new
   types, contracts, or module boundaries go through the design stage, or the implementer gets no
   design guardrails.
