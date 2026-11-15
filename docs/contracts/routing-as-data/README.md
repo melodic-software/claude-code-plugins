@@ -47,10 +47,9 @@ this folder: row schemas differ per plugin, and no CI reader spans them.
   or tool `detect` is never qualified.
 - **`as_of` and `pointer`.** Every row carries `as_of` (YYYY-MM-DD). An own-marketplace skill row
   (`kind: skill`, a `detect` with no `@`, an `id` of the form `/plugin:skill`) carries no `pointer`.
-  Every other row carries a required `https://` `pointer`, a citation for a reader. This is
-  narrower than the issue's "a row for a sibling plugin in this marketplace carries none": the
-  schema recognizes an own row only by its `/plugin:skill` id, so a `kind: plugin` row keeps its
-  pointer.
+  Every other row carries a required `https://` `pointer`, a citation for a reader. The
+  schema recognizes an own row only by its `/plugin:skill` id, so a `kind: plugin` row, even for a
+  sibling plugin in this marketplace, keeps its pointer.
 - **Recheck.** Rows carry no recheck trigger yet, which leaves them short of the
   [upstream-drift](../upstream-drift/README.md) record shape. The field, when added, is named
   `recheck`; an adopter adding one early uses that name.
@@ -88,10 +87,8 @@ marketplace id.
 - A plugin disabled for the project counts as absent. `kind: tool` resolves from the session's tool
   listing. Tests run on fixtures, never on the live install.
 
-This convention diverges from #6483's issue text, which says installed and reachable are each
-true, false or null. Here `installed` is a list of row ids, or `null` with a `reason` when the
-install state is unreadable; only `reachable` values are true, false or null, where null means
-detection cannot tell.
+`installed` is a list of row ids, or `null` with a `reason` when the install state is unreadable;
+only `reachable` values are true, false or null, where null means detection cannot tell.
 
 Bare names mean the declaring plugin's own marketplace, as in plugin `dependencies`; routes stay
 optional, so they are not declared as dependencies. The `installPath` key is a probed behavior: every
@@ -137,15 +134,10 @@ plugin uses a `<home>/<plugin>/` folder only when it needs more files than those
 - Nothing goes under `.claude/`. Structured layers are bundled and team only: there is no structured
   personal layer, and personal, repo and folder judgment lives in prose instruction layers.
 
-The `<home>/<plugin>.yaml` location follows the customization home set in #5906. The ADR that
-supersedes ADR 0044 for structured configuration is not on `main` yet.
-
-- **Pointer**: when locating a structured team-layer file, fetch
-  <https://github.com/melodic-software/standards/blob/main/components/github-actions-conventions/README.md#lane-configuration>
-  live; the decision thread is
-  [#5906](https://github.com/melodic-software/claude-code-plugins/issues/5906).
-- **Recheck trigger**: an ADR on "home plugin customization in `docs/conventions/<concern>.yaml`"
-  merges on `main`; the pointer then moves to it.
+The `<home>/<plugin>.yaml` location is the customization home
+[ADR 0064](../../adr/0064-home-plugin-customization-in-docs-conventions-yaml.md) sets, which
+supersedes ADR 0044 for structured configuration; the convention home itself is bound by
+[ADR 0075](../../adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md).
 
 ## Degradation
 
@@ -162,7 +154,7 @@ user-writable layer.
 
 | Plugin | Status |
 |---|---|
-| `user-interface` (`/user-interface:design`) | Adopts: bare own-marketplace detects, slash skill ids, no pointer on own-skill rows. Exception: the deferred `axe-accessibility` row keeps a bare `id` and `detect` until it is qualified. Team layer: `<home>/user-interface.yaml` holds `routing` beside `css` keys, and `routing` is accepted in the team layer only. Adopts the 2.0.0 team-row limits. Deviation ([ADR 0061](../../adr/0061-adopt-a-five-layer-plugin-config-cascade-read-through-one-shared-resolver.md), layers and paths superseded by [ADR 0075](../../adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)): the `css` keys also take a structured personal layer (user-global `~/docs/conventions/user-interface.yaml` and `<home>/user-interface.local.yaml`), against the no-structured-personal-layer rule above |
+| `user-interface` (`/user-interface:design`) | Adopts: bare own-marketplace detects, slash skill ids, no pointer on own-skill rows. Exception: the deferred `axe-accessibility` row keeps a bare `id` and `detect` until it is qualified. Team layer: `<home>/user-interface.yaml` holds `routing` beside `css` keys, and `routing` is accepted in the team layer only. Adopts the 2.0.0 team-row limits. Deviation ([ADR 0061](../../adr/0061-adopt-a-five-layer-plugin-config-cascade-read-through-one-shared-resolver.md), layers and paths superseded by [ADR 0075](../../adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)): the `css` keys also take a structured personal layer (`<home>/user-interface.local.yaml`), against the no-structured-personal-layer rule above |
 | `user-experience` (`/user-experience:shape`) | Adopts: group field `job`, the first team-layer implementer; adopts the 2.0.0 team-row limits. Deviation: its team-file schema `description` states only the two add limits; the code enforces the third (`bundled-id-keeps-kind-detect-account`) |
 | Developer-experience plugin | Planned |
 

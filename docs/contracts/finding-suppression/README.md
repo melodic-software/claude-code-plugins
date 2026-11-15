@@ -86,9 +86,8 @@ Unknown keys are inert, per the cascade's soft-degradation rule. An entry missin
 is **reported as malformed and does not suppress**. A silent partial parse would turn a formatting
 slip into a lost check.
 
-**The keys and anchors in the example above are derived, not illustrative.** They were hand-written
-once and did not derive, which meant copying or scaffolding from this document produced entries the
-consumer rejects as malformed, so the authoritative example could not suppress anything. The anchor
+**The keys and anchors in the example above are derived, not illustrative**, so an entry copied or
+scaffolded from this document passes the consumer's check instead of being rejected as malformed. The anchor
 suffix is the excerpt's duplicate discriminator, `sha256(heading_path)` truncated to 8 hex, and is
 **never a positional ordinal**; the three shown correspond to enclosing heading paths
 `## generated code`, `## repository rules`, and `## instruction precedence`. Anyone editing the
@@ -110,8 +109,7 @@ def finding_id(check, claim, sites):          # sites: [(surface, anchor), …]
 
 This is the same rule the consumer enforces on every entry, so an example that does not satisfy it is
 a defect in the document rather than a special case. Both halves are shown because editing an anchor
-changes the key that hashes it. Fixing one and not the other is how the example went stale the first
-time.
+changes the key that hashes it.
 
 ### Constituents, not a bare id
 
@@ -258,8 +256,9 @@ A skill reading this surface:
   the fix attempt. `needs-reconfirmation` is what makes carrying-forward safe. Tiered matching over a
   fingerprint that is *stable enough* rather than exact is the prior art here. SARIF devotes
   Appendix B (Normative) to it, and GitHub's documented mismatch behavior is close-and-reopen.
-- **Claude-specific location, for now.** Every surface the first adopter audits is a Claude Code
-  artifact, so a finding about one belongs under `.claude/`. A cross-vendor instruction surface
+- **Claude-specific location for the user and personal layers, for now.** Every surface the first
+  adopter audits is a Claude Code artifact, so those layers live under `.claude/`; the team layer
+  lives in the plugin's concern file under `<home>` (ADR 0064). A cross-vendor instruction surface
   entering scope would break that premise, and the location argument must then be re-derived rather
   than inherited.
 

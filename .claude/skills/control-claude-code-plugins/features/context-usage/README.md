@@ -4,7 +4,6 @@ The skills of `plugins/context-usage`. Each one is driven with `<plugin-dir>` se
 
 ## Parts
 
-- `check`: Report whether node and jq resolve and whether the context-usage mod can load. Never installs.
 - `setup`: Verify the context-usage plugin on this machine. No plain-words entry.
 
 ## Sub-features

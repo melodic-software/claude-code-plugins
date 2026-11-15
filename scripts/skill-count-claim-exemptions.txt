@@ -13,7 +13,7 @@
 # excusing it -- and that is what `/docs-hygiene:audit-noise`'s `enum-list`
 # treatment prescribes anyway. Prefer the reword.
 #
-# NEVER add a row because CI is red on a number that is simply wrong. A wrong
+# Never add a row because CI is red on a number that is simply wrong. A wrong
 # number is the defect this gate exists to catch; exempting it reproduces
 # exactly the silent-wrong-count state that motivated the gate.
 #

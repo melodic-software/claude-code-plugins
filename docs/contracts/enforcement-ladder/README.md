@@ -135,8 +135,8 @@ own:
 3. `docs/architecture*`
 4. architecture decision records (ADRs)
 5. layer rules and module conventions in the project's docs
-6. unscoped `.claude/rules/*.md` files, meaning the ones with no `paths:` glob (a path-scoped rule
-   loads on its own when a covered file is read; an unscoped one has to be opened)
+6. unscoped `.claude/rules/*.md` files, meaning the ones with no `paths:` glob; how each kind of
+   rule file loads is read live from <https://code.claude.com/docs/en/memory#path-specific-rules>
 7. an existing architecture-test configuration (an ArchUnitNET test project, a
    `.dependency-cruiser.js` file, or the equivalent for the repository's language)
 

@@ -7,10 +7,6 @@ hook matches, [hook-observability](../hook-observability/README.md) owns how it 
 which **channel** carries a user-configured scalar from settings to the hook process, chosen by rule
 instead of ad hoc.
 
-The fleet previously shipped three coexisting approaches with no documented rule: a plugin-hook argv
-substitution (silently broken for unset defaults), a skill-belt env read (skill hooks never receive
-it), and a floated SessionStart-file design (unbuilt). Each was individually plausible; together they
-were the reuse-or-replace fragmentation this doc closes.
 
 ## Boundary: composes with config-cascade
 

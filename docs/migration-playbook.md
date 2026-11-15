@@ -47,7 +47,7 @@ marketplace-settings behavior it states.
 
 The philosophy's "one cohesive capability" is also the packaging boundary: **one plugin per cohesive
 concern or capability**, grouped in the catalog through `category` / `tags` rather than by splitting.
-A cohesive plugin MAY hold several units: a first-party plugin bundles many skills of one concern, a
+A cohesive plugin may hold several units: a first-party plugin bundles many skills of one concern, a
 hooks plugin bundles many hooks of one concern. One-unit-per-plugin is not the norm; do not ship a
 plugin per hook.
 
@@ -81,7 +81,7 @@ procedure before choosing plugin and skill directories:
    may become focused sibling skills when users reach for them with different vocabulary. Capabilities
    with independent purpose, lifecycle, or trust surface become separate plugins. Subcommands and
    depth variants remain arguments; they are not split points.
-3. **Name the focused skills by KIND.** Action skills take focused action verbs; knowledge skills
+3. **Name the focused skills by kind.** Action skills take focused action verbs; knowledge skills
    take focused noun phrases. When the split is facets-of-one-capability, keep the parent concept as
    the plugin name and move only the focused leaves below it. `prototype` is the worked precedent:
    one throwaway-prototyping capability, distinct `logic` and `ui` discovery intents, shared
@@ -183,14 +183,14 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
    needs a directory of config extends the shape by one increment, keeping the same personal override and
    resolution rules.
    - **Concern-named folder for multi-plugin-consumed config.** When a tracked-config concern is
-     consumed by MORE THAN ONE plugin, name the folder by the concern, not a plugin
+     consumed by more than one plugin, name the folder by the concern, not a plugin
      (`.claude/<concern>/**`). Plugin-naming would couple the other consumers and the consumer
      repo's tracked files to one plugin's name, and plugin boundaries are the volatile axis across
      restructures. A further one-increment PRECEDENT-EXTENSION; each instance records its schema and
      resolution rules as a versioned contract under `docs/conventions/<concern>/` (template:
      `docs/contracts/hook-telemetry/`; first instance:
      [`docs/contracts/ecosystem-commands/`](contracts/ecosystem-commands/README.md)).
-   - **Profiled folder for audience/deployment variants.** When ONE plugin's tracked config varies by
+   - **Profiled folder for audience/deployment variants.** When one plugin's tracked config varies by
      *audience* or *deployment*, meaning a different framing, ranking lens, or branding per team /
      client / context, add a profile axis to the folder form. Files at `.claude/<plugin>/` are the **default
      profile**; each `.claude/<plugin>/<profile-name>/` subfolder is a **named profile** that overlays
@@ -325,7 +325,6 @@ then hard-FAILs unless a case in the skill's plugin `evals/` tags its directory 
 becomes a reviewed, diffable line rather than an implicit absence; anything unlisted still fails
 closed. The file is stale-guarded: a row whose
 skill is gone, or that now ships `evals/evals.json`, fails the gate so the list can only shrink.
-This is the Exit A decision from #3135: the warrant rule above and the CI gate now agree.
 
 Whatever the format, aim to cover trigger/routing, the happy path, at least one refusal/guardrail,
 and one anti-pattern the skill must not do.
@@ -360,15 +359,10 @@ last field `assertions`. It is the ecosystem-wide shape: a public code search re
 different layout**: a plugin's `evals/` tree of `<case>/prompt.md` plus `graders/*.md`, or
 `<case>/case.yaml`, with `experimental.evals` naming a directory elsewhere.
 
-**What shipped.** The command shipped in Claude Code 2.1.269 on 2026-09-11 and this marketplace
-has adopted it.
-Before this adoption the binary answered `plugin eval is currently in early access` and refused to
-run, which is why taking on the format would then have traded a corpus CI checks on every PR for one
-nobody here could execute. That reason is spent, so the deferral is reopened.
-`melodic-software/medley#1418` is the tracker that carried it and stays open on its own terms: this
-record supersedes the deferral, it does not close the ticket. The adopted surface is the `evals`
-plugin, whose `/evals:plugin-eval` guides a run of the command and whose `/evals:validate` checks
-case files with no model call, over the pilot suite at `plugins/evals/evals/`.
+**What is adopted.** This marketplace uses `claude plugin eval` (version floor: [plugin evals § Requirements](https://code.claude.com/docs/en/plugin-evals#requirements)).
+The adopted surface is the `evals` plugin, whose `/evals:plugin-eval` guides a run of the command
+and whose `/evals:validate` checks case files with no model call, over the pilot suite at
+`plugins/evals/evals/`. `melodic-software/medley#1418`, which carried the earlier deferral, stays open on its own terms; this record supersedes that deferral but does not close the ticket.
 
 **The suite format is the default for new cases.** The per-skill `evals/evals.json` corpus is
 legacy: `scripts/check-changed-skills.sh` still accepts it in place of a tagging suite case,
@@ -588,7 +582,7 @@ consumers who never opt in.
 1. **CLI covers the skill's need → CLI-first.** The plugin **depends on** the CLI (with documented
    install/setup, since the binary is on PATH, not bundled: e.g. `npm install -g ctx7`,
    `npm install -g firecrawl-cli`, `playwright-cli`) and drops the MCP dependency; a CLI-first
-   migration MUST carry that install guidance or the plugin breaks on a machine without the CLI.
+   migration must carry that install guidance or the plugin breaks on a machine without the CLI.
    Token-economics precedent (results pipe to disk instead of flooding context): context7 (`ctx7`),
    playwright (`playwright-cli`, Microsoft-recommended, ~4× fewer tokens), firecrawl
    (`firecrawl-cli`), ccusage (`ccusage daily|monthly|session|blocks --json`, the same token/cost
@@ -616,7 +610,7 @@ consumers who never opt in.
    A SHIP that connects to a **credentialed external service** ships `defaultEnabled: false`. It
    installs disabled and the consumer opts in, so enabling the marketplace does not auto-start a
    credentialed server for users who never asked for it.
-3. **No CLI + plugin is *degraded-but-functional* without it → STAY repo-level.** The skill NAMES the
+3. **No CLI + plugin is *degraded-but-functional* without it → STAY repo-level.** The skill names the
    dependency and the consumer provides the server in their own `.mcp.json`; the skill degrades
    gracefully or loads the tool via `ToolSearch` when present. This is the extensibility model's
    "swap the MCP server, not a pluggable abstraction": declare the dependency, don't fork.
@@ -632,17 +626,18 @@ a **remote HTTP/SSE/WS** server takes it in `headers` / `headersHelper` (`env` o
 stdio process, so an HTTP key placed in `env` never authenticates). medley's own config shows the
 split: `context7`/`ref` are HTTP and pass their key via `headers` (`x-api-key` / `x-ref-api-key`),
 whereas a stdio server like `perplexity` uses `env`. Keychain storage is shared with OAuth tokens
-(~2 KB total), so keep values small.
+and its total size is limited ([user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)), so keep values small.
 
 **The medley launcher stack: only its Node-pinning layer is medley-local.** medley's
 `fnm exec + tools/mcp-launcher/launcher.js` stack solves two problems that generalize differently:
 
 - **GUI-host Node PATH via `.nvmrc` pinning, medley-local.** A plugin does not need it; bundle
   assets via `${CLAUDE_PLUGIN_ROOT}` (+ `${CLAUDE_PLUGIN_DATA}` for a built server's `node_modules`).
-- **Windows bare-`npx` `spawn ENOENT`, a general plugin problem, still open.** Plugin-shipped stdio
+- **Windows bare-`npx` `spawn ENOENT`, a general plugin problem.** Plugin-shipped stdio
   MCPs that spawn `npx` fail on native Windows until wrapped with `cmd /c`
-  ([anthropics/claude-code#58510](https://github.com/anthropics/claude-code/issues/58510), OPEN; the
-  LSP spawn fix #17312 never reached the MCP spawn path). Do **not** assume the plugin runtime wraps
+  ([anthropics/claude-code#58510](https://github.com/anthropics/claude-code/issues/58510); read its
+  state live, and recheck this bullet when it closes; the LSP spawn fix #17312 never reached the MCP
+  spawn path). Do **not** assume the plugin runtime wraps
   `npx` for you: a SHIP that runs `npx` must ship its own `cmd /c` wrapper, while a SHIP that runs a
   bundled `node <server>` sidesteps the bug entirely.
 
@@ -660,7 +655,7 @@ skill drives plugin B's bundled MCP server, three rules hold:
   `mcp__plugin_<plugin>_<server>__<tool>`, so for `miro` that is `mcp__plugin_miro_miro__miro_create_board`
   ([mcp reference](https://code.claude.com/docs/en/mcp)). A bare `miro_*` name, or a bare-server-key
   `mcp__miro__…`, does **not** resolve for a plugin-bundled server. Any *declarative* reference
-  (a skill's `allowed-tools`, a permission rule, a subagent `tools` field, a hook matcher) MUST use the
+  (a skill's `allowed-tools`, a permission rule, a subagent `tools` field, a hook matcher) must use the
   full prefixed form; a matcher against the bare server key never fires. In model-facing prose the
   runtime resolves the tool the model actually calls, so a skill may name tools by their bare
   conceptual `<tool>` **provided it states once** that those names denote the provider's tools under
@@ -721,7 +716,7 @@ For each skill/hook/agent being migrated:
    `settings.json` `agent`, wait-listed components absent; setup criteria applied per its setup
    section; runtime prerequisites degrade per its failure-behavior rules.
 8. **Idempotent, modular, extensible.** Re-running is safe; pieces compose; variability is declared.
-9. **Validate.** `claude plugin validate`; test with `--plugin-dir` in a clean repo that is NOT the
+9. **Validate.** `claude plugin validate`; test with `--plugin-dir` in a clean repo that is not the
    source repo (proves repo-agnosticism).
 10. **Version.** Set an explicit semver `version` in `plugin.json`. A later bump that changes behavior a
    consumer depends on records the change in the plugin's changelog. See "Version pinning and update
@@ -815,7 +810,7 @@ interpolation, or what a plugin may bundle.
    with any token sourced from `userConfig` `sensitive` or an env var, **never hardcoded**; a stated reason the
    capability can't be a local `stdio` server. **Do not accept a third-party remote MCP server** without an
    explicit recorded trust decision naming the vendor, the data egress, and the token scope.
-3. **Consumer config: `userConfig`.** Any credential/token option MUST set `"sensitive": true`, which masks
+3. **Consumer config: `userConfig`.** Any credential/token option must set `"sensitive": true`, which masks
    input and keeps the value out of `settings.json`. Non-sensitive values are readable, so never put a
    secret there; storage and read scope are in
    [plugin-philosophy.md § Configuration ownership and scope](plugin-philosophy.md#configuration-ownership-and-scope).
@@ -824,8 +819,9 @@ interpolation, or what a plugin may bundle.
    persists state in `${CLAUDE_PLUGIN_DATA}`. No `../` reach-outs, no constructed absolute paths, no reading
    **consumer repository** files outside `${CLAUDE_PROJECT_DIR}`.
    - **The operator's own `~/.claude/` is not consumer repository data.** Reading a documented user-global
-     config file there is sanctioned rather than a reach-out: criterion 3 above already stores consumer
-     credentials at `~/.claude/.credentials.json`, and seam 2 mandates an optional `~/.claude/<plugin>.md`
+     config file there is sanctioned rather than a reach-out: a `sensitive` value lands in
+     `~/.claude/.credentials.json` on a platform without a supported keychain
+     ([Configuration ownership and scope](plugin-philosophy.md#configuration-ownership-and-scope)), and seam 2 mandates an optional `~/.claude/<plugin>.md`
      user-global layer, so a criterion that forbade the read would contradict both. Read only the documented
      path for the plugin's own declared config; anything broader is a reach-out again. What this criterion
      targets is a plugin wandering out of the repository it was pointed at, not the operator's own Claude
@@ -838,7 +834,7 @@ interpolation, or what a plugin may bundle.
    third-party SaaS is a trust delegation, so record accept/deny with rationale. Note the platform already blocks
    plugin-shipped **agents** from declaring `hooks` / `mcpServers` / `permissionMode` "for security reasons".
    Don't design around that.
-   - **An `archive` marketplace entry MUST carry its `sha256` pin.** A catalog entry may set
+   - **An `archive` marketplace entry must carry its `sha256` pin.** A catalog entry may set
      `"source": "archive"` with a `url` and a `sha256` pin the platform treats as optional, installing the
      plugin from a zip downloaded over HTTPS with no git or npm on the consumer's machine. The platform
      checks only the transport (an `https://` URL that is not a loopback, link-local or cloud-metadata
@@ -943,8 +939,9 @@ claude --plugin-dir ./plugins/<name>
   force-disable.
 - **Trust.** A locally loaded plugin carries the same trust considerations as any source, so only load
   directories you control.
-- **Then ship.** Run `claude plugin validate` before opening a PR; after merge, consumers pull the
-  change with `/plugin marketplace update melodic-software`, gated by the `version` bump in `plugin.json`.
+- **Then ship.** Run `claude plugin validate` before opening a PR; consumers pull the change with
+  `/plugin marketplace update melodic-software` once the release pull request bumps the plugin's
+  `version` (see "Version pinning and update delivery" above).
 
 ## Fresh-consumer onboarding
 

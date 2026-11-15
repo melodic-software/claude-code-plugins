@@ -207,8 +207,10 @@ Avoid: human queue
 
 **PR hold**
 
-A stop on merging a pull request until it is lifted. Only the do-not-merge label binds every lane
-and person; any other hold binds only the gate that reads it.
+A stop on merging a pull request until it is lifted. Only the do-not-merge label is enforced across
+every lane and person; ci-status also enforces a member's veto comment on a lanes App pull request.
+Any other hold is enforced only by the gate that reads it, and a merging session still stops on a
+body hold or a human comment asking to wait until the owner lifts it (AGENTS.md, Merging).
 
 **merge rung**
 

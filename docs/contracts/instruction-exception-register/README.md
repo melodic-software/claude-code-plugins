@@ -73,8 +73,6 @@ changes no behavior, which is the failure mode this table exists to prevent.
 
 ## Provenance
 
-Adopted 2026-09-01 from the context-engineering corpus integration, decision Q2. That decision
-survives as the `<details>` paste in its pull request. The carve-out this register answers is
-quoted from a vendor-voice source and carries
-that source's status: the wording is first-party, the definition of "highly important areas" is
-this repo's own and is not claimed to be upstream doctrine.
+The carve-out this register answers is quoted from a vendor-voice source and carries that
+source's status: the wording is first-party, the definition of "highly important areas" is this
+repo's own and is not claimed to be upstream doctrine.

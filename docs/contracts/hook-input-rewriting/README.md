@@ -29,12 +29,12 @@ between says so. The next debugging session starts from a false premise, and the
 it has no reason to suspect the hook. A rewritten call looks exactly like a call that was never
 inspected. A denial is legible: the call did not run, and the reason says why.
 
-**`updatedInput` replaces the ENTIRE input object, not the field you meant.** A hook returning it
+**`updatedInput` replaces the entire input object, not the field you meant.** A hook returning it
 hands back a whole tool input, and a field the hook did not think to carry forward is a field the
 tool no longer receives. This is the failure mode that gets worse as the tool's schema grows,
 because the hook was written against the schema of the day it shipped.
 
-**Permission rules are re-evaluated against the HOOK's version, not the user's.** The rewritten
+**Permission rules are re-evaluated against the hook's version, not the user's.** The rewritten
 input is what the permission layer then judges. A rewrite that widens a call, even accidentally,
 even while narrowing the part the hook cared about, is a rewrite that can clear rules the original
 call would have tripped. A guard that can launder a call past the permission layer is not a guard.
@@ -76,7 +76,7 @@ that can fire in a lane denies with instructions and never returns `updatedInput
 - **Not about `additionalContext`.** Adding text for the model to read changes no call and is
   governed by [hook observability](../hook-observability/README.md).
 - **Not a claim that `updatedInput` is broken.** It is a documented field with a real use; this doc
-  narrows WHEN this marketplace reaches for it, and pairs it with `ask` when it does.
+  narrows when this marketplace reaches for it, and pairs it with `ask` when it does.
 - **Not a substitute for precision.** A hook that rewrites because its match is too broad has a
   precision defect, not a rewriting question. Fix the match.
 

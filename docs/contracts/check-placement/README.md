@@ -393,15 +393,15 @@ marketplace comes from these rows.
 | guardrails `reference-verify` entry, the 44-file `origin/main` commit (37 of its files are `.md`/`.sh`) as one pushed range | pre-push | 10.6 s median (10.1-12.5); 15.7 s on the first run in a clone, which builds the deleted-path cache | reference host (Linux, WSL2) | 2026-10-16 |
 | guardrails `reference-verify` entry at `pre-commit`, before the move, same staged sets (1 file is not `.md`/`.sh`) | pre-commit until it moved to pre-push: 44 files is over the commit budget | 1 file 0.018 s (0.017-0.019); 10 files 1.169 s (1.109-1.271), 11.0 s on the first run in a clone; 44 files 12.2 s (10.6-17.0) | reference host (Linux, WSL2) | 2026-10-16 |
 | `scripts/check-affected.sh --no-fetch` (this repository) | pre-push | 15.5 s median on a 28-file range; 0.52 s on one file | reference host (Linux, WSL2) | 2026-10-15 |
-| actionlint, per edit (`.github/workflows/*.yml`) | PostToolUse today; moving to pre-commit | 44 ms median (43-47) | reference host (Linux, WSL2) | 2026-10-15 |
-| bash-format, per edit (`.sh`, configured) | PostToolUse today | 64 ms median (62-68) | reference host (Linux, WSL2) | 2026-10-15 |
-| javascript-format, per edit (`.ts`, configured) | PostToolUse today | 62 ms median (60-77) | reference host (Linux, WSL2) | 2026-10-15 |
-| markdown-format, per edit (`.md`, configured) | PostToolUse today | 180 ms median (174-186) | reference host (Linux, WSL2) | 2026-10-15 |
-| powershell-format, per edit (`.ps1`, configured) | PostToolUse today | 973 ms median (918-1,026) | reference host (Linux, WSL2) | 2026-10-15 |
-| python-format, per edit (`.py`, configured) | PostToolUse today | 75 ms median (73-83) | reference host (Linux, WSL2) | 2026-10-15 |
+| actionlint, per edit (`.github/workflows/*.yml`) | PostToolUse until removed; now pre-commit | 44 ms median (43-47) | reference host (Linux, WSL2) | 2026-10-15 |
+| bash-format, per edit (`.sh`, configured) | PostToolUse until replaced; now PostToolBatch and pre-commit | 64 ms median (62-68) | reference host (Linux, WSL2) | 2026-10-15 |
+| javascript-format, per edit (`.ts`, configured) | PostToolUse until replaced; now PostToolBatch and pre-commit | 62 ms median (60-77) | reference host (Linux, WSL2) | 2026-10-15 |
+| markdown-format, per edit (`.md`, configured) | PostToolUse until replaced; now PostToolBatch and pre-commit | 180 ms median (174-186) | reference host (Linux, WSL2) | 2026-10-15 |
+| powershell-format, per edit (`.ps1`, configured) | PostToolUse until removed; now pre-commit | 973 ms median (918-1,026) | reference host (Linux, WSL2) | 2026-10-15 |
+| python-format, per edit (`.py`, configured) | PostToolUse until replaced; now PostToolBatch and pre-commit | 75 ms median (73-83) | reference host (Linux, WSL2) | 2026-10-15 |
 | spelling, per edit (`.md`) | PostToolUse until removed; now pre-commit | 59 ms median (56-63) | reference host (Linux, WSL2) | 2026-10-15 |
 
-The per-edit rows are today's `PostToolUse` rows run from each plugin's `hooks/hooks.json` with a
-sample that needs work (hyperfine, 2 warmups, 10 runs; a 15 ms spawn baseline is included). They
-are the baseline the git-hook entries and `PostToolBatch` rows replace; each new entry adds its
-own row here when it ships.
+The per-edit rows are the `PostToolUse` rows each plugin's `hooks/hooks.json` ran on 2026-10-15,
+timed with a sample that needs work (hyperfine, 2 warmups, 10 runs; a 15 ms spawn baseline is
+included). They are the baseline the git-hook entries and `PostToolBatch` rows replaced; each new
+entry adds its own row here when it ships.

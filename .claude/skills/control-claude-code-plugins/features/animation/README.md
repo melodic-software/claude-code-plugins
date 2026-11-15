@@ -4,7 +4,6 @@ The skills of `plugins/animation`. Each one is driven with `<plugin-dir>` set to
 
 ## Parts
 
-- `check-prerequisites`: Report whether the tools animation declares resolve. Never installs.
 - `learn-style`: Measure a traced clip into a style pack and check new scenes against it.
 - `produce`: Brief, boards, approval gate, shots, render, and pack review.
 - `rotoscope`: Trace, render, measure and fit a 1:1 replica of a reference animation.

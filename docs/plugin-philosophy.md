@@ -213,11 +213,11 @@ its method's own literature term keeps that term when renaming would destroy rec
 vocabulary (`songwriting:object-writing`, `meter-prosody`, `song-form`, Pattison's terms); a
 playbook router named by its source keeps the source's own identifier, because provenance is the
 content's identity (`playbooks:boris`, `playbooks:fable-5`: one scheme, person or model alike);
-and an object-pronoun qualifier is kept when the skill's defining boundary IS that the object under
+and an object-pronoun qualifier is kept when the skill's defining boundary is that the object under
 test is the user themself (`education:quiz-me`: the `-me` distinguishes quizzing the human on
 completed work from teach's in-workspace content quizzing, where a bare `quiz` would under-specify
 the object the grammar normally delegates to the namespace); and an upstream utterance-interjection
-is kept when the skill is a port whose typed phrase IS the mechanism, the user's own words at the
+is kept when the skill is a port whose typed phrase is the mechanism, the user's own words at the
 moment of use, and the upstream name carries cross-repo muscle-memory parity
 (`discipline:wait-what`, the lost reader's literal interjection; an imperative paraphrase destroys
 the zero-translation recall the command depends on precisely when its user is, by definition, lost,
@@ -235,10 +235,9 @@ a sibling. **A heavier execution tier is a depth variant whenever the base skill
 runtime from its main-context entry,** even when the tier needs tools a dispatched context lacks
 (the `Workflow` tool): the base skill's main-context half chooses the tier before it dispatches,
 and a dispatched run of the base skill never selects it. So the tier is a `deep` argument or an
-automatic choice inside the base skill, never a `-deep` sibling. That is why `discovery` folded
-`explore-deep` into `explore` and `research-deep` into `research`, and why `discipline` folded
-`do-your-research-deep` and `recheck-against-upstream-deep` into their base skills. Only a tier no
-entry point of the base skill can reach earns a sibling, and none does today.
+automatic choice inside the base skill, never a `-deep` sibling, as in `/discovery:explore`,
+`/discovery:research`, `/discipline:do-your-research` and `/discipline:recheck-against-upstream`.
+Only a tier no entry point of the base skill can reach earns a sibling, and none does today.
 
 A plugin skill declares no frontmatter `name`. We rely on the directory supplying the name, and
 the directory here is already the name the skill is documented and invoked by, so declaring it
@@ -433,7 +432,7 @@ inherent scope at the coupling site, the same declared-narrower-boundary allowan
 cross-platform contract makes for OS platform, rather than shipping the assumption bare under a
 neutral name.
 
-Two reviewer-visible comment tokens carry that declaration, and they differ in REACH rather than in
+Two reviewer-visible comment tokens carry that declaration, and they differ in reach rather than in
 strength. `portability-ok: <reason>` records one site: the coupling on that line (or the line below
 a comment block carrying it) is excused and nothing else in the file is. `portability-scope:
 <reason>` declares the whole file inherently locked, the case a forge-locked capability under a
@@ -508,9 +507,10 @@ documented hand-edit, migrates to `userConfig` with the schema used honestly:
   silently no-ops for a plugin using static `userConfig`-substituted headers, and `/plugin`'s own
   detail view carries no reconfigure entry once a required value is already set. Targetless prose
   ("use `/plugin configure`") names the surface, not an install identity, and stays unqualified.
-  `/plugin configure` is undocumented on the official docs site as of this writing; do not assume it
-  will stay that way without re-verifying, but do not omit the guidance merely because upstream
-  hasn't written it down.
+  Keep this guidance whether or not the official docs site documents `/plugin configure`; to check
+  what upstream covers, fetch
+  [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+  live.
 
 Hook processes read the native `CLAUDE_PLUGIN_OPTION_<KEY>` mirror, a hook-only export: a Bash
 call made by a skill and monitor processes do not receive it. A non-hook consumer (a script,
@@ -545,7 +545,7 @@ Apply the same anchoring rule to bundled assets: one skill citing another skill'
 writes the full `${CLAUDE_PLUGIN_ROOT}/skills/<other-skill>/<path>` form, optionally paired with a
 relative markdown link target for browsing on GitHub, for example
 ``[`${CLAUDE_PLUGIN_ROOT}/skills/audit/context/suppression.md`](../audit/context/suppression.md)``.
-A bare `context/…`-style path is reserved for a skill's OWN supporting files; it resolves against
+A bare `context/…`-style path is reserved for a skill's own supporting files; it resolves against
 the citing skill's directory, so a cross-skill citation written that way points at a file that is
 not there.
 
@@ -578,8 +578,9 @@ a consumer sets a value through; this rule settles where the plugin's own values
 - Docs cite the owner and do not restate the number. A copy generated from the owner is not a second
   owner.
 - Measurement records keep their numbers: a recorded result is data about one run, not a restatement.
-- A skill body never restates a volatile external specific. It states our decision and carries the
-  pointer, as-of date, and recheck trigger of the
+- A skill body never restates a volatile external specific. It states our decision and carries a
+  section-anchored pointer; an as-of date and recheck trigger go only on a copied or measured
+  upstream number or string, per the
   [upstream-drift convention](contracts/upstream-drift/README.md#required-parts).
 - A value read from two languages lives in a JSON file both read.
 
@@ -628,8 +629,7 @@ manifest is one kill switch, and closing that "gap" ships the ceremony this sect
 to a real case (#3111): `context-budget` and `repo-hygiene` each earn one on (b), for a `node`-launched
 hook and a `git`-dependent tier set whose absence the native prompt cannot see, while
 `visualization`, whose lone `medium` option is a self-contained scalar whose out-of-set values fall
-back to its default and which has no external prerequisite, correctly ships none. A setup skill was
-written for it and deliberately dropped rather than kept for symmetry.
+back to its default and which has no external prerequisite, correctly ships none.
 
 The uniform contract: the skill is named `setup`, sets `disable-model-invocation: true`, because
 setup has side effects a person should trigger by hand (Pointer:
@@ -770,8 +770,7 @@ both are conforming when the surface is what selected them. Two plugins with the
 settings can therefore differ legitimately: the one that also owns a documented machine-scope
 file must offer the narrow `apply`; the one that owns nothing writable must not invent one. A
 no-op `apply`, one that runs `check` and routes guidance but writes nothing, is that invented
-verb and is non-conforming: the guidance belongs in `check`'s output (ratified 2026-09 when the
-five remaining holdouts converged; the fleet now has zero no-op `apply` actions).
+verb and is non-conforming: the guidance belongs in `check`'s output.
 
 Bare `apply` converges to the configured state and never removes. Genuine teardown, converging to
 the *absence* of the plugin's own tracked project config, is the one thing `apply` will not do
@@ -1060,10 +1059,9 @@ is its sibling constraint, and the write-time doctrine budgeting both lives in
 
 ### Classifying a hook
 
-This is the standing rubric for the classification the durable-tier rule requires. It was first
-applied across this marketplace's 44 wired hook entries in the 2026-08 audit (issue #2021), and it
-is the pass any consumer repo can run over its own hook surface at each generation-triggered
-ablation. Score every wired hook entry on two independent axes:
+This is the standing rubric for the classification the durable-tier rule requires, and the pass
+any consumer repo can run over its own hook surface at each generation-triggered ablation. Score
+every wired hook entry on two independent axes:
 
 - **Mechanism**: what the hook does structurally, either deny-gate (blocks a tool call), context-injection
   (adds text to the model's context), deterministic-transform (edits an artifact, model not in the
@@ -1103,7 +1101,7 @@ Two further axes are settled elsewhere, and neither is implied by the rubric abo
 | Question about a hook | Where it is decided |
 |---|---|
 | Does it fire by default? | [ADR 0003](adr/0003-verification-guards-earn-default-on-by-measured-precision.md): a default-on guard earns its place by measured precision, and loses it to observed false positives with no true positive |
-| Does it belong in this plugin, or its own? | [ADR 0028](adr/0028-classify-a-plugin-s-hooks-by-packaging-before-proposing-a-split.md): Class A (the hooks ARE the plugin) and Class B (the hook IS the feature mechanism) never split; only Class C (hooks adjunct to a skill surface) is a candidate, and a candidate still argues its own case |
+| Does it belong in this plugin, or its own? | [ADR 0028](adr/0028-classify-a-plugin-s-hooks-by-packaging-before-proposing-a-split.md): Class A (the hooks are the plugin) and Class B (the hook is the feature mechanism) never split; only Class C (hooks adjunct to a skill surface) is a candidate, and a candidate still argues its own case |
 
 ## Fresh-eyes checkpoints
 
@@ -1231,7 +1229,7 @@ A dispatch prompt at any rung:
 ### Named-agent bar
 
 A named agent is earned, not default: **the same worker with the same instructions dispatches from
-multiple sites (or repeats via description-triggered direct invocation) AND a model pin, an effort
+multiple sites (or repeats via description-triggered direct invocation) and a model pin, an effort
 pin, or an enforced tool restriction is required.** Otherwise the generic subagent with inline instructions
 is the simpler, equally independent form. On tool cages: an allowlist that includes Bash bars
 Edit/Write and recursive spawning but is **not read-only**, because Bash can write. State what the cage
@@ -1482,10 +1480,10 @@ same depth on two models):
   live), and promoting such a lane to a named agent is how it gains the pin (a
   required effort pin satisfies the named-agent bar's pin clause). The named agents that pin `medium`
   instead, and why, are listed under [pinned agents](#effort-tiers). An orchestrator skill
-  whose consequential work executes in generic dispatches reaches them through its own pin: a
-  skill-level pin governs the orchestrating conversation and, by our probe, the subagents it
-  dispatches (the skill-pin record under [override levers](#effort-tiers)); no docs page covers
-  that reach, so the cache caveat below still applies.
+  whose consequential work executes in generic dispatches cannot rely on its own pin to reach
+  them: a skill-level pin covers the rest of the current turn and, with `context: fork`, the
+  forked subagent (the skill-pin record below), so a generic dispatch carries the level only when
+  its call passes one, and the cache caveat below still applies.
 - **Read-only bulk mechanical sweeps may pin `low`.** We allow it where speed and cost matter more
   than depth, subagent sweeps included, and never for a lane that changes code, verifies a
   change, or does work likely to hit edge cases (the [effort floor](#effort-floor)). Never on the

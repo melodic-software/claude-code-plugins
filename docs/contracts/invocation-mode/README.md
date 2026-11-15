@@ -123,9 +123,9 @@ extension).
 ## The invocation-reach invariant
 
 A `disable-model-invocation: true` skill **cannot be invoked by any other skill**, because cross-skill
-reach requires model invocation. CONFIRMED against current official docs 2026-08-17 (see the
+reach requires model invocation. Confirmed against current official docs 2026-08-17 (see the
 tracked strand in [`docs/upstream/mattpocock-skills.md`](../../upstream/mattpocock-skills.md)).
-Consequences: any skill another skill chains to MUST be `false` (this is the rubric's
+Consequences: any skill another skill chains to must be `false` (this is the rubric's
 cross-skill-reach axis), and no skill body may instruct model invocation of a `true` target.
 The audit-side trigger that guards this lives in the SSOT strand.
 
@@ -135,9 +135,7 @@ When a skill body chains to another skill, name the mechanism explicitly, as in 
 `/plugin:skill` via the Skill tool" or an equivalent that names the Skill tool, never bare
 `/name` prose, which reads as a suggestion to a human rather than an instruction the model
 reliably executes. **Scope: unconditional.** It binds every operative chain in shipped skill
-text, new and existing alike; the fleet-wide normalization sweep landed
-([#3002](https://github.com/melodic-software/claude-code-plugins/issues/3002), 2026-08-21), so
-there is no longer a grandfathered set. Adopted 2026-08-18, lane 6 of the AI Hero course vetting
+text, new and existing alike. Lesson record: lane 6 of the AI Hero course vetting
 (`docs/upstream/aihero-course.md`). Upstream basis, named
 provenance: mattpocock/skills standardized the same rule in `.agents/invocation.md` (upstream
 PRs #878 and #880) on his asserted, unmeasured claim that explicit Skill-tool phrasing has a higher
@@ -340,9 +338,9 @@ ADR 0016 is amended in place to record the revised posture; its core decision, t
 from the catalog rather than the listing, is untouched and is what makes this skill worth reaching.
 
 Fleet after this flip (2026-08-21): 222 top-level skills = 165 `false` / 0 missing key / 57 `true`
-= 48 `*:setup` plus 9 non-setup. **Every non-setup `true` skill in the fleet now carries a verdict
-in the table above**, and the table's two flips are the only entries that are not KEEP. (Since
-2026-10-26 a third: `disk-hygiene:clean`, flipped by owner decision on #9572.)
+= 48 `*:setup` plus 9 non-setup, each of the 9 graded in the table above; the table's two flips are
+the only entries that are not KEEP. (Since 2026-10-26 a third: `disk-hygiene:clean`, flipped by
+owner decision on #9572.)
 
 ## Fleet grade, 2026-10-18 (the six ungraded human-only skills, #7974)
 
@@ -372,8 +370,8 @@ when no person is present their approval is only skill text. This item records g
 Result: three KEEP, all class (i) (`discipline:be-ambitious`; `repo-fleet-hygiene:sync` and
 `session-flow:tidy-work`, by the owner's 2026-10-22 decision on #6458) and three FLIPs. Fleet-wide,
 the non-setup `true` population after the 2026-08-21 grade (9) plus these six is 15 skills, of which
-this section grades the six that had no recorded class; the three flips take effect when the sibling
-item edits their frontmatter, and until then they remain `true`.
+this section grades the six that had no recorded class. The three flips are applied: none of the
+three carries `disable-model-invocation: true`.
 
 ## Re-grade: `disk-hygiene:clean` under the 2026-10-18 decision (#9706)
 
