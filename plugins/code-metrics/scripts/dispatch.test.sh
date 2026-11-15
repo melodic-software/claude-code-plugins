@@ -44,7 +44,13 @@ assert_doc() {
 
 STUBS="$(mktemp -d)"
 EMPTY_PATH="$(mktemp -d)"
-trap 'rm -rf "$STUBS" "$EMPTY_PATH"' EXIT
+# Without CODE_METRICS_HOME the dispatcher reads the user-global layer from
+# $HOME/.claude, so a developer's own code-metrics.yaml or ecosystems/<lane>.yaml
+# would change lanes, thresholds and scope. Every case resolves against this
+# empty home unless it sets its own.
+TEST_HOME="$(mktemp -d)"
+export CODE_METRICS_HOME="$TEST_HOME"
+trap 'rm -rf "$STUBS" "$EMPTY_PATH" "$TEST_HOME"' EXIT
 cat >"$STUBS/scc" <<EOF
 #!/usr/bin/env bash
 if [[ "\${1:-}" == "--version" ]]; then printf 'scc version 3.7.0\n'; exit 0; fi
