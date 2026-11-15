@@ -1,4 +1,4 @@
-// maintenance-audit-lane-runs.yml picks each judge leg's credential through
+// maintenance-audit-lane-runs.yml picks each assess-units leg's credential through
 // ci-workflows' select-model-credential, fetched at the pin the workflow
 // names: collect's start call, then in each matrix leg a credential call and,
 // in the key and subscription legs, a next-leg call whose verdict the handoff
@@ -28,9 +28,9 @@ const UNIT = "a1";
 const UNITS = JSON.stringify([UNIT]);
 const SECRETS = { key: "AUTOMATIONS_CLAUDE_API_KEY", sub: "AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", fallback: "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN" };
 const LEGS = [
-  ["judge", "key", "key-leg"],
-  ["judge-subscription", "subscription", "sub-leg"],
-  ["judge-fallback", "fallback", ""],
+  ["assess-units", "key", "key-leg"],
+  ["assess-units-subscription", "subscription", "sub-leg"],
+  ["assess-units-fallback", "fallback", ""],
 ];
 
 // The shared evaluator reads only needs/steps/github/vars/inputs/secrets
@@ -39,20 +39,21 @@ const m = (expression) => expression.replace(/\bmatrix\./g, "inputs.matrix.");
 const runs = (expression, ctx) => runsRaw(m(expression), ctx);
 const value = (expression, ctx) => valueRaw(m(expression), ctx);
 
-// The old conditions and expressions, at 5599e627fc.
+// The old conditions and expressions, at 5599e627fc, under the job ids of
+// that commit (the judge jobs, since renamed to assess-units).
 const OLD = {
-  judge: "needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]' && needs.collect.outputs.skip-key != 'true'",
+  key: "needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]' && needs.collect.outputs.skip-key != 'true'",
   handoffs: "${{ !cancelled() && (needs.judge.result != 'skipped' || needs.collect.outputs.skip-key == 'true' && needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]') }}",
   download: "steps.kill.outputs.proceed == 'true' && needs.collect.outputs.skip-key != 'true'",
   routeSkipped: "steps.kill.outputs.proceed == 'true' && needs.collect.outputs.skip-key == 'true'",
   record: {
-    judge: "steps.key-leg.outputs.clean == 'true' || steps.credential.outputs.present == 'false'",
-    "judge-subscription": "steps.sub-leg.outputs.clean == 'true' || steps.credential.outputs.present == 'false' && steps.credential.outputs.fallback-ready == 'true'",
+    "assess-units": "steps.key-leg.outputs.clean == 'true' || steps.credential.outputs.present == 'false'",
+    "assess-units-subscription": "steps.sub-leg.outputs.clean == 'true' || steps.credential.outputs.present == 'false' && steps.credential.outputs.fallback-ready == 'true'",
   },
   reason: "${{ steps.credential.outputs.present == 'false' && 'no-key' || steps.judge.outputs.handoff-reason }}",
   fallbackReason: {
-    "judge-subscription": "${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'no-key' && 'no-key' || '' }}",
-    "judge-fallback": "${{ matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'no-key' && 'no-key' || '' }}",
+    "assess-units-subscription": "${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'no-key' && 'no-key' || '' }}",
+    "assess-units-fallback": "${{ matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'no-key' && 'no-key' || '' }}",
   },
 };
 
@@ -90,26 +91,27 @@ function chain(s, collect, decide, ifs) {
   const out = { started: [], legs: {} };
   const ctx = { "needs.collect.outputs.units": UNITS, ...collect, ...prefixed("secrets", Object.fromEntries(Object.entries(SECRETS).map(([k, n]) => [n, s[k] ? "set" : ""]))) };
   let routed = null;
-  if (runs(ifs.judge, ctx)) {
-    out.started.push("judge");
-    const r = decide("judge", "key", ctx, s, s.keyOutcome, "key-leg");
-    out.legs.judge = r.record;
+  if (runs(ifs.key, ctx)) {
+    out.started.push("assess-units");
+    const r = decide("assess-units", "key", ctx, s, s.keyOutcome, "key-leg");
+    out.legs["assess-units"] = r.record;
     routed = r.marker;
   }
-  ctx["needs.judge.result"] = out.started.includes("judge") ? "success" : "skipped";
+  // OLD.handoffs reads the key job under its old id, the workflow under its new one.
+  ctx["needs.assess-units.result"] = ctx["needs.judge.result"] = out.started.includes("assess-units") ? "success" : "skipped";
   if (!runs(ifs.handoffs, ctx)) return out;
-  out.started.push("judge-handoffs");
+  out.started.push("collect-key-handoffs");
   const route = { "steps.kill.outputs.proceed": "true", ...ctx };
   let reason = null;
   if (runs(ifs.download, route)) reason = routed?.reason ?? null;
   if (runs(ifs.routeSkipped, route)) reason = routeSkipped([UNIT]).include[0].reason;
   if (reason === null) return out;
-  out.started.push("judge-subscription");
-  const r = decide("judge-subscription", "subscription", { ...ctx, "inputs.matrix.reason": reason }, s, s.subOutcome, "sub-leg");
-  out.legs["judge-subscription"] = r.record;
+  out.started.push("assess-units-subscription");
+  const r = decide("assess-units-subscription", "subscription", { ...ctx, "inputs.matrix.reason": reason }, s, s.subOutcome, "sub-leg");
+  out.legs["assess-units-subscription"] = r.record;
   if (!r.marker) return out;
-  out.started.push("judge-fallback");
-  out.legs["judge-fallback"] = decide("judge-fallback", "fallback", { ...ctx, "inputs.matrix.reason": r.marker.reason }, s, { handoff: "", reason: "" }, "").record;
+  out.started.push("assess-units-fallback");
+  out.legs["assess-units-fallback"] = decide("assess-units-fallback", "fallback", { ...ctx, "inputs.matrix.reason": r.marker.reason }, s, { handoff: "", reason: "" }, "").record;
   return out;
 }
 
@@ -154,7 +156,7 @@ function newDecide(job, leg, ctx, s, outcome, check) {
 
 function oldRun(s) {
   const collect = { "needs.collect.outputs.skip-key": { ok: "false", skip: "true", failed: "" }[s.gate] };
-  return chain(s, collect, oldDecide, { judge: OLD.judge, handoffs: OLD.handoffs, download: OLD.download, routeSkipped: OLD.routeSkipped });
+  return chain(s, collect, oldDecide, { key: OLD.key, handoffs: OLD.handoffs, download: OLD.download, routeSkipped: OLD.routeSkipped });
 }
 
 function newRun(s) {
@@ -162,10 +164,10 @@ function newRun(s) {
   const outputs = wf.outputs("collect");
   const collect = { "needs.collect.outputs.next-leg": value(outputs["next-leg"], prefixed("steps.credit.outputs", start)) };
   return chain(s, collect, newDecide, {
-    judge: wf.jobIf("judge"),
-    handoffs: wf.jobIf("judge-handoffs"),
-    download: wf.step("judge-handoffs", "download").if,
-    routeSkipped: wf.step("judge-handoffs", "route-skipped").if,
+    key: wf.jobIf("assess-units"),
+    handoffs: wf.jobIf("collect-key-handoffs"),
+    download: wf.step("collect-key-handoffs", "download").if,
+    routeSkipped: wf.step("collect-key-handoffs", "route-skipped").if,
   });
 }
 
@@ -195,11 +197,11 @@ test("one unit starts the same legs with the same credential decisions as before
     shapes.add(before.started.join(","));
   }
   for (const shape of [
-    "judge,judge-handoffs",
-    "judge,judge-handoffs,judge-subscription",
-    "judge,judge-handoffs,judge-subscription,judge-fallback",
-    "judge-handoffs,judge-subscription",
-    "judge-handoffs,judge-subscription,judge-fallback",
+    "assess-units,collect-key-handoffs",
+    "assess-units,collect-key-handoffs,assess-units-subscription",
+    "assess-units,collect-key-handoffs,assess-units-subscription,assess-units-fallback",
+    "collect-key-handoffs,assess-units-subscription",
+    "collect-key-handoffs,assess-units-subscription,assess-units-fallback",
   ]) {
     assert.ok(shapes.has(shape), `reached ${shape}`);
   }
@@ -208,12 +210,12 @@ test("one unit starts the same legs with the same credential decisions as before
 
 test("a key leg that hit a denial hands its unit on to no leg, as before", () => {
   const s = { gate: "ok", resolves: true, key: true, sub: true, fallback: true, failAt: "none", keyOutcome: { handoff: "true", reason: "credit-stop", clean: false }, subOutcome: { handoff: "false", reason: "" } };
-  assert.deepEqual(newRun(s).started, ["judge", "judge-handoffs"]);
-  assert.deepEqual(newRun({ ...s, keyOutcome: { ...s.keyOutcome, clean: true } }).started, ["judge", "judge-handoffs", "judge-subscription"]);
+  assert.deepEqual(newRun(s).started, ["assess-units", "collect-key-handoffs"]);
+  assert.deepEqual(newRun({ ...s, keyOutcome: { ...s.keyOutcome, clean: true } }).started, ["assess-units", "collect-key-handoffs", "assess-units-subscription"]);
 });
 
 test("a failed marker upload after a clean handoff hands the unit on to no leg, as before", () => {
   const s = { gate: "ok", resolves: true, key: true, sub: true, fallback: true, failAt: "after-upload", keyOutcome: { handoff: "true", reason: "auth", clean: true }, subOutcome: { handoff: "false", reason: "" } };
   assert.deepEqual(newRun(s), oldRun(s));
-  assert.deepEqual(newRun(s).started, ["judge", "judge-handoffs"]);
+  assert.deepEqual(newRun(s).started, ["assess-units", "collect-key-handoffs"]);
 });

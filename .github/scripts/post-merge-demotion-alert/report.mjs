@@ -35,7 +35,7 @@ import { budgetedClient, pages } from "../lib/github-rest.mjs";
 const DAY_MS = 86_400_000;
 const FULL_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 const BOT = "github-actions[bot]";
-// github-actions[bot]'s numeric user id, which the alert job also trusts.
+// github-actions[bot]'s numeric user id, which the file-demotion-issue job also trusts.
 const BOT_ID = 41898282;
 const CANARY_RECORD = /^<!-- (?:babysit-merge-demotion|post-merge-failure) sha=([0-9a-f]{40}) signal=canary -->$/;
 

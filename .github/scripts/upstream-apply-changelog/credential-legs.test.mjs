@@ -25,11 +25,12 @@ const FALLBACK = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
 // The two chains: the model's legs and the scrub probe's. `record` is whether
 // a leg's lane record names a fallback reason (the probe's does not).
 const CHAINS = [
-  { legs: ["model", "model-subscription", "model-fallback"], launcher: "run", record: true },
-  { legs: ["scrub-probe", "scrub-probe-subscription", "scrub-probe-fallback"], launcher: "probe", record: false },
+  { legs: ["apply-changelog", "apply-changelog-subscription", "apply-changelog-fallback"], launcher: "run", record: true },
+  { legs: ["verify-env-scrub", "verify-env-scrub-subscription", "verify-env-scrub-fallback"], launcher: "probe", record: false },
 ];
 
-// The old conditions and reasons, at 5599e627fc.
+// The old conditions and reasons, at 5599e627fc, with each leg's job id
+// filled in; the gate job is select-release now.
 const OLD = ([key, sub]) => ({
   key: "needs.gate.outputs.proceed == 'true' && needs.gate.outputs.skip-key != 'true' && github.run_attempt == '1'",
   sub: `\${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1' && (needs.${key}.outputs.handoff == 'true' || needs.${key}.outputs.credential-present == 'false' || needs.gate.outputs.skip-key == 'true') }}`,
@@ -103,11 +104,11 @@ const prefixed = (prefix, map) => Object.fromEntries(Object.entries(map).map(([k
 
 function newChain(chain, s) {
   const gate = s.gate === "failed" ? {} : S.start({ skipKey: s.gate === "skip" });
-  const gateOutputs = wf.outputs("gate");
+  const gateOutputs = wf.outputs("select-release");
   const ctx = {
     "github.run_attempt": "1",
-    "needs.gate.outputs.proceed": s.proceed,
-    ...Object.fromEntries(["next-leg", "next-reason"].map((n) => [`needs.gate.outputs.${n}`, value(gateOutputs[n], prefixed("steps.credit.outputs", gate))])),
+    "needs.select-release.outputs.proceed": s.proceed,
+    ...Object.fromEntries(["next-leg", "next-reason"].map((n) => [`needs.select-release.outputs.${n}`, value(gateOutputs[n], prefixed("steps.credit.outputs", gate))])),
     [`secrets.${KEY}`]: s.key ? "set" : "",
     [`secrets.${TOKEN}`]: s.sub ? "set" : "",
     [`secrets.${FALLBACK}`]: s.fallback ? "set" : "",

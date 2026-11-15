@@ -12,7 +12,7 @@
 // holds a pull request, and the lanes path gets no label.
 //
 //   merge-path.mjs label --merged "<n>..." --reverted "<n>..."
-//     The alert job's canary pass: labels the push's merges and the pull
+//     The file-demotion-issue job's canary pass: labels the push's merges and the pull
 //     requests it reverts. Needs BASE_PATH (main's checkout, for the config),
 //     GITHUB_REPOSITORY and gh's token. Exits 1 when a label write failed.
 //   merge-path.mjs rollup --since <YYYY-MM-DD> --until <YYYY-MM-DD> [--repo <owner/repo>] [--json]

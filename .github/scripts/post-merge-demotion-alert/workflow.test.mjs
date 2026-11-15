@@ -14,15 +14,15 @@ const text = readFileSync(new URL("../../workflows/post-merge-file-demotion-issu
 const job = text.slice(text.indexOf("\n  report-red-main:\n"), text.indexOf("\n  close-cleared:\n"));
 
 test("the report job runs only after the alert, for a failed full run on main", () => {
-  assert.match(job, /\n {4}needs: \[alert\]\n/);
-  assert.match(job, /needs\.alert\.outputs\.name == 'PR Require Checks'/);
-  assert.match(job, /contains\(fromJSON\('\["schedule", "workflow_dispatch"\]'\), needs\.alert\.outputs\.event\)/);
-  assert.match(job, /needs\.alert\.outputs\.conclusion == 'failure'/);
-  assert.match(job, /needs\.alert\.outputs\.branch == 'main'/);
-  assert.match(job, /needs\.alert\.outputs\.repo == github\.repository/);
+  assert.match(job, /\n {4}needs: \[file-demotion-issue\]\n/);
+  assert.match(job, /needs\.file-demotion-issue\.outputs\.name == 'PR Require Checks'/);
+  assert.match(job, /contains\(fromJSON\('\["schedule", "workflow_dispatch"\]'\), needs\.file-demotion-issue\.outputs\.event\)/);
+  assert.match(job, /needs\.file-demotion-issue\.outputs\.conclusion == 'failure'/);
+  assert.match(job, /needs\.file-demotion-issue\.outputs\.branch == 'main'/);
+  assert.match(job, /needs\.file-demotion-issue\.outputs\.repo == github\.repository/);
 });
 
-test("the report reads the run from the alert job's outputs, never the event, so a dispatch reaches it", () => {
+test("the report reads the run from the file-demotion-issue job's outputs, never the event, so a dispatch reaches it", () => {
   assert.doesNotMatch(job, /github\.event\.workflow_run/);
   for (const [env, output] of [
     ["RUN_ID", "id"],
@@ -31,9 +31,9 @@ test("the report reads the run from the alert job's outputs, never the event, so
     ["RUN_WORKFLOW_ID", "workflow-id"],
     ["RUN_CREATED", "created"],
   ]) {
-    assert.match(job, new RegExp(`\\n {10}${env}: \\$\\{\\{ needs\\.alert\\.outputs\\.${output} \\}\\}\\n`));
+    assert.match(job, new RegExp(`\\n {10}${env}: \\$\\{\\{ needs\\.file-demotion-issue\\.outputs\\.${output} \\}\\}\\n`));
   }
-  const alert = text.slice(text.indexOf("\n  alert:\n"), text.indexOf("\n  report-red-main:\n"));
+  const alert = text.slice(text.indexOf("\n  file-demotion-issue:\n"), text.indexOf("\n  report-red-main:\n"));
   for (const output of [
     "name",
     "event",
@@ -51,14 +51,14 @@ test("the report reads the run from the alert job's outputs, never the event, so
 });
 
 test("no report runs when the judge excused the run", () => {
-  assert.match(job, /needs\.alert\.outputs\.excused != 'true'/);
-  const alert = text.slice(text.indexOf("\n  alert:\n"), text.indexOf("\n  report-red-main:\n"));
+  assert.match(job, /needs\.file-demotion-issue\.outputs\.excused != 'true'/);
+  const alert = text.slice(text.indexOf("\n  file-demotion-issue:\n"), text.indexOf("\n  report-red-main:\n"));
   assert.match(alert, /\n {6}excused: \$\{\{ steps\.file\.outputs\.excused \}\}\n/);
 });
 
 test("no report runs when the alert found main already recovered", () => {
-  assert.match(job, /needs\.alert\.outputs\.recovered != 'true'/);
-  const alert = text.slice(text.indexOf("\n  alert:\n"), text.indexOf("\n  report-red-main:\n"));
+  assert.match(job, /needs\.file-demotion-issue\.outputs\.recovered != 'true'/);
+  const alert = text.slice(text.indexOf("\n  file-demotion-issue:\n"), text.indexOf("\n  report-red-main:\n"));
   assert.match(alert, /\n {6}recovered: \$\{\{ steps\.file\.outputs\.recovered \}\}\n/);
   assert.match(alert, /\n {8}id: file\n/);
 });
@@ -111,7 +111,7 @@ test("the run step takes every event field through env", () => {
 // every sighting of one signal and SHA must wait on the others: a dispatch
 // and a workflow_run event of the same run, and two runs of one SHA.
 test("the alert's group keys on signal and head SHA, the same for a dispatch and a workflow_run event", () => {
-  const alert = text.slice(text.indexOf("\n  alert:\n"), text.indexOf("\n  report-red-main:\n"));
+  const alert = text.slice(text.indexOf("\n  file-demotion-issue:\n"), text.indexOf("\n  report-red-main:\n"));
   const block = /\n {4}concurrency:\n {6}group: (.*)\n {6}cancel-in-progress: false\n/.exec(alert);
   assert.ok(block, "a job-level concurrency block that cancels nothing");
   assert.doesNotMatch(block[1], /workflow_run\.id|run-id/);
@@ -137,15 +137,15 @@ test("reports run one at a time across the repository, so two cannot both read t
   assert.match(job, /\n {4}concurrency:\n {6}group: red-main-report\n {6}cancel-in-progress: false\n/);
 });
 
-// The alert job's `if` skips, before any checkout, exactly the workflow_run
+// The file-demotion-issue job's `if` skips, before any checkout, exactly the workflow_run
 // events the file step would exit 0 on. Both sides come from the workflow:
 // the `if` is evaluated as written, and the step's own bash runs up to its
 // first action (`newly=''`). A signal, conclusion or attempt rule added to
 // one side and not the other fails here.
 test("the alert's job if admits exactly the workflow_run events the file step acts on", () => {
-  const alert = text.slice(text.indexOf("\n  alert:\n"), text.indexOf("\n  report-red-main:\n"));
+  const alert = text.slice(text.indexOf("\n  file-demotion-issue:\n"), text.indexOf("\n  report-red-main:\n"));
   const folded = /\n {4}if: >-\n((?: {6}.*\n)+)/.exec(alert);
-  assert.ok(folded, "the alert job has a folded if:");
+  assert.ok(folded, "the file-demotion-issue job has a folded if:");
   const expr = folded[1]
     .split("\n")
     .map((line) => line.trim())

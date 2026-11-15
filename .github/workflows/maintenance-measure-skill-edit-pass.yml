@@ -15,8 +15,8 @@ name: Maintenance Measure Skill Edit Pass
 # model text, goes to a file that nothing uploads.
 #
 # The pass runs on the maintenance role's credential chain, one credential
-# per job: `pass` on MAINTENANCE_CLAUDE_API_KEY, then `pass-subscription` on
-# MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN, then `pass-fallback` on
+# per job: `run-eval` on MAINTENANCE_CLAUDE_API_KEY, then `run-eval-subscription` on
+# MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN, then `run-eval-fallback` on
 # FALLBACK_CLAUDE_CODE_OAUTH_TOKEN. A leg hands off on the stops run-claude-cli
 # hands off on (eval-handoff.mjs reads the probe's stream and every errored
 # run's kept trace with run-claude-cli's own classifier): the key leg on a
@@ -24,7 +24,7 @@ name: Maintenance Measure Skill Edit Pass
 # is set, also on a limit stop; an empty credential hands off too. A leg that
 # hands off uploads nothing, so the pass's outputs are the one leg that
 # finished. Each leg's credential and the leg after it come from ci-workflows
-# select-model-credential; the gate job's start call skips the key after a
+# select-model-credential; the check-key-credit job's start call skips the key after a
 # recent credit stop.
 #
 # The pass uploads only what pr-run-plugin-evals.yml uploads, its result
@@ -85,10 +85,10 @@ on:
     outputs:
       artifact-id:
         description: The pass artifact's id, from the leg that finished the pass.
-        value: ${{ jobs.pass-fallback.outputs.artifact-id || jobs.pass-subscription.outputs.artifact-id || jobs.pass.outputs.artifact-id }}
+        value: ${{ jobs.run-eval-fallback.outputs.artifact-id || jobs.run-eval-subscription.outputs.artifact-id || jobs.run-eval.outputs.artifact-id }}
       manifest-sha256:
         description: SHA-256 of that artifact's manifest.sha256.
-        value: ${{ jobs.pass-fallback.outputs.manifest-sha256 || jobs.pass-subscription.outputs.manifest-sha256 || jobs.pass.outputs.manifest-sha256 }}
+        value: ${{ jobs.run-eval-fallback.outputs.manifest-sha256 || jobs.run-eval-subscription.outputs.manifest-sha256 || jobs.run-eval.outputs.manifest-sha256 }}
 
 permissions: {}
 
@@ -99,8 +99,8 @@ jobs:
   # subscription leg, and the pass starts on the subscription, with no
   # refused key attempt first. No secret, no model, no checkout; every
   # failure runs the key. Probing is off.
-  gate:
-    name: Gate
+  check-key-credit:
+    name: Check Key Credit
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -138,12 +138,12 @@ jobs:
 
   # The key leg: the pass on the maintenance role's API key alone. A credit
   # stop, or a 401 or 402, in the probe or in any run hands the pass to
-  # pass-subscription, and this leg uploads nothing. An empty key, or one
-  # the gate skipped, runs nothing here.
-  pass:
-    name: Pass
-    needs: gate
-    if: ${{ !cancelled() && needs.gate.result == 'success' }}
+  # run-eval-subscription, and this leg uploads nothing. An empty key, or one
+  # check-key-credit skipped, runs nothing here.
+  run-eval:
+    name: Run Eval
+    needs: check-key-credit
+    if: ${{ !cancelled() && needs.check-key-credit.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -189,7 +189,7 @@ jobs:
 
       # Only whether each secret is set reaches the action, never its value.
       # `present` is whether this leg runs the pass: the key is set and the
-      # gate did not name the subscription leg.
+      # check-key-credit did not name the subscription leg.
       - name: Check the credential
         id: credential
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
@@ -197,7 +197,7 @@ jobs:
           leg: key
           role: maintenance
           credential-set: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
-          selected: ${{ needs.gate.outputs.next-leg }}
+          selected: ${{ needs.check-key-credit.outputs.next-leg }}
 
       - name: Download the edit
         if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
@@ -478,11 +478,11 @@ jobs:
       # names (check-key-credit gate.cjs markerName), uploaded only after the
       # key leg's credit-stop handoff. The name carries the caller workflow's
       # file, since a called workflow's github context is the caller's, and is
-      # written out so its retention row claims it. pass-a and pass-a2 can both
+      # written out so its retention row claims it. measure-baseline and measure-baseline-again can both
       # upload it in one run, so a failed upload never fails the job.
       - name: Write the key's credit-stop marker
         id: credit-marker
-        if: always() && needs.gate.outputs.marker == 'key-credit-stop-maintenance-measure-skill-edit.yml-pass' && steps.judge.outputs.handoff-reason == 'credit-stop'
+        if: always() && needs.check-key-credit.outputs.marker == 'key-credit-stop-maintenance-measure-skill-edit.yml-pass' && steps.judge.outputs.handoff-reason == 'credit-stop'
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -545,16 +545,16 @@ jobs:
   # The subscription leg: the key leg's steps on a fresh runner, on the
   # maintenance role's subscription token alone, with no credit-stop marker.
   # With FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, a limit stop, a credit stop,
-  # or a 401 or 402 hands off to pass-fallback, and so does an empty token;
+  # or a 401 or 402 hands off to run-eval-fallback, and so does an empty token;
   # with both tokens empty the job fails. callers.test.mjs holds its steps
   # equal to the key leg's but for the credential, that stop and the leg
   # record's fallback reason.
-  pass-subscription:
-    name: Pass Subscription
-    needs: [gate, pass]
+  run-eval-subscription:
+    name: Run Eval Subscription
+    needs: [check-key-credit, run-eval]
     if: >-
-      ${{ !cancelled() && needs.gate.result == 'success'
-      && (needs.pass.outputs.next-leg == 'subscription' || needs.gate.outputs.next-leg == 'subscription') }}
+      ${{ !cancelled() && needs.check-key-credit.result == 'success'
+      && (needs.run-eval.outputs.next-leg == 'subscription' || needs.check-key-credit.outputs.next-leg == 'subscription') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -608,7 +608,7 @@ jobs:
           role: maintenance
           credential-set: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: ${{ needs.pass.outputs.next-reason || needs.gate.outputs.next-reason }}
+          reason: ${{ needs.run-eval.outputs.next-reason || needs.check-key-credit.outputs.next-reason }}
 
       # With both tokens empty no leg can run the pass, so the job fails.
       - name: Stop when no token is set
@@ -893,10 +893,10 @@ jobs:
   # The fallback leg: the same steps on the central fallback token, after
   # the subscription leg handed off or found its token empty, and only when
   # the fallback token is set. It is the last leg and never hands off.
-  pass-fallback:
-    name: Pass Fallback
-    needs: [gate, pass-subscription]
-    if: ${{ !cancelled() && needs.pass-subscription.outputs.next-leg == 'fallback' }}
+  run-eval-fallback:
+    name: Run Eval Fallback
+    needs: [check-key-credit, run-eval-subscription]
+    if: ${{ !cancelled() && needs.run-eval-subscription.outputs.next-leg == 'fallback' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -948,7 +948,7 @@ jobs:
           leg: fallback
           role: maintenance
           credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: ${{ needs.pass-subscription.outputs.next-reason }}
+          reason: ${{ needs.run-eval-subscription.outputs.next-reason }}
 
       - name: Download the edit
         if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'

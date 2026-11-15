@@ -61,13 +61,16 @@ const BROWSER_EVENT =
 
 // The old conditions, reasons and credential steps, at 5599e627fc. `failsEmpty`
 // is whether a leg's credential step failed its job on an empty token, which
-// left its outputs unwritten.
+// left its outputs unwritten. `oldGate` and `oldLegs` are the job ids the old
+// expressions name, where a job was renamed since.
 const WORKFLOWS = [
   {
     file: "maintenance-measure-skill-edit-pass.yml",
     wf: cached(workflowText(HILL)),
-    gate: "gate",
-    legs: ["pass", "pass-subscription", "pass-fallback"],
+    gate: "check-key-credit",
+    legs: ["run-eval", "run-eval-subscription", "run-eval-fallback"],
+    oldGate: "gate",
+    oldLegs: ["pass", "pass-subscription", "pass-fallback"],
     old: {
       key: "${{ !cancelled() && needs.gate.result == 'success' }}",
       sub: "${{ !cancelled() && needs.gate.result == 'success' && (needs.pass.outputs.handoff == 'true' || needs.pass.outputs.credential-present == 'false' || needs.gate.outputs.skip-key == 'true') }}",
@@ -149,7 +152,9 @@ const bool = (v) => v === "true";
 function oldChain(w, s) {
   const o = w.old;
   const [keyId, subId, fbId] = w.legs;
-  const ctx = { ...GITHUB, [`needs.${w.gate}.result`]: s.gateResult, [`needs.${w.gate}.outputs.skip-key`]: { ok: "false", skip: "true", failed: "" }[s.gate] };
+  const [oldKey, oldSub, oldFb] = w.oldLegs ?? w.legs;
+  const gate = w.oldGate ?? w.gate;
+  const ctx = { ...GITHUB, [`needs.${gate}.result`]: s.gateResult, [`needs.${gate}.outputs.skip-key`]: { ok: "false", skip: "true", failed: "" }[s.gate] };
   const out = { started: [], legs: {} };
   const set = { key: s.key, subscription: s.sub, fallback: s.fallback };
   const step = (leg) => {
@@ -157,11 +162,11 @@ function oldChain(w, s) {
     if (failAt === "before-credential") return { failed: false, outputs: {} };
     const present = String(set[leg]);
     if (o.failsEmpty[leg] && !set[leg] && (leg === "fallback" || !s.fallback)) return { failed: true, outputs: {} };
-    if (leg === "key") return { failed: false, outputs: { present, run: String(set.key && ctx[`needs.${w.gate}.outputs.skip-key`] !== "true") } };
+    if (leg === "key") return { failed: false, outputs: { present, run: String(set.key && ctx[`needs.${gate}.outputs.skip-key`] !== "true") } };
     if (leg === "subscription") return { failed: false, outputs: { present, run: present, "fallback-ready": String(s.fallback) } };
     return { failed: false, outputs: { present, run: present } };
   };
-  const leg = (id, name, reasonExpr) => {
+  const leg = (id, oldId, name, reasonExpr) => {
     out.started.push(id);
     const { failed, outputs } = step(name);
     const j = judge(name, bool(outputs.run), outputs["fallback-ready"] ?? "", s.failAt[name], s.facts[name]);
@@ -172,15 +177,15 @@ function oldChain(w, s) {
       failed,
     };
     Object.assign(ctx, {
-      [`needs.${id}.outputs.handoff`]: j.handoff,
-      [`needs.${id}.outputs.handoff-reason`]: j.reason,
-      [`needs.${id}.outputs.credential-present`]: outputs.present ?? "",
-      [`needs.${id}.outputs.fallback-ready`]: outputs["fallback-ready"] ?? "",
+      [`needs.${oldId}.outputs.handoff`]: j.handoff,
+      [`needs.${oldId}.outputs.handoff-reason`]: j.reason,
+      [`needs.${oldId}.outputs.credential-present`]: outputs.present ?? "",
+      [`needs.${oldId}.outputs.fallback-ready`]: outputs["fallback-ready"] ?? "",
     });
   };
-  if (runs(cond(o.key), ctx)) leg(keyId, "key", "");
-  if (runs(o.sub, ctx)) leg(subId, "subscription", o.subReason);
-  if (runs(o.fallback, ctx)) leg(fbId, "fallback", o.fallbackReason);
+  if (runs(cond(o.key), ctx)) leg(keyId, oldKey, "key", "");
+  if (runs(o.sub, ctx)) leg(subId, oldSub, "subscription", o.subReason);
+  if (runs(o.fallback, ctx)) leg(fbId, oldFb, "fallback", o.fallbackReason);
   return out;
 }
 

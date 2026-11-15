@@ -21,11 +21,13 @@ const S = await loadSelect(selectPin(TEXT));
 const KEY = "AUTOMATIONS_CLAUDE_API_KEY";
 const TOKEN = "AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN";
 const FALLBACK = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
-const LEGS = ["model", "model-subscription", "model-fallback"];
+const LEGS = ["sweep-areas", "sweep-areas-subscription", "sweep-areas-fallback"];
 
-// The old conditions and reasons, at 5599e627fc. model-fallback's had no
-// fallback-ready term: an empty subscription token started it whatever the
-// fallback token held.
+// The old conditions and reasons, at 5599e627fc, under the job ids of that
+// commit (gate and the model legs, since renamed to select-areas and the
+// sweep-areas legs). model-fallback's had no fallback-ready term: an empty
+// subscription token started it whatever the fallback token held.
+const OLD_LEGS = ["model", "model-subscription", "model-fallback"];
 const OLD = {
   key: "needs.gate.outputs.proceed == 'true' && needs.gate.outputs.skip-key != 'true' && github.run_attempt == '1'",
   sub: "${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1' && (needs.model.outputs.handoff == 'true' || needs.model.outputs.credential-present == 'false' || needs.gate.outputs.skip-key == 'true') }}",
@@ -45,12 +47,13 @@ function oldChain(s) {
   const ctx = { "github.run_attempt": "1", "needs.gate.outputs.proceed": s.proceed, "needs.gate.outputs.skip-key": { ok: "false", skip: "true", failed: "" }[s.gate] };
   const out = { started: [], legs: {} };
   const [key, sub, fb] = LEGS;
+  const [oldKey, oldSub] = OLD_LEGS;
   if (runs(OLD.key, ctx)) {
     out.started.push(key);
     const present = s.resolves ? String(s.key) : "";
     const leg = ran(present, s.failAt, s.keyOutcome);
     out.legs[key] = { present };
-    Object.assign(ctx, prefixed(`needs.${key}.outputs`, { handoff: leg.handoff, "handoff-reason": leg["handoff-reason"], "credential-present": present }));
+    Object.assign(ctx, prefixed(`needs.${oldKey}.outputs`, { handoff: leg.handoff, "handoff-reason": leg["handoff-reason"], "credential-present": present }));
   }
   if (runs(OLD.sub, ctx)) {
     out.started.push(sub);
@@ -58,7 +61,7 @@ function oldChain(s) {
     const ready = s.resolves ? String(s.fallback) : "";
     const leg = ran(present, s.failAt, s.subOutcome);
     out.legs[sub] = { present, "fallback-ready": ready, ...(legRan(present, s.failAt) && { "fallback-reason": value(OLD.subReason, ctx) }) };
-    Object.assign(ctx, prefixed(`needs.${sub}.outputs`, { handoff: leg.handoff, "handoff-reason": leg["handoff-reason"], "credential-present": present }));
+    Object.assign(ctx, prefixed(`needs.${oldSub}.outputs`, { handoff: leg.handoff, "handoff-reason": leg["handoff-reason"], "credential-present": present }));
   }
   if (runs(OLD.fallback, ctx)) {
     out.started.push(fb);
@@ -94,11 +97,11 @@ function newLeg(id, legName, ctx, s, outcome) {
 
 function newChain(s) {
   const gate = s.gate === "failed" ? {} : S.start({ skipKey: s.gate === "skip" });
-  const gateOutputs = wf.outputs("gate");
+  const gateOutputs = wf.outputs("select-areas");
   const ctx = {
     "github.run_attempt": "1",
-    "needs.gate.outputs.proceed": s.proceed,
-    ...Object.fromEntries(["next-leg", "next-reason"].map((n) => [`needs.gate.outputs.${n}`, value(gateOutputs[n], prefixed("steps.credit.outputs", gate))])),
+    "needs.select-areas.outputs.proceed": s.proceed,
+    ...Object.fromEntries(["next-leg", "next-reason"].map((n) => [`needs.select-areas.outputs.${n}`, value(gateOutputs[n], prefixed("steps.credit.outputs", gate))])),
     [`secrets.${KEY}`]: s.key ? "set" : "",
     [`secrets.${TOKEN}`]: s.sub ? "set" : "",
     [`secrets.${FALLBACK}`]: s.fallback ? "set" : "",
@@ -164,7 +167,7 @@ test("a step that fails after a handoff still starts the next leg, as the old jo
   assert.deepEqual(newChain(s).started, LEGS.slice(0, 2));
 });
 
-test("an empty subscription token starts model-fallback even with the fallback token empty, as before", () => {
+test("an empty subscription token starts sweep-areas-fallback even with the fallback token empty, as before", () => {
   const s = { proceed: "true", gate: "ok", resolves: true, key: false, sub: false, fallback: false, failAt: "none", keyOutcome: { handoff: "", reason: "" }, subOutcome: { handoff: "", reason: "" } };
   assert.deepEqual(newChain(s), oldChain(s));
   assert.deepEqual(newChain(s).started, LEGS);

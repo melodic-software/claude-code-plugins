@@ -1215,7 +1215,7 @@ test("with two tokens, many counters and a content write, every counting line is
 test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-budget step", () => {
   const jobs = {
     // apply-verdict's resolve-config reads with the job token, recorded under github-token.
-    "intake-triage.yml": { "born-triaged": "github-token", "apply-verdict": ["lanes-app", "lanes-app github-token"], "refine-select": "github-token", "apply-refinement": "lanes-app" },
+    "intake-triage.yml": { "check-born-triaged": "github-token", "apply-verdict": ["lanes-app", "lanes-app github-token"], "refine-select": "github-token", "apply-refinement": "lanes-app" },
     "work-resolve-issue.yml": { admit: "github-token", "pick-slot": "github-token", "report-statuses": "github-token" },
     "pr-verify.yml": { "check-intent": "github-token", "check-intent-subscription": "github-token", "check-intent-fallback": "github-token" },
     // label-unblocked's ACTIONS_TOKEN client records under github-token, so
@@ -1223,11 +1223,11 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "work-unblock.yml": { "label-unblocked": ["lanes-app", "lanes-app github-token"], "sync-status": ["lanes-app", "lanes-app github-token"] },
     "pr-merge.yml": { "dispatch-post-merge-runs": "github-token" },
     "intake-reenter.yml": { reenter: "github-token" },
-    "intake-label-outside-actor-activity.yml": { flag: "github-token" },
+    "intake-label-outside-actor-activity.yml": { "label-outside-actor": "github-token" },
     "pr-dispatch-feedback.yml": { "post-verify-notes": "github-token", dispatch: "github-token", "rerun-ci-status": "github-token" },
     "post-merge-test-mutation.yml": { report: "github-token" },
     "pr-refine.yml": { "fix-docs-head": "github-token" },
-    "post-merge-file-demotion-issues.yml": { alert: "github-token", "report-red-main": "github-token" },
+    "post-merge-file-demotion-issues.yml": { "file-demotion-issue": "github-token", "report-red-main": "github-token" },
     // Every step job but the handoff jobs, whose shape callers.test.mjs pins.
     "pr-unblock.yml": Object.fromEntries(
       ["resolve-conflicts-not-run", "check-conflict-scan-refusal", "address-feedback-not-run", "review-dependency-not-run", "fix-ci-not-run", "fix-ci-unreported", "report-stop-status"].map((job) => [job, "github-token"]),
@@ -1239,20 +1239,20 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "pr-run-activity-read.yml": { "broker-check": "github-token", "check-issue-fields": "github-token", "generate-reuse-summary": "github-token", report: "github-token" },
     "pr-run-activity-write.yml": { report: "github-token" },
     "maintenance-tidy-code-upkeep.yml": {
-      gate: "github-token",
+      "select-areas": "github-token",
       scan: "github-token",
       "push-branches": ["lanes-app", "lanes-app github-token"],
       publish: ["lanes-app", "lanes-app github-token"],
     },
     "upstream-apply-changelog.yml": {
-      gate: "github-token",
+      "select-release": "github-token",
       scan: "github-token",
       "push-branches": ["lanes-app", "lanes-app github-token"],
       publish: ["lanes-app", "lanes-app github-token"],
     },
     "maintenance-measure-skill-edit.yml": {
-      gate: "github-token",
-      propose: "github-token",
+      "check-inputs": "github-token",
+      "generate-edit": "github-token",
       "push-branch": ["lanes-app", "lanes-app github-token"],
       publish: ["lanes-app", "lanes-app github-token"],
     },
@@ -1279,12 +1279,12 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
 // A job's shell steps call gh through api-budget.bash's wrapper, so the
 // job-end step has their readings to count; a step that sends gh before it
 // wraps would leave those calls out.
-test("each shell step in the demotion alert job that calls gh wraps it first", () => {
+test("each shell step in the file-demotion-issue job that calls gh wraps it first", () => {
   const text = readFileSync(new URL("../../workflows/post-merge-file-demotion-issues.yml", import.meta.url), "utf8");
-  const block = /\n  alert:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "";
+  const block = /\n  file-demotion-issue:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "";
   const wrap = "{ . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true";
   const calling = block.split(/\n {6}- name: /).filter((step) => /^ {10}[^#\n]*\bgh api\b/m.test(step));
-  assert.ok(calling.length >= 2, "the alert job's gh-calling steps are found");
+  assert.ok(calling.length >= 2, "the file-demotion-issue job's gh-calling steps are found");
   for (const step of calling) {
     const run = step.indexOf("        run: |\n");
     assert.ok(run > 0, `${step.split("\n")[0]} is a run step`);
@@ -1336,7 +1336,7 @@ test("intake-triage's dispatch jobs end with their own api-calls notice in the e
   withDir((dir) => {
     const shape = execFileSync("bash", ["-c", `. "${LIB}"; api_budget_emit_calls github-token`], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, TMPDIR: dir } });
     const env = { RUNNER_TEMP: dir, TMPDIR: dir };
-    for (const job of ["redispatch-refined", "triage-split-children"]) {
+    for (const job of ["dispatch-refined-triage", "triage-split-children"]) {
       rmSync(join(dir, "intake-dispatch-calls"), { force: true });
       assert.equal(lastRun("intake-triage.yml", job, env), shape, `${job}: no count file is 0`);
       writeFileSync(join(dir, "intake-dispatch-calls"), "3\n");
@@ -1349,7 +1349,7 @@ test("intake-triage's dispatch jobs end with their own api-calls notice in the e
     const bin = join(dir, "bin");
     mkdirSync(bin);
     for (const [job, step, extra, sent, gh] of [
-      ["redispatch-refined", "Triage the refined issue again", { ISSUE_NUMBER: "7" }, "1", "exit 0"],
+      ["dispatch-refined-triage", "Triage the refined issue again", { ISSUE_NUMBER: "7" }, "1", "exit 0"],
       ["triage-split-children", "Triage each sub-issue", { CHILDREN: "4 5 6" }, "3", "exit 0"],
       ["triage-split-children", "Triage each sub-issue", { CHILDREN: "4 5 6" }, "1", "exit 1"],
     ]) {
@@ -1408,11 +1408,11 @@ test("each activity run job logs its budget right before the head checkout and n
   }
 });
 
-// post-merge-test-mutation's prep job reads the range artifact through
+// post-merge-test-mutation's check-range job reads the range artifact through
 // download-artifact's own client, named so its count reads as a floor.
-test("post-merge-test-mutation's prep job ends with the log step, naming the range download", () => {
+test("post-merge-test-mutation's check-range job ends with the log step, naming the range download", () => {
   const text = readFileSync(new URL("../../workflows/post-merge-test-mutation.yml", import.meta.url), "utf8");
-  const block = /\n  prep:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "";
+  const block = /\n  check-range:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "";
   assert.match(block, /\n {12}\/\.github\/actions\/log-api-budget\/\n/, "the sparse checkout holds the action");
   const last = block.split(/\n {6}- name: /).at(-1).replace(/(\n *(#[^\n]*)?)+$/, "");
   assert.equal(
@@ -1432,7 +1432,7 @@ test("each job that holds the job token and calls no guarded client ends with th
     "pr-test-platforms.yml": Object.fromEntries(windows.map((job) => [job, "./"])),
     "post-merge-detect-silent-revert.yml": { "detect-silent-revert": "./" },
     "release-publish-plugins.yml": { merge: "./", build: "./" },
-    "release-generate-dependabot-changelog-fragments.yml": { write: "./" },
+    "release-generate-dependabot-changelog-fragments.yml": { "generate-changelog-fragments": "./" },
     "pr-require-checks.yml": { "lint-repo": "./", "lint-shell": "./", "check-plugins": "./", "check-skills": "./" },
   };
   for (const [file, byJob] of Object.entries(jobs)) {
