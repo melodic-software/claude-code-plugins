@@ -28,7 +28,8 @@
 # judged; the wrapper script's own words are never posting words. Under the
 # Bash tool, a literal `--attach` operand is judged by what gh posts from it:
 # the text after its first `#` and its base name, so its source directory is
-# exempt. The whole command is not read
+# exempt, unless that text holds `/` or `\`: then it is judged with the whole
+# operand. The whole command is not read
 # for paths: it names the wrapper, the working directory and the body file.
 #
 # STAYS QUIET on a command that posts nothing to GitHub (a `gh api` GET, a
@@ -196,9 +197,16 @@ if ((_bgpc_paths)); then
       # gh posts the alt text, which starts after some `#` (the text after the
       # first covers every split gh may pick), or by default the file's base
       # name, split on `/` only (a Windows bash keeps the stricter split).
+      # An alt text holding `/` or `\` may hold a path after a character the
+      # path patterns do not accept as a left boundary, so it is judged with
+      # the whole operand.
       _bgpc_b="${_bgpc_t##*/}"
       if [[ "$_bgpc_t" == *'#'* ]]; then
-        _bgpc_t="${_bgpc_t#*#}"$'\n'"$_bgpc_b"
+        if [[ "${_bgpc_t#*#}" == *[/\\]* ]]; then
+          _bgpc_t+=$'\n'"${_bgpc_t#*#}"
+        else
+          _bgpc_t="${_bgpc_t#*#}"$'\n'"$_bgpc_b"
+        fi
       else
         _bgpc_t="$_bgpc_b"
       fi
