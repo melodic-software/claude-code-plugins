@@ -57,6 +57,11 @@ A loosening fails unless the spec allows it:
   test and gives the reason it is quarantined. Any other check set to soft-fail fails, with or
   without a reason in the spec.
 
+A loosening the spec allows gets no finding at any tier: say that it passes and why, and raise
+nothing, a suggestion included, that asks the change to undo it, narrow it or grant it another way.
+The spec decided it; a doubt about that decision is one line for the spec's author, outside the
+findings.
+
 `loosened_check_verdict` sets what a failing loosening is. `fail`, the default: a blocking finding,
 reported at the highest tier of the severity vocabulary as it stands on the default branch
 (CRITICAL, the plugin baseline's highest tier, when the project has none), whatever the change's own
