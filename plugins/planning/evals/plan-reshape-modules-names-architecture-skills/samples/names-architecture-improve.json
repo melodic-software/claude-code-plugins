@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "Prerequisites: the Brief is established. Other skills that apply: /planning:design for the module boundary, and /architecture:improve (if enabled), since the plan reshapes an existing module no scan chose."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Prerequisites: the Brief is established. Other skills that apply: /planning:design for the module boundary."
+    }
+  ]
+}
