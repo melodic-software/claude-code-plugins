@@ -3,6 +3,13 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.2] - 2026-11-15
+
+### Changed
+
+- The simulation references settle counts that disagreed between files (personas, events per persona, focal moments, legend size, sticky spacing) and use a random temp directory for the extracted book.
+- The methodology skill uses the notation table's colors throughout, drops a fixed search quota, and names the run-state file the iteration workflow actually writes.
+
 ## [0.8.1] - 2026-11-14
 
 ### Changed

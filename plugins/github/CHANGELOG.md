@@ -3,6 +3,12 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.6] - 2026-11-15
+
+### Changed
+
+- The audit skill describes all three conventions layers, the personal override included, and the security-posture recipe states answering every applicable item as a requirement rather than a hedge.
+
 ## [0.5.5] - 2026-11-12
 
 ### Changed

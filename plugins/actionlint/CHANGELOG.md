@@ -3,6 +3,12 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.11] - 2026-11-15
+
+### Changed
+
+- The setup skill's text drops capital-letter emphasis; what it does and does not do is unchanged.
+
 ## [1.1.10] - 2026-11-15
 
 ### Changed

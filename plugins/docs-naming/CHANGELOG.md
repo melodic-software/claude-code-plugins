@@ -3,6 +3,12 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.15] - 2026-11-15
+
+### Changed
+
+- The setup skill says plainly which action interviews for a missing key, and states resolver behavior in the present tense.
+
 ## [0.7.14] - 2026-11-13
 
 ### Changed
