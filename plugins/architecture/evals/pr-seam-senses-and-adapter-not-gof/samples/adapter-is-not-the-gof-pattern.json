@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "An adapter is the code plugged in at a seam, not the Gang of Four Adapter pattern."
+    },
+    {
+      "answer": "The Gang of Four Adapter converts one interface into another; the adapter here may convert nothing, so it is not that pattern."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes. An adapter is the Gang of Four Adapter pattern applied at a seam."
+    },
+    {
+      "answer": "An adapter is the code plugged in at a seam, named for the slot it fills."
+    }
+  ]
+}

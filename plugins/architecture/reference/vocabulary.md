@@ -50,8 +50,28 @@ running example it is the `TaxRates` port: production plugs in the rates-service
 in `DictTaxRates`. A module's interface sits wherever its seam sits. Not: boundary, a word
 domain-driven design already spends on bounded contexts.
 
+Every seam has an **enabling point**, the place where the choice of adapter is made (Feathers,
+same chapter). Here it is the argument through which `TaxCalculator` receives its `TaxRates`. A
+spot with no enabling point is not a seam: nothing can be swapped there without an edit.
+
+This is the module-design sense, the only one an architecture finding uses. This marketplace's own
+documents give the word four other defined senses, each in its own file:
+
+- a presence-gated reference from one plugin to another
+  ([seam phrasing](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/seam-phrasing/README.md));
+- the provider-neutral interface to a work-item tracker
+  ([tracker seam](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/work-items/reference/tracker-seam.md));
+- the autonomy plugin's binding and runner interfaces
+  ([binding seam](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/autonomy/reference/binding-seam.md),
+  [runner seams](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/autonomy/reference/runner/seams.md));
+- the four channels through which a consumer configures a plugin
+  ([extensibility contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/migration-playbook.md#extensibility-contract-v21-the-four-seams)).
+
 **Adapter**: the code plugged in at a seam. It is named for the slot it fills (the rates-service
-adapter, the dictionary adapter), not for the work it does inside.
+adapter, the dictionary adapter), not for the work it does inside. Not: the Gang of Four Adapter
+pattern, whose intent is to "convert the interface of a class into another interface clients
+expect" (Gamma, Helm, Johnson and Vlissides, *Design Patterns*, 1994). An adapter here may convert
+nothing.
 
 ## Judging a module
 
@@ -77,6 +97,21 @@ of the three callers changes.
 | Adapter | occupies a seam, fulfilling its interface |
 | Depth | belongs to a module and is judged against its interface |
 | Leverage, locality | are what depth produces, for callers and maintainers respectively |
+
+## Architecture styles
+
+A style is a rule for where a system's modules and seams go. It adds no term to the eight above,
+and a finding about a styled codebase still uses them. Two styles by name:
+
+- **Modular monolith**: one deployment unit made of modules, each independent, holding everything
+  one business area needs, and reached only through a defined interface (Kamil Grzybek,
+  [Modular Monolith: A Primer](https://www.kamilgrzybek.com/blog/posts/modular-monolith-primer)).
+- **Vertical slice**: one module per request or feature, grouping its concerns from front end to
+  back: "Minimize coupling between slices, and maximize coupling in a slice" (Jimmy Bogard,
+  [Vertical Slice Architecture](https://www.jimmybogard.com/vertical-slice-architecture/), 2018).
+
+Which style a repository follows is its own decision, read from its standards
+(`/architecture:improve conventions` finds them), never assumed.
 
 ## Checks
 

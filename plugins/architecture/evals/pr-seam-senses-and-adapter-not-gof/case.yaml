@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: pr-seam-senses-and-adapter-not-gof
+graders:
+  - name: tracker-seam-is-another-sense
+    type: regex
+    pattern: '(?:other|another|different|separate|distinct|not the same)[^.\n]{0,80}\bsenses?\b|\bsenses?\b[^.\n]{0,80}(?:other|another|different|separate|distinct)|module-design sense'
+    flags: 'i'
+    target: last_message
+  - name: names-enabling-point
+    type: regex
+    pattern: 'enabling point'
+    flags: 'i'
+    target: last_message
+  - name: adapter-is-not-the-gof-pattern
+    type: regex
+    pattern: '\b(?:not|isn.t|differs? from|distinct from|rather than)\b[^.\n]{0,60}(?:Gang of Four|GoF)|(?:Gang of Four|GoF)[^.\n]{0,120}\b(?:not|isn.t|different|differs|no)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both

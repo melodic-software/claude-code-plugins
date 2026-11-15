@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No. The tracker seam is a different sense of the word: the provider-neutral interface to a work-item tracker. An architecture finding uses only the module-design sense."
+    },
+    {
+      "answer": "The report uses the module-design sense. The tracker seam is defined in its own file."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, both are seams: a place where behavior changes without an edit."
+    },
+    {
+      "answer": "A seam is the spot where one adapter comes out and another goes in."
+    }
+  ]
+}
