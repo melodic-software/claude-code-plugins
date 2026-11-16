@@ -16,6 +16,17 @@
         }
       ],
       "why": "ran Ready and listed the app folder, started nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'launch record command_line: python3 shop/server.py --port 18080 --data evidence/data' && grep -n '\"command_line\": \"python3 shop/server.py' evidence/report.json"
+          }
+        }
+      ],
+      "why": "quoted the launch record's command line while reading the report, started nothing"
     }
   ],
   "fail": [
@@ -29,6 +40,17 @@
         }
       ],
       "why": "launched a server over the held port"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd shop/.. && nohup python3 shop/server.py --port 18080 --data evidence/data >/dev/null 2>&1 &"
+          }
+        }
+      ],
+      "why": "launched a server after another command in the same call"
     }
   ]
 }
