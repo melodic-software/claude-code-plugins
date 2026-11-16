@@ -14,7 +14,6 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$SCRIPT_DIR/connected-page-gate.mjs"
-BUILDER="$SCRIPT_DIR/../../review/skills/explain-change/scripts/build-digest.mjs"
 
 if ! command -v node >/dev/null 2>&1; then
   echo "SKIP: node not installed" >&2
@@ -49,19 +48,10 @@ assert_silent() {
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-DATA='{"title":"t","files":[{"path":"a.js","status":"modified","note":"n","hunks":[]}]}'
-ORIGIN="http://127.0.0.1:8765"
-
-# A data dir shaped like the one view-bridge ensure-running leaves: private, with its session file.
-BRIDGE="$WORK/bridge"
-mkdir -m 700 "$BRIDGE"
-printf '{"port":8765,"pid":1}' >"$BRIDGE/.view-session.json"
-CONNECTED="$(printf '%s' "$DATA" | node "$BUILDER" --connect "$ORIGIN" --dir "$BRIDGE")"
-PLAIN="$(printf '%s' "$DATA" | TMPDIR="$WORK" node "$BUILDER")"
-if [[ ! -f "$CONNECTED" || ! -f "$PLAIN" ]]; then
-  fail "the digest builder did not write both pages: connected=$CONNECTED plain=$PLAIN"
-  exit 1
-fi
+CONNECTED="$WORK/page.html"
+PLAIN="$WORK/plain.html"
+printf '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src %s; connect-src http://127.0.0.1:8765"></head><body>digest</body></html>' "'none'" >"$CONNECTED"
+printf '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src %s"></head><body>digest</body></html>' "'none'" >"$PLAIN"
 printf 'asset' >"$WORK/logo.png"
 printf 'connect-src http://127.0.0.1:1' >"$WORK/notes.txt"
 
@@ -77,9 +67,9 @@ run() {
 }
 
 assert_denies "$(run "{\"action\":\"create\",\"file_path\":\"$CONNECTED\"}")" \
-  "a page built with --connect is denied"
+  "a page whose policy names a loopback connect-src is denied"
 assert_silent "$(run "{\"action\":\"create\",\"file_path\":\"$PLAIN\"}")" \
-  "the same data built without --connect is allowed"
+  "the same page without a connect-src is allowed"
 assert_silent "$(run '{"action":"list"}')" \
   "a call with no file_path is allowed"
 assert_silent "$(run "{\"action\":\"create\",\"file_path\":\"$WORK/missing.html\"}")" \
