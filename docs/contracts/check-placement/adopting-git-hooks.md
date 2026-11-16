@@ -49,8 +49,7 @@ Committed config does not install itself: every clone runs the manager's install
 
 - lefthook: `lefthook install`.
 - husky: the project's package install, which runs husky's setup.
-- Husky.Net: `dotnet tool restore`, then `dotnet husky install`
-  ([automate installation](https://alirezanet.github.io/Husky.Net/guide/automate.html#manual-attach)).
+- Husky.Net: `dotnet tool restore`, then `dotnet husky install`.
 - plain git hooks: `git config core.hooksPath .githooks`.
 
 A clone that skips this step gets no hooks, so for a team with authors outside Claude Code prefer
