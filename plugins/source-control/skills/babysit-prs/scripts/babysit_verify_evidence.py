@@ -68,7 +68,12 @@ failed read, a list cut short or no such run keeps the FAIL.
   differ or cannot be read, and a FAIL record that cannot be read or records
   another pull request, head or verdict keep `verify:earlier-fail`. So does
   a FAILed head of the same change, a merge-only head's included, unless its
-  FAIL is superseded at its own head by the passes there (the rule above). Any
+  FAIL is superseded at its own head by the passes there (the rule above),
+  or every note of every counted FAIL there starts with `PR body` (BODY_NOTE:
+  it asked for a body change alone) and, for each counted pass at the head,
+  a trusted person edited the body from the last such FAIL's creation to the
+  pass run's creation and only trusted people edited the body or connected
+  or disconnected an issue up to its completion (`_body_fixed`). Any
   other failed read of a run time or a diff refuses as the next item does;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
@@ -399,6 +404,9 @@ def verdict_name(name: str) -> re.Match[str] | None:
 
 
 PASSES = ("pass", "pass-notes")
+# The lead of a FAIL note on the pull request body, and only of such a note
+# (pr-verify prompt.md, spec-prompt.md and chunk-note.md say so word for word).
+BODY_NOTE = "PR body"
 # Artifacts last at most 90 days in this repository (the retention maximum,
 # and the repository's setting), so a verdict on an older pull request may be
 # gone. 80 leaves ten days of margin (judgment).
@@ -3733,6 +3741,7 @@ class Reader:
                 lambda sha: (
                     self._wider_pass(number, sha, fail_artifacts, passes)
                     or superseded(sha)
+                    or self._body_fixed(number, sha, fail_artifacts, passes)
                 ),
             )
         ):
@@ -4234,6 +4243,58 @@ class Reader:
                 for (run_id, _, _), body in zip(passes, same, strict=True)
             ):
                 return False
+        except (_Unreadable, postmerge.PostMergeReadError):
+            return False
+        return True
+
+    def _body_fixed(
+        self,
+        number: int,
+        sha: str,
+        fail_artifacts: dict[str, list[tuple[int, str, Any]]],
+        passes: list[tuple[int, str, Any]],
+    ) -> bool:
+        """Every counted FAIL at `sha` records this pull request, head and
+        verdict, and each of its notes starts with BODY_NOTE, so it asked for
+        a change to the pull request body alone; and for each counted pass at
+        the head a trusted person edited the body from the last FAIL's
+        creation to the pass run's creation, and every body edit and issue
+        connect or disconnect from the last FAIL's creation to the pass run's
+        completion was a trusted person's (`_relinked_by_people`). The pass
+        judged the fixed body, which a head of the same change cannot carry.
+        A FAIL with no note, or any other note, keeps the same-change rule. A
+        record, time or read that fails is False."""
+        fails = fail_artifacts.get(sha, [])
+        if not passes or not fails:
+            return False
+        try:
+            for run_id, name, artifact in fails:
+                record = self._record(run_id, name, artifact)
+                notes = record.get("notes")
+                if (
+                    record.get("pr") != number
+                    or record.get("head_sha") != sha
+                    or record.get("verdict") != "fail"
+                    or not is_json_array(notes)
+                    or not notes
+                    or not all(
+                        isinstance(n, str) and n.startswith(BODY_NOTE) for n in notes
+                    )
+                ):
+                    return False
+            created = [self._fresh_created(r) for r, _, _ in fails]
+            if None in created:
+                return False
+            last = max(c for c in created if c)
+            for run_id, _, _ in passes:
+                begun = self._fresh_created(run_id)
+                if begun is None or not (
+                    self._relinked_by_people(number, last, begun, body_edit=True)
+                    and self._relinked_by_people(
+                        number, last, postmerge._time(self._updated.get(run_id))
+                    )
+                ):
+                    return False
         except (_Unreadable, postmerge.PostMergeReadError):
             return False
         return True

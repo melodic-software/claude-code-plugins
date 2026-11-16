@@ -1502,6 +1502,108 @@ class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
         self.assertIs(evidence.report()["supersededAtHead"], False)
 
 
+# Pull request #16602's FAIL notes at head 27fe8d09, as its pr-verify
+# fail-note review comment quoted them.
+BODY_NOTES_16602 = [
+    'PR body (Summary, "Recorded list"): the quoted list is cut off after'
+    ' `/planning:design` with "-…", so it is not true that every existing'
+    " enforcement- or instruction-placing skill is on the recorded list with"
+    " its route (AC12). Restore the full list in the body, or record it in a"
+    " file in the repository, so that every skill from the sweep appears with"
+    " its route.",
+    'PR body: the dogfooding step is only mentioned in passing under "Not'
+    ' verified" ("the step named in the PR body"), and the body never actually'
+    " states it. Add a line that names this repository's dogfooding step, e.g."
+    " running `/harness-config:audit-automation-gaps` here after release plus"
+    " `scripts/sync-shared-copies.sh --check`.",
+]
+
+
+class AFixedBodyClearsABodyOnlyFailOnTheSameChange(unittest.TestCase):
+    """A FAIL whose every note starts with `PR body` asked for a body change
+    alone, so a pass at a head of the same change clears it once a trusted
+    person edited the body after the FAIL and before the pass run was
+    created, and only trusted people edited the body or relinked until the
+    pass completed (issue #16660). A note on anything else, no such edit, an
+    untrusted editor or a pass created before the edit keep
+    `verify:earlier-fail`."""
+
+    @staticmethod
+    def body_fail(
+        notes: list[str] = BODY_NOTES_16602, answer: Any = None
+    ) -> FakeGitHub:
+        """A FAIL at EARLIER (run 2, created OLDER_START) with `notes`, and a
+        pass at HEAD (run 1, created RUN_STARTED, done PASS_DONE), a head
+        that only merged main since; a person edited the body between them
+        unless `answer` says otherwise."""
+        fake = passing(
+            artifact(named(EARLIER, "fail"), 2),
+            runs={1: run(1, updated_at=PASS_DONE), 2: judged(2, OLDER_START)},
+        )
+        fake.records[named(EARLIER, "fail")] = record(
+            sha=EARLIER, verdict="fail", notes=list(notes)
+        )
+        fake.diffs[EARLIER] = change("fix", at=1)
+        fake.diffs[HEAD] = change("fix", at=40)
+        fake.relink = answer or relink_answer([(RELINK_AT, HUMAN)])
+        return fake
+
+    def test_pr_16602s_body_fail_clears_after_a_persons_body_edit(self) -> None:
+        evidence = read(self.body_fail())
+        self.assertIsNone(evidence.refusal)
+        self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
+
+    def test_no_body_edit_after_the_fail_keeps_it(self) -> None:
+        for label, answer in (
+            ("nothing in the window", relink_answer()),
+            ("a person's connect only", relink_answer([], [(RELINK_AT, HUMAN)])),
+            (
+                "an edit before the FAIL",
+                relink_answer([("2026-10-13T00:00:00Z", HUMAN)]),
+            ),
+            ("failed read", "error"),
+        ):
+            with self.subTest(label):
+                fake = self.body_fail(answer=answer)
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_note_on_a_file_beside_body_notes_keeps_it(self) -> None:
+        mixed = [BODY_NOTES_16602[0], "notes.txt:2: restore the dropped line."]
+        self.assertEqual(read(self.body_fail(mixed)).refusal, "verify:earlier-fail")
+        for label, notes in (
+            ("no notes", []),
+            ("a note on an undelivered item", ["AC12 is not delivered: add the list."]),
+            ("the token mid-note", ["The PR body cuts the list short."]),
+        ):
+            with self.subTest(label):
+                fake = self.body_fail(notes)
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_an_untrusted_body_edit_keeps_it(self) -> None:
+        outsider = {"__typename": "User", "login": "outsider", "databaseId": 999}
+        for label, answer in (
+            ("outsider edit", relink_answer([(RELINK_AT, outsider)])),
+            ("App edit", relink_answer([(RELINK_AT, LANES_ACTOR)])),
+            ("ghost edit", relink_answer([(RELINK_AT, None)])),
+            (
+                "person edit, then the App's while the pass ran",
+                relink_answer([(PASS_RUNNING, LANES_ACTOR), (RELINK_AT, HUMAN)]),
+            ),
+        ):
+            with self.subTest(label):
+                fake = self.body_fail(answer=answer)
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_pass_created_before_the_body_edit_keeps_it(self) -> None:
+        fake = self.body_fail(answer=relink_answer([(PASS_RUNNING, HUMAN)]))
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_pass_created_before_the_fail_keeps_it(self) -> None:
+        fake = self.body_fail()
+        fake.runs[2] = judged(2, "2026-10-15T00:00:01Z")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+
 def rename(old: str, new: str) -> str:
     """A pure rename as GitHub's compare diff shows it: no hunk."""
     return (

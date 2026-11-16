@@ -45,6 +45,14 @@ test("a denied read voids only a pass, and a refs judgment reads the context who
   assert.match(spec, /When an entry's `spec_kind` is `refs`, it is listed whole/);
 });
 
+test("every verifier leads a note on the pull request body, and only such a note, with `PR body`", () => {
+  const rule =
+    "A note about the pull request body, its description text and not a file in the diff, starts with `PR body`; a note about anything else, an undelivered item, a correctness bug or a missing test included, never starts with `PR body`.";
+  for (const [name, text] of [["prompt.md", chunk], ["spec-prompt.md", spec], ["chunk-note.md", flat("./chunk-note.md")]]) {
+    assert.ok(text.includes(rule), `${name} carries the body-note rule`);
+  }
+});
+
 test("a chunk verifier is told to read across chunks, and no text says it cannot", () => {
   const note = flat("./chunk-note.md");
   assert.match(note, /Read that part whole and judge both sides/);
