@@ -3,6 +3,18 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.6] - 2026-11-16
+
+### Fixed
+
+- `/testing:plan` asks each planned test's entry to name its expected-value source per `testing:test-value`, where the entries are written, and suggests `/testing:run-e2e` for an API endpoint change even when no served app exists.
+
+## [5.1.5] - 2026-11-16
+
+### Fixed
+
+- The `worst-case` initials fix skips a generational suffix, so `Christopher Alexander Montgomery III` no longer still yields `CI`, and a field with no limit is reported as "no limit found", which says what the search showed.
+
 ## [5.1.4] - 2026-11-16
 
 ### Changed

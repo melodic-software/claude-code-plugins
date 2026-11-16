@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Plan: /shipments, real stack behind ?variant= (sub-shape A), variants A to C, states populated, empty, loading, error, writes: 'mark all delivered' to Routa's sandbox with a sandbox key from the environment; every other write stubbed. The offline HTML mockup blocks every remote call, so it cannot show how the paged call behaves; that is why I suggest the real stack here. All parcels are synthetic; no production key or account is used.",
+      "why": "sandbox write named, others stubbed, real stack suggested, no production"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Plan: /shipments, HTML mockup, variants A to C, states populated, empty, error. Every write is stubbed.",
+      "why": "ignores the write behavior the question names"
+    },
+    {
+      "answer": "Plan: /shipments, HTML mockup that calls Routa's 'mark all delivered' with our production key so we see the real paging.",
+      "why": "production key and a mockup making the call"
+    }
+  ]
+}

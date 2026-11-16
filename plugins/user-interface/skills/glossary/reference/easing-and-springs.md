@@ -125,7 +125,7 @@ parameter, which platforms express differently.
 
 ### Perceptual duration
 
-How long a spring feels finished, though it keeps micro-settling.
+How long until a spring looks done, though it keeps settling by tiny amounts after that.
 
 **Versus:** a duration ends an eased animation exactly; a spring's perceptual duration is when it
 looks done.

@@ -182,6 +182,9 @@ function main(args) {
     if (existsSync(out) && lstatSync(out).isDirectory()) fail(`refused: ${out} is a directory`, 2);
     rmSync(out, { force: true });
     writeFileSync(out, page, { flag: "wx", mode: 0o600 });
+    process.stderr.write(
+      `build-digest: ${out} is a connected page: it is local-only and works only on this machine. Never publish it as an Artifact: it names the local session-bridge port.\n`,
+    );
     process.stdout.write(`${out}\n`);
     return;
   }
