@@ -1826,7 +1826,9 @@ jobs:
           # The Node.js release keyring: binary, a byte-exact upstream copy.
           # The review revert cases' fixtures: byte copies of this repository's
           # history.
-          exclude: (^|/)\.github/actions/setup-pinned-node/pubring\.kbx$|(^|/)plugins/review/evals/revert-[^/]+/fixtures/
+          # The chart corpus graph files: TLC writes them with no final newline
+          # and the corpus tests compare them byte for byte.
+          exclude: (^|/)\.github/actions/setup-pinned-node/pubring\.kbx$|(^|/)plugins/review/evals/revert-[^/]+/fixtures/|(^|/)plugins/formal-verification/skills/chart/scripts/test/corpus/[^/]+/graph\.dot$
 
       # The path-scoped readers gate on the filter group of what they read:
       # actionlint and the dependabot and workflow schemas on `run_workflows`
