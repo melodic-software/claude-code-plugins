@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: rr-skill-fit-names-owner
-description: 'The user says the session invoked /implementation:implement-dispatch, found it needed a PLAN.md the work did not have, and hand-dispatched the workers instead. The checkpoint must report that as a skill-fit gap that names the owning plugin and skill, and must not file an issue: filing waits for the owner. Agent is granted because the checkpoint delegates its analysis to a fresh subagent. A run needs --scaffold and --allow-tools Bash Write Edit.'
+description: 'The user says the session invoked /implementation:implement-dispatch, found it needed a PLAN.md the work did not have, and hand-dispatched the workers instead. The checkpoint must report that as a skill-fit gap that names the owning plugin and skill, and must not file an issue: filing waits for the owner. The implementation-stub plugin puts the bypassed skill in the skill listing, the evidence the owner field reads. Agent is granted because the checkpoint delegates its analysis to a fresh subagent. A run needs --scaffold and --allow-tools Bash Write Edit.'
 tags: [running-retro, skill-fit, must-not-file]
-plugins: ["../.."]
+plugins: ["../..", "implementation-stub"]
 expected_outcome: 'The answer reports a skill-fit gap for the bypassed skill, names its owning plugin (implementation) and skill (implement-dispatch), lists the existing-issue field, offers filing to the user, and files nothing.'
 context:
   scaffold_script: scaffold.sh
@@ -14,8 +14,8 @@ execution:
 graders:
   - name: names-skill-and-plugin
     type: regex
-    pattern: 'owner:\s*implementation:implement-dispatch'
-    flags: 'i'
+    pattern: '^(?![^\n]*no owner found)[^\n]*\b(?:own(?:er|ers|ed|ing)?|belongs? to)\b[^\n]*implementation:implement-dispatch\b|^\|[^\n]*\bown(?:er|ing)\b[^\n]*\|[ \t]*\n(?:\|[^\n]*\n)*?\|(?![^\n]*no owner found)[^\n]*implementation:implement-dispatch\b'
+    flags: 'mi'
     arm: with-only
   - name: reports-skill-fit-gap
     type: regex

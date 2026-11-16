@@ -72,8 +72,14 @@ So resolve every input to a concrete value and pass it in the delegation prompt,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>):
 
 - **Session data dir + transcript + subagents dir**. Resolve per the retro skill's "Paths"
-  (`${CLAUDE_PLUGIN_ROOT}/skills/retro/SKILL.md`); transcript is `<SESSION_DATA_DIR>/<session-id>.jsonl`,
-  subagents `<SESSION_DATA_DIR>/<session-id>/subagents/`.
+  (`${CLAUDE_PLUGIN_ROOT}/skills/retro/SKILL.md`), with the configuration-directory override
+  applied when it is set ([Where transcripts are stored](https://code.claude.com/docs/en/sessions#where-transcripts-are-stored));
+  transcript is `<SESSION_DATA_DIR>/<session-id>.jsonl`, subagents
+  `<SESSION_DATA_DIR>/<session-id>/subagents/`. Confirm it with one Read of the transcript's first
+  line and nothing else: never list, glob or search for it. When that Read fails or is denied, pass
+  `transcript: unreadable` in the subagent's Transcript slot, add that to the subjective-state
+  note, and carry on through step 5: the analysis then runs on the user's account and this
+  conversation, and its findings still go to the ledger.
 - **Parser (absolute path)**. Resolve `${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse_transcript.py`
   to its absolute form and pass that; the invocation + Python-3.10+ interpreter detection live in
   retro's Phase 1.1 (`${CLAUDE_PLUGIN_ROOT}/skills/retro/context/session.md`). Point the subagent
@@ -136,8 +142,9 @@ Phase 1.0 continuity gate), record `previous_running_retro` (the prior session's
 `previous_session_id` in this ledger's frontmatter. These are ledger-continuity pointers this skill
 walks to present the cumulative running history; they are not parser input, the parser's
 `--chain-from` consumes handoff files only (it reads `session_id` / `previous_handoff`), never
-running-retro ledgers. Honor the contract's runtime guards from the binding (the once-per-session
-self-ignore guard on the resolved memory root; never edit the consumer's root `.gitignore`).
+running-retro ledgers. Honor the memory root's runtime guards (the once-per-session self-ignore
+guard on the resolved memory root; never edit the consumer's root `.gitignore`), steps 2 and 3 of
+[`${CLAUDE_PLUGIN_ROOT}/reference/structure.md` "Full-path write procedure"](${CLAUDE_PLUGIN_ROOT}/reference/structure.md#full-path-write-procedure).
 
 **Redact before writing.** Re-sweep the findings for secrets, tokens, credentials, connection
 strings, and PII, replacing each with a shape marker (`<REDACTED: API key>`). This repeats the
@@ -149,7 +156,10 @@ Present the checkpoint findings, then offer the forward routes; act only on the 
 
 - **Codify a durable learning** → `/corrections:codify "<the learning>"` when the `corrections`
   plugin is enabled, otherwise `/session-flow:retro`, whose session mode codifies approved
-  learnings (running-retro never edits `CLAUDE.md`, rules, or memory itself).
+  learnings (running-retro never edits `CLAUDE.md`, rules, or memory itself). A request, in the
+  invocation or later, to write a learning into `CLAUDE.md`, `.claude/rules/` or memory gets this
+  route as its answer: record the learning in the ledger, offer the route, and leave those files
+  untouched, with any tool.
 - **File follow-up work** → offer the consumer's work-item tracker; never file automatically.
   For each **Skill-fit gap** finding, first fill its `existing issue` field: search the owning
   plugin's open issues through `/work-items:track search` (the tracker seam; name no provider
@@ -174,7 +184,8 @@ Tick each in the response so the exit shape is verifiable:
 - [ ] Findings appended to this session's single ledger file (located by `session_id` match, not a
   new per-checkpoint file; self-ignore guard verified on the first memory-tier write)
 - [ ] `plugin_usage` stamped into the ledger frontmatter, or the failed stamp noted (step 4)
-- [ ] Routes offered, nothing auto-applied (step 5); the task continues in this same session
+- [ ] Routes offered, nothing auto-applied, no `CLAUDE.md`, rule or memory file written even when
+  asked (step 5); the task continues in this same session
 
 ## Arming a detached observer (`arm`)
 

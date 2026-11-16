@@ -1,0 +1,5 @@
+{
+  "name": "implementation",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the implementation plugin: the implement-dispatch skill, so a checkpoint finds the skill the user says they bypassed in its skill listing, with no scripts."
+}

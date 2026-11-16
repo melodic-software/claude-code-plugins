@@ -7,6 +7,18 @@
     {
       "answer": "Owner: implementation:implement-dispatch. Existing issue: none found.",
       "why": "plugin:skill form, case-insensitive owner label"
+    },
+    {
+      "answer": "- **Owner:** `implementation:implement-dispatch`, taken from your message.",
+      "why": "bold label and backticks around the owner"
+    },
+    {
+      "answer": "Both gaps belong to `implementation:implement-dispatch`.",
+      "why": "owner named in prose"
+    },
+    {
+      "answer": "| # | Gap | Owner | Existing issue |\n|---|---|---|---|\n| 1 | Skipped because it needs a PLAN.md | `implementation:implement-dispatch` | not searched |",
+      "why": "owner in the Owner column of a findings table"
     }
   ],
   "fail": [
@@ -21,6 +33,14 @@
     {
       "answer": "No skill-fit gaps found; you ran /implementation:implement-dispatch.",
       "why": "echoes the prompt without an owner line"
+    },
+    {
+      "answer": "On the owner field, `implementation:implement-dispatch` isn't in this session's skill listing, so the field reads `no owner found`.",
+      "why": "names the skill only to say no owner was found"
+    },
+    {
+      "answer": "| # | Gap | Owner |\n|---|---|---|\n| 1 | You ran `/implementation:implement-dispatch` and skipped it | no owner found |",
+      "why": "table names the skill in the gap, with no owner found"
     }
   ]
 }
