@@ -183,7 +183,8 @@ worker lane off the flipped item. Once the row's answer is written
 
 **Long operator waits.** When an interview spans longer than the binding's lease TTL, renew the
 held lease via `"$TRACKER" renew-lease "<id>" --lease-comment-id <n>` (the `claim` output carries
-`lease_comment_id`).
+`lease_comment_id`). On exit `7` the session no longer holds the item: stop writing to it, and
+claim again to continue (that claim backs off if another session holds it).
 
 ## Working the queue
 

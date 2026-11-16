@@ -74,22 +74,23 @@ fi
 
 # A lease-only claim assigns no one, so steps 1-2 and their rollback do not apply.
 if [[ "$lease_only" == false ]]; then
+  # Guard the partial-claim window, armed before the assign so an assign that lands
+  # but reports failure is covered: any failure before a successful lease-comment
+  # write (step 3) would otherwise strand the issue assigned with no lease record
+  # (list-frontier excludes assigned items; reclaim ignores items with no lease).
+  # wit_run_gh's failure path calls `exit` directly rather than returning, and an
+  # explicit `exit` inside a function does not run the caller's ERR trap (only its
+  # EXIT trap), so this must be an EXIT trap, not ERR. A same-login session may hold
+  # the item, so the rollback keeps @me while another live lease of this login does.
+  _wit_claim_rollback() {
+    wit_unassign_unless_held "$owner" "$repo" "$number" "$login" "${our_comment_id:-}"
+  }
+  trap _wit_claim_rollback EXIT
+
   # 1. Assign the session identity. `read` routes to bare gh, so the assignee is
   # the session user, not the bot (README "Edit labels / assignees" carve-out);
   # `@me` is resolved to $login explicitly because REST takes a literal login.
   wit_add_assignee read "$owner" "$repo" "$number" "$login"
-
-  # Guard the partial-claim window: any failure between this successful
-  # assignment and a successful lease-comment write (step 3) would otherwise
-  # strand the issue assigned with no lease record (list-frontier excludes
-  # assigned items; reclaim ignores items with no lease). wit_run_gh's failure
-  # path calls `exit` directly rather than returning, and an explicit `exit`
-  # inside a function does not run the caller's ERR trap (only its EXIT trap) —
-  # verified empirically — so this must be an EXIT trap, not ERR.
-  _wit_claim_rollback() {
-    wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
-  }
-  trap _wit_claim_rollback EXIT
 
   # 2. Sole-assignee check — a different login present means an established claim.
   wit_read_assignees "$owner" "$repo" "$number"
@@ -112,7 +113,6 @@ if [[ "$lease_only" == false ]]; then
   fi
   other="$(jq -r --arg me "$login" '[.[] | select(. != $me)] | first // empty' <<<"$assignees")"
   if [[ -n "$other" ]]; then
-    wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
     printf 'claim: item already claimed by %s\n' "$other" >&2
     exit "$EX_CONFLICT"
   fi
@@ -155,20 +155,11 @@ winner_holder=""
 
 # Earliest LIVE lease wins. No live lease at all (e.g. ttl 0) → our claim stands;
 # expiry is reclaim's concern.
+# The abort trap backs off: it supersedes our lease, then the rollback keeps @me only
+# while another live lease of this login holds the item, read after that supersede: a
+# winner that has released by then is seen as gone, and one releasing later re-reads
+# the leases after its own PATCH and sees ours superseded, so one of the two removes @me.
 if [[ -n "$winner_id" && "$winner_id" != "$our_comment_id" ]]; then
-  wit_try_supersede_lease_comment "$owner" "$repo" "$our_comment_id" "$lease"
-  trap - EXIT
-  # On a same-login loss, @me stays only while another live lease of this login holds
-  # the item, read after our supersede: a winner that has released by then is seen as
-  # gone, and one releasing later re-reads the leases after its own PATCH and sees ours
-  # superseded, so one of the two removes @me.
-  if [[ "$lease_only" == false ]]; then
-    if [[ "$winner_holder" != "$login" ]] ||
-      ! leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" ||
-      ! _wit_login_holds_other "$leases" "$login" "$our_comment_id"; then
-      wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
-    fi
-  fi
   printf 'claim: live lease (comment %s, holder %s) wins — backing off\n' \
     "$winner_id" "$(tr -d '[:cntrl:]' <<<"${winner_holder:-unknown}")" >&2
   exit "$EX_CONFLICT"

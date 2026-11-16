@@ -130,7 +130,9 @@ reporter-info listing, the sweep's list and count, and every read before the fir
    declares `claim: false`, as gitea and jira do): write unclaimed and report that no claim was
    possible. Any other exit leaves the item unwritten and is reported. The one-hour TTL frees the
    item soon on a provider with no `release`; when verification may run longer, renew with
-   `"$TRACKER" renew-lease "<id>" --lease-comment-id <n>` before it lapses.
+   `"$TRACKER" renew-lease "<id>" --lease-comment-id <n>` before it lapses. On exit `7` the
+   session no longer holds the item: stop writing to it, and claim again to continue (that claim
+   backs off if another session holds it).
 2. **Other items** an outcome writes to, such as a cluster member's edge and comment or an
    umbrella's membership comment, are claimed the same way, all of them before the outcome's first
    write, since an umbrella fold is one indivisible sequence

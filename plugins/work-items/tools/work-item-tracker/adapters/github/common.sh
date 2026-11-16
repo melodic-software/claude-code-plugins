@@ -513,6 +513,16 @@ wit_unassign_if_unheld() {
   fi
 }
 
+# wit_unassign_unless_held <owner> <repo> <number> <login> [<excluded-id>]: a claim's
+# back-off and failure paths remove <login> unless a lease list read now shows a live lease
+# of <login> other than <excluded-id>. A failed read removes, since an assignee that no
+# lease holds keeps the item off the frontier for good.
+wit_unassign_unless_held() {
+  local leases
+  leases="$(wit_list_lease_comments "$1" "$2" "$3")" && _wit_login_holds_other "$leases" "$4" "${5:-}" && return 0
+  wit_try_remove_assignee "$1" "$2" "$3" "$4"
+}
+
 # _wit_login_holds_other <leases-json> <login> <excluded-id>: 0 when a live lease other than
 # <excluded-id> is held by <login>.
 _wit_login_holds_other() {

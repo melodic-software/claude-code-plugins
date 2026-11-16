@@ -92,12 +92,15 @@ if [[ "$holder" != "$login" ]]; then
 fi
 
 leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
+now_epoch="$(date -u +%s)"
 
 # An expired lease already blocks nobody; superseding it is reclaim's business. It is
-# still refused under a newer non-superseded lease, as a stale handle.
-if ! wit_lease_is_live "$lease_json" "$(date -u +%s)"; then
+# still refused under a newer non-superseded lease, as a stale handle, and the assignee
+# goes back unless that lease or another live one is this login's.
+if ! wit_lease_is_live "$lease_json" "$now_epoch"; then
   wit_select_active_lease "$leases"
   if [[ "$WIT_ACTIVE_LEASE_ID" != "$lease_comment_id" ]]; then
+    wit_unassign_if_unheld "$owner" "$repo" "$number" "$login" "$lease_comment_id" "$leases"
     printf 'release: comment %s is not the active lease (active: comment %s)\n' \
       "$lease_comment_id" "${WIT_ACTIVE_LEASE_ID:-none}" >&2
     exit "$EX_CONFLICT"
@@ -107,7 +110,7 @@ fi
 
 # The holder is the earliest live lease (claim step 4); a newer live lease is a claimant
 # that has not backed off yet and does not stop the holder's release.
-wit_lease_winner "$leases" "$(date -u +%s)" "$lease_comment_id" wit_lease_released_by_run
+wit_lease_winner "$leases" "$now_epoch" "$lease_comment_id" wit_lease_released_by_run
 if [[ "$WIT_WINNER_ID" != "$lease_comment_id" ]]; then
   printf 'release: comment %s is outranked by the earlier live lease, comment %s\n' \
     "$lease_comment_id" "${WIT_WINNER_ID:-none}" >&2

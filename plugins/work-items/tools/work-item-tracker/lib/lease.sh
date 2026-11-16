@@ -85,6 +85,17 @@ wit_lease_winner() {
   export WIT_WINNER_ID WIT_WINNER_JSON
 }
 
+# wit_newer_live_lease <lease-comment-rows-json> <now-epoch> <self-id>: 0 when a live lease
+# has a higher comment id than <self-id>.
+wit_newer_live_lease() {
+  local row cand
+  while IFS= read -r row; do
+    cand="$(wit_lease_json "$(jq -r '.body' <<<"$row")")"
+    [[ -n "$cand" ]] && wit_lease_is_live "$cand" "$2" && return 0
+  done < <(jq -c --argjson self "$3" '.[] | select(.id > $self)' <<<"$1")
+  return 1
+}
+
 # wit_lease_ttl_seconds <lease-json> — echo total TTL in seconds from ttl_hours and
 # optional ttl_minutes. Returns 1 when ttl_hours is missing or non-numeric.
 wit_lease_ttl_seconds() {

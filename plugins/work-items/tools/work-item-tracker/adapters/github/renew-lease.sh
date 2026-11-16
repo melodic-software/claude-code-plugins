@@ -86,6 +86,25 @@ now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 renewed="$(jq -c --arg ts "$now" '. + {renewed_at: $ts}' <<<"$lease_json")"
 wit_patch_lease_comment "$owner" "$repo" "$lease_comment_id" "$renewed"
 
+# The checks above see only leases posted before their read. A claimant that found this
+# lease expired before the PATCH landed posted before it, so a list read now shows it;
+# one posting later sees the renewed lease and backs off. Outside the margin nobody can
+# have found the lease expired. A failed read keeps the lease, as wit_lease_released_by_run does.
+after_epoch="$(date -u +%s)"
+if ((after_epoch >= expires_epoch - WIT_LEASE_SKEW_SECONDS)); then
+  if leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" ||
+    leases="$(wit_list_lease_comments "$owner" "$repo" "$number")"; then
+    if wit_newer_live_lease "$leases" "$after_epoch" "$lease_comment_id"; then
+      wit_try_supersede_lease_comment "$owner" "$repo" "$lease_comment_id" "$renewed"
+      printf 'renew-lease: the renew of lease %s landed too close to expiry and a newer claimant holds; lease superseded\n' \
+        "$lease_comment_id" >&2
+      exit "$EX_CONFLICT"
+    fi
+  else
+    printf 'renew-lease: could not re-read the leases after the renew; lease kept\n' >&2
+  fi
+fi
+
 jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" --arg cid "$lease_comment_id" \
   '{schema_version: $sv, id: $id, holder: .holder, acquired_at: .acquired_at,
     renewed_at: .renewed_at, ttl_hours: .ttl_hours,

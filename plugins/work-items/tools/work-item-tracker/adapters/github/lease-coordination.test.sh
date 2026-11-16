@@ -1056,6 +1056,7 @@ T0=1783828800
 lease_array 1 "$(marker alice "2026-07-12T04:00:00Z" 1)" >"$GH_STUB_DIR/lease-comments"
 printf '%s\n' "$((T0 + 3599))" "$((T0 + 3600))" >"$GH_STUB_DIR/clock"
 # date: `date -u +%s` answers the next line of $GH_STUB_DIR/clock, repeating the last.
+# shellcheck disable=SC2329  # exported to the release.sh child
 date() {
   if [[ "$*" == "-u +%s" && -f "${GH_STUB_DIR:?}/clock" ]]; then
     head -n 1 "$GH_STUB_DIR/clock"

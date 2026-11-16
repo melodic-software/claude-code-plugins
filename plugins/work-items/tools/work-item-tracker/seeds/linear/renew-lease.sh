@@ -65,6 +65,15 @@ if ! wit_linear_lease_live "$LEASE"; then
   exit "$EX_CONFLICT"
 fi
 
+# Live is not enough: an earlier live lease holds the item, in claim's step-4 order.
+while IFS=$'\t' read -r ehandle elease; do
+  if [[ -z "$ehandle" ]] || ! wit_linear_lease_live "$elease"; then continue; fi
+  printf 'linear: lease %s on %s is outranked by the earlier live lease %s; not renewing\n' \
+    "$LEASE_COMMENT_ID" "$ID" "$ehandle" >&2
+  exit "$EX_CONFLICT"
+done < <(jq -r --argjson h "$LEASE_COMMENT_ID" --arg c "$COMMENT_UUID" \
+  '.[] | select(.handle < $h or (.handle == $h and .comment_id < $c)) | "\(.handle)\t\(.lease | tojson)"' <<<"$ENTRIES")
+
 RENEWED="$(jq -c --arg t "$(wit_linear_now_iso)" '. + {renewed_at: $t}' <<<"$LEASE")"
 wit_linear_update_comment "$COMMENT_UUID" "$(wit_linear_lease_marker "$RENEWED")"
 

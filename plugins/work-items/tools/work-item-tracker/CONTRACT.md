@@ -666,7 +666,7 @@ issue comment with a machine marker. The GitHub adapter's `claim` has two modes:
 - **Lease-only (`--lease-only`):** the claim posts the lease comment and assigns no one. It skips
   steps 1 and 2, and on a lost arbitration it supersedes its own comment and touches no assignee.
   In either mode, a failure after the comment is posted and before the emit also supersedes it
-  (and, in default mode, rolls back the assignment).
+  (and, in default mode, rolls back the assignment by the step 4 rule).
   `--holder <h>` names the holder instead of the authenticated login, for a caller whose token
   cannot read `GET /user` (a GitHub App installation token, which a CI job holds). The issue lane
   claims this way, holding `vars.AUTOMATION_LANES_APP_SENDER_ID`, before its model starts.
@@ -702,7 +702,16 @@ backs off, and a lane run that finds a live local lease backs off without starti
   lease outranks under claim step 4; a newer live lease does not stop it, since that is a
   claimant that has not backed off yet, except within 300 s (the skew a lease reader tolerates)
   of the lease's expiry. There the newer claimant may already have found the lease expired and
-  started, so the lease must also be the newest non-superseded one, else exit `7`.
+  started, so the lease must also be the newest non-superseded one, else exit `7`. The Linear
+  adapter's `renew-lease` applies the outranked refusal only. When the
+  clock read after the PATCH is within that margin of the old expiry, the GitHub adapter re-reads
+  the leases (one retry on a failed read); a newer live lease there makes it supersede its own
+  lease and exit `7`, and a list it still cannot read keeps the renewed lease (exit `0`, with a
+  warning). On exit `7` the session no longer holds the item, so it stops writing to it, and to
+  continue it claims again, which backs off if another session holds it. That check has no
+  compare-and-swap either: it covers a claimant that posted before the re-list, while a renew
+  stalled between the re-list and its return stays open, and GitHub's read-after-write
+  consistency for comments is assumed.
 - `session_id` is optional and collision-prone; a missing/duplicate `session_id` still counts as a
   competing lease. The one shape the GitHub adapter's claim step 4 reads is `run-<id>`, a workflow run of the
   item's repository; any other value is diagnostic only.
@@ -723,15 +732,16 @@ Claim sequence (race-safe, same-identity aware):
 1. Assign the authenticated user (`--add-assignee "@me"`, always the session identity,
    never the bot).
 2. Re-read assignees. Self missing → assign once more and re-read (a same-login release may
-   have removed it), still missing → exit `4`. Any other login present → back off: unassign
-   self, exit `7`.
+   have removed it), still missing → exit `4`. Any other login present → back off: exit `7`,
+   removing self by the step 4 rule.
 3. Post the lease comment; capture its comment ID (comment identity, not `session_id`,
    discriminates same-login sessions).
 4. Re-read all lease comments. If an earlier live lease exists that is not our own
-   comment, the foreign lease wins → supersede own comment, exit `7`. On a same-login loss,
-   re-read the leases after that supersede and keep the assignee only while another live lease
-   of this login remains; a release re-reads them after its own supersede, so between the two
-   one removes an assignee no lease holds. On a win,
+   comment, the foreign lease wins → supersede own comment, exit `7`. On that loss, on the
+   step 2 back-off, and on any failure from step 1 until the emit, the GitHub adapter removes its
+   login once, unless a lease list read at that moment (after the supersede) shows another live
+   lease of this login; a failed read removes. A release re-reads the leases after its own
+   supersede, so between the two one removes an assignee no lease holds. On a win,
    re-read assignees and assign self again if a same-login release removed it after step 2.
    The back-off message prints the winner's holder with control characters removed.
    GitHub adapter: an earlier live lease whose `session_id` is `run-<id>` costs one
@@ -751,7 +761,9 @@ edit still needs the token's write access), and, for a live lease, not outranked
 live lease under claim step 4 (the completed-run rule included); a newer live lease is a claimant
 that has not backed off yet and does not stop the release. Anything else is refused with exit `7`
 and nothing is written: a cross-item handle, another login's lease, a live handle an earlier live
-lease outranks, or an expired handle under a newer non-superseded lease. The login check
+lease outranks, or an expired handle under a newer non-superseded lease. That last refusal still
+hands the assignee back as below, judged on the release's one lease read, since its lease no
+longer holds the item. The login check
 exists because lease handles are public (a GitHub comment id), and within one login the handle
 tells sessions apart, as for `renew-lease`. An already-superseded or expired lease is an
 idempotent no-op (`released: false`, exit `0`), because it already blocks nobody. A live lease is
@@ -792,6 +804,9 @@ claim's `lease_comment_id`) rather than relying on push activity (`/work-items:w
 - **Comment-id monotonicity.** Same-login race arbitration treats an earlier numeric lease
   handle as the winner. GitHub lists issue comments by ascending ID by default; adapters
   MUST emit ordered unique numeric `lease_comment_id` handles.
+- **Ambiguous lease post.** A lease comment POST that GitHub applies but reports as failed (a
+  timeout) returns no comment id, so the claim cannot supersede it: that lease blocks the item
+  for its TTL, and the claim's rollback keeps the assignee for it.
 
 ## Containers and state
 
