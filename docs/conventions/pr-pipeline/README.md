@@ -2341,7 +2341,12 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
 
 - **Tier `auto`.** Every update is non-major: the first numeric version component does not change,
   and below 1.0 the second does not either. Every update on a `dependabot/github_actions/...`
-  branch comes from the `actions`, `github` or `anthropics` publisher. The newest `ci-status` run
+  branch comes from the `actions`, `github` or `anthropics` publisher. A pull request whose every
+  update the standards Dependabot policy's `fastTrack.own` names (this organization's own
+  releases, `*` matching any run of characters) skips the publisher rule, and below 1.0 only its
+  first component counts, as ci-workflows' automerge-dependabot gate reads it. pr-unblock reads
+  the policy at the base; pr-merge reads it at the base and at the default branch head, and
+  both copies must name every update. The newest `ci-status` run
   on the head is not red (`failure`, `cancelled`, `timed_out`, `action_required`,
   `startup_failure`). The updates come from the `updated-dependencies` metadata in Dependabot's
   verified commit when it is there, and from the title (`bump <name> from <a> to <b>`) or a
