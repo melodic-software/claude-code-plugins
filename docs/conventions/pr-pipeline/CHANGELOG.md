@@ -1,5 +1,16 @@
 # Changelog for the PR pipeline convention
 
+## [10.5.1] - 2026-11-16
+
+### Changed
+
+- The Merge-Risk section says the pipeline reads no record back, and that a session merging a lanes
+  App pull request does, per the pull-request merge reference §4.2.1.
+
+### Fixed
+
+- The README's identity table now says a pull request `GITHUB_TOKEN` opens or pushes to gets `pull_request` runs that wait for approval, rather than none, and links GitHub's [Triggering a workflow from a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow). The release workflows' header comments say the same.
+
 ## [10.5.0] - 2026-11-16
 
 ### Changed
