@@ -11,6 +11,7 @@ bump: minor
   inventory that `scripts/rule-inventory.sh` generates, one row per rule (rule, enforcer, rung,
   tier), from the repository's settings, ecosystem records, test files, control skills and
   instruction files. Rung ids and tiers come from the ladder copy the skill carries. A source the
-  script cannot find or read is named, never counted as zero.
+  script cannot find or read is named, never counted as zero, and so is each source present but not
+  counted: CI workflows, git hook managers, local settings and enabled plugins' hooks.
 - **`rule_inventory.declared` in `harness-config.yaml`.** Rows for rules no file shows, such as a
   type that makes the mistake impossible; the schema describes the key.

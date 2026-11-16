@@ -40,6 +40,11 @@ headings, tables, fences, comments and @-imports are not statements. Files
 under a fixtures, evals, tests or testdata directory are not read as the
 repository's own instructions.
 
+Never counted, and named as "present, not counted" when present: CI workflows,
+git hook managers (lefthook, pre-commit, husky), .claude/settings.local.json,
+and the hooks and settings of the plugins the project settings enable. A check
+that runs only in one of those is in no row.
+
 Sits lower than it could: a guidance-tier statement in which never, do not,
 don't or must not is followed, within six words of the same clause, by a
 backticked literal forbids that literal, which a pattern check could match.
@@ -286,6 +291,17 @@ for f in .github/pull_request_template.md .github/PULL_REQUEST_TEMPLATE.md PULL_
   [[ -r "$f" ]] && { emit_items "$f" human-review 1; human_n=$((human_n + 1)); }
 done
 [[ "$human_n" -gt 0 ]] || note "human: no CONTRIBUTING.md and no pull request template in this repository"
+
+wf="$(grep -Ec '^\.github/workflows/[^/]+\.ya?ml$' "$work/files")"
+[[ "$wf" -eq 0 ]] || note "present, not counted: $wf CI workflow file(s) under .github/workflows; a check that runs only there is in no row"
+for f in lefthook.yml lefthook.yaml .lefthook.yml .pre-commit-config.yaml .husky; do
+  [[ -e "$f" ]] && note "present, not counted: $f (git hooks); a check that runs only there is in no row"
+done
+[[ -e .claude/settings.local.json ]] && note "present, not counted: .claude/settings.local.json (one person's settings)"
+if [[ -r "$settings" ]] && command -v jq >/dev/null &&
+  jq -e '(.enabledPlugins // {}) | to_entries | any(.value == true)' "$settings" >/dev/null 2>&1; then
+  note "present, not counted: hooks and settings of the plugins $settings enables"
+fi
 
 if [[ "$rows_only" = 1 ]]; then
   cat "$rows"

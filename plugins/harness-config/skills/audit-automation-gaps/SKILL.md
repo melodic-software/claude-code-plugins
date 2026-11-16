@@ -355,7 +355,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/rule-inventory.
 
 Copy its tier table and its "Sits lower than it could" list into the report as printed, with the
 script's line naming what a row counts and every source line that names an absent or unreadable
-file. The table holds all five tiers; a tier the script found empty stays in it with its reason.
+file or a source it does not count, such as CI workflows or git hooks. The table holds all five tiers; a tier the script found empty stays in it with its reason.
 Both are rollups of one inventory, one row per rule (rule, enforcer, rung, tier), which `--rows`
 prints when a reader needs the rows behind a count.
 
