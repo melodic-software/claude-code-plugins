@@ -10,7 +10,7 @@ expected_outcome: "Reproduces the export chain's shallow-signal, finds three cal
 
 /architecture:improve deepening --medium file
 
-Phase 1 already ran on this repository; do not scan it again. You may read the files the scan names below, and this skill's own files. The scan returned one candidate:
+Phase 1 already ran on this repository; do not scan it again. You may read the files the scan names below, search the repository for their callers and read those, and read this skill's own files. The scan returned one candidate:
 
 1. Invoice export chain (confidence: strong). Files: billing/loader.py, billing/formatter.py, billing/writer.py. shallow-signal: InvoiceLoader.load, InvoiceFormatter.format and InvoiceWriter.write each do one step, and five call sites repeat the load, format, write sequence. No test covers the chain.
 

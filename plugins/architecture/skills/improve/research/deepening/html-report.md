@@ -2,7 +2,7 @@
 
 Deepening review rendered as one HTML file in the OS temp directory: created through the platform's temp API, resolved deterministically rather than by branching on an injected scratchpad path or `CLAUDE_JOB_DIR`. The path is handed back for the user to open, so the file is never deleted before returning; it outlives the invocation, which is why one run writes exactly one file.
 
-The page is built on this plugin's bundled chrome reference, `<plugin-root>/reference/html-chrome.html`: its palette, type stacks, light and dark schemes, theme toggle and accessibility floor. Two libraries come from a CDN: Tailwind for layout and Mermaid for graph-shaped diagrams. Hand-built divs and inline SVG draw the rest. Use both kinds in one report; a report drawn only with Mermaid looks generic.
+The page is built on this plugin's bundled chrome reference, [reference/html-chrome.html](../../../../reference/html-chrome.html): its palette, type stacks, light and dark schemes, theme toggle and accessibility floor. Two libraries come from a CDN: Tailwind for layout and Mermaid for graph-shaped diagrams. Hand-built divs and inline SVG draw the rest. Use both kinds in one report; a report drawn only with Mermaid looks generic.
 
 **Security baseline.** The report holds to the rendered-views security baseline as stated in Phase 2 of [../../actions/deepening.md](../../actions/deepening.md). Three additions are specific to this report:
 
@@ -110,7 +110,7 @@ graph of the tangle on the left and one hand-built deep module on the right.
 
 | Pattern | Shows | Drawing |
 |---|---|---|
-| Mermaid graph | which module calls which, and where it leaks | a Mermaid `flowchart`; a `classDef` gives leakage edges the rust stroke and the deep module a dark fill |
+| Mermaid graph | which module calls which, and where it leaks | a Mermaid `flowchart`; a `linkStyle` line gives each leakage edge the rust stroke, by the edge's position in the block counted from 0, and a `classDef` gives the deep module a dark fill |
 | Mermaid sequence | fewer seam crossings, such as five round-trips cut to one | a Mermaid `sequenceDiagram` per column; the two arrow counts carry the comparison |
 | Boxes and arrows by hand | a deep module that has to look heavy | bordered `<div>`s and inline SVG arrows, ending in one thick-bordered `.deep` box with greyed internals, a weight Mermaid does not draw |
 | Layer stack | shallowness spread over layers | one fixed-height row with a heavy left border per layer a call passes through: six thin rows on the left, one tall row named for the merged responsibility on the right |
@@ -127,8 +127,7 @@ flowchart LR
   A["InvoiceController"] --> B["InvoiceChecker"]
   B --> C["InvoiceStore"]
   C -. leak .-> D["TaxClient"]
-  classDef leak stroke:#B04A3F,stroke-width:2px;
-  class C,D leak
+  linkStyle 2 stroke:#B04A3F,stroke-width:2px;
   </pre>
 </div>
 ```

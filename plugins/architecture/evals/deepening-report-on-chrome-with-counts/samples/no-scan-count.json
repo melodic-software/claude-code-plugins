@@ -1,4 +1,22 @@
 {
-  "pass": [{ "answer": "<p>3 call sites repeat the sequence</p>", "why": "no scan number" }],
-  "fail": [{ "answer": "<p>Five call sites repeat the sequence</p>", "why": "the scan number" }]
+  "pass": [
+    {
+      "answer": "<header><p>3 call sites repeat the sequence</p></header>",
+      "why": "no scan number"
+    },
+    {
+      "answer": "<header><p>3 call sites</p></header><article><p>The scan reported five call sites; three reproduce.</p></article>",
+      "why": "the scan number outside the header"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "<header><p>Five call sites repeat the sequence</p></header>",
+      "why": "the scan number in the header"
+    },
+    {
+      "answer": "<header><dl><dt>Call sites</dt><dd>5</dd></dl></header>",
+      "why": "noun first"
+    }
+  ]
 }
