@@ -9,6 +9,7 @@
 # GitHub is read only through `gh api`, so a test puts a stub `gh` on PATH.
 set -euo pipefail
 shopt -s inherit_errexit
+[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 
 UPSTREAM=melodic-software/ci-workflows
 # The standards sync owns this file's pin.
@@ -37,6 +38,7 @@ file_set() {
 
 resolve() {
   local releases tag ref sha
+  # shellcheck disable=SC2310 # the || handles gh's failure
   releases="$(gh api --paginate "repos/${UPSTREAM}/releases" \
     --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name')" ||
     die "could not read the published ${UPSTREAM} releases"
@@ -86,6 +88,7 @@ apply() {
   fi
   [[ "$old_tag" != "$new_tag" && "$(printf '%s\n' "$old_tag" "$new_tag" | sort -V | tail -n1)" == "$new_tag" ]] ||
     die "${new_tag} is not newer than the current pin ${old_tag}"
+  # shellcheck disable=SC2310 # the || handles gh's failure
   status="$(gh api "repos/${UPSTREAM}/compare/${old}...${new}" --jq .status)" ||
     die "could not compare ${old}...${new} on ${UPSTREAM}"
   [[ "$status" == ahead ]] || die "${new_tag} (${new}) does not contain the current pin ${old}: compare status '${status}'"
