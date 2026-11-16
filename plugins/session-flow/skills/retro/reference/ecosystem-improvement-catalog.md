@@ -148,7 +148,8 @@ A check row from [Check first](#check-first) without the `corrections` plugin al
 strongest ladder rung that can decide the finding, by its rung id, and, as requirements on the
 check, each criterion item Check first lists, by name: precision (item 3), a message naming the
 fix (item 4), proof on a planted violation (item 5), a kill switch (item 8), and item 6 where Check
-first keeps it.
+first keeps it. Such a row always states the hook's four fields above; a permission deny rule may be
+named beside the hook, never in its place.
 
 ## Settings / Configuration
 

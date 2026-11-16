@@ -10,4 +10,5 @@ bump: patch
   place, as the enforcement ladder says.
 - `/session-flow:retro`: a finding that gets a check row gets no CLAUDE.md, `AGENTS.md` or
   rules-file line in any form, a fallback for a withheld or declined check included, and Phase 4
-  offers none; the Hooks format names the open criterion items one by one.
+  offers none; the Hooks format names the open criterion items one by one, and its check row always
+  states the hook's four fields, a deny rule only beside the hook.
