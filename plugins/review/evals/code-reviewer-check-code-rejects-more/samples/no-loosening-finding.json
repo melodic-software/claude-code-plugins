@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Criteria read: none present\nLoosened-check verdict: fail (default); patterns: 0\n\n**IMPORTANT**\n- `scripts/check-changelog.mjs:15`: the new dated-heading rule has no test. Confidence: high\n\n**SUGGESTION**\n- `scripts/check-changelog.mjs:15`: CHANGELOG.md is read relative to the working directory; resolve it from the repository root. Confidence: medium\n\nThe edit makes the check stricter, which is not a loosening.\n\nCoverage: all changed files reviewed",
+      "why": "findings on other grounds, and states the edit is stricter"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**CRITICAL**\n- `scripts/check-changelog.mjs:14`: Fail a change that loosens a check (a check's own code changed): the check script was edited. Confidence: medium",
+      "why": "cites the loosened-check criterion against a stricter check"
+    },
+    {
+      "answer": "**IMPORTANT**\n- `scripts/check-changelog.mjs:14`: the rewrite weakens the changelog check by moving the missing-entry test into an else branch. Confidence: low",
+      "why": "calls a stricter edit a weakened check"
+    }
+  ]
+}

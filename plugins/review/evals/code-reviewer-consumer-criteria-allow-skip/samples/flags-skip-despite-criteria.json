@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**CRITICAL**\n- `test/upload.test.js:9`: Fail a change that loosens a check (test skipped): \"uploads retry after a dropped connection\" is now `test.skip`, so the retry path is no longer tested. The spec (#91) names the test but gives no reason; docs/review/testing.md allowing skips adds findings at most and does not relax the bundled criterion. Ask the issue for the reason, or keep the test running. Confidence: high",
+      "why": "blocking finding citing the bundled criterion and the missing reason, over the repository document"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Criteria read: docs/review/testing.md\n\nNo findings. The skip follows docs/review/testing.md, which says a skipped test is acceptable and is not reported.\n\nCoverage: all changed files reviewed",
+      "why": "defers to the repository document and reports no finding"
+    },
+    {
+      "answer": "**SUGGESTION**\n- `test/upload.test.js:9`: the retry test is skipped; consider a tracking issue to re-enable it. Confidence: low",
+      "why": "a suggestion only, with no blocking finding and no criterion cited"
+    }
+  ]
+}

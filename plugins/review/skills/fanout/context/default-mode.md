@@ -30,6 +30,15 @@ the `code-reviewer` leaf's brief as a file to read. Name the path; do not paste 
 such row, the brief names no paved-path file. A row whose file does not exist is reported in the run
 summary, never skipped silently.
 
+## Loosened-check brief
+
+Before dispatch, resolve the loosened-check settings once (SKILL.md "Arguments", "Loosened-check
+settings"; the command is run-everything-mode.md step 5's). The bundled criterion
+(`quality-gate`'s `context/loosened-check.md`) always applies; consumer criteria apply in addition.
+Every `code-reviewer` brief and, in the large tier, every slice's per-slice template carries the
+two value lines and the spec, the text of the issue the change resolves (never the pull request
+body), the spec only when the resolver's `loosened_check_spec:` line says `counts`.
+
 ## Size-crossing brief
 
 Before dispatch, when `/code-metrics:audit` is among the available skills, run

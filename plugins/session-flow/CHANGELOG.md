@@ -1,5 +1,16 @@
 # Changelog: session-flow plugin
 
+## [9.3.0] - 2026-11-15
+
+### Added
+
+- The handoff structure reference's Environment to re-establish section has a Plugin profile entry. When `/plugin-profiles:profile` is among the available skills (enabled), the handoff invokes `/plugin-profiles:profile status` and writes the restore entry it prints as given. Otherwise the save-point says nothing about plugin profiles.
+- The `ho-disabled-profile-plugin-no-entry` eval: with the plugin-profiles plugin installed but disabled, a handoff makes no plugin-profiles Skill call and writes no profile entry.
+
+### Changed
+
+- `continue-in-background` drafts a goal condition with `/planning:draft-goal-condition` when that skill is among the available skills, not when the `planning` plugin is merely installed, so a plugin that is installed but disabled takes the inline fallback.
+
 ## [9.2.2] - 2026-11-15
 
 ### Changed

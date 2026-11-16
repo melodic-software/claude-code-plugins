@@ -127,6 +127,8 @@ Judge in this order:
    is not a defect by itself. It is a takeover risk when it lets an account, App or code outside
    the organization gain trust, push, merge or mint a token, or weakens one of those checks
    beyond what the spec asks for.
+   The review plugin's criterion "Fail a change that loosens a check" names the kinds of weakened
+   check; it is not one of your files, so judge from this step.
 
 Return `fail` when you find any blocking defect: the spec is not delivered, a correctness bug, a
 safety problem, a change of intent, a takeover risk, a loosened hold the owner keeps, or unasked-for
