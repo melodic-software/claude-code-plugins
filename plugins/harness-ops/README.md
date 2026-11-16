@@ -4,6 +4,7 @@
 
 - [Skills](#skills)
 - [The audit hooks](#the-audit-hooks)
+- [Run a session clean](#run-a-session-clean)
 - [Install](#install)
 - [How the skills adapt to your repo](#how-the-skills-adapt-to-your-repo)
 - [Requirements](#requirements)
@@ -343,6 +344,25 @@ script, gated by the same switch, keeps the newest
 root carries its own `*` `.gitignore`, so nothing under it reaches
 `git status`; `/harness-ops:setup` reports the toggles and the guard,
 `/harness-ops:observability session` reads the result.
+
+## Run a session clean
+
+To tell whether a problem comes from your own configuration, plugins and customizations or from
+Claude Code itself, start one interactive session without them and see whether the problem
+recurs, before filing it with `/harness-ops:known-issues` or deleting anything.
+
+- **`claude --safe-mode`** is the switch to use. It is documented for troubleshooting a broken
+  configuration, and sign-in, model, built-in tools and permissions keep working. What it turns
+  off, and which managed settings still apply:
+  [CLI reference § CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags).
+- **`--bare`** is not for this. It is built for scripted runs and changes more than your
+  customizations:
+  [Run Claude Code programmatically § Start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode).
+- **`CLAUDE_CONFIG_DIR`** pointed at a new directory gives a separate configuration directory
+  with its own settings, session history and login, so you sign in again there. Use it when you
+  want a lasting second setup rather than a one-off check:
+  [Environment variables § Variables](https://code.claude.com/docs/en/env-vars#variables),
+  [Authentication § Log in with multiple accounts](https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts).
 
 ## Install
 
