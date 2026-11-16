@@ -373,8 +373,10 @@ Write posture splits by scope, and the split is not negotiable:
   settings, and permission modes decide what happens to its `ask`, including in
   `bypassPermissions` and headless runs. Before describing the protection, read those limits at
   the pointers in that section (`PermissionRequest` hooks, `disableAllHooks`, hook order against
-  the mode check, and `-p` denials) and say so; without guardrails enabled, say no checkpoint
-  runs.
+  the mode check, and `-p` denials) and say so. This session cannot tell whether guardrails is
+  enabled (its one skill is user-only), so before the write always say that the checkpoint runs
+  only when the guardrails plugin is enabled, and that without it the write goes through with no
+  ask; give `claude plugin enable guardrails@<marketplace>`.
 - **User-global** (`~/.claude/settings.json`): **never written by this skill.** Print the exact
   edit, fully resolved and paste-ready; applying it is the operator's. "Protected path" is not a
   human-confirmation guarantee: in auto mode the classifier, not a person, decides a write there.

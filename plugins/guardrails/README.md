@@ -1,6 +1,6 @@
 # guardrails
 
-A Claude Code plugin bundling nineteen **safety guards** that catch risky agent
+A Claude Code plugin bundling twenty **safety guards** that catch risky agent
 actions the moment they happen, before a write lands or a bash command runs, and
 four git-hook checks that cover every commit and push. Each guard is independently
 toggleable, so you run exactly the subset you want.
@@ -1509,6 +1509,8 @@ Claude Code, so they have no switch here: a clone turns one off by declining its
 | block-github-post-content | `block_github_post_content_enabled` |
 | block-noncanonical-commit | `block_noncanonical_commit_enabled` |
 | block-convention-violation | `block_convention_gate_enabled` |
+| settings-write-ask | `settings_write_ask_enabled` |
+| connected-page-gate | `connected_page_guard_enabled` |
 | workflow-resilience-check | `workflow_resilience_check_enabled` |
 | flag-commit-pr-skill-bypass | `flag_commit_pr_skill_bypass_enabled` |
 

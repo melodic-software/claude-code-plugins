@@ -65,6 +65,10 @@ nothing.
    Absent: INFO, not a defect. Absent or unavailable: the engine degrades to parsing headless
    `/context` output (state both caveats: display-rounded, on an undocumented surface), and to a
    structured error rather than a wrong number when neither mode works.
+4. **The settings-write ask** (INFO): it ships in guardrails, not here. Say that it runs only when
+   the guardrails plugin is enabled, that without it `/context-budget:audit fix` and any other
+   file-editing write to a settings file go through with no ask, and give
+   `claude plugin enable guardrails@<marketplace>`.
 
 ## Remediation guidance (printed by `check`; the operator applies it)
 
