@@ -261,6 +261,7 @@ jobs:
     if: ${{ !cancelled() && github.event_name == 'issues' && needs.check-kill-switch.outputs.proceed == 'true' && needs.check-born-triaged.outputs.rate-limited != 'true' && needs.check-born-triaged.outputs.skip != 'true' }}
     permissions:
       issues: write # passed to the reusable, which reads and adds issue labels
+    cache-mode: read
     uses: melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@main
     with:
       runner: ubuntu-24.04
@@ -288,6 +289,7 @@ jobs:
     concurrency:
       group: intake-triage-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
+    cache-mode: read
     uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@main
     with:
       runner: ubuntu-24.04
