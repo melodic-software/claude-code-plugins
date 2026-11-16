@@ -179,7 +179,7 @@ Target (from /performance:target): <candidate> @ <E1..E4>
   floor, an input to the goal rather than a result of it.
 - **Does not implement.** The change is `/implementation:implement`.
 - **Does not store baselines.** `/verification:measure` owns baseline capture and storage when the
-  `verification` plugin is installed; this plugin depends on it rather than reimplementing it.
+  `verification` plugin is enabled; this plugin depends on it rather than reimplementing it.
 
 ## Next
 

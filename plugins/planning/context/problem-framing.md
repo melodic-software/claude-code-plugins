@@ -85,7 +85,7 @@ unchanged.
 ## Artifact with history
 
 When the request concerns an existing artifact whose problem lives in its history (a mechanism,
-a workaround, a design choice), recommend `/discovery:trace-intent` when it is installed to
+a workaround, a design choice), recommend `/discovery:trace-intent` when it is enabled to
 recover the problem. Otherwise work back from the evidence in-session: the commits, pull requests,
 issues and docs that introduced it. Either way, rate what you recover.
 
@@ -123,7 +123,7 @@ then the resolved setting is the only source.
 ## Large size
 
 The last level of the resolved `size` dimension means split, whatever it is named. Recommend
-`/planning:wayfind` or `/work-items:decompose` when either is installed and enabled. Otherwise
+`/planning:wayfind` or `/work-items:decompose` when either is enabled. Otherwise
 advise the split in-session: name the pieces and their order. The split is a recommendation,
 never forced; the human may keep the work whole, and the Brief records that under split signals.
 

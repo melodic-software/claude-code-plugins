@@ -26,7 +26,7 @@ Present the markdown report as printed. It opens with the scope and a "Coverage 
 (lane, collector, status, reason), then the reference with its provenance and layer, then one row
 per file, least typed first, and one row per lane labeled `lane-total`. Keep the `--json`
 document when the numbers feed a comparison:
-`/verification:measure metrics` consumes it when the `verification` plugin is installed (treat a
+`/verification:measure metrics` consumes it when the `verification` plugin is enabled (treat a
 report whose `status` is `empty` on either side as INCONCLUSIVE); otherwise keep the JSON beside
 your notes and compare by hand.
 

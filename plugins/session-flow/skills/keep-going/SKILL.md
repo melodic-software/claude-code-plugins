@@ -132,7 +132,7 @@ itself the thing this skill removes.
    - **Cause**: the evidence for why the work stopped, quoted (the limit
      message, the error entry), or `none found`.
 
-   A field with no reading says `unknown` and why (plugin not installed,
+   A field with no reading says `unknown` and why (plugin not enabled,
    mods off, tool answer with no windows, no transcript); a value is never
    guessed. The cause line states evidence only and picks no recovery.
 3. **Goal alignment, before any recovery action.** When the resume
@@ -330,14 +330,14 @@ For any "is it stuck / check the monitor / poke it":
   account that emitted it. Two live readings of the *current* account count:
   the `/usage` view, which the operator relays (what it shows and to whom:
   the record below), and the session's `rate_limits` windows, which this skill reads through
-  rate-limits's `mcp__rate-limits__status` pull tool when the guard
-  is installed and mods are on. For which fields the statusline `rate_limits`
+  rate-limits's `mcp__rate-limits__status` pull tool when the `rate-limits`
+  plugin is enabled and mods are on. For which fields the statusline `rate_limits`
   object carries and who receives it, see
   [statusline: Available data](https://code.claude.com/docs/en/statusline#available-data);
   the record below holds its as-of date and recheck trigger. A captured
   message never drives a still-blocked verdict by itself: re-check live
   before handing back. When no
-  live reading is obtainable (mods off, the guard not installed, the
+  live reading is obtainable (mods off, the `rate-limits` plugin not enabled, the
   tool's registration refused by policy, or a tool answer with no windows,
   `verdict: "unknown"`; which auth types receive the windows: the record
   below), ask the

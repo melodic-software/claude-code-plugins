@@ -40,4 +40,4 @@ Combine into: LOW / MEDIUM / HIGH / CRITICAL
 
 ## Domain-specialist skills for stress-testing
 
-When a stress-test trigger touches a domain with a dedicated installed skill or plugin (cloud deployment, AI/ML, edge compute, MCP design), cite that skill's slash invocation for deeper analysis. See [plan-template.md](plan-template.md) "Domain-specialist skills during planning".
+When a stress-test trigger touches a domain with a dedicated enabled skill or plugin (cloud deployment, AI/ML, edge compute, MCP design), cite that skill's slash invocation for deeper analysis. See [plan-template.md](plan-template.md) "Domain-specialist skills during planning".

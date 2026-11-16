@@ -58,11 +58,11 @@ Every review round lists each done criterion as pass or fail with a one-line rea
 
 The in-skill brief above is the default path and works with nothing else installed.
 
-When the request is vague (no subject, or no checkable done criterion) or high-stakes (a shipped game asset, or a large variant family), offer `/planning:interview` (if the planning plugin is installed). Planning owns a numbered-question brief. If planning is not installed, or the user does not accept the offer, continue with this brief and say which path was taken. Do not start the interview unless the user accepts.
+When the request is vague (no subject, or no checkable done criterion) or high-stakes (a shipped game asset, or a large variant family), offer `/planning:interview` (if the planning plugin is enabled). Planning owns a numbered-question brief. If planning is not enabled, or the user does not accept the offer, continue with this brief and say which path was taken. Do not start the interview unless the user accepts.
 
 ## Recorded decisions
 
-This skill offers `/planning:interview` only when the planning plugin is installed, and says which path was taken, because another plugin's skill cannot be assumed present.
+This skill offers `/planning:interview` only when the planning plugin is enabled, and says which path was taken, because another plugin's skill cannot be assumed present.
 
 - **Pointer**: when deciding whether another plugin's skill can be offered, fetch [Plugins overview: Decide whether you need a plugin](https://code.claude.com/docs/en/plugins/overview#decide-whether-you-need-a-plugin) and [What an enabled plugin adds to your sessions](https://code.claude.com/docs/en/plugins/overview#what-an-enabled-plugin-adds-to-your-sessions) live.
 

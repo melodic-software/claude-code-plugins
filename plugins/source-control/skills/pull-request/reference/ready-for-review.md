@@ -379,7 +379,7 @@ The bullets below are the steps.
 - **Security review of the same diff (`security-review`)**, for any diff that is not docs-only
   whose `security-review` venue reads `local`. It runs here rather than
   in prep because it needs the PR to exist. Run `/review:security-review` over that diff when the
-  `review` plugin is installed. When you dispatch `review:security-reviewer` yourself, follow the
+  `review` plugin is enabled. When you dispatch `review:security-reviewer` yourself, follow the
   same reviewer handback. Without the plugin, run a security-reviewer agent when your environment
   ships one, and otherwise a fresh-context subagent over the diff for the security scope the
   repository's `REVIEW.md` names (trust boundaries, injection, credential exposure, authorization

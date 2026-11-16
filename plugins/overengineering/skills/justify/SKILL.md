@@ -169,12 +169,12 @@ row also carries:
 
 **Attended only.** Report first, then discuss. Where intent scores MEDIUM or LOW (§4), or tiers 1 to
 3 are silent and tier 4 could exist, ask before writing UNPROVEN: recommendation first, one small
-numbered set of questions, batched. Use `planning:interview`'s mechanics where installed, otherwise
+numbered set of questions, batched. Use `planning:interview`'s mechanics where enabled, otherwise
 ask inline. "I don't know" is accepted: it records UNPROVEN with the tier named.
 
 ## Boundary
 
-This lane reports and hands off. Each route is presence-gated: where the plugin is absent, say so,
+This lane reports and hands off. Each route is presence-gated: where the plugin is not enabled, say so,
 state what it would have owned, and record the fallback in `Routed-to`.
 
 | The finding is about | Owner |

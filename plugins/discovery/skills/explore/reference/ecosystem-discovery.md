@@ -5,7 +5,7 @@ Per-ecosystem discovery primitives consumed by the explore skill's Dimensions 3â
 
 ## Prefer the toolchain seam
 
-When the `toolchain` plugin is installed, compose `/toolchain:check`'s ecosystem
+When the `toolchain` plugin is enabled, compose `/toolchain:check`'s ecosystem
 detection and command-resolution seam for the shared signal vocabulary it owns.
 Do not bake a second inventory of those signals. `/toolchain:check` is the
 reference skill other plugins compose for that concern instead of baking their
@@ -16,7 +16,7 @@ Resolve each ecosystem through the ladder `/toolchain:check` documents (consumer
 portable defaults only as that ladder's final rung). Read *resolved* state: an
 ecosystem present but `enabled: false` is not configured for exploration either.
 
-| Explore need | Source when `toolchain` is installed |
+| Explore need | Source when `toolchain` is enabled |
 |---|---|
 | Which ecosystems are in play | Resolved `globs` (and covered-ecosystem set), **plus** any fallback-table ecosystem the resolved seam does not cover, when its fallback `build-configs` markers are present in the repo |
 | Project / workspace roots (Dimension 3 adjacency) | Resolved `project-discovery` / `anchor` |
@@ -35,7 +35,7 @@ nonstandard workspace file), the project's conventions win.
 
 ## Fallback when toolchain is absent
 
-When the `toolchain` plugin is not installed, use the table below for every
+When the `toolchain` plugin is not enabled, use the table below for every
 sub-key. This is the documented standalone fallback, not a peer source of truth
 alongside the seam.
 

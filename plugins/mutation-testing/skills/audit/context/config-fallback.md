@@ -25,7 +25,7 @@ branch, and when that does not resolve, ask the user for it (an unattended run s
 `git remote set-head origin --auto`); `mutate` set to the changed source files minus test code, or
 under `--exercised` every source file minus test code, so the mapping can reach unchanged code; no
 `max-mutants`, so the effort cap applies (SKILL.md "Effort, the mutant cap of last resort"). Test
-code is what `/testing:audit --file` claims when the `testing` plugin is installed; otherwise list
+code is what `/testing:audit --file` claims when the `testing` plugin is enabled; otherwise list
 the files you take as tests and have the user confirm them with the test command. The `Config:`
 line reads `no config: fallback defaults` and lists each default.
 

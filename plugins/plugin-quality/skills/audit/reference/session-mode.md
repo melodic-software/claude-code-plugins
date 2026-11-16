@@ -29,7 +29,7 @@ Run at session start. It audits nothing.
 1. If `<plugin-data-dir>/armed/<session_id>.json` already exists, report it and stop before any
    launch; never start a second observer for one session. `<plugin-data-dir>` and `<session_id>`
    resolve exactly as the evidence packet's layout resolves them.
-2. Invoke `/session-flow:running-retro arm` when the session-flow plugin is installed. Absent:
+2. Invoke `/session-flow:running-retro arm` when the session-flow plugin is enabled. Absent:
    say the observer cannot be armed here and stop. Do not build a substitute observer.
 3. When the launcher reports the observer armed, write that file with `armed_at` (UTC),
    `session_id`, and the launcher's one-line result verbatim. The directory sits beside
@@ -92,7 +92,7 @@ Every load-bearing claim in the item carries a `research:` line in the ledger
 A suggested change (a remediation the item proposes, as opposed to a defect it reports) also
 carries a readiness label, decided at step 4:
 
-1. Run `/discovery:research` on the change when the discovery plugin is installed: the question is
+1. Run `/discovery:research` on the change when the discovery plugin is enabled: the question is
    whether current authoritative sources support the change.
 2. Record the result in the item under `## Research`: each source with its tier as the research
    pass assigns it, its URL, the fetch date, and whether it supports or dissents. Do not restate

@@ -110,10 +110,10 @@ the user (fixing trivial mechanical items directly).
 - **Not a pre-implementation plan stress-test.** Attacking a plan or proposal
   *before* the work is built is `/planning:devils-advocate`. This corrector
   re-examines output *already produced*. Route "poke holes in this plan before
-  we start" to devils-advocate; degrade to prose when it is not installed.
+  we start" to devils-advocate; degrade to prose when it is not enabled.
 - **Not a review checkpoint.** A structured review pass between "code works" and
   "code is ready" routes to `/review:quality-gate`, invoked via the Skill tool (degrade to
-  prose when it is not installed).
+  prose when it is not enabled).
 - **Not a single-axis corrector.** It is the *general* adversarial re-look.
   When a flaw is squarely one axis (an unverified claim), hand that part to the
   sibling that owns it (`/discipline:do-your-research`) while keeping the general

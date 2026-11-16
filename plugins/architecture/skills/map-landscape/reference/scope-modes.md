@@ -7,7 +7,7 @@ Read this when the invocation carries `--root` or `--remote`.
 
 Repeatable. Discovers repositories under each root, then charts them.
 
-### When the `repo-fleet-hygiene` plugin is installed
+### When the `repo-fleet-hygiene` plugin is enabled
 
 That plugin owns bounded fleet discovery and canonical-checkout resolution, so delegate rather than
 walking. Use the memory slice `<memory_dir>/<topic-slug>/` (default `.work/<topic-slug>/`), `mkdir -p` it,
@@ -30,7 +30,7 @@ the operator's whole configured fleet, including personal directories nobody ask
 which self-ignores. Never commit it, and never copy it into the architecture directory as a record
 of the fleet.
 
-### When the plugin is absent
+### When the plugin is not enabled
 
 Fall back to the bundled walk, and announce the fallback: the operator has to know the collaborator
 did not run. Fall back the same way when the plan file is missing or carries a `schema_version`

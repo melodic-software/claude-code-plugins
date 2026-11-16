@@ -79,7 +79,7 @@ record which source each finding rests on:
    `performance`, or the repo's standards say nothing about the target. Invoke
    `/discovery:research` via the Skill tool for an approach or framework question, or
    `/context7:lookup` via the Skill tool for a library or API question, or research official
-   documentation inline where neither skill is installed. Scale the depth to the
+   documentation inline where neither skill is enabled. Scale the depth to the
    target: one lookup for a method, a full research pass for a framework or architecture change.
    Unattended runs skip this rung (see Unattended mode).
 3. **Model judgment**, the weakest source, labeled `judgment` wherever it is used.
@@ -116,7 +116,7 @@ unless the user redirects. `dry-run` presents the pick with its proposed diff an
 
 ## Step 4. Route to an owning lane, or fix it here
 
-When an installed skill owns the kind of fix picked, invoke it via the Skill tool, scoped to the
+When an enabled skill owns the kind of fix picked, invoke it via the Skill tool, scoped to the
 target. What happens next depends on what that skill returns:
 
 - **It ships its own PR** (for example `/code-tidying:tidy`): its run is this run's result, and
@@ -126,7 +126,7 @@ target. What happens next depends on what that skill returns:
   with the steps below. Unattended runs skip a lane that needs a human pick and fix the gap here
   instead, or move to the next candidate.
 
-Any installed skill whose description owns the gap qualifies; the examples are not a closed list.
+Any enabled skill whose description owns the gap qualifies; the examples are not a closed list.
 
 Otherwise, and after a lane that does not ship, fix it here:
 
