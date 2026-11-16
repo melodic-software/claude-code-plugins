@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.4.2] - 2026-11-16
+
+### Fixed
+
+- `charge-words.json` no longer reads a lane's Claude credential as a charge. `subscription leg`, `subscription token`, `subscription fallback`, `subscription OAuth` (and their plurals) and `subscription and fallback legs` now match no charge word, so intake admission stops holding issues about the lanes' credential order for the owner. Buying or upgrading a plan, another vendor's subscription, top-ups, extra usage and auto-renew still hold as `cost`.
+
 ## [15.4.1] - 2026-11-15
 
 ### Changed

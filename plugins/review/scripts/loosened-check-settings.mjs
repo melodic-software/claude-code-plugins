@@ -14,10 +14,13 @@
 // skipped and the output says why. When the ref cannot be read, the verdict
 // resolves fail, the user's patterns still apply, and a WARN line says why. An option
 // that is empty or an unrendered ${user_config.<key>} placeholder is unset.
+// --spec-issue reads the trusted-actor list from the default branch this script
+// resolves itself; when --ref names another commit, the spec gives no reason.
 //
 // Output, one line each:
 //   loosened_check_verdict: <fail|note> (<layers that set it, or default>)
 //   loosened_check_patterns: <JSON list> (<layers that added entries, or default>)
+//   loosened_check_spec: <counts|no reason> (<why>)
 // then an INFO or WARN line per skipped or invalid layer. Exit 0 when both keys
 // resolved; 2 on a usage error.
 
@@ -62,26 +65,55 @@ const isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v)
 
 const MEMBER_ASSOCIATIONS = ["OWNER", "MEMBER", "COLLABORATOR"];
 
-/** The human ids of the trusted-actor list at opts.ref, schema-checked as loadTrustedList does; null when the ref has no list; throws on any other failure. */
+const BRANCH_NAME = /^[A-Za-z0-9._/-]+$/;
+
+/**
+ * The remote's default branch as `origin/<name>`, resolved here and never taken from the caller:
+ * the local refs/remotes/origin/HEAD, else the default branch gh reports for the repository. Throws when neither resolves.
+ */
+function defaultBranch(git, root) {
+  const local = git("symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD");
+  const localName = local.status === 0 ? local.stdout.trim() : "";
+  if (localName.startsWith("origin/") && BRANCH_NAME.test(localName)) return localName;
+  const remote = spawnSync("gh", ["api", "repos/{owner}/{repo}", "--jq", ".default_branch"], { cwd: root, encoding: "utf8", timeout: 30000 });
+  const name = remote.status === 0 ? remote.stdout.trim() : "";
+  if (name && BRANCH_NAME.test(name)) return `origin/${name}`;
+  throw new Error("the default branch could not be resolved");
+}
+
+/**
+ * The human ids of the trusted-actor list on the default branch, schema-checked as loadTrustedList
+ * does; null when the default branch has no list; throws on any other failure, and when --ref names
+ * another commit, so a run pointed at a head branch never reads a list that branch edited.
+ */
 function trustedHumans(opts, root) {
-  if (opts.ref === null || !/^(origin\/[A-Za-z0-9._/-]+|[0-9a-f]{40})$/.test(opts.ref)) throw new Error("no --ref names the default branch");
   const git = (...args) => spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
-  if (git("rev-parse", "--verify", "--quiet", `${opts.ref}^{commit}`).status !== 0) throw new Error(`${opts.ref} is not readable`);
-  if (git("cat-file", "-e", `${opts.ref}:${TRUSTED_ACTORS}`).status !== 0) return null;
-  const shown = git("show", `${opts.ref}:${TRUSTED_ACTORS}`);
-  if (shown.status !== 0) throw new Error(`${TRUSTED_ACTORS} is not readable at ${opts.ref}`);
+  const ref = defaultBranch(git, root);
+  const commit = (name) => {
+    const parsed = git("rev-parse", "--verify", "--quiet", `${name}^{commit}`);
+    if (parsed.status !== 0) throw new Error(`${name} is not readable`);
+    return parsed.stdout.trim();
+  };
+  const head = commit(ref);
+  if (opts.ref !== null) {
+    if (!/^(origin\/[A-Za-z0-9._/-]+|[0-9a-f]{40})$/.test(opts.ref)) throw new Error(`--ref ${opts.ref} names no branch or commit`);
+    if (commit(opts.ref) !== head) throw new Error(`--ref ${opts.ref} is not the default branch ${ref}, so its trusted-actor list is not read`);
+  }
+  if (git("cat-file", "-e", `${head}:${TRUSTED_ACTORS}`).status !== 0) return { ref, humans: null };
+  const shown = git("show", `${head}:${TRUSTED_ACTORS}`);
+  if (shown.status !== 0) throw new Error(`${TRUSTED_ACTORS} is not readable at ${ref}`);
   const list = JSON.parse(shown.stdout);
   if (!isObject(list) || Object.keys(list).sort().join() !== "actors,version" || list.version !== 1 || !Array.isArray(list.actors)) {
-    throw new Error(`${TRUSTED_ACTORS} at ${opts.ref} does not match its schema`);
+    throw new Error(`${TRUSTED_ACTORS} at ${ref} does not match its schema`);
   }
   const humans = new Set();
   for (const a of list.actors) {
     if (!isObject(a) || Object.keys(a).sort().join() !== ACTOR_KEYS || !Number.isInteger(a.id) || a.id < 1 || typeof a.login !== "string" || !["human", "bot"].includes(a.kind)) {
-      throw new Error(`${TRUSTED_ACTORS} at ${opts.ref} has an entry that does not match its schema`);
+      throw new Error(`${TRUSTED_ACTORS} at ${ref} has an entry that does not match its schema`);
     }
     if (a.kind === "human") humans.add(a.id);
   }
-  return humans;
+  return { ref, humans };
 }
 
 /** Whether the spec issue's text may give a loosening its reason: [counts, why]. */
@@ -89,7 +121,7 @@ function specTrust(opts) {
   if (opts.specIssue === undefined) return [false, "no --spec-issue names the issue"];
   const root = resolve(opts.root ?? process.cwd());
   try {
-    const humans = trustedHumans(opts, root);
+    const { ref, humans } = trustedHumans(opts, root);
     const read = spawnSync("gh", ["api", `repos/{owner}/{repo}/issues/${opts.specIssue}`], { cwd: root, encoding: "utf8" });
     if (read.status !== 0) throw new Error(`issue #${opts.specIssue}'s author could not be read`);
     const issue = JSON.parse(read.stdout);
@@ -98,12 +130,12 @@ function specTrust(opts) {
     const who = `issue #${opts.specIssue} by ${user.login}, id ${user.id}`;
     if (humans === null) {
       const assoc = typeof issue.author_association === "string" ? issue.author_association : "unread";
-      const rule = `author_association ${assoc}, no trusted-actor list at ${opts.ref}`;
+      const rule = `author_association ${assoc}, no trusted-actor list at ${ref}`;
       const counts = user.type === "User" && MEMBER_ASSOCIATIONS.includes(assoc);
       return [counts, `${who}, ${user.type === "User" ? "" : `type ${user.type}, `}${rule}`];
     }
-    if (user.type === "User" && humans.has(user.id)) return [true, `${who}, a trusted person at ${opts.ref}`];
-    return [false, `${who}, not a trusted person at ${opts.ref}`];
+    if (user.type === "User" && humans.has(user.id)) return [true, `${who}, a trusted person at ${ref}`];
+    return [false, `${who}, not a trusted person at ${ref}`];
   } catch (err) {
     return [false, err instanceof SyntaxError ? "a reply could not be parsed" : err.message];
   }

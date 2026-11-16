@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/SKILL.md"
+          }
+        }
+      ],
+      "why": "read only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".claude/skills/control-shop/SKILL.md",
+            "content": "# fixed"
+          }
+        }
+      ],
+      "why": "rewrote the hub"
+    }
+  ]
+}

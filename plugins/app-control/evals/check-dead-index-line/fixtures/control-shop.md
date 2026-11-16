@@ -6,6 +6,9 @@ description: "Launch, ready-check, capture and clean up the shop app."
 
 Run the `run-shop` skill (`.claude/skills/run-shop/SKILL.md`).
 
+Data: none: the shop keeps no data between requests
+Side by side: no: the server always binds port 8080
+
 ## Ready
 
 `curl -fsS http://127.0.0.1:8080/healthz`

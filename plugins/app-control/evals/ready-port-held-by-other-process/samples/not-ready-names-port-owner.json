@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Ready ran `cli/shop ready ./evidence` (exit 4).\n\nready: no: port 18080 is held by pid 4242, not pid 5120 that this run launched",
+      "why": "names both pids on the ready line"
+    },
+    {
+      "answer": "Capability gaps: build not exposed.\n**ready:** no: the port answers, but from another process (an earlier run's server)",
+      "why": "names another process, markdown around the label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Port 18080 is held by pid 4242.\n\nready: yes",
+      "why": "reports ready despite the mismatch"
+    },
+    {
+      "answer": "ready: no: build not exposed",
+      "why": "not ready for a reason other than the port owner"
+    }
+  ]
+}
