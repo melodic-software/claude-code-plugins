@@ -59,8 +59,9 @@
 # the sorted suite list partitioned by index modulo n. The union of legs
 # 0..n-1 is exactly the unsharded selection and no two legs share a suite.
 # Modulo rather than contiguous blocks, because the sorted list clusters suites
-# by directory. An EMPTY leg exits 0: "this leg had nothing to run" and
-# "nothing was affected" are the same statement about that runner.
+# by directory. A leg that draws none of a non-empty selection exits 2, a usage
+# error (more legs than selected suites): it checked nothing, so exit 0 would
+# read as a tested leg. An empty selection still exits 0 before the partition.
 #
 # FAIL LOUD, NOT OPEN. A changed file that maps to NO suite is an ERROR, not an
 # empty selection: "zero suites" reads as "nothing to run" when it actually
@@ -1680,11 +1681,11 @@ if [[ "$shard_total" -gt 1 ]]; then
     leg+=("${selected[$si]}")
   done
   echo "shard: leg $shard_index of $shard_total keeps ${#leg[@]} of ${#selected[@]} selected suite(s)." >&2
-  selected=("${leg[@]}")
-  if [[ ${#selected[@]} -eq 0 ]]; then
-    echo "This leg has no suites to run; the other legs carry the selection." >&2
-    exit 0
+  if [[ ${#leg[@]} -eq 0 ]]; then
+    echo "error: leg $shard_index of $shard_total draws none of the ${#selected[@]} selected suite(s); use at most ${#selected[@]} leg(s)." >&2
+    exit 2
   fi
+  selected=("${leg[@]}")
 fi
 
 if [[ "$explain" -eq 1 ]]; then

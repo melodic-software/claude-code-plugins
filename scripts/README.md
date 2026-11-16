@@ -174,7 +174,7 @@ recipe is also run clean (exit `0`, statement on stdout) and against a seeded
 violation (exit `1`, finding on stderr and not on stdout). A member with no
 recipe yet is held to those last two halves by its own co-located suite.
 
-Three members diverge on purpose:
+Four members diverge on purpose:
 
 - `scripts/check-hook-exec-form.sh` treats a hook declaration it cannot parse as
   a finding (`1`), not an environment problem. The input is what is wrong, and
@@ -187,6 +187,11 @@ Three members diverge on purpose:
   and emits neither. Those are git's "no merge base" and a reader killed by
   SIGPIPE, each converted to an `exit 2` or read correctly. Grepping the file for
   those numbers finds the guards, not divergence.
+- `scripts/check-cant-fail-scan.sh <base>` exits `0` with a `Not applicable`
+  line counting the changed files when none of them is a test file: its corpus
+  is the changed test files, and a change that adds no test cannot add one that
+  cannot fail. An empty diff while HEAD is not the base exits `2`, since it
+  checked nothing, as `scripts/check-affected.sh` does.
 
 The contract governs the observable interface, not the option set: `set -euo`
 and `set -uo` both appear in the family and neither is required, which is why
