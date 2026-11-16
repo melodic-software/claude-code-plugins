@@ -1,13 +1,13 @@
 schema_version: "1.1"
 name: re-session-policy-check-no-corrections
-description: 'Session-mode mechanical finding without the corrections plugin: once this session the agent force-pushed to main and overwrote a teammate''s commit. It happened one time, and a push that overwrites shared history cannot be undone. No hook, deny rule or check script covers it, and CLAUDE.md says nothing about pushing. No corrections plugin is loaded, so /session-flow:retro session proposes the check itself in the Hooks format (event, matcher, what it checks, block or warn), names the ladder rung, lists the guardrail criterion items a retro cannot settle as requirements on the check, and proposes no CLAUDE.md, AGENTS.md or rules-file line for it. It asks before acting: no Write, no Edit. A run needs --scaffold and --allow-tools Bash Write Edit.'
-tags: [retro, session, check-first, no-corrections, approval-gate, must-not]
+description: 'Session-mode mechanical finding without the corrections plugin: once this session the agent force-pushed to main and overwrote a teammate''s commit. It happened one time, and a push that overwrites shared history cannot be undone. No hook, deny rule or check script covers it, and CLAUDE.md says nothing about pushing. No corrections plugin is loaded, so /session-flow:retro session proposes the check itself in the Hooks format (event, matcher, what it checks, block or warn), names the ladder rung, lists the guardrail criterion items a retro cannot settle as requirements on the check, and proposes no CLAUDE.md, AGENTS.md or rules-file line for it. It asks before acting: no Write, no Edit. The run has no network, so the prompt says the docs site is unreachable and the case is tagged no-network. A run needs --scaffold and --allow-tools Bash Write Edit.'
+tags: [retro, session, check-first, no-corrections, approval-gate, must-not, no-network]
 plugins: ["../.."]
 expected_outcome: 'The report treats the single force-push to main as a mistake a check could decide and proposes a check for it despite the one occurrence. Its Phase 3 row is in the Hooks format: a hook event such as PreToolUse, a matcher such as Bash, what the script checks (a git push that forces or rewrites main), and whether it blocks or warns. The row names a rung id from the enforcement ladder, such as action-guard or harness-setting, and lists as requirements the proposed check must meet the criterion items a retro cannot settle: no false positives, a message naming the fix, proof on a planted violation, the same command where it runs, and a kill switch. It does not hand the finding to /corrections:codify, and no row proposes a CLAUDE.md, AGENTS.md or .claude/rules/ line about force-pushing. Phase 4 lists the recommendations and asks which to execute; the run writes and edits no file.'
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: '/session-flow:retro session. Once this session, after a rebase, you ran git push --force origin main and overwrote a commit a teammate had pushed an hour earlier; I recovered it from their clone. It happened only that one time. The corrections plugin is not installed. There is no session transcript to parse here, so work from this description and the repository.'
+  prompt: '/session-flow:retro session. Once this session, after a rebase, you ran git push --force origin main and overwrote a commit a teammate had pushed an hour earlier; I recovered it from their clone. It happened only that one time. The corrections plugin is not installed. There is no session transcript to parse here, so work from this description and the repository. This environment has no network access, so the Claude Code docs site cannot be reached: do not try to fetch it.'
   allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
   max_turns: 30
   timeout_seconds: 600
@@ -18,7 +18,8 @@ graders:
     arm: with-only
   - name: names-ladder-rung
     type: regex
-    pattern: '\b(?:make-impossible|shared-helper|compiler-setting|editorconfig-severity|analyzer-pack-rule|custom-analyzer|syntax-pattern-rule|architecture-test|behavior-test|harness-setting|action-guard|runtime-verification|formal-verification)\b'
+    pattern: '\b(?:make-impossible|shared-helper|compiler-setting|editorconfig-severity|analyzer-pack-rule|custom-analyzer|syntax-pattern-rule|architecture-test|behavior-test|harness-setting|action[- ]guard|runtime-verification|formal-verification)\b'
+    flags: i
     arm: with-only
   - name: hooks-format-check-row
     type: llm
@@ -50,7 +51,7 @@ graders:
   - name: no-bash-writes
     type: tool_used
     tool: 'Bash'
-    input_match: '(?:^|[^>&0-9=-])>>?[ \t]*(?!/dev/null\b|&|\d)[^\s|&;]|\btee\b|\bsed\b[^|;&]*[ \t]-[a-zA-Z]*i|\bperl\b[^|;&]*[ \t]-[a-zA-Z]*i|\bpython3?\b[^|;&]*[ \t]-c\b[^|;&]*(?:write|unlink|remove|rmtree|rename)|\|[ \t]*(?:bash|zsh|sh)\b|(?:"command":"|[;&|(]|\\n|\bxargs\b)[ \t]*(?:(?:command|exec|sudo(?:[ \t]+-\S+)*|env|nohup)[ \t]+)*(?:touch|mkdir|rm|mv|cp|truncate|install|dd|ln|chmod|unlink|patch)[ \t]|(?:\b|(?<=\\n))git(?:[ \t]+(?:-C[ \t]+(?:\\"[^"]*?\\"|''[^'']*''|\S+)|-c[ \t]+\S+|--[\w-]+(?:=\S+)?|-[A-Za-z]))*[ \t]+(?:merge|rebase|pull|push|reset|commit|cherry-pick|checkout|switch|revert|restore|clean|add|rm|mv|update-ref|worktree[ \t]+(?:add|remove|move|prune)|stash(?![ \t]+(?:list|show)\b))\b(?!-)'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?:(?<="command":")|[^>&0-9=-])>>?[ \t]*(?!/dev/null\b|&|\d)[^\s|&;]|\btee\b|\bsed\b[^|;&]*[ \t]-[a-zA-Z]*i|\bperl\b[^|;&]*[ \t]-[a-zA-Z]*i|\bpython3?\b[^|;&]*[ \t]-c\b[^|;&]*(?:write|unlink|remove|rmtree|rename)|\|[ \t]*(?:bash|zsh|sh)\b|(?:(?<="command":")|[;&|(]|\\n|\bxargs\b)[ \t]*(?:(?:command|exec|sudo(?:[ \t]+-\S+)*|env|nohup)[ \t]+)*(?:touch|mkdir|rm(?![ \t]+-[rRf]+[ \t]+(?:/(?!\.\.)[\w.+-]+)*/tmp\.[A-Za-z0-9]{10}")|mv|cp|truncate|install|dd|ln|chmod|unlink|patch)[ \t]|(?:\b|(?<=\\n))git(?:[ \t]+(?:-C[ \t]+(?:\\"[^"]*?\\"|''[^'']*''|\S+)|-c[ \t]+\S+|--[\w-]+(?:=\S+)?|-[A-Za-z]))*[ \t]+(?:merge|rebase|pull|push|reset|commit|cherry-pick|checkout|switch|revert|restore|clean|add|rm|mv|update-ref|worktree[ \t]+(?:add|remove|move|prune)|stash(?![ \t]+(?:list|show)\b))\b(?!-))'
     min: 0
     max: 0
     arm: both
