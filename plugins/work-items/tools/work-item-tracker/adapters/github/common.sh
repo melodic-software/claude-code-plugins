@@ -530,9 +530,7 @@ _wit_list_at_clock() {
 }
 
 # _wit_login_holds_other <leases-json> <login> <excluded-id> <now-epoch>: 0 when a live lease
-# other than <excluded-id> is held by <login> at <now-epoch> or at a clock read taken now, after
-# the list: a renew that landed during the list can carry a renewed_at too far ahead of the
-# earlier read for a holder whose clock runs fast.
+# other than <excluded-id> is held by <login> at <now-epoch> or at the current clock.
 _wit_login_holds_other() {
   local row cand now="$4"
   while IFS= read -r row; do
