@@ -1,5 +1,5 @@
 schema_version: "1.1"
-name: su-node-absent-both-dependents
+name: su-node-absent-engine-stops
 graders:
   - name: node-fail
     type: regex
@@ -18,11 +18,6 @@ graders:
   - name: engine-stops-no-estimate
     type: regex
     pattern: '\b(?:stop\w*|halt\w*|refus\w*|exit\w*|fail\w*)\b[^\n]{0,120}\b(?:rather than|instead of|not|never|no|without)\b[^\n]{0,40}\bestimat\w*|\b(?:no|never|not|won''t|won’t|doesn''t|doesn’t|does not|will not)\s+(?:\w+\s+)?(?:an?\s+)?estimat\w*'
-    flags: 'i'
-    target: 'last_message'
-  - name: names-hook-dependent
-    type: regex
-    pattern: '\b(?:PreToolUse|checkpoint|hook)\b[^\n]{0,200}\b(?:launch\w*|silent\w*|no (?:ask|prompt)|never (?:fires|runs|asks|prompts)|cannot run|can''t run|can’t run|won''t run|won’t run|does(?:n''t|n’t| not) run|fails? to (?:start|run))'
     flags: 'i'
     target: 'last_message'
   - name: install-channel

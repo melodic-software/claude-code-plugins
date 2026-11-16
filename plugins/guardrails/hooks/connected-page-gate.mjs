@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // PreToolUse guard on the Artifact tool: deny publishing an HTML page whose content
 // security policy names a loopback connect-src. That is a connected page built with
-// --connect (lib/view-builder.mjs): it reaches a session bridge on this machine, so
+// --connect (a plugin's lib/view-builder.mjs): it reaches a session bridge on this machine, so
 // published it is dead weight on claude.ai and leaks the local port.
 //
 // Detection reads the file content, not its path, mode or builder, so a connected page
@@ -74,7 +74,7 @@ process.stdin.on('end', () => {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
-        permissionDecisionReason: `review: ${hit} is a connected page: its content security policy names a loopback connect-src, so it works only on this machine. Keep it as a local file and give the reader its path; do not publish it as an Artifact.`,
+        permissionDecisionReason: `guardrails: ${hit} is a connected page: its content security policy names a loopback connect-src, so it works only on this machine. Keep it as a local file and give the reader its path; do not publish it as an Artifact.`,
       },
     }));
   } catch {

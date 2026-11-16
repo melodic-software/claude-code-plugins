@@ -4,7 +4,7 @@
 // auto mode (the classifier may still deny; it cannot silently approve).
 //
 // This is a CHECKPOINT, NOT A GUARANTEE: other hooks, settings, and permission
-// modes decide what happens to its ask. README "Hook" holds the pointer record
+// modes decide what happens to its ask. README "Settings-write ask" holds the pointer record
 // for those limits. Probe (headless -p runs of this hook, Linux,
 // Claude Code 2.1.263, 2026-09-06): the ask fires and blocks in a
 // headless run that skips permissions, under default, auto, and
@@ -34,7 +34,7 @@
 // as of 2026-10-11; recheck when any of these sections moves a settings file. The matcher sees
 // file-editing tool calls only: a settings write through Bash/PowerShell, or one
 // rendered into place by another program, never reaches this script, and the
-// hook is deliberately not widened to the shell lane (#3864; README "Hook"
+// hook is deliberately not widened to the shell lane (#3864; README "Settings-write ask"
 // records the decision).
 
 import { execFileSync } from 'node:child_process';
@@ -97,7 +97,7 @@ process.stdin.on('end', () => {
     if (!live) process.exit(0);
 
     // The permission prompt already shows the target path.
-    const reason = 'context-budget: this edit changes settings for every future session. Check the diff; '
+    const reason = 'guardrails: this edit changes settings for every future session. Check the diff; '
       + (userGlobal
         ? '/context-budget:audit fix never writes user-global settings, so this write is not from it.'
         : 'from /context-budget:audit fix, it should match the config you approved.');

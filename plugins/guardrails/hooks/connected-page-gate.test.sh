@@ -8,13 +8,13 @@
 # non-HTML asset, another tool, garbage input, and the guard switched off.
 #
 # Self-contained: defines its own assertion helpers; installed plugins are cache-isolated.
-# test-scope: plugins/review/hooks/hooks.json
+# test-scope: plugins/guardrails/hooks/hooks.json
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$SCRIPT_DIR/connected-page-gate.mjs"
-BUILDER="$SCRIPT_DIR/../skills/explain-change/scripts/build-digest.mjs"
+BUILDER="$SCRIPT_DIR/../../review/skills/explain-change/scripts/build-digest.mjs"
 
 if ! command -v node >/dev/null 2>&1; then
   echo "SKIP: node not installed" >&2
