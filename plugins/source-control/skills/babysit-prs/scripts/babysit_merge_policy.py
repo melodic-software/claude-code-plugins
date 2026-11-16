@@ -4094,6 +4094,7 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/source-control/scripts/**",
     _skill_scripts("testing:check-visual-parity"),
     ".github/recurring-schedule.json",
+    "docs/upstream/**",
     _skill_scripts("evals:validate"),
     _skill_scripts("evals:plugin-eval"),
     "plugins/testing/evals/browser-probe/**",
