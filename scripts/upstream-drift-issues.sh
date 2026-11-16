@@ -277,8 +277,6 @@ for i in "${!REPOS[@]}"; do
     write_body "$i" "$body_file"
     if ! gh issue reopen "$num" >/dev/null; then
       fail "issue reopen failed for $repo"
-    # Issues filed before drift issues stopped carrying needs-human keep it
-    # through a close, so the reopen strips it.
     elif ! gh issue edit "$num" --body-file "$body_file" --remove-label needs-human >/dev/null; then
       fail "issue edit failed for $repo"
     fi
