@@ -162,7 +162,10 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
   machine-read output, a default with a release line otherwise. Give a few diverse, canonical
   examples that portray the expected behavior, not a laundry list of edge cases that tries to
   state every possible rule; where style matters, make them labeled input/output pairs and add a
-  line naming the rule. Name a default tool, and an escape hatch
+  line naming the rule. Each pair shows the input the skill is given (a described change, a
+  request) and the output it should produce from it, labeled apart, as in `Input:`/`Output:`.
+  A `Bad:`/`Good:` contrast of two outputs is not such a pair, because it never shows which
+  input calls for the good output. Name a default tool, and an escape hatch
   only with its trigger.
 - Deterministic work goes in a bundled script. SKILL.md cites it as
   `${CLAUDE_SKILL_DIR}/scripts/<name>` with the verb ("Run" to execute, "See" to read), forward
