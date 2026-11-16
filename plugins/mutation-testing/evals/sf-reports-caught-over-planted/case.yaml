@@ -33,7 +33,7 @@ graders:
     target: { source: file, path: src/pricing.py }
   - name: 'reports-ratio'
     type: 'regex'
-    pattern: '\b[0-3]\**\s*(?:/|of|out of)\s*(?:the\s+)?3\b'
+    pattern: '\b(?:[0-3]|none|zero|no|one|two|all|three)\**\s*(?:/|of|out of)\s*(?:the\s+)?(?:3|three)\b'
     flags: 'i'
     target: 'last_message'
   - name: 'names-survivor-line'
