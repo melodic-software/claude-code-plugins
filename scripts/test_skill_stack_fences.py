@@ -101,6 +101,36 @@ class SkillStackFencesTest(unittest.TestCase):
         self.stage()
         self.assertEqual(self.counts(), {SKILL: 2})
 
+    def test_blockquote_fences_count(self) -> None:
+        self.write(
+            SKILL,
+            "> ```python\n> x = 1\n> ```\n"
+            ">> ```ts\n>> x\n>> ```\n"
+            "> - ```go\n>   x\n>   ```\n",
+        )
+        self.stage()
+        self.assertEqual(self.counts(), {SKILL: 3})
+
+    def test_fences_right_after_a_list_marker_count(self) -> None:
+        self.write(
+            SKILL,
+            "- ```python\n  x = 1\n  ```\n"
+            "* ```java\n  x\n  ```\n"
+            "1. ```csharp\n   x\n   ```\n"
+            "2) ```ruby\n   x\n   ```\n"
+            "- ```bash\n  ls\n  ```\n",
+        )
+        self.stage()
+        self.assertEqual(self.counts(), {SKILL: 4})
+
+    def test_list_item_opener_does_not_hide_the_next_block(self) -> None:
+        self.write(
+            SKILL,
+            "- ```python\n  x = 1\n  ```\n\n```csharp\nvar x;\n```\n",
+        )
+        self.stage()
+        self.assertEqual(self.counts(), {SKILL: 2})
+
     def test_fences_inside_another_fence_are_content(self) -> None:
         self.write(
             SKILL,

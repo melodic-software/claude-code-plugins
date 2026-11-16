@@ -23,7 +23,9 @@ block (`!`), and the queries and patterns skills run against their own data
 edit here. An untagged fence does not count. Fences follow CommonMark: an
 opening run of three or more backticks or tildes at any indent, closed by a
 run of the same character at least as long with nothing after it; a fence
-inside another fence is content and does not count.
+inside another fence is content and does not count. Container prefixes come
+off before an opener or a closer is matched: any mix of blockquote markers
+(`>`), list markers (`-`, `*`, `+`, `1.`, `1)`) and their indentation.
 
 Exit 0 with the lines printed; 2 when git cannot list files or no file is in
 scope, because a count of nothing would pass any ceiling.
@@ -57,7 +59,8 @@ EXCLUDED_TAGS = frozenset(
 SKIPPED_DIRS = frozenset(
     {"evals", "tests", "test", "__tests__", "fixtures", "testdata", "vendor"}
 )
-OPENING = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
+CONTAINER_PREFIX = r"(?:\s*(?:>|[-*+](?=\s)|\d{1,9}[.)](?=\s)))*\s*"
+OPENING = re.compile(rf"^{CONTAINER_PREFIX}(`{{3,}}|~{{3,}})(.*)$")
 
 
 def fail(message: str) -> int:
