@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Ladder spread\n\n| Tier | Rules | By rung |\n|---|---|---|\n| 1 Codebase | 1 | make-impossible 1 |\n| 2 Static analysis | 2 | behavior-test 1, harness-setting 1 |\n| 3 Verification | 1 | runtime-verification 1 |\n| 4 Guidance | 4 | instruction 4 |\n| 5 Human only | 1 | human-review 1 |\n\nSits lower than it could (candidates to judge, not findings):\n- CLAUDE.md:12: forbids `eval` (instruction). If you want it enforced, /corrections:codify can pick the check.",
+      "why": "counts and a candidate, no target"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| 4 Guidance | 4 |\n| 2 Static analysis | 2 |\n\nGuidance holds twice as many rules as static analysis; aim to get static analysis to at least half of all rules.",
+      "why": "sets a target share"
+    },
+    {
+      "answer": "No scheduled task is worth adding here.",
+      "why": "no per-tier counts"
+    }
+  ]
+}
