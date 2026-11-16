@@ -10,7 +10,7 @@
 // script with `playwright-cli run-code --filename <script>`. The script opens the host page at
 // <url> in a new page at the note's viewport size, color scheme and motion setting, restores
 // the note's variant, screen state and content set through the switcher's vs:show event, replays
-// its data log through the frame helper, scrolls the frame to the note's scroll position, runs the anchor ladder inside the sandboxed frame (test
+// its data log and sets its control values through the frame helper, scrolls the frame to the note's scroll position, runs the anchor ladder inside the sandboxed frame (test
 // id, role, path, then the text quote), and saves <run dir>/shots/<n>.png: the element, a
 // region's box, or the note's stored box when no rung finds it. File names come from the integer
 // seq only. It returns which rung matched and each rung's candidate count, never the mockup's text.
@@ -18,7 +18,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { problems } from "./note-model.mjs";
+import { problems, use } from "./note-model.mjs";
 
 /** The rung that found the note's element: the first that hit. It is confirmed only when no
  *  stronger rung the note carries came back broken (its anchor finds nothing), since a weaker
@@ -67,6 +67,10 @@ export async function relocate(page, input, decide) {
       const missed = await frame.evaluate((l) => (window.uiFeedbackRelocate ? window.uiFeedbackRelocate.replay(l) : -1), log);
       out.restored.data = missed === 0;
       if (flips) await show({ content: note.content });
+    }
+    if (note.controls) {
+      // The frame helper sets each control the note carries; it returns how many the page has no control for.
+      out.restored.controls = (await frame.evaluate((v) => (window.uiFeedbackRelocate ? window.uiFeedbackRelocate.setControls(v) : -1), note.controls)) === 0;
     }
     if (vp) {
       // The person's scroll, once the view and data give the page its size; false when the page no longer scrolls that far.
@@ -193,7 +197,9 @@ export function main(argv) {
   if (!/^[1-9][0-9]{0,8}$/.test(args.seq)) fail("--seq is the note's integer seq");
   if (!/^http:\/\/127\.0\.0\.1:[0-9]{1,5}\/$/.test(args.url)) fail("--url is the host url ensure-running printed");
   const dir = resolve(args.dir), seq = Number(args.seq);
-  const schema = JSON.parse(readFileSync(new URL("./note.schema.json", import.meta.url), "utf8"));
+  const read = (name) => JSON.parse(readFileSync(new URL(name, import.meta.url), "utf8"));
+  const schema = read("./note.schema.json");
+  use(read("./controls.schema.json"));
   const event = (JSON.parse(readFileSync(join(dir, "actions.json"), "utf8")).events || []).find((e) => e.seq === seq);
   if (!event) fail(`no note ${seq} in ${join(dir, "actions.json")}`);
   const { seq: _s, at: _a, deliveredAt: _d, ...note } = event;
