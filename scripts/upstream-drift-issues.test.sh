@@ -148,7 +148,13 @@ expect_lacks "create: unchanged rows are left out" "$body" 'skills/gamma'
 expect_has "create: body names the pin" "$body" "\`$PIN\`"
 expect_has "create: body names the head" "$body" "\`$HEAD\`"
 expect_has "create: body names the run URL" "$body" 'https://github.com/acme/site/actions/runs/777'
-expect_has "create: the issue gets the needs-human label" "$c" '--label needs-human'
+create_call="$(grep '^issue create ' <<<"$c")"
+if [[ "$create_call" =~ ^'issue create --title Upstream drift: acme/widgets --body-file '[^\ ]+$ ]]; then
+  pass "create: the create call carries only the title and body file, so no needs-human hold"
+else
+  bad "create: the create call carries only the title and body file, so no needs-human hold" "$create_call"
+fi
+expect_lacks "create: no label is added" "$c" 'label'
 expect_lacks "create: no assignee flag" "$c" '--assignee'
 
 # --- a report with no unknown token keeps the record body byte for byte ------
@@ -268,11 +274,12 @@ expect_has "reopen: replaces its body from a body file" "$c" 'issue edit 12 --bo
 expect_lacks "reopen: creates nothing" "$c" 'issue create'
 expect_has "reopen: reports the action" "$OUT" 'action=reopen repo=acme/widgets'
 expect_has "reopen: the body lists the changed row" "$(body_of edit)" '`skills/alpha/SKILL.md`'
-if [[ "$c" == *'issue edit 12 --add-label needs-human'*'issue reopen 12'*'issue edit 12 --body-file'* ]]; then
-  pass "reopen: labels, then reopens, then edits the body"
+if [[ "$c" == *'issue reopen 12'*'issue edit 12 --body-file'* ]]; then
+  pass "reopen: reopens, then edits the body"
 else
-  bad "reopen: labels, then reopens, then edits the body" "$c"
+  bad "reopen: reopens, then edits the body" "$c"
 fi
+expect_lacks "reopen: no label is added" "$c" 'label'
 closed_list 'null'
 run_sut "$DRIFT"
 expect_has "reopen, no state reason: reopens issue 12" "$(calls)" 'issue reopen 12'
@@ -388,7 +395,7 @@ run_sut "$VENDORED"
 expect_code "unknown pin: accepted, exit 0" 0
 c="$(calls)"
 expect_has "unknown pin: creates the id's issue" "$c" 'issue create --title Upstream drift: playwright/playwright --body-file'
-expect_has "unknown pin: the issue gets the needs-human label" "$c" '--label needs-human'
+expect_lacks "unknown pin: no label is added" "$c" 'label'
 body="$(body_of create)"
 expect_has "unknown pin: names the skill" "$body" '### `playwright:playwright`'
 expect_has "unknown pin: says what to run" "$body" 'Run `plugins/playwright/skills/playwright/scripts/update.sh`; restore or re-vendor what it names; its output is in the run'"'"'s job summary.'
@@ -556,20 +563,16 @@ GH_STUB_FAIL=reopen
 run_sut "$DRIFT"
 if [[ "$CODE" != 0 ]]; then pass "failed reopen: exits nonzero"; else bad "failed reopen: exits nonzero" "$OUT"; fi
 c="$(calls)"
-expect_has "failed reopen: the closed issue keeps the label added first" "$c" 'issue edit 12 --add-label needs-human'
 expect_lacks "failed reopen: does not edit the closed issue's body" "$c" 'issue edit 12 --body-file'
-# A failed label add stops that issue's reopen; the next upstream still runs.
+# A failed reopen stops that issue's body edit; the next upstream still runs.
 TWO_DRIFT="$TMP/two-drift.txt"
 printf '%s\n' \
   "page repo=acme/widgets pin=$PIN head=$HEAD status=drift path=docs/upstream/widgets.md" \
   "row line=7 status=M path=skills/alpha/SKILL.md" \
   "page repo=other/tools pin=$PIN head=$HEAD status=drift path=docs/upstream/tools.md" >"$TWO_DRIFT"
-GH_STUB_FAIL=edit
 run_sut "$TWO_DRIFT"
-if [[ "$CODE" != 0 ]]; then pass "failed label add: exits nonzero"; else bad "failed label add: exits nonzero" "$OUT"; fi
-c="$(calls)"
-expect_lacks "failed label add: no reopen" "$c" 'issue reopen'
-expect_has "failed label add: the next upstream still runs" "$c" 'issue create --title Upstream drift: other/tools'
+if [[ "$CODE" != 0 ]]; then pass "failed reopen, two upstreams: exits nonzero"; else bad "failed reopen, two upstreams: exits nonzero" "$OUT"; fi
+expect_has "failed reopen: the next upstream still runs" "$(calls)" 'issue create --title Upstream drift: other/tools'
 GH_STUB_FAIL=""
 
 # --- untrusted text never reaches shell evaluation (bash 5.1 semantics) -----

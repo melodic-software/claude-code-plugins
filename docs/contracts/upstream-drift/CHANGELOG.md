@@ -4,6 +4,17 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [6.3.0] - 2026-11-16
+
+Changed guidance; minor under this contract's own rule. No required part, canonical name, or
+enforceability tier changes.
+
+The filer no longer labels a created or reopened drift issue `needs-human`, by the owner's
+standing direction that holds against our own actors come off (section 10, re-stated 2026-11-16):
+a drift issue is an agent's re-audit, not an owner decision. A reopen no longer adds a label before
+it reopens. Drift issues still enter no intake run on their own; the "No hold label" bullet says
+what starts the re-audit.
+
 ## [6.2.0] - 2026-11-16
 
 Changed guidance; minor under this contract's own rule. No required part, canonical name, or

@@ -512,17 +512,15 @@ After a failed write the other upstreams still run, and the run then exits nonze
   skill (`<plugin>:<skill>` from a `plugins/<plugin>/skills/<skill>/` path, else the id) and tells
   the reader to run the page's path, restore or re-vendor what it names, and read its output in
   the run's job summary. The re-audit footer is written only when a hex-pin page drifted.
-- **`needs-human` on create and reopen.** A created issue carries the `needs-human` label. A
-  reopen adds the label first, then reopens, then replaces the body, so a failed reopen leaves a
-  labeled closed issue and a failed label add leaves the issue closed. An in-place edit of an open
-  issue adds no label. Removing `needs-human` does not admit a bot-authored issue to the issue
-  lane: the lane starts only when a listed person or the lanes App sets the issue's Work status to
-  agent-ready, and an issue this workflow's token opens starts no intake run. The label holds the
-  issue until a listed human lifts it, as the
-  [loop-lane label table](../loop-lane/README.md) says for `needs-human`. Lifting it and setting
-  Work status to agent-ready hands the issue to an agent for the re-audit described below; neither
-  step asks that person to mark each upstream change, and only a change to a skill's design comes
-  back to the owner.
+- **No hold label.** The filer adds no label on create, reopen or edit: a drift issue is not an
+  owner decision, so it carries no `needs-human`, and a re-audit pull request that closes it meets
+  no `needs-human` hold at merge. A reopen reopens, then replaces the body, so a failed reopen
+  leaves the closed issue's body unchanged. The issue still does not enter the issue lane on its
+  own: an issue this workflow's token opens starts no intake run, the hourly triage sweep skips
+  github-actions[bot] issues because some quote fork-controlled text, and admission counts only
+  done-when text a listed human wrote. A session agent, or a listed human's issue naming the drift
+  issues, starts the re-audit described below; only a change to a skill's design comes back to the
+  owner.
 - **`untracked` and `unreachable` block close.** An upstream with any `untracked` or
   `unreachable` page is never closed as clean,
   even beside a `clean` page, and since the report names it, the sweep leaves its issue alone too.
