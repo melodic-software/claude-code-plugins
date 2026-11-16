@@ -8,6 +8,8 @@ readonly _WIT_LEASE_LOADED=1
 readonly WIT_LEASE_MARKER='<!-- work-item-lease v1 '
 # A lease whose TTL exceeds this is not live, so claim refuses it.
 readonly WIT_LEASE_MAX_TTL_HOURS=168
+# Clock skew a lease reader tolerates between the provider's timestamps and the local clock.
+readonly WIT_LEASE_SKEW_SECONDS=300
 
 # wit_lease_json <marker-line-or-comment-body> — extract the lease JSON from a
 # lease marker; empty output when the input is not a lease marker.
@@ -110,7 +112,8 @@ wit_lease_phase_valid() {
 }
 
 # wit_lease_is_live <lease-json> <now-epoch> — 0 when no superseded_at and not expired.
-# A lease renewed more than 300 s after now, or with a TTL over WIT_LEASE_MAX_TTL_HOURS, is not live.
+# A lease renewed more than WIT_LEASE_SKEW_SECONDS after now, or with a TTL over
+# WIT_LEASE_MAX_TTL_HOURS, is not live.
 wit_lease_is_live() {
   local lease="$1" now_epoch="$2" renewed ttl_seconds renewed_epoch
   [[ -z "$(jq -r '.superseded_at // empty' <<<"$lease")" ]] || return 1
@@ -118,5 +121,5 @@ wit_lease_is_live() {
   ttl_seconds="$(wit_lease_ttl_seconds "$lease")" || return 1
   ((ttl_seconds > 0 && ttl_seconds <= WIT_LEASE_MAX_TTL_HOURS * 3600)) || return 1
   renewed_epoch="$(wit_iso_to_epoch "$renewed")" || return 1
-  ((renewed_epoch <= now_epoch + 300 && now_epoch < renewed_epoch + ttl_seconds))
+  ((renewed_epoch <= now_epoch + WIT_LEASE_SKEW_SECONDS && now_epoch < renewed_epoch + ttl_seconds))
 }

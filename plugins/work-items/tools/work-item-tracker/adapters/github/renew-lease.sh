@@ -61,11 +61,25 @@ fi
 # Live is not enough: the holder is the earliest live lease (claim step 4). A newer
 # live lease is a claimant that has not backed off yet and does not stop the renew.
 leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
-wit_lease_winner "$leases" "$(date -u +%s)" "$lease_comment_id" wit_lease_released_by_run
+now_epoch="$(date -u +%s)"
+wit_lease_winner "$leases" "$now_epoch" "$lease_comment_id" wit_lease_released_by_run
 if [[ "$WIT_WINNER_ID" != "$lease_comment_id" ]]; then
   printf 'renew-lease: comment %s is outranked by the earlier live lease, comment %s\n' \
     "$lease_comment_id" "${WIT_WINNER_ID:-none}" >&2
   exit "$EX_CONFLICT"
+fi
+
+# Within the skew margin of expiry, a newer claimant may already have found this lease
+# expired and started; renewing would then revive the lease that outranks it. There the
+# lease must also be the newest non-superseded one.
+expires_epoch=$(($(wit_iso_to_epoch "$(jq -r '.renewed_at' <<<"$lease_json")") + $(wit_lease_ttl_seconds "$lease_json")))
+if ((expires_epoch - now_epoch <= WIT_LEASE_SKEW_SECONDS)); then
+  wit_select_active_lease "$leases"
+  if [[ "$WIT_ACTIVE_LEASE_ID" != "$lease_comment_id" ]]; then
+    printf 'renew-lease: lease %s expires within %s s and a newer lease (comment %s) is pending; not renewing\n' \
+      "$lease_comment_id" "$WIT_LEASE_SKEW_SECONDS" "$WIT_ACTIVE_LEASE_ID" >&2
+    exit "$EX_CONFLICT"
+  fi
 fi
 
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
