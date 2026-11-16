@@ -35,7 +35,9 @@ produced findings, its Tier 1 rows are class-A input here.
 **Carve-out for issue references.** A comment is class A on the ticket-back-reference shape only
 when the reference is its **whole content**. An issue reference that is a citation inside a
 rationale sentence stays with the sentence and takes that sentence's class, because the citation is
-one half of a rationale-and-regression-test pair and deleting either half breaks the pair.
+one half of a rationale-and-regression-test pair and deleting either half breaks the pair. An ADR
+pointer ([keep-list.md](keep-list.md)) is not a ticket back-reference: it names a record a reader
+can open in the tree, and it is class A only when that record is missing.
 
 ## Class B, real information the code could carry: refactor, then delete
 
@@ -75,6 +77,9 @@ A comment survives only if **all three** hold:
    clone, unreadable blame) is recorded as unavailable and the comment is kept. Note the carve-out
    in the sentence above is about *constraints*, not rationale: a silent-breakage constraint is
    restated here even when history also carries it, and rationale gets no such exception.
+   An ADR pointer ([keep-list.md](keep-list.md)) **passes**: it carries no rationale, and the
+   record it names existing is its purpose, not a reason to delete it. A comment that restates the
+   record's reason is rationale and takes this test.
 3. **Within the line budget.** The exempt-surface list in [safety.md](safety.md) is checked
    **before** the budget, and it wins outright: an exempt comment is never measured against
    `class_c_max_lines` and is never rewritten to fit it, at any length. Only a comment that has
@@ -179,4 +184,6 @@ before the deletion is final. See [safety.md](safety.md).
 | `// items must stay sorted; binary search below depends on it` | C | Keep (constraint, load-bearing, terse) |
 | `// we retry twice here because the upstream 502s on cold start`, and the commit that added it says exactly that | C, criterion 2 fails | Stage the narrative, delete behind the COMMENT-ONLY proof (recoverable where a reader would look) |
 | `// this is NOT thread-safe; callers serialize`, recorded nowhere else | C | Keep (negative information, load-bearing and terse: not exempt, but it passes the test) |
+| `# See docs/adr/0042` at a module header, and `docs/adr/0042-*.md` exists | C, ADR pointer | Keep under `explanatory` and `necessary`; delete under `none` |
+| `# See docs/adr/0042: retries stay at two because the upstream 502s on cold start` | C, rationale | The ordinary rules: under `explanatory`, criterion 2 fails (the ADR holds it), so stage and delete; under `necessary`, off the keep list, so stage and delete |
 | 12-line comment explaining why approach X was chosen over Y | C, criterion 3 fails | Extract any durable constraint to one line; stage the narrative for the commit message; delete the rest |
