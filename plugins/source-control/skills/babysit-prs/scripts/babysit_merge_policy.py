@@ -5426,27 +5426,37 @@ def _dependabot_policy(owner: str, name: str, sha: str) -> Any:
         return None
 
 
+def _dependabot_policies(
+    owner: str, name: str, pr: Mapping[str, Any], main_sha: str
+) -> tuple[Any, ...]:
+    """The policy at the base and the one at the default branch head
+    (`main_sha`), base first, each commit read once. Raises
+    `PolicyReadError` on a read failure."""
+    base_sha = str(json_object(pr.get("base")).get("sha") or "")
+    return tuple(
+        _dependabot_policy(owner, name, sha)
+        for sha in dict.fromkeys((base_sha, main_sha))
+    )
+
+
 def _review_only(
-    owner: str,
-    name: str,
+    repo: str,
     pr: Mapping[str, Any],
     updates: Sequence[dependabot.Update],
     paths: list[str] | None,
-    main_sha: str,
+    policies: Sequence[Any],
 ) -> tuple[str, ...]:
-    """`review_only`'s reasons under the policy at the base and under the one
-    at the default branch head (`main_sha`), base first, each once: an entry
-    either side lists sends the pull request to review, and either side
-    unreadable reports it. Raises `PolicyReadError` on a read failure."""
-    repo = f"{owner}/{name}"
+    """`review_only`'s reasons under each of `policies`
+    (`_dependabot_policies`), in order, each once: an entry either side lists
+    sends the pull request to review, and either side unreadable reports
+    it."""
     head_ref = str(json_object(pr.get("head")).get("ref") or "")
-    base_sha = str(json_object(pr.get("base")).get("sha") or "")
     return tuple(
         dict.fromkeys(
             reason
-            for sha in dict.fromkeys((base_sha, main_sha))
+            for policy in policies
             for reason in dependabot.review_only(
-                _dependabot_policy(owner, name, sha), repo, head_ref, updates, paths
+                policy, repo, head_ref, updates, paths
             )
         )
     )
@@ -5612,9 +5622,20 @@ def dependabot_eligibility(
         )
         if refusal:
             return Eligibility(False, refusal, "C2", dependabot=tier)
+        # This organization's own releases (each policy copy's fastTrack.own)
+        # are sorted again under that list, which only the policy names.
+        policies = _dependabot_policies(owner, name, pr, main_sha)
+        tier = dependabot.classify(
+            str(pr.get("title") or ""),
+            str(pr.get("body") or ""),
+            str(json_object(pr.get("head")).get("ref") or ""),
+            ci,
+            commits,
+            own=tuple(dependabot.own_globs(p) for p in policies),
+        )
         # A dependency the standards policy lists as review-only goes to review
         # whatever its version change; an unreadable policy sends every one.
-        listed = _review_only(owner, name, pr, tier.updates, paths, main_sha)
+        listed = _review_only(repo, pr, tier.updates, paths, policies)
         # A lanes App fix commit, admitted above, goes to review: it merges
         # only on a verdict at this head, as in pr-unblock's classifier.
         lane_fix = dependabot.commits_refusal(commits)

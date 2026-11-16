@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "5.1.6",
+  "version": "5.3.0",
   "license": "MIT",
   "keywords": ["testing", "tdd", "test-plan", "e2e", "diagnose", "coverage", "skill", "test"],
   "metadata": {
@@ -37,6 +37,20 @@
       "title": "Browser tool",
       "description": "The browser tool command (letters, digits, . _ -) a /testing:run-e2e playwright drive uses when run-e2e drives the app itself, not through /app-control:drive. Default playwright-cli. Missing from PATH, the run stops naming this setting; it never switches tools. testing.yaml wins.",
       "default": "playwright-cli"
+    },
+    "map_unit": {
+      "type": "string",
+      "title": "Map pass unit",
+      "description": "What one entry of a /testing:run-e2e map pass is: feature (default) drives each feature of the control skill once; part drives each part of each feature that /app-control:drive resolves. testing.yaml wins.",
+      "default": "feature",
+      "options": ["feature", "part"]
+    },
+    "map_entry_points": {
+      "type": "string",
+      "title": "Map pass entry points",
+      "description": "Which entry points a /testing:run-e2e map pass checks per entry: all (default), or first, reporting the others not checked. testing.yaml wins.",
+      "default": "all",
+      "options": ["all", "first"]
     },
     "pixel_tolerance": {
       "type": "number",

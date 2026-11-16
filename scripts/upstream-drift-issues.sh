@@ -24,8 +24,8 @@
 # span with backticks replaced. The re-audit footer is written only when a
 # hex-pin page drifted. The body is cut at 60,000 characters with a pointer to
 # the run's job summary, written to a temp file and passed with --body-file.
-# A created or reopened issue gets the `needs-human` label, added before the
-# reopen; an in-place edit adds no label. No assignees or mentions.
+# No run adds a label; a reopen removes `needs-human` with its body edit. No
+# assignees or mentions.
 #
 # The whole report is parsed before any gh call. Each line follows the fixed
 # field order of the report (docs/contracts/upstream-drift/README.md, the
@@ -262,7 +262,7 @@ for i in "${!REPOS[@]}"; do
   case "$action" in
   create)
     write_body "$i" "$body_file"
-    if url="$(gh issue create --title "$title" --body-file "$body_file" --label needs-human)"; then
+    if url="$(gh issue create --title "$title" --body-file "$body_file")"; then
       [[ "$url" =~ /issues/([0-9]+)$ ]] && ! gh api -X PATCH "repos/{owner}/{repo}/issues/${BASH_REMATCH[1]}" -f type=Task >/dev/null &&
         printf '%s: could not set the Issue Type on %s\n' "$SELF" "$url" >&2
     else
@@ -275,12 +275,9 @@ for i in "${!REPOS[@]}"; do
     ;;
   reopen)
     write_body "$i" "$body_file"
-    # The label goes on first, so no reopened issue is ever unlabeled.
-    if ! gh issue edit "$num" --add-label needs-human >/dev/null; then
-      fail "label add failed for $repo"
-    elif ! gh issue reopen "$num" >/dev/null; then
+    if ! gh issue reopen "$num" >/dev/null; then
       fail "issue reopen failed for $repo"
-    elif ! gh issue edit "$num" --body-file "$body_file" >/dev/null; then
+    elif ! gh issue edit "$num" --body-file "$body_file" --remove-label needs-human >/dev/null; then
       fail "issue edit failed for $repo"
     fi
     ;;

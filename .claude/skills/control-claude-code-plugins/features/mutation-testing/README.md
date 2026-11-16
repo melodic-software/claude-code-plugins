@@ -6,6 +6,7 @@ The skills of `plugins/mutation-testing`. Each one is driven with `<plugin-dir>`
 
 - `audit`: Report surviving mutants on the diff or with --exercised, restoration verified, survivors triaged.
 - `principles`: Answer mutation-testing questions from the primary literature.
+- `seed-faults`: Plant hand-written defects in a throwaway worktree, report seeds caught over planted.
 - `setup`: Verify and configure the mutation-testing plugin for this repository. No plain-words entry.
 
 ## Sub-features

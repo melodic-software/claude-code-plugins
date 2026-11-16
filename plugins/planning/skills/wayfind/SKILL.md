@@ -237,7 +237,9 @@ that charting needs an interactive session. Do not fabricate a map.
    ([`context/map-anatomy.md`](context/map-anatomy.md) "Prototype item body"). The type label sets the
    routing target (the type table in work step 5). Then, in a second pass once every item has
    its real id, wire `blocked-by` edges and write any cross-reference between items. Wire an edge
-   only where one decision genuinely gates another; never invent edges to impose order.
+   only where one decision genuinely gates another; never invent edges to impose order. A settled
+   answer that already selects an outside service receiving user data gets its data-sharing item
+   here (work step 6).
 5. **Materialize the mode** on each item at creation: `<human-gated>` only for an intent or vision
    question ("Readiness" above), whatever the type. The label's presence or absence is the only
    mode mechanism; no `Mode:` body field.
@@ -290,7 +292,7 @@ that charting needs an interactive session. Do not fabricate a map.
    | `<prefix> research` | agent-capable | `/discovery:research` (falls back to inline research if not enabled) |
    | `<prefix> interview` | `<human-gated>` (intent) | `/planning:interview` |
    | `<prefix> design` | agent-capable unless it asks for vision | `/planning:design`, or `/event-storming:methodology` / `/event-storming:simulation` when the item is domain/event-model work |
-   | `<prefix> prototype` | `<human-gated>` when the user judges it | `/prototype:pressure-test` (behaviour/feasibility) or `/prototype:explore-directions` (design/UX). The item body says which. Its files go in the item's folder on the dossier branch ("Shared files"); its verdict goes in the resolution comment |
+   | `<prefix> prototype` | `<human-gated>` when the user judges it | `/prototype:pressure-test` (behaviour/feasibility; its vendor-fit mode when the item proves an outside vendor does something) or `/prototype:explore-directions` (design/UX). The item body says which. Its files go in the item's folder on the dossier branch ("Shared files"); its verdict goes in the resolution comment |
    | `<prefix> task` | per item | Direct decision-unblocking work. No feature code, no PR tie. Its resolution records what was done and the facts later items need. Work only a human can do (a vendor sign-up, credentials, a dashboard) routes to `/wizard:generate`; its resolution records the names and locations of what was set up, never the values |
 
 6. **Graduate on every resolution.** Every edit to the map body, here or anywhere in this skill,
@@ -308,6 +310,12 @@ that charting needs an interactive session. Do not fabricate a map.
    Decisions-so-far pointer. Fog stays in Not-yet-specified and never moves into Out-of-scope for
    being unphrasable, only by an explicit scope ruling at closure (step 8). If the resolution sharpened previously-foggy uncertainty, chart the new sharp
    items now (create, then wire, as chart step 4) and delete that bullet from Not-yet-specified.
+   **Data-sharing item.** When the resolution selects an outside service that will receive user
+   data, chart one `interview` item for that service: which fields cross to it, under what
+   agreement, and, in a regulated repository, what must be in place before build (for example
+   whether a business associate agreement is needed). One item per selected service, its questions
+   grouped inside it; none when no user data crosses. Its resolution feeds the PRD through the
+   closing comment (step 8). Mode follows "Readiness".
 7. **Sweep the map after every resolution.** Reread the open items and closed decisions against
    what was just decided:
    - An open item whose premise the resolution invalidated: rewrite its question if one still

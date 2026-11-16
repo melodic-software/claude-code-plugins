@@ -425,9 +425,10 @@ declares_both_fixtures B "$CASE_B"
 # #12476: restate action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, and restate decides nothing new, writes no Brief and reads silence as no yes
 # #12663: workflow-stage renamed contract -> interview only; every other key byte-identical, no qualifier added, so the auto-guard and lock STOP-on-gap defenses hold
 # Document surface folded into the interview: the frontmatter adds the document trigger phrases and the `document` argument word; the Action Router adds one row that resolves a named surface and then runs `auto`, leaving the `lock` row and its STOP-on-gap reading untouched; the roster renames case 38 and adds cases 46-51, which register the recipient questions open and resolve none on anyone behalf, so neither defense is weakened
+# #14879: the description now opens with the vague-build case (a build request that names no problem, users or scope); every other key byte-identical, no qualifier added to auto or lock, so the auto-guard and lock STOP-on-gap defenses hold
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "6269696f79badf7e6b1fba3dbab1c9a939db04f59c6d0bb111e54ecc4dde46ce"
+  "66f4633a977b9e9855874b98d242b7cc45a2205588f616cb8867cf5d518b97da"
 
 # The Gates block restates the auto-guard, the `lock` STOP-on-gap, the register gate, the
 # confirmation gate and the Step 4 `--brief` cross-check near the top of SKILL.md, where a
@@ -526,11 +527,12 @@ done
 # The self-answer source lists name prior owner decisions first, and an answer from a quoted prior owner ruling is an answered-from-decision register row, never an F-line fact, so a sweep decision item still always takes a register row and the procedure check still refuses an F-line for it; decisions with a live alternative and no ruling are still asked, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
 # edits say where an inline terminal round ends, what the mechanism question cites as its basis, and that a coined definition is agreed in a withheld question (the sweep asks it withheld where it recommended it); the no-silent-resolve rule and the late-commitment next-free-id rule are byte-identical, and the tripwire trigger and outcomes and the sweep's scope and item shape are unchanged
 # The added Later: header line names topics of rounds not yet ready; it takes no Q<N> and no register row, asks nothing and resolves nothing, so the in-round no-silent-resolve rule is untouched
+# the edit only adds that the terminology question never stands in for another question's inline definitions, in round 1 too; no sentence of the no-silent-resolve rule changed
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "996b8309db427c571639a9abaffc1c690f3a3f3eeed8e470b8320b9f59ae642c"
+  "bb6444ad9a3a86a85d333062cc6df3be900aa816580ac0ac977b49a509eeed96"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \

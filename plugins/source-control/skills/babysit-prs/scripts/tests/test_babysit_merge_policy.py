@@ -11317,5 +11317,99 @@ class CachedPullRequest(unittest.TestCase):
         )
 
 
+class OwnReleaseEligibility(unittest.TestCase):
+    """`dependabot_eligibility` sorts this organization's own releases under
+    `fastTrack.own` only when the base copy and the default branch copy of
+    the Dependabot policy both name every update. Reuses DependabotEligibility's
+    fake on a github_actions branch."""
+
+    REF = "dependabot/github_actions/first-party-actions-0a1b2c3d4e"
+    HEAD = DependabotEligibility.HEAD
+    COMMITS = DependabotEligibility.COMMITS
+    CI = DependabotEligibility.CI
+    GATE = DependabotEligibility.GATE
+    ACTIVITY = (
+        f"repos/{REPO}/activity?ref=refs%2Fheads%2Fdependabot%2Fgithub_actions"
+        "%2Ffirst-party-actions-0a1b2c3d4e&per_page=100"
+    )
+    entry = staticmethod(DependabotEligibility.entry)
+    NAMES = (
+        "melodic-software/ci-workflows/.github/actions/x",
+        "melodic-software/ci-workflows/.github/actions/y",
+    )
+    OWN = {"fastTrack": {"own": ["melodic-software/*"]}}
+
+    def fake(self, base_own: bool, main_own: bool) -> GhFake:
+        message = (
+            "build: Bump the first-party-actions group\n\n---\n"
+            "updated-dependencies:\n"
+            + "".join(
+                f"- dependency-name: {n}\n  dependency-version: 0.75.0\n"
+                "  update-type: version-update:semver-minor\n"
+                for n in self.NAMES
+            )
+            + "...\n"
+        )
+        patch = "@@ -1 +1 @@\n" + "".join(
+            f"-      - uses: {n}@{'1' * 40} # v0.74.0\n"
+            f"+      - uses: {n}@{'2' * 40} # v0.75.0\n"
+            for n in self.NAMES
+        )
+        gh = DependabotEligibility.fake(
+            self,
+            commits=[dependabot_commit(message=message)],
+            files=[{"filename": ".github/workflows/ci.yml", "patch": patch}],
+        )
+        config = "updates:\n  - package-ecosystem: github-actions\n    directory: /\n"
+        for sha, own in ((SHA, base_own), (MAIN_SHA, main_own)):
+            copy = {"autoMerge": {"reviewOnly": []}, **(self.OWN if own else {})}
+            gh.rest[f"repos/{REPO}/contents/{POLICY}?ref={sha}"] = file_payload(
+                json.dumps(copy)
+            )
+            gh.rest[f"repos/{REPO}/contents/.github/dependabot.yml?ref={sha}"] = (
+                file_payload(config)
+            )
+        gh.rest[f"repos/{REPO}/contents?ref={MAIN_SHA}"] = []
+        return gh
+
+    def eligibility(self) -> Any:
+        pr = {
+            "number": 7,
+            "title": "build: Bump the first-party-actions group across 1 directory "
+            "with 2 updates",
+            "body": "".join(
+                f"Updates `{n}` from 0.74.0 to 0.75.0\n" for n in self.NAMES
+            ),
+            "commits": len(self.commits),
+            "changed_files": len(self.files),
+            "base": {"sha": SHA},
+            "head": {"sha": self.HEAD, "ref": self.REF},
+            "user": {"login": "dependabot[bot]", "type": "Bot"},
+        }
+        return policy.dependabot_eligibility(
+            REPO, 7, pr=pr, agent_identity=IDENTITY, main_sha=MAIN_SHA
+        )
+
+    def test_an_own_0x_minor_group_is_auto_when_both_copies_name_it(self) -> None:
+        self.fake(base_own=True, main_own=True)
+        result = self.eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.dependabot.tier, "auto")
+        self.assertEqual(result.dependabot.reasons, ())
+
+    def test_an_own_0x_minor_group_is_not_auto_when_one_copy_lacks_own(
+        self,
+    ) -> None:
+        for base_own, main_own in ((True, False), (False, True)):
+            with self.subTest(base_own=base_own, main_own=main_own):
+                self.fake(base_own=base_own, main_own=main_own)
+                result = self.eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(result.dependabot.tier, "review")
+                for name in self.NAMES:
+                    self.assertIn(f"major:{name}", result.dependabot.reasons)
+                    self.assertIn(f"publisher:{name}", result.dependabot.reasons)
+
+
 if __name__ == "__main__":
     unittest.main()

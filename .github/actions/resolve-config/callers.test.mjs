@@ -9746,7 +9746,11 @@ const EVAL_LEG_CREDENTIALS = {
   subscription: ["CLAUDE_CODE_OAUTH_TOKEN", "${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}"],
   fallback: ["CLAUDE_CODE_OAUTH_TOKEN", "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"],
 };
-const CLASSIFIER_PIN = "944d346c487c79eaf85dff752586fb59b0f5c539";
+// The one run-claude-cli commit maintenance-measure-skill-edit.yml pins; the
+// classifier checkouts must name it.
+const CLASSIFIER_PINS = new Set([...read("../../workflows/maintenance-measure-skill-edit.yml").matchAll(/run-claude-cli@([0-9a-f]{40}) /g)].map((m) => m[1]));
+assert.equal(CLASSIFIER_PINS.size, 1, [...CLASSIFIER_PINS].join(", "));
+const CLASSIFIER_PIN = [...CLASSIFIER_PINS][0];
 for (const [file, gateId, [keyId, subId, fbId], keyJob, marker] of [
   ["maintenance-measure-skill-edit-pass.yml", "check-key-credit", ["run-eval", "run-eval-subscription", "run-eval-fallback"], "pass", "key-credit-stop-maintenance-measure-skill-edit.yml-pass"],
   ["pr-run-plugin-evals.yml", "check-key-credit", ["run-eval", "run-eval-subscription", "run-eval-fallback"], "eval", "key-credit-stop-pr-run-plugin-evals.yml-eval"],
@@ -9789,8 +9793,6 @@ for (const [file, gateId, [keyId, subId, fbId], keyJob, marker] of [
       assert.equal(record.with.credential, value.match(/secrets\.(\w+)/)[1], id);
       assert.equal(record.with["execution-file"], "${{ steps.judge.outputs.leg-result }}", id);
     }
-    // The run-claude-cli pin the classifier checkout follows is the one this repository runs.
-    assert.match(read("../../workflows/maintenance-measure-skill-edit.yml"), new RegExp(`run-claude-cli@${CLASSIFIER_PIN} `));
 
     const shape = (id) =>
       jobs[id].steps

@@ -1019,6 +1019,16 @@ test("an empty PLUGIN_PROFILES_SESSION counts as unset: status falls back to the
   assert.doesNotMatch(r.stdout, /one-session settings file/);
 });
 
+test("launch --json reports each plugin as the session will start with it, an entry the profile does not write included, under --dry-run too", () => {
+  const w = world();
+  const real = launchJson(w, ["build"]);
+  const written = JSON.parse(readFileSync(real.file, "utf8")).enabledPlugins;
+  assert.equal(`toolchain@${M}` in written, false, "the profile writes no entry for a plugin the repository enables");
+  assert.equal(real.enabledPlugins[`toolchain@${M}`], true, "the repository's entry is in force for the session");
+  assert.equal(real.enabledPlugins[`songwriting@${M}`], false, "the profile's entry wins over user settings");
+  assert.deepEqual(launchJson(w, ["build", "--dry-run"]).enabledPlugins, real.enabledPlugins);
+});
+
 test("launch --dry-run checks and prints the command but writes no session file", () => {
   const w = world({ prerequisiteMissing: true });
   const sessions = join(w.home, ".claude", "plugins", "data", "plugin-profiles-inline", "sessions");

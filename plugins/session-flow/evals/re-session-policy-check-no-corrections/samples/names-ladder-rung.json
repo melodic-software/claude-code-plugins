@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "Strongest rung that can decide it: `action-guard` (a hook on an action no file check sees).",
+      "why": "action-guard named"
+    },
+    {
+      "answer": "Rung: harness-setting first (a deny rule), with the PreToolUse hook covering the -f and + refspec forms.",
+      "why": "harness-setting named"
+    },
+    {
+      "answer": "| 1 | Hooks | project | Check (behavior-test rung) | ... |",
+      "why": "any rung id counts, inside punctuation"
+    },
+    {
+      "answer": "| 1 | `.claude/settings.json` (or a hook) | project | `action-guard` / `harness-setting` | Add a `PreToolUse` hook on `Bash` that blocks `git push` with `--force`, `-f` or a `+refspec` aimed at `main`. | Basis: judgment. | **High** |",
+      "why": "rewritten from a kept run reply: the rung ids in the type column"
+    },
+    {
+      "answer": "| R1 | `.githooks/pre-push` | project | Action guard (git `pre-push` hook) | **Event:** `pre-push`. **Check:** refuse a push to `refs/heads/main` that is not a fast-forward. **Behavior:** block. | Basis: verified. | high |",
+      "why": "rewritten from a kept run reply: the rung named in prose, capitalized and with a space"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This belongs on the static-analysis tier as a hook that blocks the push.",
+      "why": "a tier, no rung id"
+    },
+    {
+      "answer": "Add a scaffold for new branches and an instruction line.",
+      "why": "scaffold and instruction are left out of the pattern: both are ordinary words, and instruction is a guidance rung"
+    },
+    {
+      "answer": "Use a reaction-guardrail script before pushing.",
+      "why": "a rung-like token inside another word"
+    },
+    {
+      "answer": "Treat it as an inaction guard problem.",
+      "why": "the spaced form inside another word"
+    },
+    {
+      "answer": "| 1 | `.claude/settings.json` hook | project | Hook | `PreToolUse` on `Bash`. The script blocks a `git push` that carries `--force`, `-f`, or `+<ref>` and targets `main`. It **blocks** and doesn't warn. | Basis: judgment. | High |",
+      "why": "rewritten from a kept run reply: a hook row with no rung named"
+    },
+    {
+      "answer": "**Basis: verified** against your account and `enforcement-ladder.md:68`, which names force-push as its example of this kind of hook.",
+      "why": "rewritten from a kept run reply: cites the ladder row by line, names no rung"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
