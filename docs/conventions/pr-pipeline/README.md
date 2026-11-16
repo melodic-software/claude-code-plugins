@@ -2852,7 +2852,10 @@ only for a pull request that closes it and only modifies the `docs/upstream` pag
 `**Last audited upstream state:**` marker on main pins that id. Its spec text is built from the id
 and those page paths, never from the issue's body, so an upstream path or name in its rows never
 reaches the verifier as a requirement. A re-audit that applies a take or adapt to any other file
-still needs a listed human's issue.
+still needs a listed human's issue. The same rule (`driftIssueId` in
+`.github/scripts/intake-triage/admit.mjs`) lets the triage sweep dispatch intake for such an issue
+and admission accept it as its author, and the same template (`driftSpecText`) is its done-when and
+the issue lane's `issue.json` body (owner decision on #14215, Q195 (a)).
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:

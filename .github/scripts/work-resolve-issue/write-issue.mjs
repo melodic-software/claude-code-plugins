@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // write-issue.mjs: writes issue.json for the resolve-issue skill. The title,
-// body and labels go in as written: an issue neither a listed human nor the
-// lanes App wrote fails the run here, behind the check-admission job's own stop
+// body and labels go in as written, but for a trusted upstream-drift issue
+// (admit.mjs driftIssueId), whose body is admit.mjs driftSpecText and which
+// carries `source: "upstream-drift"`: an issue neither a listed human nor the
+// lanes App wrote, and no such drift issue, fails the run here, behind the check-admission job's own stop
 // (check-blockers.mjs), and the skill still reads them as data. Comments go in only when select-trusted-text's author and
 // edit rules keep them, oldest first, each tagged with its author's kind from
 // the trusted-actor list. A human's comment whose first line is
@@ -80,7 +82,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { fieldEvents, issueStatusFromBase } from "../../actions/resolve-config/resolve-config.mjs";
-import { authorAdmitted, carriesSplit, closedByTrusted, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { authorAdmitted, carriesSplit, closedByTrusted, driftIssueId, driftShaped, driftSpecText, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 import { admittedAt, matchesRecord, timeOf } from "../lib/admission-record.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
@@ -230,9 +232,17 @@ export async function main({ env = process.env, github, log = console.log, write
     const repository = env.GITHUB_REPOSITORY;
     const data = await client("GET", `/repos/${repository}/issues/${env.ISSUE_NUMBER}`);
     // The check-admission job stops this run first (check-blockers.mjs); this holds the
-    // line if a run gets past it.
+    // line if a run gets past it. A trusted drift issue (admit.mjs
+    // driftIssueId) passes, and its body is never written: issue.json carries
+    // driftSpecText instead.
+    let spec;
+    let driftId = null;
     if (!authorAdmitted(data, humans, lanesAppId)) {
-      throw new Error("the issue's author is neither a listed human nor the lanes App");
+      spec = driftShaped(data) ? await specOf(client, repository, env.ISSUE_NUMBER) : undefined;
+      driftId = spec === undefined ? null : driftIssueId(spec);
+      if (driftId === null) {
+        throw new Error("the issue's author is neither a listed human nor the lanes App, and it is no trusted upstream-drift issue");
+      }
     }
     const { kept, dropped } = await selectTrustedIssueComments({
       github: client,
@@ -258,7 +268,7 @@ export async function main({ env = process.env, github, log = console.log, write
     // The body's checks a person runs, as admission read them: the comments
     // posted before the admission, every one read, on the body as written now.
     const taskList = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"];
-    const spec = await specOf(client, repository, env.ISSUE_NUMBER);
+    spec ??= await specOf(client, repository, env.ISSUE_NUMBER);
     const before = spec.comments.filter((node) => timeOf(node.createdAt) < frozenAt);
     const moved =
       spec.commentCount === spec.comments.length && spec.body === (data.body ?? "")
@@ -324,7 +334,8 @@ export async function main({ env = process.env, github, log = console.log, write
     const issue = {
       number: data.number,
       title: data.title,
-      body: data.body ?? "",
+      body: driftId === null ? (data.body ?? "") : driftSpecText(driftId),
+      ...(driftId !== null && { source: "upstream-drift" }),
       labels: (data.labels ?? []).map((label) => (typeof label === "string" ? label : label.name)),
       comments: comments.filter((comment) => !cut.has(comment)),
       ...(moved.length > 0 && { person_checks: moved.map((n) => taskItems(spec.body, taskList)[n - 1].text) }),

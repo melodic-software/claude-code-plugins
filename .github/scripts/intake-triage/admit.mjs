@@ -34,8 +34,10 @@
 //   body or a comment written,
 //   and last edited if ever, by a listed human; on an issue whose body a
 //   listed human wrote, refine.mjs's newest refinement comment while unedited
-//   (refinementSpec); and the body of a sub-issue a size split filed, under
-//   the split-child trust rule (splitChildBody). Nothing else the lanes App wrote counts,
+//   (refinementSpec); the body of a sub-issue a size split filed, under
+//   the split-child trust rule (splitChildBody); and, on a trusted drift
+//   issue (driftIssueId), the fixed driftSpecText in place of its body.
+//   Nothing else the lanes App wrote counts,
 //   an App-filed issue included, and an issue with more comments than the
 //   100 pr-verify reads is refused, since pr-verify stops on it. On a triage
 //   verdict, when the criteria are all that is missing and intake's
@@ -53,9 +55,11 @@
 //   repository's, and no open pull request in this repository is for
 //   the issue: one GitHub says closes it, or whose body has the issue lane's
 //   `Refs: #<issue>` line (report-outcome.mjs). A passing mention is not one;
-// - 9: the author is a listed human, or the lanes App on a trusted size-split
-//   sub-issue (splitChildBody); any other issue the App filed holds for a
-//   listed human to file as their own (owner decision on #10735);
+// - 9: the author is a listed human, the lanes App on a trusted size-split
+//   sub-issue (splitChildBody), or github-actions[bot] on a trusted drift
+//   issue (driftIssueId; owner decision on #14215); any other issue the App
+//   filed holds for a listed human to file as their own (owner decision on
+//   #10735), and any other bot's for security;
 // - no body line opens with `Hold:` (BODY_HOLD), a person's hold;
 // - a `recurring` item's body has a `<!-- recurring-schedule id=<id> -->`
 //   line naming a row of the default branch's .github/recurring-schedule.json,
@@ -1035,6 +1039,56 @@ export function authorAdmitted(issue, humans, appId) {
   return author !== undefined && (humans.has(author) || (Number.isInteger(appId) && author === appId));
 }
 
+// The github-actions Bot, as which a job's GITHUB_TOKEN acts: the
+// upstream-drift workflow files its issues with it.
+export const ACTIONS_BOT_ID = 41898282;
+// scripts/upstream-drift-issues.sh's title, and its lead line for an upstream
+// with a drifted hex-pin page (write_body), both built from the upstream id.
+export const DRIFT_TITLE = /^Upstream drift: ([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/;
+export const driftLead = (id) => `Upstream \`${id}\` changed since the pin on its docs/upstream page.`;
+const driftShape = (title, body) => {
+  const id = DRIFT_TITLE.exec(String(title ?? ""))?.[1];
+  return id !== undefined && String(body ?? "").split("\n", 1)[0].replace(/\r$/, "") === driftLead(id) ? id : null;
+};
+const actionsBot = (actor) => actor?.__typename === "Bot" && actor.databaseId === ACTIONS_BOT_ID;
+
+// The trusted drift-issue rule, its one home (owner decision on #14215,
+// Q195 (a)): the upstream id of an issue the upstream-drift workflow filed,
+// or null. `item` is the issue as GraphQL answers it ({title, body, author,
+// editor, lastEditedAt}): github-actions[bot] wrote it and nobody else last
+// edited it, and its title and first body line are the two lines the filer
+// writes for one upstream id with a drifted hex-pin page. Nothing else of
+// the body is read: its rows hold names and paths an upstream controls, so a
+// caller takes the spec from driftSpecText. Admission, the triage sweep, the
+// issue lane and pr-verify judge it here. Pure.
+export const driftIssueId = (item) => (actionsBot(item?.author) && (item.lastEditedAt == null || actionsBot(item.editor)) ? driftShape(item.title, item.body) : null);
+
+// Whether a REST issue has the drift shape apart from its edit history, which
+// REST does not return: a caller confirms it with driftIssueId on a GraphQL
+// read. Pure.
+export const driftShaped = (issue) => issue?.user?.id === ACTIONS_BOT_ID && driftShape(issue.title, issue.body) !== null;
+
+// The fixed spec of a trusted drift issue for upstream `id`, built from `id`
+// and `pages` (the docs/upstream pages pinned to it, when the caller read
+// them) alone. pr-verify (resolve-pr.mjs driftSpec), admission's criteria
+// (trustedSpecTexts) and the issue lane's issue.json (write-issue.mjs) all
+// read this text. Pure.
+export function driftSpecText(id, pages = []) {
+  const one = pages.length === 1;
+  const where = pages.length > 0 ? `the docs/upstream page${one ? "" : "s"} pinned to upstream \`${id}\`: ${pages.map((page) => `\`${page}\``).join(", ")}` : `each docs/upstream page whose \`**Last audited upstream state:**\` marker pins upstream \`${id}\``;
+  return [
+    `# Upstream drift: ${id}`,
+    "",
+    `Re-audit ${where}. For each upstream change since the page's pin, record its disposition (take, adapt or reject, or already-have on a page whose rows use it) on the page as docs/contracts/upstream-drift/README.md, "When a trigger fires", requires, and move the pin to the upstream head re-audited. The pull request changes only ${one ? "that page" : "those pages"}: a take or adapt is recorded there, and applying it to any other file is outside this spec. A take or adapt that would change the design of one of this repository's skills is not applied: the run stops with \`design-change\` naming it, so the owner decides it (docs/contracts/upstream-drift/README.md, "One case goes to the owner"). The pull request body closes this issue with \`Closes #<this issue>\`.`,
+    "",
+    "## Done when",
+    "",
+    `- [ ] Every upstream change since the pin of each page pinned to \`${id}\` has a take, adapt, reject or already-have disposition recorded on that page.`,
+    "- [ ] Each of those pages pins the upstream head it was re-audited against.",
+    "- [ ] The pull request changes only those pages, and its body closes this issue with `Closes`.",
+  ].join("\n");
+}
+
 // Whether status: confirmed is the issue's only status label and agent-ready is
 // off, whether admission parked it there or a person confirmed it. Pure.
 export const confirmedOnly = (labels) =>
@@ -1251,7 +1305,8 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (splitChild && !rules.sizes.includes("large")) {
     rules = { ...rules, sizes: [...rules.sizes, "large"] };
   }
-  if (!authorAdmitted(issue, humans, appId)) {
+  const drift = issue.user?.id === ACTIONS_BOT_ID && driftIssueId(spec) !== null;
+  if (!authorAdmitted(issue, humans, appId) && !drift) {
     refuse.push("the author is neither a listed human nor the lanes App");
     holdFor("security");
   } else if (isAppId(issue.user?.id, appId) && !splitChild) {
@@ -1686,15 +1741,15 @@ export const sayWhy = (github, repository, base, comments, text) => writeWhy(git
 export const SPEC_COMMENTS = 100;
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { issue(number: $number) {
-    body lastEditedAt author { ...actor } editor { ...actor }
+    title body lastEditedAt author { ...actor } editor { ...actor }
     comments(first: ${SPEC_COMMENTS}) { totalCount nodes { databaseId createdAt updatedAt body lastEditedAt author { ...actor } editor { ...actor } } }
   } }
 }
 fragment actor on Actor { __typename ... on User { databaseId } ... on Bot { databaseId } }`;
 
-// {body, lastEditedAt, author, editor, commentCount, comments: [{databaseId,
-// createdAt, updatedAt, body, lastEditedAt, author, editor}]} for the issue,
-// as GraphQL answers them. An unexpected shape throws.
+// {title, body, lastEditedAt, author, editor, commentCount, comments:
+// [{databaseId, createdAt, updatedAt, body, lastEditedAt, author, editor}]}
+// for the issue, as GraphQL answers them. An unexpected shape throws.
 export async function specOf(github, repository, number) {
   const [owner, name] = repository.split("/");
   const issue = (await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number: Number(number) } }))?.data?.repository?.issue;
@@ -1703,8 +1758,8 @@ export async function specOf(github, repository, number) {
   if (!text(issue) || !Array.isArray(issue.comments?.nodes) || !issue.comments.nodes.every(text) || !Number.isSafeInteger(issue.comments.totalCount)) {
     throw new Error("the issue's text, authors and edit times have an unexpected shape");
   }
-  const { body, lastEditedAt, author, editor } = issue;
-  return { body, lastEditedAt, author, editor, commentCount: issue.comments.totalCount, comments: issue.comments.nodes };
+  const { title, body, lastEditedAt, author, editor } = issue;
+  return { title, body, lastEditedAt, author, editor, commentCount: issue.comments.totalCount, comments: issue.comments.nodes };
 }
 
 // refine.mjs isThin's task-list prefix.
@@ -1863,10 +1918,16 @@ export const withoutItems = (body, taskList, moved) => {
 // (.github/scripts/pr-verify/resolve-pr.mjs linkedIssues). No other Bot or
 // App text counts, except the body of a sub-issue a size split filed
 // (splitChildBody, which reads `taskList`, the rules' `task-list`). Pure.
+// A trusted drift issue's body is never spec: its first text is
+// driftSpecText, and comments count as on any issue.
 export function trustedSpecTexts(spec, humans, appId, taskList) {
   const written = writtenBy(humans);
   if (!spec) {
     return [];
+  }
+  const drift = driftIssueId(spec);
+  if (drift !== null) {
+    return [driftSpecText(drift), ...(spec.comments ?? []).filter(written).map((item) => String(item.body ?? ""))];
   }
   const refinement = countedRefinement(spec, humans, appId);
   const own = (item) => written(item) || item === refinement || (item === spec && splitChildBody(spec, humans, taskList) !== null);
