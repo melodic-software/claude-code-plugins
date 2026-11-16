@@ -111,6 +111,18 @@ async page => {
     ok("and counts a control the page has no entry for", await frame.evaluate(() => window.uiFeedbackRelocate.setControls({ gone: "1" })) === 1);
     ok("a value the control's field cannot hold is set nowhere and counted", await frame.evaluate(() => window.uiFeedbackRelocate.setControls({ font: "Papyrus", "card-gap": "999", accent: "oklch(0.6 0.1 180)" })) === 3
       && (await css("--font")) === "system-ui, sans-serif" && (await css("--card-gap")) === "30px");
+    const gone = await frame.evaluate(() => {
+      const a = document.querySelector('[data-variant="A"]');
+      a.dataset.variant = "Z";
+      const missed = window.uiFeedbackRelocate.setControls({ dense: "off" });
+      a.dataset.variant = "A";
+      return [missed, window.uiFeedbackControls.values().dense];
+    });
+    ok("a control whose variant is not on the page is counted and its value not recorded", gone[0] === 1 && gone[1] === "on" && (await attr("data-control-dense", "A")) === "on", gone);
+    const drawn = await page.evaluate(() => {
+      try { return window.uiFeedbackControls.refused([{ id: "font", label: "Typeface", group: "typography", type: "select", target: "--font", options: 42, default: "a" }]); } catch (e) { return { threw: String(e) }; }
+    });
+    ok("a control that cannot be drawn is refused, not thrown", typeof drawn === "string", drawn);
     ok("no handler in a manifest string ran", await page.evaluate(() => window.__xss) === undefined && await frame.evaluate(() => window.__xss) === undefined);
 
     // The registry's own check, which the schema cannot state, over the shared fixtures.
