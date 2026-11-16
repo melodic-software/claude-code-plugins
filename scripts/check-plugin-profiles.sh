@@ -5,9 +5,13 @@
 #
 #   scripts/check-plugin-profiles.sh [<repository root>]   default: this checkout
 #
-# Exit 0 when the shipped profiles pass, 1 when one fails, 2 on an unreadable catalog or profile.
+# Exits and streams follow scripts/README.md, "The check-script contract".
 set -euo pipefail
 
+if ! command -v node >/dev/null 2>&1; then
+  printf 'check-plugin-profiles: node is not on PATH\n' >&2
+  exit 2
+fi
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 root="${1:-$here}"
 exec node "$here/plugins/plugin-profiles/scripts/profiles.mjs" check \

@@ -7,8 +7,8 @@
 // CLAUDE_CODE_ENTRYPOINT are not documented: cli, sdk-cli (claude -p), claude-vscode and
 // claude-desktop are the values Claude Code 2.1.325 sets. CLAUDECODE=1 marks a process Claude Code
 // started, so a run with neither variable is a terminal, where `claude --settings` is the CLI.
-// Only the CLI is known to honor a one-session settings file; an undetected surface allows the
-// folder level alone.
+// Only the CLI is known to honor `claude --settings`; an undetected surface allows the folder
+// level alone.
 const ALL = ["session", "folder", "initial"];
 const LOCAL = ["folder", "initial"];
 

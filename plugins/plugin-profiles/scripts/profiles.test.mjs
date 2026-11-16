@@ -217,6 +217,18 @@ test("the session-start notice prints nothing in a folder with no applied profil
   assert.equal(sessionStart(w), "");
 });
 
+test("Q69: in a cloud session the session-start notice prints nothing and writes nothing, even where a profile is applied", () => {
+  const w = world();
+  installOnDisk(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.match(JSON.parse(sessionStart(w)).systemMessage, /Profile build \(folder\) applied/, "outside the cloud the notice speaks");
+  const before = snapshot(settingsFiles(w));
+  const records = w.records();
+  assert.equal(sessionStart(w, { CLAUDE_CODE_REMOTE: "true", CLAUDE_CODE_ENTRYPOINT: "remote" }), "");
+  assert.deepEqual(snapshot(settingsFiles(w)), before);
+  assert.deepEqual(w.records(), records);
+});
+
 test("B8: the session-start notice names the folder's profile and the surface", () => {
   const w = world();
   installOnDisk(w);
@@ -332,6 +344,15 @@ test("D8: a switch cut off after its first write is recorded off-pending, named 
   assert.equal(w.read(), LOCAL_BEFORE);
 });
 
+test("AC11: --defer-off also holds back the off entry of a plugin that only user settings switch on", () => {
+  const w = world({ local: null });
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes", "--defer-off"]).status, 0);
+  assert.equal(JSON.parse(w.read()).enabledPlugins[`songwriting@${M}`], undefined, "the first write leaves songwriting on through user settings");
+  assert.deepEqual(JSON.parse(w.run(["status", "--json"]).stdout).pending, [`songwriting@${M}`]);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(JSON.parse(w.read()).enabledPlugins[`songwriting@${M}`], false);
+});
+
 test("AC12: status names the folder's profile and every entry that differs from it, and AC22 plugins installed since", () => {
   const w = world();
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
@@ -379,7 +400,8 @@ test("AC5: check exits 1 when a shipped build.yaml names nope@melodic-software",
   writeFileSync(join(shipped, "build.yaml"), `${readFileSync(join(shipped, "build.yaml"), "utf8")}  - nope@${M}\n`);
   const r = w.run(["check", "--shipped", shipped]);
   assert.equal(r.status, 1, r.stdout + r.stderr);
-  assert.match(r.stdout, /FAIL: .*build\.yaml: plugins names nope@melodic-software, which is not in the catalog melodic-software/);
+  assert.match(r.stderr, /FAIL: .*build\.yaml: plugins names nope@melodic-software, which is not in the catalog melodic-software/);
+  assert.doesNotMatch(r.stdout, /nope@/, "a finding goes to stderr only");
 });
 
 test("AC5: check reports an installed plugin no profile names and still exits 0", () => {

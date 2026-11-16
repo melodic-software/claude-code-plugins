@@ -19,4 +19,4 @@ bump: minor
 
 ### Removed
 
-- The `core` bundle plugin leaves the catalog in this release; profiles replace it. The `always-on` profile is part of every profile, and `apply build` switches on the plugins for writing, reviewing and shipping a change. An installed copy of `core` keeps working until you uninstall it; drop its `enabledPlugins` entry, since the marketplace no longer publishes it.
+- The `core` bundle plugin leaves the catalog in this release; profiles replace it. The `always-on` profile is part of every profile, and `apply build` switches on the plugins for writing, reviewing and shipping a change. An installed copy of `core` keeps working until you uninstall it; drop its `enabledPlugins` entry, since the marketplace no longer publishes it. `core` installed `guardrails`, the guard hooks that block secret leaks and destructive commands: before you uninstall `core` and run `claude plugin prune`, enable `guardrails` directly, or prune removes it.

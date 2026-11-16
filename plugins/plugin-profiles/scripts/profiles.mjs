@@ -63,7 +63,7 @@ import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { CheckError, checkProfiles, readMarketplace } from "../lib/check.mjs";
 import { InventoryError, installPlugin, inventory, knownMarketplaces, marketplaceLocation, recordsFromCli, recordsFromDisk } from "../lib/inventory.mjs";
-import { PlanError, TARGET_LEVEL, excludedAlwaysOn, plan } from "../lib/plan.mjs";
+import { PlanError, TARGET_LEVEL, effective, excludedAlwaysOn, plan } from "../lib/plan.mjs";
 import { OptionsError, managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { missingRequired } from "../lib/prerequisite-gate.mjs";
 import { replaceFile } from "../lib/atomic-file.mjs";
@@ -182,18 +182,19 @@ function prepare(opts, where, catalog, records) {
   const recPath = session ? null : recordPath(where.dataDir, file);
   const previous = session ? null : readRecord(recPath);
   const base = session ? { enabledPlugins: {}, skillOverrides: {} } : baseline(settings.doc, previous);
-  const layers = readLayers({ paths: where.paths, managedFiles: managedSettingsFiles() });
-  layers[TARGET_LEVEL[opts.target]] = base;
+  const loaded = readLayers({ paths: where.paths, managedFiles: managedSettingsFiles() });
+  const layers = { ...loaded, [TARGET_LEVEL[opts.target]]: base };
   const inv = inventory({ projectDir: where.projectDir, records: records() });
   const result = plan({ catalog, profile: opts.name, inventory: inv, layers, target: opts.target });
   const now = session ? {} : (settings.doc.enabledPlugins ?? {});
   const final = { enabledPlugins: { ...base.enabledPlugins, ...result.writes }, skillOverrides: { ...base.skillOverrides, ...result.skillWrites } };
   const pending = {};
   if (opts.deferOff) {
-    for (const [id, value] of Object.entries(now)) {
-      if (value === true && final.enabledPlugins[id] !== true) {
+    for (const id of new Set([...Object.keys(now), ...Object.keys(final.enabledPlugins)])) {
+      if (effective(loaded, id) === true && final.enabledPlugins[id] !== true) {
         pending[id] = final.enabledPlugins[id] ?? ABSENT;
-        final.enabledPlugins[id] = true;
+        if (id in now) final.enabledPlugins[id] = now[id];
+        else delete final.enabledPlugins[id];
       }
     }
   }
@@ -581,10 +582,14 @@ function check(opts, where, io) {
   if (opts.shipped) levels[0].dir = opts.shipped;
   const installed = new Set(inventory({ projectDir: where.projectDir, records: recordsFromDisk(where.configDir) }).keys());
   const { failures, reports } = checkProfiles({ files: readProfileFiles(levels), catalog, installed });
-  for (const line of failures) io.out(`FAIL: ${line}`);
   for (const line of reports) io.out(`Report: ${line}`);
-  io.out(failures.length ? `Profile check failed: ${failures.length} problem(s) in the shipped profiles.` : `Profile check passed against the ${catalog.name} catalog.`);
-  return failures.length ? 1 : 0;
+  if (!failures.length) {
+    io.out(`Profile check passed against the ${catalog.name} catalog.`);
+    return 0;
+  }
+  for (const line of failures) io.err(`FAIL: ${line}`);
+  io.err(`Profile check failed: ${failures.length} problem(s) in the shipped profiles.`);
+  return 1;
 }
 
 export async function main(argv, env = process.env, cwd = process.cwd(), io = { out: (s) => console.log(s), err: (s) => console.error(s) }) {

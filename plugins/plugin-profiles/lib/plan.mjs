@@ -61,7 +61,7 @@ function pinsFor(target, layers) {
 /** The always-on members a profile's exclude names; AC24 rejects any. */
 export const excludedAlwaysOn = (catalog, profile) => [...profile.exclude].filter((id) => catalog.alwaysOn.plugins.has(id));
 
-const effective = (layers, id) => PRECEDENCE.map((level) => entriesOf(layers, level)[id]).find((v) => v !== undefined);
+export const effective = (layers, id) => PRECEDENCE.map((level) => entriesOf(layers, level)[id]).find((v) => v !== undefined);
 
 export function plan({ catalog, profile: name, inventory, layers, target }) {
   if (!(target in TARGET_LEVEL)) throw new PlanError(`unknown target ${JSON.stringify(target)}: use session, folder or initial`);
