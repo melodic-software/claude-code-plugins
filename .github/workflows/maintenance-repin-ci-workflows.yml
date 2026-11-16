@@ -152,7 +152,7 @@ jobs:
           else
             gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --title "$title" --body-file "$body"
           fi
-          gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --auto
+          gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --auto --squash
 
       - name: Log the API budget at the end
         if: always()
