@@ -55,18 +55,25 @@ async page => {
       && (await page.textContent("#controls-panel")).includes('Alignment <img src=x onerror="window.__xss=1">'));
     ok("the defaults are shown and the page starts at them", (await shown("Card gap")) === "12px" && (await css("--card-gap")) === "12px" && (await attr("data-control-align")) === "start");
 
+    // A value reaches the frame by postMessage, a task after the input event: wait for it before reading.
+    const landed = async (read, want) => {
+      for (let i = 0; i < 40 && (await read()) !== want; i++) await page.waitForTimeout(50);
+    };
     await page.getByLabel("Card gap", { exact: true }).fill("24");
-    // A value reaches the frame by postMessage, a task after the input event.
-    await frame.waitForFunction(() => getComputedStyle(document.documentElement).getPropertyValue("--card-gap").trim() === "24px", null, { timeout: 2000 }).catch(() => {});
+    await landed(() => css("--card-gap"), "24px");
     ok("range: writes its CSS variable with its unit and shows the value", (await css("--card-gap")) === "24px" && (await shown("Card gap")) === "24px", [await css("--card-gap"), await shown("Card gap")]);
     await page.getByLabel("Accent", { exact: true }).fill("#aa3300");
+    await landed(() => css("--accent"), "#aa3300");
     ok("color: writes its CSS variable and shows the value", (await css("--accent")) === "#aa3300" && (await shown("Accent")) === "#aa3300");
     await page.getByLabel("Typeface", { exact: true }).selectOption("Georgia, serif");
+    await landed(() => css("--font"), "Georgia, serif");
     ok("select: writes its CSS variable and shows the value", (await css("--font")) === "Georgia, serif" && (await shown("Typeface")) === "Georgia, serif");
     await page.getByLabel("Dense rows (variant A)", { exact: true }).check();
+    await landed(() => attr("data-control-dense", "A"), "on");
     ok("toggle: writes its attribute on its variant's element and shows the value", (await attr("data-control-dense", "A")) === "on" && (await shown("Dense rows (variant A)")) === "on");
     ok("a variant's control does not reach the page root or the other variant", (await attr("data-control-dense")) === null && (await attr("data-control-dense", "B")) === null);
     await page.getByRole("radio", { name: "center" }).check();
+    await landed(() => attr("data-control-align"), "center");
     const radioOut = await page.locator(".uifc-row", { has: page.getByRole("radio", { name: "center" }) }).locator("output").textContent();
     ok("radio: writes its attribute on the root and shows the value", (await attr("data-control-align")) === "center" && radioOut === "center", radioOut);
 
@@ -105,6 +112,8 @@ async page => {
     await page.click("#reset-controls");
     ok("Reset controls says so on the Controls tab, where it can be seen", /back at their defaults/.test(await page.textContent("#controls-said")) && await page.isVisible("#controls-said"), await page.textContent("#controls-said"));
     ok("opening the Controls tab and resetting leaves the Notes status as it was", standing !== "" && (await page.textContent("#status")) === standing, [standing, await page.textContent("#status")]);
+    await landed(() => css("--card-gap"), "12px");
+    await landed(() => attr("data-control-align"), "start");
     ok("Reset controls puts every control back at its default, shown and written", (await shown("Card gap")) === "12px" && (await css("--card-gap")) === "12px"
       && (await css("--accent")) === "#0d9488" && (await attr("data-control-dense", "A")) === "off" && (await attr("data-control-align")) === "start");
     ok("Reset controls leaves the data as it was", (await rows()) === seeded && seeded === before + 10, [seeded, await rows()]);
