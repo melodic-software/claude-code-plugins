@@ -12,8 +12,7 @@ comment body finds nothing. Every refusal below posts nothing and names its reas
 Text and logs are the record; a capture shows what the text states and never stands in for it. A
 reader who opens no image, or a comment whose media did not upload, still has every result. For
 regulated teams this matches the preference for system logs and audit trails over screenshots in
-FDA's
-[Computer Software Assurance guidance](https://www.fda.gov/regulatory-information/search-fda-guidance-documents/computer-software-assurance-production-and-quality-management-system-software),
+FDA's guidance "Computer Software Assurance for Production and Quality Management System Software",
 section (6) "Establishing the Appropriate Record"; the guidance is an analogy for such teams here,
 not a requirement this step meets.
 
