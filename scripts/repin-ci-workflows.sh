@@ -9,6 +9,7 @@ MANAGED=.github/workflows/pr-check-managed-files-hosted.yml
 DOC=docs/conventions/pr-pipeline/pr-run-activity.md
 SHA_RE='^[0-9a-f]{40}$'
 TAG_RE='^v[0-9]+\.[0-9]+\.[0-9]+$'
+BY_VERSION=(-t. '-k1.2,1n' '-k2,2n' '-k3,3n')
 
 die() {
   echo "::error::$*" >&2
@@ -33,7 +34,7 @@ resolve() {
   releases="$(gh api --paginate "repos/${UPSTREAM}/releases" \
     --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name')" ||
     die "could not read the published ${UPSTREAM} releases"
-  tag="$(grep -E "$TAG_RE" <<<"$releases" | sort -V | tail -n1 || true)"
+  tag="$(grep -E "$TAG_RE" <<<"$releases" | sort "${BY_VERSION[@]}" | tail -n1 || true)"
   [[ -n "$tag" ]] || die "no published ${UPSTREAM} release has a vX.Y.Z tag"
   ref="$(gh api "repos/${UPSTREAM}/git/ref/tags/${tag}" --jq '[.object.type, .object.sha] | @tsv')"
   case "${ref%%$'\t'*}" in
@@ -66,7 +67,7 @@ current() {
 }
 
 apply() {
-  local old="$1" old_tag="$2" new="$3" new_tag="$4" root="$5" files pin status f left outside
+  local old="$1" old_tag="$2" new="$3" new_tag="$4" root="$5" files pin status f left outside rewritten
   [[ "$old" =~ $SHA_RE && "$new" =~ $SHA_RE ]] || die "old and new must be 40-character commit SHAs"
   [[ "$old_tag" =~ $TAG_RE && "$new_tag" =~ $TAG_RE ]] || die "old and new tags must be vX.Y.Z"
   pin="$(current_pin "$root")"
@@ -76,7 +77,7 @@ apply() {
     out "changed=false"
     return 0
   fi
-  [[ "$old_tag" != "$new_tag" && "$(printf '%s\n' "$old_tag" "$new_tag" | sort -V | tail -n1)" == "$new_tag" ]] ||
+  [[ "$old_tag" != "$new_tag" && "$(printf '%s\n' "$old_tag" "$new_tag" | sort "${BY_VERSION[@]}" | tail -n1)" == "$new_tag" ]] ||
     die "${new_tag} is not newer than the current pin ${old_tag}"
   # shellcheck disable=SC2310 # the || handles gh's failure
   status="$(gh api "repos/${UPSTREAM}/compare/${old}...${new}" --jq .status)" ||
@@ -84,13 +85,16 @@ apply() {
   [[ "$status" == ahead ]] || die "${new_tag} (${new}) does not contain the current pin ${old}: compare status '${status}'"
 
   files="$(file_set "$root")"
+  rewritten="$(mktemp)"
   while IFS= read -r f; do
-    sed -i -E \
+    sed -E \
       -e "s#(${UPSTREAM}/\.github/actions/[^@ ]+)@${old} \# ${old_tag//./\\.}\$#\1@${new} \# ${new_tag}#" \
       -e "s#^([[:space:]]+ref: )${old} \# ${old_tag//./\\.}\$#\1${new} \# ${new_tag}#" \
       -e "s#(github\.com/${UPSTREAM}/blob/)${old}/#\1${new}/#g" \
-      "$root/$f"
+      "$root/$f" >"$rewritten"
+    cmp -s "$rewritten" "$root/$f" || cat "$rewritten" >"$root/$f"
   done <<<"$files"
+  rm -f "$rewritten"
 
   left="$(git -C "$root" grep -l "$old" -- . ":(exclude)${MANAGED}" || true)"
   [[ -z "$left" ]] || die "${old} still appears after the rewrite in: $(tr '\n' ' ' <<<"$left")"
