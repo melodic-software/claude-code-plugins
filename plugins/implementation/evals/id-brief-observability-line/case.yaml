@@ -6,7 +6,7 @@ runs: 3
 plugins: ["../.."]
 expected_outcome: 'Phase 2''s brief line reads `Observability:` followed by a path ending in reference/observability.md; phase 3''s reads `Observability: none (...)` with a reason.'
 execution:
-  prompt: '/implementation:implement-dispatch Do not dispatch anything, do not read files and do not run commands. Autonomous run of an approved plan. Phase 2 adds `src/handlers/refund.ts`, an HTTP handler that calls the payment gateway, with its test. Phase 3 only edits `docs/refunds.md`. For each of the two phase briefs, print exactly the one line the brief carries that starts with `Observability:`, labelled with its phase, then stop.'
+  prompt: '/implementation:implement-dispatch Do not dispatch anything, do not read files and do not run commands. Autonomous run of an approved plan. Phase 2 adds `src/handlers/refund.ts`, an HTTP handler that calls the payment gateway, with its test. Phase 3 only edits `docs/refunds.md`. For each of the two phase briefs, print exactly the one line the brief carries that starts with `Observability:`, labeled with its phase, then stop.'
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 10
   timeout_seconds: 600
