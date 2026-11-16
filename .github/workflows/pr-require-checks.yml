@@ -5221,10 +5221,12 @@ jobs:
           # the REST shape the steps read, from one GraphQL send: GITHUB_TOKEN
           # meters GraphQL apart from the core pool every REST read spends.
           # Any failure, an `errors` answer, a connection with another page,
-          # or a comment author REST would show differently (a deleted
-          # account, a type other than User or Bot) reads REST through
-          # gh_read instead, so a GraphQL outage costs a core read, never a
-          # red check. GraphQL drops the `[bot]` a REST bot login carries, and
+          # a comment author REST would show differently (a deleted account,
+          # a type other than User or Bot), or a review-lane hold comment
+          # reads REST through gh_read instead, so a GraphQL outage costs a
+          # core read, never a red check. A hold comment's updated_at feeds
+          # lane-binding.mjs wasEdited, and GraphQL's updatedAt is not shown
+          # to move only when REST's does, so holds keep the REST read. GraphQL drops the `[bot]` a REST bot login carries, and
           # a REST id is GraphQL's databaseId; the comment fields kept are
           # those the steps and filterLaneHolds read. Pinned by
           # scripts/ci-gh-read-graphql.test.sh, which replays a recorded REST
@@ -5249,6 +5251,7 @@ jobs:
               -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){comments(first:100){pageInfo{hasNextPage} nodes{databaseId id body createdAt updatedAt author{__typename login ... on User{databaseId} ... on Bot{databaseId}}}}}}}' 2>/dev/null) &&
               out=$(jq -ce 'select(has("errors") | not) | .data.repository.pullRequest.comments
                 | select(.pageInfo.hasNextPage == false and all(.nodes[]; (.databaseId | type) == "number" and (.body | type) == "string"
+                    and (.body | test("(^|\n)<!-- claude-lane-hold lane=") | not)
                     and (.author.__typename | IN("User", "Bot")) and (.author.login | type) == "string" and (.author.databaseId | type) == "number"))
                 | [.nodes[] | {id: .databaseId, node_id: .id, body, created_at: .createdAt, updated_at: .updatedAt,
                     user: {login: (.author.login + (if .author.__typename == "Bot" then "[bot]" else "" end)), id: .author.databaseId, type: .author.__typename}}]' <<<"$out" 2>/dev/null); then

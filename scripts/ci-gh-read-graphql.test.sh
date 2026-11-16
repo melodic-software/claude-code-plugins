@@ -136,6 +136,19 @@ fallback "a GraphQL answer carrying errors" pr_comments "$TMP_ROOT/gql-errors.js
 # read still goes out.
 echo '{"data":null,"errors":[{"type":"RATE_LIMITED","message":"API rate limit exceeded for installation."}]}' >"$TMP_ROOT/gql-limited.json"
 STUB_GQL_REMAINING=0 fallback "a spent GraphQL limit" pr_comments "$TMP_ROOT/gql-limited.json" "$REST_C"
+jq -c '.data.repository.pullRequest.comments.nodes[2].body = "<!-- claude-lane-hold lane=claude-review sha=bbbb criteria=cost -->\nHeld."' "$FIXTURES/graphql-comments-16631.json" >"$TMP_ROOT/gql-hold.json"
+fallback "a review-lane hold comment (its updated_at feeds the lane binding)" pr_comments "$TMP_ROOT/gql-hold.json" "$REST_C"
+
+# A rate-limit answer with GraphQL points left is a secondary limit, which the
+# rate guard stops every pool for, as it does on REST: the REST read is not
+# sent and the read fails, so the caller fails closed as on a REST secondary
+# limit today.
+STUB_GQL="$TMP_ROOT/gql-limited.json" STUB_REST="$REST_C" run pr_comments
+if [[ $rc -ne 0 && "$(rest_sends)" -eq 0 ]] && grep -q 'was not sent' "$TMP_ROOT/err"; then
+  ok "a secondary-limit answer stops every pool, as on REST, and the read fails closed"
+else
+  fail "a secondary-limit answer: rc=$rc sends='$(cat "$TMP_ROOT/log")' err='$(cat "$TMP_ROOT/err")'"
+fi
 jq -c '.data.repository.pullRequest.comments.nodes[0].author = null' "$FIXTURES/graphql-comments-16631.json" >"$TMP_ROOT/gql-ghost.json"
 fallback "a comment by a deleted account (REST shows it as ghost)" pr_comments "$TMP_ROOT/gql-ghost.json" "$REST_C"
 jq -c '.data.repository.pullRequest.comments.nodes[0].author = {"__typename": "Mannequin", "login": "m"}' "$FIXTURES/graphql-comments-16631.json" >"$TMP_ROOT/gql-mannequin.json"

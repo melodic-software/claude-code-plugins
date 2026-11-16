@@ -200,14 +200,25 @@ if [[ "$(grep -c '^api ' "$TMP_ROOT/log")" -eq 3 ]] && grep -q '^api .*graphql .
 else
   fail "with no hold the step's reads are not exactly comments and events: '$(cat "$TMP_ROOT/log")'"
 fi
-# A GraphQL answer is the comments read: no REST comments call follows.
-STUB_GQL_COMMENTS='{"data":{"repository":{"pullRequest":{"comments":{"pageInfo":{"hasNextPage":false},"nodes":[{"databaseId":7,"id":"IC_7","body":"<!-- claude-lane-hold lane=claude-review sha=bbbb criteria=trust-gate -->\nHeld.\n\nclaude-lane: claude-review","createdAt":"2026-10-23T10:00:00Z","updatedAt":"2026-10-23T10:00:00Z","author":{"__typename":"Bot","login":"github-actions","databaseId":41898282}}]}}}}}' \
-  STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$OWNER_LIFT]" \
-  expect "a hold read from GraphQL is judged as the REST one is" 0 "kyle-sexton, a person on the trusted-actor list, lifted"
+# A GraphQL answer with no hold comment is the comments read: no REST
+# comments call follows.
+gql_comment() { jq -cn --arg body "$1" '{data: {repository: {pullRequest: {comments: {pageInfo: {hasNextPage: false},
+  nodes: [{databaseId: 7, id: "IC_7", body: $body, createdAt: "2026-10-23T10:00:00Z", updatedAt: "2026-10-23T10:00:00Z",
+    author: {__typename: "Bot", login: "github-actions", databaseId: 41898282}}]}}}}}'; }
+STUB_GQL_COMMENTS="$(gql_comment 'CI is green.')" expect "a GraphQL answer with no hold comment" 0 "No review lane has held #6419."
 if grep -q '^api repos/o/r/issues/6419/comments' "$TMP_ROOT/log"; then
-  fail "a GraphQL comments answer was read again over REST: '$(cat "$TMP_ROOT/log")'"
+  fail "a GraphQL comments answer with no hold was read again over REST: '$(cat "$TMP_ROOT/log")'"
 else
-  ok "a GraphQL comments answer spends no REST comments read"
+  ok "a GraphQL comments answer with no hold spends no REST comments read"
+fi
+# A hold comment's updated_at feeds the lane binding, so a hold reads REST.
+STUB_GQL_COMMENTS="$(gql_comment $'<!-- claude-lane-hold lane=claude-review sha=bbbb criteria=trust-gate -->\nHeld.\n\nclaude-lane: claude-review')" \
+  STUB_COMMENTS="[$HOLD]" STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$OWNER_LIFT]" \
+  expect "a hold comment in the GraphQL answer is judged from REST" 0 "kyle-sexton, a person on the trusted-actor list, lifted"
+if grep -q '^api repos/o/r/issues/6419/comments' "$TMP_ROOT/log"; then
+  ok "a hold comment in the GraphQL answer reads the comments over REST"
+else
+  fail "a hold comment was judged from GraphQL alone: '$(cat "$TMP_ROOT/log")'"
 fi
 STUB_CHECKOUT_FAILED=1 expect "with no hold the actor list is not needed, so a failed base checkout passes" 0 "No review lane has held #6419."
 export STUB_EVENTS
