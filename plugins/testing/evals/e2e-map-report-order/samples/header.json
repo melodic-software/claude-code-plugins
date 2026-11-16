@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "baseline abc1234 -> this pass def5678\nmap_report_order: gone,new,pre-existing (docs/conventions/testing.yaml)",
+      "why": "both builds in the header's form"
+    },
+    {
+      "answer": "Header: baseline `abc1234` -> this pass `def5678`",
+      "why": "the builds as code spans"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "baseline none -> this pass def5678",
+      "why": "the baseline build is dropped"
+    },
+    {
+      "answer": "Map pass on def5678, compared with abc1234.",
+      "why": "no header in the stated form"
+    }
+  ]
+}

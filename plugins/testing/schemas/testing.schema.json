@@ -68,6 +68,21 @@
       "default": "all",
       "description": "Which entry points a /testing:run-e2e map pass checks for each entry. all checks every entry point the feature lists; first checks only the first, and reports the others not checked (map_entry_points: first). Wins over the map_entry_points userConfig option."
     },
+    "map_report_order": {
+      "enum": ["new,pre-existing,gone", "new,gone,pre-existing", "pre-existing,new,gone", "pre-existing,gone,new", "gone,new,pre-existing", "gone,pre-existing,new"],
+      "default": "new,pre-existing,gone",
+      "description": "The order of the NEW, PRE-EXISTING and GONE groups in a /testing:run-e2e map pass report, each group ordered by severity inside it. Wins over the map_report_order userConfig option."
+    },
+    "file_findings": {
+      "enum": ["none", "new"],
+      "default": "none",
+      "description": "Whether a /testing:run-e2e map pass hands findings to /bugs:write. none hands none; new states the count, then hands each NEW finding at or above file_findings_floor, with its id. A GONE finding is never closed. Wins over the file_findings userConfig option."
+    },
+    "file_findings_floor": {
+      "enum": ["critical", "high", "medium", "low"],
+      "default": "high",
+      "description": "The lowest severity of a NEW finding a /testing:run-e2e map pass hands to /bugs:write under file_findings: new. Wins over the file_findings_floor userConfig option."
+    },
     "tdd_refactor_step": {
       "enum": ["on", "off"],
       "default": "on",

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Stopped before listing entries. findings-compare.sh: runs/prev/findings.json: two findings share an id. Nothing was driven.",
+      "why": "no entry point row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "findings-compare.sh: runs/prev/findings.json: two findings share an id\ncheckout | Pay button | passed\ncart | Cart page | passed\nsearch | Search box | failed",
+      "why": "drove the entries after the refusal"
+    }
+  ]
+}

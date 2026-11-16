@@ -37,7 +37,7 @@ docker-compose, tilt, a dev-server script) and any documented evidence requireme
 ## Arguments
 
 `$ARGUMENTS`: `[worst-case [--keep]] [--unattended] [app=<app>] [base=<ref>] [trusted-root=<dir>] [scenario|<target>]`,
-or `map [--unattended] [app=<app>] [trusted-root=<dir>] [features=<id>[,<id>]…] [max_entries=<n>]`,
+or `map [--unattended] [app=<app>] [trusted-root=<dir>] [features=<id>[,<id>]…] [max_entries=<n>] [baseline=<findings.json>]`,
 e.g., `/testing:run-e2e`, `/testing:run-e2e the login flow`, `/testing:run-e2e non-ui`,
 `/testing:run-e2e --unattended app=shop base=main the login flow`,
 `/testing:run-e2e worst-case the member list`.
@@ -65,8 +65,9 @@ e.g., `/testing:run-e2e`, `/testing:run-e2e the login flow`, `/testing:run-e2e n
 - `map`, optional: the action, only as the first token left once `--unattended` is out; its own
   tokens follow it in any order, and the `app=`, `base=` and `trusted-root=` rule above does not
   apply. It drives every feature of the control skill, with no base ref and no `affected` call, and
-  takes `features=<id>[,<id>]…` to narrow the pass and `max_entries=<n>` to cap it; it runs the
-  Map scope section below. `/testing:run-e2e map --unattended app=shop max_entries=40`.
+  takes `features=<id>[,<id>]…` to narrow the pass, `max_entries=<n>` to cap it and
+  `baseline=<findings.json>` to compare it with an earlier pass; it runs the Map scope section
+  below. `/testing:run-e2e map --unattended app=shop max_entries=40`.
 - `scenario`, optional description of what to verify. `non-ui` routes directly to the non-UI
   playbook.
 
@@ -318,12 +319,15 @@ never the matched text or a value.
 With `map`, read [context/map.md](context/map.md) and follow it in place of Steps 1, 2 and 4: it
 lists every entry of the control skill, drives them one after another on the drive route, records
 each failed stated result and each observed breakage as a finding, and writes `findings.json` and
-`e2e-summary.json` at the top of its run directory. Steps 3 and 5 apply as it says. It never
-refreshes a control skill and edits no tracked file. These two commands carry values only this file
-expands:
+`e2e-summary.json` at the top of its run directory. It labels each finding NEW, PRE-EXISTING or GONE
+against `baseline=` and, under `file_findings: new`, hands each NEW finding at or above the floor to
+`/bugs:write`. Steps 3 and 5 apply as it says. It never
+refreshes a control skill and edits no tracked file. These three commands carry values only this
+file expands:
 
-- Map resolve command: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh" map --user 'map_unit=${user_config.map_unit}' --user 'map_entry_points=${user_config.map_entry_points}'`
+- Map resolve command: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh" map --user 'map_unit=${user_config.map_unit}' --user 'map_entry_points=${user_config.map_entry_points}' --user 'map_report_order=${user_config.map_report_order}' --user 'file_findings=${user_config.file_findings}' --user 'file_findings_floor=${user_config.file_findings_floor}'`
 - Finding-id command: `bash "${CLAUDE_SKILL_DIR}/scripts/finding-id.sh" <feature> <part> <kind> <where>`
+- Compare command: `bash "${CLAUDE_SKILL_DIR}/scripts/findings-compare.sh" [--baseline <findings.json>] <findings.json>`
 
 ## Native step: run (bundled skill)
 

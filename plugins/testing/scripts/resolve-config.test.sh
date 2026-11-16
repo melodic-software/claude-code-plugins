@@ -638,33 +638,58 @@ mrun() {
 reset
 rm -f "$TY"
 mrun
-assert_eq "map with no layer: both keys at their defaults" \
+assert_eq "map with no layer: every key at its default" \
   "0:map_unit	feature	default
-map_entry_points	all	default" "$rc:$out"
+map_entry_points	all	default
+map_report_order	new,pre-existing,gone	default
+file_findings	none	default
+file_findings_floor	high	default" "$rc:$out"
 mrun --user map_unit=part --user 'map_entry_points=${user_config.map_entry_points}'
 assert_eq "userConfig sets a key; an unrendered option reads as unset" \
   "map_unit	part	userConfig
-map_entry_points	all	default" "$out"
+map_entry_points	all	default" "$(head -2 <<<"$out")"
+mrun --user map_report_order=gone,new,pre-existing --user file_findings=new --user file_findings_floor=medium
+assert_eq "userConfig sets the report order and the filing keys" \
+  "map_report_order	gone,new,pre-existing	userConfig
+file_findings	new	userConfig
+file_findings_floor	medium	userConfig" "$(tail -3 <<<"$out")"
+printf 'map_report_order: pre-existing,gone,new\nfile_findings: none\nfile_findings_floor: critical\n' >"$TY"
+mrun --user map_report_order=gone,new,pre-existing --user file_findings=new --user file_findings_floor=low
+assert_eq "testing.yaml wins over userConfig for the report order and the filing keys" \
+  "map_report_order	pre-existing,gone,new	$TY
+file_findings	none	$TY
+file_findings_floor	critical	$TY" "$(tail -3 <<<"$out")"
+printf 'map_report_order: new,gone\nfile_findings: all\nfile_findings_floor: severe\n' >"$TY"
+mrun
+assert_eq "an order that leaves a group out and unknown filing values take the defaults" \
+  "0:map_report_order	new,pre-existing,gone	default
+file_findings	none	default
+file_findings_floor	high	default" "$rc:$(tail -3 <<<"$out")"
+assert_contains "naming the order" "$err" "$TY: map_report_order: unknown value 'new,gone'"
+assert_contains "naming file_findings" "$err" "$TY: file_findings: unknown value 'all'"
+assert_contains "naming the floor" "$err" "$TY: file_findings_floor: unknown value 'severe'"
+rm -f "$TY"
 printf 'map_unit: feature\nmap_entry_points: first\n' >"$TY"
 mrun --user map_unit=part --user map_entry_points=all
 assert_eq "testing.yaml wins over userConfig" \
   "map_unit	feature	$TY
-map_entry_points	first	$TY" "$out"
+map_entry_points	first	$TY" "$(head -2 <<<"$out")"
 printf 'map_unit: part\n' >"$REPO/.claude/testing.local.yaml"
 printf 'map_entry_points: all\n' >"$HOME/.claude/testing.yaml"
 mrun
 assert_eq "the personal override wins over testing.yaml, which wins over the user-global file" \
   "map_unit	part	$REPO/.claude/testing.local.yaml
-map_entry_points	first	$TY" "$out"
+map_entry_points	first	$TY" "$(head -2 <<<"$out")"
 rm -f "$REPO/.claude/testing.local.yaml" "$HOME/.claude/testing.yaml"
 printf 'map_unit: module\n' >"$TY"
 mrun --user map_unit=part
 assert_eq "an unknown value takes the default, not userConfig" "0:map_unit	feature	default" "$rc:$(head -1 <<<"$out")"
 assert_contains "naming the file, key and value" "$err" "$TY: map_unit: unknown value 'module'"
-printf 'map_unit: part\nmap_entry_points: first\npaths:\n  exclude: [map-file/**]\n' >"$TY"
+printf 'map_unit: part\nmap_entry_points: first\nmap_report_order: gone,new,pre-existing\nfile_findings: new\nfile_findings_floor: low\npaths:\n  exclude: [map-file/**]\n' >"$TY"
 run
 assert_eq "map keys in testing.yaml do not stop the scan config" "0:map-file/**" "$rc:$(records paths.exclude)"
-assert_eq "and print no scan record" "" "$(records map_unit)$(records map_entry_points)"
+assert_eq "and print no scan record" "" \
+  "$(records map_unit)$(records map_entry_points)$(records map_report_order)$(records file_findings)$(records file_findings_floor)"
 rm -f "$TY"
 mrun --user e2e_driver=run
 assert_eq "--user in map names only a map key" 2 "$rc"
