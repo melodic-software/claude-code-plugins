@@ -84,6 +84,10 @@ Two disposable shells can front the same portable logic module (step 2 below), t
 app** (the default) and a **self-contained HTML demo**. Both run the same process; only the shell
 swaps. Route by audience:
 
+- **Vendor-fit always takes the terminal shell**, ahead of every rule below and without running
+  the medium resolver: the HTML demo's CSP blocks the vendor call, and a key in a page would leave
+  the machine with it. When an HTML demo or a page medium was asked for, say so in one line and
+  build the terminal shell.
 - **The driver is a developer with a terminal** → the TUI (the default below).
 - **The driver works outside engineering** (design, product, or the business side) and will press
   the buttons, or **no terminal fits the handoff** → the HTML demo shell (next section): one file,
@@ -216,8 +220,8 @@ and report whether it was delivered? The process below holds, with these changes
    with no sandbox, stop before any call, mark each live step `not driven: no sandbox key`, and
    ask for one; never fall back to production.
 5. **The shell shows each check passing or failing**, with what the service returned beside it.
-   This mode uses the terminal shell, or one script for a check with no input: the HTML demo
-   shell's CSP blocks every remote call, and a key in a page would leave the machine with it.
+   The shell is the terminal app, or one script for a check with no input
+   ([Two shells](#two-shells-tui-default) says why it is never the HTML demo).
 6. **Clean state includes the sandbox.** Remove or reset what the run created there before the
    handover, and again after the person's run.
 7. **The note records the verdict**: fits, fits with a workaround, or does not fit, with each

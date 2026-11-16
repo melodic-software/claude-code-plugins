@@ -143,7 +143,8 @@ the variants are read-only. When the question names a write's behavior, such as 
 sandbox keys only, read from the environment and never written into a file, never against
 production or regulated data, and every record synthetic ("Synthetic data only" still holds). State
 it at the top of the prototype: in the plan line, the mount block's fence comment and the first
-line of each variant file that makes the call. The mockup's CSP blocks every remote call, so a
+line of each variant file that makes the call. Reseed the sandbox records before each review pass,
+and remove them when the exercise ends. The mockup's CSP blocks every remote call, so a
 sandbox write needs the real stack; suggest that override, and keep stubs on the mockup.
 
 ## HTML mockup substrate
