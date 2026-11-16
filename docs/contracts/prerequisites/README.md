@@ -14,7 +14,7 @@ Declare a tool, runtime, system library, package, environment variable or foreig
 that the plugin's files run or read. A plugin with no such dependency ships no file. git, bash,
 sh and the POSIX utilities are assumed and never declared.
 
-Three needs use a native surface instead, so the file never declares them:
+Three needs have a native mechanism instead, so the file never declares them:
 
 | Need | Declare it in | Rule |
 | --- | --- | --- |

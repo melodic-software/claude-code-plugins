@@ -19,7 +19,7 @@ repo's own components so a custom skill never silently duplicates what the
 product now ships.
 audit-install-state reports on the machine-scope `~/.claude` install directory
 itself. audit-performance captures slowness evidence at the moment a machine or
-session feels slow so the cause is diagnosed instead of nuked, including the
+session feels slow so the cause is diagnosed before anything gets deleted, including the
 fan-out layer of hooks, statusline, spawn cost, and subagent concurrency.
 observability reads what your sessions actually did. known-issues tracks what
 upstream has broken, and changelog integration keeps your repo current with what
