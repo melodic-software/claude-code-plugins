@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Row 1: structure, rung architecture-test. Build hand-off: add a forbidden contract to [tool.importlinter] in pyproject.toml, built by /implementation:implement; the check is `lint-imports`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Row 1: architecture-test, handed to /implementation:implement."
+    },
+    {
+      "answer": "Row 1: architecture-test. Add an import-linter contract."
+    }
+  ]
+}

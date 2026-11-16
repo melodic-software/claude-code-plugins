@@ -512,17 +512,28 @@ After a failed write the other upstreams still run, and the run then exits nonze
   skill (`<plugin>:<skill>` from a `plugins/<plugin>/skills/<skill>/` path, else the id) and tells
   the reader to run the page's path, restore or re-vendor what it names, and read its output in
   the run's job summary. The re-audit footer is written only when a hex-pin page drifted.
-- **`needs-human` on create and reopen.** A created issue carries the `needs-human` label. A
-  reopen adds the label first, then reopens, then replaces the body, so a failed reopen leaves a
-  labeled closed issue and a failed label add leaves the issue closed. An in-place edit of an open
-  issue adds no label. Removing `needs-human` does not admit a bot-authored issue to the issue
-  lane: the lane starts only when a listed person or the lanes App sets the issue's Work status to
-  agent-ready, and an issue this workflow's token opens starts no intake run. The label holds the
-  issue until a listed human lifts it, as the
-  [loop-lane label table](../loop-lane/README.md) says for `needs-human`. Lifting it and setting
-  Work status to agent-ready hands the issue to an agent for the re-audit described below; neither
-  step asks that person to mark each upstream change, and only a change to a skill's design comes
-  back to the owner.
+- **No hold label.** The filer adds no label on create, reopen or edit: a drift issue is not an
+  owner decision, so it carries no `needs-human`, and a re-audit pull request that closes it meets
+  no `needs-human` hold at merge. A reopen reopens, then replaces the body and removes any
+  `needs-human` an earlier filer left, so a failed reopen leaves the closed issue unchanged.
+- **Admission with no owner step.** A trusted drift issue is admitted to the issue lane with no
+  owner step (owner decision on #14215, Q195 (a)). It is trusted only when github-actions[bot] (id 41898282)
+  wrote it, nobody else last edited it (the filer's own weekly rewrite is that bot's edit), its
+  title is exactly `Upstream drift: <owner>/<repo>`, and its first body line is the hex-pin lead
+  the filer writes for that id; `driftIssueId` in `.github/scripts/intake-triage/admit.mjs` is the
+  rule's one home. An issue this workflow's token opens starts no intake run, so the hourly triage
+  sweep is its only way in: the sweep dispatches intake for a trusted drift issue and still skips
+  every other github-actions[bot] issue, since some quote fork-controlled text. Admission accepts
+  it as its author, and its done-when is a fixed template (`driftSpecText`) built from the upstream
+  id, never from the body, whose rows hold names and paths an upstream controls; every other
+  admission criterion applies unchanged. The issue lane's run and pr-verify read that same
+  template in place of the body. A vendored-copy (`pin=unknown`) issue has a different lead line,
+  so it is not trusted and waits for a session agent or a listed human's issue. Every author gate
+  on the way (the sweep, intake's verdict write, admission, the issue lane's blocker check and its
+  `issue.json` writer) asks the same rule. A trusted drift issue is never split: admission takes it
+  at any Size and the lane runs it at the split-child size, since one template covers one
+  upstream's pages. The filer's weekly body rewrite between admission and the lane run does not
+  stop the run, which never reads the body; any other editor's change still does.
 - **`untracked` and `unreachable` block close.** An upstream with any `untracked` or
   `unreachable` page is never closed as clean,
   even beside a `clean` page, and since the report names it, the sweep leaves its issue alone too.
@@ -547,7 +558,10 @@ applies a take or adapt elsewhere, or restores a vendored copy, links a listed h
 One case goes to the owner: a take or adapt that would change the design of one of this
 repository's skills. The agent does not apply that change. It files the change as its own
 `needs-human` issue, lists it in the pull request body with a link to that issue, and cites that
-issue in the row's disposition. The rest of the re-audit, the pin move included, still lands.
+issue in the row's disposition. The rest of the re-audit, the pin move included, still lands. An
+issue lane run cannot file an issue, so a run working an admitted drift issue stops with
+`design-change` naming that change instead; the lane routes that stop to a person's hold, which
+puts `needs-human` on the drift issue, and the owner decides it there.
 
 ### Claude Code release intake
 

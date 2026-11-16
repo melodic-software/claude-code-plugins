@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "printf '%s\\n' 'List the local branches.' | /mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-wsl 'cd ~/repos/app && claude -p'\n\nNo plugin profile is applied.",
+      "why": "plain start"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-wsl 'cd ~/repos/app && node <installPath>/scripts/profiles.mjs launch --unattended --json'",
+      "why": "runs launch with no profile named"
+    }
+  ]
+}
