@@ -743,7 +743,8 @@ Claim sequence (race-safe, same-identity aware):
    comment, the foreign lease wins → supersede own comment, exit `7`. On that loss, on the
    step 2 back-off, and on any failure from step 1 until the emit, the GitHub adapter runs the
    **hand-back** after superseding its own lease. Each of its lease lists retries once before it
-   counts as failed. It lists the leases (a failed list counts as empty) and stops if one shows a
+   counts as failed, and each judges liveness at a clock read taken before that list, since a
+   lease live then was live when listed and a renew only extends it. It lists the leases (a failed list counts as empty) and stops if one shows a
    live lease of the login other than its own; else it reads the assignees and stops only if that
    read succeeds without the login; else it removes the login, re-lists the leases (stopping on a
    failed list), and assigns the login again if a live lease of it other than its own has
@@ -769,10 +770,12 @@ that is all of: on the addressed item, held by the authenticated login (or the `
 which, like `claim`'s, replaces the `gh api user` lookup and is asserted by the caller; the comment
 edit still needs the token's write access), and, for a live lease, not outranked by an earlier
 live lease under claim step 4 (the completed-run rule included); a newer live lease is a claimant
-that has not backed off yet and does not stop the release. Anything else is refused with exit `7`
-and no lease is written: a cross-item handle, another login's lease, a live handle an earlier
-live lease outranks, or an expired handle under a newer non-superseded lease. Only that last
-refusal edits anything: it runs the hand-back below, since its lease no longer holds the item. The login check
+that has not backed off yet and does not stop the release. Anything else is refused with exit `7`:
+a cross-item handle, another login's lease, a live handle an earlier live lease outranks, or an
+expired handle under a newer non-superseded lease. The first two write nothing. An outranked live
+handle is superseded (best-effort, as a claim step 4 loss), then its holder's assignee goes
+through the hand-back below; an expired handle under a newer lease runs the hand-back alone. Either
+way its lease no longer holds the item. The login check
 exists because lease handles are public (a GitHub comment id), and within one login the handle
 tells sessions apart, as for `renew-lease`. An already-superseded or expired lease is an
 idempotent no-op (`released: false`, exit `0`), because it already blocks nobody. A live lease is
