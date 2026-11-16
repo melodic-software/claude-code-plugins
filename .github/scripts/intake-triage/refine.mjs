@@ -296,8 +296,9 @@ const PLUGIN_PATTERNS = [
   new RegExp(`(?:^|[^\\w./-])plugins/(${PLUGIN_NAME})`, "g"),
   new RegExp(`\`(${PLUGIN_NAME})\`\\s+[Pp]lugin\\b`, "g"),
   new RegExp(`\\b[Pp]lugin\\s+\`(${PLUGIN_NAME})\``, "g"),
-  new RegExp(`(?:^|\\s)(${KEBAB})\\s+[Pp]lugin\\b`, "g"),
 ];
+// A bare kebab-case word before the word plugin, read only when quoted.
+const BARE = new RegExp(`(?:^|\\s)(${KEBAB})\\s+[Pp]lugin\\b`, "g");
 const LEADING = new RegExp(`^\`?(${KEBAB})\`?(?=\\s)`);
 
 // The kebab-case names `texts` (the issue body and its task lines) write in
@@ -305,16 +306,22 @@ const LEADING = new RegExp(`^\`?(${KEBAB})\`?(?=\\s)`);
 export const quotedNames = (texts) => new Set(texts.flatMap((text) => [...String(text).matchAll(new RegExp(`\`(${KEBAB})\``, "g"))].map(([, name]) => name)));
 
 // The plugins a task line's text (admit.mjs taskText) names, each as
-// `plugins/<name>`: written as a `plugins/<name>` path, beside the word
-// plugin, or as the line's leading kebab-case word when the issue writes that
-// word in backticks somewhere (`quoted`, quotedNames), so a hyphenated word
-// such as non-zero is no plugin. A file a part's line names is that part's
+// `plugins/<name>`: written as a `plugins/<name>` path, in backticks beside
+// the word plugin, or as a bare kebab-case word before the word plugin or
+// leading the line when the issue writes that word in backticks somewhere
+// (`quoted`, quotedNames), so a hyphenated word such as non-zero or
+// third-party is no plugin. A file a part's line names is that part's
 // own work; a whole plugin is what a part that only checks it cannot build.
 // Sorted. Pure.
 export function namedUnits(text, quoted = new Set()) {
   const units = new Set();
   for (const pattern of PLUGIN_PATTERNS) {
     for (const [, name] of text.matchAll(pattern)) {
+      units.add(`plugins/${name}`);
+    }
+  }
+  for (const [, name] of text.matchAll(BARE)) {
+    if (quoted.has(name)) {
       units.add(`plugins/${name}`);
     }
   }

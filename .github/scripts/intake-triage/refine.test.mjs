@@ -1477,7 +1477,9 @@ describe("size split", () => {
     assert.deepEqual(namedUnits(CHECKS_PLUGIN.slice(6), quoted), MISSING);
     assert.deepEqual(namedUnits(CHECKS_PLUGIN.slice(6)), [], "an unquoted leading word is no plugin");
     assert.deepEqual(namedUnits("non-zero exit codes fail the run", quoted), [], "a hyphenated word the issue never quotes is no plugin");
-    assert.deepEqual(namedUnits("Create the plugin-diagnostics plugin"), MISSING);
+    assert.deepEqual(namedUnits("Create the plugin-diagnostics plugin", quoted), MISSING);
+    assert.deepEqual(namedUnits("Create the plugin-diagnostics plugin"), [], "an unquoted word before plugin is no plugin");
+    assert.deepEqual(namedUnits("No third-party plugin is loaded", quoted), [], "a hyphenated word the issue never quotes, before plugin, is no plugin");
     assert.deepEqual(namedUnits("Create the `hook-kit` plugin and `plugins/hook-kit/hooks/hooks.json`"), ["plugins/hook-kit"]);
     assert.deepEqual(namedUnits("The plugin `speech` reads `./lib/a.sh`"), ["plugins/speech"]);
     assert.deepEqual(namedUnits("Writes to `/dev/null`, rebases onto `origin/main`, reads `skills/x/SKILL.md` and `https://x.y/plugins/z`"), []);
@@ -1514,6 +1516,11 @@ describe("size split", () => {
     const w = writes(fake.calls);
     assert.deepEqual(w.map(({ method, path }) => `${method} ${path}`), ["POST /repos/o/r/issues/7/comments"]);
     assert.ok(w[0].body.body.startsWith(SIZE_DECLINE_MARKER.replace(" -->", " reason=unbuilt -->")));
+  });
+
+  test("a check line with an unquoted hyphenated word before plugin names no plugin, so the split is filed", async () => {
+    const { run: split } = unitSplit(["- [ ] The README lists every hook", "- [ ] No third-party plugin is loaded"], ["plugins/third-party"]);
+    assert.deepEqual(await split({ parts: [[1], [2]], order: [] }), { outcome: "split", children: [71, 72] });
   });
 
   test("a part after the part that creates the plugin is filed with it; unordered, neither is", async () => {

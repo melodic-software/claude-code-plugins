@@ -3692,8 +3692,9 @@ body version (marker `<!-- intake-triage size-split-decline reason=<code> -->`):
 refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by target),
 `no-type` (an Issue Type admission does not take), or `unbuilt` (a part of a line split checks a
 plugin that the default branch lacks and that no line of that part, or of a part the order puts
-before it, creates). A line names a plugin as a `plugins/<name>` path, a name next to the word
-plugin, or a leading kebab-case word the issue writes in backticks somewhere. A line creates what
+before it, creates). A line names a plugin as a `plugins/<name>` path, a backticked name next to
+the word plugin, or a bare kebab-case word before the word plugin or leading the line when the
+issue writes that word in backticks somewhere, so `third-party plugin` names none. A line creates what
 it names when it uses a creating verb (`refine.mjs` `CREATES`: create, add, new, move, rename and
 the like), and checks it otherwise. Refine select records which named plugins the default branch
 lacks, and apply checks the parts against that list. Each sub-issue carries the issue's `host-run`
