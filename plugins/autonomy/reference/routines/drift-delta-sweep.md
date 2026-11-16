@@ -47,9 +47,9 @@ prerequisite ([guardrail contract](../guardrails.md)).
 - **Advisory report.** One report per run, carrying one section per lane, a **coverage line**
   naming which enforcement-surface layers and which audit dimension this cycle walked, and a
   "lanes not run" section naming each lane whose plugin is not enabled or that was blocked, and
-  why it did not run. For a plugin that is not enabled, the remedy it names is
-  `claude plugin enable <plugin>`, preceded by `claude plugin install <plugin>` when the plugin
-  is not installed.
+  why it did not run. For a plugin that is not enabled, the remedy it names is the host's
+  plugin enable command, preceded by its plugin install command when the plugin is not
+  installed.
 - **Work items.** Filed through the governed queue for movement whose correction needs
   authorial judgment.
 
