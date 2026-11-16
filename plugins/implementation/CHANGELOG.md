@@ -3,6 +3,39 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.0] - 2026-11-16
+
+### Added
+
+- **Observability by default.** `/implementation:implement` reads the new
+  `reference/observability.md` before writing or changing code that runs at runtime: structured
+  logs with message templates and scopes or child loggers, compile-time or allocation-free logging
+  on hot paths, telemetry configured from the environment (the `OTEL_EXPORTER_OTLP_ENDPOINT`
+  family) instead of literals, cross-cutting logging and timing in middleware, decorators or
+  pipeline behaviors with in-method logs where the method decides something, log levels raised
+  only through untracked local config, and caught errors recorded with the exception and the
+  operation's fields. The rules name no stack: the reference first resolves the project's own
+  logging library, configuration layer and conventions from the repository, and researches the
+  current idiomatic form with `/discovery:research` when the repository does not settle it. The
+  dispatched path reads it too: `/implementation:implement-dispatch` briefs carry an
+  `Observability:` line, and the `implementer` and `scoped-implementer` agents read the reference
+  before writing runtime code.
+- **Advisory mutation run at completion.** When the `mutation-testing` plugin is enabled, Step 5
+  runs `/mutation-testing:audit --persist-findings` on the committed change's diff once the
+  affected tests are green, reports the score, survivors and findings path (or the audit's refusal)
+  and continues to the review hand-off whatever the score. A run whose tracked source could not be
+  restored stops before review. Without the plugin, the item stays in the report as not run and says once what the plugin would add.
+
+## [0.44.4] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract.
+
+### Fixed
+
+- `/implementation:implement-dispatch`'s test-first brief line cites `/implementation:implement` Step 2, where the test-first cadence lives, instead of Step 3.
+
 ## [0.44.3] - 2026-11-15
 
 ### Changed

@@ -80,9 +80,10 @@ Always check:
   interruption between steps must not leave state no code path expects
   (`standards/review/error-handling.md#atomicity`).
 - No Dependabot pull request waits on a human. One whose updates are all
-  non-major, with GitHub Actions only from `actions/*`, `github/*` or
-  `anthropics/*`, and none in the policy's `reviewOnly` security-critical
-  list, merges once `CI Status` passes. Any other, a major included, merges
+  non-major, with GitHub Actions only from `actions/*`, `github/*`,
+  `anthropics/*` or the organization's own `melodic-software/*`, and none in
+  the policy's `reviewOnly` security-critical list, merges once `CI Status`
+  passes. Any other, a major included, merges
   on an AI review lane's `merge` verdict at its current head once
   `CI Status` passes, and a verdict on a security-critical dependency cites
   the threat-model control it checked. A change that adds an action from

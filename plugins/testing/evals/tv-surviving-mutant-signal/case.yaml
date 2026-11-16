@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: tv-surviving-mutant-signal
+description: 'A change to applyDiscount has full line coverage, and the user asks how to tell whether its tests check enough. test-value names a surviving mutant on the changed code as a signal that a test checks too little and points to /mutation-testing:audit for getting the survivors. The prompt names the skill (test-value is not user-invocable). skill-fired reads the Skill calls, names-mutation-audit the reply; meets-expectations (llm) judges the reply. Read-only tools, graded on the reply.'
+tags: [testing, test-value, mutation, no-network]
+expected_outcome: 'Says coverage shows only that lines ran, names a surviving mutant on the changed code as the signal that a test checks too little, and points to /mutation-testing:audit to get the survivors.'
+execution:
+  prompt: 'I changed applyDiscount and its tests give 100% line coverage, but I am not sure they actually check the new code. What signal tells me a test checks too little, and how do I get it? Use the `testing:test-value` skill if you have it.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?test-value"'
+  - name: names-mutation-audit
+    type: regex
+    pattern: '/mutation-testing:audit\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked what signal shows that tests of a changed applyDiscount, at 100% line coverage, check too little, and how to get it. PASS only if the reply (1) says a surviving mutant on the changed code (a mutation of that code that every test still passes) is a signal the tests check too little, (2) points to /mutation-testing:audit as how to get the surviving mutants, and (3) does not claim the coverage figure alone shows the tests are adequate. FAIL if any point is missing or contradicted.'

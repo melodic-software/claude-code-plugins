@@ -117,7 +117,9 @@ where a project CLAUDE.md would in every pass below. Concrete passes:
 1. Compare each CLAUDE.md (any scope) against every co-resident rule for contradictions
 2. Compare CLAUDE.md against CLAUDE.local.md (same or cross-scope) for contradictions and redundancy
 3. Compare rules against other co-resident rules for contradictions (same-scope and cross-scope)
-4. Check if any CLAUDE.md instruction is already enforced by rule, hook, or analyzer
+4. Check if any CLAUDE.md instruction is already enforced by rule, hook, or analyzer; when a
+   deterministic check enforces it, report it under C8 (flag the prose for deletion, name the
+   check, hold a protected class)
 5. Compare the **user**-scope surfaces against the project ones for any remaining pair not covered
    above. Both load together in every session here, so a user instruction that contradicts a project
    one is a live conflict rather than a layering choice, and a user instruction the project already
@@ -149,7 +151,7 @@ Present the report to the user with:
 4. INFO findings (informational only)
 5. Estimated context cost: the `instruction-load-stats.sh --tokens` figure (bytes / 4 over the
    always-loaded set, labeled as an estimate) with the `--breakdown` rows when the reader would act
-   on them. The model cannot run `/context`; when the `context-budget` plugin is installed, name
+   on them. The model cannot run `/context`; when the `context-budget` plugin is enabled, name
    `/context-budget:audit` as the measured alternative
 
 ## Step 5: Suggest next action

@@ -3,6 +3,18 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0] - 2026-11-16
+
+### Added
+
+- The monthly Task Scheduler run can start in a plugin profile: `setup schedule` asks for one, and the wrapper's `-PluginProfile <name>` asks plugin-profiles for the profile's launch command at each run, clears the variables it names from the run's environment without `env`, and passes its `--settings` before the audit's arguments. When plugin-profiles is missing, the launch refuses, or the profile leaves machine-health off, the run does not start and the reason goes to the stderr log. With no profile the run is unchanged.
+
+## [0.26.35] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
 ## [0.26.34] - 2026-11-15
 
 ### Changed

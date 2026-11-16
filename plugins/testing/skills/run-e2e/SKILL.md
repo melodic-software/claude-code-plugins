@@ -1,6 +1,6 @@
 ---
 description: "When the bundled run skill resolves in this session, prefer it to launch the app for a quick look; this skill for evidenced verification flows. End-to-end live app verification. Check prerequisites, start the app, drive UI/API flows, and capture evidence (screenshots, responses, logs); includes a non-UI smoke-test playbook for libraries, MCP servers, hooks, and scripts. Use when: the user wants the running app verified end to end (e2e, smoke test, 'does it actually work'), the UI clicked through, or UI/API changes need runtime verification; for comprehensive build+test+lint use /verification:confirm."
-argument-hint: "[worst-case…] [--unattended] [app=<app>] [base=<ref>] [trusted-root=<dir>] [scenario|<target>]"
+argument-hint: "[map|worst-case…] [--unattended] [app=<app>] [base=<ref>] [trusted-root=<dir>] [scenario|<target>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -37,6 +37,7 @@ docker-compose, tilt, a dev-server script) and any documented evidence requireme
 ## Arguments
 
 `$ARGUMENTS`: `[worst-case [--keep]] [--unattended] [app=<app>] [base=<ref>] [trusted-root=<dir>] [scenario|<target>]`,
+or `map [--unattended] [app=<app>] [trusted-root=<dir>] [features=<id>[,<id>]…] [max_entries=<n>] [baseline=<findings.json>]`,
 e.g., `/testing:run-e2e`, `/testing:run-e2e the login flow`, `/testing:run-e2e non-ui`,
 `/testing:run-e2e --unattended app=shop base=main the login flow`,
 `/testing:run-e2e worst-case the member list`.
@@ -61,6 +62,12 @@ e.g., `/testing:run-e2e`, `/testing:run-e2e the login flow`, `/testing:run-e2e n
   merely starts with the word, such as `worst-case-scenario …`, stays a scenario). It takes a
   `<target>` (a component, screen or route) and runs the Worst-case content section below.
   `--keep`, right after it, keeps the injected fixture as a regression test.
+- `map`, optional: the action, only as the first token left once `--unattended` is out; its own
+  tokens follow it in any order, and the `app=`, `base=` and `trusted-root=` rule above does not
+  apply. It drives every feature of the control skill, with no base ref and no `affected` call, and
+  takes `features=<id>[,<id>]…` to narrow the pass, `max_entries=<n>` to cap it and
+  `baseline=<findings.json>` to compare it with an earlier pass; it runs the Map scope section
+  below. `/testing:run-e2e map --unattended app=shop max_entries=40`.
 - `scenario`, optional description of what to verify. `non-ui` routes directly to the non-UI
   playbook.
 
@@ -92,11 +99,11 @@ and count the control skill as none.
 |---|---|---|---|
 | `/app-control:drive` resolves | found | Say the run goes through `/app-control:drive` and that the person can decline, then use it | Use `/app-control:drive` with `--unattended` |
 | `/app-control:drive` resolves | none | Offer to create one with `/app-control:map create`; ask and wait for the answer | Own driving; the report records the suggestion |
-| does not resolve | either | Suggest installing the app-control plugin; ask and wait for the answer | Own driving; the report records the suggestion |
+| does not resolve | either | Suggest enabling the app-control plugin, installing it first if it is not installed; ask and wait for the answer | Own driving; the report records the suggestion |
 
 A decline at any row ("No, I'm good. Just use what you have.") takes own driving, and so does a
 session instruction that names a driver. A yes to onboarding runs `/app-control:map create`, then
-this step again. This skill installs nothing: a yes to the install suggestion is the person's to
+this step again. This skill installs and enables nothing: a yes to the suggestion is the person's to
 carry out, and the run goes on with own driving until `/app-control:drive` resolves in a later
 session. Ask once per run.
 
@@ -104,7 +111,7 @@ The evidence output opens with the route:
 
 ```text
 Route: drive | own driving (<declined | not installed | no control skill | unattended | session instruction>)
-Suggestion: none | install app-control | /app-control:map create
+Suggestion: none | enable app-control | /app-control:map create
 ```
 
 How to install a plugin from its marketplace: the "Install a plugin" section of
@@ -237,7 +244,7 @@ describes, rather than trusting the app's success message.
 ## Step 4: Keep touched features current
 
 After the run and its cleanup, bring each touched feature's control skill (one in `affected.json`'s
-`features`, Step 2) back in line under its feature id.
+`features`, Step 2) back in line under its feature id. A `map` pass skips this step.
 `/app-control:map` is the only writer of a control skill; this skill never edits one.
 
 - `/app-control:map` resolves: invoke `/app-control:map refresh <feature id>` through the Skill tool
@@ -245,7 +252,7 @@ After the run and its cleanup, bring each touched feature's control skill (one i
   `clean`, `changed` or `blocked` result. A blocked pass is reported, never a failed run.
 - It does not resolve: no feature was matched (Step 2), so nothing is refreshed; the
   `touched features not matched (app-control not installed)` line stands and `## Next` names
-  installing app-control. The run never stops or fails for this.
+  enabling app-control, installing it first if it is not installed. The run never stops or fails for this.
 - `trusted-root=` was given: the control skill came from outside this checkout, so nothing is
   refreshed; report `control skill not refreshed (trusted-root run)` per touched feature.
 
@@ -306,6 +313,21 @@ yields no value without a `none:` result (a non-zero exit, empty output, or a `n
 other line beside it), or a scan that cannot run (`/app-control:drive` does not resolve) leaves it
 out, and the report names the hit's kind (a mask value or the credential pattern) or the failure,
 never the matched text or a value.
+
+## Map scope
+
+With `map`, read [context/map.md](context/map.md) and follow it in place of Steps 1, 2 and 4: it
+lists every entry of the control skill, drives them one after another on the drive route, records
+each failed stated result and each observed breakage as a finding, and writes `findings.json` and
+`e2e-summary.json` at the top of its run directory. It labels each finding NEW, PRE-EXISTING or GONE
+against `baseline=` and, under `file_findings: new`, hands each NEW finding at or above the floor to
+`/bugs:write`. Steps 3 and 5 apply as it says. It never
+refreshes a control skill and edits no tracked file. These three commands carry values only this
+file expands:
+
+- Map resolve command: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh" map --user 'map_unit=${user_config.map_unit}' --user 'map_entry_points=${user_config.map_entry_points}' --user 'map_report_order=${user_config.map_report_order}' --user 'file_findings=${user_config.file_findings}' --user 'file_findings_floor=${user_config.file_findings_floor}'`
+- Finding-id command: `bash "${CLAUDE_SKILL_DIR}/scripts/finding-id.sh" <feature> <part> <kind> <where>`
+- Compare command: `bash "${CLAUDE_SKILL_DIR}/scripts/findings-compare.sh" [--baseline <findings.json>] <findings.json>`
 
 ## Native step: run (bundled skill)
 
@@ -385,8 +407,8 @@ records live in [context/bundled-run.md](context/bundled-run.md).
 - All scenarios pass, the change is not yet reviewed, and no other Test-stage check (coverage plan, test quality) is still pending: `/review:quality-gate`.
 - All scenarios pass after review: `/verification:confirm outcome`.
 - A scenario fails: `/testing:diagnose`.
-- Touched features not matched (app-control not installed): install app-control, then run this
-  skill again.
+- Touched features not matched (app-control not installed): enable app-control, installing it
+  first if it is not installed, then run this skill again.
 
 ## Gotchas
 

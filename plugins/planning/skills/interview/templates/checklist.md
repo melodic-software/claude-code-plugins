@@ -89,7 +89,7 @@ Relentless `me` mode expands Step 2 into one checkbox per branch (not a single s
 - [ ] <branch 2> (blocked by: <branch>)
 - [ ] <branch N>
 
-No question cap. If branches outgrow the session, route the next step with `/session-flow:workflow` (if installed) and resume from the first open box.
+No question cap. If branches outgrow the session, route the next step with `/session-flow:workflow` (if enabled) and resume from the first open box.
 
 ## Skip criteria
 

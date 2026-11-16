@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Phase 2: `Observability: /plugins/implementation/reference/observability.md`\nPhase 3: `Observability: none (docs only, no runtime code)`",
+      "why": "none with a reason"
+    },
+    {
+      "answer": "**Phase 3**\nObservability: none (edits only docs/refunds.md)",
+      "why": "label on its own line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Phase 3: `Observability: /plugins/implementation/reference/observability.md`",
+      "why": "docs-only phase given the reference"
+    },
+    {
+      "answer": "Phase 3: `Observability: none`",
+      "why": "no reason"
+    }
+  ]
+}

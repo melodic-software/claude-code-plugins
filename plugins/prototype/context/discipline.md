@@ -20,7 +20,7 @@ the answer only shows up by doing something to a running model and watching the 
 
 When the model reaches for a prototype without an explicit request to spike, stop and confirm
 scope before writing any throwaway code. Do not detour out of an active workflow without
-checkpointing your current work first (`/session-flow:handoff` when installed).
+checkpointing your current work first (`/session-flow:handoff` when enabled).
 
 ## Rules (every facet)
 
@@ -154,10 +154,10 @@ repository's own secrets and machine-data check, and pushes only when that check
 
 | When | Skill | How it composes |
 |------|-------|-----------------|
-| Product intent locked | `/planning:prd` (when installed) | PRD says "users need X", and the prototype proves X works |
-| Architecture discovery surfaced a design question | `/architecture:improve` (when installed) | Improvement pass surfaces the opportunity → prototype validates the approach |
-| Prototype answered the question | `/planning:plan` (when installed) | Validated decision feeds the plan |
-| Logic module worth keeping | `/implementation:implement` (when installed) | Lift the pure module into production; delete the TUI shell |
+| Product intent locked | `/planning:prd` (when enabled) | PRD says "users need X", and the prototype proves X works |
+| Architecture discovery surfaced a design question | `/architecture:improve` (when enabled) | Improvement pass surfaces the opportunity → prototype validates the approach |
+| Prototype answered the question | `/planning:plan` (when enabled) | Validated decision feeds the plan |
+| Logic module worth keeping | `/implementation:implement` (when enabled) | Lift the pure module into production; delete the TUI shell |
 
 Ordering note: **mock before you wire**. When a change has both a "does the interaction work"
 question and real integration work, run the throwaway mock (this plugin) before any wiring. A

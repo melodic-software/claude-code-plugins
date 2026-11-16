@@ -58,6 +58,31 @@
       "pattern": "^[A-Za-z0-9._-]+$",
       "description": "The command name of the one browser tool a /testing:run-e2e playwright drive uses. When the driver chosen for the run is playwright (pinned or picked by auto) and this command is not on PATH, the run stops before driving, naming this key, the value and its source; it never switches tools. Any other value is named and the key takes its default. Applies only when run-e2e drives itself, not to a run through /app-control:drive."
     },
+    "map_unit": {
+      "enum": ["feature", "part"],
+      "default": "feature",
+      "description": "What one entry of a /testing:run-e2e map pass is. feature drives each feature of the control skill once; part drives each <feature>/<part> that /app-control:drive resolves from the feature's ## Parts lines. Wins over the map_unit userConfig option."
+    },
+    "map_entry_points": {
+      "enum": ["all", "first"],
+      "default": "all",
+      "description": "Which entry points a /testing:run-e2e map pass checks for each entry. all checks every entry point the feature lists; first checks only the first, and reports the others not checked (map_entry_points: first). Wins over the map_entry_points userConfig option."
+    },
+    "map_report_order": {
+      "enum": ["new,pre-existing,gone", "new,gone,pre-existing", "pre-existing,new,gone", "pre-existing,gone,new", "gone,new,pre-existing", "gone,pre-existing,new"],
+      "default": "new,pre-existing,gone",
+      "description": "The order of the NEW, PRE-EXISTING and GONE groups in a /testing:run-e2e map pass report, each group ordered by severity inside it. Wins over the map_report_order userConfig option."
+    },
+    "file_findings": {
+      "enum": ["none", "new"],
+      "default": "none",
+      "description": "Whether a /testing:run-e2e map pass hands findings to /bugs:write. none hands none; new states the count, then hands each NEW finding at or above file_findings_floor, with its id. A GONE finding is never closed. Wins over the file_findings userConfig option."
+    },
+    "file_findings_floor": {
+      "enum": ["critical", "high", "medium", "low"],
+      "default": "high",
+      "description": "The lowest severity of a NEW finding a /testing:run-e2e map pass hands to /bugs:write under file_findings: new. Wins over the file_findings_floor userConfig option."
+    },
     "tdd_refactor_step": {
       "enum": ["on", "off"],
       "default": "on",

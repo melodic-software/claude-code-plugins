@@ -93,7 +93,11 @@ failed read, a list cut short or no such run keeps the FAIL.
   filed in a size split whose body counts as its parent's text
   (`split_child_body`), or is an issue github-actions[bot] filed whose one
   recurring-schedule marker names one row of the default branch's schedule
-  (`recurring_row`), else `verify:untrusted-spec`. A
+  (`recurring_row`), or is an issue github-actions[bot] filed, nobody else
+  last edited, with the upstream-drift workflow's title and hex-pin lead line
+  (`drift_issue`) on a pull request whose changed files only modify the
+  default branch's docs/upstream pages pinned to that upstream
+  (`drift_scope`), else `verify:untrusted-spec`. A
   pass refused `verify:spec-changed` for an issue edit or a spec comment
   added or edited is judged again at the same head: resolve-pr.mjs judges a
   head whose passes all predate the spec's last change, and the lost-run
@@ -711,18 +715,33 @@ RELINK_QUERY = (
 )
 # Admission's rules, whose `task-list` is the prefix a split copies by.
 ADMISSION_RULES_PATH = ".github/actions/resolve-config/admission-rules.json"
-# The recurring schedule, and the issue body and author `recurring_row`
-# reads (resolve-pr.mjs recurringSpec).
+# The recurring schedule `recurring_row` reads (resolve-pr.mjs recurringSpec).
 RECURRING_SCHEDULE_PATH = ".github/recurring-schedule.json"
-RECURRING_ISSUE_QUERY = (
+# The issue fields `recurring_row` and `drift_issue` read (resolve-pr.mjs
+# recurringSpec and driftSpec), one read per issue.
+ACTIONS_ISSUE_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
-    "issue(number:$n){body author{...actor}}}}"
+    "issue(number:$n){title body lastEditedAt author{...actor} editor{...actor}}}}"
     f"{ACTOR_FRAGMENT}"
 )
-# github-actions[bot], which maintenance-file-recurring-issues.yml files as.
+# github-actions[bot], which maintenance-file-recurring-issues.yml and
+# maintenance-file-upstream-drift-issues.yml file as.
 ACTIONS_BOT_ID = 41898282
 # file-due.mjs SCHEDULE_MARKER.
 SCHEDULE_MARKER_RE = re.compile(r"^<!-- recurring-schedule id=(\S+) -->\r?$", re.M)
+# resolve-pr.mjs DRIFT_TITLE and driftLead: scripts/upstream-drift-issues.sh's
+# title and its hex-pin lead line.
+DRIFT_TITLE_RE = re.compile(r"Upstream drift: ([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)")
+# resolve-pr.mjs PIN_PREFIX and PIN_MARKER: check-upstream-drift.sh's git pin
+# marker (MARKER_PREFIX, STRICT_RE).
+PIN_PREFIX = "**Last audited upstream state:**"
+PIN_MARKER_RE = re.compile(
+    r"\*\*Last audited upstream state:\*\* `([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@[0-9a-f]{40}`"
+)
+# A docs/upstream page path, as resolve-pr.mjs upstreamPages lists them.
+UPSTREAM_PAGE_RE = re.compile(r"docs/upstream/(?:[^/]+/)*[^/]+\.md")
+# resolve-pr.mjs COMPARE_FILES_CAP: GitHub's compare lists at most this many.
+COMPARE_FILES_CAP = 300
 # admit.mjs REFINE_MARKER, SPLIT_CHILD_MARKER, the part line and SOURCE.
 REFINE_MARKER = "<!-- intake-triage refinement -->"
 SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->"
@@ -776,7 +795,7 @@ def ticked_forms(line: str, task_list: str) -> list[str]:
 
 
 def recurring_row(issue: Any, schedule: Any) -> bool:
-    """resolve-pr.mjs recurringSpec: whether `issue` (as `RECURRING_ISSUE_QUERY`
+    """resolve-pr.mjs recurringSpec: whether `issue` (as `ACTIONS_ISSUE_QUERY`
     reads it) is one github-actions[bot] filed whose body has exactly one
     marker line naming exactly one titled row of `schedule`, the default
     branch's. The spec is that row's text, never the issue's, so an edit can
@@ -802,6 +821,64 @@ def recurring_row(issue: Any, schedule: Any) -> bool:
         and isinstance(rows[0].get("title"), str)
         and rows[0]["title"] != ""
     )
+
+
+def drift_issue(issue: Any) -> str | None:
+    """resolve-pr.mjs driftSpec's issue half: the upstream id when `issue`
+    (as `ACTIONS_ISSUE_QUERY` reads it) is one github-actions[bot] wrote and
+    nobody else last edited, titled `Upstream drift: <id>`, whose first body
+    line is the hex-pin lead scripts/upstream-drift-issues.sh writes for that
+    id; else None. Pure."""
+    issue = json_object(issue)
+
+    def actions(actor: Any) -> bool:
+        actor = json_object(actor)
+        return (
+            actor.get("__typename") == "Bot"
+            and actor.get("databaseId") == ACTIONS_BOT_ID
+        )
+
+    title = issue.get("title")
+    body = issue.get("body")
+    match = DRIFT_TITLE_RE.fullmatch(title) if isinstance(title, str) else None
+    lead = body.split("\n", 1)[0].removesuffix("\r") if isinstance(body, str) else None
+    counts = (
+        actions(issue.get("author"))
+        and (issue.get("lastEditedAt") is None or actions(issue.get("editor")))
+        and match is not None
+        and lead
+        == f"Upstream `{match[1]}` changed since the pin on its docs/upstream page."
+    )
+    return match[1] if counts and match is not None else None
+
+
+def page_pin(text: Any) -> str | None:
+    """resolve-pr.mjs upstreamPages for one page: the upstream id the first
+    line holding check-upstream-drift.sh's marker prefix pins, when that line
+    opens with the strict form; else None. Pure."""
+    if not isinstance(text, str):
+        return None
+    line = next((t for t in text.split("\n") if PIN_PREFIX in t), "")
+    mark = PIN_MARKER_RE.match(line)
+    return mark[1] if mark else None
+
+
+def drift_scope(files: Any, id: str, pins: Callable[[str], str | None]) -> bool:
+    """resolve-pr.mjs driftSpec's changed-file half: `files` (GET compare's
+    `files`) is non-empty, under GitHub's cap, and only modifies
+    docs/upstream pages that `pins` (the page's id on the default branch)
+    says pin `id`. `pins` is called only for such a candidate path."""
+    if not is_json_array(files) or not 0 < len(files) < COMPARE_FILES_CAP:
+        return False
+    for file in map(json_object, files):
+        path = file.get("filename")
+        if (
+            file.get("status") != "modified"
+            or not isinstance(path, str)
+            or not UPSTREAM_PAGE_RE.fullmatch(path)
+        ):
+            return False
+    return all(pins(json_object(file)["filename"]) == id for file in files)
 
 
 def split_child_body(
@@ -1462,9 +1539,9 @@ class Reader:
     _schedule_value: Any = None
     _schedule_read: bool = False
     _schedule_at: datetime | None = None
-    # Whether each recurring issue judged counts (`_recurring`), with when
-    # each read behind it was taken.
-    _recurring_issues: dict[int, tuple[bool, tuple[datetime, ...]]] = field(
+    # Each github-actions[bot] issue judged (`_actions_issue`), with when its
+    # read was taken.
+    _actions_issues: dict[int, tuple[Any, tuple[datetime, ...]]] = field(
         default_factory=dict
     )
     # Each pull request's RELINK_QUERY answer, or {} for a failed read.
@@ -2688,29 +2765,88 @@ class Reader:
         run_cache.put(section, key, value, at)
         return value, at
 
-    def _recurring(self, issue: dict[str, Any]) -> bool:
-        """Whether recorded linked issue `issue`, which github-actions[bot]
-        wrote, names its one schedule row (`recurring_row`), read once per
-        Reader. A failed read raises `_Unreadable` (`verify:unreadable`)."""
+    def _actions_issue(self, issue: dict[str, Any]) -> Any:
+        """Recorded linked issue `issue` as `ACTIONS_ISSUE_QUERY` reads it,
+        once per Reader, when github-actions[bot] wrote it; else None. A
+        failed read raises `_Unreadable` (`verify:unreadable`)."""
         number = issue.get("number")
         if (
             type(number) is not int
             or issue.get("author_type") != "Bot"
             or issue.get("author_id") != ACTIONS_BOT_ID
         ):
-            return False
-        if number not in self._recurring_issues:
+            return None
+        if number not in self._actions_issues:
             with run_cache.track() as taken:
                 run_cache.note(run_cache.now())
                 node = self._graphql(
-                    RECURRING_ISSUE_QUERY, number, "recurring issue", env=self._env()
+                    ACTIONS_ISSUE_QUERY, number, "github-actions issue", env=self._env()
                 ).get("issue")
-                counts = recurring_row(node, self._schedule())
-            self._recurring_issues[number] = (counts, tuple(taken))
-        counts, read_at = self._recurring_issues[number]
+            self._actions_issues[number] = (node, tuple(taken))
+        node, read_at = self._actions_issues[number]
         for at in read_at:
             run_cache.note(at)
-        return counts
+        return node
+
+    def _recurring(self, issue: dict[str, Any]) -> bool:
+        """Whether recorded linked issue `issue`, which github-actions[bot]
+        wrote, names its one schedule row (`recurring_row`)."""
+        node = self._actions_issue(issue)
+        return node is not None and recurring_row(node, self._schedule())
+
+    def _drift(self, issue: dict[str, Any], pr: Any, head: Any) -> bool:
+        """Whether recorded linked issue `issue`, which github-actions[bot]
+        wrote, is the upstream-drift workflow's (`drift_issue`) and the pull
+        request `pr` at `head` only modifies the default branch's pages that
+        pin its upstream (`drift_scope`), as resolve-pr.mjs driftSpec
+        requires. A failed read raises `_Unreadable` (`verify:unreadable`)."""
+        node = self._actions_issue(issue)
+        upstream = drift_issue(node) if node is not None else None
+        if upstream is None:
+            return False
+        base = json_object(json_object(pr).get("base")).get("sha")
+        if not isinstance(base, str) or not isinstance(head, str):
+            raise _Unreadable(f"#{issue.get('number')}: no base or head to compare")
+        compared = _read(
+            ["api", f"repos/{self.repo}/compare/{base}...{head}"], "changed files"
+        )
+        return drift_scope(json_object(compared).get("files"), upstream, self._page_pin)
+
+    def _page_pin(self, path: str) -> str | None:
+        """The upstream id docs/upstream page `path` pins at the default
+        branch's tip (`page_pin`), shared by the run's gate processes for
+        `run_cache.MAX_AGE`. A failed read raises `_Unreadable`."""
+        try:
+            default = merge_policy._default_branch(self.repo, shared=True)
+        except merge_policy.PolicyReadError as exc:
+            raise _Unreadable(str(exc)) from exc
+        key = f"{self.repo}@{default}:{path}"
+        shared = run_cache.get_dated("upstream-page", key, run_cache.MAX_AGE)
+        if shared is None:
+            at = run_cache.now()
+            file = json_object(
+                _read(
+                    [
+                        "api",
+                        f"repos/{self.repo}/contents/{path}?ref={self._tip(default)}",
+                    ],
+                    "upstream page",
+                )
+            )
+            if file.get("encoding") != "base64" or not isinstance(
+                file.get("content"), str
+            ):
+                raise _Unreadable(f"{path}: no page content")
+            try:
+                text = base64.b64decode(file["content"]).decode("utf-8")
+            except ValueError as exc:
+                raise _Unreadable(f"{path}: {exc}") from exc
+            value = page_pin(text)
+            run_cache.put("upstream-page", key, value, at)
+        else:
+            value, at = shared
+        run_cache.note(at)
+        return value
 
     def _trusted_actor(self, kind: Any, actor_id: Any) -> bool:
         """The one spec-author filter (resolve-pr.mjs `trusted` is its
@@ -2745,11 +2881,15 @@ class Reader:
             raise _Unreadable(f"#{issue.get('number')}: no spec comment record")
         return {(c["id"], c["updated_at"]) for c in recorded}
 
-    def _trusted_spec(self, record: dict[str, Any]) -> bool:
+    def _trusted_spec(
+        self, record: dict[str, Any], pr: Any = None, head: Any = None
+    ) -> bool:
         """Every linked issue was written, and its body last edited if ever,
         by a User on the trusted list's humans (`_trusted_actor`), or is a
-        size split's sub-issue whose body counts (`_split_child`), or a
-        recurring issue naming its schedule row (`_recurring`)."""
+        size split's sub-issue whose body counts (`_split_child`), a
+        recurring issue naming its schedule row (`_recurring`), or the
+        upstream-drift workflow's issue for a pull request `pr` that at
+        `head` only modifies its upstream's pages (`_drift`)."""
 
         def trusted(issue: dict[str, Any], role: str) -> bool:
             return self._trusted_actor(
@@ -2765,6 +2905,7 @@ class Reader:
                 and (issue.get("last_edited_at") is None or trusted(issue, "editor"))
             )
             or self._split_child(issue)
+            or self._drift(issue, pr, head)
             or self._recurring(issue)
             for issue in issues
         )
@@ -4198,7 +4339,7 @@ class Reader:
             text = f"{pr.get('title') or ''}\n\n{pr.get('body') or ''}"
             live_digest = hashlib.sha256(text.encode()).hexdigest()
             return None if record.get("intent_sha256") == live_digest else SPEC_CHANGED
-        return None if self._trusted_spec(record) else UNTRUSTED_SPEC
+        return None if self._trusted_spec(record, pr, head) else UNTRUSTED_SPEC
 
     def queued_hold(self, number: int) -> str | None:
         """Why a queued entry must leave: no allowing verdict at its live

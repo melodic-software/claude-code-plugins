@@ -5,16 +5,10 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "1.1.14",
+  "version": "2.0.0",
   "license": "MIT",
   "types": "./types/index.d.ts",
   "userConfig": {
-    "settings_write_ask_enabled": {
-      "type": "boolean",
-      "title": "Settings-write-ask hook",
-      "description": "Runs the PreToolUse hook that asks before Write, Edit, and NotebookEdit calls aimed at a Claude Code settings file. On by default. Shell writes and files rendered into place are outside its matcher.",
-      "default": true
-    },
     "live_display": {
       "type": "string",
       "title": "Live context display",

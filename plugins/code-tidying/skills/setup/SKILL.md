@@ -1,6 +1,6 @@
 ---
-description: "Checks or scaffolds this repository's code-tidying configuration: tracked project tidy lanes, the optional HARD-exclusion overrides file, and the comment-lint git pre-commit entry. Use when 'set up code-tidying' is asked, the tidy skill reports no project lanes, or a session-start line says the comment-lint git hook is missing or stale. Actions: check (read-only, default), apply (one named lane or all), apply install-git-hooks (scope local or shared)."
-argument-hint: "[check|apply [<lane>|install-git-hooks [scope=local|shared]]]"
+description: "Checks or scaffolds this repository's code-tidying configuration: tracked project tidy lanes, the optional HARD-exclusion overrides file, and the comment-lint git pre-commit entry. Use when 'set up code-tidying' is asked, the tidy skill reports no project lanes, or a session-start line says the comment-lint git hook is missing or stale. Actions: check (read-only, default), check inspect (read-only), apply (one named lane or all), apply install-git-hooks (scope local or shared)."
+argument-hint: "[check|apply] [inspect|<lane>|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -16,7 +16,7 @@ the bundled lane, one without it resolves project-only (the `tidy` skill's Lane 
 Project lanes are optional: with none, tidy uses the bundled lanes, so their absence is an INFO,
 never a FAIL. The skill follows the uniform setup contract (`docs/plugin-philosophy.md` "Setup is
 explicit and repeatable" in the marketplace repository): no argument or `check` inspects
-read-only; `apply` runs the check, scaffolds or retunes lanes, then re-runs `check`; `apply <lane>`
+read-only; `check inspect` runs only the `check inspect` section; `apply` runs the check, scaffolds or retunes lanes, then re-runs `check`; `apply <lane>`
 targets one lane. Re-running reads the existing lane files and proposes changes against them rather
 than overwriting a consumer lane blind.
 
@@ -163,6 +163,21 @@ answer unambiguous; ask only where a lane's scope genuinely needs the user's cal
    report it as written but untracked until committed, and state plainly what it loosens.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
+
+## `check inspect` (read-only)
+
+Lists what runs at each git hook stage in this repository, under whichever hook manager it uses,
+and times this plugin's own entries. Run
+`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" inspect` from the repository (add
+`--runs <n>` to time each entry more often) and render its JSON as one table per stage: each item's
+kind, name and source, then its `measured` median and range with the input it ran on and its exit
+codes, or `not measured` with the `notMeasured` reason. A stage whose `installed` is false has no
+hook file git runs: say the manager's install step has not run in this clone. The script runs only
+this plugin's installed entries that change no files and still match what the plugin ships; it never runs a repository's own hook,
+another plugin's entry, a lefthook job or a Husky.Net task. To place a new check, compare the
+numbers with the duration budgets in the check-placement contract
+(`docs/contracts/check-placement/README.md#duration-budgets` in the marketplace repository).
+Modify nothing. Outside a git repository, report INFO and stop.
 
 ## `apply install-git-hooks [scope=local|shared]`
 

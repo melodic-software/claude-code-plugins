@@ -27,10 +27,8 @@ plugins/code-tidying/skills/remove-comments/reference/tooling.md 1
 plugins/code-tidying/skills/tidy/reference/bundled-simplify.md 1
 plugins/context-budget/skills/audit/reference/native-explain-usage.md 1
 plugins/context7/skills/lookup/context/cli.md 1
-plugins/corrections/skills/codify/reference/finding-classes.md 3
 plugins/debugging/skills/analyze-profile/reference/formats/heapsnapshot.md 1
 plugins/debugging/skills/analyze-profile/reference/formats/other-formats.md 1
-plugins/debugging/skills/debug/reference/ecosystem-debugging.md 1
 plugins/developer-experience/skills/build-cli/reference/cli-contract.md 6
 plugins/discipline/skills/sweep-all/reference/batched-pass.md 1
 plugins/discovery/skills/research/context/artifact-shape.md 1
@@ -139,7 +137,6 @@ plugins/testing/skills/run-e2e/context/e2e.md 4
 plugins/testing/skills/setup/SKILL.md 4
 plugins/testing/skills/test-value/SKILL.md 2
 plugins/testing/skills/write/context/characterization.md 1
-plugins/testing/skills/write/context/write.md 1
 plugins/user-interface/skills/audit/reference/launch-scope.md 1
 plugins/user-interface/skills/glossary/reference/rendering-performance.md 1
 plugins/visualization/skills/visualize/context/claude-design-tool.md 1

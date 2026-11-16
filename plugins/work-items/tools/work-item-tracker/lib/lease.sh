@@ -8,6 +8,8 @@ readonly _WIT_LEASE_LOADED=1
 readonly WIT_LEASE_MARKER='<!-- work-item-lease v1 '
 # A lease whose TTL exceeds this is not live, so claim refuses it.
 readonly WIT_LEASE_MAX_TTL_HOURS=168
+# Clock skew a lease reader tolerates between the provider's timestamps and the local clock.
+readonly WIT_LEASE_SKEW_SECONDS=300
 
 # wit_lease_json <marker-line-or-comment-body> — extract the lease JSON from a
 # lease marker; empty output when the input is not a lease marker.
@@ -55,6 +57,45 @@ wit_select_active_lease() {
   export WIT_ACTIVE_LEASE_ID WIT_ACTIVE_LEASE_JSON
 }
 
+# wit_lease_winner <lease-comment-rows-json> <now-epoch> <self-id> [<released-fn>]: set
+# WIT_WINNER_ID / WIT_WINNER_JSON to the EARLIEST live lease, the one claim arbitration
+# (CONTRACT.md "Lease protocol", claim step 4) says holds the item; both empty when no lease
+# is live. A newer live lease is a claimant that has not yet backed off and never holds.
+# <released-fn>, when given, runs as `<fn> <row-id> <lease-json>` for each live lease other
+# than <self-id>; its exit 0 counts that lease as released and arbitration moves on.
+WIT_WINNER_ID=""
+WIT_WINNER_JSON=""
+wit_lease_winner() {
+  local leases="$1" now_epoch="$2" self="$3" released_fn="${4:-}" row cand row_id
+  WIT_WINNER_ID=""
+  WIT_WINNER_JSON=""
+  while IFS= read -r row; do
+    [[ -n "$row" ]] || continue
+    cand="$(wit_lease_json "$(jq -r '.body' <<<"$row")")"
+    [[ -n "$cand" ]] || continue
+    wit_lease_is_live "$cand" "$now_epoch" || continue
+    row_id="$(jq -r '.id' <<<"$row")"
+    if [[ -n "$released_fn" && "$row_id" != "$self" ]] && "$released_fn" "$row_id" "$cand"; then
+      continue
+    fi
+    WIT_WINNER_ID="$row_id"
+    WIT_WINNER_JSON="$cand"
+    break
+  done < <(jq -c 'sort_by(.id) | .[]' <<<"$leases")
+  export WIT_WINNER_ID WIT_WINNER_JSON
+}
+
+# wit_newer_live_lease <lease-comment-rows-json> <now-epoch> <self-id>: 0 when a live lease
+# has a higher comment id than <self-id>.
+wit_newer_live_lease() {
+  local row cand
+  while IFS= read -r row; do
+    cand="$(wit_lease_json "$(jq -r '.body' <<<"$row")")"
+    [[ -n "$cand" ]] && wit_lease_is_live "$cand" "$2" && return 0
+  done < <(jq -c --argjson self "$3" '.[] | select(.id > $self)' <<<"$1")
+  return 1
+}
+
 # wit_lease_ttl_seconds <lease-json> — echo total TTL in seconds from ttl_hours and
 # optional ttl_minutes. Returns 1 when ttl_hours is missing or non-numeric.
 wit_lease_ttl_seconds() {
@@ -82,7 +123,8 @@ wit_lease_phase_valid() {
 }
 
 # wit_lease_is_live <lease-json> <now-epoch> — 0 when no superseded_at and not expired.
-# A lease renewed more than 300 s after now, or with a TTL over WIT_LEASE_MAX_TTL_HOURS, is not live.
+# A lease renewed more than WIT_LEASE_SKEW_SECONDS after now, or with a TTL over
+# WIT_LEASE_MAX_TTL_HOURS, is not live.
 wit_lease_is_live() {
   local lease="$1" now_epoch="$2" renewed ttl_seconds renewed_epoch
   [[ -z "$(jq -r '.superseded_at // empty' <<<"$lease")" ]] || return 1
@@ -90,5 +132,5 @@ wit_lease_is_live() {
   ttl_seconds="$(wit_lease_ttl_seconds "$lease")" || return 1
   ((ttl_seconds > 0 && ttl_seconds <= WIT_LEASE_MAX_TTL_HOURS * 3600)) || return 1
   renewed_epoch="$(wit_iso_to_epoch "$renewed")" || return 1
-  ((renewed_epoch <= now_epoch + 300 && now_epoch < renewed_epoch + ttl_seconds))
+  ((renewed_epoch <= now_epoch + WIT_LEASE_SKEW_SECONDS && now_epoch < renewed_epoch + ttl_seconds))
 }

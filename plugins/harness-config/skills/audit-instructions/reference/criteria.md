@@ -1,6 +1,6 @@
 ---
-version: 1.32.0
-last-updated: 2026-11-09
+version: 1.33.0
+last-updated: 2026-11-16
 ---
 
 # Instruction-Audit Criteria
@@ -174,7 +174,7 @@ in name only.
 non-memory surfaces (skill bodies, agent definitions, hook instruction text, output styles); on
 memory-layer surfaces (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md, `.claude/rules/`,
 `~/.claude/rules/`) their findings route to the `harness-memory` plugin's `audit` skill when it is
-installed, and fall back to the official include/exclude guidance (I1–I5 source below) when it is
+enabled, and fall back to the official include/exclude guidance (I1–I5 source below) when it is
 not. Checks I6–I12, I16–I28, I30, and I35–I39 apply to all surfaces. I15 also applies to all
 surfaces, but its unit is a pair, so Phase B2 answers it rather than a per-surface lane. I13, I14,
 I29, I31, I32, I33, I34, and I40–I42 name narrower surface sets in their own rows, and a lane runs
@@ -280,17 +280,33 @@ each only on the surfaces its row names.
 
 ### Deletion tiers
 
-Two deletion tiers, editorial and consequential, and one hold outside them, protected. One
+Three deletion tiers, editorial, enforced and consequential, and one hold outside them,
+protected. One
 grammar. The grammar is `unhobble`'s re-add gate: a ledger row, same-cause
 aggregation, and a commit that cites the rows. This catalog does not define a second grammar.
 The operational form is `/harness-config:unhobble watch`.
 
 - **Editorial.** I1 (removal would not change behavior), I4 (derivable or redundant), and stale
   scaffolding that restates the obvious. Propose the cut. No watch.
+- **Enforced.** Prose outside the register restating a rule a deterministic check already
+  enforces: a hook, a CI check, a linter rule, or a test. The rule lives in the check, so the
+  prose is flagged for deletion even when it governs a situation, with the enforcing check named
+  by its location (the hook file, CI workflow and job, lint rule id, or test path). No watch: the
+  named check is what clears this tier. The check must be located in the repository or its CI,
+  must fail or block rather than only warn (a required CI check, an error-level lint rule, a hook
+  that denies), and must be active everywhere the prose loads; scope it does not reach keeps its
+  prose. The prose's own claim
+  that something enforces it ("CI rejects other titles") identifies the candidate but does not
+  clear it. Report such a candidate as flagged for deletion pending the check's location, never
+  as a kept hard constraint. Where the check covers less than the prose states, only the covered
+  part goes.
 - **Protected.** A candidate matching the instruction exception register. Hold. Never a watch
-  and never a deletion. Compression in place or hook conversion stays available.
-- **Consequential.** A rule that governs a situation and is outside the register. Do not present
-  the deletion as applicable. Propose opening a watch for that rule. The cut becomes applicable
+  and never a deletion, even when a check enforces it: report the enforcing check beside the
+  hold. Compression in place or hook conversion stays available. When the register cannot be
+  read, hold a candidate that may match a class by consequence and say the register was unread.
+- **Consequential.** A rule that governs a situation, outside the register, with no check that
+  meets the Enforced bar: no check at all, or one that only warns or reaches less than the prose
+  (the uncovered part). Do not present the deletion as applicable. Propose opening a watch for that rule. The cut becomes applicable
   only when a closed watch is cited: its qualifying-session count met and zero attributed rows.
   The recommended commit cites that watch. That citation is what clears this tier.
 
@@ -302,7 +318,8 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   something the model already does correctly.
 - **Remediate:** cut it. This check's cut is editorial (Deletion tiers) and does not require a
   watch. If the line enforces a governed situation, it is consequential: convert per I5 or open a
-  watch, and do not cut it on this check alone.
+  watch, and do not cut it on this check alone. If a deterministic check already enforces it,
+  flag it for deletion under I5 with the check named.
 - **Hold instead of delete** when the candidate matches a protected class in the
   [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md),
   on I5's terms. This bar asks whether removal would change behavior *today*; a protected rail's
@@ -383,7 +400,8 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   knows, inlined API docs that should be a link, or self-evident practices.
 - **Remediate:** delete; link to the source of truth instead of inlining it. This cut is
   editorial (Deletion tiers) unless the line governs a situation, in which case it is
-  consequential and needs a closed watch before the deletion is applicable.
+  enforced when a located check already enforces it (I5), else consequential and needs a closed
+  watch before the deletion is applicable.
 - **Hold instead of delete** when the candidate matches a protected class in the
   [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md)
   (the Gate 0 consequence classes, adopted there by reference for the deletion operation). Report
@@ -398,17 +416,23 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: I1–I5 partition.
 
-- **Detect:** a rule the model already follows without it, or one that must fire every time with
-  zero exceptions.
-- **Remediate:** an already-followed rule that does not govern a situation is an editorial
-  deletion. A rule that governs a situation is consequential: open a watch, and propose the
-  deletion only when a closed watch is cited (Deletion tiers). Convert a must-always rule to a
-  hook either way; conversion is not a deletion.
+- **Detect:** a rule the model already follows without it, one that must fire every time with
+  zero exceptions, or one a deterministic check already enforces (a hook, a CI check, a linter
+  rule, a test).
+- **Remediate:** a rule a deterministic check already enforces to the Enforced bar is not also
+  kept as prose: flag the prose for deletion and name the enforcing check (Deletion tiers,
+  enforced). Convert a must-always rule with no such check, including one whose check only warns
+  or reaches less than the prose, to a hook or another blocking check; once the check exists,
+  the prose goes in the same change, named against that check. An already-followed rule that does
+  not govern a situation is an editorial deletion. Any other rule that governs a situation,
+  including the part a warning-only or narrower check leaves uncovered, is consequential: open a
+  watch, and propose the deletion only when a closed watch is cited.
 - **Hold instead of delete** when the candidate matches a protected class in the
   [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md).
   "The model already does this" is the weakest possible evidence against a rail whose absence is
   unrecoverable, and the hook conversion stays available: converting a protected rule to a
-  deterministic mechanism is a remediation, deleting it is not.
+  deterministic mechanism is a remediation, deleting it is not. A protected rule keeps its prose
+  even when a check enforces it; report the check beside the hold.
 - **Source:** best-practices, "Keep CLAUDE.md short" (already-followed rules) and "Enforce steps with
   hooks".
 
@@ -474,7 +498,11 @@ disagrees with it.
   surface's to make, not this row's to override.
 - **Remediate:** propose removal or a briefer instruction; verify per Deletion tiers (a
   consequential removal needs a closed watch, an editorial one does not) that default performance
-  holds or improves.
+  holds or improves. When a cull keeps the hard constraints, a step a deterministic check already
+  enforces is not one of them: flag it for deletion with the check named, per I5 (on
+  memory-layer surfaces, the harness-memory audit's C8). A step matching a protected class in the
+  [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md)
+  holds instead, with the check reported beside the hold.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Source:** prompting best practices, "Leverage thinking & interleaved thinking capabilities"
   (the gate-meeting, model-agnostic one). Convergent model guide: Fable 5, "Recommended
@@ -2681,7 +2709,8 @@ Unscoped.
 - **Adjacent rows:** on an agent definition, a line I1 or I4 would flag is reported once, under
   this row. I29 covers body text that restates the description.
 - **Remediate:** cut it. The cut is editorial (Deletion tiers) unless the line governs a situation,
-  in which case it is consequential and needs a closed watch.
+  in which case it is enforced when a located check already enforces it (I5), else consequential
+  and needs a closed watch.
 - **Source:** `/playbooks:skill-authoring` `## Agents`; skill authoring best practices, "Concise is
   key". Correlate: the vendor `prompt-audit` procedure's Step 3 deletion rule, read at the commit
   [bundled-claude-api.md](bundled-claude-api.md) pins. Pointer: [concise is
@@ -2723,7 +2752,9 @@ more aggressive.
 - **Withhold** an I6 or I8 proposal where the instruction guards a high-consequence area: a safety
   gate, an irreversible or destructive action, a security or permission boundary, an external
   contract, or genuine ordering another step depends on. De-prescription is the default posture; it
-  is not the posture in the places where being wrong is expensive.
+  is not the posture in the places where being wrong is expensive. A step a located check already
+  enforces is not withheld on these grounds: the check guards it, so it goes per I5's enforced
+  route, and a protected class in the instruction exception register still holds there.
 - **Report every withholding** in the run's own section, naming the check it moderated and the
   ground. A silently suppressed finding reads as coverage.
 - **Source:** none. A high-consequence carve-out appears on no official page, and it is the
@@ -2744,9 +2775,9 @@ remediation into a case its Detect never described.
   evidence that shows it false, and a proposed correction.
 - **Verify** it in Phase C like any proposal, with its own refutation: reproduce the cited evidence,
   then ask whether the claim is false today. A defect whose evidence does not reproduce is dropped.
-- **Route** it by class when an owner is installed: doc or config drift to a doc/config drift
+- **Route** it by class when an owner is enabled: doc or config drift to a doc/config drift
   auditor, copied or stale upstream content to a provenance auditor, each named by class or with
-  "when installed". With no such owner installed, the report here is the whole disposition.
+  "when enabled". With no such owner enabled, the report here is the whole disposition.
 - **Never relayed.** These rows are never written by `--persist-findings` and never reach
   `emit-findings.sh`.
 
@@ -2780,14 +2811,14 @@ findings table, and never relayed by `--persist-findings`.
   > `.claude/rules/<topic>.md` with a `paths:` glob, per migrate's routing.
 
 - **Presence gate.** Name `/instruction-placement:migrate plan` when the `instruction-placement`
-  plugin is installed. When it is not, the line names the same move (content to `AGENTS.md`, the
+  plugin is enabled. When it is not, the line names the same move (content to `AGENTS.md`, the
   `CLAUDE.md` kept as the `@AGENTS.md` shim) as a repository-wide change left to the operator.
 - **Never** propose deleting a `CLAUDE.md`, emptying it, or removing its shim. When and whether a
   session reads `AGENTS.md` at all is recorded in
   [agents-md-liveness.md](../../../reference/agents-md-liveness.md); that record is why the shim
   stays.
 - **Progressive disclosure is out of scope.** Whether the file should be split across load tiers is
-  `/docs-hygiene:audit-progressive-disclosure` when the `docs-hygiene` plugin is installed; when it
+  `/docs-hygiene:audit-progressive-disclosure` when the `docs-hygiene` plugin is enabled; when it
   is not, the advisory notes the question as unjudged.
 
 ---

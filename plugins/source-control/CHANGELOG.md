@@ -3,6 +3,51 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.18.0] - 2026-11-16
+
+### Added
+
+- **The evidence comment shows a small change inline.** `/source-control:pull-request evidence` lays out a change with at most two acceptance criteria and at most `evidence_inline_max_captures` captures (default 4), each mapped to an entry point by a drive `report.json`, as a Before/After table, one column per interaction, a caption under each image, and one line naming the capturing tool and what each row's state is. Any other change, an `e2e-summary.json` input included, keeps one collapsed section per acceptance criterion and `Other captures`. `--before <file>` takes the base commit's evidence file, governed by its own `publishable` list. A video sits in its own paragraph under the table.
+- **Optional record block.** With `evidence_record_fields: true` (off by default) the comment carries who ran the verification (`--verified-by`), when (the evidence file's write time) and the issues found with their resolution (`--issues`, else the run's failed entries).
+- `scripts/read-evidence-layout.sh` reads both keys from `docs/conventions/source-control.yaml` at the pull request's base, honored only on the default branch, with tests.
+
+### Changed
+
+- The evidence comment leads with the run's text result, one line per criterion or entry point; captures support it. The verifier-verdict and leak-scan gates are unchanged.
+
+## [11.17.0] - 2026-11-16
+
+### Added
+
+- Merging after AI review now requires a lanes App pull request to carry a merge-risk rating for the pinned head. With `demote=true`, the session merges only when an owner decision covers each HIGH or CRITICAL reason, and sends any other reason to the owner.
+
+## [11.16.0] - 2026-11-16
+
+### Changed
+
+- The babysit merge gate counts a pr-verify pass whose linked issue is the upstream-drift
+  workflow's (github-actions[bot] wrote it and nobody else last edited it, with that workflow's
+  title and hex-pin lead line) as a trusted spec when the pull request's changed files, base to
+  head, only modify the default branch's `docs/upstream` pages pinned to that upstream, as
+  pr-verify does. The gate reads each github-actions issue once for this rule and the
+  recurring-schedule rule.
+
+- **The Dependabot tier reads the policy's `fastTrack.own`.** `babysit_dependabot.classify` takes each read policy copy's own globs (`own_globs`). A pull request whose every update both copies name (`all_own`, this organization's own releases) takes no `publisher:` reason, and a below-1.0 second-component move is not `major:` for it, so a `melodic-software/ci-workflows` 0.x minor bump sorts `auto`. A first-component move stays major. `dependabot_eligibility` reads the base and default-branch policy copies once and sorts the pull request again under them.
+
+## [11.15.8] - 2026-11-16
+
+### Changed
+
+- The shared hook library resolves `HOOK_TELEMETRY_SINK=@session-telemetry`, and `@harness-ops`, to the session-telemetry launcher.
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [11.15.7] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract.
+
 ## [11.15.6] - 2026-11-16
 
 ### Changed

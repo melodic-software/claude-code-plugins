@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Filing: 2 NEW at or above high\n- checkout-crash-1111: Bug: checkout-crash-1111\n- login-error-2222: Bug: login-error-2222",
+      "why": "the two NEW findings at or above the floor"
+    },
+    {
+      "answer": "Filing: 2 NEW at or above `high`",
+      "why": "the floor as a code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Filing: 3 NEW at or above high",
+      "why": "counts the medium NEW finding, ignoring the floor"
+    },
+    {
+      "answer": "Filing: 3 NEW at or above high\n- checkout-crash-1111\n- login-error-2222\n- profile-refusal-5555",
+      "why": "counts the PRE-EXISTING finding as NEW"
+    }
+  ]
+}

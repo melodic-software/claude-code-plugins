@@ -150,6 +150,12 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
   after the owning skill changes, so the two then disagree and nothing flags it. When the owning
   skill may not be installed, one line says what this skill does without it; that line is not a
   second copy of the procedure.
+- **Config before a generated skill.** A shipped skill generates a repository-specific skill (as
+  `/app-control:map` generates a project's control skill) only where repository configuration
+  cannot express the difference. When config can carry it, such as a tool name the skill reads
+  from the repo's config (`docs/contracts/config-cascade/README.md`), keep one shipped skill and
+  read the config. Why: a generated skill is a copy that stops receiving the shipped skill's
+  fixes, while config is read by the current skill on every run.
 - **SKILL.md is a router, under 5,000 tokens.** It is the hub: it holds the standing rules and
   routes each action to its own spoke under `actions/`, one file per action, so a run loads the
   router and the one action it needs. The cap is a house setting; `/skill-quality:check` estimates the count at 4
@@ -162,7 +168,10 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
   machine-read output, a default with a release line otherwise. Give a few diverse, canonical
   examples that portray the expected behavior, not a laundry list of edge cases that tries to
   state every possible rule; where style matters, make them labeled input/output pairs and add a
-  line naming the rule. Name a default tool, and an escape hatch
+  line naming the rule. Each pair shows the input the skill is given (a described change, a
+  request) and the output it should produce from it, labeled apart, as in `Input:`/`Output:`.
+  A `Bad:`/`Good:` contrast of two outputs is not such a pair, because it never shows which
+  input calls for the good output. Name a default tool, and an escape hatch
   only with its trigger.
 - Deterministic work goes in a bundled script. SKILL.md cites it as
   `${CLAUDE_SKILL_DIR}/scripts/<name>` with the verb ("Run" to execute, "See" to read), forward
@@ -206,6 +215,11 @@ build tool) takes these steps in order:
   practices in [Sources](#sources)).
 - Each pointer says what the file holds and when to read it; a bare "see X" is a missed
   connection.
+- **A reference works without the steps.** Another skill or a person loads it through this
+  skill's invocation or a documented action, never by its path, and acts on it without running
+  the step sequence. So a reference names its own inputs and never leans on a value an earlier
+  step set or on steps having run. Why: a reference that only makes sense mid-sequence cannot be
+  reused, and a caller after one rule has to run steps it does not need.
 - A spoke is read, not rendered, so no substitution variable resolves in it: cite
   `<skill-dir>/scripts/<name>`. `scripts/check-spoke-plugin-root.sh` gates the plugin-root
   and skill-dir variables in this marketplace.
@@ -247,8 +261,8 @@ reads it. A key nothing reads is cut.
 
 This section runs `/skill-quality:check`, the `/evals:*` skills, `/docs-hygiene:compress` and
 `/skill-creator:skill-creator` when the `skill-quality`, `evals`, `docs-hygiene` and
-`skill-creator` plugins are installed. When one is not, say which check did not run and that
-installing that plugin would run it; never report that check as passed.
+`skill-creator` plugins are enabled. When one is not, say which check did not run and that
+enabling that plugin would run it; never report that check as passed.
 
 **Authoring a new skill.** Write the evals before the body: note what Claude gets wrong without
 the skill, build cases for those gaps, measure a baseline, write the minimum that passes. Draw
@@ -305,7 +319,7 @@ precedence rule at the top of this page). Cut text from a shipped skill by this 
 `/docs-hygiene:compress compare`, then run the skill's cases with the removed text and without it
 (`/evals:plugin-eval --baseline <before.json> --margin <m>`). The cut ships only under step 6's
 non-inferiority rule; otherwise the removed text stays. When the skill-creator plugin is
-installed, its
+enabled, its
 [comparator agent](https://github.com/anthropics/skills/blob/main/skills/skill-creator/agents/comparator.md)
 adds a blind A/B judgment of the two versions' outputs; without it, the eval run above is the
 comparison. Replacing a restated upstream fact with a

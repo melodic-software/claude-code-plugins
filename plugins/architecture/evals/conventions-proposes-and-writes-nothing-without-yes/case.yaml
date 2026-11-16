@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: conventions-proposes-and-writes-nothing-without-yes
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: cites-handler-lines
+    type: regex
+    pattern: 'Handlers/\w+Handler\.cs:\d+'
+    target: 'last_message'
+  - name: routes-to-reuse-or-replace
+    type: regex
+    pattern: 'reuse-or-replace'
+    target: 'last_message'
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-skill-call
+    type: tool_used
+    tool: 'Skill'
+    min: 0
+    max: 0
+    arm: both
+  - name: sources-checked-first
+    type: llm
+    criteria: "PASS only if the reply names the recorded sources it checked before deriving (boundary-rule sources such as REVIEW.md, ARCHITECTURE.md, ADRs or rules files, and the standards index or a paved-path file) and says they hold no rule or paved path. FAIL if it names no checked source."
+  - name: asks-which-to-record
+    type: llm
+    criteria: "PASS only if the reply presents the request-handler pattern as a proposed rule and asks the user which proposals to record. FAIL if it records a rule without asking, or asks nothing."

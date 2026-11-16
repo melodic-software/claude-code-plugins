@@ -3,6 +3,125 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.1] - 2026-11-16
+
+### Fixed
+
+- The `lists-citation` graders of the `rd-audit-lists-gone-record` and
+  `rd-reversal-asks-before-retiring` eval cases no longer accept a line range or list that starts at
+  the citing line (`cookie_store.py:1-2`, `schema.graphql:1,2`). The sweep lists the one citing line,
+  and a drop proposal on a range would also edit a line that cites nothing.
+- The `asks-before-retiring` grader now accepts an ask that names the retirement as a past
+  participle ("Mark ADR 0002 as superseded by ADR 0003?", "it would be set to superseded by 0003 …
+  Should I update it?"), as a present-tense verb ("This deletes 0002; go ahead?"), or as "needs your
+  yes" with no question mark. It still rejects a report of a finished retirement that ends in an
+  unrelated question.
+
+## [5.2.0] - 2026-11-16
+
+### Added
+
+- `record-decision` Step 3: a citation sweep lists, by `file:line`, every tracked line citing the retired record's identifier or path, and proposes pointing each at the new record or dropping it, applied in the same change behind the same yes. It runs for every `adr_retirement` value and for a partial reversal, where only citations of the reversed part change.
+- `record-decision audit`: each retire candidate lists the lines citing it; the audit stays read-only.
+- `record-decision` Step 4: after a record is written, it offers one pointer comment at the code the decision governs, citing the record in the repository's own form, and writes it only after a yes.
+
+## [5.1.0] - 2026-11-16
+
+### Added
+
+- **The deepening report follows the system's light or dark setting.** `/architecture:improve
+  deepening` builds its report on the shared page chrome, now bundled as
+  `reference/html-chrome.html`, with the System, Light and Dark toggle.
+- **A header line of evidence counts.** The report's header lists up to four counts (call sites,
+  copies, tests), each a number the verification gate reproduced. With the gate skipped, the line
+  is left out.
+- **Dependent candidates are interviewed as one tree.** When a selected candidate depends on
+  another selected one, the interview treats them as one tree and says so; a card names the
+  candidate it depends on.
+
+### Changed
+
+- **The report loads Tailwind and Mermaid from a CDN**, each at an exact version named in the
+  page's content security policy. Graph-shaped diagrams are Mermaid blocks; layer stacks, size
+  bars and deep modules stay hand-built. Without the network the page shows the chrome's styling
+  and each Mermaid block's source. Mermaid runs in strict mode with HTML labels off, and a
+  repository-derived string in a Mermaid label keeps only letters, digits, spaces and `_ . / : -`.
+
+## [5.0.1] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [5.0.0] - 2026-11-16
+
+### Added
+
+- **`/architecture:enforce-boundaries`.** Sets up a check for each rule in the `## Boundary rules`
+  section of the architecture topic doc, using the strongest mechanism the repository supports: a
+  boundary the build already enforces, then the repository's own architecture-test tool, then a
+  tool researched at run time, then a check in the repository's own convention. It ships no tool
+  config. Each rule is proven on its own by an injected violation that must fail the check naming
+  the rule, then pass once only those lines are removed; the check is wired into the command that
+  already runs the repository's checks, the rest is reported as not wired, and each entry gains
+  `Enforced by: <command>`. Every write waits for a yes, a new dependency is always asked, and an
+  unattended run stops at the plan. With no rule recorded it writes nothing and names the
+  `conventions` and `boundaries` lenses.
+- **Boundary rule forms.** The list of recorded forms adds entry-points only and no cycles, with
+  what crosses each. The `boundaries` lens reports both as `not checkable from manifests`, except
+  a no-cycles rule between projects, and reports an entry carrying `Enforced by:` as already
+  enforced.
+
+- **`/architecture:improve-layout`.** The co-change layout check as its own skill: the co-change
+  script, its tests, its measures reference and its eval cases moved with it, and its trigger
+  phrases ('do files that change together live together', 'co-change layout') moved from
+  `improve`'s description to its own.
+- **`reference/improvement-steps.md`.** One file owns the steps every lens takes the same way:
+  base freshness, scope and fan-out, recorded decisions, the convention home with one table of the
+  resolver's exit codes, the memory-tier write rules, badge bands and the hand-off. The lens
+  playbooks cite it by section instead of citing the deepening playbook.
+- **`improve`'s roster test.** `skills/improve/scripts/lens-roster.test.sh` fails when a lens
+  playbook has no Actions-table row or `argument-hint` entry, or a row or entry has no playbook.
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract.
+
+- `/architecture:improve`'s `## Next` names `/architecture:enforce-boundaries` for a recorded
+  boundary rule that nothing enforces yet.
+
+- **Convention home in `boundaries` and `conventions`.** Both now read the architecture topic doc
+  under the default home, `docs/conventions`, when the resolver exits 1 (no pointer) or 4 (home
+  declined), as the settings cascade and the layout check already did; before, they read nothing
+  on any exit but 0. Writes still happen only on exit 0.
+- **Memory-tier writes in `deepening` and `improve-layout`.** They now follow the rules `boundaries`
+  already had: no file when the memory root is the repository root or the slice name cannot be
+  formed, never overwrite (`-2`, then `-3`), and a refused write puts the content in the report.
+- **No recorded style in `improve-layout`, attended.** The run no longer stops at Phase 1 to ask
+  how files should be grouped: it computes the cards without a style and asks once after them.
+- **Scope in `conventions`.** Its scan now scopes as the other lenses do: a given spec or plan sets
+  the areas, and the history step leaves out `[bot]` authors.
+- **Roster.** The plugin description, the README and `improve`'s description, argument hint,
+  summary, Purpose, reference index and `## Next` name the lenses that exist; "Adding a lens" lists
+  every place a new lens must be added.
+- **Plugin root in the `boundaries` and `conventions` playbooks.** The resolver call is written
+  with the `<plugin-root>` placeholder `improve`'s `SKILL.md` renders, not a variable a read file
+  does not expand.
+
+### Removed
+
+- **`/architecture:improve layout`.** The layout lens is no longer an action of
+  `/architecture:improve`; run `/architecture:improve-layout` instead, with the same `--path` and
+  one-run settings. `improve` keeps the `deepening`, `boundaries` and `conventions` lenses.
+
+## [4.5.3] - 2026-11-16
+
+### Changed
+
+- `improve`'s copy of the rendered-views security baseline states the new network rule: a view may
+  load a pinned library from a public CDN with a fallback, and an Artifact view stays
+  self-contained. The deepening report still fetches nothing, now as its own choice.
+
 ## [4.5.2] - 2026-11-16
 
 ### Fixed

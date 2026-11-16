@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "pr-title: delete\nforce-push: hold\nmeters: keep"},
+    {"answer": "**pr-title**: delete"}
+  ],
+  "fail": [
+    {"answer": "pr-title: keep", "why": "keeps prose a CI job enforces"},
+    {"answer": "pr-title: hold", "why": "not a protected class"}
+  ]
+}

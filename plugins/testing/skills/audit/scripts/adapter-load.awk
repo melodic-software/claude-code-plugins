@@ -78,8 +78,9 @@
 # rules.<rule>: off | warn | error, where <rule> is testing/audit/rule-<slug>
 # or rule-<slug> and prints as rules.<slug>, or is test-weaken-block, the
 # test-weaken hook's deny switch. A glob starting with * must be single-quoted.
-# The top-level run-e2e keys e2e_driver, reuse_running_instance and
-# browser_driver, the write keys tdd_refactor_step and first_test, and the
+# The top-level run-e2e keys e2e_driver, reuse_running_instance,
+# browser_driver, map_unit, map_entry_points, map_report_order, file_findings and
+# file_findings_floor, the write keys tdd_refactor_step and first_test, and the
 # retired feature_map_dir (so a leftover line never stops a scan) are skipped
 # unread, whatever their value; a nested value skips with its indented lines
 # and draws one stderr warning naming the file and line.
@@ -305,10 +306,10 @@ FNR == 1 {
   if (!match(body, KEY_RE)) die("expected `key: value` or `- item`")
   key = substr(body, 1, RLENGTH - 1)
   # run-e2e's and write's keys share the config file; scripts/resolve-config.sh
-  # e2e and write read them, so the scan neither parses nor checks their values.
+  # e2e, map and write read them, so the scan neither parses nor checks their values.
   # feature_map_dir is retired: no script resolves it. lib/read-verification.sh
   # reads verification and verification_skills from this file.
-  if (MODE == "config" && ind == 0 && key ~ /^(e2e_driver|reuse_running_instance|feature_map_dir|browser_driver|tdd_refactor_step|first_test|pixel_tolerance|verification|verification_skills)$/) {
+  if (MODE == "config" && ind == 0 && key ~ /^(e2e_driver|reuse_running_instance|feature_map_dir|browser_driver|map_unit|map_entry_points|map_report_order|file_findings|file_findings_floor|tdd_refactor_step|first_test|pixel_tolerance|verification|verification_skills)$/) {
     sp = 0
     E2E_KEY = key; E2E_WARNED = (key == "pixel_tolerance" || key == "verification_skills")
     next

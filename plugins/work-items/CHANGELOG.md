@@ -3,6 +3,61 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.5.2] - 2026-11-16
+
+### Fixed
+
+- The GitHub adapter's `release` of a live lease that an earlier live lease outranks backs off as `renew-lease` does before it exits `7`: it tries to supersede its own lease twice and hands the assignee back once one try succeeds, else keeps the assignee and says so. Before, it wrote nothing, so the lease and its login stayed until the TTL ran out.
+- The assignee hand-back judges each lease list attempt at a clock read taken just before it. Before, it read the clock after the list, so a same-login lease renewed meanwhile could look expired and its holder was unassigned.
+
+## [15.5.1] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [15.5.0] - 2026-11-16
+
+### Changed
+
+- A background work-loop lane starts in its plugin profile when the plugin-profiles plugin is enabled, and is not launched when that profile needs a missing required tool.
+
+## [15.4.5] - 2026-11-16
+
+### Fixed
+
+- The GitHub adapter's "Close item" posts the closing note as its own comment and then closes, instead of passing it to `gh issue close --comment`. On an issue that was already closed, `gh` skipped the comment and exited 0, so a `/work-items:track done --summary` note (and a triage, recheck or stale close note) was lost while the run reported the item closed. The duplicate-close forms also post their note as a separate comment. `done` now reports an already-closed item as already closed, with the summary added.
+
+## [15.4.4] - 2026-11-16
+
+### Fixed
+
+- The GitHub adapter's `renew-lease` backs off when its PATCH fails within 300 s of the lease's expiry or after it, since GitHub may have applied the PATCH and revived the lease. Before, a failed PATCH exited before the back-off check and kept a lease that might have been revived after expiry.
+- A `renew-lease` back-off tries its supersede twice and hands the assignee back only after one succeeds. Before, a failed supersede still removed the login while the lease stayed live and blocked the item for its TTL.
+- `CONTRACT.md` "Lease protocol" now lists a known limit: three sessions of one login can leave a lease holder unassigned, though the lease still excludes other workers. It also describes what the code does when a claim's rollback list fails and when `release` exits 0 on another login's superseded lease.
+
+## [15.4.3] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract. `ship run` without the implementation plugin tells the user to enable it, installing it first only when it is missing.
+
+### Fixed
+
+- The GitHub adapter's `release` and `renew-lease` accept the holder's live lease while a newer lease that has not yet backed off is on the item, and refuse a lease an earlier live lease outranks. They use the rule claim arbitration uses (earliest live lease holds, a completed run's lease counts as released), now one shared `wit_lease_winner` function. Before, a holder's release under such a lease was refused and its lease blocked every later claim until its TTL. Within 300 s of expiry `renew-lease` still requires the newest non-superseded lease, so it never revives a lease a newer claimant may already have taken over.
+- `release` now hands the assignee back itself: it removes the login unless another live lease held by that login remains, so one same-login session's hand-back no longer unassigns another session's live claim. `/work-items:attend-queue`, `/work-items:triage` and `/work-items:work` rely on it and no longer clear `@me` themselves; attend-queue releases right after the flip.
+- A same-login `claim` that loses arbitration re-reads the leases after superseding its own and keeps `@me` only while another live lease of the login remains; `release` decides on a list read after its own supersede. Between the two, no assignee is left behind that no lease holds. A winning claim puts its assignee back if a same-login release removed it, a claim whose own assignment is missing assigns once more before failing, and a default claim that fails after posting its lease supersedes that lease, as a lease-only claim already did. `release` also removes a same-login assignment made by hand.
+- A `renew-lease` whose write lands within 300 s of the old expiry re-reads the leases, and when a newer live lease is there supersedes its own lease, hands back the holder's assignee and exits `7`, so a renew can no longer revive a lease a newer claimant already took over; a list it cannot read keeps the lease. A renew whose write returns after the old expiry always supersedes its lease, hands back the assignee and exits `7`, since an expired lease is never revived. A refused or no-op `release` decides its hand-back on a lease list read after its own lease is dead. `/work-items:work`, `/work-items:triage` and `/work-items:attend-queue` say what a session does on that exit: stop writing to the item and claim again to continue.
+- Every `claim` back-off and failure path (a lost arbitration, another login at step 2, any failure from the assign on) hands the assignee back the way `release` does: it removes the login only when no other live lease of that login remains, and after the removal re-reads the leases and assigns the login again if a same-login lease has appeared, so a failing same-login session no longer unassigns the session that holds the item. A failed assignee read in that hand-back now still removes the login instead of leaving it assigned with no lease, each lease list in it retries once, and a re-add is undone when a further list shows the lease that earned it has ended. The rollback is armed before the assign, so an assign that lands but reports failure is undone.
+- A `release` refused because its expired lease sits under a newer one now hands the assignee back, and `release` reads the clock once.
+- The Linear adapter's `renew-lease` refuses a lease an earlier live lease outranks.
+
+## [15.4.2] - 2026-11-16
+
+### Fixed
+
+- `charge-words.json` no longer reads a lane's Claude credential as a charge. `subscription leg`, `subscription token`, `subscription fallback`, `subscription OAuth` (and their plurals) and `subscription and fallback legs` now match no charge word, so intake admission stops holding issues about the lanes' credential order for the owner. Buying or upgrading a plan, another vendor's subscription, top-ups, extra usage and auto-renew still hold as `cost`.
+
 ## [15.4.1] - 2026-11-15
 
 ### Changed

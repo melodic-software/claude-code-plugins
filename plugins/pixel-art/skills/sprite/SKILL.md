@@ -22,7 +22,7 @@ Write `brief.md` beside the spec before the first render. A later run that finds
 and does not ask again.
 
 When the request is vague or high-stakes, offer `/planning:interview` (if the planning plugin is
-installed). Planning owns a numbered-question brief. If planning is not installed, or the user does
+enabled). Planning owns a numbered-question brief. If planning is not enabled, or the user does
 not accept, continue with the in-skill brief, which is the default and works alone. Do not start
 the interview unless the user accepts.
 

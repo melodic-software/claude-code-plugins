@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Lines citing ADR 0002:\n- src/api/schema.graphql:1 `# ADR 0002`: point it at ADR 0003.\nDelete docs/adr/0002-serve-the-public-api-over-graphql.md and repoint that line?"
+    },
+    {
+      "answer": "Citation sweep (git grep for 0002 and the filename): schema.graphql:1, propose drop. Shall I retire 0002?"
+    },
+    {
+      "answer": "Citation sweep: src/api/schema.graphql:1 (repoint to ADR 0003). Retire 0002?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "adr_retirement: delete (default). Delete docs/adr/0002-serve-the-public-api-over-graphql.md now?"
+    },
+    {
+      "answer": "The schema in src/api/schema.graphql still mentions ADR 0002; retire it?"
+    },
+    {
+      "answer": "Citation sweep: src/api/schema.graphql:1-2, propose drop. Retire 0002?"
+    },
+    {
+      "answer": "Citation sweep: src/api/schema.graphql:1–2, propose drop. Retire 0002?"
+    }
+  ]
+}

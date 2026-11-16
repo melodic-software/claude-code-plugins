@@ -3,6 +3,69 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.0.3] - 2026-11-16
+
+### Fixed
+
+- Upgrading from before 10.0.0, where the session hooks moved out of harness-ops: `plugin-diagnostics`, which now reports hooks that fail to launch, is on by default for a new install only. A marketplace update does not install it for an existing one ([ADR 0109, probe row `default-on-existing-users`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0109-switch-plugin-sets-by-profile-and-gate-optional-calls-on-enabled-skills.md#probe-record-claude-code-21325-2026-11-15)), so run `claude plugin install plugin-diagnostics@melodic-software`. The README says the same.
+
+## [10.0.2] - 2026-11-16
+
+### Fixed
+
+- A lane that arms the lane-stop gate under a plugin profile is checked before the gate is armed, so a `start` refused for leaving `autonomy` off no longer leaves an armed gate and a session file behind.
+- The check requires the `autonomy` plugin id the lane's gate request is keyed under to be enabled; an `autonomy` plugin from another marketplace no longer passes it.
+
+## [10.0.1] - 2026-11-16
+
+### Fixed
+
+- A lane that arms the lane-stop gate under a plugin profile whose merged settings leave `autonomy` off is no longer launched without its gate: the launch refuses it with an error naming the lane, the profile and the fix, and `restart` checks that before stopping the running lane. A lane with no gate, or with no profile, launches as before.
+
+## [10.0.0] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+- `/harness-ops:observability`, `/harness-ops:audit-skill-visibility` and `/harness-ops:setup` read session-telemetry's records and options through `scripts/session-telemetry-state.mjs`. When session-telemetry is not enabled they say so, print the install and enable commands, and report what earlier sessions recorded.
+- `/harness-ops:audit-skill-visibility` and its `skill-pair-cooccurrence.sh` read `skill-usage.jsonl.1` before `skill-usage.jsonl`, so usage counts and co-occurrence keep the history a size-capped store rotated out.
+
+### Removed
+
+- The session hooks and their options leave harness-ops. The `*-audit` rows, the telemetry sink, the per-session hook event log and their options are now the `session-telemetry` plugin (off by default); the hook-failure audit and the session-start node and prerequisites notices are the `plugin-diagnostics` plugin (on by default). Enable `session-telemetry@<marketplace>` and set its options again to keep recording; `HOOK_TELEMETRY_SINK=@harness-ops` keeps working through it.
+
+## [9.1.0] - 2026-11-16
+
+### Added
+
+- The lanes launcher reads a per-lane `profile` and starts that lane in the plugin profile through plugin-profiles, with the lane's `settings` merged into the profile's session file. A profile that needs a missing required tool skips that lane with an error, and `restart` checks that before stopping the running lane; with plugin-profiles not installed and enabled, or on a cloud-session lane, the lane launches without the profile and a warning says so. A restart through the restart consumer keeps the profile.
+
+### Changed
+
+- Every lane launch clears an inherited `PLUGIN_PROFILES_SESSION`, so a lane started from a profiled session's shell does not carry that session's profile.
+
+## [9.0.14] - 2026-11-16
+
+### Added
+
+- The README says how to start an interactive session without your own configuration, plugins and customizations to check whether a problem comes from them: `--safe-mode` for a one-off check, a new `CLAUDE_CONFIG_DIR` for a lasting second setup, and why `--bare` is not the switch for it.
+
+## [9.0.13] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract. Reports name such a plugin as not enabled rather than not installed.
+
+## [9.0.12] - 2026-11-16
+
+### Changed
+
+- The `control-claude-code` control skill records its launch model: no per-run data directory,
+  since a run reuses the signed-in Claude Code config directory; sessions run side by side under
+  distinct names; one new session holder per drive. Its Ready states that port ownership and
+  credential validity are not exposed.
+
 ## [9.0.11] - 2026-11-15
 
 ### Changed

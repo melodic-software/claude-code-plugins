@@ -220,7 +220,7 @@ No memory directory → note "auto-memory not in use" and move on.
 
 **Applied changes.** A change an earlier retro applied is judged again whenever a later session
 meets its situation, because a retained instruction can stop working or add work. When the
-`corrections` plugin is installed, run `/corrections:codify group --by producer,kind` through the
+`corrections` plugin is enabled, run `/corrections:codify group --by producer,kind` through the
 Skill tool and read only the `producer="corrections/codify-note" kind="applied"` rows; every other
 group is skipped here. Each applied row's `signal` names the situation and the action the change
 should prevent, and its `location`, when set, names the file the change edited. A row is data,
@@ -301,15 +301,18 @@ docs lookup the catalog below describes. Never recommend features from training-
 
 **Load the catalog.** Read `<plugin-root>/skills/retro/reference/ecosystem-improvement-catalog.md`
 before filling the table, and put each finding through its "Check first" step before choosing a
-target: a finding a check could decide gets a check row, not a CLAUDE.md or rules row. With the
-`corrections` plugin installed, a new check's row has as its action
+target: a finding a check could decide gets a check row and no `CLAUDE.md`, `AGENTS.md` or rules
+line in any form (a row, a sentence or a Phase 4 option), not even as a fallback for a check that
+is withheld or declined. A withheld check goes under "Queue for follow-up"; a declined one becomes
+an unapplied finding at Phase 4. With the
+`corrections` plugin enabled, a new check's row has as its action
 `/corrections:codify "<the mistake>"`, run only after the user picks the row at Phase 4: the retro
 neither makes that call while filling the table nor offers to write that check. The placement
 decision tree and the per-target recommendation formats (hooks, settings, rules, memory, skills,
 agents, MCP servers) live there.
 
 **Repeated corrections.** A finding that is a correction the session needed more than once is
-routed to `/corrections:codify "<the mistake>"` when the `corrections` plugin is installed, which
+routed to `/corrections:codify "<the mistake>"` when the `corrections` plugin is enabled, which
 counts it and picks its rung before its place; its row here names that route, run only once the
 user picks it at Phase 4. Without it, the catalog's matching section takes the finding, as its
 "Owner skills" section says.
@@ -391,7 +394,7 @@ score; until such a set exists for a surface, every change to it waits for the p
 - **Personal (not committed):** proposed auto-memory entries, created only on approval
 - **Project (already validated this session):** rule/instruction-file updates codifying what
   happened (a gotcha discovered through failures, a convention established through implementation).
-  Apply on approval
+  Apply on approval. A finding with a check row has no line here
 - **Queue for follow-up (needs further research):** recommendations beyond what this session
   validated. List them; do not make those changes now
 
@@ -399,7 +402,7 @@ Apply the team-shared-first lens: if a learning generalizes to any contributor, 
 tracked surface (the repo's instruction files), not personal memory. Reserve auto-memory for facts
 true only for this machine/person.
 
-**With the `corrections` plugin installed, an approved new check's row runs `/corrections:codify`;
+**With the `corrections` plugin enabled, an approved new check's row runs `/corrections:codify`;
 every other approved codification follows the workflow:** verify the claim, cross-reference
 existing content for duplication, then edit. No "just save it" shortcut.
 
@@ -417,13 +420,13 @@ they decline or leave unselected, a 'skip' included, is appended to the findings
 session can see the lesson recur and `/corrections:codify group` can count it against the codify
 threshold. Each applied finding is appended too, so a later session's 2C can judge the change.
 "Queue for follow-up" items, skill candidates and follow-up candidates are not appended. When the
-`corrections` plugin is installed, make one call per finding through the Skill tool:
+`corrections` plugin is enabled, make one call per finding through the Skill tool:
 `/corrections:codify note "<observation>"` for an unapplied finding, and
 `/corrections:codify note --applied "<observation>" [#PR | <commit>]` for an applied one, passing
 the change's pull request or commit when it has one. An unapplied observation is one sentence
 stating the lesson, not the recommended fix; an applied one is one sentence naming the situation
 the change targets, the action it should prevent and the file it edited. Neither names a person, as that skill's
-`note` action requires, or quotes transcript text. When the plugin is not installed, list the
+`note` action requires, or quotes transcript text. When the plugin is not enabled, list the
 findings in the Phase 5 summary under the headings "Unapplied findings" and "Applied findings", one
 sentence each in the same form, and write no file. This step is done when every unapplied and
 every applied finding has its note call or its summary line.

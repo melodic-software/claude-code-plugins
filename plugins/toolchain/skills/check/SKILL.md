@@ -21,7 +21,7 @@ Keep the bound in the pipe; a read-time cap bounds nothing. Treat a failure (not
 
 ## Purpose
 
-Detects the ecosystems the changed files touch and runs each one's build → test → lint. Run it as `/toolchain:check` or `/toolchain:check <ecosystem>`. `/toolchain:lint`, `/verification:confirm` (when installed) and verification agents compose it for detection and command resolution instead of keeping their own tables.
+Detects the ecosystems the changed files touch and runs each one's build → test → lint. Run it as `/toolchain:check` or `/toolchain:check <ecosystem>`. `/toolchain:lint`, `/verification:confirm` (when enabled) and verification agents compose it for detection and command resolution instead of keeping their own tables.
 
 Commands are resolved, not hardcoded: the four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) reads the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` first; the bundled defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the last-rung fallback. The consumer's file always wins.
 

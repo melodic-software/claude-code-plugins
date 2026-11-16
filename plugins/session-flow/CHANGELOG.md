@@ -1,5 +1,89 @@
 # Changelog: session-flow plugin
 
+## [9.4.5] - 2026-11-16
+
+### Fixed
+
+- `/session-flow:running-retro`: the analysis subagent reads local files with the Read or Grep
+  tool, never a shell command; when the transcript is unreadable, its Subagents dir slot reads
+  `not available` and it neither reads nor lists that directory; and the presented findings give
+  each skill-fit gap an `Owner:` field or Owner column naming `<plugin>:<skill>` or
+  `no owner found`.
+
+## [9.4.4] - 2026-11-16
+
+### Fixed
+
+- `/session-flow:retro`: without the `corrections` plugin, the catalog's Hooks recommendation format
+  asks a check row for its ladder rung id and the guardrail criterion items left open as
+  requirements, and "Check first" lists item 6 as open only when the rung runs in more than one
+  place, as the enforcement ladder says.
+- `/session-flow:retro`: a finding that gets a check row gets no CLAUDE.md, `AGENTS.md` or
+  rules-file line in any form, a fallback for a withheld or declined check included, and Phase 4
+  offers none; the Hooks format names the open criterion items one by one, and its check row always
+  states the hook's four fields, a deny rule only beside the hook.
+
+## [9.4.3] - 2026-11-16
+
+### Fixed
+
+- `/session-flow:running-retro`: the checkpoint confirms the session transcript with one read of
+  the resolved file, the configuration-directory override applied, and never lists or globs for
+  it; when that read fails it passes `transcript: unreadable` and the user's account of the
+  session to the analysis subagent, which then does not look for the file, and the checkpoint
+  still writes its ledger. A request to write a
+  learning into `CLAUDE.md`, rules or memory is answered with the codify route and leaves those
+  files untouched, and the memory root's self-ignore guard links its procedure, read with the
+  Read or Grep tool. A skill-fit gap's owner comes from the transcript, the user's account or the
+  session's skill listing, never from a filesystem search for a skill file.
+- The `rr-skill-fit-names-owner` eval case loads an `implementation` stand-in, so the skill the
+  user says they bypassed is in the skill listing, and its `names-skill-and-plugin` grader
+  passes a line only when an owner cue (owner, owned by, owning, belongs to, or "are/both in")
+  sits right before `implementation:implement-dispatch` or an Owner table column holds it, so it
+  fails "on your own" and a reply that says no owner was found.
+
+## [9.4.2] - 2026-11-16
+
+### Fixed
+
+- `/session-flow:retro`: every mention of its mode files links `context/session.md` and
+  `context/quick.md` relative to the skill's own folder, and "Spoke paths" says those files sit
+  beside the skill's SKILL.md, so a run no longer looks for them under the plugin root.
+
+## [9.4.1] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+- The bundled `lib/node-or-skip.sh` comment names plugin-diagnostics' node notice.
+
+## [9.4.0] - 2026-11-16
+
+### Added
+
+- `continue-in-background` starts the background session in the session's plugin profile when the plugin-profiles plugin is enabled, and the cloud launch report says the cloud session starts without it.
+- `save_point.py new --settings-file <file>` puts `--settings "<file>"` on the handoff's `claude --resume` line; the handoff skill passes the file plugin-profiles gives it.
+- A handoff whose next phase runs in another profile adds a line above the copy line (`save_point.py new --start-command`) telling the user to exit and start the next session with that profile's start command; the copy line itself is unchanged, so `/session-flow:find-handoff` still finds it.
+
+### Changed
+
+- The handoff's plugin profile restore entry is the "Start another session here in this profile with:" line from `/plugin-profiles:profile status`.
+
+## [9.3.1] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract. This covers the save-point's suggested-skills slot, `orient`'s timeline hand-off and the workflow skill's cloud-route docs read, `audit-friction`'s collaborator check and `keep-going`'s `rate-limits` reading.
+
+### Fixed
+
+- `/session-flow:retro`: the gotcha on mechanical findings puts "when the `corrections` plugin is
+  enabled" on the hand-off to `/corrections:codify`, where the condition applies.
+- `/session-flow:retro`: without the `corrections` plugin, the catalog's "Check first" step states
+  in item 2 that one occurrence of a policy-class mistake is enough to propose a check, beside a
+  repeat with the same cause.
+
 ## [9.3.0] - 2026-11-15
 
 ### Added

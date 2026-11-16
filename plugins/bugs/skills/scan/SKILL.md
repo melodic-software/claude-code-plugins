@@ -98,7 +98,7 @@ declares lanes, use the bundled generic default lanes in [`context/lenses.md`](c
 
 The next lane is derived **statelessly**; the first rung that answers wins:
 
-1. **Tracker history.** When the `work-items` plugin is installed and a tracker binding resolves,
+1. **Tracker history.** When the `work-items` plugin is enabled and a tracker binding resolves,
    search items (`--state all`) for the provenance line `Filed by /bugs:scan (lane: <name>)`. The
    most recently filed lane is the previous lane; take the next one in declaration order. The search
    must be an **exact match** on that line (the seam's search verb, or the provider's literal body

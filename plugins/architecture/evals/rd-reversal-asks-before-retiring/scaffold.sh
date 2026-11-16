@@ -32,6 +32,7 @@ Partners asked for flexible queries, so the public API is a GraphQL endpoint.
 MD
 
 cat >src/api/schema.graphql <<'GQL'
+# ADR 0002
 type Query {
   order(id: ID!): Order
 }

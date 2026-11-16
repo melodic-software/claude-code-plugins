@@ -49,6 +49,7 @@ Committed config does not install itself: every clone runs the manager's install
 
 - lefthook: `lefthook install`.
 - husky: the project's package install, which runs husky's setup.
+- Husky.Net: `dotnet tool restore`, then `dotnet husky install`.
 - plain git hooks: `git config core.hooksPath .githooks`.
 
 A clone that skips this step gets no hooks, so for a team with authors outside Claude Code prefer
@@ -58,6 +59,13 @@ verifies. Committed hook config runs whatever the checked-out branch holds, so b
 or pushing on a branch you do not trust, read its diff to `lefthook.yml`, `lefthook-local.yml`,
 `.lefthook/`, `.lefthook-local/`, `.husky/` and `.githooks/`
 ([details](README.md#where-installed-copies-live)).
+
+## See what runs at each stage
+
+`/<plugin>:setup check inspect` lists every hook each stage runs, under whichever manager the
+repository uses, with the plugin's own entries timed and every other hook marked not run with the
+reason. Compare the times with the [duration budgets](README.md#duration-budgets) before placing a
+new check ([`inspect`](README.md#hookmanager-port)).
 
 ## Decline
 

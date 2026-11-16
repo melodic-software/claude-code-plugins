@@ -34,8 +34,9 @@ repository names, absolute machine paths, or an undocumented consumer layout. `m
 `standards/engineering/shareable-artifact-design.md` owns the artifact-agnostic form of this
 doctrine: consumer-agnostic behavior, externalized consumer-varying configuration, consumer tiers,
 explicit adoption. This document specializes it for Claude Code plugins and adds only what is
-plugin-specific. [Hardcoded consumer specifics](#hardcoded-consumer-specifics) routes the
-machine-path and layout half to the audits that check it.
+plugin-specific. A consumer's languages, frameworks and tools vary per consumer too, so shipped
+skills carry no ecosystem-specific examples. [Hardcoded consumer specifics](#hardcoded-consumer-specifics)
+states that rule and routes the machine-path and layout half to the audits that check it.
 
 **Org-agnosticism** names the publisher half of that boundary, and it governs *tokens in shipped
 content*, not only runtime behavior: the publishing organization's name, its marketplace id, its own
@@ -109,10 +110,10 @@ Keep plugins horizontally decoupled:
     for who tags which repository, and
     [create a release tag](https://code.claude.com/docs/en/plugins/dependencies#create-a-release-tag)
     for the tag name and the command that makes it, live.
-- Every plugin remains useful alone. If an optional collaborator is absent, use a documented fallback
+- Every plugin remains useful alone. If an optional collaborator is not enabled, use a documented fallback
   or report the missing optional capability clearly.
 - Every cross-plugin reference is therefore either declared (the `dependencies` array above, which
-  Claude Code installs automatically) or guarded behind an "if installed" check with the documented
+  Claude Code installs automatically) or guarded behind an "if enabled" check with the documented
   fallback. A bare unguarded cross-plugin reference is a defect.
 
 This follows Claude Code's own distinction between standalone configuration and plugins: this
@@ -133,6 +134,31 @@ audits cite it instead of restating the rule:
 - `plugin-quality:audit` recurring-concerns (per-component detection cues).
 - `coupling:reduce` remediation catalog (code and document altitude).
 - `harness-config:audit-permission-grants` (concrete home paths in permission grants only).
+
+**No ecosystem-specific examples.** A shipped skill body or reference file carries no example tied
+to one language, framework or tool: no code sample written for one stack, and no link to one tool's
+documentation. Such examples change with the stack they show, every change becomes our
+maintenance, and a sample reads as a choice the skill made for the consumer. A skill states its
+rule in ecosystem-agnostic terms and resolves the specifics at run time: from the consumer
+repository's and organization's own rules, conventions and agent instructions, which override or
+enrich the skill, and with `/discovery:research` for the current idiomatic form when the repository
+does not settle it. The order is the [ecosystem-resolution contract](contracts/ecosystem-resolution/README.md)
+and the skill standard's
+[Stack-specific tools](../plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md#stack-specific-tools);
+this rule restates neither. Detail that must persist between runs goes into the consumer's
+configuration first; only where configuration cannot express the difference does the skill
+generate a repository-specific skill in the consumer repository, as `/app-control:map` generates a
+control skill (the skill standard's "Config before a generated skill"). Three things stay:
+
+- a tool name the skill's own behavior depends on detecting, such as a manifest, lockfile or
+  config file it looks for;
+- the executed adapters, security and safety floors, and declared-ecosystem surfaces
+  [ADR 0101](adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md) keeps;
+- links to the platform a skill runs on or the provider behind its adapter, which
+  [skill bodies state current rules](../.claude/rules/skill-bodies-state-current-rules.md) requires.
+
+This narrows ADR 0101's source-citation exception: a link to one ecosystem's tool documentation is
+not a sanctioned citation in a skill body or reference file.
 
 ## Naming
 
@@ -381,7 +407,7 @@ results, not omissions; the trigger, never the date, is what obliges re-deriving
 | [Monitors](https://code.claude.com/docs/en/plugins/components#monitors) | Wait | Experimental (`experimental.monitors`); interactive-CLI-only, unsandboxed at hook trust level, no `${user_config.*}` and no `CLAUDE_PLUGIN_OPTION_*` in monitor processes; keep running after mid-session disable. Re-verify before each audit. | 2026-07-17 |
 | [Themes](https://code.claude.com/docs/en/plugins/components#themes-and-output-styles) | Wait | Experimental (`experimental.themes`); schema may change between releases. Re-verify before each audit. | 2026-07-17 |
 | [Channels](https://code.claude.com/docs/en/plugins/components#channels) | Wait | No longer carries an official experimental label, but fails the adoption gate today: no fleet gap it fills. Re-verify before each audit. | 2026-07-17 |
-| [Dependencies](https://code.claude.com/docs/en/plugins/dependencies) | Adopt on need (hard requires only) | Hard requires only. Two plugins declare them, neither with a version constraint: `core` (a bundle) and `playgrounds` (a cross-marketplace dependency). | 2026-11-03 |
+| [Dependencies](https://code.claude.com/docs/en/plugins/dependencies) | Adopt on need (hard requires only) | Hard requires only. One plugin declares them, with no version constraint: `playgrounds` (a cross-marketplace dependency). | 2026-11-03 |
 
 ### Windows exec-form probe
 
@@ -418,7 +444,9 @@ builds on one of the consumer's languages, frameworks, tools, libraries or comma
 lane-1 default, however safe one looks: when the consumer's choice does not resolve, the skill
 reports it unresolved and skips the step. The named exceptions (executed adapters, security and
 safety floors, declared-ecosystem surfaces, source citations) are in
-[ADR 0101](adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md).
+[ADR 0101](adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md); source citations
+exclude one ecosystem's tool documentation, per
+[Hardcoded consumer specifics](#hardcoded-consumer-specifics).
 
 Lane 2's discovery for a consumer-tool port is the
 [ecosystem-resolution contract](contracts/ecosystem-resolution/README.md): read the record, then
@@ -1136,7 +1164,7 @@ Three bias classes name the trigger:
 The delegation target has an independence ladder: a same-vendor fresh context removes the session's
 reasoning but can still share the model's blind spots; a different-vendor advisor removes both. Where
 the verdict is high-stakes and correlated blind spots are the risk, a checkpoint site prefers a
-cross-vendor advisor **when one is installed and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the
+cross-vendor advisor **when one is enabled and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the
 stated fallback, never a route to a command that may not resolve. That reference is optional
 collaboration, so it carries the presence-gate-plus-fallback shape
 ([seam phrasing](contracts/seam-phrasing/README.md)) at each site that instructs it; an advisor
@@ -1200,11 +1228,11 @@ The default worker is a **generic fresh-context subagent carrying rich inline in
 task, the artifact, the criteria, and the output shape all travel in the dispatch prompt. A non-fork
 subagent starts without the parent conversation (Pointer:
 <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>), which is
-exactly the independence the checkpoint buys. A skill may prefer an installed **named agent** on the next rung,
+exactly the independence the checkpoint buys. A skill may prefer an enabled **named agent** on the next rung,
 but only when the named-agent bar below is met, and the site always states the generic fallback
 (presence-gate-plus-fallback, [seam phrasing](contracts/seam-phrasing/README.md)). The top rung, for
 high-stakes verdicts where correlated model blind spots are the risk, is a **cross-vendor advisor**
-when one is installed, on the same presence-gate shape with the same generic fallback.
+when one is enabled, on the same presence-gate shape with the same generic fallback.
 
 Those rungs are one choice among the platform's parallelism surfaces;
 [run agents in parallel](https://code.claude.com/docs/en/agents#choose-an-approach) is the
@@ -1220,7 +1248,7 @@ A dispatch prompt at any rung:
   access to the reasoning that produced it;
 - hands over the **artifact, not the story**, meaning the diff, file, or plan itself, never the authoring
   session's rationale, which would re-import the bias being removed;
-- **degrades when absent**: a preferred named agent or advisor that is not installed routes to the
+- **degrades when absent**: a preferred named agent or advisor that is not enabled routes to the
   generic fresh-context subagent, never to a command that may not resolve; and
 - **bounds what counts as a finding**: correctness and the stated requirements, everything else
   optional. An unbounded adversarial prompt returns many low-value findings at full cost, and chasing

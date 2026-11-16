@@ -4,6 +4,59 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [6.5.0] - 2026-11-16
+
+Changed guidance; minor under this contract's own rule. No required part, canonical name, or
+enforceability tier changes.
+
+The weekly drift issue body holds no text the upstream chooses, since the triage sweep hands it to
+intake's triage model: per drifted hex-pin page it gives counts of changed rows, new units and
+removed units in place of their paths, and its footer has the agent list them with
+`scripts/check-upstream-drift.sh --page <page>`. The lead line and title the trusted drift-issue
+rule checks are unchanged. The new "No upstream-chosen text in the body" bullet and the re-audit
+paragraph say so.
+
+## [6.4.0] - 2026-11-16
+
+Changed guidance; minor under this contract's own rule. No required part, canonical name, or
+enforceability tier changes.
+
+A trusted drift issue enters the issue lane with no owner step, by the owner's decision on #14215
+(Q195 (a)): github-actions[bot] wrote it, nobody else last edited it, and its title and first body
+line are the two the filer writes for a drifted hex-pin page. The hourly triage sweep dispatches
+intake for it, intake writes its verdict, admission and the issue lane accept it as its author,
+and its done-when, the issue lane's spec and pr-verify's spec are one fixed template built from
+the upstream id, never from its body. It is never split, and the filer's weekly rewrite does not
+stop its lane run. A lane run that finds a design-changing take or adapt stops with
+`design-change`, which holds the issue for the owner, since the lane cannot file an issue. The
+"No hold label" and new "Admission with no owner step" bullets say so.
+
+## [6.3.0] - 2026-11-16
+
+Changed guidance; minor under this contract's own rule. No required part, canonical name, or
+enforceability tier changes.
+
+The filer no longer labels a created or reopened drift issue `needs-human`, by the owner's
+standing direction that holds against our own actors come off (section 10, re-stated 2026-11-16):
+a drift issue is an agent's re-audit, not an owner decision. A reopen no longer adds a label before
+it reopens, and removes the `needs-human` an issue filed before this change kept through its close. Drift issues still enter no intake run on their own; the "No hold label" bullet says
+what starts the re-audit.
+
+## [6.2.0] - 2026-11-16
+
+Changed guidance; minor under this contract's own rule. No required part, canonical name, or
+enforceability tier changes.
+
+Adopting an upstream change is no longer always a person's decision, by the owner's decision of
+2026-11-16. For a git-pinned page, an agent re-audits the drifted rows against the upstream head
+its issue names, marks each change take, adapt or reject, moves the pin, and opens one pull
+request per upstream that merges through the loop lanes; for a vendored row, it restores or
+re-vendors the copy. Only a take or adapt that would change one of this repository's skill designs
+goes to the owner: the agent files it as its own `needs-human` issue, lists it in the pull request
+body, and does not apply it. Lifting the `needs-human` label the filer sets hands the issue to an
+agent rather than asking a person to mark each change, and the enforceability row for a fired
+trigger names the re-auditing agent as the judge.
+
 ## [6.1.0] - 2026-11-15
 
 Additive guidance; minor under this contract's own rule. No required part, canonical name, or

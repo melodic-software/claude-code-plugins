@@ -15,8 +15,8 @@
       "goal": "A clean Write inside a git repository costs the Write|Edit|NotebookEdit PreToolUse row (the first PreToolUse handler naming secret-pattern-detection.sh) at most this many processes; an Edit measures the same. The row fires on every file edit. Ideal k x S is 1 x S: exec form gives k = 1 (docs/contracts/hook-budget/README.md, The budget). The programs this check starts today are 3 execs (node, bash, grep), the floor recorded in plugins/guardrails/reference/edit-write-guards/PLAN.md; the rest are bash forks. Clean content skips both git probes in hardcoded-path-check. Lowering the count is #4390's spawn-reduction work, and agents lower this ceiling as it falls. Measured 7 on WSL2 Ubuntu with bash 5.3.9, dash as sh, git 2.53.0, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: Linux spawn counts against Windows wall time, not measured"
     },
     {
-      "name": "harness-ops-stop-hook-failure-audit-growth",
-      "command": "bash scripts/hook-census.sh harness-ops Stop hook-failure-audit.sh '{\"session_id\":\"census\",\"transcript_path\":\"@TRANSCRIPT@\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --seed --measure growth",
+      "name": "plugin-diagnostics-stop-hook-failure-audit-growth",
+      "command": "bash scripts/hook-census.sh plugin-diagnostics Stop hook-failure-audit.sh '{\"session_id\":\"census\",\"transcript_path\":\"@TRANSCRIPT@\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --seed --measure growth",
       "field": "growth",
       "ceiling": 0,
       "goal": "A warm Stop reads the same transcript bytes at 10 MiB as at 50 KiB: the cursor read follows what the turn appended, not the session's length (#4408). Measured on ubuntu-24.04 with bash 5.2.21, git 2.55.0, jq 1.7, strace 6.8; the ratchet step prints the current versions. Correlation: unproven: not measured"
@@ -160,6 +160,54 @@
       "field": "spawns",
       "ceiling": 1,
       "goal": "With powershell_format_end_of_turn at its default (false), the Stop row costs only the node launcher: the --require-true gate closes before bash starts. Stop fires on every turn end, so this is what every turn costs a user who never opted in. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "skill-stack-fences",
+      "command": "python3 scripts/skill-stack-fences.py",
+      "field": "fences",
+      "goal": "Shipped skill and agent bodies carry no ecosystem-specific examples (docs/plugin-philosophy.md, \"Hardcoded consumer specifics\"): no file gains a code fence tagged for one language, stylesheet or framework, and existing ones are cut toward 0. The scope and the excluded shell, data, query and pre-compute tags are in scripts/skill-stack-fences.py; every other tag counts. A fence a declared-ecosystem surface or an executed adapter keeps (ADR 0101) raises its file ceiling in the PR that adds it, with the reason in the PR body. Measured 174 fences in 39 files at f552369db7. Correlation: unproven: a content-shape count, not a runtime cost",
+      "ceilings": {
+        "plugins/ai-briefing/skills/generate/reference/build-pipeline.md": 2,
+        "plugins/architecture/skills/improve/research/deepening/html-report.md": 3,
+        "plugins/code-tidying/skills/audit-dead-code/context/adjudication.md": 2,
+        "plugins/education/skills/teach/context/lessons.md": 1,
+        "plugins/harness-ops/skills/audit-skill-visibility/reference/listing-scorer.md": 2,
+        "plugins/harness-ops/skills/audit-skill-visibility/reference/usage-counters.md": 1,
+        "plugins/harness-ops/skills/inventory/reference/extraction.md": 4,
+        "plugins/kindle-dedrm/skills/manage/reference/versions.md": 1,
+        "plugins/knowledge/skills/course-digest/reference/adapters/discovery-checklist.md": 5,
+        "plugins/knowledge/skills/course-digest/reference/adapters/dometrain.md": 4,
+        "plugins/knowledge/skills/course-digest/reference/adapters/teachable.md": 1,
+        "plugins/knowledge/skills/course-digest/reference/screenshot-strategy.md": 1,
+        "plugins/mutation-testing/skills/audit/context/suppression.md": 1,
+        "plugins/mutation-testing/skills/principles/reference/theory.md": 1,
+        "plugins/performance/skills/snapshot/SKILL.md": 1,
+        "plugins/planning/skills/design/reference/type-discipline/typescript.md": 5,
+        "plugins/playwright/skills/demo-video/reference/replay-script.md": 1,
+        "plugins/playwright/skills/playwright/reference/running-code.md": 3,
+        "plugins/playwright/skills/playwright/reference/test-generation.md": 2,
+        "plugins/tdd/skills/principles/reference/anti-patterns-khorikov.md": 11,
+        "plugins/tdd/skills/principles/reference/classical-vs-london-khorikov.md": 2,
+        "plugins/tdd/skills/principles/reference/code-coverage-khorikov.md": 4,
+        "plugins/tdd/skills/principles/reference/integration-testing-khorikov.md": 5,
+        "plugins/tdd/skills/principles/reference/observable-behavior-khorikov.md": 6,
+        "plugins/tdd/skills/principles/reference/test-design.md": 10,
+        "plugins/tdd/skills/principles/reference/test-doubles.md": 5,
+        "plugins/tdd/skills/principles/reference/testable-architecture-khorikov.md": 6,
+        "plugins/tdd/skills/principles/reference/testing-styles-khorikov.md": 9,
+        "plugins/testing/skills/write/context/write.md": 1,
+        "plugins/user-interface/skills/audit/reference/launch-scope.md": 2,
+        "plugins/user-interface/skills/write-css/reference/foundations.md": 6,
+        "plugins/user-interface/skills/write-css/reference/interaction.md": 14,
+        "plugins/user-interface/skills/write-css/reference/layout.md": 8,
+        "plugins/user-interface/skills/write-css/reference/motion.md": 10,
+        "plugins/user-interface/skills/write-css/reference/scroll-and-viewport.md": 15,
+        "plugins/user-interface/skills/write-css/reference/show-and-hide.md": 7,
+        "plugins/user-interface/skills/write-css/reference/spacing-and-shape.md": 4,
+        "plugins/user-interface/skills/write-css/reference/text-and-media.md": 5,
+        "plugins/visualization/skills/visualize/context/code-shapes.md": 3
+      }
     }
-  ]
+  ],
+  "break_glass": false
 }

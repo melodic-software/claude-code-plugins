@@ -2341,7 +2341,12 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
 
 - **Tier `auto`.** Every update is non-major: the first numeric version component does not change,
   and below 1.0 the second does not either. Every update on a `dependabot/github_actions/...`
-  branch comes from the `actions`, `github` or `anthropics` publisher. The newest `ci-status` run
+  branch comes from the `actions`, `github` or `anthropics` publisher. A pull request whose every
+  update the standards Dependabot policy's `fastTrack.own` names (this organization's own
+  releases, `*` matching any run of characters) skips the publisher rule, and below 1.0 only its
+  first component counts, as ci-workflows' automerge-dependabot gate reads it. pr-unblock reads
+  the policy at the base; pr-merge reads it at the base and at the default branch head, and
+  both copies must name every update. The newest `ci-status` run
   on the head is not red (`failure`, `cancelled`, `timed_out`, `action_required`,
   `startup_failure`). The updates come from the `updated-dependencies` metadata in Dependabot's
   verified commit when it is there, and from the title (`bump <name> from <a> to <b>`) or a
@@ -2541,8 +2546,10 @@ failure signals.
   one comment unless anyone other than the lanes App edited its record; there is no write when the head's record already
   holds the line or a rating. Its `issue_comment` event starts
   `intake-label-outside-actor-activity` and `intake-reenter` runs whose jobs skip a bot's comment, as they do
-  for the pin. Nothing reads the record back: no gate, hold or rung. Not while
-  `merge.report-only` is true.
+  for the pin. Nothing in the pipeline reads the record back: no gate, hold or rung. Not while
+  `merge.report-only` is true. A session that merges a lanes App pull request does read it,
+  or the rating artifact for that head when the pull request was never armed
+  (`plugins/source-control/skills/pull-request/reference/merge.md` §4.2.1).
 - **Telemetry.** The rating run writes one `pr-merge-risk` lane-outcome record (outcome, class,
   `durationMs`, `costUsd`, models), and each arm logs a `merge-risk` notice
   (`pr=<n> head=<sha> merge-risk=<rated|unrated:reason> read-ms=<n>`, plus
@@ -2839,6 +2846,18 @@ parent's task-list lines or those of intake's refinement on it (below), so a lan
 never supplies its own spec. A listed human's comment on such an issue reaches the verifier, but it
 never makes the issue trusted, and neither does a listed human's edit of its body. To give work a Bot
 filed a spec, a listed human opens an issue that restates it, and the pull request links that one.
+One Bot issue is its own spec (owner decision 2026-11-16): the issue
+`maintenance-file-upstream-drift-issues.yml` files for one upstream, when github-actions[bot] wrote
+it and nobody else last edited it, its title is `Upstream drift: <owner>/<repo>` and its first
+body line is the hex-pin lead `scripts/upstream-drift-issues.sh` writes for that id. It counts
+only for a pull request that closes it and only modifies the `docs/upstream` pages whose
+`**Last audited upstream state:**` marker on main pins that id. Its spec text is built from the id
+and those page paths, never from the issue's body, so an upstream path or name in its rows never
+reaches the verifier as a requirement. A re-audit that applies a take or adapt to any other file
+still needs a listed human's issue. The same rule (`driftIssueId` in
+`.github/scripts/intake-triage/admit.mjs`) lets the triage sweep dispatch intake for such an issue
+and admission accept it as its author, and the same template (`driftSpecText`) is its done-when and
+the issue lane's `issue.json` body (owner decision on #14215, Q195 (a)).
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:
@@ -2963,7 +2982,11 @@ head:
   comment read refuses `verify:unreadable`. It then allows the merge only when every linked
   issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
   list's humans, the pull request's author included, or is a sub-issue intake's size split filed
-  whose body counts as its parent's text (otherwise `verify:untrusted-spec`). That sub-issue counts
+  whose body counts as its parent's text, or is the upstream-drift workflow's issue as above, its
+  title, first body line, author and last editor read again, and the pull request's changed files
+  from its base to the head (GET compare) only modifications of `docs/upstream` pages that pin its
+  upstream at the default branch's tip, read there (otherwise `verify:untrusted-spec`; a failed
+  read refuses `verify:unreadable`). That sub-issue counts
   when the lanes App wrote it, a listed human filed its native parent in this repository, its body
   opens with the split header for that parent, every line after the header is one of the parent's
   trusted task-list lines (a line of the parent's listed-human body or comments that starts with
@@ -3244,7 +3267,7 @@ them on every `pull_request` run, contract-only runs included:
   (owner decision Q-ANTHROPIC-DEPS) is a Dependabot PR whose every changed file is a modified
   workflow or `action.yml` and whose every change block only swaps the ref (and version comment)
   of one `uses:` line of an action whose owner `merge.dependabot.trusted-action-owners` lists
-  (this repository: `anthropics`), read from the diff in the broker step's file pages. Both refs
+  (this repository: `anthropics` and `melodic-software`), read from the diff in the broker step's file pages. Both refs
   must be 40-hex SHAs, the comment a version token (`# v1.0.266`), and each new SHA a commit a tag
   of the action's repository points to (an unauthenticated `git ls-remote --tags`), so a branch,
   a tag name or a commit no tag names keeps the hold. Any other line, file, status or owner, a
@@ -3567,8 +3590,8 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 
 | Identity | Workflows | Why |
 |---|---|---|
-| `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
-| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
+| `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, except a dispatch and a pull request it opens or pushes to, whose `pull_request` runs wait for approval ([GitHub](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow)); the lane sweep's digest and the monitoring lane rely on this so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
+| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs unattended, which a `GITHUB_TOKEN` write does not (its pull request pushes start runs only after approval); one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
 | Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `release-generate-dependabot-changelog-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 
@@ -3689,8 +3712,16 @@ lines at the next triage. A split that cannot be made leaves the issue parked at
 with no hold label, and the lanes App posts one comment naming the reason, once per reason and
 body version (marker `<!-- intake-triage size-split-decline reason=<code> -->`): `not-human`
 (a listed human did not file it), `few-lines` (fewer than 2 trusted lines even with the
-refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by target), or
-`no-type` (an Issue Type admission does not take).
+refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by target),
+`no-type` (an Issue Type admission does not take), or `unbuilt` (a part of a line split checks a
+plugin that the default branch lacks and that no line of that part, or of a part the order puts
+before it, creates). A line names a plugin as a `plugins/<name>` path, a backticked name next to
+the word plugin, or a bare kebab-case word before the word plugin or leading the line when the
+issue writes that word in backticks somewhere, so `third-party plugin` names none. A line creates what
+it names when it uses a creating verb (`refine.mjs` `CREATES`: create, add, new, move, rename and
+the like), and checks it otherwise. Refine select records which named plugins the default branch
+lacks, and apply checks the parts against that list. Each sub-issue carries the issue's `host-run`
+and `attended` labels, and a retry adds them to a part it reuses.
 
 work-unblock closes a split parent as completed only when every sub-issue closed with
 `state_reason` `completed` by a listed human or a merge and the parent's done-when is covered

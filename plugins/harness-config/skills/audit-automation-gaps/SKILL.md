@@ -62,7 +62,7 @@ plugin (is the instruction layer healthy?).
 This skill proposes new automation. Whether automation already in place still earns its carry cost
 is owned by `/overengineering:audit`, whose evidence-earned-keep walk treats every incumbent as a
 retirement candidate until evidence keeps it. Send a retirement question there when the
-`overengineering` plugin is installed; when it is not, the **Already enforced** gate still names the
+`overengineering` plugin is enabled; when it is not, the **Already enforced** gate still names the
 mechanism covering a concern, and any retirement observation is recorded in the verdict for the
 human, not acted on here.
 
@@ -78,7 +78,7 @@ There is deliberately no `ci` category. Two skills own that ground: the `ci-lane
 `/overengineering:audit` judges whether each lane already running still earns its carry cost, and
 `/corrections:codify` maps one recurring mistake or review finding to the strongest enforcement rung
 that can catch it, including a check that runs in CI. Route a CI concern to whichever fits when the
-`overengineering` or `corrections` plugin is installed; when neither is, record the concern in the
+`overengineering` or `corrections` plugin is enabled; when neither is, record the concern in the
 verdict as out of scope and name its owner, rather than widening this audit's categories.
 
 ## Track progress
@@ -343,6 +343,32 @@ supplied it at the top of the report.
 Either way, a time budget the user states is quoted in the user's words.
 
 **Order by value/impact**, highest value first. Value = frequency × severity × ease of implementation.
+
+### Ladder spread
+
+Print how the repository's enforcement spreads across the ladder's tiers, on every run and whatever
+the category filter:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/rule-inventory.sh"
+```
+
+Copy its tier table and its "Sits lower than it could" list into the report as printed, with the
+script's line naming what a row counts and every source line that names an absent or unreadable
+file or a source it does not count, such as CI workflows or git hooks. The table holds all five tiers; a tier the script found empty stays in it with its reason.
+Both are rollups of one inventory, one row per rule (rule, enforcer, rung, tier), which `--rows`
+prints when a reader needs the rows behind a count.
+
+This section is read-only and sets no target. State no share, ratio or count a tier should reach,
+and do not call a tier too high or too low: the ladder's proportion is a direction with no number.
+The "Sits lower than it could" entries are candidates for a person to judge, not verdicts. One that
+looks worth moving up goes to `/corrections:codify` when the `corrections` plugin is enabled, and
+is otherwise named for the human; this audit adds none of them to its candidate list. A rule held
+by a mechanism no file shows, such as a type that makes the mistake impossible, is counted only
+when the repository declares it under `rule_inventory.declared` in its `harness-config.yaml`
+convention file; say so when the codebase tier reads zero. A repository that declined a convention
+home, or whose home does not resolve, has no declared rows, and the script's declared line says
+why: copy it.
 
 ### Maturity Assessment
 

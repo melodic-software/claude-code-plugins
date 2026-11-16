@@ -26,7 +26,10 @@ name: Maintenance Reconcile Lost Runs
 # any other failure has its failed jobs re-run once, at attempt 1 only, so a
 # flaky test the diff did not cause can pass. pr-unblock's fix-ci waits only on
 # a re-run already queued or going, or on an infra-only first failure's re-run
-# while it is due (infra-failure.mjs RERUN_DUE_MINUTES).
+# while it is due (infra-failure.mjs RERUN_DUE_MINUTES). A pr-require-checks
+# run whose failed jobs (Mark Lanes, or CI Status alone) failed only where the
+# GITHUB_TOKEN hit its rate-limit floor, by the rate guard's own refusal text,
+# has its failed jobs re-run once the same way, placed before lane runs.
 #
 # A pr-require-checks run that passed on its first attempt is re-run once,
 # recorded, when the head's pr-verify pass predates a change to its spec (an
@@ -155,7 +158,9 @@ jobs:
       # at reset, projected at this window's burn rate, is under limits.api
       # github-token pace (pr-pipeline.yaml over rate-limits.json; 0 is off),
       # and only when the previous scheduled run marked a clean pass, so the timer
-      # lanes slow to half cadence before the breaker stops every lane. Any
+      # lanes slow to half cadence before the breaker stops every lane. A pass
+      # that deferred recovery work for want of a place marks none, so the tick
+      # after it always runs. Any
       # other event, or a read that fails, runs as before
       # (.github/actions/log-api-budget/pace.mjs).
       - name: Pace the tick on the GITHUB_TOKEN burn rate
@@ -310,8 +315,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-      # A green pass whose plan read every listing (reconcile.mjs writes
-      # clean; a failed listing, the kill switch or an Actions outage does
+      # A green pass whose plan read every listing and deferred no recovery
+      # work (reconcile.mjs writes clean; a failed listing, the kill switch,
+      # an Actions outage or a deferred place other than a flake re-run does
       # not). The pacer paces the next scheduled tick only after this step
       # (.github/actions/log-api-budget/pace.mjs).
       - name: Mark this tick's work done

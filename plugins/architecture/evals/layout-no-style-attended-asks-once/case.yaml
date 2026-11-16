@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: layout-no-style-attended-asks-once
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: script-once
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'co-change\.mjs'
+    min: 1
+    max: 1
+    arm: both
+  - name: record-decision-not-run
+    type: tool_used
+    tool: 'Skill'
+    input_match: 'record-decision'
+    min: 0
+    max: 0
+    arm: both
+  - name: record-decision-offered
+    type: regex
+    pattern: 'record-decision'
+    target: 'last_message'
+  - name: no-style-and-sources
+    type: llm
+    criteria: "PASS only if the reply says that no layout style is recorded and names at least two of the sources it checked (for example ADRs or decision records, the architecture topic doc, the boundary-rule sources). FAIL if it judges the cluster against a style it invented, or says nothing about which sources it checked."
+  - name: asks-grouping-once
+    type: llm
+    criteria: "PASS only if the reply asks the user exactly once how this repository should group files into folders (by feature, by layer, or similar). FAIL if it never asks, or asks that question more than once."
+  - name: ends-asking-candidate
+    type: llm
+    criteria: "The repository's history has one co-change cluster: OrderForm.tsx, orders.ts, orderRepo.ts and orders.test.ts. PASS only if the reply shows a card for that cluster and ends by asking which candidate to explore. FAIL if it shows no card, or ends without asking which candidate to explore."

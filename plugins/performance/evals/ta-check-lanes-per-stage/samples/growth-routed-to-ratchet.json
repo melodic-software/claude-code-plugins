@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Next: /toolchain:ratchet the count of files shell-lint scans, which grew from 610 to 1840 over three releases.",
+      "why": "file count routed to the ratchet"
+    },
+    {
+      "answer": "- A check count growing with the repository: `/toolchain:ratchet` on the counter `files_scanned`.",
+      "why": "names the counter"
+    },
+    {
+      "answer": "Route the growing file count to `/toolchain:ratchet`, which holds a counter, never a duration.",
+      "why": "echoes the rule that the ratchet takes no duration"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Hold the pre-commit stage under its budget with /toolchain:ratchet on p90 seconds.",
+      "why": "a duration handed to the ratchet"
+    },
+    {
+      "answer": "Next: /performance:goal shell-lint, pre-commit.",
+      "why": "growth never routed to the ratchet"
+    }
+  ]
+}

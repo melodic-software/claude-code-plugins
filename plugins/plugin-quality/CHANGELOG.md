@@ -5,6 +5,20 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.6] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [0.21.5] - 2026-11-16
+
+### Changed
+
+- The seam-phrasing probe cites the contract's availability-condition sentence, still grades a convention worded as an installed-ness condition, and accepts an enabled-wording gate.
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract.
+
 ## [0.21.4] - 2026-11-15
 
 ### Changed

@@ -9,7 +9,7 @@ owns.
 
 | Kind | What you do |
 |---|---|
-| `lefthook-config`, `husky-config` | Merge `snippet` into `file`, keeping the user's own jobs, comments and order; create the file when absent. For a TOML or JSON lefthook config, write the same job in that format. |
+| `lefthook-config`, `husky-config` | Merge `snippet` into `file`, keeping the user's own jobs, comments and order; create the file when absent. For a TOML or JSON lefthook config, write the same job in that format. When `detect` reports `variant: "husky.net"` and you create `.husky/<event>`, start it with `#!/bin/sh`, make it executable and stage it at mode 100755: Husky.Net points `core.hooksPath` at `.husky`, so git runs the file directly and skips one that is not executable. |
 | `lefthook-install` | Run `lefthook install` so the manager's hooks exist in this clone. |
 | `husky-install` | Tell the user to run the project's install so husky's hooks exist in this clone. |
 | `husky-shared-only` | Say husky has no per-clone hooks and offer `scope=shared`. |

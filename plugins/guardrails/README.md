@@ -1,6 +1,6 @@
 # guardrails
 
-A Claude Code plugin bundling seventeen **safety guards** that catch risky agent
+A Claude Code plugin bundling twenty **safety guards** that catch risky agent
 actions the moment they happen, before a write lands or a bash command runs, and
 four git-hook checks that cover every commit and push. Each guard is independently
 toggleable, so you run exactly the subset you want.
@@ -9,6 +9,7 @@ toggleable, so you run exactly the subset you want.
 
 - [The guards](#the-guards)
   - [Git hooks](#git-hooks)
+  - [Settings-write ask](#settings-write-ask)
   - [Enforceability tiers](#enforceability-tiers)
   - [Scope notes](#scope-notes)
 - [Per-hook kill switches](#per-hook-kill-switches)
@@ -72,6 +73,8 @@ Claude Code would let the call through unchecked (#4528). Each guard keeps its k
 switch; with one disabled, the next guard carrying the ceiling blocks.
 The [hook budget accounting](#hook-budget-accounting) carries the measurement.
 `workflow-resilience-check` is not always-on and is registered on its own.
+`settings-write-ask` and `connected-page-gate` are node scripts with rows of their own that run
+`node` on the script directly, outside the dispatcher; both fail open on any internal error.
 
 In a session that loads a mod, don't rely on this plugin's `PreToolUse` hooks alone.
 
@@ -95,8 +98,11 @@ In a session that loads a mod, don't rely on this plugin's `PreToolUse` hooks al
 | **block-credential-read** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2). **Off by default**: `block_credential_read_enabled` turns it on | A command whose output is a credential: `git credential fill`, credential-helper `get`, `gh auth token`, `echo`/`printenv` of a token-shaped variable, `jq env` (every variable), an interpreter's inline code or heredoc (`python3 -c`, `node -e`, `ruby -e`, `perl -e`, `php -r`) reading `.git-credentials`, `.netrc`, `.env`, `.credentials.json`, `.docker/config.json`, `~/.ssh/id_*` or `~/.aws/credentials`, PowerShell `Get-Content` of one, and `jq` of the two JSON files. `cat`, `head`, `tail` and the Read tool on those files are left to native `Read()` deny rules, which `/guardrails:setup apply read-deny` prints. Presence checks such as `gh auth status` and `test -n "$GH_TOKEN"` pass. The guard header in `hooks/block-credential-read.sh` lists the known gaps and false positives. Escape: `block_credential_read_enabled` (off switch) or `block_credential_read_allow` (comma list of `credential-fill`, `gh-auth-token`, `env-echo`, `credential-file-read`). |
 | **block-cross-domain** | PreToolUse · Bash \| PowerShell | **Blocks** (a `deny` decision on stdout, exit 0); a malformed map is reported to the user once per session | From a session whose `cwd` is in one identity domain, a command that names another domain's path, a read as much as a write, or puts another domain's identity marker in an identity position. From every session, in a domain, neutral or on a host with no map, a command that writes the machine's git identity: a `git config` with `--global`, `--system` or `--file <identity file>` that sets, adds, replaces or unsets `user.email`, `user.signingkey`, `user.useConfigOnly`, `credential.helper` (also `credential.<url>.helper`), `core.sshCommand`, `core.hooksPath`, `include.path` or an `includeIf` key, renames or removes the section holding one, or opens `--edit`; and a shell write to an identity file (a redirection, `tee`, `touch`, `truncate`, `rm`, `unlink`, `shred`, `mv`, the destination of `cp`, `install`, `ln`, `rsync` or `scp`, `sed -i`, `perl -i`, `dd of=`, and the PowerShell writers such as `Set-Content`, `Out-File`, `Remove-Item` and `Copy-Item -Destination`). An identity file is `~/.gitconfig*`, any `*.gitconfig`, and each path in the map's `identity_files` with every path below it. Reads pass: `--get` and the other `--get-*` forms, `--list`, `git config get` and `list`, the old form with a key and no value, and a command that only reads the file. The domains come from a machine-local map, `${CLAUDE_PLUGIN_DATA}/identity-domains.json`. Config shape: `domains.<name>` holding `roots` (absolute roots per OS, keyed `linux`, `macos` and `windows`), `owners`, `identity_markers` and optional `gh_config_dir` and `az_config_dir`, then top-level `owner_roots` (absolute directories per OS, each holding one directory per owner or flat `<owner>-<repo>-<slug>` trees), `identity_files`, `shared_exceptions` (entries `{"path": <dir>, "from": [<domain>], "to": <domain>}`) and `messages`. Only `domains` and each domain's `roots` are required, and an unknown key makes the map malformed. `/guardrails:setup apply identity-domains` writes it from the identity domains `/harness-ops:machine-profile` recorded, after you confirm, and asks for the owners, markers, `az_config_dir` and shared exceptions the profile lacks; you can also write it by hand. Keep it out of every tracked file. With no map the guard checks identity writes alone, and parses only a command whose text holds both `git` and `config`. With one, it compiles the map with `jq` into `identity-domains.cache` beside it once per change of the map or of `HOME`, classifies the session `cwd` into the domain whose path holds it (the longest path wins) or neutral, and tests the command text, quotes dropped, for each path and marker; only a command that names one is parsed. A domain's paths are its roots and, for each owner, `<owner root>/<owner>` for each of this host's `owner_roots`, or `~/src/github.com/<owner>` and `~/worktrees/github.com/<owner>` when the map gives this host none, plus any name there that starts with the owner and a `-` (of two listed owners the longest that fits holds it, an owner no domain lists reads as the listed one it starts with, a root above such a name is named as well, and a `cwd` such a name holds stays with any root or owner directory that holds it; the `-` only adds names, and so denies), matched in any case and spelled as written, as a Windows drive path with either slash or escaped backslashes, in the MSYS (`/c/...`), Cygwin (`/cygdrive/c/...`) and WSL (`/mnt/c/...`) forms of a drive path, or, below `HOME`, after `~`, `$HOME` or `%USERPROFILE%`. The deny reason names the session's domain and the others. A marker in a path's place never denies; from a `cwd` in a domain, a command is denied that puts another domain's `identity_markers` entry in an identity position: the URL or name of `git remote add` or `set-url`, the value of `git config` or `git -c` for `user.email`, `user.name`, the `author.*` and `committer.*` keys or `remote.<name>.url`, `git commit --author`, and an assignment to `GH_CONFIG_DIR`, `AZURE_CONFIG_DIR` or a `GIT_AUTHOR_*` or `GIT_COMMITTER_*` variable (`NAME=value`, `export`, `env`, PowerShell's `$env:NAME =`). That deny's reason names the identity position. Only `identity_markers` entries are matched there. Setup fills `gh_config_dir` from the profile but adds a marker only for each `--marker` you give it. The same marker anywhere else, a commit message or an `echo`, is allowed, and a marker the session's own domain also lists never denies. A domain's `gh_config_dir` and `az_config_dir` are matched against the directory each `gh` and `az` call runs with: the `GH_CONFIG_DIR` or `AZURE_CONFIG_DIR` the command sets for it (`NAME=value` before it or after `env`, an earlier `export`, `unset` or PowerShell `$env:NAME =`), else the one in the hook's own environment. From a `cwd` in a domain with a `gh_config_dir`, a `gh` call that does not run with it is denied; from a domain with none, which uses the default, a `gh` call that runs with another domain's is denied; `az` likewise. `gh --version` and `az --version` are exempt, and a directory compares in any case, with `~` or `$HOME` read as `HOME`. From a `cwd` in a domain with a `gh_config_dir`, a command that switches gh's account or removes `GH_TOKEN` is denied whatever `GH_CONFIG_DIR` it runs with: `gh auth switch`, `gh auth login` and `gh auth logout`, `unset GH_TOKEN`, `export -n GH_TOKEN`, `env -u GH_TOKEN` (also `-uGH_TOKEN` and `--unset=GH_TOKEN`), an assignment that empties it (`GH_TOKEN=`, PowerShell's `$env:GH_TOKEN = ''` or `= $null`), and PowerShell's `Remove-Item Env:GH_TOKEN`; a plain `gh` call, `gh auth status` included, is judged by the config-directory rule alone. From a neutral `cwd` nothing but an identity write is denied. A shared exception opens one directory of its `to` domain to sessions in its `from` domains, one way: from a `from` domain, a command that names the directory or a path below it is allowed when every other domain's path it names is inside the directory too and its text holds no `..`; any character right after the directory's name other than `/`, whitespace or a word-ending operator (`;&\|<>()`), such as a glob, brace or expansion (`shared*`, `shared{,-x}`) or one that continues a sibling's name (`shared+x`, `shared~x`), denies it too. A session in `to`, or in a domain `from` does not list, gets nothing from it. The `path` must be a path of `to` on this host, outside every domain nested there; one that is not, or an entry left as a plain string from the earlier shape, grants nothing, leaves the map well formed, and is named in a once-per-session notice that says to re-run setup. The telemetry envelope records `cwd` (`domain` or `neutral`), `form` (`prefilter-miss`, `not-named`, `own-domain`, `other-domain`, `identity-deny`, `config-deny`, `auth-deny`, `identity-write-deny` or `map-malformed`) and status `blocked` for a denied call, never a domain name; its `subject` is the command word, as in every guard's envelope. Declared gaps: a tree in a flat owner root whose name does not start with its owner, and a shared exception inside a flat tree, which grants nothing; and it reads command text, a deterrent and not a sandbox, so it does not see a computed path (a variable, a substitution, a path spelled in pieces), a script run by name, a heredoc body (even one a shell runs), a path relative to the cwd or a symlink into a root, nor an identity position, an identity write or a `gh` or `az` call inside a `bash -c` or `sh -c` operand. A malformed map, or no `jq` on the hook `PATH`, turns the whole guard off, the identity-write rule included. The guard header in `hooks/block-cross-domain.sh` has the full map rules. Kill switch: `block_cross_domain_enabled`. |
 | **block-unresolved-pr-merge** | PreToolUse · Bash \| PowerShell **and** `mcp__<server>__merge_pull_request` \| `mcp__<server>__enable_pr_auto_merge` | **Blocks** (exit 2) | A pull-request merge, auto-merge and merge-queue requests included, while the PR carries a hold label (`do-not-merge`, `pr-verify-failed` or `security: outside-actor`, matched without case, refused as soon as the PR is read), and a merge while it has an unresolved review thread (outdated ones included), a reviewer whose latest decisive review requests changes, or a failed check run or commit status on its head commit (only the newest run of each check by creation order counts, so a run a later run of the same check superseded does not block; a skipped or neutral run never supersedes a completed run with a real conclusion, though it does supersede a pending or cancelled one; a cancelled run is also superseded by a newer successful run of the same app, in another check suite, named `<name> (...)` (a skipped, neutral or failed leg does not clear it), since a matrix job cancelled before it expanded reports under its bare name, and an unrelated workflow's `<name> (...)` job in another suite clears it too, which the check-runs payload cannot tell apart; a check listed in `merge_guard_ignored_checks` as `<app slug>:<name>`, by default `github-actions:Merge,github-actions:merge`, the pr-merge lane's own job, is never judged, and since a check run does not name its workflow, every GitHub Actions job named `Merge` or `merge` is ignored by that default; a failed run whose failure annotation says it was `superseded by full run <url>/actions/runs/<id> in flight on <head sha>`, as the contract-only ci-status does, does not count: that full run's run of the same check decides, and the check is pending until it exists); a pending check blocks an immediate merge but not an auto-merge or merge-queue request, which waits for checks by design. Merge paths: `gh pr merge` with any flags (`--admin` and `--auto` included), a `PUT` to `repos/{owner}/{repo}/pulls/{n}/merge` or to the Claude Code cloud route `pulls/{n}/ccr/auto_merge` through `gh api` or `curl`, the `mergePullRequest`, `enablePullRequestAutoMerge` and `enqueuePullRequest` GraphQL mutations through `gh api graphql` or `curl`, and the GitHub MCP server's merge tools under any server prefix. PR state is read over REST; review-thread resolution, which REST does not expose, comes from GraphQL where it is served and from the cloud route `pulls/{n}/ccr/review_threads` where GraphQL is refused (Claude Code on the web). Fails open with a notice to both the user and Claude when `gh` is missing or unauthenticated, a read fails, or its 35 s read budget runs out (kept under the row's 60 s timeout). An unresolvable target fails closed: a `gh pr merge` or REST merge whose repo or PR number comes from a shell variable, `$(...)` or backticks, or a bare `gh pr merge` whose current branch cannot be read or has no open PR, is blocked with the fix of writing `gh pr merge <number> -R owner/repo` literally. So is, on the Bash tool, a command whose text is merge-shaped (`pr merge` after a word that is `gh` or cannot be read, such as `g""h` or `$GH`, a `pulls/.../merge` route, a merge mutation name; prose such as "Gated PR Merge" is not) and holds a backtick anywhere, quoted or not (pass a body that holds one with `--body-file`), a `pr merge` or REST merge route continued with a backslash-newline (write the merge on one line; the command is never rewritten), and a command holding more than one merge (run each merge as its own command). The backtick and backslash-newline tests skip the body of a quoted heredoc (`<<'EOF'`) fed to a program that is not a shell, such as `python3 - <<'EOF'` or `git commit -F - <<'MSG'`; the guard header lists when a body is still read. So is a `gh pr` subcommand or a `-X` method taken from an expansion on a merge route (`gh pr $VERB`, `-X "$M"`), and a `gh pr merge` with no `-R` or URL in a command that also runs `cd`, `pushd` or `popd` or names `GH_REPO`, since it then merges outside the session's repository. A `-R HOST/OWNER/REPO` is read without its host (a host other than github.com goes to `gh api --hostname`), a quote-split `gh pr mer"ge"` is parsed, a branch name is percent-encoded into the lookup, and a 404 on a repo the command wrote is blocked instead of run unchecked. So is a GraphQL merge mutation whose PR cannot be resolved (an id from a variable or `$(...)`, or more than one id bound to `pullRequestId`), with the fix of passing a literal `PR_...` id. Only the id bound to `pullRequestId` is checked, never a `PR_...` in another field. In a Claude Code cloud session GraphQL is refused, so every GraphQL merge mutation is blocked there; use `gh pr merge <number>`. A `curl -T` / `--upload-file` to the merge route counts as a `PUT`. `gh pr merge --help` and `--disable-auto` are not merges. Not covered: a merge from a script (Python, Node) or the web UI; the org ruleset requiring conversation resolution is the server-side backstop. A merge pays five REST calls, plus one per failed check run (three at most) to read its annotations, measured at 3.0 to 3.6 s in a Claude Code cloud session; any other command pays one string test. The guard header in `hooks/block-unresolved-pr-merge.sh` lists the known gaps. Escape: `block_unresolved_pr_merge_enabled` (off switch); `merge_guard_ignored_checks` (comma list of `<app slug>:<name>` checks never judged; empty judges all). |
+| **block-lane-pr-disable-auto** | PreToolUse · Bash | **Blocks** (exit 2) | Turning off auto-merge on a pull request the lanes App (`melodic-automation-lanes[bot]`) opened: `gh pr merge <n> -R <owner>/<repo> --disable-auto`, and the `disablePullRequestAutoMerge` mutation through `gh api graphql`. The pr-merge lane reads a disable by a `User` as the owner's veto and never arms that PR again, and a session runs under the owner's login. The block says to hold the PR with the `do-not-merge` label, which the lane disarms on and re-arms after by itself. The author is read with one `gh pr view <n> -R <owner>/<repo> --json author` call (a GraphQL `node` query for the mutation's `PR_...` id); a PR by any other author passes. A target it cannot read is blocked: a PR number, repo or node id from a shell variable, `$(...)` or backticks, a disable with no PR number or URL, one with no `-R` in a command that changes directory or names `GH_REPO` or `GH_HOST`, a mutation without exactly one literal `PR_...` id, and an author read that fails. Not matched: the PowerShell tool, a mutation read from a file, a command word from an expansion (`$GH pr merge`), a disable inside `bash -c`, `eval` or a wrapper such as `sudo`, and the web UI. With `gh` not on the hook's `PATH`, a target the guard can read passes unchecked. Escape: `block_lane_pr_disable_auto_enabled`. |
 | **block-fix-request-post** | PreToolUse · Bash \| PowerShell **and** the GitHub MCP comment, review, issue and pull-request write tools (`mcp__github__add_issue_comment`, `pull_request_review_write`, and the rest named in `hooks/hooks.json`) | **Blocks** (exit 2) | An agent posting the PR-fix lane fix request: a line starting `PR-fix lane: please fix this finding`, any case, which the address-feedback lane (`FIX_REQUEST` in `.github/scripts/pr-unblock/address-feedback.mjs`) acts on with push credentials when someone with write access posts it. A local session posts with the owner's token, so only the owner posts it, typed in the GitHub UI ([#8438](https://github.com/melodic-software/claude-code-plugins/issues/8438)). Covers `gh pr\|issue comment\|review\|create\|edit`, a writing `gh api` (GraphQL only for a mutation), and `curl` with a body to a GitHub API route; the body is read inline, from heredocs, and from every `--body-file`, `-F k=@file`, `--input`, `-d @file`, `cat` or `<` file. A line after `>`, inside a fence, or a mention later in a line passes, as does a command that only reads or greps the phrase. The guard header lists the known gaps. Escape: `block_fix_request_post_enabled`; for sessions working in a repository, `fix_request_post: allow` (default `block`) in its `docs/conventions/guardrails.yaml` at the local `origin/HEAD`, which then applies to posts to any repository. |
 | **block-github-post-content** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | A command that posts a secret or a hardcoded machine-specific path to GitHub: `gh pr\|issue comment\|review\|create\|edit`, a writing `gh api`, or `curl` with a body to a GitHub API route, bare or inside `bash -c`, `eval`, or a script wrapper's command after `--` (split on `+++`). Reads the same bodies as block-fix-request-post, through `lib/github-post/github-post-body.sh`, and runs the secret-pattern-detection and hardcoded-path-check pattern sets over them. A secret block names the pattern class, never the value. The path scan skips the whole command and the file paths it names, so a wrapper path or a `--body-file` operand is not judged. Under the Bash tool, an `--attach` operand is judged for paths by what gh can post from it (the text after its first `#` and its base name), so its source directory is exempt, except one whose alt text holds `/` or `\`, one the shell would expand, one that follows a dash flag without `=`, and a joined `--attach=<v>` whose preceding word the shell would expand, which are judged whole. Under PowerShell every `--attach` operand is judged whole, because PowerShell's argument passing to native commands can change what gh receives. A command that posts nothing passes. Escape: `block_github_post_content_enabled`; `secret_pattern_detection_enabled` and `hardcoded_path_check_enabled` turn off their half. |
+| **settings-write-ask** | PreToolUse · Write \| Edit \| NotebookEdit | **Asks** (an `ask` decision on stdout, exit 0) | A file-editing tool call aimed at a settings file Claude Code reads, so the edit prompts even in auto mode. Shell writes and files rendered into place are not seen. [Settings-write ask](#settings-write-ask) lists the files and the limits. Kill switch: `settings_write_ask_enabled`. |
+| **connected-page-gate** | PreToolUse · Artifact | **Blocks** (a `deny` decision on stdout, exit 0) | An Artifact publish of an HTML page whose content security policy names a loopback `connect-src`: a connected page (built with `--connect`) works only on this machine and stays a local file. It reads the file content, so a connected page from any builder is caught, in `file_path` or in `files`. Every other Artifact call passes, as does a file it cannot read. It is not the approval-marker publish gate (#7956), and it does not cover `/visualization:present`'s `--argument artifact` flag. Kill switch: `connected_page_guard_enabled`. |
 | **cli-flag-verify** | git pre-push, `reference-verify` entry, on `.md`, `.sh`, `.bash`, `.ps1`, `.psm1` | **Fails the push** (exit 1) | Hallucinated CLI flags: a `--flag` written as a command, on a line the pushed commits add, that does not exist in the binary's actual `--help` output. |
 | **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Workflow fan-out with no wave cap of its own: a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. The runtime's own concurrency limit still applies ([workflows: Behavior and limits](https://code.claude.com/docs/en/workflows#behavior-and-limits)). Surfaces a one-line advisory via `additionalContext` that points at the workflow-authoring skill and names the overloaded-retry backoff ceiling variable with a link to its docs section, never blocks. **Opt-in. Default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `workflow_resilience_check_enabled=true` to enable). |
 | **block-noncanonical-commit** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | `git commit -m` whose message holds a `$` or a backtick the shell expands before git sees it: double-quoted or unquoted in Bash (`$x`, `$(...)`, backticks), double-quoted in PowerShell (`$x`, and a backtick escape such as `` `f ``), and a PowerShell `@"` here-string. A newline alone is no hazard, so a plain message passes, multi-line included, and so do single quotes, fully escaped double quotes, Bash `"$(cat <<'EOF' ... EOF)"` and a PowerShell `@'` here-string; `-F -` / `--file -` is always safe. Exempt: `--amend`, `-C`/`-c`/`--reuse-message`/`--reedit-message`, `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge/rebase/cherry-pick/revert is in progress. Resolves `bash -lc` wrappers and git aliases (inline `-c` and persisted config alike). |
@@ -113,7 +119,8 @@ its findings on stderr at pre-push and lets the push go ahead. `block-cross-doma
 `deny` decision on stdout and exits 0, so Claude reads its reason from that decision,
 which names the domains a path belongs to, the identity position, the config directory or the identity write; it speaks to the user only
 when it cannot run its checks (a malformed map; a missing `jq`, the plugin's shared jq
-notice).
+notice). `connected-page-gate` denies the same way, and `settings-write-ask` returns an `ask`
+decision with its reason.
 
 ### Git hooks
 
@@ -144,6 +151,110 @@ bash beside git's sh.
 | `pre-commit-content` | pre-commit | Secrets and machine-specific paths on the lines the commit adds (for a merge, the lines its conflict resolution adds against every parent), with the same pattern libraries and path exemptions as `secret-pattern-detection` and `hardcoded-path-check`, so a file a shell command or script wrote meets the same checks as a Write. It also skips path findings, never secrets, in each path listed in the repository's `docs/conventions/guardrails-content-exempt.tsv` as read from the default branch (`origin/HEAD`), never the index or work tree, so a change cannot exempt its own lines: one `path<TAB>reason` row per file, or per directory with a trailing `/`, `#` starting a comment. No `origin/HEAD` or no file exempts nothing. |
 | `pre-push-content` | pre-push | The same scan as `pre-commit-content` (it shares that entry's `git-hooks/content-scan.sh`), on every pushed ref, for commits that check never judged: made before the hooks were installed, by a tool or clone without them, or rebased or cherry-picked in. Each pushed commit is judged on the lines it adds to its parent, so a secret one commit adds and a later commit removes still fails the push, which would publish it in history; a merge is judged on what it adds against every parent. A new branch starts from its merge-base with the default branch, and commits a remote-tracking ref already holds are not judged again. Each finding names its commit, and the fix is to rewrite that commit. |
 | `reference-verify` | pre-push | `cli-flag-verify`, `skill-reference-verify` and `stale-path-verify` on the lines the pushed commits add, through `hooks/run-guards.sh`. A new branch is judged from its merge-base with the default branch. Any pushed range then starts instead at the nearest of the remote's tracking refs between its base and its tip, so a stacked branch's push does not re-verify the pushed branches below it. Lines that a merged branch brings in are not judged when one of the remote's tracking refs holds them, whether that branch is the default branch or another one; `pre-push-content` uses the same rule. Lines that the merge resolution or the branch's own commits add are still judged, unless a merged tracking ref already holds the same line. Those tracking refs are trusted as verified without a check, including another author's branch, fetched into this clone, that was pushed with `--no-verify`. A tracking ref is only as current as the last fetch, and the hook never fetches. A ref behind the remote leaves more lines to judge. A ref for a branch the remote deleted or force-pushed, not yet pruned, still counts its commits as pushed, so their lines go unjudged; `git fetch --prune` keeps the refs current. It skips files in a `samples/` folder below an `evals/` folder, which hold recorded model output; the rest of an eval suite stays checked. A cli-flag or skill-reference finding fails the push; a stale-path finding is printed and the push goes ahead. A file whose verifier input it cannot build or whose verifier run fails, or a pushed tip it cannot check out, is reported as a finding and fails the push, since it went unchecked. It runs at push rather than commit because it costs about 10 s on a 44-file change, over the commit budget (the check-placement convention's measured rows). Needs `jq`; the scanned binaries follow `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` and `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` when set in the pushing environment. A cli-flag finding is unverified, not proven wrong, so its failure names the way out: decline the entry. The entry reads that decline itself, so it also stops on the lefthook remote, where no registration is removed. Each finding names the line holding the flag, path or reference. `git -c checks.skipmissing=jq` skips it only while `jq` is missing. Over ssh, the connection to the remote stays idle while the hook runs. A remote that drops an idle connection leaves either a push that reports success but creates no ref, or a failed push that prints `Connection to <host> closed by remote host.` To keep the connection open, set `ServerAliveInterval` (for example `15`) for that host in the ssh config, or set it for one push: `git -c core.sshCommand="ssh -o ServerAliveInterval=15" push`. |
+
+### Settings-write ask
+
+The `settings-write-ask` checkpoint returns `permissionDecision: "ask"` when a **file-editing
+tool call** (`Write`, `Edit`, `NotebookEdit`) targets a Claude Code settings file, so those
+edits prompt even in auto mode. It matches only the settings files Claude Code reads:
+`settings.json` in the user settings directory (`CLAUDE_CONFIG_DIR`, else `~/.claude`),
+`settings.json` and `settings.local.json` in `.claude/` under the project directory or the
+session's working directory, `settings.local.json` at the main checkout's root, plus
+`managed-settings.json` and `managed-settings.d/` drop-ins in the managed system directory. A
+fixture or example named `.claude/settings.json` elsewhere does not prompt. Kill switch: the
+`settings_write_ask_enabled` plugin option.
+
+- **Pointer:** where Claude Code keeps each settings file:
+  [settings § Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+  and
+  [§ Where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository);
+  for managed files,
+  [managed settings § Where each mechanism stores the policy](https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy).
+- **As of:** 2026-10-11.
+- **Recheck trigger:** any of these sections moves a settings file or adds one.
+
+It is a checkpoint, not a guarantee: other hooks, settings, and permission modes decide what
+happens to its `ask`. We state that whenever we describe the protection, and read the specifics
+live:
+
+- **Pointer:** [hooks § PermissionRequest](https://code.claude.com/docs/en/hooks#permissionrequest),
+  [settings reference § `disableAllHooks`](https://code.claude.com/docs/en/settings-reference#disableallhooks),
+  [Agent SDK permissions § Bypass permissions mode](https://code.claude.com/docs/en/agent-sdk/permissions#bypass-permissions-mode-bypasspermissions)
+  (hook evaluation order against the mode check), and
+  [headless § Turn off permission prompts in unattended runs](https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs)
+  (what a `-p` run does with a call that would prompt).
+
+What we measured in one headless run (`claude -p`, `--permission-mode default`, `Write`, `Edit`
+and `Read` allowed, Linux) asking for a `Write`, then an `Edit`, to `.claude/settings.json` in the
+working directory:
+
+- The hook returned `permissionDecision: "ask"` with its reason, "guardrails: this edit changes
+  settings for every future session…".
+- Claude Code's own settings-file check rejected each write. The transcript records
+  `permissionDecision` `{"decision": "reject", "source": "config", "reasonCode": "safetyCheck",
+  "circuitBreaker": "claudeSettingsFile"}`.
+- The tool error was Claude Code's text, without the hook's reason: "Claude requested
+  permissions to write to WORKDIR/.claude/settings.json, but you haven't granted it yet."
+- The file was not written.
+
+This run cannot tell whether the hook's `ask` alone would have blocked the write: Claude Code's
+own check rejected it, so the `ask` was never what resolved the call.
+
+Not measured on 2.1.325: whether the reason shows in an interactive prompt, and the `auto` and
+`bypassPermissions` modes. Those two modes were last measured on Claude Code 2.1.263
+(2026-09-06), in headless runs under `default`, `auto` and `bypassPermissions`: the ask fired and
+blocked the write in each, surfacing as a tool error carrying the hook's reason.
+
+- **As of:** Claude Code 2.1.325, 2026-11-16.
+- **Recheck trigger:** a Claude Code changelog entry that changes how a PreToolUse `ask` resolves
+  in a headless run, or how Claude Code guards writes to its settings files.
+
+**What it does not see.** The checkpoint matches tool names and file paths, not the file on
+disk. These routes change a settings file without an ask:
+
+- A write through the shell: a redirect, a heredoc, `sed -i`, `cp`, `tee`, or a script run by
+  `Bash` or `PowerShell`. None of them passes through a file-editing tool.
+- A tool that renders configuration into place from a source elsewhere, such as a dotfile manager
+  applying a template or symlink. That write is a legitimate action by another program, inside the
+  session or outside it.
+
+Claude Code's `ConfigChange` hook event fires on a settings change whatever wrote the file, but it
+reacts after the write rather than asking before it. That is a different control from this one,
+and this plugin does not register it.
+
+- **Pointer:** [hooks § ConfigChange](https://code.claude.com/docs/en/hooks#configchange) and
+  [§ ConfigChange decision control](https://code.claude.com/docs/en/hooks#configchange-decision-control);
+  for what a PreToolUse matcher filters on,
+  [hooks § Matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns).
+
+**Decision (#3864): the claim is narrowed, and the hook is not widened.** Adding the shell lane
+would put an always-on `Bash|PowerShell` hook under the
+[hook-budget](../../docs/contracts/hook-budget/README.md) ceiling on every shell call in every
+consumer. It would recognize a settings write only by guessing from the command string, and it
+would still miss the render-into-place route. So even after paying that cost, the checkpoint could
+not honestly claim every settings write. `/context-budget:audit fix` edits project settings
+through a file-editing tool, so the checkpoint covers that write path.
+Treat a future audit that finds this gap as re-filing it, not as a new defect.
+
+The registration carries no `if` filter, so the hook process spawns on every matched write and the
+script decides. An `if` gate was evaluated for this row and rejected. A probe on Claude Code 2.1.285
+on Windows (2026-09-30) found that in a hook `if`, an `Edit(...)` rule does not match a Write tool
+call at any path tested, inside or outside the working directory. `Write(...)` and `Edit(...)`
+rules each match absolute paths outside cwd for their own tool, under every form tested: the
+home-relative `~/`, the root-anchored `//`, the drive-letter spelling, the root-anchored recursive
+glob, and an unanchored `*.json`. An earlier probe on 2.1.258 (2026-09-02) attributed the skipped
+rules to the path; on 2.1.285 the path is not the cause, and 2.1.258 was not re-probed. Permission
+rules differ: there, an `Edit` rule covers every built-in file-editing tool. One `Edit(...)` gate on
+this `Write|Edit|NotebookEdit` row would therefore drop every Write silently, which is the opposite
+of what the checkpoint exists to do. The row stays unconditioned; splitting it into a gated row per
+tool needs its own probe, and NotebookEdit was not probed.
+
+- **Pointer:** [hooks § Common fields](https://code.claude.com/docs/en/hooks#common-fields) (`if`
+  uses permission rule syntax) and
+  [permissions § What `Read` and `Edit` rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover).
+- **As of:** 2026-10-29.
+- **Recheck trigger:** a Claude Code release note saying a hook `if` `Edit(...)` rule matches Write
+  tool calls. Re-probe before gating this row.
 
 ### Enforceability tiers
 
@@ -509,8 +620,8 @@ WSL load was 4 to 17 during the run. Every judged payload was faster in all 5 bl
 | `bash <<'EOF'` running `rm -rf build/x` | 463.8 | 334.8 | -129.0 |
 | common call (`git status --short`) | 30.4 | 31.0 | +0.6, inside noise (branch lower in 2 of 5 blocks) |
 
-A judged delete still costs about 190 ms over the common call, about 9.5 S at the 20 ms S of the
-harness in the #9754 entry. That overage is the shell's own parse and the one `git`. Linux and macOS keep one
+A judged delete still costs about 190 ms over the common call, about 9.5 spawns' worth (S is the
+cost of one process spawn, 20 ms in the harness of the #9754 entry). That overage is the shell's own parse and the one `git`. Linux and macOS keep one
 `realpath` per judgment and lose the three `timeout` processes.
 
 `block-root-delete-target-resolve.test.sh` runs in the Windows CI lane and compares the shell's
@@ -519,7 +630,7 @@ answers with `realpath` and `cygpath` there. That lane is informational, not a r
 there and does not block a merge.
 
 **block-root-delete-target shells and launchers from Bash (#9768).** The arm starts no process of its
-own, so its k is 0: the text `eval` joins, `watch` runs, `wsl` hands its shell, `cmd /c` runs and a
+own, so its k (the number of processes a call spawns) is 0: the text `eval` joins, `watch` runs, `wsl` hands its shell, `cmd /c` runs and a
 stdin shell reads (a heredoc, a here-string, or what `echo`, `printf` or `cat` pipes into it) is
 parsed in-process as a `bash -c` operand is, and an `echo`'s escapes and a `printf`'s output are
 expanded by the `printf -v` builtin. Each target it then judges takes the path a recursive `rm`
@@ -1324,8 +1435,8 @@ After: one hook process; `RUN_GUARDS_PROFILE=1` reports the per-guard slices ins
 as ≈ 167 / 163 / 197 / 18 / 233 / 253 / 156 / 37 ms, **≈ 1,220 ms** in total, the
 remainder being fork cost, since each guard still runs in its own subshell so that its
 `exit` and `trap` behave as they do standalone. That is a halving of the per-Bash-call
-CPU cost and a drop from eight process spawns to one; it was still above the
-convention's ≤ 1 s typical ceiling of that time on a loaded host, and the remaining remediation is
+CPU cost and a drop from eight process spawns to one; that total was still above the
+convention's ≤ 1 s typical ceiling on a loaded host, and the remaining remediation is
 the guards' own per-call work (the subshell fork itself, and the external programs a
 guard spawns on its hot path), not the dispatcher. The per-Write sets fell the same way:
 three PreToolUse processes to one, three PostToolUse processes to one.
@@ -1418,10 +1529,13 @@ Claude Code, so they have no switch here: a clone turns one off by declining its
 | block-credential-read | `block_credential_read_enabled` |
 | block-cross-domain | `block_cross_domain_enabled` |
 | block-unresolved-pr-merge | `block_unresolved_pr_merge_enabled` |
+| block-lane-pr-disable-auto | `block_lane_pr_disable_auto_enabled` |
 | block-fix-request-post | `block_fix_request_post_enabled` |
 | block-github-post-content | `block_github_post_content_enabled` |
 | block-noncanonical-commit | `block_noncanonical_commit_enabled` |
 | block-convention-violation | `block_convention_gate_enabled` |
+| settings-write-ask | `settings_write_ask_enabled` |
+| connected-page-gate | `connected_page_guard_enabled` |
 | workflow-resilience-check | `workflow_resilience_check_enabled` |
 | flag-commit-pr-skill-bypass | `flag_commit_pr_skill_bypass_enabled` |
 
@@ -1797,6 +1911,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `block_cross_domain_enabled` | boolean | `true` | Denies a Bash or PowerShell global git identity write (git config --global user.email and kin, a ~/.gitconfig write). In an identity domain (identity-domains.json) also denies naming another domain's path, using its marker, or gh/az without the domain's config dir. On by default. |
 | `block_unresolved_pr_merge_enabled` | boolean | `true` | Blocks a pull-request merge (gh pr merge, REST, GraphQL or an MCP merge tool) while the PR has unresolved review threads, a changes-requested review, or failing checks. Fails open, visibly, when the PR state cannot be read. On by default. |
 | `merge_guard_ignored_checks` | string | `"github-actions:Merge,github-actions:merge"` | Comma-separated <app slug>:<check name> pairs block-unresolved-pr-merge never judges as pending or failing. The default names the pr-merge lane's merge job, which runs as the merger, not a gate, by display name and by job id. Empty judges every check. |
+| `block_lane_pr_disable_auto_enabled` | boolean | `true` | Blocks gh pr merge --disable-auto, or the disablePullRequestAutoMerge mutation through gh api graphql, on a pull request the lanes App opened, and says to hold it with the do-not-merge label instead. A target it cannot read is blocked. On by default. |
 | `block_fix_request_post_enabled` | boolean | `true` | Blocks an agent from posting the PR-fix lane fix request (a line starting "PR-fix lane: please fix this finding") to GitHub through gh, curl or a GitHub MCP write tool. Only the owner posts it, in the GitHub UI. On by default. |
 | `block_github_post_content_enabled` | boolean | `true` | Blocks a Bash or PowerShell gh or curl command whose GitHub post body holds a secret or a hardcoded machine path, using the secret-pattern-detection and hardcoded-path-check patterns; their options also turn off their half here. On by default. |
 | `block_windows_drive_tmp_enabled` | boolean | `true` | Blocks writes to a Windows drive-root temp path (/tmp, C:\tmp, \tmp, /c/tmp) that resolves to <drive>:\tmp instead of %TEMP%, in shell commands and Write/Edit file paths alike. On by default. The Git for Windows exception is in the README's Option details. |
@@ -1813,6 +1928,8 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `git_hooks_notice_enabled` | boolean | `true` | At session start, names /guardrails:setup apply install-git-hooks once when this clone lacks a guardrails git-hook entry or holds a drifted one; a declined entry stays quiet. Turning it off also silences the session-start notice that jq is missing. On by default. |
 | `workflow_resilience_check_enabled` | boolean | `false` | Advises on Workflow fan-out with no wave cap of its own; never blocks. Off by default: a behavioral-class prose injector, held off by the instruction-economy evidence gate. Set true to turn it on. |
 | `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | Advises when a direct gh pr create bypasses the source-control pull-request skill; never blocks. Off by default: a behavioral-class prose injector, held off by the instruction-economy evidence gate. Set true to turn it on. |
+| `settings_write_ask_enabled` | boolean | `true` | Runs the PreToolUse hook that asks before Write, Edit, and NotebookEdit calls aimed at a Claude Code settings file. On by default. Shell writes and files rendered into place are outside its matcher. |
+| `connected_page_guard_enabled` | boolean | `true` | Runs the PreToolUse hook that denies an Artifact publish of an HTML page whose content security policy names a loopback connect-src. On by default. Turn off to allow publishing such a page. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | Idle bound on reading the hook payload from stdin: how long a silent pipe is tolerated before a blocking guard fails closed. Default 2. Only a JSON payload the pipe closed on mid-document is allowed with a notice; a stalled pipe stays a block. |
 | `deny_on_crash` | string | *(none)* | Comma-separated guard names (e.g. block-dangerous-git) whose crash denies the tool call instead of allowing it with the guard-did-not-run notice. Empty, the default, lets every crashed guard allow with the notice. An unknown name is reported and ignored. Team-file layer: README Option details. |
 

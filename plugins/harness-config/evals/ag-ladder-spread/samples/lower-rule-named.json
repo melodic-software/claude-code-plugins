@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Sits lower than it could: 1 guidance rule(s) forbid a literal that a pattern check could match (candidates to judge, not findings)\n- CLAUDE.md:12: forbids `eval` (instruction)",
+      "why": "the script's list copied"
+    },
+    {
+      "answer": "One rule sits lower than it could: CLAUDE.md says never to call `eval` on an order payload, and a pattern check could match that. It is a candidate for /corrections:codify, not a verdict here.",
+      "why": "named in prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The tiers hold 1, 2, 1, 4 and 1 rules.",
+      "why": "no lower-than list"
+    },
+    {
+      "answer": "Sits lower than it could: none.",
+      "why": "the eval rule is not named"
+    }
+  ]
+}

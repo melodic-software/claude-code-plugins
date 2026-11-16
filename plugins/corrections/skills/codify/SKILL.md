@@ -1,9 +1,9 @@
 ---
-description: "Counts how often a described mistake recurs in recent commits and the session, picks the strongest enforcement-ladder rung that can catch it, places the lesson by scope, and proposes a check proven to fail on the old code and pass on the current code; `preferences` proposes user-scope lines for what a person keeps typing across sessions; also takes a review findings file, pull requests' review comments or closed bug issues as the source. Use when: 'codify this', 'this keeps happening', 'stop us making this mistake again', 'turn this correction into a check', 'what rung catches this', 'prove this check', 'can we stop re-finding this', 'mine our review comments', 'which bugs keep coming back', 'put what I keep repeating into my instructions', 'how many corrections became checks'."
-argument-hint: "<<description> [#PR]|findings <file>|reviews|issues|note <text>|preferences|group|count-checks…>"
+description: "Counts how often a described mistake recurs in recent commits and the session, picks the strongest enforcement-ladder rung that can catch it, places the lesson by scope, and proposes a check proven to fail on the old code and pass on the current code; `preferences` proposes user-scope lines for what a person keeps typing across sessions; also takes a review findings file, pull requests' review comments or closed bug issues as the source; `rules` turns the rules in instruction files into checks, with a ledger that accounts for every rule. Use when: 'codify this', 'this keeps happening', 'stop us making this mistake again', 'turn this correction into a check', 'what rung catches this', 'prove this check', 'can we stop re-finding this', 'mine our review comments', 'which bugs keep coming back', 'put what I keep repeating into my instructions', 'how many corrections became checks', 'turn our rules into checks'."
+argument-hint: "<<desc> [#PR]|findings <file>|rules <files>|reviews|issues|note|preferences|group|count-checks…>"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/count-checks.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/count-checks.mjs\":*)", "Bash(git log:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git branch --show-current)", "Bash(git symbolic-ref:*)", "Write(.work/codify/**)"]
+allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/count-checks.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/count-checks.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/rules-ledger.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/rules-ledger.mjs\":*)", "Bash(git log:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git branch --show-current)", "Bash(git symbolic-ref:*)", "Write(.work/codify/**)"]
 shell: bash
 metadata:
   workflow-stage: retro
@@ -28,6 +28,7 @@ An optional `#PR` after it names the pull request whose pre-fix commit is the ol
 |---|---|---|
 | `"<description>" [#PR]` (default) | Counts the mistake, picks the rung, proposes and proves the check | Sections 1-6 below |
 | `findings <findings-file>` | Each row of one review findings file becomes a described mistake, counted, proved and ending in a proposal | [actions/findings.md](actions/findings.md) |
+| `rules <file>...` | Each rule in the named instruction files becomes a check, stays prose, is deleted as derivable or is held, in a ledger whose reconciler fails when a rule is dropped | [actions/rules.md](actions/rules.md) |
 | `reviews [--pr <n> [--repo <owner/repo>]]` | Mines the review comments of recent merged pull requests, or of one chosen pull request, and takes the lessons through sections 2-6 | [actions/reviews.md](actions/reviews.md) |
 | `issues [--label <name>] [--limit <n>]` | Needs the `work-items` plugin. Mines the tracker's closed bug items, groups the ones that share a cause, and takes the lessons through sections 2-6 | [actions/issues.md](actions/issues.md) |
 | `preferences [--scope machine\|project] [--since <day>]` | Needs the `session-flow` plugin. Counts preferences typed across sessions, by distinct session, and takes each one the person confirms through sections 3 and 6, for a user-scope file only | [actions/preferences.md](actions/preferences.md) |
@@ -35,7 +36,7 @@ An optional `#PR` after it names the pull request whose pre-fix commit is the ol
 | `group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` | Read-only: groups buffer rows by the named fields (default `producer`) and by mistake, naming the keys, with each mistake's count next to the threshold | [actions/group.md](actions/group.md) |
 | `count-checks [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--bucket week\|month]` | Read-only: counts the checks merged changes record with a `Codifies:` line, per period and cumulative, from default-branch git history only; blocking first, advisory in its own column, a column per rung | [actions/count-checks.md](actions/count-checks.md) |
 
-An action runs only when the first word of `$ARGUMENTS` is exactly `findings`, `reviews`, `issues`,
+An action runs only when the first word of `$ARGUMENTS` is exactly `findings`, `rules`, `reviews`, `issues`,
 `preferences`, `note`, `group` or `count-checks`, unquoted. Anything else, including a quoted description that starts with one of those words,
 is the default action. The action word, and `note`'s unquoted `--applied` right after it, are the
 only tokens read as a choice, with `reviews`' unquoted `--pr <n>` and `--repo <owner/repo>` right
@@ -182,7 +183,14 @@ The proposal holds: the description, the occurrences counted, the rung id and th
 behind it, the scope and why, the check command, the proof result (old ref, both exit codes), the
 missing-context answer when it applies, the existing violations with the cleanup or ratchet offer,
 and the install step with whether it blocks, both taken from
-["Next step per rung"](reference/finding-classes.md#next-step-per-rung). `ratchet_offer` false
+["Next step per rung"](reference/finding-classes.md#next-step-per-rung). For a checking rung the
+install step is the build hand-off: hand over the rung and the check, naming
+`/implementation:implement` as the builder, to build it in the repository's own tooling. When that
+skill is not available, the proposal ends with the rung and the check. Either way the proposal states that the check's message must name the fix, so
+whoever trips it knows what to do instead. A proposal for a checking rung also states how the rule
+is added safely, and a rule to be written (a lint rule, an analyzer, a pattern rule) ships with its
+own valid and invalid rule tests and states what it does not catch, both per
+[adding-a-team-rule.md](reference/adding-a-team-rule.md). `ratchet_offer` false
 leaves the ratchet offer out; the existing violations and any cleanup offer stay. A proposal for a
 codebase, static-analysis or verification rung also holds the literal `Codifies:` line for the pull
 request that lands it, and the task-list item that carries it when the work is filed as an issue,
@@ -193,17 +201,23 @@ holds neither.
 
 Problems first: a mistake that meets the ladder's "Guardrail criterion" with no check in the
 repository yet, stated in those words as a "no guardrail" finding naming that section; an unproven
-check; a count below threshold; an unresolved old ref. Then the count, the rung by its id, the scope, the proof line from the script, and the proposal path or that nothing was written. End
-with the question for any blocking install.
+check; a count below threshold; an unresolved old ref. Then the count, the rung by its id, the scope, the proof line from the script, and the proposal path or that nothing was written. A rung
+id read through the ladder's [alias](reference/enforcement-ladder.md#tier-2-static-analysis), from
+the repository's instructions, a stub or a findings file, gets one line naming the old id and the
+current one. End with the question for any blocking install.
 
 ## Boundary
 
 - It never installs a check unasked, and never installs an unproven one.
 - It never implements a rung. No analyzer, rule, architecture test or hook is written here. Asked to
-  "just write the analyzer", decline and hand over the rung's pointer.
+  "just write the analyzer", decline and hand over the rung and the check, naming
+  `/implementation:implement` as the builder. For the `architecture-test` rung, also name
+  `/architecture:enforce-boundaries` as the next step when that skill is available.
 - It never fixes an existing violation. The cleanup it offers runs through `/implementation:implement`.
 - Moving a mistake up the ladder is not promotion in the autonomy sense: it changes no work class or
   guardrail class, and neither implies the other.
+- `rules` edits no instruction file: it flags prose for deletion in a proposal, and the deletion
+  lands with the check.
 - `note` appends one row and does nothing else.
 - `group` writes nothing (no file, no buffer row, no proposal) and runs no proof.
 - `count-checks` writes nothing, runs no proof and calls no forge: it reads default-branch git
@@ -214,7 +228,7 @@ with the question for any blocking install.
 - hook: /harness-config:audit-automation-gaps.
 - make-impossible: /architecture:improve.
 - a group at or over the threshold: /corrections:codify "<the group's mistake>".
-- existing violations to clean up: /implementation:implement.
+- existing violations to clean up, or a proven check or a ledger's checks to build: /implementation:implement.
 
 ## Gotchas
 

@@ -21,9 +21,9 @@ jq pipelines and CLI invocations for the **hook log root** and **ccusage**. OTEL
 
 ## Setup: common variables
 
-The hook log root is the plugin's `session_event_log_dir` option, project-relative, default
-`.observability/claude`. Its rendered value is the `root` entry on the skill body's "Rendered
-options" line: use that, never `CLAUDE_PLUGIN_DATA` and never the environment (which processes receive
+The hook log root is session-telemetry's `session_event_log_dir` option, project-relative, default
+`.observability/claude`. Its value is the `option session_event_log_dir` line the skill body's
+session-telemetry state lines print: use that, never `CLAUDE_PLUGIN_DATA` and never the environment (which processes receive
 `CLAUDE_PLUGIN_OPTION_*` is read live from
 [plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)). A `--hook-root REL` token on the invocation overrides it for one
 run. Under the root: `sessions/<session_id>.jsonl`, one file per session, holding the
@@ -271,18 +271,17 @@ per-turn counts. `tool_use_id` joins a `PostToolUseFailure` row to the OTEL `too
 for that call. A `PostToolBatch` row joins only for the batch's first call, and only when that
 call's input carries no `tool_use_id` key of its own and the key falls inside the first 64 KB the
 logger reads; the other calls in the batch have no row to join. Empty when
-`session_event_log_enabled` is off: say so, and point at `/harness-ops:setup` rather than at the
-shared file.
+session-telemetry is off or its `session_event_log_enabled` is off: say so, and point at
+`/harness-ops:setup` rather than at the shared file.
 
 ## 2.6 Toggles and retention in effect
 
 Render the six options, the guard, and the prune state from one probe call, so the report
 shows what the pipeline is doing rather than what the reader assumes. The values are the
-options the skill body rendered as plain content, passed as flags from this Bash call; an
-unrendered placeholder or an empty value reads as the manifest default. The skill's pre-compute
-probe line passes no option (a `${user_config.*}` value never rides inside shell-executing
-content) and runs with `--observed`, so its sixth line carries the envelope count and no option
-tier; this call is the one place the options render.
+`option <key>` lines the skill body's session-telemetry state printed, passed as flags from this
+Bash call; a missing line or an empty value reads as the manifest default. The skill's pre-compute
+probe line passes no option and runs with `--observed`, so its sixth line carries the envelope
+count and no option tier; this call is the one place the options apply.
 
 ```bash
 bash "<skill-dir>/scripts/probe-observability-state.sh" --pipeline \

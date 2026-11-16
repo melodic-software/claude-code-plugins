@@ -327,7 +327,7 @@ canonical source if a fix or a suppression would write into a derived-exclusion 
 
 The apply-verify step judges work this same run produced, so it is delegated: hand the applied diff
 and the finding it claims to resolve, the artifact rather than this run's reasoning, to a cross-vendor
-advisor when one is installed and set up (the OpenAI Codex plugin, say, invoked per its own docs),
+advisor when one is enabled and set up (the OpenAI Codex plugin, say, invoked per its own docs),
 with a **fresh-context (non-fork) subagent** as the stated fallback. Resolve the `verification` level once per run with `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin harness-config --skill audit-pass` and copy its line into the report header ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). Under `light`, and `off`, which acts as `light` here, neither this apply-verify dispatch nor Phase 6's main-session verification runs and nothing is verified inline in their place: record `skipped` for the reason `verification: skipped (<level>)` and mark findings and fixes `(unverified)`, as "When dispatch is unavailable" below says. A delegated lane applies its own skill's level.
 
 ### When dispatch is unavailable

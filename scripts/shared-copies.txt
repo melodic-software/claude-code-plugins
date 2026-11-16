@@ -178,7 +178,7 @@ lib/exec-bash.mjs plugins/disk-hygiene/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/eol-normalizer/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/go-format/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/guardrails/hooks/exec-bash.mjs
-lib/exec-bash.mjs plugins/harness-ops/hooks/exec-bash.mjs
+lib/exec-bash.mjs plugins/session-telemetry/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/javascript-format/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/markdown-format/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/powershell-format/hooks/exec-bash.mjs
@@ -479,6 +479,8 @@ lib/hook-utils.sh plugins/speech/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/playwright/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/spelling/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/testing/hooks/hook-utils.sh
+lib/hook-utils.sh plugins/session-telemetry/hooks/hook-utils.sh
+lib/hook-utils.sh plugins/plugin-diagnostics/hooks/hook-utils.sh
 lib/html-escape.mjs plugins/work-items/lib/html-escape.mjs
 lib/view-builder.mjs plugins/work-items/lib/view-builder.mjs
 lib/view-runtime.js plugins/work-items/lib/view-runtime.js
@@ -563,6 +565,7 @@ lib/rendered-view.md plugins/planning/reference/rendered-view.md
 lib/html-chrome.html plugins/visualization/reference/html-chrome.html
 lib/html-chrome.html plugins/adhd/reference/html-chrome.html
 lib/html-chrome.html plugins/planning/reference/html-chrome.html
+lib/html-chrome.html plugins/architecture/reference/html-chrome.html
 lib/rendered-view.md plugins/architecture/reference/rendered-view.md
 lib/rendered-view.md plugins/discovery/reference/rendered-view.md
 lib/rendered-view.md plugins/debugging/reference/rendered-view.md
@@ -614,6 +617,7 @@ lib/yaml-subset.mjs plugins/corrections/scripts/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/prototype/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/codebase-health/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/overengineering/lib/yaml-subset.mjs
+lib/yaml-subset.mjs plugins/plugin-profiles/lib/yaml-subset.mjs
 lib/resolve-convention-home.sh plugins/corrections/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/prototype/lib/resolve-convention-home.sh
 lib/redact.py plugins/session-flow/skills/audit-sessions/scripts/redact.py
@@ -622,6 +626,8 @@ lib/plugin-options.mjs plugins/source-control/skills/babysit-loop/scripts/operat
 lib/plugin-options.mjs plugins/corrections/scripts/lib/plugin-options.mjs
 lib/plugin-options.mjs plugins/toolchain/hooks/plugin-options.mjs
 lib/plugin-options.mjs plugins/harness-ops/lib/plugin-options.mjs
+lib/plugin-options.mjs plugins/plugin-profiles/lib/plugin-options.mjs
+lib/plugin-options.mjs plugins/plugin-diagnostics/lib/plugin-options.mjs
 lib/resolve-convention-home.sh plugins/user-interface/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/multi-agent/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/docs-naming/lib/resolve-convention-home.sh
@@ -681,6 +687,15 @@ lib/prerequisites.ps1 plugins/codebase-health/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/education/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/education/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/education/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/plugin-profiles/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/plugin-profiles/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/plugin-profiles/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/session-telemetry/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/session-telemetry/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/session-telemetry/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/plugin-diagnostics/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/plugin-diagnostics/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/plugin-diagnostics/lib/prerequisites.ps1
 lib/check-convention-facts.mjs plugins/developer-experience/lib/check-convention-facts.mjs
 lib/parse-concern-value.sh plugins/skill-quality/lib/parse-concern-value.sh
 lib/yaml-subset.awk plugins/skill-quality/lib/yaml-subset.awk
@@ -701,14 +716,16 @@ lib/node-or-skip.sh plugins/explainer-video/lib/node-or-skip.sh
 lib/node-or-skip.ps1 plugins/explainer-video/lib/node-or-skip.ps1
 lib/node-or-skip.sh plugins/guardrails/lib/node-or-skip.sh
 lib/node-or-skip.ps1 plugins/guardrails/lib/node-or-skip.ps1
-lib/node-or-skip.sh plugins/harness-ops/lib/node-or-skip.sh
-lib/node-or-skip.ps1 plugins/harness-ops/lib/node-or-skip.ps1
 lib/node-or-skip.sh plugins/playwright/lib/node-or-skip.sh
 lib/node-or-skip.ps1 plugins/playwright/lib/node-or-skip.ps1
+lib/node-or-skip.sh plugins/plugin-profiles/lib/node-or-skip.sh
+lib/node-or-skip.ps1 plugins/plugin-profiles/lib/node-or-skip.ps1
 lib/node-or-skip.sh plugins/session-flow/lib/node-or-skip.sh
 lib/node-or-skip.ps1 plugins/session-flow/lib/node-or-skip.ps1
 lib/node-or-skip.sh plugins/speech/lib/node-or-skip.sh
 lib/node-or-skip.ps1 plugins/speech/lib/node-or-skip.ps1
+lib/node-or-skip.sh plugins/plugin-diagnostics/lib/node-or-skip.sh
+lib/node-or-skip.ps1 plugins/plugin-diagnostics/lib/node-or-skip.ps1
 lib/read-verification.sh plugins/verification/lib/read-verification.sh
 lib/config-root.sh plugins/verification/lib/config-root.sh
 lib/read-verification.sh plugins/implementation/lib/read-verification.sh
@@ -911,3 +928,9 @@ plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json p
 lib/media-render/media_encode.py plugins/playwright/skills/demo-video/scripts/media_encode.py
 lib/media-render/media_encode.py plugins/pixel-art/scripts/media_encode.py
 lib/media-render/media_encode.py plugins/animation/scripts/media_encode.py
+# The session-telemetry recorder owns the hook event record and the skill-usage store paths;
+# harness-ops' readers resolve the same paths through these copies.
+plugins/session-telemetry/hooks/session-log-lib.sh plugins/harness-ops/hooks/session-log-lib.sh
+plugins/session-telemetry/hooks/harness-ops-paths.sh plugins/harness-ops/hooks/harness-ops-paths.sh
+lib/enabled-plugin-roots.mjs plugins/plugin-diagnostics/lib/enabled-plugin-roots.mjs
+lib/enabled-plugin-roots.mjs plugins/harness-ops/lib/enabled-plugin-roots.mjs

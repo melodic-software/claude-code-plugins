@@ -37,7 +37,8 @@ events) has nothing to wait for here: record it as `not driven: draws nothing` a
 
 A mod that transforms transcript components has no band, toast or panel. First read
 `register.ts` or `register.tsx` for the components it handles (assistant message, user message,
-tool use, tool result), then, once per component the change touches:
+command output, tool use, tool result, question, info notice), then, once per component the change
+touches:
 
 1. `type "<a prompt that makes one of them appear>" --key Enter --session <session>`, choosing a
    prompt whose result holds the text the mod changes. Result: the driver prints `typed`.
@@ -54,3 +55,8 @@ tool use, tool result), then, once per component the change touches:
   every file under `plugins/*/hooks/`: drive both when both are listed.
 - Load only the plugin under test, so a screenshot shows its content alone.
 - Never wait on text the prompt itself holds: the typed prompt shows in the transcript first.
+- A toast can be gone before the next `screenshot`: capture `video` around the step that raises it,
+  as the `mods/toast` feature does.
+- display-redaction's default block style keeps the masked text and recolors it, so step 2 has no
+  new text to wait on there. Wait on `[hidden]`, which it draws for tool use, tool result, question
+  and info notice components, or run with `mask_style` set to `text`.

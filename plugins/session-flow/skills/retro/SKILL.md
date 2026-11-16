@@ -63,8 +63,8 @@ Resolve at runtime, never hardcode machine-specific paths:
 
 | Signal | Mode | Context file |
 |--------|------|-------------|
-| End of session, bare `/session-flow:retro`, post-merge | **session** | `context/session.md`, full 5-phase analysis |
-| "quick retro", short session, limited context | **quick** | `context/quick.md`, abbreviated pass |
+| End of session, bare `/session-flow:retro`, post-merge | **session** | [context/session.md](context/session.md), full 5-phase analysis |
+| "quick retro", short session, limited context | **quick** | [context/quick.md](context/quick.md), abbreviated pass |
 
 Score history across sessions names no retro mode. Before reading any mode, stop on a bare "how am
 I doing", a request for scores, or a `trends` argument, and name `/session-flow:audit-sessions trends`;
@@ -78,7 +78,7 @@ A retro of one pull request (its sessions, its review comments) names no retro m
 A `codify` argument, "codify reviews" or "mine review comments" names no retro mode: one recurring
 mistake, or the lessons in recent merged pull requests' review comments, go to
 `/corrections:codify` (its `reviews` action reads the review comments) when the `corrections`
-plugin is installed. Name that skill and stop; when it is not installed, say that no installed
+plugin is enabled. Name that skill and stop; when it is not enabled, say that no enabled
 skill codifies one mistake or mines review comments, and stop.
 
 `--unattended`, anywhere in `$ARGUMENTS`, is the caller declaring that nobody is present: take it
@@ -104,7 +104,7 @@ checkpoints.
 ### Session settings
 
 The user option session mode reads, as rendered for this run (a literal, unexpanded placeholder
-means unset): `retro_lenses` = `${user_config.retro_lenses}`. `context/session.md` "Review lenses"
+means unset): `retro_lenses` = `${user_config.retro_lenses}`. [context/session.md](context/session.md) "Review lenses"
 resolves it against the repository's `docs/conventions/session-flow.yaml`, which wins.
 
 ## Step 2: Handoff
@@ -123,7 +123,7 @@ default `.work/handoffs/`; or the consuming repo's documented location), the ret
 whole session chain, not just the current session: the
 parser's `--chain-from` walks `previous_handoff` frontmatter pointers
 backwards from the newest handoff file and aggregates metrics across every chained transcript. See
-`context/session.md` Phase 1.
+[context/session.md](context/session.md) Phase 1.
 
 **State the discovery basis, and never present a low-coverage chain retro silently.** The walk
 follows `previous_handoff` pointers, so it stops at the first session that wrote no handoff file,
@@ -190,7 +190,8 @@ live from the records in [reference/native-insights.md](reference/native-insight
 
 ## Spoke paths
 
-The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+This skill's own [context/session.md](context/session.md) and [context/quick.md](context/quick.md),
+beside this SKILL.md, write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
 writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsubstituted.
 
@@ -203,7 +204,7 @@ writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsub
 - /session-flow:audit-sessions sweep: checks whether what this retro found recurs across every
   session on the machine.
 - /session-flow:audit-sessions ticket --pattern '<regex>': every stored session for one work item.
-  Session mode calls it when given `--pattern` (`context/session.md`, "Ticket section").
+  Session mode calls it when given `--pattern` ([context/session.md](context/session.md), "Ticket section").
 
 ## Gotchas
 
@@ -215,8 +216,8 @@ writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsub
   `AGENTS.md` or rules-file line, the guidance tier of
   [reference/enforcement-ladder.md](reference/enforcement-ladder.md)) names its proof in the PR:
   an eval case, or a deletion watch with a date (`/harness-config:unhobble`, when the
-  `harness-config` plugin is installed). A mechanical finding goes to `/corrections:codify`, which
-  proves its own check (when the `corrections` plugin is installed), run once the user picks it at
+  `harness-config` plugin is enabled). A mechanical finding goes to `/corrections:codify` (when
+  the `corrections` plugin is enabled), which proves its own check, run once the user picks it at
   Phase 4
 - **Phase 4 is an interactive checkpoint**, never persist codifications without explicit user
   approval

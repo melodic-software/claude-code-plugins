@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: audit-c8-enforced-prose
+graders:
+  - name: 'pr-title-delete'
+    type: 'regex'
+    pattern: '^[\s>*`_-]*pr-title[*`_\s]*:[*`_\s]*delete\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'force-push-hold'
+    type: 'regex'
+    pattern: '^[\s>*`_-]*force-push[*`_\s]*:[*`_\s]*hold\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meters-keep'
+    type: 'regex'
+    pattern: '^[\s>*`_-]*meters[*`_\s]*:[*`_\s]*keep\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'checks-named'
+    type: 'llm'
+    criteria: 'PASS only if the reply names the pr-title.yml lint-title job as the check enforcing the PR-title line it flags for deletion, and names the block-force-push.sh hook beside the force-push hold, giving a protected class in the instruction exception register (such as a destructive-action or security rail) as the reason the force-push prose stays. FAIL if either check is not named, or the force-push line is flagged for deletion.'

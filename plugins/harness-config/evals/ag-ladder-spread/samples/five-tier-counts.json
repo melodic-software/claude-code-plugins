@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Ladder spread\n\n| Tier | Rules | By rung |\n|---|---|---|\n| 1 Codebase | 1 | make-impossible 1 |\n| 2 Static analysis | 2 | behavior-test 1, harness-setting 1 |\n| 3 Verification | 1 | runtime-verification 1 |\n| 4 Guidance | 4 | instruction 4 |\n| 5 Human only | 1 | human-review 1 |\n\nSits lower than it could: 1 guidance rule(s) forbid a literal that a pattern check could match (candidates to judge, not findings)\n- CLAUDE.md:12: forbids `eval` (instruction)",
+      "why": "the script's table copied as printed"
+    },
+    {
+      "answer": "Ladder spread: Codebase 1 (make-impossible), Static analysis 2 (a deny rule and a test file), Verification 1 (control-quay), Guidance 4, Human only 1.",
+      "why": "the counts restated in prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No scheduled task is worth adding: s1 (nightly test run) is REJECT, CI already runs the tests on every pull request.",
+      "why": "no spread at all"
+    },
+    {
+      "answer": "| 1 Codebase | 0 |\n| 2 Static analysis | 2 |\n| 3 Verification | 1 |\n| 4 Guidance | 4 |\n| 5 Human only | 1 |",
+      "why": "the declared codebase rule is missing"
+    },
+    {
+      "answer": "| 2 Static analysis | 2 |\n| 3 Verification | 1 |\n| 4 Guidance | 4 |",
+      "why": "only three tiers"
+    }
+  ]
+}

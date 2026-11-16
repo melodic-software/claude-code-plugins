@@ -177,7 +177,7 @@ apply() {
     # to drop.
     [[ "$f" != "$new" || ! -f "$f" ]] ||
       keep="$(plain_text "$f" |
-        awk '/^[^ \t#]/ { k = /^pixel_tolerance[ \t]*:/ } k || /^(e2e_driver|reuse_running_instance|browser_driver|tdd_refactor_step|first_test)[ \t]*:/')"
+        awk '/^[^ \t#]/ { k = /^pixel_tolerance[ \t]*:/ } k || /^(e2e_driver|reuse_running_instance|browser_driver|map_unit|map_entry_points|map_report_order|file_findings|file_findings_floor|tdd_refactor_step|first_test)[ \t]*:/')"
     printf '# Test-file scope and rule levels for the testing plugin (/testing:setup).\n%s%s' "$y" "${keep:+$keep$'\n'}" >"$tmp"
     # feature_map_dir is retired; name a dropped value so a legacy map it
     # pointed at still gets converted.

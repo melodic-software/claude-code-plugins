@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "The app-control plugin is not installed. Installing it lets /app-control:drive run the app; or say \"just use what you have\" and I will drive it myself. Which do you want?",
+      "answer": "The app-control plugin is not installed. Installing and enabling it lets /app-control:drive run the app; or say \"just use what you have\" and I will drive it myself. Which do you want?",
       "why": "suggests the plugin"
     }
   ],

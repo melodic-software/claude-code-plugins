@@ -72,7 +72,11 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   with a `/` must be a path there and any other value a plain literal such as a pattern or count
   (`F=<saved>; N=40; head -n "$N" "$F"`), after one opening `cd` there whose directory
   relative paths then resolve against (`cd <dir>; sed -n 1,9p <file>`), and as several such
-  pipelines joined by `;` or `&&`. Any other Bash call (a redirect, another command, a `||`, `&` or
+  pipelines joined by `;` or `&&`. The same reads aimed only at the session's own transcript,
+  `<sandbox>/config/projects/<project>/<session_id>.jsonl` or its `<session_id>/subagents/` (the
+  id from the trace's init line), which a skill that analyzes its own session reads, are set aside
+  with them; a listing or glob of `config/projects`, or another session's file, is a search and
+  keeps the rules below. Any other Bash call (a redirect, another command, a `||`, `&` or
   subshell, a `cd` with a flag or not first, an assignment to `PATH`, `IFS` or another name that
   changes how the shell or a reader works, an unquoted glob, brace or `$`, or a path outside that
   directory), a write, or any other

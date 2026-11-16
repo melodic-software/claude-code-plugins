@@ -5,6 +5,42 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.2.0] - 2026-11-16
+
+### Changed
+
+- `audit-instructions`: prose restating a rule a deterministic check already enforces (a hook, a CI check, a linter rule, a test) is flagged for deletion with the enforcing check named, under a new enforced deletion tier that needs no watch. I5 drops the prose once a must-always rule is converted to a check instead of keeping both, I1 and I8 route an enforced line or step to I5, and protected-class rules in the instruction exception register still hold, with the check reported beside the hold. Eval case 6 now expects the CI-enforced PR-title step to be flagged for deletion rather than kept.
+
+## [5.1.0] - 2026-11-16
+
+### Added
+
+- **Ladder spread in `/harness-config:audit-automation-gaps`.** Present Results prints, read-only
+  and with no target, how many of the repository's rules sit on each of the enforcement ladder's
+  five tiers, and the guidance rules that forbid a literal a pattern check could match ("sits lower
+  than it could", candidates for a person to judge). Both are rollups of one rule-to-enforcer
+  inventory that `scripts/rule-inventory.sh` generates, one row per rule (rule, enforcer, rung,
+  tier), from the repository's settings, ecosystem records, test files, control skills and
+  instruction files. Rung ids and tiers come from the ladder copy the skill carries. A source the
+  script cannot find or read is named, never counted as zero, and so is each source present but not
+  counted: CI workflows, git hook managers, local settings and enabled plugins' hooks.
+- **`rule_inventory.declared` in `harness-config.yaml`.** Rows for rules no file shows, such as a
+  type that makes the mistake impossible; the schema describes the key. The file is read from the
+  convention home, or `docs/conventions` when the repository has no pointer region; a declined home
+  or one that does not resolve gives no declared rows and is named with the reason.
+
+## [5.0.10] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [5.0.9] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract.
+
 ## [5.0.8] - 2026-11-15
 
 ### Changed

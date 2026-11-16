@@ -142,7 +142,7 @@ When the person is done pinning notes, keep what the run directory holds before 
    into `prototype/` in the memory slice: the topic's folder (when nothing names a topic, the
    screen's route in kebab-case, such as `shipments`) under the repository's gitignored
    working-notes directory, `.work/` unless the repository names another (with the `planning`
-   plugin installed, its artifact protocol, "Ownership and placement", owns the folder). The
+   plugin enabled, its artifact protocol, "Ownership and placement", owns the folder). The
    mockup stays in its run directory.
 2. **Map item.** Only when the invocation names a map item (a `/planning:wayfind` prototype item),
    first run the repository's secrets and machine-data check, found as the

@@ -3,6 +3,50 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.1] - 2026-11-16
+
+### Changed
+
+- The interview's description opens with its use for a build request that names no problem, users or scope, such as "add search to the product", so the skill listing shows that case first.
+
+## [5.5.0] - 2026-11-16
+
+### Added
+
+- `/planning:wayfind` charts one data-sharing interview item when a decision selects an outside
+  service that will receive user data: which fields cross, under what agreement, and, in a
+  regulated repository, what must be in place before build (for example a business associate
+  agreement). Its resolution feeds the PRD. A service that receives no user data gets no item.
+- A `wayfind: prototype` item that proves an outside vendor does something routes to
+  `/prototype:pressure-test` in its vendor-fit mode.
+
+### Fixed
+
+- **`/planning:interview`, terminology matrix.** The matrix question no longer stands in for
+  another question's definitions: every question, round 1's included, defines inline each term it
+  relies on.
+- **Eval `interview-context-unfamiliar-term-upstream`.** The prompt states the quality bar, so
+  round 1 asks no bar question that could not show what upstream does.
+
+## [5.4.5] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [5.4.4] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract. `/planning:plan` gates `/discipline:pick-for-the-problem` and `/performance:goal` and names the inline fallback; its `## Next` no longer says the implementation stage runs in the planning session.
+
+## [5.4.3] - 2026-11-16
+
+### Changed
+
+- The shared chrome reference's network panel says a rendered view may load a pinned library from a
+  public CDN when the page still shows its content without it; an Artifact view loads nothing.
+
 ## [5.4.2] - 2026-11-16
 
 ### Changed

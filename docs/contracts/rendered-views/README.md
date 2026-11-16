@@ -1,7 +1,7 @@
 # Rendered Views Convention
 
 The marketplace-wide contract for person-facing rendered views: when a skill's
-deliverable defaults to a self-contained HTML page, when it stays markdown or terminal
+deliverable defaults to an HTML page, when it stays markdown or terminal
 output, how interactive a view is, which content may carry model-written script, how the
 choice is overridden, and what every rendered view owes for security and accessibility.
 The view genres and patterns below come from the "Unreasonable Effectiveness of HTML" corpus (the
@@ -37,7 +37,7 @@ A view sits on one of four tiers, chosen per use case from the defaults below.
 | Tier | What the page does | Script |
 |---|---|---|
 | Static | Presents. Native HTML behavior such as a collapsible section still works. | None |
-| Client-interactive | Reacts to the reader inside the page: filter, sort, collapse, switch tabs, step through, answer a quiz, export state. | Runs in the page only; no network |
+| Client-interactive | Reacts to the reader inside the page: filter, sort, collapse, switch tabs, step through, answer a quiz, export state. | Runs in the page only; no network beyond a CDN library the Security baseline allows |
 | Animated | Moves on its own: timed or stepped motion that shows a process unfolding. | Runs in the page only; honors `prefers-reduced-motion` |
 | Claude-interactive | Sends the reader's input back to the session and shows the reply (questions to the author, a triage decision, a plan edit). | Page script plus the shared session transport (`session-bridge`), and nothing else on the network |
 
@@ -136,9 +136,10 @@ came from, not by who wrote it down.
   injected script runs but cannot fetch, beacon, or submit a form. It can still
   navigate the page to a URL that carries data out, and CSP3 has no directive that
   stops navigation, so the authoring-context rule, not the policy, is what keeps K2
-  text out of a model-written page. The policy also blocks the web fonts and CDN
-  scripts the Artifact host otherwise allows, so a K0 or K1 page inlines everything it
-  uses.
+  text out of a model-written page. The one addition: a page that loads a CDN library
+  under the Security baseline names the path of that library's pinned version, not the bare CDN origin,
+  in `script-src`, or in `style-src` for its stylesheet, and nothing else; every other
+  asset stays inline.
 - The class is a property of the rendered text, not of who asked for the view or where
   it is published. Publishing a K2 page as an artifact does not lower its class.
 
@@ -716,7 +717,12 @@ the checked-in helper in the third bullet instead of this skeleton alone.
 - Everything interpolated into a rendered view is untrusted data: escape `&`, `<`, `>`, <!-- contract-restatement-begin: rendered-views-security-baseline -->
   `"`, and `'` in text and attribute positions; never interpolate unescaped content into
   `<script>` or `<style>`; never build event-handler attributes from input.
-- Views are self-contained: no external requests, no remote scripts, assets inline. <!-- contract-restatement-end: rendered-views-security-baseline -->
+- A view may load a popular, widely used library (a chart or diagram renderer) from a
+  public CDN, pinned to an exact version, and makes no other external request. A page that loads one
+  has a fallback for when the CDN is unreachable: the page still shows its content, as a table,
+  the diagram's source, or plain text. A view destined for a published claude.ai Artifact stays
+  self-contained, assets inline, and so does a page the shared builder or the escape helper
+  emits, which stays under its validator profile (see The interactive validator profile). <!-- contract-restatement-end: rendered-views-security-baseline -->
 - A lane that renders attacker-controlled input (a PR diff, fetched web content, another
   repo's files) must not ship on this skeleton alone. It routes every interpolated
   string through `lib/html-escape.mjs` (the same path inside each adopting plugin,
@@ -851,7 +857,7 @@ Canonical copy: `lib/html-chrome.html`. `scripts/sync-shared-copies.sh` generate
 adopting plugin's `reference/html-chrome.html` from it, with the generated-file header after
 the doctype; edit the canonical, then rerun the script. An adopting plugin registers its copy
 in `scripts/shared-copies.txt` and its path in `scripts/check-html-assets.sh`. The
-visualization, adhd and planning plugins carry it. Skills cite the reference inline by role
+visualization, adhd, planning and architecture plugins carry it. Skills cite the reference inline by role
 (their plugin's own copy), never by a repository path an installed consumer cannot resolve.
 
 The chrome is one for every page family: the system/light/dark toggle (system by default,

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "# One rule per line: <rule-id> <from-dir> <forbidden-dir>\nshared-no-billing src/shared src/billing\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "shared-no-billing src/shared src/billing\nbilling-no-reporting src/billing src/reporting\n"
+    }
+  ]
+}

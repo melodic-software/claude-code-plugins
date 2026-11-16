@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Row 1: custom-analyzer, a typed ESLint rule in eslint-rules/. Rule tests: invalid, logger.info(t) with t typed Secret<string>; valid, logger.info(card.last4). Does not catch: a logger imported under another name, logger[\"info\"](t), or a Secret passed through a helper that logs it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Row 1: custom-analyzer, a typed ESLint rule in eslint-rules/ with valid and invalid RuleTester cases. It catches every way a Secret can reach the logger.",
+      "why": "presents the rule as complete"
+    },
+    {
+      "answer": "Row 1: custom-analyzer, a typed ESLint rule with valid and invalid RuleTester cases, built by /implementation:implement.",
+      "why": "names no limit of the rule"
+    }
+  ]
+}

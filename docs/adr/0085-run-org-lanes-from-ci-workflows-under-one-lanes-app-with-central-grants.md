@@ -220,3 +220,15 @@ adds.
 - `trust-root` gains a rule `base` lacks: revisit Decision 5.
 - A model activity gains a write effect: the refusal class in Decision 6 no longer covers every lane
   write path.
+
+## Amendment (2026-11-16): a `GITHUB_TOKEN` pull request update starts approval-required runs
+
+The Consequences line "A `GITHUB_TOKEN` push starts no workflow run" no longer holds as written.
+GitHub now exempts `pull_request` events with the `opened`, `synchronize` or `reopened` activity
+types: when a workflow using `GITHUB_TOKEN` creates or updates a pull request, "the resulting
+`pull_request` event creates workflow runs in an **approval-required** state"
+([triggering a workflow from a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow),
+fetched 2026-11-16). A `GITHUB_TOKEN` push still starts no `push` run, and the `pull_request` runs
+wait until a user with write access approves them, so `pr-refine`, `pr-unblock` and
+`work-resolve-issue` on that path still get no checks re-run automatically. No decision rests on
+that line, so the decisions stand.

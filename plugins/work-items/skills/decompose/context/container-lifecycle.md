@@ -110,9 +110,9 @@ coordination provider instead of publishing a spec that cannot travel.
 over a published container (status, execution-shape discipline, next step), it routes the close
 back through this ritual, which this skill owns. The container closes when the work ships:
 every sub-item closed, the plan's PR-time close-out done (`/planning:plan close-out` routes its
-container step through this section when the `planning` plugin is installed), and a close-out
+container step through this section when the `planning` plugin is enabled), and a close-out
 review of the shipped whole against the container body passed. Invoke `/review:quality-gate
-close-out --container <container-id>` via the Skill tool when the `review` plugin is installed (it derives the cumulative diff
+close-out --container <container-id>` via the Skill tool when the `review` plugin is enabled (it derives the cumulative diff
 basis per execution shape, judges the container's acceptance criteria, and posts its verdict back
 to the container), otherwise a manual pass against the Brief's acceptance criteria. That review
 produces the verdict; **this ritual owns the close**, a `missing` or `wrong` finding against a

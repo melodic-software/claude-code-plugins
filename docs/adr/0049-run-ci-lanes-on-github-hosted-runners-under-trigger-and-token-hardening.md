@@ -2,6 +2,9 @@
 
 - Status: accepted
 - Date: 2026-10-03
+- Amended by [ADR 0058](0058-mint-lane-app-tokens-through-an-oidc-broker.md): condition 3; and
+  [ADR 0085](0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md):
+  lane model steps hold no write token
 
 ## Context
 
@@ -87,3 +90,35 @@ lane or any other surface keeps `L2`.
 - A listed bot (a review bot, dependabot) can relay text someone else wrote, such as a quote from
   a PR thread or upstream release notes, and the filter keeps it because it judges the item's
   author. This is accepted in the same class as web pages.
+
+## Amendment (2026-11-16): model steps hold no write token, revocation is best effort, and hosted runners gain an egress control
+
+Three statements above no longer hold. The first two changed by decisions already recorded; the
+third by a GitHub product change.
+
+- **No write token in the model step.** The Decision's closing paragraph, the third alternative
+  and the second consequence say a lane holds its job's write token in the model step. Lane model
+  steps now hold no write token: every model activity has a read effect and every write is a
+  scripted job
+  ([ADR 0085](0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md),
+  "Lane model steps hold no write token"), and
+  [`model-job-permissions.test.mjs`](../../.github/scripts/lib/model-job-permissions.test.mjs)
+  fails a model job that holds a write scope.
+- **Revocation is not guaranteed.** Condition 3 and the exposure consequence say the token is
+  revoked when the job ends. The revoke step never fails the job, so a green check is no proof the
+  token was revoked
+  ([ADR 0058](0058-mint-lane-app-tokens-through-an-oidc-broker.md), amendment of 2026-10-12). A
+  token not revoked expires within the hour, which bounds the exposure.
+- **Hosted runners have an egress control the job cannot change.** The Context says a hosted runner
+  has "no egress policy the job cannot change", and the first alternative says "hosted runners offer
+  no default-deny egress". Neither holds as an absolute. GitHub's native egress firewall for hosted
+  runners "operates outside the runner VM at Layer 7" and "remains immutable even if an attacker
+  gains root access inside the runner environment"
+  ([GitHub Actions 2026 security roadmap](https://github.blog/news-insights/product-news/whats-coming-to-our-github-actions-2026-security-roadmap/)),
+  and is in technical preview, enforcing "an allowlist from outside the runner VM, so it holds even
+  if a job is compromised"
+  ([Securing GitHub Actions Workflows](https://learn.github.com/well-architected/library/application-security/recommendations/actions-security/),
+  source
+  [`actions-security.md` at `e4d8f49`](https://github.com/github/github-well-architected/blob/e4d8f49d686c7f6f73aef60c464cf6405eb57e3f/content/library/application-security/recommendations/actions-security.md));
+  both fetched 2026-11-16. The decision stands: lanes run under the five conditions with open
+  egress. Adopting the firewall is a later hardening choice, not made here.

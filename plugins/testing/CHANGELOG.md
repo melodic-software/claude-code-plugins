@@ -3,6 +3,71 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.4.0] - 2026-11-16
+
+### Added
+
+- **Surviving mutants in `testing:test-value`.** A surviving mutant on changed code is named as one
+  signal that a test checks too little, with `/mutation-testing:audit` as the way to get the
+  survivors for a change.
+- **Parallel isolation in `/testing:write`.** The determinism controls give each worker its own
+  database or schema, bind test servers to port 0, give each test its own temp directory, and bar
+  mutating a file or environment variable another worker reads. The agent finds its runner's
+  worker id from the repository's test config and the runner's current docs at run time.
+- Eval cases `tv-surviving-mutant-signal` and `wr-parallel-worker-isolation`.
+
+- `/testing:run-e2e map baseline=<findings.json>` compares the pass with an earlier one through `findings-compare.sh` and writes `compare.json`. The report opens with both pass builds, then the NEW, PRE-EXISTING and GONE findings, each group with one summary line and its findings by severity. Baseline findings whose entry points were not driven are listed apart as `not checked`. A baseline the compare script refuses ends the run before anything is driven. The `map` object of `e2e-summary.json` gains `compare` (the builds and counts) and `filed` (the ids handed to `/bugs:write`).
+- Setting `map_report_order` (default `new,pre-existing,gone`) sets the order of the three groups.
+- Settings `file_findings` (`none` default, or `new`) and `file_findings_floor` (`high` default). Under `new`, the report states the count, then hands each NEW finding at or above the floor to `/bugs:write` with its id. A GONE finding is never closed.
+- All three settings are plugin options and `docs/conventions/testing.yaml` keys, with the repository value winning. `scripts/resolve-config.sh map` resolves them, and the test scan and `/testing:setup` leave them alone.
+
+## [5.3.0] - 2026-11-16
+
+### Added
+
+- `/testing:run-e2e map` drives every feature of the app's control skill one after another, with no base ref and no `affected` call. `features=` narrows the pass and `max_entries=` caps it, with each entry past the cap reported `not checked (cap)`. It records each failed stated result or proof step as a finding, records observed breakage as an `unstated` finding of kind error, crash, refusal, no-output or garbled-output, and reports a blocked entry `not checked` with its reason. It reports each entry's measured wall time and tokens, or null with the reason, plus the pass totals. It refreshes no control skill, edits no tracked file, and writes `findings.json` and `e2e-summary.json` at the top of its run directory.
+- `run-e2e`'s `scripts/finding-id.sh` gives a finding its id: a hash of feature, part, kind and where, without the entry point, so one failure seen through several entry points is one finding.
+- Settings `map_unit` (`feature` default, or `part`) and `map_entry_points` (`all` default, or `first`), as plugin options and as `docs/conventions/testing.yaml` keys, the repository value winning. `scripts/resolve-config.sh map` resolves them, and the test scan and `/testing:setup` leave them alone.
+
+## [5.2.0] - 2026-11-16
+
+### Added
+
+- `run-e2e` has a `findings.json` schema for one live verification pass: each finding's id, feature, part, kind, where, entry points, severity, `stated` or `unstated` label and evidence paths, and the pass's build plus each entry's outcome, wall time and tokens.
+- `run-e2e`'s `scripts/findings-compare.sh` compares two `findings.json` files with no model call. It labels each finding id NEW, PRE-EXISTING, GONE or not checked. An id only shows as GONE when the newer pass drove every entry point the earlier finding listed, and every finding is NEW when no baseline is given.
+
+## [5.1.6] - 2026-11-16
+
+### Fixed
+
+- `/testing:plan` asks each planned test's entry to name its expected-value source per `testing:test-value`, where the entries are written, and suggests `/testing:run-e2e` for an API endpoint change even when no served app exists.
+
+## [5.1.5] - 2026-11-16
+
+### Fixed
+
+- The `worst-case` initials fix skips a generational suffix, so `Christopher Alexander Montgomery III` no longer still yields `CI`, and a field with no limit is reported as "no limit found", which says what the search showed.
+
+## [5.1.4] - 2026-11-16
+
+### Changed
+
+- `/testing:write` now says that with `tdd_refactor_step: off` structure is left to the review plugin's design-smell check. `on` stays the default.
+
+## [5.1.3] - 2026-11-16
+
+### Changed
+
+- The shared hook library resolves `HOOK_TELEMETRY_SINK=@session-telemetry`, and `@harness-ops`, to the session-telemetry launcher.
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [5.1.2] - 2026-11-16
+
+### Changed
+
+- `/testing:run-e2e` takes its own-driving path when app-control is not enabled, and both its route suggestion and its `## Next` name enabling app-control, installing it first if it is not installed, per the seam-phrasing contract.
+
 ## [5.1.1] - 2026-11-15
 
 ### Changed

@@ -24,7 +24,6 @@ computer-use
 context-budget
 context-usage
 context7
-core
 corrections
 coupling
 debugging
@@ -72,6 +71,8 @@ planning
 playbooks
 playgrounds
 playwright
+plugin-diagnostics
+plugin-profiles
 plugin-quality
 powershell-format
 pr-pipeline
@@ -83,6 +84,7 @@ repo-hygiene
 retro-audio
 review
 session-flow
+session-telemetry
 skill-quality
 songwriting
 source-control

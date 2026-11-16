@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "import { cents } from \"../shared/money.js\";\n\nexport function invoiceTotal(lines) {}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "import { cents } from \"../shared/money.js\";\nimport { monthlySummary } from \"../reporting/summary.js\";\n"
+    }
+  ]
+}

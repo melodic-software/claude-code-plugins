@@ -3,6 +3,24 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.1] - 2026-11-16
+
+### Changed
+
+- The worker, verifier and retrieval defaults are rechecked against `CLAUDE_CODE_SUBAGENT_EFFORT` and the Opus 5.5 end-of-turn completion check, with no value changed. Their recheck conditions now fire when the docs say where that variable ranks, and the verifier's model reason records why a smaller completion-check model is not a verifier.
+
+## [3.1.0] - 2026-11-16
+
+### Added
+
+- The fan-out guard section now asks for one pilot worker and a check that plan usage remains before a fan-out wider than about four workers, since a usage limit reached mid-fan-out stops every worker at once.
+
+## [3.0.7] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
 ## [3.0.6] - 2026-11-15
 
 ### Changed

@@ -1,5 +1,45 @@
 # Changelog for the PR pipeline convention
 
+## [10.6.0] - 2026-11-16
+
+### Changed
+
+- A trusted upstream-drift issue (github-actions[bot] wrote it, nobody else last edited it, and its title and first body line are the filer's) reaches the issue lane with no owner step. One rule in `admit.mjs` (`driftIssueId`, through `authorTrust` for a REST read) decides it at every author gate: the triage sweep, which now dispatches intake for it while still skipping every other github-actions[bot] issue; `apply-verdict.mjs`; admission criteria 7 and 9; `check-blockers.mjs`; and `write-issue.mjs`. pr-verify reads the same rule. Its spec is one fixed template (`driftSpecText`) built from the upstream id, with done-when items and the design-change stop, never from its body; pr-verify's drift spec gains those lines. Such an issue is never split: admission takes it at any Size and the lane runs it at `split-child-size`. The filer's own body rewrite after admission no longer stops the lane run.
+
+## [10.5.1] - 2026-11-16
+
+### Changed
+
+- The Merge-Risk section says the pipeline reads no record back, and that a session merging a lanes
+  App pull request does, per the pull-request merge reference §4.2.1.
+
+### Fixed
+
+- The README's identity table now says a pull request `GITHUB_TOKEN` opens or pushes to gets `pull_request` runs that wait for approval, rather than none, and links GitHub's [Triggering a workflow from a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow). The release workflows' header comments say the same.
+
+## [10.5.0] - 2026-11-16
+
+### Changed
+
+- pr-verify takes an issue the upstream-drift workflow filed as the spec of a pull request that
+  closes it and only modifies the `docs/upstream` pages pinned to that upstream on main. The spec
+  text names only the upstream id and those pages, never the issue's body, and the entry carries
+  `source` `upstream-drift`. Every other Bot-written issue still has no spec.
+- `docs/upstream/**` joins the floor as an `enforcement` row and CARRY_REFUSES, since the resolver
+  now reads those pages: a pull request touching them holds as `review-path:` until a clean
+  security review binds to its head, and a push touching them stops an approval carrying.
+
+- `merge.dependabot.trusted-action-owners` lists `melodic-software` beside `anthropics`, so a Dependabot pull request that only moves this organization's own action pins (the `melodic-software/ci-workflows` composite actions) to a tagged commit skips `CI Status`'s trust-gate hold. An own release is this organization's code (owner decision 2026-11-15, the Dependabot policy's `fastTrack`).
+
+- The Dependabot tier rule reads the standards Dependabot policy's `fastTrack.own`: a pull request whose every update it names (this organization's own releases) skips the Actions publisher rule, and below 1.0 only its first version component counts, so a `melodic-software/ci-workflows` 0.x minor bump is tier `auto`. pr-unblock's `dependency-classify.mjs` reads the policy at the base; pr-merge reads it at the base and at the default branch head, and both copies must name every update.
+
+## [10.4.2] - 2026-11-16
+
+### Fixed
+
+- An intake size split files each sub-issue with the issue's `host-run` and `attended` labels, and a retry adds them to a part it reuses, so a part of a host-run issue no longer goes to the issue lane.
+- A line split is no longer filed when one of its parts checks a plugin that the default branch lacks and that no line of that part, or of a part the order puts before it, creates. The lanes App posts the new `unbuilt` decline instead. Refine select records which named plugins the default branch lacks, and apply checks the model's parts against that list.
+
 ## [10.4.1] - 2026-11-16
 
 ### Changed

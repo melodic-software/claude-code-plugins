@@ -512,12 +512,32 @@ After a failed write the other upstreams still run, and the run then exits nonze
   skill (`<plugin>:<skill>` from a `plugins/<plugin>/skills/<skill>/` path, else the id) and tells
   the reader to run the page's path, restore or re-vendor what it names, and read its output in
   the run's job summary. The re-audit footer is written only when a hex-pin page drifted.
-- **`needs-human` on create and reopen.** A created issue carries the `needs-human` label. A
-  reopen adds the label first, then reopens, then replaces the body, so a failed reopen leaves a
-  labeled closed issue and a failed label add leaves the issue closed. An in-place edit of an open
-  issue adds no label. Removing `needs-human` does not admit a bot-authored issue to the issue
-  lane: the lane starts only when a listed person or the lanes App sets the issue's Work status to
-  agent-ready, and an issue this workflow's token opens starts no intake run.
+- **No hold label.** The filer adds no label on create, reopen or edit: a drift issue is not an
+  owner decision, so it carries no `needs-human`, and a re-audit pull request that closes it meets
+  no `needs-human` hold at merge. A reopen reopens, then replaces the body and removes any
+  `needs-human` an earlier filer left, so a failed reopen leaves the closed issue unchanged.
+- **Admission with no owner step.** A trusted drift issue is admitted to the issue lane with no
+  owner step (owner decision on #14215, Q195 (a)). It is trusted only when github-actions[bot] (id 41898282)
+  wrote it, nobody else last edited it (the filer's own weekly rewrite is that bot's edit), its
+  title is exactly `Upstream drift: <owner>/<repo>`, and its first body line is the hex-pin lead
+  the filer writes for that id; `driftIssueId` in `.github/scripts/intake-triage/admit.mjs` is the
+  rule's one home. An issue this workflow's token opens starts no intake run, so the hourly triage
+  sweep is its only way in: the sweep dispatches intake for a trusted drift issue and still skips
+  every other github-actions[bot] issue, since some quote fork-controlled text. Admission accepts
+  it as its author, and its done-when is a fixed template (`driftSpecText`) built from the upstream
+  id, never from the body; every other admission criterion applies unchanged. The issue lane's run and pr-verify read that same
+  template in place of the body. A vendored-copy (`pin=unknown`) issue has a different lead line,
+  so it is not trusted and waits for a session agent or a listed human's issue. Every author gate
+  on the way (the sweep, intake's verdict write, admission, the issue lane's blocker check and its
+  `issue.json` writer) asks the same rule. A trusted drift issue is never split: admission takes it
+  at any Size and the lane runs it at the split-child size, since one template covers one
+  upstream's pages. The filer's weekly body rewrite between admission and the lane run does not
+  stop the run, which never reads the body; any other editor's change still does.
+- **No upstream-chosen text in the body.** The sweep's intake run hands the whole body to
+  intake's triage model, so the filer writes only text it controls: the upstream id, the hex pin
+  and head, this repository's own page and check-script paths, and per hex-pin page the counts of
+  changed rows, new units and removed units. It never writes a row's or unit's path, since the
+  upstream chose those names.
 - **`untracked` and `unreachable` block close.** An upstream with any `untracked` or
   `unreachable` page is never closed as clean,
   even beside a `clean` page, and since the report names it, the sweep leaves its issue alone too.
@@ -526,10 +546,27 @@ After a failed write the other upstreams still run, and the run then exits nonze
   neither reopens it nor files another. An open issue's body is replaced in place on each drifted
   run, with no label change and no comment.
 
-Whether to adopt an
-upstream change stays a person's decision: the issue is the to-do, and re-auditing the rows, which
-moves the pin and records the outcome as [When a trigger fires](#when-a-trigger-fires) requires, is
-what closes it.
+The issue is the to-do, and an agent works it. For a git-pinned page, the agent lists the changed
+rows and units itself by running `scripts/check-upstream-drift.sh --page <page>`, since the issue
+names none, then re-audits them against the upstream head, following the page's recheck trigger and
+any re-pin procedure the page states. It marks each upstream change **take**, **adapt** or
+**reject** (or **already-have**, on a page whose rows use it). It moves the pin, records each
+disposition as [When a trigger fires](#when-a-trigger-fires) requires, and opens one pull request
+per upstream that closes the issue. For a `pin=unknown` row, the agent restores or re-vendors what
+the row's check script names. Either pull request merges through the
+[loop lanes](../loop-lane/README.md) like any other. The pr-verify verifier takes the drift issue as
+the spec of a pull request that closes it and changes only that upstream's pages, from the upstream
+id and the page paths alone
+([pr-pipeline, trusted spec](../../conventions/pr-pipeline/README.md)); a pull request that also
+applies a take or adapt elsewhere, or restores a vendored copy, links a listed human's issue.
+
+One case goes to the owner: a take or adapt that would change the design of one of this
+repository's skills. The agent does not apply that change. It files the change as its own
+`needs-human` issue, lists it in the pull request body with a link to that issue, and cites that
+issue in the row's disposition. The rest of the re-audit, the pin move included, still lands. An
+issue lane run cannot file an issue, so a run working an admitted drift issue stops with
+`design-change` naming that change instead; the lane routes that stop to a person's hold, which
+puts `needs-human` on the drift issue, and the owner decides it there.
 
 ### Claude Code release intake
 
@@ -551,7 +588,7 @@ Classified per `melodic-software/standards` `standards/engineering/enforceabilit
 | A pointer carries no as-of date or recheck trigger | **Detect-then-judge**, not built: a stamp beside a pointer is greppable, and whether the record holds a number or string copied or measured from upstream is a judgment. |
 | Every stored-value stamp carries a recheck trigger | **Deterministic** by nature (a presence check) once stamps and triggers use greppable forms. The check, flagging a dated stamp in a file that states no trigger, is **built, off by default, repo override enabled**: `/attribution:audit` runs it when `trigger_less_stamp_check` is true, the shipped default is false, and this repository sets it true in `docs/conventions/attribution.yaml`. It was built after its build trigger, a trigger-less stamp landing on `main` again, fired. |
 | The trigger clears the observability bar | **Reasoning-only**. Whether an event is decidable from evidence is a judgment about meaning. |
-| A trigger has fired | **Detect-then-judge** for [pinned git upstreams](#pinned-git-upstreams): `scripts/check-upstream-drift.sh` flags a change under a linked path or scope, and a person decides whether the change touches the decision, and for the Claude Code changelog record, where [the release intake lane](#claude-code-release-intake) takes in each unread release. **Reasoning-only** for every other stored value today; detect-then-judge there too if a hash store lands: the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
+| A trigger has fired | **Detect-then-judge** for [pinned git upstreams](#pinned-git-upstreams): `scripts/check-upstream-drift.sh` flags a change under a linked path or scope, and the re-auditing agent decides whether the change touches the decision ([Weekly drift issues](#weekly-drift-issues) says when the owner decides). **Detect-then-judge** too for the Claude Code changelog record, where [the release intake lane](#claude-code-release-intake) takes in each unread release. **Reasoning-only** for every other stored value today; detect-then-judge there too if a hash store lands: the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
 
 ### Recorded decision: an adoption gate is deferred, and the check named above would have missed the case that prompted it
 

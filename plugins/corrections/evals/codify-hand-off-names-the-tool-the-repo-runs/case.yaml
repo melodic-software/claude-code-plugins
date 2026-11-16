@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: codify-hand-off-names-the-tool-the-repo-runs
+description: 'Gain case: a layer-boundary row in a Python repository that already runs import-linter takes architecture-test, and the build hand-off names that tool and /implementation:implement rather than an architecture-test library for another ecosystem.'
+tags: [codify]
+plugins: ["../.."]
+expected_outcome: 'Row 1 is architecture-test. The hand-off names import-linter (its pyproject contract or the lint-imports command) as the tooling the check is built in, names /implementation:implement as the builder, and names no .NET or JavaScript architecture-test library.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify findings findings.md What rung does the row get, and what is the next step? This run has no Bash tool: skip the proof and report the check as unproven, and present the proposal in the report, writing nothing.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: names-the-repo-tool
+    type: 'regex'
+    pattern: '^(?=[\s\S]*architecture-test)(?=[\s\S]*(?:import-linter|importlinter|lint-imports))(?=[\s\S]*/implementation:implement)'
+    flags: 'i'
+    arm: 'both'
+  - name: names-no-other-ecosystem-tool
+    type: 'regex'
+    pattern: 'ArchUnit|dependency-cruiser|depcruise'
+    flags: 'i'
+    match: 'not_contains'
+    arm: 'both'

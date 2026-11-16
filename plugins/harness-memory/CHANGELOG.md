@@ -3,6 +3,24 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.0] - 2026-11-16
+
+### Changed
+
+- `audit`: C8 flags a CLAUDE.md instruction a deterministic check already enforces for deletion, naming the check, and holds an instruction matching a protected class in the instruction exception register. The cross-file pass that detects already-enforced instructions now reports them under C8.
+
+## [2.1.24] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [2.1.23] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract.
+
 ## [2.1.22] - 2026-11-15
 
 ### Changed

@@ -6,8 +6,8 @@ disable-model-invocation: false
 allowed-tools:
   - "Bash(ctx7 --version*)"
 metadata:
-  upstream-version: upstash/context7@ceaf5f91f48949eaa6e4da5e66f3f59d1b44556d
-  synced: 2026-11-03
+  upstream-version: upstash/context7@4087030ad2dc16578130e2dab1e48ba735f8ea38
+  synced: 2026-11-16
   workflow-stage: research
   summary: Look up current library docs, API references, and examples via Context7
 shell: bash

@@ -252,7 +252,9 @@ the `verification` level (`off | light | standard | strict`, default `light`, wi
 `verification_skills`), read from the default branch only by `lib/read-verification.sh`, which
 decides whether `audit-automation-gaps`, `audit-instructions`, `audit-pass` and
 `audit-prompting-postures` dispatch their fresh-context verifiers
-([levels](../../docs/contracts/verification-level/README.md)).
+([levels](../../docs/contracts/verification-level/README.md)). Its `rule_inventory.declared`
+list adds rows to the rule-to-enforcer inventory `audit-automation-gaps` prints, for rules no
+file shows, such as a type that makes the mistake impossible.
 Persistent plugin state: `audit-pass` writes its run reports and manifests under
 `${CLAUDE_PLUGIN_DATA}`, which resolves under `~`, outside a target below the home directory and
 inside one at or above it. `audit-instructions` keeps its run files under

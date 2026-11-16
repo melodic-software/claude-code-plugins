@@ -78,6 +78,82 @@ def tier(
     return dependabot.classify(title, body, ref, ci, list(commits))
 
 
+RUN_CLI = "melodic-software/ci-workflows/.github/actions/run-claude-cli"
+OWN_REF = "dependabot/github_actions/first-party-actions-0a1b2c3d4e"
+OWN = (("melodic-software/*",),)
+
+
+def own(
+    title: str, *, body: str = "", commits=(), globs=OWN
+) -> dependabot.Classification:
+    return dependabot.classify(title, body, OWN_REF, "success", list(commits), globs)
+
+
+def own_group(*lines: tuple[str, str, str]) -> tuple[str, str]:
+    title = f"build: Bump the first-party-actions group across 1 directory with {len(lines)} updates"
+    return title, "".join(f"Updates `{n}` from {a} to {b}\n" for n, a, b in lines)
+
+
+class OwnReleases(unittest.TestCase):
+    """The policy's `fastTrack.own`, as ci-workflows' automerge-dependabot gate
+    reads it; vector for vector with dependency-classify.test.mjs."""
+
+    def test_an_own_release_0x_minor_update_is_auto(self) -> None:
+        other = RUN_CLI.replace("run-claude-cli", "select-model-credential")
+        title, body = own_group((RUN_CLI, "0.74.0", "0.75.0"), (other, "0.74.0", "0.75.0"))
+        result = own(title, body=body)
+        self.assertEqual((result.tier, result.reasons), ("auto", ()))
+        self.assertIs(result.updates[0].major, False)
+        commits = [commit(metadata((RUN_CLI, "semver-minor", "0.75.0")))]
+        result = own(f"build: Bump {RUN_CLI} from 0.74.0 to 0.75.0", commits=commits)
+        self.assertEqual(result.reasons, ())
+
+    def test_an_own_release_patch_update_is_auto(self) -> None:
+        commits = [commit(metadata((RUN_CLI, "semver-patch", "0.74.1")))]
+        result = own(f"build: Bump {RUN_CLI} from 0.74.0 to 0.74.1", commits=commits)
+        self.assertEqual(result.tier, "auto")
+
+    def test_an_own_release_first_component_major_stays_review(self) -> None:
+        title = f"build: Bump {RUN_CLI} from 0.75.0 to 1.0.0"
+        self.assertEqual(own(title).reasons, (f"major:{RUN_CLI}",))
+        commits = [commit(metadata((RUN_CLI, "semver-major", "1.0.0")))]
+        self.assertEqual(own(title, commits=commits).reasons, (f"major:{RUN_CLI}",))
+
+    def test_a_group_mixing_an_own_release_and_a_third_party_action_is_unchanged(
+        self,
+    ) -> None:
+        title, body = own_group(
+            (RUN_CLI, "0.74.0", "0.75.0"), ("someone/action", "1.0.0", "1.1.0")
+        )
+        self.assertEqual(
+            own(title, body=body).reasons,
+            (f"major:{RUN_CLI}", f"publisher:{RUN_CLI}", "publisher:someone/action"),
+        )
+
+    def test_with_no_policy_copy_or_no_fast_track_own_an_own_release_is_unchanged(
+        self,
+    ) -> None:
+        title, body = own_group((RUN_CLI, "0.74.0", "0.75.0"))
+        for globs in (
+            (),
+            (dependabot.own_globs(None),),
+            (dependabot.own_globs({"fastTrack": {"own": "melodic-software/*"}}),),
+            (("melodic-software/*",), ()),
+        ):
+            with self.subTest(globs=globs):
+                result = own(title, body=body, globs=globs)
+                self.assertEqual(result.tier, "review")
+                self.assertIn(f"major:{RUN_CLI}", result.reasons)
+                self.assertIn(f"publisher:{RUN_CLI}", result.reasons)
+
+    def test_own_globs_reads_fast_track_own(self) -> None:
+        policy = {"fastTrack": {"own": ["melodic-software/*"]}}
+        self.assertEqual(dependabot.own_globs(policy), ("melodic-software/*",))
+        for bad in (None, {}, {"fastTrack": []}, {"fastTrack": {"own": [""]}}):
+            with self.subTest(policy=bad):
+                self.assertEqual(dependabot.own_globs(bad), ())
+
+
 class Classify(unittest.TestCase):
     def test_a_patch_or_1x_minor_update_is_auto(self) -> None:
         for title in (

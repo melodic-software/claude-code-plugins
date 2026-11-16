@@ -18,8 +18,8 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { createRateLimitLatch, RateLimitStop } from "../../actions/log-api-budget/rate-guard.mjs";
+import { CI_WORKFLOWS, FLOOR_NOTE, floorNoted, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1185,7 +1185,9 @@ test("a main-run review re-run shares the cap of 3 with pr-verify re-runs, oldes
 const doneChecks = (id, n, done) => run(id, sha(n), { conclusion: "success", created: "2026-10-19T16:50:00Z", updated: done });
 const deferredLanes = (log) => log.mock.calls.map((c) => c.arguments[0]).filter((line) => / deferred, /.test(line)).map((line) => Number(/lane run ([0-9]+) /.exec(line)?.[1]));
 
-test("lane runs of open heads go first, oldest first, ahead of an older run whose PR is gone and of newer runs", async (t) => {
+const supersededLanes = (log) => log.mock.calls.map((c) => c.arguments[0]).filter((line) => /judges no open head/.test(line)).map((line) => Number(/lane run ([0-9]+) /.exec(line)?.[1]));
+
+test("lane runs of open heads go first, oldest first, ahead of newer runs, and a run older than every open head's checks is not re-run", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   const { code, reruns } = await reconcile({
     pulls: [pr(1), pr(2)],
@@ -1201,8 +1203,9 @@ test("lane runs of open heads go first, oldest first, ahead of an older run whos
     ],
   });
   assert.equal(code, 0);
-  assert.deepEqual(reruns, [211, 212, 210], "the two matched runs, then the oldest unmatched one");
-  assert.deepEqual(deferredLanes(log), [221, 222, 223], "every lane run not re-run is named as deferred");
+  assert.deepEqual(reruns, [211, 212, 221], "the two matched runs, then the oldest unmatched one");
+  assert.deepEqual(deferredLanes(log), [222, 223], "every live lane run not re-run is named as deferred");
+  assert.deepEqual(supersededLanes(log), [210], "the run created an hour before the oldest open head's checks completed is named, not deferred");
 });
 
 test("a second lane run for one head goes behind every matched run, while each lane matches the head once", async (t) => {
@@ -1225,9 +1228,10 @@ test("a second lane run for one head goes behind every matched run, while each l
 
 test("a lane run created more than 60 s before or 15 minutes after a head's checks completion is not matched", async () => {
   const { code, reruns } = await reconcile({
-    pulls: [pr(1)],
+    pulls: [pr(1), pr(2)],
     runs: [
       doneChecks(101, 1, "2026-10-19T17:00:00Z"),
+      doneChecks(102, 2, "2026-10-19T15:00:00Z"),
       verifyRun(240, { created: "2026-10-19T16:00:00Z" }),
       verifyRun(241, { created: "2026-10-19T16:58:59Z" }),
       verifyRun(242, { created: "2026-10-19T17:15:01Z" }),
@@ -1237,7 +1241,118 @@ test("a lane run created more than 60 s before or 15 minutes after a head's chec
   assert.equal(code, 0);
   // 241 is 61 s before the completion and 242 is 15 min 1 s after; 244, at
   // 14 min 59 s after, is the one match, and the rest go oldest first.
-  assert.deepEqual(reruns, [244, 240, 241]);
+  assert.deepEqual(reruns, [244, 240, 241], "head 2's checks done at 15:00 match no run, and keep every run created after them");
+});
+
+test("a lost lane run created before every open head's checks completed is not re-run, while the head's newest run is, and the pass writes clean", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { code, reruns, outputs } = await reconcile({
+    pulls: [pr(1)],
+    runs: [
+      doneChecks(101, 1, "2026-10-19T19:00:00Z"),
+      verifyRun(250, { created: "2026-10-19T17:00:04Z" }),
+      verifyRun(251, { created: "2026-10-19T16:30:00Z" }),
+      verifyRun(252, { created: "2026-10-19T19:00:04Z" }),
+      heldRun(253, { created: "2026-10-19T16:00:00Z" }),
+    ],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [252, 253], "the head's newest run, and the held run, which is never left out");
+  assert.deepEqual(supersededLanes(log).sort(), [250, 251], "250 followed head 1's checks before they completed again at 19:00, and 251 follows no open head");
+  assert.deepEqual(deferredLanes(log), []);
+  assert.equal(outputs.clean, "true", "a left-out run defers nothing");
+});
+
+test("a lost lane run created from 60 s before to 2 hours after an open head's checks completed is re-run, outside the 15-minute match window too", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { reruns } = await reconcile({
+    pulls: [pr(1)],
+    runs: [
+      doneChecks(101, 1, "2026-10-19T17:00:00Z"),
+      verifyRun(260, { created: "2026-10-19T17:40:00Z" }),
+      verifyRun(261, { created: "2026-10-19T16:59:30Z" }),
+      verifyRun(262, { created: "2026-10-19T18:59:00Z" }),
+      verifyRun(263, { created: "2026-10-19T16:58:59Z" }),
+      verifyRun(264, { created: "2026-10-19T19:00:01Z" }),
+    ],
+  });
+  assert.deepEqual(reruns, [261, 260, 262], "30 s before, 40 minutes after and 1 minute short of 2 hours after are kept");
+  assert.deepEqual(supersededLanes(log).sort(), [263, 264], "61 s before and 2 hours 1 s after are left out");
+});
+
+test("an open head untouched for hours keeps only the lost runs near its own checks, not every later stale run", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { reruns } = await reconcile({
+    pulls: [pr(1), pr(2)],
+    runs: [
+      doneChecks(101, 1, "2026-10-19T08:00:00Z"),
+      doneChecks(102, 2, "2026-10-19T19:00:00Z"),
+      verifyRun(265, { created: "2026-10-19T09:00:00Z" }),
+      verifyRun(266, { created: "2026-10-19T15:00:00Z" }),
+    ],
+  });
+  assert.deepEqual(reruns, [265], "an hour after head 1's checks, so possibly head 1's");
+  assert.deepEqual(supersededLanes(log), [266], "seven hours after head 1's checks and four before head 2's");
+});
+
+test("no lost lane run is left out when an open head's runs could not be listed", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { reruns } = await reconcile({
+    pulls: [pr(1), pr(2)],
+    runs: [doneChecks(101, 1, "2026-10-19T17:00:00Z"), verifyRun(270, { created: "2026-10-19T16:00:00Z" })],
+    fail: { [`GET /repos/${REPO}/actions/runs?head_sha=${sha(2)}&per_page=100`]: new GitHubError(500, "boom") },
+  });
+  assert.deepEqual(reruns, [270], "head 2's checks may have completed before 16:00");
+  assert.deepEqual(supersededLanes(log), []);
+});
+
+test("a newer failed checks run leaves out a lost verify run, which it starts again, but keeps a lost main-run review, which only a passed one starts", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { reruns, outputs } = await reconcile({
+    pulls: [pr(1)],
+    runs: [
+      run(101, sha(1), { conclusion: "success", created: "2026-10-19T16:50:00Z", updated: "2026-10-19T17:00:00Z" }),
+      failed(102, sha(1), { jobs: MIXED_JOBS, updated: "2026-10-19T19:00:00Z" }),
+      mainReviewRun(330, { created: "2026-10-19T17:00:04Z" }),
+      verifyRun(331, { created: "2026-10-19T17:00:30Z" }),
+    ],
+  });
+  assert.deepEqual(reruns, [330], "pr-review-main runs only on a passed checks run, so nothing replaces the 17:00:04 review");
+  assert.deepEqual(supersededLanes(log), [331], "pr-verify runs on a failed checks run too, so the 19:00 run started a newer one");
+  assert.deepEqual(deferredLanes(log), []);
+  assert.equal(outputs.clean, "true", "the review takes a place this pass, so no recovery work waits");
+});
+
+test("pr-verify and pr-review-main still start on the checks conclusions LANE_TRIGGERS names", () => {
+  for (const [lanePath, conclusions] of LANE_TRIGGERS) {
+    const workflow = readFileSync(new URL(`../../../${lanePath}`, import.meta.url), "utf8");
+    const tests = [...workflow.matchAll(/github\.event\.workflow_run\.conclusion == '([a-z_]+)'/g)].map((m) => m[1]);
+    assert.ok(tests.length > 0, `${lanePath} tests the upstream conclusion`);
+    assert.deepEqual([...new Set(tests)].sort(), [...conclusions].sort(), lanePath);
+  }
+});
+
+test("left-out lane runs take no place: four live runs fill the 3 places and one waits, deferred", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { reruns, outputs } = await reconcile({
+    pulls: [pr(1), pr(2), pr(3), pr(4)],
+    runs: [
+      doneChecks(101, 1, "2026-10-19T17:00:00Z"),
+      doneChecks(102, 2, "2026-10-19T17:10:00Z"),
+      doneChecks(103, 3, "2026-10-19T17:20:00Z"),
+      doneChecks(104, 4, "2026-10-19T17:30:00Z"),
+      verifyRun(279, { created: "2026-10-19T15:00:00Z" }),
+      verifyRun(280, { created: "2026-10-19T16:00:00Z" }),
+      verifyRun(281, { created: "2026-10-19T17:00:04Z" }),
+      verifyRun(282, { created: "2026-10-19T17:10:04Z" }),
+      verifyRun(283, { created: "2026-10-19T17:20:04Z" }),
+      verifyRun(284, { created: "2026-10-19T17:30:04Z" }),
+    ],
+  });
+  assert.deepEqual(reruns, [281, 282, 283]);
+  assert.deepEqual(deferredLanes(log), [284]);
+  assert.deepEqual(supersededLanes(log), [279, 280]);
+  assert.equal(outputs.clean, "", "a deferred live run keeps the pacer running the next tick");
 });
 
 test("a non-operational Actions status records nothing", async () => {
@@ -3075,4 +3190,122 @@ test("the pending backoff is at least rerun-ci-status's time limit", () => {
   const limit = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(job)?.[1]);
   assert.ok(limit > 0, "rerun-ci-status sets timeout-minutes");
   assert.ok(PENDING_BACKOFF_MINUTES >= limit);
+});
+
+// Runs that failed only where the GITHUB_TOKEN hit its rate-limit floor on
+// 2026-11-16 (#16642). The annotations are recorded: CI Status of #16615 (check
+// run 133584509558, failed alone), and Mark Lanes and CI Status of #16633
+// (133589388248, 133592162315).
+const FLOOR = fixture("annotations-floor.json");
+const floorStatus = (notes = FLOOR["ci-status-133584509558"]) => [
+  { id: 601, name: "Lint Repo", status: "completed", conclusion: "success", steps: [] },
+  { id: 602, name: "CI Status", status: "completed", conclusion: "failure", steps: [], notes },
+];
+const markLanes = (notes = FLOOR["mark-lanes-133589388248"]) => [
+  {
+    id: 611,
+    name: "Mark Lanes",
+    status: "completed",
+    conclusion: "failure",
+    steps: [
+      { name: "Set up job", number: 1, status: "completed", conclusion: "success" },
+      { name: "Mark the lanes in flight", number: 2, status: "completed", conclusion: "failure" },
+      { name: "Complete job", number: 3, status: "completed", conclusion: "success" },
+    ],
+    notes,
+  },
+  { id: 612, name: "CI Status", status: "completed", conclusion: "failure", steps: [], notes: FLOOR["ci-status-133592162315"] },
+];
+// ci-status's human-gated error (pr-require-checks.yml), a failure no re-run clears.
+const GATED_LINE = "#1 carries 'human-gated'. Removing the label approves this pull request; ci-status re-runs on the unlabel.";
+const failure = (message) => ({ annotation_level: "failure", message });
+
+test("a CI Status that failed alone at the rate-limit floor has its failed jobs re-run once, recorded", async () => {
+  const { code, failedJobReruns, reruns, outputs } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: floorStatus() })] });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [101]);
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, "", ""]);
+});
+
+test("a Mark Lanes refusal at the floor is re-run before lane runs; a real Mark Lanes failure waits behind them as a flake", async () => {
+  const lanes = [201, 202, 203].map((id, i) => verifyRun(id, { created: `2026-10-19T19:3${i}:00Z` }));
+  const floor = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: markLanes() }), ...lanes] });
+  assert.deepEqual(floor.failedJobReruns, [101]);
+  assert.deepEqual(floor.reruns, [201, 202]);
+  assert.deepEqual(records(floor.outputs), [`reconcile-rerun-101-2-${sha(1)}`, `reconcile-rerun-201-2-${MAIN_TIP}`, `reconcile-rerun-202-2-${MAIN_TIP}`]);
+  const real = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: markLanes([failure("Process completed with exit code 1."), failure("ci-lanes is not a status this run may write.")]) }), ...lanes] });
+  assert.deepEqual(real.failedJobReruns, []);
+  assert.deepEqual(real.reruns, [201, 202, 203]);
+});
+
+test("a CI Status failure that is not only the floor's is not re-run", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const cases = [
+    ["a real error beside a refusal", floorStatus([...FLOOR["ci-status-133584509558"], failure(GATED_LINE)])],
+    ["a real error alone", floorStatus([failure("Process completed with exit code 1."), failure(GATED_LINE)])],
+    ["a server error's Retry-After hold", floorStatus([failure("'gh api x' was not sent: GitHub answered HTTP 502 with a Retry-After; no call to it before 2026-11-16T21:19:18Z")])],
+  ];
+  for (const [what, jobs] of cases) {
+    const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs })] });
+    assert.equal(code, 0, what);
+    assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), [], what);
+  }
+});
+
+test("a floor failure is re-run once: not at attempt 2, nor past the lookback", async () => {
+  for (const opts of [{ attempt: 2 }, { created: "2026-10-18T19:00:00Z" }]) {
+    const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: floorStatus(), ...opts })] });
+    assert.equal(code, 0);
+    assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+  }
+});
+
+test("a floor failure on a closed or draft PR, or on a head the PR has moved from, is left alone", async () => {
+  const runs = [failed(101, sha(1), { jobs: floorStatus() })];
+  for (const pulls of [[], [pr(1, { draft: true })], [{ ...pr(1), head: { ...pr(1).head, sha: sha(2) } }]]) {
+    const { code, calls } = await reconcile({ pulls, runs });
+    assert.equal(code, 0);
+    assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+  }
+  // Closed or pushed between the listing and the write.
+  for (const changed of [{ state: "closed" }, { head: { ...pr(1).head, sha: sha(2) } }]) {
+    const moved = (github) => async (method, apiPath, body) => (method === "GET" && apiPath.endsWith("/pulls/1") ? { ...pr(1), ...changed } : github(method, apiPath, body));
+    const { code, outputs, failedJobReruns } = await reconcile({ pulls: [pr(1)], runs, github: moved });
+    assert.equal(code, 0);
+    assert.equal(outputs["record-1"], `reconcile-rerun-101-2-${sha(1)}`, "the plan took it");
+    assert.deepEqual(failedJobReruns, []);
+  }
+});
+
+test("a review a kill switch stopped on a floor-failed head is re-run the pass after its checks run", async () => {
+  const first = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: floorStatus() }), stoppedRun(201, sha(1))] });
+  assert.deepEqual(first.failedJobReruns, [101], "the checks run first, so its CI Status can name the stopped review");
+  assert.deepEqual(first.reruns, []);
+  const second = await reconcile({ pulls: [pr(1)], runs: [redChecks(101, sha(1), { attempt: 2 }), stoppedRun(201, sha(1))] });
+  assert.deepEqual(second.reruns, [201]);
+});
+
+test("a pass that defers floor work writes no clean, so the pacer runs the next tick; deferred flakes still write it", async () => {
+  const pulls = [1, 2, 3, 4].map((n) => pr(n));
+  const floors = await reconcile({ pulls, runs: [1, 2, 3, 4].map((n) => failed(100 + n, sha(n), { jobs: floorStatus() })) });
+  assert.deepEqual(floors.failedJobReruns, [101, 102, 103]);
+  assert.equal(floors.outputs.clean, "");
+  const flakes = await reconcile({ pulls, runs: [1, 2, 3, 4].map((n) => failed(100 + n, sha(n), { jobs: MIXED_JOBS, updated: "2026-10-19T19:00:00Z" })) });
+  assert.deepEqual(flakes.failedJobReruns, [101, 102, 103]);
+  assert.equal(flakes.outputs.clean, "true");
+});
+
+test("each rate guard still words its floor refusal as the reconciler matches it", () => {
+  assert.ok(floorNoted([failure(new RateLimitStop("'gh api repos/o/r/pulls/1/files'", "core", 1794864751).message)]));
+  const guard = readFileSync(new URL("../../actions/log-api-budget/rate-guard.mjs", import.meta.url), "utf8");
+  for (const what of ["at or under its stop-floor share ${stopFloor} (status ${response.status})", "hit GitHub's ${poolLabel(verdict.pool)} rate limit (status ${response.status})"]) {
+    assert.ok(guard.includes(what), what);
+  }
+  assert.ok(guard.includes("${method} ${url} ${what}: no call to it before ${resetLabel(verdict.reset)}"));
+  assert.match("GET u left GitHub's core API 65 of 5000 requests, at or under its stop-floor share 0.02 (status 200): no call to it before 2026-11-16T20:32:29Z (x-ratelimit-reset); this step fails", FLOOR_NOTE);
+  assert.match("GET u hit GitHub's core API rate limit (status 403): no call to it before 2026-11-16T20:32:29Z (x-ratelimit-reset); this step fails", FLOOR_NOTE);
+  const checks = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
+  assert.ok(checks.includes(`'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")`));
+  assert.ok(checks.includes(`'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3)`));
 });

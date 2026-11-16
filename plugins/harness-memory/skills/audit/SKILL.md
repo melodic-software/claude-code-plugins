@@ -70,9 +70,9 @@ prohibitions without rationale, reasoning-echo directives, think-carefully steer
 steers, settled-answers lines on analysis surfaces, and stale example scaffolding fall there.
 Guidance a long-run file *lacks* (when to stop and when to keep going, a finish line, a task file,
 the end-of-run report shape) is that plugin's `audit-prompting-postures`. When
-that plugin is installed, route such findings to `/harness-config:audit-instructions` or
+that plugin is enabled, route such findings to `/harness-config:audit-instructions` or
 `/harness-config:audit-prompting-postures`, invoked via the Skill tool, rather than
-judging them against this checklist; when it is not installed, keep each as a criteria-free
+judging them against this checklist; when it is not enabled, keep each as a criteria-free
 observation in this audit's report (never a checklist finding, never silently dropped) so the
 operator can weigh it against current official prompting guidance.
 
@@ -193,7 +193,7 @@ such findings under a `REPO` check-ID so they stay distinct from the doc-derived
 ## Complementary workflows
 
 The `claude-md-management` plugin from Anthropic's `claude-plugins-official` marketplace
-complements this health check when it is installed. Run this audit first to identify issues.
+complements this health check when it is enabled. Run this audit first to identify issues.
 Absent that plugin, the fix mode here stands on its own.
 
 - **Pointer**: for what the plugin's skill and command do, read its

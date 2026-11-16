@@ -3,6 +3,34 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.7.0] - 2026-11-16
+
+### Added
+
+- `setup check inspect` lists what runs at each git hook stage in the repository, under whichever hook manager it uses (plain hooks, husky, Husky.Net, lefthook, git config hooks, or a hook no manager owns), and times this plugin's own entries that change no files, from installed copies that still match what the plugin ships, on the staged set, a message file or the branch against its upstream. Every other hook, an edited, forged or older copy, and a git config hook the repository disables is listed as not run, with the reason; a script path outside the work tree and the hooks directory is never followed. The installer's new `inspect` action is read-only.
+- The git-hook installer detects Husky.Net (`.husky/task-runner.json`) as husky with `variant: "husky.net"`, so it installs as husky does, and `inspect` lists the Husky.Net tasks a `husky run --group` or `--name` line selects.
+- Setup's `husky-config` decision says how to create a new `.husky/<event>` under Husky.Net: with `#!/bin/sh`, executable and staged at mode 100755, since git runs that file directly there and skips one that is not executable.
+
+## [3.6.0] - 2026-11-16
+
+### Added
+
+- **`settings-write-ask`, from context-budget.** A PreToolUse checkpoint on Write, Edit and NotebookEdit that asks before a file-editing tool writes a settings file Claude Code reads. Its decisions are unchanged; the reason now opens with `guardrails:`. Option `settings_write_ask_enabled` (on by default). The README's "Settings-write ask" section carries its limits and the #3864 decision.
+- **`connected-page-gate`, from review.** A PreToolUse guard on the Artifact tool that denies publishing an HTML page whose content security policy names a loopback `connect-src`. Its decisions are unchanged; the reason now opens with `guardrails:`. Option `connected_page_guard_enabled` (on by default).
+- Anyone who had set either option under context-budget or review sets it again under guardrails: the old values do not carry over.
+
+## [3.5.1] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [3.5.0] - 2026-11-16
+
+### Added
+
+- New guard `block-lane-pr-disable-auto` on the Bash tool blocks `gh pr merge <n> -R <owner>/<repo> --disable-auto`, and the `disablePullRequestAutoMerge` mutation through `gh api graphql`, on a pull request the lanes App (`melodic-automation-lanes[bot]`) opened (#16484). A session runs under the owner's login, so the pr-merge lane read such a disable as the owner's veto and never armed the pull request again (#14799, #16372). The block says to hold the pull request with the `do-not-merge` label, which the lane disarms on and re-arms after by itself. A target the guard cannot read literally (a shell variable, `$(...)`, backticks, no PR number) is blocked; a pull request by any other author passes. Turn it off with `block_lane_pr_disable_auto_enabled`, on by default.
+
 ## [3.4.9] - 2026-11-15
 
 ### Fixed

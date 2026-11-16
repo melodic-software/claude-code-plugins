@@ -3,6 +3,40 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.0] - 2026-11-16
+
+### Added
+
+- `/corrections:codify rules <file>...` turns the rules in instruction files (`AGENTS.md` and the in-repo files it points to, `CLAUDE.md`, `.claude/rules/`, `.cursor/rules/`, review criteria docs) into checks. Each rule becomes a check on its rung with its own proof and its prose flagged for deletion, stays prose with a reason, is deleted as derivable, or is held. A rule becomes a check only when it needs no judgment and the check covers its known cases; an unproven check is held. One file's rules may go through in one pass.
+- `scripts/rules-ledger.mjs` reconciles the ledger of every rule read and exits 1 naming each rule dropped or left incomplete, so the run cannot finish with a rule unaccounted for.
+- `reference/adding-a-team-rule.md`: survey the legitimate uses, scope the rule, warn before error, allow only exclusions with a reason, and audit suppressions afterwards with `/code-metrics:audit-suppressions`. A rule codify proposes to write ships with its own valid and invalid rule tests in the tool's own harness where one exists, and states what it does not catch. Every checking-rung proposal now points at it.
+- Eval cases `codify-rules-ledger-accounts-for-every-rule` and `codify-custom-rule-ships-rule-tests`.
+
+## [1.3.0] - 2026-11-16
+
+### Changed
+
+- `/corrections:codify` routes a finding by what its check must decide, not by language. The finding class `dotnet-invariant` is now `semantic-invariant`, an invariant that needs types or symbols in any language, and still takes `custom-analyzer`. The finding-classes reference writes the current id `syntax-pattern-rule` and no longer points at an analyzer tutorial, a pattern-matcher plugin or an architecture-test library by name.
+- Each "Owner or pointer" cell is now a hand-off. A checking rung's proposal hands over the rung and the check to prove, names `/implementation:implement` as the builder in the repository's own tooling, and states that the check's message must name the fix. When that skill is not available, the proposal stops there.
+- Codify's report adds the ladder's alias notice, one line naming the old id and the current one, when it reads a rung under an old id from the repository's instructions, a stub or a findings file.
+- Eval cases: `codify-declines-to-implement-the-rung` and its Microsoft Learn tutorial outcome are retired. `codify-declines-to-implement-hands-off-the-build` replaces them. The `semgrep-pointer` grader no longer accepts the Semgrep docs URL. New gain cases cover a pytest `testing/audit/` finding, a TypeScript `semantic-invariant`, and a hand-off naming the tool the repository already runs.
+
+## [1.2.2] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [1.2.1] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract. `/corrections:codify issues` now stops when `work-items` is installed but off instead of calling `/work-items:track`, and both it and `preferences` print `claude plugin enable`, preceded by `claude plugin install` when the plugin is not installed.
+
+- **`/corrections:codify`, `architecture-test` rung.** Besides the rung's pointer, it names
+  `/architecture:enforce-boundaries` as the next step when that skill is available. Codify still
+  writes no check.
+
 ## [1.2.0] - 2026-11-15
 
 ### Added

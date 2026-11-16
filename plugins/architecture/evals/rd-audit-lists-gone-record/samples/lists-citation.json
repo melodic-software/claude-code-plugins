@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "**Gone**\n- 0001 Keep sessions in Redis: commit abc1234 removed redis.\n  Cited at src/session/cookie_store.py:1: propose drop."
+    },
+    {
+      "answer": "ADR-1 citations: cookie_store.py:1 (drop on retirement)."
+    },
+    {
+      "answer": "Citation sweep: src/session/cookie_store.py:1, propose drop."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Gone**\n- 0001 Keep sessions in Redis: commit abc1234 removed redis."
+    },
+    {
+      "answer": "src/session/cookie_store.py mentions ADR 0001."
+    },
+    {
+      "answer": "Citation sweep: src/session/cookie_store.py:1-2, propose drop."
+    },
+    {
+      "answer": "Citation sweep: src/session/cookie_store.py:1–2, propose drop."
+    },
+    {
+      "answer": "Citation sweep: src/session/cookie_store.py:1,2, propose drop."
+    }
+  ]
+}

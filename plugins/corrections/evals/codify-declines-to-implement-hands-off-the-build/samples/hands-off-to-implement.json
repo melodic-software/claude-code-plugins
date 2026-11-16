@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "I won't write the analyzer: codify only proposes. Row 3 is semantic-invariant, rung custom-analyzer. Hand the rung and the check to /implementation:implement, and the analyzer's message must name the injected clock as the fix."
+    },
+    {
+      "answer": "I won't write it, and there is no tutorial to point you at. Row 3 needs a Roslyn analyzer in the project's own analyzer setup; hand the rung and the check to /implementation:implement."
+    },
+    {
+      "answer": "I won't write it. Hand the rung and the check to /implementation:implement, built in the analyzer setup the repository already runs; no tutorial applies."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Here is the analyzer."
+    },
+    {
+      "answer": "See https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/tutorials/how-to-write-csharp-analyzer-code-fix"
+    },
+    {
+      "answer": "Hand it to /implementation:implement, following the typescript-eslint custom rule tutorial."
+    },
+    {
+      "answer": "Hand it to /implementation:implement; the tutorial is at https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/tutorials/how-to-write-csharp-analyzer-code-fix"
+    }
+  ]
+}

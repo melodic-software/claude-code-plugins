@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Installs draw@fixture-market ...\nInstalled draw@fixture-market; it is off in /tmp/claude-eval-x/home/.claude/settings.json."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Installed draw@fixture-market."
+    },
+    {
+      "answer": "draw@fixture-market is already installed; nothing to install."
+    }
+  ]
+}
