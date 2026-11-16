@@ -165,8 +165,11 @@ directory, a test project), name it.
 - **`analyzer-pack-rule`**: name the diagnostic id and the config file that raises its severity.
   Where the producing detector already is the deterministic check, the next step is to keep it.
 - **`custom-analyzer`**: name the invariant the analyzer decides and the symbols or types it
-  resolves, in any language whose compiler or linter can run one.
-- **`syntax-pattern-rule`**: name the pattern to match and the languages it covers.
+  resolves, in any language whose compiler or linter can run one. The analyzer ships with its own
+  valid and invalid rule tests and states what it does not catch
+  ([adding-a-team-rule.md](adding-a-team-rule.md#a-custom-rule-ships-with-its-tests)).
+- **`syntax-pattern-rule`**: name the pattern to match and the languages it covers. The rule ships
+  with its own valid and invalid rule tests and states what it does not catch, as above.
 - **`architecture-test`**: name the modules or layers and the reference the test forbids, read from
   the boundary rules the ladder's "Where boundary rules live" lists.
 - **`action-guard`**: `/harness-config:audit-automation-gaps hooks` when that plugin is enabled,
