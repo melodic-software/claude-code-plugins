@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [9.4.1] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+- The bundled `lib/node-or-skip.sh` comment names plugin-diagnostics' node notice.
+
 ## [9.4.0] - 2026-11-16
 
 ### Added
