@@ -74,10 +74,10 @@ written or declined, and the apply offer in phase 7 is answered.
 2. **What gets used.** Run `usage --json`. When it found history, report the most used skills and
    plugins and the installed plugins with no recorded use. When it reports no usage history, say
    so, propose profiles from the interview and the shipped profiles' descriptions alone, and offer
-   to turn on session recording for a later, sharper setup: harness-ops' hooks record each skill a
-   session uses. When `/harness-ops:audit-skill-visibility` is among the available skills, offer it
-   for what that recording shows; otherwise say recording starts once harness-ops is enabled
-   (installed first if it is not) and that setup can run again later.
+   to turn on session recording for a later, sharper setup: session-telemetry's hooks record each skill a
+   session uses, and recording starts once session-telemetry is enabled (installed first if it is
+   not). When `/harness-ops:audit-skill-visibility` is among the available skills, offer it for what
+   that recording shows. Either way, say that setup can run again later.
 3. **The user's work.** Ask what they work on and in which phases (exploring, planning, building,
    reviewing, interface design, harness upkeep), a few questions at a time, multiple choice where
    the answers are known.
