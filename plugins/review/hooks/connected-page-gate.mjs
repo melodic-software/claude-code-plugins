@@ -74,7 +74,7 @@ process.stdin.on('end', () => {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
-        permissionDecisionReason: `guardrails: ${hit} is a connected page: its content security policy names a loopback connect-src, so it works only on this machine. Keep it as a local file and give the reader its path; do not publish it as an Artifact.`,
+        permissionDecisionReason: `review: ${hit} is a connected page: its content security policy names a loopback connect-src, so it works only on this machine. Keep it as a local file and give the reader its path; do not publish it as an Artifact.`,
       },
     }));
   } catch {

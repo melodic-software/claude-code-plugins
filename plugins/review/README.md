@@ -296,6 +296,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| `connected_page_guard_enabled` | boolean | `true` | Runs the PreToolUse hook that denies an Artifact publish of an HTML page whose content security policy names a loopback connect-src. On by default. Turn off to allow publishing such a page. |
 | `downstream_probe` | string | `"run"` | run (default): /review:quality-gate downstream mode writes one probe for its safety fact in a temp directory outside the tree and runs it. report: it shows the probe without running it. report here or in a repository's docs/conventions/review.yaml (default branch) wins over run. |
 | `fanout_diversity` | string | `"lens"` | lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: one review prompt per fan-out model tier. codex: the lens roster plus the Codex reviewer as the model panel. A repository's docs/conventions/review.yaml fanout_diversity wins over this option. |
 | `fanout_act_on_cap` | number<br>*min 1* | `2` | How many rows under each By axis heading (Spec, Standards) of a /review:fanout report are marked act on; default 2, a whole number of at least 1. The other rows stay in the report, marked no. A repository's docs/conventions/review.yaml fanout_act_on_cap wins over this option. |

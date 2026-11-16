@@ -1818,8 +1818,6 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | Advises when a direct gh pr create bypasses the source-control pull-request skill; never blocks. Off by default: a behavioral-class prose injector, held off by the instruction-economy evidence gate. Set true to turn it on. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | Idle bound on reading the hook payload from stdin: how long a silent pipe is tolerated before a blocking guard fails closed. Default 2. Only a JSON payload the pipe closed on mid-document is allowed with a notice; a stalled pipe stays a block. |
 | `deny_on_crash` | string | *(none)* | Comma-separated guard names (e.g. block-dangerous-git) whose crash denies the tool call instead of allowing it with the guard-did-not-run notice. Empty, the default, lets every crashed guard allow with the notice. An unknown name is reported and ignored. Team-file layer: README Option details. |
-| `settings_write_ask_enabled` | boolean | `true` | Runs the PreToolUse hook that asks before Write, Edit, and NotebookEdit calls aimed at a Claude Code settings file. On by default. Shell writes and files rendered into place are outside its matcher. |
-| `connected_page_guard_enabled` | boolean | `true` | Runs the PreToolUse hook that denies an Artifact publish of an HTML page whose content security policy names a loopback connect-src. On by default. Turn off to allow publishing such a page. |
 
 ### How to set these
 

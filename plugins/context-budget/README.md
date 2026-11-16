@@ -243,6 +243,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| `settings_write_ask_enabled` | boolean | `true` | Runs the PreToolUse hook that asks before Write, Edit, and NotebookEdit calls aimed at a Claude Code settings file. On by default. Shell writes and files rendered into place are outside its matcher. |
 | `live_display` | string | `"pane"` | Where the live context breakdown shows. pane opens it in a pane when you run /context-budget live; band keeps it above the prompt; off shows nothing and measures nothing. /context-budget live pane, band or off changes it for the session. |
 
 ### How to set these

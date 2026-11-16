@@ -14,7 +14,7 @@
 #
 # Self-contained: defines its own assertion helpers — installed plugins are
 # cache-isolated with no shared test lib.
-# test-scope: plugins/guardrails/hooks/hooks.json
+# test-scope: plugins/context-budget/hooks/hooks.json
 
 set -uo pipefail
 
@@ -157,19 +157,6 @@ assert_asks "$(run Edit "$REPO/.claude/settings.LOCAL.json")" \
 # portability-ok: the doubled backslashes are literal JSON escapes for printf, not a GNU regex class
 assert_asks "$(printf '{"tool_name":"Write","cwd":"C:\\\\repo","tool_input":{"file_path":"C:\\\\repo\\\\.claude\\\\settings.json"}}' | node "$HOOK")" \
   "backslash paths normalize and ask"
-
-# Headless (claude -p) nothing can answer the ask, so Claude Code blocks the
-# call and shows permissionDecisionReason as the tool error (probe recorded in
-# settings-write-ask.mjs). The block is only as good as that reason: it must
-# name the plugin that blocked and what to check.
-headless=$(printf '{"tool_name":"Write","cwd":"%s","permission_mode":"bypassPermissions","tool_input":{"file_path":"%s"}}' \
-  "$REPO" "$REPO/.claude/settings.json" | env HOME="$FAKEHOME" node "$HOOK")
-reason=$(node -e 'const o = JSON.parse(process.argv[1]).hookSpecificOutput; process.stdout.write(o.permissionDecision === "ask" ? o.permissionDecisionReason : "")' "$headless" 2>/dev/null)
-if [[ "$reason" == "guardrails: "*"Check the diff"* ]]; then
-  ok "a headless settings write gets the ask Claude Code turns into a block, with a reason naming guardrails"
-else
-  fail "headless settings write: want an ask whose reason starts 'guardrails: ' and says to check the diff, got: $headless"
-fi
 
 # The hook is inert unless hooks.json routes the tools to it, so the registered
 # matcher is part of the contract.

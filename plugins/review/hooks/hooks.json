@@ -1,0 +1,19 @@
+{
+  "description": "Before the Artifact tool publishes an HTML page whose content security policy names a loopback connect-src (a connected page that works only on this machine), denies the call and tells the model to keep it a local file; every other Artifact call passes.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Artifact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/connected-page-gate.mjs"],
+            "timeout": 10,
+            "statusMessage": "Checking the page is not a connected page..."
+          }
+        ]
+      }
+    ]
+  }
+}
