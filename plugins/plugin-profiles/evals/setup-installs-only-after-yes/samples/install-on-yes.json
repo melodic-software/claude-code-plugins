@@ -17,6 +17,18 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=\"/opt/plugins/plugin-profiles/scripts/profiles.mjs\"; node \"$P\" install draw@fixture-market --yes; echo \"exit=$?\"",
+            "description": "Run the profile tool"
+          }
+        }
+      ],
+      "why": "script path held in a shell variable"
     }
   ],
   "fail": [
@@ -34,6 +46,18 @@
         }
       ],
       "why": "never installed"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=\"/opt/plugins/plugin-profiles/scripts/profiles.mjs\"; node \"$P\" install draw@fixture-market --dry-run; node \"$P\" save art --level user --yes",
+            "description": "Run the profile tool"
+          }
+        }
+      ],
+      "why": "--yes belongs to the save, not the install"
     },
     {
       "answer": [

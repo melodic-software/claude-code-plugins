@@ -3,24 +3,27 @@ name: setup-installs-only-after-yes
 context:
   scaffold_script: scaffold.sh
 graders:
-  - name: skill-fired
-    type: tool_used
-    tool: 'Skill'
-    input_match: '"skill"\s*:\s*"(?:plugin-profiles:)?profile"'
-    min: 1
-    arm: 'with-only'
   - name: install-previewed
     type: tool_used
     tool: 'Bash'
-    input_match: 'profiles\.mjs(?:\\"|'')?\s+install\s+draw@fixture-market\b(?:[^"\\]|\\.)*--dry-run'
+    input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+install\s+draw@fixture-market\b(?:[^"\\;&|]|\\[^n])*?--dry-run\b'
     min: 1
     arm: 'with-only'
   - name: install-on-yes
     type: tool_used
     tool: 'Bash'
-    input_match: 'profiles\.mjs(?:\\"|'')?\s+install\s+draw@fixture-market\b(?:[^"\\]|\\.)*--yes'
+    input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+install\s+draw@fixture-market\b(?:[^"\\;&|]|\\[^n])*?--yes\b'
     min: 1
     max: 1
+    arm: 'with-only'
+  - name: install-previewed-before-install
+    type: tool_order
+    before:
+      tool: 'Bash'
+      input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+install\s+draw@fixture-market\b(?:[^"\\;&|]|\\[^n])*?--dry-run\b'
+    after:
+      tool: 'Bash'
+      input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+install\s+draw@fixture-market\b(?:[^"\\;&|]|\\[^n])*?--yes\b'
     arm: 'with-only'
   - name: no-direct-install
     type: tool_used

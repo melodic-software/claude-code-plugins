@@ -22,6 +22,18 @@
         }
       ],
       "why": "flags in another order"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=\"/opt/plugins/plugin-profiles/scripts/profiles.mjs\"; node \"$S\" save docs --level user --plugins notes-hooks@fixture-market,draw@fixture-market --description \"Write docs and sketch diagrams.\" --yes; echo \"exit $?\"",
+            "description": "Run the profile tool"
+          }
+        }
+      ],
+      "why": "script path held in a shell variable"
     }
   ],
   "fail": [
@@ -51,6 +63,18 @@
         }
       ],
       "why": "preview only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=\"/opt/plugins/plugin-profiles/scripts/profiles.mjs\"; node \"$S\" save docs --level user --dry-run; node \"$S\" apply docs --for folder --yes",
+            "description": "Run the profile tool"
+          }
+        }
+      ],
+      "why": "--yes belongs to a later command, not the save"
     }
   ]
 }

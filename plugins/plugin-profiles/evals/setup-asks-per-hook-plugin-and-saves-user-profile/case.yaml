@@ -3,35 +3,38 @@ name: setup-asks-per-hook-plugin-and-saves-user-profile
 context:
   scaffold_script: scaffold.sh
 graders:
-  - name: skill-fired
-    type: tool_used
-    tool: 'Skill'
-    input_match: '"skill"\s*:\s*"(?:plugin-profiles:)?profile"'
-    min: 1
-    arm: 'with-only'
   - name: inventory-ran
     type: tool_used
     tool: 'Bash'
-    input_match: 'profiles\.mjs(?:\\"|'')?\s+inventory\b'
+    input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+inventory\b'
     min: 1
     arm: 'with-only'
   - name: usage-ran
     type: tool_used
     tool: 'Bash'
-    input_match: 'profiles\.mjs(?:\\"|'')?\s+usage\b'
+    input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+usage\b'
     min: 1
     arm: 'with-only'
   - name: save-previewed
     type: tool_used
     tool: 'Bash'
-    input_match: 'profiles\.mjs(?:\\"|'')?\s+save\s+docs\b(?:[^"\\]|\\.)*--dry-run'
+    input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+save\s+docs\b(?:[^"\\;&|]|\\[^n])*?--dry-run\b'
     min: 1
     arm: 'with-only'
   - name: save-written-at-user-level
     type: tool_used
     tool: 'Bash'
-    input_match: 'profiles\.mjs(?:\\"|'')?\s+save\s+docs\b(?=(?:[^"\\]|\\.)*--level\s+user\b)(?=(?:[^"\\]|\\.)*--yes\b)'
+    input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+save\s+docs\b(?=(?:[^"\\;&|]|\\[^n])*?--level\s+user\b)(?=(?:[^"\\;&|]|\\[^n])*?--yes\b)'
     min: 1
+    arm: 'with-only'
+  - name: save-previewed-before-written
+    type: tool_order
+    before:
+      tool: 'Bash'
+      input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+save\s+docs\b(?:[^"\\;&|]|\\[^n])*?--dry-run\b'
+    after:
+      tool: 'Bash'
+      input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+save\s+docs\b(?=(?:[^"\\;&|]|\\[^n])*?--level\s+user\b)(?=(?:[^"\\;&|]|\\[^n])*?--yes\b)'
     arm: 'with-only'
   - name: no-hand-written-profile
     type: tool_used

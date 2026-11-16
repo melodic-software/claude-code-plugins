@@ -21,6 +21,30 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=\"/opt/plugins/plugin-profiles/scripts/profiles.mjs\"; node \"$S\" inventory --json; echo ---; node \"$S\" usage --json",
+            "description": "Run the profile tool"
+          }
+        }
+      ],
+      "why": "script path held in a shell variable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /opt/plugins/plugin-profiles/scripts/profiles.mjs inventory",
+            "description": "Run the profile tool"
+          }
+        }
+      ],
+      "why": "absolute path, unquoted"
     }
   ],
   "fail": [
@@ -38,6 +62,30 @@
         }
       ],
       "why": "a different command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=\"/opt/plugins/plugin-profiles/scripts/profiles.mjs\"; node \"$S\" list --json",
+            "description": "Run the profile tool"
+          }
+        }
+      ],
+      "why": "variable path, a different command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"$TOOL\" inventory --json",
+            "description": "Run some tool"
+          }
+        }
+      ],
+      "why": "a variable that is not the profile script"
     },
     {
       "answer": [
