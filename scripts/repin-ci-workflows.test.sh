@@ -6,6 +6,8 @@ SUT="$SCRIPT_DIR/repin-ci-workflows.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SCRIPT_DIR/lib/test-harness.sh"
+# shellcheck source=test-git-helpers.sh
+. "$SCRIPT_DIR/test-git-helpers.sh" || exit 2
 
 OLD=1111111111111111111111111111111111111111
 NEW=2222222222222222222222222222222222222222
@@ -64,9 +66,9 @@ EOF
     >"$dir/docs/conventions/pr-pipeline/pr-run-activity.md"
   echo "fixture ${OTHER}" >"$dir/tests/fixture.txt"
   echo readme >"$dir/README.md"
-  git -C "$dir" init -q
-  git -C "$dir" add -A
-  git -C "$dir" -c user.name=t -c user.email=t@t commit -qm init
+  git_init_test_repo "$dir"
+  git_test_config "$dir" add -A
+  git_test_config "$dir" commit -qm init
 }
 
 run() {
@@ -113,7 +115,7 @@ contains 'another action pin stays' "checkout@${CHECKOUT} # v7.0.1"
 contains 'an @main reusable workflow stays' 'intake-triage.yml@main'
 LAST_OUTPUT="$(cat "$scratch/move/docs/conventions/pr-pipeline/pr-run-activity.md")"
 contains 'the docs link moves' "blob/${NEW}/README.md"
-LAST_OUTPUT="$(git -C "$scratch/move" status --porcelain)"
+LAST_OUTPUT="$(git_test_config "$scratch/move" status --porcelain)"
 if [[ "$(sort <<<"$LAST_OUTPUT")" == " M .github/workflows/lane.yml"$'\n'" M docs/conventions/pr-pipeline/pr-run-activity.md" ]]; then
   ok 'only the workflow and the doc change; the managed file and fixtures do not'
 else
@@ -138,7 +140,7 @@ STUB_COMPARE='{"status":"behind"}' run 1 'apply refuses a release behind the pin
 STUB_COMPARE='{"status":"diverged"}' run 1 'apply refuses a release diverged from the pin' apply "$OLD" v0.74.0 "$NEW" v0.75.0 --root "$scratch/older"
 contains 'the refusal names the compare status' "diverged"
 STUB_COMPARE=fail run 1 'apply fails when the compare fails' apply "$OLD" v0.74.0 "$NEW" v0.75.0 --root "$scratch/older"
-LAST_OUTPUT="$(git -C "$scratch/older" status --porcelain)"
+LAST_OUTPUT="$(git_test_config "$scratch/older" status --porcelain)"
 if [[ -z "$LAST_OUTPUT" ]]; then ok 'a refusal changes nothing'; else bad 'a refusal changes nothing' "$LAST_OUTPUT"; fi
 
 mk_repo "$scratch/dirty"
@@ -148,8 +150,8 @@ contains 'the failure names the path' 'README.md'
 
 mk_repo "$scratch/left"
 echo "pinned at ${OLD}" >"$scratch/left/tests/notes.md"
-git -C "$scratch/left" add tests/notes.md
-git -C "$scratch/left" -c user.name=t -c user.email=t@t commit -qm notes
+git_test_config "$scratch/left" add tests/notes.md
+git_test_config "$scratch/left" commit -qm notes
 run 1 'apply fails when the old SHA remains outside the set' apply "$OLD" v0.74.0 "$NEW" v0.75.0 --root "$scratch/left"
 contains 'the failure names the file' 'still appears after the rewrite in: tests/notes.md'
 

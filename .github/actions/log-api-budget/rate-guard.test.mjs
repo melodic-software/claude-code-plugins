@@ -898,6 +898,7 @@ const UNGUARDED = {
   // Its API calls go through lib/github-rest.mjs, which imports the guard; the
   // one raw fetch is getStatus, reading www.githubstatus.com, not the API.
   ".github/scripts/maintenance-monitor-signals/monitor.mjs": "githubstatus.com reads; API calls via lib/github-rest.mjs",
+  ".github/scripts/lib/ci-workflows-at-pin.mjs": "raw.githubusercontent.com reads from tests; no API call",
 };
 
 test("every lane script that calls fetch goes through the rate guard, or is listed with its reason", () => {
