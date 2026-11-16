@@ -2546,8 +2546,10 @@ failure signals.
   one comment unless anyone other than the lanes App edited its record; there is no write when the head's record already
   holds the line or a rating. Its `issue_comment` event starts
   `intake-label-outside-actor-activity` and `intake-reenter` runs whose jobs skip a bot's comment, as they do
-  for the pin. Nothing reads the record back: no gate, hold or rung. Not while
-  `merge.report-only` is true.
+  for the pin. Nothing in the pipeline reads the record back: no gate, hold or rung. Not while
+  `merge.report-only` is true. A session that merges a lanes App pull request does read it,
+  or the rating artifact for that head when the pull request was never armed
+  (`plugins/source-control/skills/pull-request/reference/merge.md` §4.2.1).
 - **Telemetry.** The rating run writes one `pr-merge-risk` lane-outcome record (outcome, class,
   `durationMs`, `costUsd`, models), and each arm logs a `merge-risk` notice
   (`pr=<n> head=<sha> merge-risk=<rated|unrated:reason> read-ms=<n>`, plus

@@ -150,6 +150,12 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
   after the owning skill changes, so the two then disagree and nothing flags it. When the owning
   skill may not be installed, one line says what this skill does without it; that line is not a
   second copy of the procedure.
+- **Config before a generated skill.** A shipped skill generates a repository-specific skill (as
+  `/app-control:map` generates a project's control skill) only where repository configuration
+  cannot express the difference. When config can carry it, such as a tool name the skill reads
+  from the repo's config (`docs/contracts/config-cascade/README.md`), keep one shipped skill and
+  read the config. Why: a generated skill is a copy that stops receiving the shipped skill's
+  fixes, while config is read by the current skill on every run.
 - **SKILL.md is a router, under 5,000 tokens.** It is the hub: it holds the standing rules and
   routes each action to its own spoke under `actions/`, one file per action, so a run loads the
   router and the one action it needs. The cap is a house setting; `/skill-quality:check` estimates the count at 4
@@ -209,6 +215,11 @@ build tool) takes these steps in order:
   practices in [Sources](#sources)).
 - Each pointer says what the file holds and when to read it; a bare "see X" is a missed
   connection.
+- **A reference works without the steps.** Another skill or a person loads it through this
+  skill's invocation or a documented action, never by its path, and acts on it without running
+  the step sequence. So a reference names its own inputs and never leans on a value an earlier
+  step set or on steps having run. Why: a reference that only makes sense mid-sequence cannot be
+  reused, and a caller after one rule has to run steps it does not need.
 - A spoke is read, not rendered, so no substitution variable resolves in it: cite
   `<skill-dir>/scripts/<name>`. `scripts/check-spoke-plugin-root.sh` gates the plugin-root
   and skill-dir variables in this marketplace.
