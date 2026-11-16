@@ -80,11 +80,17 @@ gh() {
       case "$a" in repos/*/issues/comments/*) cid="${a##*/comments/}" ;; *) : ;; esac
     done
     printf 'PATCH %s\n' "$cid" >>"$d/calls.log"
+    # The n-th PATCH: $d/patch-lost-<n> fails unapplied; $d/patch-fails-<n> lands but reports
+    # failure, as on a timeout.
+    n=$(($(cat "$d/patch.count" 2>/dev/null || printf '0') + 1))
+    printf '%s\n' "$n" >"$d/patch.count"
+    [[ ! -f "$d/patch-lost-$n" ]] || return 1
     if [[ -f "$d/stateful" ]]; then
       body="$(stub_body_arg "$@")"
       jq -c --argjson id "$cid" --arg b "$body" 'map(if .id == $id then .body = $b else . end)' \
         "$d/lease-comments" >"$d/lease-comments.tmp" && mv "$d/lease-comments.tmp" "$d/lease-comments"
     fi
+    [[ ! -f "$d/patch-fails-$n" ]] || return 1
     printf '%s\n' "${cid:-1}"
     ;;
   # Assignee ops are REST (`gh api …/issues/<n>/assignees`), not `gh issue edit`
@@ -1184,21 +1190,96 @@ assert_eq "release of a lease live at its clock read succeeds (0)" "0" "$rc"
 assert_eq "that release supersedes lease 1" "true" "$(superseded 1)"
 cleanup_scenario
 
+# renew_clock_scenario <clock-reads…>: alice's lease 1 expires at T0 + 3600, alice assigned,
+# and the renew's `date -u +%s` reads answer the given epochs, repeating the last.
+renew_clock_scenario() {
+  new_scenario
+  : >"$GH_STUB_DIR/stateful"
+  printf 'alice\n' >"$GH_STUB_DIR/login"
+  printf '["alice"]\n' >"$GH_STUB_DIR/assignees"
+  lease_array 1 "$(marker alice "2026-07-12T04:00:00Z" 1)" >"$GH_STUB_DIR/lease-comments"
+  printf '%s\n' "$@" >"$GH_STUB_DIR/clock"
+}
+patches() { grep -c '^PATCH 1' "$GH_STUB_DIR/calls.log"; }
+
 # [renew lands after expiry] the PATCH returns after lease 1's old expiry: a same-login
 # claimant may have removed the shared assignee meanwhile, so the renew never keeps it.
-new_scenario
-: >"$GH_STUB_DIR/stateful"
-printf 'alice\n' >"$GH_STUB_DIR/login"
-printf '["alice"]\n' >"$GH_STUB_DIR/assignees"
-lease_array 1 "$(marker alice "2026-07-12T04:00:00Z" 1)" >"$GH_STUB_DIR/lease-comments"
-printf '%s\n' "$((T0 + 3590))" "$((T0 + 3590))" "$((T0 + 3600))" >"$GH_STUB_DIR/clock"
+renew_clock_scenario "$((T0 + 3590))" "$((T0 + 3590))" "$((T0 + 3600))"
 rc=0
 err="$(bash "$RENEW" "$ID" --lease-comment-id 1 2>&1 >/dev/null)" || rc=$?
 assert_eq "a renew whose PATCH lands after the old expiry exits conflict (7)" "7" "$rc"
 assert_contains "the refusal says the lease expired before the renew landed" "$err" "expired before the renew landed"
-assert_eq "that renew PATCHes lease 1 twice, the second a supersede" "2" "$(grep -c '^PATCH 1' "$GH_STUB_DIR/calls.log")"
+assert_eq "that renew PATCHes lease 1 twice, the second a supersede" "2" "$(patches)"
 assert_eq "lease 1 ends superseded" "true" "$(superseded 1)"
 assert_eq "alice is handed back" "[]" "$(assignees_now)"
+cleanup_scenario
+
+# [renew lands after expiry, same-login winner] a second alice session found lease 1 expired
+# and won with lease 2 after the renew's lease read; the back-off keeps alice for lease 2.
+renew_clock_scenario "$((T0 + 3590))" "$((T0 + 3590))" "$((T0 + 3600))"
+hook list-1-after put_lease 2 "$(marker alice "2026-07-12T05:00:00Z" 1)"
+rc=0
+bash "$RENEW" "$ID" --lease-comment-id 1 >/dev/null 2>&1 || rc=$?
+assert_eq "a renew landing after expiry under alice's newer lease exits conflict (7)" "7" "$rc"
+assert_eq "that renew supersedes lease 1" "true" "$(superseded 1)"
+assert_eq "alice's lease 2 stays live" "false" "$(superseded 2)"
+assert_eq "the back-off keeps alice for lease 2" '["alice"]' "$(assignees_now)"
+cleanup_scenario
+
+# [renew PATCH lands but reports failure, after expiry] the renew may have revived lease 1,
+# so it backs off as a late PATCH does.
+renew_clock_scenario "$((T0 + 3590))" "$((T0 + 3590))" "$((T0 + 3600))"
+: >"$GH_STUB_DIR/patch-fails-1"
+rc=0
+err="$(bash "$RENEW" "$ID" --lease-comment-id 1 2>&1 >/dev/null)" || rc=$?
+assert_eq "a renew whose PATCH reports failure after the old expiry exits conflict (7)" "7" "$rc"
+assert_contains "the refusal says the renew may have landed" "$err" "may have landed"
+assert_eq "that renew supersedes lease 1" "true" "$(superseded 1)"
+assert_eq "that renew hands back alice" "[]" "$(assignees_now)"
+cleanup_scenario
+
+# [renew PATCH fails within the margin] the same back-off runs before the old expiry.
+renew_clock_scenario "$((T0 + 3590))"
+: >"$GH_STUB_DIR/patch-lost-1"
+rc=0
+bash "$RENEW" "$ID" --lease-comment-id 1 >/dev/null 2>&1 || rc=$?
+assert_eq "a renew whose PATCH fails within the margin exits conflict (7)" "7" "$rc"
+assert_eq "that renew supersedes lease 1" "true" "$(superseded 1)"
+assert_eq "that renew hands back alice" "[]" "$(assignees_now)"
+cleanup_scenario
+
+# [renew PATCH fails far from expiry] no back-off: the renew exits with the PATCH's error.
+renew_clock_scenario "$((T0 + 100))"
+: >"$GH_STUB_DIR/patch-lost-1"
+rc=0
+bash "$RENEW" "$ID" --lease-comment-id 1 >/dev/null 2>&1 || rc=$?
+assert_eq "a renew whose PATCH fails far from expiry exits non-zero, not conflict" "true" \
+  "$([[ $rc -ne 0 && $rc -ne 7 ]] && echo true || echo false)"
+assert_eq "that renew writes only its renew PATCH" "1" "$(patches)"
+assert_eq "that renew keeps alice" '["alice"]' "$(assignees_now)"
+cleanup_scenario
+
+# [back-off supersede fails twice] lease 1 may still be live, so alice stays assigned.
+renew_clock_scenario "$((T0 + 3590))" "$((T0 + 3590))" "$((T0 + 3600))"
+: >"$GH_STUB_DIR/patch-lost-2"
+: >"$GH_STUB_DIR/patch-lost-3"
+rc=0
+err="$(bash "$RENEW" "$ID" --lease-comment-id 1 2>&1 >/dev/null)" || rc=$?
+assert_eq "a back-off whose supersede fails twice exits conflict (7)" "7" "$rc"
+assert_contains "that back-off says the assignee is kept" "$err" "could not supersede the lease, assignee kept"
+assert_eq "that back-off tries the supersede twice" "3" "$(patches)"
+assert_eq "lease 1 is not superseded" "false" "$(superseded 1)"
+assert_eq "alice stays assigned for lease 1" '["alice"]' "$(assignees_now)"
+cleanup_scenario
+
+# [back-off supersede fails once] the retry supersedes lease 1, then the hand-back runs.
+renew_clock_scenario "$((T0 + 3590))" "$((T0 + 3590))" "$((T0 + 3600))"
+: >"$GH_STUB_DIR/patch-lost-2"
+rc=0
+bash "$RENEW" "$ID" --lease-comment-id 1 >/dev/null 2>&1 || rc=$?
+assert_eq "a back-off whose retried supersede succeeds exits conflict (7)" "7" "$rc"
+assert_eq "the retry supersedes lease 1" "true" "$(superseded 1)"
+assert_eq "that back-off hands back alice" "[]" "$(assignees_now)"
 cleanup_scenario
 unset -f date
 

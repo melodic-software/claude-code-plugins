@@ -710,7 +710,13 @@ backs off, and a lane run that finds a live local lease backs off without starti
   expiry, it re-reads the leases (one retry on a failed read); a newer live lease there makes it supersede its own
   lease, run claim step 4's hand-back for the lease's holder on a fresh list (a superseded lease
   is beyond reclaim), and exit `7`, and a list it still cannot read keeps the renewed lease (exit
-  `0`, with a warning). A clock read earlier than the margin adds no read. On exit `7` the session no longer holds the item, so it stops writing to it, and to
+  `0`, with a warning). A clock read earlier than the margin adds no read. A PATCH that fails
+  may still have landed (a timeout), so when the clock read after it is at or past the old
+  expiry, or within the margin before it, the renew backs off the same way whatever the leases
+  show; earlier than the margin it exits with the PATCH's error. Each back-off tries its
+  supersede twice and runs the hand-back only after one succeeded: a lease it could not
+  supersede may still be live, so the holder stays assigned, and the renew exits `7` either
+  way. On exit `7` the session no longer holds the item, so it stops writing to it, and to
   continue it claims again, which backs off if another session holds it. That check has no
   compare-and-swap either: it covers a claimant that posted before the re-list, while a renew
   stalled between the re-list and its return stays open, and GitHub's read-after-write
@@ -752,7 +758,11 @@ Claim sequence (race-safe, same-identity aware):
    that list shows no such lease, so a re-add never outlives the lease that earned it (a failed
    list keeps the re-add). Release and renew hand back the same way after their
    own supersede; the hand-back always lists the leases itself, after the caller's own lease is
-   dead, so between any two sessions of one login one sees the other's write. On a win,
+   dead. Known limit: with no compare-and-swap, three sessions of one login can leave a holder
+   unassigned. A hand-back's last removal, after a re-add, can land after a third session claims
+   and wins, so that winner holds a live lease with nobody assigned. The lease still excludes
+   every other worker: `list-frontier` offers the item, and each later claimant posts a lease,
+   loses and backs off until that lease ends. On a win,
    re-read assignees and assign self again if a same-login release removed it after step 2.
    The back-off message prints the winner's holder with control characters removed.
    GitHub adapter: an earlier live lease whose `session_id` is `run-<id>` costs one
@@ -778,10 +788,12 @@ through the hand-back below; an expired handle under a newer lease runs the hand
 way its lease no longer holds the item. The login check
 exists because lease handles are public (a GitHub comment id), and within one login the handle
 tells sessions apart, as for `renew-lease`. An already-superseded or expired lease is an
-idempotent no-op (`released: false`, exit `0`), because it already blocks nobody. A live lease is
-superseded in place (`released: true`). On every exit `0` release then runs claim step 4's
-hand-back for the holder, on a lease list it reads after its own lease is dead (superseded by
-its PATCH, already superseded, or expired). That removal includes an assignment of the same login a
+idempotent no-op (`released: false`, exit `0`), because it already blocks nobody; an
+already-superseded lease takes this exit whoever holds it, and for another login's lease release
+writes nothing. A live lease is superseded in place (`released: true`). On every exit `0` for a
+lease the caller holds, release then runs claim step 4's hand-back for the holder, on a lease list
+it reads after its own lease is dead (superseded by its PATCH, already superseded, or expired).
+That removal includes an assignment of the same login a
 person made by hand. Callers rely on it and clear no assignee
 themselves; `/work-items:attend-queue` flips the role label, then releases. The write carries the same TOCTOU caveat as reclaim's
 revalidation: GitHub's comment PATCH has no If-Match/CAS, so a concurrent writer can still
@@ -818,7 +830,9 @@ claim's `lease_comment_id`) rather than relying on push activity (`/work-items:w
 - **Ambiguous lease post.** A lease comment POST that GitHub applies but reports as failed (a
   timeout) returns no comment id, so the claim cannot supersede it: that lease blocks the item
   for its TTL. The claim's rollback keeps the assignee for it when its lease list shows that
-  lease; when the list fails twice the rollback removes the assignee.
+  lease. When its first list fails twice the rollback removes the assignee, and its re-list
+  after the removal assigns it again if that list shows the lease (a re-list that fails twice
+  keeps the removal).
 
 ## Containers and state
 
