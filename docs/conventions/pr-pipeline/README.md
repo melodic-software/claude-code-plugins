@@ -2733,8 +2733,8 @@ line feed
 so digits, `-` and `.` are safe, and the longest name is 194 characters. The JSON holds `pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
 account type, `verdict`, `summary`, `notes`, `evidence` and `run_id`. The head SHA is the one `pr-require-checks`
 ran on, never the pull request's live head. `evidence` records per head the app capture's outcome,
-`capture` (`ran`, `skipped`, `blocked`, `not-applicable` or `no-app`), with its `reason`,
-`capture_count` and `features`, and `local_loop`, the count `k` from an `Evidence loop: k/3` line
+`capture` (`ran`, `skipped`, `blocked`, `not-applicable` or `no-app`), with its `reason`, a
+blocked capture's `cause` when the capture recorded one (below), `capture_count` and `features`, and `local_loop`, the count `k` from an `Evidence loop: k/3` line
 in the trusted pull request body, which the author reports and the writer reads as data only (`null`
 with no such line or a withheld body). With the app unset the writer records `no-app` ("no app
 check ran"). With it set and no capture summary (no capture run, one that ended other than success,
@@ -2757,16 +2757,27 @@ installs the Claude Code version `package-lock.json` pins, the one source of tha
 lists were measured from the driven session's requests; the proxy refuses a value they do not list
 and names it, so the first capture after a version bump says what to add. The job reads the
 key's credit history first, right after the capture config and before the resolver. When the
-credit gate skips the key, the job stops there: it runs no resolver, trigger gate or match step and
-uploads no capture. find-capture then reports `no-artifact`, and the verdict records the capture
-`blocked` with the reason "left no capture artifact for this head". During a credit stop that
-reason is expected and is not an upload fault. Before the key call, the job's match step runs
+credit gate skips the key, the job runs no resolver, trigger gate or match step and makes no GitHub
+read; it uploads a capture recorded `blocked` with the cause `credit-stop`, named from the
+triggering event's pull request and head (none when the event names no pull request, and the
+verdict then records find-capture's `no-artifact` reason). Before the key call, the job's match step runs
 main's `affected_features.py` over the changed path names the compare API lists: a change that
 touches no feature of main's control skill uploads a capture recorded `not-applicable`, and the
 job sets up no key and starts no model session. A read or script that fails, or a compare at the
-API's 300-file limit, leaves the decision to the capture session. When the key cannot capture (its
-probe handed off, or it is empty), the job uploads a capture recorded `blocked`: a subscription
-token cannot go behind the key proxy, so it runs no model, and no fallback job follows it. A model error, an output that fails the schema, or a `pass` or `pass-notes` with any
+API's 300-file limit, leaves the decision to the capture session. Both of the capture's legs stay
+on the key, so when the key cannot capture the job runs no model and no fallback job follows it: it
+uploads a capture recorded `blocked` whose `cause` is `credit-stop` (the credit gate's
+credit-stop marker held the key off, or its probe hit a credit stop), `empty-key`, `probe-handoff`
+(the probe handed off on auth), or `unrecognized` (a next-leg reason outside those, which is printed
+nowhere), each with its own reason. The job writes the cause from its credit read and next-leg call;
+the collect step drops a `cause` from the driven session's summary in either shape the writer
+reads, and the writer records one only in the nested shape the job writes, on a `blocked` capture
+and from that list, so `evidence` carries `cause` exactly when the capture recorded one. The cause
+is advisory: the strip that keeps it the job's own runs after the head checkout, so it informs an
+operator and gates nothing. The verdict step's `pr-verify capture` annotation names the outcome and,
+for a blocked capture, the cause (`none` when it recorded none). A credit stop on the probe raises
+the warning annotation every lane raises on its key's handoff, naming the pr-verify role's key and
+the run, also in the run summary. A model error, an output that fails the schema, or a `pass` or `pass-notes` with any
 permission denial uploads nothing, and the run fails. A `fail` with a summary or note matching a
 shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), a `pass` or `pass-notes` holding a
 credential format (those patterns less the secret assignment, the set `scanLeak` blocks on), or any
