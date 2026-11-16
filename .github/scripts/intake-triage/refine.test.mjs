@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { STATUS_CONFIG, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, test } from "node:test";
 import { linesDigest, renderSplitRecord, SCOPE_PREFIX, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitChildBody, splitRecord, splitSourceLine } from "./admit.mjs";
-import { applySizeDecline, applySizeSplit, partitionProblem, SIZE_DECLINE_MARKER, sizeSplitPending, sizeSplitSettings, splitDigest, subsetProblem } from "./refine.mjs";
+import { applySizeDecline, applySizeSplit, baseHolds, namedUnits, partitionProblem, quotedNames, SIZE_DECLINE_MARKER, sizeSplitPending, sizeSplitSettings, splitDigest, subsetProblem } from "./refine.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 import { ADMIT_MARKER, heldRefusalText, refinementExact, refusalText, splitItemsLine, unrunnableCriteria, unrunnableReason, withoutItems } from "./admit.mjs";
@@ -1255,7 +1257,7 @@ describe("size split", () => {
       }
       if (method === "POST" && route === "/repos/o/r/issues") {
         const number = next++;
-        return { number, id: number * 100, type: body.type ? { name: body.type } : null };
+        return { number, id: number * 100, type: body.type ? { name: body.type } : null, labels: (body.labels ?? []).map((name) => ({ name })) };
       }
       if (refuse(method, route)) {
         throw new GitHubError(422, `${method} ${route}`);
@@ -1436,6 +1438,93 @@ describe("size split", () => {
     assert.deepEqual(result, { outcome: "split", children: [71, 72] });
     const w = writes(fake.calls).map(({ method, path }) => `${method} ${path}`);
     assert.deepEqual(w, ["POST /repos/o/r/issues", "POST /repos/o/r/issues/7/sub_issues", "POST /repos/o/r/issues/72/dependencies/blocked_by", "PATCH /repos/o/r/issues/comments/900"]);
+  });
+
+  test("each part carries the issue's host-run label, and no other label of the issue", async () => {
+    const fake = splitFake({ issue: sizeIssue({ labels: [{ name: "status: ready" }, { name: "host-run" }] }) });
+    assert.deepEqual(await run(fake, { parts: [[1, 2], [3]], order: [] }), { outcome: "split", children: [71, 72] });
+    const filed = writes(fake.calls).filter(({ path }) => path === "/repos/o/r/issues");
+    assert.deepEqual(filed.map(({ body }) => body.labels), [["host-run"], ["host-run"]]);
+    assert.ok(!writes(fake.calls).some(({ path }) => path.endsWith("/labels")), "a part filed with its labels needs no second write");
+  });
+
+  test("a retry gives a part it reuses the routing labels it lacks", async () => {
+    const reused = { number: 71, id: 7100, user: { id: APP }, repository_url: repoUrl, body: CHILD_1, labels: [] };
+    const fake = splitFake({ issue: sizeIssue({ labels: [{ name: "status: ready" }, { name: "host-run" }, { name: "attended" }] }), comments: [record()], subIssues: [reused], next: 72 });
+    assert.deepEqual(await run(fake, { parts: [[1, 2], [3]], order: [[1, 2]] }), { outcome: "split", children: [71, 72] });
+    const w = writes(fake.calls);
+    assert.deepEqual(w.find(({ path }) => path === "/repos/o/r/issues/71/labels")?.body, { labels: ["host-run", "attended"] });
+    assert.deepEqual(w.find(({ path }) => path === "/repos/o/r/issues")?.body.labels, ["host-run", "attended"]);
+  });
+
+  // A split must not file a part that only checks what no part builds.
+  const CHECKS_PLUGIN = "- [ ] plugin-diagnostics launches `node` only through `node-or-skip`";
+  const CREATES_PLUGIN = "- [ ] Create the `plugin-diagnostics` plugin with its hooks";
+  const MISSING = ["plugins/plugin-diagnostics"];
+  // The issue's prose, which writes the plugin's name in backticks as #16437 did.
+  const PROSE = "`plugin-diagnostics` reports why installed plugins cannot run.";
+  // A split of `lines` whose context says the default branch lacks `absent`.
+  const unitSplit = (lines, absent) => {
+    const body = [PROSE, "", "## Done when", "", ...lines].join("\n");
+    const issue = sizeIssue({ body });
+    const fake = splitFake({ issue, spec: specOf(body) });
+    const unitContext = { issue: { number: 7, title: issue.title, body }, size_split: { digest: linesDigest(lines), absent } };
+    return { fake, run: (output) => applySizeSplit({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules: splitRules, output, context: unitContext, log: () => {} }) };
+  };
+
+  test("namedUnits reads the plugins a line names, and a leading word only when the issue quotes it", () => {
+    const quoted = quotedNames([PROSE, CHECKS_PLUGIN]);
+    assert.deepEqual(namedUnits(CHECKS_PLUGIN.slice(6), quoted), MISSING);
+    assert.deepEqual(namedUnits(CHECKS_PLUGIN.slice(6)), [], "an unquoted leading word is no plugin");
+    assert.deepEqual(namedUnits("non-zero exit codes fail the run", quoted), [], "a hyphenated word the issue never quotes is no plugin");
+    assert.deepEqual(namedUnits("Create the plugin-diagnostics plugin"), MISSING);
+    assert.deepEqual(namedUnits("Create the `hook-kit` plugin and `plugins/hook-kit/hooks/hooks.json`"), ["plugins/hook-kit"]);
+    assert.deepEqual(namedUnits("The plugin `speech` reads `./lib/a.sh`"), ["plugins/speech"]);
+    assert.deepEqual(namedUnits("Writes to `/dev/null`, rebases onto `origin/main`, reads `skills/x/SKILL.md` and `https://x.y/plugins/z`"), []);
+  });
+
+  test("baseHolds reads a path, and a plugin name as any file or directory of that name", () => {
+    const base = mkdtempSync(join(tmpdir(), "refine-"));
+    try {
+      mkdirSync(join(base, "plugins", "speech"), { recursive: true });
+      mkdirSync(join(base, "lib"));
+      writeFileSync(join(base, "lib", "node-or-skip.sh"), "");
+      const held = baseHolds(base);
+      assert.equal(held("plugins/speech"), true);
+      assert.equal(held("lib/node-or-skip.sh"), true);
+      assert.equal(held("plugins/node-or-skip"), true, "a leading word can name a script");
+      assert.equal(held("plugins/plugin-diagnostics"), false);
+      assert.equal(held("plugins/speech/hooks/hooks.json"), false);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  test("selection records the paths and plugins the lines name that the default branch lacks", async () => {
+    const body = ["## Done when", "", CREATES_PLUGIN, CHECKS_PLUGIN, "- [ ] The `speech` plugin still loads"].join("\n");
+    const fake = fakeGitHub({ issue: sizeIssue({ body }), comments: [laneComment("none"), parked()], spec: specOf(body) });
+    const held = (unit) => unit === "plugins/speech";
+    const result = await selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts, held }) });
+    assert.deepEqual(result.context.size_split.absent, MISSING);
+  });
+
+  test("a part that checks a plugin no part creates and the default branch lacks files nothing, and the split says why", async () => {
+    const { fake, run: split } = unitSplit(["- [ ] The README lists every hook", CHECKS_PLUGIN], MISSING);
+    assert.deepEqual(await split({ parts: [[1], [2]], order: [] }), { outcome: "skipped", children: [] });
+    const w = writes(fake.calls);
+    assert.deepEqual(w.map(({ method, path }) => `${method} ${path}`), ["POST /repos/o/r/issues/7/comments"]);
+    assert.ok(w[0].body.body.startsWith(SIZE_DECLINE_MARKER.replace(" -->", " reason=unbuilt -->")));
+  });
+
+  test("a part after the part that creates the plugin is filed with it; unordered, neither is", async () => {
+    const lines = [CREATES_PLUGIN, CHECKS_PLUGIN];
+    const ordered = unitSplit(lines, MISSING);
+    assert.deepEqual(await ordered.run({ parts: [[1], [2]], order: [[1, 2]] }), { outcome: "split", children: [71, 72] });
+    assert.equal(writes(ordered.fake.calls).filter(({ path }) => path === "/repos/o/r/issues").length, 2);
+    const unordered = unitSplit(lines, MISSING);
+    assert.deepEqual(await unordered.run({ parts: [[1], [2]], order: [] }), { outcome: "skipped", children: [] });
+    const held = unitSplit(lines, []);
+    assert.deepEqual(await held.run({ parts: [[2], [1]], order: [] }), { outcome: "split", children: [71, 72] }, "a plugin the default branch holds needs no part to create it");
   });
 
   // A listed human's issue whose task lines are in intake's refinement only:
