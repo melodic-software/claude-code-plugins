@@ -24,6 +24,31 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "scripts/check.sh",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain && bash scripts/check.sh; echo $?",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "./scripts/check.sh",
+            "description": "run"
+          }
+        }
+      ]
     }
   ],
   "fail": [
@@ -51,6 +76,31 @@
           "tool": "Bash",
           "input": {
             "command": "cat scripts/check-imports.sh",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat scripts/check.sh",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat scripts/check-imports.sh",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash scripts/check.sh",
             "description": "run"
           }
         }

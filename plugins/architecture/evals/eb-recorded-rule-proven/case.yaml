@@ -24,7 +24,7 @@ graders:
   - name: check-run-repeatedly
     type: tool_used
     tool: 'Bash'
-    input_match: 'check(?:-imports)?\.sh'
+    input_match: '"command":"(?:[^"]*(?:\bbash\s+|\bsh\s+|\./|&&\s*|;\s*))?(?:[^\s"]*/)?check(?:-imports)?\.sh'
     min: 3
   - name: no-agent-instruction-write
     type: tool_used
