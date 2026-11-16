@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: pull-request-evidence-e2e-summary-collapsed
+context:
+  scaffold_script: scaffold.sh

@@ -27,6 +27,18 @@
       "default": true,
       "description": "When true, a /source-control:pull-request run, or a pr-unblock address-feedback round, that pushes a change making an open pull request's body stale (what changed, verification, the Left out: line) rewrites those sections in place, so the body describes the current head. false leaves the body as it was."
     },
+    "evidence_inline_max_captures": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 999,
+      "default": 4,
+      "description": "The most captures, Before and After counted together, that a change with at most two acceptance criteria may have and still show them inline as a Before/After table in the /source-control:pull-request evidence comment. A larger change, or one with no capture, keeps one collapsed section per acceptance criterion. 0 keeps every change in collapsed sections. Read at the pull request's base branch and honored only when that base is the default branch; an invalid value falls back to 4."
+    },
+    "evidence_record_fields": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, the /source-control:pull-request evidence comment carries a record block: who ran the verification, when, and the issues it found with their resolution, the record a regulated team keeps for an assurance activity. Read at the pull request's base branch and honored only when that base is the default branch; an invalid value falls back to false."
+    },
     "sync_stale_base": {
       "type": "boolean",
       "default": false,
