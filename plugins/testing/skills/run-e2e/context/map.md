@@ -54,8 +54,8 @@ List the entries in index order, before driving any:
 An entry's entry points are its feature's `## Entry points` lines, in order. An entry point's text
 is the line without its list marker and without its trailing status, trimmed, so the text stays
 the same when that status changes. The status is the line's last `|` and the `driven` or
-`not driven: <reason>` after it; on a line with no `|`, it is the first `: ` followed by `driven`
-ending the line or by `not driven: `, and everything after that `: `. The control-skill contract
+`not driven: <reason>` after it; on a line with no `|`, it is the first `:` and space followed by `driven`
+ending the line or by `not driven:` and a space, and everything after that `:` and space. The control-skill contract
 fixes no separator, and hubs use both. A line marked
 `not driven: <reason>` is `not checked (<reason>)`. Under `map_entry_points: first`, only the first
 line is judged, and each later one is `not checked (map_entry_points: first)`; drive still runs the
@@ -84,7 +84,7 @@ report gives it a whole number, `proof` for the proof step, and `run` for anythi
 | An error message or non-zero exit no stated result names | `error` | `unstated` | `high` |
 | The skill or model declined to do the step | `refusal` | `unstated` | `high` |
 | Nothing printed or rendered where the step runs | `no-output` | `unstated` | `high` |
-| Output cut off, mis-encoded or holding control bytes | `garbled-output` | `unstated` | `low` |
+| Output cut off, wrongly encoded or holding control bytes | `garbled-output` | `unstated` | `low` |
 
 Breakage outside these five kinds is not a finding: name it on a line under its report line. An
 entry point with a finding is `failed`; one with none is `passed`.
