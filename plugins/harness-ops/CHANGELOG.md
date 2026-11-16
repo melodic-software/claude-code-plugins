@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.0.14] - 2026-11-16
+
+### Added
+
+- The README says how to start an interactive session without your own configuration, plugins and customizations to check whether a problem comes from them: `--safe-mode` for a one-off check, a new `CLAUDE_CONFIG_DIR` for a lasting second setup, and why `--bare` is not the switch for it.
+
 ## [9.0.13] - 2026-11-16
 
 ### Changed
