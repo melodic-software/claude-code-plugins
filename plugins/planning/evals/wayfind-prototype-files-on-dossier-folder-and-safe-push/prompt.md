@@ -5,7 +5,7 @@ runs: 3
 max_turns: 30
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash]
-expected_outcome: "The prototype's files go in #504's own folder on the map's single dossier branch. The push is fetch, rebase, then a plain push without force, retried after a fresh fetch and rebase if rejected; it needs no force because the other session writes only its own item's folder. The verdict (each pass check passed) goes in the resolution comment with a link to the folder; then the pointer is added and the item closed."
+expected_outcome: "The item proves an outside vendor does something, so its route is /prototype:pressure-test in its vendor-fit mode. The prototype's files go in #504's own folder on the map's single dossier branch. The push is fetch, rebase, then a plain push without force, retried after a fresh fetch and rebase if rejected; it needs no force because the other session writes only its own item's folder. The verdict (each pass check passed) goes in the resolution comment with a link to the folder; then the pointer is added and the item closed."
 ---
 
 /planning:wayfind work 'Map: notification vendor' (#500). The claimed prototype item 'Prove Knock sends email and in-app from one call' (#504) is done: the pressure-test passed all checks. Another session is writing research findings to the same map's dossier branch right now. Save the prototype files and close the item.
