@@ -99,4 +99,29 @@ wit_select_active_lease "$LEASES_NONE"
 assert_eq "select: no active lease → empty id" "" "$WIT_ACTIVE_LEASE_ID"
 assert_eq "select: no active lease → empty json" "" "$WIT_ACTIVE_LEASE_JSON"
 
+# Winner: the EARLIEST live lease holds; superseded and expired leases are skipped, and a
+# lease the released-fn reports released moves arbitration on, though never the self id.
+LIVE_A="$(mk "$(jq -cn --arg t "$NOW_ISO" '{holder:"a", renewed_at:$t, ttl_hours:24}')")"
+LIVE_B="$(mk "$(jq -cn --arg t "$NOW_ISO" '{holder:"b", renewed_at:$t, ttl_hours:24}')")"
+DEAD_C="$(mk "$(jq -cn '{holder:"c", renewed_at:"2000-01-01T00:00:00Z", ttl_hours:24}')")"
+SUP_D="$(mk "$(jq -cn --arg t "$NOW_ISO" '{holder:"d", renewed_at:$t, ttl_hours:24, superseded_at:$t}')")"
+LEASES_MIXED="$(jq -cn --arg c "$DEAD_C" --arg d "$SUP_D" --arg a "$LIVE_A" --arg b "$LIVE_B" \
+  '[{id:40, body:$b}, {id:10, body:$c}, {id:20, body:$d}, {id:30, body:$a}]')"
+wit_lease_winner "$LEASES_MIXED" "$NOW" 40
+assert_eq "winner: earliest live lease, past an expired and a superseded one" "30" "$WIT_WINNER_ID"
+assert_eq "winner: its lease json" "a" "$(jq -r '.holder' <<<"$WIT_WINNER_JSON")"
+released_a() { [[ "$(jq -r '.holder' <<<"$2")" == a ]]; }
+wit_lease_winner "$LEASES_MIXED" "$NOW" 40 released_a
+assert_eq "winner: a lease the released-fn releases is passed over" "40" "$WIT_WINNER_ID"
+wit_lease_winner "$LEASES_MIXED" "$NOW" 30 released_a
+assert_eq "winner: the self id is never passed to the released-fn" "30" "$WIT_WINNER_ID"
+wit_lease_winner "$LEASES_NONE" "$NOW" 100
+assert_eq "winner: no live lease → empty id" "" "$WIT_WINNER_ID"
+
+# Newer live lease: only a live lease with a higher comment id than self counts.
+assert_succeeds "newer: a live lease after self is found" "found" "not found" wit_newer_live_lease "$LEASES_MIXED" "$NOW" 30
+assert_fails "newer: no lease after the newest" "not found" "found" wit_newer_live_lease "$LEASES_MIXED" "$NOW" 40
+LEASES_SUP_AFTER="$(jq -cn --arg a "$LIVE_A" --arg d "$SUP_D" '[{id:10, body:$a}, {id:20, body:$d}]')"
+assert_fails "newer: a superseded lease after self does not count" "not found" "found" wit_newer_live_lease "$LEASES_SUP_AFTER" "$NOW" 10
+
 [[ $FAILED -eq 0 ]] || exit 1
