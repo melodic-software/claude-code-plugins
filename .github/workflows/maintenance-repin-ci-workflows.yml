@@ -1,9 +1,6 @@
 name: Maintenance Repin CI Workflows
 
-# Moves the melodic-software/ci-workflows action pins, the eval legs' checkout
-# refs and the pr-run-activity.md link to the newest ci-workflows release
-# (scripts/repin-ci-workflows.sh), in one pull request armed to auto-merge.
-# Dependabot ignores melodic-software/ci-workflows/*.
+# Dependabot ignores melodic-software/ci-workflows/*, so this job moves the pin.
 on:
   workflow_dispatch:
   schedule:
@@ -88,9 +85,8 @@ jobs:
           permission-pull-requests: write
           permission-workflows: write
 
-      # One commit through createCommitOnBranch, which GitHub signs, on a branch
-      # cut from the checked-out tip. An open pull request already at this
-      # release is left alone for its CI.
+      # createCommitOnBranch commits are GitHub-signed, which main's
+      # required_signatures rule needs.
       - name: Commit the re-pin and open the pull request
         if: steps.repin.outputs.changed == 'true' && env.HAS_APP_CREDENTIAL == 'true'
         env:
@@ -113,11 +109,13 @@ jobs:
             exit 0
           fi
           number="${number%% *}"
+          echo "Moves the run-claude-cli link in pr-run-activity.md to ci-workflows ${NEW_TAG}; the contract does not change." |
+            bash scripts/new-changelog-fragment.sh --stdin pr-pipeline none
           adds="$RUNNER_TEMP/additions.jsonl"
           : >"$adds"
           while IFS= read -r path; do
             base64 -w0 "$path" | jq -Rsc --arg path "$path" '{path: $path, contents: .}' >>"$adds"
-          done < <(git diff --name-only)
+          done < <(git ls-files --modified --others --exclude-standard)
           if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" --silent 2>/dev/null; then
             gh api -X PATCH "$refs/heads/$branch" -f sha="$base_sha" -F force=true --silent
           else
@@ -144,7 +142,7 @@ jobs:
 
           ## Summary
 
-          Moves every \`melodic-software/ci-workflows/.github/actions/...\` pin in \`.github/workflows/\`, the eval legs' ci-workflows checkout refs and the \`pr-run-activity.md\` link from ${OLD_TAG} to ${NEW_TAG} (\`${NEW_SHA}\`). \`pr-check-managed-files-hosted.yml\` is left to the standards sync.
+          Moves every \`melodic-software/ci-workflows/.github/actions/...\` pin in \`.github/workflows/\`, the eval legs' ci-workflows checkout refs and the \`pr-run-activity.md\` link from ${OLD_TAG} to ${NEW_TAG} (\`${NEW_SHA}\`). \`pr-check-managed-files-hosted.yml\` is left to the standards sync. The doc edit carries a \`pr-pipeline\` changelog fragment with bump \`none\`.
 
           ## Fix
 
