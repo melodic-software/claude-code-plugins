@@ -144,7 +144,8 @@ walks to present the cumulative running history; they are not parser input, the 
 `--chain-from` consumes handoff files only (it reads `session_id` / `previous_handoff`), never
 running-retro ledgers. Honor the memory root's runtime guards (the once-per-session self-ignore
 guard on the resolved memory root; never edit the consumer's root `.gitignore`), steps 2 and 3 of
-[`${CLAUDE_PLUGIN_ROOT}/reference/structure.md` "Full-path write procedure"](${CLAUDE_PLUGIN_ROOT}/reference/structure.md#full-path-write-procedure).
+[`${CLAUDE_PLUGIN_ROOT}/reference/structure.md` "Full-path write procedure"](${CLAUDE_PLUGIN_ROOT}/reference/structure.md#full-path-write-procedure),
+read with the Read or Grep tool, not a shell command.
 
 **Redact before writing.** Re-sweep the findings for secrets, tokens, credentials, connection
 strings, and PII, replacing each with a shape marker (`<REDACTED: API key>`). This repeats the

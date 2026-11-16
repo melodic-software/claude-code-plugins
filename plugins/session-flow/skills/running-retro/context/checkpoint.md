@@ -85,8 +85,9 @@ Each skill-fit finding carries two fields beyond the table columns (its Evidence
 subagent return, redacted):
 
 - **Owning plugin and skill**: the plugin and skill the gap belongs to, read from the transcript's
-  skill invocation or the repo's skill listing. Write `no owner found` when none is evidenced,
-  and never guess one.
+  skill invocation, the user's account of it, or the session's skill listing already in context
+  (its `<plugin>:<skill>` names). Never search the filesystem for a skill or plugin file to find
+  or confirm one. Write `no owner found` when none is evidenced, and never guess one.
 - **Existing issue**: any matching open issue, or `none found`. The subagent makes no network
   calls, so it leaves this `not searched` and the main agent fills it (SKILL.md step 5).
 
