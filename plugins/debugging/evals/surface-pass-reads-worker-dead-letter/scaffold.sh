@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# An invoice worker started from a Procfile with a config file that names its queue, dead-letter
-# directory and log. A job whose region has no tax rate fails, goes to the dead-letter directory with
-# its error, and the worker still exits 0, so the run's own output shows nothing wrong.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
