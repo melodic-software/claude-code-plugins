@@ -11,6 +11,7 @@ plain prompt.
 - [A named receiver](#a-named-receiver)
 - [Multi-turn and the open pipe](#multi-turn-and-the-open-pipe)
 - [Background sessions](#background-sessions)
+- [Start in the target's plugin profile](#start-in-the-targets-plugin-profile)
 - [Mechanisms not used here](#mechanisms-not-used-here)
 - [Getting a reply back](#getting-a-reply-back)
 - [Signed-out Windows lane](#signed-out-windows-lane)
@@ -165,6 +166,35 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
   - **Pointer**: [Agent view: Limitations](https://code.claude.com/docs/en/agent-view#limitations),
     fetched live.
 
+## Start in the target's plugin profile
+
+When the task names a plugin profile, a turn or session started in a WSL lane (R2, R4, R5) starts
+in that lane's profile, through plugin-profiles' `profiles.mjs launch` on the target. Each step
+runs over the row's hop; `<dir>` is the directory the session starts in.
+
+1. Find the script: run `claude plugin list --json` on the target and take the `installPath` of
+   the entry whose `id` starts with `plugin-profiles@` and whose `enabled` is true. The script is
+   `<installPath>/scripts/profiles.mjs`.
+2. Run `launch` there with `--unattended`, since nobody answers a relay start, and put the verb's
+   own `--settings` JSON in `--with`, since `claude` keeps only the last `--settings`:
+
+   ```console
+   <ssh> <wsl-alias> 'cd <dir> && node <profiles.mjs> launch <profile> --folder <dir> --unattended --json --with "{\"crossSessionInbound\":\"accept\"}"'
+   ```
+
+   Leave out `--with` when the verb carries no `--settings`. On exit 1 (the profile switches on a
+   plugin missing a required tool) start nothing and report the reason it printed.
+3. Start the session with the printed `command` in place of `claude`, and the verb's other
+   arguments after it, without its `--settings`:
+
+   ```console
+   printf '%s\n' '<prompt>' | <ssh> <wsl-alias> 'cd <dir> && <command> -p -n <name>'
+   ```
+
+With no profile named, no enabled `plugin-profiles@` entry in step 1, or a Windows lane, start the
+session as the row does without this section, and say with the result that the profile was not
+applied and why. A Windows lane is left out because the printed `command` is a POSIX `env` line.
+
 ## Mechanisms not used here
 
 Each fails the fleet's per-lane account split or needs a human; see the linked page before
@@ -243,6 +273,7 @@ also rests on documented flag behavior.
 | Port 22 script hop | Not probed in this pass |
 | `notify_when_idle` from a `-p` sender | Message delivered; the notice never reached the sender, whose turn ended first |
 | `-p --remote-control` | Did not connect; Remote Control is interactive only |
+| [Start in the target's plugin profile](#start-in-the-targets-plugin-profile) | Untested on a live hop |
 | Cost | Most of each one-line `-p` turn's cost was SessionStart hooks and context loading; measure a turn per <https://code.claude.com/docs/en/costs#track-your-costs> |
 
 ## What the relay does not change

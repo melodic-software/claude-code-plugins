@@ -109,7 +109,13 @@ dated measurement and how to re-measure it). When a script can do the job, run t
 | Background session | `--bg --name <name> "<prompt>"`, not `-p`, with `< /dev/null` on an SSH row; manage with `claude agents --json --all`, `stop <id>`, `rm <id>` | none: it is in `<agent-args>` | tested on R2, trusted directory only |
 
 - Give every prompt the whole task: what done looks like, and what should make it stop and report.
-  Nobody answers a question a headless turn asks.
+  Nobody answers a question a headless turn asks. When the task touches a PR, issue or branch a
+  session holds, get that session's name and put it in the prompt, and never tell the target to
+  take the work over on its own judgment.
+- **Start in a profile.** When the task names a plugin profile, start the target's turn or session
+  in it as [reference/relay.md § Start in the target's plugin profile](reference/relay.md#start-in-the-targets-plugin-profile)
+  says. With no profile named, or none applied, say with the result that the profile was not
+  applied.
 - **Query and wait has no one-turn form.** Never wait on a `notify_when_idle` notice from a `-p`
   sender: in our probe it never reached the sender
   ([reference/relay.md § Verified behavior](reference/relay.md#verified-behavior)). Send the
