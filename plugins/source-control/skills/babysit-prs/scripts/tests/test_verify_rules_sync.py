@@ -932,5 +932,36 @@ class TheQueueCheckAndTheGateAgree(unittest.TestCase):
         self.assertEqual(expired, ([], "", 0))
 
 
+class TheBodyNoteTokenIsTheVerifiersOwn(unittest.TestCase):
+    """The gate clears a body-only FAIL by the lead every verifier prompt
+    tells a note on the pull request body, and only such a note, to take."""
+
+    def test_each_verifier_prompt_names_the_gates_token(self) -> None:
+        rule = (
+            "A note about the pull request body, its description text and not"
+            f" a file in the diff, starts with `{ve.BODY_NOTE}`; a note about"
+            " anything else, an undelivered item, a correctness bug or a"
+            f" missing test included, never starts with `{ve.BODY_NOTE}`."
+        )
+        for name in ("prompt.md", "spec-prompt.md", "chunk-note.md"):
+            with self.subTest(name):
+                text = " ".join((RESOLVER.parent / name).read_text().split())
+                self.assertIn(rule, text)
+
+    def test_the_gate_knows_where_the_writer_cuts_the_notes(self) -> None:
+        writer = RESOLVER.parent / "write-verdict.mjs"
+        script = (
+            f"import {{ NOTES_MAX }} from {json.dumps(writer.as_uri())};"
+            " console.log(NOTES_MAX);"
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(int(proc.stdout), ve.NOTES_MAX)
+
+
 if __name__ == "__main__":
     unittest.main()
