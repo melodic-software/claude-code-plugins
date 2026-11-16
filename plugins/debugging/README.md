@@ -40,9 +40,11 @@ file:line with the loop output, and changes no code.
 
 ## Works in any repo
 
-- **Self-contained.** The methodology, the per-ecosystem debugging reference, the
-  phase checklist, and the human-in-the-loop script template all ship inside the
-  plugin and are referenced via `${CLAUDE_PLUGIN_ROOT}`.
+- **Self-contained.** The methodology, the phase checklist, and the human-in-the-loop
+  script template all ship inside the plugin and are referenced via
+  `${CLAUDE_PLUGIN_ROOT}`. It ships no per-stack examples: stack specifics (the logger,
+  the clock fake, where a framework logs) come from your repository at run time, and
+  from `/discovery:research` when that plugin is enabled.
 - **Graceful degrade.** Where a phase mentions an adjacent capability, such as a
   test-investigation routine, a TDD helper, a headless-browser driver, an
   architecture-audit agent, an issue tracker, or an outcome verifier, it is treated as
