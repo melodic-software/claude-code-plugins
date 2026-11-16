@@ -2546,8 +2546,10 @@ failure signals.
   one comment unless anyone other than the lanes App edited its record; there is no write when the head's record already
   holds the line or a rating. Its `issue_comment` event starts
   `intake-label-outside-actor-activity` and `intake-reenter` runs whose jobs skip a bot's comment, as they do
-  for the pin. Nothing reads the record back: no gate, hold or rung. Not while
-  `merge.report-only` is true.
+  for the pin. Nothing in the pipeline reads the record back: no gate, hold or rung. Not while
+  `merge.report-only` is true. A session that merges a lanes App pull request does read it,
+  or the rating artifact for that head when the pull request was never armed
+  (`plugins/source-control/skills/pull-request/reference/merge.md` §4.2.1).
 - **Telemetry.** The rating run writes one `pr-merge-risk` lane-outcome record (outcome, class,
   `durationMs`, `costUsd`, models), and each arm logs a `merge-risk` notice
   (`pr=<n> head=<sha> merge-risk=<rated|unrated:reason> read-ms=<n>`, plus
@@ -3585,8 +3587,8 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 
 | Identity | Workflows | Why |
 |---|---|---|
-| `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
-| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
+| `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, except a dispatch and a pull request it opens or pushes to, whose `pull_request` runs wait for approval ([GitHub](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow)); the lane sweep's digest and the monitoring lane rely on this so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
+| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs unattended, which a `GITHUB_TOKEN` write does not (its pull request pushes start runs only after approval); one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
 | Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `release-generate-dependabot-changelog-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 

@@ -66,6 +66,11 @@
 # grammar never applies, and a scan config that does not resolve, a missing
 # repository or a symlinked layer (skipped with a warning) never stops it.
 #
+# MAP: `resolve-config.sh map` resolves the keys of /testing:run-e2e's map
+# scope the same way as E2E, --user values and layer order included, and prints
+# the same three columns: map_unit (feature | part, default feature) and
+# map_entry_points (all | first, default all).
+#
 # WRITE: `resolve-config.sh write` resolves /testing:write's keys the same
 # way and prints the same three columns: tdd_refactor_step (on | off, default
 # on) and first_test (user-flow | unit, default user-flow). They are
@@ -75,6 +80,7 @@
 # Usage:
 #   resolve-config.sh [--root <dir>] [--home <dir>] [--quick]
 #   resolve-config.sh e2e [--root <dir>] [--home <dir>] [--user <key>=<value>]...
+#   resolve-config.sh map [--root <dir>] [--home <dir>] [--user <key>=<value>]...
 #   resolve-config.sh write [--root <dir>] [--home <dir>]
 #   resolve-config.sh match <glob> <path>     exit 0 on a match, 1 otherwise
 #   resolve-config.sh --help
@@ -154,7 +160,7 @@ USER_HOME_DIR="${HOME:-}"
 QUICK=0
 MODE=scan
 users=()
-if [[ "${1:-}" == e2e || "${1:-}" == write ]]; then
+if [[ "${1:-}" == e2e || "${1:-}" == map || "${1:-}" == write ]]; then
   MODE="$1"
   shift
 fi
@@ -166,11 +172,13 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --user)
-    [[ "$MODE" == e2e ]] || die "--user is an e2e option"
+    [[ "$MODE" == e2e || "$MODE" == map ]] || die "--user is an e2e or map option"
     [[ $# -gt 1 && "$2" == *=* ]] || die "--user takes <key>=<value>"
-    case "${2%%=*}" in
-    e2e_driver | reuse_running_instance | browser_driver) users+=("$2") ;;
-    *) die "--user names a run-e2e key: e2e_driver, reuse_running_instance or browser_driver" ;;
+    case "$MODE:${2%%=*}" in
+    e2e:e2e_driver | e2e:reuse_running_instance | e2e:browser_driver) users+=("$2") ;;
+    map:map_unit | map:map_entry_points) users+=("$2") ;;
+    e2e:*) die "--user names a run-e2e key: e2e_driver, reuse_running_instance or browser_driver" ;;
+    *) die "--user names a map key: map_unit or map_entry_points" ;;
     esac
     shift
     ;;
@@ -225,20 +233,17 @@ in_list() {
   return 1
 }
 
-# mode_keys <key>...: print each key's value and source (header, E2E and
+# mode_keys <key>...: print each key's value and source (header, E2E, MAP and
 # WRITE). Exit 0.
 mode_keys() {
-  local key val src def f u raw lines allowed repo_only files=() user_driver="" user_reuse="" user_browser=""
+  local key val src def f u raw lines allowed repo_only files=()
+  local -A user_val=()
   local tool_re='^[A-Za-z0-9._-]+$'
   for u in ${users[@]+"${users[@]}"}; do
     val="${u#*=}"
     # shellcheck disable=SC2016 # the literal an unrendered option leaves
     [[ "$val" != '${user_config.'* ]] || val=""
-    case "${u%%=*}" in
-    e2e_driver) user_driver="$val" ;;
-    browser_driver) user_browser="$val" ;;
-    *) user_reuse="$val" ;;
-    esac
+    user_val[${u%%=*}]="$val"
   done
   for f in ${ROOT:+"$ROOT/.claude/testing.local.yaml" "$ROOT/docs/conventions/testing.yaml"} \
     ${USER_HOME_DIR:+"$USER_HOME_DIR/.claude/testing.yaml"}; do
@@ -253,13 +258,15 @@ mode_keys() {
   done
   for key in "$@"; do
     case "$key" in
-    e2e_driver) allowed="auto harness run playwright chrome" u="$user_driver" def=auto repo_only="" ;;
-    reuse_running_instance) allowed="auto true false" u="$user_reuse" def=auto repo_only="" ;;
-    browser_driver) allowed="" u="$user_browser" def=playwright-cli repo_only="" ;;
-    tdd_refactor_step) allowed="on off" u="" def=on repo_only=setting ;;
-    *) allowed="user-flow unit" u="" def=user-flow repo_only=setting ;;
+    e2e_driver) allowed="auto harness run playwright chrome" def=auto repo_only="" ;;
+    reuse_running_instance) allowed="auto true false" def=auto repo_only="" ;;
+    browser_driver) allowed="" def=playwright-cli repo_only="" ;;
+    map_unit) allowed="feature part" def=feature repo_only="" ;;
+    map_entry_points) allowed="all first" def=all repo_only="" ;;
+    tdd_refactor_step) allowed="on off" def=on repo_only=setting ;;
+    *) allowed="user-flow unit" def=user-flow repo_only=setting ;;
     esac
-    val="" src="" raw=""
+    val="" src="" raw="" u="${user_val[$key]:-}"
     for f in ${files[@]+"${files[@]}"}; do
       # The first layer with the key's top-level line sets it; only that line
       # reaches the parser, so a nested, non-scalar or unparsable value reads
@@ -294,6 +301,9 @@ mode_keys() {
 }
 if [[ "$MODE" == e2e ]]; then
   mode_keys e2e_driver reuse_running_instance browser_driver
+  exit 0
+elif [[ "$MODE" == map ]]; then
+  mode_keys map_unit map_entry_points
   exit 0
 elif [[ "$MODE" == write ]]; then
   mode_keys tdd_refactor_step first_test

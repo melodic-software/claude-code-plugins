@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: 'reach-start-in-profile'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'finds-profiles-script'
+    type: 'regex'
+    pattern: 'ssh\.exe\s+laptop-wsl\s+''?[^''\n]*\bclaude\s+plugin\s+list\s+--json'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'launch-unattended'
+    type: 'regex'
+    pattern: 'profiles\.mjs\S*\s+launch\s+["'']?build\b[^\n]*--unattended'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'settings-through-with'
+    type: 'regex'
+    pattern: 'profiles\.mjs\S*\s+launch\b[^\n]*--with\s[^\n]*crossSessionInbound'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'starts-with-printed-command'
+    type: 'llm'
+    criteria: 'Starts the laptop session with the command `profiles.mjs launch` prints (its `command` or `argv`) in place of a plain `claude`, and says that when launch exits 1 for a missing required tool nothing is started and the reason is reported'
+    focus: 'trace'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:fleet:)?reach"'

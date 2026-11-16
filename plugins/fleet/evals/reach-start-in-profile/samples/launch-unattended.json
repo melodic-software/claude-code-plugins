@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-wsl 'cd ~/repos/app && node <installPath>/scripts/profiles.mjs launch build --folder ~/repos/app --unattended --json --with \"{\\\"crossSessionInbound\\\":\\\"accept\\\"}\"'",
+      "why": "launch with --unattended"
+    },
+    {
+      "answer": "node ~/.claude/plugins/cache/m/plugin-profiles/1.0.0/scripts/profiles.mjs launch build --unattended --json",
+      "why": "resolved path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "node <installPath>/scripts/profiles.mjs launch build --folder ~/repos/app --json",
+      "why": "no --unattended"
+    },
+    {
+      "answer": "node <installPath>/scripts/profiles.mjs apply build --unattended",
+      "why": "apply, not launch"
+    }
+  ]
+}

@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.36.0] - 2026-11-16
+
+### Added
+
+- skill-authoring's criteria add two rules: a reference file works without the skill's steps, so another skill or a person can load it through the skill's invocation and act on it without running the sequence; and a shipped skill generates a repository-specific skill only where repository configuration cannot express the difference, reading config when it can.
+
 ## [0.35.3] - 2026-11-16
 
 ### Fixed

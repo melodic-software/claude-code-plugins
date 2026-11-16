@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Tests for findings-compare.sh: each label, the not-checked rule, the no-baseline
-# case, the order, the input checks, and the fields findings.schema.json requires.
+# case, the order, the input checks, and the fields findings.schema.json requires;
+# then finding-id.sh, the id a map pass gives each finding.
 # Every expected value is written by hand from the rules the script states.
 # test-scope: plugins/testing/skills/run-e2e/schemas/findings.schema.json
 set -uo pipefail
@@ -195,6 +196,45 @@ same "label is stated or unstated" "$(jq -c '.["$defs"].Finding.properties.label
   '["stated","unstated"]'
 same "the entry outcomes are the ones the script reads" \
   "$(jq -c '.["$defs"].Entry.properties.outcome.enum' "$SCHEMA")" '["passed","failed","not checked"]'
+
+# --- finding-id.sh: the id a map pass gives a finding ------------------------
+ID="$HERE/finding-id.sh"
+# fid <args...>: the id in $out, the exit status in $rc.
+fid() {
+  rc=0
+  out="$(bash "$ID" "$@" 2>/dev/null)" || rc=$?
+}
+fid billing export error 2
+base_id="$out"
+same "finding-id: a valid finding exits 0" "$rc" 0
+same "finding-id: the id fits the schema's id pattern" \
+  "$(jq -r --arg id "$base_id" '.["$defs"].Finding.properties.id.pattern as $p | $id | test($p)' "$SCHEMA")" true
+same "finding-id: the id is 16 hex digits" "${#base_id}" 16
+fid billing export error 2
+same "finding-id: the same fields give the same id" "$out" "$base_id"
+for args in "billing import error 2" "billing _ error 2" "billing export crash 2" "billing export error proof"; do
+  read -r f p k w <<<"$args"
+  [[ "$p" == _ ]] && p=""
+  fid "$f" "$p" "$k" "$w"
+  if [[ "$rc" == 0 && "$out" != "$base_id" ]]; then pass "finding-id: '$args' gives another id"; else
+    fail "finding-id: '$args' gives another id" "rc $rc, id '$out'"
+  fi
+done
+same "finding-id: the kinds are the schema's" \
+  "$(jq -r '.["$defs"].Finding.properties.kind.enum | join(" ")' "$SCHEMA")" \
+  "result-not-met error crash refusal no-output garbled-output"
+fid billing export timeout 2
+same "finding-id: a kind outside the schema's list exits 2" "$rc" 2
+for bad in 0 02 step ""; do
+  fid billing export error "$bad"
+  same "finding-id: where '$bad' exits 2" "$rc" 2
+done
+fid "billing"$'\n'"x" export error 2
+same "finding-id: a feature with a newline exits 2" "$rc" 2
+fid billing "export"$'\n'"x" error 2
+same "finding-id: a part with a newline exits 2" "$rc" 2
+fid billing export error
+same "finding-id: three arguments exit 2" "$rc" 2
 
 echo
 if ((FAILED == 0)); then echo "all passed"; else echo "$FAILED failed"; fi
