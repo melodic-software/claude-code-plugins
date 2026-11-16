@@ -361,6 +361,12 @@ export const RECORDED_LANES = new Map([
   [".github/workflows/pr-verify.yml", JUDGE_STEP],
   [".github/workflows/pr-review-main.yml", REVIEW_STEP],
 ]);
+// The checks-run conclusions that start each recorded lane's work: the
+// conclusions its jobs' `github.event.workflow_run.conclusion` test passes.
+export const LANE_TRIGGERS = new Map([
+  [".github/workflows/pr-verify.yml", new Set(["success", "failure"])],
+  [".github/workflows/pr-review-main.yml", new Set(["success"])],
+]);
 // The recorded lanes whose workflow runs the upstream-status gate; pr-verify.yml
 // runs none, so no outage holds its re-run.
 export const GATED_LANES = new Set([".github/workflows/pr-review-main.yml"]);
@@ -730,10 +736,25 @@ const OWNED_AFTER_MS = 2 * 3_600_000;
 // When a head's newest completed pull_request checks run finished, the one
 // whose completion started the head's live lane runs.
 const checksDone = (own) => {
-  const done = own
-    .filter((r) => RECORDED_UPSTREAMS.has(r.path) && r.event === "pull_request" && r.status === "completed" && isTime(r.updated_at))
-    .map((r) => Date.parse(r.updated_at));
-  return done.length > 0 ? Math.max(...done) : undefined;
+  const done = own.filter((r) => RECORDED_UPSTREAMS.has(r.path) && r.event === "pull_request" && r.status === "completed" && isTime(r.updated_at));
+  return done.length > 0 ? Math.max(...done.map((r) => Date.parse(r.updated_at))) : undefined;
+};
+
+// Per recorded lane, when the head's newest checks run that starts it
+// (LANE_TRIGGERS) finished: a newer run that does not start the lane replaces
+// none of its lost runs.
+const laneStarts = (own) => {
+  const starts = new Map();
+  for (const r of own) {
+    if (RECORDED_UPSTREAMS.has(r.path) && r.event === "pull_request" && r.status === "completed" && isTime(r.updated_at)) {
+      for (const [lanePath, conclusions] of LANE_TRIGGERS) {
+        if (conclusions.has(r.conclusion)) {
+          starts.set(lanePath, Math.max(starts.get(lanePath) ?? 0, Date.parse(r.updated_at)));
+        }
+      }
+    }
+  }
+  return starts;
 };
 
 // The lane items in place order: those matched to an open head, oldest first,
@@ -745,12 +766,13 @@ const checksDone = (own) => {
 // still bind the re-run to its PR.
 // A lost lane run is `superseded` and left out when, for every open head, it
 // was created more than MATCH_BEFORE_MS before the head's newest checks
-// completion or more than OWNED_AFTER_MS after it: a lane run starts after the
-// checks completion it follows, so it follows no open head's current checks:
-// its PR closed, its head moved, or its head's checks completed again and
-// started a newer lane run. Nothing is left out unless `drop` (every open
-// head's runs were read) holds and some open head has a completion; a
-// fault-held run is never left out.
+// completion that starts its lane (laneStarts) or more than OWNED_AFTER_MS
+// after it: a lane run starts after the checks completion it follows, so it
+// follows no open head's current checks: its PR closed, its head moved, or its
+// head's checks completed again and started a newer run of its lane. Nothing
+// is left out unless `drop` (every open head's runs were read) holds and some
+// open head has a completion that starts the lane; a fault-held run is never
+// left out.
 function laneOrder(lanes, openChecks, drop) {
   const pairs = [];
   for (const lane of lanes) {
@@ -770,9 +792,13 @@ function laneOrder(lanes, openChecks, drop) {
       taken.add(key);
     }
   }
-  const owner = (created, { done }) => created >= done - MATCH_BEFORE_MS && created <= done + OWNED_AFTER_MS;
-  const superseded =
-    drop && openChecks.length > 0 ? lanes.filter((l) => l.kind === "lane" && !openChecks.some((c) => owner(Date.parse(l.created_at), c))) : [];
+  const superseded = drop
+    ? lanes.filter((l) => {
+        const starts = openChecks.map((c) => c.starts.get(l.path)).filter((t) => t !== undefined);
+        const created = Date.parse(l.created_at);
+        return l.kind === "lane" && starts.length > 0 && !starts.some((t) => created >= t - MATCH_BEFORE_MS && created <= t + OWNED_AFTER_MS);
+      })
+    : [];
   const rest = lanes.filter((l) => !matched.has(l) && !superseded.includes(l));
   return { order: [...lanes.filter((l) => matched.has(l)).sort(byAge), ...rest.sort(byAge)], superseded };
 }
@@ -1105,7 +1131,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       const own = listing.workflow_runs.filter((r) => r.head_repository?.full_name === repo);
       const done = checksDone(own);
       if (done !== undefined) {
-        openChecks.push({ head: pull.head.sha, done });
+        openChecks.push({ head: pull.head.sha, done, starts: laneStarts(own) });
       }
       const { rerun, again, lane, inFlight: busy } = classify(own, since);
       inFlight += busy ? 1 : 0;

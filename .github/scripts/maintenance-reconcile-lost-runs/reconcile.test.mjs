@@ -19,7 +19,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, FLOOR_NOTE, floorNoted, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, FLOOR_NOTE, floorNoted, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1304,6 +1304,32 @@ test("no lost lane run is left out when an open head's runs could not be listed"
   });
   assert.deepEqual(reruns, [270], "head 2's checks may have completed before 16:00");
   assert.deepEqual(supersededLanes(log), []);
+});
+
+test("a newer failed checks run leaves out a lost verify run, which it starts again, but keeps a lost main-run review, which only a passed one starts", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { reruns, outputs } = await reconcile({
+    pulls: [pr(1)],
+    runs: [
+      run(101, sha(1), { conclusion: "success", created: "2026-10-19T16:50:00Z", updated: "2026-10-19T17:00:00Z" }),
+      failed(102, sha(1), { jobs: MIXED_JOBS, updated: "2026-10-19T19:00:00Z" }),
+      mainReviewRun(330, { created: "2026-10-19T17:00:04Z" }),
+      verifyRun(331, { created: "2026-10-19T17:00:30Z" }),
+    ],
+  });
+  assert.deepEqual(reruns, [330], "pr-review-main runs only on a passed checks run, so nothing replaces the 17:00:04 review");
+  assert.deepEqual(supersededLanes(log), [331], "pr-verify runs on a failed checks run too, so the 19:00 run started a newer one");
+  assert.deepEqual(deferredLanes(log), []);
+  assert.equal(outputs.clean, "true", "the review takes a place this pass, so no recovery work waits");
+});
+
+test("pr-verify and pr-review-main still start on the checks conclusions LANE_TRIGGERS names", () => {
+  for (const [lanePath, conclusions] of LANE_TRIGGERS) {
+    const workflow = readFileSync(new URL(`../../../${lanePath}`, import.meta.url), "utf8");
+    const tests = [...workflow.matchAll(/github\.event\.workflow_run\.conclusion == '([a-z_]+)'/g)].map((m) => m[1]);
+    assert.ok(tests.length > 0, `${lanePath} tests the upstream conclusion`);
+    assert.deepEqual([...new Set(tests)].sort(), [...conclusions].sort(), lanePath);
+  }
 });
 
 test("left-out lane runs take no place: four live runs fill the 3 places and one waits, deferred", async (t) => {
