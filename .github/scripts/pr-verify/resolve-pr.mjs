@@ -51,7 +51,7 @@
 // changed since the head commit (relinkedSince), which sets how long its pass
 // lasts (write-verdict.mjs retentionDays).
 
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -111,7 +111,7 @@ const incomplete = (message) => Object.assign(new Error(message), { incomplete: 
 const shortList = (message, count, cap) => (Number.isSafeInteger(count) && count > cap ? new Error(message) : incomplete(message));
 
 const COMMENT_FIELDS = "totalCount pageInfo { hasNextPage endCursor } nodes { databaseId createdAt updatedAt body lastEditedAt author { ...actor } editor { ...actor } }";
-const ISSUE_FIELDS = `number repository { nameWithOwner } body lastEditedAt
+const ISSUE_FIELDS = `number repository { nameWithOwner } title body lastEditedAt
           author { ...actor } editor { ...actor }
           comments(first: 100) { ${COMMENT_FIELDS} }`;
 const ACTOR = "fragment actor on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }";
@@ -746,6 +746,94 @@ export function recurringSpec(issue, schedule) {
   return rows.length === 1 && typeof rows[0].title === "string" && rows[0].title !== "" ? `# ${issueTitle(rows[0])}\n\n${issueBody(rows[0])}` : null;
 }
 
+// check-upstream-drift.sh's git pin marker: the first line holding its prefix
+// counts only when it opens the line in the strict form (MARKER_PREFIX,
+// STRICT_RE).
+const PIN_PREFIX = "**Last audited upstream state:**";
+const PIN_MARKER = /^\*\*Last audited upstream state:\*\* `([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)@[0-9a-f]{40}`/;
+// scripts/upstream-drift-issues.sh's title, and its lead line for an upstream
+// with a drifted hex-pin page (write_body), both built from the upstream id.
+const DRIFT_TITLE = /^Upstream drift: ([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/;
+const driftLead = (id) => `Upstream \`${id}\` changed since the pin on its docs/upstream page.`;
+// GitHub's compare lists at most this many files; a list that long may be cut.
+const COMPARE_FILES_CAP = 300;
+
+// Each docs/upstream page under `dir` with a git pin marker, as `<prefix>/<path>`
+// to the upstream id it pins, read from this script's own checkout (main's, in
+// pr-verify.yml) by default.
+export function upstreamPages(dir = fileURLToPath(new URL("../../../docs/upstream/", import.meta.url)), prefix = "docs/upstream") {
+  const pages = new Map();
+  let names;
+  try {
+    names = readdirSync(dir, { recursive: true }).map(String).filter((name) => name.endsWith(".md")).sort();
+  } catch {
+    return pages;
+  }
+  for (const name of names) {
+    let line;
+    try {
+      line = readFileSync(path.join(dir, name), "utf8").split("\n").find((text) => text.includes(PIN_PREFIX));
+    } catch {
+      continue;
+    }
+    const mark = PIN_MARKER.exec(line ?? "");
+    if (mark) {
+      pages.set(`${prefix}/${name.split(path.sep).join("/")}`, mark[1]);
+    }
+  }
+  return pages;
+}
+
+// The spec of an issue the upstream-drift workflow filed, or null. The issue
+// counts when github-actions[bot] wrote it and nobody else last edited it, its
+// title and first body line are the two lines upstream-drift-issues.sh writes
+// for one upstream id with a drifted hex-pin page, `pages` (this checkout's)
+// pins that id, and `files`, the pull request's changed files, are only
+// modifications of those pages. The spec is built from the id and those page
+// paths; no other line of the issue is read, so a string an upstream put in
+// its rows never becomes spec.
+export function driftSpec(issue, pages, files) {
+  const author = issue?.author;
+  const editor = issue?.editor;
+  const id = DRIFT_TITLE.exec(String(issue?.title ?? ""))?.[1];
+  const lead = String(issue?.body ?? "").split("\n", 1)[0].replace(/\r$/, "");
+  if (
+    author?.__typename !== "Bot" ||
+    author.databaseId !== ACTIONS_BOT_ID ||
+    (issue.lastEditedAt != null && (editor?.__typename !== "Bot" || editor.databaseId !== ACTIONS_BOT_ID)) ||
+    id === undefined ||
+    lead !== driftLead(id)
+  ) {
+    return null;
+  }
+  const own = [...pages].filter(([, upstream]) => upstream === id).map(([page]) => page);
+  if (
+    own.length === 0 ||
+    !Array.isArray(files) ||
+    files.length === 0 ||
+    files.length >= COMPARE_FILES_CAP ||
+    !files.every((file) => file?.status === "modified" && own.includes(file.filename))
+  ) {
+    return null;
+  }
+  const named = own.map((page) => `\`${page}\``).join(", ");
+  return [
+    `# Upstream drift: ${id}`,
+    "",
+    `Re-audit the docs/upstream page${own.length > 1 ? "s" : ""} pinned to upstream \`${id}\`: ${named}. For each upstream change since the page's pin, record its disposition (take, adapt or reject, or already-have on a page whose rows use it) on the page as docs/contracts/upstream-drift/README.md, "When a trigger fires", requires, and move the pin to the upstream head re-audited. The pull request changes only ${own.length > 1 ? "those pages" : "that page"}: a take or adapt is recorded there, and applying it to any other file is outside this spec.`,
+  ].join("\n");
+}
+
+// The files a pull request changes from `base` to `head` (GET compare, three
+// dots, as the pull request's diff). A failed read throws.
+async function compareFiles(github, repository, base, head) {
+  const answer = await github("GET", `/repos/${repository}/compare/${base}...${head}`);
+  if (!Array.isArray(answer?.files)) {
+    throw incomplete(`the changed files from ${base} to ${head} could not be read`);
+  }
+  return answer.files;
+}
+
 // The closing issues in this repository, or, when the pull request closes
 // none, the one issue its `Refs:` lines name (refsIssue), with their authors
 // and last body editors (`linkedIssues`), and the spec text: each body and comment written,
@@ -766,7 +854,11 @@ export function recurringSpec(issue, schedule) {
 // rest. An issue the recurring filer opened takes its body from its row of
 // `schedule` (recurringSpec), marked `source` `recurring-schedule`; it
 // defaults to this checkout's schedule, so every caller (the pr-unblock lanes
-// too) gets the same spec.
+// too) gets the same spec. A closing issue the upstream-drift workflow filed
+// takes its spec from its upstream id and `drift.pages` (driftSpec, by
+// default this checkout's docs/upstream pages), marked `source`
+// `upstream-drift`, only when `drift.changedFiles` reads the pull request's
+// changed files; a caller that passes none (the pr-unblock lanes) gets none.
 // The merge gate cannot see the refinement: an edit, a hide (isMinimized)
 // or a newer one after a pass leaves that pass standing. An edit only takes
 // the refinement out of spec, so no one gains a spec by it; a person's
@@ -806,7 +898,7 @@ async function wholeComments(github, repository, number, first, label, subject) 
   return { totalCount: first.totalCount, nodes };
 }
 
-export async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList, webHosts, read, base, schedule = readSchedule()) {
+export async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList, webHosts, read, base, schedule = readSchedule(), drift = {}) {
   const [owner, name] = repository.split("/");
   const variables = { owner, name, number };
   const data = await (read ? read(variables) : github("POST", "/graphql", { query: SPEC_QUERY, variables }));
@@ -855,6 +947,20 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
       childBodies.set(issue.number, body);
     }
   }
+  // The drift specs, by issue number: closing issues only, the changed files
+  // read once and only when an issue has the workflow's author and title.
+  const driftBodies = new Map();
+  const driftShaped = (issue) => issue.author?.__typename === "Bot" && issue.author.databaseId === ACTIONS_BOT_ID && DRIFT_TITLE.test(String(issue.title ?? ""));
+  if (named === null && typeof drift.changedFiles === "function" && issues.some(driftShaped)) {
+    const files = await drift.changedFiles();
+    const pages = drift.pages ?? upstreamPages();
+    for (const issue of issues) {
+      const body = driftSpec(issue, pages, files);
+      if (body !== null) {
+        driftBodies.set(issue.number, body);
+      }
+    }
+  }
   const pullRequest = data.data.repository.pullRequest;
   const siblings = base !== undefined && named === null && issues.length > 0 ? await creditedSiblings(readRefs, repository, number, pullRequest.body, base, humans, laneAppId) : [];
   return {
@@ -887,6 +993,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
       const counted = refinement !== undefined && (checks.length > 0 || !carriesSplit(refinement.body)) ? refinement : undefined;
       const childBody = childBodies.get(issue.number);
       const recurring = written(issue) || childBody !== undefined ? null : recurringSpec(issue, schedule);
+      const upstreamDrift = written(issue) || childBody !== undefined || recurring !== null ? null : (driftBodies.get(issue.number) ?? null);
       // A trusted target-subset part's Scope line (admit.mjs splitScope):
       // its done-when lines apply only to these targets.
       const scope = !written(issue) && childBody !== undefined ? splitScope(childBody) : null;
@@ -894,7 +1001,8 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
         number: issue.number,
         spec_kind: named !== null ? "refs" : "closes",
         ...(recurring !== null && { source: "recurring-schedule" }),
-        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBody ?? recurring),
+        ...(upstreamDrift !== null && { source: "upstream-drift" }),
+        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBody ?? recurring ?? upstreamDrift),
         ...(scope !== null && { scope }),
         comments: issue.comments.nodes.filter((comment) => written(comment) || comment === counted).map((comment) => String(comment.body ?? "")),
         // The body's done-when items that refinement lists as checks a
@@ -908,7 +1016,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   };
 }
 
-export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated, schedule = readSchedule() }) {
+export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated, schedule = readSchedule(), upstreamPages: pages }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -977,6 +1085,8 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   }
   // draftRun read the list whole, or it would have thrown.
   keepJobs?.((await readJobs()).jobs);
+  // The judged head's changed files, read only for a drift issue (driftSpec).
+  const drift = { pages, changedFiles: () => compareFiles(github, repository, pull.base.sha, head) };
   // Another workflow's reads of the same pull request (pr-rate-merge-risk.yml):
   // `rated` answers whether its own artifact for this head already stands, and
   // the verifier's judged-head rules do not apply. The closing issues are read
@@ -986,7 +1096,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     if (await rated({ github, repository, number: pull.number, head, base })) {
       return skip("already-rated");
     }
-    const { bodyEditor, bodyEditedAt, ...spec } = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts, undefined, base, schedule);
+    const { bodyEditor, bodyEditedAt, ...spec } = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts, undefined, base, schedule, drift);
     return { proceed: true, reason: "ok", relinkSinceHead: false, prNumber: pull.number, headSha: head, baseSha: pull.base.sha, headRef: String(pull.head.ref ?? ""), ...spec };
   }
   const prs = new Set(associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0));
@@ -1006,7 +1116,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     specPull = answer?.data?.repository?.pullRequest ?? null;
     return answer;
   };
-  const readSpecIssues = () => linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts, readSpec, base, schedule);
+  const readSpecIssues = () => linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts, readSpec, base, schedule, drift);
   // One relink read per judgment, shared by every rule that weighs it: the
   // spec answer's, where a missing or malformed field reads as a failed
   // read, or RELINK_QUERY's when no spec read answered.

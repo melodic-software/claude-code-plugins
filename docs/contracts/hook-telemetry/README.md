@@ -31,28 +31,33 @@ where no sink is configured.
 
 ## Sink path resolution
 
-`HOOK_TELEMETRY_SINK` is the reserved value `@harness-ops`, or a **single executable path**, absolute
-or relative to the consuming repo root. The producer resolves it before dispatch:
+`HOOK_TELEMETRY_SINK` is one of the reserved values `@session-telemetry` and `@harness-ops`, or a
+**single executable path**, absolute or relative to the consuming repo root. The producer resolves it
+before dispatch:
 
-- **`@harness-ops`**: the harness-ops reference sink, through the launcher harness-ops rewrites at each
-  SessionStart in its plugin data directory, `<data root>/harness-ops-<marketplace>/hook-telemetry-sink.sh`.
+- **`@session-telemetry`**, and its alias **`@harness-ops`**, which existing wiring may still name:
+  the session-telemetry reference sink, through the launcher session-telemetry
+  rewrites at each SessionStart in its plugin data directory,
+  `<data root>/session-telemetry-<marketplace>/hook-telemetry-sink.sh`
+  ([session-telemetry data](../session-telemetry-data/README.md)). A launcher in a harness-ops data
+  directory is never run.
   The producer searches the parent of its own `CLAUDE_PLUGIN_DATA` when it has one (a plugin hook;
   either path separator), then `${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/data`. Precedence: of every
-  `harness-ops-*` launcher found, the one modified most recently wins, whatever its name and
-  whichever producer asks. harness-ops touches its launcher at each SessionStart, so the install
-  that last started a session wins, and every producer sends to the same root. None found: the
-  event is skipped, fail-open. The launcher carries harness-ops'
-  `session_event_log_dir` and `hook_events_max_bytes`, so every producer's rows land in harness-ops'
-  root, and deletes itself when its install is gone.
+  `session-telemetry-*` launcher found, the one modified most recently wins, whatever its name and
+  whichever producer asks. session-telemetry touches its launcher at each SessionStart, so the install
+  that last started a session wins, and every producer sends to the same root. None found
+  (session-telemetry not installed, or never enabled): the event is skipped, fail-open. The launcher
+  carries session-telemetry's `session_event_log_dir` and `hook_events_max_bytes`, so every producer's
+  rows land in session-telemetry's root, and deletes itself when its install is gone.
 - **Any other value starting with `@`**: reserved for later sinks; the producer skips the event.
 - **Absolute** (POSIX `/…` or Windows `X:\` / `X:/`): used as-is.
 - **Relative** (e.g. `.claude/hooks/hook-telemetry-sink.sh`): joined onto the consuming repo root the
   producer already resolves for `data.file` (falling back to `$CLAUDE_PROJECT_DIR`); skipped fail-open if
   neither anchor is available, since a drifted hook CWD would resolve it incorrectly.
 
-`@harness-ops` and a relative path are the portable, team-shared wiring forms: commit either in
+A reserved value and a relative path are the portable, team-shared wiring forms: commit either in
 `settings.json`, so every clone and worktree wires the same sink with no per-machine absolute path.
-`@harness-ops` also needs no copy of the sink in the repository. Settings `env` values reach the
+A reserved value also needs no copy of the sink in the repository. Settings `env` values reach the
 environment as written, with no shell expansion, so `${CLAUDE_PLUGIN_ROOT}` cannot name the
 installed sink there. To pass arguments, wrap the sink in a script: the producer runs the value as a
 single command.
@@ -205,7 +210,7 @@ standards-repo "adopt by copy" pattern.
 
 A mod emits from its own hooks module instead, in TypeScript: context-usage's
 `hooks/register.tsx` builds the same envelope, resolves `HOOK_TELEMETRY_SINK` by the rules above
-(`@harness-ops` through `$.fs.list` and `$.fs.stat` modification times of the config dir's plugin
+(`@session-telemetry` and `@harness-ops` through `$.fs.list` and `$.fs.stat` modification times of the config dir's plugin
 data root, since a mod has no
 `CLAUDE_PLUGIN_DATA`; a relative path joins onto the session's project root, else
 `CLAUDE_PROJECT_DIR`), and starts the
@@ -215,7 +220,7 @@ sink fire-and-forget through `$.process.run`. Its envelope is checked by the plu
 ## Consuming (sink side)
 
 A repo **subscribes** by setting `HOOK_TELEMETRY_SINK` (committed in `settings.json`) to
-`@harness-ops`, or to a relative path of an
+`@session-telemetry`, or to a relative path of an
 executable that reads one envelope on stdin and maps the common fields into its own store. The
 envelope arrives as one JSON document; since the shared library's 2026-09-02 builtin emitter it is a
 single compact line (`jq -c` shape, no trailing CR), where earlier producers wrote jq's
@@ -241,26 +246,28 @@ gitdir has no `commondir`), a worktree of a bare repository whose directory has 
 as `proj.git`, and a `.git` file git did not register: the gitdir must be `<common>/worktrees/<name>`
 and its `gitdir` file must name this tree, compared as physical paths. A reader resolves the same anchor, so one store serves every worktree of a
 repository, and retention that counts sessions counts those of every worktree together. The containment checks a sink applies hold against the
-anchor. The harness-ops reference sink, its retention hook and its reader share one resolver:
-`slog_anchor_to` in `plugins/harness-ops/hooks/session-log-lib.sh`.
+anchor. The session-telemetry reference sink, its retention hook and harness-ops' readers share one resolver:
+`slog_anchor_to` in `plugins/session-telemetry/hooks/session-log-lib.sh`, which harness-ops carries as a
+generated copy.
 
 **Sink routing by session (reference sink).** Since contract 1.1 every producer
 that emits through `hook::emit_telemetry` carries the payload's `session_id` on the envelope spine
 (see "Correlation keys" above), so a sink needs nothing from the producer to file rows per session.
-The harness-ops reference sink reads the spine key first and falls back to `data.session_id`, the
-key the nine harness-ops audit hooks added under the additive rule before 1.1 and still send: an
+The session-telemetry reference sink reads the spine key first and falls back to `data.session_id`,
+the key its audit hooks and plugin-diagnostics' hook-failure audit added under the additive rule before
+1.1 and still send: an
 envelope carrying a well-formed id is appended to `<root>/sessions/<session_id>.jsonl` beside the
 per-session event log, and an envelope without one (a producer on 1.0, or a hook whose payload
 carries no session) goes to the shared `<root>/hook-events.jsonl`. The per-session report therefore
 covers every fleet producer from their 1.1 versions on.
 
 A sink's own store shape is the sink's business, not this contract's. A store a reader has to
-reconcile per query is the sink's own defect. The harness-ops reference sink writes one record shape
+reconcile per query is the sink's own defect. The session-telemetry reference sink writes one record shape
 on both routes, alongside the per-session event log's rows: the routes differ by destination and by
 whether the record carries `session_id`, and `hook_event_name` names the event on every row, so no
 reader normalizes an event key. The key set and the group each route contributes are stated once,
 where the formatter every writer calls lives:
-`plugins/harness-ops/hooks/session-log-lib.sh` (`slog_event_record_to`).
+`plugins/session-telemetry/hooks/session-log-lib.sh` (`slog_event_record_to`).
 
 ## Implementers
 
@@ -279,13 +286,13 @@ where the formatter every writer calls lives:
 | `guardrails` plugin | `block-windows-drive-tmp` | `data/block-windows-drive-tmp.schema.json` |
 | `guardrails` plugin | `block-exported-msys-pathconv` | `data/block-exported-msys-pathconv.schema.json` |
 | `guardrails` plugin | `block-root-delete-target` | `data/block-root-delete-target.schema.json` |
-| `harness-ops` plugin | `api-error-audit` | `data/api-error-audit.schema.json` |
-| `harness-ops` plugin | `config-change-audit` | `data/config-change-audit.schema.json` |
-| `harness-ops` plugin | `instructions-loaded-audit` | `data/instructions-loaded-audit.schema.json` |
-| `harness-ops` plugin | `permission-denied-audit` | `data/permission-denied-audit.schema.json` |
-| `harness-ops` plugin | `pre-compact-audit` | `data/pre-compact-audit.schema.json` |
-| `harness-ops` plugin | `skill-usage-audit` (two producers: PostToolUse/Skill and UserPromptExpansion, per the schema) | `data/skill-usage-audit.schema.json` |
-| `harness-ops` plugin | `tool-failure-audit` | `data/tool-failure-audit.schema.json` |
+| `session-telemetry` plugin | `api-error-audit` | `data/api-error-audit.schema.json` |
+| `session-telemetry` plugin | `config-change-audit` | `data/config-change-audit.schema.json` |
+| `session-telemetry` plugin | `instructions-loaded-audit` | `data/instructions-loaded-audit.schema.json` |
+| `session-telemetry` plugin | `permission-denied-audit` | `data/permission-denied-audit.schema.json` |
+| `session-telemetry` plugin | `pre-compact-audit` | `data/pre-compact-audit.schema.json` |
+| `session-telemetry` plugin | `skill-usage-audit` (two producers: PostToolUse/Skill and UserPromptExpansion, per the schema) | `data/skill-usage-audit.schema.json` |
+| `session-telemetry` plugin | `tool-failure-audit` | `data/tool-failure-audit.schema.json` |
 | `autonomy` plugin | `lane-stop-gate` | `data/lane-stop-gate.schema.json` |
 | `disk-hygiene` plugin | `destructive-guard` | `data/destructive-guard.schema.json` |
 | `disk-hygiene` plugin | `guard-launch-monitor` | `data/guard-launch-monitor.schema.json` |

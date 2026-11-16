@@ -12,7 +12,7 @@
           "node"
         ]
       },
-      "degrade": "Without node, the harness-ops hooks cannot launch, so they do nothing, and /harness-ops:known-issues and /harness-ops:setup cannot resolve the registry directory, so the registry actions stop.",
+      "degrade": "Without node, /harness-ops:known-issues and /harness-ops:setup cannot resolve the registry directory, so the registry actions stop, and the skills cannot tell whether session-telemetry is enabled.",
       "install": {
         "docs": "https://nodejs.org/en/download"
       }
@@ -22,21 +22,18 @@
       "kind": "cli",
       "need": "required",
       "for": [
-        "hook:audit-event-emitter.sh",
-        "hook:hook-failure-audit.sh",
-        "hook:session-event-log.sh",
-        "hook:session-retention.sh",
-        "hook:skill-usage-audit.sh"
+        "plugin"
       ],
       "detect": {
         "any": [
           "jq"
         ]
       },
-      "degrade": "Without jq, the harness-ops hooks skip their work.",
+      "degrade": "Without jq, the harness-ops skill scripts that read JSON stop.",
       "install": {
         "docs": "https://jqlang.org/download/"
-      }
+      },
+      "check": "/harness-ops:prerequisites"
     },
     {
       "id": "curl",
@@ -120,16 +117,9 @@
       "detect": {
         "any": [
           "claude"
-        ],
-        "version": {
-          "args": [
-            "--version"
-          ],
-          "pattern": "^([0-9.]+)",
-          "min": "2.1.287"
-        }
+        ]
       },
-      "degrade": "Claude Code older than 2.1.287 is unsupported: the module that writes the per-session hook event log and runs its SessionEnd retention does not load there, so the log stays empty even when switched on. The audit hooks in settings still run.",
+      "degrade": "Without the claude CLI, the harness-ops skills that run claude plugin commands cannot list, sync or update plugins.",
       "install": {
         "docs": "https://code.claude.com/docs/en/setup#update-claude-code"
       },

@@ -857,7 +857,7 @@ Canonical copy: `lib/html-chrome.html`. `scripts/sync-shared-copies.sh` generate
 adopting plugin's `reference/html-chrome.html` from it, with the generated-file header after
 the doctype; edit the canonical, then rerun the script. An adopting plugin registers its copy
 in `scripts/shared-copies.txt` and its path in `scripts/check-html-assets.sh`. The
-visualization, adhd and planning plugins carry it. Skills cite the reference inline by role
+visualization, adhd, planning and architecture plugins carry it. Skills cite the reference inline by role
 (their plugin's own copy), never by a repository path an installed consumer cannot resolve.
 
 The chrome is one for every page family: the system/light/dark toggle (system by default,

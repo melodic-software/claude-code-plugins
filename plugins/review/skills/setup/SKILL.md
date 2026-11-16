@@ -184,7 +184,10 @@ Plugin-side notes on top of the binding's procedure:
 A written (or confirmed-healthy) standards index and its personal override `.gitignore`, a one-line summary
 of the effective standards root, the row-validation result, and how to re-run this setup to
 reconfigure or migrate. When repository settings were written: the diff shown, the written path,
-the value `check` reads back, and whether the file is tracked.
+the value `check` reads back, and whether the file is tracked. One INFO line: the gate that denies
+publishing a connected page (explain-change's interactive view) as an Artifact ships in guardrails
+and runs only when that plugin is enabled; without it nothing blocks the publish. Give
+`claude plugin enable guardrails@<marketplace>`.
 
 ## Next
 

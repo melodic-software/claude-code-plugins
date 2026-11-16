@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:claude-code-plugin:testing:run-e2e-findings",
+  "title": "Findings",
+  "description": "One live verification pass over a feature map: the pass's build, each driven or skipped entry, and one record per finding id. scripts/findings-compare.sh reads two of these files and labels each finding id NEW, PRE-EXISTING, GONE or not checked.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["pass", "findings"],
+  "properties": {
+    "pass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["build", "entries"],
+      "properties": {
+        "build": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The build the pass drove, such as a commit SHA or a release tag. A comparison report shows both passes' builds in its header."
+        },
+        "entries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Entry" },
+          "description": "One row per entry the pass listed, driven or not. A finding only shows as GONE when every entry point it listed in the earlier pass was driven here."
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Finding" },
+      "description": "One record per finding id. Two records with the same id are invalid, so a failure seen through several entry points is a single record that lists each one."
+    }
+  },
+  "$defs": {
+    "Part": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "description": "The feature's part (the <part> of <feature>/<part>), or null when the pass drove whole features."
+    },
+    "Entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["feature", "part", "entry_point", "outcome", "reason", "wall_time_seconds", "tokens", "unmeasured_reason"],
+      "properties": {
+        "feature": { "type": "string", "minLength": 1, "description": "The feature id, its index path without features/ and the trailing /README.md." },
+        "part": { "$ref": "#/$defs/Part" },
+        "entry_point": { "type": "string", "minLength": 1, "description": "The entry point's text, as the feature file lists it." },
+        "outcome": {
+          "type": "string",
+          "enum": ["passed", "failed", "not checked"],
+          "description": "passed or failed when the entry was driven. not checked when it was blocked, not driven or left out by a cap; such an entry is never a finding."
+        },
+        "reason": {
+          "type": ["string", "null"],
+          "description": "Why the entry was not checked, such as cap or the blocked: line. Null when it was driven."
+        },
+        "wall_time_seconds": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "Measured wall time for the entry. Null when not measured, never an estimate."
+        },
+        "tokens": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Measured tokens the entry spent. Null when not measured, never an estimate."
+        },
+        "unmeasured_reason": {
+          "type": ["string", "null"],
+          "description": "Why wall_time_seconds or tokens is null. Null when both were measured."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "outcome": { "const": "not checked" } } },
+          "then": { "properties": { "reason": { "type": "string", "minLength": 1 } } },
+          "else": { "properties": { "reason": { "type": "null" } } }
+        },
+        {
+          "if": {
+            "anyOf": [
+              { "properties": { "wall_time_seconds": { "type": "null" } } },
+              { "properties": { "tokens": { "type": "null" } } }
+            ]
+          },
+          "then": { "properties": { "unmeasured_reason": { "type": "string", "minLength": 1 } } },
+          "else": { "properties": { "unmeasured_reason": { "type": "null" } } }
+        }
+      ]
+    },
+    "Finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "feature", "part", "kind", "where", "entry_points", "severity", "label", "evidence"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8,64}$",
+          "description": "A short hex hash of feature, part, kind and where, without the entry point, so it stays the same across passes. Passes are matched by exact id."
+        },
+        "feature": { "type": "string", "minLength": 1 },
+        "part": { "$ref": "#/$defs/Part" },
+        "kind": {
+          "type": "string",
+          "enum": ["result-not-met", "error", "crash", "refusal", "no-output", "garbled-output"],
+          "description": "result-not-met for a stated result or proof end state the run did not reach. The other five are the closed list of breakage kinds for a defect the map states nothing about."
+        },
+        "where": {
+          "type": "string",
+          "pattern": "^([1-9][0-9]*|proof|run)$",
+          "description": "The drive step number, proof for the proof step, or run for the run as a whole."
+        },
+        "entry_points": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Every entry point the finding showed at."
+        },
+        "severity": { "type": "string", "enum": ["critical", "high", "medium", "low"] },
+        "label": {
+          "type": "string",
+          "enum": ["stated", "unstated"],
+          "description": "stated when the finding fails a result the feature file states, unstated for breakage the map states nothing about."
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Evidence paths, relative to the pass's run directory."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "label": { "const": "stated" } } },
+          "then": { "properties": { "kind": { "const": "result-not-met" } } },
+          "else": { "properties": { "kind": { "not": { "const": "result-not-met" } } } }
+        }
+      ]
+    }
+  }
+}

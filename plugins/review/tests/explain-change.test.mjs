@@ -1124,6 +1124,16 @@ describe("connected page: the author Q&A over session-bridge", () => {
     assert.ok(html.includes(`connect-src ${origin}"`));
     if (process.platform !== "win32") assert.equal(lstatSync(page).mode & 0o777, 0o600);
   });
+  test("a connected build warns on stderr that the page is local-only and not for an Artifact; a plain build does not", () => {
+    const out = connect(["--connect", origin, "--dir", bridgeDir("bridge-note")]);
+    assert.equal(out.status, 0, out.stderr);
+    assert.match(out.stderr, /local-only/, "connected build names the page local-only");
+    assert.match(out.stderr, /only on this machine/, "connected build says it works only on this machine");
+    assert.match(out.stderr, /Never publish it as an Artifact/, "connected build forbids an Artifact publish");
+    const plain = spawnSync(process.execPath, [BUILDER], { input: JSON.stringify(data), encoding: "utf8", cwd: scratch, env: { ...process.env, TMPDIR: scratch, TEMP: scratch, TMP: scratch } });
+    assert.equal(plain.status, 0, plain.stderr);
+    assert.doesNotMatch(plain.stderr, /Artifact/, "a plain digest build prints no connected-page warning");
+  });
   test("a planted page.html link is replaced, never written through", () => {
     const dir = bridgeDir("bridge-link");
     const target = join(scratch, "link-target.md");

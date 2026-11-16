@@ -14,7 +14,9 @@
 #
 # With node on PATH it exits 0 and prints nothing. Without node it prints one
 # SessionStart notice to the user (systemMessage; only the user can install
-# node), then exits 0, the exit code these hooks use whenever they print JSON
+# node) that names the plugin whose lib/ holds this stub (its plugin.json name, else
+# the check command's plugin) and the check command, gated on its plugin being
+# enabled when that is another plugin, then exits 0, the exit code these hooks use whenever they print JSON
 # (https://code.claude.com/docs/en/hooks#exit-code-0, as of 2026-10-11; recheck
 # when that section changes the exit code it names for JSON output). The
 # prerequisites.mjs probe follows this record. Every plugin's notice shares one latch
@@ -45,9 +47,18 @@ if [ "${1:-}" = node-notice ]; then
       mkdir "$latch/$session" 2>/dev/null || exit 0
     }
   fi
-  plugin="${check#/}"
-  plugin="${plugin%%:*}"
-  msg="${plugin:-plugin}: node is not on PATH, so hooks that launch through node (this plugin's and others') do not run. Install Node.js (https://nodejs.org/en/download), restart Claude Code, then run ${check:-the plugin check skill}."
+  owner="${check#/}"
+  owner="${owner%%:*}"
+  case "$0" in
+  */*) manifest="${0%/*}/../.claude-plugin/plugin.json" ;;
+  *) manifest=../.claude-plugin/plugin.json ;;
+  esac
+  plugin=""
+  [ -f "$manifest" ] && plugin=$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | sed -n 1p)
+  plugin="${plugin:-$owner}"
+  run="${check:-the plugin check skill}"
+  [ -n "$owner" ] && [ "$owner" != "$plugin" ] && run="$run when $owner is enabled"
+  msg="${plugin:-plugin}: node is not on PATH, so hooks that launch through node (this plugin's and others') do not run. Install Node.js (https://nodejs.org/en/download), restart Claude Code, then run ${run}."
   printf '{"systemMessage":"%s"}\n' "$msg"
   exit 0
 fi
