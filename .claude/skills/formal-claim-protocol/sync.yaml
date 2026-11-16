@@ -1,14 +1,30 @@
 checks:
-  - id: claim-arbitration
+  - id: claim-local-lane
     covers:
       - plugins/work-items/tools/work-item-tracker/CONTRACT.md
       - plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh
       - plugins/work-items/tools/work-item-tracker/adapters/github/release.sh
+      - plugins/work-items/tools/work-item-tracker/adapters/github/renew-lease.sh
+      - plugins/work-items/tools/work-item-tracker/adapters/github/common.sh
       - plugins/work-items/tools/work-item-tracker/lib/lease.sh
-    commit: 8b9d8ed176e9598cfafe717d1937a6d5454791bd
-    command: /formal-verification:chart .claude/skills/formal-claim-protocol/model/ClaimProtocol.tla --view .claude/skills/formal-claim-protocol/model/view.mjs
+    commit: e5af89163c55103e7fcb519074a1932a4d63c67f
+    command: /formal-verification:chart .claude/skills/formal-claim-protocol/model/ClaimProtocol.tla --config .claude/skills/formal-claim-protocol/model/LocalLane.cfg --view .claude/skills/formal-claim-protocol/model/view.mjs --rerun-states 1000000
     seeded_break:
-      change: claim.sh step 4 takes the latest live lease as the winner instead of the earliest
-      caught: false
-      commit: 8b9d8ed176e9598cfafe717d1937a6d5454791bd
+      change: claim step 4 (lib/lease.sh wit_lease_winner) takes the latest live lease as the winner instead of the earliest; OneHolder breaks after 1,415 distinct states
+      caught: true
+      commit: e5af89163c55103e7fcb519074a1932a4d63c67f
+  - id: claim-local-triage
+    covers:
+      - plugins/work-items/tools/work-item-tracker/CONTRACT.md
+      - plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh
+      - plugins/work-items/tools/work-item-tracker/adapters/github/release.sh
+      - plugins/work-items/tools/work-item-tracker/adapters/github/renew-lease.sh
+      - plugins/work-items/tools/work-item-tracker/adapters/github/common.sh
+      - plugins/work-items/tools/work-item-tracker/lib/lease.sh
+    commit: e5af89163c55103e7fcb519074a1932a4d63c67f
+    command: /formal-verification:chart .claude/skills/formal-claim-protocol/model/ClaimProtocol.tla --config .claude/skills/formal-claim-protocol/model/LocalTriage.cfg --view .claude/skills/formal-claim-protocol/model/view.mjs --rerun-states 1000000
+    seeded_break:
+      change: claim step 4 (lib/lease.sh wit_lease_winner) takes the latest live lease as the winner instead of the earliest; OneHolder breaks after 1,929 distinct states
+      caught: true
+      commit: e5af89163c55103e7fcb519074a1932a4d63c67f
 outside_model: []
