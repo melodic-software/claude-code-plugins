@@ -45,3 +45,9 @@ graders:
     pattern: '\bestimat\w*'
     flags: 'i'
     target: 'last_message'
+  - name: 'caches-cleared'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '__pycache__|PYTHONDONTWRITEBYTECODE|python3?\s+-B\b|\.pyc\b'
+    min: 1
+    arm: 'both'

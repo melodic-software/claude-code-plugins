@@ -75,10 +75,16 @@ models. The ledger never enters the worktree.
 
 ## Phase 2: Run (one seed at a time)
 
-For each seed: apply it in the worktree, run the selected tests, record the outcome, then restore
-the file with `git -C <worktree> restore -- <file>` and confirm `git -C <worktree> status
---porcelain` is empty before the next seed. One seed at a time is what lets a catch be attributed;
-seeds planted together cannot say which one a failing test noticed.
+Before the first seed, find from the repository and its toolchain every compiled or cached
+artifact a test run can reuse instead of reading source: bytecode, incremental build output,
+test-runner caches. A seed that keeps the file's size and lands in the same second as the last run
+can otherwise run the cached build of the original code and read as `survived`.
+
+For each seed: clear those artifacts in the worktree, or force a rebuild, then apply the seed, run
+the selected tests, record the outcome, restore the file with `git -C <worktree> restore --
+<file>`, and confirm `git -C <worktree> status --porcelain` is empty before the next seed. One seed
+at a time is what lets a catch be attributed; seeds planted together cannot say which one a
+failing test noticed.
 
 | Outcome | Meaning |
 |---|---|
