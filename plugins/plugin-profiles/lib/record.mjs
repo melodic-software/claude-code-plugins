@@ -4,7 +4,8 @@
 //   recordPath(dataDir, settingsFile) -> <dataDir>/records/<sha256 of the settings file's real path>.json
 //   readRecord(path) / saveRecord(path, record) / deleteRecord(path)
 //   findRecord(dataDir, settingsFile) -> {path, record}: the file's record; a linked git worktree with
-//     none takes a copy of its main worktree's record when the file still holds every entry it wrote
+//     none takes a copy of its main worktree's record when the file still holds every entry it wrote;
+//     the copy is in memory, and only a command that writes (apply) saves it
 //   baseline(doc, record) -> {enabledPlugins, skillOverrides}: the file's entries with each
 //     recorded before-value put back, as if the earlier profile had been cleared
 //   nextRecord(previous, apply) -> the record after this apply; before-values come from the first write
@@ -83,12 +84,7 @@ function adoptedRecord(dataDir, settingsFile) {
 
 export function findRecord(dataDir, settingsFile) {
   const path = recordPath(dataDir, settingsFile);
-  let record = readRecord(path);
-  if (!record) {
-    record = adoptedRecord(dataDir, settingsFile);
-    if (record) saveRecord(path, record);
-  }
-  return { path, record };
+  return { path, record: readRecord(path) ?? adoptedRecord(dataDir, settingsFile) };
 }
 
 export const saveRecord = (path, record) => replaceFile(path, `${JSON.stringify(record, null, 2)}\n`);

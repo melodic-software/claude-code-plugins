@@ -2027,7 +2027,7 @@ assert_eq "no fixture string was evaluated by the shell" "" "$pwned"
 # Plugin profile: a lane's `profile` starts it through profiles.mjs launch
 # ============================================================================
 # Stands in for plugin-profiles' profiles.mjs launch: logs its argv, writes the
-# --with JSON into the session file it names, and refuses with exit 1 when
+# --with JSON into the session file it names unless --dry-run, and refuses with exit 1 when
 # STUB_PROFILES_RC=1, as a missing required prerequisite does.
 PP_ROOT="$TMP/pp"
 PP_LOG="$TMP/pp.log"
@@ -2042,7 +2042,7 @@ if (process.env.STUB_PROFILES_RC === "1") {
   process.exit(1);
 }
 const w = args.indexOf("--with");
-writeFileSync("$PP_FILE", w > 0 ? args[w + 1] : "{}");
+if (!args.includes("--dry-run")) writeFileSync("$PP_FILE", w > 0 ? args[w + 1] : "{}");
 console.log(JSON.stringify({ profile: args[1], argv: ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "claude", "--settings", "$PP_FILE"] }));
 STUB
 PP_LIST="[{\"id\":\"other@m\",\"enabled\":true,\"installPath\":\"/nowhere\"},{\"id\":\"plugin-profiles@m\",\"enabled\":true,\"installPath\":\"$PP_ROOT\"}]"
@@ -2103,8 +2103,15 @@ assert_contains "profile dry run: run-once flags follow the placeholder" "$out" 
 assert_eq "profile dry run: writes no session file" "" "$(cat "$PP_LOG")"
 
 : >"$CLAUDE_LOG"
+: >"$PP_LOG"
 out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" pp_run restart work 2>&1)"
 assert_contains "profile: restart relaunches with the session file" "$(cat "$CLAUDE_LOG")" "--settings $PP_FILE --bg -n work"
+assert_eq "profile: restart checks once with --dry-run, then launches once" \
+  "launch focus --folder $REPO --unattended --json --dry-run|launch focus --folder $REPO --unattended --json --with {\"env\":{\"LANE_X\":\"1\"}}" \
+  "$(paste -sd'|' "$PP_LOG")"
+
+out="$(STUB_CLAUDE_PLUGIN_LIST='[]' pp_run restart work 2>&1)"
+assert_eq "plugin-profiles absent: restart warns once" 1 "$(grep -c "plugin-profiles is not installed and enabled, so profile 'focus' was not applied" <<<"$out")"
 
 : >"$CLAUDE_LOG"
 out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" STUB_PROFILES_RC=1 run_launcher restart work --repo "$REPO" --config "$PP_CONFIG" --agents-json "$AGENTS_RUNNING" --no-pull --no-update --data-dir "$TMP/pp-data" 2>&1)"

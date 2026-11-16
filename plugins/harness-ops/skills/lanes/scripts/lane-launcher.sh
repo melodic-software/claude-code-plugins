@@ -1549,20 +1549,24 @@ find_profiles_script() {
 # inherited PLUGIN_PROFILES_SESSION: a lane started from a profiled session's
 # shell must not carry its marker. A launch refusal (a required tool missing)
 # returns 1 with the reason as a per-lane error. Under --dry-run nothing is
-# written; a placeholder stands in for the session file.
+# written; a placeholder stands in for the session file. With <mode> check it
+# only asks whether the launch would refuse: launch --dry-run writes no file,
+# and an absent plugin-profiles is left for the launch itself to warn about.
 LANE_CLAUDE=()
 PROFILE_APPLIED=0
-lane_claude_prefix() { # <name> <profile> <cwd> <settings JSON or "">
-  local name="$1" profile="$2" cwd="$3" settings="$4" out errfile rc=0 line
+lane_claude_prefix() { # <name> <profile> <cwd> <settings JSON or ""> [check]
+  local name="$1" profile="$2" cwd="$3" settings="$4" mode="${5:-}" out errfile rc=0 line
   LANE_CLAUDE=(env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude)
   PROFILE_APPLIED=0
   [[ -n "$profile" ]] || return 0
   if ! find_profiles_script; then
+    [[ "$mode" == check ]] && return 0
     warn "lane '$name': plugin-profiles is not installed and enabled, so profile '$profile' was not applied"
     return 0
   fi
   local -a args=(launch "$profile" --folder "$cwd" --unattended --json)
   [[ -n "$settings" ]] && args+=(--with "$settings")
+  [[ "$mode" == check ]] && args+=(--dry-run)
   if ((DRY_RUN)); then
     printf 'DRY-RUN: node'
     printf ' %q' "$PROFILES_SCRIPT" "${args[@]}"
@@ -1910,7 +1914,7 @@ _restart_one() {
   # A profile the relaunch would refuse (a required tool missing) leaves the
   # running lane up too. A cloud lane carries no profile.
   if [[ -n "$LANE_PROFILE" ]] && ! ((DRY_RUN)) && [[ "$LANE_TARGET" != cloud-session ]]; then
-    lane_claude_prefix "$name" "$LANE_PROFILE" "$(lane_launch_folder "$name")" "" || return 1
+    lane_claude_prefix "$name" "$LANE_PROFILE" "$(lane_launch_folder "$name")" "" check || return 1
   fi
   stop_lane_if_running "$name"
   local s=$?

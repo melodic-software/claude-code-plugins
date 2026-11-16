@@ -965,6 +965,24 @@ def test_new_start_command_says_to_relaunch_above_the_unchanged_copy_line(tmp_pa
     assert line in out(run("emit", str(target)))
 
 
+def test_phase_change_reopens_in_own_profile_and_starts_next_in_its_own(tmp_path):
+    repo = make_repo(tmp_path)
+    own = str(tmp_path / "sessions" / "abc-build.json")
+    nxt = str(tmp_path / "sessions" / "abc-review.json")
+    command = f'env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --settings "{nxt}"'
+    result = run(
+        *new_args(
+            repo, tmp_path, "--no-previous", "--settings-file", own, "--start-command", command
+        )
+    )
+    assert result.returncode == 0, err(result)
+    text = (repo / ".work" / "handoffs" / HOP1).read_text(encoding="utf-8")
+    assert f'`claude --resume {SID_A} --settings "{own}"`.' in text
+    assert f"start the next one with `{command}`, then in it:" in text
+    reopen = next(line for line in text.splitlines() if "claude --resume" in line)
+    assert nxt not in reopen, "the producing session reopens in its own profile"
+
+
 def test_new_refuses_a_start_command_with_a_backtick(tmp_path):
     repo = make_repo(tmp_path)
     result = run(*new_args(repo, tmp_path, "--no-previous", "--start-command", "claude `x`"))

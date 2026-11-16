@@ -955,9 +955,11 @@ test("a linked worktree whose settings copy holds the main worktree's profile en
   const w = world();
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
   const main = w.read();
+  const before = w.records();
   const t = linkedWorktree(w);
   assert.match(t.run(["status"]).stdout, new RegExp(`Profile build \\(folder\\) applied .* to ${t.file.replace(/[.\\]/g, "\\$&")}`));
-  assert.equal(w.records().length, 2, "the worktree's file gets a record of its own");
+  assert.equal(t.run(["apply", "review", "--for", "folder", "--dry-run"]).status, 0);
+  assert.deepEqual(w.records(), before, "status and a dry run adopt the record in memory and write none");
   const launched = t.run(["launch", "--json"]);
   assert.equal(JSON.parse(launched.stdout).profile, "build");
   assert.equal(t.run(["clear", "--yes"]).status, 0);
@@ -1006,4 +1008,24 @@ test("a launch with no profile from a profiled shell clears both inherited varia
   const r = w.run(["status"], inherited);
   assert.equal(r.status, 0, r.stderr);
   assert.doesNotMatch(r.stdout, /one-session settings file|\/parent\/sessions/);
+});
+
+test("an empty PLUGIN_PROFILES_SESSION counts as unset: status falls back to the folder profile and prints its launch command", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const r = w.run(["status"], { PLUGIN_PROFILES_SESSION: "" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /Start another session here in this profile with: node \S*profiles\.mjs launch build --folder /);
+  assert.doesNotMatch(r.stdout, /one-session settings file/);
+});
+
+test("launch --dry-run checks and prints the command but writes no session file", () => {
+  const w = world({ prerequisiteMissing: true });
+  const sessions = join(w.home, ".claude", "plugins", "data", "plugin-profiles-inline", "sessions");
+  const ok = launchJson(w, ["build", "--dry-run"]);
+  assert.match(ok.file, /-build\.json$/);
+  assert.equal(existsSync(sessions), false, "nothing written");
+  const refused = w.run(["launch", "build", "--dry-run", "--unattended"]);
+  assert.equal(refused.status, 1, "the unattended stop still applies");
+  assert.equal(existsSync(sessions), false);
 });

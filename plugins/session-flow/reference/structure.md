@@ -407,16 +407,17 @@ profile is in force. Otherwise write nothing about plugin profiles.
 
 With the skill available, two more steps run before `save_point.py new`:
 
-- **The resume line.** Invoke `/plugin-profiles:profile launch --json` via the Skill tool; when its
-  `file` is not null, pass it to `new` as `--settings-file "<file>"` (on the prompt-only path, add
-  `--settings "<file>"` after the UUID of the hand-written `claude --resume <UUID>`).
-- **A phase change.** When the user names a different profile for the next phase, invoke
-  `/plugin-profiles:profile launch <next profile> --json` instead, and pass its `command` to `new`
-  as `--start-command "<command>"` and its `file` as `--settings-file`. That adds a line above the
-  copy line telling the user to exit this session and start the next one with that command (on
-  the prompt-only path, write that line by hand in the same place). A resume in the same profile
-  keeps plain `/clear`. With the skill unavailable, keep `/clear` and say the next profile was not
-  applied.
+- **The resume line.** Invoke `/plugin-profiles:profile launch --json` via the Skill tool, with no
+  profile name, so it is this session's own; when its `file` is not null, pass it to `new` as
+  `--settings-file "<file>"` (on the prompt-only path, add `--settings "<file>"` after the UUID of
+  the hand-written `claude --resume <UUID>`). That line reopens this session, so it always carries
+  this session's profile, on a phase change too.
+- **A phase change.** When the user names a different profile for the next phase, also invoke
+  `/plugin-profiles:profile launch <next profile> --json` and pass only its `command` to `new`, as
+  `--start-command "<command>"`. That adds a line above the copy line telling the user to exit this
+  session and start the next one with that command (on the prompt-only path, write that line by
+  hand in the same place). A resume in the same profile keeps plain `/clear`. With the skill
+  unavailable, keep `/clear` and say the next profile was not applied.
 
 **TaskList.** Branch on which task tools this session has (read its tool list), never on the model
 name:
