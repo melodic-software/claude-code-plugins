@@ -9,4 +9,5 @@ bump: patch
   requirements, and "Check first" lists item 6 as open only when the rung runs in more than one
   place, as the enforcement ladder says.
 - `/session-flow:retro`: a finding that gets a check row gets no CLAUDE.md, `AGENTS.md` or
-  rules-file line offered as a fallback in case the check is declined.
+  rules-file line in any form, a fallback for a withheld or declined check included, and Phase 4
+  offers none; the Hooks format names the open criterion items one by one.

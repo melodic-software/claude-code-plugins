@@ -145,8 +145,10 @@ changes faster than any copy here could track, so no copy is kept here.
 
 Include: hook event, matcher pattern, what the script checks, expected behavior (block vs warn).
 A check row from [Check first](#check-first) without the `corrections` plugin also includes the
-strongest ladder rung that can decide the finding, by its rung id, and the criterion items Check
-first lists as requirements on the check.
+strongest ladder rung that can decide the finding, by its rung id, and, as requirements on the
+check, each criterion item Check first lists, by name: precision (item 3), a message naming the
+fix (item 4), proof on a planted violation (item 5), a kill switch (item 8), and item 6 where Check
+first keeps it.
 
 ## Settings / Configuration
 
