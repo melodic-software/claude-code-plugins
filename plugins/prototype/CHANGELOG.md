@@ -3,6 +3,15 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.1] - 2026-11-16
+
+### Fixed
+
+- `/prototype:pressure-test` no longer claims a request to settle domain types and an internal
+  service contract: its vendor-fit trigger now reads 'does this third-party API do X for us', so
+  the generic word "service" no longer pulls design work into the prototype skill. Invocation
+  probes cover vendor-fit questions and a vendor price comparison that should not trigger.
+
 ## [0.34.0] - 2026-11-16
 
 ### Added
