@@ -22,3 +22,5 @@ bump: minor
   instances can run side by side and how to check port ownership and credentials; create's proof
   launches from empty state; `/app-control:drive`'s Ready rule names port ownership and credential
   validity.
+- `/app-control:drive` reuses a running app only when it is the instance in this run's own launch
+  record; any other running app is reached only through `--attach`.
