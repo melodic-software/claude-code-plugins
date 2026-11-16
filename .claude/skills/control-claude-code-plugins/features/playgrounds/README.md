@@ -30,7 +30,8 @@ Drive the skill as the driving tool's `skills/invoke` feature, with `<plugin>` s
 
 - A skill marked `No slash command.` runs only from its plain-words entry point; one marked `No plain-words entry.` runs only from its slash command.
 - The plugin declares a dependency on `playground` from `claude-plugins-official`
-  (`plugins/playgrounds/.claude-plugin/plugin.json`). Where that plugin is not installed, the
-  `--plugin-dir` load fails: the init event's `plugin_errors` reports `dependency-unsatisfied`,
-  Ready refuses because the plugin is not listed, and no entry point can be driven. Installing it is
-  the person's call.
+  (`plugins/playgrounds/.claude-plugin/plugin.json`). A local drive's session loads none of the
+  person's installed plugins (its init event lists only the plugin under test and the built-in
+  `cc-plugin-*` ones), so the dependency is unmet even where `playground` is installed and enabled:
+  `plugin_errors` reports `dependency-unsatisfied`, Ready refuses because the plugin is not listed,
+  and no entry point can be driven locally. Installing `playground` does not change this.
