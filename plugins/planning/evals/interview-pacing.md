@@ -123,3 +123,24 @@ the coverage patterns. Grader changes for run 2:
 The thresholds, runs per case, model, command and INVALID list above are unchanged. One INVALID
 condition is added: a committed grader's verdict under `bun` differs from the CLI's on any run.
 Run 2 is a deviation from "run once": the cases as fixed must be run before they merge.
+
+## Result (run 2)
+
+2026-11-16, cases at `b3ec2b9075`, Claude Code 2.1.325, `claude-opus-5-5` in 24 of 24 traces,
+249 s, reported cost 9.80 USD (list-price estimate). `run-validity.py --runs 6`: VALID, warnings
+skill fired (slash-command prompts make no Skill call, and no case has a skill-fired grader) and
+models (no judge model, as none is used). No run errored. Every committed grader's verdict under
+`bun` matches the CLI's on all 24 runs.
+
+| Measure | Value |
+|---|---|
+| Qr, round per-question quality | 24/24 = 1.00 |
+| Qs, single per-question quality | 17/17 = 1.00 |
+| Cr, round coverage | 6/6 |
+| Single slots by decision | A 6, B 0, C 11, D 0; one step-2 run asked a non-planted question (which date places an invoice in a month) |
+| F, question lines per round reply | 12, 9, 11, 9, 9, 12; median 10 |
+
+Verdict: **ROUNDS HOLD UP** (Cr 6/6 >= 5/6; Qr 1.00 >= Qs 1.00 - 0.10). Both arms reach the
+ceiling on per-question quality, so the measure does not separate them on this task: round asks
+every planted decision in one turn, and single pacing needs about 10 turns for the same frontier.
+Single pacing never reached B in these runs: after A and D, both step cases asked C first.
