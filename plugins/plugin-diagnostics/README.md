@@ -33,8 +33,8 @@ Its user-facing `systemMessage`
 warning fires regardless of sink wiring (only its envelope needs a sink),
 because its whole subject is failures nothing else surfaces: a hook that fails
 to launch is a non-blocking error, the guarded tool call proceeds as if
-approved, and the only durable trace is a transcript attachment no human reads
-. It runs once per `Stop`, tails a bounded window of the session
+approved, and the only durable trace is a transcript attachment no human reads.
+It runs once per `Stop`, tails a bounded window of the session
 transcript for `hook_non_blocking_error` attachments (structural match on the
 attachment type, never substring), and warns once per session per distinct
 failing hook registration, keyed on `hookName` plus the registered command because several plugins
