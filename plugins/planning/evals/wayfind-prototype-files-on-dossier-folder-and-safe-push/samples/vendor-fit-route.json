@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Resolution: /prototype:pressure-test vendor-fit run; every check passed.",
+      "why": "names the skill and its vendor-fit mode"
+    },
+    {
+      "answer": "Resolution: proved with /prototype:pressure-test --vendor-fitness; all checks passed.",
+      "why": "a close variant of the mode name still counts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Resolution: /prototype:pressure-test passed every check.",
+      "why": "names no vendor-fit mode"
+    },
+    {
+      "answer": "Resolution: /prototype:explore-directions vendor-fit passed.",
+      "why": "names the wrong skill"
+    }
+  ]
+}

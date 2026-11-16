@@ -14,7 +14,10 @@
 //           does not change, and below 1.0 the second does not either), every
 //           github_actions update comes from an allowlisted publisher,
 //           ci-status is not red, and the diff is only what Dependabot
-//           manages. The pr-merge lane merges these.
+//           manages. A pull request whose every update the base policy's
+//           fastTrack.own names (`allOwn`) skips the publisher rule, and below
+//           1.0 only its first component counts. The pr-merge lane merges
+//           these.
 //   review  anything else, including anything this cannot read, every
 //           update to a dependency the standards Dependabot policy lists under
 //           autoMerge.reviewOnly (reviewOnly), and an npm or pip update whose
@@ -68,9 +71,18 @@ export function isMajor(from, to) {
   return a[0] !== b[0] || (a[0] === 0 && a[1] !== b[1]);
 }
 
+// true when the first numeric version component changed; null when either
+// side is not a version.
+export function isFirstMajor(from, to) {
+  const a = versionParts(from);
+  const b = versionParts(to);
+  return a === null || b === null ? null : a[0] !== b[0];
+}
+
 // The `updated-dependencies` entries of one commit message as
-// [{ name, major }], or null when it has none. A semver-minor update to a 0.x
-// version is major.
+// [{ name, major, firstMajor, version }], or null when it has none. A
+// semver-minor update to a 0.x version is major; firstMajor is true only for
+// semver-major.
 export function parseMetadata(message) {
   const lines = String(message ?? "").replace(/\r\n/g, "\n").split("\n");
   const start = lines.findIndex((line) => line.trim() === "updated-dependencies:");
@@ -94,23 +106,25 @@ export function parseMetadata(message) {
     const kind = String(entry["update-type"] ?? "").replace(/^version-update:/, "");
     const version = versionParts(entry["dependency-version"] ?? "");
     let major = null;
+    let firstMajor = null;
     if (kind === "semver-major") {
-      major = true;
+      major = firstMajor = true;
     } else if (kind === "semver-patch") {
-      major = false;
+      major = firstMajor = false;
     } else if (kind === "semver-minor" && version !== null) {
       major = version[0] === 0;
+      firstMajor = false;
     }
-    return { name: entry.name, major, version: entry["dependency-version"] ?? null };
+    return { name: entry.name, major, firstMajor, version: entry["dependency-version"] ?? null };
   });
 }
 
-// The jump a metadata entry with no `update-type` (a security update writes
-// none) reads from its own Dependabot commit's subject, never the editable PR
-// title: only when the subject opens with `Bump <pkg> from <a> to <b>` for the
-// same package and the entry's version is `<b>`; null otherwise, a group
-// subject included.
-export function subjectMajor(message, update) {
+// The `[from, to]` a metadata entry with no `update-type` (a security update
+// writes none) reads from its own Dependabot commit's subject, never the
+// editable PR title: only when the subject opens with `Bump <pkg> from <a> to
+// <b>` for the same package and the entry's version is `<b>`; null otherwise,
+// a group subject included.
+export function subjectJump(message, update) {
   const subject = String(message ?? "").split("\n", 1)[0].replace(PREFIX, "");
   if (update.version == null || GROUP.test(subject)) {
     return null;
@@ -119,7 +133,13 @@ export function subjectMajor(message, update) {
   if (!single || single.index !== 0 || single[1] !== update.name || single[3] !== update.version) {
     return null;
   }
-  return isMajor(single[2], single[3]);
+  return [single[2], single[3]];
+}
+
+// subjectJump's isMajor, or null.
+export function subjectMajor(message, update) {
+  const jump = subjectJump(message, update);
+  return jump === null ? null : isMajor(...jump);
 }
 
 // The updates the title names, or a group's body `Updates` lines when they add
@@ -128,11 +148,35 @@ export function parseTitle(title, body) {
   const subject = String(title ?? "").replace(PREFIX, "");
   const group = GROUP.exec(subject);
   if (group) {
-    const found = [...String(body ?? "").matchAll(UPDATE_LINE)].map((m) => ({ name: m[1], major: isMajor(m[2], m[3]), version: m[3] }));
+    const found = [...String(body ?? "").matchAll(UPDATE_LINE)].map((m) => ({
+      name: m[1],
+      major: isMajor(m[2], m[3]),
+      firstMajor: isFirstMajor(m[2], m[3]),
+      version: m[3],
+    }));
     return found.length === Number(group[1]) ? found : null;
   }
   const single = SINGLE.exec(subject);
-  return single ? [{ name: single[1], major: isMajor(single[2], single[3]), version: single[3] }] : null;
+  return single ? [{ name: single[1], major: isMajor(single[2], single[3]), firstMajor: isFirstMajor(single[2], single[3]), version: single[3] }] : null;
+}
+
+// The standards Dependabot policy's fastTrack.own globs (this organization's
+// own releases), each `*` matching any run of characters, `/` included, as
+// ci-workflows' automerge-dependabot gate reads them; [] when the policy has
+// none or they are not a list of non-empty strings.
+export function ownGlobs(policy) {
+  const own = policy?.fastTrack?.own;
+  return Array.isArray(own) && own.every((g) => typeof g === "string" && g.length > 0) ? own : [];
+}
+
+const ownRegExp = (glob) => new RegExp(`^${glob.split("*").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`);
+
+// Whether every update is an own release under `globs`: such a pull request
+// takes no `publisher:` reason, and a below-1.0 second-component move is not
+// major for it; a first-component move still is.
+export function allOwn(updates, globs) {
+  const patterns = globs.map(ownRegExp);
+  return updates.length > 0 && patterns.length > 0 && updates.every((u) => patterns.some((p) => p.test(u.name)));
 }
 
 export const isDependabotCommit = (item) => item?.commit?.author?.name === DEPENDABOT_AUTHOR[0] && item?.commit?.author?.email === DEPENDABOT_AUTHOR[1];
@@ -772,7 +816,11 @@ export function classify(pr) {
       const message = String(item.commit?.message ?? "");
       const entries = parseMetadata(message);
       if (entries !== null) {
-        metadata = [...(metadata ?? []), ...entries.map((u) => (u.major === null ? { ...u, major: subjectMajor(message, u) } : u))];
+        const read = (u) => {
+          const jump = subjectJump(message, u);
+          return { ...u, major: jump && isMajor(...jump), firstMajor: jump && isFirstMajor(...jump) };
+        };
+        metadata = [...(metadata ?? []), ...entries.map((u) => (u.major === null ? read(u) : u))];
       }
     }
   }
@@ -789,13 +837,18 @@ export function classify(pr) {
       reasons.push("sources-disagree");
     }
   }
+  // The policy copy at the base names this organization's own releases.
+  const own = allOwn(updates, ownGlobs(pr.policy));
+  if (own) {
+    updates = updates.map((u) => (u.major && u.firstMajor === false ? { ...u, major: false } : u));
+  }
   for (const update of updates) {
     if (update.major === null) {
       reasons.push(`unparsed-version:${update.name}`);
     } else if (update.major) {
       reasons.push(`major:${update.name}`);
     }
-    if (ecosystem === "github_actions" && !ACTIONS_PUBLISHERS.includes(update.name.split("/")[0])) {
+    if (ecosystem === "github_actions" && !own && !ACTIONS_PUBLISHERS.includes(update.name.split("/")[0])) {
       reasons.push(`publisher:${update.name}`);
     }
   }
