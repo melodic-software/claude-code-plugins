@@ -15,6 +15,7 @@ GIT_INDEX_FILE="$work/index" git update-index --add --cacheinfo "100644,$blob,.g
 tree="$(GIT_INDEX_FILE="$work/index" git write-tree)"
 seeded="$(git commit-tree "$tree" -p main -m "chore: trusted-actor list")"
 git update-ref refs/remotes/origin/main "$seeded"
+git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
 
 mkdir -p "$work/bin"
 cat >"$work/bin/gh" <<SH

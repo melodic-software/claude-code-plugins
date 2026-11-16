@@ -53,6 +53,7 @@ new_repo() {
   g "$r" add docs/conventions/review.yaml
   g "$r" commit -q -m base
   g "$r" update-ref refs/remotes/origin/main HEAD
+  g "$r" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
   printf '%s' "$r"
 }
 
@@ -169,6 +170,7 @@ printf '%s' "$TRUST_LIST" >"$R7/.github/standards/trusted-actors/trusted-actors.
 g "$R7" add .github
 g "$R7" commit -q -m base
 g "$R7" update-ref refs/remotes/origin/main HEAD
+g "$R7" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
 spec_line() { (cd "$R7" && PATH="$FAKE_BIN:$PATH" FAKE_GH_ISSUE=42 FAKE_GH_REPLY="$1" node "$RESOLVE" --root "$R7" "${@:2}" | grep '^loosened_check_spec: '); }
 out="$(spec_line '{"number": 42, "user": {"login": "owner-person", "id": 101, "type": "User"}}' --ref origin/main --spec-issue 42)"
 assert_contains "case 7: a trusted human's issue gives the spec's reason" "$out" "loosened_check_spec: counts"
@@ -187,6 +189,23 @@ out="$(spec_line '{"number": 42, "user": {"login": "owner-person", "id": 101, "t
 assert_contains "case 7: with no --spec-issue the spec gives no reason" "$out" "loosened_check_spec: no reason"
 node "$RESOLVE" --root "$R7" --ref origin/main --spec-issue '42; rm' >/dev/null 2>&1
 assert_eq "case 7: a --spec-issue that is not a number is a usage error" "2" "$?"
+
+# --- Case 7b: the list is read only from the default branch the resolver resolves --
+g "$R7" checkout -q -b head-branch
+g "$R7" commit -q -a -m "head adds stranger"
+g "$R7" update-ref refs/remotes/origin/head-branch HEAD
+out="$(spec_line '{"number": 42, "user": {"login": "stranger", "id": 999, "type": "User"}}' --ref origin/head-branch --spec-issue 42)"
+assert_contains "case 7b: a head-branch --ref whose list adds the author is refused" "$out" "loosened_check_spec: no reason"
+assert_contains "case 7b: the refusal names the default branch" "$out" "--ref origin/head-branch is not the default branch origin/main"
+out="$(spec_line '{"number": 42, "user": {"login": "owner-person", "id": 101, "type": "User"}}' --ref origin/head-branch --spec-issue 42)"
+assert_contains "case 7b: a head-branch --ref is refused even for an author the default branch trusts" "$out" "loosened_check_spec: no reason"
+out="$(spec_line '{"number": 42, "user": {"login": "owner-person", "id": 101, "type": "User"}}' --ref "$(g "$R7" rev-parse origin/main)" --spec-issue 42)"
+assert_contains "case 7b: a --ref naming the default branch's commit is read" "$out" "loosened_check_spec: counts"
+out="$(spec_line '{"number": 42, "user": {"login": "owner-person", "id": 101, "type": "User"}}' --spec-issue 42)"
+assert_contains "case 7b: with no --ref the resolved default branch is read" "$out" "loosened_check_spec: counts (issue #42 by owner-person, id 101, a trusted person at origin/main)"
+g "$R7" symbolic-ref -d refs/remotes/origin/HEAD
+out="$(spec_line '{"number": 42, "user": {"login": "owner-person", "id": 101, "type": "User"}}' --ref origin/main --spec-issue 42)"
+assert_contains "case 7b: a default branch that cannot be resolved gives no reason" "$out" "loosened_check_spec: no reason (the default branch could not be resolved)"
 
 # --- Case 8: with no trusted-actor list, a member human's issue gives a reason --
 spec_at() { (cd "$1" && PATH="$FAKE_BIN:$PATH" FAKE_GH_ISSUE=42 FAKE_GH_REPLY="$2" node "$RESOLVE" --root "$1" --ref origin/main --spec-issue 42 | grep '^loosened_check_spec: '); }
