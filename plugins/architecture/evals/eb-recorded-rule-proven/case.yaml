@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: eb-recorded-rule-proven
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: rule-in-check-config
+    type: regex
+    pattern: 'src/billing\s+src/reporting'
+    target: { source: file, path: scripts/import-rules.txt }
+  - name: injected-import-removed
+    type: regex
+    pattern: 'reporting'
+    match: not_contains
+    target: { source: file, path: src/billing/invoice.js }
+  - name: no-created-file-left-in-src
+    type: file_exists
+    path: 'src/**'
+    exists: false
+  - name: entry-records-enforcing-command
+    type: regex
+    pattern: 'billing must not import reporting[^\n]*Enforced by[^\n]*check'
+    flags: 'i'
+    target: { source: file, path: docs/conventions/architecture/README.md }
+  - name: check-run-repeatedly
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'check(?:-imports)?\.sh'
+    min: 3
+  - name: no-agent-instruction-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"[^"]*(?:AGENTS\.md|CLAUDE\.md|\.claude/rules)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-agent-instruction-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"[^"]*(?:AGENTS\.md|CLAUDE\.md|\.claude/rules)'
+    min: 0
+    max: 0
+    arm: both
