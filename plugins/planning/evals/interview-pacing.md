@@ -33,7 +33,7 @@ is the skill's `Q<N>: **<question>**` (an optional marker before it), so recap l
 | Grader | Passes when |
 |---|---|
 | `covers-a` to `covers-d` | some question line is on that decision |
-| `quality-a` to `quality-d` | some question is on that decision, and every question on it has a `Context:` block citing a fact the user stated, `My recommendation:` with a `Basis:` line or a `Withheld:` line, and an `Alternatives:` list |
+| `quality-a` to `quality-d` | some question on that decision has a `Context:` block citing a fact the user stated, `My recommendation:` with a `Basis:` line or a `Withheld:` line, and an `Alternatives:` list |
 | `closing-probe` | the reply carries "something else that would change" |
 | `one-question` (single only) | exactly one question line |
 | `one-recommendation` (single only) | exactly one `My recommendation:` or `Withheld:` |
@@ -45,7 +45,9 @@ the job runner and storage wait for planning?" covers D through D's own question
 whose only D-shaped question is that deferral does not cover D. The `covers-d` samples hold both
 shapes plus D settled in a preface line with no question.
 
-Each grader's samples are checked offline by `/evals:validate`. The patterns were also run against
+Each grader's samples are checked offline by `/evals:validate`, which runs the patterns in node.
+The CLI runs them in JavaScriptCore (Bun), which gave different verdicts on an earlier form of the
+quality patterns, so check a pattern change under `bun` as well. The patterns were also run against
 the ten kept replies of the earlier judge-graded run: all five round replies cover A to D, which a
 hand reading confirmed and the judge missed in three of them.
 
@@ -101,3 +103,23 @@ would have to show before it is worth the extra turns.
 - the model under test is not `claude-opus-5-5` in every kept trace.
 
 A run that errors or hits its turn cap is excluded and named.
+
+## Amendment 1 (2026-11-16, written before run 2)
+
+Run 1 (cases at `739e558d5d`) is INVALID and gives no result. Its validity gate read VALID, but the
+`quality-*` patterns, then written as "no question on X lacks a part" (a negative lookahead over the
+whole reply), failed well-formed replies under JavaScriptCore, the CLI's engine, while node passed
+them; `bun` reproduced the CLI's verdict on all 24 runs. The spot-read also found keyword defects in
+the coverage patterns. Grader changes for run 2:
+
+- `quality-*` now passes when some question on the decision has every part; bun and node agree on
+  every sample and on all 24 run-1 replies.
+- `covers-a` drops a bare "calendar month", so "which date puts an invoice in a month" no longer
+  counts as the date-range decision.
+- `covers-d` adds "after the click", "during the click" and "once it's ready", and drops "finished
+  file" and a bare "request", so a role question mentioning the finished file is no longer D.
+- New samples hold each of those shapes.
+
+The thresholds, runs per case, model, command and INVALID list above are unchanged. One INVALID
+condition is added: a committed grader's verdict under `bun` differs from the CLI's on any run.
+Run 2 is a deviation from "run once": the cases as fixed must be run before they merge.

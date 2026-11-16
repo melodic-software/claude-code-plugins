@@ -7,6 +7,10 @@
     {
       "answer": "Decided so far: Q4 (large exports): background build, mechanism at planning. Q5 (scope): one calendar month.\n\n❓ Q8: **Should only the `finance` role be able to export?**\nContext:\n- Support staff can see invoice lists but not payment details (your notes).\n\n➡️ My recommendation: **Yes, `finance` only**\nOrigin: new (ours)\nBasis: verified, your notes\n\nAlternatives:\n- (a) Both roles, with payment columns removed for support (origin: new (ours))\n\nIs there something else that would change these recommendations?",
       "why": "single pacing after A and D were answered, one question on who may export; the recap line asks nothing"
+    },
+    {
+      "answer": "Decided so far: Q4 (large exports): background build, mechanism at planning. Q5 (scope): one calendar month.\n\n❓ Q6: **Who may start an export and download the finished file?**\nContext:\n- Support staff can see invoice lists but not payment details (your notes).\n\n➡️ My recommendation: **Yes**\nOrigin: new (ours)\nBasis: verified, your notes\n\nAlternatives:\n- (a) The other way round (origin: new (ours))\n\nIs there something else that would change these recommendations?",
+      "why": "who may export, phrased as who may start and download the file"
     }
   ],
   "fail": [
