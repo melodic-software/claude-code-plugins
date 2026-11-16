@@ -63,6 +63,7 @@ export function stripComments(tla: string) {
       out += text;
       i += text.length - 1;
     } else if (tla.startsWith("(*", i)) {
+      if (!depth) out += " ";
       depth++;
       i++;
     } else if (depth && tla.startsWith("*)", i)) {

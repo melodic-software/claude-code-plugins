@@ -69,8 +69,10 @@ export function javaMajor(text) {
   return m[1] === "1" && m[2] ? Number(m[2]) : Number(m[1]);
 }
 
+const fromCaller = (file) => (/[\\/]/.test(file) ? resolve(file) : file);
+
 function probeJava(java) {
-  const r = spawnSync(java, ["-version"], { encoding: "utf8" });
+  const r = spawnSync(fromCaller(java), ["-version"], { encoding: "utf8", cwd: here });
   if (r.error) return { found: false, detail: `${java} was not found` };
   return { found: true, major: javaMajor(`${r.stdout}${r.stderr}`) };
 }
@@ -80,7 +82,7 @@ const runtimeOk = { node: (n) => n >= 23006000 || (n >= 22018000 && n < 23000000
 const runtimeKind = (file) => (basename(file).startsWith("bun") ? "bun" : basename(file).startsWith("deno") ? "deno" : "node");
 
 function probeRuntime(runtime) {
-  const r = spawnSync(runtime, ["--version"], { encoding: "utf8" });
+  const r = spawnSync(fromCaller(runtime), ["--version"], { encoding: "utf8", cwd: here });
   if (r.error || r.status !== 0) return { found: false, detail: `${runtime} --version did not run` };
   const line = r.stdout.trim().split("\n")[0];
   const [, a, b, c] = /(\d+)\.(\d+)\.(\d+)/.exec(line) ?? [];
@@ -184,7 +186,7 @@ export async function install(what, { dataDir, settings: s, releases = RELEASES,
     await download(pin.url, tarball, (f) => sri512(f) === pin.integrity, "renderer", { fetchImpl });
     rmSync(target, { recursive: true, force: true });
     mkdirSync(target, { recursive: true });
-    const x = spawnSync("tar", ["-xzf", tarball, "-C", target, "--strip-components=1", "--no-same-owner"], { encoding: "utf8" });
+    const x = spawnSync("tar", ["-xzf", tarball, "-C", target, "--strip-components=1", "--no-same-owner"], { encoding: "utf8", cwd: here });
     rmSync(tarball, { force: true });
     if (x.status !== 0) {
       rmSync(target, { recursive: true, force: true });
