@@ -218,10 +218,16 @@ conversion moves out of.
    branch and report each one by name, never adopting it. One `app-control:source-reader` agent
    (Read, Grep and Glob only) per feature file, in waves capped at 6, each filled to the cap
    before the next starts: 8 features run as 6 then 2. The cap is fixed here. A legacy map is converted first (an attended pass asks before),
-   uncommitted on the upkeep branch, so both passes read the control skill.
+   uncommitted on the upkeep branch, so both passes read the control skill. The wave also sweeps
+   the changed files for user-facing surfaces no feature lists, each with its source path, and you
+   spot-check at least one cited claim per answer that reports drift before the live pass.
 5. **Live pass** of every feature (or the one a feature id names) through `/app-control:drive`:
-   Ready before the first drive and after any failed one, cleanup after each drive, and every
-   evidence path checked after cleanup.
+   Ready before the first drive and after any failed one, cleanup after each launch, and every
+   evidence path checked after cleanup. A Ready the source wave shows is stale is fixed in the hub
+   and retried once, attended only; unattended, the fix goes in the report unwritten and the pass
+   is blocked. Features that need the same app state share one launch only when the hub's launch
+   model allows it. A feature not reached is reported with its unmet prerequisite and the command
+   tried.
 6. **Triage** each difference as doc drift, driver gap, missing data or product regression. A
    step that failed because the data lacks a precondition its feature names is missing data: the
    steps stay, and the reason goes in the feature's `## Gotchas`. A Drive step with no

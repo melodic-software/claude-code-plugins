@@ -184,9 +184,14 @@ source; which entry points the source now has that the file does not list; which
 apply; which states the steps need that the `## Drive` `Preconditions:` line does not name; which `## Drive` steps state no `Result:`, or a result the source no longer produces, and
 whether the last step is a `**Proof.**` step with a `Result:` and `Captures:` (for a `## Drive`
 that hands off to another feature or a steps file, ask this of the steps there, the proof step in
-the feature's own steps file); and one drive recipe for the live pass. The first subagent also gets the hub and is asked
-which of its `## Gotchas` no longer apply. Every answer cites `file:line`. Features whose sources
-did not change still get a subagent: a rename can sit in a shared file.
+the feature's own steps file); and one drive recipe for the live pass, naming the app state it
+needs (environment, account and seed data). The first subagent also gets the hub and is asked
+which of its `## Gotchas` no longer apply, which port, route, command or check its `## Ready`
+names that the source has moved or removed, and which user-facing surfaces (routes, commands,
+screens, menu items, flags) the changed files add that no feature file lists, each with the source
+path that adds it. Every answer cites `file:line`. Features whose sources did not change still get
+a subagent: a rename can sit in a shared file. With no base commit, the first subagent skips the
+unmapped-surface question, and the report says the sweep did not run.
 
 Each prompt opens with this:
 
@@ -217,26 +222,64 @@ report names each changed path, and nothing is reverted, written or opened. This
 backstop behind the agent's tool list: it cannot see a write under `.git/` (hooks, config), to an
 ignored path, or outside the checkout, and the report states those three blind spots.
 
+**Spot-check cited drift.** Before step 5, open at least one cited `file:line` from each answer
+that reports drift and confirm the source says what the claim says; when one fails, check every
+claim in that answer. A claim its citation does not support is dropped from triage and listed in
+the report. A feature an answer reports unchanged is not checked again here: the live pass covers
+it. An unmapped surface with no source path is dropped too.
+
 ## 5. Live pass
 
 Drive every feature once (or the one feature a feature id names), whatever the source wave found,
-through `/app-control:drive` invoked with the Skill tool, in a new temporary `--out` directory
-outside the checkout, passing `--unattended` on every call when the pass is unattended. Drive runs
+through `/app-control:drive` invoked with the Skill tool, each launch in a new temporary `--out`
+directory outside the checkout, passing `--unattended` on every call when the pass is unattended. Drive runs
 the steps as written; the candidates inform step 6's triage only. Three invariants hold for the whole pass:
 
 1. **Ready first.** Run `/app-control:drive ready <slug> --out <dir>` before the first drive, and
    again after any failed drive, before that failure counts against the app.
-2. **Clean up each drive.** Run `/app-control:drive cleanup <slug> --out <dir>` when each feature's
-   drive finishes; no process or browser session a drive opened survives it. The no-orphan check in
+2. **Clean up each launch.** Run `/app-control:drive cleanup <slug> --out <dir>` when each
+   feature's drive finishes, or a group's last drive (below); no process or browser session a
+   drive opened survives it. The no-orphan check in
    [prove.md](prove.md#checks-after-the-proof) holds for every launch record the pass leaves.
-3. **Evidence survives.** After each cleanup, every evidence path drive reported exists and is not
-   empty.
+3. **Evidence survives.** After each cleanup, every evidence path drive reported, in each copied
+   report of a shared launch (below), exists and is not empty.
+
+**A stale Ready.** When Ready fails and the source wave cited a port, route, command or check the
+hub's `## Ready` names as moved or removed, open that citation yourself; when it shows the move,
+the control skill is out of date, not the app. An attended pass shows the corrected `## Ready` text
+with the citation and, once the person agrees, records the hub's current `## Ready` text, writes
+the correction in the hub and runs Ready once more. When that retry passes, the live pass goes on
+and the fix ships as doc drift. When it fails, or the person declines, the outcome is **blocked**
+with the evidence and the corrected text in the report. An unattended pass writes nothing and runs
+Ready no further: the outcome is **blocked**, with the corrected text in the report, unwritten. A
+fix to a `cli/` command Ready calls is a driver gap (§ 6), never this retry. Unless the step 6.3
+commit or § Ticket branch's commit carries the written fix, the recorded text goes back into the
+hub before the pass returns (§ Return to the starting branch), whatever ended it, and § Ticket
+branch step 1 does not count this write as the caller's change.
+
+**One launch for features that share app state.** When the hub's launch model has no `Session:`
+line and its `Data:` line names a per-run data directory, not `none:` (the contract's "The launch
+model"), one instance may serve several drives. Group the features whose source-wave recipes need
+the same app state, and drive each group in order against one launch: one `--out` directory per
+group, so drive reuses the instance in its launch record, with Ready before the group's first drive
+and cleanup after its last. Drive performs each later feature's `## Reset` before its steps. Each
+drive rewrites the directory's `report.md` and `report.json`, so after each drive copy both into
+`<out>/reports/<feature id>/`; triage and the evidence check read those copies. A failed drive
+ends its group: run Ready on that instance (invariant 1), then cleanup, then drive the rest of the
+group on a new launch in a new `--out`. Any other launch model, or a feature no other feature
+shares a state with, keeps one launch per feature, cleaned up after its drive.
+
+A feature or entry point the live pass cannot reach is reported `blocked` or `not driven` with the
+unmet prerequisite (an account, a grant, a floor, a tool, a person) and the command or route the
+pass tried, from drive's `blocked` entries; it is never reported as driven. A feature the pass
+never drove, because an earlier stop such as a failed sign-in ended the live pass, is listed
+`not driven` with that stop as its reason and no command.
 
 The sign-in rule in [prove.md](prove.md#sign-in-comes-first) holds across the whole pass: one
 attempt per account per refresh run, and a failed sign-in stops the live pass.
 
-When the app does not build or start, or Ready still fails, the outcome is **blocked** with drive's
-evidence. When drive reports that the hub's driving tool cannot run on this host, the outcome is
+When the app does not build or start, or Ready still fails after any stale-Ready retry above, the
+outcome is **blocked** with drive's evidence. When drive reports that the hub's driving tool cannot run on this host, the outcome is
 **blocked: driver unavailable**, with drive's report: no candidate is written, the report lists
 each with its `file:line`, and the tool is not switched.
 
@@ -246,11 +289,11 @@ Sort every difference between the control skill and the app:
 
 | Class | What the passes show | Where it goes |
 |---|---|---|
-| Doc drift | The app works and the files describe it wrongly: a renamed handle, a moved route, a missing or extra entry point, a stale gotcha, a changed step order, a state the steps need that the `Preconditions:` line does not name, a hub `## Launch` with no `Data:` or `Side by side:` line (the contract's "The launch model"), or a lesson to place (SKILL.md Lessons). While the feature still reaches its end state, also: a Drive step with no `Result:`; a stated result that differs from what the step showed, only when the source wave cites the `file:line` that produces the shown result or finds the stated result was never produced (otherwise it is a product regression); and a missing `**Proof.**` step or one whose `Result:` or `Captures:` no longer matches what the live pass showed (a `## Drive` that hands off is judged by the steps it hands off to, its proof step in the feature's own steps file) | A correction to the feature file or hub, in the contract's shape, each corrected result written from what the live pass observed, with the index's entry-point counts and `sources` globs kept true, on the hub's lines and on a module `README.md`'s `## Sub-features` lines. An added, removed or changed entry point, its `driven` or `not driven` mark included, is written in the feature's own `README.md`, the copy a drive result is recorded in; the same edit rewrites the module `README.md`'s `## Entry points` from its features and the hub count with it. Ships in the pull request |
+| Doc drift | The app works and the files describe it wrongly: a renamed handle, a moved route, a missing or extra entry point, a stale gotcha, a changed step order, a state the steps need that the `Preconditions:` line does not name, a hub `## Launch` with no `Data:` or `Side by side:` line (the contract's "The launch model"), a hub `## Ready` corrected by § 5's stale-Ready retry, a `not driven:` entry point or a step drive reported `blocked:` whose unmet prerequisite the feature file names nowhere (the entry point's reason, `Preconditions:` or `## Gotchas`), or a lesson to place (SKILL.md Lessons). While the feature still reaches its end state, also: a Drive step with no `Result:`; a stated result that differs from what the step showed, only when the source wave cites the `file:line` that produces the shown result or finds the stated result was never produced (otherwise it is a product regression); and a missing `**Proof.**` step or one whose `Result:` or `Captures:` no longer matches what the live pass showed (a `## Drive` that hands off is judged by the steps it hands off to, its proof step in the feature's own steps file) | A correction to the feature file or hub, in the contract's shape, each corrected result written from what the live pass observed, with the index's entry-point counts and `sources` globs kept true, on the hub's lines and on a module `README.md`'s `## Sub-features` lines. An added, removed or changed entry point, its `driven` or `not driven` mark included, is written in the feature's own `README.md`, the copy a drive result is recorded in; the same edit rewrites the module `README.md`'s `## Entry points` from its features and the hub count with it. Ships in the pull request |
 | Driver gap | The behavior works but the control skill cannot drive it: a `cli/` command that fails or is missing, a Ready that misses a wedged app | Attended: after the person agrees, a fix in `cli/` or the hub, documented in `cli/README.md`, then that feature driven again live; it ships only when that re-drive passes, else it goes in the report unwritten. Unattended: the fix goes in the report unwritten and nothing is driven again, since the `cli/` code enforces the safety floors and no one has reviewed the change. Never a floor loosened |
 | Missing data | A step failed because the data lacks a precondition the feature's `Preconditions:` line names, while the rest of the app works | The steps, their results, the proof step and the `Preconditions:` line stay as written (the contract's "Preconditions"): the reason goes in that feature's `## Gotchas`, which ships in the pull request, and the data fix (a seed, a test account, a change to `## Reset`) goes in the report |
 | Product regression | A behavior the files list is gone, or fails against a healthy app, a step's stated `Result:` included when the step no longer shows it and the source still claims it or nothing the source wave found explains the change | The entry stays as written: the control skill never records a lost behavior as current. Written up through `/bugs:write` when it is enabled, else in the report with drive's evidence. Kept out of the pull request |
-| Not mapped | A user-facing feature the control skill does not list | The report |
+| Not mapped | A user-facing feature the control skill does not list, such as a surface step 4's sweep found, with the source path that adds it | The report, each with its source path |
 
 Then the outcome:
 
@@ -293,7 +336,8 @@ request that could merge first or without it. A ticket branch is a starting bran
 starting branch) other than the default branch and the control skill's upkeep branch.
 
 1. **Stay.** Switch nothing. When `git status --porcelain -- "<dir>"` prints a line not starting
-   `??` (tracked control skill files with uncommitted changes, the caller's own), the outcome is
+   `??` (tracked control skill files with uncommitted changes, the caller's own; this pass's
+   stale-Ready write in § 5 does not count), the outcome is
    **blocked** with the edits in the report unwritten: the caller commits or stashes those first.
    Changes outside the directory are the caller's work and stay untouched.
 2. **Write**, as step 2 above.
@@ -367,11 +411,17 @@ legacy map's conversion is written before step 4 (see there); a flat one's at st
 - the skip line from step 2, or why a conversion ran past it;
 - when a source wave ran, its tripwire result and the tripwire's blind spots: writes under `.git/`,
   to ignored paths and outside the checkout;
+- each claim the spot-check dropped, with its citation;
+- a stale-Ready fix: the corrected text, whether it was written and the retry's result, or that
+  the unattended pass left it unwritten;
+- the feature groups that shared a launch, or that each feature had its own;
+- each feature or entry point not reached, with the unmet prerequisite and the command or route
+  tried;
 - the driving tool and the hub line naming it;
 - each edit, by triage class, with the `file:line` or drive evidence behind it;
 - each regression and whether it went to `/bugs:write`;
 - each lesson and the Gotchas it went to, or that it is left for `/corrections:codify`;
-- the features found but not mapped;
+- the features found but not mapped, each with its source path, or that the sweep did not run;
 - each `feature-map-upkeep/*` branch found, local or remote, by name, and not adopted;
 - for a conversion, the old and new paths, whether a stopped pass undid the conversion, and the pointer and setting
   left to change;

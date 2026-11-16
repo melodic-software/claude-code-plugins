@@ -34,7 +34,7 @@ keep going.
 
 | Invocation | What it does |
 |---|---|
-| bare `[<app>] [<feature>]` | Launch unless the instance in this run's launch record under `--out` is still running and fit (any other running app is reached only through `--attach`), writing the launch record as "Record at launch" in [`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md) says, run `ready`, then perform the feature's Drive steps and save evidence after each step |
+| bare `[<app>] [<feature>]` | Launch unless the instance in this run's launch record under `--out` is still running and fit (any other running app is reached only through `--attach`), writing the launch record as "Record at launch" in [`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md) says, run `ready`, then perform the feature's Drive steps and save evidence after each step. On a reused instance, first perform the feature's `## Reset` as written, recorded as a step and held to the Rules below, so the steps start from its baseline (contract "Driving conventions"); a `## Reset` that reads `none` performs nothing |
 | `ready` | Run the control skill's Ready command (read-only) and report what is reachable |
 | `capture --kind <kind>` | Record the kind with the tool the control skill's `## Capture` section names for it, one artifact per tier row; `threads` (a stack of every thread, for a hang), and a `cpu` or `heap` recorder that takes a pid, bind to the launched pid ([`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md)) |
 | `cleanup` | Stop only what this run started, then confirm every evidence path in the report still exists and is not empty |
@@ -251,6 +251,10 @@ it as step 9 does. The report names `affected.json`; the file's fields and its g
   absent is `skipped: optional` and a step that needs a person or a grant is `blocked: <reason>`;
   nothing else is passed over. A step whose precondition the data
   lacks (contract "Preconditions") fails like any other and is recorded with what it observed.
+- **A `blocked` entry names what was missing and what was tried.** Each entry in the report's
+  `blocked` list carries the unmet prerequisite (the account, grant, floor, tool or person the
+  step lacked) and the exact command or route the step ran, or would have run when it
+  stopped first (evidence.md's `blocked` field). An entry missing either one is incomplete.
 
 ## Attach
 
