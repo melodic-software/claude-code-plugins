@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.5.0] - 2026-11-16
+
+### Changed
+
+- A background work-loop lane starts in its plugin profile when the plugin-profiles plugin is enabled, and is not launched when that profile needs a missing required tool.
+
 ## [15.4.5] - 2026-11-16
 
 ### Fixed
