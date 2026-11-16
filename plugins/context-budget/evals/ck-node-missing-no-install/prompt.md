@@ -10,6 +10,6 @@ expected_outcome: "The session runs the checker the notice names, runs no instal
 
 This showed up when the session started:
 
-> context-budget: node not on the hook PATH. Without node, the context-budget hooks cannot launch, so they do nothing. Install (docs: https://nodejs.org/en/download). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin"
+> context-budget: node not on the hook PATH. Without node, /context-budget:audit stops rather than estimating, since its measurement engine is a Node script. Install (docs: https://nodejs.org/en/download). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin"
 
 A copy of the plugin is in ./plugin. Give me PASS or FAIL for node.

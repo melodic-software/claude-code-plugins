@@ -179,7 +179,6 @@ plugins/code-tidying/scripts/test_rank_comment_targets.py 3
 plugins/code-tidying/skills/remove-comments/scripts/detect.test.sh 4
 plugins/code-tidying/skills/audit-dead-code/scripts/dead-code-scan.test.sh 5
 plugins/code-tidying/skills/tidy/scripts/open-pr-count.test.sh 1
-plugins/context-budget/hooks/settings-write-ask.test.sh 1
 plugins/context-budget/skills/audit/scripts/levers.test.sh 1
 plugins/context-budget/skills/audit/scripts/measure.test.sh 6
 plugins/context-usage/hooks/post-compact-mark.test.sh 1
@@ -290,6 +289,7 @@ plugins/guardrails/hooks/require-jq-notice-isolation.test.sh 1
 plugins/guardrails/hooks/require-jq-posture.test.sh 1
 plugins/guardrails/hooks/run-guards.test.sh 65
 plugins/guardrails/hooks/secret-pattern-detection.test.sh 22
+plugins/guardrails/hooks/settings-write-ask.test.sh 1
 plugins/guardrails/hooks/skill-reference-verify.test.sh 5
 plugins/guardrails/hooks/stale-path-verify.test.sh 4
 plugins/guardrails/hooks/workflow-resilience-check.test.sh 1
