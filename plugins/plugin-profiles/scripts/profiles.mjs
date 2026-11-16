@@ -32,7 +32,8 @@
 //          PLUGIN_PROFILES_SESSION names, else the folder's recorded one; with neither, the command
 //          carries no profile. --with adds a launcher's own settings (claude keeps only the last
 //          --settings), written to a file keyed by the folder, profile and merged content. The
-//          command always clears an inherited PLUGIN_PROFILES_SESSION; the file sets its own. A
+//          command always clears an inherited PLUGIN_PROFILES_SESSION and
+//          PLUGIN_PROFILES_SESSION_FILE; the file sets its own. A
 //          session file no launch has written for 30 days is removed by the next launch. The
 //          session it starts is a claude CLI process whatever surface runs launch, so no surface
 //          refuses it. The file sets PLUGIN_PROFILES_SESSION_FILE to its own path for status.
@@ -103,7 +104,7 @@ const OWN_ROOT = dirname(dirname(realpathSync(fileURLToPath(import.meta.url))));
 const SESSION_VAR = "PLUGIN_PROFILES_SESSION";
 // Set by the file itself, so status names the file a session was launched with, merged or not.
 const SESSION_FILE_VAR = "PLUGIN_PROFILES_SESSION_FILE";
-const USAGE =`usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
+const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
        profiles.mjs launch [<name>] [--folder <dir>] [--with <settings file or JSON>] [--unattended] [--json]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
        profiles.mjs clear [--for folder|initial] [--dry-run] [--yes]
@@ -487,7 +488,8 @@ function statusOf(opts, where, env, records) {
   const base = { surface: where.surface, rememberFolder: true, session: null, leftover: null };
   if (doesNotApply(where.surface)) return { ...base, profile: null, target: opts.target, settingsFile: targetFile(where, opts.target) };
   const name = env[SESSION_VAR];
-  if (name) base.session = { profile: name, file: env[SESSION_FILE_VAR] || sessionFile(where, name) };  let target = opts.target;
+  if (name) base.session = { profile: name, file: env[SESSION_FILE_VAR] || sessionFile(where, name) };
+  let target = opts.target;
   if (target === "folder" && !where.remembersFolder()) {
     base.rememberFolder = false;
     base.leftover = findRecord(where.dataDir, targetFile(where, "folder")).record?.profile ?? null;
