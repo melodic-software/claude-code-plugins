@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.18.16] - 2026-11-16
+
+### Fixed
+
+- `/evals:plugin-eval`'s description names a pasted validity verdict or noise-report line with a question about reporting or posting its number as a trigger, and its "load before answering" now covers every listed trigger, not only the last one.
+
 ## [0.18.15] - 2026-11-15
 
 ### Fixed

@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/explore-directions.html\",\"content\":\"<!doctype html>\\n<html><body><main data-variant=\\\"A\\\"></main>\\n<script type=\\\"application/json\\\" id=\\\"prototype-controls\\\">\\n{\\n  \\\"controls\\\": [\\n    {\\n      \\\"id\\\": \\\"c-0\\\",\\n      \\\"label\\\": \\\"Control 0\\\",\\n      \\\"group\\\": \\\"layout\\\",\\n      \\\"type\\\": \\\"range\\\",\\n      \\\"target\\\": \\\"--c-0\\\",\\n      \\\"default\\\": \\\"1\\\"\\n    },\\n    {\\n      \\\"id\\\": \\\"c-1\\\",\\n      \\\"label\\\": \\\"Control 1\\\",\\n      \\\"group\\\": \\\"typography\\\",\\n      \\\"type\\\": \\\"range\\\",\\n      \\\"target\\\": \\\"--c-1\\\",\\n      \\\"default\\\": \\\"1\\\"\\n    },\\n    {\\n      \\\"id\\\": \\\"c-2\\\",\\n      \\\"label\\\": \\\"Control 2\\\",\\n      \\\"group\\\": \\\"color\\\",\\n      \\\"type\\\": \\\"range\\\",\\n      \\\"target\\\": \\\"--c-2\\\",\\n      \\\"default\\\": \\\"1\\\"\\n    }\\n  ]\\n}\\n</script>\\n</body></html>\\n\"}}]}}",
+      "why": "the manifest element in the written page"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/explore-directions.html\",\"old_string\":\"</body>\",\"new_string\":\"<script type=\\\"application/json\\\" id=\\\"prototype-controls\\\">\\n{\\n  \\\"controls\\\": [\\n    {\\n      \\\"id\\\": \\\"c-0\\\",\\n      \\\"label\\\": \\\"Control 0\\\",\\n      \\\"group\\\": \\\"layout\\\",\\n      \\\"type\\\": \\\"range\\\",\\n      \\\"target\\\": \\\"--c-0\\\",\\n      \\\"default\\\": \\\"1\\\"\\n    },\\n    {\\n      \\\"id\\\": \\\"c-1\\\",\\n      \\\"label\\\": \\\"Control 1\\\",\\n      \\\"group\\\": \\\"typography\\\",\\n      \\\"type\\\": \\\"range\\\",\\n      \\\"target\\\": \\\"--c-1\\\",\\n      \\\"default\\\": \\\"1\\\"\\n    },\\n    {\\n      \\\"id\\\": \\\"c-2\\\",\\n      \\\"label\\\": \\\"Control 2\\\",\\n      \\\"group\\\": \\\"color\\\",\\n      \\\"type\\\": \\\"range\\\",\\n      \\\"target\\\": \\\"--c-2\\\",\\n      \\\"default\\\": \\\"1\\\"\\n    }\\n  ]\\n}\\n</script>\\n</body>\"}}]}}",
+      "why": "added by an Edit"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > /tmp/explore-directions-a1B2c3/explore-directions.html <<'HTML'\\n<!doctype html>\\n<html><body><main data-variant=\\\"A\\\"></main>\\n<script type=\\\"application/json\\\" id=\\\"prototype-controls\\\">\\n{\\n  \\\"controls\\\": [\\n    {\\n      \\\"id\\\": \\\"c-0\\\",\\n      \\\"label\\\": \\\"Control 0\\\",\\n      \\\"group\\\": \\\"layout\\\",\\n      \\\"type\\\": \\\"range\\\",\\n      \\\"target\\\": \\\"--c-0\\\",\\n      \\\"default\\\": \\\"1\\\"\\n    },\\n    {\\n      \\\"id\\\": \\\"c-1\\\",\\n      \\\"label\\\": \\\"Control 1\\\",\\n      \\\"group\\\": \\\"typography\\\",\\n      \\\"type\\\": \\\"range\\\",\\n      \\\"target\\\": \\\"--c-1\\\",\\n      \\\"default\\\": \\\"1\\\"\\n    },\\n    {\\n      \\\"id\\\": \\\"c-2\\\",\\n      \\\"label\\\": \\\"Control 2\\\",\\n      \\\"group\\\": \\\"color\\\",\\n      \\\"type\\\": \\\"range\\\",\\n      \\\"target\\\": \\\"--c-2\\\",\\n      \\\"default\\\": \\\"1\\\"\\n    }\\n  ]\\n}\\n</script>\\n</body></html>\\nHTML\",\"description\":\"x\"}}]}}",
+      "why": "written by a heredoc"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node -e \\\"require('fs').writeFileSync('explore-directions.html', '<main></main><script type=\\\\\\\"application/json\\\\\\\" id=\\\\\\\"prototype-controls\\\\\\\">{\\\\\\\"controls\\\\\\\":[]}</script>')\\\"\",\"description\":\"x\"}}]}}",
+      "why": "written by a Node script and fs.writeFileSync"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/explore-directions.html\",\"content\":\"<!doctype html>\\n<html><body><main data-variant=\\\"A\\\"></main>\\n<aside class=\\\"panel\\\"><input type=\\\"range\\\" id=\\\"gap\\\"></aside>\\n</body></html>\\n\"}}]}}",
+      "why": "a hand-made panel, no manifest"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/explore-directions.html\",\"content\":\"<!doctype html>\\n<html><body><main data-variant=\\\"A\\\"></main>\\n<script id=\\\"prototype-controls\\\">var controls = [];</script>\\n</body></html>\\n\"}}]}}",
+      "why": "a script with the id but not JSON"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -c 'id=\\\"prototype-controls\\\" type=\\\"application/json\\\"' /tmp/explore-directions-a1B2c3/explore-directions.html\",\"description\":\"x\"}}]}}",
+      "why": "a grep naming the element, not a write"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -c '<script type=\\\"application/json\\\" id=\\\"prototype-controls\\\">' /tmp/explore-directions-a1B2c3/explore-directions.html\",\"description\":\"x\"}}]}}",
+      "why": "a read-only grep of the whole tag, whose own > is no redirect"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -c '<script type=\\\"application/json\\\" id=\\\"prototype-controls\\\">' /tmp/explore-directions-a1B2c3/explore-directions.html > /dev/null && echo ok\",\"description\":\"x\"}}]}}",
+      "why": "a read-only grep whose redirect goes to /dev/null"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 - <<'PY'\\nprint('<script type=\\\"application/json\\\" id=\\\"prototype-controls\\\">' in open('/tmp/explore-directions-a1B2c3/explore-directions.html').read())\\nPY\",\"description\":\"x\"}}]}}",
+      "why": "a read-only python heredoc checking for the tag"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/notes.md\",\"content\":\"The page carries <script type=\\\"application/json\\\" id=\\\"prototype-controls\\\"> with the controls.\\n\"}}]}}",
+      "why": "a Write of a file that is not the page, quoting the tag"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"<!doctype html>\\n<html><body><main data-variant=\\\"A\\\"></main>\\n<script type=\\\"application/json\\\" id=\\\"prototype-controls\\\">\\n{\\n  \\\"controls\\\": [\\n    {\\n      \\\"id\\\": \\\"c-0\\\",\\n      \\\"label\\\": \\\"Control 0\\\",\\n      \\\"group\\\": \\\"layout\\\",\\n      \\\"type\\\": \\\"range\\\",\\n      \\\"target\\\": \\\"--c-0\\\",\\n      \\\"default\\\": \\\"1\\\"\\n    },\\n    {\\n      \\\"id\\\": \\\"c-1\\\",\\n      \\\"label\\\": \\\"Control 1\\\",\\n      \\\"group\\\": \\\"typography\\\",\\n      \\\"type\\\": \\\"range\\\",\\n      \\\"target\\\": \\\"--c-1\\\",\\n      \\\"default\\\": \\\"1\\\"\\n    },\\n    {\\n      \\\"id\\\": \\\"c-2\\\",\\n      \\\"label\\\": \\\"Control 2\\\",\\n      \\\"group\\\": \\\"color\\\",\\n      \\\"type\\\": \\\"range\\\",\\n      \\\"target\\\": \\\"--c-2\\\",\\n      \\\"default\\\": \\\"1\\\"\\n    }\\n  ]\\n}\\n</script>\\n</body></html>\\n\"}]}}",
+      "why": "a tool result carrying it, not a write"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node -e \\\"console.log(require('fs').readFileSync('explore-directions.html','utf8').includes('<script type=\\\\\\\"application/json\\\\\\\" id=\\\\\\\"prototype-controls\\\\\\\">{\\\\\\\"controls\\\\\\\":[]}</script>'))\\\"\",\"description\":\"x\"}}]}}",
+      "why": "a Node script that only reads the page for the tag"
+    }
+  ]
+}
