@@ -226,9 +226,10 @@ event starts a process (k = 0; `hooks/session-event-log.test.ts` counts the
 processes for every event). On, a mod cannot append to a file, so each event
 in an enabled category starts one process: the module hands the event's payload to
 `hooks/session-event-log.sh` through `node hooks/exec-bash.mjs`, the same script
-and launcher the settings rows ran, and `SessionEnd` starts a second for
-retention. No event waits on the write, which runs on a timer after the event
-goes on; `SessionEnd` waits for both, inside its teardown budget. Enabled, a 2 KB payload costs about 5 ms and a 512 KB one 36 ms of
+and launcher the settings rows ran. `SessionEnd` also starts one for retention,
+and records its own line only when `session` is enabled. No event waits on the
+write, which runs on a timer after the event goes on; `SessionEnd` waits for its
+scripts, inside its teardown budget. Enabled, a 2 KB payload costs about 5 ms and a 512 KB one 36 ms of
 script time on the Linux CI host. The parallel wall, the 4 KB and 16 KB appends,
 `ls -t`, and the late-EOF stall are measured by
 [`hooks/measure-hook-log-budget.sh`](hooks/measure-hook-log-budget.sh) and
@@ -249,8 +250,9 @@ The built-in guard `sec-default` loads on a machine with managed settings or a
 `managed-mcp.json`, and for a session on a Team or Enterprise `/login`. There
 it holds each `classic.*` hook the module registers, so the log does not run.
 Claude Code reports the held hooks in a `/plugin` note and, from 2.1.304, in a
-line per skipped event; registering only the chosen categories limits those
-lines to the events you chose. No user setting or mod signal turns the guard
+line per skipped event. Registering only the chosen categories limits the
+per-event lines to the events you chose; no change to the `/plugin` note is
+claimed. No user setting or mod signal turns the guard
 off. The log runs there only after an administrator installs session-telemetry
 as one of the organization's mods, or leaves `sec-default@builtin` out of
 managed `prependPlugins`, which removes the whole guard: see

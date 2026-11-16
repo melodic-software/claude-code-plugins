@@ -1,9 +1,9 @@
 import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
 // The per-session hook event log, off by default. Off, the module hooks nothing, so no event starts
-// a process. On, each observed classic event hands its payload to session-event-log.sh, which
-// writes the record the settings row wrote, and SessionEnd also runs session-retention.sh. A mod
-// cannot append to a file, so each write is one process.
+// a process. On, each observed classic event in an enabled category hands its payload to
+// session-event-log.sh, which writes the record the settings row wrote, and SessionEnd always runs
+// session-retention.sh. A mod cannot append to a file, so each write is one process.
 
 type ClassicEvent = Readonly<{ hook_event_name: string }>
 type Next = (e: never) => Promise<unknown>
