@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git worktree add --detach /tmp/tmp.abc/wt HEAD",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "adds a detached worktree"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "WT=$(mktemp -d) && git worktree add --detach \"$WT/wt\" HEAD",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "inside a compound command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "set -e\ngit worktree add --detach $W HEAD",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "after a newline in a multi-line script"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp -r src /tmp/copy",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "plain copy, no worktree"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git worktree list",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "lists only"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Seeds caught: 1 of 3 planted (estimate).",
+      "why": "x of 3"
+    },
+    {
+      "answer": "The tests caught 0/3 seeds.",
+      "why": "x/3"
+    },
+    {
+      "answer": "2 out of 3 seeds were caught.",
+      "why": "out of"
+    },
+    {
+      "answer": "Your tests caught **1 of the 3 bugs** I planted.",
+      "why": "bold count, of the"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Two seeds survived.",
+      "why": "no ratio"
+    },
+    {
+      "answer": "Caught 1 of 5.",
+      "why": "wrong denominator"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
