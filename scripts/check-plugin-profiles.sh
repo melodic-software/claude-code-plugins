@@ -15,7 +15,7 @@ fi
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 root="${1:-$here}"
 home="$(mktemp -d)"
-trap 'rm -rf "$home"' EXIT
+trap 'rm -rf "${home:?}"' EXIT
 HOME="$home" USERPROFILE="$home" CLAUDE_CONFIG_DIR="$home/.claude" CLAUDE_PROJECT_DIR="$root" \
   node "$here/plugins/plugin-profiles/scripts/profiles.mjs" check \
   --catalog "$root/.claude-plugin/marketplace.json" \
