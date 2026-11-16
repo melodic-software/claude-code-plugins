@@ -1554,7 +1554,7 @@ LANE_CLAUDE=()
 PROFILE_APPLIED=0
 lane_claude_prefix() { # <name> <profile> <cwd> <settings JSON or "">
   local name="$1" profile="$2" cwd="$3" settings="$4" out errfile rc=0 line
-  LANE_CLAUDE=(env -u PLUGIN_PROFILES_SESSION claude)
+  LANE_CLAUDE=(env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude)
   PROFILE_APPLIED=0
   [[ -n "$profile" ]] || return 0
   if ! find_profiles_script; then
@@ -1567,7 +1567,7 @@ lane_claude_prefix() { # <name> <profile> <cwd> <settings JSON or "">
     printf 'DRY-RUN: node'
     printf ' %q' "$PROFILES_SCRIPT" "${args[@]}"
     printf '\n'
-    LANE_CLAUDE=(env -u PLUGIN_PROFILES_SESSION claude --settings "<profile $profile session file>")
+    LANE_CLAUDE=(env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --settings "<profile $profile session file>")
     PROFILE_APPLIED=1
     return 0
   fi
@@ -1581,7 +1581,7 @@ lane_claude_prefix() { # <name> <profile> <cwd> <settings JSON or "">
     while IFS= read -r line; do [[ -n "$line" ]] && warn "lane '$name': $line"; done <<<"$reason"
     return 0
   fi
-  LANE_CLAUDE=(env -u PLUGIN_PROFILES_SESSION claude)
+  LANE_CLAUDE=(env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude)
   ((rc == 124)) && reason="profiles.mjs launch gave no answer within ${PROBE_TIMEOUT_S} s"
   [[ -n "$reason" ]] || reason="profiles.mjs launch exited $rc with no usable argv"
   err "lane '$name': profile '$profile' could not be applied, so the lane is not launched: ${reason//$'\n'/; }"
@@ -1755,11 +1755,11 @@ launch_cloud_lane() {
     local bytes
     bytes="$(wc -c <"$prompt_path" | tr -d ' ')"
     printf 'DRY-RUN: cd %q\n' "$LANE_WORKTREE"
-    printf 'DRY-RUN: env -u PLUGIN_PROFILES_SESSION claude --cloud %q\n' "<stage-start probe preamble + prompt: $prompt_path (${bytes}B)>"
+    printf 'DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --cloud %q\n' "<stage-start probe preamble + prompt: $prompt_path (${bytes}B)>"
   else
     local prompt
     prompt="$(stage_probe_preamble "$name" "$stage")$(cat "$prompt_path")"
-    (cd "$LANE_WORKTREE" && env -u PLUGIN_PROFILES_SESSION claude --cloud "$prompt") || return 1
+    (cd "$LANE_WORKTREE" && env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --cloud "$prompt") || return 1
   fi
   write_record "$cloud_record" "$(date -u +%Y-%m-%dT%H:%M:%SZ) at $ET_SHA"
 }

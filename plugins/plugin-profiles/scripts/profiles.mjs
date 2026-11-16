@@ -102,7 +102,8 @@ import { readUsage, usageFile } from "../lib/usage.mjs";
 const OWN_ROOT = dirname(dirname(realpathSync(fileURLToPath(import.meta.url))));
 const SESSION_VAR = "PLUGIN_PROFILES_SESSION";
 // Set by the file itself, so status names the file a session was launched with, merged or not.
-const SESSION_FILE_VAR = "PLUGIN_PROFILES_SESSION_FILE";const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
+const SESSION_FILE_VAR = "PLUGIN_PROFILES_SESSION_FILE";
+const USAGE =`usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
        profiles.mjs launch [<name>] [--folder <dir>] [--with <settings file or JSON>] [--unattended] [--json]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
        profiles.mjs clear [--for folder|initial] [--dry-run] [--yes]
@@ -415,7 +416,7 @@ const quoted = (word) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `"${wor
 function launch(opts, where, env, io) {
   const own = launcherSettings(opts.with);
   const name = opts.name ?? ownProfile(where, env);
-  const argv = ["env", "-u", SESSION_VAR, "claude"];
+  const argv = ["env", "-u", SESSION_VAR, "-u", SESSION_FILE_VAR, "claude"];
   const result = { profile: name, folder: where.projectDir, file: null, prerequisitesMissing: [], argv };
   if (name) {
     const p = prepare({ ...opts, name, target: "session" }, where, catalogFor(where, "session"), () => recordsFromCli());
@@ -486,8 +487,7 @@ function statusOf(opts, where, env, records) {
   const base = { surface: where.surface, rememberFolder: true, session: null, leftover: null };
   if (doesNotApply(where.surface)) return { ...base, profile: null, target: opts.target, settingsFile: targetFile(where, opts.target) };
   const name = env[SESSION_VAR];
-  if (name) base.session = { profile: name, file: env[SESSION_FILE_VAR] || sessionFile(where, name) };
-  let target = opts.target;
+  if (name) base.session = { profile: name, file: env[SESSION_FILE_VAR] || sessionFile(where, name) };  let target = opts.target;
   if (target === "folder" && !where.remembersFolder()) {
     base.rememberFolder = false;
     base.leftover = findRecord(where.dataDir, targetFile(where, "folder")).record?.profile ?? null;
