@@ -44,9 +44,10 @@ install, found through `claude plugin list --json`, for
 `profiles.mjs launch <name> --folder <StateBase> --unattended --json`, removes
 from the run's environment each variable its argv clears with `env -u`, and
 passes the argv's remaining claude arguments before the audit's, the same way
-on every platform. When plugin-profiles is missing or the launch refuses, the
-run does not start and the reason goes to the stderr log. Without it the run
-starts as it always has.
+on every platform. When plugin-profiles is missing, the launch refuses, or the
+profile leaves machine-health off (the launch result's enabledPlugins, which the
+profile wins), the run does not start and the reason goes to the stderr log.
+Without it the run starts as it always has.
 #>
 [CmdletBinding()]
 param(
@@ -100,7 +101,17 @@ try {
         $launchRc = $LASTEXITCODE
         $said = @($launched | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" })
         if ($launchRc -ne 0) { throw "profile '$PluginProfile' was not applied and the run did not start: profiles.mjs launch exited ${launchRc}: $($said -join '; ')" }
-        $argv = @((@($launched | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }) -join "`n" | ConvertFrom-Json -AsHashtable)['argv'])
+        $result = @($launched | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }) -join "`n" | ConvertFrom-Json -AsHashtable
+        # The profile wins on enabledPlugins, so one that leaves machine-health off starts a
+        # session that cannot run the audit.
+        $enabled = $result['enabledPlugins']
+        if ($enabled -isnot [System.Collections.IDictionary]) {
+            throw "profile '$PluginProfile' was not applied and the run did not start: profiles.mjs launch reported no enabledPlugins to check machine-health against; update plugin-profiles"
+        }
+        if (-not @($enabled.Keys | Where-Object { ($_ -ceq 'machine-health' -or $_ -clike 'machine-health@*') -and $enabled[$_] -eq $true }).Count) {
+            throw "profile '$PluginProfile' leaves machine-health off, so the run would not reach /machine-health:audit and did not start; name a profile that includes machine-health"
+        }
+        $argv = @($result['argv'])
         $i = 0
         if ($argv.Count -and $argv[0] -ceq 'env') {
             $i = 1

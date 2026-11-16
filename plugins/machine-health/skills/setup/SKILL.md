@@ -386,7 +386,8 @@ changes the wrapper leaves the copy stale, and `check` step 6 FAILs it and offer
    `pwsh -NoProfile -File <StateBase>/scheduler/monthly-run.ps1` on the schedule its `/sc`, `/d`
    and `/st` arguments set; and the owner's allow rules read above. Ask whether the run should
    start in a plugin profile (`/plugin-profiles:profile` lists them; the default is none, the run
-   as it is today); with one named, the wrapper's `-PluginProfile` parameter applies it at each run,
+   as it is today). The profile must include machine-health, or the run does not start; with one
+   named, the wrapper's `-PluginProfile` parameter applies it at each run,
    and its help in `<StateBase>/scheduler/monthly-run.ps1` says how. Refuse
    the fallback when `${CLAUDE_PLUGIN_DATA}` ends in `-inline`: a `--plugin-dir` session's data directory is not
    the one the task's `claude -p` run writes, so `latest_newer` could never hold. And refuse it

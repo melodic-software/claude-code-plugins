@@ -59,7 +59,9 @@ switch ($env:MH_SHIM_MODE) {
 '@
 
     # Stands in for plugin-profiles' profiles.mjs: logs its arguments and prints the launch
-    # result, or refuses with exit 1 when MH_PROFILES_RC=1.
+    # result, with machine-health@m on in enabledPlugins unless MH_PROFILES_MH is off or nofield
+    # (no enabledPlugins, as an older plugin-profiles prints), or refuses with exit 1 when
+    # MH_PROFILES_RC=1.
     $script:ProfilesRoot = Join-Path $TestDrive 'plugin-profiles'
     New-Item -ItemType Directory -Force -Path (Join-Path $script:ProfilesRoot 'scripts') | Out-Null
     Set-Content -LiteralPath (Join-Path $script:ProfilesRoot 'scripts/profiles.mjs') -Encoding utf8 -Value @'
@@ -70,7 +72,10 @@ if (process.env.MH_PROFILES_RC === "1") {
   console.error("not launched: profile " + args[1] + " switches on a plugin missing a required prerequisite, and nobody is there to decide.");
   process.exit(1);
 }
-console.log(JSON.stringify({ profile: args[1], argv: ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "claude", "--settings", "session-" + args[1] + ".json"] }));
+const mh = process.env.MH_PROFILES_MH || "on";
+const result = { profile: args[1], argv: ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "claude", "--settings", "session-" + args[1] + ".json"] };
+if (mh !== "nofield") result.enabledPlugins = { "other@m": true, "machine-health@m": mh === "on" };
+console.log(JSON.stringify(result));
 '@
     $script:PluginList = ConvertTo-Json -Compress -InputObject @(
         @{ id = 'other@m'; enabled = $true; installPath = '/nowhere' },
@@ -81,7 +86,7 @@ console.log(JSON.stringify({ profile: args[1], argv: ["env", "-u", "PLUGIN_PROFI
     }
 
     function Invoke-Wrapper([string] $Mode, [string[]] $Command, [int] $TimeoutSeconds = 120, [int] $StreamWaitSeconds = 30,
-        [string] $Folder = 'scheduler', [string] $PluginProfile, [string] $PluginList = $script:PluginList, [string] $ProfilesRc = '0') {
+        [string] $Folder = 'scheduler', [string] $PluginProfile, [string] $PluginList = $script:PluginList, [string] $ProfilesRc = '0', [string] $ProfilesMachineHealth = 'on') {
         $base = Join-Path $TestDrive ([guid]::NewGuid().ToString('n'))
         New-Item -ItemType Directory -Path (Join-Path $base 'state') | Out-Null
         @{ run_id = $script:OldRunId; hostname = 'TESTHOST' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $base 'state\latest.json')
@@ -93,11 +98,12 @@ console.log(JSON.stringify({ profile: args[1], argv: ["env", "-u", "PLUGIN_PROFI
         }
         if (-not $Command) { $Command = @($script:Pwsh, '-NoProfile', '-File', $script:Shim) }
 
-        $saved = $env:MH_SHIM_MODE, $env:MH_SHORT_REPORT, $env:MH_PLUGIN_LIST, $env:MH_PROFILES_RC, $env:PLUGIN_PROFILES_SESSION, $env:PLUGIN_PROFILES_SESSION_FILE
+        $saved = $env:MH_SHIM_MODE, $env:MH_SHORT_REPORT, $env:MH_PLUGIN_LIST, $env:MH_PROFILES_RC, $env:PLUGIN_PROFILES_SESSION, $env:PLUGIN_PROFILES_SESSION_FILE, $env:MH_PROFILES_MH
         $env:MH_SHIM_MODE = $Mode
         $env:MH_SHORT_REPORT = $script:ShortReport
         $env:MH_PLUGIN_LIST = $PluginList
         $env:MH_PROFILES_RC = $ProfilesRc
+        $env:MH_PROFILES_MH = $ProfilesMachineHealth
         # A run started from a profiled shell inherits both markers.
         $env:PLUGIN_PROFILES_SESSION = 'outer'
         $env:PLUGIN_PROFILES_SESSION_FILE = 'outer.json'
@@ -110,7 +116,7 @@ console.log(JSON.stringify({ profile: args[1], argv: ["env", "-u", "PLUGIN_PROFI
             $exit = $LASTEXITCODE
         } finally {
             Pop-Location
-            $env:MH_SHIM_MODE, $env:MH_SHORT_REPORT, $env:MH_PLUGIN_LIST, $env:MH_PROFILES_RC, $env:PLUGIN_PROFILES_SESSION, $env:PLUGIN_PROFILES_SESSION_FILE = $saved
+            $env:MH_SHIM_MODE, $env:MH_SHORT_REPORT, $env:MH_PLUGIN_LIST, $env:MH_PROFILES_RC, $env:PLUGIN_PROFILES_SESSION, $env:PLUGIN_PROFILES_SESSION_FILE, $env:MH_PROFILES_MH = $saved
         }
         $statusFiles = @(Get-ChildItem -LiteralPath (Join-Path $base 'logs') -Filter 'monthly-run-*.status.json' -ErrorAction SilentlyContinue)
         $stderrFile = Get-ChildItem -LiteralPath (Join-Path $base 'logs') -Filter 'monthly-run-*.stderr.log' -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -323,6 +329,21 @@ Describe 'monthly-run wrapper in a plugin profile' -Tag 'lib' {
         $r.Status.ok | Should -BeFalse
         Join-Path $r.Base 'shim-args.json' | Should -Not -Exist
         $r.Stderr | Should -Match "profile 'build' was not applied and the run did not start: profiles\.mjs launch exited 1: .*missing a required prerequisite"
+    }
+
+    It 'does not start the run when the profile leaves machine-health off, and names the fix' {
+        $r = Invoke-Wrapper 'ok' -PluginProfile 'build' -ProfilesMachineHealth 'off'
+        $r.Status.ok | Should -BeFalse
+        Join-Path $r.Base 'shim-args.json' | Should -Not -Exist
+        $r.Stderr | Should -Match ([regex]::Escape("profile 'build' leaves machine-health off, so the run would not reach /machine-health:audit and did not start; name a profile that includes machine-health"))
+    }
+
+    It 'does not start the run when the launch result reports no enabledPlugins, and says to update plugin-profiles' {
+        $r = Invoke-Wrapper 'ok' -PluginProfile 'build' -ProfilesMachineHealth 'nofield'
+        $r.Status.ok | Should -BeFalse
+        Join-Path $r.Base 'shim-args.json' | Should -Not -Exist
+        $r.Stderr | Should -Match 'reported no enabledPlugins to check machine-health against; update plugin-profiles'
+        $r.Stderr | Should -Not -Match 'leaves machine-health off'
     }
 
     It 'rejects a profile name that is not a plain word' {
