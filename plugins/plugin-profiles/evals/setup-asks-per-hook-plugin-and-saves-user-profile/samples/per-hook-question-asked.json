@@ -10,6 +10,14 @@
     {
       "answer": "Phase 4 of 7. notes-hooks ships hooks: do you want it **always-on** or **per-profile**?",
       "why": "hyphenated choices, markdown bold"
+    },
+    {
+      "answer": "**4. Plugins that ship hooks:** `notes-hooks@fixture-market` is the only one.\n\n**Q1. Should `notes-hooks@fixture-market` (the `jot` skill and its hooks) be always on, or only on in the profiles that name it?**\n- **Recommendation: per profile, included in `docs`.**\n- **Per profile, left out of `docs`:** it stays off wherever `docs` is applied.\n- **Always on:** I would also save a second user-level file, `always-on`.",
+      "why": "the live headless reply, trimmed: the question words the per-profile choice as 'only on in the profiles that name it' and the option labels say 'per profile'"
+    },
+    {
+      "answer": "notes-hooks ships a SessionStart hook. Do you want it always on, or loaded only by some profiles?\n- Always on\n- Per profile",
+      "why": "per profile named only in the options directly under the question"
     }
   ],
   "fail": [
@@ -31,6 +39,10 @@
     {
       "answer": "Should draw be always on or per profile?",
       "why": "asks about a plugin that ships no hooks"
+    },
+    {
+      "answer": "notes-hooks is always on or per profile depending on what you pick later. Saving docs now.",
+      "why": "both choices named but no question asked"
     }
   ]
 }
