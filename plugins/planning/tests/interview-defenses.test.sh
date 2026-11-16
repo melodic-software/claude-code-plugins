@@ -427,7 +427,7 @@ declares_both_fixtures B "$CASE_B"
 # Document surface folded into the interview: the frontmatter adds the document trigger phrases and the `document` argument word; the Action Router adds one row that resolves a named surface and then runs `auto`, leaving the `lock` row and its STOP-on-gap reading untouched; the roster renames case 38 and adds cases 46-51, which register the recipient questions open and resolve none on anyone behalf, so neither defense is weakened
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "6269696f79badf7e6b1fba3dbab1c9a939db04f59c6d0bb111e54ecc4dde46ce"
+  "66f4633a977b9e9855874b98d242b7cc45a2205588f616cb8867cf5d518b97da"
 
 # The Gates block restates the auto-guard, the `lock` STOP-on-gap, the register gate, the
 # confirmation gate and the Step 4 `--brief` cross-check near the top of SKILL.md, where a
