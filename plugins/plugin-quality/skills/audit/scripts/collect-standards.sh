@@ -190,8 +190,6 @@ exempt_plugins() {
     dir="$(dirname "$dir")"
   done
 }
-# A convention adopted before the gate became an availability condition still
-# carries the installed-ness wording, and is graded the same.
 seam_needle="explicit availability condition"
 if [[ -z "$(cite "$ROOT/$(topic_rel seam-phrasing)" "$seam_needle")" ]]; then
   seam_needle="explicit installed-ness"
