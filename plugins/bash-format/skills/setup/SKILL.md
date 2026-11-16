@@ -1,6 +1,6 @@
 ---
 description: "Verify bash-format's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up bash-format', 'configure bash-format', 'is bash-format working', shell lint or formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only verification, default) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
-argument-hint: "[check [inspect]|apply [install-git-hooks [scope=local|shared]]]"
+argument-hint: "[check|apply [install-git-hooks [scope=local|shared]]]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:

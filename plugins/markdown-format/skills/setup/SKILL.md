@@ -1,6 +1,6 @@
 ---
 description: "Verify markdown-format's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up markdown-format', 'configure markdown-format', 'is markdown-format working', formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | apply [install-lint] | apply install-git-hooks [scope=local|shared]. Re-runnable."
-argument-hint: "[check [inspect]|apply [install-lint|install-git-hooks [scope=local|shared]]]"
+argument-hint: "[check|apply [install-lint|install-git-hooks [scope=local|shared]]]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:

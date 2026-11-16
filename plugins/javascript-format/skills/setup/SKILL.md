@@ -1,6 +1,6 @@
 ---
 description: "Verify javascript-format's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up javascript-format', 'configure javascript-format', 'is javascript-format working', formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | apply [install-biome] | apply install-git-hooks [scope=local|shared]. Re-runnable."
-argument-hint: "[check [inspect]|apply [install-biome|install-git-hooks [scope=local|shared]]]"
+argument-hint: "[check|apply [install-biome|install-git-hooks [scope=local|shared]]]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
