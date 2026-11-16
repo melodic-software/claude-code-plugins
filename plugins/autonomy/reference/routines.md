@@ -245,6 +245,7 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | rotating-quality-improver | AGT | DC (targeted PRs) | repo | C3 | join: proven recurring manual pattern |
 | cross-artifact-sync | AGT | DC (mirrored PR) | repo (multi) | C3 | join: proven recurring manual pattern |
 | control-skill-upkeep | AGT | R + DC (one PR confined to the control skill directory) | repo | C1 (report); gated map-PR portion C3 | join: proven recurring manual pattern |
+| whole-map-live-verification | AGT | R + WI | repo | C1 | join: proven recurring manual pattern |
 | **Product / business-adjacent** | | | | | |
 | release-cut | DET | DC (version + tag) | repo | n/a, no agent session | not-a-routine |
 | deploy-verification | AGT/HUM | R (go/no-go) | prod | C1; disposition human-gated | join: telemetry connector exists |
@@ -355,6 +356,13 @@ commentary, and a leaf that contradicts one is non-conforming.
   is a reasonable start); a pass with no change since the last clean one skips, by the skill's own
   rule. No leaf under
   `routines/` is written until a consumer records a manual run of the skill.
+- **`whole-map-live-verification`: the pass starts by hand, and the class has no leaf yet.** The
+  pass is `/testing:run-e2e map`, when the testing plugin is enabled and its skill has the `map`
+  scope: one live verification run over every entry of the feature map, with no change to diff
+  against, whose report marks each finding new, still present or gone since the previous pass.
+  A person starts each run; the class sets no default schedule, and a consumer may give it any
+  cadence it picks. The run's driver sets its isolation, as for `control-skill-upkeep`. No leaf
+  under `routines/` is written until a consumer records a manual run of the skill.
 
 ### v1 leaves
 

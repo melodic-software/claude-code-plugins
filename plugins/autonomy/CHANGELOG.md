@@ -3,6 +3,33 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.0] - 2026-11-16
+
+### Added
+
+- **A `whole-map-live-verification` routine class.** `reference/routines.md` lists it under Code quality / knowledge (`AGT`, `R + WI`, `repo`, `C1`) with status `join: proven recurring manual pattern`. Its Class parameters bullet says the pass is `/testing:run-e2e map`, starts by hand, and takes any cadence the consumer picks. No leaf under `routines/` is written until a consumer records a manual run.
+
+## [5.0.18] - 2026-11-16
+
+### Changed
+
+- The isolation ladder's credential condition for CI lanes no longer says the token is revoked
+  when the job ends: the job revokes it where it can, and the one-hour expiry is the bound.
+
+## [5.0.17] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+- The shared hook library resolves `HOOK_TELEMETRY_SINK=@session-telemetry`, and `@harness-ops`, to the session-telemetry launcher.
+
+## [5.0.16] - 2026-11-16
+
+### Changed
+
+- The drift delta sweep records a lane as not run when its plugin is not enabled, and its report names enabling the plugin as the remedy, after installing it when it is not installed.
+
 ## [5.0.15] - 2026-11-16
 
 ### Changed

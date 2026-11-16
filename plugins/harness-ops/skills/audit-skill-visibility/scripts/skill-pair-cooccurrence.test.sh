@@ -38,7 +38,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/skill-pair-cooccurrence.sh"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-WRITER="$PLUGIN_ROOT/hooks/skill-usage-audit.sh"
+WRITER="$PLUGIN_ROOT/../session-telemetry/hooks/skill-usage-audit.sh"
 
 FAILED=0
 CASE_NUM=0
@@ -225,6 +225,12 @@ LEGACY="$TMP/legacy.jsonl"
 
 out="$(bash "$SUT" --store "$LEGACY" --floor-groups 1)"
 assert_contains "field-less records group into one bucket rather than vanishing" "$out" "VERDICT: 100% — 1 of 1"
+
+ROT="$TMP/rotated.jsonl"
+head -n 5 "$FULL" >"$ROT.1"
+tail -n +6 "$FULL" >"$ROT"
+out="$(bash "$SUT" --store "$ROT")"
+assert_contains "a rotated store reads the .1 history with the live file" "$out" "VERDICT: 80% — 4 of 5"
 
 # --- argument and store handling ---------------------------------------------
 bash "$SUT" --store "$FULL" --pair "nocomma" >/dev/null 2>&1

@@ -3,6 +3,18 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.7] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [0.26.6] - 2026-11-16
+
+### Changed
+
+- `/verification:confirm` runs the project's own build, test and lint commands when the `toolchain` plugin is not enabled, and its report names `claude plugin enable toolchain`, preceded by `claude plugin install toolchain` when it is not installed.
+
 ## [0.26.5] - 2026-11-16
 
 ### Changed

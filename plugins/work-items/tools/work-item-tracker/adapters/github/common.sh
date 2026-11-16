@@ -460,12 +460,13 @@ wit_list_lease_comments() {
 }
 
 # wit_try_supersede_lease_comment <owner> <repo> <comment-id> <lease-json>: best-effort
-# edit adding superseded_at to that lease comment; never fails the caller.
+# edit adding superseded_at to that lease comment; never exits the caller, and returns 1
+# when the edit failed.
 wit_try_supersede_lease_comment() {
   local superseded
   superseded="$(jq -c --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '. + {superseded_at: $ts}' <<<"$4")"
   gh_write api --method PATCH "repos/$1/$2/issues/comments/$3" \
-    -f body="${WIT_LEASE_MARKER}${superseded} -->" >/dev/null 2>&1 || true
+    -f body="${WIT_LEASE_MARKER}${superseded} -->" >/dev/null 2>&1
 }
 
 # wit_lease_released_by_run <comment-id> <lease-json>: the <released-fn> every lease verb
@@ -499,38 +500,44 @@ wit_lease_released_by_run() {
 # superseded its lease earlier is seen as gone, and its own list after superseding sees this
 # one's. A lease posted after the list is caught by the re-list after the removal, which puts
 # the assignee back: a claim posts its lease before it re-checks its assignee, and this removes
-# the assignee before it re-lists, so one of the two sees the other. A failed assignee read
+# the assignee before it re-lists, so of two sessions one sees the other. A third can still
+# leave a holder unassigned (CONTRACT.md "Lease protocol"). A failed assignee read
 # still removes, since an assignee that no lease holds keeps the item off the frontier for good.
 wit_hand_back_assignee() {
-  local owner="$1" repo="$2" number="$3" login="$4" own="$5" leases
-  leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" ||
-    leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || leases='[]'
-  _wit_login_holds_other "$leases" "$login" "$own" && return 0
+  local owner="$1" repo="$2" number="$3" login="$4" own="$5" leases now
+  _wit_list_at_clock "$owner" "$repo" "$number" || _wit_list_at_clock "$owner" "$repo" "$number" || leases='[]'
+  _wit_login_holds_other "$leases" "$login" "$own" "$now" && return 0
   if wit_try_read_assignees "$owner" "$repo" "$number"; then
     jq -e --arg l "$login" 'any(.[]; . == $l)' <<<"$WIT_GH_OUT" >/dev/null || return 0
   fi
   wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
-  leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" ||
-    leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || return 0
-  _wit_login_holds_other "$leases" "$login" "$own" || return 0
+  _wit_list_at_clock "$owner" "$repo" "$number" || _wit_list_at_clock "$owner" "$repo" "$number" || return 0
+  _wit_login_holds_other "$leases" "$login" "$own" "$now" || return 0
   wit_try_add_assignee "$owner" "$repo" "$number" "$login"
   # The lease that earned the re-add may have ended meanwhile (a renew that revived it for a
   # moment backs off and finds the login already gone), so the re-add must not outlive it.
-  leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" ||
-    leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || return 0
-  _wit_login_holds_other "$leases" "$login" "$own" || wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
+  _wit_list_at_clock "$owner" "$repo" "$number" || _wit_list_at_clock "$owner" "$repo" "$number" || return 0
+  _wit_login_holds_other "$leases" "$login" "$own" "$now" || wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
 }
 
-# _wit_login_holds_other <leases-json> <login> <excluded-id>: 0 when a live lease other than
-# <excluded-id> is held by <login>.
-_wit_login_holds_other() {
-  local row cand now
+# _wit_list_at_clock <owner> <repo> <number>: set the caller's now to a clock read, then its
+# leases to a lease list taken after it. A renew only moves an expiry later, so judging the
+# listed bodies at that earlier read never makes a renewing holder look expired; a lease that
+# expires during the list still counts as live, and its login then stays for reclaim.
+_wit_list_at_clock() {
   now="$(date -u +%s)"
+  leases="$(wit_list_lease_comments "$1" "$2" "$3")"
+}
+
+# _wit_login_holds_other <leases-json> <login> <excluded-id> <now-epoch>: 0 when a live lease
+# other than <excluded-id> is held by <login> at <now-epoch> or at the current clock.
+_wit_login_holds_other() {
+  local row cand now="$4"
   while IFS= read -r row; do
     [[ -n "$row" && "$(jq -r '.id' <<<"$row")" != "$3" ]] || continue
     cand="$(wit_lease_json "$(jq -r '.body' <<<"$row")")"
     [[ -n "$cand" && "$(jq -r '.holder // empty' <<<"$cand")" == "$2" ]] || continue
-    wit_lease_is_live "$cand" "$now" && return 0
+    { wit_lease_is_live "$cand" "$now" || wit_lease_is_live "$cand" "$(date -u +%s)"; } && return 0
   done < <(jq -c '.[]' <<<"$1")
   return 1
 }

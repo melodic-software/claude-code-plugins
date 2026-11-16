@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.28.11] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
 ## [0.28.10] - 2026-11-16
 
 ### Changed

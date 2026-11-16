@@ -69,7 +69,7 @@ class FakeGitHub:
                 }
             )
         if args[:2] == ["api", "graphql"]:
-            assert any(a == f"query={ve.RECURRING_ISSUE_QUERY}" for a in args), args
+            assert any(a == f"query={ve.ACTIONS_ISSUE_QUERY}" for a in args), args
             return ok({"data": {"repository": {"issue": self.issue}}})
         for a in args:
             if a.startswith(f"repos/{REPO}/contents/{ve.RECURRING_SCHEDULE_PATH}?ref="):

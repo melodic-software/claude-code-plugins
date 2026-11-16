@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [2.1.5] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
 ## [2.1.4] - 2026-11-16
 
 ### Changed

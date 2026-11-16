@@ -123,6 +123,9 @@ def import_closure(entries: tuple[str, ...]) -> list[str]:
         name = file.relative_to(ROOT).as_posix()
         if name in seen:
             continue
+        if file.is_dir():
+            seen.add(f"{name}/any.yml")
+            continue
         seen.add(name)
         for spec in IMPORT.findall(file.read_text(encoding="utf-8")):
             todo.append(file.parent / spec)
@@ -157,7 +160,7 @@ def python_closure(js_files: list[str]) -> list[str]:
     todo = [SCRIPTS / "babysit_risk.py"]
     # A floor entry for a script not in this tree yet runs nothing here.
     floored = {g for g in FLOOR.all if g.endswith(".mjs") and (ROOT / g).is_file()}
-    for name in sorted(floored | set(js_files)):
+    for name in sorted(floored | {n for n in js_files if (ROOT / n).is_file()}):
         # Quoted paths only: a floored module's strings, not its prose.
         for path, _ in PY_RUN.findall((ROOT / name).read_text(encoding="utf-8")):
             if path:

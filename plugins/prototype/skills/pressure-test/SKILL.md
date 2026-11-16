@@ -1,6 +1,6 @@
 ---
-description: "Builds a throwaway interactive terminal app to pressure-test business logic, a state machine, a data model, or an API surface before committing to it. Use when nobody can say yet what the rules do with an awkward sequence of events or an odd record: 'what happens if a refund arrives after the order ships', 'is this transition allowed from that status', 'will this schema fit our odd records', 'which arguments should this call take', 'prototype this reducer'. A pure logic module, liftable into production, sits behind a disposable shell: the terminal app, or a self-contained click-through HTML demo for someone outside engineering. Records the validated answer in a durable note. Visual or design questions: /prototype:explore-directions."
-argument-hint: "[observe] [--medium <value>] [scope]"
+description: "Builds a throwaway interactive terminal app to pressure-test business logic, a state machine, a data model, or an API surface before committing to it. Use when nobody can say yet what the rules do with an awkward sequence of events or an odd record: 'what happens if a refund arrives after the order ships', 'is this transition allowed from that status', 'will this schema fit our odd records', 'which arguments should this call take', 'prototype this reducer', 'does this third-party API do X for us' (vendor-fit mode: an adapter checks it against a sandbox). A pure logic module, liftable into production, sits behind a disposable shell: the terminal app, or a self-contained click-through HTML demo for someone outside engineering. Records the validated answer in a durable note. Visual or design questions: /prototype:explore-directions."
+argument-hint: "[observe|vendor-fit] [--medium <value>] [scope]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
@@ -10,9 +10,12 @@ metadata:
   summary: Throwaway terminal app or shareable HTML demo pressure-testing logic or a data model
 ---
 
-**Arguments.** `[observe] [--medium <value>] [scope]`. e.g., /prototype:pressure-test scheduling state machine, or
-/prototype:pressure-test observe reservation check in renew or in a guard. A leading `observe`
-selects [Observe](#observe-the-agent-runs-the-fork). `--medium` picks the shell
+**Arguments.** `[observe|vendor-fit] [--medium <value>] [scope]`. e.g., /prototype:pressure-test scheduling state machine,
+/prototype:pressure-test observe reservation check in renew or in a guard, or
+/prototype:pressure-test vendor-fit can the SMS service send due-date reminders. A leading `observe`
+selects [Observe](#observe-the-agent-runs-the-fork); a leading `vendor-fit`, or a question whether
+an outside service does something for us, selects
+[Vendor-fit](#vendor-fit-does-an-outside-service-do-it). `--medium` picks the shell
 ([Two shells](#two-shells-tui-default)) and is not part of the scope.
 
 ## Repository context. Gather first
@@ -72,6 +75,7 @@ cannot settle; the cheapest artifact that answers the question wins. In the loan
 | How the rules treat events in an awkward order, including the ones they should refuse | A reserved copy comes back late and its borrower then tries to renew it | Yes |
 | Whether the record shape can hold a case the library really has | One patron borrows two copies of the same title | Yes |
 | What the calls should take and return | Renew by loan id or by copy id | Yes; the module's interface is the draft |
+| Whether an outside service does what the rules need | Can the SMS service send a due-date reminder and report whether it was delivered? | Yes, in [vendor-fit](#vendor-fit-does-an-outside-service-do-it) mode |
 | What today's code already does | Does the current `renew()` check reservations? | No; read the code |
 
 ## Two shells. TUI default
@@ -80,6 +84,10 @@ Two disposable shells can front the same portable logic module (step 2 below), t
 app** (the default) and a **self-contained HTML demo**. Both run the same process; only the shell
 swaps. Route by audience:
 
+- **Vendor-fit always takes the terminal shell**, ahead of every rule below and without running
+  the medium resolver: the HTML demo's CSP blocks the vendor call, and a key in a page would leave
+  the machine with it. When an HTML demo or a page medium was asked for, say so in one line and
+  build the terminal shell.
 - **The driver is a developer with a terminal** → the TUI (the default below).
 - **The driver works outside engineering** (design, product, or the business side) and will press
   the buttons, or **no terminal fits the handoff** → the HTML demo shell (next section): one file,
@@ -190,6 +198,37 @@ instead of recommending from unqualified timing.
 The model auto-invoke gate in the shared discipline holds for `observe` too: when nobody asked
 for a prototype, stop and confirm scope before writing any variant.
 
+## Vendor-fit: does an outside service do it
+
+With `vendor-fit`, the question is whether an outside service (payments, messaging, search, a
+carrier) does what the rules need. In the loans case: can the SMS service send a due-date reminder
+and report whether it was delivered? The process below holds, with these changes:
+
+1. **The question names the checks.** Step 1's paragraph lists each thing the rules need from the
+   service as one check with its expected result: "1. A reminder to a valid number is accepted.
+   2. A delivery report comes back for it. 3. An invalid number is refused, not silently dropped."
+2. **The module stays pure.** It decides what to ask the service and judges each answer, plain
+   values in and out. The app's own port sits beside it: an interface in the app's terms
+   (`sendReminder(patron, loan)`), never the vendor's.
+3. **A thin adapter implements the port** and is the only file that calls the vendor, translating
+   between the port and the vendor's API and nothing more. The shell wires the adapter in; the
+   module imports neither.
+4. **Sandbox keys only.** The adapter reads the vendor's sandbox or test-mode key from an
+   environment variable and refuses a key the vendor marks as production. No key is written into a
+   prototype file, a production credential is never used, and no regulated or real data (personal,
+   payment or health records) is sent: every record is synthetic. With no sandbox key, or a vendor
+   with no sandbox, stop before any call, mark each live step `not driven: no sandbox key`, and
+   ask for one; never fall back to production.
+5. **The shell shows each check passing or failing**, with what the service returned beside it.
+   The shell is the terminal app, or one script for a check with no input
+   ([Two shells](#two-shells-tui-default) says why it is never the HTML demo).
+6. **Clean state includes the sandbox.** Remove or reset what the run created there before the
+   handover, and again after the person's run.
+7. **The note records the verdict**: fits, fits with a workaround, or does not fit, with each
+   check's result, the date of the run (sandbox behavior changes) and any documented difference
+   between the vendor's sandbox and production. The module and the port are the liftable part;
+   the adapter goes with the shell.
+
 ## Process
 
 ### 1. Write the question down
@@ -213,6 +252,7 @@ Decide what belongs on each side of the split before writing either side:
 | Loans contents | The loan record, the borrow/renew/return/reserve rules, the fine | Key or click handling, drawing the state, the sample patrons |
 | Allowed inside | Plain values in, plain values out | Terminal codes, DOM access, printing, reading input |
 | Imports | Nothing from the shell | The module (the one-way dependency rule) |
+| Outside services | None | In vendor-fit mode, the adapter that calls the vendor's sandbox |
 
 Before the shell exists, search the module for terminal codes, DOM access, I/O and any console
 output that decides a branch, and read its import list. A hit on either means the module cannot
@@ -290,6 +330,7 @@ the shell, terminal app or page alike; the module is often worth keeping, the sh
 |---|---|---|
 | Shell code inside the module | A `renew()` that prints to the terminal or reads a form field runs only inside that one shell, so it cannot be copied into production | Let `renew()` take a loan and return a loan; the shell, TUI or page, does all printing and reading around it |
 | Connecting the real database | Every click becomes a real write to the loans table, and storage was not the thing under test | Hold the loans in a plain in-process map that disappears on exit, unless persistence is the question itself |
+| A production key in the vendor-fit adapter | The SMS check texts real patrons and bills the library, and the key sits in a file that may be pushed | Read a sandbox key from the environment; stop and ask when there is none |
 | Writing a test suite for the prototype | The renewal rules are meant to change after each answer the driver gives; once it needs a test suite it has stopped being a prototype, and tests would freeze rules still being decided, and the effort belongs to the module that survives | Write tests for the module once it is lifted into production |
 | Building for cases nobody asked about | Interlibrary loans or e-books added "for later" blur the answer to the one question asked | Answer the step 1 question and stop |
 | A build step, bundler, framework or server behind the HTML demo shell | The librarian who drives the demo gets a file by email and has no toolchain; a page that must be built or served never opens for them | One HTML file with every script and style inlined |

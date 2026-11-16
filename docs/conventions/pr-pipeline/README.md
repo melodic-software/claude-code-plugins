@@ -2341,7 +2341,12 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
 
 - **Tier `auto`.** Every update is non-major: the first numeric version component does not change,
   and below 1.0 the second does not either. Every update on a `dependabot/github_actions/...`
-  branch comes from the `actions`, `github` or `anthropics` publisher. The newest `ci-status` run
+  branch comes from the `actions`, `github` or `anthropics` publisher. A pull request whose every
+  update the standards Dependabot policy's `fastTrack.own` names (this organization's own
+  releases, `*` matching any run of characters) skips the publisher rule, and below 1.0 only its
+  first component counts, as ci-workflows' automerge-dependabot gate reads it. pr-unblock reads
+  the policy at the base; pr-merge reads it at the base and at the default branch head, and
+  both copies must name every update. The newest `ci-status` run
   on the head is not red (`failure`, `cancelled`, `timed_out`, `action_required`,
   `startup_failure`). The updates come from the `updated-dependencies` metadata in Dependabot's
   verified commit when it is there, and from the title (`bump <name> from <a> to <b>`) or a
@@ -2839,6 +2844,15 @@ parent's task-list lines or those of intake's refinement on it (below), so a lan
 never supplies its own spec. A listed human's comment on such an issue reaches the verifier, but it
 never makes the issue trusted, and neither does a listed human's edit of its body. To give work a Bot
 filed a spec, a listed human opens an issue that restates it, and the pull request links that one.
+One Bot issue is its own spec (owner decision 2026-11-16): the issue
+`maintenance-file-upstream-drift-issues.yml` files for one upstream, when github-actions[bot] wrote
+it and nobody else last edited it, its title is `Upstream drift: <owner>/<repo>` and its first
+body line is the hex-pin lead `scripts/upstream-drift-issues.sh` writes for that id. It counts
+only for a pull request that closes it and only modifies the `docs/upstream` pages whose
+`**Last audited upstream state:**` marker on main pins that id. Its spec text is built from the id
+and those page paths, never from the issue's body, so an upstream path or name in its rows never
+reaches the verifier as a requirement. A re-audit that applies a take or adapt to any other file
+still needs a listed human's issue.
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:
@@ -2963,7 +2977,11 @@ head:
   comment read refuses `verify:unreadable`. It then allows the merge only when every linked
   issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
   list's humans, the pull request's author included, or is a sub-issue intake's size split filed
-  whose body counts as its parent's text (otherwise `verify:untrusted-spec`). That sub-issue counts
+  whose body counts as its parent's text, or is the upstream-drift workflow's issue as above, its
+  title, first body line, author and last editor read again, and the pull request's changed files
+  from its base to the head (GET compare) only modifications of `docs/upstream` pages that pin its
+  upstream at the default branch's tip, read there (otherwise `verify:untrusted-spec`; a failed
+  read refuses `verify:unreadable`). That sub-issue counts
   when the lanes App wrote it, a listed human filed its native parent in this repository, its body
   opens with the split header for that parent, every line after the header is one of the parent's
   trusted task-list lines (a line of the parent's listed-human body or comments that starts with
@@ -3244,7 +3262,7 @@ them on every `pull_request` run, contract-only runs included:
   (owner decision Q-ANTHROPIC-DEPS) is a Dependabot PR whose every changed file is a modified
   workflow or `action.yml` and whose every change block only swaps the ref (and version comment)
   of one `uses:` line of an action whose owner `merge.dependabot.trusted-action-owners` lists
-  (this repository: `anthropics`), read from the diff in the broker step's file pages. Both refs
+  (this repository: `anthropics` and `melodic-software`), read from the diff in the broker step's file pages. Both refs
   must be 40-hex SHAs, the comment a version token (`# v1.0.266`), and each new SHA a commit a tag
   of the action's repository points to (an unauthenticated `git ls-remote --tags`), so a branch,
   a tag name or a commit no tag names keeps the hold. Any other line, file, status or owner, a
@@ -3689,8 +3707,16 @@ lines at the next triage. A split that cannot be made leaves the issue parked at
 with no hold label, and the lanes App posts one comment naming the reason, once per reason and
 body version (marker `<!-- intake-triage size-split-decline reason=<code> -->`): `not-human`
 (a listed human did not file it), `few-lines` (fewer than 2 trusted lines even with the
-refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by target), or
-`no-type` (an Issue Type admission does not take).
+refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by target),
+`no-type` (an Issue Type admission does not take), or `unbuilt` (a part of a line split checks a
+plugin that the default branch lacks and that no line of that part, or of a part the order puts
+before it, creates). A line names a plugin as a `plugins/<name>` path, a backticked name next to
+the word plugin, or a bare kebab-case word before the word plugin or leading the line when the
+issue writes that word in backticks somewhere, so `third-party plugin` names none. A line creates what
+it names when it uses a creating verb (`refine.mjs` `CREATES`: create, add, new, move, rename and
+the like), and checks it otherwise. Refine select records which named plugins the default branch
+lacks, and apply checks the parts against that list. Each sub-issue carries the issue's `host-run`
+and `attended` labels, and a retry adds them to a part it reuses.
 
 work-unblock closes a split parent as completed only when every sub-issue closed with
 `state_reason` `completed` by a listed human or a merge and the parent's done-when is covered

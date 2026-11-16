@@ -15,6 +15,11 @@ import { heldNoted } from "../maintenance-reconcile-lost-runs/reconcile.mjs";
 import { HELD_STEP } from "../pr-verify/resolve-pr.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
+// The one commit and version comment every select-model-credential pin in
+// the workflow names; a second pin fails here.
+const SELECT_PINS = new Set([...text.matchAll(/uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@([0-9a-f]{40}) # (\S+)/g)].map((m) => `${m[1]} # ${m[2]}`));
+assert.equal(SELECT_PINS.size, 1, [...SELECT_PINS].join(", "));
+const SELECT_USES = new RegExp(`^ {8}uses: melodic-software/ci-workflows/\\.github/actions/select-model-credential@${[...SELECT_PINS][0].replace(/[.+]/g, "\\$&")}$`, "m");
 const prompt = readFileSync(new URL("./prompt.md", import.meta.url), "utf8");
 const KEY = "review";
 const SUB = "review-subscription";
@@ -1211,7 +1216,7 @@ test("the credit gate holds no secret, checks nothing out and reads only the mar
   assert.match(gate, /^ {8}continue-on-error: true$/m);
   // select-model-credential's start call, which reads check-key-credit's
   // marker gate with the probing marker at its own pin.
-  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@944d346c487c79eaf85dff752586fb59b0f5c539 # \S/m);
+  assert.match(gate, SELECT_USES);
   assert.equal(input(gate, "leg"), "start");
   // The marker's name carries key-job: review-handoffs, the job that uploads it.
   assert.equal(input(gate, "key-job"), "review-handoffs");
@@ -1652,7 +1657,7 @@ test("the legs run the review lanes' credentials in the review lanes' order", ()
   const fallbackSet = { [KEY]: undefined, [SUB]: "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}", [FB]: undefined };
   order.forEach((job, i) => {
     const check = step("Check the credential", job);
-    assert.match(check, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@944d346c487c79eaf85dff752586fb59b0f5c539 # \S/m, job);
+    assert.match(check, SELECT_USES, job);
     assert.equal(input(check, "leg"), legName[job], job);
     assert.equal(input(check, "role"), input(step("Review chunk 1", job), "role"), job);
     assert.equal(input(check, "credential-set"), `\${{ secrets.${used[i][1]} != '' }}`, job);
