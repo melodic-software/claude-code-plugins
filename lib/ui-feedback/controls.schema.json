@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "controls.schema.json",
+  "title": "UI feedback controls manifest",
+  "description": "The one list of what can vary on a non-final page: the page's <script type=\"application/json\" id=\"prototype-controls\"> holds one such object (docs/contracts/ui-feedback). x-version moves on any change. Each control writes its value to its target: a target starting -- is a CSS custom property, one starting data-control- an attribute, set on the element of the variant it names, else on the page root. A range writes its value followed by its unit; a toggle writes its first option when off and its second when on; every other type writes the option or color chosen. default is the value the control starts at and Reset controls returns to. Beyond this schema, the registry in controls.js (refused) refuses a manifest whole when two controls share an id or a control's own field cannot hold its default (a color other than lower-case #rrggbb, a range value that is no number or lies off its min (0 when unset), max (100 when unset) or step, compared as numbers so 1.0 fits as 1 does, a select or radio choice outside its options, the empty string included), or a toggle has other than two options; a value set later must fit its control the same way. placement puts the page's own panel, drawn when it is opened alone, top-right (the default) or top-left. A note's controls (snapshot) maps each control id to its value when the note was taken. Every string here is written by the model, and the host page treats it as data: labels and options reach the screen as text only.",
+  "x-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["controls"],
+  "properties": {
+    "placement": { "enum": ["top-right", "top-left"] },
+    "controls": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/control" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]{1,48}$" },
+    "value": { "type": "string", "maxLength": 120 },
+    "snapshot": {
+      "type": "object",
+      "maxProperties": 100,
+      "propertyNames": { "$ref": "#/$defs/id" },
+      "additionalProperties": { "$ref": "#/$defs/value" }
+    },
+    "control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "group", "type", "target", "default"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "group": { "enum": ["layout", "typography", "color", "spacing", "shape", "motion"] },
+        "type": { "enum": ["range", "color", "select", "toggle", "radio"] },
+        "target": { "type": "string", "pattern": "^(?:--[a-z][a-z0-9-]{0,47}|data-control-[a-z0-9-]{1,40})$" },
+        "variant": { "$ref": "note.schema.json#/$defs/key" },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "step": { "type": "number", "minimum": 0 },
+        "unit": { "type": "string", "pattern": "^[a-z%]{0,4}$" },
+        "options": { "type": "array", "maxItems": 24, "items": { "$ref": "#/$defs/value" } },
+        "default": { "$ref": "#/$defs/value" }
+      }
+    }
+  }
+}

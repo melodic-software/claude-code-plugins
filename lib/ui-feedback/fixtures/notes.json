@@ -261,6 +261,150 @@
         },
         "text": "Nothing here."
       }
+    },
+    {
+      "why": "control values for the manifest's ids",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "text": "x",
+        "controls": {
+          "card-gap": "24",
+          "accent": "#aa3300",
+          "font": "Georgia, serif",
+          "dense": "on"
+        }
+      }
+    },
+    {
+      "why": "a hundred controls, a 48-character id and a 120-character value",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "text": "x",
+        "controls": {
+          "c0": "1",
+          "c1": "1",
+          "c2": "1",
+          "c3": "1",
+          "c4": "1",
+          "c5": "1",
+          "c6": "1",
+          "c7": "1",
+          "c8": "1",
+          "c9": "1",
+          "c10": "1",
+          "c11": "1",
+          "c12": "1",
+          "c13": "1",
+          "c14": "1",
+          "c15": "1",
+          "c16": "1",
+          "c17": "1",
+          "c18": "1",
+          "c19": "1",
+          "c20": "1",
+          "c21": "1",
+          "c22": "1",
+          "c23": "1",
+          "c24": "1",
+          "c25": "1",
+          "c26": "1",
+          "c27": "1",
+          "c28": "1",
+          "c29": "1",
+          "c30": "1",
+          "c31": "1",
+          "c32": "1",
+          "c33": "1",
+          "c34": "1",
+          "c35": "1",
+          "c36": "1",
+          "c37": "1",
+          "c38": "1",
+          "c39": "1",
+          "c40": "1",
+          "c41": "1",
+          "c42": "1",
+          "c43": "1",
+          "c44": "1",
+          "c45": "1",
+          "c46": "1",
+          "c47": "1",
+          "c48": "1",
+          "c49": "1",
+          "c50": "1",
+          "c51": "1",
+          "c52": "1",
+          "c53": "1",
+          "c54": "1",
+          "c55": "1",
+          "c56": "1",
+          "c57": "1",
+          "c58": "1",
+          "c59": "1",
+          "c60": "1",
+          "c61": "1",
+          "c62": "1",
+          "c63": "1",
+          "c64": "1",
+          "c65": "1",
+          "c66": "1",
+          "c67": "1",
+          "c68": "1",
+          "c69": "1",
+          "c70": "1",
+          "c71": "1",
+          "c72": "1",
+          "c73": "1",
+          "c74": "1",
+          "c75": "1",
+          "c76": "1",
+          "c77": "1",
+          "c78": "1",
+          "c79": "1",
+          "c80": "1",
+          "c81": "1",
+          "c82": "1",
+          "c83": "1",
+          "c84": "1",
+          "c85": "1",
+          "c86": "1",
+          "c87": "1",
+          "c88": "1",
+          "c89": "1",
+          "c90": "1",
+          "c91": "1",
+          "c92": "1",
+          "c93": "1",
+          "c94": "1",
+          "c95": "1",
+          "c96": "1",
+          "c97": "1",
+          "c98": "1",
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+        }
+      }
+    },
+    {
+      "why": "an empty control value",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "text": "x",
+        "controls": {
+          "label-text": ""
+        }
+      }
     }
   ],
   "invalid": [
@@ -1263,6 +1407,193 @@
           "cssPath": "abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000) > abcdefghijklmnop-abcdefghijklmno:nth-of-type(1000)"
         },
         "text": "Make this button larger."
+      }
+    },
+    {
+      "why": "101 controls",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "text": "x",
+        "controls": {
+          "c0": "1",
+          "c1": "1",
+          "c2": "1",
+          "c3": "1",
+          "c4": "1",
+          "c5": "1",
+          "c6": "1",
+          "c7": "1",
+          "c8": "1",
+          "c9": "1",
+          "c10": "1",
+          "c11": "1",
+          "c12": "1",
+          "c13": "1",
+          "c14": "1",
+          "c15": "1",
+          "c16": "1",
+          "c17": "1",
+          "c18": "1",
+          "c19": "1",
+          "c20": "1",
+          "c21": "1",
+          "c22": "1",
+          "c23": "1",
+          "c24": "1",
+          "c25": "1",
+          "c26": "1",
+          "c27": "1",
+          "c28": "1",
+          "c29": "1",
+          "c30": "1",
+          "c31": "1",
+          "c32": "1",
+          "c33": "1",
+          "c34": "1",
+          "c35": "1",
+          "c36": "1",
+          "c37": "1",
+          "c38": "1",
+          "c39": "1",
+          "c40": "1",
+          "c41": "1",
+          "c42": "1",
+          "c43": "1",
+          "c44": "1",
+          "c45": "1",
+          "c46": "1",
+          "c47": "1",
+          "c48": "1",
+          "c49": "1",
+          "c50": "1",
+          "c51": "1",
+          "c52": "1",
+          "c53": "1",
+          "c54": "1",
+          "c55": "1",
+          "c56": "1",
+          "c57": "1",
+          "c58": "1",
+          "c59": "1",
+          "c60": "1",
+          "c61": "1",
+          "c62": "1",
+          "c63": "1",
+          "c64": "1",
+          "c65": "1",
+          "c66": "1",
+          "c67": "1",
+          "c68": "1",
+          "c69": "1",
+          "c70": "1",
+          "c71": "1",
+          "c72": "1",
+          "c73": "1",
+          "c74": "1",
+          "c75": "1",
+          "c76": "1",
+          "c77": "1",
+          "c78": "1",
+          "c79": "1",
+          "c80": "1",
+          "c81": "1",
+          "c82": "1",
+          "c83": "1",
+          "c84": "1",
+          "c85": "1",
+          "c86": "1",
+          "c87": "1",
+          "c88": "1",
+          "c89": "1",
+          "c90": "1",
+          "c91": "1",
+          "c92": "1",
+          "c93": "1",
+          "c94": "1",
+          "c95": "1",
+          "c96": "1",
+          "c97": "1",
+          "c98": "1",
+          "c99": "1",
+          "c100": "1"
+        }
+      }
+    },
+    {
+      "why": "a control id with an upper-case letter",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "text": "x",
+        "controls": {
+          "cardGap": "24"
+        }
+      }
+    },
+    {
+      "why": "a control id of 49 characters",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "text": "x",
+        "controls": {
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": "1"
+        }
+      }
+    },
+    {
+      "why": "a control value of 121 characters",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "text": "x",
+        "controls": {
+          "label": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+        }
+      }
+    },
+    {
+      "why": "a control value as a number",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "text": "x",
+        "controls": {
+          "card-gap": 24
+        }
+      }
+    },
+    {
+      "why": "controls as a list",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "text": "x",
+        "controls": [
+          [
+            "card-gap",
+            "24"
+          ]
+        ]
       }
     }
   ]

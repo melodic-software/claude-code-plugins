@@ -56,6 +56,9 @@ the `standard` values; each dimension below replaces the matching rule there.
   `reduced-motion` with motion removed. Name them in the plan line with the other states.
 - **`evidence`**: `per-variant` captures one handover screenshot per variant; `per-state` adds one
   per planned state, extra states included.
+- **`controls`**: `brief` keeps the [control panel](../../../context/control-panel.md) to the
+  numbers the brief names; `everything` adds controls for everything that can vary, built as
+  [controls.md](controls.md) says.
 - **`offers`**: an offer missing from the list is not made. `review-mode` is the "Review mode" offer
   and `real-stack` the suggestion in "When the real stack earns its cost". Asked for directly, either
   still runs.
