@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: e2e-map-report-order
+description: 'run-e2e map scope with baseline= and a non-default map_report_order. The report header names both pass builds as `baseline <build> -> this pass <build>`, and the NEW, PRE-EXISTING and GONE groups follow the setting (gone,new,pre-existing), each opening with its summary line by severity. header and groups-in-setting-order read the reply; meets-expectations (llm) checks the rest. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Opens the report with `baseline abc1234 -> this pass def5678` and each setting with its source, then lists the GONE, NEW and PRE-EXISTING groups in that order, each opening with `<group>: <n> (critical <n>, high <n>, medium <n>, low <n>)`.'
+execution:
+  prompt: '/testing:run-e2e map --unattended app=shop baseline=runs/prev/findings.json. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the compare command with runs/prev/findings.json as its only path exited 0. The map resolve command printed map_unit=feature (default), map_entry_points=all (default), map_report_order=gone,new,pre-existing (docs/conventions/testing.yaml), file_findings=none (default) and file_findings_floor=high (default). /app-control:drive ready reported build def5678 and control_skill control-shop. Every entry has been driven and judged and findings.json is written. The compare command with --baseline runs/prev/findings.json exited 0 and printed builds {"baseline": "abc1234", "newer": "def5678"}, counts {"NEW": 1, "PRE-EXISTING": 1, "GONE": 1, "not checked": 0}, and these findings in this order: checkout-a1b2 labelled NEW, kind error, severity high, entry points ["Pay button"]; cart-c3d4 labelled PRE-EXISTING, kind result-not-met, severity medium, entry points ["Cart page"]; search-e5f6 labelled GONE, kind garbled-output, severity low, entry points ["Search box"]. Write the report header and the finding groups, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: header
+    type: regex
+    pattern: 'baseline\s+`?abc1234`?\s*->\s*this pass\s+`?def5678`?'
+    target: last_message
+  - name: groups-in-setting-order
+    type: regex
+    pattern: '\**GONE\**:\s*1\s*\(critical 0, high 0, medium 0, low 1\)[\s\S]*?\**NEW\**:\s*1\s*\(critical 0, high 1, medium 0, low 0\)[\s\S]*?\**PRE-EXISTING\**:\s*1\s*\(critical 0, high 0, medium 1, low 0\)'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e map with baseline=runs/prev/findings.json and map_report_order=gone,new,pre-existing from docs/conventions/testing.yaml. PASS only if the reply: opens with a header naming both pass builds as `baseline abc1234 -> this pass def5678`; names each setting''s value and its source, map_report_order with docs/conventions/testing.yaml; then lists the GONE group, then NEW, then PRE-EXISTING, never the default NEW, PRE-EXISTING, GONE order; opens each group with one summary line `<group>: <n> (critical <n>, high <n>, medium <n>, low <n>)`; lists each finding with its id, kind, severity and entry points. FAIL if any point is missing or contradicted.'

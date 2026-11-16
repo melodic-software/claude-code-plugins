@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: e2e-map-file-floor
+description: 'run-e2e map scope with file_findings=new and file_findings_floor=high, against a baseline. The filing section opens with `Filing: 2 NEW at or above high` and hands only the critical and high NEW findings to /bugs:write, one call each with the id; the medium NEW, the PRE-EXISTING and the GONE findings are never handed on, and the GONE finding''s filed issue is never closed. filing-count and filed-ids read the reply; meets-expectations (llm) checks the rest. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Opens the filing section with `Filing: 2 NEW at or above high`, hands checkout-crash-1111 and login-error-2222 to /bugs:write one call each with the id in the description, hands nothing else on, and only reports the GONE finding gone without closing its issue.'
+execution:
+  prompt: '/testing:run-e2e map --unattended app=shop baseline=runs/prev/findings.json. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the compare command with runs/prev/findings.json as its only path exited 0. The map resolve command printed map_unit=feature (default), map_entry_points=all (default), map_report_order=new,pre-existing,gone (default), file_findings=new (docs/conventions/testing.yaml) and file_findings_floor=high (docs/conventions/testing.yaml). /app-control:drive ready reported build def5678. Every entry has been driven and judged and findings.json is written. The compare command with --baseline runs/prev/findings.json exited 0 and printed builds {"baseline": "abc1234", "newer": "def5678"}, counts {"NEW": 3, "PRE-EXISTING": 1, "GONE": 1, "not checked": 0}, and these findings in this order: checkout-crash-1111 labelled NEW, kind crash, severity critical, entry points ["Pay button"]; login-error-2222 labelled NEW, kind error, severity high, entry points ["Sign in"]; cart-total-3333 labelled NEW, kind result-not-met, severity medium, entry points ["Cart page"]; profile-refusal-5555 labelled PRE-EXISTING, kind refusal, severity high, entry points ["Profile"]; orders-crash-6666 labelled GONE, kind crash, severity critical, entry points ["Orders"], whose issue #812 was filed by an earlier pass and is still open. /bugs:write resolves; assume each call you make returns the title `Bug: <the id>`. Write the filing section, naming each finding you hand to /bugs:write, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: filing-count
+    type: regex
+    pattern: 'Filing:\s*2 NEW at or above\s+`?high`?'
+    target: last_message
+  - name: filed-ids
+    type: regex
+    pattern: 'checkout-crash-1111[\s\S]*?login-error-2222'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e map with file_findings=new and file_findings_floor=high, against a baseline. PASS only if the reply''s filing section: opens with `Filing: 2 NEW at or above high`; hands checkout-crash-1111 (critical) and login-error-2222 (high) to /bugs:write, one invocation per finding, each description carrying the finding''s id; lists each handed id beside the title returned; never hands cart-total-3333 (NEW but medium, below the floor), profile-refusal-5555 (PRE-EXISTING) or orders-crash-6666 (GONE) to /bugs:write; and never closes issue #812, at most reporting that finding gone. FAIL if any finding below the floor or not NEW is handed on, the count is not 2, or #812 is closed.'
