@@ -165,6 +165,7 @@ VAR=CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES
 filter_case() { # <label> <expected enabled categories> [<option value>; absent means unset]
   local env_arg=(-u "$VAR")
   (($# > 2)) && env_arg=("$VAR=$3")
+  # shellcheck disable=SC2016 # the inner bash -c expands $0 and $1
   assert_eq "slog_category_enabled, $1" "$2" "$(env "${env_arg[@]}" bash -c \
     'source "$0"; out=(); for c in $1; do slog_category_enabled "$c" && out+=("$c"); done; printf "%s" "${out[*]}"' \
     "$HOOK_DIR/session-log-lib.sh" "$CATS")"
