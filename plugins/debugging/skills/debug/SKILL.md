@@ -248,7 +248,7 @@ that cell, the cause is too vague to test: narrow it until you can, or delete th
 
 Ground the ranking in real repo state before you rank. Read the project's domain glossary first where one exists, so each row uses the project's own terms. Then read recent commits in the affected area, open issues, architecture decision records, banned-symbol entries, known-issue or quirks notes, and the project instruction files and ADRs nearest the affected file. A hypothesis that contradicts a documented constraint ranks low; one that matches a recent change ranks high.
 
-Check what each environment runs, too: its recent deployments, the ref it runs, the CI runs for the deployed commit (on GitHub, for example, by [`head_sha`](https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository)), and recent tickets. A change that lines up with the failure is a lead to test, never proof: some failures have no causing change.
+Check what each environment runs, too: its recent deployments, the ref it runs, the CI runs for the deployed commit (read through the repository's CI or forge adapter), and recent tickets. A change that lines up with the failure is a lead to test, never proof: some failures have no causing change.
 
 Two symptom shapes come with a known first suspect:
 
