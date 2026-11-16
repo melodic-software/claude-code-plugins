@@ -197,7 +197,13 @@ working directory:
   permissions to write to WORKDIR/.claude/settings.json, but you haven't granted it yet."
 - The file was not written.
 
-Whether the reason shows in an interactive prompt is not measured.
+This run cannot tell whether the hook's `ask` alone would have blocked the write: Claude Code's
+own check rejected it, so the `ask` was never what resolved the call.
+
+Not measured on 2.1.325: whether the reason shows in an interactive prompt, and the `auto` and
+`bypassPermissions` modes. Those two modes were last measured on Claude Code 2.1.263
+(2026-09-06), in headless runs under `default`, `auto` and `bypassPermissions`: the ask fired and
+blocked the write in each, surfacing as a tool error carrying the hook's reason.
 
 - **As of:** Claude Code 2.1.325, 2026-11-16.
 - **Recheck trigger:** a Claude Code changelog entry that changes how a PreToolUse `ask` resolves
