@@ -6,6 +6,10 @@
 //   profiles.mjs clear [--for folder|initial]
 //   profiles.mjs list [--json]
 //   profiles.mjs inventory [--json]
+//   profiles.mjs usage [--json]
+//   profiles.mjs install <name@marketplace> [--dry-run] [--yes]
+//   profiles.mjs save <name> --level user|repository [--description <text>] [--plugins <ids>]
+//                [--optional <ids>] [--remove <ids>] [--exclude <ids>] [--hide-skills <names>] [--dry-run] [--yes]
 //   profiles.mjs check [--catalog <marketplace.json>] [--shipped <dir>]
 //
 // apply    Prints what the profile changes, then writes it on --yes or a yes typed at the prompt;
@@ -29,7 +33,18 @@
 // clear    Puts every entry the tool wrote back to its value before the first apply and removes
 //          a settings file the tool created.
 // list     The profiles a folder apply can name, each with its description line.
-// inventory  The installed plugins, their dependencies and what each ships.
+// inventory  The installed plugins, their dependencies, what each ships and its skills.
+// usage    How often each skill and plugin was used on this machine (lib/usage.mjs), most used
+//          first, or that no usage history was found.
+// install  Installs one missing plugin at user scope, only from a marketplace this machine already
+//          knows and never for a plugin only a repository profile names. It prints what it does
+//          first and installs on --yes or a yes typed at the prompt; with neither it installs
+//          nothing. Afterwards it switches the plugin off in user settings unless the initial
+//          profile (always-on plus the profile applied --for initial) includes it. It never
+//          updates or uninstalls.
+// save     Writes a profile file at the user or repository level: the lists given are added to
+//          the file's own lists, --description replaces its description. It prints the whole file
+//          first and writes on --yes or a yes typed at the prompt; ids are comma-separated.
 // check    Checks the profile files at every level (lib/check.mjs says what fails and what is
 //          only reported). --catalog defaults to the marketplace.json of the repository this
 //          plugin sits in, --shipped to this plugin's profiles/. Reads installed plugins from disk.
@@ -37,7 +52,7 @@
 // Exit 0: done, previewed, nothing to change, or the check passed. Exit 1: not applied (no
 // consent, a missing required prerequisite, settings changed by another writer) or the check
 // failed. Exit 2: usage, profile or settings
-// file error. A missing plugin is named with its install command; this tool installs nothing.
+// file error. apply names a missing plugin with its install command and installs nothing.
 import { realpathSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -45,11 +60,12 @@ import process from "node:process";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { CheckError, checkProfiles, readMarketplace } from "../lib/check.mjs";
-import { InventoryError, inventory, recordsFromCli, recordsFromDisk } from "../lib/inventory.mjs";
-import { PlanError, TARGET_LEVEL, plan } from "../lib/plan.mjs";
+import { InventoryError, installPlugin, inventory, knownMarketplaces, recordsFromCli, recordsFromDisk } from "../lib/inventory.mjs";
+import { PlanError, TARGET_LEVEL, excludedAlwaysOn, plan } from "../lib/plan.mjs";
 import { OptionsError, managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { missingRequired } from "../lib/prerequisite-gate.mjs";
-import { ProfileError, profileLevels, readCatalog, readProfileFiles } from "../lib/profile-files.mjs";
+import { replaceFile } from "../lib/atomic-file.mjs";
+import { ALWAYS_ON, PLUGIN_ID, ProfileError, parseProfile, profileLevels, profileText, readCatalog, readProfileFiles, resolveCatalog } from "../lib/profile-files.mjs";
 import { ABSENT, baseline, deleteRecord, nextRecord, readRecord, recordPath, restoreEdits, saveRecord } from "../lib/record.mjs";
 import {
   SettingsConflict,
@@ -62,6 +78,7 @@ import {
   writeSettings,
 } from "../lib/settings-io.mjs";
 import { detectSurface, doesNotApply, refusal, surfaceLine } from "../lib/surface.mjs";
+import { readUsage, usageFile } from "../lib/usage.mjs";
 
 const OWN_ROOT = dirname(dirname(realpathSync(fileURLToPath(import.meta.url))));
 const SESSION_VAR = "PLUGIN_PROFILES_SESSION";
@@ -70,12 +87,19 @@ const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--
        profiles.mjs clear [--for folder|initial]
        profiles.mjs list [--json]
        profiles.mjs inventory [--json]
+       profiles.mjs usage [--json]
+       profiles.mjs install <name@marketplace> [--dry-run] [--yes]
+       profiles.mjs save <name> --level user|repository [--description <text>] [--plugins <ids>] [--optional <ids>] [--remove <ids>] [--exclude <ids>] [--hide-skills <names>] [--dry-run] [--yes]
        profiles.mjs check [--catalog <marketplace.json>] [--shipped <dir>]`;
 
 class UsageError extends Error {}
 class NotApplied extends Error {}
 
 const dataDirName = (id) => id.replace(/[^A-Za-z0-9_-]/g, "-");
+const marketplaceOf = (id) => id.slice(id.lastIndexOf("@") + 1);
+const PROFILE_NAME = /^[a-z0-9][a-z0-9-]*$/;
+const SAVE_LISTS = { plugins: "plugins", optional: "optional", remove: "remove", exclude: "exclude", hideSkills: "hideSkills" };
+const NAMED = ["apply", "install", "save"];
 
 const resumeLine = (file) => `A resumed session does not keep --settings: pass --settings "${file}" again with --resume.`;
 
@@ -108,23 +132,24 @@ function locate(env, cwd) {
 
 function parseArgs(argv) {
   const [command, ...rest] = argv;
-  if (!["apply", "status", "clear", "list", "inventory", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
-  const opts = { command, name: null, target: command === "apply" ? null : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null };
-  const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json"], status: ["--json", "--session-start"], clear: [], list: ["--json"], inventory: ["--json"], check: [] }[command];
-  const values = { check: ["--catalog", "--shipped"], list: [], inventory: [] }[command] ?? ["--for"];
+  if (!["apply", "status", "clear", "list", "inventory", "usage", "install", "save", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
+  const opts = { command, name: null, target: command === "apply" ? null : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null };
+  const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json"], status: ["--json", "--session-start"], clear: [], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
+  const values = { check: ["--catalog", "--shipped"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
+  const camel = (arg) => arg.slice(2).replace(/-(.)/g, (_, c) => c.toUpperCase());
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (values.includes(arg)) {
       if (rest[i + 1] === undefined) throw new UsageError(`${arg} needs a value`);
-      opts[arg === "--for" ? "target" : arg.slice(2)] = rest[++i];
+      opts[arg === "--for" ? "target" : camel(arg)] = rest[++i];
     }
-    else if (flags.includes(arg)) opts[arg.slice(2).replace(/-(.)/g, (_, c) => c.toUpperCase())] = true;
-    else if (command === "apply" && !arg.startsWith("--") && !opts.name) opts.name = arg;
+    else if (flags.includes(arg)) opts[camel(arg)] = true;
+    else if (NAMED.includes(command) && !arg.startsWith("--") && !opts.name) opts.name = arg;
     else throw new UsageError(`unexpected argument ${arg}`);
   }
-  if (command === "apply" && !opts.name) throw new UsageError("apply needs a profile name");
+  if (NAMED.includes(command) && !opts.name) throw new UsageError(`${command} needs a ${command === "install" ? "plugin as name@marketplace" : "profile name"}`);
   const targets = command === "apply" ? Object.keys(TARGET_LEVEL) : ["folder", "initial"];
-  if (!["list", "inventory", "check"].includes(command) && !targets.includes(opts.target)) throw new UsageError(`--for takes ${targets.join(", ")}`);
+  if (["apply", "status", "clear"].includes(command) && !targets.includes(opts.target)) throw new UsageError(`--for takes ${targets.join(", ")}`);
   if (opts.deferOff && opts.target === "session") throw new UsageError("--defer-off applies to a folder or user settings, not a one-session file");
   if (command === "apply" && opts.json && !opts.dryRun) throw new UsageError("apply --json prints a preview and needs --dry-run");
   return opts;
@@ -225,7 +250,9 @@ async function ask(question) {
   }
 }
 
-async function consent(opts, gate, interactive) {
+const interactive = () => Boolean(process.stdin.isTTY && process.stdout.isTTY);
+
+async function consent(opts, gate, interactive, question = "Apply these changes? [y/N] ") {
   if (gate.length) {
     if (!interactive) throw new NotApplied("not applied: a plugin it switches on is missing a required prerequisite, and --yes does not accept that; run it in a terminal to decide, or install the tools first");
     if ((await ask("Apply anyway, with the consequences above? Type yes to apply: ")) !== "yes") throw new NotApplied("not applied");
@@ -233,7 +260,7 @@ async function consent(opts, gate, interactive) {
   }
   if (opts.yes) return;
   if (!interactive) throw new NotApplied("not applied: nobody to confirm; pass --yes to apply without a prompt");
-  if (!["y", "yes"].includes(await ask("Apply these changes? [y/N] "))) throw new NotApplied("not applied");
+  if (!["y", "yes"].includes(await ask(question))) throw new NotApplied("not applied");
 }
 
 function commit(p, opts, where) {
@@ -290,7 +317,7 @@ async function apply(opts, where, env, io) {
     return 0;
   }
   if (opts.dryRun) return 0;
-  await consent(opts, gate, Boolean(process.stdin.isTTY && process.stdout.isTTY));
+  await consent(opts, gate, interactive());
   try {
     commit(p, opts, where);
   } catch (error) {
@@ -430,8 +457,105 @@ function listInventory(opts, where, io) {
   if (opts.json) io.out(JSON.stringify(inv, null, 2));
   else for (const p of inv) {
     const ships = Object.entries(p.ships).filter(([, v]) => v).map(([k]) => k);
-    io.out(`${p.id} ${p.version ?? "?"}${ships.length ? ` ships ${ships.join(", ")}` : ""}${p.dependsOn.length ? ` needs ${p.dependsOn.join(", ")}` : ""}`);
+    io.out(`${p.id} ${p.version ?? "?"}${ships.length ? ` ships ${ships.join(", ")}` : ""}${p.dependsOn.length ? ` needs ${p.dependsOn.join(", ")}` : ""}; skills: ${list(p.skills)}`);
   }
+  return 0;
+}
+
+function usage(opts, env, io) {
+  const u = readUsage(usageFile({ env, home: env.HOME || env.USERPROFILE || homedir() }));
+  if (opts.json) io.out(JSON.stringify(u, null, 2));
+  else if (!u.source) io.out("No usage history was found on this machine.");
+  else {
+    io.out(`Usage history from ${u.source}, most used first.`);
+    for (const [what, rows] of [["Skills", u.skills], ["Plugins", u.plugins]]) {
+      io.out(`${what} (${rows.length}):`);
+      for (const r of rows) io.out(`  ${r.name} ${r.count}${r.lastUsedAt ? `, last ${r.lastUsedAt.slice(0, 10)}` : ""}`);
+    }
+  }
+  return 0;
+}
+
+/** The plugins the initial profile switches on: always-on, plus the profile recorded for user settings. */
+function initialMembers(where) {
+  const catalog = catalogFor(where, "initial");
+  const rec = readRecord(recordPath(where.dataDir, where.paths.user));
+  const chosen = rec ? catalog.profiles.get(rec.profile) : null;
+  return new Set([catalog.alwaysOn, chosen].filter(Boolean).flatMap((p) => [...p.plugins, ...p.optional]));
+}
+
+function switchOffAtUser(id, file) {
+  for (let attempt = 1; ; attempt++) {
+    const settings = readSettings(file);
+    try {
+      return writeSettings(file, settings.hash, editText(settings, { enabledPlugins: { [id]: false } }));
+    } catch (error) {
+      if (!(error instanceof SettingsConflict)) throw error;
+      if (attempt === 2) throw new NotApplied(`installed ${id}, but ${file} kept changing, so it is still on there; switch it off with: claude plugin disable ${id} --scope user`);
+    }
+  }
+}
+
+async function install(opts, where, io) {
+  const id = opts.name;
+  if (!PLUGIN_ID.test(id)) throw new UsageError(`install takes one plugin as name@marketplace, not ${id}`);
+  if (doesNotApply(where.surface)) throw new NotApplied(`not installed: ${surfaceLine(where.surface)}`);
+  if (inventory({ projectDir: where.projectDir, records: recordsFromCli() }).has(id)) {
+    io.out(`${id} is already installed; nothing to install.`);
+    return 0;
+  }
+  const marketplace = marketplaceOf(id);
+  if (!knownMarketplaces().has(marketplace)) {
+    throw new NotApplied(`not installed: the ${marketplace} marketplace is not known on this machine, and this tool adds none; add it yourself with claude plugin marketplace add, then run install again`);
+  }
+  const naming = readProfileFiles(levelsOf(where)).filter((f) => f.def.plugins.includes(id) || f.def.optional.includes(id));
+  if (naming.length && naming.every((f) => f.level === "repository")) {
+    throw new NotApplied(`not installed: only a repository profile names ${id} (${naming.map((f) => f.path).join(", ")}), and a repository profile never installs a plugin on its own; add it to one of your own profiles with save --level user, or install it yourself with: claude plugin install ${id}`);
+  }
+  const keepOn = initialMembers(where).has(id);
+  const file = where.paths.user;
+  io.out(`Installs ${id} from the ${marketplace} marketplace at user scope: claude plugin install ${id} --scope user`);
+  io.out(keepOn ? `Leaves it on in ${file}: the initial profile includes it.` : `Then switches it off in ${file}, since the initial profile does not include it; applying a profile that names it switches it on there.`);
+  if (opts.dryRun) return 0;
+  await consent(opts, [], interactive(), "Install it? [y/N] ");
+  installPlugin(id);
+  if (!keepOn) switchOffAtUser(id, file);
+  io.out(`Installed ${id}${keepOn ? "" : `; it is off in ${file}`}.`);
+  return 0;
+}
+
+const idsOf = (value) => (value ? value.split(",").map((v) => v.trim()).filter(Boolean) : []);
+
+async function save(opts, where, io) {
+  if (!PROFILE_NAME.test(opts.name)) throw new UsageError(`a profile name is lowercase letters, digits and dashes, not ${opts.name}`);
+  if (!["user", "repository"].includes(opts.level)) throw new UsageError("save needs --level user or --level repository");
+  const levels = levelsOf(where);
+  const path = join(levels.find((l) => l.level === opts.level).dir, `${opts.name}.yaml`);
+  const files = readProfileFiles(levels);
+  const current = files.find((f) => f.path === path);
+  const merged = { description: opts.description ?? current?.def.description ?? null };
+  for (const [flag, field] of Object.entries(SAVE_LISTS)) merged[field] = [...new Set([...(current?.def[field] ?? []), ...idsOf(opts[flag])])];
+  const text = profileText(merged);
+  const def = parseProfile(text, path);
+  const others = files.filter((f) => f.path !== path);
+  const catalog = resolveCatalog([...others, { level: opts.level, name: opts.name, path, def }].sort((a, b) => levels.findIndex((l) => l.level === a.level) - levels.findIndex((l) => l.level === b.level)));
+  const affected = opts.name === ALWAYS_ON ? [...catalog.profiles.values()] : [catalog.profiles.get(opts.name)];
+  for (const p of affected) {
+    const blocked = excludedAlwaysOn(catalog, p);
+    if (blocked.length) throw new ProfileError(`${path}: profile ${p.name} would exclude always-on members: ${blocked.join(", ")}`);
+  }
+  const before = current ? readFileSync(path, "utf8") : null;
+  if (before === text) {
+    io.out(`Nothing to change: ${path} already holds this profile.`);
+    return 0;
+  }
+  io.out(`${current ? "Replaces" : "Creates"} ${path}:`);
+  for (const line of text.trimEnd().split("\n")) io.out(`  ${line}`);
+  if (/(^|\s)#/m.test(before ?? "")) io.out("The file is written in the form above, so its comments are not kept.");
+  if (opts.dryRun) return 0;
+  await consent(opts, [], interactive(), "Write this file? [y/N] ");
+  replaceFile(path, text);
+  io.out(`Saved profile ${opts.name} to ${path}.`);
   return 0;
 }
 
@@ -456,6 +580,9 @@ export async function main(argv, env = process.env, cwd = process.cwd(), io = { 
     if (opts.command === "clear") return clear(opts, where, io);
     if (opts.command === "check") return check(opts, where, io);
     if (opts.command === "list") return listProfiles(opts, where, io);
+    if (opts.command === "usage") return usage(opts, env, io);
+    if (opts.command === "install") return await install(opts, where, io);
+    if (opts.command === "save") return await save(opts, where, io);
     return listInventory(opts, where, io);
   } catch (error) {
     if (error instanceof NotApplied) {

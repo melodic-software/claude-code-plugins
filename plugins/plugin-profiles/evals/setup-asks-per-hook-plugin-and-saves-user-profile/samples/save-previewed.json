@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" save docs --level user --description \"Write docs and sketch diagrams.\" --plugins notes-hooks@fixture-market,draw@fixture-market --dry-run",
+            "description": "Run the profile tool"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" save docs --level user --plugins draw@fixture-market --yes",
+            "description": "Run the profile tool"
+          }
+        }
+      ],
+      "why": "written without a preview"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" apply docs --for folder --dry-run",
+            "description": "Run the profile tool"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -4,6 +4,8 @@
 //   readProfileFiles(levels) -> [{level, name, path, def}], each file validated, or throws ProfileError
 //   resolveCatalog(files) -> {alwaysOn, profiles: Map<name, profile>}
 //   readCatalog(levels) = resolveCatalog(readProfileFiles(levels))
+//   parseProfile(text, where) -> {description, plugins, optional, remove, exclude, hideSkills}, validated
+//   profileText(def) -> the file text for a def, which parseProfile reads back as the same def
 //
 // Levels: shipped <plugin root>/profiles, user <config dir>/plugin-profiles, repository
 // <project>/<convention home>/plugin-profiles (ADR 0075; default home docs/conventions).
@@ -30,23 +32,16 @@ export function profileLevels({ pluginRoot, configDir, projectDir, conventionHom
   ];
 }
 
-/** One file's {description, plugins, optional, remove, exclude, hideSkills}, validated. */
-function readProfileFile(path) {
+function validateProfile(doc, where) {
   const fail = (why) => {
-    throw new ProfileError(`${path}: ${why}`);
+    throw new ProfileError(`${where}: ${why}`);
   };
-  let doc;
-  try {
-    doc = parse(readFileSync(path, "utf8")) ?? {};
-  } catch (error) {
-    fail(error.message);
-  }
-  if (typeof doc !== "object" || Array.isArray(doc)) fail("the file is not a mapping of profile keys");
+  if (doc === null || typeof doc !== "object" || Array.isArray(doc)) fail("the file is not a mapping of profile keys");
   const out = { description: null };
   for (const key of Object.values(LISTS)) out[key] = [];
   for (const [key, value] of Object.entries(doc)) {
     if (key === "description") {
-      if (typeof value !== "string" || !value) fail("description must be one line of text");
+      if (typeof value !== "string" || !value || value.includes("\n")) fail("description must be one line of text");
       out.description = value;
     } else if (key in LISTS) {
       if (!Array.isArray(value) || !value.every((v) => typeof v === "string" && v)) fail(`${key} must be a list of names`);
@@ -58,6 +53,34 @@ function readProfileFile(path) {
     }
   }
   return out;
+}
+
+export function parseProfile(text, where) {
+  let doc;
+  try {
+    doc = parse(text) ?? {};
+  } catch (error) {
+    throw new ProfileError(`${where}: ${error.message}`);
+  }
+  return validateProfile(doc, where);
+}
+
+function readProfileFile(path) {
+  let text;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    throw new ProfileError(`${path}: ${error.message}`);
+  }
+  return parseProfile(text, path);
+}
+
+export function profileText(def) {
+  const lines = def.description ? [`description: ${JSON.stringify(def.description)}`] : [];
+  for (const [key, field] of Object.entries(LISTS)) {
+    if (def[field]?.length) lines.push(`${key}:`, ...def[field].map((v) => `  - ${JSON.stringify(v)}`));
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 function extend(lower, file, name) {

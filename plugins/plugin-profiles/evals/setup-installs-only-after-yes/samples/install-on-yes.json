@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" install draw@fixture-market --dry-run",
+            "description": "Run the profile tool"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" install draw@fixture-market --yes",
+            "description": "Run the profile tool"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" install draw@fixture-market --dry-run",
+            "description": "Run the profile tool"
+          }
+        }
+      ],
+      "why": "never installed"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" install draw@fixture-market --yes",
+            "description": "Run the profile tool"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" install draw@fixture-market --yes",
+            "description": "Run the profile tool"
+          }
+        }
+      ],
+      "why": "installed twice"
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+---
+description: "Plugin profiles: named sets of installed plugins switched on for a folder, for every new folder, or for one session. Use when choosing which plugins load, applying, checking or clearing a profile, asking which profile is in force, or setting up profiles from the installed plugins and usage history."
+argument-hint: "[apply <name>|status|clear|check|setup]"
+disable-model-invocation: false
+metadata:
+  workflow-stage: session
+  summary: Switch, check or set up the plugin profile a folder or session loads
+---
+
+# Plugin profiles
+
+**Arguments.** `[apply <name>|status|clear|check|setup]`. With no argument, infer the action from
+the conversation: a read-only one (status, check) runs and names what it inferred; apply, clear
+and setup are proposed and wait for a yes. With nothing to infer, run status.
+
+Every action runs the one command-line tool, and only it reads or writes settings and profile
+files:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" <command> [arguments]
+```
+
+Run `profiles.mjs` with no command to print its usage. Never edit a settings file or a profile file
+yourself, and never reproduce what the tool decides (which plugins a profile switches, what is
+pinned, what is missing): read it from the tool's output. Profile members live in the profile
+files only, so name profiles in replies and quote members only from `list`, `apply --dry-run` or
+the file the user asks about.
+
+## Every write: preview, ask, then write
+
+The user sees every change before it is made, so each write runs twice:
+
+1. Run the command with `--dry-run` and show its preview lines to the user as printed, not
+   summarized: the counts and the named plugins are what they are agreeing to.
+2. Ask whether to go ahead, one yes-or-no question per write.
+3. Only after the user's yes in this conversation, run the same command with `--yes`. The write is
+   done when the tool prints its `Applied`, `Saved`, `Installed` or `Cleared` line; a non-zero exit
+   means nothing was written, so relay its message.
+
+`--yes` stands for that answer, so it is never passed on a guess, on an earlier yes for a
+different write, or when nobody is there to answer: with no one to ask, stop after the preview
+and report what would change. When the preview names a missing required prerequisite, `--yes`
+does not apply it; tell the user to run the apply in their own terminal (in this session, the `!`
+prefix) and answer the tool's own prompt.
+
+## Actions
+
+- **status**: `status` names the profile in force for this folder, each entry that differs from it,
+  plugins installed since, an unfinished switch, a one-session profile, and the surface. Relay it;
+  for a restore line in a handoff, use the `apply` command it implies.
+- **apply `<name>`**: `apply <name> --for folder|initial|session`. Ask where when the user has not
+  said: `folder` for this folder, `initial` for every folder without its own profile, `session` for
+  one session started with the `claude --settings` command the tool prints. Run `list` first when
+  the name is unknown. A folder apply holds from the next session start; to switch inside this
+  session, tell the user to run `/plugin-profile`.
+- **clear**: `clear [--for folder|initial]` restores what the tool wrote.
+- **check**: `check` reports profile files that name plugins the catalog or machine lacks; relay
+  each FAIL and Report line.
+- **setup**: the guided walk below.
+
+## setup
+
+Walk the user through one phase at a time. A phase is done when its result is shown and the user
+has answered its question or chosen to skip it; only then start the next. Every save and install
+goes through the preview rule above. Setup is done when each saved profile has been previewed and
+written or declined, and the apply offer in phase 7 is answered.
+
+1. **What is installed.** Run `inventory --json`. Report the number of plugins and skills, then
+   each plugin with its skills, grouped by marketplace.
+2. **What gets used.** Run `usage --json`. When it found history, report the most used skills and
+   plugins and the installed plugins with no recorded use. When it reports no usage history, say
+   so, propose profiles from the interview and the shipped profiles' descriptions alone, and offer
+   to turn on session recording for a later, sharper setup: harness-ops' hooks record each skill a
+   session uses. When `/harness-ops:audit-skill-visibility` is among the available skills, offer it
+   for what that recording shows; otherwise say recording starts once harness-ops is enabled
+   (installed first if it is not) and that setup can run again later.
+3. **The user's work.** Ask what they work on and in which phases (exploring, planning, building,
+   reviewing, interface design, harness upkeep), a few questions at a time, multiple choice where
+   the answers are known.
+4. **Plugins that ship hooks.** For each installed plugin whose `ships` shows `hooks` or `mod`, ask
+   whether it is always on or per profile, because a hook runs in every session it is on in, while
+   a skill only costs listing space. Always on: `save always-on --level user --plugins <id>`. Per
+   profile: it goes into the profiles the user picks, and every apply names it when it is switched
+   off.
+5. **Propose profiles.** Start from `list --json`. For each phase the user named, propose the
+   shipped profile as it is, an extension of it (a user file of the same name with `--plugins` and
+   `--remove`), or a new profile, each with the usage or answer behind it. Save with `save <name>
+   --level user|repository`: `user` (under `~/.claude/plugin-profiles/`) for the user's own
+   sessions, `repository` (the repository's convention home, committed) only when the user wants
+   the team to share it.
+6. **Missing plugins.** For a member that is not installed, show `install <id> --dry-run` and
+   install only on the user's yes to that plugin at that moment. The tool installs only from a
+   marketplace this machine already knows, never for a plugin only a repository profile names, and
+   leaves the new plugin off at user level unless the initial profile includes it; it never
+   updates or uninstalls. How Claude Code installs a plugin, and what it asks for along the way:
+   [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+7. **Apply.** Offer `apply <name> --for folder` for the profile that fits this folder.
+
+## Next
+
+- A profile applied to this folder: `/harness-ops:audit-skill-visibility`, to see which skills the
+  next session's listing shows.
+- A handoff that should restore the profile: `/session-flow:handoff`.
+
+## Gotchas
+
+- A plugin switched off in a running session stays loaded until the next session start; only
+  `/plugin-profile` switches inside a session, and it is a command the user types.
+- `save` rewrites the whole file in the tool's form and drops comments; its preview says so, so
+  show that line too.
+- An install the user approved ends with the plugin off at user level when the initial profile
+  lacks it. Apply the profile that names it to switch it on where it is wanted.

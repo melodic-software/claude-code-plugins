@@ -445,3 +445,158 @@ test("AC11: an in-session switch in a session started from a one-session file is
   assert.deepEqual(snapshot(settingsFiles(w)), before);
   assert.deepEqual(w.records(), []);
 });
+
+/** world() plus the marketplaces the stub claude knows; userFile is the temp user settings.json. */
+function installWorld(opts = {}) {
+  const w = world(opts);
+  writeTree(w.root, { "marketplaces.json": [{ name: M, source: "github" }] });
+  const extra = { PP_STUB_MARKETPLACES: join(w.root, "marketplaces.json") };
+  const userFile = join(w.home, ".claude", "settings.json");
+  const user = () => JSON.parse(readFileSync(userFile, "utf8"));
+  return { ...w, install: (args, more = {}) => w.run(["install", ...args], { ...extra, ...more }), userFile, user };
+}
+
+const installCalls = (w) => w.calls().split("\n").filter((line) => line.startsWith("plugin install"));
+
+test("AC4: with nobody to ask and no --yes, install installs nothing", () => {
+  const w = installWorld();
+  const r = w.install([`debugging@${M}`]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /nobody to confirm/);
+  assert.deepEqual(installCalls(w), []);
+});
+
+test("AC4, AC20: an approved install runs at user scope and leaves the plugin off in user settings when the initial profile lacks it", () => {
+  const w = installWorld();
+  const r = w.install([`debugging@${M}`, "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(installCalls(w), [`plugin install debugging@${M} --scope user`]);
+  assert.equal(w.user().enabledPlugins[`debugging@${M}`], false);
+  assert.equal(w.user().theme, "dark", "other user settings keys are kept");
+});
+
+test("AC20: an installed plugin the initial profile includes stays on", () => {
+  const w = installWorld();
+  const r = w.install([`markdown-format@${M}`, "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(w.user().enabledPlugins[`markdown-format@${M}`], true);
+  assert.match(r.stdout, /Leaves it on/);
+});
+
+test("AC4: install --dry-run says what it would run and installs nothing", () => {
+  const w = installWorld();
+  const r = w.install([`debugging@${M}`, "--dry-run"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /claude plugin install debugging@melodic-software --scope user/);
+  assert.match(r.stdout, /switches it off in/);
+  assert.deepEqual(installCalls(w), []);
+});
+
+test("AC4: a plugin of a marketplace this machine does not know is not installed", () => {
+  const w = installWorld();
+  const r = w.install(["gadget@unknown-market", "--yes"]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /unknown-market marketplace is not known/);
+  assert.deepEqual(installCalls(w), []);
+});
+
+test("AC4: a plugin only a repository profile names is not installed, even with --yes", () => {
+  const w = installWorld();
+  writeTree(w.project, { "docs/conventions/plugin-profiles/repo-only.yaml": `plugins: [lurker@${M}]\n` });
+  const r = w.install([`lurker@${M}`, "--yes"]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /only a repository profile names lurker@melodic-software/);
+  assert.deepEqual(installCalls(w), []);
+});
+
+test("AC4: an installed plugin is never installed again or updated", () => {
+  const w = installWorld();
+  const r = w.install([`review@${M}`, "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /already installed/);
+  assert.deepEqual(installCalls(w), []);
+});
+
+test("a failed install leaves user settings as they were and exits 2 with claude's reason", () => {
+  const w = installWorld();
+  const before = readFileSync(w.userFile, "utf8");
+  const r = w.install([`debugging@${M}`, "--yes"], { PP_STUB_INSTALL_FAIL: "network unreachable" });
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /network unreachable/);
+  assert.equal(readFileSync(w.userFile, "utf8"), before);
+});
+
+const userProfile = (w, name) => join(w.home, ".claude", "plugin-profiles", `${name}.yaml`);
+
+test("AC15: save writes a user profile that list then names with its description", () => {
+  const w = world();
+  const r = w.run(["save", "notes", "--level", "user", "--description", "Write songs: lyrics, chords.", "--plugins", `songwriting@${M}, review@${M}`, "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /Creates .*notes\.yaml/);
+  const listed = JSON.parse(w.run(["list", "--json"]).stdout).find((p) => p.name === "notes");
+  assert.deepEqual(listed, { name: "notes", description: "Write songs: lyrics, chords." });
+  const applied = w.run(["apply", "notes", "--for", "folder", "--dry-run"]);
+  assert.match(applied.stdout, /Switches on \(\d+\): [^\n]*review@melodic-software/);
+  assert.doesNotMatch(applied.stdout, /Switches off \(\d+\): [^\n]*songwriting@melodic-software/);
+});
+
+test("save adds to the lists of an existing file and keeps its description", () => {
+  const w = world();
+  writeTree(w.home, { ".claude/plugin-profiles/notes.yaml": `description: Notes.\nplugins:\n  - songwriting@${M}\n` });
+  const r = w.run(["save", "notes", "--level", "user", "--plugins", `review@${M}`, "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(readFileSync(userProfile(w, "notes"), "utf8"), `description: "Notes."\nplugins:\n  - "songwriting@${M}"\n  - "review@${M}"\n`);
+});
+
+test("save with nobody to ask and no --yes writes nothing", () => {
+  const w = world();
+  const r = w.run(["save", "notes", "--level", "user", "--plugins", `review@${M}`]);
+  assert.equal(r.status, 1);
+  assert.equal(existsSync(userProfile(w, "notes")), false);
+});
+
+test("AC24: save refuses a profile that excludes an always-on member", () => {
+  const w = world();
+  const r = w.run(["save", "notes", "--level", "user", "--exclude", `guardrails@${M}`, "--yes"]);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /exclude always-on members: guardrails@melodic-software/);
+  assert.equal(existsSync(userProfile(w, "notes")), false);
+});
+
+test("AC25: a hook-shipping plugin answered always on is saved to the user's always-on file and stays on under every profile", () => {
+  const w = world();
+  writeTree(w.root, { "installs/songwriting/hooks/hooks.json": { hooks: { Stop: [] } } });
+  assert.match(w.run(["inventory"]).stdout, /songwriting@melodic-software 1\.0\.0 ships hooks/);
+  assert.match(w.run(["apply", "build", "--for", "folder", "--dry-run"]).stdout, /Switches off plugins that ship hooks or a mod: songwriting@melodic-software/);
+  assert.equal(w.run(["save", "always-on", "--level", "user", "--plugins", `songwriting@${M}`, "--yes"]).status, 0);
+  const r = w.run(["apply", "build", "--for", "folder", "--dry-run"]);
+  assert.doesNotMatch(r.stdout, /Switches off \(\d+\): [^\n]*songwriting/);
+});
+
+test("save at the repository level writes under the repository's convention home", () => {
+  const w = world();
+  const r = w.run(["save", "notes", "--level", "repository", "--plugins", `songwriting@${M}`, "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(existsSync(join(w.project, "docs", "conventions", "plugin-profiles", "notes.yaml")), true);
+});
+
+test("usage says so when this machine has no usage history", () => {
+  const w = world();
+  const r = w.run(["usage"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), "No usage history was found on this machine.");
+});
+
+test("usage lists skills and plugins most used first and leaves out unused ones", () => {
+  const w = world();
+  writeTree(w.home, {
+    ".claude.json": {
+      skillUsage: { "review:fanout": { usageCount: 3, lastUsedAt: Date.UTC(2026, 10, 1) }, "testing:write": { usageCount: 9 }, "idle:skill": { usageCount: 0 } },
+      pluginUsage: { [`review@${M}`]: { usageCount: 12 } },
+    },
+  });
+  const u = JSON.parse(w.run(["usage", "--json"]).stdout);
+  assert.deepEqual(u.skills.map((s) => [s.name, s.count]), [["testing:write", 9], ["review:fanout", 3]]);
+  assert.equal(u.skills[1].lastUsedAt, "2026-11-01T00:00:00.000Z");
+  assert.deepEqual(u.plugins.map((p) => p.name), [`review@${M}`]);
+});

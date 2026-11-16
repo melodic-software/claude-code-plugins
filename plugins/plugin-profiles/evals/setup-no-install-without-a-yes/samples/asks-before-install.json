@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "draw@fixture-market is not installed. Shall I install draw now?"
+    },
+    {
+      "answer": "Profile art is ready to save.\n\nShould I go ahead and install draw from fixture-market?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Installed draw@fixture-market; it is off in user settings."
+    },
+    {
+      "answer": "Saved profile art. Which folder should it apply to?"
+    }
+  ]
+}

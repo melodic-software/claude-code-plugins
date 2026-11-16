@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";
 import { tempDir, writeTree } from "../tests/temp.mjs";
-import { InventoryError, inventory, recordsFromCli, recordsFromDisk } from "./inventory.mjs";
+import { InventoryError, installPlugin, inventory, knownMarketplaces, recordsFromCli, recordsFromDisk } from "./inventory.mjs";
 
 function fixture() {
   const root = tempDir();
@@ -50,4 +50,31 @@ test("D4: the CLI listing and installed_plugins.json give the same inventory", (
 test("an unreadable listing fails with the reason", () => {
   assert.throws(() => recordsFromCli(() => "not json"), InventoryError);
   assert.throws(() => recordsFromCli(() => new Error("claude: not found")), /claude: not found/);
+});
+
+test("AC15: each plugin lists the skills folders that hold a SKILL.md", () => {
+  const root = tempDir();
+  writeTree(root, {
+    "p/.claude-plugin/plugin.json": { name: "p" },
+    "p/skills/write/SKILL.md": "---\nname: write\n---\n",
+    "p/skills/audit/SKILL.md": "---\nname: audit\n---\n",
+    "p/skills/notes/README.md": "not a skill",
+  });
+  const found = inventory({ projectDir: project, records: [record("p@m", "user", join(root, "p"))] });
+  assert.deepEqual(found.get("p@m").skills, ["audit", "write"]);
+});
+
+test("known marketplaces are the names claude plugin marketplace list reports", () => {
+  assert.deepEqual(knownMarketplaces(() => JSON.stringify([{ name: "a" }, { name: "b", source: "x" }])), new Set(["a", "b"]));
+  assert.throws(() => knownMarketplaces(() => "{}"), InventoryError);
+});
+
+test("installPlugin asks claude for a user-scope install with no --yes or --marketplace, and passes a failure on", () => {
+  const seen = [];
+  installPlugin("p@m", (args) => {
+    seen.push(args);
+    return "";
+  });
+  assert.deepEqual(seen, [["plugin", "install", "p@m", "--scope", "user"]]);
+  assert.throws(() => installPlugin("p@m", () => new Error("claude plugin install exited 1: offline")), /offline/);
 });

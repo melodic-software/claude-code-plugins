@@ -35,6 +35,15 @@ hide_skills: [some-standalone-skill]      # skills outside plugins, hidden by sk
 add up across levels. No profile may exclude an `always-on` member; drop one with a `remove` line in
 your own `always-on.yaml`.
 
+## Set up with the skill
+
+`/plugin-profiles:profile` runs every action below for you and shows each change before it makes
+it: `apply`, `status`, `clear`, `check`, and `setup`. `setup` walks you through your installed
+plugins and their skills and this machine's usage history, asks about your work and, for each
+installed plugin that ships hooks or a mod, whether it is always on or per profile, then proposes
+profiles to save at user or repository level. When a profile names a plugin that is not
+installed, it offers to install it and installs only on your yes at that moment.
+
 ## Apply a profile
 
 ```bash
@@ -108,7 +117,31 @@ start a hook prints the same notice, reading the installed plugins from disk wit
 `claude`; in a folder with no applied profile it prints nothing. `clear` puts every entry back to what it was before the first apply and
 removes a settings file the tool created. The record lives in the plugin's data folder.
 
-`inventory` lists the installed plugins, what they depend on and what each ships.
+`inventory` lists the installed plugins, what they depend on, what each ships and its skills.
+`usage` lists how often each skill and plugin was used on this machine, most used first, from the
+counts Claude Code keeps, or says that no usage history was found.
+
+## Save a profile and install a missing plugin
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" save docs --level user --plugins a@market,b@market --dry-run
+node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" install b@market --dry-run
+```
+
+`save <name> --level user|repository` writes a profile file: the lists you give (`--plugins`,
+`--optional`, `--remove`, `--exclude`, `--hide-skills`, comma-separated) are added to the file's
+own, and `--description` replaces its description. It prints the whole file first, writes it in
+its own form (comments are not kept), and refuses a profile that would exclude an `always-on`
+member.
+
+`install <name@marketplace>` installs one missing plugin at user scope. It installs only from a
+marketplace this machine already knows, never for a plugin that only a repository profile names,
+and never updates or uninstalls. After the install it switches the plugin off in your user
+settings unless the initial profile (`always-on` plus the profile applied `--for initial`)
+includes it; applying a profile that names it switches it on there.
+
+Both print what they do first and write on `--yes` or a yes typed at the prompt; with neither,
+they write nothing.
 
 ## Check the profiles
 

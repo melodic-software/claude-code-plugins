@@ -4,30 +4,39 @@
 //   recordsFromCli([run])               -> install records from `claude plugin list --json`
 //   recordsFromDisk(configDir, [read])  -> the same records from plugins/installed_plugins.json,
 //                                          for a session-start run that must not start a nested claude
-//   inventory({projectDir, records})    -> Map<id, {id, version, installPath, dependsOn, ships}>
+//   inventory({projectDir, records})    -> Map<id, {id, version, installPath, dependsOn, ships, skills}>
+//   knownMarketplaces([run])            -> Set of the marketplace names this machine has added
+//   installPlugin(id, [run])            -> installs one plugin at user scope, or throws InventoryError
 //
 // A project or local install counts only in its own project. dependsOn holds the plugin.json
 // dependencies as name@marketplace, a bare name meaning the plugin's own marketplace. ships says
 // whether hooks/hooks.json registers hooks or a mod, and whether the plugin carries an MCP or a
-// language server.
+// language server. skills names each skills/<name>/SKILL.md the plugin carries.
+//
+// installPlugin never passes --marketplace, which would add a marketplace, nor --yes, which would
+// accept a command a marketplace declares: a plugin that needs either is left for a person to
+// install by hand.
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 export class InventoryError extends Error {}
 
 const SCOPE_RANK = { local: 3, project: 2 };
 
-function runClaude() {
-  const result = spawnSync("claude", ["plugin", "list", "--json"], {
+function claude(args) {
+  const what = `claude ${args.slice(0, 2).join(" ")}`;
+  const result = spawnSync("claude", args, {
     encoding: "utf8",
     shell: process.platform === "win32",
     maxBuffer: 64 * 1024 * 1024,
   });
-  if (result.error) return new Error(`claude plugin list could not start (${result.error.code ?? result.error.message})`);
-  if (result.status !== 0) return new Error(`claude plugin list exited ${result.status}: ${result.stderr.trim()}`);
+  if (result.error) return new Error(`${what} could not start (${result.error.code ?? result.error.message})`);
+  if (result.status !== 0) return new Error(`${what} exited ${result.status}: ${`${result.stderr}${result.stdout}`.trim()}`);
   return result.stdout;
 }
+
+const runClaude = () => claude(["plugin", "list", "--json"]);
 
 function parseJson(text, what) {
   if (text instanceof Error) throw new InventoryError(text.message);
@@ -42,6 +51,17 @@ export function recordsFromCli(run = runClaude) {
   const records = parseJson(run(), "claude plugin list --json");
   if (!Array.isArray(records)) throw new InventoryError("claude plugin list --json did not return a list");
   return records;
+}
+
+export function knownMarketplaces(run = () => claude(["plugin", "marketplace", "list", "--json"])) {
+  const list = parseJson(run(), "claude plugin marketplace list --json");
+  if (!Array.isArray(list)) throw new InventoryError("claude plugin marketplace list --json did not return a list");
+  return new Set(list.map((m) => m?.name).filter((name) => typeof name === "string"));
+}
+
+export function installPlugin(id, run = (args) => claude(args)) {
+  const out = run(["plugin", "install", id, "--scope", "user"]);
+  if (out instanceof Error) throw new InventoryError(out.message);
 }
 
 export function recordsFromDisk(configDir, read = (path) => readFileSync(path, "utf8")) {
@@ -67,6 +87,17 @@ function readJson(path) {
 
 const nonEmpty = (value) => (Array.isArray(value) ? value.length > 0 : value != null && typeof value === "object" ? Object.keys(value).length > 0 : Boolean(value));
 
+function skillsIn(root) {
+  try {
+    return readdirSync(join(root, "skills"), { withFileTypes: true })
+      .filter((e) => e.isDirectory() && existsSync(join(root, "skills", e.name, "SKILL.md")))
+      .map((e) => e.name)
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
 function describe(id, record) {
   const root = record.installPath ?? "";
   const manifest = readJson(join(root, ".claude-plugin", "plugin.json")) ?? {};
@@ -87,6 +118,7 @@ function describe(id, record) {
       mcp: nonEmpty(manifest.mcpServers) || existsSync(join(root, ".mcp.json")),
       lsp: nonEmpty(manifest.lspServers) || existsSync(join(root, ".lsp.json")),
     },
+    skills: root ? skillsIn(root) : [],
   };
 }
 
