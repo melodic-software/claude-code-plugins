@@ -988,6 +988,18 @@ assert_eq "its rollback removes alice, then adds her back" "REMOVE_ASSIGNEE alic
 assert_eq "alice stays assigned for the same-login winner's lease 3" '["alice"]' "$(assignees_now)"
 cleanup_scenario
 
+# [hand-back, lease list fails once] a second alice session fails on its arbitration read
+# and its rollback's first list fails too; the retry shows lease 1, so alice is never removed.
+attended_scenario
+: >"$GH_STUB_DIR/calls.log"
+n="$(cat "$GH_STUB_DIR/lease-comments.count")"
+: >"$GH_STUB_DIR/list-fails-$((n + 1))"
+: >"$GH_STUB_DIR/list-fails-$((n + 2))"
+bash "$CLAIM" "$ID" --ttl-hours 1 --phase triage >/dev/null 2>&1
+assert_not_contains "the rollback never removes alice for live lease 1" "$(calls)" "REMOVE_ASSIGNEE alice"
+assert_eq "alice stays assigned" '["alice"]' "$(assignees_now)"
+cleanup_scenario
+
 # [hand-back, assignee read fails] a release whose assignee read fails still removes
 # alice, since an assignee no lease holds would block the item for good.
 attended_scenario
