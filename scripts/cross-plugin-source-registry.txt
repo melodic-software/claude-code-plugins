@@ -161,7 +161,11 @@ lib/plugin-options.mjs
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for
 # the duplication audit: the channel-F settings reader; the other copies sit at
 # paths of their own.
-lib/plugin-options.mjs -> plugins/source-control/skills/babysit-loop/scripts/operator-options.mjs plugins/corrections/scripts/lib/plugin-options.mjs plugins/harness-ops/lib/plugin-options.mjs plugins/plugin-profiles/lib/plugin-options.mjs
+lib/plugin-options.mjs -> plugins/source-control/skills/babysit-loop/scripts/operator-options.mjs plugins/corrections/scripts/lib/plugin-options.mjs plugins/harness-ops/lib/plugin-options.mjs plugins/plugin-profiles/lib/plugin-options.mjs plugins/plugin-diagnostics/lib/plugin-options.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/enabled-plugin-roots.mjs, which harness-ops and plugin-diagnostics carry at this path.
+lib/enabled-plugin-roots.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/setup-apply.mjs.

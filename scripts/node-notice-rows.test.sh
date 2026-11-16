@@ -147,7 +147,7 @@ node_absent_cases() {
   rc1=$?
   out2="$(printf '%s' "$session" | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$(command -v bash)" -c "$(expand plugin-diagnostics)" 2>/dev/null)"
   rc2=$?
-  if ((rc1 == 0 && rc2 == 0)) && [[ "$out1" == *'"systemMessage":"harness-ops: node is not on PATH'*'then run /harness-ops:prerequisites."}' && -z "$out2" ]]; then
+  if ((rc1 == 0 && rc2 == 0)) && [[ "$out1" == *'"systemMessage":"plugin-diagnostics: node is not on PATH'*'then run /harness-ops:prerequisites when harness-ops is enabled."}' && -z "$out2" ]]; then
     ok "bash: the row prints one notice per session, naming /harness-ops:prerequisites, and exits 0"
   else
     bad "bash: want one notice per session" "rc=$rc1/$rc2 first=$out1 second=$out2"
@@ -161,7 +161,7 @@ node_absent_cases() {
   if DASH="$(command -v dash)"; then
     out="$(printf '%s' '{"session_id":"row-dash","hook_event_name":"SessionStart"}' | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$DASH" -c "$(expand plugin-diagnostics)" 2>/dev/null)"
     rc=$?
-    if ((rc == 0)) && [[ "$out" == *'"systemMessage":"harness-ops: node is not on PATH'* && ! -e "$WORK/powershell-ran" ]]; then
+    if ((rc == 0)) && [[ "$out" == *'"systemMessage":"plugin-diagnostics: node is not on PATH'* && ! -e "$WORK/powershell-ran" ]]; then
       ok "dash: the row prints the notice and leaves before the PowerShell half"
     else
       bad "dash: want the notice and no PowerShell half" "rc=$rc out=$out powershell-ran=$([[ -e "$WORK/powershell-ran" ]] && echo yes || echo no)"
@@ -182,7 +182,7 @@ node_absent_cases() {
     out1="$(ps_row plugin-diagnostics)"
     rc1=$?
     out2="$(ps_row plugin-diagnostics)"
-    if ((rc1 == 0)) && [[ "$out1" == *'"systemMessage":"harness-ops: node is not on PATH'* && -z "$out2" ]]; then
+    if ((rc1 == 0)) && [[ "$out1" == *'"systemMessage":"plugin-diagnostics: node is not on PATH'* && -z "$out2" ]]; then
       ok "powershell: with no sh, the row prints one notice per session and exits 0"
     else
       bad "powershell: want one notice per session" "rc=$rc1 first=$out1 second=$out2"

@@ -932,3 +932,4 @@ lib/media-render/media_encode.py plugins/animation/scripts/media_encode.py
 plugins/session-telemetry/hooks/session-log-lib.sh plugins/harness-ops/hooks/session-log-lib.sh
 plugins/session-telemetry/hooks/harness-ops-paths.sh plugins/harness-ops/hooks/harness-ops-paths.sh
 lib/enabled-plugin-roots.mjs plugins/plugin-diagnostics/lib/enabled-plugin-roots.mjs
+lib/enabled-plugin-roots.mjs plugins/harness-ops/lib/enabled-plugin-roots.mjs

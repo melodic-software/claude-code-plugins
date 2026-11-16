@@ -15,7 +15,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { rootsFromSettings } from "../skills/prerequisites/scripts/check-prerequisites.mjs";
+import { rootsFromSettings } from "../lib/enabled-plugin-roots.mjs";
 import { managedSettingsFiles, resolveInstall } from "../lib/plugin-options.mjs";
 
 const NAME = "session-telemetry";

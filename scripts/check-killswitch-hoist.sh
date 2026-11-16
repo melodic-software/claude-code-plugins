@@ -57,8 +57,8 @@
 # frontmatter hooks are out of scope. Rule 2 covers
 # every event in the same files, with the same token walk. A hook implemented in another language sources no shell library, has no
 # `source` line to sit above, and is reported as NOT SCANNED rather than passed
-# silently — today that is disk-hygiene's destructive_guard.py, context-budget's
-# node handler, and harness-ops' inline shell-form node-notice row.
+# silently — today that is disk-hygiene's destructive_guard.py, guardrails' two
+# node handlers, and plugin-diagnostics' inline shell-form node-notice row.
 #
 # Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
 # the whole family's contract, stated once in scripts/README.md, "The check-script
