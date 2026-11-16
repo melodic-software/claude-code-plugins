@@ -451,8 +451,8 @@ End with a **Routing** subsection listing every excluded upstream-owned
 or memory-layer surface and where its findings should go, plus the catalog's
 [AGENTS.md content-home advisory](reference/criteria.md#agentsmd-content-home-advisory), and a **Recommended follow-through**
 subsection. An editorial cut (removal would not change behavior, or the content is derivable)
-may be applied from this report. A consequential deletion, a rule that governs a situation and
-is outside the exception register, is applicable only when the commit cites a closed
+or an enforced cut (prose a located check enforces) may be applied from this report. Any other
+consequential deletion, a governing rule outside the exception register, applies only when the commit cites a closed
 `/harness-config:unhobble watch` (qualifying sessions met, zero attributed rows).
 
 Open the Sources line with the two official pages the paths and doctrine derive from (code.claude.com
@@ -465,7 +465,7 @@ plainly that nothing has been applied.
 
 ## Next
 
-- An editorial cut is applied from the report; a consequential cut cites a closed watch: `/harness-config:unhobble watch`.
+- An editorial or enforced cut is applied from the report; another consequential cut cites a closed watch: `/harness-config:unhobble watch`.
 - A finding lands on the memory layer: `/harness-memory:audit`.
 - Project instructions still live in `CLAUDE.md`: `/instruction-placement:migrate plan`.
 - Posture guidance is absent rather than wrong: `/harness-config:audit-prompting-postures`.
