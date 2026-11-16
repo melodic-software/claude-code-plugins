@@ -19,6 +19,22 @@
     {
       "answer": "Ask the OS for an ephemeral port (0) and read it back after binding.",
       "why": "ephemeral port (0)"
+    },
+    {
+      "answer": "Build it with `HTTPServer((\"127.0.0.1\", 0), Handler)` and read `server.server_address[1]`.",
+      "why": "stdlib server address tuple without bind("
+    },
+    {
+      "answer": "Use `socketserver.TCPServer(('localhost', 0), Handler)` in the fixture.",
+      "why": "socketserver address tuple"
+    },
+    {
+      "answer": "Set API_PORT=0 and read the bound port back from the server.",
+      "why": "prefixed env var name"
+    },
+    {
+      "answer": "Pass server_port=0 to the fixture factory.",
+      "why": "snake_case keyword"
     }
   ],
   "fail": [
@@ -33,6 +49,10 @@
     {
       "answer": "Keep port 8000 and retry 10 times on a clash.",
       "why": "fixed port with a retry count"
+    },
+    {
+      "answer": "We support 0 shared state between tests, but keep port 8000 for the server.",
+      "why": "'port' inside another word, fixed port"
     }
   ]
 }
