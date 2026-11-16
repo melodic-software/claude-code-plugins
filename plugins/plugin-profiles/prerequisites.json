@@ -1,0 +1,21 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the profiles command-line tool cannot run, so no profile can be applied, checked or cleared.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      }
+    }
+  ]
+}

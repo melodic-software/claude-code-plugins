@@ -1,0 +1,20 @@
+{
+  "name": "plugin-profiles",
+  "version": "0.0.0",
+  "description": "Switch which installed plugins are on with named profiles: one YAML file per profile, shipped, per user and per repository, each extending the one below. A command-line tool previews every change, checks the required prerequisites of each plugin it switches on, writes only the plugin and hidden-skill entries of a folder's local settings, user settings or a one-session settings file, and clear puts the file back as it was.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "plugins",
+    "profiles",
+    "enabled-plugins",
+    "settings",
+    "skills"
+  ],
+  "metadata": {
+    "category": "claude-code"
+  }
+}

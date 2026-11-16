@@ -806,6 +806,18 @@
       ]
     },
     {
+      "name": "plugin-profiles",
+      "source": "./plugins/plugin-profiles",
+      "category": "claude-code",
+      "tags": [
+        "plugins",
+        "profiles",
+        "enabled-plugins",
+        "settings",
+        "skills"
+      ]
+    },
+    {
       "name": "plugin-quality",
       "source": "./plugins/plugin-quality",
       "category": "claude-code",

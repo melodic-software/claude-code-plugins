@@ -611,6 +611,7 @@ lib/yaml-subset.mjs plugins/corrections/scripts/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/prototype/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/codebase-health/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/overengineering/lib/yaml-subset.mjs
+lib/yaml-subset.mjs plugins/plugin-profiles/lib/yaml-subset.mjs
 lib/resolve-convention-home.sh plugins/corrections/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/prototype/lib/resolve-convention-home.sh
 lib/redact.py plugins/session-flow/skills/audit-sessions/scripts/redact.py
@@ -619,6 +620,7 @@ lib/plugin-options.mjs plugins/source-control/skills/babysit-loop/scripts/operat
 lib/plugin-options.mjs plugins/corrections/scripts/lib/plugin-options.mjs
 lib/plugin-options.mjs plugins/toolchain/hooks/plugin-options.mjs
 lib/plugin-options.mjs plugins/harness-ops/lib/plugin-options.mjs
+lib/plugin-options.mjs plugins/plugin-profiles/lib/plugin-options.mjs
 lib/resolve-convention-home.sh plugins/user-interface/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/multi-agent/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/docs-naming/lib/resolve-convention-home.sh
@@ -678,6 +680,9 @@ lib/prerequisites.ps1 plugins/codebase-health/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/education/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/education/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/education/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/plugin-profiles/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/plugin-profiles/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/plugin-profiles/lib/prerequisites.ps1
 lib/check-convention-facts.mjs plugins/developer-experience/lib/check-convention-facts.mjs
 lib/parse-concern-value.sh plugins/skill-quality/lib/parse-concern-value.sh
 lib/yaml-subset.awk plugins/skill-quality/lib/yaml-subset.awk
