@@ -115,14 +115,14 @@ same "a GONE finding has no not_driven list" \
   "$(jq -r '.findings[] | select(.id == "aaaa0002") | has("not_driven")' <<<"$out")" false
 
 # --- the not-checked rule ----------------------------------------------------
-nd() { jq -c --arg id "$1" '.findings[] | select(.id == $id) | .not_driven' <<<"$out"; }
-same "an entry the cap left out is not checked, with the entry's reason" "$(nd aaaa0003)" \
+not_driven() { jq -c --arg id "$1" '.findings[] | select(.id == $id) | .not_driven' <<<"$out"; }
+same "an entry the cap left out is not checked, with the entry's reason" "$(not_driven aaaa0003)" \
   '[{"entry_point":"/search","reason":"cap"}]'
-same "one undriven entry point of two keeps the finding not checked" "$(nd aaaa0004)" \
+same "one undriven entry point of two keeps the finding not checked" "$(not_driven aaaa0004)" \
   '[{"entry_point":"/auth:sso","reason":"blocked: no Ready"}]'
-same "an entry missing from the newer pass is not checked" "$(nd aaaa0005)" \
+same "an entry missing from the newer pass is not checked" "$(not_driven aaaa0005)" \
   '[{"entry_point":"/docs","reason":"not in the newer pass"}]'
-same "the same entry point under another part does not count as driven" "$(nd aaaa0006)" \
+same "the same entry point under another part does not count as driven" "$(not_driven aaaa0006)" \
   '[{"entry_point":"/search","reason":"cap"}]'
 
 # Every baseline-only id whose entry was not driven is not checked, never GONE.
