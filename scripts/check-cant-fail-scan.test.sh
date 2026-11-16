@@ -87,7 +87,23 @@ new_repo
 put "$r" README.md 'changed
 '
 gate 0 "a diff with no test file passes" "$r" base
-has "it reports the gate not applicable" "$OUT" "Not applicable: no test file changed since base"
+has "it reports the gate not applicable, counting the files it looked at" "$OUT" \
+  "Not applicable: 1 file(s) changed since base, none a test file the scan covers"
+
+# HEAD at the base has no change to scan.
+new_repo
+gate 0 "HEAD at the base passes" "$r" base
+has "it says HEAD is the base" "$OUT" "Not applicable: HEAD is base"
+
+# Commits whose net diff is empty checked nothing, so they are never a pass.
+new_repo
+put "$r" README.md 'changed
+'
+put "$r" README.md 'base
+'
+gate 2 "an empty diff with commits on top is an environment error, not a pass" "$r" base
+has "it says nothing changed" "$ERR" "no file changed since base, yet HEAD is not base"
+if [[ -z "$OUT" ]]; then pass "an empty diff prints no clean statement"; else bad "an empty diff prints no clean statement" "$OUT"; fi
 
 # A clean changed test file passes and is named.
 new_repo

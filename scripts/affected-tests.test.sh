@@ -729,15 +729,20 @@ else
   fail "--shard 0/1 changed the selection"
 fi
 
-# The empty leg. It is the short-circuit CI depends on: a leg that draws
-# nothing must EXIT 0, because a leg that skipped would make the matrix result
-# `skipped` and ci-status is fail-closed on that.
-out="$(select_shard 999/1000)"
+# The empty leg. A leg that draws none of a non-empty selection checked
+# nothing, so it is a usage error (more legs than selected suites), never a
+# pass that reads as a tested leg.
+out="$(cd "$repo" && bash scripts/affected-tests.sh --shard 999/1000 -- "${shard_paths[@]}" 2>&1 >/dev/null)"
 RC=$?
-if [[ "$RC" -eq 0 ]] && [[ -z "$(printf '%s' "$out" | grep . || true)" ]]; then
-  ok "a leg with no suites exits 0 and prints no selection"
+if [[ "$RC" -eq 2 ]] && [[ "$out" == *"leg 999 of 1000 draws none of the"* ]]; then
+  ok "a leg that draws no suite exits 2 and says why"
 else
-  fail "empty leg should exit 0 with nothing selected (rc=$RC): $out"
+  fail "empty leg should exit 2 naming the leg (rc=$RC): $out"
+fi
+if [[ -z "$(select_shard 999/1000 | grep . || true)" ]]; then
+  ok "an empty leg prints no selection"
+else
+  fail "an empty leg printed a selection"
 fi
 
 # A spec this script cannot read must never become leg 0 of 1, which runs

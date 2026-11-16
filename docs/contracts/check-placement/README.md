@@ -379,7 +379,7 @@ marketplace comes from these rows.
 | Budget | Value | Basis |
 |---|---|---|
 | Per-batch formatter (`PostToolBatch`) | 1 s median per fire | judgment from the measured spread; revisit after the rollout's per-batch measurements |
-| Commit (`pre-commit` set) | set from one staged-file run of every shipped `pre-commit` entry together on the same 44-file set, measured when the rollout of the remaining check plugins lands | until then the per-entry rows below stand |
+| Commit (`pre-commit` set) | 10 s for all 11 shipped `pre-commit` entries run in a row | judgment from the measured set: 0.91 s on 1 file, 1.91 s on 10, 9.6 s on a 45-file mixed set and 96.3 s on a 44-file set (per-check timings below); 10 s keeps the mixed set inside and `reference-verify`'s 12.2 s on 44 files outside, as its move to `pre-push` decided |
 | Push (`pre-push`) | 60 s | judgment from the measured spread; beyond it, CI only |
 
 ### Measured rows
@@ -405,3 +405,42 @@ The per-edit rows are the `PostToolUse` rows each plugin's `hooks/hooks.json` ra
 timed with a sample that needs work (hyperfine, 2 warmups, 10 runs; a 15 ms spawn baseline is
 included). They are the baseline the git-hook entries and `PostToolBatch` rows replaced; each new
 entry adds its own row here when it ships.
+
+### Per-check timings
+
+Method: hyperfine 1.21.0, 1 warmup, 10 runs for `pre-commit` and 3 for `pre-push`, median with
+min-max. A `pre-commit` sample is a real `origin/main` commit staged on its parent, re-staged before
+every run, with each entry script run directly from a copy of `origin/main`. A `pre-push` sample is
+`scripts/check-affected.sh --no-fetch --base <parent>` at a real commit, or at a one-line edit to
+`scripts/check-cost-figures.sh` on `origin/main`. Host: Linux, WSL2, 24 CPUs; shellcheck 0.11.0,
+shfmt 3.14.1, typos 1.52.2, markdownlint-cli2 0.24.0, actionlint 1.7.12. Samples: 1 file
+(`55c8ce6fea`, one `.sh`), 10 files (`dedc4fd990`), 44 files (`83fb17c179`, 24 `.sh`, 22 of them
+copies of `hook-utils.sh`), 45 files (`5fdcd660b4`, 24 `.mjs`, 12 workflows); 28 files
+(`4e73c874b5`).
+
+| Check | Stage | Median (min-max) | Sample | Host | Date |
+|---|---|---|---|---|---|
+| all 11 entries in a row | pre-commit | 0.91 s; 1.91 s; 96.3 s (93.1-102.8); 9.6 s (9.5-9.7) | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| bash-format `shell-check` | pre-commit | 0.32 s; 0.66 s; 98.9 s (93.8-108.7); 6.3 s | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| code-tidying `comment-lint` | pre-commit | 0.37 s; 0.45 s; 0.17 s; 1.72 s | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| spelling `typos-check` | pre-commit | 0.06 s; 0.13 s; 0.86 s; 0.36 s | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| markdown-format `markdown-check` | pre-commit | 0.01 s; 0.40 s; 0.35 s; 0.55 s | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| guardrails `pre-commit-content` | pre-commit | 0.06 s; 0.14 s; 0.39 s; 0.37 s | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| actionlint `actionlint-check` | pre-commit | 0.01 s; 0.01 s; 0.01 s; 0.10 s | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| instruction-placement `index-check` | pre-commit | 0.03 s on every sample | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| javascript-format, python-format, go-format, powershell-format entries | pre-commit | 0.01-0.02 s each on every sample (no file of their types, or a few `.mjs`) | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| `scripts/check-affected.sh` lint tier, which includes the `plugin-imports` boundary check | pre-push | 4.0 s (4.0-4.1); 18.6 s (18.2-18.6) | 1 file; 28 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| `scripts/check-plugin-imports.sh` alone | pre-push | 1.24 s (1.21-1.30), 10 runs | whole tree | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| guardrails `pre-push-content` | pre-push | 0.17 s (0.15-0.19), 5 runs | 28 files, one unpushed commit | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| guardrails `reference-verify` | pre-push | 1.25 s (1.18-1.27), 5 runs | 28 files, one unpushed commit | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| `scripts/check-affected.sh --tests` | CI only | 4.5 s, 0 suites; 94.7 s (89.5-96.5), 10 suites; 164.3 s (159.4-165.8), 24 suites | 1 file (`151a7b0c0c`, data); 1 file (script edit); 28 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
+
+The `pre-push` set on the 28-file sample totals 20.0 s: 18.6 s, 0.17 s and 1.25 s. Change-scoped
+tests stay in CI: `--tests` adds 1.0 s on a change that selects no suite, 90.7 s on a one-file
+script edit and 145.7 s on the 28-file change, so a typical push goes over the 60 s budget. The
+boundary check already runs at `pre-push`, inside the lint tier.
+
+The shipped `pre-commit` set took 96.3 s on the 44-file sample, a real `origin/main` commit, over
+the commit budget and the push budget. bash-format's `shell-check` alone measured 98.9 s:
+shellcheck takes 1.7 s on one copy of the 5,174-line `hook-utils.sh`, and the commit changes 22 of
+them.
