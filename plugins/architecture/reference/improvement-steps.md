@@ -65,13 +65,13 @@ repository root, as its own Bash call. The exit code decides the home:
 | Any other | Not defined by the resolver | None | The exit code |
 
 With no home, read no file under one, and run any settings read without its file layers. A file
-under `<home>` that is absent holds nothing. A lens writes under `<home>` only on exit 0; on any
-other exit it writes nothing there and says so in its report.
+under `<home>` that is absent holds nothing. A lens that writes under `<home>` does so only on
+exit 0; on any other exit it writes nothing there and says so in its report.
 
 ## Memory-tier writes
 
-Every file a lens writes for its own run goes to the memory tier, in the lens's own slice, and
-nowhere else.
+A lens's durable run artifacts (a candidate list, a findings file, a generated graph) go to the
+memory tier, in the lens's own slice. A lens that writes anything else names where it goes.
 
 - **Memory root.** `<memory_dir>` is `.work/` unless the consuming repository's `CLAUDE.md` or
   `.claude/rules` declares another working-docs root.
