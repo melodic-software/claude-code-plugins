@@ -8,4 +8,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]
 expected_outcome: "Cites ARCHITECTURE.md:22 as the rule's source, states that src/billing/invoice.ts, src/reports/ledger-view.ts and lib/tax.ts share no folder and no file-name part, presents a marker card proposing a shared file-name part for them, routes it to /architecture:improve conventions, and renames no file."
 ---
 
-/architecture:improve-layout. ARCHITECTURE.md line 22 records: "The files src/billing/invoice.ts, src/reports/ledger-view.ts and lib/tax.ts hold the tax rules and must change only through a reviewed tax change." No other layout style is recorded. I am here to answer questions.
+/architecture:improve-layout ARCHITECTURE.md line 22 records: "The files src/billing/invoice.ts, src/reports/ledger-view.ts and lib/tax.ts hold the tax rules and must change only through a reviewed tax change." No other layout style is recorded. I am here to answer questions.

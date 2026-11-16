@@ -8,4 +8,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]
 expected_outcome: "States no layout style is recorded and names the sources it checked, asks exactly once how this repository should group files into folders, offers /architecture:record-decision without invoking it, runs the co-change script once and takes the card's numbers from it, and ends asking which candidate to explore."
 ---
 
-/architecture:improve-layout. This repository has no ADRs, no architecture topic doc, no boundary rules in any of the enforcement ladder's sources, and no docs/conventions/architecture.yaml. src/orders/OrderForm.tsx, src/api/orders.ts, src/db/orderRepo.ts and src/tests/orders.test.ts change together in most order commits. I am here to answer questions.
+/architecture:improve-layout This repository has no ADRs, no architecture topic doc, no boundary rules in any of the enforcement ladder's sources, and no docs/conventions/architecture.yaml. src/orders/OrderForm.tsx, src/api/orders.ts, src/db/orderRepo.ts and src/tests/orders.test.ts change together in most order commits. I am here to answer questions.

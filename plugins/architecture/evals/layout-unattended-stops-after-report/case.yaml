@@ -16,15 +16,13 @@ graders:
     min: 0
     max: 0
     arm: both
-  - name: cart-totals-kept
-    type: file_exists
-    path: 'src/shared/cartTotals.ts'
-  - name: use-cart-kept
-    type: file_exists
-    path: 'src/hooks/useCart.ts'
-  - name: cart-api-kept
-    type: file_exists
-    path: 'src/api/cart.ts'
+  - name: moves-no-file
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?\b(?:mv|rm)\s'
+    min: 0
+    max: 0
+    arm: both
   - name: layout-and-trees
     type: llm
     criteria: "PASS only if the cart card in the reply proposes a target layout in a sentence and shows a before folder tree and an after folder tree for the cluster's files. FAIL if either tree is missing or there is no proposed layout."
