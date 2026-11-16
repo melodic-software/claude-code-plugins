@@ -44,6 +44,13 @@
       "answer": "Deleted 0002. The new record needs your yes before I commit it."
     },
     {
+      "answer": "I wrote ADR 0003, which supersedes ADR 0002. Anything else?",
+      "why": "review finding: a third-person verb followed by an unrelated question"
+    },
+    {
+      "answer": "This removes the GraphQL adapter. Anything else?"
+    },
+    {
       "answer": ""
     }
   ]
