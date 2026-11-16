@@ -634,11 +634,12 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
 # #13185 review: the register gate now names the Brief or summary, so a general session's summary stays gated; Step 4 names PLAN.md as the Brief and case 13's expectation reports the Brief unconfirmed; each is a rename and every gate, halt and blocker rule is unchanged
 # Gates and Step 4: one added sentence each says an unattended run that exits without the lock (the D2 Stopped: exit or the Q13 release/in-use Blocked: exit, per loop.md Unattended path) also skips the --brief cross-check, so the run reaches its last line instead of halting on an expected not-settled-yet Finish line. Every attended run and every locking run still cross-checks and halts on a non-zero exit.
+# Only the /session-flow:workflow gate clause changed from 'if installed' to 'if enabled' (seam-phrasing gate, #16430); no defense sentence in either section changed
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the Brief" \
   "### Step 5. Hand off" \
-  "47cbf0744d957613409c6bb8bdb96104223a41ae714573d53f2ba2bc459e73ae"
+  "3fee6385252f2f476aef4e00797c9f416e7a7c7f89e3ea6ebdabad267177a640"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
@@ -816,11 +817,12 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
 # Glossary skill renamed (Q61): /domain-driven-design:curate-language becomes /domain-driven-design:ubiquitous-language with its curate action for writes, and the interview reads the glossary through its lookup action (Q64) with a repository search fallback; only those tokens and the read line changed, so the no-silent-resolve rule, the constraint-ledger rows and the late-commitment next-free-id rule are byte-identical
 # Only pointer as-of dates and recheck triggers were removed (upstream-drift 5.0.0); every defense sentence and pinned line is unchanged.
 # edits say where an inline terminal round ends, what the mechanism question cites as its basis, and that a coined definition is agreed in a withheld question (the sweep asks it withheld where it recommended it); the no-silent-resolve rule and the late-commitment next-free-id rule are byte-identical, and the tripwire trigger and outcomes and the sweep's scope and item shape are unchanged
+# Only the /session-flow:workflow gate clause changed from 'if installed' to 'if enabled' (seam-phrasing gate, #16430); no defense sentence in either section changed
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "2d9d77f089d51e838f0a396249bff75b125599ede4826152fbef5b73f395ff64"
+  "493b9e062228d39672b85ea3256e8a3c360fce9df183d08de9ea081666e20076"
 # The sweep-round labeling and the appended pre-round contradiction pass leave the scope, item shape and USER-RESERVED disposition intact; a draft conflict becomes no register row and nothing is captured as an assumption.
 # Re-pinned for #8314: adds the coined-term category, item-shape value, disposition and a glossary dispatch input; every existing category and disposition is unchanged, so the open-decision (case A) and resolved-but-one (case B) plants survive.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
