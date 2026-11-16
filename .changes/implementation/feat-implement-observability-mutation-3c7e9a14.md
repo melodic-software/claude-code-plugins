@@ -11,7 +11,10 @@ bump: minor
   family) instead of literals, cross-cutting logging and timing in middleware, decorators or
   pipeline behaviors with in-method logs where the method decides something, log levels raised
   only through untracked local config, and caught errors recorded with the exception and the
-  operation's fields. Short .NET and JavaScript examples, with pointers to the live docs.
+  operation's fields. Short .NET and JavaScript examples, with pointers to the live docs. The
+  dispatched path reads it too: `/implementation:implement-dispatch` briefs carry an
+  `Observability:` line, and the `implementer` and `scoped-implementer` agents read the reference
+  before writing runtime code.
 - **Advisory mutation run at completion.** When the `mutation-testing` plugin is enabled, Step 5
   runs `/mutation-testing:audit --persist-findings` on the committed change's diff once the
   affected tests are green, reports the score, survivors and findings path (or the audit's refusal)
