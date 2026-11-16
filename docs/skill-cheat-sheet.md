@@ -80,7 +80,7 @@ From the stage definitions: A conditional stage runs only when its trigger holds
 | [`/discovery:explore`](../plugins/discovery/skills/explore/SKILL.md) | `discovery` | Explore code, history, tests, and config before changing anything |  | `[--output change-prep\|explain] [scope]` | [pstack `how`](upstream/cursor-pstack.md#attribution-table) | `/discovery:research`, `/planning:interview`, `/planning:design`, `/session-flow:workflow` |
 | [`/discovery:trace-intent`](../plugins/discovery/skills/trace-intent/SKILL.md) | `discovery` | Reconstruct why a thing was built this way, from evidence outside the code |  | `<target>` | [pstack `why`](upstream/cursor-pstack.md#attribution-table) | `/planning:design`, `/planning:plan` |
 | [`/performance:go-faster`](../plugins/performance/skills/go-faster/SKILL.md) | `performance` | Whole-process speed sweep with evidenced, ranked findings and adopt-now speedups |  | `[--unattended]` |  | `/performance:goal`, `/overengineering:audit`, `/harness-ops:audit-performance`, `/performance:target` |
-| [`/performance:target`](../plugins/performance/skills/target/SKILL.md) | `performance` | Rank optimization candidates by evidence quality, not suspicion |  | `[<path\|component\|'session'\|'telemetry'>]` | [pstack `perf-issue`](upstream/cursor-pstack.md#attribution-table) | `/performance:goal`, `/performance:go-faster` |
+| [`/performance:target`](../plugins/performance/skills/target/SKILL.md) | `performance` | Rank optimization candidates by evidence quality, not suspicion |  | `[<path\|component\|'session'\|'telemetry'>]` | [pstack `perf-issue`](upstream/cursor-pstack.md#attribution-table) | `/performance:goal`, `/performance:go-faster`, `/toolchain:ratchet` |
 
 ## 3. Research
 

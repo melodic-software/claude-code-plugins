@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: ta-check-lanes-per-stage
+description: 'Target on slow git-hook checks: a hook config puts two checks in pre-commit and two in pre-push, per-check p50 and p90 timings exist, the parallel runner ends on a bare wait, and the scanned file count grows each release. The run ranks one candidate per check with its stage named in the Candidate cell, flags that the runner can pass a failed shard, and routes the growing file count to /toolchain:ratchet as a counter. A run needs --scaffold.'
+tags: [target, check-speed]
+plugins: ["../.."]
+expected_outcome: 'A ranked table with the existing Rank, Candidate, Tier, What is known, Counter that would settle it and Cheapest next instrument columns, each check candidate naming its stage (pre-commit or pre-push) in the Candidate cell and ranked at E1 from the per-check timings. The report says scripts/run-checks.sh ends on a bare wait that drops each shard''s exit status, and hands the growing count of files a check scans to /toolchain:ratchet as a counter, not a duration.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/performance:target our git hooks are slow. The hook config is hooks.yml and per-check timings are in measurements/hook-timings.txt. Rank what to speed up.'
+  allowed_tools: [Read, Grep, Glob, Skill]
+  max_turns: 15
+  timeout_seconds: 400
+graders:
+  - name: stage-in-candidate-cell
+    type: regex
+    pattern: '^\|[^\n]*\b(?:pre-commit|pre-push)\b[^|\n]*\|[ \t]*(?:\*\*)?E1\b'
+    flags: 'mi'
+    arm: both
+  - name: bare-wait-flagged
+    type: regex
+    pattern: '^(?=[^\n]*\bwait\b)(?=[^\n]*\b(?:exit|status|fail\w*)\b)[^\n]*$'
+    flags: 'mi'
+    arm: both
+  - name: growth-routed-to-ratchet
+    type: regex
+    pattern: '^(?=[^\n]*toolchain:ratchet)(?=[^\n]*\b(?:files?|count|counter)\b)[^\n]*$'
+    flags: 'mi'
+    arm: both

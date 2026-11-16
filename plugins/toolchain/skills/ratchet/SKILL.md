@@ -1,5 +1,5 @@
 ---
-description: "Count ratchet: freezes a lint violation, suppression, performance or telemetry count at today's value as a checked-in CI ceiling that fails on a rise and is lowered as the count falls. Counters only, never durations; proposes files for a human to merge. Use when asked to 'ratchet' a lint rule or suppressions, freeze a violation count, or 'stop this count from growing' in CI."
+description: "Count ratchet: freezes a lint violation, suppression, check, performance or telemetry count at today's value as a checked-in CI ceiling that fails on a rise and is lowered as the count falls. Counters only, never durations; proposes files for a human to merge. Use when asked to 'ratchet' a lint rule or suppressions, freeze a violation count, or 'stop this count from growing' in CI."
 user-invocable: true
 argument-hint: "[<counter, rule or claim>]"
 disable-model-invocation: false
@@ -25,7 +25,7 @@ This skill writes the proposed files into the working tree and commits nothing. 
 
 ## 1. Take the counter
 
-The counter arrives from one of four places:
+The counter arrives from one of five places:
 
 | Source | What it hands over |
 |---|---|
@@ -33,6 +33,10 @@ The counter arrives from one of four places:
 | the ratchet offer on a counting rung's proposal from `/corrections:codify` | a lint rule, once it exists, whose violation count is above zero |
 | `/code-metrics:audit-suppressions`, when that skill is available | a command that prints the suppression count |
 | the user, from a telemetry store | a command that queries one run's count and prints it |
+| `/performance:target` on slow checks | a check count that grows with the repository: checks per hook stage or CI job, files a check scans, or test suites a change selects |
+
+A check count holds a lane's growth where its duration cannot be held: a ceiling on files scanned
+or checks per stage fails the change that adds one, and the lane's speed is measured separately.
 
 Each needs a command that prints a `<field>=<number>` token on stdout, run through the shell from
 the repository root.
