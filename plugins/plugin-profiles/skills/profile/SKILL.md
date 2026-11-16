@@ -1,6 +1,6 @@
 ---
 description: "Plugin profiles: named sets of installed plugins switched on for a folder, for every new folder, or for one session. Use when choosing which plugins load, applying, checking or clearing a profile, asking which profile is in force, or setting up profiles from the installed plugins and usage history."
-argument-hint: "[apply <name>|status|clear|check|setup]"
+argument-hint: "[apply <name>|launch [<name>]|status|clear|check|setup]"
 disable-model-invocation: false
 metadata:
   workflow-stage: session
@@ -9,9 +9,10 @@ metadata:
 
 # Plugin profiles
 
-**Arguments.** `[apply <name>|status|clear|check|setup]`. With no argument, infer the action from
-the conversation: a read-only one (status, check) runs and names what it inferred; apply, clear
-and setup are proposed and wait for a yes. With nothing to infer, run status.
+**Arguments.** `[apply <name>|launch [<name>]|status|clear|check|setup]`. With no argument, infer
+the action from the conversation: a read-only one (status, check) runs and names what it
+inferred; apply, clear and setup are proposed and wait for a yes. A skill that starts a session
+calls launch directly. With nothing to infer, run status.
 
 Every action runs the one command-line tool, and only it reads or writes settings and profile
 files:
@@ -47,8 +48,14 @@ prompt. A `Not installed` line does not stop an apply: only a missing required p
 ## Actions
 
 - **status**: `status` names the profile in force for this folder, each entry that differs from it,
-  plugins installed since, an unfinished switch, a one-session profile, and the surface. Relay it;
-  for a restore line in a handoff, use the `apply` command it implies.
+  plugins installed since, an unfinished switch, a one-session profile, the surface, and the
+  command that starts another session here in the profile in force. Relay it; a handoff's restore
+  line is that command.
+- **launch `[<name>]`**: `launch [<name>] [--folder <dir>]` writes the one-session file for the
+  folder and profile and prints the `claude` command that starts a session in it; with no name it
+  takes this session's profile. It writes no settings file, so it needs no preview. Every launcher
+  (a handoff, a background session, a lane) starts sessions through it; see its usage for
+  `--with`, `--unattended` and `--json`.
 - **apply `<name>`**: `apply <name> --for folder|initial|session`. Ask where when the user has not
   said: `folder` for this folder, `initial` for every folder without its own profile, `session` for
   one session started with the `claude --settings` command the tool prints. Run `list` first when
