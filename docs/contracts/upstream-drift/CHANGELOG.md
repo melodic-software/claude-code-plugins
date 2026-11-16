@@ -12,7 +12,7 @@ enforceability tier changes.
 The filer no longer labels a created or reopened drift issue `needs-human`, by the owner's
 standing direction that holds against our own actors come off (section 10, re-stated 2026-11-16):
 a drift issue is an agent's re-audit, not an owner decision. A reopen no longer adds a label before
-it reopens. Drift issues still enter no intake run on their own; the "No hold label" bullet says
+it reopens, and removes the `needs-human` an issue filed before this change kept through its close. Drift issues still enter no intake run on their own; the "No hold label" bullet says
 what starts the re-audit.
 
 ## [6.2.0] - 2026-11-16

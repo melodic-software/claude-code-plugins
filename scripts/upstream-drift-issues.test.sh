@@ -279,7 +279,12 @@ if [[ "$c" == *'issue reopen 12'*'issue edit 12 --body-file'* ]]; then
 else
   bad "reopen: reopens, then edits the body" "$c"
 fi
-expect_lacks "reopen: no label is added" "$c" 'label'
+expect_lacks "reopen: no label is added" "$c" 'add-label'
+if grep -Eq '^issue edit 12 --body-file [^ ]+ --remove-label needs-human$' <<<"$c"; then
+  pass "reopen: the body edit strips a needs-human hold left from before"
+else
+  bad "reopen: the body edit strips a needs-human hold left from before" "$c"
+fi
 closed_list 'null'
 run_sut "$DRIFT"
 expect_has "reopen, no state reason: reopens issue 12" "$(calls)" 'issue reopen 12'

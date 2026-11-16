@@ -514,8 +514,8 @@ After a failed write the other upstreams still run, and the run then exits nonze
   the run's job summary. The re-audit footer is written only when a hex-pin page drifted.
 - **No hold label.** The filer adds no label on create, reopen or edit: a drift issue is not an
   owner decision, so it carries no `needs-human`, and a re-audit pull request that closes it meets
-  no `needs-human` hold at merge. A reopen reopens, then replaces the body, so a failed reopen
-  leaves the closed issue's body unchanged. The issue still does not enter the issue lane on its
+  no `needs-human` hold at merge. A reopen reopens, then replaces the body and removes any
+  `needs-human` an earlier filer left, so a failed reopen leaves the closed issue unchanged. The issue still does not enter the issue lane on its
   own: an issue this workflow's token opens starts no intake run, the hourly triage sweep skips
   github-actions[bot] issues because some quote fork-controlled text, and admission counts only
   done-when text a listed human wrote. A session agent, or a listed human's issue naming the drift

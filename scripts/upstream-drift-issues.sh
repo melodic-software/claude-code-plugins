@@ -24,7 +24,8 @@
 # span with backticks replaced. The re-audit footer is written only when a
 # hex-pin page drifted. The body is cut at 60,000 characters with a pointer to
 # the run's job summary, written to a temp file and passed with --body-file.
-# No run adds or removes a label, and none sets assignees or mentions.
+# No run adds a label; a reopen removes `needs-human` with its body edit. No
+# assignees or mentions.
 #
 # The whole report is parsed before any gh call. Each line follows the fixed
 # field order of the report (docs/contracts/upstream-drift/README.md, the
@@ -276,7 +277,9 @@ for i in "${!REPOS[@]}"; do
     write_body "$i" "$body_file"
     if ! gh issue reopen "$num" >/dev/null; then
       fail "issue reopen failed for $repo"
-    elif ! gh issue edit "$num" --body-file "$body_file" >/dev/null; then
+    # Issues filed before drift issues stopped carrying needs-human keep it
+    # through a close, so the reopen strips it.
+    elif ! gh issue edit "$num" --body-file "$body_file" --remove-label needs-human >/dev/null; then
       fail "issue edit failed for $repo"
     fi
     ;;
