@@ -86,7 +86,8 @@
 //   KILL_SWITCH           `proceed`, or the run stops before any API call
 //   CONTEXT_PATH          where --select writes, and --apply reads, the context
 //   REFINEMENT_PATH       the model's structured output (--apply)
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
@@ -94,7 +95,7 @@ import { isDeepStrictEqual } from "node:util";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { ADMIT_MARKER, admissionParked, authorAdmitted, bodyVersion, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, linesDigest, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitItemsLine, splitRecord, splitSourceLine, splitTaskLines, taskItems, taskText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { ADMIT_MARKER, admissionParked, ATTENDED, authorAdmitted, bodyVersion, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, linesDigest, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitItemsLine, splitRecord, splitSourceLine, splitTaskLines, taskItems, taskText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
 import { carried, DECISION_LABELS, INFO_LABELS, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
@@ -249,7 +250,10 @@ async function candidates(github, repository, issue, trusted) {
 // over named targets, the model may instead return `groups`, lists of target
 // names it copies from the lines (a target-subset split, admission rules'
 // `size-split.on-decline: subset`): each sub-issue then holds every line and
-// one admit.mjs SCOPE_PREFIX line naming its targets.
+// one admit.mjs SCOPE_PREFIX line naming its targets. Each part carries the
+// issue's `host-run` and `attended` labels, and a line split is not filed
+// when a part checks a plugin that the default branch lacks and no part
+// before it creates (unbuiltPart).
 
 // admission-rules.json's `size-split`: {onDecline, maxParts}. `on-decline`
 // is `subset` (a declined line split may split by target) or `park`;
@@ -275,8 +279,117 @@ const DECLINES = {
   "bad-split": "the proposed split of its task-list lines did not cover each line exactly once in 2 or more parts",
   "bad-subset": "the proposed target groups were not text copied from its task-list lines, each target named once and inside no other target",
   "no-type": "its Issue Type is not one admission takes, so its sub-issues would take none",
+  unbuilt: "a part's done-when checks a plugin that no part before it creates and the default branch does not hold, so no lane run could build that part",
 };
 const declineMarker = (code) => SIZE_DECLINE_MARKER.replace(" -->", ` reason=${code} -->`);
+
+// The issue's labels each part carries: whether a part can run unattended
+// is the issue's call, which the split does not restate.
+const ROUTING_LABELS = [HOST_RUN, ATTENDED];
+
+// A task line that brings what it names into being; any other line checks it.
+const CREATES =
+  /\b(?:add|adds|added|create|creates|created|new|scaffold|scaffolds|scaffolded|introduce|introduces|introduced|exist|exists|write|writes|generate|generates|generated|move|moves|moved|rename|renames|renamed|extract|extracts|extracted|port|ports|ported)\b/i;
+const PLUGIN_NAME = "[a-z0-9][a-z0-9-]*";
+const KEBAB = "[a-z0-9]+(?:-[a-z0-9]+)+";
+const PLUGIN_PATTERNS = [
+  new RegExp(`(?:^|[^\\w./-])plugins/(${PLUGIN_NAME})`, "g"),
+  new RegExp(`\`(${PLUGIN_NAME})\`\\s+[Pp]lugin\\b`, "g"),
+  new RegExp(`\\b[Pp]lugin\\s+\`(${PLUGIN_NAME})\``, "g"),
+];
+// A bare kebab-case word before the word plugin, read only when quoted.
+const BARE = new RegExp(`(?:^|\\s)(${KEBAB})\\s+[Pp]lugin\\b`, "g");
+const LEADING = new RegExp(`^\`?(${KEBAB})\`?(?=\\s)`);
+
+// The kebab-case names `texts` (the issue body and its task lines) write in
+// backticks: the names a line's leading word may be (namedUnits).
+export const quotedNames = (texts) => new Set(texts.flatMap((text) => [...String(text).matchAll(new RegExp(`\`(${KEBAB})\``, "g"))].map(([, name]) => name)));
+
+// The plugins a task line's text (admit.mjs taskText) names, each as
+// `plugins/<name>`: written as a `plugins/<name>` path, in backticks beside
+// the word plugin, or as a bare kebab-case word before the word plugin or
+// leading the line when the issue writes that word in backticks somewhere
+// (`quoted`, quotedNames), so a hyphenated word such as non-zero or
+// third-party is no plugin. A file a part's line names is that part's
+// own work; a whole plugin is what a part that only checks it cannot build.
+// Sorted. Pure.
+export function namedUnits(text, quoted = new Set()) {
+  const units = new Set();
+  for (const pattern of PLUGIN_PATTERNS) {
+    for (const [, name] of text.matchAll(pattern)) {
+      units.add(`plugins/${name}`);
+    }
+  }
+  for (const [, name] of text.matchAll(BARE)) {
+    if (quoted.has(name)) {
+      units.add(`plugins/${name}`);
+    }
+  }
+  const leading = LEADING.exec(text)?.[1];
+  if (leading !== undefined && quoted.has(leading)) {
+    units.add(`plugins/${leading}`);
+  }
+  return [...units].sort();
+}
+
+// Whether the default branch checkout at `base` holds `unit` (namedUnits):
+// its path, or for `plugins/<name>` a file or directory named `name`, any
+// extension aside, outside `.git` and `node_modules`, since a leading word
+// can name a script as well as a plugin. Reads the tree once, lazily.
+export function baseHolds(base) {
+  let stems = null;
+  const walk = (dir, into) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === ".git" || entry.name === "node_modules") {
+        continue;
+      }
+      into.add(entry.name.replace(/\.[^.]*$/, ""));
+      if (entry.isDirectory()) {
+        walk(join(dir, entry.name), into);
+      }
+    }
+    return into;
+  };
+  return (unit) => {
+    if (existsSync(join(base, unit))) {
+      return true;
+    }
+    const name = /^plugins\/([^/]+)$/.exec(unit)?.[1];
+    if (name === undefined) {
+      return false;
+    }
+    stems ??= walk(base, new Set());
+    return stems.has(name);
+  };
+}
+
+// The first part of a line split ({parts, order}, a partition) that checks a
+// unit the default branch lacks (`absent`, which --select reads) with no
+// line of that part, or of a part the order puts before it, creating it:
+// {part, units}, or null. `texts` are the task lines' texts, and `quoted`
+// the names namedUnits reads a leading word as. Pure.
+export function unbuiltPart({ parts, order }, texts, absent, quoted) {
+  const missing = new Set(absent);
+  const before = (part, seen = new Set()) => {
+    for (const [a, b] of order) {
+      if (b === part && !seen.has(a)) {
+        seen.add(a);
+        before(a, seen);
+      }
+    }
+    return seen;
+  };
+  const made = (part) => parts[part - 1].flatMap((n) => (CREATES.test(texts[n - 1]) ? namedUnits(texts[n - 1], quoted) : []));
+  for (const [index, items] of parts.entries()) {
+    const built = new Set([index + 1, ...before(index + 1)].flatMap(made));
+    const checked = items.filter((n) => !CREATES.test(texts[n - 1])).flatMap((n) => namedUnits(texts[n - 1], quoted));
+    const units = [...new Set(checked)].filter((unit) => missing.has(unit) && !built.has(unit));
+    if (units.length > 0) {
+      return { part: index + 1, units };
+    }
+  }
+  return null;
+}
 
 // Posts decline `code` on the issue unless the lanes App already posted it
 // for this body. The text is fixed; no model or issue text is rendered.
@@ -366,12 +479,18 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
     // runs on its lines at the next triage.
     return refinedBody(comments, appId, issue.body) ? visible("few-lines", why) : { thin: `fewer than 2 trusted task-list lines for its size split: ${why}` };
   }
+  // The units the lines name that the default branch lacks, for applySizeSplit's unbuiltPart.
+  const { rules, held } = splitConfig();
+  const texts = lines.map((line) => taskText(line, rules["task-list"]));
+  const quoted = quotedNames([issue.body, ...texts]);
+  const named = new Set(texts.flatMap((text) => namedUnits(text, quoted)));
+  const absent = held ? [...named].filter((unit) => !held(unit)).sort() : [];
   return {
     refine: true,
     reason: `Size large, waiting on its split into sub-issues; ${lines.length} trusted task-list lines`,
     context: {
       version: 1,
-      size_split: { items: lines.map((text, index) => ({ n: index + 1, text })), digest: splitDigest(split), max_parts: sizeSplitSettings(splitConfig().rules).maxParts },
+      size_split: { items: lines.map((text, index) => ({ n: index + 1, text })), digest: splitDigest(split), max_parts: sizeSplitSettings(rules).maxParts, absent },
       issue: issueContext(number, issue),
       triage: String(lane.body),
     },
@@ -944,7 +1063,9 @@ async function blockOn({ github, repository, issue, blocker, log }) {
 // retry finishes that record and ignores a new partition. Each step checks
 // before it writes, so a retry files, links and edges nothing twice: a part
 // whose body the App already filed under the issue is reused. Each part takes
-// the issue's Issue Type, which admission requires. An edge GitHub refuses
+// the issue's Issue Type, which admission requires, and its ROUTING_LABELS. A
+// line split with a part unbuiltPart names files nothing and posts the
+// `unbuilt` decline. An edge GitHub refuses
 // leaves the split unfinished: what the issue blocks keeps its edge to the
 // issue, and the record stays unfiled so the next triage retries. The
 // record's `filed` list goes last, and is the guard that stops a later split.
@@ -1021,6 +1142,13 @@ export async function applySizeSplit({ github, repository, number, appId, humans
       if (problem !== null) {
         return skip(`the model's split is not one: ${problem}`, noParts ? "no-split" : "bad-split");
       }
+      const absent = context.size_split?.absent;
+      const texts = lines.map((line) => taskText(line, rules["task-list"]));
+      const unbuilt = unbuiltPart(output, texts, Array.isArray(absent) ? absent : [], quotedNames([issue.body, ...texts]));
+      if (unbuilt !== null) {
+        log(`refine: #${number} part ${unbuilt.part} checks ${JSON.stringify(unbuilt.units)}`);
+        return skip(`part ${unbuilt.part} checks a file, plugin or unit that no part before it creates and the default branch does not hold`, "unbuilt");
+      }
       record = { items: digest, parts: output.parts, order: output.order, filed: [] };
     }
     commentId = (await github("POST", `${base}/comments`, { body: renderSplit(record) }))?.id;
@@ -1031,6 +1159,7 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   const filed = await filedChildren(github, repository, base, appId);
   const linked = new Set((await paginate(github, `${base}/sub_issues`)).map((item) => item?.id));
   const children = [];
+  const routing = ROUTING_LABELS.filter((name) => labelNames(issue).includes(name));
   for (const [index, items] of record.parts.entries()) {
     // A part that holds a refinement line names that refinement (splitChildBody);
     // a target-subset part holds every line and its Scope line.
@@ -1039,7 +1168,8 @@ export async function applySizeSplit({ github, repository, number, appId, humans
     const body = `${splitChildHeader(number, index + 1, record.parts.length, source, scope !== "")}\n${items.map((n) => lines[n - 1]).join("\n")}${scope}`;
     let child = filed.find((item) => item.body === body);
     if (child === undefined) {
-      child = await github("POST", `/repos/${repository}/issues`, { title: `${titleLine(issue.title).slice(0, 230)} - part ${index + 1} of ${record.parts.length}`, body, type });
+      const title = `${titleLine(issue.title).slice(0, 230)} - part ${index + 1} of ${record.parts.length}`;
+      child = await github("POST", `/repos/${repository}/issues`, { title, body, type, ...(routing.length > 0 ? { labels: routing } : {}) });
       if (!Number.isInteger(child?.number) || !Number.isInteger(child?.id)) {
         throw new Error("a sub-issue came back with no number or id");
       }
@@ -1048,6 +1178,10 @@ export async function applySizeSplit({ github, repository, number, appId, humans
         log(`::warning title=refine::#${child.number} came back without Issue Type ${type}; admission refuses it until one is set`);
       }
       log(`refine: #${number} filed #${child.number} for part ${index + 1}`);
+    }
+    const lacking = routing.filter((name) => !labelNames(child).includes(name));
+    if (lacking.length > 0) {
+      await github("POST", `/repos/${repository}/issues/${child.number}/labels`, { labels: lacking });
     }
     if (!linked.has(child.id)) {
       await github("POST", `${base}/sub_issues`, { sub_issue_id: child.id });
@@ -1129,7 +1263,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         }
         const { attendedClassesFromBase, issueLaneWebHostsFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
         const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL });
-        const splitConfig = () => ({ rules: rules(), webHosts: issueLaneWebHostsFromBase(env), attended: attendedClassesFromBase(env) });
+        const held = baseHolds(env.BASE_PATH);
+        const splitConfig = () => ({ rules: rules(), webHosts: issueLaneWebHostsFromBase(env), attended: attendedClassesFromBase(env), held });
         const result = await selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, statusOf: statusReader({ env, github, repository }), note: summary });
         if (result.refine) {
           writeFileSync(env.CONTEXT_PATH, `${JSON.stringify(result.context, null, 2)}\n`);
