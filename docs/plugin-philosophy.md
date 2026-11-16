@@ -152,7 +152,7 @@ control skill (the skill standard's "Config before a generated skill"). Three th
 
 - a tool name the skill's own behavior depends on detecting, such as a manifest, lockfile or
   config file it looks for;
-- the executed adapters and declared-ecosystem surfaces
+- the executed adapters, security and safety floors, and declared-ecosystem surfaces
   [ADR 0101](adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md) keeps;
 - links to the platform a skill runs on or the provider behind its adapter, which
   [skill bodies state current rules](../.claude/rules/skill-bodies-state-current-rules.md) requires.
