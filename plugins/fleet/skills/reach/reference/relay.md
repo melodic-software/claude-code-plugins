@@ -192,9 +192,45 @@ runs over the row's hop; `<dir>` is the directory the session starts in.
    printf '%s\n' '<prompt>' | <ssh> <wsl-alias> 'cd <dir> && <command> -p -n <name>'
    ```
 
-With no profile named, no enabled `plugin-profiles@` entry in step 1, or a Windows lane, start the
-session as the row does without this section, and say with the result that the profile was not
-applied and why. A Windows lane is left out because the printed `command` is a POSIX `env` line.
+With no profile named, or no enabled `plugin-profiles@` entry in step 1, start the session as the
+row does without this section, and say with the result that the profile was not applied and why.
+
+### On a Windows lane (R1, R3, R6)
+
+The printed `command` is a POSIX `env` line, so on a Windows lane one PowerShell script runs the
+same three steps from `argv` instead: it removes each variable `argv` names after `-u` from its
+own environment and passes the words after `claude` to `claude.exe`. The script goes to
+`powershell.exe -Command -` on stdin as a quoted heredoc, so only PowerShell parses it, and the
+prompt rides inside it as a single-quoted PowerShell string (each `'` doubled). Here for a named
+receiver over R3; on R1 drop the `<ssh> <wsl-alias>` part:
+
+```console
+<ssh> <wsl-alias> 'cd <win-dir> && /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command -' <<'PS'
+$claude = "$env:USERPROFILE\.local\bin\claude.exe"; $s = Join-Path $env:TEMP 'relay-settings.json'
+Set-Content -Path $s -Value '{"crossSessionInbound":"accept"}' -Encoding ascii
+$root = (& $claude plugin list --json | Out-String | ConvertFrom-Json | Where-Object { "$($_.id)" -like 'plugin-profiles@*' -and $_.enabled -eq $true } | Select-Object -First 1).installPath
+if (-not $root -or -not (Get-Command node -ErrorAction SilentlyContinue)) { 'profile <profile> not applied: plugin-profiles or node is missing on this lane'; '<prompt>' | & $claude --settings $s -p -n <name>; exit }
+$r = & node (Join-Path $root 'scripts\profiles.mjs') launch <profile> --folder $PWD.Path --unattended --json --with $s
+if ($LASTEXITCODE) { "not started: profiles.mjs launch exited $LASTEXITCODE"; exit 1 }
+$argv = @(($r | Out-String | ConvertFrom-Json).argv); $i = 1
+while ($argv[$i] -ceq '-u') { Remove-Item "Env:$($argv[$i + 1])" -ErrorAction Ignore; $i += 2 }
+'<prompt>' | & $claude @($argv[($i + 1)..($argv.Count - 1)]) -p -n <name>
+
+PS
+```
+
+- The verb's own settings go to `--with` as a file: Windows PowerShell 5.1 strips the inner
+  double quotes from a JSON argument to a native program. Leave out `$s`, `--with $s` and
+  `--settings $s` when the verb carries no `--settings`.
+- Each statement sits on one line, and a blank line ends the input: `-Command -` parses and runs
+  stdin one statement at a time.
+  - **Pointer**: [about_PowerShell_exe: -Command](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1#-command)
+    fetched live.
+- A launch refused for a missing required tool prints "not started" and exits 1: start nothing
+  else and report the reason launch printed on stderr. "not applied" means the session started
+  without the profile: say so with the result.
+- For a background session, end with `& $claude @(...) --bg --name <name> '<prompt>'` in place
+  of the piped `-p` line.
 
 ## Mechanisms not used here
 
@@ -274,7 +310,7 @@ also rests on documented flag behavior.
 | Port 22 script hop | Not probed in this pass |
 | `notify_when_idle` from a `-p` sender | Message delivered; the notice never reached the sender, whose turn ended first |
 | `-p --remote-control` | Did not connect; Remote Control is interactive only |
-| [Start in the target's plugin profile](#start-in-the-targets-plugin-profile) | Untested on a live hop |
+| [Start in the target's plugin profile](#start-in-the-targets-plugin-profile) | Untested on a live hop. On R1 (Windows PowerShell 5.1, Claude Code 2.1.325, 2026-11-16) the Windows script's parts ran: `-Command -` read the heredoc; `plugin list --json` parsed; the not-installed branch started `claude.exe --settings <file> --version`; a `--dry-run` launch through Windows `node` exited 0 and the `argv` walk left `claude --settings <session file>`; an inline JSON argument to `node` arrived as `{crossSessionInbound:accept}`. No `-p` turn started in a profile |
 | Cost | Most of each one-line `-p` turn's cost was SessionStart hooks and context loading; measure a turn per <https://code.claude.com/docs/en/costs#track-your-costs> |
 
 ## What the relay does not change
