@@ -207,9 +207,24 @@
           "hint": "carry the event-handler rule; an `on*` attribute built from input runs regardless of escaping"
         },
         {
-          "name": "self-contained",
-          "pattern": "self-contained: no external requests, no remote scripts, assets inline",
-          "hint": "carry the self-containment bullet with its three parts: no external requests, no remote scripts, assets inline"
+          "name": "cdn-library",
+          "pattern": "librar(y|ies)[^.]{0,80}from a public CDN",
+          "hint": "say what may be loaded: a popular, widely used library from a public CDN, and no other external request"
+        },
+        {
+          "name": "cdn-pinned-version",
+          "pattern": "pinned to a version",
+          "hint": "carry the version pin: a CDN library is loaded pinned to a version"
+        },
+        {
+          "name": "cdn-fallback",
+          "pattern": "fallback for when the CDN is unreachable",
+          "hint": "carry the fallback: a page that loads a CDN library still shows its content when the CDN is unreachable"
+        },
+        {
+          "name": "artifact-self-contained",
+          "pattern": "Artifact stays self-contained",
+          "hint": "carry the artifact exception: a view destined for a published claude.ai Artifact stays self-contained, assets inline"
         }
       ]
     },

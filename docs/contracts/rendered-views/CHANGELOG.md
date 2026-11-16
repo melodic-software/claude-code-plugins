@@ -3,6 +3,19 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## A view may load a pinned CDN library, 2026-11-15
+
+- **The self-containment bullet of the Security baseline is lifted.** A view may load a popular,
+  widely used library from a public CDN, pinned to a version, and makes no other external request.
+  A page that loads one has a fallback for when the CDN is unreachable, so it still shows its
+  content. A view destined for a published claude.ai Artifact stays self-contained, and a page the
+  shared builder or the escape helper emits stays under its validator profile.
+- **The K0 and K1 policy gains one addition.** A page that loads a CDN library names that
+  library's pinned version path in `script-src` or `style-src`; the base policy string is unchanged.
+- **The escaping bullets and the interactive validator profile are unchanged.** The
+  `rendered-views-security-baseline` clause's qualifiers follow the new bullet, and the shared
+  chrome's network panel states the new rule.
+
 ## The reply-affordance and export-button rules move here, 2026-11-08
 
 - **Loop closure holds both rules.** The reply-affordance rule and the export-button rule, with who
