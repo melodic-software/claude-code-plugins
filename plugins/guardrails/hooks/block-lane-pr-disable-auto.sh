@@ -126,9 +126,9 @@ lpd::cli() {
   fi
 }
 
-# lpd::graphql <args after `gh api`>
+# lpd::graphql_args <args after `gh api`>
 # shellcheck disable=SC2329  # reached from the parse callback
-lpd::graphql() {
+lpd::graphql_args() {
   local a hit=0 ids=" " id
   for a in "$@"; do
     [[ "${a,,}" == *disablepullrequestautomerge* ]] && hit=1
@@ -204,7 +204,7 @@ lpd::segment() {
         ;;
       esac
     done
-    [[ "$endpoint" == graphql || "$endpoint" == /graphql ]] && lpd::graphql ${all[@]+"${all[@]}"}
+    [[ "$endpoint" == graphql || "$endpoint" == /graphql ]] && lpd::graphql_args ${all[@]+"${all[@]}"}
     return 0
   fi
   [[ "${1-}" == pr ]] || return 0
@@ -258,7 +258,11 @@ LPD_LITERAL_FIX='Fix: write the target literally, gh pr merge <number> -R owner/
 [[ -z "$LPD_UNRESOLVED" ]] ||
   lpd::block "BLOCKED: guardrails could not tell which pull request this auto-merge disable targets ($LPD_UNRESOLVED)." "$LPD_LITERAL_FIX"
 
-command -v gh >/dev/null 2>&1 || exit 0
+if ! command -v gh >/dev/null 2>&1; then
+  hook::notice_once guardrails-lane-pr-disable-auto-gh "$INPUT" &&
+    hook::emit_skip_notice PreToolUse "guardrails block-lane-pr-disable-auto: gh is not on PATH, so the author of the pull request this auto-merge disable targets was not checked. To hold a lanes App pull request, add the do-not-merge label instead. This notice does not repeat this session."
+  exit 0
+fi
 
 LPD_OUT=""
 LPD_ERR=""
