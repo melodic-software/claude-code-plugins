@@ -78,7 +78,7 @@ A retro of one pull request (its sessions, its review comments) names no retro m
 A `codify` argument, "codify reviews" or "mine review comments" names no retro mode: one recurring
 mistake, or the lessons in recent merged pull requests' review comments, go to
 `/corrections:codify` (its `reviews` action reads the review comments) when the `corrections`
-plugin is installed. Name that skill and stop; when it is not installed, say that no installed
+plugin is enabled. Name that skill and stop; when it is not enabled, say that no enabled
 skill codifies one mistake or mines review comments, and stop.
 
 `--unattended`, anywhere in `$ARGUMENTS`, is the caller declaring that nobody is present: take it

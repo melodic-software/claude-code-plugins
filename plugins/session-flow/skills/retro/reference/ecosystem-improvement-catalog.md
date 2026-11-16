@@ -25,7 +25,7 @@ banned API, a file written in the wrong place, a step skipped before a commit.
 - **Yes**: the recommendation is a check proposal, never a new prose line. An existing check that
   should have caught it but is unwired or broken comes first: the row wires or repairs that check,
   as "When to propose a check" under [Owner skills](#owner-skills) says. Otherwise, when the
-  `corrections` plugin is installed, the row hands the finding to
+  `corrections` plugin is enabled, the row hands the finding to
   `/corrections:codify "<the mistake>"`, which counts it, applies the ladder's guardrail
   criterion, picks the strongest rung that can decide it and proves the check. Without it, judge
   the finding on the "Guardrail criterion" items a retro can settle from the finding itself: item
@@ -93,7 +93,7 @@ or would just this user's convenience suffer (→ memory is fine)?
 ## Owner skills
 
 Some findings have an owner skill that decides the target better than this catalog. Name it in the
-Phase 3 row only if its plugin is installed; otherwise use the matching section below (Hooks,
+Phase 3 row only if its plugin is enabled; otherwise use the matching section below (Hooks,
 CLAUDE.md / Rules, or Skills for a script whose output cost many tokens).
 
 | Finding | Hand to |
