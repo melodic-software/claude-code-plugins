@@ -92,11 +92,11 @@ and count the control skill as none.
 |---|---|---|---|
 | `/app-control:drive` resolves | found | Say the run goes through `/app-control:drive` and that the person can decline, then use it | Use `/app-control:drive` with `--unattended` |
 | `/app-control:drive` resolves | none | Offer to create one with `/app-control:map create`; ask and wait for the answer | Own driving; the report records the suggestion |
-| does not resolve | either | Suggest installing the app-control plugin; ask and wait for the answer | Own driving; the report records the suggestion |
+| does not resolve | either | Suggest enabling the app-control plugin, installing it first if it is not installed; ask and wait for the answer | Own driving; the report records the suggestion |
 
 A decline at any row ("No, I'm good. Just use what you have.") takes own driving, and so does a
 session instruction that names a driver. A yes to onboarding runs `/app-control:map create`, then
-this step again. This skill installs nothing: a yes to the install suggestion is the person's to
+this step again. This skill installs and enables nothing: a yes to the suggestion is the person's to
 carry out, and the run goes on with own driving until `/app-control:drive` resolves in a later
 session. Ask once per run.
 
@@ -104,7 +104,7 @@ The evidence output opens with the route:
 
 ```text
 Route: drive | own driving (<declined | not installed | no control skill | unattended | session instruction>)
-Suggestion: none | install app-control | /app-control:map create
+Suggestion: none | enable app-control | /app-control:map create
 ```
 
 How to install a plugin from its marketplace: the "Install a plugin" section of
