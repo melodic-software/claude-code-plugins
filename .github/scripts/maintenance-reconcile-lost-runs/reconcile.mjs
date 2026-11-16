@@ -176,11 +176,14 @@
 // flake-only sets. Nothing else re-runs a lane run, while fix-ci does not wait
 // for a flake re-run. A lane run's listing does not name its PR, so lane runs
 // go oldest first among those whose creation matches an open head's newest
-// checks completion (laneOrder), then the rest oldest first: a run for a
-// closed PR, or a second run for one head, takes no place before a live one,
-// and the newer runs each kill-switch trip adds no longer push the oldest
-// live ones back pass after pass. One pass uploads at most MAX_IN_FLIGHT
-// records, so what would pass that waits too. A pass that defers anything but
+// checks completion (laneOrder), then the rest oldest first: a second run for
+// one head takes no place before a live one, and the newer runs each
+// kill-switch trip adds no longer push the oldest live ones back pass after
+// pass. A lost lane run that follows no open head's newest checks
+// completion is not re-run (laneOrder): it was created outside every open head's
+// window, so a re-run would judge nothing live, and after a brake the backlog
+// is mostly such runs. One pass uploads at most MAX_IN_FLIGHT records, so what
+// would pass that waits too. A pass that defers anything but
 // a flake-only set writes no `clean`, so the pacer runs the next tick.
 // Writes are at least WRITE_GAP_MS apart. The first rate-limit error stops the
 // run.
@@ -357,6 +360,12 @@ export const REVIEW_STEP = "Review chunk 1";
 export const RECORDED_LANES = new Map([
   [".github/workflows/pr-verify.yml", JUDGE_STEP],
   [".github/workflows/pr-review-main.yml", REVIEW_STEP],
+]);
+// The checks-run conclusions that start each recorded lane's work: the
+// conclusions its jobs' `github.event.workflow_run.conclusion` test passes.
+export const LANE_TRIGGERS = new Map([
+  [".github/workflows/pr-verify.yml", new Set(["success", "failure"])],
+  [".github/workflows/pr-review-main.yml", new Set(["success"])],
 ]);
 // The recorded lanes whose workflow runs the upstream-status gate; pr-verify.yml
 // runs none, so no outage holds its re-run.
@@ -718,14 +727,34 @@ const byAge = (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a
 // log, and compare the run's created_at with that checks run's updated_at.
 const MATCH_BEFORE_MS = 60_000;
 const MATCH_AFTER_MS = 15 * 60_000;
+// How long after an open head's newest checks completion a lost lane run may
+// still be that head's and so be kept: eight times MATCH_AFTER_MS, a judgment
+// margin for a queue backed up far past the measured pair. Without it, one
+// open head left untouched for hours keeps every stale run queued.
+const OWNED_AFTER_MS = 2 * 3_600_000;
 
 // When a head's newest completed pull_request checks run finished, the one
 // whose completion started the head's live lane runs.
 const checksDone = (own) => {
-  const done = own
-    .filter((r) => RECORDED_UPSTREAMS.has(r.path) && r.event === "pull_request" && r.status === "completed" && isTime(r.updated_at))
-    .map((r) => Date.parse(r.updated_at));
-  return done.length > 0 ? Math.max(...done) : undefined;
+  const done = own.filter((r) => RECORDED_UPSTREAMS.has(r.path) && r.event === "pull_request" && r.status === "completed" && isTime(r.updated_at));
+  return done.length > 0 ? Math.max(...done.map((r) => Date.parse(r.updated_at))) : undefined;
+};
+
+// Per recorded lane, when the head's newest checks run that starts it
+// (LANE_TRIGGERS) finished: a newer run that does not start the lane replaces
+// none of its lost runs.
+const laneStarts = (own) => {
+  const starts = new Map();
+  for (const r of own) {
+    if (RECORDED_UPSTREAMS.has(r.path) && r.event === "pull_request" && r.status === "completed" && isTime(r.updated_at)) {
+      for (const [lanePath, conclusions] of LANE_TRIGGERS) {
+        if (conclusions.has(r.conclusion)) {
+          starts.set(lanePath, Math.max(starts.get(lanePath) ?? 0, Date.parse(r.updated_at)));
+        }
+      }
+    }
+  }
+  return starts;
 };
 
 // The lane items in place order: those matched to an open head, oldest first,
@@ -735,7 +764,16 @@ const checksDone = (own) => {
 // taken once, so a duplicate run for a head and a run whose PR is gone sort
 // last. The match sets the order only; check-trusted-trigger and resolve-pr
 // still bind the re-run to its PR.
-function laneOrder(lanes, openChecks) {
+// A lost lane run is `superseded` and left out when, for every open head, it
+// was created more than MATCH_BEFORE_MS before the head's newest checks
+// completion that starts its lane (laneStarts) or more than OWNED_AFTER_MS
+// after it: a lane run starts after the checks completion it follows, so it
+// follows no open head's current checks: its PR closed, its head moved, or its
+// head's checks completed again and started a newer run of its lane. Nothing
+// is left out unless `drop` (every open head's runs were read) holds and some
+// open head has a completion that starts the lane; a fault-held run is never
+// left out.
+function laneOrder(lanes, openChecks, drop) {
   const pairs = [];
   for (const lane of lanes) {
     for (const { head, done } of openChecks) {
@@ -754,7 +792,15 @@ function laneOrder(lanes, openChecks) {
       taken.add(key);
     }
   }
-  return [...lanes.filter((l) => matched.has(l)).sort(byAge), ...lanes.filter((l) => !matched.has(l)).sort(byAge)];
+  const superseded = drop
+    ? lanes.filter((l) => {
+        const starts = openChecks.map((c) => c.starts.get(l.path)).filter((t) => t !== undefined);
+        const created = Date.parse(l.created_at);
+        return l.kind === "lane" && starts.length > 0 && !starts.some((t) => created >= t - MATCH_BEFORE_MS && created <= t + OWNED_AFTER_MS);
+      })
+    : [];
+  const rest = lanes.filter((l) => !matched.has(l) && !superseded.includes(l));
+  return { order: [...lanes.filter((l) => matched.has(l)).sort(byAge), ...rest.sort(byAge)], superseded };
 }
 
 // A job whose steps did not list in full may have lost its runner, which cuts
@@ -1030,6 +1076,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   // Each open head's newest checks completion, {head, done}, for laneOrder;
   // taken before any skip, so a busy head still matches its lane runs.
   const openChecks = [];
+  // False once a head's run listing failed before its completion was taken.
+  let everyHeadRead = true;
   // Heads whose checks passed, each with its earliest checks run's creation.
   const passed = [];
   // Heads with a pass whose spec may have changed since (`prefilterSpec`).
@@ -1083,7 +1131,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       const own = listing.workflow_runs.filter((r) => r.head_repository?.full_name === repo);
       const done = checksDone(own);
       if (done !== undefined) {
-        openChecks.push({ head: pull.head.sha, done });
+        openChecks.push({ head: pull.head.sha, done, starts: laneStarts(own) });
       }
       const { rerun, again, lane, inFlight: busy } = classify(own, since);
       inFlight += busy ? 1 : 0;
@@ -1267,6 +1315,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         ready.push(set.map(withRecord));
       }
     } catch (error) {
+      everyHeadRead &&= openChecks.at(-1)?.head === pull.head.sha;
       noteFailure(`#${pull.number}`, error);
     }
   }
@@ -1630,7 +1679,11 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   for (const set of ready.filter((s) => !flakeOnly(s))) {
     place(`#${set[0].pr}`, set);
   }
-  for (const lane of laneOrder(lanes, openChecks)) {
+  const { order, superseded } = laneOrder(lanes, openChecks, everyHeadRead);
+  for (const lane of superseded) {
+    say(`lane run ${lane.id} (${lane.path}) ended ${lane.conclusion}; it follows no open pull request's newest checks run, so it judges no open head (its PR closed, its head moved, or its head's checks completed again since); not re-run`);
+  }
+  for (const lane of order) {
     place(`lane run ${lane.id} (${lane.path})`, [lane]);
   }
   for (const set of ready.filter(flakeOnly)) {
