@@ -1,0 +1,10 @@
+description: Research, exploration and digesting a book, course, video or docs corpus, with no plan yet.
+plugins:
+  - discovery@melodic-software
+  - knowledge@melodic-software
+  - context7@melodic-software
+  - firecrawl@melodic-software
+  - x@melodic-software
+  - architecture@melodic-software
+  - education@melodic-software
+  - playwright@melodic-software

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -244,4 +244,32 @@ test("AC26: a plugin it switches on with a missing required prerequisite stops a
   assert.match(r.stdout, /Without pp-absent-tool, implementation cannot build anything\. Install \(docs: https:\/\/example\.com\/pp-absent-tool\)\./);
   assert.equal(w.read(), LOCAL_BEFORE);
   assert.deepEqual(w.records(), []);
+});
+
+const SHIPPED = join(HERE, "..", "profiles");
+
+test("AC5: check passes on the shipped profiles against the repository catalog and starts no claude", () => {
+  const w = world();
+  const r = w.run(["check"]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /Profile check passed against the melodic-software catalog\./);
+  assert.equal(w.calls(), "", "the stub claude was called");
+});
+
+test("AC5: check exits 1 when a shipped build.yaml names nope@melodic-software", () => {
+  const w = world();
+  const shipped = join(w.root, "shipped");
+  cpSync(SHIPPED, shipped, { recursive: true });
+  writeFileSync(join(shipped, "build.yaml"), `${readFileSync(join(shipped, "build.yaml"), "utf8")}  - nope@${M}\n`);
+  const r = w.run(["check", "--shipped", shipped]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /FAIL: .*build\.yaml: plugins names nope@melodic-software, which is not in the catalog melodic-software/);
+});
+
+test("AC5: check reports an installed plugin no profile names and still exits 0", () => {
+  const w = world();
+  writeTree(w.home, { ".claude/plugins/installed_plugins.json": { version: 2, plugins: { [`songwriting@${M}`]: [{ scope: "user", installPath: w.root, version: "1.0.0" }] } } });
+  const r = w.run(["check"]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /Report: Installed, and no profile names it \(an apply switches it off unless the repository enables it\): songwriting@melodic-software/);
 });

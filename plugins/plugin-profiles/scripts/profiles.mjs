@@ -5,6 +5,7 @@
 //   profiles.mjs status [--for folder|initial] [--json] [--session-start]
 //   profiles.mjs clear [--for folder|initial]
 //   profiles.mjs inventory [--json]
+//   profiles.mjs check [--catalog <marketplace.json>] [--shipped <dir>]
 //
 // apply    Prints what the profile changes, then writes it on --yes or a yes typed at the prompt;
 //          with nobody to ask and no --yes it writes nothing. --dry-run prints and stops. A plugin
@@ -21,9 +22,13 @@
 // clear    Puts every entry the tool wrote back to its value before the first apply and removes
 //          a settings file the tool created.
 // inventory  The installed plugins, their dependencies and what each ships.
+// check    Checks the profile files at every level (lib/check.mjs says what fails and what is
+//          only reported). --catalog defaults to the marketplace.json of the repository this
+//          plugin sits in, --shipped to this plugin's profiles/. Reads installed plugins from disk.
 //
-// Exit 0: done, previewed, or nothing to change. Exit 1: not applied (no consent, a missing
-// required prerequisite, settings changed by another writer). Exit 2: usage, profile or settings
+// Exit 0: done, previewed, nothing to change, or the check passed. Exit 1: not applied (no
+// consent, a missing required prerequisite, settings changed by another writer) or the check
+// failed. Exit 2: usage, profile or settings
 // file error. A missing plugin is named with its install command; this tool installs nothing.
 import { realpathSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -31,11 +36,12 @@ import { dirname, join } from "node:path";
 import process from "node:process";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
+import { CheckError, checkProfiles, readMarketplace } from "../lib/check.mjs";
 import { InventoryError, inventory, recordsFromCli, recordsFromDisk } from "../lib/inventory.mjs";
 import { PlanError, TARGET_LEVEL, plan } from "../lib/plan.mjs";
 import { managedSettingsFiles, resolveInstall } from "../lib/plugin-options.mjs";
 import { missingRequired } from "../lib/prerequisite-gate.mjs";
-import { ProfileError, profileLevels, readCatalog } from "../lib/profile-files.mjs";
+import { ProfileError, profileLevels, readCatalog, readProfileFiles } from "../lib/profile-files.mjs";
 import { ABSENT, baseline, deleteRecord, nextRecord, readRecord, recordPath, restoreEdits, saveRecord } from "../lib/record.mjs";
 import {
   SettingsConflict,
@@ -53,7 +59,8 @@ const SESSION_VAR = "PLUGIN_PROFILES_SESSION";
 const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run] [--yes] [--defer-off]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
        profiles.mjs clear [--for folder|initial]
-       profiles.mjs inventory [--json]`;
+       profiles.mjs inventory [--json]
+       profiles.mjs check [--catalog <marketplace.json>] [--shipped <dir>]`;
 
 class UsageError extends Error {}
 class NotApplied extends Error {}
@@ -76,19 +83,23 @@ function locate(env, cwd) {
 
 function parseArgs(argv) {
   const [command, ...rest] = argv;
-  if (!["apply", "status", "clear", "inventory"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
-  const opts = { command, name: null, target: command === "apply" ? null : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false };
-  const flags = { apply: ["--dry-run", "--yes", "--defer-off"], status: ["--json", "--session-start"], clear: [], inventory: ["--json"] }[command];
+  if (!["apply", "status", "clear", "inventory", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
+  const opts = { command, name: null, target: command === "apply" ? null : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null };
+  const flags = { apply: ["--dry-run", "--yes", "--defer-off"], status: ["--json", "--session-start"], clear: [], inventory: ["--json"], check: [] }[command];
+  const values = { check: ["--catalog", "--shipped"] }[command] ?? ["--for"];
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
-    if (arg === "--for" && command !== "inventory") opts.target = rest[++i];
+    if (values.includes(arg) && command !== "inventory") {
+      if (rest[i + 1] === undefined) throw new UsageError(`${arg} needs a value`);
+      opts[arg === "--for" ? "target" : arg.slice(2)] = rest[++i];
+    }
     else if (flags.includes(arg)) opts[arg.slice(2).replace(/-(.)/g, (_, c) => c.toUpperCase())] = true;
     else if (command === "apply" && !arg.startsWith("--") && !opts.name) opts.name = arg;
     else throw new UsageError(`unexpected argument ${arg}`);
   }
   if (command === "apply" && !opts.name) throw new UsageError("apply needs a profile name");
   const targets = command === "apply" ? Object.keys(TARGET_LEVEL) : ["folder", "initial"];
-  if (command !== "inventory" && !targets.includes(opts.target)) throw new UsageError(`--for takes ${targets.join(", ")}`);
+  if (command !== "inventory" && command !== "check" && !targets.includes(opts.target)) throw new UsageError(`--for takes ${targets.join(", ")}`);
   if (opts.deferOff && opts.target === "session") throw new UsageError("--defer-off applies to a folder or user settings, not a one-session file");
   return opts;
 }
@@ -320,6 +331,18 @@ function listInventory(opts, where, io) {
   return 0;
 }
 
+function check(opts, where, io) {
+  const catalog = readMarketplace(opts.catalog ?? join(OWN_ROOT, "..", "..", ".claude-plugin", "marketplace.json"));
+  const levels = profileLevels({ pluginRoot: OWN_ROOT, configDir: where.configDir, projectDir: where.projectDir });
+  if (opts.shipped) levels[0].dir = opts.shipped;
+  const installed = new Set(inventory({ projectDir: where.projectDir, records: recordsFromDisk(where.configDir) }).keys());
+  const { failures, reports } = checkProfiles({ files: readProfileFiles(levels), catalog, installed });
+  for (const line of failures) io.out(`FAIL: ${line}`);
+  for (const line of reports) io.out(`Report: ${line}`);
+  io.out(failures.length ? `Profile check failed: ${failures.length} problem(s) in the shipped profiles.` : `Profile check passed against the ${catalog.name} catalog.`);
+  return failures.length ? 1 : 0;
+}
+
 export async function main(argv, env = process.env, cwd = process.cwd(), io = { out: (s) => console.log(s), err: (s) => console.error(s) }) {
   try {
     const opts = parseArgs(argv);
@@ -327,13 +350,14 @@ export async function main(argv, env = process.env, cwd = process.cwd(), io = { 
     if (opts.command === "apply") return await apply(opts, where, env, io);
     if (opts.command === "status") return status(opts, where, io);
     if (opts.command === "clear") return clear(opts, where, env, io);
+    if (opts.command === "check") return check(opts, where, io);
     return listInventory(opts, where, io);
   } catch (error) {
     if (error instanceof NotApplied) {
       io.err(error.message);
       return 1;
     }
-    if ([UsageError, PlanError, ProfileError, SettingsError, InventoryError].some((type) => error instanceof type)) {
+    if ([UsageError, PlanError, ProfileError, SettingsError, InventoryError, CheckError].some((type) => error instanceof type)) {
       io.err(`profiles.mjs: ${error.message}${error instanceof UsageError ? `\n${USAGE}` : ""}`);
       return 2;
     }

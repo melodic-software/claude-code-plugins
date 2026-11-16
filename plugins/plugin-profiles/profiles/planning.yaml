@@ -1,0 +1,22 @@
+description: From an idea to an approved plan and its work items, for work with no user-facing screen. Pick interface design instead when there is one.
+plugins:
+  - planning@melodic-software
+  - discovery@melodic-software
+  - context7@melodic-software
+  - firecrawl@melodic-software
+  - x@melodic-software
+  - architecture@melodic-software
+  - work-items@melodic-software
+  - bugs@melodic-software
+  - domain-driven-design@melodic-software
+  - event-storming@melodic-software
+  - naming@melodic-software
+  - prototype@melodic-software
+  - implementation@melodic-software
+  - testing@melodic-software
+  - tdd@melodic-software
+  - verification@melodic-software
+  - performance@melodic-software
+  - visualization@melodic-software
+  - writing@melodic-software
+  - wizard@melodic-software

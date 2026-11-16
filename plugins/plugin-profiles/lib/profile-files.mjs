@@ -1,7 +1,9 @@
 // Profile files: one YAML file per profile, at three levels, resolved into one catalog.
 //
 //   profileLevels({pluginRoot, configDir, projectDir, conventionHome}) -> [{level, dir}], lowest first
-//   readCatalog(levels) -> {alwaysOn, profiles: Map<name, profile>}, or throws ProfileError
+//   readProfileFiles(levels) -> [{level, name, path, def}], each file validated, or throws ProfileError
+//   resolveCatalog(files) -> {alwaysOn, profiles: Map<name, profile>}
+//   readCatalog(levels) = resolveCatalog(readProfileFiles(levels))
 //
 // Levels: shipped <plugin root>/profiles, user <config dir>/plugin-profiles, repository
 // <project>/<convention home>/plugin-profiles (ADR 0075; default home docs/conventions).
@@ -84,16 +86,21 @@ function yamlFiles(dir) {
   }
 }
 
-export function readCatalog(levels) {
+/** Every profile file, lowest level first: [{level, name, path, def}], def as validated from the file. */
+export function readProfileFiles(levels) {
+  return levels.flatMap(({ level, dir }) =>
+    yamlFiles(dir).map((file) => ({ level, name: file.slice(0, -".yaml".length), path: join(dir, file), def: readProfileFile(join(dir, file)) })),
+  );
+}
+
+/** The catalog the files resolve to, each same-named file extending the one below it. */
+export function resolveCatalog(files) {
   const resolved = new Map();
-  for (const { dir } of levels) {
-    for (const file of yamlFiles(dir)) {
-      const name = file.slice(0, -".yaml".length);
-      resolved.set(name, extend(resolved.get(name), readProfileFile(join(dir, file)), name));
-    }
-  }
+  for (const { name, def } of files) resolved.set(name, extend(resolved.get(name), def, name));
   const alwaysOn = resolved.get(ALWAYS_ON) ?? extend(null, EMPTY, ALWAYS_ON);
   resolved.delete(ALWAYS_ON);
   return { alwaysOn, profiles: resolved };
 }
+
+export const readCatalog = (levels) => resolveCatalog(readProfileFiles(levels));
 

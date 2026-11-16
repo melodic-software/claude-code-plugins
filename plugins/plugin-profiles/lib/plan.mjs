@@ -58,6 +58,9 @@ function pinsFor(target, layers) {
   return pins;
 }
 
+/** The always-on members a profile's exclude names; AC24 rejects any. */
+export const excludedAlwaysOn = (catalog, profile) => [...profile.exclude].filter((id) => catalog.alwaysOn.plugins.has(id));
+
 const effective = (layers, id) => PRECEDENCE.map((level) => entriesOf(layers, level)[id]).find((v) => v !== undefined);
 
 export function plan({ catalog, profile: name, inventory, layers, target }) {
@@ -65,7 +68,7 @@ export function plan({ catalog, profile: name, inventory, layers, target }) {
   const chosen = catalog.profiles.get(name);
   if (!chosen) throw new PlanError(`no profile named ${JSON.stringify(name)}`);
   const always = catalog.alwaysOn;
-  const blocked = [...chosen.exclude].filter((id) => always.plugins.has(id));
+  const blocked = excludedAlwaysOn(catalog, chosen);
   if (blocked.length) throw new PlanError(`profile ${name} excludes always-on members: ${blocked.join(", ")}`);
 
   const members = new Set([...always.plugins, ...chosen.plugins]);

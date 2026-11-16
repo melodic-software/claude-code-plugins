@@ -6,11 +6,10 @@ turns them on and off.
 
 ## Profiles
 
-Each profile is one YAML file. The shipped ones are in [`profiles/`](profiles/), which holds every
-member list:
-
-- `always-on`: on in every profile.
-- `build`: write the change, test, review, verify, open and merge the PR, and run lanes.
+Each profile is one YAML file. The shipped ones are in [`profiles/`](profiles/): `always-on`,
+which is on in every profile, and `discovery`, `planning`, `interface-design`, `build`, `review` and
+`harness-upkeep`. Each file holds the profile's members and a `description` line saying when to
+pick it.
 
 You can add or extend profiles at two more levels. A file with the same name at a higher level
 extends the one below it:
@@ -76,3 +75,17 @@ plugin installed since. `clear` puts every entry back to what it was before the 
 removes a settings file the tool created. The record lives in the plugin's data folder.
 
 `inventory` lists the installed plugins, what they depend on and what each ships.
+
+## Check the profiles
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" check --catalog <marketplace.json>
+```
+
+`check` fails, exiting 1, when a shipped profile names a plugin the catalog lacks, writes an id
+under another marketplace than the catalog's own name (it names the fix), has no description line,
+excludes an `always-on` member, or when `interface-design` lacks a `planning` member. For your
+user and repository profiles it reports, without failing, a plugin of the catalog's marketplace
+that the catalog lacks and a plugin of another marketplace that is not installed, and it reports installed plugins that no profile names, which an apply switches off.
+`--catalog` defaults to the `marketplace.json` of the repository the plugin sits in. In this
+repository, CI runs it through `scripts/check-plugin-profiles.sh`.
