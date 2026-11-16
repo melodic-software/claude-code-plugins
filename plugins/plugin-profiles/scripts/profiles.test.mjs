@@ -546,10 +546,10 @@ test("AC5: check reports a malformed user or repository profile by its path, che
   assert.ok(r.stdout.includes(`Report: ${repoFile}: ghost@vendor is not installed. Install it with: claude plugin install ghost@vendor`), r.stdout + r.stderr);
   assert.match(r.stdout, /Profile check passed against the melodic-software catalog\./);
 
-  writeTree(w.root, { "project/docs/conventions/plugin-profiles/team.yaml": "colour: blue\n" });
+  writeTree(w.root, { "project/docs/conventions/plugin-profiles/team.yaml": "flavor: blue\n" });
   const both = w.run(["check"]);
   assert.equal(both.status, 0, both.stdout + both.stderr);
-  assert.ok(both.stdout.includes(`Report: ${repoFile}: unknown key "colour"`), both.stdout + both.stderr);
+  assert.ok(both.stdout.includes(`Report: ${repoFile}: unknown key "flavor"`), both.stdout + both.stderr);
 });
 
 test("check exits 2 naming the file when a shipped profile is malformed", () => {
