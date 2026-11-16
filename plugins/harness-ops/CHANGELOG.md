@@ -3,6 +3,15 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.0.12] - 2026-11-16
+
+### Changed
+
+- The `control-claude-code` control skill records its launch model: no per-run data directory,
+  since a run reuses the signed-in Claude Code config directory; sessions run side by side under
+  distinct names; one new session holder per drive. Its Ready states that port ownership and
+  credential validity are not exposed.
+
 ## [9.0.11] - 2026-11-15
 
 ### Changed
