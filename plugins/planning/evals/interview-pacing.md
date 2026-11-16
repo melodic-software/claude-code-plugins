@@ -168,3 +168,30 @@ INCONCLUSIVE (only A and C matched).
 - **Run 3** runs all six cases once with the command above, `--max-cost-usd 25` (36 runs at run 2's
   cost per run is about 15 USD), and a `TMPDIR` only this session uses. The INVALID list holds,
   with "fewer than 9 single slots" read over all five single cases.
+
+## Result (run 3, under Amendment 2)
+
+2026-11-16 4:13 PM EST, cases at `0626bcd0f5`, Claude Code 2.1.325, `claude-opus-5-5` in 36 of 36
+traces, reported cost 14.47 USD (list-price estimate), own `TMPDIR`. `run-validity.py --runs 6`:
+VALID, warnings skill fired and models, as in run 2. No run errored. Every committed grader's
+verdict under `bun` matches the CLI's (0 mismatches over 384 verdicts).
+
+| Decision | Round quality / coverage | Single quality / coverage | Matched (>= 3 each) |
+|---|---|---|---|
+| A, date range | 6/6 | 5/5 | yes |
+| B, amounts and currencies | 6/6 | 5/5 | yes |
+| C, who may export | 6/6 | 8/8 | yes |
+| D, large exports | 5/5 | 6/6 | yes |
+| Pooled over matched | Qr 23/23 = 1.00 | Qs 24/24 = 1.00 | 4 of 4 |
+
+Cr = 5/6. F, question lines per round reply: 12, 10, 12, 13, 12, 11; median 12. Six single runs
+asked a ready question outside A to D (the month's date, or one row per invoice), which counts for
+no decision.
+
+Verdict: **ROUNDS HOLD UP** (all four decisions matched; Cr 5/6 >= 5/6; Qr 1.00 >= Qs 1.00 -
+0.10). Both arms are at the quality ceiling on every decision, so the measure does not separate the
+pacings on this task; what differs is turns, about 12 single-pacing messages for one round.
+
+Grader miss, reported and not re-graded (graders are frozen once a run starts): round run 3 asks D
+as "Can the export be asynchronous instead of an immediate download?", which `covers-d` does not
+match, so it counts as no D. Read by hand, Cr is 6/6 and the verdict is the same.
