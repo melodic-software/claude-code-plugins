@@ -3689,8 +3689,16 @@ lines at the next triage. A split that cannot be made leaves the issue parked at
 with no hold label, and the lanes App posts one comment naming the reason, once per reason and
 body version (marker `<!-- intake-triage size-split-decline reason=<code> -->`): `not-human`
 (a listed human did not file it), `few-lines` (fewer than 2 trusted lines even with the
-refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by target), or
-`no-type` (an Issue Type admission does not take).
+refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by target),
+`no-type` (an Issue Type admission does not take), or `unbuilt` (a part of a line split checks a
+plugin that the default branch lacks and that no line of that part, or of a part the order puts
+before it, creates). A line names a plugin as a `plugins/<name>` path, a backticked name next to
+the word plugin, or a bare kebab-case word before the word plugin or leading the line when the
+issue writes that word in backticks somewhere, so `third-party plugin` names none. A line creates what
+it names when it uses a creating verb (`refine.mjs` `CREATES`: create, add, new, move, rename and
+the like), and checks it otherwise. Refine select records which named plugins the default branch
+lacks, and apply checks the parts against that list. Each sub-issue carries the issue's `host-run`
+and `attended` labels, and a retry adds them to a part it reuses.
 
 work-unblock closes a split parent as completed only when every sub-issue closed with
 `state_reason` `completed` by a listed human or a merge and the parent's done-when is covered

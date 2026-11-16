@@ -46,6 +46,7 @@
 # test-scope: plugins/harness-ops/skills/observability/SKILL.md
 
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/probe-observability-state.sh"
@@ -187,6 +188,26 @@ export CC_OTEL_STORE="$ALTSTORE"
 assert_eq "CC_OTEL_STORE does not steer --hook-events" "$WIRED_EVENTS" \
   "$(bash "$SCRIPT" --hook-events 2>/dev/null)"
 unset CC_OTEL_STORE
+
+FIXTURE_GIT=(env "PATH=${PATH#"$STUB:"}" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git)
+WT_MAIN="$TMP/wt-main"
+WT_LINKED="$TMP/wt-linked"
+"${FIXTURE_GIT[@]}" init -q "$WT_MAIN" 2>/dev/null
+"${FIXTURE_GIT[@]}" -C "$WT_MAIN" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m init 2>/dev/null
+"${FIXTURE_GIT[@]}" -C "$WT_MAIN" worktree add -q "$WT_LINKED" 2>/dev/null
+if [[ -f "$WT_LINKED/.git" ]]; then
+  mkdir -p "$WT_MAIN/.observability/claude/sessions"
+  printf '{"a":1}\n' >"$WT_MAIN/.observability/claude/sessions/swt.jsonl"
+  export STUB_GIT_TOPLEVEL="$WT_MAIN"
+  assert_eq "the probe run from the main checkout counts its root's rows" "1 events" \
+    "$(bash "$SCRIPT" --hook-events 2>/dev/null)"
+  export STUB_GIT_TOPLEVEL="$WT_LINKED"
+  assert_eq "the probe run from a linked worktree reads the main checkout's root" "1 events" \
+    "$(bash "$SCRIPT" --hook-events 2>/dev/null)"
+  export STUB_GIT_TOPLEVEL="$WIRED"
+else
+  fail "a linked worktree fixture could be created" ".git file" "absent"
+fi
 
 # --- --otel-store -------------------------------------------------------------
 run_both "store under the git toplevel: mixed present/absent, fixed order" \
@@ -438,8 +459,8 @@ out="$(bash "$SCRIPT" 2>&1)"
 rc=$?
 assert_eq "no mode exits 3" "3" "$rc"
 case "$out" in
-*"a mode is required"*) pass "no mode names the requirement on stderr" ;;
-*) fail "no mode names the requirement on stderr" "a mode is required" "$out" ;;
+  *"a mode is required"*) pass "no mode names the requirement on stderr" ;;
+  *) fail "no mode names the requirement on stderr" "a mode is required" "$out" ;;
 esac
 
 bash "$SCRIPT" --bogus >/dev/null 2>&1
@@ -452,8 +473,8 @@ out="$(bash "$SCRIPT" --hook-events --otel-store 2>&1)"
 rc=$?
 assert_eq "conflicting modes exit 3" "3" "$rc"
 case "$out" in
-*"mutually exclusive"*) pass "conflicting modes are named on stderr" ;;
-*) fail "conflicting modes are named on stderr" "mutually exclusive" "$out" ;;
+  *"mutually exclusive"*) pass "conflicting modes are named on stderr" ;;
+  *) fail "conflicting modes are named on stderr" "mutually exclusive" "$out" ;;
 esac
 
 bash "$SCRIPT" --help >/dev/null 2>&1

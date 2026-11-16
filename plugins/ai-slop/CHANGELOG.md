@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.19.8] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
 ## [0.19.7] - 2026-11-16
 
 ### Changed

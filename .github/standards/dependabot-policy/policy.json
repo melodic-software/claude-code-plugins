@@ -3,7 +3,7 @@
   "scheduleInterval": "weekly",
   "scheduleIntervalByEcosystem": {
     "github-actions": {
-      "accepted": ["daily", "weekly"],
+      "accepted": ["daily"],
       "reviewed": "2026-11-16",
       "basis": "Owner decision 2026-11-16: the github-actions entry checks daily so this organization's own releases arrive within a day."
     }

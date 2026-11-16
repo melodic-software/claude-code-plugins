@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# .claude/hooks/hook-telemetry-sink.sh is a shim that sources the harness-ops
-# reference sink (plugins/harness-ops/hooks/hook-telemetry-sink.sh). Pin its
+# .claude/hooks/hook-telemetry-sink.sh is a shim that sources the session-telemetry
+# reference sink (plugins/session-telemetry/hooks/hook-telemetry-sink.sh). Pin its
 # target, then prove the wiring executes end-to-end: a valid envelope must
 # append a record.
 #
@@ -17,9 +17,9 @@ shim="$here/hook-telemetry-sink.sh"
 }
 
 # shellcheck disable=SC2016  # deliberate: the literal source line is the fixture
-expected_source='source "$HOOK_DIR/../../plugins/harness-ops/hooks/hook-telemetry-sink.sh"'
+expected_source='source "$HOOK_DIR/../../plugins/session-telemetry/hooks/hook-telemetry-sink.sh"'
 if ! grep -qF "$expected_source" "$shim"; then
-  echo "FAIL: the shim's source line does not target the harness-ops sink"
+  echo "FAIL: the shim's source line does not target the session-telemetry sink"
   exit 1
 fi
 

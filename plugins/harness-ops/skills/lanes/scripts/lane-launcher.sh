@@ -144,6 +144,15 @@
 #               session only (e.g. a pluginConfigs override opting the lane into
 #               the autonomy plugin's lane-stop gate). Non-object values are
 #               rejected.
+#   profile     optional; a plugin-profiles profile name. The lane starts with
+#               the command `profiles.mjs launch <profile> --folder <cwd>
+#               --unattended --json` prints, the lane's settings merged into
+#               the profile's session file. A profile that needs a missing
+#               required tool skips the lane with an error. With
+#               plugin-profiles not installed and enabled, the lane launches
+#               without it and a WARNING says so; a cloud-session lane never
+#               carries it. Every lane launch clears an inherited
+#               PLUGIN_PROFILES_SESSION.
 #   stage       optional; the stage skill the lane runs, `<plugin>:<skill>`
 #               (e.g. `work-items:work-loop`). Selects the lane's
 #               `skill.<plugin>.<skill>` key in the execution-target file.
@@ -663,13 +672,13 @@ resolve_config() {
       | .key as $i
       | .value
       | to_entries[]
-      | select(.key == "name" or .key == "model" or .key == "effort" or .key == "prompt")
+      | select(.key == "name" or .key == "model" or .key == "effort" or .key == "prompt" or .key == "profile")
       | select(.value != null and (.value | type) != "string")
       | "lane #\($i) .\(.key) is \(.value | type)" ]
     | join(", ")'
   [[ -z "$mistyped" ]] || {
     err "lane config has non-string values for string fields: $mistyped"
-    err "  (name/model/effort/prompt must be JSON strings): $CONFIG"
+    err "  (name/model/effort/prompt/profile must be JSON strings): $CONFIG"
     exit 3
   }
   # `stage` becomes part of an execution-target key. One that is not a
@@ -1227,6 +1236,15 @@ repo_data_dir() { printf '%s/%s' "$(resolve_data_dir)" "$(repo_marker_key)"; }
 # The lane's linked worktree.
 lane_worktree_path() { printf '%s/worktrees/%s' "$(repo_data_dir)" "$1"; }
 
+# The folder a restart's profile check resolves for: the linked worktree a
+# local-background relaunch starts in (lane_worktree_path, as
+# ensure_lane_worktree uses) once it exists, else the repo root.
+lane_launch_folder() {
+  local path
+  path="$(lane_worktree_path "$1")"
+  if [[ "$LANE_TARGET" == local-background && -d "$path" ]]; then printf '%s' "$path"; else printf '%s' "$REPO"; fi
+}
+
 # Prepare the lane's linked worktree at <sha>. With <require_clean> set, a
 # worktree holding any change refuses (return 1); without it, a dirty
 # worktree is used as it stands (a local lane's own work in progress).
@@ -1507,13 +1525,85 @@ validate_launch_inputs() {
   fi
 }
 
+# --- Plugin profile -------------------------------------------------------------
+# The installed, enabled plugin-profiles' profiles.mjs, found once per run
+# through a bounded `claude plugin list --json`. Called directly, never in a
+# $(...), so the memo survives. Returns 1 when there is none.
+PROFILES_SCRIPT=""
+find_profiles_script() {
+  if [[ -z "$PROFILES_SCRIPT" ]]; then
+    local root=""
+    if command -v node >/dev/null 2>&1; then
+      root="$( (cd "$REPO" && run_bounded "$PROBE_TIMEOUT_S" claude plugin list --json) 2>/dev/null |
+        jq -r 'first(.[]? | select(type == "object" and (.id // "" | startswith("plugin-profiles@")) and .enabled == true) | .installPath // empty) // empty' 2>/dev/null)"
+    fi
+    PROFILES_SCRIPT="none"
+    [[ -n "$root" && -f "$root/scripts/profiles.mjs" ]] && PROFILES_SCRIPT="$root/scripts/profiles.mjs"
+  fi
+  [[ "$PROFILES_SCRIPT" != "none" ]]
+}
+
+# Sets LANE_CLAUDE to the words that start a lane's claude command and
+# PROFILE_APPLIED to 1 when they carry the lane's profile, whose session file
+# then holds <settings> too. With no profile applied the words still clear an
+# inherited PLUGIN_PROFILES_SESSION: a lane started from a profiled session's
+# shell must not carry its marker. A launch refusal (a required tool missing)
+# returns 1 with the reason as a per-lane error. Under --dry-run nothing is
+# written; a placeholder stands in for the session file. With <mode> check it
+# only asks whether the launch would refuse: launch --dry-run writes no file,
+# and an absent plugin-profiles is left for the launch itself to warn about.
+LANE_CLAUDE=()
+PROFILE_APPLIED=0
+lane_claude_prefix() { # <name> <profile> <cwd> <settings JSON or ""> [check]
+  local name="$1" profile="$2" cwd="$3" settings="$4" mode="${5:-}" out errfile rc=0 line
+  LANE_CLAUDE=(env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude)
+  PROFILE_APPLIED=0
+  [[ -n "$profile" ]] || return 0
+  if ! find_profiles_script; then
+    [[ "$mode" == check ]] && return 0
+    warn "lane '$name': plugin-profiles is not installed and enabled, so profile '$profile' was not applied"
+    return 0
+  fi
+  local -a args=(launch "$profile" --folder "$cwd" --unattended --json)
+  [[ -n "$settings" ]] && args+=(--with "$settings")
+  [[ "$mode" == check ]] && args+=(--dry-run)
+  if ((DRY_RUN)); then
+    printf 'DRY-RUN: node'
+    printf ' %q' "$PROFILES_SCRIPT" "${args[@]}"
+    printf '\n'
+    LANE_CLAUDE=(env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --settings "<profile $profile session file>")
+    PROFILE_APPLIED=1
+    return 0
+  fi
+  errfile="$(mktemp 2>/dev/null)" || errfile="/dev/null"
+  out="$(run_bounded "$PROBE_TIMEOUT_S" node "$PROFILES_SCRIPT" "${args[@]}" 2>"$errfile")" || rc=$?
+  local reason=""
+  [[ "$errfile" != "/dev/null" ]] && reason="$(tr -d '\r' <"$errfile")" && rm -f "$errfile"
+  if ((rc == 0)) && mapfile -t LANE_CLAUDE < <(jq -r '.argv | if type == "array" and length > 0 and all(type == "string") then .[] else error("no argv") end' <<<"$out" 2>/dev/null) &&
+    ((${#LANE_CLAUDE[@]})); then
+    PROFILE_APPLIED=1
+    while IFS= read -r line; do [[ -n "$line" ]] && warn "lane '$name': $line"; done <<<"$reason"
+    return 0
+  fi
+  LANE_CLAUDE=(env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude)
+  ((rc == 124)) && reason="profiles.mjs launch gave no answer within ${PROBE_TIMEOUT_S} s"
+  [[ -n "$reason" ]] || reason="profiles.mjs launch exited $rc with no usable argv"
+  err "lane '$name': profile '$profile' could not be applied, so the lane is not launched: ${reason//$'\n'/; }"
+  return 1
+}
+
 # Sets LANE_FLAGS to the flags every lane run shares, `--bg` launch and
 # `run-once` pass alike, arming the lane-stop gate first when the settings ask
 # for it (fail closed — see header). Under --dry-run nothing is written; the
 # preview line stands in for the arming.
+#
+# Also sets LANE_CLAUDE to the words that start the claude command (see
+# lane_claude_prefix). LANE_PROFILE is the lane's `profile` field, set by
+# for_each_lane; <cwd> is the folder the lane starts in.
 LANE_FLAGS=()
+LANE_PROFILE=""
 build_lane_flags() {
-  local name="$1" model="$2" effort="$3" settings="${4:-}"
+  local name="$1" model="$2" effort="$3" settings="${4:-}" cwd="${5:-$REPO}"
   if [[ -n "$settings" ]] && lane_requests_stop_gate "$settings"; then
     if ((DRY_RUN)); then
       printf 'DRY-RUN: arm lane-stop gate for %s (arm id injected into --settings)\n' "$name"
@@ -1521,6 +1611,10 @@ build_lane_flags() {
       settings="$(arm_stop_gate "$name" "$settings")" || return 1
     fi
   fi
+  lane_claude_prefix "$name" "$LANE_PROFILE" "$cwd" "$settings" || return 1
+  # The profile's session file carries the lane's settings, so the lane's own
+  # --settings is dropped.
+  ((PROFILE_APPLIED)) && settings=""
   # Explicit auto: a Manual defaultMode would stall an unattended lane at its
   # first prompt. Never bypassPermissions. --permission-prompts none is added
   # from Claude Code 2.1.259; older CLIs reject it. What it does in a --bg lane
@@ -1539,8 +1633,8 @@ build_lane_flags() {
 launch_lane() {
   local name="$1" model="$2" effort="$3" prompt_path="$4" settings="${5:-}" cwd="${6:-$REPO}"
   validate_launch_inputs "$name" "$effort" "$prompt_path" "$settings" || return 1
-  build_lane_flags "$name" "$model" "$effort" "$settings" || return 1
-  local -a cmd=(claude --bg -n "$name" "${LANE_FLAGS[@]}")
+  build_lane_flags "$name" "$model" "$effort" "$settings" "$cwd" || return 1
+  local -a cmd=("${LANE_CLAUDE[@]}" --bg -n "$name" "${LANE_FLAGS[@]}")
 
   local marker_path
   marker_path="$(launch_commit_marker_path "$name")"
@@ -1659,15 +1753,17 @@ launch_cloud_lane() {
     return
   fi
 
+  # A cloud session cannot carry a settings file.
+  [[ -n "$LANE_PROFILE" ]] && warn "lane '$name': a cloud-session lane cannot carry a settings file, so profile '$LANE_PROFILE' was not applied"
   if ((DRY_RUN)); then
     local bytes
     bytes="$(wc -c <"$prompt_path" | tr -d ' ')"
     printf 'DRY-RUN: cd %q\n' "$LANE_WORKTREE"
-    printf 'DRY-RUN: claude --cloud %q\n' "<stage-start probe preamble + prompt: $prompt_path (${bytes}B)>"
+    printf 'DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --cloud %q\n' "<stage-start probe preamble + prompt: $prompt_path (${bytes}B)>"
   else
     local prompt
     prompt="$(stage_probe_preamble "$name" "$stage")$(cat "$prompt_path")"
-    (cd "$LANE_WORKTREE" && claude --cloud "$prompt") || return 1
+    (cd "$LANE_WORKTREE" && env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --cloud "$prompt") || return 1
   fi
   write_record "$cloud_record" "$(date -u +%Y-%m-%dT%H:%M:%SZ) at $ET_SHA"
 }
@@ -1742,6 +1838,7 @@ for_each_lane() {
     prompt_path="$(path_under "$pdir" "$(lane_field "$i" prompt)")"
     settings="$(lane_json_field "$i" settings)"
     stage="$(lane_stage "$i")"
+    LANE_PROFILE="$(lane_field "$i" profile)"
     # A per-lane callback failure must not abort the sweep (other lanes still
     # get their turn) but must surface in the aggregate exit status.
     "$callback" "$name" "$model" "$effort" "$prompt_path" "$settings" "$i" "$stage" || failures=1
@@ -1801,7 +1898,7 @@ _start_one() {
   fi
   plan_lane_target "$name" "$stage" || return 1
   print_unlaunched_target "$name" "$stage" "$prompt_path" "$settings" && return 0
-  info "  start $name${model:+ --model $model}${effort:+ --effort $effort}${settings:+ --settings <lane config>}"
+  info "  start $name${model:+ --model $model}${effort:+ --effort $effort}${settings:+ --settings <lane config>}${LANE_PROFILE:+ profile $LANE_PROFILE}"
   launch_on_target "$idx" "$name" "$model" "$effort" "$prompt_path" "$settings" "$stage" start || return 1
   print_lane_mods "$settings" "$LANE_TARGET"
 }
@@ -1814,6 +1911,11 @@ _restart_one() {
   # A host the launcher does not start leaves the running lane up as well.
   plan_lane_target "$name" "$stage" || return 1
   print_unlaunched_target "$name" "$stage" "$prompt_path" "$settings" && return 0
+  # A profile the relaunch would refuse (a required tool missing) leaves the
+  # running lane up too. A cloud lane carries no profile.
+  if [[ -n "$LANE_PROFILE" ]] && ! ((DRY_RUN)) && [[ "$LANE_TARGET" != cloud-session ]]; then
+    lane_claude_prefix "$name" "$LANE_PROFILE" "$(lane_launch_folder "$name")" "" check || return 1
+  fi
   stop_lane_if_running "$name"
   local s=$?
   # A genuine stop failure (not the benign "was not running", 2) means the old
@@ -1823,7 +1925,7 @@ _restart_one() {
     err "  $name — stop failed; not relaunching (would duplicate the session name)"
     return 1
   fi
-  info "  start $name${model:+ --model $model}${effort:+ --effort $effort}${settings:+ --settings <lane config>}"
+  info "  start $name${model:+ --model $model}${effort:+ --effort $effort}${settings:+ --settings <lane config>}${LANE_PROFILE:+ profile $LANE_PROFILE}"
   launch_on_target "$idx" "$name" "$model" "$effort" "$prompt_path" "$settings" "$stage" restart || return 1
   print_lane_mods "$settings" "$LANE_TARGET"
 }
@@ -2025,8 +2127,8 @@ _run_once_one() {
     return 0
     ;;
   esac
-  build_lane_flags "$name" "$model" "$effort" "$settings" || return 1
-  local -a cmd=(claude -p "${LANE_FLAGS[@]}")
+  build_lane_flags "$name" "$model" "$effort" "$settings" "$cwd" || return 1
+  local -a cmd=("${LANE_CLAUDE[@]}" -p "${LANE_FLAGS[@]}")
   info "  run-once $name${model:+ --model $model} --effort $effort"
   if ((DRY_RUN)); then
     print_dry_run_lane "$cwd" "$prompt_path" "${cmd[@]}"

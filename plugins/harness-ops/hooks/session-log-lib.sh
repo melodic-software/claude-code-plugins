@@ -1,3 +1,5 @@
+# GENERATED from plugins/session-telemetry/hooks/session-log-lib.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # shellcheck shell=bash
 # Shared by the per-session hook event log (session-event-log.sh), the
 # SessionEnd retention hook (session-retention.sh), the telemetry sink
@@ -10,7 +12,7 @@
 # event, and parsing that library costs more than the rest of the hook.
 # Nothing here spawns a
 # process, except slog_append on a locked line (`rm`, and `sleep` while it
-# waits for the lock); every other function assigns into a caller-named variable (`printf -v`)
+# waits for the lock) and slog_append_capped (`wc`, `flock`, `mv`); every other function assigns into a caller-named variable (`printf -v`)
 # or returns a status. Locals carry a `slog__` prefix so `printf -v` can never
 # land on a shadowed name.
 #
@@ -422,6 +424,40 @@ slog_append() {
   printf '%s\n' "$slog__l" >>"$slog__f" 2>/dev/null
   ((slog__held)) && slog_unlock "$slog__lock" "$slog__token"
   return 0
+}
+
+# slog_append_capped <file> <line> <max_bytes>: append <line>, first moving a
+# <file> over <max_bytes> to <file>.1 (replacing any older .1), so the pair stays
+# near twice the cap. <max_bytes> is the raw option value; anything but 1 to 18
+# digits (bash arithmetic wraps past 2^63-1, which would rotate on every append)
+# reads as 10485760. The shared hook-events.jsonl and the skill-usage store
+# follow this one rule. Under flock when present; without it (macOS, Git for
+# Windows) the check and the move run unlocked: two writers can both see the
+# file over the cap, and the second move then replaces the .1 the first just
+# made with the new one-line live file, losing up to <max_bytes> of rotated
+# rows. That loss is accepted.
+slog_append_capped() {
+  local slog__f="$1" slog__l="$2" slog__max="$3"
+  [[ "$slog__max" =~ ^[1-9][0-9]{0,17}$ ]] || slog__max=10485760
+  if command -v flock >/dev/null 2>&1; then
+    (
+      if flock -w 2 9; then
+        slog__append_over_cap "$slog__f" "$slog__l" "$slog__max"
+      else
+        printf '%s\n' "$slog__l" >>"$slog__f"
+      fi
+    ) 9>"${slog__f}.lock" 2>/dev/null
+  else
+    slog__append_over_cap "$slog__f" "$slog__l" "$slog__max" 2>/dev/null
+  fi
+  return 0
+}
+
+slog__append_over_cap() {
+  local slog__size
+  slog__size=$(wc -c <"$1" 2>/dev/null) || slog__size=0
+  ((slog__size > $3)) && mv -f "$1" "$1.1" 2>/dev/null
+  printf '%s\n' "$2" >>"$1"
 }
 
 # slog_lock <path> <token>: 0 when this call created <path>, writing <token>
