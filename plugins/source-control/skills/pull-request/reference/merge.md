@@ -122,6 +122,13 @@ for the user.
   so the unresolved-thread gate below covers it. Marking the PR ready is what starts those reviews, so this
   never happens at `ready`.
 - All 4.1 readiness gates pass and no review thread is unresolved.
+- A lanes App pull request has a merge-risk rating for the head you pin: the lanes App's
+  `Merge-Risk:` line naming that head, with its reasons in the `pr-merge-risk-<pr>-<head>` artifact
+  ([`docs/conventions/pr-pipeline/README.md` § The Merge-Risk line](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-pipeline/README.md#the-merge-risk-line)).
+  Never merge, enqueue or arm `--auto` without it: an `unrated` line, no line, or a rating of an
+  earlier head holds. With `demote=true` (`max` HIGH or CRITICAL; `/review:merge-risk` § What
+  `demote` may do), read the HIGH and CRITICAL rows' `why` and merge only when an owner decision
+  covers each one. A reason no owner decision covers, or one you cannot read, goes to the owner.
 - The session can reach GraphQL and the PR is not a stack layer; otherwise wait for the user.
 
 Run the merge script
