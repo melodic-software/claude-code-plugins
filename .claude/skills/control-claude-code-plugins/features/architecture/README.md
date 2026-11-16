@@ -4,6 +4,7 @@ The skills of `plugins/architecture`. Each one is driven with `<plugin-dir>` set
 
 ## Parts
 
+- `enforce-boundaries`: Set up a check for each recorded boundary rule and prove it on an injected violation.
 - `improve`: Scan the codebase for shallow modules or boundary crossings, then design or hand on the chosen fix.
 - `map-components`: Chart the modules inside one deployable as a C4 component view.
 - `map-containers`: Chart deployables, the stores they bind, and contained modules.

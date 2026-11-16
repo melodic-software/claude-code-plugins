@@ -136,7 +136,7 @@ to the full card.
 
 ## Style guidance
 
-- Self-containment per the baseline: styles and SVG are inline, nothing is fetched
+- Self-containment, this report's own choice: styles and SVG are inline, nothing is fetched
 - Size: diagrams stay near 320px high, so a card's two columns are visible without scrolling
 - Labels: module names inside a diagram are set small, in capitals, with extra letter spacing
 - Color: rust marks leakage and amber marks warnings; apart from those, one palette accent (clay or olive)

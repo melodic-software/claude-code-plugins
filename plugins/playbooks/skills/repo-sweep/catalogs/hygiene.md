@@ -35,7 +35,7 @@ Authorize the candidate-count consent gate for the whole repo. Tag any `alive` n
 
 This step's args run the remove pass, which does not read audit rows. Run
 `/code-tidying:remove-comments audit .` first for history narration and ticket back-references,
-and fix its findings in the same step. When the `code-tidying` plugin is not installed, the step
+and fix its findings in the same step. When the `code-tidying` plugin is not enabled, the step
 does not run: report it as not run and say once that the `code-tidying` plugin would run it. CI workflows stay excluded unless the operator lifts them
 by hand, for example `remove-comments override .github/workflows/ci.yml`; the skill's Hard rules
 section owns the exclusion and its lift channels. Findings on files synced from another repository
@@ -386,7 +386,7 @@ read-only and `fix` is an explicit separate action. Basis: `ai-slop` 0.11.4 `ski
 
 `--fix` runs only each ecosystem's format-only `fix-cmd`. After it, run `/toolchain:lint all` in
 check mode so every ecosystem's `check-cmd` also covers the whole repository, and report its
-failures. When the `toolchain` plugin is not installed, run each ecosystem's own lint command
+failures. When the `toolchain` plugin is not enabled, run each ecosystem's own lint command
 instead and say once that the `toolchain` plugin would run every ecosystem's lint through `/toolchain:lint`.
 
 Claim: `toolchain:lint` with `--fix` runs only each ecosystem's format-only `fix-cmd`, check mode

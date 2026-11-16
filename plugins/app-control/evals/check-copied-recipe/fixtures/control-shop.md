@@ -9,6 +9,9 @@ description: "Launch, ready-check, capture and clean up the shop app."
 3. `pip install -r requirements.txt`
 4. `SHOP_MAIL=off python3 shop/server.py --port 8080`
 
+Data: none: the shop keeps no data between requests
+Side by side: no: the server always binds port 8080
+
 ## Ready
 
 `curl -fsS http://127.0.0.1:8080/healthz`

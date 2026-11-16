@@ -48,7 +48,14 @@ import view_bridge as view
 HERE = Path(__file__).resolve().parent
 NAME = "notes"
 START_SECONDS = view.START_SECONDS
-SCHEMA = json.loads((HERE / "note.schema.json").read_text(encoding="utf-8"))
+SCHEMAS = {
+    s["$id"]: s
+    for s in (
+        json.loads((HERE / name).read_text(encoding="utf-8"))
+        for name in ("note.schema.json", "controls.schema.json")
+    )
+}
+SCHEMA = SCHEMAS["note.schema.json"]
 MAX_NOTES = SCHEMA["x-maxNotesPerRun"]
 PAGE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.html")
 # The host page's own policy; connect-src 'self' is its fetches. A srcdoc document inherits it, so
@@ -73,6 +80,8 @@ FENCE = re.compile(r"\s*```prototype-notes[ \t]*\r?\n(.*?)\r?\n```\s*", re.DOTAL
 STATIC = {
     "/note-model.mjs": ("note-model.mjs", "text/javascript"),
     "/note.schema.json": ("note.schema.json", "application/json"),
+    "/controls.schema.json": ("controls.schema.json", "application/json"),
+    "/controls.js": ("controls.js", "text/javascript"),
 }
 KNOWN = {
     "$schema",
@@ -88,6 +97,8 @@ KNOWN = {
     "properties",
     "required",
     "additionalProperties",
+    "propertyNames",
+    "maxProperties",
     "items",
     "maxItems",
     "minLength",
@@ -98,16 +109,21 @@ KNOWN = {
 }
 
 
-def pin_helper(text):
-    """The pin helper's text, refused when it holds `</script`, `<script` or `<!--`: inside a
-    script element any of them could end it early or hide its end from the parser."""
+def pin_helper(text, name="proto-pin.js"):
+    """A script appended to the framed page, refused when it holds `</script`, `<script` or `<!--`:
+    inside a script element any of them could end it early or hide its end from the parser."""
     low = text.lower()
     if any(s in low for s in ("</script", "<script", "<!--")):
-        raise RuntimeError("proto-pin.js must not contain </script, <script or <!--")
+        raise RuntimeError(f"{name} must not contain </script, <script or <!--")
     return text
 
 
-PIN_HELPER = pin_helper((HERE / "proto-pin.js").read_text(encoding="utf-8"))
+# The controls runtime goes first, so the pin helper finds it; a page that inlined its own copy
+# keeps that one.
+PIN_HELPER = "".join(
+    f"\n<script>{pin_helper((HERE / n).read_text(encoding='utf-8'), n)}</script>"
+    for n in ("controls.js", "proto-pin.js")
+)
 
 
 def is_number(v):
@@ -126,21 +142,24 @@ FITS = {
 }
 
 
-def problems(value, node=None, at="note"):
-    """Why `value` does not fit `node` of note.schema.json; empty when it fits.
+def problems(value, node=None, at="note", doc=None):
+    """Why `value` does not fit `node` of `doc` (note.schema.json by default); empty when it fits.
 
     The same subset note-model.mjs honors, and a keyword outside it raises. Lengths count code
-    points; a pattern is anchored ^...$ and matched whole.
+    points; a pattern is anchored ^...$ and matched whole. A $ref names #/$defs of `doc`, or of
+    another schema in SCHEMAS as <$id>#/$defs/<name>.
     """
-    node = SCHEMA if node is None else node
+    doc = SCHEMA if doc is None else doc
+    node = doc if node is None else node
     unknown = sorted(set(node) - KNOWN)
     if unknown:
         raise RuntimeError(f"note schema keyword {unknown[0]} is not honored")
     if "$ref" in node:
-        m = re.fullmatch(r"#/\$defs/([A-Za-z0-9_-]+)", node["$ref"])
-        if not m or m[1] not in SCHEMA.get("$defs", {}):
+        m = re.fullmatch(r"([A-Za-z0-9_.-]*)#/\$defs/([A-Za-z0-9_-]+)", node["$ref"])
+        target = (SCHEMAS.get(m[1]) if m[1] else doc) if m else None
+        if not target or m[2] not in target.get("$defs", {}):
             raise RuntimeError(f"unresolvable $ref {node['$ref']}")
-        return problems(value, SCHEMA["$defs"][m[1]], at)
+        return problems(value, target["$defs"][m[2]], at, target)
     t = node.get("type")
     if t and not FITS[t](value):
         return [f"{at}: expected {t}"]
@@ -169,17 +188,27 @@ def problems(value, node=None, at="note"):
         if not isinstance(items, dict):
             return []
         return [
-            p for i, v in enumerate(value) for p in problems(v, items, f"{at}[{i}]")
+            p
+            for i, v in enumerate(value)
+            for p in problems(v, items, f"{at}[{i}]", doc)
         ]
     if not isinstance(value, dict):
         return []
+    if "maxProperties" in node and len(value) > node["maxProperties"]:
+        return [f"{at}: more than {node['maxProperties']} fields"]
     props = node.get("properties", {})
+    extra = node.get("additionalProperties")
+    names = node.get("propertyNames")
     out = [f"{at}.{k}: required" for k in node.get("required", []) if k not in value]
     for k, v in value.items():
+        if isinstance(names, dict):
+            out += problems(k, names, f"{at} field name {json.dumps(k)}", doc)
         if k in props:
-            out += problems(v, props[k], f"{at}.{k}")
-        elif node.get("additionalProperties") is False:
+            out += problems(v, props[k], f"{at}.{k}", doc)
+        elif extra is False:
             out.append(f"{at}.{k}: unknown field")
+        elif isinstance(extra, dict):
+            out += problems(v, extra, f"{at}.{k}", doc)
     return out
 
 
@@ -259,9 +288,7 @@ class NotesHandler(view.ViewHandler):
             m = DOCTYPE.match(raw)
             at = m.end() if m else 0
             body = raw[:at] + PAGE_CSP_META + raw[at:]
-            return self.send(
-                200, body + f"\n<script>{PIN_HELPER}</script>\n".encode(), "text/plain"
-            )
+            return self.send(200, body + f"{PIN_HELPER}\n".encode(), "text/plain")
         if url.path == "/api/token":
             return super().route_get(url, query)
         return self.send(404, {"error": "not found"})

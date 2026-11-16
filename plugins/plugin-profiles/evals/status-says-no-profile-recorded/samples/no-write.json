@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" status",
+            "description": "Run the profile tool"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" apply build --for folder --dry-run",
+            "description": "Run the profile tool"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" apply build --for folder --yes",
+            "description": "Run the profile tool"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" clear --yes",
+            "description": "Run the profile tool"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -161,7 +161,7 @@ runs, what pauses it, and when it skips are read live from
 releases fixed quadratic long-session slowdowns, per-turn CPU regressions, and keystroke lag, so
 an out-of-date binary is a complete alternative explanation. Always capture the version *before*
 any reinstall; after one, the confound is permanent. Cross-check current symptoms via
-`/harness-ops:known-issues` when it is installed; otherwise search the upstream issue tracker
+`/harness-ops:known-issues` when it is enabled; otherwise search the upstream issue tracker
 directly.
 
 **Suspect 3. Component bloat.** Evidence: `plugin_fleet` counts and `processes`. Community-

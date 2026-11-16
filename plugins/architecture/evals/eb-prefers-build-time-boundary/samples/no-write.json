@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat go.mod",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/billing/internal/ledger/ledger.go",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.golangci.yml",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}

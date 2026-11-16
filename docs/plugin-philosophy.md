@@ -109,10 +109,10 @@ Keep plugins horizontally decoupled:
     for who tags which repository, and
     [create a release tag](https://code.claude.com/docs/en/plugins/dependencies#create-a-release-tag)
     for the tag name and the command that makes it, live.
-- Every plugin remains useful alone. If an optional collaborator is absent, use a documented fallback
+- Every plugin remains useful alone. If an optional collaborator is not enabled, use a documented fallback
   or report the missing optional capability clearly.
 - Every cross-plugin reference is therefore either declared (the `dependencies` array above, which
-  Claude Code installs automatically) or guarded behind an "if installed" check with the documented
+  Claude Code installs automatically) or guarded behind an "if enabled" check with the documented
   fallback. A bare unguarded cross-plugin reference is a defect.
 
 This follows Claude Code's own distinction between standalone configuration and plugins: this
@@ -381,7 +381,7 @@ results, not omissions; the trigger, never the date, is what obliges re-deriving
 | [Monitors](https://code.claude.com/docs/en/plugins/components#monitors) | Wait | Experimental (`experimental.monitors`); interactive-CLI-only, unsandboxed at hook trust level, no `${user_config.*}` and no `CLAUDE_PLUGIN_OPTION_*` in monitor processes; keep running after mid-session disable. Re-verify before each audit. | 2026-07-17 |
 | [Themes](https://code.claude.com/docs/en/plugins/components#themes-and-output-styles) | Wait | Experimental (`experimental.themes`); schema may change between releases. Re-verify before each audit. | 2026-07-17 |
 | [Channels](https://code.claude.com/docs/en/plugins/components#channels) | Wait | No longer carries an official experimental label, but fails the adoption gate today: no fleet gap it fills. Re-verify before each audit. | 2026-07-17 |
-| [Dependencies](https://code.claude.com/docs/en/plugins/dependencies) | Adopt on need (hard requires only) | Hard requires only. Two plugins declare them, neither with a version constraint: `core` (a bundle) and `playgrounds` (a cross-marketplace dependency). | 2026-11-03 |
+| [Dependencies](https://code.claude.com/docs/en/plugins/dependencies) | Adopt on need (hard requires only) | Hard requires only. One plugin declares them, with no version constraint: `playgrounds` (a cross-marketplace dependency). | 2026-11-03 |
 
 ### Windows exec-form probe
 
@@ -1136,7 +1136,7 @@ Three bias classes name the trigger:
 The delegation target has an independence ladder: a same-vendor fresh context removes the session's
 reasoning but can still share the model's blind spots; a different-vendor advisor removes both. Where
 the verdict is high-stakes and correlated blind spots are the risk, a checkpoint site prefers a
-cross-vendor advisor **when one is installed and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the
+cross-vendor advisor **when one is enabled and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the
 stated fallback, never a route to a command that may not resolve. That reference is optional
 collaboration, so it carries the presence-gate-plus-fallback shape
 ([seam phrasing](contracts/seam-phrasing/README.md)) at each site that instructs it; an advisor
@@ -1200,11 +1200,11 @@ The default worker is a **generic fresh-context subagent carrying rich inline in
 task, the artifact, the criteria, and the output shape all travel in the dispatch prompt. A non-fork
 subagent starts without the parent conversation (Pointer:
 <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>), which is
-exactly the independence the checkpoint buys. A skill may prefer an installed **named agent** on the next rung,
+exactly the independence the checkpoint buys. A skill may prefer an enabled **named agent** on the next rung,
 but only when the named-agent bar below is met, and the site always states the generic fallback
 (presence-gate-plus-fallback, [seam phrasing](contracts/seam-phrasing/README.md)). The top rung, for
 high-stakes verdicts where correlated model blind spots are the risk, is a **cross-vendor advisor**
-when one is installed, on the same presence-gate shape with the same generic fallback.
+when one is enabled, on the same presence-gate shape with the same generic fallback.
 
 Those rungs are one choice among the platform's parallelism surfaces;
 [run agents in parallel](https://code.claude.com/docs/en/agents#choose-an-approach) is the
@@ -1220,7 +1220,7 @@ A dispatch prompt at any rung:
   access to the reasoning that produced it;
 - hands over the **artifact, not the story**, meaning the diff, file, or plan itself, never the authoring
   session's rationale, which would re-import the bias being removed;
-- **degrades when absent**: a preferred named agent or advisor that is not installed routes to the
+- **degrades when absent**: a preferred named agent or advisor that is not enabled routes to the
   generic fresh-context subagent, never to a command that may not resolve; and
 - **bounds what counts as a finding**: correctness and the stated requirements, everything else
   optional. An unbounded adversarial prompt returns many low-value findings at full cost, and chasing

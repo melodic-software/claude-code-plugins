@@ -5,8 +5,10 @@ keeps goes through sections 2 to 6 of the hub. Here a person's invocation names 
 mistake, so section 1's exceptions do not lift the threshold.
 
 1. **Gate.** The items belong to `/work-items:track`, which owns the tracker and its adapters. Use
-   it when the `work-items` plugin is installed; otherwise say this action needs that plugin and
-   stop. Name no tracker or forge CLI command.
+   it when the `work-items` plugin is enabled; otherwise say this action needs that plugin, print
+   `claude plugin enable work-items@<marketplace>`, preceded by
+   `claude plugin install work-items@<marketplace>` when it is not installed, and stop. Name no
+   tracker or forge CLI command.
 2. **Which items.** With `--label`, use it. Without one, run `/work-items:track labels` and take
    the label or type the tracker uses for a defect, and report which one was used; when none is
    plain, ask for `--label` and stop. Then run

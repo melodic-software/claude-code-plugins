@@ -124,7 +124,7 @@ What the model sees, if the user asks, depends on the path a value takes:
 For a `browser` row that configures a vendor console and captures no secret (a webhook address, a
 sender name, a setting to switch on), you may offer, row by row, to drive a visible browser
 yourself while the user watches. Ask; a row becomes Kind `agent` only when the user says yes for
-that row. Drive it through `/playwright:playwright` when that plugin is installed, in a window the
+that row. Drive it through `/playwright:playwright` when that plugin is enabled, in a window the
 user can see and an isolated profile of its own, never the user's everyday browser profile; that
 skill says how. Without the plugin, the row stays `browser`. The user signs in inside that window
 themselves and opens the row's configuration page there, then tells you it is open. Read no page

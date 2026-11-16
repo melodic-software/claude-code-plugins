@@ -318,8 +318,8 @@ gh issue edit <N> --repo <owner>/<repo> --remove-assignee "@me"   # clear this s
 user (not a bot), so it runs on bare `gh`. Coordination claims go through the seam `claim` verb,
 which owns this.
 
-**The lease protocol's own assignee ops are REST, not `gh issue`.** `claim` and `reclaim` do not
-use `gh issue edit --add-assignee` / `gh issue view --json assignees`: those route through
+**The lease protocol's own assignee ops are REST, not `gh issue`.** `claim`, `release` and
+`reclaim` do not use `gh issue edit --add-assignee` / `gh issue view --json assignees`: those route through
 GitHub's GraphQL API, which made the lease protocol unrunnable in cloud sessions (see "View item"
 above). They use `gh api` against `…/issues/<n>/assignees` instead, through the
 `wit_read_assignees` / `wit_add_assignee` / `wit_remove_assignee` / `wit_try_remove_assignee`

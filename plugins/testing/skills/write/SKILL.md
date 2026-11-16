@@ -73,7 +73,7 @@ repeat every such line verbatim in the final summary. With `off`, write no such 
 |--------|-------------|
 | Writing new tests, TDD, "test this code" | [context/write.md](context/write.md) |
 | "Where should this test go", new test project decision, fixture patterns | [context/organize.md](context/organize.md) |
-| Property or invariant tests; parsers, serializers, pure transforms, collections or stateful classes; a shrunk counterexample to pin | [context/property.md](context/property.md), after write.md |
+| Property, invariant or fuzz tests, for any target (a running UI included); parsers, serializers, pure transforms, collections or stateful classes; a shrunk counterexample to pin | [context/property.md](context/property.md), after write.md |
 | Replace, rewrite, migrate or port; pin legacy behavior before a refactor; approval, snapshot, golden master or old-versus-new tests | [context/characterization.md](context/characterization.md), after write.md |
 | `blind`, or acceptance tests a separate agent writes from the spec without reading the implementation | [context/blind-author.md](context/blind-author.md), after write.md |
 
@@ -97,7 +97,7 @@ conventions for per-ecosystem naming, locations, and fixtures.
 
 ## Handoff
 
-- Run the new tests by invoking `/toolchain:check` via the Skill tool (or the project's own test command when the `toolchain` plugin is absent), then continue implementation. Invoke `/implementation:implement` via the Skill tool when that plugin is enabled
+- Run the new tests by invoking `/toolchain:check` via the Skill tool (or the project's own test command when the `toolchain` plugin is not enabled), then continue implementation. Invoke `/implementation:implement` via the Skill tool when that plugin is enabled
 - **For HIGH/CRITICAL test suites** (new domain logic, security-critical behavior, regression-prone paths, mocks of non-trivial dependencies, non-deterministic dependencies like clock/random/network) call the `advisor` tool (when available in the session) as a checkpoint before commit. An author testing their own code is the producer verifying its own work; this cross-model critique is the independent check that catches false-green or brittle tests before slow CI runs. Skip for trivial test additions. The verification level governs this checkpoint: resolve it with `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin testing --skill write --file docs/conventions/testing.yaml` and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). `standard` keeps the rule above and `strict` runs it for every suite, trivial additions included. Under `light`, and `off`, which acts as `light` here, call no advisor and never critique the suite inline in its place: report `verification: skipped (<level>)`. For non-deterministic dependencies, build in the determinism controls in context/write.md first. For unattended or HIGH-risk work with written acceptance criteria, recommend the blind test author mode (context/blind-author.md), which moves the independence earlier: the acceptance tests come from an agent that never read the code
 - After an `organize` decision: proceed to authoring for the new test project
 - Coverage gaps still open → invoke `/testing:plan` via the Skill tool; failures while running → invoke `/testing:diagnose` via the Skill tool

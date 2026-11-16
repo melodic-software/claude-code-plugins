@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**CRITICAL**\n- `.github/workflows/ci.yml:15`: Fail a change that loosens a check (check set to soft-fail): \"uploads retry after a dropped connection\" now runs only in the soft-fail \"Quarantined tests\" step. The spec (#88) names the test but gives no reason it is quarantined, so the quarantine does not pass. Ask the issue for the reason, or keep the test required. Confidence: high",
+      "why": "blocking finding naming the soft-fail and the missing reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Criteria read: none present\n\nNo findings. The quarantine matches #88.\n\nCoverage: all changed files reviewed",
+      "why": "accepts the quarantine because the spec names the test"
+    },
+    {
+      "answer": "**SUGGESTION**\n- `test/quarantine/upload-retry.test.js:1`: consider a tracking issue for un-quarantining. Confidence: low",
+      "why": "a suggestion only, with no finding that needs action"
+    }
+  ]
+}

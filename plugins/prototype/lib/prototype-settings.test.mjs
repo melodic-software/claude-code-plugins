@@ -112,7 +112,7 @@ describe("the levels map is open", () => {
   it("accepts a level the team file adds and keeps the shipped three", () => {
     const r = run(project(team(added)));
     assert.deepEqual([r.level, r.layer], ["design-system", "team"]);
-    assert.deepEqual(r.definition, { variants: 4, screens: "one", states: "planned", evidence: "per-state", extra_states: [], offers: [], phrases: ["design system"] });
+    assert.deepEqual(r.definition, { variants: 4, screens: "one", states: "planned", evidence: "per-state", extra_states: [], controls: "brief", offers: [], phrases: ["design system"] });
     assert.deepEqual(Object.keys(r.phrases), ["sketch", "standard", "full", "design-system"]);
     assert.deepEqual(r.notices, []);
   });
@@ -120,6 +120,13 @@ describe("the levels map is open", () => {
   it("lets the prompt select a team-added level", () => {
     const r = run(project(team(added.replace("level: design-system\n", ""))), { prompt: "design-system" });
     assert.deepEqual([r.level, r.layer], ["design-system", "prompt"]);
+  });
+
+  it("lets a team file narrow a shipped level's controls, and drops a controls value outside the schema", () => {
+    assert.equal(run(project(team("levels:\n  standard:\n    controls: brief\n"))).definition.controls, "brief");
+    const r = run(project(team("levels:\n  standard:\n    controls: all\n")));
+    assert.equal(r.definition.controls, "everything");
+    assert.match(r.notices.join("\n"), /"levels\.standard\.controls": "all" is not one of/);
   });
 
   it("refines a shipped level dimension by dimension", () => {
@@ -158,7 +165,7 @@ describe("the shipped data", () => {
 
   it("makes standard the run the skill text describes", () => {
     const r = run(project());
-    assert.deepEqual(r.definition, { variants: 3, screens: "flow", states: "planned", extra_states: [], evidence: "per-state", offers: ["review-mode", "real-stack"], phrases: [] });
+    assert.deepEqual(r.definition, { variants: 3, screens: "flow", states: "planned", extra_states: [], evidence: "per-state", controls: "everything", offers: ["review-mode", "real-stack"], phrases: [] });
   });
 });
 

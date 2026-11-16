@@ -553,12 +553,12 @@ fi
 # here. The exclusions and the types are the `exclude:` and `extensions:` inputs
 # of the workflow's machine-paths step, read as data like typos'; with no
 # `extensions:` the types are the composite's default for that input, copied
-# from its action.yml at ci-workflows 2476d5dde8979eab34374150b7e4b0a2b99f4e88:
+# from its action.yml at ci-workflows v0.74.0 (944d346c487c79eaf85dff752586fb59b0f5c539):
 # recheck it when the pin moves. The boundary, the five scans and the exemptions
 # repeat the composite's entry script as read at ci-workflows v0.65.17
 # (81a603a6e2b0319428c981bf28f3fe923032afb2); recheck them when the pin moves.
 machine_paths_lib=plugins/guardrails/lib/path-detection/machine-path-patterns.sh
-machine_paths_default_types='*.cs *.csproj *.json *.jsonc *.js *.jsx *.md *.props *.ps1 *.psm1 *.py *.sh *.slnx *.targets *.toml *.ts *.tsx *.yaml *.yml'
+machine_paths_default_types='*.cs *.csproj *.json *.jsonc *.js *.jsx *.md *.props *.ps1 *.psm1 *.py *.sh *.slnx *.targets *.tmpl *.toml *.ts *.tsx *.yaml *.yml'
 declare -a machine_paths_types=() machine_paths_excludes=() machine_paths_files=()
 [[ -f "$hygiene_workflow" ]] && while IFS= read -r g; do machine_paths_types+=("${g//[\"\']/}"); done < <(step_input machine_paths extensions)
 ((${#machine_paths_types[@]})) || read -ra machine_paths_types <<<"$machine_paths_default_types"

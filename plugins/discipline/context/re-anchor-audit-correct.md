@@ -65,7 +65,7 @@ Run these in order. Skip a step only when its input is genuinely absent
    corrector that resolves no level keeps the subagent as above. Under `light`, and
    `off`, which acts as `light` here, dispatch none and do not self-check in
    its place; report the finding open with `verification: skipped (<level>)`. Prefer a cross-vendor
-   advisor for that re-derivation **when one is installed and set up**.
+   advisor for that re-derivation **when one is enabled and set up**.
    One example is the OpenAI Codex plugin, when its documented surface can take this artifact,
    invoked per its own docs. Keep the fresh-context same-vendor subagent as the stated fallback,
    never a route to a command that may not resolve

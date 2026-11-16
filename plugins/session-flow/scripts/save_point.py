@@ -317,7 +317,7 @@ REWRITTEN = {
     ),
     "Suggested skills": (
         "skills",
-        "fully-qualified skills (plugin:skill, 'if installed') each tied to a concrete "
+        "fully-qualified skills (plugin:skill, 'if enabled') each tied to a concrete "
         "remaining item, or 'None. Remaining work runs inline'",
     ),
 }

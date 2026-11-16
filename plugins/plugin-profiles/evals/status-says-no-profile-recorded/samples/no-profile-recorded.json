@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "No profile is recorded for this folder, so it runs on your user settings."
+    },
+    {
+      "answer": "This folder has no plugin profile applied yet."
+    },
+    {
+      "answer": "There's no profile set for this folder."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "This folder runs profile build."
+    },
+    {
+      "answer": "Profile build (folder) applied 2026-11-15."
+    }
+  ]
+}

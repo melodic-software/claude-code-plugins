@@ -5,7 +5,7 @@ consumer's convention home**, bound by the pointer line the consuming marketplac
 expression doctrine defines. Zero config is not a working state for this surface, because `architecture_dir`
 has no default and a plugin guessing where a repository keeps its architecture artifacts would
 write two files into a directory nobody asked for. The `record-decision` keys use a separate
-surface, [Decision-record keys](#decision-record-keys), and so does the layout lens,
+surface, [Decision-record keys](#decision-record-keys), and so does `/architecture:improve-layout`,
 [Layout keys](#layout-keys).
 
 ## Where the config lives
@@ -102,13 +102,13 @@ cascade keeps one convention home per git root (ADR 0075, fix 13).
 
 ## Layout keys
 
-`/architecture:improve layout` reads one `layout` object through the same team and personal files
+`/architecture:improve-layout` reads one `layout` object through the same team and personal files
 and the same `<home>` rules as the decision-record keys above. It has no `userConfig` entries: a
 change for one run is a skill argument, `--<key-with-dashes> <value>`, except `exclude_authors`:
 `--exclude-author <text>`, repeatable, replaces the list and `--all-authors` empties it. An unknown key inside
 `layout`, or a value the schema rejects, is reported with its file and key, and that value is
 dropped as above. The measures each key feeds:
-[`skills/improve/research/layout/README.md`](../skills/improve/research/layout/README.md).
+[`skills/improve-layout/reference/co-change.md`](../skills/improve-layout/reference/co-change.md).
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|

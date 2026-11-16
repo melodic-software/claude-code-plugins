@@ -72,9 +72,11 @@ the file and line behind it and one remediation line per FAIL:
 2. **Load**: each helper `load:` line. `missing-import` fails; `may-not-load` is INFO worded
    "may not load", because the outcome depends on a per-user setting, a gitignored file, or a
    `CLAUDE.md` in a directory above the repository. From the helper's `add:` line, name the file
-   and print the line to add verbatim, alone in a code block, never in a table cell or sentence. When the instruction-placement plugin is installed, name
+   and print the line to add verbatim, alone in a code block, never in a table cell or sentence. When the instruction-placement plugin is enabled, name
    `/instruction-placement:migrate` for moving instructions into `AGENTS.md`; otherwise print
-   `claude plugin install instruction-placement@<marketplace>` and the line still stands alone.
+   `claude plugin enable instruction-placement@<marketplace>`, preceded by
+   `claude plugin install instruction-placement@<marketplace>` when it is not installed, and the
+   line still stands alone.
    Load rules: pointer, when judging whether `AGENTS.md` loads, fetch
    <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
    <https://code.claude.com/docs/en/memory#share-one-file-with-other-coding-tools> live.
@@ -146,8 +148,9 @@ configure (conventions at the path), or nothing to do.
    when the user has said yes to the shown file, or declined it.
 2. Find which coding agents are installed here and, from each agent's official docs fetched now,
    where its personal instructions file lives. Research through `/discovery:research` when the
-   discovery plugin is installed; otherwise research in-session from official docs first, label
-   the basis, say discovery is missing and print `claude plugin install discovery@<marketplace>`.
+   discovery plugin is enabled; otherwise research in-session from official docs first, label
+   the basis, say discovery is not enabled and print `claude plugin enable discovery@<marketplace>`,
+   preceded by `claude plugin install discovery@<marketplace>` when it is not installed.
    Done when each installed agent has a file path with its source URL, or is reported unresolved.
 3. Before writing each personal file, check whether it is a symlink or managed by a dotfile
    manager (for chezmoi, `chezmoi source-path <file>` prints a source path for a managed file).

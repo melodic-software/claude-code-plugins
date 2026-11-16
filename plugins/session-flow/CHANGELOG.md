@@ -1,5 +1,30 @@
 # Changelog: session-flow plugin
 
+## [9.3.1] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract. This covers the save-point's suggested-skills slot, `orient`'s timeline hand-off and the workflow skill's cloud-route docs read, `audit-friction`'s collaborator check and `keep-going`'s `rate-limits` reading.
+
+### Fixed
+
+- `/session-flow:retro`: the gotcha on mechanical findings puts "when the `corrections` plugin is
+  enabled" on the hand-off to `/corrections:codify`, where the condition applies.
+- `/session-flow:retro`: without the `corrections` plugin, the catalog's "Check first" step states
+  in item 2 that one occurrence of a policy-class mistake is enough to propose a check, beside a
+  repeat with the same cause.
+
+## [9.3.0] - 2026-11-15
+
+### Added
+
+- The handoff structure reference's Environment to re-establish section has a Plugin profile entry. When `/plugin-profiles:profile` is among the available skills (enabled), the handoff invokes `/plugin-profiles:profile status` and writes the restore entry it prints as given. Otherwise the save-point says nothing about plugin profiles.
+- The `ho-disabled-profile-plugin-no-entry` eval: with the plugin-profiles plugin installed but disabled, a handoff makes no plugin-profiles Skill call and writes no profile entry.
+
+### Changed
+
+- `continue-in-background` drafts a goal condition with `/planning:draft-goal-condition` when that skill is among the available skills, not when the `planning` plugin is merely installed, so a plugin that is installed but disabled takes the inline fallback.
+
 ## [9.2.2] - 2026-11-15
 
 ### Changed

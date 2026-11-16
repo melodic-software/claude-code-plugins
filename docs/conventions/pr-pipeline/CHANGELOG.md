@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [10.4.1] - 2026-11-16
+
+### Changed
+
+- The pr-verify verdict paragraph says a check, permission or guard weakened beyond what the spec asks fails the verdict for every change, not only a takeover-set change, as the verify prompt's Safety step already says. The prompt's Safety step names the review plugin's criterion "Fail a change that loosens a check" in one line; its rule is unchanged.
+
+## [10.4.0] - 2026-11-16
+
+### Changed
+
+- The Verifier verdict section says a capture the key cannot make records an advisory cause, `credit-stop`, `empty-key`, `probe-handoff` or `unrecognized`, each with its own reason, in place of the one fixed "subscription token cannot go behind the proxy" reason. The verdict's `evidence` carries that `cause`, and its `pr-verify capture` annotation names a blocked capture and its cause. While the credit gate skips the key, the capture job uploads that blocked capture instead of none. A credit stop on the probe's key raises the handoff warning naming the pr-verify role's key and the run.
+
 ## [10.3.8] - 2026-11-15
 
 ### Changed

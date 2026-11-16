@@ -33,10 +33,10 @@ Read the `file_lines` row of its References table (config key `size.file_lines`)
 
 Put each crossing into the `code-reviewer` brief as `<path>: <base count> -> <head count>,
 size.file_lines <reference> (<layer>)`. With no crossing, or when code-metrics is not available,
-the brief lists none. On the primary path, which dispatches no `code-reviewer`, list the crossings
-in the gate's report in that same form.
+the brief lists none. Both paths dispatch `code-reviewer` (the primary path for the loosened-check
+criterion, below), so its brief always carries them.
 
-## Primary path: `pr-review-toolkit` orchestrator plugin (when installed)
+## Primary path: `pr-review-toolkit` orchestrator plugin (when enabled)
 
 With `--base` or `--worktree`, skip this path for the fallback ([phase-boundary.md](phase-boundary.md)).
 
@@ -50,6 +50,10 @@ When the `pr-review-toolkit` plugin (from the `claude-plugins-official` marketpl
 | Comments added or modified | `comments` |
 
 Reserve the full multi-agent run for large (≥500 LOC) or security-sensitive changes. `all` is expensive.
+
+That orchestrator does not apply the bundled criterion "Fail a change that loosens a check"
+([loosened-check.md](loosened-check.md)), and a check's own code can be any file, so whenever this
+path runs, also dispatch the fallback below for that criterion.
 
 ## Fallback: this plugin's `code-reviewer` agent
 

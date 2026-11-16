@@ -7,7 +7,7 @@ shell: bash
 allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs\":*)"]
 ---
 
-**Arguments.** `<watch [<url>|<n>]|<url>|queue <url>...|queue list|transcript <url>|resume <slug>>`. Full form: watch <url> [--target <repo>] [--from <h:mm:ss>] [--to <h:mm:ss>] | watch [--target <repo>] | watch <n> [--target <repo>] | <url> | queue <url> | queue list | transcript <url> | resume <slice-slug>
+**Arguments.** `<watch [<url>|<n>]|<url>|queue <url>...|queue list|transcript <url>|resume <slug>>`. Full form: watch <url> [--target <repo>] [--from <h:mm:ss>] [--to <h:mm:ss>] | watch [--target <repo>] | watch <n> [--target <repo>] | <url> | queue <url> [--from <h:mm:ss>] [--to <h:mm:ss>] | queue list | transcript <url> | resume <slice-slug>
 
 ## Pre-computed context
 
@@ -48,7 +48,7 @@ Supported sources: YouTube (`youtube.com`, `youtu.be`) and X/Twitter status post
 Durable artifacts live under `.work/<watch-epic>/<video-slug>/`; the video, bulk frames, working
 contact sheets, and shallow clones stay in the OS temp directory. Where this skill says "deeper
 research," use whatever external-research capability your project provides, for example the
-discovery plugin's `/discovery:research` (with its `deep` token for a broad pass) when installed. Treat those
+discovery plugin's `/discovery:research` (with its `deep` token for a broad pass) when enabled. Treat those
 as the reference implementation, not a hard dependency.
 
 ## Routing
@@ -71,7 +71,7 @@ Read a spoke **only when its condition holds**. These are mutually exclusive by 
 | `context/gotchas.md` | when a run failed and you need the recovery path |
 
 **Optional, agent-lane:** when an X status heads a thread whose replies carry material the digest
-needs, invoke `/x:read` via the Skill tool (if the `x` plugin is installed; otherwise say once that the `x` plugin would unroll the replies, and go on without them) to unroll the reply chain and fold it in as companion
+needs, invoke `/x:read` via the Skill tool (if the `x` plugin is enabled; otherwise say once that the `x` plugin would unroll the replies, and go on without them) to unroll the reply chain and fold it in as companion
 source material. This is
 a per-watch judgment call, never a pipeline stage. See `reference/sources/x.md`.
 
@@ -93,7 +93,7 @@ repository). Writes stay in the slice and temp directories; subagent briefs carr
 | Action | Behavior |
 | --- | --- |
 | (empty) | Name the actions below and ask which to run. |
-| `queue <url> [url...]` | Append URLs to epic `.work/<watch-epic>/QUEUE.md`; dedupe by slice key. |
+| `queue <url> [url...]` | Append URLs to epic `.work/<watch-epic>/QUEUE.md`; dedupe by slice key, plus the range for a ranged row (`--from`/`--to`). |
 | `queue list` | Show `QUEUE.md` table + active `claims/*.json` stubs. |
 | `transcript <url>` | Captions only. No video download. Runs acquisition + transcript pipeline. |
 | `watch` | Dequeue the first claimable queue row (FIFO; a row awaiting captions waits for its next check). Claim stub → bootstrap → full pipeline. |
@@ -214,7 +214,10 @@ Reads the slice `watch.json`, identifies the next incomplete phase (`acquire` �
 and emits a copy/paste-ready continuation prompt whose paths are slice-relative. A `complete`
 slice reports `nothingToResume` and is left untouched. When the next phase is vision and a
 `tempSession` dir is gone, it exits 1: re-run `run-watch.js`, then resume. The slug must match
-`[A-Za-z0-9_-]+`. If the companion phase is unmarked, run Phase 0b first.
+`[A-Za-z0-9_-]+`. A video id, or a ranged queue row's `video-id` cell, in place of the slug resumes
+the one slice that matches; when a bare id has several ranged slices, it exits 1 and lists their
+slugs. If the companion phase is
+unmarked, run Phase 0b first.
 
 **Handoff ritual** (context pressure or session end):
 
@@ -227,6 +230,8 @@ slice reports `nothingToResume` and is left untouched. When the next phase is vi
 Slug: kebab-case the title (ASCII, lowercase, punctuation → hyphens), cap the title portion at
 **40 characters**, append `-<slice-key>` for uniqueness (e.g. `ai-coding-tips-7zZy1QTvokM`). The
 key is the source's own identifier. `reference/sources/youtube.md` / `reference/sources/x.md`.
+A ranged watch adds `-r<fromSec>-<toSec>` to the key (`end` for an open `--to`), so each range of
+one video is its own slice (`context/watch-pipeline.md`).
 Implementation: `extraction/transcript/derive-video-slug.js`.
 
 **Source is never a directory level.** It is recorded in slice metadata only, so YouTube and X

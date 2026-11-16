@@ -1202,13 +1202,13 @@ preamble, because a dispatched non-fork subagent runs in a fresh, non-inherited 
 posture from the cycle root's own sweep and has to set its own. A fork inherits the root's
 context instead
 ([subagents: how forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents)).
-When the `discipline` plugin is installed, the dispatch prompt invokes its sweep skill, which resolves its own membership. The
+When the `discipline` plugin is enabled, the dispatch prompt invokes its sweep skill, which resolves its own membership. The
 preamble never enumerates the individual disciplines, per this doc's own **Pointer-not-copy** rule:
 a hand-copied list drifts from the plugin that owns it. Invoked at the subagent's conversation
 start, that skill reports its cheap posture digest rather than running its audit fan-out, so the
 preamble costs one skill read per dispatch and does not
 recurse; the fan-out belongs to the cycle root's once-per-cycle pass, and the skill's own audit forks
-never re-invoke it. When the plugin is absent, the dispatch prompt inlines the equivalent standing
+never re-invoke it. When the plugin is not enabled, the dispatch prompt inlines the equivalent standing
 instructions (verify claims against authoritative sources before acting, prefer installed skills
 over ad-hoc approaches, and re-check work against the active conventions). The reference is
 presence-gated with this inline fallback per the

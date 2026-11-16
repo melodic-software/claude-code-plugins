@@ -19,9 +19,9 @@ When the hunt phase produces more candidates than fit in the budget:
 
 2. **Take the top-priority subset that fits.** Greedy selection: take the highest-priority candidate; if adding it would exceed the cap, skip and try the next; stop when the cap is reached or no remaining candidate fits.
 
-3. **Defer the rest.** For each unselected candidate above a "would-be-worth-doing" threshold (i.e., not trivial micro-tidyings, which just go away), file a work item using the deferred-items template below: invoke `/work-items:track add` via the Skill tool when that plugin is installed, else `gh issue create`, else present the list to the user.
+3. **Defer the rest.** For each unselected candidate above a "would-be-worth-doing" threshold (i.e., not trivial micro-tidyings, which just go away), file a work item using the deferred-items template below: invoke `/work-items:track add` via the Skill tool when that plugin is enabled, else `gh issue create`, else present the list to the user.
 
-4. **Record the deferred issue numbers** under a `## Deferred items` section, in Phase H's follow-up PR comment when `source-control` is installed, otherwise directly in the PR body. This makes the PR's review obvious-by-default: "here's what I did, here's what I parked for next time, here are the issue numbers to hold me accountable."
+4. **Record the deferred issue numbers** under a `## Deferred items` section, in Phase H's follow-up PR comment when `source-control` is enabled, otherwise directly in the PR body. This makes the PR's review obvious-by-default: "here's what I did, here's what I parked for next time, here are the issue numbers to hold me accountable."
 
 ### Greedy vs. optimal selection
 
@@ -82,6 +82,6 @@ No upper bound on deferred issues per run. If a single run defers >10 items, tha
 
 1. **Phase D (Hunt + prioritize + scope-budget enforce)**: after building the prioritized findings table, sum the LOC deltas. Apply the greedy selection.
 2. **Phase E (Implement)**: periodically check actual LOC delta against the running estimate (`git diff --stat origin/<default-branch>...HEAD`; under `in-place`, `git diff --cached --stat`, since the tidyings are staged on a branch that may carry unrelated commits). The default form measures the full branch diff, all commits since the branch point, not just uncommitted changes relative to HEAD. If actual exceeds estimated by >25%, stop the current tidying mid-flight and re-budget.
-3. **Phase H (Ship)**: the `## Deferred items` section (follow-up comment, or PR body when `source-control` isn't installed) comes directly from this protocol's filed-issue list.
+3. **Phase H (Ship)**: the `## Deferred items` section (follow-up comment, or PR body when `source-control` isn't enabled) comes directly from this protocol's filed-issue list.
 
 If the budget numbers themselves need to change, that is a change to the shared convention, not a tidy. See the SELF-UPDATE EXTRA HARD list in `reference/exclusions.md`.

@@ -133,7 +133,7 @@ Stop when every field has a backed answer or the placeholder.
 Read [`context/template.md`](context/template.md) first and follow it. Default: Markdown to stdout.
 
 A person reads the report, so each field opens with its finding and carries no filler: invoke
-`/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that
+`/writing:be-concise` via the Skill tool when the `writing` plugin is enabled; otherwise apply that
 discipline inline. Keep the five fields, their order, and the template's shape; drop no repro step,
 severity justification, or placeholder to shorten it.
 
@@ -158,7 +158,7 @@ usable title yet, the timestamp alone.
 
 Recommend the next step; do not invoke it yourself:
 
-- **File it as a work item.** When the `work-items` plugin is installed and a tracker binding
+- **File it as a work item.** When the `work-items` plugin is enabled and a tracker binding
   resolves, hand the report to `/work-items:track add` (report summary via `--context`); it owns
   dedupe, the body template, the issue type, and the argv-safe write, so do not call the tracker
   directly beside it. Map severity onto the tracker's priority labels if it has them.
@@ -175,8 +175,8 @@ Recommend the next step; do not invoke it yourself:
   live. If neither path
   applies and a work-item tracker MCP tool is available, use it.
 - **A fix is next.** Diagnose first when the root cause is unknown (`/debugging:debug` when
-  installed); when the report names the cause, go to the fix (`/implementation:implement` when
-  installed). Without those, route to the project's own investigation or implementation workflow,
+  enabled); when the report names the cause, go to the fix (`/implementation:implement` when
+  enabled). Without those, route to the project's own investigation or implementation workflow,
   or scope the fix separately.
 - **The report is the deliverable** (Slack, PR comment, hand-off): done.
 

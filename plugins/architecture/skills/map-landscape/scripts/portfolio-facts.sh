@@ -20,7 +20,7 @@
 #
 #   name              github.com origin repository name when origin resolves; else directory basename (#4554)
 #   path              absolute path, as the shell resolved it
-#   remote            `origin` URL, or "unknown"
+#   remote            `origin` URL with any credentials removed, or "unknown"
 #   owner             CODEOWNERS default rule, else the remote's owner segment,
 #                     else "unknown". Never a commit author.
 #   runtime           comma-joined list of every runtime-scope family, primary
@@ -495,6 +495,11 @@ for raw_path in "$@"; do
 
   # --- remote --------------------------------------------------------------
   remote="$(git -C "$repo" remote get-url origin 2>/dev/null)" || remote=""
+  if [[ "$remote" =~ ^(https?://)[^/@]*@(.*)$ ]]; then
+    remote="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+  elif [[ "$remote" =~ ^([A-Za-z][A-Za-z0-9+.-]*://[^/@:]*):[^/@]*@(.*)$ ]]; then
+    remote="${BASH_REMATCH[1]}@${BASH_REMATCH[2]}"
+  fi
   [[ -n "$remote" ]] || remote="unknown"
 
   # --- name (github.com origin repository segment, else directory basename) -

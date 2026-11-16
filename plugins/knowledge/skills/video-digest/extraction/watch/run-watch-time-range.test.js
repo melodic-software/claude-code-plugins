@@ -158,8 +158,12 @@ describe("run-watch time range (CLI-level)", () => {
       { startSec: 4, endSec: 9, text: "second ranged cue" },
     ]);
 
-    const { sliceDir } = JSON.parse(captured.stdout.join(""));
+    const { sliceDir, videoSlug } = JSON.parse(captured.stdout.join(""));
+    // The range is in the slice key, so another range of this video gets its own slice.
+    expect(videoSlug).toMatch(new RegExp(`-${VIDEO_ID}-r3600-4800$`));
+    expect(path.basename(sliceDir)).toBe(videoSlug);
     const state = JSON.parse(await fs.readFile(watchStatePath(sliceDir), "utf8"));
+    expect(state.videoId).toBe(VIDEO_ID);
     expect(state.timeRange).toEqual({
       fromSec: 3600,
       toSec: 4800,

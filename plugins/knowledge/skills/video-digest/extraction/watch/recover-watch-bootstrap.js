@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
  * Recover run-watch bootstrap from an interrupted session when temp dirs still exist.
+ * A ranged slice (watch.json `timeRange`) is recovered in the range's media time and
+ * written in full-video time, with the recorded range kept.
  *
  * Usage:
  *   node watch/recover-watch-bootstrap.js <slice-dir> <workDir> <framesDir> <contactSheetsDir>
@@ -19,6 +21,11 @@ import { selectCaptionFile } from "../acquisition/select-caption.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
 import { runMain } from "../lib/run-main.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
+import {
+  cuesInMediaTime,
+  keyframeOffsetErrorSec,
+  watchingInVideoTime,
+} from "../lib/time-range.js";
 import { planFrameCoverage } from "../watching/compute-coverage-plan.js";
 import { normalizeVttCues } from "../watching/cue-normalize.js";
 import { isHighVolume, selectFramesForCoverage } from "../watching/frame-budget.js";
@@ -63,6 +70,24 @@ export async function resolveRecoverySourceUrl(sliceDir) {
 async function resolveRecoveryMaxFrameGapSec(sliceDir) {
   const recorded = (await readWatchState(sliceDir))?.maxFrameGapSec;
   return typeof recorded === "number" && recorded > 0 ? recorded : undefined;
+}
+
+/**
+ * The range a ranged run recorded in `watch.json`, or null for a whole-video slice.
+ * The work dir holds that run's ranged media, so recovery plans in media time and
+ * adds the range's start back before writing, as `run-watch.js` does.
+ *
+ * @param {string} sliceDir
+ * @returns {Promise<import('../lib/time-range.js').TimeRange & { offsetErrorSec: number|null } | null>}
+ */
+async function resolveRecoveryTimeRange(sliceDir) {
+  const recorded = (await readWatchState(sliceDir))?.timeRange;
+  if (!recorded || typeof recorded.fromSec !== "number") return null;
+  return {
+    fromSec: recorded.fromSec,
+    toSec: typeof recorded.toSec === "number" ? recorded.toSec : null,
+    offsetErrorSec: typeof recorded.offsetErrorSec === "number" ? recorded.offsetErrorSec : null,
+  };
 }
 
 /**
@@ -272,7 +297,10 @@ export async function recoverWatchBootstrapCli(argv) {
   const { videoPath, vttPath, infoPath } = resolveWorkArtifacts(workDir, adapter.captionClass);
   const metadata = parseVideoMetadata(JSON.parse(fs.readFileSync(infoPath, "utf8")));
   const vttText = fs.readFileSync(vttPath, "utf8");
-  const cues = normalizeVttCues(vttText);
+  const timeRange = await resolveRecoveryTimeRange(sliceDir);
+  // The captions are full-video time; ranged media starts at the range.
+  const videoCues = normalizeVttCues(vttText);
+  const cues = timeRange ? cuesInMediaTime(videoCues, timeRange) : videoCues;
 
   const probe = await probeVideoDuration(videoPath);
   const durationSec = probe?.durationSec ?? cues.at(-1)?.endSec ?? 0;
@@ -319,7 +347,7 @@ export async function recoverWatchBootstrapCli(argv) {
     densificationWindowCount: windows.length,
   });
 
-  const watching = {
+  const mediaWatching = {
     sceneFrames: [],
     uniqueFrames: merged,
     densificationWindows: windows,
@@ -333,6 +361,15 @@ export async function recoverWatchBootstrapCli(argv) {
     overCap: false,
     candidateCount: selection.candidateCount,
   };
+  const offsetErrorSec = timeRange
+    ? (keyframeOffsetErrorSec(timeRange, {
+        probedDurationSec: probe?.durationSec,
+        videoDurationSec: metadata.durationSec,
+      }) ?? timeRange.offsetErrorSec)
+    : null;
+  const watching = timeRange
+    ? watchingInVideoTime(mediaWatching, { offsetSec: timeRange.fromSec, offsetErrorSec })
+    : mediaWatching;
 
   const tempSession = {
     workDir,
@@ -347,7 +384,9 @@ export async function recoverWatchBootstrapCli(argv) {
     sourceUrl,
     title: metadata.title,
     maxFrameGapSec: coveragePlan.maxFrameGapSec,
+    timeRange,
   });
+  if (state.timeRange) state.timeRange = { ...state.timeRange, offsetErrorSec };
   state.tempSession = tempSession;
   state.status = "vision";
   state = markPhaseComplete(state, "acquire", { videoDownloaded: true, recovered: true });
@@ -360,10 +399,13 @@ export async function recoverWatchBootstrapCli(argv) {
     candidateCount: watching.candidateCount,
   };
 
-  state = await recordDurationMismatch(state, sliceDir, {
-    metadataDurationSec: metadata.durationSec,
-    probedDurationSec: probe?.durationSec,
-  });
+  // Ranged media is shorter than the video by design; its extra length is the offset error.
+  if (!timeRange) {
+    state = await recordDurationMismatch(state, sliceDir, {
+      metadataDurationSec: metadata.durationSec,
+      probedDurationSec: probe?.durationSec,
+    });
+  }
 
   const manifest = await writeWatchingManifest(sliceDir, watching, tempSession);
   state.artifactPaths = {

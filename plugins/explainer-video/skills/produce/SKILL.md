@@ -51,7 +51,7 @@ record bundle or beside the markdown record they explain
      written the way it should be spoken.
    - Run `/speech:narrate` on it with no `--out`, so `narration.wav` and `words.json` land beside
      the script.
-   - When the speech plugin is not installed, or narrate exits 2, render silent and tell the user:
+   - When the speech plugin is not enabled, or narrate exits 2, render silent and tell the user:
      "Narration is unavailable: <the reason>. This video is silent."
 3. Write `scene.py`. `${CLAUDE_PLUGIN_ROOT}/skills/produce/examples/pythagoras.py` is a working
    scene in the expected shape, and `pythagoras.txt` beside it is its narration script.

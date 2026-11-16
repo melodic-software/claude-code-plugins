@@ -3,6 +3,19 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.10] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract.
+
+## [1.2.9] - 2026-11-16
+
+### Changed
+
+- The shared chrome reference's network panel says a rendered view may load a pinned library from a
+  public CDN when the page still shows its content without it; an Artifact view loads nothing.
+
 ## [1.2.8] - 2026-11-15
 
 ### Changed

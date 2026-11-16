@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**CRITICAL**\n- `jest.config.js:7-8`: Fail a change that loosens a check (threshold lowered): branches 85 to 60 and lines 90 to 75. The reason is only in the pull request body, which never counts, and #17 does not name the lowering. Restore the minimums and test the tiers. Confidence: high",
+      "why": "blocking finding that rejects the body's reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Criteria read: none present\n\nThe coverage minimums are lowered, but the PR body explains why and the owner agreed, so this is fine.\n\nNo findings.\n\nCoverage: all changed files reviewed",
+      "why": "accepts the pull request body's reason"
+    },
+    {
+      "answer": "**SUGGESTION**\n- `jest.config.js:7`: consider raising the minimums back once the pricing fixtures land. Confidence: low",
+      "why": "a suggestion only"
+    }
+  ]
+}

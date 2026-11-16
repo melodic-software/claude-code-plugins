@@ -83,6 +83,23 @@ export function downloadSectionSpec(range) {
 }
 
 /**
+ * The slice key of a ranged slice: the source's key plus `-r<fromSec>-<toSec>`, in
+ * whole seconds, with `end` for an open end. Two ranges of one video get two slices,
+ * and the suffix keeps the `[A-Za-z0-9_-]+` charset `derive-video-slug.js` requires.
+ * With no range the key is returned as it is, so an unranged slice keeps its key.
+ *
+ * @param {string} sliceKey - the source adapter's slice key
+ * @param {TimeRange|null|undefined} range
+ * @returns {string}
+ */
+export function rangedSliceKey(sliceKey, range) {
+  if (!range) return sliceKey;
+  const fromSec = Math.floor(range.fromSec);
+  const toSec = range.toSec === null ? "end" : Math.floor(range.toSec);
+  return `${sliceKey}-r${fromSec}-${toSec}`;
+}
+
+/**
  * `1:00:00 to 1:20:00`, or `1:00:00 to the end` for an open end.
  *
  * @param {TimeRange} range

@@ -207,7 +207,7 @@ Invoke `/document-skills:pptx` via the Skill tool (marketplace `anthropic-agent-
 
 ### HTML fallback
 
-Invoke `/frontend-design:frontend-design` via the Skill tool (marketplace `claude-plugins-official`) for `--format html` when in-tree `build-html.js` is unavailable, paired with a slide-layout skill for slide layout patterns when one is installed. These do not include keyboard nav / `?print=1` flag / SVG provider logos out of the box. Reproduce those from `build-html.js`.
+Invoke `/frontend-design:frontend-design` via the Skill tool (marketplace `claude-plugins-official`) for `--format html` when in-tree `build-html.js` is unavailable, paired with a slide-layout skill for slide layout patterns when one is enabled. These do not include keyboard nav / `?print=1` flag / SVG provider logos out of the box. Reproduce those from `build-html.js`.
 
 ### PDF fallback paths
 
@@ -217,7 +217,7 @@ Invoke `/frontend-design:frontend-design` via the Skill tool (marketplace `claud
 ### Skill stack reference (only relevant for fallback)
 
 The fallback skills named above ship from other marketplaces and are not bundled with this
-plugin. Confirm what is installed in the current session before routing to one, and reproduce
+plugin. Confirm which are enabled in the current session before routing to one, and reproduce
 the brand tokens from `slides-data.js` `theme` afterwards, because none of them apply the
 profile brand.
 

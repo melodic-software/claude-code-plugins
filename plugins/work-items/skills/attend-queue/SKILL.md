@@ -155,7 +155,7 @@ same idempotent stale-lease sweep `/work-items:work` Step 0 uses: enumerate assi
 each `number` to a fully-qualified id, `"$TRACKER" reclaim "<id>"` on each. Exit `6`
 (capability-unsupported) skips the sweep for providers that declare `reclaim: false`.
 
-**Clear assignee after disposition (flip while claimed), then release.** The claim is a
+**Release after disposition (flip while claimed).** The claim is a
 coordination lock, not an execution assignment: hand it back as soon as the row is done, since
 `claim` backs off from any earlier live lease, the same login's included (the seam's
 `CONTRACT.md` "Lease protocol", claim step 4), and a lease left to run out its TTL keeps every
@@ -163,29 +163,28 @@ worker lane off the flipped item. Once the row's answer is written
 (triage hands back the `[intake]` rows it claims itself):
 
 - **When the human blocker is removed:** perform the single-edit role-label flip **while this
-  session still holds the claim**, then clear `@me` from assignees via the bound adapter's assignee
-  edit (for GitHub, the adapter README "Edit labels / assignees"; the flag is read live at
-  [gh issue edit § Options](https://cli.github.com/manual/gh_issue_edit#options)), then end the lease with
-  `"$TRACKER" release "<id>" --lease-comment-id <n>`. Never clear the assignee before the flip: a
-  released row still reads as `[escalated]` in another attended session's view until the label
-  lands. A brief frontier delay after the flip is acceptable.
+  session still holds the claim**, then end the lease with
+  `"$TRACKER" release "<id>" --lease-comment-id <n>`, which also clears `@me` unless another live
+  lease of this login holds the item. Never release before the flip: a released row still reads as
+  `[escalated]` in another attended session's view until the label lands. A brief frontier delay
+  after the flip is acceptable.
 - **When disposition leaves the item human-gated** (decline, an answered
   escalation on a human-floor work class that was not reclassified; only `provenance: untrusted`
   and `provenance: signal` floor an item, never a structural class or a missing one, per
   [`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)
-  "The human-floor class excludes the autonomous-eligible role label"): clear `@me` via the
-  same adapter assignee edit once disposition comments are written, still while holding the claim
-  through those writes, then `release` the same way.
+  "The human-floor class excludes the autonomous-eligible role label"): hold the claim through
+  the disposition comments, then `release` the same way.
 - **Release outcomes.** Exit `0` with either `released` value is done: `false` means the lease had
   already expired or been superseded. Exit `6` (the provider declares `release: false`) leaves the
   lease comment live until TTL expiry, and a later session-start `reclaim` clears it once expired.
-  Exit `7` means the handle is no longer this session's active lease; leave it. Never hand-roll
-  lease-comment JSON in place of the verb.
-- A row skipped on exit `7` needs no assignee clear and no release.
+  Exit `7` means the handle is no longer this session's lease, or an earlier live lease outranks
+  it; leave it. Never hand-roll lease-comment JSON in place of the verb.
+- A row skipped on exit `7` needs no release.
 
 **Long operator waits.** When an interview spans longer than the binding's lease TTL, renew the
 held lease via `"$TRACKER" renew-lease "<id>" --lease-comment-id <n>` (the `claim` output carries
-`lease_comment_id`).
+`lease_comment_id`). On exit `7` the session no longer holds the item: stop writing to it, and
+claim again to continue (that claim backs off if another session holds it).
 
 ## Working the queue
 
@@ -202,7 +201,7 @@ never compress this restatement away.
   mutate. All triage machinery (states, outcomes, briefs, closing invariant) is owned there.
 - **`[escalated]` rows**. Read the machine-marked comment for the escalated question, restate the
   brief above, then drive it to a decision by invoking `/planning:interview` via the Skill tool (when the `planning` plugin is
-  installed; otherwise ask the focused questions inline, one at a time, most load-bearing first, the
+  enabled; otherwise ask the focused questions inline, one at a time, most load-bearing first, the
   same fallback shape triage's interview step uses). **Write the answer back as an issue comment** on
   the item, the decision lives on the tracker, never only in the session, replying in the thread of
   the escalation comment where the provider supports it. **Then update the item body** so it
@@ -281,7 +280,7 @@ when the setting resolves `true`
 `{lane}` → `attend-queue`; the per-user value it reads is `${user_config.ai_disclaimer}`); the
 operator's own words need none.
 
-Each answer opens with the decision and stops there: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed;
+Each answer opens with the decision and stops there: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is enabled;
 otherwise apply that discipline inline. It never trims the per-row restatement above.
 
 ## Telemetry
@@ -362,7 +361,7 @@ Two further reader-contract rules apply alongside the floor (outside the byte-au
   parser; never string-interpolate them into a shell command, another interpreter, or a prompt.
 
 For this attended lane, when opted in, "stop claiming new work" means: finish the row in hand
-(including the flip-while-claimed and assignee clear when disposition is complete), then stop
+(including the flip-while-claimed and release when disposition is complete), then stop
 pulling further rows and report the pause to the operator, who may explicitly choose to continue
 (the "explicit user request" the hard-stop rule names). This lane keeps no durable state, so the
 latched account is held in the session only: apply the **Account switch** bullet on each Monitor
@@ -406,7 +405,7 @@ placeholder before running a command or writing it into a brief.
   claim and the topology's single-authority rule.
 - **Claim before mutate, flip while claimed.** The seam `claim` arbitrates two attended sessions
   on one row (exit `7` → skip). The single-edit role-label flip must land while the claim is still
-  held; only then clear `@me` via the adapter assignee edit, and then `release` the lease.
+  held; only then `release` the lease, which clears `@me`.
 - **Do not re-triage routed items.** The `[intake]` source is `/work-items:triage`'s attention
   view by composition; items already carrying a routing outcome are out of scope by construction,
   and naming one explicitly gets triage's "already triaged" stop.

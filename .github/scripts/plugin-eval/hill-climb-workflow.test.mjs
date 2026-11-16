@@ -130,18 +130,11 @@ test("no trace leaves a pass runner: a pass uploads its result, summary and vali
 test("every ci-workflows action is pinned to one full commit", () => {
   const pins = [...(main + pass).matchAll(/uses: melodic-software\/ci-workflows\/[^@\n]+@(\S+) # (.+)/g)].map(([, sha, note]) => `${sha} ${note}`);
   assert.ok(pins.length >= 2);
-  // run-claude-cli, report-lane-outcome and select-model-credential are
-  // pinned where every lane pins them; the rest at one commit.
-  const allowed = [
-    "fc442ad3e808adafe3b195e9d12fff901220db50 fc442ad 2026-11-09",
-    "b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 b8bdd7f 2026-11-04",
-    "6b9c640bf209c0c7e76f1111c5d18c96707348a2 6b9c640 2026-11-02",
-    "5b5110ae015183e900dd098c631d4dcc68904067 5b5110a 2026-11-06",
-  ];
-  for (const pin of pins) assert.ok(allowed.includes(pin), pin);
+  const pin = "944d346c487c79eaf85dff752586fb59b0f5c539 v0.74.0";
+  for (const found of pins) assert.equal(found, pin);
   // The classifier each pass leg checks out is run-claude-cli's, at the same commit.
   const classifier = [...pass.matchAll(/repository: melodic-software\/ci-workflows\n {10}ref: (\S+) # (.+)/g)].map(([, sha, note]) => `${sha} ${note}`);
-  assert.deepEqual(classifier, Array(3).fill("fc442ad3e808adafe3b195e9d12fff901220db50 fc442ad 2026-11-09"));
+  assert.deepEqual(classifier, Array(3).fill(pin));
 });
 
 test("the model steps are read-only, on the maintenance key, then its token, then the fallback token, and frame what they read as data", () => {

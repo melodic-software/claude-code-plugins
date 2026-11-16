@@ -74,8 +74,13 @@ records `fromSec`, `toSec` (null when open-ended), `offsetSec`, `cut: "keyframe"
 `offsetErrorSec`: how much longer the media is than the range, the most a stamp can sit after
 its true time (null when a duration was unknown). Each timed frame's `timestampErrorSec` grows
 by the same amount. The slice `README.md` names the range, and the duration-mismatch check is
-skipped. The slice key stays the video id, so a ranged run shares the whole video's slice
-directory. `--recover` refuses a ranged slice; re-run `run-watch.js` with the same range instead.
+skipped. The slice key gets the range as a suffix, `-r<fromSec>-<toSec>` in whole seconds
+(`0` for an omitted `--from`, `end` for an omitted `--to`), so each range of a video is its own
+slice: `talk-7zZy1QTvokM-r3600-4800` beside the whole-video `talk-7zZy1QTvokM`. `resume`,
+`--recover` and `close` work on a ranged slice. `--recover` plans in the ranged media's time and
+adds the recorded `fromSec` back, and the continuation prompt names the range. A ranged slice
+made before the suffix existed keeps its unsuffixed slug: resume or recover it by that slug, since
+re-running the same range writes a new suffixed slice.
 
 Runs acquire (retry + throttle) → transcript → dynamic coverage watching → metadata link harvest.
 Writes:

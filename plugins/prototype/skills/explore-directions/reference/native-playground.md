@@ -40,8 +40,8 @@ visually" can mean either:
   winning-variant key is kept and the rest is thrown away.
 
 **Routing.** When the ask is to explore a parameter space and hand back a prompt, route it to the
-`playground` skill when that plugin is installed, or to `/playgrounds:use` when that wrapper is
-installed. When neither is, say the capability exists as an installable plugin and do not build an
+`playground` skill when that plugin is enabled, or to `/playgrounds:use` when that wrapper is
+enabled. When neither is, say the capability exists as an installable plugin and do not build an
 imitation. Keep questions about how the user's own screen should be laid out here.
 
 **Mutation gate.** A playground writes its own page; this skill never builds one on its behalf.

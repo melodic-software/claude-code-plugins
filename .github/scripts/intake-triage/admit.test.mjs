@@ -830,7 +830,20 @@ describe("decide", () => {
       assert.deepEqual(decide(facts({ issue: issueOf({ body: `${BODY}\n\nThe lane runs on the subscription login.` }) })), { verdict: "admit", reasons: [] });
       assert.deepEqual(chargeHits("Each lane signs in with its subscription logins.", chargePattern()), []);
       assert.deepEqual(chargeHits("The lane spends Claude subscription usage.", chargePattern()), []);
+      // A lane's subscription leg or token is its Claude OAuth credential.
+      assert.deepEqual(decide(facts({ issue: issueOf({ title: "Give the capture the subscription and fallback legs the other Claude lanes have" }) })), { verdict: "admit", reasons: [] });
+      for (const text of [
+        "- [ ] The fixed \"subscription token cannot go behind the proxy\" reason is removed.",
+        "Give the driver legs subscription and fallback tokens.",
+        "The lane tries its subscription leg, then the subscription fallback.",
+        "Each lane holds two subscription legs and two Subscription Tokens.",
+        "The probe reads the subscription OAuth token.",
+      ]) {
+        assert.deepEqual(chargeHits(text, chargePattern()), [], text);
+      }
       for (const [body, words] of [
+        ["Buy a Copilot subscription for the lane.", "subscription"],
+        ["Upgrade the Claude subscription.", "subscription"],
         ["This needs a plan or seat change.", "seat"],
         ["This needs a paid subscription purchase.", "subscription"],
         ["Create a new Azure subscription for the lane.", "subscription, azure"],
@@ -2747,7 +2760,7 @@ describe("unrunnableCriteria", () => {
     ["a comment on this issue starting with a heading (#7556)", "A comment on this issue starting `Probe result:` records the Cursor version.", /comment instead/],
     // Live CLI items the corpus diff flagged (#7135, #9930).
     ["claude plugin test passing", "`claude plugin test` passes for each touched plugin; skill, eval and drift checks pass.", /Claude Code CLI/],
-    ["claude plugin install exiting", "`claude plugin marketplace add \"$PWD\"` and `claude plugin install core@melodic-software` both exit 0.", /Claude Code CLI/],
+    ["claude plugin install exiting", "`claude plugin marketplace add \"$PWD\"` and `claude plugin install plugin-profiles@melodic-software` both exit 0.", /Claude Code CLI/],
     ["a run of claude plugin install", "Run `claude plugin install testing@melodic-software` in a fresh config directory.", /Claude Code CLI/],
     ["a headless Claude Code run", "A headless Claude Code session started with the new flag exits 0.", /Claude Code CLI/],
     ["a run result recorded in a comment on this issue (#4281)", "`/instruction-placement:migrate cutover-check` has been run, with its met/unmet output recorded in a comment on this issue.", /comment instead/],

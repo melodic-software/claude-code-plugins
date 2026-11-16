@@ -103,6 +103,9 @@ When the fix belongs in a file under `.github/workflows/`, undo your edits for t
 `weaken-required`. A test that is itself wrong is a person's call in this mode: escalate it the
 same way and say why you think so.
 
+Review judges these same changes under the review plugin's bundled criterion "Fail a change that
+loosens a check"; its spec exception does not apply here.
+
 ## A digest pin the pull request moved
 
 A digest pin is a test that hashes the text it guards and fails with the pinned and the computed

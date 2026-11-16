@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/20261115T090000Z-handoff-retry-backoff.md", "content": "## Environment to re-establish\n\n- Branch feat/retry-backoff with an uncommitted change to src/retry.ts.\n- No plugin changed this session."}}
+      ],
+      "why": "save-point says nothing about plugin profiles"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/20261115T090000Z-handoff-retry-backoff.md", "content": "## Environment to re-establish\n\n- Plugin profile: run /plugin-profiles:profile apply build."}}
+      ],
+      "why": "writes a profile restore entry the gate should have skipped"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/20261115T090000Z-handoff-retry-backoff.md", "content": "## Environment to re-establish\n\n- plugin-profiles is disabled, so no profile status was recorded."}}
+      ],
+      "why": "writes about profiles instead of writing nothing"
+    }
+  ]
+}

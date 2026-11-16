@@ -43,12 +43,12 @@ either one `/plugin:skill` invocation on a line, with any arguments that skill t
 followed by a sentence that names what the successor consumes or why it is next; or two to four
 bullets of `<outcome>: /plugin:skill [args].` when the successor depends on the run's result. It
 is a mention for the human, never an operative chain, so it carries no Skill-tool phrasing, no
-installed-ness gate, and no fallback clause. Keeping the graph current is authoring work:
+availability gate, and no fallback clause. Keeping the graph current is authoring work:
 
 - A new skill writes its own `## Next` and edits the predecessor whose `## Next` should now name
   it.
 - A renamed skill is swept with `/docs-hygiene:rename-references audit` (when that plugin is
-  installed; otherwise grep the old token).
+  enabled; otherwise grep the old token).
 - A removed skill's token is grepped and every `## Next` that carried it is edited.
 - `/session-flow:workflow` owns stage routing. A `## Next` states the typical successor; when the
   two disagree, the workflow skill's ladder wins.

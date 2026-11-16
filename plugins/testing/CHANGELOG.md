@@ -3,6 +3,28 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.2] - 2026-11-16
+
+### Changed
+
+- `/testing:run-e2e` takes its own-driving path when app-control is not enabled, and both its route suggestion and its `## Next` name enabling app-control, installing it first if it is not installed, per the seam-phrasing contract.
+
+## [5.1.1] - 2026-11-15
+
+### Changed
+
+- `/testing:write` property guidance now states that it covers every target, a running UI included, and that a fuzz test follows it as a property whose only rule is "does not crash". Fuzz requests route to the property guide.
+
+## [5.1.0] - 2026-11-15
+
+### Changed
+
+- `/testing:write` property tests use the property library the consumer repository resolves to, by the steps in the plugin's new synced copy of the ecosystem-resolution text (`reference/ecosystem-resolution.md`), in every language. The property guide names the audit adapters' `property_markers` and the `extend` key for a library no adapter lists.
+
+### Removed
+
+- `/testing:write` no longer ships per-language property pages (Python, TypeScript and C#), the language routing table, or the pointer to the Hypothesis team's command.
+
 ## [5.0.7] - 2026-11-15
 
 ### Changed

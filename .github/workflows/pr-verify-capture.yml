@@ -41,14 +41,17 @@ name: PR Verify Capture
 # pull request code runs. A probe leg that hands off (run-claude-cli's
 # handoff: a credit stop, or class auth with API status 401 or 402) skips
 # the probe check, so that job checks out no head code and stays green.
-# When the key cannot capture (its probe leg handed off, or the key is
-# empty), the same job uploads a capture recorded blocked: a subscription
-# token cannot go behind the key proxy, so no second leg could capture, and a
-# job for it would only repeat these gates' reads. When the credit gate
-# skips the key the job stops before the resolver and uploads nothing, and
-# the verdict records the capture blocked from find-capture's miss, with the
-# reason "left no capture artifact for this head": expected during a credit
-# stop, not an upload fault. A driver
+# Both legs stay key-only (an owner decision): a subscription token cannot
+# go behind the key proxy. When the key cannot capture, the same job
+# uploads a capture recorded blocked with its cause: credit-stop (the credit
+# gate's marker held the key off, or its probe hit a credit stop),
+# empty-key, probe-handoff (the probe handed off on auth), or unrecognized
+# (a next-leg reason outside those). The cause is advisory: the job writes
+# it from its own calls, and the collect step strips one from the driven
+# session's summary, but that strip runs after the head checkout, so the
+# cause informs an operator and gates nothing. When the credit gate skips the key the job
+# stops before the resolver, so that capture is named from the event's pull
+# request and head. A driver
 # that stops at the usage limit after the head checkout leaves a blocked
 # capture saying so, as any driver failure does.
 # Every checkout keeps no credential in its .git/config. Steps after the
@@ -78,10 +81,9 @@ name: PR Verify Capture
 # judges treat both alike (prompt.md).
 #
 # The job uploads at most one pr-capture-<pr>-<head-sha>, the capture, a
-# blocked one or a not-applicable one, and none when the credit gate skips
-# the key; find-capture.mjs reads the run's conclusion and the run's
-# artifacts. The judges wait find-capture.mjs WAIT_MS (35 minutes) from
-# their find step's start, which comes about when this run starts, so the
+# blocked one or a not-applicable one; find-capture.mjs reads the run's
+# conclusion and the run's artifacts. The judges wait find-capture.mjs
+# WAIT_MS (35 minutes) from their find step's start, which comes about when this run starts, so the
 # job's 30 minutes fit; one that starts more than about 5 minutes after this
 # run, on runner queue time, can leave the judges a `running` miss.
 #
@@ -209,8 +211,8 @@ jobs:
       # this job uploads after a credit stop and the probing marker). It needs
       # nothing of the pull request, so it runs first: a held key
       # (next-leg subscription) could only record the capture blocked, so
-      # the job stops here, before the resolver's reads, and uploads nothing;
-      # find-capture then records the verdict's capture blocked by its miss.
+      # the job skips the resolver's reads and every step up to "Write the
+      # blocked capture", which records the cause credit-stop.
       # Its own step, under continue-on-error and a 2-minute limit, so a read
       # that fails or hangs leaves next-leg empty and the job goes on.
       - name: Read the key's credit history
@@ -218,7 +220,7 @@ jobs:
         if: steps.config.outputs.app != ''
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@944d346c487c79eaf85dff752586fb59b0f5c539 # v0.74.0
         with:
           leg: start
           key-job: capture
@@ -233,7 +235,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@944d346c487c79eaf85dff752586fb59b0f5c539 # v0.74.0
         with:
           outcome: skipped
           lane: pr-verify-capture
@@ -375,7 +377,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.agree.outcome == 'success' && steps.match.outputs.applicable != 'false'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@944d346c487c79eaf85dff752586fb59b0f5c539 # v0.74.0
         with:
           leg: key
           role: pr-verify
@@ -602,7 +604,7 @@ jobs:
       # too (run-claude-cli managed-settings.cjs checks it on every leg).
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@fc442ad3e808adafe3b195e9d12fff901220db50 # fc442ad 2026-11-09
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@944d346c487c79eaf85dff752586fb59b0f5c539 # v0.74.0
         with:
           loopback-base-url: http://127.0.0.1:47101
           settings: >-
@@ -947,7 +949,7 @@ jobs:
         if: steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 7
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@fc442ad3e808adafe3b195e9d12fff901220db50 # fc442ad 2026-11-09
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@944d346c487c79eaf85dff752586fb59b0f5c539 # v0.74.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -1012,7 +1014,7 @@ jobs:
       - name: Record the probe leg
         if: always() && steps.probe.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@944d346c487c79eaf85dff752586fb59b0f5c539 # v0.74.0
         with:
           outcome: ${{ steps.probe.outcome }}
           execution-file: ${{ steps.probe.outputs.execution-file }}
@@ -1063,17 +1065,22 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # After a handoff: the owner's signal to rotate or replace the key.
+      # After a handoff: the owner's signal to rotate or replace the key, the
+      # warning every lane raises on its key's handoff, naming the role and
+      # this run, in the annotations and the run summary.
       # This job records the capture blocked and stays green.
       - name: Report the key's handoff
         if: steps.probe.outputs.handoff == 'true'
         env:
           LANE_CLASS: ${{ steps.probe.outputs.lane-class }}
         run: |
+          run="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           case "$LANE_CLASS" in
-            auth) echo "::warning::the API refused the pr-verify role's API key (PR_VERIFY_CLAUDE_API_KEY), class auth; the owner must replace the secret" ;;
-            *) echo "::warning::the pr-verify role's API key (PR_VERIFY_CLAUDE_API_KEY) hit a credit stop; rotate a spare key in" ;;
+            auth) line="the API refused the pr-verify role's API key (PR_VERIFY_CLAUDE_API_KEY), class auth, in run $run; the owner must replace the secret" ;;
+            *) line="the pr-verify role's API key (PR_VERIFY_CLAUDE_API_KEY) hit a credit stop in run $run; rotate a spare key in" ;;
           esac
+          echo "::warning::$line"
+          echo "$line" >>"$GITHUB_STEP_SUMMARY"
 
       # Fails closed: a probe step that did not succeed, any reachable
       # credential or token, a scan that missed its canary, or no result at
@@ -1146,32 +1153,69 @@ jobs:
         id: next
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@944d346c487c79eaf85dff752586fb59b0f5c539 # v0.74.0
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.probe.outputs.handoff }}
           handoff-reason: ${{ steps.probe.outputs.handoff-reason }}
 
-      # The key could not capture (it is empty, or its probe handed off; a
-      # credit-gate skip stopped the job before the resolver) and a
-      # subscription token cannot go behind the key proxy, so no leg
-      # captures: the blocked capture in run-e2e's
-      # shape, which write-verdict.mjs reads as any other, so a verdict still
-      # records why none ran. No head code is checked out after it.
+      # The key could not capture, so no leg captures: the blocked capture in
+      # run-e2e's shape, which write-verdict.mjs reads as any other, with the
+      # cause (credit-stop, empty-key, probe-handoff or unrecognized) taken
+      # only from this job's calls: the credit gate's held key (HELD; the job
+      # stopped before the resolver, so the pull request and head come from
+      # the event), else the next-leg call's reason (WHY), which is printed
+      # only when it is one of the known values. No head code is checked out
+      # after it.
       - name: Write the blocked capture
         id: handoff-capture
-        if: steps.next.outputs.next-leg == 'subscription'
+        if: steps.next.outputs.next-leg == 'subscription' || steps.credit.outputs.next-leg == 'subscription'
         timeout-minutes: 1
         env:
           APP: ${{ steps.config.outputs.app }}
           OUT: ${{ runner.temp }}/pr-capture
+          HELD: ${{ steps.credit.outputs.next-leg }}
           WHY: ${{ steps.next.outputs.next-reason }}
+          ORIGIN_RUN: ${{ steps.credit.outputs.origin-run }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr-number || github.event.workflow_run.pull_requests[0].number }}
+          HEAD_SHA: ${{ steps.pr.outputs.head-sha || github.event.workflow_run.head_sha }}
         run: |
+          if [ "$HELD" = subscription ]; then
+            cause=credit-stop
+            reason="the credit gate's credit-stop marker held the key off"
+            if [[ $ORIGIN_RUN =~ ^[1-9][0-9]{0,19}$ ]]; then
+              reason="$reason; the marker names run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$ORIGIN_RUN"
+            fi
+          else
+            case "$WHY" in
+              credit-stop)
+                cause=credit-stop
+                reason="the key hit a credit stop on this run's probe"
+                ;;
+              no-key)
+                cause=empty-key
+                reason="the key (PR_VERIFY_CLAUDE_API_KEY) is empty"
+                ;;
+              auth)
+                cause=probe-handoff
+                reason="the probe leg handed off: the API refused the key (class auth)"
+                ;;
+              *)
+                cause=unrecognized
+                reason="the key could not capture, for a reason the capture does not recognize"
+                ;;
+            esac
+          fi
+          if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ && $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::notice::the key could not capture ($cause), but the run names no pull request and head, so no capture is uploaded"
+            exit 0
+          fi
           rm -rf "${OUT:?}"
           mkdir -p "$OUT"
-          jq -n --arg app "$APP" \
-            '{route: "none", app: $app, affected: [], capture: {status: "blocked", reason: "subscription token cannot go behind the proxy (R41)", count: 0}, entry_points: [], publishable: []}' >"$OUT/e2e-summary.json"
-          echo "::notice::the key could not capture (${WHY:-unknown}); a subscription token cannot go behind the key proxy, so no leg runs and the capture is recorded blocked"
+          jq -n --arg app "$APP" --arg reason "$reason" --arg cause "$cause" \
+            '{route: "none", app: $app, affected: [], capture: {status: "blocked", reason: $reason, cause: $cause, count: 0}, entry_points: [], publishable: []}' >"$OUT/e2e-summary.json"
+          echo "written=true" >>"$GITHUB_OUTPUT"
+          echo "::notice::the key could not capture ($cause): $reason; the capture is recorded blocked"
 
       # persist-credentials false keeps the job token out of .git/config. The
       # whole history, so run-e2e can diff from the base.
@@ -1318,7 +1362,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 16
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@fc442ad3e808adafe3b195e9d12fff901220db50 # fc442ad 2026-11-09
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@944d346c487c79eaf85dff752586fb59b0f5c539 # v0.74.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CCD_RUNTIME_DIR: /home/runner/.ccd  # machine-path:allow
@@ -1430,7 +1474,7 @@ jobs:
       - name: Record the capture leg
         if: always() && steps.drive.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@944d346c487c79eaf85dff752586fb59b0f5c539 # v0.74.0
         with:
           outcome: ${{ steps.drive.outcome }}
           execution-file: ${{ steps.drive.outputs.execution-file }}
@@ -1568,6 +1612,15 @@ jobs:
           if ! [ -f "$OUT/e2e-summary.json" ] || [ -L "$OUT/e2e-summary.json" ]; then
             blocked "the summary changed while it was copied"
           fi
+          # A cause comes only from "Write the blocked capture", never from
+          # the driven session's summary, in either shape write-verdict.mjs
+          # reads.
+          uncaused=$(mktemp)
+          if ! jq 'del(.cause) | if (.capture | type) == "object" then del(.capture.cause) else . end' "$OUT/e2e-summary.json" >"$uncaused"; then
+            rm -f -- "$uncaused"
+            blocked "the summary could not be read without its cause"
+          fi
+          mv -f -- "$uncaused" "$OUT/e2e-summary.json"
           kept=0
           while IFS= read -r rel; do
             [ "$kept" -lt 50 ] || break
@@ -1599,7 +1652,7 @@ jobs:
 
       - name: Scan the capture for credentials
         id: scan-capture
-        if: always() && (steps.collect.outcome == 'success' || steps.handoff-capture.outcome == 'success' || steps.match.outputs.applicable == 'false')
+        if: always() && (steps.collect.outcome == 'success' || steps.handoff-capture.outputs.written == 'true' || steps.match.outputs.applicable == 'false')
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/pr-capture
@@ -1610,10 +1663,10 @@ jobs:
       # reads the artifact of a successful run alone and records the red one
       # blocked by its conclusion.
       - name: Upload the capture
-        if: (always() && (steps.collect.outcome == 'success' || steps.handoff-capture.outcome == 'success' || steps.match.outputs.applicable == 'false')) && steps.scan-capture.outputs.clean == 'true'
+        if: (always() && (steps.collect.outcome == 'success' || steps.handoff-capture.outputs.written == 'true' || steps.match.outputs.applicable == 'false')) && steps.scan-capture.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: pr-capture-${{ steps.pr.outputs.pr-number }}-${{ steps.pr.outputs.head-sha }}
+          name: pr-capture-${{ steps.pr.outputs.pr-number || github.event.workflow_run.pull_requests[0].number }}-${{ steps.pr.outputs.head-sha || github.event.workflow_run.head_sha }}
           path: ${{ runner.temp }}/pr-capture
           retention-days: ${{ steps.config.outputs.retention-days }}
           if-no-files-found: error

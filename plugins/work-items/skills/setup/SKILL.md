@@ -113,7 +113,7 @@ when this pass must stop instead of guessing.
      leases and no sub-items**, so `/work-items:work` cannot claim on it.
    - **another provider**. Put its adapter consumer-local under
      `<repo root>/tools/work-item-tracker/adapters/<provider>/`; the seam resolves those ahead of
-     the bundled pair, so no fork is needed. `/work-items:onboard-adapter` (if installed) generates
+     the bundled pair, so no fork is needed. `/work-items:onboard-adapter` (if enabled) generates
      one rather than starting from a blank file.
 3. **Settle the config, all non-secret.** `lease_ttl_hours` (required for every provider;
    RECOMMENDED `24`) plus that provider's own subtree, the per-provider key table is in

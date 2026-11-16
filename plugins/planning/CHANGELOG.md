@@ -3,6 +3,42 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.4.4] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract. `/planning:plan` gates `/discipline:pick-for-the-problem` and `/performance:goal` and names the inline fallback; its `## Next` no longer says the implementation stage runs in the planning session.
+
+## [5.4.3] - 2026-11-16
+
+### Changed
+
+- The shared chrome reference's network panel says a rendered view may load a pinned library from a
+  public CDN when the page still shows its content without it; an Artifact view loads nothing.
+
+## [5.4.2] - 2026-11-16
+
+### Changed
+
+- `shared/web/proto-pin.js`, the generated copy of `lib/ui-feedback/proto-pin.js`, adds control
+  values to its view snapshot and answers the notes host's Controls tab, both only on a page that
+  carries the controls runtime. The prototype page loads no controls runtime and ignores the
+  ready message's new fields and the new content message, so it behaves as before.
+
+## [5.4.1] - 2026-11-15
+
+### Changed
+
+- The plan template's domain-specialist guidance cites a skill only when it is among the available skills (enabled, not merely installed), and lists the skills actually available.
+
+## [5.4.0] - 2026-11-15
+
+### Added
+
+- **`/planning:interview`, round header.** One `Later:` line names the topics of rounds that are
+  known to follow and not ready yet. It lists topics, not questions: nothing on it takes a
+  `Q<N>` or a register row.
+
 ## [5.3.0] - 2026-11-15
 
 ### Added

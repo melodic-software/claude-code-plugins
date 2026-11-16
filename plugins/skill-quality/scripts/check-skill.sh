@@ -158,8 +158,8 @@
 #      chaining heading either, where it is WARN (27b); present but after
 #      `## Gotchas`, last in the file, neither
 #      the one-invocation nor the two-to-four-outcome-bullet shape, or
-#      carrying operative-chain phrasing (Skill tool, installed, fallback,
-#      otherwise) anywhere in the block is WARN
+#      carrying operative-chain phrasing (Skill tool, installed, an enabled
+#      gate, fallback, otherwise) anywhere in the block is WARN
 #  28. Every metadata key is listed in scripts/metadata-registry.txt with the
 #      consumer that reads it (WARN on a key missing from it)
 #  29. No bare `#N` history reference in the SKILL.md body (WARN; code spans,
@@ -2472,10 +2472,10 @@ else
   fi
   # Either shape is a mention for the human, so the whole block, not just the
   # line that names the successor, is read for the three things the rule
-  # excludes: Skill-tool phrasing, an installed-ness gate, a fallback clause.
-  NEXT_OPERATIVE="$(grep -oiE 'skill tool|installed|fall ?back|otherwise' <<<"$NEXT_BLOCK" | head -1 || true)"
+  # excludes: Skill-tool phrasing, an availability gate, a fallback clause.
+  NEXT_OPERATIVE="$(grep -oiE 'skill tool|installed|(^|[^[:alnum:]_])(is|are|if|when)( not)? enabled([^[:alnum:]_]|$)|fall ?back|otherwise' <<<"$NEXT_BLOCK" | head -1 | sed -E -e 's/^[^[:alpha:]]+//' -e 's/[^[:alpha:]]+$//' || true)"
   if [[ -n "$NEXT_OPERATIVE" ]]; then
-    NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }carries operative-chain phrasing ('$NEXT_OPERATIVE'); a successor is a mention, with no Skill-tool phrasing, installed-ness gate, or fallback clause"
+    NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }carries operative-chain phrasing ('$NEXT_OPERATIVE'); a successor is a mention, with no Skill-tool phrasing, availability gate, or fallback clause"
   fi
   if [[ -n "$NEXT_HIT" ]]; then
     warn "'## Next' section $NEXT_HIT. The skill-bodies rule wants one /plugin:skill line, or two to four '<outcome>: /plugin:skill' bullets, placed before '## Gotchas'"

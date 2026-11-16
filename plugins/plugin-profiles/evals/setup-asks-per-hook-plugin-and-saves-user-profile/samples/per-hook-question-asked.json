@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": "Installed: notes-hooks (jot) and draw (sketch).\n\nnotes-hooks ships a SessionStart hook. Should notes-hooks be always on, in every session, or per profile, loaded only by the profiles you add it to?"
+    },
+    {
+      "answer": "**notes-hooks** runs a hook at session start. Per profile or always on for it?",
+      "why": "the two choices in the other order"
+    },
+    {
+      "answer": "Phase 4 of 7. notes-hooks ships hooks: do you want it **always-on** or **per-profile**?",
+      "why": "hyphenated choices, markdown bold"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Saved docs at ~/.claude/plugin-profiles/docs.yaml. As you said, notes-hooks is per profile, not always on. Want me to apply docs to this folder?",
+      "why": "the per-hook answer was given up front and recorded, the question was never asked"
+    },
+    {
+      "answer": "Recorded notes-hooks as per profile rather than always on, since you only build docs. Shall I preview the docs profile?",
+      "why": "the answer guessed instead of asked"
+    },
+    {
+      "answer": "Which phases do you work in: exploring, planning, building or reviewing?",
+      "why": "a different question"
+    },
+    {
+      "answer": "Should draw be always on or per profile?",
+      "why": "asks about a plugin that ships no hooks"
+    }
+  ]
+}

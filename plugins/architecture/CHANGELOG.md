@@ -3,6 +3,82 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.0] - 2026-11-16
+
+### Added
+
+- **`/architecture:enforce-boundaries`.** Sets up a check for each rule in the `## Boundary rules`
+  section of the architecture topic doc, using the strongest mechanism the repository supports: a
+  boundary the build already enforces, then the repository's own architecture-test tool, then a
+  tool researched at run time, then a check in the repository's own convention. It ships no tool
+  config. Each rule is proven on its own by an injected violation that must fail the check naming
+  the rule, then pass once only those lines are removed; the check is wired into the command that
+  already runs the repository's checks, the rest is reported as not wired, and each entry gains
+  `Enforced by: <command>`. Every write waits for a yes, a new dependency is always asked, and an
+  unattended run stops at the plan. With no rule recorded it writes nothing and names the
+  `conventions` and `boundaries` lenses.
+- **Boundary rule forms.** The list of recorded forms adds entry-points only and no cycles, with
+  what crosses each. The `boundaries` lens reports both as `not checkable from manifests`, except
+  a no-cycles rule between projects, and reports an entry carrying `Enforced by:` as already
+  enforced.
+
+- **`/architecture:improve-layout`.** The co-change layout check as its own skill: the co-change
+  script, its tests, its measures reference and its eval cases moved with it, and its trigger
+  phrases ('do files that change together live together', 'co-change layout') moved from
+  `improve`'s description to its own.
+- **`reference/improvement-steps.md`.** One file owns the steps every lens takes the same way:
+  base freshness, scope and fan-out, recorded decisions, the convention home with one table of the
+  resolver's exit codes, the memory-tier write rules, badge bands and the hand-off. The lens
+  playbooks cite it by section instead of citing the deepening playbook.
+- **`improve`'s roster test.** `skills/improve/scripts/lens-roster.test.sh` fails when a lens
+  playbook has no Actions-table row or `argument-hint` entry, or a row or entry has no playbook.
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract.
+
+- `/architecture:improve`'s `## Next` names `/architecture:enforce-boundaries` for a recorded
+  boundary rule that nothing enforces yet.
+
+- **Convention home in `boundaries` and `conventions`.** Both now read the architecture topic doc
+  under the default home, `docs/conventions`, when the resolver exits 1 (no pointer) or 4 (home
+  declined), as the settings cascade and the layout check already did; before, they read nothing
+  on any exit but 0. Writes still happen only on exit 0.
+- **Memory-tier writes in `deepening` and `improve-layout`.** They now follow the rules `boundaries`
+  already had: no file when the memory root is the repository root or the slice name cannot be
+  formed, never overwrite (`-2`, then `-3`), and a refused write puts the content in the report.
+- **No recorded style in `improve-layout`, attended.** The run no longer stops at Phase 1 to ask
+  how files should be grouped: it computes the cards without a style and asks once after them.
+- **Scope in `conventions`.** Its scan now scopes as the other lenses do: a given spec or plan sets
+  the areas, and the history step leaves out `[bot]` authors.
+- **Roster.** The plugin description, the README and `improve`'s description, argument hint,
+  summary, Purpose, reference index and `## Next` name the lenses that exist; "Adding a lens" lists
+  every place a new lens must be added.
+- **Plugin root in the `boundaries` and `conventions` playbooks.** The resolver call is written
+  with the `<plugin-root>` placeholder `improve`'s `SKILL.md` renders, not a variable a read file
+  does not expand.
+
+### Removed
+
+- **`/architecture:improve layout`.** The layout lens is no longer an action of
+  `/architecture:improve`; run `/architecture:improve-layout` instead, with the same `--path` and
+  one-run settings. `improve` keeps the `deepening`, `boundaries` and `conventions` lenses.
+
+## [4.5.3] - 2026-11-16
+
+### Changed
+
+- `improve`'s copy of the rendered-views security baseline states the new network rule: a view may
+  load a pinned library from a public CDN with a fallback, and an Artifact view stays
+  self-contained. The deepening report still fetches nothing, now as its own choice.
+
+## [4.5.2] - 2026-11-16
+
+### Fixed
+
+- **`/architecture:map-landscape`, recorded remote.** A user name, password or token embedded in a
+  repository's origin URL is removed before the URL is written to the landscape facts and record.
+
 ## [4.5.1] - 2026-11-15
 
 ### Changed
