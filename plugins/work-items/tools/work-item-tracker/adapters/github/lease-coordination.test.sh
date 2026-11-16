@@ -108,6 +108,8 @@ gh() {
       jq -c --arg l "$login" 'if index($l) then . else . + [$l] end' "$d/assignees" >"$d/assignees.tmp" &&
         mv "$d/assignees.tmp" "$d/assignees"
     fi
+    # $d/assign-fails: the assignment lands but the call reports failure, as on a timeout.
+    [[ ! -f "$d/assign-fails" ]] || return 1
     cat "$d/assignees" 2>/dev/null || printf '[]\n'
     ;;
   *".assignees[].login"*)
@@ -321,15 +323,15 @@ assert_contains "claim assigns via REST" "$(calls)" "ADD_ASSIGNEE alice"
 cleanup_scenario
 
 # [foreign assignee] our assignment lands, but bob already holds the item →
-# conflict (7), and our own @me assignment is rolled back.
+# conflict (7), and our own @me assignment is rolled back once, alice holding no lease.
 new_scenario
 printf 'alice\n' >"$GH_STUB_DIR/login"
 jq -cn '["alice","bob"]' >"$GH_STUB_DIR/assignees"
-lease_array 1 "$(marker alice "$FUTURE" 24)" >"$GH_STUB_DIR/lease-comments"
+printf '[]\n' >"$GH_STUB_DIR/lease-comments"
 rc=0
 bash "$CLAIM" "$ID" --ttl-hours 24 >/dev/null 2>&1 || rc=$?
 assert_eq "claim returns conflict (7) when another login is assigned" "7" "$rc"
-assert_contains "claim rolls its own assignment back on conflict" "$(calls)" "REMOVE_ASSIGNEE alice"
+assert_eq "claim rolls its own assignment back once on conflict" "1" "$(grep -c '^REMOVE_ASSIGNEE alice' "$GH_STUB_DIR/calls.log")"
 cleanup_scenario
 
 # [silently dropped assignment] REST POST /assignees returns 201 but drops a login
@@ -930,6 +932,145 @@ assert_eq "the winner holds lease 1" "false" "$(superseded 1)"
 assert_eq "alice stays assigned while the winner holds" '["alice"]' "$(assignees_now)"
 bash "$RELEASE" "$ID" --lease-comment-id 1 >/dev/null 2>&1
 assert_eq "after the winner's release no assignee is left" "[]" "$(assignees_now)"
+cleanup_scenario
+
+# ===========================================================================
+# Finding 10 — a renew that lands near expiry yields to a newer claimant, a claim's
+# failure path keeps a same-login holder's assignee, and a refused release hands back.
+# ===========================================================================
+# short_scenario: alice's lease 1 expires within the skew margin, alice assigned.
+short_scenario() {
+  new_scenario
+  : >"$GH_STUB_DIR/stateful"
+  printf 'alice\n' >"$GH_STUB_DIR/login"
+  printf '["alice"]\n' >"$GH_STUB_DIR/assignees"
+  lease_array 1 "$(short_marker alice)" >"$GH_STUB_DIR/lease-comments"
+}
+
+# [renew lands near expiry] the lane posts lease 2 after the renew's lease read, so every
+# check before the PATCH passes; the lane may have found lease 1 expired, so the renew
+# must not leave lease 1 live over it.
+short_scenario
+hook "$(next_read list 1)-after" put_lease 2 "$(marker "$LANE" "$FUTURE" 2)"
+rc=0
+err="$(bash "$RENEW" "$ID" --lease-comment-id 1 2>&1 >/dev/null)" || rc=$?
+assert_eq "a renew landing near expiry under a newer lease exits conflict (7)" "7" "$rc"
+assert_contains "the refusal says the renew landed too close to expiry" "$err" "too close to expiry"
+assert_eq "the renewed lease 1 is superseded" "true" "$(superseded 1)"
+assert_eq "the lane's lease 2 stays live" "false" "$(superseded 2)"
+cleanup_scenario
+
+# [renew near expiry, re-list fails twice] a failed read keeps the lease: the renew
+# retries the list once, then keeps lease 1 and says so.
+short_scenario
+: >"$GH_STUB_DIR/list-fails-2"
+: >"$GH_STUB_DIR/list-fails-3"
+rc=0
+err="$(bash "$RENEW" "$ID" --lease-comment-id 1 2>&1 >/dev/null)" || rc=$?
+assert_eq "a renew near expiry whose re-lists fail succeeds (0)" "0" "$rc"
+assert_contains "that renew says the lease is kept" "$err" "renew-lease: could not re-read the leases after the renew; lease kept"
+assert_eq "that renew retries the list once" "3" "$(cat "$GH_STUB_DIR/lease-comments.count")"
+assert_eq "that renew writes only its renew PATCH" "1" "$(grep -c '^PATCH 1' "$GH_STUB_DIR/calls.log")"
+cleanup_scenario
+# [renew near expiry, re-list fails once] the retry sees the newer lease and yields.
+short_scenario
+: >"$GH_STUB_DIR/list-fails-2"
+hook "list-3" put_lease 2 "$(marker "$LANE" "$FUTURE" 2)"
+rc=0
+bash "$RENEW" "$ID" --lease-comment-id 1 >/dev/null 2>&1 || rc=$?
+assert_eq "a renew whose retried re-list shows a newer lease exits conflict (7)" "7" "$rc"
+assert_eq "that renew supersedes lease 1" "true" "$(superseded 1)"
+cleanup_scenario
+
+# [renew far from expiry] a normal renew reads the lease list once.
+attended_scenario
+sleep 1
+printf '0\n' >"$GH_STUB_DIR/lease-comments.count"
+bash "$RENEW" "$ID" --lease-comment-id 1 >/dev/null 2>&1
+assert_eq "a renew far from expiry succeeds (0)" "0" "$?"
+assert_eq "that renew reads the lease list once" "1" "$(cat "$GH_STUB_DIR/lease-comments.count")"
+cleanup_scenario
+
+# [same-login claim dies after its post] alice's attended lease 1 holds; a second alice
+# session posts lease 2 and fails on its arbitration read. Its rollback must leave alice
+# assigned for lease 1.
+attended_scenario
+: >"$GH_STUB_DIR/list-fails-$(($(cat "$GH_STUB_DIR/lease-comments.count") + 1))"
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 1 --phase triage >/dev/null 2>&1 || rc=$?
+assert_eq "the second session's claim exits non-zero" "true" "$([[ $rc -ne 0 ]] && echo true || echo false)"
+assert_eq "its lease 2 is superseded" "true" "$(superseded 2)"
+assert_eq "alice stays assigned for live lease 1" '["alice"]' "$(assignees_now)"
+cleanup_scenario
+
+# [same-login step-2 conflict] bob was added by hand next to the attended alice; a second
+# alice session backs off at step 2 and must leave alice assigned for lease 1.
+attended_scenario
+printf '["alice","bob"]\n' >"$GH_STUB_DIR/assignees"
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 1 --phase triage >/dev/null 2>&1 || rc=$?
+assert_eq "the second session backs off (7) on bob" "7" "$rc"
+assert_eq "alice stays assigned for live lease 1" '["alice","bob"]' "$(assignees_now)"
+cleanup_scenario
+
+# [assign lands but reports failure] the claim exits on the failed assign; the rollback
+# removes the assignment that landed, since alice holds no lease.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf 'alice\n' >"$GH_STUB_DIR/login"
+printf '[]\n' >"$GH_STUB_DIR/assignees"
+printf '[]\n' >"$GH_STUB_DIR/lease-comments"
+: >"$GH_STUB_DIR/assign-fails"
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 24 >/dev/null 2>&1 || rc=$?
+assert_eq "a claim whose assign reports failure exits non-zero" "true" "$([[ $rc -ne 0 ]] && echo true || echo false)"
+assert_eq "the assignment that landed is rolled back" "[]" "$(assignees_now)"
+cleanup_scenario
+
+# [refused expired release] alice's lease 1 expired and a newer lease 2 is pending: the
+# release is refused (7) and hands back alice unless lease 2 is alice's own.
+refused_release_case() {
+  new_scenario
+  : >"$GH_STUB_DIR/stateful"
+  printf 'alice\n' >"$GH_STUB_DIR/login"
+  printf '["alice"]\n' >"$GH_STUB_DIR/assignees"
+  jq -cn --arg a "$(marker alice "$PAST" 24)" --arg b "$(marker "$2" "$FUTURE" 2)" \
+    '[{id:1, node_id:"MDEx", body:$a, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"},
+      {id:2, node_id:"MDEx", body:$b, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"}]' >"$GH_STUB_DIR/lease-comments"
+  rc=0
+  bash "$RELEASE" "$ID" --lease-comment-id 1 >/dev/null 2>&1 || rc=$?
+  assert_eq "$1: exit" "7" "$rc"
+  assert_eq "$1: assignees" "$3" "$(assignees_now)"
+  cleanup_scenario
+}
+refused_release_case "a refused release under a lane lease unassigns alice" "$LANE" '[]'
+refused_release_case "a refused release under alice's own newer lease keeps her" alice '["alice"]'
+
+# [release clock] the lease expires between two clock reads; release decides on one read,
+# so it releases the lease that was live at that read.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf 'alice\n' >"$GH_STUB_DIR/login"
+printf '["alice"]\n' >"$GH_STUB_DIR/assignees"
+T0=1783828800
+lease_array 1 "$(marker alice "2026-07-12T04:00:00Z" 1)" >"$GH_STUB_DIR/lease-comments"
+printf '%s\n' "$((T0 + 3599))" "$((T0 + 3600))" >"$GH_STUB_DIR/clock"
+# date: `date -u +%s` answers the next line of $GH_STUB_DIR/clock, repeating the last.
+date() {
+  if [[ "$*" == "-u +%s" && -f "${GH_STUB_DIR:?}/clock" ]]; then
+    head -n 1 "$GH_STUB_DIR/clock"
+    [[ "$(wc -l <"$GH_STUB_DIR/clock")" -le 1 ]] ||
+      { tail -n +2 "$GH_STUB_DIR/clock" >"$GH_STUB_DIR/clock.tmp" && mv "$GH_STUB_DIR/clock.tmp" "$GH_STUB_DIR/clock"; }
+  else
+    command date "$@"
+  fi
+}
+export -f date
+rc=0
+bash "$RELEASE" "$ID" --lease-comment-id 1 >/dev/null 2>&1 || rc=$?
+unset -f date
+assert_eq "release of a lease live at its clock read succeeds (0)" "0" "$rc"
+assert_eq "that release supersedes lease 1" "true" "$(superseded 1)"
 cleanup_scenario
 
 [[ $FAILED -eq 0 ]] || exit 1

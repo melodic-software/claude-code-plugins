@@ -118,4 +118,10 @@ assert_eq "winner: the self id is never passed to the released-fn" "30" "$WIT_WI
 wit_lease_winner "$LEASES_NONE" "$NOW" 100
 assert_eq "winner: no live lease → empty id" "" "$WIT_WINNER_ID"
 
+# Newer live lease: only a live lease with a higher comment id than self counts.
+assert_succeeds "newer: a live lease after self is found" "found" "not found" wit_newer_live_lease "$LEASES_MIXED" "$NOW" 30
+assert_fails "newer: no lease after the newest" "not found" "found" wit_newer_live_lease "$LEASES_MIXED" "$NOW" 40
+LEASES_SUP_AFTER="$(jq -cn --arg a "$LIVE_A" --arg d "$SUP_D" '[{id:10, body:$a}, {id:20, body:$d}]')"
+assert_fails "newer: a superseded lease after self does not count" "not found" "found" wit_newer_live_lease "$LEASES_SUP_AFTER" "$NOW" 10
+
 [[ $FAILED -eq 0 ]] || exit 1
