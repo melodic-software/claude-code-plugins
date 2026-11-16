@@ -2,4 +2,4 @@
 bump: none
 ---
 
-The write-identities table lists the re-pin App that maintenance-repin-ci-workflows.yml writes as; the contract does not change.
+The write-identities table lists maintenance-repin-ci-workflows.yml among the workflows that write as the release App; the contract does not change.
