@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# An invoice export of three one-step classes. Three call sites (jobs, api, cli) repeat the
-# load, format, write sequence; the case's scan report says five. There are no tests.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
