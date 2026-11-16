@@ -817,7 +817,7 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
 # Glossary skill renamed (Q61): /domain-driven-design:curate-language becomes /domain-driven-design:ubiquitous-language with its curate action for writes, and the interview reads the glossary through its lookup action (Q64) with a repository search fallback; only those tokens and the read line changed, so the no-silent-resolve rule, the constraint-ledger rows and the late-commitment next-free-id rule are byte-identical
 # Only pointer as-of dates and recheck triggers were removed (upstream-drift 5.0.0); every defense sentence and pinned line is unchanged.
 # edits say where an inline terminal round ends, what the mechanism question cites as its basis, and that a coined definition is agreed in a withheld question (the sweep asks it withheld where it recommended it); the no-silent-resolve rule and the late-commitment next-free-id rule are byte-identical, and the tripwire trigger and outcomes and the sweep's scope and item shape are unchanged
-# Only the /session-flow:workflow gate clause changed from 'if installed' to 'if enabled' (seam-phrasing gate, #16430); no defense sentence in either section changed
+# The /session-flow:workflow gate clause changed from 'if installed' to 'if enabled' and its Pointer fallback from 'not installed' to 'not enabled' (seam-phrasing gate, #16430); no defense sentence changed
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
