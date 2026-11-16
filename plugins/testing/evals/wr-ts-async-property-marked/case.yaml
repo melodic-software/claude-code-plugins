@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: wr-ts-async-property-marked
+description: 'TypeScript, no recomputed-derived-value finding. encodeRecord and decodeRecord are async, so the fast-check property is an fc.asyncProperty inside an awaited (or returned) fc.assert: a property whose expected value comes from generated input carries the js-jest adapter''s property marker, which /testing:audit''s rule-recomputed-derived skips, and an assert that is not awaited never reports its failure. skill-fired reads the Skill calls; property-marker and awaits-async-property read src/codec.test.ts. Needs --scaffold --allow-tools Write Edit.'
+tags: [testing, write, property, typescript, fast-check, audit-marker, scaffold, no-network]
+expected_outcome: 'src/codec.test.ts holds await fc.assert(fc.asyncProperty(...)) (or return fc.assert(...)) checking that decodeRecord(await encodeRecord(r)) equals r, so the audit''s recomputed-derived rule reports nothing on it.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Write a property-based test for encodeRecord and decodeRecord in src/codec.ts and put it in src/codec.test.ts. We use vitest and fast-check (see package.json). Dependencies are not installed in this checkout, so write the file and do not run it. Use the `testing:write` skill if you have it.'
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: property-marker
+    type: regex
+    pattern: 'fc\s*\.\s*(?:assert|property|asyncProperty)\s*\('
+    target: { source: file, path: src/codec.test.ts }
+  - name: awaits-async-property
+    type: regex
+    pattern: '\b(?:await|return)\s+fc\s*\.\s*assert\s*\(\s*fc\s*\.\s*asyncProperty\s*\('
+    target: { source: file, path: src/codec.test.ts }

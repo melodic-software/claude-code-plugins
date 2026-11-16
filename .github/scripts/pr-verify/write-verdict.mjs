@@ -84,7 +84,12 @@ function checkIssues(issues) {
 
 // The capture outcomes a capture summary may record (merge.verify-capture).
 export const CAPTURES = Object.freeze(["ran", "skipped", "blocked", "not-applicable", "no-app"]);
+// Why the key could not capture, which only the capture job's own "Write the
+// blocked capture" step records (its collect step strips one from the driven
+// session's summary).
+export const CAUSES = Object.freeze(["credit-stop", "empty-key", "probe-handoff", "unrecognized"]);
 const CAPTURE_KEYS = "capture,capture_count,features,reason";
+const CAUSED_KEYS = "capture,capture_count,cause,features,reason";
 const REASON_MAX = 1000;
 const FEATURE_MAX = 200;
 const FEATURES_MAX = 30;
@@ -97,9 +102,10 @@ const unreadable = () => ({
 });
 
 // run-e2e's e2e-summary.json (its Step 5), which pr-verify-capture.yml
-// uploads and the judge jobs download: `capture` {status, reason, count} and
-// the touched feature ids in `affected`, read into this file's capture keys.
-// Anything else passes through unchanged, for the schema check to judge.
+// uploads and the judge jobs download: `capture` {status, reason, count, and
+// on a blocked capture the job wrote, cause} and the touched feature ids in
+// `affected`, read into this file's capture keys. Anything else passes
+// through unchanged, for the schema check to judge.
 export function fromE2eSummary(summary) {
   if (!isObject(summary) || !isObject(summary.capture)) {
     return summary;
@@ -109,11 +115,14 @@ export function fromE2eSummary(summary) {
     capture_count: summary.capture.count,
     features: summary.affected,
     reason: summary.capture.reason,
+    ...(Object.hasOwn(summary.capture, "cause") ? { cause: summary.capture.cause } : {}),
   };
 }
 
 // The capture summary as recorded, and anything outside the schema,
-// credential-shaped text included, blocked. With no summary, find-capture's
+// credential-shaped text included, blocked. A cause stands only in run-e2e's
+// nested shape, the one the capture job writes, on a blocked capture and
+// from CAUSES; it is advisory. With no summary, find-capture's
 // blocked reason (CAPTURE_BLOCKED, which it writes for every miss with the
 // app set) is blocked with that reason, and only no reason at all, the app
 // unset, is no-app.
@@ -122,9 +131,11 @@ function captureEvidence(raw, blocked) {
     return blocked ? captureEvidence({ capture: "blocked", reason: blocked, capture_count: 0, features: [] }) : noApp();
   }
   const summary = fromE2eSummary(raw);
+  const nested = isObject(raw) && isObject(raw.capture);
   if (
     !isObject(summary) ||
-    Object.keys(summary).sort().join() !== CAPTURE_KEYS ||
+    !(nested ? [CAPTURE_KEYS, CAUSED_KEYS] : [CAPTURE_KEYS]).includes(Object.keys(summary).sort().join()) ||
+    (Object.hasOwn(summary, "cause") && (summary.capture !== "blocked" || !CAUSES.includes(summary.cause))) ||
     !CAPTURES.includes(summary.capture) ||
     !stringOrNull(summary.reason) ||
     !Number.isSafeInteger(summary.capture_count) ||
@@ -138,6 +149,7 @@ function captureEvidence(raw, blocked) {
   return {
     capture: summary.capture,
     reason: summary.reason === null ? null : summary.reason.slice(0, REASON_MAX),
+    ...(Object.hasOwn(summary, "cause") ? { cause: summary.cause } : {}),
     capture_count: summary.capture_count,
     features: summary.features.slice(0, FEATURES_MAX).map((feature) => feature.slice(0, FEATURE_MAX)),
   };
@@ -154,6 +166,13 @@ export function localLoop(body) {
 
 export function buildEvidence({ capture, captureBlocked, prBody } = {}) {
   return { ...captureEvidence(capture, captureBlocked), local_loop: localLoop(prBody) };
+}
+
+// The verdict's capture as an annotation, from the closed lists alone: the
+// reason, which a driven session may have written, stays in the verdict file.
+export function captureLine(pr, evidence) {
+  const cause = evidence.capture === "blocked" ? ` cause=${evidence.cause ?? "none"}` : "";
+  return `::notice title=pr-verify capture::pr=${pr} capture=${evidence.capture}${cause}`;
 }
 
 // run-claude-cli's own scan, which fails its step on a shorter Anthropic key
@@ -844,6 +863,7 @@ export function main(env = process.env) {
       `index-names<<INDEX_NAMES\n${index.join("\n")}\nINDEX_NAMES\n`,
   );
   results.forEach(({ k, output: one }) => console.log(`::notice title=pr-verify chunk::pr=${verdict.pr} chunk=${k}/${count} verdict=${one?.verdict ?? "none"}`));
+  console.log(captureLine(verdict.pr, verdict.evidence));
   console.log(`write-verdict: ${name}`);
 }
 

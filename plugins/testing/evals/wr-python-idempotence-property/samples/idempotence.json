@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "@given(st.lists(st.text()))\ndef test_idempotent(tags):\n    assert normalize_tags(normalize_tags(tags)) == normalize_tags(tags)\n",
+      "why": "two passes equal one"
+    },
+    {
+      "answer": "@given(st.lists(st.text()))\ndef test_idempotent(tags):\n    once = normalize_tags(tags)\n    assert normalize_tags(once) == once\n",
+      "why": "through a saved first result"
+    },
+    {
+      "answer": "@given(st.lists(st.text()))\ndef test_idempotent(tags):\n    first = normalize_tags(tags)\n    assert first == normalize_tags(first)\n",
+      "why": "operands swapped"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "@given(st.lists(st.text()))\ndef test_sorted(tags):\n    result = normalize_tags(tags)\n    assert result == sorted(result)\n",
+      "why": "sorted output, not idempotence"
+    },
+    {
+      "answer": "@given(st.lists(st.text()))\ndef test_same(tags):\n    assert normalize_tags(tags) == normalize_tags(tags)\n",
+      "why": "one pass compared to itself"
+    }
+  ]
+}

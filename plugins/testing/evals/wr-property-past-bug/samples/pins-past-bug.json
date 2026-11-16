@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "@given(st.text())\n@example(\"!!!\")\ndef test_slug_is_never_empty(title):\n    assert slugify(title) != \"\"\n",
+      "why": "the reported input as a fixed example"
+    },
+    {
+      "answer": "@example(title='!!!')\n@given(title=st.text())\ndef test_slug_shape(title):\n    assert re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', slugify(title))\n",
+      "why": "keyword form, decorator above given"
+    },
+    {
+      "answer": "@hypothesis.given(st.text())\n@hypothesis.example(\"!!!\")\ndef test_slug(title):\n    pass\n",
+      "why": "module-qualified decorators"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "@given(st.text())\ndef test_slug_is_never_empty(title):\n    assert slugify(title) != \"\"\n\n\ndef test_reported_title():\n    assert slugify(\"!!!\") == \"untitled\"\n",
+      "why": "a separate example test, not a fixed example on the property"
+    },
+    {
+      "answer": "@given(st.text())\n@example(\"Hello, World!\")\ndef test_slug(title):\n    pass\n",
+      "why": "a fixed example, but not the reported input"
+    }
+  ]
+}

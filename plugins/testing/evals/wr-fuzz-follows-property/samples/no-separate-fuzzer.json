@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "from hypothesis import given, strategies as st\n\n\n@given(st.text())\ndef test_malformed_text_raises_only_value_error(text):\n    try:\n        parse_duration(text)\n    except ValueError:\n        pass\n",
+      "why": "Hypothesis only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "import atheris\n\n\ndef test_one_input(data):\n    parse_duration(data.decode(errors='ignore'))\n",
+      "why": "a separate fuzzer"
+    }
+  ]
+}

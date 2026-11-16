@@ -4,6 +4,26 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.2.1] - 2026-11-15
+
+### Changed
+
+- `course-digest` invokes `/discovery:explore` and `/discovery:research` before integrating an action item when each is among the available skills, not when the `discovery` plugin is merely installed, so a plugin that is installed but disabled takes the stated fallback.
+
+## [3.2.0] - 2026-11-15
+
+### Changed
+
+`/knowledge:video-digest watch --from/--to`: the transcript keeps only the caption cues that overlap
+the range, in full-video time, and watching gets the same cut. A ranged run of a live-derived video
+with no captions skips the caption wait when ASR is detected, so the `asr` rung transcribes the
+ranged media; the acquire phase's `captionWait` note in `watch.json` records the skip. Without ASR,
+or with an explicit caption `--transcript-strategy`, the wait holds as before.
+
+### Fixed
+
+- `video-digest`: a ranged watch (`--from`/`--to`) now grades its session floors on the range alone. `check-watch-outcomes.js` and the floors line `init-watch-checklist.js` writes count only the claim-inventory sessions that overlap `watch.json` `timeRange`, and a ranged slice with no overlapping session fails both session gates with a message that names `watch.json` `timeRange` as the cause. A new test shows that a ranged run's gap-fill frames all land inside the range in full-video time.
+
 ## [3.1.6] - 2026-11-15
 
 ### Changed
