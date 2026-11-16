@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [10.4.1] - 2026-11-16
+
+### Changed
+
+- The pr-verify verdict paragraph says a check, permission or guard weakened beyond what the spec asks fails the verdict for every change, not only a takeover-set change, as the verify prompt's Safety step already says. The prompt's Safety step names the review plugin's criterion "Fail a change that loosens a check" in one line; its rule is unchanged.
+
 ## [10.4.0] - 2026-11-16
 
 ### Changed

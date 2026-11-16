@@ -12,10 +12,14 @@
  *
  * Usage:
  *   node acquisition/preflight-metadata.js <video-url> [<video-url>...]
+ *   node acquisition/preflight-metadata.js <video-url> [--from <h:mm:ss>] [--to <h:mm:ss>]
  *
  * Emits a JSON array (one entry per URL) to stdout. Each entry:
- *   { url, videoId, ok, status, action, note, reason,
+ *   { url, videoId, queueKey, ok, status, action, note, reason,
  *     title, channel, handle, displayTitle, displayChannel, liveStatus }
+ *
+ * queueKey is the QUEUE.md `video-id` cell and dedupe key: the videoId, plus the
+ * `-r<fromSec>-<toSec>` range suffix for a ranged add (`rangedSliceKey`).
  *
  * status:  ok | unavailable | transient | invalid-url
  * action:  enqueue (ok / transient) | reject (unavailable / invalid-url)
@@ -29,6 +33,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 import { classifyErrorDetail, UnsupportedSourceError } from "../adapters/adapter-contract.js";
 import { resolveSourceAdapter } from "../adapters/registry.js";
 import { parseDelegationRefusal } from "../adapters/x.js";
+import { parseTimeRangeArgs, rangedSliceKey } from "../lib/time-range.js";
 import { adapterSourceDeclarations } from "./acquire.js";
 import { spawnFailureDetail } from "./acquire-with-retry.js";
 import { resolveYtDlpAuthArgs } from "./build-yt-dlp-args.js";
@@ -228,6 +233,8 @@ function summarizeDetail(detail) {
  * @typedef {Object} PreflightResult
  * @property {string} url
  * @property {string|null} videoId
+ * @property {string|null} queueKey - QUEUE.md `video-id` cell: videoId plus the range suffix
+ *   on a ranged add; null when videoId is
  * @property {boolean} ok
  * @property {'ok'|'unavailable'|'transient'|'invalid-url'} status
  * @property {'enqueue'|'reject'} action
@@ -242,14 +249,16 @@ function summarizeDetail(detail) {
  */
 
 /**
- * Build a result row; omitted text fields are empty.
+ * Build a result row; omitted text fields are empty. `queueKey` is derived from
+ * `videoId` and `timeRange`, so every enqueueable row carries the cell to paste.
  *
- * @param {Pick<PreflightResult, 'url' | 'videoId' | 'ok' | 'status' | 'action'> & Partial<PreflightResult>} fields
+ * @param {Pick<PreflightResult, 'url' | 'videoId' | 'ok' | 'status' | 'action'> & Partial<Omit<PreflightResult, 'queueKey'>> & { timeRange?: import('../lib/time-range.js').TimeRange|null }} fields
  * @returns {PreflightResult}
  */
 function preflightResult({
   url,
   videoId,
+  timeRange = null,
   ok,
   status,
   action,
@@ -265,6 +274,7 @@ function preflightResult({
   return {
     url,
     videoId,
+    queueKey: videoId === null ? null : rangedSliceKey(videoId, timeRange),
     ok,
     status,
     action,
@@ -286,13 +296,16 @@ function preflightResult({
  */
 
 /**
- * Validate a single URL and fetch its title + channel.
+ * Validate a single URL and fetch its title + channel. A `timeRange` (a ranged
+ * add) puts the range suffix on `queueKey`; a source without the `timeRange`
+ * capability rejects it, as `run-watch.js` would.
  *
  * @param {string} url
  * @param {PreflightDeps} [deps]
+ * @param {{ timeRange?: import('../lib/time-range.js').TimeRange|null }} [options]
  * @returns {Promise<PreflightResult>}
  */
-export async function preflightVideo(url, deps = {}) {
+export async function preflightVideo(url, deps = {}, { timeRange = null } = {}) {
   const { spawn = spawnAsync, env = process.env } = deps;
 
   /** @param {string} note @param {string} reason @returns {PreflightResult} */
@@ -327,6 +340,10 @@ export async function preflightVideo(url, deps = {}) {
   if (!decision.ok) {
     return rejectInvalid(decision.note ?? "rejected by source adapter", decision.reason ?? "");
   }
+  if (timeRange && adapter.capabilities.timeRange !== true) {
+    const message = `--from/--to are not supported for ${adapter.id} sources`;
+    return rejectInvalid(message, message);
+  }
   const videoId = decision.key ?? adapter.extractSliceKey(url, null);
 
   // Probe the claim's canonical URL so the queue entry path gets adapter-level
@@ -356,6 +373,7 @@ export async function preflightVideo(url, deps = {}) {
     return preflightResult({
       url,
       videoId,
+      timeRange,
       ok: false,
       status: "unavailable",
       action: "reject",
@@ -371,6 +389,7 @@ export async function preflightVideo(url, deps = {}) {
     return preflightResult({
       url,
       videoId,
+      timeRange,
       ok: true,
       status: "ok",
       action: "enqueue",
@@ -393,6 +412,7 @@ export async function preflightVideo(url, deps = {}) {
     return preflightResult({
       url,
       videoId,
+      timeRange,
       ok: true,
       status: "ok",
       action: "enqueue",
@@ -404,6 +424,7 @@ export async function preflightVideo(url, deps = {}) {
   return preflightResult({
     url,
     videoId,
+    timeRange,
     ok: false,
     status,
     action: status === "unavailable" ? "reject" : "enqueue",
@@ -415,15 +436,38 @@ export async function preflightVideo(url, deps = {}) {
 /**
  * @param {string[]} urls
  * @param {PreflightDeps} [deps]
+ * @param {{ timeRange?: import('../lib/time-range.js').TimeRange|null }} [options]
  * @returns {Promise<PreflightResult[]>}
  */
-export async function preflightVideos(urls, deps = {}) {
+export async function preflightVideos(urls, deps = {}, options = {}) {
   /** @type {PreflightResult[]} */
   const results = [];
   for (const url of urls) {
-    results.push(await preflightVideo(url, deps));
+    results.push(await preflightVideo(url, deps, options));
   }
   return results;
+}
+
+/** Flags that take a value; the value is not a URL. */
+const RANGE_FLAGS = new Set(["--from", "--to"]);
+
+/**
+ * Split the CLI arguments (after `node <script>`) into URLs and an optional time
+ * range. A ranged add names exactly one URL, as the queue's ranged row does.
+ *
+ * @param {string[]} args
+ * @returns {{ ok: true, urls: string[], timeRange: import('../lib/time-range.js').TimeRange|null } | { ok: false, error: string }}
+ */
+export function parsePreflightArgs(args) {
+  const rangeArg = parseTimeRangeArgs(args);
+  if (!rangeArg.ok) return rangeArg;
+  const urls = args.filter(
+    (arg, index) => arg.length > 0 && !RANGE_FLAGS.has(arg) && !RANGE_FLAGS.has(args[index - 1]),
+  );
+  if (rangeArg.range && urls.length !== 1) {
+    return { ok: false, error: "--from/--to take exactly one URL" };
+  }
+  return { ok: true, urls, timeRange: rangeArg.range };
 }
 
 /**
@@ -431,13 +475,20 @@ export async function preflightVideos(urls, deps = {}) {
  * @returns {Promise<void>}
  */
 async function main(argv) {
-  const urls = argv.slice(2).filter((arg) => arg.length > 0);
+  const parsed = parsePreflightArgs(argv.slice(2));
+  if (!parsed.ok) {
+    writeStderr(parsed.error);
+    process.exit(1);
+  }
+  const { urls, timeRange } = parsed;
   if (urls.length === 0) {
-    writeStderr("Usage: preflight-metadata.js <video-url> [<video-url>...]");
+    writeStderr(
+      "Usage: preflight-metadata.js <video-url> [<video-url>...] | <video-url> [--from <h:mm:ss>] [--to <h:mm:ss>]",
+    );
     process.exit(1);
   }
 
-  const results = await preflightVideos(urls);
+  const results = await preflightVideos(urls, {}, { timeRange });
   writeStdout(JSON.stringify(results, null, 2));
 
   if (results.some((entry) => entry.action === "reject")) {

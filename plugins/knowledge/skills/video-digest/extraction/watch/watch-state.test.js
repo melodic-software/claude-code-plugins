@@ -98,6 +98,17 @@ describe("watch state phase map", () => {
     expect(prompt).not.toContain("youtube-watch");
   });
 
+  it("names a ranged slice's range, and no range for a whole-video slice", () => {
+    const ranged = sampleTalk({
+      videoSlug: "talk-abc-r3600-end",
+      timeRange: { fromSec: 3600, toSec: null },
+    });
+    expect(buildContinuationPrompt(ranged)).toContain(
+      "Range: 1:00:00 to the end. Every timestamp in this slice is full-video time.",
+    );
+    expect(buildContinuationPrompt(sampleTalk())).not.toContain("Range:");
+  });
+
   it("tells a fully marked but unclosed slice to close, not to continue a phase", () => {
     let state = sampleTalk();
     for (const phase of ["acquire", "transcript", "watching", "vision", "harvest", "research", "synthesis"]) {
