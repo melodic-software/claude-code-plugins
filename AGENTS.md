@@ -74,7 +74,7 @@ A local session marks these ready without asking, only by running
 `/source-control:pull-request ready` to completion, which stops on its own gates:
 
 - a PR its own `/source-control:pull-request create` returned, or one the user named in this
-  session;
+  session for this session to work on whose author is this session's `gh` login;
 - a PR another session opened (its author is this session's `gh` login and at
   least one of its commits carries the Claude co-author trailer) when that session has agreed by
   message, or is not live in ListAgents and the PR has had no push for an hour (ListAgents misses a
