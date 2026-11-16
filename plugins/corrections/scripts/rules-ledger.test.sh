@@ -182,6 +182,20 @@ variant twice '.rows += [.rows[1]] | .inputs[0].rules = 4'
 run "$V"
 fails_with "rule listed twice" 'AGENTS\.md:4: listed twice'
 
+# 9b. One rule cannot stand in for the rule on the line above it.
+printf 'Use descriptive names.\nNever log secrets.\n' >"$R/TWO.md"
+cat >"$TEST_TMPDIR/standin.json" <<'EOF'
+{
+  "inputs": [{ "file": "TWO.md", "rules": 2 }],
+  "rows": [
+    { "source": "TWO.md:1", "rule": "Never log secrets.", "disposition": "prose", "reason": "x" },
+    { "source": "TWO.md:2", "rule": "Never log secrets.", "disposition": "prose", "reason": "x" }
+  ]
+}
+EOF
+run "$TEST_TMPDIR/standin.json"
+fails_with "quote from the next line" 'TWO\.md:1: rule text not found at that line'
+
 # 10. Usage and unreadable input.
 run
 DETAIL="exit $RC; stderr: $ERR"

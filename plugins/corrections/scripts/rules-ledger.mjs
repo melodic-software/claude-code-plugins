@@ -4,7 +4,8 @@
 //   rules-ledger.mjs <ledger.json>
 //   rules-ledger.mjs --list-rungs
 // Run from the repository root: each row's `source` (<file>:<line>) is read from there, and the
-// row's `rule` text must appear, whitespace collapsed, within ten lines from that line.
+// row's `rule` text, whitespace collapsed, must start on that line (it may run on for up to ten
+// lines). Two rows that resolve to the same starting point are one rule listed twice.
 // Each input declares how many rules it holds (`rules`; zero needs a `reason`) and must have exactly
 // that many rows. A row's disposition is one of check, prose, delete, held:
 //   check   rung (a checking rung id), check, old_ref, proof_exit 0, covers (non-empty),
@@ -104,17 +105,22 @@ for (const row of ledger.rows) {
     continue;
   }
   entry.rows += 1;
-  const key = `${source}\u0000${collapse(String(row.rule ?? ""))}`;
-  if (seen.has(key)) problems.push(`${source}: listed twice`);
-  seen.add(key);
 
   const body = lines(file);
   if (!body) {
     problems.push(`${source}: cannot read ${file}`);
   } else if (!filled(row.rule)) {
     problems.push(`${source}: row has no rule text`);
-  } else if (at > body.length || !collapse(body.slice(at - 1, at - 1 + WINDOW).join(" ")).includes(collapse(row.rule))) {
-    problems.push(`${source}: rule text not found at that line`);
+  } else {
+    const first = at <= body.length ? collapse(body[at - 1]) : "";
+    const start = collapse(body.slice(at - 1, at - 1 + WINDOW).join(" ")).indexOf(collapse(row.rule));
+    if (start < 0 || start >= first.length) {
+      problems.push(`${source}: rule text not found at that line`);
+    } else {
+      const occurrence = `${file}\u0000${at}\u0000${start}`;
+      if (seen.has(occurrence)) problems.push(`${source}: listed twice`);
+      seen.add(occurrence);
+    }
   }
 
   const disposition = row.disposition;
