@@ -122,10 +122,10 @@ test checked. Then name the test that would have caught it; writing that test is
 
 Pezzè and Young, *Software Testing and Analysis: Process, Principles, and Techniques* (Wiley, 2008),
 ch. 16 "Fault-Based Testing": "Fault seeding can be used to evaluate the thoroughness of a test
-suite". Andrews, Briand and Labiche, ICSE 2005,
-[*Is mutation an appropriate tool for testing experiments?*](https://doi.org/10.1145/1062455.1062530),
-found that mutants behave like real faults while hand-seeded faults "seem to be harder to detect
-than real faults". So state the ratio as an estimate of thoroughness, likely a conservative one,
+suite". Andrews, Briand and Labiche, "Is mutation an appropriate tool for testing experiments?",
+Proceedings of the 27th International Conference on Software Engineering (ICSE 2005),
+DOI 10.1145/1062455.1062530, found that mutants behave like real faults while hand-seeded
+faults "seem to be harder to detect than real faults". So state the ratio as an estimate of thoroughness, likely a conservative one,
 and never as a count of real defects; never extrapolate it into a number of defects remaining. A
 small `--count` makes the estimate coarse: say so beside the ratio.
 
