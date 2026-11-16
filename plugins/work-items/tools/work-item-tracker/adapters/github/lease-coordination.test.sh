@@ -1139,6 +1139,26 @@ outranked_release_case() {
 outranked_release_case "an outranked release under bob's earlier lease unassigns alice" bob '["bob","alice"]' '["bob"]'
 outranked_release_case "an outranked release under alice's own earlier lease keeps her" alice '["alice"]' '["alice"]'
 
+# [outranked release, supersede fails twice] lease 2 may still be live, so alice stays.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf 'alice\n' >"$GH_STUB_DIR/login"
+printf '["bob","alice"]\n' >"$GH_STUB_DIR/assignees"
+jq -cn --arg a "$(marker bob "$FUTURE" 24)" --arg b "$(marker alice "$FUTURE" 24)" \
+  '[{id:1, node_id:"MDEx", body:$a, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"},
+    {id:2, node_id:"MDEx", body:$b, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"}]' >"$GH_STUB_DIR/lease-comments"
+: >"$GH_STUB_DIR/patch-lost-1"
+: >"$GH_STUB_DIR/patch-lost-2"
+rc=0
+err="$(bash "$RELEASE" "$ID" --lease-comment-id 2 2>&1 >/dev/null)" || rc=$?
+assert_eq "an outranked release whose supersede fails twice exits conflict (7)" "7" "$rc"
+assert_eq "that release tries the supersede twice" "2" "$(grep -c '^PATCH 2' "$GH_STUB_DIR/calls.log")"
+assert_eq "lease 2 is not superseded" "false" "$(superseded 2)"
+assert_not_contains "that release never removes alice" "$(calls)" "REMOVE_ASSIGNEE alice"
+assert_eq "alice stays assigned for lease 2" '["bob","alice"]' "$(assignees_now)"
+assert_contains "the refusal says the assignee is kept" "$err" "could not supersede the lease, assignee kept"
+cleanup_scenario
+
 T0=1783828800
 # date: `date -u +%s` answers the next line of $GH_STUB_DIR/clock, repeating the last.
 # shellcheck disable=SC2329  # exported to the release.sh child
@@ -1175,6 +1195,33 @@ assert_eq "the renew landed after the hand-back's list" "0" "$(hook_rc "$h")"
 assert_not_contains "the hand-back never removes alice for renewed lease 2" "$(calls)" "REMOVE_ASSIGNEE alice"
 assert_eq "alice stays assigned" '["alice"]' "$(assignees_now)"
 cleanup_scenario
+
+# [hand-back clock, later lists] releasing lease 1, the hand-back's first list shows no
+# lease 2, so it removes alice; lease 2 (old expiry T0+3600) is in every later list. On the
+# named list a renew extends lease 2 and the clock passes its old expiry before the judgment;
+# judged at a clock read before that list, alice ends assigned.
+handback_clock_case() {
+  new_scenario
+  : >"$GH_STUB_DIR/stateful"
+  printf 'alice\n' >"$GH_STUB_DIR/login"
+  printf '["alice"]\n' >"$GH_STUB_DIR/assignees"
+  jq -cn --arg a "$(marker alice "2026-07-12T04:00:00Z" 24)" --arg b "$(marker alice "2026-07-12T04:00:00Z" 1)" \
+    '[{id:1, node_id:"MDEx", body:$a, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"},
+      {id:2, node_id:"MDEx", body:$b, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"}]' >"$GH_STUB_DIR/lease-comments"
+  lease_array 1 "$(superseded_marker alice)" >"$GH_STUB_DIR/lease-comments-2"
+  printf '%s\n' "$((T0 + 10))" >"$GH_STUB_DIR/clock"
+  # shellcheck disable=SC2016  # expanded by the hook's bash
+  hook "list-$2-after" bash -c 'put_lease 2 "$1" && printf "%s\n" "$2" >"$GH_STUB_DIR/clock"' _ \
+    "$(marker alice "2026-07-12T05:00:00Z" 1)" "$((T0 + 3600))"
+  rc=0
+  bash "$RELEASE" "$ID" --lease-comment-id 1 >/dev/null 2>&1 || rc=$?
+  assert_eq "$1: release exit" "0" "$rc"
+  assert_eq "$1: the renew landed after that list" "0" "$(hook_rc "list-$2-after")"
+  assert_eq "$1: alice ends assigned" '["alice"]' "$(assignees_now)"
+  cleanup_scenario
+}
+handback_clock_case "renew during the hand-back's re-list" 3
+handback_clock_case "renew during the hand-back's confirm list" 4
 
 # [release clock] the lease expires between two clock reads; release decides on one read,
 # so it releases the lease that was live at that read.

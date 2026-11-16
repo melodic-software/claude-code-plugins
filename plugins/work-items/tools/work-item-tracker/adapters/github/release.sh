@@ -112,10 +112,15 @@ fi
 # that has not backed off yet and does not stop the holder's release.
 wit_lease_winner "$leases" "$now_epoch" "$lease_comment_id" wit_lease_released_by_run
 if [[ "$WIT_WINNER_ID" != "$lease_comment_id" ]]; then
-  wit_try_supersede_lease_comment "$owner" "$repo" "$lease_comment_id" "$lease_json"
-  wit_hand_back_assignee "$owner" "$repo" "$number" "$login" "$lease_comment_id"
-  printf 'release: comment %s is outranked by the earlier live lease, comment %s\n' \
-    "$lease_comment_id" "${WIT_WINNER_ID:-none}" >&2
+  outcome="lease superseded"
+  if wit_try_supersede_lease_comment "$owner" "$repo" "$lease_comment_id" "$lease_json" ||
+    wit_try_supersede_lease_comment "$owner" "$repo" "$lease_comment_id" "$lease_json"; then
+    wit_hand_back_assignee "$owner" "$repo" "$number" "$login" "$lease_comment_id"
+  else
+    outcome="could not supersede the lease, assignee kept"
+  fi
+  printf 'release: comment %s is outranked by the earlier live lease, comment %s; %s\n' \
+    "$lease_comment_id" "${WIT_WINNER_ID:-none}" "$outcome" >&2
   exit "$EX_CONFLICT"
 fi
 
