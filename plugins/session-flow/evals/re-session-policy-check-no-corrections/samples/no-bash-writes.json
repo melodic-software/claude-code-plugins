@@ -91,6 +91,17 @@
         }
       ],
       "why": "grep's -c count flag before a quoted pattern is not sh -c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && rg \"git push --force\" .claude"
+          }
+        }
+      ],
+      "why": "a read-only git in a command substitution, then a quoted search pattern"
     }
   ],
   "fail": [
