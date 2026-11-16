@@ -176,7 +176,8 @@ runs over the row's hop; `<dir>` is the directory the session starts in.
    the entry whose `id` starts with `plugin-profiles@` and whose `enabled` is true. The script is
    `<installPath>/scripts/profiles.mjs`.
 2. Run `launch` there with `--unattended`, since nobody answers a relay start, and put the verb's
-   own `--settings` JSON in `--with`, since `claude` keeps only the last `--settings`:
+   own `--settings` JSON in `--with`, so the started session carries one settings file
+   (`profiles.mjs` merges it into the profile's):
 
    ```console
    <ssh> <wsl-alias> 'cd <dir> && node <profiles.mjs> launch <profile> --folder <dir> --unattended --json --with "{\"crossSessionInbound\":\"accept\"}"'
