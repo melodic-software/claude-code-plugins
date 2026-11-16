@@ -346,7 +346,7 @@ The owner's rule, 2026-10-27, verbatim, with reason 3 as the owner reworded it o
 | Anything that can bill the owner | human-gated role label, `Flags: cost` | Intake triage for issues; the pr-merge lane's cost hold for pull requests |
 
 Before a security concern is raised as a question, a plan or a stop, it names the surface that runs
-today and is exposed, and in what mode. With none, it is recorded in one line with the condition
+today, or that the work would ship, and is exposed, and in what mode. With none, it is recorded in one line with the condition
 that would make it matter, and nothing is asked.
 
 A choice of means or a design detail is none of these reasons: the lane doing the work decides it
