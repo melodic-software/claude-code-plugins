@@ -49,22 +49,22 @@ if [[ -n "$(jq -r '.superseded_at // empty' <<<"$lease_json")" ]]; then
   exit "$EX_CONFLICT"
 fi
 
-# Non-superseded is not enough: an expired lease can coexist with a newer claim, and
-# renewing it would leave two live leases. Require the newest non-superseded lease.
-leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
-wit_select_active_lease "$leases"
-if [[ "$WIT_ACTIVE_LEASE_ID" != "$lease_comment_id" ]]; then
-  printf 'renew-lease: comment %s is not the active lease (superseded by a newer claim, comment %s)\n' \
-    "$lease_comment_id" "${WIT_ACTIVE_LEASE_ID:-none}" >&2
-  exit "$EX_CONFLICT"
-fi
-
-# The active lease can still be expired, e.g. a crashed or delayed holder that never
-# backed off. Reviving it would undo a handoff another worker made on expiry;
-# recovery is a fresh claim or reclaim.
+# An expired lease is never revived, e.g. a crashed or delayed holder that never
+# backed off: that would undo a handoff another worker made on expiry; recovery is a
+# fresh claim or reclaim.
 if ! wit_lease_is_live "$lease_json" "$(date -u +%s)"; then
   printf 'renew-lease: lease %s is expired (renewed_at + ttl_hours elapsed); not renewing\n' \
     "$lease_comment_id" >&2
+  exit "$EX_CONFLICT"
+fi
+
+# Live is not enough: the holder is the earliest live lease (claim step 4). A newer
+# live lease is a claimant that has not backed off yet and does not stop the renew.
+leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
+wit_lease_winner "$leases" "$(date -u +%s)" "$lease_comment_id" wit_lease_released_by_run
+if [[ "$WIT_WINNER_ID" != "$lease_comment_id" ]]; then
+  printf 'renew-lease: comment %s is outranked by the earlier live lease, comment %s\n' \
+    "$lease_comment_id" "${WIT_WINNER_ID:-none}" >&2
   exit "$EX_CONFLICT"
 fi
 

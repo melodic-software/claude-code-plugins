@@ -74,6 +74,12 @@ fi
 
 # A lease-only claim assigns no one, so steps 1-2 and their rollback do not apply.
 if [[ "$lease_only" == false ]]; then
+  # Whether the login was assigned before this claim decides, on a same-login loss in
+  # step 4, whether @me belongs to the winner or only to this claim.
+  wit_read_assignees "$owner" "$repo" "$number"
+  pre_assigned=false
+  jq -e --arg me "$login" 'any(.[]; . == $me)' <<<"$WIT_GH_OUT" >/dev/null && pre_assigned=true
+
   # 1. Assign the session identity. `read` routes to bare gh, so the assignee is
   # the session user, not the bot (README "Edit labels / assignees" carve-out);
   # `@me` is resolved to $login explicitly because REST takes a literal login.
@@ -125,86 +131,52 @@ wit_run_gh write api "repos/$owner/$repo/issues/$number/comments" \
   -f body="${WIT_LEASE_MARKER}${lease} -->" --jq '.id'
 our_comment_id="$WIT_GH_OUT"
 
-# supersede_lease_comment <comment-id> <lease-json>: best-effort edit adding
-# superseded_at to that lease comment; never fails the caller.
-supersede_lease_comment() {
-  local superseded
-  superseded="$(jq -c --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '. + {superseded_at: $ts}' <<<"$2")"
-  gh_write api --method PATCH "repos/$owner/$repo/issues/comments/$1" \
-    -f body="${WIT_LEASE_MARKER}${superseded} -->" >/dev/null 2>&1 || true
+# A claim that fails before its emit supersedes its own comment, so a lease whose
+# handle never reached the caller does not block the item for its TTL; a default
+# claim also rolls back its assignment.
+_wit_claim_abort() {
+  wit_try_supersede_lease_comment "$owner" "$repo" "$our_comment_id" "$lease"
+  [[ "$lease_only" == true ]] || _wit_claim_rollback
 }
-
-# A lease-only claim that fails before its emit supersedes its own comment, so a
-# lease whose handle never reached the caller does not block the item for its TTL.
-[[ "$lease_only" == false ]] || trap 'supersede_lease_comment "$our_comment_id" "$lease"' EXIT
-
-# run_completed <run-id>: 0 when that workflow run of the item's repository has
-# completed (any conclusion); 1 for any other status or a failed read, which prints
-# one line and keeps the lease winning. Bare gh, not wit_run_gh: a failed read must
-# back off (exit 7), never fail the claim.
-run_completed() {
-  local status
-  status="$(gh api "repos/$owner/$repo/actions/runs/$1" --jq '.status' 2>/dev/null)" || {
-    printf 'claim: could not read run %s status; lease kept\n' "$1" >&2
-    return 1
-  }
-  [[ "$(wit_strip_cr <<<"$status")" == completed ]]
-}
+trap _wit_claim_abort EXIT
 
 # 4. Re-read all lease comments; the EARLIEST live lease wins, except a lease held
-# by a completed workflow run: session_id run-<id> costs one run_completed read,
-# and a completed run's lease is superseded in place. The rollback
-# guard STAYS armed through arbitration: a read failure here (exit "$?" below)
-# would otherwise leave @me assigned with a live lease comment whose id was
-# never returned to the caller — stranded exactly like the pre-lease window,
-# just one step later.
-now_epoch="$(date -u +%s)"
+# by a completed workflow run (wit_lease_released_by_run). The abort guard STAYS
+# armed through arbitration: a read failure here (exit "$?" below) would otherwise
+# leave @me assigned with a live lease comment whose id was never returned to the
+# caller.
 # $() swallows wit_run_gh's exit-on-error; propagate so a read failure here does
 # not silently arbitrate the claim against an empty lease set.
 leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
-winner_id=""
+wit_lease_winner "$leases" "$(date -u +%s)" "$our_comment_id" wit_lease_released_by_run
+winner_id="$WIT_WINNER_ID"
 winner_holder=""
-while IFS= read -r row; do
-  [[ -n "$row" ]] || continue
-  lease_json="$(wit_lease_json "$(jq -r '.body' <<<"$row")")"
-  [[ -n "$lease_json" ]] || continue
-  if wit_lease_is_live "$lease_json" "$now_epoch"; then
-    row_id="$(jq -r '.id' <<<"$row")"
-    sid="$(jq -r '.session_id // empty' <<<"$lease_json")"
-    if [[ "$row_id" != "$our_comment_id" && "$sid" =~ ^run-([1-9][0-9]{0,19})$ ]]; then
-      run_id="${BASH_REMATCH[1]}"
-      if run_completed "$run_id"; then
-        supersede_lease_comment "$row_id" "$lease_json"
-        printf 'claim: lease comment %s was held by run %s, which has completed; treated as released\n' "$row_id" "$run_id" >&2
-        continue
-      fi
-    fi
-    winner_id="$row_id"
-    winner_holder="$(jq -r '.holder // empty' <<<"$lease_json")"
-    break
-  fi
-done < <(jq -c 'sort_by(.id) | .[]' <<<"$leases")
+[[ -z "$WIT_WINNER_JSON" ]] || winner_holder="$(jq -r '.holder // empty' <<<"$WIT_WINNER_JSON")"
 
 # Earliest LIVE lease wins. No live lease at all (e.g. ttl 0) → our claim stands;
 # expiry is reclaim's concern.
 if [[ -n "$winner_id" && "$winner_id" != "$our_comment_id" ]]; then
-  supersede_lease_comment "$our_comment_id" "$lease"
-  # Keep the @me assignment only on a SAME-login race (the winner shares our
-  # login, so the assignee still matches the holder). If the winning lease
-  # belongs to a different holder, our @me would leave the item assigned to the
-  # loser while the holder no longer matches — drop it (the rollback trap
-  # would also catch this on exit; the explicit call keeps the disarm/removal
-  # decision made in this block, not left implicit to the trap).
-  if [[ "$lease_only" == true ]]; then
-    trap - EXIT # nothing assigned; our comment is already superseded
-  elif [[ "$winner_holder" != "$login" ]]; then
+  wit_try_supersede_lease_comment "$owner" "$repo" "$our_comment_id" "$lease"
+  trap - EXIT
+  # Keep @me only on a same-login loss where the login was assigned before this
+  # claim: then the assignee is the winner's. Assigned only by this claim, it would
+  # outlive a winner that has finished or is about to release.
+  if [[ "$lease_only" == false ]] && [[ "$winner_holder" != "$login" || "$pre_assigned" == false ]]; then
     wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
-  else
-    trap - EXIT # same-login race — @me legitimately stays assigned
   fi
   printf 'claim: live lease (comment %s, holder %s) wins — backing off\n' \
     "$winner_id" "$(tr -d '[:cntrl:]' <<<"${winner_holder:-unknown}")" >&2
   exit "$EX_CONFLICT"
+fi
+
+# A same-login release that ran between step 2 and our post can have removed @me
+# (it saw no other live lease of ours yet); put it back. The release re-reads the
+# leases after its removal, so between the two checks one sees the other's write.
+if [[ "$lease_only" == false ]]; then
+  wit_read_assignees "$owner" "$repo" "$number"
+  if ! jq -e --arg me "$login" 'any(.[]; . == $me)' <<<"$WIT_GH_OUT" >/dev/null; then
+    wit_add_assignee read "$owner" "$repo" "$number" "$login"
+  fi
 fi
 
 trap - EXIT # arbitration confirms our lease is the winner — claim complete

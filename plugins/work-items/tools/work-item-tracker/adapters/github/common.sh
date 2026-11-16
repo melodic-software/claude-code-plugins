@@ -444,3 +444,71 @@ wit_list_lease_comments() {
   jq -cs 'add // [] | map(select(.author_association == "OWNER" or .author_association == "MEMBER"
     or .author_association == "COLLABORATOR" or .user.type == "Bot"))' <<<"$WIT_GH_OUT"
 }
+
+# wit_try_supersede_lease_comment <owner> <repo> <comment-id> <lease-json>: best-effort
+# edit adding superseded_at to that lease comment; never fails the caller.
+wit_try_supersede_lease_comment() {
+  local superseded
+  superseded="$(jq -c --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '. + {superseded_at: $ts}' <<<"$4")"
+  gh_write api --method PATCH "repos/$1/$2/issues/comments/$3" \
+    -f body="${WIT_LEASE_MARKER}${superseded} -->" >/dev/null 2>&1 || true
+}
+
+# wit_lease_released_by_run <comment-id> <lease-json>: the <released-fn> every lease verb
+# hands wit_lease_winner (claim step 4). 0 when the lease's session_id is run-<id> and that
+# workflow run of the parsed id's repository has completed (any conclusion); the lease is
+# then superseded in place, best-effort. Any other session_id costs no read; another run
+# status, or a failed read, returns 1 and keeps the lease winning. Bare gh, not wit_run_gh:
+# a failed read must keep the lease, never fail the verb.
+wit_lease_released_by_run() {
+  local sid run_id status verb
+  sid="$(jq -r '.session_id // empty' <<<"$2")"
+  [[ "$sid" =~ ^run-([1-9][0-9]{0,19})$ ]] || return 1
+  run_id="${BASH_REMATCH[1]}"
+  verb="$(basename "$0" .sh)"
+  status="$(gh api "repos/$WIT_ID_OWNER/$WIT_ID_REPO/actions/runs/$run_id" --jq '.status' 2>/dev/null)" || {
+    printf '%s: could not read run %s status; lease kept\n' "$verb" "$run_id" >&2
+    return 1
+  }
+  [[ "$(wit_strip_cr <<<"$status")" == completed ]] || return 1
+  wit_try_supersede_lease_comment "$WIT_ID_OWNER" "$WIT_ID_REPO" "$1" "$2"
+  printf '%s: lease comment %s was held by run %s, which has completed; treated as released\n' \
+    "$verb" "$1" "$run_id" >&2
+}
+
+# wit_unassign_if_unheld <owner> <repo> <number> <login> <released-id> <leases-json>: after a
+# release, remove <login> from the assignees unless another live lease held by <login> remains
+# (CONTRACT.md "Lease protocol", release). <leases-json> is a list read before the release's
+# PATCH, so a lease posted after it is caught by the re-read after the removal, which puts the
+# assignee back: a same-login claim posts its lease before it re-checks its assignee, and the
+# release removes the assignee before it re-reads the leases, so one of the two sees the other.
+wit_unassign_if_unheld() {
+  local owner="$1" repo="$2" number="$3" login="$4" released="$5" leases="$6" assignees
+  _wit_login_holds_other "$leases" "$login" "$released" && return 0
+  assignees="$(gh api "repos/$owner/$repo/issues/$number" --jq '[.assignees[].login]' 2>/dev/null)" || {
+    printf '%s: could not read the assignees; %s left assigned\n' "$(basename "$0" .sh)" "$login" >&2
+    return 0
+  }
+  jq -e --arg l "$login" 'any(.[]; . == $l)' <<<"$assignees" >/dev/null || return 0
+  wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
+  leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || return 0
+  if _wit_login_holds_other "$leases" "$login" "$released"; then
+    wit_write_pause
+    gh api --method POST "repos/$owner/$repo/issues/$number/assignees" \
+      -f "assignees[]=$login" >/dev/null 2>&1 || true
+  fi
+}
+
+# _wit_login_holds_other <leases-json> <login> <excluded-id>: 0 when a live lease other than
+# <excluded-id> is held by <login>.
+_wit_login_holds_other() {
+  local row cand now
+  now="$(date -u +%s)"
+  while IFS= read -r row; do
+    [[ -n "$row" && "$(jq -r '.id' <<<"$row")" != "$3" ]] || continue
+    cand="$(wit_lease_json "$(jq -r '.body' <<<"$row")")"
+    [[ -n "$cand" && "$(jq -r '.holder // empty' <<<"$cand")" == "$2" ]] || continue
+    wit_lease_is_live "$cand" "$now" && return 0
+  done < <(jq -c '.[]' <<<"$1")
+  return 1
+}

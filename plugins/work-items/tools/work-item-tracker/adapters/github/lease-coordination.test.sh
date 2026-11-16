@@ -12,14 +12,17 @@
 #       arbitration), which claim.test.sh does not reach;
 #   (4) release ends the caller's own live lease, so a same-login claim that
 #       backed off on it succeeds afterwards, and refuses any lease that is not
-#       the caller's active one;
+#       the caller's or that an earlier live lease outranks;
 #   (5) a lane's lease-only claim and release under a --holder override: a local
 #       claim backs off while the lane lease is live and holds once it is
 #       released, and a lane claim backs off on a live local lease;
 #   (6) claim --phase writes the lease's phase and renew-lease keeps it;
 #   (7) a lease held by a completed workflow run (session_id run-<id>) is
 #       treated as released, while a live run, a non-run session or an
-#       unreadable run status keeps the lease winning.
+#       unreadable run status keeps the lease winning;
+#   (8) release and renew act on the holder's lease under a newer lease not yet
+#       arbitrated, release unassigns only when no other live lease of the login
+#       remains, and a same-login loser leaves no assignee that outlives the leases.
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
 # In a CI job the adapter wraps its gh calls and records into the job's
@@ -60,6 +63,15 @@ stub_login_arg() {
     case "$a" in "assignees[]="*) printf '%s' "${a#assignees[]=}" ;; *) : ;; esac
   done
 }
+# stub_hook <name>: run $d/hook-<name> once, if present, so a scenario can land another
+# verb inside a given call: the n-th lease-list read (list-<n>, before it answers) or the
+# k-th assignee read (assignees-<k>, after it answers).
+stub_hook() {
+  local h="${GH_STUB_DIR:?}/hook-$1"
+  [[ -f "$h" ]] || return 0
+  mv "$h" "$h.ran"
+  bash "$h.ran" >/dev/null 2>&1
+}
 gh() {
   local d="${GH_STUB_DIR:?}" args="$*" a n cid body login
   case "$args" in
@@ -98,7 +110,12 @@ gh() {
     fi
     cat "$d/assignees" 2>/dev/null || printf '[]\n'
     ;;
-  *".assignees[].login"*) cat "$d/assignees" ;;
+  *".assignees[].login"*)
+    n=$(($(cat "$d/assignees.count" 2>/dev/null || printf '0') + 1))
+    printf '%s\n' "$n" >"$d/assignees.count"
+    cat "$d/assignees"
+    stub_hook "assignees-$n"
+    ;;
   # A workflow run's status read; no $d/run-status file is an unreadable status.
   *"/actions/runs/"*)
     printf 'RUN_READ %s\n' "${args##*/actions/runs/}" >>"$d/calls.log"
@@ -115,6 +132,7 @@ gh() {
       n=$(($(cat "$d/lease-comments.count" 2>/dev/null || printf '0') + 1))
       printf '%s\n' "$n" >"$d/lease-comments.count"
       [[ ! -f "$d/list-fails-$n" ]] || exit 1
+      stub_hook "list-$n"
       if [[ -f "$d/lease-comments-$n" ]]; then cat "$d/lease-comments-$n"; else cat "$d/lease-comments"; fi
       ;;
     esac
@@ -154,7 +172,25 @@ gh() {
     ;;
   esac
 }
-export -f gh stub_body_arg stub_login_arg
+export -f gh stub_body_arg stub_login_arg stub_hook
+
+# hook <name> <command…>: arm stub_hook <name> to run <command…>, writing its exit code to
+# hook-<name>.rc. next_read <list|assignees> <offset>: the hook name for the read <offset>
+# calls after the reads made so far.
+hook() {
+  local name="$1"
+  shift
+  {
+    printf '%q ' "$@"
+    printf '\nprintf "%%s\\n" "$?" >%q\n' "$GH_STUB_DIR/hook-$name.rc"
+  } >"$GH_STUB_DIR/hook-$name"
+}
+hook_rc() { cat "$GH_STUB_DIR/hook-$1.rc" 2>/dev/null || printf 'hook did not run\n'; }
+next_read() {
+  local file=lease-comments.count
+  [[ "$1" == list ]] || file=assignees.count
+  printf '%s-%s' "$1" "$(($(cat "$GH_STUB_DIR/$file" 2>/dev/null || printf '0') + $2))"
+}
 
 # marker <holder> <renewed_at> <ttl> [session_id] — echo a lease marker comment body.
 marker() {
@@ -367,19 +403,30 @@ assert_eq "release refuses (7) a lease another login holds" "7" "$rc"
 assert_not_contains "release does not supersede a foreign lease" "$(calls)" "PATCH"
 cleanup_scenario
 
-# [not the active lease] an older non-superseded lease under a newer claim.
+# [outranked] two live leases: the earlier one holds the item (claim step 4) and the
+# newer one is a claimant that has not backed off. The newer handle is refused; the
+# earlier one is released.
+two_live_leases() {
+  jq -cn --arg o "$(marker alice "$FUTURE" 24)" --arg n "$(marker alice "$FUTURE" 24)" \
+    '[{id:100, node_id:"MDEx", body:$o, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"},
+      {id:200, node_id:"MDEx", body:$n, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"}]' >"$GH_STUB_DIR/lease-comments"
+  jq -cn --arg b "$(marker alice "$FUTURE" 24)" '{body:$b, issue:"1"}' >"$GH_STUB_DIR/comment"
+}
 new_scenario
 printf 'alice\n' >"$GH_STUB_DIR/login"
-OLD_MARKER="$(marker alice "$FUTURE" 24)"
-NEW_MARKER="$(marker alice "$FUTURE" 24)"
-jq -cn --arg o "$OLD_MARKER" --arg n "$NEW_MARKER" \
-  '[{id:100, node_id:"MDEx", body:$o, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"},
-    {id:200, node_id:"MDEx", body:$n, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"}]' >"$GH_STUB_DIR/lease-comments"
-jq -cn --arg b "$OLD_MARKER" '{body:$b, issue:"1"}' >"$GH_STUB_DIR/comment"
+two_live_leases
+rc=0
+bash "$RELEASE" "$ID" --lease-comment-id 200 >/dev/null 2>&1 || rc=$?
+assert_eq "release refuses (7) a handle outranked by an earlier live lease" "7" "$rc"
+assert_not_contains "release writes nothing for an outranked handle" "$(calls)" "PATCH"
+cleanup_scenario
+new_scenario
+printf 'alice\n' >"$GH_STUB_DIR/login"
+two_live_leases
 rc=0
 bash "$RELEASE" "$ID" --lease-comment-id 100 >/dev/null 2>&1 || rc=$?
-assert_eq "release refuses (7) a handle that is not the active lease" "7" "$rc"
-assert_not_contains "release writes nothing for a stale handle" "$(calls)" "PATCH"
+assert_eq "release succeeds (0) for the holder's lease under a newer live lease" "0" "$rc"
+assert_contains "release PATCHes the holder's lease under a newer live lease" "$(calls)" "PATCH 100"
 cleanup_scenario
 
 # [cross-issue handle] the comment belongs to a different issue.
@@ -644,5 +691,141 @@ three_lease_case() {
 }
 three_lease_case "a dead run's lease before a live lane lease: the lane lease wins" run-100 lane-3 7 1
 three_lease_case "a live lane lease before a dead run's lease wins with no run read" lane-3 run-100 7 0
+
+# ===========================================================================
+# Finding 8 — the holder's release and renew act under a newer, not yet arbitrated
+# lease; a same-login hand-back unassigns only when no other live lease of that login
+# remains; a same-login loser does not strand an assignee the winner no longer holds.
+# Each scenario starts with alice's attended claim holding lease 1.
+# ===========================================================================
+attended_scenario() {
+  new_scenario
+  : >"$GH_STUB_DIR/stateful"
+  printf 'alice\n' >"$GH_STUB_DIR/login"
+  printf '[]\n' >"$GH_STUB_DIR/assignees"
+  printf '[]\n' >"$GH_STUB_DIR/lease-comments"
+  bash "$CLAIM" "$ID" --ttl-hours 24 >/dev/null 2>&1
+  assert_eq "attended claim holds lease 1 assigned to alice" '["alice"]' "$(jq -c . "$GH_STUB_DIR/assignees")"
+}
+assignees_now() { jq -c . "$GH_STUB_DIR/assignees"; }
+superseded() { stored_lease "$1" | jq -r 'has("superseded_at")'; }
+
+# [release under a lane lease] the lane has posted lease 2 and its re-read is next; the
+# holder releases lease 1 in that window. The release ends lease 1 and unassigns alice,
+# and the lane's arbitration then finds lease 2 earliest and holds.
+attended_scenario
+h="$(next_read list 1)"
+hook "$h" bash "$RELEASE" "$ID" --lease-comment-id 1
+rc=0
+out="$(bash "$CLAIM" "$ID" --ttl-hours 2 --lease-only --holder "$LANE" 2>/dev/null)" || rc=$?
+assert_eq "the holder's release under an unarbitrated lane lease succeeds (0)" "0" "$(hook_rc "$h")"
+assert_contains "that release PATCHes the holder's own lease comment" "$(calls)" "PATCH 1"
+assert_eq "the holder's lease is superseded" "true" "$(superseded 1)"
+assert_eq "the lane's claim then wins (0)" "0" "$rc"
+assert_eq "the lane holds lease 2" "2" "$(jq -r '.lease_comment_id' <<<"$out")"
+assert_eq "the released holder is unassigned" "[]" "$(assignees_now)"
+cleanup_scenario
+
+# [renew under a lane lease] the same window with a renew: it renews lease 1, which keeps
+# winning, so the lane backs off.
+attended_scenario
+sleep 1
+h="$(next_read list 1)"
+hook "$h" bash "$RENEW" "$ID" --lease-comment-id 1
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 2 --lease-only --holder "$LANE" >/dev/null 2>&1 || rc=$?
+assert_eq "the holder's renew under an unarbitrated lane lease succeeds (0)" "0" "$(hook_rc "$h")"
+assert_contains "that renew PATCHes the holder's own lease comment" "$(calls)" "PATCH 1"
+assert_eq "the renewed lease moved renewed_at past acquired_at" "true" "$(stored_lease 1 | jq -r '.renewed_at > .acquired_at')"
+assert_eq "the lane backs off (7) on the renewed lease" "7" "$rc"
+assert_eq "the lane's lease is superseded" "true" "$(superseded 2)"
+cleanup_scenario
+
+# [hand-back after the other claim posts] a same-login triage claim has posted lease 2
+# and its re-read is next when the attended session releases lease 1. The release sees
+# lease 2 and leaves alice assigned, and triage holds lease 2 with alice assigned.
+attended_scenario
+h="$(next_read list 1)"
+hook "$h" bash "$RELEASE" "$ID" --lease-comment-id 1
+rc=0
+out="$(bash "$CLAIM" "$ID" --ttl-hours 1 --phase triage 2>/dev/null)" || rc=$?
+assert_eq "the attended release succeeds (0) while triage's lease is pending" "0" "$(hook_rc "$h")"
+assert_eq "triage's claim holds (0)" "0" "$rc"
+assert_eq "triage holds lease 2" "2" "$(jq -r '.lease_comment_id' <<<"$out")"
+assert_eq "alice stays assigned for triage's live lease" '["alice"]' "$(assignees_now)"
+assert_not_contains "the hand-back never removes alice" "$(calls)" "REMOVE_ASSIGNEE alice"
+cleanup_scenario
+
+# [hand-back before the other claim posts] the release lands after triage's assignee
+# check and before its post, so it sees no other lease and unassigns alice; triage then
+# wins and puts its assignee back.
+attended_scenario
+h="$(next_read assignees 2)"
+hook "$h" bash "$RELEASE" "$ID" --lease-comment-id 1
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 1 --phase triage >/dev/null 2>&1 || rc=$?
+assert_eq "the attended release succeeds (0) before triage posts" "0" "$(hook_rc "$h")"
+assert_eq "triage's claim holds (0)" "0" "$rc"
+assert_eq "triage's claim restores alice after the release removed her" '["alice"]' "$(assignees_now)"
+cleanup_scenario
+
+# [claim inside the release's unassign] triage posts and wins between the release's
+# lease check and its unassign; the release's re-read finds triage's lease and puts
+# alice back.
+attended_scenario
+h="$(next_read assignees 1)"
+hook "$h" bash "$CLAIM" "$ID" --ttl-hours 1 --phase triage
+out="$(bash "$RELEASE" "$ID" --lease-comment-id 1 2>/dev/null)"
+rc=$?
+assert_eq "the attended release succeeds (0)" "0" "$rc"
+assert_eq "triage's claim inside the release holds (0)" "0" "$(hook_rc "$h")"
+assert_eq "the release restores alice for triage's live lease" '["alice"]' "$(assignees_now)"
+cleanup_scenario
+
+# [stranded, caller cleared first] the attended caller clears alice before releasing; a
+# same-login triage claim made in between loses to lease 1. Triage assigned alice itself,
+# so it removes her, and once lease 1 is released no assignee is left without a lease.
+attended_scenario
+gh api --method DELETE "repos/acme/widgets/issues/1/assignees" -f "assignees[]=alice" >/dev/null
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 1 --phase triage >/dev/null 2>&1 || rc=$?
+assert_eq "triage backs off (7) on the attended lease" "7" "$rc"
+assert_eq "the losing triage claim removes the assignee it added" "[]" "$(assignees_now)"
+bash "$RELEASE" "$ID" --lease-comment-id 1 >/dev/null 2>&1
+assert_eq "after the release no assignee is left" "[]" "$(assignees_now)"
+out="$(bash "$RECLAIM" "$ID" 2>/dev/null)"
+assert_eq "reclaim finds no active lease" "no active lease record" "$(jq -r '.reason' <<<"$out")"
+assert_eq "and no assignee to strand" "[]" "$(assignees_now)"
+cleanup_scenario
+
+# [stranded, release-only hand-back] triage loses to lease 1 while alice was already
+# assigned, so it keeps her for the winner; the attended release then unassigns her,
+# since no other live lease of alice's remains.
+attended_scenario
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 1 --phase triage >/dev/null 2>&1 || rc=$?
+assert_eq "triage backs off (7) on the attended lease" "7" "$rc"
+assert_eq "the losing triage claim keeps the winner's assignee" '["alice"]' "$(assignees_now)"
+bash "$RELEASE" "$ID" --lease-comment-id 1 >/dev/null 2>&1
+assert_eq "the attended release unassigns alice" "[]" "$(assignees_now)"
+out="$(bash "$RECLAIM" "$ID" 2>/dev/null)"
+assert_eq "reclaim finds no active lease" "no active lease record" "$(jq -r '.reason' <<<"$out")"
+assert_eq "and no assignee to strand" "[]" "$(assignees_now)"
+cleanup_scenario
+
+# [default claim dies after its post] a failed re-list supersedes the comment just posted
+# and rolls back the assignment, as a lease-only claim does.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf 'alice\n' >"$GH_STUB_DIR/login"
+printf '[]\n' >"$GH_STUB_DIR/assignees"
+printf '[]\n' >"$GH_STUB_DIR/lease-comments"
+: >"$GH_STUB_DIR/list-fails-1"
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 24 >/dev/null 2>&1 || rc=$?
+assert_eq "a default claim whose re-list fails exits non-zero" "true" "$([[ $rc -ne 0 ]] && echo true || echo false)"
+assert_eq "the default claim supersedes its own comment on that failure" "true" "$(superseded 1)"
+assert_eq "the default claim rolls back its assignment" "[]" "$(assignees_now)"
+cleanup_scenario
 
 [[ $FAILED -eq 0 ]] || exit 1

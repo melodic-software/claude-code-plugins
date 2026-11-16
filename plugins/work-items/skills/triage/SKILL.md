@@ -139,10 +139,9 @@ reporter-info listing, the sweep's list and count, and every read before the fir
    name the lost item in the report.
 3. **Hand back** each claimed item after its last write, including on a run that stops partway,
    and each claimed item an aborted outcome never wrote to. First
-   `"$TRACKER" release "<id>" --lease-comment-id <n>`. Exit `0` with either `released` value: then
-   clear the session's own assignee through the adapter's assignee edit (GitHub:
-   `--remove-assignee "@me"`), because `claim` assigned it, `release` never touches assignees, and
-   the frontier lists only unassigned items. Exit `6` (the provider declares `release: false`, as
+   `"$TRACKER" release "<id>" --lease-comment-id <n>`. Exit `0` with either `released` value is
+   done: `release` also clears the assignee `claim` set, unless another live lease of this login
+   still holds the item. Exit `6` (the provider declares `release: false`, as
    local-markdown and linear do): leave both the lease and the assignee. Clearing the assignee
    under a live lease lists the item on the frontier while every `claim` on it fails with exit `7`;
    instead the lease runs out its TTL, after which local-markdown's `list-items` reports the item

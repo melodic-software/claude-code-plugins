@@ -340,5 +340,4 @@ no fix and no PR. When the diagnosis names no single cause, rank the candidates 
 escalating. Then post the [report](#bug-report).
 
 A `not-reproduced` outcome then escalates, as step 2 says, citing the report. Then release the
-claim (seam `release`), clear this session's own assignee through the adapter's assignee edit,
-since release never touches assignees and the frontier excludes an assigned item, and end the run.
+claim (seam `release`, which also clears this session's assignee) and end the run.

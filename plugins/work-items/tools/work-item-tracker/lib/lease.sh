@@ -55,6 +55,34 @@ wit_select_active_lease() {
   export WIT_ACTIVE_LEASE_ID WIT_ACTIVE_LEASE_JSON
 }
 
+# wit_lease_winner <lease-comment-rows-json> <now-epoch> <self-id> [<released-fn>]: set
+# WIT_WINNER_ID / WIT_WINNER_JSON to the EARLIEST live lease, the one claim arbitration
+# (CONTRACT.md "Lease protocol", claim step 4) says holds the item; both empty when no lease
+# is live. A newer live lease is a claimant that has not yet backed off and never holds.
+# <released-fn>, when given, runs as `<fn> <row-id> <lease-json>` for each live lease other
+# than <self-id>; its exit 0 counts that lease as released and arbitration moves on.
+WIT_WINNER_ID=""
+WIT_WINNER_JSON=""
+wit_lease_winner() {
+  local leases="$1" now_epoch="$2" self="$3" released_fn="${4:-}" row cand row_id
+  WIT_WINNER_ID=""
+  WIT_WINNER_JSON=""
+  while IFS= read -r row; do
+    [[ -n "$row" ]] || continue
+    cand="$(wit_lease_json "$(jq -r '.body' <<<"$row")")"
+    [[ -n "$cand" ]] || continue
+    wit_lease_is_live "$cand" "$now_epoch" || continue
+    row_id="$(jq -r '.id' <<<"$row")"
+    if [[ -n "$released_fn" && "$row_id" != "$self" ]] && "$released_fn" "$row_id" "$cand"; then
+      continue
+    fi
+    WIT_WINNER_ID="$row_id"
+    WIT_WINNER_JSON="$cand"
+    break
+  done < <(jq -c 'sort_by(.id) | .[]' <<<"$leases")
+  export WIT_WINNER_ID WIT_WINNER_JSON
+}
+
 # wit_lease_ttl_seconds <lease-json> — echo total TTL in seconds from ttl_hours and
 # optional ttl_minutes. Returns 1 when ttl_hours is missing or non-numeric.
 wit_lease_ttl_seconds() {
