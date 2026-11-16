@@ -5104,11 +5104,11 @@ jobs:
               waited=1
             done
           }
-          # ONE READ OF THE PULL, ITS LABELS AND ITS EVENTS PER JOB. pr_read
+          # ONE READ OF THE PULL AND ITS EVENTS PER JOB. pr_read
           # <gh api args>... answers what an earlier step of this job read for
           # the same args, else reads through gh_read and keeps the answer in
-          # $RUNNER_TEMP/pr-reads. Steps use it for three reads only: the pull
-          # request (pulls/<n>), its labels and its issue events. Comments,
+          # $RUNNER_TEMP/pr-reads. Steps use it for two reads only: the pull
+          # request (pulls/<n>) and its issue events. Comments,
           # reviews, runs, jobs and annotations are always read live with
           # gh_read, so a member's veto or a new review is never missed. A read
           # that fails keeps nothing, so the next step reads again and fails
@@ -5216,13 +5216,55 @@ jobs:
             fi
             printf '%s\n' "$held"
           }
+          # GRAPHQL FIRST, REST ON ANY DOUBT. pr_labels <n> and pr_comments <n>
+          # print a pull request's labels or issue comments as one array in
+          # the REST shape the steps read, from one GraphQL send: GITHUB_TOKEN
+          # meters GraphQL apart from the core pool every REST read spends.
+          # Any failure, an `errors` answer, a connection with another page,
+          # or a comment author REST would show differently (a deleted
+          # account, a type other than User or Bot) reads REST through
+          # gh_read instead, so a GraphQL outage costs a core read, never a
+          # red check. GraphQL drops the `[bot]` a REST bot login carries, and
+          # a REST id is GraphQL's databaseId; the comment fields kept are
+          # those the steps and filterLaneHolds read. Pinned by
+          # scripts/ci-gh-read-graphql.test.sh, which replays a recorded REST
+          # and GraphQL answer for one pull request.
+          pr_labels() {
+            local out
+            # shellcheck disable=SC2016 # GraphQL variables, not shell
+            if out=$(gh api graphql -F n="$1" -f o="${GITHUB_REPOSITORY%%/*}" -f r="${GITHUB_REPOSITORY#*/}" \
+              -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){labels(first:100){pageInfo{hasNextPage} nodes{name}}}}}' 2>/dev/null) &&
+              out=$(jq -ce 'select(has("errors") | not) | .data.repository.pullRequest.labels
+                | select(.pageInfo.hasNextPage == false and all(.nodes[]; (.name | type) == "string")) | [.nodes[] | {name}]' <<<"$out" 2>/dev/null); then
+              printf '%s\n' "$out"
+              return 0
+            fi
+            echo "The GraphQL read of #$1's labels did not answer in full; reading them over REST." >&2
+            gh_read "repos/$GITHUB_REPOSITORY/issues/$1/labels?per_page=100" --paginate
+          }
+          pr_comments() {
+            local out
+            # shellcheck disable=SC2016 # GraphQL variables, not shell
+            if out=$(gh api graphql -F n="$1" -f o="${GITHUB_REPOSITORY%%/*}" -f r="${GITHUB_REPOSITORY#*/}" \
+              -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){comments(first:100){pageInfo{hasNextPage} nodes{databaseId id body createdAt updatedAt author{__typename login ... on User{databaseId} ... on Bot{databaseId}}}}}}}' 2>/dev/null) &&
+              out=$(jq -ce 'select(has("errors") | not) | .data.repository.pullRequest.comments
+                | select(.pageInfo.hasNextPage == false and all(.nodes[]; (.databaseId | type) == "number" and (.body | type) == "string"
+                    and (.author.__typename | IN("User", "Bot")) and (.author.login | type) == "string" and (.author.databaseId | type) == "number"))
+                | [.nodes[] | {id: .databaseId, node_id: .id, body, created_at: .createdAt, updated_at: .updatedAt,
+                    user: {login: (.author.login + (if .author.__typename == "Bot" then "[bot]" else "" end)), id: .author.databaseId, type: .author.__typename}}]' <<<"$out" 2>/dev/null); then
+              printf '%s\n' "$out"
+              return 0
+            fi
+            echo "The GraphQL read of #$1's comments did not answer in full; reading them over REST." >&2
+            gh_read "repos/$GITHUB_REPOSITORY/issues/$1/comments?per_page=100" --paginate
+          }
           echo $(($(date +%s) + GH_READ_JOB_SECONDS - GH_READ_MARGIN_SECONDS)) >"$RUNNER_TEMP/gh-read.deadline"
           # fd 9 is each sourcing step's stderr, so the notices reach the log
           # when a caller captures or redirects gh_read's own stderr.
           # The api-budget gh wrapper too: every `gh api` of a sourcing step,
           # gh_read's included, leaves its rate-limit reading for the notices
           # the job's last step writes.
-          { echo 'exec 9>&2'; declare -f gh_read pr_read pr_read_file pr_read_put pr_read_forget trusted_humans lane_holds; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
+          { echo 'exec 9>&2'; declare -f gh_read pr_read pr_read_file pr_read_put pr_read_forget trusted_humans lane_holds pr_labels pr_comments; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
 
       # THE RUNNER TAIL OF EACH MERGE-GROUP JOB: seconds from a job's last step
       # to its completion, the part of its timeout no step can shorten (see the
@@ -6067,7 +6109,7 @@ jobs:
             echo "::error::cannot read the outside-actor label from merge-holds.mjs at $BASE_SHA"
             exit 1
           }
-          if ! raw=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate) || ! labels=$(jq -r '.[].name' <<<"$raw"); then
+          if ! raw=$(pr_labels "$PR_NUMBER") || ! labels=$(jq -r '.[].name' <<<"$raw"); then
             echo "::error::could not read the labels of #$PR_NUMBER; re-run this run."
             exit 1
           fi
@@ -6085,7 +6127,7 @@ jobs:
           identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml" 2>/dev/null) || identity=
           [[ $identity =~ ^[a-z0-9][a-z0-9-]*\[bot\]$ ]] || identity=
           # The reason is best effort; the step fails either way.
-          reason=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate | lane_holds |
+          reason=$(pr_comments "$PR_NUMBER" | lane_holds |
             jq -r '.[] | select(.user.type == "Bot" and (((.body | test("(^|\n)<!-- claude-lane-hold lane="))
               and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
                 and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
@@ -6145,7 +6187,7 @@ jobs:
             exit 1
           fi
           # shellcheck disable=SC2016 # the $ in the --jq filter is a regex anchor
-          if ! raw=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate) ||
+          if ! raw=$(pr_comments "$PR_NUMBER") ||
             ! raw=$(lane_holds <<<"$raw") || ! held_at=$(jq -r \
             '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
               and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"

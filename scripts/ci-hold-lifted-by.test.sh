@@ -71,7 +71,10 @@ else
   fail "step is not inside ci-status between the human-gated step and the aggregate (lines: $order)"
 fi
 
-# The stub logs its arguments. A comments read fails when STUB_COMMENTS_FAIL is
+# The stub logs its arguments. A GraphQL read answers STUB_GQL_COMMENTS, and
+# fails when it is unset, so the comments are read over REST: the cases below
+# judge the REST shape, ci-gh-read-graphql.test.sh the GraphQL one. A REST
+# comments read fails when STUB_COMMENTS_FAIL is
 # set, else answers the STUB_COMMENTS array. An events read fails when STUB_EVENTS_FAIL is set, else prints
 # STUB_EVENTS (pages concatenated, as --paginate prints them). The base
 # commit's config is a fixture directory holding STUB_ACTORS as the
@@ -82,6 +85,10 @@ cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_LOG"
 case "$*" in
+*" graphql "*)
+  [[ -n "${STUB_GQL_COMMENTS:-}" ]] || exit 1
+  printf '%s\n' "$STUB_GQL_COMMENTS"
+  ;;
 */comments*)
   [[ -z "${STUB_COMMENTS_FAIL:-}" ]] || exit 1
   printf '%s\n' "${STUB_COMMENTS:-[]}"
@@ -186,11 +193,21 @@ JS
 }
 
 expect "a pull request no review lane held passes" 0 "No review lane has held #6419."
-if [[ "$(grep -c '^api ' "$TMP_ROOT/log")" -eq 2 ]] && grep -q '^api repos/o/r/issues/6419/comments' "$TMP_ROOT/log" &&
+if [[ "$(grep -c '^api ' "$TMP_ROOT/log")" -eq 3 ]] && grep -q '^api .*graphql .*comments(first:100)' "$TMP_ROOT/log" &&
+  grep -q '^api repos/o/r/issues/6419/comments' "$TMP_ROOT/log" &&
   grep -q '^api repos/o/r/issues/6419/events' "$TMP_ROOT/log"; then
-  ok "with no hold the step makes two reads, the comments and the events, both needed for that verdict"
+  ok "with no hold the step reads the comments (GraphQL, then REST when it fails) and the events, both needed for that verdict"
 else
   fail "with no hold the step's reads are not exactly comments and events: '$(cat "$TMP_ROOT/log")'"
+fi
+# A GraphQL answer is the comments read: no REST comments call follows.
+STUB_GQL_COMMENTS='{"data":{"repository":{"pullRequest":{"comments":{"pageInfo":{"hasNextPage":false},"nodes":[{"databaseId":7,"id":"IC_7","body":"<!-- claude-lane-hold lane=claude-review sha=bbbb criteria=trust-gate -->\nHeld.\n\nclaude-lane: claude-review","createdAt":"2026-10-23T10:00:00Z","updatedAt":"2026-10-23T10:00:00Z","author":{"__typename":"Bot","login":"github-actions","databaseId":41898282}}]}}}}}' \
+  STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$OWNER_LIFT]" \
+  expect "a hold read from GraphQL is judged as the REST one is" 0 "kyle-sexton, a person on the trusted-actor list, lifted"
+if grep -q '^api repos/o/r/issues/6419/comments' "$TMP_ROOT/log"; then
+  fail "a GraphQL comments answer was read again over REST: '$(cat "$TMP_ROOT/log")'"
+else
+  ok "a GraphQL comments answer spends no REST comments read"
 fi
 STUB_CHECKOUT_FAILED=1 expect "with no hold the actor list is not needed, so a failed base checkout passes" 0 "No review lane has held #6419."
 export STUB_EVENTS
