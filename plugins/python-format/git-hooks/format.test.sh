@@ -303,6 +303,23 @@ publish
 expect "--resolve prints the format row and runs nothing" "python-format	format	record:python	touch	accepted	yes	" "$(cd "$REPO" && bash "$CHECK" --resolve)"
 expect "--resolve ran no record command" "no" "$([[ -e "$REPO/resolved-ran" ]] && echo yes || echo no)"
 
+# --resolve <path>: one row per file, the adapter naming the config that
+# governs it (the closest one walking up) and the binary it would run.
+new_repo NONE
+mkdir -p "$REPO/src/pkg" "$REPO/scripts" "$REPO/.venv/bin"
+printf '[project]\nname = "demo"\n\n[tool.ruff.lint]\nselect = ["E"]\n' >"$REPO/pyproject.toml"
+printf 'line-length = 100\n' >"$REPO/src/ruff.toml"
+printf '[project]\nname = "pkg"\n' >"$REPO/src/pkg/pyproject.toml"
+printf 'x = 1\n' >"$REPO/src/pkg/mod.py"
+printf 'print(1)\n' >"$REPO/scripts/run.py"
+printf '#!/bin/sh\nexit 0\n' >"$REPO/.venv/bin/ruff"
+chmod +x "$REPO/.venv/bin/ruff"
+expect "--resolve <path> names the closest governing config and the venv binary, per file" "python-format	format	adapter:ruff	ruff	n/a	yes	config src/ruff.toml; binary .venv/bin/ruff
+python-format	format	adapter:ruff	ruff	n/a	yes	config pyproject.toml; binary .venv/bin/ruff" "$(cd "$REPO" && bash "$CHECK" --resolve src/pkg/mod.py scripts/run.py)"
+new_repo NONE
+printf '[project]\nname = "t"\n' >"$REPO/pyproject.toml"
+expect "--resolve with nothing resolved says why the adapter did not opt in" "python-format	format	none		n/a	n/a	no Ruff config: pyproject.toml has no [tool.ruff] section" "$(cd "$REPO" && bash "$CHECK" --resolve)"
+
 # End to end through the plugin's vendored installer and real commits.
 new_repo
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"

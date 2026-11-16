@@ -5,7 +5,8 @@
 #   lint.sh             the staged changes (git runs it as pre-commit)
 #   lint.sh --worktree  the uncommitted changes against HEAD, untracked files
 #                       included (the opt-in end-of-turn Stop row)
-#   lint.sh --resolve   print the lint row (resolve-tool.sh rt_print); reads
+#   lint.sh --resolve [<path>...]  print the lint row, or one per path
+#                         (resolve-tool.sh rt_print); reads
 #                       the record, runs nothing
 #
 # The command resolves per file through lib/git-hooks/resolve-tool.sh: the
@@ -38,9 +39,18 @@ rt="$here/resolve-tool.sh"
 # shellcheck source=adapters.sh
 . "$here/adapters.sh" || exit 1
 
+resolve=()
+if [[ "${1:-}" == --resolve ]]; then
+  shift
+  for f in "$@"; do
+    [[ "$f" == /* ]] || f="$PWD/$f"
+    resolve+=("$f")
+  done
+  set -- --resolve
+fi
 checks_init pre-commit "$@" || exit 0
 if [[ " $CHECKS_ARGS " == *" --resolve "* ]]; then
-  rt_print lint "$PWD"
+  rt_print lint "$PWD" ${resolve[@]+"${resolve[@]}"}
   exit 0
 fi
 

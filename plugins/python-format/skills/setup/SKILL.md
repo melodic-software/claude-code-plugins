@@ -80,7 +80,10 @@ or `modified` entry): the entry runs at commit outside Claude Code and reads no 
    `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh" --resolve` and
    `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh" --resolve`. Each prints one row: plugin, concern,
    source, tool, approval, found, detail, tab-separated. It reads the record and the adapter's
-   config and runs nothing. Report one line per concern from the row, never from this text:
+   config and runs nothing. Append repository paths (`--resolve src/a.py scripts/b.py`) for one
+   row per file when the answer can differ per file, as an adapter's config walk does; the detail
+   column then names the config that governs that file and the binary that would run, or why
+   nothing resolved. Report one line per concern from the rows, never from this text:
    - `record:python` with approval `accepted` (the record matches the default branch) or
      `approved` (this clone approved its current bytes), and found `yes`: PASS, naming the tool.
    - `record:python` with approval `unapproved`: FAIL. The record, or a file its command names,
@@ -251,7 +254,8 @@ only points:
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
 - a concern unresolved: `check` step 4's draft, for `/toolchain:setup apply python`. The plugin
-  imposes no rules and no tool of its own, and creates no tool config.
+  imposes no rules and no tool of its own; it offers to create a minimal config for the Ruff
+  adapter in the repository root only when the person explicitly asks for one.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 

@@ -34,10 +34,11 @@ pf__config_here() {
 }
 
 # pf__walk <dir> <root> <predicate>: 0 when the predicate holds at <dir> or a
-# directory above it, up to <root>.
+# directory above it, up to <root>; PF_WALK_DIR is where it held.
 pf__walk() {
   local dir="$1"
   while :; do
+    PF_WALK_DIR="$dir"
     "$3" "$dir" "$2" && return 0
     [[ "$dir" == "$2" || "$dir" != */* ]] && return 1
     dir="${dir%/*}"
@@ -76,12 +77,27 @@ pf__ruff() {
   RT_BIN="$PF_BIN"
 }
 
+# pf__detail <config dir> <root>: sets RT_DETAIL to the governing config and
+# the binary, repo-relative, in Ruff's same-directory precedence.
+pf__detail() {
+  local name rel="${1#"$2"}"
+  rel="${rel#/}"
+  for name in .ruff.toml ruff.toml pyproject.toml; do
+    [[ -f "$1/$name" ]] && break
+  done
+  local bin="${RT_BIN#"$2"/}"
+  [[ "$bin" == ruff ]] && bin="ruff on PATH"
+  RT_DETAIL="config ${rel:+$rel/}$name; binary $bin"
+}
+
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh and the entries
 rt_adapter() { # <concern> <file> <root>
   local dir
   dir="$(pf__dir "$2" "$3")"
   pf__walk "$dir" "$3" pf__config_here || return 1
+  local config_dir="$PF_WALK_DIR"
   pf__ruff "$dir" "$3"
+  pf__detail "$config_dir" "$3"
   RT_ADAPTER=ruff RT_TOOL=ruff RT_DIR="$3" RT_INSTALL="$PF_INSTALL"
   RT_CONFIGS=".ruff.toml ruff.toml pyproject.toml"
   # shellcheck disable=SC2016 # the command text sh -c expands, with RT_BIN and the files
@@ -95,17 +111,23 @@ rt_adapter() { # <concern> <file> <root>
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh
 rt_adapter_in_repo() { # <concern> <root>
-  local f
+  local f config_dir="$2"
   if ! pf__config_here "$2"; then
     while IFS= read -r f; do
       [[ "${f##*/}" != pyproject.toml ]] && break
       grep -qE "$PF_RUFF_SECTION" "$2/$f" 2>/dev/null && break
       f=""
     done < <(git -C "$2" ls-files -- ':(glob)**/.ruff.toml' ':(glob)**/ruff.toml' ':(glob)**/pyproject.toml' 2>/dev/null)
-    [[ -n "${f:-}" ]] || return 1
+    if [[ -z "${f:-}" ]]; then
+      RT_DETAIL="no Ruff config"
+      [[ -f "$2/pyproject.toml" ]] && RT_DETAIL="no Ruff config: pyproject.toml has no [tool.ruff] section"
+      return 1
+    fi
+    [[ "$f" == */* ]] && config_dir="$2/${f%/*}"
   fi
   pf__ruff "$2" "$2"
   RT_ADAPTER=ruff RT_TOOL=ruff
+  pf__detail "$config_dir" "$2"
 }
 
 # rt_config_counts <config path>: 0 unless it is a pyproject.toml with no

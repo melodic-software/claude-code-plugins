@@ -45,9 +45,13 @@
 #                            exits non-zero and no finding parsed
 #   rt_group / rt_use        resolve many files and group them by command
 #   rt_found <bin>           0 when the command's first word is runnable
-#   rt_print <concern> <root>  one TSV row: plugin, concern, source, tool,
-#                            approval (accepted | approved | unapproved | n/a),
-#                            found (yes | no | n/a), detail. Executes nothing.
+#   rt_print <concern> <root> [<file>...]
+#                            one TSV row for the repository, or one per file:
+#                            plugin, concern, source, tool, approval (accepted
+#                            | approved | unapproved | n/a), found (yes | no |
+#                            n/a), detail (the adapter's RT_DETAIL, such as the
+#                            config that governs the file, or why nothing
+#                            resolved). Executes nothing.
 #   resolve-tool.sh --approve <id> [<root>]   record a per-clone approval of
 #                            the id's current record (attended setup only)
 #
@@ -74,7 +78,7 @@ RT__ARGMAX=24000
 
 rt__reset() {
   RT_SOURCE=none RT_SCRIPT="" RT_DIR="" RT_TOOL="" RT_BIN="" RT_INSTALL=""
-  RT_REASON="" RT_ID="" RT_ADAPTER="" RT_APPROVAL=n/a RT_CONFIGS=""
+  RT_REASON="" RT_ID="" RT_ADAPTER="" RT_APPROVAL=n/a RT_CONFIGS="" RT_DETAIL=""
 }
 rt__reset
 
@@ -535,8 +539,25 @@ rt_require() {
   exit 0
 }
 
-rt_print() { # <concern> <root>
-  local concern="$1" root="$2" id key whole="" found
+rt_print() { # <concern> <root> [<file>...]
+  local concern="$1" root="$2" id key whole="" found f source tool approval
+  if (($# > 2)); then
+    shift 2
+    for f in "$@"; do
+      rt_resolve "$f" "$concern" "$root"
+      source="$RT_SOURCE" tool="$RT_TOOL" approval="$RT_APPROVAL" found=n/a
+      [[ "$source" == unapproved ]] && source="record:$RT_ID"
+      case "$source" in
+      record:* | adapter:*)
+        found=no
+        rt_found "$RT_BIN" && found=yes
+        ;;
+      *) tool="" ;;
+      esac
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$RT_PLUGIN" "$concern" "$source" "$tool" "$approval" "$found" "${RT_DETAIL:-$RT_REASON}"
+    done
+    return 0
+  fi
   rt__reset
   RT_ROOT="$root"
   rt__key "$concern"
@@ -559,9 +580,11 @@ rt_print() { # <concern> <root>
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$RT_PLUGIN" "$concern" "$RT_SOURCE" "$RT_TOOL" "$RT_APPROVAL" "$found" ""
     return 0
   done
-  local detail=""
+  local detail="" ok=1
   [[ -n "$whole" ]] && detail="the $whole record's $key names no <files>, so hooks do not run it"
-  if declare -F rt_adapter_in_repo >/dev/null && rt_adapter_in_repo "$concern" "$root"; then
+  declare -F rt_adapter_in_repo >/dev/null && rt_adapter_in_repo "$concern" "$root" && ok=0
+  [[ -n "$RT_DETAIL" ]] && detail="${detail:+$detail; }$RT_DETAIL"
+  if ((ok == 0)); then
     found=no
     rt_found "$RT_BIN" && found=yes
     printf '%s\t%s\tadapter:%s\t%s\tn/a\t%s\t%s\n' "$RT_PLUGIN" "$concern" "$RT_ADAPTER" "$RT_TOOL" "$found" "$detail"

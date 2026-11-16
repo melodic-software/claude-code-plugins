@@ -4,7 +4,8 @@
 #
 #   format.sh             the staged changes (git runs it as pre-commit)
 #   format.sh --worktree  does nothing: formatting happens at commit
-#   format.sh --resolve   print the format row (resolve-tool.sh rt_print);
+#   format.sh --resolve [<path>...]  print the format row, or one per path
+#                         (resolve-tool.sh rt_print);
 #                         reads the record, runs nothing
 #
 # The command resolves per file through lib/git-hooks/resolve-tool.sh: the
@@ -37,9 +38,18 @@ rt="$here/resolve-tool.sh"
 # shellcheck source=adapters.sh
 . "$here/adapters.sh" || exit 1
 
+resolve=()
+if [[ "${1:-}" == --resolve ]]; then
+  shift
+  for f in "$@"; do
+    [[ "$f" == /* ]] || f="$PWD/$f"
+    resolve+=("$f")
+  done
+  set -- --resolve
+fi
 checks_init pre-commit "$@" || exit 0
 if [[ " $CHECKS_ARGS " == *" --resolve "* ]]; then
-  rt_print format "$PWD"
+  rt_print format "$PWD" ${resolve[@]+"${resolve[@]}"}
   exit 0
 fi
 [[ "$CHECKS_MODE" == pre-commit ]] || exit 0
