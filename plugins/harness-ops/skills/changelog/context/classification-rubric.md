@@ -61,4 +61,4 @@ A correct row that rests on a changelog line the docs do not yet state:
 1. cites the newer source (the changelog entry)
 2. names the disagreement with the docs page
 
-The changelog-versus-docs pair also goes to the docs-lag section of the read. That section is handed to `/harness-ops:known-issues` when that skill is installed; a docs-lag entry is never a decision row.
+The changelog-versus-docs pair also goes to the docs-lag section of the read. That section is handed to `/harness-ops:known-issues` when that skill is enabled; a docs-lag entry is never a decision row.

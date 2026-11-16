@@ -144,7 +144,7 @@ measurement at all*, and the rest only apply once one exists.
 
 Where the audited target is a repository that *publishes* skills, the `skill-quality` plugin ships the
 aggregate measurement as `skill-quality:check`'s `listing-budget` action. Use it when that plugin is
-installed, and state plainly what it is and is not:
+enabled, and state plainly what it is and is not:
 
 - **It measures a different population.** The script walks *skills roots in a repository*. Category G
   is asking about *the listing the consumer's running session assembled*, which is the installed

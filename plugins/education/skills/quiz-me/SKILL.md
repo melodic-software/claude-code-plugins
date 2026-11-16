@@ -169,15 +169,15 @@ so and use the git/tracker fallback rather than implying the library is complete
 ## Composition
 
 This is an optional post-work step; it never edits another plugin's gate sequence. A staged
-workflow (session-flow's workflow skill, if installed) routes to `/education:quiz-me` by pointer
+workflow (session-flow's workflow skill, if enabled) routes to `/education:quiz-me` by pointer
 from its own on-ramps, never by mutating a shared stage list.
 
 ## Boundaries
 
 - **Artifact verification** ("did we build the right thing, does it work") is
-  `verification:confirm` (if installed).
+  `verification:confirm` (if enabled).
 - **Pre-work intent extraction**, where the user holds the answers, is `planning:interview` (if
-  installed). Here the work is done and Claude holds the answer key.
+  enabled). Here the work is done and Claude holds the answer key.
 - **Teach's `assess` and `exercise` actions** quiz learning content inside a teach workspace; this
   skill quizzes a completed change, with no workspace.
 - **Not a merge gate.** `quiz_policy` tunes how often a quiz is offered, never whether the merge

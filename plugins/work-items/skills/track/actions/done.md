@@ -41,7 +41,7 @@ If it's a recurring item, warn: "This is a recurring item. Did you mean `/work-i
 {if --pr: Fixed in #{pr_number}}
 ```
 
-The summary is institutional memory someone reads later, so lead with what was decided or delivered: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. Brevity never drops a decision, a number, or the linked PR.
+The summary is institutional memory someone reads later, so lead with what was decided or delivered: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is enabled; otherwise apply that discipline inline. Brevity never drops a decision, a number, or the linked PR.
 
 1. **Close the item, unless an unmerged `--pr` will auto-close this item.** This item's link text comes from the bound adapter, never written by hand: `bash "${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh" change-link <id> --repo <PR's owner>/<repo>` returns its `closes` line (`Closes #42` on GitHub, `null` where a merge closes nothing) and its `refs` line (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Change links"). On exit `6` (an adapter that predates `change-link`), use `Closes #<N>` and `Refs #<N>`, `<N>` being the number after `#` in the id. When `--pr` names an unmerged PR, run the keyword step below first and branch on what it leaves on the PR body:
    - **This item's `closes` line is present (or the keyword step just added it)** → do not close manually: post the completion summary as a plain comment (adapter: "Comment on item") and report "will auto-close when #{pr} merges".

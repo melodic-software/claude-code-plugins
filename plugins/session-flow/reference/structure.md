@@ -582,7 +582,7 @@ blocker: what is stuck, who or what unblocks it, and what to do meanwhile.
 Which skills the resuming session should invoke for the remaining work, each tied to a concrete
 remaining item, not generic recommendations.
 
-Use fully-qualified names (`plugin:skill`) and qualify each with "if installed": the resuming
+Use fully-qualified names (`plugin:skill`) and qualify each with "if enabled": the resuming
 session may run under a different plugin set, and a missing skill degrades to doing that work
 inline.
 

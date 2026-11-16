@@ -36,7 +36,7 @@ size.file_lines <reference> (<layer>)`. With no crossing, or when code-metrics i
 the brief lists none. Both paths dispatch `code-reviewer` (the primary path for the loosened-check
 criterion, below), so its brief always carries them.
 
-## Primary path: `pr-review-toolkit` orchestrator plugin (when installed)
+## Primary path: `pr-review-toolkit` orchestrator plugin (when enabled)
 
 With `--base` or `--worktree`, skip this path for the fallback ([phase-boundary.md](phase-boundary.md)).
 

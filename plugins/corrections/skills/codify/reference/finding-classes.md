@@ -14,7 +14,7 @@ An `invalid-state` row is offered `make-impossible` first; codify only proposes 
 | `style` (formatting, whitespace, ordering, naming style) | `editorconfig-severity` | in-repo `.editorconfig` |
 | `defined-diagnostic` (a diagnostic an installed analyzer pack or linter already defines: a cited `CAxxxx`/`IDExxxx`/`SAxxxx`, an ESLint, ruff, or markdownlint id, or a rule the pack documents) | `analyzer-pack-rule` | in-repo configuration: enable the rule or raise its severity in `.editorconfig`, `.globalconfig`, or the linter's own config |
 | `dotnet-invariant` (a project-specific API or usage invariant in C# expressible over syntax or the semantic model: a banned API, a required attribute, a misuse pattern) | `custom-analyzer` | Microsoft Learn, "Tutorial: Write your first analyzer and code fix" (<https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/tutorials/how-to-write-csharp-analyzer-code-fix>) |
-| `syntactic-pattern` (a code pattern expressible as a syntactic match in any language: a dangerous call, an injection sink, a secret shape, a cross-language invariant; also `dotnet-invariant` in a non-.NET ecosystem) | `semgrep-rule` | the `semgrep-rule-creator` plugin when installed; otherwise Semgrep's rule-writing documentation (<https://docs.semgrep.dev/writing-rules/overview>) |
+| `syntactic-pattern` (a code pattern expressible as a syntactic match in any language: a dangerous call, an injection sink, a secret shape, a cross-language invariant; also `dotnet-invariant` in a non-.NET ecosystem) | `semgrep-rule` | the `semgrep-rule-creator` plugin when enabled; otherwise Semgrep's rule-writing documentation (<https://docs.semgrep.dev/writing-rules/overview>) |
 | `structure` (dependency direction, layering, namespace-to-layer naming, forbidden references) | `architecture-test` | ArchUnitNET (<https://archunitnet.readthedocs.io/>) for .NET; dependency-cruiser (<https://github.com/sverweij/dependency-cruiser>) for JS/TS |
 | `process` (commit shape, file placement, generated-file freshness, session behavior: anything observed at tool-call or commit time rather than in source) | `action-guard` | the `harness-config` plugin's automation-gaps audit when enabled; otherwise record the candidate and stop |
 | `design-judgment` (readability, correctness reasoning, prose quality) and `unclassified` | `automated-review` | none; the finding stays a review-time judgment |
@@ -152,7 +152,7 @@ the rule.
 - **`custom-analyzer`**: point at Microsoft Learn, "Tutorial: Write your first analyzer and code
   fix" (<https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/tutorials/how-to-write-csharp-analyzer-code-fix>).
   This rung is .NET-only; the same invariant elsewhere belongs on the Semgrep rung.
-- **`semgrep-rule`**: `/semgrep-rule-creator:semgrep-rule-creator` when that plugin is installed;
+- **`semgrep-rule`**: `/semgrep-rule-creator:semgrep-rule-creator` when that plugin is enabled;
   otherwise Semgrep's rule-writing documentation (<https://docs.semgrep.dev/writing-rules/overview>).
 - **`architecture-test`**: ArchUnitNET (<https://archunitnet.readthedocs.io/>) for .NET and the
   dependency-cruiser repository docs (<https://github.com/sverweij/dependency-cruiser>) for JS/TS.

@@ -64,7 +64,7 @@ that owns it, is gated on that plugin's presence at the point of invocation, and
 fallback in the same sentence.
 
 1. **The instruction-placement delta lane.** Invoke `/instruction-placement:delta` when the
-   `instruction-placement` plugin is installed; where it is absent, record the lane as not run
+   `instruction-placement` plugin is enabled; where it is absent, record the lane as not run
    and continue. The lane owns what moved in the instruction-placement findings since its own
    last run. Bootstrap rule: where the lane reports no prior artifact to compare against,
    invoke `/instruction-placement:audit` instead, which is read-only apart from writing its own
@@ -72,7 +72,7 @@ fallback in the same sentence.
    in the coverage line.
 
 2. **The enforcement-surface delta lane.** Invoke `/overengineering:delta` with `--unattended`
-   and the cycle's two layers when the `overengineering` plugin is installed; where it is
+   and the cycle's two layers when the `overengineering` plugin is enabled; where it is
    absent, record the lane as not run and continue. The lane owns what moved in the
    enforcement surface since its own last run. The layer pair rotates on the ISO week number,
    read with `date -u +%V`; the pair index is (ISO week − 1) mod 5:
@@ -89,7 +89,7 @@ fallback in the same sentence.
    pair, which the coverage line records. The report carries the lane's own coverage line.
 
 3. **The repository drift audit lane.** Invoke `/codebase-health:audit` without `--fix` and
-   with exactly one dimension flag when the `codebase-health` plugin is installed; where it is
+   with exactly one dimension flag when the `codebase-health` plugin is enabled; where it is
    absent, record the lane as not run and continue. The lane owns the full drift pass over
    documentation, configuration, code, and architecture claims; it is a full pass every cycle
    and never a delta. The dimension rotates on the same ISO week number; the dimension index

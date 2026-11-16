@@ -178,7 +178,7 @@ the finished name is passed. With no `WORKSPACE_ID` the name has no workspace pa
 ## Control skill on this path
 
 When the app has a control skill (SKILL.md, Feature map) and this path runs anyway, because the
-person declined drive or app-control is not installed, the drive subagent reads its hub (from
+person declined drive or app-control is not enabled, the drive subagent reads its hub (from
 `<dir>` alone when the run has `trusted-root=<dir>`, never from the checkout; SKILL.md, Feature
 map) and:
 

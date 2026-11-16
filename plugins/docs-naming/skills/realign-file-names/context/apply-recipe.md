@@ -63,7 +63,7 @@ The audit's sweep found the sites it knows how to classify. Forms outside that
 set exist in any real tree. For every pair whose record reached `applying` or
 `applied`, including one whose apply was interrupted, sweep as follows.
 
-If `docs-hygiene` is installed, invoke its sibling through the Skill tool:
+If `docs-hygiene` is enabled, invoke its sibling through the Skill tool:
 
 ```text
 /docs-hygiene:rename-references audit orphans <old> to <new>

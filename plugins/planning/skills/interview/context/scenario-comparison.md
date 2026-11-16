@@ -45,7 +45,7 @@ Offer it, never force it, in one line that names the unclear term, when:
 
 - the user says something is unclear, confusing, woolly, gnarly or similar; or
 - a question the interview is about to ask depends on a term the glossary does not define (read it
-  through `/domain-driven-design:ubiquitous-language lookup` when that plugin is installed), or on a
+  through `/domain-driven-design:ubiquitous-language lookup` when that plugin is enabled), or on a
   term used with two meanings.
 
 For example: "'Booking' is used for both the held slot and the paid visit. Walk through a few

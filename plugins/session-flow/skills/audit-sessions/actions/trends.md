@@ -1,7 +1,7 @@
 # Trends: Cross-Session Performance Analysis
 
 Analyze historical session health scores to identify patterns, improvements, and areas needing
-attention, and show the team's delivery metrics beside them when the work-items plugin is installed.
+attention, and show the team's delivery metrics beside them when the work-items plugin is enabled.
 No current-session analysis; purely retrospective across sessions.
 
 ## Data source
@@ -60,7 +60,7 @@ note that the history runs up to the last fetch. They
 describe the team's delivery from the default branch's history, so keep them in their own table,
 apart from the session score statistics. Keep its rule of never naming a person.
 
-When the skill is not among the available skills (the work-items plugin is not installed), write
+When the skill is not among the available skills (the work-items plugin is not enabled), write
 "Delivery metrics: not read, `/work-items:measure-delivery` is not available in this session."
 under that heading. When the skill runs and stops on an error, put its error line there instead;
 when it stops because `origin/HEAD` is unset, also name `--branch` as the fix the person can rerun
