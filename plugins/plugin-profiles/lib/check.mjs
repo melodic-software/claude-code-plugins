@@ -16,7 +16,7 @@
 // are reported too: an apply switches them off unless the repository enables them.
 import { readFileSync } from "node:fs";
 import { excludedAlwaysOn } from "./plan.mjs";
-import { ALWAYS_ON, resolveCatalog } from "./profile-files.mjs";
+import { ALWAYS_ON, ignoredLine, resolveCatalog } from "./profile-files.mjs";
 
 export class CheckError extends Error {}
 
@@ -77,6 +77,7 @@ export function checkProfiles({ files, catalog, installed }) {
   }
 
   const reports = others.flatMap((f) => idProblems(f, catalog, installed));
+  reports.push(...[fullCatalog.alwaysOn, ...fullCatalog.profiles.values()].flatMap((p) => p.ignored).map(ignoredLine));
   reports.push(...excludeProblems(fullCatalog).filter((line) => !shippedExcludes.includes(line)));
   const named = new Set([fullCatalog.alwaysOn, ...fullCatalog.profiles.values()].flatMap((p) => [...p.plugins, ...p.optional]));
   const governed = new Set(files.flatMap((f) => ID_LISTS.flatMap((list) => f.def[list])).map(marketplaceOf));

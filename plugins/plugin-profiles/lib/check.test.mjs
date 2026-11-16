@@ -81,6 +81,14 @@ test("AC24: a user profile that excludes an always-on member is reported", () =>
   assert.match(result.reports[0], /build.*excludes always-on member flow@melodic-software/);
 });
 
+test("a repository profile's remove or exclude of an always-on member is reported as ignored, not failed", () => {
+  const result = run({ "repository/always-on.yaml": `remove: [guard@${M}]\n`, "repository/build.yaml": `exclude: [flow@${M}]\n` });
+  assert.deepEqual(result.failures, []);
+  assert.equal(result.reports.length, 2, result.reports.join("\n"));
+  assert.match(result.reports[0], /^Ignored, from .*always-on\.yaml: remove guard@melodic-software\. A repository profile cannot switch off an always-on member; a user-level profile can\.$/);
+  assert.match(result.reports[1], /^Ignored, from .*build\.yaml: exclude flow@melodic-software\./);
+});
+
 test("readMarketplace returns the catalog's own name and plugin names, and refuses a file without them", () => {
   const root = writeTree(tempDir(), {
     "good.json": { name: M, plugins: [{ name: "guard" }, { name: "flow" }] },

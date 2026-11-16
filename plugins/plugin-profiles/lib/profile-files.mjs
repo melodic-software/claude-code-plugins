@@ -2,7 +2,8 @@
 //
 //   profileLevels({pluginRoot, configDir, projectDir, conventionHome}) -> [{level, dir}], lowest first
 //   readProfileFiles(levels) -> [{level, name, path, def}], each file validated, or throws ProfileError
-//   resolveCatalog(files) -> {alwaysOn, profiles: Map<name, profile>}
+//   resolveCatalog(files) -> {alwaysOn, profiles: Map<name, profile>}, each profile also carrying
+//                            fromRepository {plugins, hideSkills} and ignored [{file, list, id}]
 //   readCatalog(levels) = resolveCatalog(readProfileFiles(levels))
 //   parseProfile(text, where) -> {description, plugins, optional, remove, exclude, hideSkills}, validated
 //   profileText(def) -> the file text for a def, which parseProfile reads back as the same def
@@ -83,10 +84,22 @@ export function profileText(def) {
   return `${lines.join("\n")}\n`;
 }
 
-function extend(lower, file, name) {
-  const base = lower ?? { name, description: null, plugins: new Set(), optional: new Set(), exclude: new Set(), hideSkills: new Set() };
+const emptyProfile = (name) => ({
+  name,
+  description: null,
+  plugins: new Set(),
+  optional: new Set(),
+  exclude: new Set(),
+  hideSkills: new Set(),
+  fromRepository: { plugins: new Set(), hideSkills: new Set() },
+  ignored: [],
+});
+
+function extend(lower, file, name, { repository = false, ignored = [] } = {}) {
+  const base = lower ?? emptyProfile(name);
   const plugins = new Set([...base.plugins, ...file.plugins]);
   for (const id of file.remove) plugins.delete(id);
+  const added = (ids, had) => (repository ? ids.filter((id) => !had.has(id)) : []);
   return {
     name,
     description: file.description ?? base.description,
@@ -94,8 +107,17 @@ function extend(lower, file, name) {
     optional: new Set([...base.optional, ...file.optional]),
     exclude: new Set([...base.exclude, ...file.exclude]),
     hideSkills: new Set([...base.hideSkills, ...file.hideSkills]),
+    fromRepository: {
+      plugins: new Set([...base.fromRepository.plugins, ...added([...file.plugins, ...file.optional], new Set([...base.plugins, ...base.optional]))]),
+      hideSkills: new Set([...base.fromRepository.hideSkills, ...added(file.hideSkills, base.hideSkills)]),
+    },
+    ignored: [...base.ignored, ...ignored],
   };
 }
+
+/** What the preview and check print for a repository line that would switch off an always-on member. */
+export const ignoredLine = ({ file, list, id }) =>
+  `Ignored, from ${file}: ${list} ${id}. A repository profile cannot switch off an always-on member; a user-level profile can.`;
 
 function yamlFiles(dir) {
   try {
@@ -116,10 +138,21 @@ export function readProfileFiles(levels) {
   );
 }
 
-/** The catalog the files resolve to, each same-named file extending the one below it. */
+/**
+ * The catalog the files resolve to, each same-named file extending the one below it. A repository
+ * file's remove and exclude lines that name a member of always-on as the shipped and user files
+ * resolve it are left out and listed in the profile's ignored.
+ */
 export function resolveCatalog(files) {
+  const own = files.filter((f) => f.name === ALWAYS_ON && f.level !== "repository").reduce((p, f) => extend(p, f.def, ALWAYS_ON), null);
+  const guarded = new Set(own ? [...own.plugins, ...own.optional] : []);
   const resolved = new Map();
-  for (const { name, def } of files) resolved.set(name, extend(resolved.get(name), def, name));
+  for (const { level, name, path, def } of files) {
+    const repository = level === "repository";
+    const ignored = repository ? ["remove", "exclude"].flatMap((list) => def[list].filter((id) => guarded.has(id)).map((id) => ({ file: path, list, id }))) : [];
+    const kept = ignored.length ? { ...def, remove: def.remove.filter((id) => !guarded.has(id)), exclude: def.exclude.filter((id) => !guarded.has(id)) } : def;
+    resolved.set(name, extend(resolved.get(name), kept, name, { repository, ignored }));
+  }
   const alwaysOn = resolved.get(ALWAYS_ON) ?? extend(null, EMPTY, ALWAYS_ON);
   resolved.delete(ALWAYS_ON);
   return { alwaysOn, profiles: resolved };

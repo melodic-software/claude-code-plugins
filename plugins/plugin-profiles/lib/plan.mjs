@@ -16,7 +16,8 @@
 //
 // Plan: {target, profile, writes: {id: boolean}, skillWrites: {name: "off"}, enabled, disabled,
 //        pinned: [{id, by: "managed" | "folder" | "repository", value}], missing: [{id, optional,
-//        install}], untouched, mcpOrLspOn, hookPluginsOff}
+//        install}], untouched, mcpOrLspOn, hookPluginsOff, ignored, repositoryOn, repositorySkills};
+//        the last three name what the profiles' repository files were refused and what only they add
 
 /** @typedef {"session" | "folder" | "initial"} Target */
 
@@ -108,6 +109,11 @@ export function plan({ catalog, profile: name, inventory, layers, current = laye
     [...always.hideSkills, ...chosen.hideSkills].filter((skill) => !(skill in managedSkills)).map((skill) => [skill, "off"]),
   );
 
+  const sources = [always, chosen];
+  const onlyRepository = (field, id) =>
+    sources.some((p) => p.fromRepository?.[field].has(id)) &&
+    !sources.some((p) => !p.fromRepository?.[field].has(id) && (field === "plugins" ? p.plugins.has(id) || p.optional.has(id) : p.hideSkills.has(id)));
+
   return {
     target,
     profile: name,
@@ -115,6 +121,9 @@ export function plan({ catalog, profile: name, inventory, layers, current = laye
     skillWrites,
     enabled,
     disabled,
+    ignored: [...new Set(sources)].flatMap((p) => p.ignored ?? []),
+    repositoryOn: enabled.filter((id) => onlyRepository("plugins", id)),
+    repositorySkills: Object.keys(skillWrites).filter((skill) => onlyRepository("hideSkills", skill)),
     pinned,
     missing,
     untouched,

@@ -67,7 +67,7 @@ import { PlanError, TARGET_LEVEL, effective, excludedAlwaysOn, plan } from "../l
 import { OptionsError, managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { missingRequired } from "../lib/prerequisite-gate.mjs";
 import { replaceFile } from "../lib/atomic-file.mjs";
-import { ALWAYS_ON, PLUGIN_ID, ProfileError, parseProfile, profileLevels, profileText, readCatalog, readProfileFiles, resolveCatalog } from "../lib/profile-files.mjs";
+import { ALWAYS_ON, PLUGIN_ID, ProfileError, ignoredLine, parseProfile, profileLevels, profileText, readCatalog, readProfileFiles, resolveCatalog } from "../lib/profile-files.mjs";
 import { ABSENT, baseline, deleteRecord, nextRecord, readRecord, recordPath, restoreEdits, saveRecord } from "../lib/record.mjs";
 import {
   SettingsConflict,
@@ -210,13 +210,16 @@ const list = (ids) => (ids.length ? ids.join(", ") : "none");
 /** The lines that say what an apply changes; the terminal prompt and the mod's preview both show them. */
 function previewLines(p, gate) {
   const r = p.plan;
+  const on = r.enabled.map((id) => (r.repositoryOn.includes(id) ? `${id} (from a repository profile)` : id));
   const lines = [
     `Profile ${r.profile} for ${r.target}: ${p.file}`,
-    `Switches on (${r.enabled.length}): ${list(r.enabled)}`,
+    ...r.ignored.map(ignoredLine),
+    `Switches on (${r.enabled.length}): ${list(on)}`,
     `Switches off (${r.disabled.length}): ${list(r.disabled)}`,
   ];
   if (Object.keys(p.pending).length) lines.push(`Left on until the next apply (${Object.keys(p.pending).length}): ${list(Object.keys(p.pending))}`);
   lines.push(`Writes ${Object.keys(p.edits.enabledPlugins).length} plugin entries and ${Object.keys(p.edits.skillOverrides).length} skill entries.`);
+  if (r.repositorySkills.length) lines.push(`Hides skills a repository profile names: ${list(r.repositorySkills)}`);
   if (r.hookPluginsOff.length) lines.push(`Switches off plugins that ship hooks or a mod: ${list(r.hookPluginsOff)}`);
   if (r.mcpOrLspOn.length) lines.push(`Switches on plugins with an MCP or language server: ${list(r.mcpOrLspOn)}`);
   for (const pin of r.pinned) lines.push(`Pinned by ${pin.by} settings (${pin.value}), left alone: ${pin.id}`);
@@ -241,6 +244,9 @@ const previewJson = (p, gate, upToDate) => ({
   mcpOrLspOn: p.plan.mcpOrLspOn,
   hookPluginsOff: p.plan.hookPluginsOff,
   prerequisitesMissing: gate.map((g) => g.plugin),
+  ignored: p.plan.ignored,
+  repositoryOn: p.plan.repositoryOn,
+  repositorySkills: p.plan.repositorySkills,
   lines: previewLines(p, gate),
 });
 
@@ -309,7 +315,7 @@ async function apply(opts, where, env, io) {
     { env, platform: process.platform, cwd: where.projectDir, dataDirOf: (id) => join(where.configDir, "plugins", "data", dataDirName(id)) },
   );
   const recorded = p.previous?.profile === opts.name && p.previous.phase === "applied";
-  const upToDate = !changeCount(p) && opts.target !== "session" && recorded;
+  const upToDate = !changeCount(p) && !Object.keys(p.pending).length && opts.target !== "session" && recorded;
   if (opts.json) {
     io.out(JSON.stringify(previewJson(p, gate, upToDate), null, 2));
     return 0;
@@ -549,6 +555,8 @@ async function save(opts, where, io) {
   const def = parseProfile(text, path);
   const others = files.filter((f) => f.path !== path);
   const catalog = resolveCatalog([...others, { level: opts.level, name: opts.name, path, def }].sort((a, b) => levels.findIndex((l) => l.level === a.level) - levels.findIndex((l) => l.level === b.level)));
+  const ignored = [catalog.alwaysOn, ...catalog.profiles.values()].flatMap((p) => p.ignored).filter((e) => e.file === path);
+  if (ignored.length) throw new ProfileError(ignored.map(ignoredLine).join(" "));
   const affected = opts.name === ALWAYS_ON ? [...catalog.profiles.values()] : [catalog.profiles.get(opts.name)];
   for (const p of affected) {
     const blocked = excludedAlwaysOn(catalog, p);

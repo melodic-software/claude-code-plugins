@@ -41,7 +41,8 @@ The user sees every change before it is made, so each write runs twice:
 different write, or when nobody is there to answer: with no one to ask, stop after the preview
 and report what would change. When the preview names a missing required prerequisite, `--yes`
 does not apply it; tell the user to run the apply in a separate terminal and answer the tool's own
-prompt.
+prompt. A `Not installed` line does not stop an apply: only a missing required prerequisite stops
+`--yes`.
 
 ## Actions
 

@@ -151,6 +151,62 @@ test("a second apply previews what it switches against the folder as it is now, 
   assert.ok(preview.disabled.includes(`implementation@${M}`), `build switched implementation on, so notes switches it off: ${preview.disabled}`);
 });
 
+const IGNORED_REMOVE = (file) =>
+  `Ignored, from ${file}: remove guardrails@${M}. A repository profile cannot switch off an always-on member; a user-level profile can.`;
+
+test("a repository always-on.yaml that removes guardrails is ignored for that line: a folder apply keeps guardrails on and says why", () => {
+  const w = world();
+  const file = join(w.project, "docs", "conventions", "plugin-profiles", "always-on.yaml");
+  writeTree(w.project, { "docs/conventions/plugin-profiles/always-on.yaml": `remove: [guardrails@${M}]\n` });
+  const r = w.run(["apply", "build", "--for", "folder", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(w.read()).enabledPlugins[`guardrails@${M}`], true);
+  assert.ok(r.stdout.split("\n").includes(IGNORED_REMOVE(file)), r.stdout);
+});
+
+test("a repository profile's exclude of an always-on member is ignored, and the rest of that profile still applies", () => {
+  const w = world();
+  const file = join(w.project, "docs", "conventions", "plugin-profiles", "build.yaml");
+  writeTree(w.project, { "docs/conventions/plugin-profiles/build.yaml": `exclude: [guardrails@${M}, review@${M}]\n` });
+  const r = w.run(["apply", "build", "--for", "folder", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  const after = JSON.parse(w.read()).enabledPlugins;
+  assert.equal(after[`guardrails@${M}`], true);
+  assert.equal(after[`review@${M}`], false, "an exclude of a member that is not always-on still applies");
+  assert.ok(r.stdout.includes(`Ignored, from ${file}: exclude guardrails@${M}.`), r.stdout);
+});
+
+test("a user-level always-on.yaml can still remove an always-on member", () => {
+  const w = world();
+  writeTree(w.home, { ".claude/plugin-profiles/always-on.yaml": `remove: [guardrails@${M}]\n` });
+  const r = w.run(["apply", "build", "--for", "folder", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(w.read()).enabledPlugins[`guardrails@${M}`], false);
+  assert.doesNotMatch(r.stdout, /Ignored, from/);
+});
+
+test("apply --dry-run --json carries the ignored repository entries and marks what a repository profile switches on and hides", () => {
+  const w = world();
+  const dir = join(w.project, "docs", "conventions", "plugin-profiles");
+  writeTree(w.project, {
+    "docs/conventions/plugin-profiles/always-on.yaml": `remove: [guardrails@${M}]\n`,
+    "docs/conventions/plugin-profiles/notes.yaml": `plugins: [songwriting@${M}, review@${M}]\nhide_skills: [stray-skill]\n`,
+  });
+  writeTree(w.home, { ".claude/plugin-profiles/notes.yaml": `plugins: [review@${M}]\n` });
+  const preview = JSON.parse(w.run(["apply", "notes", "--for", "folder", "--dry-run", "--json"]).stdout);
+  assert.deepEqual(preview.ignored, [{ file: join(dir, "always-on.yaml"), list: "remove", id: `guardrails@${M}` }]);
+  assert.deepEqual(preview.repositoryOn, [], "songwriting is already on in the folder, so nothing a repository named switches on");
+  assert.deepEqual(preview.repositorySkills, ["stray-skill"]);
+  assert.ok(preview.lines.includes(IGNORED_REMOVE(join(dir, "always-on.yaml"))), preview.lines.join("\n"));
+  assert.ok(preview.lines.includes("Hides skills a repository profile names: stray-skill"), preview.lines.join("\n"));
+  const local = JSON.parse(w.read());
+  local.enabledPlugins[`songwriting@${M}`] = false;
+  writeFileSync(w.localFile, JSON.stringify(local));
+  const again = JSON.parse(w.run(["apply", "notes", "--for", "folder", "--dry-run", "--json"]).stdout);
+  assert.deepEqual(again.repositoryOn, [`songwriting@${M}`], "review is named by the user's notes.yaml too, so it is not marked");
+  assert.ok(again.lines.some((l) => l.startsWith("Switches on (") && l.includes(`songwriting@${M} (from a repository profile)`)), again.lines.join("\n"));
+});
+
 test("a repository profile shapes the folder but never the user settings an initial apply writes", () => {
   const w = world({ local: null });
   writeTree(w.project, { "docs/conventions/plugin-profiles/build.yaml": `plugins: [songwriting@${M}]\n` });
@@ -554,6 +610,20 @@ test("apply --dry-run --json reads upToDate once the profile is applied", () => 
   assert.equal(JSON.parse(w.run(["apply", "build", "--for", "folder", "--dry-run", "--json"]).stdout).upToDate, true);
 });
 
+test("apply --defer-off --dry-run --json is not up to date while an off entry is still owed", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "review", "--for", "folder", "--yes"]).status, 0);
+  const list = JSON.parse(readFileSync(w.env.PP_STUB_LIST, "utf8"));
+  writeFileSync(w.env.PP_STUB_LIST, JSON.stringify([...list, { id: `gaming@${M}`, version: "1.0.0", scope: "user", installPath: w.root }]));
+  const userFile = join(w.home, ".claude", "settings.json");
+  const user = JSON.parse(readFileSync(userFile, "utf8"));
+  user.enabledPlugins[`gaming@${M}`] = true;
+  writeFileSync(userFile, JSON.stringify(user));
+  const preview = JSON.parse(w.run(["apply", "review", "--for", "folder", "--defer-off", "--dry-run", "--json"]).stdout);
+  assert.deepEqual(preview.pending, [`gaming@${M}`], "a plugin newly on at user level that review does not name");
+  assert.equal(preview.upToDate, false);
+});
+
 test("apply --json without --dry-run is a usage error and writes nothing", () => {
   const w = world();
   const r = w.run(["apply", "build", "--for", "folder", "--yes", "--json"]);
@@ -687,6 +757,16 @@ test("AC24: save refuses a profile that excludes an always-on member", () => {
   assert.equal(r.status, 2);
   assert.match(r.stderr, /exclude always-on members: guardrails@melodic-software/);
   assert.equal(existsSync(userProfile(w, "notes")), false);
+});
+
+test("AC24: save at the repository level refuses a remove or exclude of an always-on member, since apply would ignore it", () => {
+  const w = world();
+  for (const args of [["always-on", "--remove"], ["notes", "--exclude"]]) {
+    const r = w.run(["save", args[0], "--level", "repository", args[1], `guardrails@${M}`, "--yes"]);
+    assert.equal(r.status, 2, args.join(" "));
+    assert.match(r.stderr, /A repository profile cannot switch off an always-on member; a user-level profile can\./);
+  }
+  assert.equal(existsSync(join(w.project, "docs", "conventions", "plugin-profiles")), false);
 });
 
 test("AC25: a hook-shipping plugin answered always on is saved to the user's always-on file and stays on under every profile", () => {
