@@ -30,6 +30,8 @@ bump: major
 - **Memory-tier writes in `deepening` and `improve-layout`.** They now follow the rules `boundaries`
   already had: no file when the memory root is the repository root or the slice name cannot be
   formed, never overwrite (`-2`, then `-3`), and a refused write puts the content in the report.
+- **No recorded style in `improve-layout`, attended.** The run no longer stops at Phase 1 to ask
+  how files should be grouped: it computes the cards without a style and asks once after them.
 - **Scope in `conventions`.** Its scan now scopes as the other lenses do: a given spec or plan sets
   the areas, and the history step leaves out `[bot]` authors.
 - **Roster.** The plugin description, the README and `improve`'s description, argument hint,
