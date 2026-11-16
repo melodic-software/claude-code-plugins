@@ -4,7 +4,8 @@
 - Date: 2026-11-15
 - Refs: [#16428](https://github.com/melodic-software/claude-code-plugins/issues/16428),
   [#16430](https://github.com/melodic-software/claude-code-plugins/issues/16430); owner decisions
-  of 2026-11-15 (design rounds Q55 to Q70 and the plan approval, relayed by the control-hub session)
+  of 2026-11-15 (design rounds Q55 to Q70, the Q75 answer and the plan approval, relayed by the
+  control-hub session)
 
 ## Context
 
