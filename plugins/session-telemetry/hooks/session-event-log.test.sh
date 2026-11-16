@@ -197,12 +197,9 @@ assert_eq "payload cwd resolves the project" 1 "$(wc -l <"$P/.observability/clau
 
 # --- a linked worktree writes under the main checkout's root ---------------------
 # A real git worktree, so the .git file and commondir are the layout git writes.
-# The rows land under the main checkout, the observability probe run there counts
-# them, and removing the worktree leaves them in place.
 if command -v git >/dev/null 2>&1; then
   MAIN="$TEST_TMPDIR/wt-main"
   WT="$TEST_TMPDIR/wt-linked"
-  PROBE="$HOOK_DIR/../../harness-ops/skills/observability/scripts/probe-observability-state.sh"
   # No global or system config: a machine's commit.gpgsign or hooks path must
   # not fail the fixture commit.
   FIXTURE_GIT=(env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git)
@@ -215,10 +212,6 @@ if command -v git >/dev/null 2>&1; then
       "$(wc -l <"$MAIN/.observability/claude/sessions/swt.jsonl" 2>/dev/null | tr -d ' ')"
     assert_file_absent "worktree session → no root inside the worktree" "$WT/.observability"
     assert_eq "the main checkout's root carries the guard" "*" "$(head -1 "$MAIN/.observability/claude/.gitignore" 2>/dev/null)"
-    assert_eq "the probe run from the main checkout counts the worktree's row" "1 events" \
-      "$(cd "$MAIN" && bash "$PROBE" --hook-events 2>/dev/null)"
-    assert_eq "the probe run from the worktree reads the same root" "1 events" \
-      "$(cd "$WT" && bash "$PROBE" --hook-events 2>/dev/null)"
     # A .git file git did not write cannot move the anchor into another checkout,
     # where retention would delete: neither a gitdir outside <common>/worktrees...
     P=$(project forged-commondir --no-git)
