@@ -72,7 +72,6 @@ One row per Skill call, with these fields:
 | `source` | always | `tool` (the Skill tool) or `expansion` (a user-typed slash command) |
 | `expansion_type` | expansion path only | `slash_command` or `mcp_prompt` |
 
-
 `skill-usage-audit` is captured by two disjoint producers so both invocation
 paths are measured: the model-invoked `Skill` tool (`PostToolUse`) and the
 user-typed slash command (`UserPromptExpansion`, which bypasses the `Skill`
