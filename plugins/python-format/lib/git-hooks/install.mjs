@@ -418,7 +418,7 @@ function managerEvidence(info) {
   if (config) found.push({ manager: "lefthook", evidence: config });
   if (isHuskyPath(info.hooksPath)) found.push({ manager: "husky", evidence: `core.hooksPath=${info.hooksPath}` });
   else if (existsSync(path.join(info.top, ".husky"))) found.push({ manager: "husky", evidence: ".husky/" });
-  // Husky.Net keeps its tasks here and runs .husky/<event> as husky does, so the husky adapter drives it.
+  // Husky.Net runs .husky/<event> as husky does: https://alirezanet.github.io/Husky.Net/guide/getting-started.html
   if (existsSync(path.join(info.top, HUSKY_NET_TASKS))) found.push({ manager: "husky", evidence: HUSKY_NET_TASKS });
   if (info.hooksPath === SHARED_DIR) found.push({ manager: "plain", evidence: `core.hooksPath=${SHARED_DIR}` });
   else if (info.hooksPath && !isHuskyPath(info.hooksPath)) {
@@ -428,7 +428,6 @@ function managerEvidence(info) {
 }
 
 // detect(info) -> { manager: lefthook|husky|plain|conflict, evidence[], variant? }
-// variant "husky.net" when .husky/task-runner.json is present.
 export function detect(info) {
   const evidence = [...managerEvidence(info), ...foreignEvidence(info.top)];
   if (evidence.length === 0) return { manager: "plain", evidence };
@@ -1408,11 +1407,7 @@ export function driftLine(plugin, row) {
   return `${plugin.name}: git hook ${row.entry} ${row.state}; run /${plugin.name}:setup apply install-git-hooks`;
 }
 
-// inspect: what git runs at each hook stage, under whichever manager the
-// repository uses. Read-only: it writes nothing in the repository, and the only
-// code it runs is this plugin's own installed entries that rewrite nothing,
-// each timed from its installed copy. Every other hook is listed with the reason
-// it was not run. Stage names are git's client-side hooks (githooks(5)).
+// https://git-scm.com/docs/githooks
 const GIT_HOOKS = [
   "applypatch-msg",
   "pre-applypatch",
@@ -1453,14 +1448,12 @@ function executable(file) {
   }
 }
 
-// stampOf(file) -> { file, plugin, entry } for a stamped entry copy, else null.
 function stampOf(file) {
   const text = readText(file);
   const stamp = text === null ? null : readStamp(text);
   return stamp ? { file, plugin: stamp.plugin, entry: stamp.name } : null;
 }
 
-// The first script a command names that is a stamped entry copy.
 function entryInCommand(info, command) {
   for (const token of command.match(SCRIPT_TOKEN_RE) ?? []) {
     const found = stampOf(path.isAbsolute(token) ? token : path.join(info.top, token));
@@ -1474,8 +1467,6 @@ const median = (sorted) => {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 };
 
-// The input an entry is timed on: the staged set, a message file, or the
-// branch against its upstream; skip names why there is nothing to time.
 function timingInput(info, event) {
   if (event === "pre-commit") {
     const staged = git(info.top, ["diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR"]).out.split("\0").filter(Boolean).length;
@@ -1496,8 +1487,7 @@ function timingInput(info, event) {
   return { skip: `${event} is not an event entries run on` };
 }
 
-// timing -> { measured } or { notMeasured }: only this plugin's own entry,
-// one that rewrites nothing and whose tools are on PATH, is run.
+// Runs only this plugin's own entry that rewrites nothing and has its tools.
 function timing(info, plugin, event, found, opts) {
   if (found.plugin !== plugin.name) return { notMeasured: `an entry of ${found.plugin}: time it with /${found.plugin}:setup check inspect` };
   const entry = plugin.entries.find((e) => e.name === found.entry);
@@ -1549,8 +1539,6 @@ function entryItem(ctx, event, found, extra = {}) {
   };
 }
 
-// The plain dispatcher runs <event>.pre-checks, then each marker in <event>.d/
-// and local/<event>.d/, in glob order.
 function dispatcherItems(ctx, event) {
   const { info } = ctx;
   const items = [];
@@ -1574,9 +1562,8 @@ function dispatcherItems(ctx, event) {
   return items;
 }
 
-// lefthookDump(info) -> { config } or { error }. `lefthook dump` prints the
-// config merged from the main and local files, extends and already-fetched
-// remotes; it runs no job.
+// Reads already-fetched remotes, fetches none and runs no job:
+// https://github.com/evilmartians/lefthook/blob/v2.2.2/internal/config/loader.go
 function lefthookDump(info) {
   const r = spawnSync("lefthook", ["dump", "--format", "json"], {
     cwd: info.top,
@@ -1593,7 +1580,6 @@ function lefthookDump(info) {
   }
 }
 
-// A lefthook hook's jobs (groups flattened), commands and scripts.
 function lefthookJobs(hook) {
   const out = [];
   const walk = (jobs) => {
@@ -1628,8 +1614,7 @@ function lefthookItems(ctx, event, dump) {
   });
 }
 
-// Husky.Net's `husky run` with --group or --name runs those tasks from
-// task-runner.json; null when the line names neither or the file will not parse.
+// https://alirezanet.github.io/Husky.Net/guide/task-runner.html
 function huskyNetTasks(info, line) {
   const flag = (f) => new RegExp(`--${f}(?:=|\\s+)("?)([^\\s"]+)\\1`).exec(line)?.[2];
   const [group, name] = [flag("group"), flag("name")];
@@ -1652,7 +1637,6 @@ function huskyNetTasks(info, line) {
     }));
 }
 
-// Each command line of .husky/<event>; the line sourcing husky's own helper is skipped.
 function huskyItems(ctx, event, variant) {
   const { info } = ctx;
   const source = `.husky/${event}`;
@@ -1671,7 +1655,6 @@ function huskyItems(ctx, event, variant) {
   });
 }
 
-// git config hooks: hook.<name>.event lines, run from git 2.54.
 function configHookItems(info) {
   const r = git(info.top, ["config", "--get-regexp", "^hook\\..*\\.event$"]);
   if (!r.ok) return [];
