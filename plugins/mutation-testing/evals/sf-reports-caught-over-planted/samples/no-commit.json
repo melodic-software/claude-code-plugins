@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /tmp/wt restore -- src/pricing.py",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "restore in worktree"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -1",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "read-only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /tmp/wt commit -am seed",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "commits in throwaway"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git commit -m wip",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "commits"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "set -e\ngit commit -am seed",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "after a newline in a multi-line script"
+    }
+  ]
+}

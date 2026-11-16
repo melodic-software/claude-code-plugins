@@ -18,14 +18,17 @@
 # is left alone.
 # Last, the bot's open drift issue for any id the report no longer names is
 # closed with a comment, printed as `action=close-unreported`. The body names
-# the run date and run URL, then per drifted page either its pin and head (a
-# hex pin) or, for `pin=unknown`, the skill and the check script to run, then
-# one line per changed row or unit, every report-derived string inside a code
-# span with backticks replaced. The re-audit footer is written only when a
-# hex-pin page drifted. The body is cut at 60,000 characters with a pointer to
-# the run's job summary, written to a temp file and passed with --body-file.
-# A created or reopened issue gets the `needs-human` label, added before the
-# reopen; an in-place edit adds no label. No assignees or mentions.
+# the run date and run URL, then per drifted page either its pin, head and
+# counts of changed rows, new units and removed units (a hex pin) or, for
+# `pin=unknown`, the skill and the check script to run, every report-derived
+# string inside a code span with backticks replaced. No row or unit path is
+# written: those names are the upstream's choice, and the body reaches
+# intake's triage model, so the re-audit footer (written only when a hex-pin
+# page drifted) has the reader list them with scripts/check-upstream-drift.sh.
+# The body is cut at 60,000 characters with a pointer to the run's job
+# summary, written to a temp file and passed with --body-file.
+# No run adds a label; a reopen removes `needs-human` with its body edit. No
+# assignees or mentions.
 #
 # The whole report is parsed before any gh call. Each line follows the fixed
 # field order of the report (docs/contracts/upstream-drift/README.md, the
@@ -111,6 +114,14 @@ PINNED=()    # 1 when a drifted page has a hex pin
 UNTRACKED=() # 1 when any page is untracked or unreachable; blocks a close
 repo_index=-1
 page_status=""
+counting=0 # 1 while the current page is a drifted hex-pin page
+changed=0 new=0 removed=0
+
+# flush_counts: the current hex-pin page's counts line, onto its upstream's body.
+flush_counts() {
+  ((counting)) && DETAIL[repo_index]+="Changed rows: $changed, new units: $new, removed units: $removed."$'\n'
+  counting=0 changed=0 new=0 removed=0
+}
 
 find_repo() { # <id>: sets repo_index, adding the id if new
   local i
@@ -138,6 +149,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   if [[ "$line" =~ $re_page ]]; then
     repo="${BASH_REMATCH[1]}" pin="${BASH_REMATCH[2]}" head="${BASH_REMATCH[3]}"
     page_status="${BASH_REMATCH[4]}" page="${BASH_REMATCH[5]}"
+    flush_counts
     find_repo "$repo"
     case "$page_status" in
     drift)
@@ -146,6 +158,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
         DETAIL[repo_index]+=$'\n'"### $(span "$(skill_name "$page" "$repo")")"$'\n\n'"Run $(span "$page"); restore or re-vendor what it names; its output is in the run's job summary."$'\n\n'
       else
         PINNED[repo_index]=1
+        counting=1
         DETAIL[repo_index]+=$'\n'"### $(span "$page")"$'\n\n'"Pin $(span "$pin"), upstream head $(span "$head")."$'\n\n'
       fi
       ;;
@@ -153,17 +166,14 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     *) UNTRACKED[repo_index]=1 ;; # listed, nothing written, and never closed
     esac
   elif ((repo_index >= 0)) && [[ "$line" =~ $re_row ]]; then
-    n="${BASH_REMATCH[1]}" st="${BASH_REMATCH[2]}" p="${BASH_REMATCH[3]}"
-    [[ "$page_status" == drift && "$st" != unchanged ]] &&
-      DETAIL[repo_index]+="- $(span "$st") $(span "$p") (page line $n)"$'\n'
+    [[ "${BASH_REMATCH[2]}" != unchanged ]] && changed=$((changed + 1))
   elif ((repo_index >= 0)) && [[ "$line" =~ $re_unit ]]; then
-    kind="${BASH_REMATCH[1]}" p="${BASH_REMATCH[2]}"
-    [[ "$page_status" == drift ]] &&
-      DETAIL[repo_index]+="- $kind unit $(span "$p")"$'\n'
+    if [[ "${BASH_REMATCH[1]}" == new ]]; then new=$((new + 1)); else removed=$((removed + 1)); fi
   else
     die "$REPORT:$lineno: line does not follow the report field order"
   fi
 done <"$REPORT"
+flush_counts
 
 # --- act ---------------------------------------------------------------------
 
@@ -217,7 +227,7 @@ write_body() {
   local body note lead footer
   if ((PINNED[$1])); then
     lead="changed since the pin on its docs/upstream page."
-    footer="Re-audit the rows named above as docs/contracts/upstream-drift/README.md, \"When a trigger fires\", requires. Moving the pin makes the next run clean, which closes this issue."
+    footer="Run scripts/check-upstream-drift.sh --page <page> on each page above to list its changed rows and units, then re-audit them as docs/contracts/upstream-drift/README.md, \"When a trigger fires\", requires. Moving the pin makes the next run clean, which closes this issue."
   else
     lead="no longer matches the copy vendored here."
     footer="A clean run closes this issue."
@@ -262,7 +272,7 @@ for i in "${!REPOS[@]}"; do
   case "$action" in
   create)
     write_body "$i" "$body_file"
-    if url="$(gh issue create --title "$title" --body-file "$body_file" --label needs-human)"; then
+    if url="$(gh issue create --title "$title" --body-file "$body_file")"; then
       [[ "$url" =~ /issues/([0-9]+)$ ]] && ! gh api -X PATCH "repos/{owner}/{repo}/issues/${BASH_REMATCH[1]}" -f type=Task >/dev/null &&
         printf '%s: could not set the Issue Type on %s\n' "$SELF" "$url" >&2
     else
@@ -275,12 +285,9 @@ for i in "${!REPOS[@]}"; do
     ;;
   reopen)
     write_body "$i" "$body_file"
-    # The label goes on first, so no reopened issue is ever unlabeled.
-    if ! gh issue edit "$num" --add-label needs-human >/dev/null; then
-      fail "label add failed for $repo"
-    elif ! gh issue reopen "$num" >/dev/null; then
+    if ! gh issue reopen "$num" >/dev/null; then
       fail "issue reopen failed for $repo"
-    elif ! gh issue edit "$num" --body-file "$body_file" >/dev/null; then
+    elif ! gh issue edit "$num" --body-file "$body_file" --remove-label needs-human >/dev/null; then
       fail "issue edit failed for $repo"
     fi
     ;;

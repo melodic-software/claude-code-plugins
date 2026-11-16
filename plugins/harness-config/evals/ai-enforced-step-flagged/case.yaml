@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: ai-enforced-step-flagged
+graders:
+  - name: step-1-cull
+    type: regex
+    pattern: '^[\s>*`_-]*step 1[*`_\s]*:[*`_\s]*cull\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: step-5-keep
+    type: regex
+    pattern: '^[\s>*`_-]*step 5[*`_\s]*:[*`_\s]*keep\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: step-8-delete-enforced
+    type: regex
+    pattern: '^[\s>*`_-]*step 8[*`_\s]*:[*`_\s]*delete-enforced\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: check-named
+    type: llm
+    criteria: 'PASS only if the reply names the pr-title.yml lint-title CI job as what enforces step 8, and says step 8 is flagged for deletion rather than kept as a hard constraint. FAIL if step 8 is kept, or no enforcing check is named for it.'

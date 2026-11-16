@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Rung: custom-analyzer. Builder: /implementation:implement (not available here, so the proposal stops at the rung and the check)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Rung: custom-analyzer. Write the analyzer yourself."
+    },
+    {
+      "answer": "Hand it to /implementation:implement. Rung: automated-review."
+    }
+  ]
+}

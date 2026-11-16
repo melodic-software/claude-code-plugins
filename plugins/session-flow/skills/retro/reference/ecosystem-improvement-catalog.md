@@ -32,14 +32,14 @@ banned API, a file written in the wrong place, a step skipped before a commit.
   1 (decidable without reasoning), item 2 (it repeats with the same cause, or it happened once and
   is policy-class: irreversible, public, or security-relevant, as "When to propose a check" under
   [Owner skills](#owner-skills) says) and item 7 (no stronger rung already covers it). A finding
-  that meets those three takes the [Hooks](#hooks) section's format and names the strongest rung
-  of the ladder copy that can decide it. Without the plugin, items 3-6 and 8 (precision, a message
-  naming the fix, proof on a planted violation, the same command at edit time and in CI, a kill
-  switch) describe a check that exists, and a retro proposes a check without writing or proving
-  one, so the row lists them as requirements the proposed check must meet. A finding that fails
+  that meets those three takes the [Hooks](#hooks) section's check-row format. A retro proposes a
+  check without writing or proving one, so the row lists items 3-5 and 8 (precision, a message
+  naming the fix, proof on a planted violation, a kill switch) as requirements the proposed check
+  must meet, and item 6 (the same command at edit time and in CI) too unless the rung's "runs at"
+  column names one place, which meets it, as the ladder's item 6 says. A finding that fails
   item 1, 2 or 7 goes on to the placement decision tree, since the ladder keeps it on the guidance
   tier. Give a finding that gets a check row no CLAUDE.md, `AGENTS.md` or rules-file row, a pointer
-  to the check included: the check replaces the line.
+  to the check or a fallback in case the check is declined included: the check replaces the line.
 - **No**: go on to the placement decision tree below.
 
 ## Placement Decision Tree
@@ -144,6 +144,12 @@ changes faster than any copy here could track, so no copy is kept here.
 ### Recommendation format
 
 Include: hook event, matcher pattern, what the script checks, expected behavior (block vs warn).
+A check row from [Check first](#check-first) without the `corrections` plugin also includes the
+strongest ladder rung that can decide the finding, by its rung id, and, as requirements on the
+check, each criterion item Check first lists, by name: precision (item 3), a message naming the
+fix (item 4), proof on a planted violation (item 5), a kill switch (item 8), and item 6 where Check
+first keeps it. Such a row always states the hook's four fields above; a permission deny rule may be
+named beside the hook, never in its place.
 
 ## Settings / Configuration
 

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "pr-title: delete\nforce-push: hold\nmeters: keep"},
+    {"answer": "- force-push: hold"}
+  ],
+  "fail": [
+    {"answer": "force-push: delete", "why": "deletes a protected rail"},
+    {"answer": "force-push-main: hold", "why": "names a different line"}
+  ]
+}

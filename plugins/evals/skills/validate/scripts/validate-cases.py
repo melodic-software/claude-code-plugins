@@ -97,15 +97,24 @@ tool_used `input_match` is also compiled with JavaScript's `RegExp` and its
 samples are graded by it (an `input_match` against each call input's
 `JSON.stringify`), so a
 pattern that does not compile, or a sample the JavaScript verdict sorts the
-other way, is a FAIL; with no `node`, only the token check runs. BASIS: the
-grader's regex engine, from the regex row of
+other way, is a FAIL. Where `bun` is on PATH the same jobs also run under
+it, since node is V8 and the Bun-built `claude` binary runs the graders in
+JavaScriptCore: each FAIL then names the engine, and a sample whose verdict
+differs between the two engines is a FAIL naming both verdicts. With neither
+engine, only the token check runs; with no `bun`, node's findings are
+unchanged. BASIS: the grader's regex engine, from the regex row of
 https://code.claude.com/docs/en/plugin-evals#grader-types; how that engine
 reads each token, identity escapes under the `u` and `v` flags included, from
 https://tc39.es/ecma262/#sec-patterns and its non-Unicode-mode amendment
-https://tc39.es/ecma262/#sec-regular-expressions-patterns; and the #8331 paid
+https://tc39.es/ecma262/#sec-regular-expressions-patterns; the #8331 paid
 run, where a `\\A` pattern sorted every sample correctly under `re` and failed
-every with-plugin run. AS OF: 2026-10-22. Recheck when the grader-types row
-names a different engine, or an ECMAScript edition changes either section.
+every with-plugin run; Claude Code shipping as a Bun executable, from
+https://bun.com/blog/bun-joins-anthropic; Bun running JavaScriptCore and
+taking `-e`, from https://bun.com/docs/runtime; and the #16623 24-run pass,
+where bun reproduced every CLI verdict and node passed 14 grader verdicts the
+CLI failed. AS OF: 2026-11-16. Recheck when the grader-types row names a
+different engine, an ECMAScript edition changes either section, or Claude Code
+ships on a runtime other than Bun.
 
 Drift record. CLAIM: a grader or `prompt.md` whose frontmatter holds `---`
 on a line other than its two delimiter lines is a FAIL naming the line. This
@@ -329,7 +338,9 @@ BRACE_QUANTIFIER = re.compile(r"\{[0-9]+(?:,[0-9]*)?\}")
 # stdin; prints one result per grader: a compile error, or per answer whether it
 # matched and how many matches it holds. A text answer counts global matches; a
 # tool_used answer is the list of the grader tool's call inputs, each encoded as
-# compact JSON the way the binary does, and counts the calls that match.
+# compact JSON the way the binary does, and counts the calls that match. Each
+# engine in JS_ENGINES that is on PATH runs it with `-e`.
+JS_ENGINES = ("node", "bun")
 NODE_TIMEOUT_SECONDS = 30
 NODE_PROBE = r"""
 let raw = "";
@@ -1348,14 +1359,15 @@ def check_js_syntax(case, path, name, field, pattern, findings, flags=""):
         )
 
 
-def run_node_probe(jobs):
-    """Run `jobs` through node's RegExp. Returns (results, None) or (None, reason)."""
-    node = shutil.which("node")
-    if node is None:
+def run_node_probe(jobs, engine="node"):
+    """Run `jobs` through `engine`'s RegExp. Returns (results, None) or
+    (None, reason), and (None, None) when the engine is not on PATH."""
+    executable = shutil.which(engine)
+    if executable is None:
         return None, None
     try:
         done = subprocess.run(
-            [node, "-e", NODE_PROBE],
+            [executable, "-e", NODE_PROBE],
             input=json.dumps(jobs),
             capture_output=True,
             text=True,
@@ -1371,7 +1383,27 @@ def run_node_probe(jobs):
         return None, str(error) or type(error).__name__
     if not isinstance(results, list) or len(results) != len(jobs):
         return None, "unexpected output"
+    if not all(_probe_result_ok(job, result) for job, result in zip(jobs, results)):
+        return None, "unexpected output"
     return results, None
+
+
+def _probe_result_ok(job, result):
+    if not isinstance(result, dict):
+        return False
+    if "error" in result:
+        return True
+    answers = result.get("answers")
+    return (
+        isinstance(answers, list)
+        and len(answers) == len(job["answers"])
+        and all(
+            isinstance(seen, dict)
+            and isinstance(seen.get("found"), bool)
+            and _whole(seen.get("count"))
+            for seen in answers
+        )
+    )
 
 
 def _whole(value):
@@ -1437,8 +1469,8 @@ def js_jobs(case, graders, samples):
     return jobs
 
 
-def run_js_jobs(jobs):
-    """Grade every job under node in one process: (results, problem)."""
+def run_js_jobs(jobs, engine="node"):
+    """Grade every job under `engine` in one process: (results, problem)."""
     if not jobs:
         return [], None
     return run_node_probe(
@@ -1449,7 +1481,8 @@ def run_js_jobs(jobs):
                 "answers": [entry[3] for entry in job["entries"]],
             }
             for job in jobs
-        ]
+        ],
+        engine,
     )
 
 
@@ -1483,9 +1516,6 @@ def judge_js_jobs(jobs, results, findings):
         for (key, number, item, _), seen in zip(job["entries"], result["answers"]):
             if js_passed(job, seen) == (key == "pass"):
                 continue
-            label = "must-%s sample %d" % (key, number)
-            if item.get("why"):
-                label += ' ("%s")' % item["why"]
             findings.append(
                 Finding(
                     "FAIL",
@@ -1493,7 +1523,7 @@ def judge_js_jobs(jobs, results, findings):
                     job["sample_path"],
                     '%s %s grader "%s" under JavaScript (%d matches)'
                     % (
-                        label,
+                        sample_label(key, number, item),
                         "fails" if key == "pass" else "passes",
                         name,
                         seen["count"],
@@ -1502,24 +1532,88 @@ def judge_js_jobs(jobs, results, findings):
             )
 
 
+def sample_label(key, number, item):
+    label = "must-%s sample %d" % (key, number)
+    if item.get("why"):
+        label += ' ("%s")' % item["why"]
+    return label
+
+
+def _counts(seen):
+    return [(engine, each["count"]) for engine, each in seen.items()]
+
+
+def judge_js_engines(jobs, runs, findings):
+    """judge_js_jobs over the engines in `runs` ({engine: results}), naming the
+    engine in each finding, plus a FAIL for each sample the engines disagree on."""
+    for index, job in enumerate(jobs):
+        case, name = job["case"], job["name"]
+        graded = {}
+        for engine, results in runs.items():
+            result = results[index]
+            if "error" not in result:
+                graded[engine] = result["answers"]
+                continue
+            message = 'grader "%s" pattern does not compile under JavaScript (%s: %s)'
+            findings.append(
+                Finding(
+                    "FAIL",
+                    case,
+                    job["grader_path"],
+                    message % (name, engine, result["error"]),
+                )
+            )
+        for position, (key, number, item, _) in enumerate(job["entries"]):
+            seen = {engine: answers[position] for engine, answers in graded.items()}
+            verdicts = {engine: js_passed(job, each) for engine, each in seen.items()}
+            if len(set(verdicts.values())) > 1:
+                message = '%s: JavaScript engines disagree on grader "%s": %s' % (
+                    sample_label(key, number, item),
+                    name,
+                    ", ".join(
+                        "%s %s it (%d matches)"
+                        % (engine, "passes" if verdicts[engine] else "fails", count)
+                        for engine, count in _counts(seen)
+                    ),
+                )
+            elif seen and set(verdicts.values()) != {key == "pass"}:
+                message = '%s %s grader "%s" under JavaScript (%s)' % (
+                    sample_label(key, number, item),
+                    "fails" if key == "pass" else "passes",
+                    name,
+                    ", ".join("%s: %d matches" % pair for pair in _counts(seen)),
+                )
+            else:
+                continue
+            findings.append(Finding("FAIL", case, job["sample_path"], message))
+
+
 def check_js_engine(case, graders, samples, findings):
     """Compile each regex grader and tool_used `input_match` with JavaScript's
-    RegExp and grade its samples there, the engine `claude plugin eval` uses.
-    Skipped when node is absent."""
+    RegExp and grade its samples there, under node (V8) and bun
+    (JavaScriptCore, the engine of the Bun-built `claude` binary that runs
+    `claude plugin eval`). An engine not on PATH is skipped; with bun absent
+    the findings are node's alone, worded as before."""
     jobs = js_jobs(case, graders, samples)
-    results, problem = run_js_jobs(jobs)
-    if results is None:
-        if problem:
+    runs = {}
+    for engine in JS_ENGINES:
+        results, problem = run_js_jobs(jobs, engine)
+        if results is not None:
+            runs[engine] = results
+        elif problem:
             findings.append(
                 Finding(
                     "WARN",
                     case,
                     "graders/",
-                    "graders not checked under JavaScript: node failed (%s)" % problem,
+                    "graders not checked under JavaScript: %s failed (%s)"
+                    % (engine, problem),
                 )
             )
-        return
-    judge_js_jobs(jobs, results, findings)
+    if list(runs) == ["node"]:
+        judge_js_jobs(jobs, runs["node"], findings)
+    elif runs:
+        judge_js_engines(jobs, runs, findings)
 
 
 def js_regex(pattern, flags=""):

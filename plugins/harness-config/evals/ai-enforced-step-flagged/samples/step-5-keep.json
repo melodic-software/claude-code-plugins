@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "step 1: cull\nstep 5: keep\nstep 8: delete-enforced"
+    },
+    {
+      "answer": "- step 5: keep"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "step 5: cull",
+      "why": "drops the test gate no check enforces"
+    },
+    {
+      "answer": "step 5: delete-enforced",
+      "why": "no enforcing check is stated for step 5"
+    }
+  ]
+}

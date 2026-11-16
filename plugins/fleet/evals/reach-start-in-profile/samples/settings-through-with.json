@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-wsl 'cd ~/repos/app && node <installPath>/scripts/profiles.mjs launch build --folder ~/repos/app --unattended --json --with \"{\\\"crossSessionInbound\\\":\\\"accept\\\"}\"'",
+      "why": "settings merged through --with"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "node <installPath>/scripts/profiles.mjs launch build --unattended --json\nthen: <command> -p -n app-inbox --settings '{\"crossSessionInbound\":\"accept\"}'",
+      "why": "a second --settings on the start command, which replaces the profile's"
+    },
+    {
+      "answer": "node <installPath>/scripts/profiles.mjs launch build --unattended --json --with /tmp/relay.json",
+      "why": "--with without the receiver's setting"
+    }
+  ]
+}

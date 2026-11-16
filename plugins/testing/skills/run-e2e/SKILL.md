@@ -1,6 +1,6 @@
 ---
 description: "When the bundled run skill resolves in this session, prefer it to launch the app for a quick look; this skill for evidenced verification flows. End-to-end live app verification. Check prerequisites, start the app, drive UI/API flows, and capture evidence (screenshots, responses, logs); includes a non-UI smoke-test playbook for libraries, MCP servers, hooks, and scripts. Use when: the user wants the running app verified end to end (e2e, smoke test, 'does it actually work'), the UI clicked through, or UI/API changes need runtime verification; for comprehensive build+test+lint use /verification:confirm."
-argument-hint: "[worst-case…] [--unattended] [app=<app>] [base=<ref>] [trusted-root=<dir>] [scenario|<target>]"
+argument-hint: "[map|worst-case…] [--unattended] [app=<app>] [base=<ref>] [trusted-root=<dir>] [scenario|<target>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -37,6 +37,7 @@ docker-compose, tilt, a dev-server script) and any documented evidence requireme
 ## Arguments
 
 `$ARGUMENTS`: `[worst-case [--keep]] [--unattended] [app=<app>] [base=<ref>] [trusted-root=<dir>] [scenario|<target>]`,
+or `map [--unattended] [app=<app>] [trusted-root=<dir>] [features=<id>[,<id>]…] [max_entries=<n>]`,
 e.g., `/testing:run-e2e`, `/testing:run-e2e the login flow`, `/testing:run-e2e non-ui`,
 `/testing:run-e2e --unattended app=shop base=main the login flow`,
 `/testing:run-e2e worst-case the member list`.
@@ -61,6 +62,11 @@ e.g., `/testing:run-e2e`, `/testing:run-e2e the login flow`, `/testing:run-e2e n
   merely starts with the word, such as `worst-case-scenario …`, stays a scenario). It takes a
   `<target>` (a component, screen or route) and runs the Worst-case content section below.
   `--keep`, right after it, keeps the injected fixture as a regression test.
+- `map`, optional: the action, only as the first token left once `--unattended` is out; its own
+  tokens follow it in any order, and the `app=`, `base=` and `trusted-root=` rule above does not
+  apply. It drives every feature of the control skill, with no base ref and no `affected` call, and
+  takes `features=<id>[,<id>]…` to narrow the pass and `max_entries=<n>` to cap it; it runs the
+  Map scope section below. `/testing:run-e2e map --unattended app=shop max_entries=40`.
 - `scenario`, optional description of what to verify. `non-ui` routes directly to the non-UI
   playbook.
 
@@ -237,7 +243,7 @@ describes, rather than trusting the app's success message.
 ## Step 4: Keep touched features current
 
 After the run and its cleanup, bring each touched feature's control skill (one in `affected.json`'s
-`features`, Step 2) back in line under its feature id.
+`features`, Step 2) back in line under its feature id. A `map` pass skips this step.
 `/app-control:map` is the only writer of a control skill; this skill never edits one.
 
 - `/app-control:map` resolves: invoke `/app-control:map refresh <feature id>` through the Skill tool
@@ -306,6 +312,18 @@ yields no value without a `none:` result (a non-zero exit, empty output, or a `n
 other line beside it), or a scan that cannot run (`/app-control:drive` does not resolve) leaves it
 out, and the report names the hit's kind (a mask value or the credential pattern) or the failure,
 never the matched text or a value.
+
+## Map scope
+
+With `map`, read [context/map.md](context/map.md) and follow it in place of Steps 1, 2 and 4: it
+lists every entry of the control skill, drives them one after another on the drive route, records
+each failed stated result and each observed breakage as a finding, and writes `findings.json` and
+`e2e-summary.json` at the top of its run directory. Steps 3 and 5 apply as it says. It never
+refreshes a control skill and edits no tracked file. These two commands carry values only this file
+expands:
+
+- Map resolve command: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh" map --user 'map_unit=${user_config.map_unit}' --user 'map_entry_points=${user_config.map_entry_points}'`
+- Finding-id command: `bash "${CLAUDE_SKILL_DIR}/scripts/finding-id.sh" <feature> <part> <kind> <where>`
 
 ## Native step: run (bundled skill)
 

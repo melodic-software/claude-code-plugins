@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "step 1: cull\nstep 5: keep\nstep 8: delete-enforced"
+    },
+    {
+      "answer": "**step 8**: delete-enforced"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "step 1: cull\nstep 5: keep\nstep 8: keep",
+      "why": "keeps the CI-enforced step as prose"
+    },
+    {
+      "answer": "step 8: cull",
+      "why": "culls it as narration instead of naming the enforcing check"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "pr-title: delete\nforce-push: hold\nmeters: keep"},
+    {"answer": "`meters`: keep"}
+  ],
+  "fail": [
+    {"answer": "meters: delete", "why": "no check enforces it"},
+    {"answer": "kilometers: keep", "why": "names a different line"}
+  ]
+}

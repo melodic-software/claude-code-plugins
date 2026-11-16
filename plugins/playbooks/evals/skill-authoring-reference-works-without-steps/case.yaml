@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: skill-authoring-reference-works-without-steps
+description: "A reference works without the steps: a reference file that leans on a value an earlier step set is rewritten to name its own input, so another skill can load it and act on it without running the sequence. Written from plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md, Reference files."
+tags: [skill-authoring, progressive-disclosure]
+expected_outcome: "The rewritten reference states where the ticket key comes from as its own input (given by the caller or read by the reference itself), keeps the branch-name rule, and no longer refers to step 2, step 3, or a value set earlier in the sequence."
+execution:
+  allowed_tools: [Read, Skill]
+  max_turns: 20
+  timeout_seconds: 600

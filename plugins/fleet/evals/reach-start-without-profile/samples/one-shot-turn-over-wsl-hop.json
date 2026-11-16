@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```sh\nprintf '%s\\n' 'List the local branches in this repository and reply with the list.' | /mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-wsl 'cd ~/repos/app && claude -p'\n```\n\nNo plugin profile is applied: you named none, so the turn starts as the route gives it.",
+      "why": "stdin prompt over the WSL hop"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-wsl 'cd ~/repos/app && git branch'",
+      "why": "a script, not the laptop's Claude"
+    }
+  ]
+}

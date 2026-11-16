@@ -68,7 +68,8 @@
 // fields, the body's blockers add only edges to open issues, and an escalated
 // run writes only needs-decision, its reasons and those edges; model text
 // reaches a reason only as letters, digits and plain punctuation. It writes only on an open issue
-// whose author is a listed human or the lanes App, and only from a lane
+// whose author is a listed human or the lanes App, or a trusted upstream-drift
+// issue (admit.mjs authorTrust), and only from a lane
 // comment updated at or after STARTED_AT (this run's), so a run whose triage
 // wrote nothing never applies an older verdict.
 //
@@ -98,7 +99,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, isFault, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { ADMISSION_STATUS_READS, admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
+import { ADMISSION_STATUS_READS, admit, authorTrust, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
@@ -202,8 +203,15 @@ export async function checkRun({ env, humans, logins, github, log = console.log 
     log(`::notice::apply-verdict: #${env.ISSUE_NUMBER} is not an open issue; no token requested, nothing written`);
     return false;
   }
-  if (!authorAdmitted(issue, humans, logins.get(LANES_APP_LOGIN))) {
-    log(`::notice::apply-verdict: #${env.ISSUE_NUMBER}'s author is neither a listed human nor the lanes App; no token requested, nothing written`);
+  let trust;
+  try {
+    trust = await authorTrust(github, env.GITHUB_REPOSITORY, issue, humans, logins.get(LANES_APP_LOGIN));
+  } catch (error) {
+    log(`::warning::apply-verdict: #${env.ISSUE_NUMBER}'s drift-issue edit history could not be read (${error.name} ${error.status ?? ""}); the write step reads it again`);
+    return true;
+  }
+  if (trust === null) {
+    log(`::notice::apply-verdict: #${env.ISSUE_NUMBER}'s author is neither a listed human nor the lanes App, and it is no trusted upstream-drift issue; no token requested, nothing written`);
     return false;
   }
   log("apply-verdict: the broker would mint for this run's actors");
@@ -609,8 +617,8 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     log(`apply-verdict: #${number} is not an open issue; nothing written`);
     return { outcome: "skipped" };
   }
-  if (!authorAdmitted(issue, humans, appId)) {
-    log(`apply-verdict: #${number}'s author is neither a listed human nor the lanes App; nothing written`);
+  if ((await authorTrust(github, repository, issue, humans, appId)) === null) {
+    log(`apply-verdict: #${number}'s author is neither a listed human nor the lanes App, and it is no trusted upstream-drift issue; nothing written`);
     return { outcome: "skipped" };
   }
   const comments = await paginate(github, `${base}/comments`);

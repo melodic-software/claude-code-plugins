@@ -1586,12 +1586,14 @@ lane_claude_prefix() { # <name> <profile> <cwd> <settings JSON or ""> [check]
     # under a profile leaving autonomy off would start without its gate.
     # enabledPlugins is each plugin as the session will start with it, across
     # every settings layer.
+    # The gate runs only in the autonomy install the request is keyed under.
     if [[ -n "$settings" ]] && lane_requests_stop_gate "$settings"; then
-      local refusal=""
+      local refusal="" keys
+      keys="$(jq -c "[(.pluginConfigs // {}) | to_entries[] | select($GATE_ENTRY_REQUESTED) | .key]" <<<"$settings")"
       if ! jq -e '.enabledPlugins | type == "object"' <<<"$out" >/dev/null 2>&1; then
         refusal="profiles.mjs launch reported no enabledPlugins to check the lane-stop gate's autonomy against, so the lane is not launched; update plugin-profiles"
-      elif ! jq -e '.enabledPlugins | to_entries | any((.key == "autonomy" or (.key | startswith("autonomy@"))) and .value == true)' <<<"$out" >/dev/null 2>&1; then
-        refusal="the lane arms the lane-stop gate but profile '$profile' leaves autonomy off and no settings layer enables it for the session, so the lane is not launched; give the lane a profile that includes autonomy"
+      elif ! jq -e --argjson keys "$keys" '.enabledPlugins as $on | any($keys[]; $on[.] == true)' <<<"$out" >/dev/null 2>&1; then
+        refusal="the lane arms the lane-stop gate under $(jq -r 'join(", ")' <<<"$keys") but profile '$profile' leaves it off and no settings layer enables it for the session, so the lane is not launched; give the lane a profile that includes autonomy"
       fi
       if [[ -n "$refusal" ]]; then
         LANE_CLAUDE=(env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude)
@@ -1626,6 +1628,11 @@ build_lane_flags() {
     if ((DRY_RUN)); then
       printf 'DRY-RUN: arm lane-stop gate for %s (arm id injected into --settings)\n' "$name"
     else
+      # Check the profile before arming, as restart's preflight does, so a
+      # refusal leaves no armed gate and no session file.
+      if [[ -n "$LANE_PROFILE" ]]; then
+        lane_claude_prefix "$name" "$LANE_PROFILE" "$cwd" "$settings" check || return 1
+      fi
       settings="$(arm_stop_gate "$name" "$settings")" || return 1
     fi
   fi

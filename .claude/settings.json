@@ -62,6 +62,7 @@
   "enabledPlugins": {
     "ai-slop@melodic-software": true,
     "animation@melodic-software": false,
+    "app-control@melodic-software": true,
     "attribution@melodic-software": true,
     "discipline@melodic-software": true,
     "docs-naming@melodic-software": true,
@@ -77,6 +78,7 @@
     "plugin-quality@melodic-software": true,
     "retro-audio@melodic-software": false,
     "skill-quality@melodic-software": true,
+    "source-control@melodic-software": true,
     "speech@melodic-software": true
   }
 }

@@ -1,0 +1,47 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no edit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/src/calc.py"
+          }
+        }
+      ],
+      "why": "reads only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/src/calc.py",
+            "old_string": ">= 20",
+            "new_string": "> 20"
+          }
+        }
+      ],
+      "why": "plants a seed"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/wt/src/calc.py",
+            "old_string": ">= 20",
+            "new_string": "> 20"
+          }
+        }
+      ],
+      "why": "plants in a worktree"
+    }
+  ]
+}
