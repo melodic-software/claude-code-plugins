@@ -46,6 +46,17 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn reporting src/billing || echo \"no billing->reporting references\"",
+            "description": "run"
+          }
+        }
+      ]
     }
   ],
   "fail": [
