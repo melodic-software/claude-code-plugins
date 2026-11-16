@@ -14,11 +14,15 @@
 //          writes .claude/settings.local.json, initial writes user settings.json, session writes a
 //          file for `claude --settings` and changes no settings file. --defer-off writes the
 //          entries that switch plugins on and records the ones that switch plugins off as
-//          pending, for an in-session switch; the next apply writes them.
+//          pending, for an in-session switch; the next apply writes them. A target the surface
+//          does not support (lib/surface.mjs) is refused, and so is --for folder when the
+//          remember_folder_profile option is false.
 // status   The profile recorded for the folder (or user settings), each entry that differs from
-//          it, plugins installed since, and a switch still pending. --session-start reads the
-//          installed plugins from disk, never from a nested claude, and prints a SessionStart
-//          systemMessage only when there is something to say.
+//          it, plugins installed since, a switch still pending, a one-session profile named by
+//          PLUGIN_PROFILES_SESSION and the surface. With remember_folder_profile false it reports
+//          the initial profile and names a folder record as not in force. --session-start reads
+//          the installed plugins from disk, never from a nested claude, and prints a SessionStart
+//          systemMessage only where a profile was applied.
 // clear    Puts every entry the tool wrote back to its value before the first apply and removes
 //          a settings file the tool created.
 // inventory  The installed plugins, their dependencies and what each ships.
@@ -39,7 +43,7 @@ import { fileURLToPath } from "node:url";
 import { CheckError, checkProfiles, readMarketplace } from "../lib/check.mjs";
 import { InventoryError, inventory, recordsFromCli, recordsFromDisk } from "../lib/inventory.mjs";
 import { PlanError, TARGET_LEVEL, plan } from "../lib/plan.mjs";
-import { managedSettingsFiles, resolveInstall } from "../lib/plugin-options.mjs";
+import { OptionsError, managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { missingRequired } from "../lib/prerequisite-gate.mjs";
 import { ProfileError, profileLevels, readCatalog, readProfileFiles } from "../lib/profile-files.mjs";
 import { ABSENT, baseline, deleteRecord, nextRecord, readRecord, recordPath, restoreEdits, saveRecord } from "../lib/record.mjs";
@@ -53,6 +57,7 @@ import {
   settingsPaths,
   writeSettings,
 } from "../lib/settings-io.mjs";
+import { detectSurface, doesNotApply, refusal, surfaceLine } from "../lib/surface.mjs";
 
 const OWN_ROOT = dirname(dirname(realpathSync(fileURLToPath(import.meta.url))));
 const SESSION_VAR = "PLUGIN_PROFILES_SESSION";
@@ -67,6 +72,13 @@ class NotApplied extends Error {}
 
 const dataDirName = (id) => id.replace(/[^A-Za-z0-9_-]/g, "-");
 
+const resumeLine = (file) => `A resumed session does not keep --settings: pass --settings "${file}" again with --resume.`;
+
+/** remember_folder_profile from the operator's settings; only an explicit false turns it off. */
+function remembersFolder(install) {
+  return readOperatorOptions(install, managedSettingsFiles(), ["remember_folder_profile"], { booleans: true }).remember_folder_profile?.value !== "false";
+}
+
 /** Where this run reads and writes: the config folder and data folder come from this script's own install path. */
 function locate(env, cwd) {
   const install = resolveInstall(OWN_ROOT);
@@ -78,7 +90,15 @@ function locate(env, cwd) {
     : env.CLAUDE_PLUGIN_DATA || join(configDir, "plugins", "data", "plugin-profiles-inline");
   const projectDir = env.CLAUDE_PROJECT_DIR || cwd;
   const pluginVersion = JSON.parse(readFileSync(join(OWN_ROOT, ".claude-plugin", "plugin.json"), "utf8")).version;
-  return { configDir, dataDir, projectDir, pluginVersion, paths: settingsPaths({ configDir, projectDir }) };
+  return {
+    configDir,
+    dataDir,
+    projectDir,
+    pluginVersion,
+    paths: settingsPaths({ configDir, projectDir }),
+    surface: detectSurface(env),
+    remembersFolder: () => remembersFolder(install),
+  };
 }
 
 function parseArgs(argv) {
@@ -104,8 +124,8 @@ function parseArgs(argv) {
   return opts;
 }
 
-const targetFile = (where, target, name) =>
-  target === "folder" ? where.paths.local : target === "initial" ? where.paths.user : join(where.dataDir, "sessions", `${name}.json`);
+const sessionFile = (where, name) => join(where.dataDir, "sessions", `${name}.json`);
+const targetFile = (where, target, name) => (target === "folder" ? where.paths.local : target === "initial" ? where.paths.user : sessionFile(where, name));
 
 function diff(now, final) {
   const out = {};
@@ -210,7 +230,11 @@ function commit(p, opts, where) {
 }
 
 async function apply(opts, where, env, io) {
-  if (env.CLAUDE_CODE_REMOTE === "true") throw new NotApplied("plugin profiles do not apply here: a cloud session reads no local or user settings");
+  const refused = refusal(where.surface, opts.target, opts.name);
+  if (refused) throw new NotApplied(`not applied: ${refused}`);
+  if (opts.target === "folder" && !where.remembersFolder()) {
+    throw new NotApplied(`not applied: folder remembering is off (remember_folder_profile), so every session starts from the initial profile; start one session in ${opts.name} with apply ${opts.name} --for session, or set the initial profile with apply ${opts.name} --for initial`);
+  }
   const levels = profileLevels({ pluginRoot: OWN_ROOT, configDir: where.configDir, projectDir: where.projectDir });
   const catalog = readCatalog(opts.target === "initial" ? levels.filter((l) => l.level !== "repository") : levels);
   const records = () => recordsFromCli();
@@ -242,14 +266,18 @@ async function apply(opts, where, env, io) {
     }
   }
   io.out(`Applied ${opts.name} to ${p.file}.`);
-  if (opts.target === "session") io.out(`Start the session with: claude --settings "${p.file}"`);
+  if (opts.target === "session") {
+    io.out(`Start the session with: claude --settings "${p.file}"`);
+    io.out(resumeLine(p.file));
+  }
   return 0;
 }
 
-function statusOf(opts, where, records) {
-  const file = targetFile(where, opts.target);
+/** The record of one settings file compared with the file now. */
+function recordedStatus(target, where, records) {
+  const file = targetFile(where, target);
   const rec = readRecord(recordPath(where.dataDir, file));
-  if (!rec) return { profile: null, target: opts.target, settingsFile: file };
+  if (!rec) return { profile: null, target, settingsFile: file };
   const doc = readSettings(file).doc;
   const differs = [];
   for (const [key, section] of [["enabledPlugins", "entries"], ["skillOverrides", "skillOverrides"]]) {
@@ -271,34 +299,63 @@ function statusOf(opts, where, records) {
   };
 }
 
+/**
+ * What is in force for this run: a one-session profile named by the session's environment, and the
+ * folder's record, or the initial profile's when folder remembering is off (leftover then names a
+ * folder record that is not in force).
+ */
+function statusOf(opts, where, env, records) {
+  const base = { surface: where.surface, rememberFolder: true, session: null, leftover: null };
+  if (doesNotApply(where.surface)) return { ...base, profile: null, target: opts.target, settingsFile: targetFile(where, opts.target) };
+  const name = env[SESSION_VAR];
+  if (name) base.session = { profile: name, file: sessionFile(where, name) };
+  let target = opts.target;
+  if (target === "folder" && !where.remembersFolder()) {
+    base.rememberFolder = false;
+    base.leftover = readRecord(recordPath(where.dataDir, targetFile(where, "folder")))?.profile ?? null;
+    target = "initial";
+  }
+  return { ...base, ...recordedStatus(target, where, records) };
+}
+
 function statusLines(s) {
-  if (!s.profile) return [`No profile is recorded for ${s.settingsFile}.`];
-  const lines = [`Profile ${s.profile} (${s.target}) applied ${s.appliedAt} to ${s.settingsFile}.`];
-  if (s.pending.length) lines.push(`A switch is unfinished; these stay on until apply ${s.profile} --for ${s.target} runs again: ${list(s.pending)}`);
-  for (const d of s.differs) lines.push(`Differs from the profile: ${d.name} is ${d.current}, the profile wrote ${d.recorded}`);
-  if (s.installedSince.length) lines.push(`Installed since the profile was applied: ${list(s.installedSince)}`);
+  if (doesNotApply(s.surface)) return [surfaceLine(s.surface)];
+  const lines = [];
+  if (s.session) lines.push(`This session runs in profile ${s.session.profile} from a one-session settings file. ${resumeLine(s.session.file)}`);
+  if (!s.rememberFolder) {
+    lines.push(`Folder remembering is off: sessions start from the initial profile${s.profile ? ` ${s.profile}` : ""}.`);
+    if (s.leftover) lines.push(`This folder still holds the entries of profile ${s.leftover}; run clear to remove them.`);
+  }
+  if (s.profile) {
+    lines.push(`Profile ${s.profile} (${s.target}) applied ${s.appliedAt} to ${s.settingsFile}.`);
+    if (s.pending.length) lines.push(`A switch is unfinished; these stay on until apply ${s.profile} --for ${s.target} runs again: ${list(s.pending)}`);
+    for (const d of s.differs) lines.push(`Differs from the profile: ${d.name} is ${d.current}, the profile wrote ${d.recorded}`);
+    if (s.installedSince.length) lines.push(`Installed since the profile was applied: ${list(s.installedSince)}`);
+  } else if (s.rememberFolder) lines.push(`No profile is recorded for ${s.settingsFile}.`);
+  lines.push(surfaceLine(s.surface));
   return lines;
 }
 
-function status(opts, where, io) {
+/** The session-start notice speaks only where a profile was applied: this folder's, a leftover one, or this session's. */
+const worthNotice = (s) => Boolean(s.session || s.leftover || (s.rememberFolder && s.profile));
+
+function status(opts, where, env, io) {
   if (opts.sessionStart) {
     try {
-      const s = statusOf(opts, where, () => recordsFromDisk(where.configDir));
-      if (s.profile && (s.pending.length || s.differs.length || s.installedSince.length)) {
-        io.out(JSON.stringify({ systemMessage: `plugin-profiles: ${statusLines(s).join(" ")}` }));
-      }
+      const s = statusOf(opts, where, env, () => recordsFromDisk(where.configDir));
+      if (worthNotice(s)) io.out(JSON.stringify({ systemMessage: `plugin-profiles: ${statusLines(s).join(" ")}` }));
     } catch {
       // A session start never fails on a profile problem; status run by hand reports it.
     }
     return 0;
   }
-  const s = statusOf(opts, where, () => recordsFromCli());
+  const s = statusOf(opts, where, env, () => recordsFromCli());
   io.out(opts.json ? JSON.stringify(s, null, 2) : statusLines(s).join("\n"));
   return 0;
 }
 
-function clear(opts, where, env, io) {
-  if (env.CLAUDE_CODE_REMOTE === "true") throw new NotApplied("plugin profiles do not apply here: a cloud session reads no local or user settings");
+function clear(opts, where, io) {
+  if (doesNotApply(where.surface)) throw new NotApplied(`not cleared: ${refusal(where.surface, opts.target)}`);
   const file = targetFile(where, opts.target);
   const recPath = recordPath(where.dataDir, file);
   const rec = readRecord(recPath);
@@ -348,8 +405,8 @@ export async function main(argv, env = process.env, cwd = process.cwd(), io = { 
     const opts = parseArgs(argv);
     const where = locate(env, cwd);
     if (opts.command === "apply") return await apply(opts, where, env, io);
-    if (opts.command === "status") return status(opts, where, io);
-    if (opts.command === "clear") return clear(opts, where, env, io);
+    if (opts.command === "status") return status(opts, where, env, io);
+    if (opts.command === "clear") return clear(opts, where, io);
     if (opts.command === "check") return check(opts, where, io);
     return listInventory(opts, where, io);
   } catch (error) {
@@ -357,7 +414,7 @@ export async function main(argv, env = process.env, cwd = process.cwd(), io = { 
       io.err(error.message);
       return 1;
     }
-    if ([UsageError, PlanError, ProfileError, SettingsError, InventoryError, CheckError].some((type) => error instanceof type)) {
+    if ([UsageError, PlanError, ProfileError, SettingsError, InventoryError, CheckError, OptionsError].some((type) => error instanceof type)) {
       io.err(`profiles.mjs: ${error.message}${error instanceof UsageError ? `\n${USAGE}` : ""}`);
       return 2;
     }

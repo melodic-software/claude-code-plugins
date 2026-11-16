@@ -14,6 +14,14 @@
     "settings",
     "skills"
   ],
+  "userConfig": {
+    "remember_folder_profile": {
+      "type": "boolean",
+      "title": "Remember each folder's profile",
+      "description": "When on, a profile applied to a folder holds for every later session there. When off, every session starts from the initial profile: a folder apply is refused, and the session-start notice names a folder profile left from before as not in force. Read from managed settings first, then user settings.",
+      "default": true
+    }
+  },
   "metadata": {
     "category": "claude-code"
   }

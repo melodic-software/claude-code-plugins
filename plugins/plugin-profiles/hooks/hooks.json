@@ -1,0 +1,23 @@
+{
+  "description": "At session start, names the folder's plugin profile, the entries that differ from it, plugins installed since it was applied, an unfinished switch and the surface the session runs on. Prints nothing in a folder with no applied profile. Reads installed plugins from disk and never starts a nested claude.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs",
+              "status",
+              "--session-start"
+            ],
+            "timeout": 10,
+            "statusMessage": "Reading the folder's plugin profile..."
+          }
+        ]
+      }
+    ]
+  }
+}

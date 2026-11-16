@@ -47,7 +47,18 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" apply build --for folder
 - `folder`: this folder's `.claude/settings.local.json`.
 - `initial`: your user `settings.json`, the profile new folders start from.
 - `session`: a generated file for `claude --settings <file>`, for one session; no settings file
-  changes.
+  changes. The file also sets `PLUGIN_PROFILES_SESSION` to the profile's name. A resumed session
+  does not keep `--settings`, so pass it again with `--resume`.
+
+Where you run it matters. The CLI and `claude -p` take all three targets. VS Code and Claude
+Desktop take `folder` and `initial`; a one-session apply there is refused with the folder level
+offered instead. A cloud session reads no local or user settings, so there profiles do not apply
+and nothing is written. Inside Claude Code on a surface the tool does not recognize, status reads
+"surface not detected" and only `folder` applies.
+
+To have every session start from the initial profile instead of the folder's, set the
+`remember_folder_profile` option to false. A folder apply is then refused, and status names a
+folder profile left from before as not in force, with `clear` to remove it.
 
 Before writing, apply prints the plugins it switches on and off, the ones a higher level pins
 (managed settings, or the folder when you set the initial profile), the ones that are not installed
@@ -70,8 +81,10 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" status
 node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" clear
 ```
 
-`status` names the profile recorded for the folder, each entry that differs from it and each
-plugin installed since. `clear` puts every entry back to what it was before the first apply and
+`status` names the profile recorded for the folder, each entry that differs from it, each
+plugin installed since, a one-session profile the session runs in, and the surface. At session
+start a hook prints the same notice, reading the installed plugins from disk without starting
+`claude`; in a folder with no applied profile it prints nothing. `clear` puts every entry back to what it was before the first apply and
 removes a settings file the tool created. The record lives in the plugin's data folder.
 
 `inventory` lists the installed plugins, what they depend on and what each ships.
@@ -89,3 +102,38 @@ user and repository profiles it reports, without failing, a plugin of the catalo
 that the catalog lacks and a plugin of another marketplace that is not installed, and it reports installed plugins that no profile names, which an apply switches off.
 `--catalog` defaults to the `marketplace.json` of the repository the plugin sits in. In this
 repository, CI runs it through `scripts/check-plugin-profiles.sh`.
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `remember_folder_profile` | boolean | `true` | When on, a profile applied to a folder holds for every later session there. When off, every session starts from the initial profile: a folder apply is refused, and the session-start notice names a folder profile left from before as not in force. Read from managed settings first, then user settings. |
+
+### How to set these
+
+Set the options above for `plugin-profiles@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
+
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
+
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+<!-- END GENERATED: plugin options -->
