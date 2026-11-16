@@ -1,0 +1,4 @@
+{
+  "pass": [{ "answer": "<button type=\"button\" data-rv-theme=\"system\" aria-pressed=\"true\">System</button>", "why": "the chrome toggle" }],
+  "fail": [{ "answer": "", "why": "empty" }, { "answer": "<body class=\"bg-stone-50\">", "why": "no toggle" }]
+}

@@ -22,4 +22,4 @@ graders:
     target: 'last_message'
   - name: reproduces-both
     type: llm
-    criteria: "PASS only if the reply says the OrderHandler shallow-signal and the LegacyExporter dead-code claim are each reproduced against the code before the report, and that OrderHandler loses Strong if its signal does not reproduce. FAIL if either is presented without reproduction or labeled unverified."
+    criteria: "The reply describes what the skill will do; it was told not to open the repository, so it is not expected to carry out any reproduction itself. PASS if the reply says that Phase 1.5 reproduces, checks or verifies the OrderHandler shallow-signal and the LegacyExporter dead-code claim against the code before the report, and that OrderHandler drops below strong or cannot carry Strong if its signal does not reproduce. FAIL only if the reply says either one reaches the report without that check, or says either one is labeled unverified at this level."
