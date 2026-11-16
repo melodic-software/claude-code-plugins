@@ -3,10 +3,12 @@
 // edit the canonical source, then rerun the script.
 // Register a plugin's git-hook entries with the repository's hook manager.
 // The contract is the check-placement convention: the entry manifest, the
-// HookManager port (detect, list, plan, copy, decline) and verify's drift states.
+// HookManager port (detect, list, plan, copy, decline), verify's drift states
+// and the read-only inspect of what runs at each hook stage.
 //
 //   install.mjs detect   [common]
 //   install.mjs list     [common]
+//   install.mjs inspect  [--runs <1-20>] [common]
 //   install.mjs plan     --scope local|shared|remote [--manager <m>] [common]
 //   install.mjs copy     --scope local|shared [--entry <name>]... [--manager <m>] [--force] [common]
 //   install.mjs decline  --entry <name> [--undo|--opt-in] [--global] [common]
@@ -51,6 +53,7 @@ import {
   fstatSync,
   lstatSync,
   mkdirSync,
+  mkdtempSync,
   openSync,
   readdirSync,
   readFileSync,
@@ -60,7 +63,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -77,6 +80,7 @@ const SENTINEL = "# checks-dispatcher v1";
 const SHARED_DIR = ".githooks";
 const ATTRIBUTES_LINE = ".githooks/** text eol=lf";
 const LIB_NAME = "check-lib.sh";
+const HUSKY_NET_TASKS = ".husky/task-runner.json";
 
 const LEFTHOOK_NAMES = ["yml", "yaml", "toml", "json", "jsonc"].flatMap((ext) => [
   `lefthook.${ext}`,
@@ -414,6 +418,8 @@ function managerEvidence(info) {
   if (config) found.push({ manager: "lefthook", evidence: config });
   if (isHuskyPath(info.hooksPath)) found.push({ manager: "husky", evidence: `core.hooksPath=${info.hooksPath}` });
   else if (existsSync(path.join(info.top, ".husky"))) found.push({ manager: "husky", evidence: ".husky/" });
+  // Husky.Net keeps its tasks here and runs .husky/<event> as husky does, so the husky adapter drives it.
+  if (existsSync(path.join(info.top, HUSKY_NET_TASKS))) found.push({ manager: "husky", evidence: HUSKY_NET_TASKS });
   if (info.hooksPath === SHARED_DIR) found.push({ manager: "plain", evidence: `core.hooksPath=${SHARED_DIR}` });
   else if (info.hooksPath && !isHuskyPath(info.hooksPath)) {
     found.push({ manager: "unknown", evidence: `core.hooksPath=${info.hooksPath}` });
@@ -421,14 +427,16 @@ function managerEvidence(info) {
   return found;
 }
 
-// detect(info) -> { manager: lefthook|husky|plain|conflict, evidence[] }
+// detect(info) -> { manager: lefthook|husky|plain|conflict, evidence[], variant? }
+// variant "husky.net" when .husky/task-runner.json is present.
 export function detect(info) {
   const evidence = [...managerEvidence(info), ...foreignEvidence(info.top)];
   if (evidence.length === 0) return { manager: "plain", evidence };
   const managers = new Set(evidence.map((e) => e.manager));
   const only = [...managers][0];
-  if (managers.size === 1 && MANAGERS.includes(only)) return { manager: only, evidence };
-  return { manager: "conflict", evidence };
+  const variant = evidence.some((e) => e.evidence === HUSKY_NET_TASKS) ? { variant: "husky.net" } : {};
+  if (managers.size === 1 && MANAGERS.includes(only)) return { manager: only, evidence, ...variant };
+  return { manager: "conflict", evidence, ...variant };
 }
 
 // The directory a scope's copies live in, and the dispatcher directory for plain.
@@ -1400,8 +1408,321 @@ export function driftLine(plugin, row) {
   return `${plugin.name}: git hook ${row.entry} ${row.state}; run /${plugin.name}:setup apply install-git-hooks`;
 }
 
+// inspect: what git runs at each hook stage, under whichever manager the
+// repository uses. Read-only: it writes nothing in the repository, and the only
+// code it runs is this plugin's own installed entries that rewrite nothing,
+// each timed from its installed copy. Every other hook is listed with the reason
+// it was not run. Stage names are git's client-side hooks (githooks(5)).
+const GIT_HOOKS = [
+  "applypatch-msg",
+  "pre-applypatch",
+  "post-applypatch",
+  "pre-commit",
+  "pre-merge-commit",
+  "prepare-commit-msg",
+  "commit-msg",
+  "post-commit",
+  "pre-rebase",
+  "post-checkout",
+  "post-merge",
+  "pre-push",
+  "pre-auto-gc",
+  "post-rewrite",
+  "sendemail-validate",
+  "fsmonitor-watchman",
+  "post-index-change",
+  "reference-transaction",
+];
+const RUN_TIMEOUT_MS = 120_000;
+const SCRIPT_TOKEN_RE = /[^\s"'`;|&()<>]+\.sh\b/g;
+const MAY_CHANGE = "running it could change files, the index or a remote";
+const NOT_RUN = {
+  hook: `a repository hook: ${MAY_CHANGE}`,
+  chained: `a pre-existing hook the dispatcher runs first: ${MAY_CHANGE}`,
+  job: `a lefthook job: ${MAY_CHANGE}`,
+  task: `a Husky.Net task: ${MAY_CHANGE}`,
+  config: `a git config hook: ${MAY_CHANGE}`,
+};
+
+function executable(file) {
+  try {
+    const st = statSync(file);
+    return st.isFile() && (process.platform === "win32" || (st.mode & 0o111) !== 0);
+  } catch {
+    return false;
+  }
+}
+
+// stampOf(file) -> { file, plugin, entry } for a stamped entry copy, else null.
+function stampOf(file) {
+  const text = readText(file);
+  const stamp = text === null ? null : readStamp(text);
+  return stamp ? { file, plugin: stamp.plugin, entry: stamp.name } : null;
+}
+
+// The first script a command names that is a stamped entry copy.
+function entryInCommand(info, command) {
+  for (const token of command.match(SCRIPT_TOKEN_RE) ?? []) {
+    const found = stampOf(path.isAbsolute(token) ? token : path.join(info.top, token));
+    if (found) return found;
+  }
+  return null;
+}
+
+const median = (sorted) => {
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+};
+
+// The input an entry is timed on: the staged set, a message file, or the
+// branch against its upstream; skip names why there is nothing to time.
+function timingInput(info, event) {
+  if (event === "pre-commit") {
+    const staged = git(info.top, ["diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR"]).out.split("\0").filter(Boolean).length;
+    if (!staged) return { skip: "nothing staged: stage the files to time it on, then rerun" };
+    return { args: [], label: `${staged} staged file${staged === 1 ? "" : "s"}` };
+  }
+  if (event === "commit-msg") {
+    const dir = mkdtempSync(path.join(tmpdir(), "git-hooks-inspect-"));
+    const file = path.join(dir, "COMMIT_EDITMSG");
+    writeFileSync(file, "chore: time the commit-msg hook\n");
+    return { args: [file], label: "a one-line message", cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  }
+  if (event === "pre-push") {
+    const up = git(info.top, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]);
+    if (!up.ok || !up.out) return { skip: "no upstream: with no refs on stdin the entry checks nothing" };
+    return { args: [], label: `no refs on stdin, so HEAD against ${up.out}` };
+  }
+  return { skip: `${event} is not an event entries run on` };
+}
+
+// timing -> { measured } or { notMeasured }: only this plugin's own entry,
+// one that rewrites nothing and whose tools are on PATH, is run.
+function timing(info, plugin, event, found, opts) {
+  if (found.plugin !== plugin.name) return { notMeasured: `an entry of ${found.plugin}: time it with /${found.plugin}:setup check inspect` };
+  const entry = plugin.entries.find((e) => e.name === found.entry);
+  if (!entry) return { notMeasured: `${plugin.name} ships no entry named ${found.entry}` };
+  if (entry.rewrites) return { notMeasured: "rewrites staged files" };
+  const missing = entry.tools.filter((t) => !whichTool(t));
+  if (missing.length) return { notMeasured: `tool missing: ${missing.join(", ")}` };
+  const input = timingInput(info, event);
+  if (input.skip) return { notMeasured: input.skip };
+  const runs = opts.runs ?? (event === "pre-push" ? 1 : 3);
+  const ms = [];
+  const exitCodes = [];
+  try {
+    for (let i = 0; i < runs; i++) {
+      const start = process.hrtime.bigint();
+      const r = spawnSync("sh", [found.file, ...input.args], {
+        cwd: info.top,
+        input: "",
+        stdio: ["pipe", "ignore", "ignore"],
+        timeout: RUN_TIMEOUT_MS,
+      });
+      if (r.error) {
+        const timedOut = r.error.code === "ETIMEDOUT";
+        return { notMeasured: timedOut ? `timed out after ${RUN_TIMEOUT_MS / 1000} s` : `could not run: ${r.error.message}` };
+      }
+      ms.push(Number(process.hrtime.bigint() - start) / 1e6);
+      exitCodes.push(r.status);
+    }
+  } finally {
+    input.cleanup?.();
+  }
+  const sorted = ms.sort((a, b) => a - b);
+  const round = (n) => Math.round(n);
+  return {
+    measured: { medianMs: round(median(sorted)), minMs: round(sorted[0]), maxMs: round(sorted.at(-1)), runs, input: input.label, exitCodes },
+  };
+}
+
+function entryItem(ctx, event, found, extra = {}) {
+  const { info, plugin, opts } = ctx;
+  return {
+    kind: "entry",
+    name: `${found.plugin}/${found.entry}`,
+    source: configPath(info, found.file),
+    plugin: found.plugin,
+    entry: found.entry,
+    ...extra,
+    ...timing(info, plugin, event, found, opts),
+  };
+}
+
+// The plain dispatcher runs <event>.pre-checks, then each marker in <event>.d/
+// and local/<event>.d/, in glob order.
+function dispatcherItems(ctx, event) {
+  const { info } = ctx;
+  const items = [];
+  const pre = path.join(info.hooksDir, `${event}.pre-checks`);
+  if (readText(pre) !== null) items.push({ kind: "chained", name: `${event}.pre-checks`, source: configPath(info, pre), notMeasured: NOT_RUN.chained });
+  for (const base of [info.hooksDir, path.join(info.hooksDir, "local")]) {
+    const dir = path.join(base, `${event}.d`);
+    for (const { name, isDir } of dirNames(dir).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      if (isDir) continue;
+      const marker = path.join(dir, name);
+      const rel = lf(readText(marker) ?? "").split("\n")[0];
+      const file = path.join(base, rel);
+      if (!rel || readText(file) === null) {
+        items.push({ kind: "hook", name, source: configPath(info, marker), notMeasured: "registered, but the script it names is missing" });
+        continue;
+      }
+      const found = stampOf(file);
+      items.push(found ? entryItem(ctx, event, found) : { kind: "hook", name, source: configPath(info, file), notMeasured: NOT_RUN.hook });
+    }
+  }
+  return items;
+}
+
+// lefthookDump(info) -> { config } or { error }. `lefthook dump` prints the
+// config merged from the main and local files, extends and already-fetched
+// remotes; it runs no job.
+function lefthookDump(info) {
+  const r = spawnSync("lefthook", ["dump", "--format", "json"], {
+    cwd: info.top,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 30_000,
+  });
+  if (r.error) return { error: r.error.code === "ENOENT" ? "lefthook not on PATH" : `lefthook dump failed: ${r.error.message}` };
+  if (r.status !== 0) return { error: `lefthook dump exited ${r.status}` };
+  try {
+    return { config: JSON.parse(r.stdout) };
+  } catch {
+    return { error: "lefthook dump printed no JSON" };
+  }
+}
+
+// A lefthook hook's jobs (groups flattened), commands and scripts.
+function lefthookJobs(hook) {
+  const out = [];
+  const walk = (jobs) => {
+    for (const job of Array.isArray(jobs) ? jobs : []) {
+      if (job?.group) walk(job.group.jobs);
+      else if (job && typeof job === "object") out.push({ name: job.name, run: job.run, script: job.script, runner: job.runner });
+    }
+  };
+  walk(hook?.jobs);
+  for (const [name, c] of Object.entries(hook?.commands ?? {})) out.push({ name, run: c?.run });
+  for (const [script, s] of Object.entries(hook?.scripts ?? {})) out.push({ name: script, script, runner: s?.runner });
+  return out;
+}
+
+function lefthookItems(ctx, event, dump) {
+  const { info } = ctx;
+  if (dump.error) return [{ kind: "hook", name: "lefthook", source: configPath(info, path.join(info.hooksDir, event)), notMeasured: `${dump.error}: its jobs are not listed` }];
+  const remotes = Array.isArray(dump.config?.remotes) && dump.config.remotes.length > 0;
+  return lefthookJobs(dump.config?.[event]).map((job) => {
+    const run = typeof job.run === "string" ? job.run : "";
+    const command = (run || [job.runner, job.script].filter(Boolean).join(" ")).split("\n")[0];
+    const name = String(job.name || command);
+    const base = { kind: "job", name, source: "lefthook config", command };
+    let found = run ? entryInCommand(info, run) : null;
+    if (!found && typeof job.script === "string") {
+      const local = [".lefthook", ".lefthook-local"].map((d) => path.join(info.top, d, event, job.script));
+      const file = local.find((f) => readText(f) !== null);
+      if (!file) return { ...base, notMeasured: remotes ? "runs from lefthook's fetched remote copy, not a file in this clone" : NOT_RUN.job };
+      found = stampOf(file);
+    }
+    return found ? entryItem(ctx, event, found, { via: "lefthook", job: name }) : { ...base, notMeasured: NOT_RUN.job };
+  });
+}
+
+// Husky.Net's `husky run` with --group or --name runs those tasks from
+// task-runner.json; null when the line names neither or the file will not parse.
+function huskyNetTasks(info, line) {
+  const flag = (f) => new RegExp(`--${f}(?:=|\\s+)("?)([^\\s"]+)\\1`).exec(line)?.[2];
+  const [group, name] = [flag("group"), flag("name")];
+  if (!group && !name) return null;
+  let tasks;
+  try {
+    tasks = JSON.parse(readText(path.join(info.top, HUSKY_NET_TASKS)) ?? "").tasks;
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(tasks)) return null;
+  return tasks
+    .filter((t) => (!group || t?.group === group) && (!name || t?.name === name))
+    .map((t) => ({
+      kind: "task",
+      name: String(t.name ?? ""),
+      source: HUSKY_NET_TASKS,
+      command: [t.command, ...(Array.isArray(t.args) ? t.args : [])].join(" "),
+      notMeasured: NOT_RUN.task,
+    }));
+}
+
+// Each command line of .husky/<event>; the line sourcing husky's own helper is skipped.
+function huskyItems(ctx, event, variant) {
+  const { info } = ctx;
+  const source = `.husky/${event}`;
+  const text = readText(path.join(info.top, source));
+  if (text === null) return [];
+  const lines = lf(text)
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#") && !/^\.\s.*_\/husky\.sh/.test(l));
+  return lines.flatMap((line) => {
+    const found = entryInCommand(info, line);
+    if (found) return [entryItem(ctx, event, found, { via: "husky" })];
+    const tasks = variant === "husky.net" && /\bhusky\s+run\b/.test(line) ? huskyNetTasks(info, line) : null;
+    if (tasks) return tasks;
+    return [{ kind: "hook", name: line, source, notMeasured: NOT_RUN.hook }];
+  });
+}
+
+// git config hooks: hook.<name>.event lines, run from git 2.54.
+function configHookItems(info) {
+  const r = git(info.top, ["config", "--get-regexp", "^hook\\..*\\.event$"]);
+  if (!r.ok) return [];
+  const runs = hasConfigHooks(info);
+  return r.out
+    .split("\n")
+    .map((line) => [line.slice(0, line.indexOf(" ")), line.slice(line.indexOf(" ") + 1)])
+    .filter(([key, event]) => key && event)
+    .map(([key, event]) => {
+      const name = key.slice("hook.".length, -".event".length);
+      const command = git(info.top, ["config", "--get", `hook.${name}.command`]).out;
+      const notMeasured = runs ? NOT_RUN.config : "git before 2.54 ignores config hooks, so it does not run here";
+      return { event, item: { kind: "config-hook", name, source: "git config", command, notMeasured } };
+    });
+}
+
+// inspect(info, plugin, opts) -> { manager, variant?, evidence[], hooksDir, stages[{ event, installed, hookFile, items[] }] }
+// installed: git finds an executable hook file for the stage. opts.runs times
+// each measured entry that many times (default 3; 1 for pre-push).
+export function inspect(info, plugin, opts = {}) {
+  const found = detect(info);
+  const ctx = { info, plugin, opts };
+  const hasLefthook = LEFTHOOK_NAMES.some((n) => existsSync(path.join(info.top, n)));
+  const dump = hasLefthook ? (opts.lefthookDump ?? lefthookDump)(info) : null;
+  const config = configHookItems(info);
+  const stages = [];
+  for (const event of GIT_HOOKS) {
+    const hookFile = path.join(info.hooksDir, event);
+    const text = readText(hookFile);
+    const items = [];
+    if (["ours", "prior"].includes(dispatcherState(hookFile))) items.push(...dispatcherItems(ctx, event));
+    else if (dump && (text?.includes("lefthook") || (text === null && dump.config?.[event]))) items.push(...lefthookItems(ctx, event, dump));
+    else if (found.evidence.some((e) => e.manager === "husky") && readText(path.join(info.top, ".husky", event)) !== null) {
+      items.push(...huskyItems(ctx, event, found.variant));
+    } else if (text !== null) items.push({ kind: "hook", name: event, source: configPath(info, hookFile), notMeasured: NOT_RUN.hook });
+    items.push(...config.filter((c) => c.event === event).map((c) => c.item));
+    const installed = executable(hookFile);
+    if (items.length || installed) stages.push({ event, installed, hookFile: configPath(info, hookFile), items });
+  }
+  return {
+    manager: found.manager,
+    ...(found.variant ? { variant: found.variant } : {}),
+    evidence: found.evidence,
+    hooksDir: configPath(info, info.hooksDir),
+    stages,
+  };
+}
+
 const USAGE = [
   "usage: install.mjs detect|list [--repo <dir>] [--plugin-root <dir>]",
+  "       install.mjs inspect [--runs <1-20>]",
   "       install.mjs plan --scope local|shared|remote [--manager lefthook|husky|plain]",
   "       install.mjs copy --scope local|shared [--entry <name>]... [--manager <m>] [--force]",
   "       install.mjs decline --entry <name> [--undo|--opt-in] [--global]",
@@ -1415,9 +1736,10 @@ const VALUE_FLAGS = {
   "--scope": "scope",
   "--manager": "manager",
   "--include-if": "includeIf",
+  "--runs": "runs",
 };
 const BOOL_FLAGS = { "--force": "force", "--quiet": "quiet", "--undo": "undo", "--global": "global", "--opt-in": "optIn" };
-const ACTIONS = ["detect", "list", "plan", "copy", "decline", "verify", "config-hook"];
+const ACTIONS = ["detect", "list", "inspect", "plan", "copy", "decline", "verify", "config-hook"];
 
 function parseArgs(argv, defaults) {
   const [action, ...rest] = argv;
@@ -1437,6 +1759,10 @@ function parseArgs(argv, defaults) {
     throw new UsageError("copy needs --scope local or --scope shared; a remote install writes nothing, so apply plan's decisions");
   }
   if (opts.manager && !MANAGERS.includes(opts.manager)) throw new UsageError(`unknown manager: ${opts.manager}`);
+  if (opts.runs !== undefined) {
+    if (action !== "inspect" || !/^([1-9]|1[0-9]|20)$/.test(opts.runs)) throw new UsageError("--runs takes 1 to 20, with inspect");
+    opts.runs = Number(opts.runs);
+  }
   if (action === "decline" && opts.entries.length !== 1) throw new UsageError("decline needs one --entry");
   if (action === "config-hook" && !INCLUDE_IF_RE.test(opts.includeIf ?? "")) {
     throw new UsageError("config-hook needs --include-if <condition>, such as gitdir:~/work/");
@@ -1491,6 +1817,9 @@ function dispatch(info, plugin, opts, io) {
     case "list":
       io.stdout(JSON.stringify(list(info, plugin)));
       return 0;
+    case "inspect":
+      io.stdout(JSON.stringify(inspect(info, plugin, { runs: opts.runs, lefthookDump: opts.lefthookDump })));
+      return 0;
     case "plan":
       io.stdout(JSON.stringify(plan(info, plugin, opts.scope, opts.manager)));
       return 0;
@@ -1515,6 +1844,7 @@ export function main(argv, ctx = {}, out = {}) {
   let opts;
   try {
     opts = parseArgs(argv, { repo: ctx.cwd ?? process.cwd(), pluginRoot: path.resolve(here, "..", "..") });
+    opts.lefthookDump = ctx.lefthookDump;
     const info = repoInfo(opts.repo);
     if (!info) {
       if (opts.quiet) return 0;

@@ -1,6 +1,6 @@
 ---
 description: "Verify go-format's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up go-format', 'configure go-format', 'is go-format working', Go import/formatting fixes silently aren't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
-argument-hint: "[check|apply [install-git-hooks [scope=local|shared]]]"
+argument-hint: "[check [inspect]|apply [install-git-hooks [scope=local|shared]]]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
@@ -9,6 +9,8 @@ allowed-tools:
   - "Bash(command -v goimports*)"
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" verify:*)"
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs verify:*)"
+  - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" inspect:*)"
+  - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs inspect:*)"
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan:*)"
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs plan:*)"
 shell: bash
@@ -105,6 +107,21 @@ commit outside Claude Code and reads no toggle.
 
 There is no consumer-config probe (unlike `spelling`'s config-walk check). This hook has
 no consumer-config gate by design; report that plainly as INFO, not as a gap.
+
+## `check inspect` (read-only)
+
+Lists what runs at each git hook stage in this repository, under whichever hook manager it uses,
+and times this plugin's own entries. Run
+`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" inspect` from the repository (add
+`--runs <n>` to time each entry more often) and render its JSON as one table per stage: each item's
+kind, name and source, then its `measured` median and range with the input it ran on and its exit
+codes, or `not measured` with the `notMeasured` reason. A stage whose `installed` is false has no
+hook file git runs: say the manager's install step has not run in this clone. The script runs only
+this plugin's installed entries that change no files; it never runs a repository's own hook,
+another plugin's entry, a lefthook job or a Husky.Net task. To place a new check, compare the
+numbers with the duration budgets in the check-placement contract
+(`docs/contracts/check-placement/README.md#duration-budgets` in the marketplace repository).
+Modify nothing. Outside a git repository, report INFO and stop.
 
 ## `apply install-git-hooks [scope=local|shared]`
 

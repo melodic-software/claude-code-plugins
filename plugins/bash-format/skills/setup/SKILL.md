@@ -1,6 +1,6 @@
 ---
 description: "Verify bash-format's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up bash-format', 'configure bash-format', 'is bash-format working', shell lint or formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only verification, default) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
-argument-hint: "[check|apply [install-git-hooks [scope=local|shared]]]"
+argument-hint: "[check [inspect]|apply [install-git-hooks [scope=local|shared]]]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
@@ -10,6 +10,8 @@ allowed-tools:
   - "Bash(command -v shfmt*)"
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" verify:*)"
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs verify:*)"
+  - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" inspect:*)"
+  - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs inspect:*)"
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan:*)"
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs plan:*)"
 shell: bash
@@ -141,6 +143,21 @@ and reads no toggle.
 When every probe passes, report the result **with the scope caveats** (items 10 and 11).
 Never an unqualified "fully operational", which would imply out-of-project shell
 edits are covered when they are deliberately skipped.
+
+## `check inspect` (read-only)
+
+Lists what runs at each git hook stage in this repository, under whichever hook manager it uses,
+and times this plugin's own entries. Run
+`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" inspect` from the repository (add
+`--runs <n>` to time each entry more often) and render its JSON as one table per stage: each item's
+kind, name and source, then its `measured` median and range with the input it ran on and its exit
+codes, or `not measured` with the `notMeasured` reason. A stage whose `installed` is false has no
+hook file git runs: say the manager's install step has not run in this clone. The script runs only
+this plugin's installed entries that change no files; it never runs a repository's own hook,
+another plugin's entry, a lefthook job or a Husky.Net task. To place a new check, compare the
+numbers with the duration budgets in the check-placement contract
+(`docs/contracts/check-placement/README.md#duration-budgets` in the marketplace repository).
+Modify nothing. Outside a git repository, report INFO and stop.
 
 ## `apply install-git-hooks [scope=local|shared]`
 

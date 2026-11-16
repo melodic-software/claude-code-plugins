@@ -1,6 +1,6 @@
 ---
 description: "Verify the guardrails hooks' runtime prerequisites, per-guard toggle state and git-hook entries for this machine, and register those entries. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, a hook reported a drifted git hook, or 'install the guardrails git hooks' / 'enforce the commit convention for every committer' / 'check secrets and hardcoded paths on every commit'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-git-hooks [scope=local|shared|user] (register the commit-msg convention, pre-commit and pre-push content and reference-verify entries with the repository's hook manager; user: the commit-msg entry as a git config hook under an includeIf) | apply read-deny (opt-in: print Read() deny rules for .env, with user also ~/.ssh and ~/.aws, and add or remove them in the chosen settings file). Re-runnable and safe."
-argument-hint: "[check|apply] [install-git-hooks [scope]|read-deny [scope user remove]|identity-domains]"
+argument-hint: "[check [inspect]|apply] [install-git-hooks [scope]|read-deny [scope user remove]|identity-domains]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
@@ -8,6 +8,8 @@ allowed-tools:
   - "Bash(command -v node*)"
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" verify:*)"
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs verify:*)"
+  - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" inspect:*)"
+  - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs inspect:*)"
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan:*)"
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs plan:*)"
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs\" check \"${CLAUDE_PLUGIN_ROOT}\" --for hook:run-guards.sh)"
@@ -150,6 +152,21 @@ state. Repeated declines route to the finding-suppression convention, never a ne
 file.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
+
+## `check inspect` (read-only)
+
+Lists what runs at each git hook stage in this repository, under whichever hook manager it uses,
+and times this plugin's own entries. Run
+`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" inspect` from the repository (add
+`--runs <n>` to time each entry more often) and render its JSON as one table per stage: each item's
+kind, name and source, then its `measured` median and range with the input it ran on and its exit
+codes, or `not measured` with the `notMeasured` reason. A stage whose `installed` is false has no
+hook file git runs: say the manager's install step has not run in this clone. The script runs only
+this plugin's installed entries that change no files; it never runs a repository's own hook,
+another plugin's entry, a lefthook job or a Husky.Net task. To place a new check, compare the
+numbers with the duration budgets in the check-placement contract
+(`docs/contracts/check-placement/README.md#duration-budgets` in the marketplace repository).
+Modify nothing. Outside a git repository, report INFO and stop.
 
 ## `apply install-git-hooks [scope=local|shared|user]` (explicit argument only)
 
