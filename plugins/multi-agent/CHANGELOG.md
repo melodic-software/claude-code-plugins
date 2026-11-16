@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.1] - 2026-11-16
+
+### Changed
+
+- The worker, verifier and retrieval defaults are rechecked against `CLAUDE_CODE_SUBAGENT_EFFORT` and the Opus 5.5 end-of-turn completion check, with no value changed. Their recheck conditions now fire when the docs say where that variable ranks, and the verifier's model reason records why a smaller completion-check model is not a verifier.
+
 ## [3.1.0] - 2026-11-16
 
 ### Added

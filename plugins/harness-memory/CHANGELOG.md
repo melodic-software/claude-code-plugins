@@ -3,6 +3,12 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.0] - 2026-11-16
+
+### Changed
+
+- `audit`: C8 flags a CLAUDE.md instruction a deterministic check already enforces for deletion, naming the check, and holds an instruction matching a protected class in the instruction exception register. The cross-file pass that detects already-enforced instructions now reports them under C8.
+
 ## [2.1.24] - 2026-11-16
 
 ### Changed
