@@ -3,6 +3,12 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.5.0] - 2026-11-16
+
+### Added
+
+- `ratchet` takes check counts from `/performance:target` as a counter source: checks per hook stage or CI job, files a check scans, or test suites a change selects, so a lane's growth fails the change that adds to it while its duration stays unratcheted.
+
 ## [1.4.3] - 2026-11-16
 
 ### Changed

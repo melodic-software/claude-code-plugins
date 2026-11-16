@@ -1,6 +1,7 @@
 # Resolve ecosystem specifics from the consumer repository
 
-- Status: accepted
+- Status: accepted; amended 2026-11-16 (source citations exclude one ecosystem's tool documentation
+  and examples, see the amendment below)
 - Date: 2026-11-13
 - Refs: [#15703](https://github.com/melodic-software/claude-code-plugins/issues/15703) (spec),
   [#15706](https://github.com/melodic-software/claude-code-plugins/issues/15706); owner decision of
@@ -44,7 +45,7 @@ a rule for what may stay shipped, and an end to the bundled fallback.
    | Executed adapter | code a script runs that parses or drives a named tool | kept; it names each file or value it cannot read, and accepts a value it has no adapter for, reporting that no shipped adapter covers it |
    | Security or safety floor | a check that holds whatever the consumer chose, such as a secret pattern or a guard on a destructive command | kept; removing or narrowing one is the owner's decision each time |
    | Declared-ecosystem surface | a plugin or skill whose purpose is one ecosystem, declaring that narrower scope at the coupling site | kept, as [ADR 0060](0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md) keeps declared-provider surfaces |
-   | Source citation | a documentation URL or name cited for a reader to consult, not a choice the skill makes | kept |
+   | Source citation | a documentation URL or name cited for a reader to consult, not a choice the skill makes; not a link to one ecosystem's tool documentation, nor an example written for one stack | kept |
 
    The named exceptions are the last four classes. A model-read specific in a generic skill outside
    them is a review finding: [`docs/review/skills-and-agents.md`](../review/skills-and-agents.md).
@@ -94,3 +95,22 @@ a rule for what may stay shipped, and an end to the bundled fallback.
 - A consumer reports that an unresolved skip blocks work a shipped default used to do, and no
   record, statement or inference could have resolved it.
 - A class of shipped content that fits none of the five classes above.
+
+## Amendment (2026-11-16): source citations exclude ecosystem-specific links and examples
+
+The Source citation row kept any documentation URL or name a skill cites for a reader. The owner
+decided on 2026-11-16 that shipped skills carry no ecosystem-specific examples: no code sample
+written for one language, framework or tool, and no link to one tool's documentation, in a skill
+body or reference file. Such examples change with the stack they show, every change becomes our
+maintenance, and a sample reads as a choice the skill made for the consumer. The skill states its
+rule in ecosystem-agnostic terms and resolves the specifics at run time from the consumer's own
+rules and conventions, with `/discovery:research` where they do not settle it; detail that must
+persist goes into the consumer's configuration, or into a repository-specific skill the skill
+generates. The rule, its reason and what stays are in the plugin philosophy's
+[Hardcoded consumer specifics](../plugin-philosophy.md#hardcoded-consumer-specifics).
+
+The row now excludes those links and examples. The other four classes are unchanged: executed
+adapters and declared-ecosystem surfaces keep what they hold. The `skill-stack-fences` row of
+`.performance/ratchets.json` (`scripts/skill-stack-fences.py`) holds the count of stack-tagged
+code fences in skill and agent bodies to its value on 2026-11-16, per file, so a new one fails CI
+unless its pull request raises that file's ceiling and says why.

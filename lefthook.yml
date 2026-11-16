@@ -13,8 +13,10 @@ pre-push:
     # controls this job: read a branch's diff to lefthook.yml, lefthook-local.yml, .lefthook/ and
     # .lefthook-local/ before committing or pushing on it, since the guardrails hooks below fire at
     # commit too.
-    # This job reads no stdin, so it judges HEAD rather than the pushed refs. Exit 1 is a failing
-    # check and blocks the push; anything else passes, and CI checks the pushed commit either way.
+    # This job reads no stdin, so it judges HEAD rather than the pushed refs. A failing check
+    # exits 1 and blocks the push. So does a merge-base copy of the hook that cannot be extracted:
+    # the job then checked nothing, and passing would read as a checked push. With no origin/main
+    # merge-base the job says it skipped and passes; CI checks the pushed commit either way.
     # Keep double quotes out of `run`: on Windows lefthook wraps it in double quotes without
     # escaping them, and sh gets a cut-off script. mktemp paths hold no spaces, so $tmp needs none.
     - name: check-affected
@@ -23,10 +25,16 @@ pre-push:
           echo 'check-affected pre-push: skipped, no origin/main merge-base to take the check from; CI checks it.' >&2
           exit 0
         fi
-        tmp=$(mktemp -d) || exit 0
+        if ! tmp=$(mktemp -d); then
+          echo 'check-affected pre-push: failed, nothing was checked: mktemp could not make a directory.' >&2
+          exit 1
+        fi
         trap 'rm -rf $tmp' EXIT
-        git archive $mb -- .claude/hooks/check-affected-pre-push.sh lib/hook-utils.sh 2>/dev/null | tar -x -C $tmp 2>/dev/null
-        [ -f $tmp/.claude/hooks/check-affected-pre-push.sh ] || exit 0
+        git archive $mb -- .claude/hooks/check-affected-pre-push.sh lib/hook-utils.sh | tar -x -C $tmp
+        if [ ! -f $tmp/.claude/hooks/check-affected-pre-push.sh ]; then
+          echo 'check-affected pre-push: failed, nothing was checked: merge-base' $mb 'has no .claude/hooks/check-affected-pre-push.sh with lib/hook-utils.sh; rebase onto origin/main.' >&2
+          exit 1
+        fi
         bash $tmp/.claude/hooks/check-affected-pre-push.sh --git-hook </dev/null
 
 # The guardrails git hooks (plugins/guardrails/README.md#git-hooks) and the code-tidying comment

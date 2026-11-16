@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: e2e-map-baseline-refused
+description: 'run-e2e map scope given a baseline= file the compare script refuses. The run checks the baseline before listing entries, and the non-zero exit ends it with the script''s stderr line: no entry is listed or driven. names-stderr and no-entry-rows read the reply; meets-expectations (llm) checks the rest. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Ends the run before listing or driving any entry, with the compare script''s stderr line `findings-compare.sh: runs/prev/findings.json: two findings share an id`.'
+execution:
+  prompt: '/testing:run-e2e map --unattended app=shop baseline=runs/prev/findings.json. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the hub control-shop indexes three features, checkout, cart and search, each with one entry point marked driven. The compare command with runs/prev/findings.json as its only path exited 2 and printed on stderr: `findings-compare.sh: runs/prev/findings.json: two findings share an id`. Say what the run does, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: names-stderr
+    type: regex
+    pattern: 'findings-compare\.sh: runs/prev/findings\.json: two findings share an id'
+    target: last_message
+  - name: no-entry-rows
+    type: regex
+    pattern: '(?:checkout|cart|search)\s*\|[^\n|]*\|\s*(?:passed|failed)'
+    match: not_contains
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e map with baseline=runs/prev/findings.json, and the compare command run on that baseline alone exited 2 with the stderr line `findings-compare.sh: runs/prev/findings.json: two findings share an id`. PASS only if the reply: ends the run because of that non-zero exit; quotes that stderr line; lists no entry and drives none, so no entry point is reported passed or failed and no finding group is written. FAIL if the reply drives any entry, reports any entry point passed or failed, or carries on without the baseline.'

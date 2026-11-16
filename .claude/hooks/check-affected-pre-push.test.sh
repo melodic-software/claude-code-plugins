@@ -408,6 +408,26 @@ if command -v lefthook >/dev/null 2>&1; then
   fi
   run_claude "$lh"
   expect "after lefthook install the Claude Code hook stays quiet" 0 0
+
+  # A merge-base that holds no check-affected hook leaves the job nothing to
+  # run, so the push fails instead of passing unchecked.
+  nohook="$tmp/lh-nohook"
+  mkdir -p "$nohook"
+  git_init_test_repo "$nohook" || exit 2
+  cp "$repo_root/lefthook.yml" "$nohook/"
+  git_test_config "$nohook" add -A
+  git_test_config "$nohook" commit -q -m base
+  git_test_config "$nohook" update-ref refs/remotes/origin/main HEAD
+  git init -q --bare "$tmp/remote-nohook.git"
+  git_test_config "$nohook" remote add origin "$tmp/remote-nohook.git"
+  lh_install="$(cd "$nohook" && lefthook install 2>&1)" || bad "lefthook install in the no-hook fixture" "$lh_install"
+  RC=0
+  ERR="$(cd "$nohook" && git_test_config "$nohook" push -q origin HEAD:refs/heads/x 2>&1)" || RC=$?
+  if [[ "$RC" != 0 && "$ERR" == *"nothing was checked"* ]]; then
+    ok "lefthook blocks a push whose merge-base has no check-affected hook to run"
+  else
+    bad "lefthook blocks a push whose merge-base has no check-affected hook to run" "exit $RC; output: $ERR"
+  fi
 else
   ok "SKIP lefthook end-to-end cases (lefthook not installed)"
 fi
