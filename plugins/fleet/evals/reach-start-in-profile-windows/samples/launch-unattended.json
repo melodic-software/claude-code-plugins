@@ -2,7 +2,7 @@
   "pass": [
     {
       "answer": "Run these from desk-01's WSL shell (route R1, this machine's Windows lane):\n\n```bash\nprintf '%s' 'Wait for messages and act on each.' > /mnt/c/Users/EvalUser/scratch/relay-prompt-desk-win-inbox.txt\ncd /mnt/c/Users/EvalUser/scratch && /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command - <<'PS'\nfunction Q([string]$a) { '\"' + ($a -replace '(\\\\*)\"', '$1$1\\\"' -replace '(\\\\+)$', '$1$1') + '\"' }\n$claude = \"$env:USERPROFILE/.local/bin/claude.exe\"; $s = Join-Path $env:TEMP 'relay-settings.json'; $p = Join-Path $PWD.Path 'relay-prompt-desk-win-inbox.txt'\nSet-Content -Path $s -Value '{\"crossSessionInbound\":\"accept\"}' -Encoding ascii\n$root = ((& $claude plugin list --json | Out-String | ConvertFrom-Json) | Where-Object { \"$($_.id)\" -like 'plugin-profiles@*' -and $_.enabled -eq $true } | Select-Object -First 1).installPath\n$a = @('--settings', $s); $stop = $null; $c = $null; $ok = $root -and (Get-Command node -ErrorAction SilentlyContinue)\nif (-not $ok) { 'profile build not applied: plugin-profiles or node is missing on this lane' }\nif ($ok) { $r = & node (Join-Path $root 'scripts/profiles.mjs') launch build --folder $PWD.Path --unattended --json --with $s }\nif ($ok -and $LASTEXITCODE) { $stop = \"not started: profiles.mjs launch exited $LASTEXITCODE\" }\nif ($ok -and -not $stop) { $stop = 'not started: profiles.mjs launch printed no claude command'; $argv = @(($r | Out-String | ConvertFrom-Json).argv); $i = 1; while ($argv[$i] -ceq '-u') { Remove-Item \"Env:$($argv[$i + 1])\" -ErrorAction Ignore; $i += 2 }; if ($argv[$i] -ceq 'claude') { $stop = $null; $a = @($argv[($i + 1)..($argv.Count - 1)]) } }\nif (-not $stop) { $c = Start-Process -FilePath $claude -ArgumentList ((@($a) + '-p', '-n', 'desk-win-inbox' | ForEach-Object { Q $_ }) -join ' ') -RedirectStandardInput $p -NoNewWindow -Wait -PassThru }\nRemove-Item $p -ErrorAction Ignore\nif ($stop) { $stop; exit 1 }; if (-not $c) { 'not started: claude.exe did not start'; exit 1 }; exit $c.ExitCode\n\nPS\n```",
-      "why": "the documented Windows script"
+      "why": "the documented -p script"
     }
   ],
   "fail": [
@@ -12,7 +12,7 @@
     },
     {
       "answer": "node profiles.mjs launch build --json",
-      "why": "the documented script with this behavior removed"
+      "why": "launch without --unattended"
     }
   ]
 }
