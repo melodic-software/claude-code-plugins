@@ -38,6 +38,7 @@ test("escapeMarkdown escapes Markdown and HTML", () => {
   assert.equal(escapeMarkdown("<img src=x>"), "&lt;img src=x&gt;");
   assert.equal(escapeMarkdown("[a](b) *c* `d`"), "\\[a\\]\\(b\\) \\*c\\* \\`d\\`");
   assert.equal(escapeMarkdown("a & b"), "a &amp; b");
+  assert.equal(escapeMarkdown("go\r\n---"), "go ---");
 });
 
 test("capLine keeps a short line and cuts a long one with a count", () => {

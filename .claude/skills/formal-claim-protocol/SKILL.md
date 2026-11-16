@@ -34,7 +34,8 @@ How each rule reads the model's states:
 - `CompletedRunHoldsNothing` records the moment a claimant's decision goes against the lane's
   lease while the lane's run has completed.
 
-`TypeOK` checks the variables' types. `EndStateReclaimable` is an extra rule: once every claimant
+`TypeOK` checks the variables' types. `EndStateReclaimable` is an extra rule, outside the seven the owner approved
+(`adapters/github/claim.sh`: "reclaim ignores items with no lease"): once every claimant
 has finished and no lease is live, any assignee left is the holder of the active lease, which
 reclaim unassigns.
 
@@ -69,7 +70,8 @@ model, and the races live between comment, assignee and clock reads that no unit
 - The cfg uses `VIEW View`, which drops script-local values a claimant never reads again. Under
   it TLC's distinct-state count depends on exploration order; the chart command runs one worker,
   so its count is stable.
-- No per-model bound is passed: the model is finite.
+- The model is finite, so no bound limits the first pass; the run commands pass
+  `--rerun-states` to cover it after a break.
 - The seeded break in `sync.yaml` was run against this model: with the winner taken as the latest
   live lease, `OneHolder` breaks in `LocalLane.cfg` after 1,415 distinct states (`caught: true`).
 
@@ -87,7 +89,9 @@ model, and the races live between comment, assignee and clock reads that no unit
 - Three sessions on one login: the model has at most two. With three, a hand-back's last removal
   can land after a third session's claim won, leaving that holder unassigned (issue 16505).
 - `WithRenew = TRUE` with all three claimants: that space is over 100 million states. The shipped
-  checks run two claimants each; the three-claimant space is checked without renew only by hand.
+  checks run two claimants each. All three without renew (`Starters = {"local", "lane", "triage"}`,
+  `WithRenew = FALSE`) hold every rule at a548b3aaab8c: 202,568,284 states, 25 minutes on 20
+  workers, so it is a hand run and not a shipped check.
 - The tracker contract's documented limits are reported as known limits, never as defects:
   clock skew ("Liveness compares provider timestamps (`renewed_at` in the marker) to the local
   clock"), ttl-0 ("A claim with `ttl_hours: 0` and `ttl_minutes: 0` is born expired"),

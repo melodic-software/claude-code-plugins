@@ -44,7 +44,7 @@ Work in a scratch folder outside the repo unless the spec lives in a `formal-<ar
 
    The exit code is TLC's own on the config as written: 0 when every rule holds, 1 when a rule
    breaks, 2 when TLC stops with an error, a limit stops it, the spec is refused, or the command
-   cannot run. Only 0 and 1 write output.
+   cannot run. Only 0 and 1 write output. The launcher exits 127 when no supported runtime runs.
 
 ## Untrusted input
 

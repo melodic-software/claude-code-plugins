@@ -50,8 +50,8 @@ A bound for one model goes in that model's run command (`--chart-states`, `--rer
 
 No script installs anything while a skill runs, and an unattended run that finds the toolchain
 missing reports `blocked: toolchain missing` and stops. `prerequisites.json` declares the runtime,
-Java and the renderer for `/harness-ops:prerequisites`; the jar is a file in the plugin data
-directory, which that checker has no kind for, so `scripts/toolchain.mjs check` checks it.
+Java, the jar and the renderer for `/harness-ops:prerequisites`; `scripts/toolchain.mjs check`
+also checks the jar's pinned SHA-256.
 
 ## Tests
 

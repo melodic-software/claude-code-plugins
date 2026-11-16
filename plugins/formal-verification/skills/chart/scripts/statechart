@@ -38,6 +38,7 @@ if [ "$1" = --runtime ]; then
     deno*) start deno "$runtime" "$@" ;;
     *) start node "$runtime" "$@" ;;
   esac
+  echo "$runtime did not run, or its version is not supported." >&2
 else
   start node node "$@"
   start bun bun "$@"

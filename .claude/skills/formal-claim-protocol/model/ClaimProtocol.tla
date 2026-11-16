@@ -706,7 +706,8 @@ ReleaseFreesItem ==
     \A c \in Claimants : pc[c] = "released" => ~LiveNow(mine[c])
 
 \* With every claimant finished and no lease live, any assignee left is the
-\* holder of the active lease, which reclaim unassigns.
+\* holder of the active lease, which reclaim unassigns. claim.sh:80:
+\* "reclaim ignores items with no lease".
 EndStateReclaimable ==
     (AllFinished /\ \A i \in DOMAIN leases : ~LiveNow(i)) =>
         \A l \in assignees : ActiveNow # 0 /\ leases[ActiveNow].holder = l
