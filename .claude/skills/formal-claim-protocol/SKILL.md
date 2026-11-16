@@ -98,16 +98,16 @@ model, and the races live between comment, assignee and clock reads that no unit
 
 ## Run
 
-One command per cfg; each takes about 90 s:
+One command per cfg; each takes two to three minutes:
 
 ```text
-/formal-verification:chart .claude/skills/formal-claim-protocol/model/ClaimProtocol.tla --config .claude/skills/formal-claim-protocol/model/LocalLane.cfg --view .claude/skills/formal-claim-protocol/model/view.mjs --rerun-states 1000000
-/formal-verification:chart .claude/skills/formal-claim-protocol/model/ClaimProtocol.tla --config .claude/skills/formal-claim-protocol/model/LocalTriage.cfg --view .claude/skills/formal-claim-protocol/model/view.mjs --rerun-states 1000000
+/formal-verification:chart .claude/skills/formal-claim-protocol/model/ClaimProtocol.tla --config .claude/skills/formal-claim-protocol/model/LocalLane.cfg --view .claude/skills/formal-claim-protocol/model/view.mjs --rerun-states 2000000
+/formal-verification:chart .claude/skills/formal-claim-protocol/model/ClaimProtocol.tla --config .claude/skills/formal-claim-protocol/model/LocalTriage.cfg --view .claude/skills/formal-claim-protocol/model/view.mjs --rerun-states 2000000
 ```
 
 `LocalLane.cfg` runs the local session against the issue lane, `LocalTriage.cfg` the local session
 against a triage claim; both with renew, every failure off and `BoundedStall`. `--rerun-states`
-must cover the whole space (746,798 and 540,596 states): after a rule breaks, the command rechecks
+must cover the whole space (1,686,588 and 1,356,633 states): after a rule breaks, the command rechecks
 the others under that bound, and a smaller bound leaves them not checked.
 
 Pass a new `--out` folder each run.
@@ -128,23 +128,21 @@ that limit.
 
 Known results at the sync commit (a run that shows only these has found nothing new):
 
-- `NoStrandedAssignee` breaks in both cfgs. A lease near expiry is renewed while a newer
-  claimant judges it expired and wins (the renew's re-list then backs off, by design); the winner
-  releases while the renewed lease is still live, and the release is refused as outranked
-  (`release.sh` exits 7 with no hand-back). Its login stays assigned with its live lease until the
-  TTL, then reclaim removes it (`EndStateReclaimable` holds). By design: CONTRACT.md, Release:
-  "Anything else is refused with exit `7` and no lease is written: ... a live handle an earlier
-  live lease outranks".
-- `HolderAssigned` breaks in `LocalTriage.cfg` with one login on both sessions: a release's
-  hand-back removes the login, re-lists the leases while the other session's lease is within
-  300 s of expiry, that session's renew lands, the old expiry passes, and the hand-back judges the
-  listed body with a clock read after the expiry, so it does not put the login back. The holder
-  works unassigned. A known limit (a stall between a read and its clock sample, no
-  compare-and-swap); CONTRACT.md does not state it for the hand-back.
+- Both shipped cfgs hold every rule.
+- With `WritesMayFail = TRUE`, `NoStrandedAssignee` and `EndStateReclaimable` break in both
+  starter sets: a release's PATCH fails, the release exits with no hand-back, and its login stays
+  assigned beside its live lease; once a later lease is the active one, reclaim no longer removes
+  that login. In `{"local","triage"}` `HolderAssigned` breaks: a same-login hand-back removed the
+  login and the winner's re-add fails. A known limit: these writes are best-effort or exit on
+  failure.
 - With `ReadsMayFail = TRUE`, `OneHolder` breaks: renew's re-list after a PATCH inside the margin
   fails twice and the renewed lease is kept while a newer claimant holds. By design: "a list it
   still cannot read keeps the renewed lease (exit `0`, with a warning)". `CompletedRunHoldsNothing`
-  breaks there too: "A run in any other status, or a read that fails, keeps the lease winning."
+  breaks in `{"local","lane"}`: "A run in any other status, or a read that fails, keeps the lease
+  winning." In `{"local","triage"}` `HolderAssigned`, `NoStrandedAssignee` and
+  `EndStateReclaimable` break: a hand-back whose lease list fails twice counts it as empty or
+  stops at the re-list, so it removes a same-login holder's login or leaves a login no lease
+  holds. By design: "a failed list counts as empty".
 - With `MayDie = TRUE`, `NoStrandedAssignee` and `EndStateReclaimable` break (a claim killed
   during its own rollback leaves its assignee with no lease, which reclaim ignores), and in
   `{"local","triage"}` `HolderAssigned` breaks (a same-login hand-back killed between its removal
