@@ -1,0 +1,29 @@
+{
+  "name": "plugin-profiles",
+  "description": "Switch which installed plugins are on with named profiles: one YAML file per profile, shipped, per user and per repository. A command-line tool previews each change, checks required prerequisites, writes only plugin and hidden-skill entries to a folder, user settings or a one-session file, and clear restores the file. A /plugin-profile command switches inside a session, a session-start notice names the profile, and guided setup builds profiles and installs a plugin only on a yes.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "version": "0.0.0",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "keywords": [
+    "plugins",
+    "profiles",
+    "enabled-plugins",
+    "settings",
+    "skills"
+  ],
+  "userConfig": {
+    "remember_folder_profile": {
+      "type": "boolean",
+      "title": "Remember each folder's profile",
+      "description": "When on, a profile applied to a folder holds for every later session there. When off, every session starts from the initial profile: a folder apply is refused, and the session-start notice names a folder profile left from before as not in force. Read from managed settings first, then user settings.",
+      "default": true
+    }
+  },
+  "metadata": {
+    "category": "claude-code"
+  }
+}

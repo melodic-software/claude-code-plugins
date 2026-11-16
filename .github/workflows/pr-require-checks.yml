@@ -3108,10 +3108,16 @@ jobs:
       - name: Check plugin prerequisites are declared
         if: needs.select-tests.outputs.run_tests == 'true'
         run: node scripts/check-declared-prerequisites.mjs
+      # The shipped plugin profiles name only catalogued plugins under the
+      # catalog's own name, and interface-design keeps every planning member.
+      # A plugin removed or renamed in the catalog fails here.
+      - name: Check the shipped plugin profiles against the catalog
+        if: needs.select-tests.outputs.run_tests == 'true'
+        run: scripts/check-plugin-profiles.sh
 
       - name: Report not applicable to a docs-only diff
         if: needs.select-tests.outputs.run_tests == 'false'
-        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the plugin validation, the rendered-view HTML assets, the shared-library copies and the declared prerequisites cannot be affected — reporting success."
+        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the plugin validation, the rendered-view HTML assets, the shared-library copies, the declared prerequisites and the plugin profiles cannot be affected — reporting success."
 
       # A docs-only diff checks nothing out, so there is no action to load.
       - name: Log the API budget at the end
