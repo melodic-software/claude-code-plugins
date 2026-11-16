@@ -52,9 +52,11 @@ List the entries in index order, before driving any:
    `not checked (cap)`, every entry point of it included.
 
 An entry's entry points are its feature's `## Entry points` lines, in order. An entry point's text
-is the line without its list marker and without its trailing status, the last `|` and the
-`driven` or `not driven: <reason>` after it, trimmed, so the text stays the same when that status
-changes. A line marked
+is the line without its list marker and without its trailing status, trimmed, so the text stays
+the same when that status changes. The status is the line's last `|` and the `driven` or
+`not driven: <reason>` after it; on a line with no `|`, it is the first `: ` followed by `driven`
+ending the line or by `not driven: `, and everything after that `: `. The control-skill contract
+fixes no separator, and hubs use both. A line marked
 `not driven: <reason>` is `not checked (<reason>)`. Under `map_entry_points: first`, only the first
 line is judged, and each later one is `not checked (map_entry_points: first)`; drive still runs the
 entry's whole `## Drive`, since it takes no entry point.
