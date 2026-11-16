@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "## Phase 3\n\nCheck first: a machine can decide a forced push to main every time. It happened once, but a push that overwrites shared history cannot be undone, so one occurrence is enough. The corrections plugin is not installed, so the row is the retro's own proposal.\n\n| # | Target | Scope | Type | Recommendation | Justification | Priority |\n|---|---|---|---|---|---|---|\n| 1 | `.claude/settings.json` hooks | project | Check | Event `PreToolUse`, matcher `Bash`; the script reads `tool_input.command` and blocks `git push` with `--force`, `-f` or a `+` refspec when the target is main. Rung: `action-guard`. Requirements before adoption: no false positives, a message naming `--force-with-lease` on a feature branch, proof on a planted push, a kill switch. | Basis: verified, no hook or deny rule in the repo | High |\n\nWhich of these should I execute now?",
+      "why": "all four fields, own proposal, one occurrence accepted"
+    },
+    {
+      "answer": "R1: deny rule `Bash(git push --force*)` in .claude/settings.json, plus a hook: PreToolUse on Bash that checks for a forced or + refspec push to main and warns.",
+      "why": "a deny rule beside a hook with all four fields"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The force-push happened once. Without a repeat with the same cause, no check is proposed; I note it as a lesson.",
+      "why": "no check because it happened once"
+    },
+    {
+      "answer": "R1: /corrections:codify \"force-pushed to main and overwrote a teammate's commit\"; codify picks the rung and proves the hook.",
+      "why": "hands off to codify, which is not installed"
+    },
+    {
+      "answer": "R1: add a PreToolUse hook to block force pushes.",
+      "why": "no matcher, and what the script checks is not stated beyond the goal"
+    },
+    {
+      "answer": "R1: turn on branch protection for main so force pushes are rejected.",
+      "why": "branch protection only, no hook"
+    }
+  ]
+}
