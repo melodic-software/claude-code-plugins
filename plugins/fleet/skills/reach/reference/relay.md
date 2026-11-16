@@ -206,11 +206,11 @@ receiver over R3; on R1 drop the `<ssh> <wsl-alias>` part:
 
 ```console
 <ssh> <wsl-alias> 'cd <win-dir> && /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command -' <<'PS'
-$claude = "$env:USERPROFILE\.local\bin\claude.exe"; $s = Join-Path $env:TEMP 'relay-settings.json'
+$claude = "$env:USERPROFILE/.local/bin/claude.exe"; $s = Join-Path $env:TEMP 'relay-settings.json'
 Set-Content -Path $s -Value '{"crossSessionInbound":"accept"}' -Encoding ascii
 $root = (& $claude plugin list --json | Out-String | ConvertFrom-Json | Where-Object { "$($_.id)" -like 'plugin-profiles@*' -and $_.enabled -eq $true } | Select-Object -First 1).installPath
 if (-not $root -or -not (Get-Command node -ErrorAction SilentlyContinue)) { 'profile <profile> not applied: plugin-profiles or node is missing on this lane'; '<prompt>' | & $claude --settings $s -p -n <name>; exit }
-$r = & node (Join-Path $root 'scripts\profiles.mjs') launch <profile> --folder $PWD.Path --unattended --json --with $s
+$r = & node (Join-Path $root 'scripts/profiles.mjs') launch <profile> --folder $PWD.Path --unattended --json --with $s
 if ($LASTEXITCODE) { "not started: profiles.mjs launch exited $LASTEXITCODE"; exit 1 }
 $argv = @(($r | Out-String | ConvertFrom-Json).argv); $i = 1
 while ($argv[$i] -ceq '-u') { Remove-Item "Env:$($argv[$i + 1])" -ErrorAction Ignore; $i += 2 }
