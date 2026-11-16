@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "**1. Find plugin-profiles on the laptop:**\n\n```sh\n/mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-wsl 'claude plugin list --json'\n```\n\nTake the `installPath` of the enabled `plugin-profiles@` entry.",
+      "why": "quoted remote command"
+    },
+    {
+      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-wsl claude plugin list --json",
+      "why": "unquoted remote command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "claude plugin list --json",
+      "why": "runs locally, not on the laptop"
+    },
+    {
+      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-wsl 'node ~/.config/plugin-profiles/profiles.mjs launch build'",
+      "why": "guesses the script path"
+    }
+  ]
+}

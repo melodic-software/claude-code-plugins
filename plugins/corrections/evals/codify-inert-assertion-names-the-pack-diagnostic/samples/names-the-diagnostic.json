@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Rung: analyzer-pack-rule. Add F631 to [tool.ruff.lint] select in pyproject.toml."
+    },
+    {
+      "answer": "Enable ruff's assert-tuple rule in the existing ruff configuration."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Rung: analyzer-pack-rule. Enable the test-framework pack diagnostic for inert assertions in the project's linter configuration."
+    }
+  ]
+}

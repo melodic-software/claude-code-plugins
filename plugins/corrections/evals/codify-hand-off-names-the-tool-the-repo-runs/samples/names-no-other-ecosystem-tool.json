@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Row 1: architecture-test, a new import-linter contract, built by /implementation:implement."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Row 1: architecture-test. Pointer: ArchUnitNET for .NET; dependency-cruiser for JS/TS."
+    },
+    {
+      "answer": "Write the boundary test with dependency-cruiser."
+    }
+  ]
+}

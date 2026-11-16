@@ -60,5 +60,5 @@ also never carries `type: review-findings`, a top-level `branch:` key or a `## F
 ## 5. Report
 
 Before the hub's report: the `ratchet_offer` line, any `> DEGRADED:` line, then one row per finding
-with rank, class, class basis, rung, owner, proof result and proposal path, then
+with rank, class, class basis, rung, hand-off, proof result and proposal path, then
 `N findings → N proposals in <home>`, where N is the table's row count.
