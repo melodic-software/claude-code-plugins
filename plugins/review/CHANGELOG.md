@@ -3,6 +3,18 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.5.5] - 2026-11-16
+
+### Fixed
+
+- **`security-reviewer` cites the OWASP Top 10:2025.** The OWASP floor names the edition, links each id to its 2025 category page, and files every existing check under its 2025 id: SSRF joins A01:2025, outdated components become A03:2025, TLS misuse moves to A07:2025 and verbose errors to A10:2025. No check is added or dropped; the tier-less design-review row is now A06:2025, here and in the findings-normalization crosswalk.
+
+## [9.5.4] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
 ## [9.5.3] - 2026-11-16
 
 ### Changed

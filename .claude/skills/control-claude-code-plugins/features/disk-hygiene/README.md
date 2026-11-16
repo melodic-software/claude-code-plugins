@@ -5,7 +5,7 @@ The skills of `plugins/disk-hygiene`. Each one is driven with `<plugin-dir>` set
 ## Parts
 
 - `audit`: Scan a directory tree for stale leftovers and report the evidence, read-only.
-- `clean`: Audit a directory tree for stale leftovers and remove validated paths. No plain-words entry.
+- `clean`: Audit a directory tree for stale leftovers and remove validated paths.
 - `setup`: Verify the disk-hygiene plugin's runtime prerequisites and platform posture for this machine. No plain-words entry.
 
 ## Sub-features

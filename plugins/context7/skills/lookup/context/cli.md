@@ -96,24 +96,24 @@ Whether and what the CLI sends as telemetry is [Context7 CLI § Telemetry](https
 On Windows with Git Bash / MSYS2, any CLI argument starting with `/` is rewritten to a Windows path. When you run:
 
 ```bash
-ctx7 docs /facebook/react "useEffect cleanup"
+ctx7 docs /reactjs/react.dev "useEffect cleanup"
 ```
 
-Git Bash converts `/facebook/react` → `C:/Program Files/Git/facebook/react` before the CLI sees it. The CLI correctly rejects the malformed ID:
+Git Bash converts `/reactjs/react.dev` → `C:/Program Files/Git/reactjs/react.dev` before the CLI sees it. The CLI correctly rejects the malformed ID:
 
 ```text
-✖ Invalid library ID: "C:/Program Files/Git/facebook/react"
+✖ Invalid library ID: "C:/Program Files/Git/reactjs/react.dev"
 ```
 
 **Always prefix `ctx7 docs` calls with `MSYS_NO_PATHCONV=1`:**
 
 ```bash
-MSYS_NO_PATHCONV=1 ctx7 docs /facebook/react "useEffect cleanup"
+MSYS_NO_PATHCONV=1 ctx7 docs /reactjs/react.dev "useEffect cleanup"
 ```
 
 - Prefix disables MSYS path conversion for that one invocation
 - No-op on macOS/Linux, so it is safe to always include
-- Double-slash workaround (`//facebook/react`) does **not** work. ctx7 rejects it as malformed
+- Double-slash workaround (`//reactjs/react.dev`) does **not** work. ctx7 rejects it as malformed
 - `ctx7 library` is unaffected (its first argument doesn't start with `/`)
 - `ctx7 search --library /org/project` passes an argument starting with `/` too, so prefix it the
   same way; this follows from the same rewrite and has not been tested on Windows
@@ -126,10 +126,10 @@ Output goes to stdout in formatted text (with ANSI color codes) or JSON with `--
 
 ```bash
 # Filter docs for a specific keyword
-MSYS_NO_PATHCONV=1 ctx7 docs /facebook/react "hooks" | grep -A3 -i useEffect
+MSYS_NO_PATHCONV=1 ctx7 docs /reactjs/react.dev "hooks" | grep -A3 -i useEffect
 
 # Strip ANSI for clean grep output
-MSYS_NO_PATHCONV=1 ctx7 docs /facebook/react "hooks" | sed 's/\x1b\[[0-9;]*m//g' | grep useEffect
+MSYS_NO_PATHCONV=1 ctx7 docs /reactjs/react.dev "hooks" | sed 's/\x1b\[[0-9;]*m//g' | grep useEffect
 
 # Dump to disk (keeps context clean; echo the path in the same call — the docs
 # output is redirected, so the path is the only thing the next Read can go on)

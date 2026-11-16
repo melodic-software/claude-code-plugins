@@ -7,7 +7,8 @@ plugins:
   - context-usage@melodic-software
   - rate-limits@melodic-software
   - context-budget@melodic-software
-  - harness-ops@melodic-software
+  - session-telemetry@melodic-software
+  - plugin-diagnostics@melodic-software
   - eol-normalizer@melodic-software
 optional:
   - markdown-format@melodic-software

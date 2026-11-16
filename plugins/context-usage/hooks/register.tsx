@@ -509,17 +509,17 @@ type Fire = { event: string; startMs: number; toolUseId?: unknown; agentId?: unk
 const PLAIN_ID = /^[A-Za-z0-9._-]+$/
 const RANK_WORD = ['light', 'moderate', 'heavy'] as const
 
-// The launcher harness-ops keeps in its plugin data directory, <config dir>/plugins/data/<id>,
-// for the reserved sink value: of the harness-ops-* directories that hold one, the launcher
-// refreshed most recently, since harness-ops touches it at each SessionStart.
+// The launcher session-telemetry keeps in its plugin data directory, <config dir>/plugins/data/<id>,
+// for the reserved sink values: of the session-telemetry-* directories that hold one, the launcher
+// refreshed most recently, since session-telemetry touches it at each SessionStart.
 // CLAUDE_CONFIG_DIR, default ~/.claude, holds the plugins (https://code.claude.com/docs/en/env-vars).
-async function harnessOpsSink($: EngineInterface) {
+async function sessionTelemetrySink($: EngineInterface) {
   const home = await homeDir($)
   const config = (await $.env.get('CLAUDE_CONFIG_DIR')) || (home && `${home}/.claude`)
   if (!config) return undefined
   const base = `${config.replace(/[\\/]+$/, '')}/plugins/data`
   const entries = await $.fs.list(base).catch(() => [])
-  const names = entries.filter(e => e.kind === 'dir' && e.name.startsWith('harness-ops-')).map(e => e.name)
+  const names = entries.filter(e => e.kind === 'dir' && e.name.startsWith('session-telemetry-')).map(e => e.name)
   let best: { path: string; mtimeMs: number } | undefined
   for (const name of names.sort()) {
     const path = `${base}/${name}/hook-telemetry-sink.sh`
@@ -530,7 +530,8 @@ async function harnessOpsSink($: EngineInterface) {
 }
 
 // Sends one envelope to HOOK_TELEMETRY_SINK, fire-and-forget; no sink set, nothing is sent.
-// `@harness-ops` names harness-ops' launcher, skipped when none is installed, and any other `@`
+// `@session-telemetry` and `@harness-ops` name session-telemetry's launcher, skipped when none is
+// installed, and any other `@`
 // value is reserved and skipped; a relative sink path
 // is joined onto the session's project root, else skipped.
 async function emitTelemetry($: EngineInterface, hook: string, status: string, data: Record<string, unknown>, fire: Fire) {
@@ -538,7 +539,7 @@ async function emitTelemetry($: EngineInterface, hook: string, status: string, d
   if (!sink) return
   let path = sink
   if (sink.startsWith('@')) {
-    const launcher = sink === '@harness-ops' ? await harnessOpsSink($) : undefined
+    const launcher = sink === '@session-telemetry' || sink === '@harness-ops' ? await sessionTelemetrySink($) : undefined
     if (!launcher) return
     path = launcher
   } else if (!/^(\/|[A-Za-z]:[\\/])/.test(sink)) {

@@ -1,0 +1,38 @@
+{
+  "requires": [
+    {
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:hook-failure-audit.sh"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, the hook-failure audit skips its work, so a hook that fails to launch is not reported.",
+      "install": {
+        "docs": "https://jqlang.org/download/"
+      }
+    },
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "hook:prerequisites-fleet.mjs"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the session-start notice about other plugins' missing prerequisites does not run; the node notice still tells you node is missing.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      }
+    }
+  ]
+}

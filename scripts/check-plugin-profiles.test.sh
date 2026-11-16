@@ -33,4 +33,18 @@ status=$?
 if [[ $status -eq 1 ]]; then ok "a build.yaml naming nope@melodic-software exits 1"; else fail "expected exit 1 on the nope fixture, got $status: $out"; fi
 if [[ "$out" == *"nope@melodic-software, which is not in the catalog"* ]]; then ok "the failure names the plugin"; else fail "expected the failure to name nope@melodic-software; got: $out"; fi
 
+caller="$TMP/caller"
+mkdir -p "$caller/home/.claude/plugin-profiles" "$caller/work/docs/conventions/plugin-profiles"
+printf 'plugins:\n  - ghost@vendor\n' >"$caller/home/.claude/plugin-profiles/mine.yaml"
+printf 'plugins: notalist\n' >"$caller/home/.claude/plugin-profiles/broken.yaml"
+printf 'plugins:\n  - phantom@vendor\n' >"$caller/work/docs/conventions/plugin-profiles/team.yaml"
+clean="$(run)"
+polluted="$(cd "$caller/work" && HOME="$caller/home" CLAUDE_CONFIG_DIR="$caller/home/.claude" CLAUDE_PROJECT_DIR="$caller/work" bash "$SUT" "$REPO" 2>&1)"
+status=$?
+if [[ $status -eq 0 && "$polluted" == "$clean" ]]; then
+  ok "the caller's user and working-folder profiles do not change the gate's result"
+else
+  fail "expected exit 0 and the clean output with the caller's profiles present, got $status: $polluted"
+fi
+
 test_harness::report

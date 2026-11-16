@@ -3,6 +3,18 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.23] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [1.1.22] - 2026-11-16
+
+### Fixed
+
+- The `## Next` operative-phrasing check also flags `are enabled` and a negated gate (`is not enabled`, `when not enabled`).
+
 ## [1.1.21] - 2026-11-16
 
 ### Changed

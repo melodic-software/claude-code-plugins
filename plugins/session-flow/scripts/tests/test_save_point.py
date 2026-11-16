@@ -904,6 +904,92 @@ def test_new_hop1_filled_skeleton_validates_clean(tmp_path):
     assert emitted.stdout.decode("utf-8") == _section_body(target, "Resume prompt")
 
 
+@pytest.mark.parametrize("shape", ["2", "3"])
+def test_new_settings_file_rides_the_resume_line(tmp_path, shape):
+    repo = make_repo(tmp_path)
+    settings = str(tmp_path / "sessions" / "repo-review.json")
+    result = run(
+        *new_args(
+            repo, tmp_path, "--no-previous", "--settings-file", settings, shape=shape
+        )
+    )
+    assert result.returncode == 0, err(result)
+    target = repo / ".work" / "handoffs" / HOP1
+    line = f'`claude --resume {SID_A} --settings "{settings}"`.'
+    assert line in target.read_text(encoding="utf-8")
+    fill = shape3_fill if shape == "3" else model_fill
+    target.write_text(
+        fill(target.read_text(encoding="utf-8")), encoding="utf-8", newline="\n"
+    )
+    validated = run("validate", str(target))
+    assert validated.returncode == 0, out(validated) + err(validated)
+    assert line in out(run("emit", str(target)))
+
+
+def test_new_without_settings_file_prints_a_bare_resume_line(tmp_path):
+    repo = make_repo(tmp_path)
+    run(*new_args(repo, tmp_path, "--no-previous")).check_returncode()
+    text = (repo / ".work" / "handoffs" / HOP1).read_text(encoding="utf-8")
+    assert f"`claude --resume {SID_A}`." in text
+    assert "--settings" not in text
+
+
+@pytest.mark.parametrize("bad", ['/tmp/a"b.json', "/tmp/a`b.json", "/tmp/a\nb.json"])
+def test_new_refuses_a_settings_file_that_breaks_the_line(tmp_path, bad):
+    repo = make_repo(tmp_path)
+    result = run(*new_args(repo, tmp_path, "--no-previous", "--settings-file", bad))
+    assert result.returncode == 2
+    assert "--settings-file" in err(result)
+    assert not (repo / ".work" / "handoffs" / HOP1).exists()
+
+
+@pytest.mark.parametrize("shape", ["2", "3"])
+def test_new_start_command_says_to_relaunch_above_the_unchanged_copy_line(tmp_path, shape):
+    repo = make_repo(tmp_path)
+    command = 'env -u PLUGIN_PROFILES_SESSION claude --settings "/h/sessions/abc-review.json"'
+    result = run(
+        *new_args(repo, tmp_path, "--no-previous", "--start-command", command, shape=shape)
+    )
+    assert result.returncode == 0, err(result)
+    target = repo / ".work" / "handoffs" / HOP1
+    line = (
+        "The next phase runs in another plugin profile: exit this session, start the next one "
+        f"with `{command}`, then in it:\n`/clear`, then copy everything between the dashed lines:"
+    )
+    text = target.read_text(encoding="utf-8")
+    assert line in text, "the relaunch line sits directly above the copy line find-handoff keys on"
+    fill = shape3_fill if shape == "3" else model_fill
+    target.write_text(fill(text), encoding="utf-8", newline="\n")
+    validated = run("validate", str(target))
+    assert validated.returncode == 0, out(validated) + err(validated)
+    assert line in out(run("emit", str(target)))
+
+
+def test_phase_change_reopens_in_own_profile_and_starts_next_in_its_own(tmp_path):
+    repo = make_repo(tmp_path)
+    own = str(tmp_path / "sessions" / "abc-build.json")
+    nxt = str(tmp_path / "sessions" / "abc-review.json")
+    command = f'env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --settings "{nxt}"'
+    result = run(
+        *new_args(
+            repo, tmp_path, "--no-previous", "--settings-file", own, "--start-command", command
+        )
+    )
+    assert result.returncode == 0, err(result)
+    text = (repo / ".work" / "handoffs" / HOP1).read_text(encoding="utf-8")
+    assert f'`claude --resume {SID_A} --settings "{own}"`.' in text
+    assert f"start the next one with `{command}`, then in it:" in text
+    reopen = next(line for line in text.splitlines() if "claude --resume" in line)
+    assert nxt not in reopen, "the producing session reopens in its own profile"
+
+
+def test_new_refuses_a_start_command_with_a_backtick(tmp_path):
+    repo = make_repo(tmp_path)
+    result = run(*new_args(repo, tmp_path, "--no-previous", "--start-command", "claude `x`"))
+    assert result.returncode == 2
+    assert "--start-command" in err(result)
+
+
 def test_new_hop2_from_shape2_carries_chain_rows_and_tags(tmp_path):
     repo = make_repo(tmp_path)
     handoffs = repo / ".work" / "handoffs"
