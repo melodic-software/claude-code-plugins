@@ -63,7 +63,15 @@ and CI steps that run that command.
 
 ## Phase 3: Choose and plan
 
-Per rule, take the first rung that can express its form, strongest first:
+Read the enforcement ladder first,
+[`${CLAUDE_PLUGIN_ROOT}/skills/improve/research/enforcement-ladder.md`](${CLAUDE_PLUGIN_ROOT}/skills/improve/research/enforcement-ladder.md):
+its rung order, its "Guardrail criterion" and its "Reordering" section. When the repository's
+project instructions state their own rung order or drop a rung, that order wins over the one
+below, and the plan says so. A rule that fails the guardrail criterion gets no check: report it and
+leave it on the tier the ladder names.
+
+Per rule, take the first rung that can express its form. In the ladder's default order, a boundary
+rule's candidates are, strongest first:
 
 1. **A build-time boundary the ecosystem already has**, so the build the repository already runs
    refuses the violation: a reference that is not declared between projects or packages, a
@@ -97,8 +105,11 @@ plan did not show.
 Prove every rule on its own, never the set at once:
 
 1. Run the check on the current tree. It must pass. A failure here means the rule already has
-   crossings: report each as `path:line`, leave the rule unwired and `not enforced: existing
-   crossings`, and offer the cleanup; failing now proves nothing.
+   crossings, and failing now proves nothing. Reverse this run's own edits for that rule (the
+   config rule Phase 4 added, by the reverse Edit, leaving the user's edits alone), so the
+   command that already runs the repository's checks is not left failing; keep the rule active
+   only when the user asks for it to fail until the crossings are fixed. Report each crossing as
+   `path:line`, mark the rule `not enforced: existing crossings`, and offer the cleanup.
 2. Inject one violation: the smallest real reference that crosses this rule, in a file of the
    restricted module, by an exact Edit or a new file. Note exactly what was added.
 3. Run the check. It must exit non-zero and name this rule. A failure for another reason (a missing
