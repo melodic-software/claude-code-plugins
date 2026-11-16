@@ -1,0 +1,17 @@
+{
+  "description": "At session start, adds one context line saying /planning:interview asks about the problem, users and scope before code is written for a build request that states none of them.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/session-note.mjs"],
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
