@@ -3,6 +3,14 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.5.3] - 2026-11-16
+
+### Changed
+
+- `improve`'s copy of the rendered-views security baseline states the new network rule: a view may
+  load a pinned library from a public CDN with a fallback, and an Artifact view stays
+  self-contained. The deepening report still fetches nothing, now as its own choice.
+
 ## [4.5.2] - 2026-11-16
 
 ### Fixed
