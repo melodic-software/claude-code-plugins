@@ -3,6 +3,10 @@
     {
       "answer": "Round 2, one question at a time.\n\nQ4: **Which role may export?**\nContext: support staff can see invoice lists but not payment details; finance can (user, round 2).\nMy recommendation: `finance` only.\nBasis: verified, user, round 2\nAlternatives:\n- (a) Both roles, with payment columns removed for support\n\nIs there something else that would change this recommendation?",
       "why": "one question, on decision C, nothing else previewed"
+    },
+    {
+      "answer": "**Round 2** (one question per message, as you asked)\nLater: the amount and currency format, which roles can export, and how the file gets built within the 30-second timeout.\n\nQ4: **Does one export cover one calendar month?**\nContext: finance closes its books on the calendar month (user, round 2).\nMy recommendation: one calendar month, chosen from a picker.\nBasis: verified, user, round 2\nAlternatives:\n- (a) Any date range\n\nIs there something else that would change this recommendation?",
+      "why": "a Later: line records the other decisions without asking them"
     }
   ],
   "fail": [

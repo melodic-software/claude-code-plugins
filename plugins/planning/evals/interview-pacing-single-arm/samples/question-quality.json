@@ -1,14 +1,18 @@
 {
   "pass": [
     {
-      "answer": "Round 2, one question at a time. Decided: production quality, month-end reconciliation, issued invoices only.\n\nQ4: **How does an export of a large month complete?**\nContext: one month for the largest account is about 40,000 rows, and in-request downloads time out after 30 seconds (user, round 2).\nMy recommendation: build the file in a background job and offer a download link when it is ready.\nOrigin: new (ours)\nBasis: verified, user, round 2 (40,000 rows, 30-second timeout)\nAlternatives:\n- (a) Build it in the request like the other downloads. Simplest, but likely to time out on the largest account (origin: new (ours))\n\nIs there something else that would change this recommendation?",
-      "why": "context citing stated facts, recommendation, Basis line, alternative, closing probe"
+      "answer": "Round 2. Decided: production quality, month-end reconciliation, issued invoices only.\n\nQ4: **How does an export of a large month complete?**\nContext: one month for the largest account is about 40,000 rows, and in-request downloads time out after 30 seconds (user, round 2).\nMy recommendation: build the file in a background job and offer a download link when it is ready.\nOrigin: new (ours)\nBasis: verified, user, round 2 (40,000 rows, 30-second timeout)\nAlternatives:\n- (a) Build it in the request like the other downloads. Simplest, but likely to time out on the largest account (origin: new (ours))\n\nQ5: **How do amounts appear in the file?**\nContext: amounts are integer cents with a currency code, in USD, EUR and GBP, and finance opens the file in a spreadsheet (user, round 2).\nMy recommendation: a decimal amount column plus a currency column, one row per invoice, no conversion.\nOrigin: new (ours)\nBasis: verified, user, round 2 (integer cents, three currencies, spreadsheet)\nAlternatives:\n- (a) Raw integer cents. Exact, but finance must divide by 100 in the sheet (origin: new (ours))\n\nIs there something else that would change these recommendations?",
+      "why": "every question has context citing a stated fact, a recommendation, a Basis line and an alternative; closing probe present"
+    },
+    {
+      "answer": "Round 2.\n\nQ4: **Which role may export?**\nContext: support staff can see invoice lists but not payment details (user, round 2).\nMy recommendation: `finance` only.\nBasis: verified, user, round 2\nAlternatives:\n- (a) Both roles, payment columns removed for support\n\nQ5: **Which timezone sets the start and end of a month?**\nContext: finance closes its books on the calendar month (user, round 2); nothing stated says in which timezone.\nWithheld: only the timezone finance's books close in can settle this.\nAlternatives:\n- (a) UTC\n- (b) The company's home timezone\n\nIs there something else that would change these recommendations?",
+      "why": "a Withheld question needs no Basis line"
     }
   ],
   "fail": [
     {
-      "answer": "Q4: How does an export of a large month complete?\nMy recommendation: a background job.\nBasis: judgment\n\nIs there something else that would change this recommendation?",
-      "why": "no context block and no alternative"
+      "answer": "Q4: How does a large export complete?\nMy recommendation: a background job.\nAlternatives: (a) in the request.\n\nQ5: How do amounts appear?\nContext: amounts are integer cents in USD, EUR and GBP (user).\nMy recommendation: decimal plus a currency column.\nBasis: verified, user, round 2\nAlternatives: (a) raw cents.\n\nIs there something else that would change these recommendations?",
+      "why": "Q4 has no context block and no Basis line"
     }
   ]
 }
