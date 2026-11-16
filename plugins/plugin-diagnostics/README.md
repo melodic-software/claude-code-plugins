@@ -1,8 +1,11 @@
 # plugin-diagnostics
 
 Detects and reports why installed plugins cannot run: hooks that fail to launch, and missing runtimes
-or prerequisite tools. It is hooks only: no skills. It is on by default, and works whether or not any
-other plugin is enabled.
+or prerequisite tools. It is hooks only: no skills. It is on by default for a new install, and works
+whether or not any other plugin is enabled. If you already had this marketplace installed, updating
+it does not install plugin-diagnostics (ADR 0109,
+[probe row `default-on-existing-users`](../../docs/adr/0109-switch-plugin-sets-by-profile-and-gate-optional-calls-on-enabled-skills.md#probe-record-claude-code-21325-2026-11-15)):
+run `claude plugin install plugin-diagnostics@melodic-software`.
 
 ## Contents
 
@@ -30,8 +33,8 @@ Its user-facing `systemMessage`
 warning fires regardless of sink wiring (only its envelope needs a sink),
 because its whole subject is failures nothing else surfaces: a hook that fails
 to launch is a non-blocking error, the guarded tool call proceeds as if
-approved, and the only durable trace is a transcript attachment no human reads
-. It runs once per `Stop`, tails a bounded window of the session
+approved, and the only durable trace is a transcript attachment no human reads.
+It runs once per `Stop`, tails a bounded window of the session
 transcript for `hook_non_blocking_error` attachments (structural match on the
 attachment type, never substring), and warns once per session per distinct
 failing hook registration, keyed on `hookName` plus the registered command because several plugins
