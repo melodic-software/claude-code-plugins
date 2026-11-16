@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Run this from desk-01's WSL shell (route R1, this machine's Windows lane):\n\n```bash\ncd /mnt/c/Users/EvalUser/scratch && /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command - <<'PS'\n$claude = \"$env:USERPROFILE/.local/bin/claude.exe\"; $s = Join-Path $env:TEMP 'relay-settings.json'\nSet-Content -Path $s -Value '{\"crossSessionInbound\":\"accept\"}' -Encoding ascii\n$root = ((& $claude plugin list --json | Out-String | ConvertFrom-Json) | Where-Object { \"$($_.id)\" -like 'plugin-profiles@*' -and $_.enabled -eq $true } | Select-Object -First 1).installPath\nif (-not $root) { 'profile build not applied'; 'Wait for messages and act on each.' | & $claude --settings $s -p -n desk-win-inbox; exit }\n$r = & node (Join-Path $root 'scripts/profiles.mjs') launch build --folder $PWD.Path --unattended --json --with $s\nif ($LASTEXITCODE) { \"not started: profiles.mjs launch exited $LASTEXITCODE\"; exit 1 }\n$argv = @(($r | Out-String | ConvertFrom-Json).argv); $i = 1\nwhile ($argv[$i] -ceq '-u') { Remove-Item \"Env:$($argv[$i + 1])\" -ErrorAction Ignore; $i += 2 }\n'Wait for messages and act on each.' | & $claude @($argv[($i + 1)..($argv.Count - 1)]) -p -n desk-win-inbox\n\nPS\n```",
+      "why": "conversion parenthesized, so Where-Object sees each entry"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run this from desk-01's WSL shell (route R1, this machine's Windows lane):\n\n```bash\ncd /mnt/c/Users/EvalUser/scratch && /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command - <<'PS'\n$claude = \"$env:USERPROFILE/.local/bin/claude.exe\"; $s = Join-Path $env:TEMP 'relay-settings.json'\nSet-Content -Path $s -Value '{\"crossSessionInbound\":\"accept\"}' -Encoding ascii\n$root = (& $claude plugin list --json | Out-String | ConvertFrom-Json | Where-Object { \"$($_.id)\" -like 'plugin-profiles@*' -and $_.enabled -eq $true } | Select-Object -First 1).installPath\nif (-not $root) { 'profile build not applied'; 'Wait for messages and act on each.' | & $claude --settings $s -p -n desk-win-inbox; exit }\n$r = & node (Join-Path $root 'scripts/profiles.mjs') launch build --folder $PWD.Path --unattended --json --with $s\nif ($LASTEXITCODE) { \"not started: profiles.mjs launch exited $LASTEXITCODE\"; exit 1 }\n$argv = @(($r | Out-String | ConvertFrom-Json).argv); $i = 1\nwhile ($argv[$i] -ceq '-u') { Remove-Item \"Env:$($argv[$i + 1])\" -ErrorAction Ignore; $i += 2 }\n'Wait for messages and act on each.' | & $claude @($argv[($i + 1)..($argv.Count - 1)]) -p -n desk-win-inbox\n\nPS\n```",
+      "why": "Windows PowerShell 5.1 passes the whole array to Where-Object as one object"
+    }
+  ]
+}
