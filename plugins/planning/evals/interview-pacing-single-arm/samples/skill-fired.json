@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:interview", "args": "me Add a CSV export of invoices"}}], "why": "the interview skill was invoked"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no tool call"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:plan"}}], "why": "a different skill"}
+  ]
+}

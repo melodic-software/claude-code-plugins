@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Round 2.\n\nSettled by evidence: a large export runs as a background job, because one month is about 40,000 rows and in-request downloads time out after 30 seconds (user, round 2).\n\nQ4: Which date range does one export cover? ... My recommendation: one calendar month, chosen from a picker. Basis: verified, user, round 2 (calendar-month close). Alternatives: (a) any date range.\n\nQ5: How do amounts and currencies appear? ... My recommendation: a decimal amount column plus a currency column. Basis: verified, user, round 2. Alternatives: (a) raw cents.\n\nQ6: Which role may export? ... My recommendation: `finance` only, since support cannot see payment details. Basis: verified, user, round 2. Alternatives: (a) both roles, payment columns removed for support.\n\nIs there something else that would change these recommendations?",
+      "why": "A, B and C asked; D recorded as settled with the facts it rests on"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Round 2. I'll build the export as a background job.\n\nQ4: Which date range? My recommendation: one calendar month. Basis: verified, user. Alternatives: (a) any range.\n\nQ5: How do amounts appear? My recommendation: decimal plus currency. Basis: verified, user. Alternatives: (a) raw cents.\n\nIs there something else that would change these recommendations?",
+      "why": "D decided without a question or cited evidence, and C (who may export) is missing"
+    }
+  ]
+}
