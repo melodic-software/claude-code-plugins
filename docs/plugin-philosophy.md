@@ -34,8 +34,9 @@ repository names, absolute machine paths, or an undocumented consumer layout. `m
 `standards/engineering/shareable-artifact-design.md` owns the artifact-agnostic form of this
 doctrine: consumer-agnostic behavior, externalized consumer-varying configuration, consumer tiers,
 explicit adoption. This document specializes it for Claude Code plugins and adds only what is
-plugin-specific. [Hardcoded consumer specifics](#hardcoded-consumer-specifics) routes the
-machine-path and layout half to the audits that check it.
+plugin-specific. A consumer's languages, frameworks and tools vary per consumer too, so shipped
+skills carry no ecosystem-specific examples. [Hardcoded consumer specifics](#hardcoded-consumer-specifics)
+states that rule and routes the machine-path and layout half to the audits that check it.
 
 **Org-agnosticism** names the publisher half of that boundary, and it governs *tokens in shipped
 content*, not only runtime behavior: the publishing organization's name, its marketplace id, its own
@@ -133,6 +134,31 @@ audits cite it instead of restating the rule:
 - `plugin-quality:audit` recurring-concerns (per-component detection cues).
 - `coupling:reduce` remediation catalog (code and document altitude).
 - `harness-config:audit-permission-grants` (concrete home paths in permission grants only).
+
+**No ecosystem-specific examples.** A shipped skill body or reference file carries no example tied
+to one language, framework or tool: no code sample written for one stack, and no link to one tool's
+documentation. Such examples change with the stack they show, every change becomes our
+maintenance, and a sample reads as a choice the skill made for the consumer. A skill states its
+rule in ecosystem-agnostic terms and resolves the specifics at run time: from the consumer
+repository's and organization's own rules, conventions and agent instructions, which override or
+enrich the skill, and with `/discovery:research` for the current idiomatic form when the repository
+does not settle it. The order is the [ecosystem-resolution contract](contracts/ecosystem-resolution/README.md)
+and the skill standard's
+[Stack-specific tools](../plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md#stack-specific-tools);
+this rule restates neither. Detail that must persist between runs goes into the consumer's
+configuration first; only where configuration cannot express the difference does the skill
+generate a repository-specific skill in the consumer repository, as `/app-control:map` generates a
+control skill (the skill standard's "Config before a generated skill"). Three things stay:
+
+- a tool name the skill's own behavior depends on detecting, such as a manifest, lockfile or
+  config file it looks for;
+- the executed adapters, security and safety floors, and declared-ecosystem surfaces
+  [ADR 0101](adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md) keeps;
+- links to the platform a skill runs on or the provider behind its adapter, which
+  [skill bodies state current rules](../.claude/rules/skill-bodies-state-current-rules.md) requires.
+
+This narrows ADR 0101's source-citation exception: a link to one ecosystem's tool documentation is
+not a sanctioned citation in a skill body or reference file.
 
 ## Naming
 
@@ -418,7 +444,9 @@ builds on one of the consumer's languages, frameworks, tools, libraries or comma
 lane-1 default, however safe one looks: when the consumer's choice does not resolve, the skill
 reports it unresolved and skips the step. The named exceptions (executed adapters, security and
 safety floors, declared-ecosystem surfaces, source citations) are in
-[ADR 0101](adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md).
+[ADR 0101](adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md); source citations
+exclude one ecosystem's tool documentation, per
+[Hardcoded consumer specifics](#hardcoded-consumer-specifics).
 
 Lane 2's discovery for a consumer-tool port is the
 [ecosystem-resolution contract](contracts/ecosystem-resolution/README.md): read the record, then

@@ -14,7 +14,9 @@
   [ADR 0060](../adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md).
 - A generic skill or agent ships no model-read language, framework, tool or library choice outside
   the named exceptions; it resolves the choice from the consumer repository:
-  [ADR 0101](../adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md).
+  [ADR 0101](../adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md). Nor does it
+  ship an ecosystem-specific example (a code sample for one stack, a link to one tool's docs):
+  [plugin philosophy](../plugin-philosophy.md#hardcoded-consumer-specifics).
 - A new skill that recommends, places or builds enforcement, or an instruction, reads the
   enforcement ladder, prefers the strongest tier that can decide the matter, and discovers the
   consumer's tooling first:
