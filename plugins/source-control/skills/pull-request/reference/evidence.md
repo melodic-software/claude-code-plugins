@@ -35,7 +35,7 @@ the merge goes on.
 |---|---|
 | `<pr>` | The pull request number. Resolve it once and pass it to every call below |
 | `--evidence <file>` | The `e2e-summary.json` an unattended `/testing:run-e2e` run wrote, or the `report.json` of one `/app-control:drive` run. Its `publishable` list names the only files this step may attach. Paths in it resolve against the file's own directory |
-| `--before <file>` | Optional: an evidence file of the same kind from a run on the PR's base commit. Its captures are the Before row of the small-change table. Its `publishable` list governs its captures as `--evidence`'s governs the head's |
+| `--before <file>` | Optional: an evidence file of the same kind from a run on the PR's base commit. Its captures are the Before row of the small-change table. Its `publishable` list governs its captures as `--evidence`'s governs the head's, its paths resolving against the `--before` file's own directory, which must differ from the `--evidence` file's |
 | `--attach <path>` | Optional, repeatable: the captures to attach. Without it, every image and video in the `publishable` lists is attached |
 | `--summary <file>` | Optional: the run's text summary. Without it, the summary is the `entry_points` lines and the `capture` status of `e2e-summary.json`, or each step's `action`, `entry_point` and `outcome` from `report.json`, never its `observed` text, `command` or `process` |
 | `--verified-by <name>` | Optional: who ran the verification, for the record block (step 4). Without it, `not recorded` |
@@ -73,8 +73,9 @@ scans it with the rest of the rendered body.
    nothing: the evidence comment follows a verifier pass, never stands in for one.
 2. **Publishable captures.** Read `publishable` from the evidence file, and from the `--before`
    file when one is given. A file that does not parse, or has no `publishable` list, posts
-   nothing. Each `--attach` path must match a `publishable` entry of either file once both resolve
-   to absolute paths. One that does not is refused: name it and post
+   nothing, and so do two evidence files in one directory. Each list's entries resolve against
+   its own file's directory. Each `--attach` path must match a `publishable` entry of either file
+   once both resolve to absolute paths. One that does not is refused: name it and post
    nothing, so a capture the mask post-check never passed cannot reach the PR. Attach only images
    and videos; a report or sidecar in `publishable` is not attached.
 3. **Video.** Attach a video only when every frame passed the masking check. `/app-control:drive`
@@ -98,19 +99,21 @@ scans it with the rest of the rendered body.
      time in UTC (`date -u -r <file> +%Y-%m-%dT%H:%M:%SZ`), else `not recorded`. `{{issues}}` is
      each line of `--issues`, joined with `<br>`; without it, each criterion or entry point the
      run did not pass, with `resolution not recorded`, or `none found in this run` when every one
-     passed. Escape a `|` in any value as `\|`. A missing value never stops the step. The three
+     passed. In every table cell and column header, this block's and the capture table's alike,
+     escape a `|` as `\|` and turn each line break into `<br>`. A missing value never stops the
+     step. The three
      fields follow the record elements a regulated team keeps for an assurance activity (who ran
      it, when, the issues it found and their resolution) in the FDA guidance's section (6) linked
      above;
    - **Layout.** The change is small when it has at most two sections (acceptance criteria, else
      entry point lines) and its captures to attach, Before and After counted together, number at
-     most `evidence_inline_max_captures` (default 4: one Before and one After for each of two
+     least one and at most `evidence_inline_max_captures` (default 4: one Before and one After for each of two
      interactions; `0` keeps every change in collapsed sections). A small change keeps
      `{{#inline}}` and drops every `{{#section}}`; a larger one does the reverse;
    - `{{#inline}}` to `{{/inline}}`: `{{capture_line}}` is one line naming the tool that captured
      (`/app-control:drive` for a `report.json`, `/testing:run-e2e` for an `e2e-summary.json`) and
-     what each row's captured state is: Before is the base commit `--before` ran on, After is
-     `{{head}}`. `{{capture_table}}` is a table with one column per interaction (an entry point,
+     what each row's captured state is: Before is the PR's base branch (step 1's `baseRefName`),
+     where `--before` ran, and After is `{{head}}`. `{{capture_table}}` is a table with one column per interaction (an entry point,
      headed by its name) and two rows, `Before` and `After`. A cell holds the capture's image
      reference, formed as `{{capture_image}}` below, then `<br>` and a caption stating what the
      capture shows (the step's `action` on its `entry_point`, else the entry point); a cell with
@@ -119,7 +122,8 @@ scans it with the rest of the rendered body.
      ([Embedding an attachment in Markdown](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli#embedding-an-attachment-in-markdown)
      for which references `gh` rewrites). A video never goes in a cell: its cell reads
      `video below`, and `{{#video}}` to `{{/video}}`, repeated per video, puts its reference alone
-     in its own paragraph (`{{video_ref}}`) and its caption in the next (`{{video_caption}}`),
+     in its own paragraph (`{{video_ref}}`, formed and path-checked as `{{capture_image}}`) and
+     its caption in the next (`{{video_caption}}`),
      because a video plays only from a paragraph of its own
      ([Embedding a video](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli#embedding-a-video));
    - `{{#section}}` to `{{/section}}`, repeated as one collapsed section per acceptance criterion
@@ -154,7 +158,8 @@ scans it with the rest of the rendered body.
    the generic credential pattern. With no hub, or a hub with no `values:` line, the pattern alone
    scans it. A hit posts nothing and the report names its kind (a mask value or the credential
    pattern), never the matched text. A `values:` source that fails or yields no value, or a scan
-   that cannot run, posts nothing either.
+   that cannot run, posts nothing either. With `--before`, its file names a hub the same way, and
+   the scan uses the values of both hubs when they differ.
 6. **One comment per identity.** `gh pr comment --edit-last` edits the last comment of the
    account `gh` is logged in as, so that account must post nothing else on the PR. Read the login
    (`gh api user --jq .login`), then its comments on the PR in order, in step 1's repository

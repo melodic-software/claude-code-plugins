@@ -221,7 +221,7 @@ reads the file itself, through a script where the key names one below.
   ([evidence.md](../skills/pull-request/reference/evidence.md) step 4).
   `evidence_inline_max_captures`, a whole number from 0 to 999, default `4`, is the most captures
   a change with at most two acceptance criteria may have and still show them as a Before/After
-  table; `0` keeps every change in collapsed sections. `evidence_record_fields`, `true` or
+  table; a change with no capture, and every change under `0`, keeps collapsed sections. `evidence_record_fields`, `true` or
   `false`, default `false`, adds the who, when and issues-found record block. Team level only,
   with no `userConfig` option: both are repository policy. Read at the pull request's base branch,
   never the head, by `skills/pull-request/scripts/read-evidence-layout.sh`, and honored only when

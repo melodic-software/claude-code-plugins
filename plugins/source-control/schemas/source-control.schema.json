@@ -32,7 +32,7 @@
       "minimum": 0,
       "maximum": 999,
       "default": 4,
-      "description": "The most captures, Before and After counted together, that a change with at most two acceptance criteria may have and still show them inline as a Before/After table in the /source-control:pull-request evidence comment. A larger change keeps one collapsed section per acceptance criterion. 0 keeps every change in collapsed sections. Read at the pull request's base branch and honored only when that base is the default branch; an invalid value falls back to 4."
+      "description": "The most captures, Before and After counted together, that a change with at most two acceptance criteria may have and still show them inline as a Before/After table in the /source-control:pull-request evidence comment. A larger change, or one with no capture, keeps one collapsed section per acceptance criterion. 0 keeps every change in collapsed sections. Read at the pull request's base branch and honored only when that base is the default branch; an invalid value falls back to 4."
     },
     "evidence_record_fields": {
       "type": "boolean",
