@@ -230,6 +230,20 @@ wit_try_remove_assignee() {
     -f "assignees[]=$4" >/dev/null 2>&1 || true
 }
 
+# wit_try_add_assignee <owner> <repo> <number> <login> — best-effort, on the session
+# identity; never fails the caller.
+wit_try_add_assignee() {
+  wit_write_pause
+  gh api --method POST "repos/$1/$2/issues/$3/assignees" \
+    -f "assignees[]=$4" >/dev/null 2>&1 || true
+}
+
+# wit_try_read_assignees <owner> <repo> <number> — WIT_GH_OUT = JSON array of logins;
+# returns 1 on a failed read instead of exiting.
+wit_try_read_assignees() {
+  WIT_GH_OUT="$(gh api "repos/$1/$2/issues/$3" --jq '[.assignees[].login]' 2>/dev/null)"
+}
+
 # wit_issue_url <owner> <repo> <number>
 wit_issue_url() {
   printf 'https://github.com/%s/%s/issues/%s\n' "$1" "$2" "$3"
@@ -478,24 +492,24 @@ wit_lease_released_by_run() {
 
 # wit_unassign_if_unheld <owner> <repo> <number> <login> <released-id> <leases-json>: after a
 # release, remove <login> from the assignees unless another live lease held by <login> remains
-# (CONTRACT.md "Lease protocol", release). <leases-json> is a list read before the release's
-# PATCH, so a lease posted after it is caught by the re-read after the removal, which puts the
-# assignee back: a same-login claim posts its lease before it re-checks its assignee, and the
-# release removes the assignee before it re-reads the leases, so one of the two sees the other.
+# (CONTRACT.md "Lease protocol", release). <leases-json> is read after the release's PATCH, so
+# a same-login loser that superseded its own lease before that read is seen as gone, and its own
+# re-read after superseding sees this release. A lease posted after the read is caught by the
+# re-read after the removal, which puts the assignee back: a same-login claim posts its lease
+# before it re-checks its assignee, and the release removes the assignee before it re-reads the
+# leases, so one of the two sees the other.
 wit_unassign_if_unheld() {
-  local owner="$1" repo="$2" number="$3" login="$4" released="$5" leases="$6" assignees
+  local owner="$1" repo="$2" number="$3" login="$4" released="$5" leases="$6"
   _wit_login_holds_other "$leases" "$login" "$released" && return 0
-  assignees="$(gh api "repos/$owner/$repo/issues/$number" --jq '[.assignees[].login]' 2>/dev/null)" || {
+  wit_try_read_assignees "$owner" "$repo" "$number" || {
     printf '%s: could not read the assignees; %s left assigned\n' "$(basename "$0" .sh)" "$login" >&2
     return 0
   }
-  jq -e --arg l "$login" 'any(.[]; . == $l)' <<<"$assignees" >/dev/null || return 0
+  jq -e --arg l "$login" 'any(.[]; . == $l)' <<<"$WIT_GH_OUT" >/dev/null || return 0
   wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
   leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || return 0
   if _wit_login_holds_other "$leases" "$login" "$released"; then
-    wit_write_pause
-    gh api --method POST "repos/$owner/$repo/issues/$number/assignees" \
-      -f "assignees[]=$login" >/dev/null 2>&1 || true
+    wit_try_add_assignee "$owner" "$repo" "$number" "$login"
   fi
 }
 

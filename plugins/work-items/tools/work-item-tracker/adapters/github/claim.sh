@@ -74,12 +74,6 @@ fi
 
 # A lease-only claim assigns no one, so steps 1-2 and their rollback do not apply.
 if [[ "$lease_only" == false ]]; then
-  # Whether the login was assigned before this claim decides, on a same-login loss in
-  # step 4, whether @me belongs to the winner or only to this claim.
-  wit_read_assignees "$owner" "$repo" "$number"
-  pre_assigned=false
-  jq -e --arg me "$login" 'any(.[]; . == $me)' <<<"$WIT_GH_OUT" >/dev/null && pre_assigned=true
-
   # 1. Assign the session identity. `read` routes to bare gh, so the assignee is
   # the session user, not the bot (README "Edit labels / assignees" carve-out);
   # `@me` is resolved to $login explicitly because REST takes a literal login.
@@ -104,7 +98,13 @@ if [[ "$lease_only" == false ]]; then
   # and silently drops a login that cannot be assigned (no push access). Without
   # this check a silently-dropped assignment would report a held claim while
   # list-frontier still saw the item unassigned — two workers on one item, the
-  # exact race the lease exists to prevent.
+  # exact race the lease exists to prevent. A same-login release can also remove the
+  # login between the assign and this read, so one re-assign comes first.
+  if ! jq -e --arg me "$login" 'any(.[]; . == $me)' <<<"$assignees" >/dev/null; then
+    wit_add_assignee read "$owner" "$repo" "$number" "$login"
+    wit_read_assignees "$owner" "$repo" "$number"
+    assignees="$WIT_GH_OUT"
+  fi
   if ! jq -e --arg me "$login" 'any(.[]; . == $me)' <<<"$assignees" >/dev/null; then
     printf 'claim: assignment of %s did not take effect (insufficient permission to self-assign on %s/%s)\n' \
       "$login" "$owner" "$repo" >&2
@@ -158,11 +158,16 @@ winner_holder=""
 if [[ -n "$winner_id" && "$winner_id" != "$our_comment_id" ]]; then
   wit_try_supersede_lease_comment "$owner" "$repo" "$our_comment_id" "$lease"
   trap - EXIT
-  # Keep @me only on a same-login loss where the login was assigned before this
-  # claim: then the assignee is the winner's. Assigned only by this claim, it would
-  # outlive a winner that has finished or is about to release.
-  if [[ "$lease_only" == false ]] && [[ "$winner_holder" != "$login" || "$pre_assigned" == false ]]; then
-    wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
+  # On a same-login loss, @me stays only while another live lease of this login holds
+  # the item, read after our supersede: a winner that has released by then is seen as
+  # gone, and one releasing later re-reads the leases after its own PATCH and sees ours
+  # superseded, so one of the two removes @me.
+  if [[ "$lease_only" == false ]]; then
+    if [[ "$winner_holder" != "$login" ]] ||
+      ! leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" ||
+      ! _wit_login_holds_other "$leases" "$login" "$our_comment_id"; then
+      wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
+    fi
   fi
   printf 'claim: live lease (comment %s, holder %s) wins — backing off\n' \
     "$winner_id" "$(tr -d '[:cntrl:]' <<<"${winner_holder:-unknown}")" >&2

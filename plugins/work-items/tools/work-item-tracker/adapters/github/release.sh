@@ -117,4 +117,7 @@ fi
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 released="$(jq -c --arg ts "$now" '. + {superseded_at: $ts}' <<<"$lease_json")"
 wit_patch_lease_comment "$owner" "$repo" "$lease_comment_id" "$released"
+# The hand-back decides on a list read after the PATCH: a same-login loser that superseded
+# its lease since the read above must not keep the assignee alive.
+leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
 hand_back "$leases" true "live lease released"

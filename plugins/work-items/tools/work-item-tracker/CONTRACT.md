@@ -700,7 +700,9 @@ backs off, and a lane run that finds a live local lease backs off without starti
   TTL-based handoff. Recovery from an expired lease is a fresh claim/reclaim, not a renew.
   The GitHub adapter's `renew-lease` also refuses (exit `7`) a live lease that an earlier live
   lease outranks under claim step 4; a newer live lease does not stop it, since that is a
-  claimant that has not backed off yet.
+  claimant that has not backed off yet, except within 300 s (the skew a lease reader tolerates)
+  of the lease's expiry. There the newer claimant may already have found the lease expired and
+  started, so the lease must also be the newest non-superseded one, else exit `7`.
 - `session_id` is optional and collision-prone; a missing/duplicate `session_id` still counts as a
   competing lease. The one shape the GitHub adapter's claim step 4 reads is `run-<id>`, a workflow run of the
   item's repository; any other value is diagnostic only.
@@ -718,15 +720,18 @@ backs off, and a lane run that finds a live local lease backs off without starti
 
 Claim sequence (race-safe, same-identity aware):
 
-1. Note whether the authenticated user is already assigned, then assign it
-   (`--add-assignee "@me"`, always the session identity, never the bot).
-2. Re-read assignees. Any other login present → back off: unassign self, exit `7`.
+1. Assign the authenticated user (`--add-assignee "@me"`, always the session identity,
+   never the bot).
+2. Re-read assignees. Self missing → assign once more and re-read (a same-login release may
+   have removed it), still missing → exit `4`. Any other login present → back off: unassign
+   self, exit `7`.
 3. Post the lease comment; capture its comment ID (comment identity, not `session_id`,
    discriminates same-login sessions).
 4. Re-read all lease comments. If an earlier live lease exists that is not our own
-   comment, the foreign lease wins → supersede own comment, exit `7`. On a same-login loss the
-   assignee stays only when step 1 found it already assigned, since it is then the winner's;
-   one this claim added is removed, so it cannot outlive a winner that has finished. On a win,
+   comment, the foreign lease wins → supersede own comment, exit `7`. On a same-login loss,
+   re-read the leases after that supersede and keep the assignee only while another live lease
+   of this login remains; a release re-reads them after its own supersede, so between the two
+   one removes an assignee no lease holds. On a win,
    re-read assignees and assign self again if a same-login release removed it after step 2.
    The back-off message prints the winner's holder with control characters removed.
    GitHub adapter: an earlier live lease whose `session_id` is `run-<id>` costs one
@@ -751,9 +756,10 @@ exists because lease handles are public (a GitHub comment id), and within one lo
 tells sessions apart, as for `renew-lease`. An already-superseded or expired lease is an
 idempotent no-op (`released: false`, exit `0`), because it already blocks nobody. A live lease is
 superseded in place (`released: true`). On every exit `0` release then hands the assignee back:
-it removes the login unless another live lease held by that login remains on the item. The GitHub
-adapter re-reads the leases after the removal and assigns the login again if one has appeared,
-the other half of claim step 4's win check. Callers rely on it and clear no assignee
+it removes the login unless another live lease held by that login remains on the item, judged on
+a lease list read after the release's own supersede. That removal includes an assignment of the
+same login a person made by hand. The GitHub adapter re-reads the leases after the removal and
+assigns the login again if one has appeared, the other half of claim step 4's win check. Callers rely on it and clear no assignee
 themselves; `/work-items:attend-queue` flips the role label, then releases. The write carries the same TOCTOU caveat as reclaim's
 revalidation: GitHub's comment PATCH has no If-Match/CAS, so a concurrent writer can still
 interleave. The verb is capability-gated (`verbs.release`); an adapter that declares it `false`,
