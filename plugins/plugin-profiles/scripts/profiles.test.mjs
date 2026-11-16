@@ -138,6 +138,15 @@ test("a second apply over a first keeps the first apply's before-values, so clea
   assert.equal(w.read(), LOCAL_BEFORE);
 });
 
+test("a repository profile shapes the folder but never the user settings an initial apply writes", () => {
+  const w = world({ local: null });
+  writeTree(w.project, { "docs/conventions/plugin-profiles/build.yaml": `plugins: [songwriting@${M}]\n` });
+  assert.doesNotMatch(w.run(["apply", "build", "--for", "folder", "--dry-run"]).stdout, /Switches off \(\d+\):.*songwriting/);
+  const r = w.run(["apply", "build", "--for", "initial", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(readFileSync(join(w.home, ".claude", "settings.json"), "utf8")).enabledPlugins[`songwriting@${M}`], false);
+});
+
 test("AC2: a one-session apply writes a --settings file naming the profile and changes no settings file", () => {
   const w = world();
   const userFile = join(w.home, ".claude", "settings.json");

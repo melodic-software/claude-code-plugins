@@ -200,7 +200,8 @@ function commit(p, opts, where) {
 
 async function apply(opts, where, env, io) {
   if (env.CLAUDE_CODE_REMOTE === "true") throw new NotApplied("plugin profiles do not apply here: a cloud session reads no local or user settings");
-  const catalog = readCatalog(profileLevels({ pluginRoot: OWN_ROOT, configDir: where.configDir, projectDir: where.projectDir }));
+  const levels = profileLevels({ pluginRoot: OWN_ROOT, configDir: where.configDir, projectDir: where.projectDir });
+  const catalog = readCatalog(opts.target === "initial" ? levels.filter((l) => l.level !== "repository") : levels);
   const records = () => recordsFromCli();
   let p = prepare(opts, where, catalog, records);
   const gate = missingRequired(

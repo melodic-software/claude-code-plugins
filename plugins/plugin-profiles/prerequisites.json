@@ -16,6 +16,23 @@
       "install": {
         "docs": "https://nodejs.org/en/download"
       }
+    },
+    {
+      "id": "claude",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "claude"
+        ]
+      },
+      "degrade": "Without the claude command on PATH, apply, status and inventory cannot list the installed plugins; status --session-start still works.",
+      "install": {
+        "docs": "https://code.claude.com/docs/en/setup"
+      }
     }
   ]
 }
