@@ -113,7 +113,8 @@ absent, and no move dissolves a *why* ("Apply capacity" in dissolving-moves.md).
    `explanatory`, for every class-C candidate whose content is rationale, run
    `git log -L <start>,<end>:<file>` over its own lines and check the repo's ADR or decision-log
    directory where one is declared; recoverable there **fails** the criterion, absent from both
-   **passes**, unreadable history keeps the comment. Under `necessary` and `none` skip this check
+   **passes**, unreadable history keeps the comment. An ADR pointer carries no rationale and
+   passes ([reference/triage.md](../reference/triage.md)). Under `necessary` and `none` skip this check
    for every comment off the keep list. Done when every comment carries one class, and every
    class-C candidate the run still tests carries a criterion-2 verdict with its evidence.
 6. **Apply**, one item at a time, each behind its tier's gate. Class A: delete, run
