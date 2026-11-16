@@ -31,6 +31,13 @@ graders:
     min: 0
     max: 0
     arm: both
+  - name: citing-file-not-overwritten
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"[^"]*schema\.graphql'
+    min: 0
+    max: 0
+    arm: both
   - name: lists-citation
     type: regex
     pattern: 'schema\.graphql:1\b'
