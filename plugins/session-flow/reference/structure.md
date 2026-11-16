@@ -245,7 +245,7 @@ state of now).
 **The user's own words, quoted, and immutable across the chain.** This section owns the goal; every
 other section is subordinate to it. It is the one thing a chain of save-points loses first, because
 each writer serializes the machinery in front of them, the phase, the bundle, the checklist, and
-machinery reads as mission to the session that inherits it.
+the session that inherits it mistakes those process steps for the goal.
 
 - **Goal (verbatim):** the user's goal statement quoted as they wrote it, with the date they stated
   it. Quote it; never paraphrase, condense, or "clarify". A paraphrase is a re-derivation, and this
@@ -525,7 +525,7 @@ Non-obvious facts about the system that would be expensive to re-derive, and tha
 decision nor a failed approach. One entry per finding: the fact as a one-line claim, then where it
 was observed: a file, a command's output, an error string.
 
-This is the section that beats compaction. Write it long.
+Write this section at full length, because these facts are the ones a compaction summary drops and the next session pays to re-derive.
 
 ```markdown
 - The hook fires twice per Write on Windows, once with a normalized path and once raw — observed in

@@ -70,8 +70,8 @@ are the `motion` concern's.
 ## 2. Motion follows the visitor
 
 Every section fading up as it scrolls into view, scroll hijacking, parallax that isn't 1:1 with
-scroll, an auto-advancing carousel. All of these move without the user asking, and the page feels
-like it's performing at the visitor. Scroll-triggered reveals also hide content from anyone who
+scroll, an auto-advancing carousel. All of these move without the user asking, and the visitor has
+to sit through motion they did not request. Scroll-triggered reveals also hide content from anyone who
 scrolls fast, prints, or arrives with JavaScript still loading.
 
 Hunt for: `whileInView`, `useInView`, `IntersectionObserver` driving opacity or translate on content
@@ -95,7 +95,7 @@ scroll, or an auto-advancing carousel on a marketing page; raise it as an ask.
 auto-advancing carousel with no pause control.
 
 Intro animations (hero reveals, logo sequences) are fine, once. A hero entrance that replays on
-every navigation back to the homepage is a tax. Gate it on `sessionStorage`, not `localStorage`, so
+every navigation back to the homepage makes repeat visitors wait through it each time. Gate it on `sessionStorage`, not `localStorage`, so
 it plays again on a new visit but not on every internal navigation.
 
 ```jsx
@@ -147,7 +147,7 @@ layout so relative Open Graph image paths resolve to the production origin.
 **Audit: Blocking.** A public route with no title and description, the framework's default title,
 or one title shared by every route.
 
-Launch day *is* people pasting the link into Slack, X, iMessage, and LinkedIn. With no Open Graph
+On launch day the link gets pasted into Slack, X, iMessage, and LinkedIn, and each shows a preview built from the page's metadata. With no Open Graph
 image the link is a bare URL; with a broken one it's a gray box.
 
 Hunt for: `openGraph` / `twitter` in metadata, or `og:image` / `twitter:card` meta tags; an

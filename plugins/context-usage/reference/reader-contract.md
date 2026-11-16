@@ -561,7 +561,7 @@ remaining the last-resort safety net beneath both (recheck when Claude Code remo
 auto-compact setting or changes what it does at the window).
 
 **On folklore numbers.** The auto-compact window figure in the vendored Boris playbook, §64, is a
-widely-cited practitioner anchor. We record it as a **named anchor, never an adopted number**: its
+practitioner anchor. We record it as a **named anchor, never an adopted number**: its
 calibration predates the 1M-window models these sessions run on, and we do not treat its
 context-degradation premise as holding on them. A lowered window remains a legitimate cost and
 compaction-timing choice on its own terms.
