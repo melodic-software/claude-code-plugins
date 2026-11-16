@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No plugin profile is applied: you named none.",
+      "why": "no ... profile ... applied"
+    },
+    {
+      "answer": "The turn starts without a plugin profile; the profile was not applied because none was named.",
+      "why": "profile ... not applied"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "printf '%s\\n' 'List the local branches.' | /mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-wsl 'cd ~/repos/app && claude -p'",
+      "why": "command only, says nothing about the profile"
+    },
+    {
+      "answer": "The build profile is applied.",
+      "why": "claims a profile"
+    }
+  ]
+}

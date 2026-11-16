@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: 'reach-start-without-profile'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'one-shot-turn-over-wsl-hop'
+    type: 'regex'
+    pattern: '(?<!\\)\|\s*\S*ssh\.exe\s+laptop-wsl\s+''?[^''\n]*\bclaude\s+-p\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-profile-launch'
+    type: 'regex'
+    pattern: 'profiles\.mjs\S*\s+launch\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'says-profile-not-applied'
+    type: 'regex'
+    pattern: '\bprofile\b[^\n]{0,80}\bnot\b[^\n]{0,20}\bappl(?:y|ied)\b|\bno\b[^\n]{0,20}\bprofile\b[^\n]{0,40}\bappl(?:y|ied)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:fleet:)?reach"'
