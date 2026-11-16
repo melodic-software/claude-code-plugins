@@ -6,7 +6,6 @@ The skills of `plugins/source-control`. Each one is driven with `<plugin-dir>` s
 
 - `babysit-loop`: Run one repo's PR queue as a standing merge lane.
 - `babysit-prs`: Tiered fleet pass advancing your open PRs.
-- `check`: Report whether node and jq resolve for the source-control hooks. Never installs.
 - `commit`: Commit with the resolved convention and surgical staging.
 - `pull-request`: Full PR lifecycle. Prep, create, monitor CI, address reviews, merge.
 - `setup`: Configure the source-control plugin. No plain-words entry.
