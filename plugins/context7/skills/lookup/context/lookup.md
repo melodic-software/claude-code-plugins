@@ -111,7 +111,7 @@ Do not silently fall back to training data. Always tell the user why Context7 wa
 
 ## Common mistakes
 
-- Library IDs require a `/` prefix: `/facebook/react` not `facebook/react`
+- Library IDs require a `/` prefix: `/reactjs/react.dev` not `reactjs/react.dev`
 - Always run `library` / `resolve-library-id` first. `ctx7 docs react "hooks"` fails without a valid ID
 - Use descriptive queries, not single words
 - Do not include secrets, personal data, proprietary code, stack traces, or internal identifiers in queries. Send distilled library/topic terms only
