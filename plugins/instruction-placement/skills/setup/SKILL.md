@@ -1,6 +1,6 @@
 ---
-description: "Verify instruction-placement's prerequisites, resolve its effective configuration for this repository, and register its rules-index git pre-commit entry. Confirm that the index target exists AND that nothing in the repository stops Claude Code loading it (a root CLAUDE.md is read instead of the AGENTS.md beside it, so an unimported AGENTS.md index is inert while every other gate reports green), that `git` backs tracked-file discovery, and that the Claude Code CLI plus `jq` are present for the optional empirical load probe. Reports the resolved index target, breadth ceiling, and index row cap, naming which came from configuration and which from a default. Use when: 'set up instruction-placement', 'configure instruction-placement', 'where will the index go', 'why is my index not loading', 'is instruction-placement working', or before a first audit on a new repository. Actions: check (read-only, default) | apply (point at each remediation) | apply install-git-hooks [scope=local|shared]. Re-runnable."
-argument-hint: "[check|apply [install-git-hooks [scope=local|shared]]]"
+description: "Verify instruction-placement's prerequisites, resolve its effective configuration for this repository, and register its rules-index git pre-commit entry. Confirm that the index target exists AND that nothing in the repository stops Claude Code loading it (a root CLAUDE.md is read instead of the AGENTS.md beside it, so an unimported AGENTS.md index is inert while every other gate reports green), that `git` backs tracked-file discovery, and that the Claude Code CLI plus `jq` are present for the optional empirical load probe. Reports the resolved index target, breadth ceiling, and index row cap, naming which came from configuration and which from a default. Use when: 'set up instruction-placement', 'configure instruction-placement', 'where will the index go', 'why is my index not loading', 'is instruction-placement working', or before a first audit on a new repository. Actions: check (read-only, default) | check inspect (read-only) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
+argument-hint: "[check|apply] [inspect|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
@@ -20,7 +20,8 @@ shell: bash
 ## Purpose
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`, "Setup is
-explicit and repeatable"): `check` inspects and reports, `apply` points at what it found.
+explicit and repeatable"): `check` inspects and reports, `check inspect` runs only the `check inspect` section, `apply`
+points at what it found.
 
 The warrant is all three criteria, but one carries the weight. **The index target is an external
 referent whose validity cannot be established by a configuration prompt.** A prompt stores the path
@@ -121,7 +122,7 @@ and times this plugin's own entries. Run
 kind, name and source, then its `measured` median and range with the input it ran on and its exit
 codes, or `not measured` with the `notMeasured` reason. A stage whose `installed` is false has no
 hook file git runs: say the manager's install step has not run in this clone. The script runs only
-this plugin's installed entries that change no files; it never runs a repository's own hook,
+this plugin's installed entries that change no files and still match what the plugin ships; it never runs a repository's own hook,
 another plugin's entry, a lefthook job or a Husky.Net task. To place a new check, compare the
 numbers with the duration budgets in the check-placement contract
 (`docs/contracts/check-placement/README.md#duration-budgets` in the marketplace repository).

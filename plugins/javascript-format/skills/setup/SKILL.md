@@ -1,6 +1,6 @@
 ---
-description: "Verify javascript-format's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up javascript-format', 'configure javascript-format', 'is javascript-format working', formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | apply [install-biome] | apply install-git-hooks [scope=local|shared]. Re-runnable."
-argument-hint: "[check|apply [install-biome|install-git-hooks [scope=local|shared]]]"
+description: "Verify javascript-format's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up javascript-format', 'configure javascript-format', 'is javascript-format working', formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply [install-biome] | apply install-git-hooks [scope=local|shared]. Re-runnable."
+argument-hint: "[check|apply] [inspect|install-biome|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
@@ -41,7 +41,8 @@ gitignored-file switch and the end-of-turn check). `apply` is otherwise guidance
 with one more write path: the explicitly invoked `apply install-biome` dependency install
 described below.
 
-Action routing: no argument or `check` runs the check; `apply` runs the check first, then
+Action routing: no argument or `check` runs the check; `check inspect` runs only the
+`check inspect` section; `apply` runs the check first, then
 remediation; `apply install-biome` additionally authorizes the consumer-repo dependency
 install described below. All are non-interactive. Never prompt when the action is given.
 `apply install-git-hooks` asks only where its section says to.
@@ -121,7 +122,7 @@ and times this plugin's own entries. Run
 kind, name and source, then its `measured` median and range with the input it ran on and its exit
 codes, or `not measured` with the `notMeasured` reason. A stage whose `installed` is false has no
 hook file git runs: say the manager's install step has not run in this clone. The script runs only
-this plugin's installed entries that change no files; it never runs a repository's own hook,
+this plugin's installed entries that change no files and still match what the plugin ships; it never runs a repository's own hook,
 another plugin's entry, a lefthook job or a Husky.Net task. To place a new check, compare the
 numbers with the duration budgets in the check-placement contract
 (`docs/contracts/check-placement/README.md#duration-budgets` in the marketplace repository).

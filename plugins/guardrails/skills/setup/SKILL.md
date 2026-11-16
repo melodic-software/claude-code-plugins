@@ -1,6 +1,6 @@
 ---
-description: "Verify the guardrails hooks' runtime prerequisites, per-guard toggle state and git-hook entries for this machine, and register those entries. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, a hook reported a drifted git hook, or 'install the guardrails git hooks' / 'enforce the commit convention for every committer' / 'check secrets and hardcoded paths on every commit'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-git-hooks [scope=local|shared|user] (register the commit-msg convention, pre-commit and pre-push content and reference-verify entries with the repository's hook manager; user: the commit-msg entry as a git config hook under an includeIf) | apply read-deny (opt-in: print Read() deny rules for .env, with user also ~/.ssh and ~/.aws, and add or remove them in the chosen settings file). Re-runnable and safe."
-argument-hint: "[check|apply] [install-git-hooks [scope]|read-deny [scope user remove]|identity-domains]"
+description: "Verify the guardrails hooks' runtime prerequisites, per-guard toggle state and git-hook entries for this machine, and register those entries. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, a hook reported a drifted git hook, or 'install the guardrails git hooks' / 'enforce the commit convention for every committer' / 'check secrets and hardcoded paths on every commit'. Actions: check (read-only, default) | check inspect (read-only) | apply (resolve what check found) | apply install-git-hooks [scope=local|shared|user] (register the commit-msg convention, pre-commit and pre-push content and reference-verify entries with the repository's hook manager; user: the commit-msg entry as a git config hook under an includeIf) | apply read-deny (opt-in: print Read() deny rules for .env, with user also ~/.ssh and ~/.aws, and add or remove them in the chosen settings file). Re-runnable."
+argument-hint: "[check|apply] [inspect|install-git-hooks [scope]|read-deny [scope user remove]|identity-domains]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
@@ -45,7 +45,8 @@ the only other writes, each as its section states: `install-git-hooks` writes th
 git-hook entry copies, `read-deny` touches settings through your edit tools, and
 `identity-domains` writes the `block-cross-domain` map into the plugin data directory.
 
-Action routing: no argument or `check` runs the check; `apply` runs the check first, then
+Action routing: no argument or `check` runs the check; `check inspect` runs only the
+`check inspect` section; `apply` runs the check first, then
 points at each remediation. Both are non-interactive: never prompt when the action is given,
 except for the confirmation bare `apply` asks before each retired-hook cleanup. The other actions
 ask only where their sections say to, and only in an attended run: `install-git-hooks` for scope,
@@ -162,7 +163,7 @@ and times this plugin's own entries. Run
 kind, name and source, then its `measured` median and range with the input it ran on and its exit
 codes, or `not measured` with the `notMeasured` reason. A stage whose `installed` is false has no
 hook file git runs: say the manager's install step has not run in this clone. The script runs only
-this plugin's installed entries that change no files; it never runs a repository's own hook,
+this plugin's installed entries that change no files and still match what the plugin ships; it never runs a repository's own hook,
 another plugin's entry, a lefthook job or a Husky.Net task. To place a new check, compare the
 numbers with the duration budgets in the check-placement contract
 (`docs/contracts/check-placement/README.md#duration-budgets` in the marketplace repository).

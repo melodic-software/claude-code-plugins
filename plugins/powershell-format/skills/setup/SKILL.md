@@ -1,6 +1,6 @@
 ---
-description: "Verify powershell-format's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up powershell-format', 'configure powershell-format', 'is powershell-format working', PowerShell formatting or linting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
-argument-hint: "[check|apply [install-git-hooks [scope=local|shared]]]"
+description: "Verify powershell-format's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up powershell-format', 'configure powershell-format', 'is powershell-format working', PowerShell formatting or linting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
+argument-hint: "[check|apply] [inspect|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
@@ -31,7 +31,8 @@ module, or a repo without a settings file, is INFO in `check`, never FAIL: the h
 quiet by design. A machine without PowerShell still gets the `SessionStart` probe's notice once per
 session while the plugin is enabled.
 
-Action routing: no argument or `check` runs the check; `apply` runs the check first, then
+Action routing: no argument or `check` runs the check; `check inspect` runs only the
+`check inspect` section; `apply` runs the check first, then
 offers remediation guidance. Both are non-interactive. Never prompt when the action is given.
 `apply install-git-hooks` asks only where its section says to.
 
@@ -108,7 +109,7 @@ and times this plugin's own entries. Run
 kind, name and source, then its `measured` median and range with the input it ran on and its exit
 codes, or `not measured` with the `notMeasured` reason. A stage whose `installed` is false has no
 hook file git runs: say the manager's install step has not run in this clone. The script runs only
-this plugin's installed entries that change no files; it never runs a repository's own hook,
+this plugin's installed entries that change no files and still match what the plugin ships; it never runs a repository's own hook,
 another plugin's entry, a lefthook job or a Husky.Net task. To place a new check, compare the
 numbers with the duration budgets in the check-placement contract
 (`docs/contracts/check-placement/README.md#duration-budgets` in the marketplace repository).

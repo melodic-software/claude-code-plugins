@@ -239,11 +239,14 @@ git runs `.husky/<event>` directly and skips it unless it is executable.
 **`inspect`.** For each git hook stage, `inspect` lists every item that runs, under whichever
 manager the repository uses: plain dispatcher markers and a chained `<event>.pre-checks`, each
 command line of `.husky/<event>` (and the Husky.Net tasks a `husky run --group` or `--name` line
-selects), the lefthook jobs `lefthook dump` reports, git config hooks, and any other hook file.
-`installed` says whether git finds an executable hook file for the stage. An item that is a stamped
-entry copy names its plugin and entry. Only the calling plugin's own entries that rewrite nothing
-and whose tools are present are run, from installed copies that start `#!/bin/sh` (an older copy
-the dispatcher runs by its own first line is reported not measured), on the staged set (`pre-commit`),
+selects), the lefthook jobs `lefthook dump` reports, git config hooks (the events left after an
+empty-value reset; one with `hook.<name>.enabled=false` is reported disabled), and any other hook
+file. `installed` says whether git finds an executable hook file for the stage. An item that is a
+stamped entry copy names its plugin and entry; a script path from a command, marker or lefthook
+job is followed only inside the work tree or the hooks directory. Only the calling plugin's own entries, on their own event, that
+rewrite nothing and whose tools are present are run, and only from an installed copy whose script,
+lib and assets hash to what the plugin ships now: a stamp alone proves nothing, so an edited or
+forged copy is never run and an older one gets a refresh hint. They run on the staged set (`pre-commit`),
 a message file outside the repository (`commit-msg`) or the branch against its upstream
 (`pre-push`), and get `measured: { medianMs, minMs, maxMs, runs, input, exitCodes }`; every other
 item gets `notMeasured` with the reason. `inspect` itself writes nothing in the repository; a

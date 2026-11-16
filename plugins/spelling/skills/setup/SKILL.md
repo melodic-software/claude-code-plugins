@@ -1,6 +1,6 @@
 ---
-description: "Verify spelling's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up spelling', 'configure spelling', 'is spelling working', spelling findings never show up, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
-argument-hint: "[check|apply [install-git-hooks [scope=local|shared]]]"
+description: "Verify spelling's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up spelling', 'configure spelling', 'is spelling working', spelling findings never show up, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
+argument-hint: "[check|apply] [inspect|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
@@ -44,7 +44,8 @@ a pre-built binary), never as a project dependency. `apply` is therefore guidanc
 never installs anything, matching the check's own PATH-only resolution and the plugin
 philosophy's never-download-silently rule.
 
-Action routing: no argument or `check` runs the check; `apply` runs the check first, then
+Action routing: no argument or `check` runs the check; `check inspect` runs only the
+`check inspect` section; `apply` runs the check first, then
 prints remediation guidance for each FAIL. Both are non-interactive. Never prompt when the
 action is given. `apply install-git-hooks` is the one write path, and it asks only where its
 section says to.
@@ -111,7 +112,7 @@ and times this plugin's own entries. Run
 kind, name and source, then its `measured` median and range with the input it ran on and its exit
 codes, or `not measured` with the `notMeasured` reason. A stage whose `installed` is false has no
 hook file git runs: say the manager's install step has not run in this clone. The script runs only
-this plugin's installed entries that change no files; it never runs a repository's own hook,
+this plugin's installed entries that change no files and still match what the plugin ships; it never runs a repository's own hook,
 another plugin's entry, a lefthook job or a Husky.Net task. To place a new check, compare the
 numbers with the duration budgets in the check-placement contract
 (`docs/contracts/check-placement/README.md#duration-budgets` in the marketplace repository).
