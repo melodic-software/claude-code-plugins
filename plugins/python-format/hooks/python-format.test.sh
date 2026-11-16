@@ -7,9 +7,11 @@
 # batch, and never anything a Read named; it prints nothing (no finding, no
 # disclosure reaches the model) and exits 0; a Ruff config must govern the file
 # (present -> run, absent -> leave bytes untouched; pyproject.toml counts only
-# with [tool.ruff]); safe fixes apply but a just-added import (F401) and an
-# unsafe fix stay; the config's excludes, .githooks/, gitignored files and the
-# kill switch are honored; a batch with no Python edit costs only the launcher.
+# with [tool.ruff]); only formatting and selected import sorting run, never a
+# lint autofix; an approved python record runs instead of Ruff and an
+# unapproved one runs nothing; a crafted file name never runs as shell; the
+# config's excludes, .githooks/, gitignored files and the kill switch are
+# honored; a batch with no Python edit costs only the launcher.
 #
 # Self-contained: builds throwaway git repos with runtime-generated fixtures.
 # Each repo gets a .venv/bin/ruff shim that forwards to a real Ruff, so the
@@ -19,6 +21,7 @@
 # Requires a real Ruff binary: $RUFF_TEST_BIN if set, else `ruff` on PATH.
 # Without one the behavioral assertions cannot run, so the suite skips.
 # test-scope: plugins/python-format/.claude-plugin/plugin.json plugins/python-format/hooks/hooks.json plugins/python-format/prerequisites.json plugins/python-format/lib/prerequisites.mjs plugins/python-format/lib/git-hooks/install.mjs
+# test-scope: plugins/python-format/git-hooks/adapters.sh plugins/python-format/lib/git-hooks/resolve-tool.sh plugins/python-format/lib/git-hooks/yaml-subset.awk
 
 set -uo pipefail
 
@@ -58,11 +61,11 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
     fail "manifest: expected tools ruff, jq and node with local_bin .venv/bin/ruff: $(cat "$MANIFEST")"
   fi
   MF_LOCAL="$(jq -r '.requires[0].detect.local_bin[0]' "$MANIFEST")"
-  WALK_FN="$(sed -n '/^ruff_venv_bin_here()/,/^}/p' "$HOOK")"
+  WALK_FN="$(sed -n '/^pf__venv_here()/,/^}/p' "$PLUGIN_ROOT/git-hooks/adapters.sh")"
   if [[ -n "$MF_LOCAL" ]] && grep -qF -- "$MF_LOCAL" <<<"$WALK_FN"; then
-    ok "manifest binding: hook states the manifest's local_bin ($MF_LOCAL)"
+    ok "manifest binding: the adapter states the manifest's local_bin ($MF_LOCAL)"
   else
-    fail "manifest binding: hook does not state the manifest's local_bin (needle='$MF_LOCAL')"
+    fail "manifest binding: the adapter does not state the manifest's local_bin (needle='$MF_LOCAL')"
   fi
 else
   fail "manifest binding needs jq and $MANIFEST"
@@ -223,12 +226,19 @@ printf 'import os\n' >"$REPO/imp.py"
 run_edit "$REPO/imp.py" >/dev/null
 expect "an unused import survives the in-session rewrite" "import os" "$(cat "$REPO/imp.py")"
 
-# A safe fix applies: the isort rule orders the imports.
+# Import sorting counts as format: the selected isort rule orders the imports.
 REPO_FIX="$WORK/safe-fix"
 new_ruff_repo "$REPO_FIX" $'[lint]\nselect = ["I"]'
 printf 'import sys\nimport os\n\nprint(os, sys)\n' >"$REPO_FIX/fix.py"
 run_edit "$REPO_FIX/fix.py" >/dev/null
-expect "a safe lint fix is applied" "$(printf 'import os\nimport sys\n\nprint(os, sys)')" "$(cat "$REPO_FIX/fix.py")"
+expect "selected import sorting is applied" "$(printf 'import os\nimport sys\n\nprint(os, sys)')" "$(cat "$REPO_FIX/fix.py")"
+
+# No lint autofix in session: a safe fix of another selected rule stays undone.
+REPO_LF="$WORK/no-lint-fix"
+new_ruff_repo "$REPO_LF" $'[lint]\nselect = ["F", "I"]'
+printf 'x = f"plain"\n' >"$REPO_LF/f.py"
+run_edit "$REPO_LF/f.py" >/dev/null
+expect "a safe fix of a selected lint rule (F541) is not applied in session" 'x = f"plain"' "$(cat "$REPO_LF/f.py")"
 
 # unsafe-fixes = true in the consumer config must not apply an intent-changing fix.
 REPO_UNSAFE="$WORK/unsafe-fixes"
@@ -335,6 +345,34 @@ if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
 else
   echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
 fi
+
+# --- The record path -----------------------------------------------------------
+# An approved python record names any formatter; an unapproved one runs nothing,
+# not even the Ruff adapter; a file name never reaches a shell as text.
+STUB="$WORK/stub"
+mkdir -p "$STUB"
+printf '#!/bin/sh\nfor a in "$@"; do printf "%%s\\n" "$a" >>"%s/stub.log"; printf "formatted\\n" >"$a"; done\n' "$WORK" >"$STUB/stubfmt"
+chmod +x "$STUB/stubfmt"
+REPO_REC="$WORK/record"
+new_ruff_repo "$REPO_REC"
+mkdir -p "$REPO_REC/.claude/ecosystems"
+printf 'globs: ["*.py"]\nfix-cmd: "stubfmt <files>"\n' >"$REPO_REC/.claude/ecosystems/python.yaml"
+git -C "$REPO_REC" add .claude/ecosystems/python.yaml
+git -C "$REPO_REC" commit -q -m record --no-verify
+git -C "$REPO_REC" update-ref refs/remotes/origin/main HEAD
+git -C "$REPO_REC" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+printf 'x=1\n' >"$REPO_REC/r.py"
+CRAFTED='$(touch pwned);c.py'
+printf 'x=1\n' >"$REPO_REC/$CRAFTED"
+: >"$WORK/stub.log"
+OUT=$(fire "$(payload Edit "$REPO_REC/r.py" "$REPO_REC/$CRAFTED")" PATH="$STUB:$PATH")
+expect "an approved record formats instead of Ruff, silently" "0|formatted" "$?|$OUT$(cat "$REPO_REC/r.py")"
+expect "a crafted file name reached the record tool as data" "formatted" "$(cat "$REPO_REC/$CRAFTED")"
+expect "a crafted file name ran nothing" "no" "$([[ -e "$REPO_REC/pwned" || -e "$UNRELATED/pwned" ]] && echo yes || echo no)"
+printf 'globs: ["*.py"]\nfix-cmd: "stubfmt --changed <files>"\n' >"$REPO_REC/.claude/ecosystems/python.yaml"
+printf 'x=1\n' >"$REPO_REC/u.py"
+OUT=$(fire "$(payload Edit "$REPO_REC/u.py")" PATH="$STUB:$PATH")
+expect "a record edited away from the default branch runs nothing, not even Ruff" "0|x=1" "$?|$OUT$(cat "$REPO_REC/u.py")"
 
 # --- Spawn budget ----------------------------------------------------------------
 # PostToolBatch has no matcher, so the row fires on every batch of every session.

@@ -1,0 +1,106 @@
+#!/bin/sh
+# python-format lint entry: report what the resolved lint command finds on the
+# lines this change adds. It never rewrites a file.
+#
+#   lint.sh             the staged changes (git runs it as pre-commit)
+#   lint.sh --worktree  the uncommitted changes against HEAD, untracked files
+#                       included (the opt-in end-of-turn Stop row)
+#   lint.sh --resolve   print the lint row (resolve-tool.sh rt_print); reads
+#                       the record, runs nothing
+#
+# The command resolves per file through lib/git-hooks/resolve-tool.sh: the
+# repository's approved python record (lint-cmd), else the Ruff adapter in
+# adapters.sh, else nothing. Its output becomes "<path>:<line>: <message>"
+# lines, repo-relative, and only those on added lines block (stderr, exit 1).
+# A linter that exits non-zero with no parseable finding fails closed. A
+# partly staged file is refused, since the linter reads the work tree. A staged
+# file gone from the work tree is linted from the index by the adapter and
+# fails closed on the record path. A missing tool follows the check-placement
+# contract: checks.skipmissing, else fail for an agent and a notice for a
+# person.
+#
+# POSIX sh until check-lib.sh, sourced first, has it running under bash.
+# shellcheck shell=bash
+case "$0" in
+*/*) here="${0%/*}" ;;
+*) here=. ;;
+esac
+lib="$here/check-lib.sh"
+# shellcheck disable=SC2292 # still POSIX sh: no [[ ]]
+[ -f "$lib" ] || lib="$here/../lib/git-hooks/check-lib.sh"
+# shellcheck source=../../../lib/git-hooks/check-lib.sh
+. "$lib" || exit 1
+set -uo pipefail
+rt="$here/resolve-tool.sh"
+[[ -f "$rt" ]] || rt="$here/../lib/git-hooks/resolve-tool.sh"
+# shellcheck source=../../../lib/git-hooks/resolve-tool.sh
+. "$rt" || exit 1
+# shellcheck source=adapters.sh
+. "$here/adapters.sh" || exit 1
+
+checks_init pre-commit "$@" || exit 0
+if [[ " $CHECKS_ARGS " == *" --resolve "* ]]; then
+  rt_print lint "$PWD"
+  exit 0
+fi
+
+candidates=()
+while IFS= read -r -d '' f; do
+  rt_wants "$f" && candidates+=("$f")
+done < <(checks_files)
+((${#candidates[@]})) || exit 0
+
+rt_group lint "$PWD" "${candidates[@]}"
+if [[ -n "$RT_GFAIL" ]]; then
+  printf '%s: %s; fix the record, then %s\n' "$RT_PLUGIN" "${RT_GFAIL%$'\n'}" "$(checks_git_verb)" >&2
+  exit 1
+fi
+if [[ -n "${RT_DRIFT_CONFIGS:-}" ]] && ((${#RT_GOTHER[@]})); then
+  # shellcheck disable=SC2086 # the config names split on spaces
+  checks_refuse_config_drift --if rt_config_counts $RT_DRIFT_CONFIGS -- "${RT_GOTHER[@]}" || exit 1
+fi
+((RT_GN)) || exit 0
+
+contract="$CHECKS_TMP/contract"
+: >"$contract"
+failed=0
+tools=""
+for ((i = 0; i < RT_GN; i++)); do
+  rt_use "$i"
+  rt_require
+  [[ ", $tools, " == *", $RT_TOOL, "* ]] || tools="${tools:+$tools, }$RT_TOOL"
+  present=()
+  gone=()
+  for f in "${RT_FILES[@]}"; do
+    if [[ -f "$f" && ! -L "$f" ]]; then
+      if [[ "$CHECKS_MODE" == pre-commit ]] && checks_partly_staged "$f"; then
+        printf '%s: partly staged; lint checks the work tree, so stage it fully, then commit\n' "$f" >&2
+        failed=1
+      else
+        present+=("$f")
+      fi
+    elif checks_staged_gone "$f"; then
+      gone+=("$f")
+    fi
+  done
+  if ((${#present[@]})); then
+    rt_lint "${present[@]}" >>"$contract" || failed=1
+  fi
+  for f in ${gone[@]+"${gone[@]}"}; do
+    if [[ "$RT_SOURCE" == adapter:* ]] && declare -F rt_lint_index >/dev/null; then
+      rt_lint_index "$f" >"$CHECKS_TMP/index" 2>&1
+      rt_normalize "$CHECKS_TMP/index" "$?" >>"$contract" || failed=1
+    else
+      printf "%s: staged but not in the work tree, so the %s record's linter cannot check it; restore it or unstage it, then commit\n" "$f" "$RT_ID" >&2
+      failed=1
+    fi
+  done
+done
+((failed)) && exit 1
+
+checks_changed_lines
+checks_filter_findings <"$contract" >"$CHECKS_TMP/blocking"
+[[ -s "$CHECKS_TMP/blocking" ]] || exit 0
+cat "$CHECKS_TMP/blocking" >&2
+printf '%s: fix the findings %s reported above.\n' "$RT_PLUGIN" "$tools" >&2
+exit 1

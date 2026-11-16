@@ -36,11 +36,13 @@
 #                            from RT_DIR with REPO_ROOT set, in chunks that
 #                            stay under the Windows command-line limit; returns
 #                            the highest exit status
-#   rt_lint <files...>       rt_run, then print each "<path>:<line>[:<col>]:
-#                            <message>" line as repo-relative "<path>:<line>:
-#                            <message>"; returns 3, showing the output on
-#                            stderr, when the command exits non-zero and no
-#                            finding parsed
+#   rt_lint <files...>       rt_run, then rt_normalize its output: each
+#                            "<path>:<line>[:<col>]: <message>" line printed as
+#                            repo-relative "<path>:<line>: <message>"; returns
+#                            3, showing the output on stderr, when the command
+#                            exits non-zero and no finding parsed
+#   rt_group / rt_use        resolve many files and group them by command
+#   rt_found <bin>           0 when the command's first word is runnable
 #   rt_print <concern> <root>  one TSV row: plugin, concern, source, tool,
 #                            approval (accepted | approved | unapproved | n/a),
 #                            found (yes | no | n/a), detail. Executes nothing.
@@ -76,7 +78,7 @@ rt__reset
 
 rt_forget() { RT__LOADED=""; }
 
-rt__key() { [[ "$1" == lint ]] && printf 'lint-cmd' || printf 'fix-cmd'; }
+rt__key() { [[ "$1" == lint ]] && RT__KEY=lint-cmd || RT__KEY=fix-cmd; }
 
 # rt__load <root> <id>: read the three layers into RT__K/RT__V/RT__L (key,
 # value, layer: user | team | local | tracked-local). Returns 1 with RT__ERR
@@ -160,29 +162,26 @@ rt__globs_match() {
   return 1
 }
 
-# rt__words <command>: the command's words, quotes dropped, one per line.
+# rt__words <command>: sets RT__W to the command's words, quotes dropped.
 rt__words() {
   local w
+  RT__W=()
   set -f
   for w in $1; do
     w="${w//\"/}"
-    printf '%s\n' "${w//\'/}"
+    RT__W+=("${w//\'/}")
   done
   set +f
 }
 
-rt__expand() { # <word> <root>
-  local w="$1"
-  w="${w/#\$\{REPO_ROOT\}/$2}"
-  printf '%s' "${w/#\$REPO_ROOT/$2}"
-}
-
-# rt__refs <command> <root>: the repository files the command names, one per
-# line, repo-relative: a word naming a file after $REPO_ROOT/ and a --opt=
-# prefix are dropped.
+# rt__refs <command> <root>: sets RT__REFS to the repository files the
+# command names, repo-relative: a word naming a file after $REPO_ROOT/ and a
+# --opt= prefix are dropped.
 rt__refs() {
   local w
-  while IFS= read -r w; do
+  RT__REFS=()
+  rt__words "$1"
+  for w in ${RT__W[@]+"${RT__W[@]}"}; do
     w="${w#\$\{REPO_ROOT\}/}"
     w="${w#\$REPO_ROOT/}"
     [[ "$w" == --*=* ]] && w="${w#*=}"
@@ -190,8 +189,8 @@ rt__refs() {
     "" | /* | *..* | *\<files\>*) continue ;;
     *) ;;
     esac
-    [[ -f "$2/$w" ]] && printf '%s\n' "$w"
-  done < <(rt__words "$1")
+    [[ -f "$2/$w" ]] && RT__REFS+=("$w")
+  done
 }
 
 # rt__common <root>: sets RT__COMMON (the git common dir, POSIX spelling on
@@ -215,18 +214,17 @@ rt__approval() {
     RT_APPROVAL="${!cache%%|*}" RT__SIG="${!cache#*|}"
     return
   fi
-  rt__get "$(rt__key "$concern")"
+  rt__key "$concern"
+  rt__get "$RT__KEY"
   cmd="$RT__GV"
-  local paths=() refs=() hashes=() keep=() missing=()
+  local paths=() hashes=() keep=() missing=()
   [[ -f "$root/.claude/ecosystems/$id.yaml" ]] && paths+=(".claude/ecosystems/$id.yaml")
   for p in "${RT__L[@]}"; do
     [[ "$p" == tracked-local ]] && paths+=(".claude/ecosystems/$id.local.yaml") && break
   done
   local nlayers=${#paths[@]}
-  while IFS= read -r p; do
-    [[ -n "$p" ]] && refs+=("$p")
-  done < <(rt__refs "$cmd" "$root")
-  paths+=(${refs[@]+"${refs[@]}"})
+  rt__refs "$cmd" "$root"
+  paths+=(${RT__REFS[@]+"${RT__REFS[@]}"})
   rt__common "$root"
   while IFS= read -r h; do
     hashes+=("$h")
@@ -291,8 +289,10 @@ rt__record() {
   for i in "${!RT__K[@]}"; do
     [[ "${RT__K[i]}" == tool-pin.* ]] && RT_TOOL="${RT__K[i]#tool-pin.}" && break
   done
-  first="$(rt__words "$RT_SCRIPT" | head -n 1)"
-  RT_BIN="$(rt__expand "$first" "$root")"
+  rt__words "$RT_SCRIPT"
+  first="${RT__W[0]:-}"
+  RT_BIN="${first/#\$\{REPO_ROOT\}/$root}"
+  RT_BIN="${RT_BIN/#\$REPO_ROOT/$root}"
   [[ -n "$RT_TOOL" ]] || RT_TOOL="${first##*/}"
   RT_SOURCE="record:$id"
   case "$RT__L_CMD" in
@@ -330,7 +330,8 @@ rt_resolve() { # <file> <concern> <root>
   rt__reset
   RT_ROOT="$root"
   rel="${file#"$root/"}"
-  key="$(rt__key "$concern")"
+  rt__key "$concern"
+  key="$RT__KEY"
   for id in $RT_IDS; do
     if ! rt__load "$root" "$id"; then
       RT_SOURCE=parse-error RT_REASON="$RT__ERR"
@@ -366,21 +367,76 @@ rt_resolve() { # <file> <concern> <root>
   return 0
 }
 
-# rt__arg <file>: <file> as RT_DIR sees it; a leading dash gains ./ so no tool
+# rt_group <concern> <root> <files...>: rt_resolve each file and group the
+# files that resolve to one command. Sets RT_GN, the group count, and per group
+# i the RT_G_* arrays rt_use reads; RT_GFAIL holds one line per file whose
+# record is a parse error or ambiguous; RT_GOTHER lists the files no record
+# binds (adapter or none). Files resolving to nothing are in no group.
+rt_group() {
+  local concern="$1" root="$2" f key i found
+  shift 2
+  RT_GN=0 RT_GFAIL=""
+  RT_G_KEY=() RT_G_SOURCE=() RT_G_SCRIPT=() RT_G_DIR=() RT_G_TOOL=() RT_G_BIN=()
+  RT_G_INSTALL=() RT_G_CONFIGS=() RT_G_ID=() RT_G_FILES=() RT_GOTHER=()
+  for f in "$@"; do
+    rt_resolve "$f" "$concern" "$root"
+    [[ "$RT_SOURCE" == adapter:* || "$RT_SOURCE" == none ]] && RT_GOTHER+=("$f")
+    case "$RT_SOURCE" in
+    parse-error | ambiguous)
+      [[ "$RT_GFAIL" == *"$RT_REASON"* ]] || RT_GFAIL+="$RT_REASON"$'\n'
+      continue
+      ;;
+    record:* | adapter:*) ;;
+    *) continue ;;
+    esac
+    key="$RT_SOURCE|$RT_DIR|$RT_BIN|$RT_SCRIPT"
+    found=""
+    for i in "${!RT_G_KEY[@]}"; do
+      [[ "${RT_G_KEY[i]}" == "$key" ]] && found="$i" && break
+    done
+    if [[ -z "$found" ]]; then
+      found=$RT_GN
+      RT_GN=$((RT_GN + 1))
+      RT_G_KEY[found]="$key" RT_G_SOURCE[found]="$RT_SOURCE" RT_G_SCRIPT[found]="$RT_SCRIPT"
+      RT_G_DIR[found]="$RT_DIR" RT_G_TOOL[found]="$RT_TOOL" RT_G_BIN[found]="$RT_BIN"
+      RT_G_INSTALL[found]="$RT_INSTALL" RT_G_CONFIGS[found]="$RT_CONFIGS" RT_G_ID[found]="$RT_ID"
+      RT_G_FILES[found]=""
+    fi
+    RT_G_FILES[found]+="$f"$'\x1f'
+  done
+}
+
+# rt_use <i>: set RT_* to group i, and RT_FILES to its files.
+rt_use() {
+  local f rest
+  RT_SOURCE="${RT_G_SOURCE[$1]}" RT_SCRIPT="${RT_G_SCRIPT[$1]}" RT_DIR="${RT_G_DIR[$1]}"
+  RT_TOOL="${RT_G_TOOL[$1]}" RT_BIN="${RT_G_BIN[$1]}" RT_INSTALL="${RT_G_INSTALL[$1]}"
+  RT_CONFIGS="${RT_G_CONFIGS[$1]}" RT_ID="${RT_G_ID[$1]}"
+  RT_FILES=()
+  rest="${RT_G_FILES[$1]}"
+  while [[ -n "$rest" ]]; do
+    f="${rest%%$'\x1f'*}"
+    rest="${rest#*$'\x1f'}"
+    RT_FILES+=("$f")
+  done
+}
+
+# rt__arg <file>: sets RT__A to <file> as RT_DIR sees it; a leading dash gains ./ so no tool
 # reads a file name as an option.
 rt__arg() {
   local abs="$1"
   [[ "$abs" == /* || "$abs" == [A-Za-z]:[\\/]* ]] || abs="$PWD/$abs"
   [[ "$abs" == "$RT_DIR/"* ]] && abs="${abs#"$RT_DIR/"}"
   [[ "$abs" == -* ]] && abs="./$abs"
-  printf '%s' "$abs"
+  RT__A="$abs"
 }
 
 rt_run() { # <files...>
   local f a size=0 status=0 rc chunk=()
   local args=()
   for f in "$@"; do
-    args+=("$(rt__arg "$f")")
+    rt__arg "$f"
+    args+=("$RT__A")
   done
   for a in "${args[@]}" ""; do
     if [[ -z "$a" ]] || ((size + ${#a} + 1 > RT__ARGMAX && ${#chunk[@]})); then
@@ -418,33 +474,40 @@ rt__finding() {
   RT__F="$rel:${BASH_REMATCH[2]}: ${BASH_REMATCH[4]}"
 }
 
+# rt_normalize <output file> <status>: print the file's findings as
+# repo-relative "<path>:<line>: <message>" lines; returns 3, showing the
+# output on stderr, when <status> is non-zero and no finding parsed.
+rt_normalize() {
+  local line found=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    rt__finding "$line"
+    [[ -n "$RT__F" ]] && found=1 && printf '%s\n' "$RT__F"
+  done <"$1"
+  if (($2 != 0 && !found)); then
+    printf '%s: %s exited %s and reported no <path>:<line> finding, so the change was not checked:\n' \
+      "${RT_PLUGIN:-lint}" "${RT_TOOL:-the linter}" "$2" >&2
+    cat "$1" >&2
+    return 3
+  fi
+  return 0
+}
+
 rt_lint() { # <files...>
-  local out status line found=0 tmp="${CHECKS_TMP:-}" own=""
+  local out status tmp="${CHECKS_TMP:-}" own=""
   if [[ -z "$tmp" ]]; then
     tmp="$(mktemp -d "${TMPDIR:-/tmp}/rt.XXXXXX")" || return 3
     own=1
   fi
   out="$tmp/rt-lint.$$"
   rt_run "$@" >"$out" 2>&1
+  rt_normalize "$out" "$?"
   status=$?
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    rt__finding "$line"
-    [[ -n "$RT__F" ]] && found=1 && printf '%s\n' "$RT__F"
-  done <"$out"
-  if ((status != 0 && !found)); then
-    printf '%s: %s exited %s and reported no <path>:<line> finding, so the change was not checked:\n' \
-      "${RT_PLUGIN:-lint}" "${RT_TOOL:-the linter}" "$status" >&2
-    cat "$out" >&2
-    status=3
-  else
-    status=0
-  fi
   rm -f "$out"
   [[ -n "$own" ]] && rm -rf "$tmp"
   return "$status"
 }
 
-rt__found() { # <bin>
+rt_found() { # <bin>
   if [[ "$1" == */* ]]; then
     [[ -x "$1" ]]
   else
@@ -452,11 +515,30 @@ rt__found() { # <bin>
   fi
 }
 
+# rt_require: a git-hook entry's missing-tool rule (check-lib.sh's
+# checks_require_tool) for the resolved command's first word, keyed by RT_TOOL.
+rt_require() {
+  local install="${RT_INSTALL:-the command the ${RT_ID:-} record names}"
+  rt_found "$RT_BIN" && return 0
+  if checks_skip_listed "$RT_TOOL"; then
+    printf 'SKIPPED: %s (missing)\n' "$RT_TOOL" >&2
+    exit 0
+  fi
+  if checks_is_agent; then
+    printf 'FAIL: %s missing. Install: %s\n' "$RT_TOOL" "$install" >&2
+    printf 'To skip only while %s is missing: git -c checks.skipmissing=%s %s ...\n' "$RT_TOOL" "$RT_TOOL" "$(checks_git_verb)" >&2
+    exit 1
+  fi
+  printf 'NOTICE: %s missing, so this check did not run. Install: %s\n' "$RT_TOOL" "$install" >&2
+  exit 0
+}
+
 rt_print() { # <concern> <root>
   local concern="$1" root="$2" id key whole="" found
   rt__reset
   RT_ROOT="$root"
-  key="$(rt__key "$concern")"
+  rt__key "$concern"
+  key="$RT__KEY"
   for id in $RT_IDS; do
     if ! rt__load "$root" "$id"; then
       printf '%s\t%s\tparse-error\t\tn/a\tn/a\t%s\n' "$RT_PLUGIN" "$concern" "$RT__ERR"
@@ -470,7 +552,7 @@ rt_print() { # <concern> <root>
     RT__L_CMD="$RT__GL"
     rt__record "$id" "$concern" "$root"
     found=no
-    rt__found "$RT_BIN" && found=yes
+    rt_found "$RT_BIN" && found=yes
     [[ "$RT_SOURCE" == unapproved ]] && RT_SOURCE="record:$id"
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$RT_PLUGIN" "$concern" "$RT_SOURCE" "$RT_TOOL" "$RT_APPROVAL" "$found" ""
     return 0
@@ -479,7 +561,7 @@ rt_print() { # <concern> <root>
   [[ -n "$whole" ]] && detail="the $whole record's $key names no <files>, so hooks do not run it"
   if declare -F rt_adapter_in_repo >/dev/null && rt_adapter_in_repo "$concern" "$root"; then
     found=no
-    rt__found "$RT_BIN" && found=yes
+    rt_found "$RT_BIN" && found=yes
     printf '%s\t%s\tadapter:%s\t%s\tn/a\t%s\t%s\n' "$RT_PLUGIN" "$concern" "$RT_ADAPTER" "$RT_TOOL" "$found" "$detail"
     return 0
   fi
@@ -495,7 +577,8 @@ rt_approve() {
     return 1
   }
   for concern in format lint; do
-    rt__get "$(rt__key "$concern")" || continue
+    rt__key "$concern"
+    rt__get "$RT__KEY" || continue
     case "$RT__GL" in team | tracked-local) ;; *) continue ;; esac
     rt__approval "$root" "$id" "$concern"
     [[ "$RT_APPROVAL" == unapproved && -n "$RT__SIG" ]] || continue
