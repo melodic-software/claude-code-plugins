@@ -23,10 +23,11 @@
 # documented on the as-of date, never that the running binary fires the event.
 #
 # The log is a mod (plugins/session-telemetry/hooks/register.ts; ADR 0065). It hooks
-# `classic.<Event>` for each observable event, in a block between the module's
-# `GENERATED: observed events` markers that this script writes, and only while
-# session_event_log_enabled is true, so a default-off install starts no process
-# on any event. hooks.json carries no event-log or retention row: a run strips
+# `classic.<Event>` for each observable event whose category
+# session_event_log_categories enables, plus SessionEnd always (for retention),
+# in a block between the module's `GENERATED: observed events` markers that this
+# script writes, and only while session_event_log_enabled is true, so a
+# default-off install starts no process on any event. hooks.json carries no event-log or retention row: a run strips
 # any it finds, and --check fails while one is present.
 #
 # Not every documented event is recorded. Five are excluded with their reason
@@ -192,13 +193,16 @@ strip_rows() {
 # mod_ts <registry-json-file> <register-ts-file> -> register.ts on stdout with
 # the lines between its `BEGIN GENERATED: observed events` and `END GENERATED:
 # observed events` markers replaced by one `classic.<Event>` hook per event the
-# registry marks observe, sorted by name. Claude Code reads each hooked event
-# from a string literal at the call site and takes only a hook declared at the
-# top of the file, so the events are written out one call each, in the module.
+# registry marks observe, sorted by name, each guarded by `wants('<category>')`
+# so only the categories session_event_log_categories enables are registered.
+# SessionEnd is written bare: it carries retention whatever the categories.
+# Claude Code reads each hooked event from a string literal at the call site,
+# so the events are written out one literal call each, in the module.
 mod_ts() {
   local block
-  block=$(jq -r '.[] | select(.producer == "observe") | .name' "$1" | tr -d '\r' | LC_ALL=C sort |
-    sed "s/.*/  on('classic.&', record).catch(passThrough)/")
+  block=$(jq -r --arg q "'" '[.[] | select(.producer == "observe")] | sort_by(.name) | .[]
+    | "on(\($q)classic.\(.name)\($q), record).catch(passThrough)" as $on
+    | if .name == "SessionEnd" then "  \($on)" else "  if (wants(\($q)\(.category)\($q))) \($on)" end' "$1" | tr -d '\r')
   tr -d '\r' <"$2" | awk -v block="$block" '
     /BEGIN GENERATED: observed events/ { print; print block; skip = 1; next }
     /END GENERATED: observed events/ { skip = 0 }
