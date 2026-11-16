@@ -124,7 +124,7 @@ scan_line() {
   local file="$1" n="$2" line="$3" ext="${1##*.}" s rest base ups
   s="${line#"${line%%[![:space:]]*}"}"
   case "$ext" in
-  mjs | js | cjs | ts | mts | cts)
+  mjs | js | cjs | jsx | ts | mts | cts | tsx)
     [[ "$s" == //* || "$s" == \** || "$s" == /\** ]] && return 0
     ;;
   ps1 | psm1)
@@ -142,7 +142,7 @@ scan_line() {
   done
 
   case "$ext" in
-  mjs | js | cjs | ts | mts | cts)
+  mjs | js | cjs | jsx | ts | mts | cts | tsx)
     rest="$line"
     while [[ "$rest" == *from* || "$rest" == *require* || "$rest" == *import* ]] && [[ "$rest" =~ $re_spec ]]; do
       consider "$file" "$n" "${BASH_REMATCH[2]}"
@@ -176,7 +176,7 @@ scan_line() {
 }
 
 pathspecs=()
-for ext in sh bash mjs js cjs ts mts cts py ps1 psm1; do
+for ext in sh bash mjs js cjs jsx ts mts cts tsx py ps1 psm1; do
   pathspecs+=("plugins/*.$ext")
 done
 while IFS= read -r p; do

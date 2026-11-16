@@ -84,6 +84,9 @@ expect_crossing "a JS from specifier fails" "$A/a.mjs:1" plugins/beta/lib/x.mjs
 expect_crossing "a JS dynamic import fails" "$A/a.mjs:2" plugins/beta/lib/y.mjs
 expect_crossing "a JS require fails" "$A/a.mjs:3" plugins/beta/lib/z.cjs
 
+tree "$A/a.tsx" 'import { x } from "../../beta/lib/x.ts";'
+expect_crossing "a TSX from specifier fails" "$A/a.tsx:1" plugins/beta/lib/x.ts
+
 tree "$A/a.mjs" 'const lib = join(here, "..", "..", "beta", "lib", "x.mjs");'
 expect_crossing "join arguments after an anchor fail" "$A/a.mjs:1" plugins/beta/lib/x.mjs
 
