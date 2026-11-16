@@ -2029,8 +2029,9 @@ assert_eq "no fixture string was evaluated by the shell" "" "$pwned"
 # Stands in for plugin-profiles' profiles.mjs launch: logs its argv, writes the
 # --with JSON into the session file it names unless --dry-run, and reports enabledPlugins as
 # the session will start with them: autonomy@m on, or per STUB_PROFILES_AUTONOMY off (no layer
-# enables it), project (the session file leaves it out, the project's settings enable it) or
-# nofield (an older profiles.mjs that reports no enabledPlugins). It refuses with exit 1 when
+# enables it), project (the session file leaves it out, the project's settings enable it),
+# othermarket (only autonomy@other on) or nofield (an older profiles.mjs that reports no
+# enabledPlugins). It refuses with exit 1 when
 # STUB_PROFILES_RC=1, as a missing required prerequisite does.
 PP_ROOT="$TMP/pp"
 PP_LOG="$TMP/pp.log"
@@ -2048,7 +2049,8 @@ const w = args.indexOf("--with");
 if (!args.includes("--dry-run")) writeFileSync("$PP_FILE", w > 0 ? args[w + 1] : "{}");
 const mode = process.env.STUB_PROFILES_AUTONOMY || "on";
 const result = { profile: args[1], argv: ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "claude", "--settings", "$PP_FILE"] };
-if (mode !== "nofield") result.enabledPlugins = { "other@m": true, "autonomy@m": mode !== "off" };
+if (mode === "othermarket") result.enabledPlugins = { "other@m": true, "autonomy@m": false, "autonomy@other": true };
+else if (mode !== "nofield") result.enabledPlugins = { "other@m": true, "autonomy@m": mode !== "off" };
 console.log(JSON.stringify(result));
 STUB
 PP_LIST="[{\"id\":\"other@m\",\"enabled\":true,\"installPath\":\"/nowhere\"},{\"id\":\"plugin-profiles@m\",\"enabled\":true,\"installPath\":\"$PP_ROOT\"}]"
@@ -2151,12 +2153,24 @@ assert_eq "gate under a profile with autonomy: start exits 0" 0 "$?"
 assert_contains "gate under a profile with autonomy: the lane launches" "$(cat "$CLAUDE_LOG")" "--settings $PP_FILE --bg -n work"
 
 : >"$CLAUDE_LOG"
+: >"$ARM_LOG"
+: >"$PP_LOG"
 out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" STUB_PROFILES_AUTONOMY=off ppg_run start --agents-json "$AGENTS_EMPTY" 2>&1)"
 assert_eq "gate under a profile without autonomy: start exits 1" 1 "$?"
-assert_contains "gate under a profile without autonomy: the error names the lane, the profile and the fix" "$out" \
-  "ERROR: lane 'work': the lane arms the lane-stop gate but profile 'focus' leaves autonomy off and no settings layer enables it for the session, so the lane is not launched; give the lane a profile that includes autonomy"
+assert_contains "gate under a profile without autonomy: the error names the lane, the gate's plugin, the profile and the fix" "$out" \
+  "ERROR: lane 'work': the lane arms the lane-stop gate under autonomy@m but profile 'focus' leaves it off and no settings layer enables it for the session, so the lane is not launched; give the lane a profile that includes autonomy"
 assert_not_contains "gate under a profile without autonomy: the lane is not launched" "$(cat "$CLAUDE_LOG")" "--bg -n work"
 assert_contains "no gate under a profile without autonomy: the lane launches" "$(cat "$CLAUDE_LOG")" "--bg -n decide"
+assert_eq "gate under a profile without autonomy: a refused start arms no gate" "" "$(cat "$ARM_LOG")"
+assert_eq "gate under a profile without autonomy: a refused start writes no session file (only a --dry-run launch ran for it)" "" \
+  "$(grep -- 'lane_stop_gate_enabled' "$PP_LOG" | grep -v -- '--dry-run')"
+
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" STUB_PROFILES_AUTONOMY=othermarket ppg_run start --agents-json "$AGENTS_EMPTY" 2>&1)"
+assert_eq "gate keyed under autonomy@m with only autonomy@other on: start exits 1" 1 "$?"
+assert_contains "gate keyed under autonomy@m with only autonomy@other on: the error names the gate's plugin" "$out" \
+  "the lane arms the lane-stop gate under autonomy@m but profile 'focus' leaves it off"
+assert_not_contains "gate keyed under autonomy@m with only autonomy@other on: the lane is not launched" "$(cat "$CLAUDE_LOG")" "--bg -n work"
 
 : >"$CLAUDE_LOG"
 out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" STUB_PROFILES_AUTONOMY=project ppg_run start --agents-json "$AGENTS_EMPTY" 2>&1)"
@@ -2168,14 +2182,14 @@ out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" STUB_PROFILES_AUTONOMY=nofield ppg_run
 assert_eq "gate with a profiles.mjs reporting no enabledPlugins: start exits 1" 1 "$?"
 assert_contains "gate with a profiles.mjs reporting no enabledPlugins: the error says to update plugin-profiles" "$out" \
   "ERROR: lane 'work': profiles.mjs launch reported no enabledPlugins to check the lane-stop gate's autonomy against, so the lane is not launched; update plugin-profiles"
-assert_not_contains "gate with a profiles.mjs reporting no enabledPlugins: the error does not blame the profile" "$out" "leaves autonomy off"
+assert_not_contains "gate with a profiles.mjs reporting no enabledPlugins: the error does not blame the profile" "$out" "leaves it off"
 assert_not_contains "gate with a profiles.mjs reporting no enabledPlugins: the lane is not launched" "$(cat "$CLAUDE_LOG")" "--bg -n work"
 assert_contains "no gate with a profiles.mjs reporting no enabledPlugins: the lane launches" "$(cat "$CLAUDE_LOG")" "--bg -n decide"
 
 : >"$CLAUDE_LOG"
 out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" STUB_PROFILES_AUTONOMY=off ppg_run restart work --agents-json "$AGENTS_RUNNING" 2>&1)"
 assert_eq "gate under a profile without autonomy: restart exits 1" 1 "$?"
-assert_contains "gate under a profile without autonomy: restart names the refusal" "$out" "leaves autonomy off"
+assert_contains "gate under a profile without autonomy: restart names the refusal" "$out" "leaves it off"
 assert_not_contains "gate under a profile without autonomy: restart leaves the running lane up" "$(cat "$CLAUDE_LOG")" "stop sid-work-1"
 
 printf '{"lanes":[{"name":"work","prompt":"work.md","effort":"high","profile":5}]}\n' >"$TMP/pp-bad.json"
