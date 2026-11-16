@@ -5,7 +5,7 @@ primitives and a plugin script's exit-code taxonomy are **not** consolidated int
 cross-plugin mechanism. Both stay duplicated or divergent per plugin, on purpose. The
 [plugin philosophy](../../plugin-philosophy.md) owns the portability boundary this rests on: a plugin
 never imports files from a sibling plugin, and cooperation crosses that boundary only through a
-documented public seam. A shared shell assertion library is neither.
+documented public interface. A shared shell assertion library is neither.
 
 ## Why not the existing vendoring mechanism
 
