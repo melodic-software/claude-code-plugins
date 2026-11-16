@@ -33,9 +33,11 @@ proposes it.
 
 ## Phase 1: Rules
 
-Resolve the convention home with `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"` and
-read the `## Boundary rules` section of `<home>/architecture/README.md`. Exit other than 0, no topic
-doc, or no such section means no rule is recorded there. Record each rule with its `path:line` and
+Resolve the convention home as
+[`${CLAUDE_PLUGIN_ROOT}/reference/improvement-steps.md`](${CLAUDE_PLUGIN_ROOT}/reference/improvement-steps.md)
+("Convention home") states, with `<plugin-root>` there being `${CLAUDE_PLUGIN_ROOT}`, and read the
+`## Boundary rules` section of `<home>/architecture/README.md`. No home, no topic doc, or no such
+section means no rule is recorded there. Record each rule with its `path:line` and
 its form from the one list of forms,
 [`${CLAUDE_PLUGIN_ROOT}/skills/improve/research/boundaries/README.md`](${CLAUDE_PLUGIN_ROOT}/skills/improve/research/boundaries/README.md)
 ("What counts as a boundary rule"). An entry that already carries `Enforced by:` is reported as
