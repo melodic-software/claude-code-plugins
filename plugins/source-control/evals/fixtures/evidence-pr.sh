@@ -5,14 +5,22 @@
 # the head (evidence/head) and one from the base (evidence/base), each listing one PNG per
 # interaction in `publishable` under the same file name on both sides. Run it from a case's
 # scaffold.sh in the workspace:
-#   bash evidence-pr.sh <interactions> [--record-fields]
+#   bash evidence-pr.sh <interactions> [--record-fields] [--e2e]
 # <interactions> is the number of acceptance criteria and of driven entry points (one capture
 # each per run). --record-fields commits `evidence_record_fields: true` to main's team config.
+# --e2e writes each side's /testing:run-e2e e2e-summary.json in place of report.json; its flat
+# `publishable` list maps no capture to an entry point.
 set -euo pipefail
 
 count="${1:?evidence-pr.sh needs an interaction count}"
-record=0
-[[ "${2:-}" == --record-fields ]] && record=1
+record=0 e2e=0
+for flag in "${@:2}"; do
+  case "$flag" in
+    --record-fields) record=1 ;;
+    --e2e) e2e=1 ;;
+    *) echo "evidence-pr.sh: unknown argument $flag" >&2; exit 2 ;;
+  esac
+done
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 plugin="$(cd "$here/../.." && pwd)"
 png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
@@ -34,7 +42,6 @@ printf 'export const total = (items) => items.reduce((s, i) => s + i.price, 0);\
 git add src/cart.ts
 git commit -q -m "feat: show the cart total in currency"
 head_sha="$(git rev-parse HEAD)"
-base_sha="$(git rev-parse main)"
 
 bash "$here/gh-forge/install.sh" 412 feat/cart-totals main "feat: show the cart total in currency" --open
 forge="$(git rev-parse --path-format=absolute --git-common-dir)/eval-forge"
@@ -46,7 +53,7 @@ done
 jq -n --arg body "## Summary"$'\n\n'"Show the cart total in currency."$'\n\n'"## Acceptance criteria"$'\n\n'"$criteria" \
   '{body: $body}' >"$forge/pr-overlay.json"
 
-# One drive report per side: one step and one screenshot per interaction.
+# One evidence file per side: one entry point and one screenshot per interaction.
 for side in base head; do
   dir="evidence/$side"
   mkdir -p "$dir"
@@ -59,12 +66,18 @@ for side in base head; do
     artifacts=$(jq -c --arg f "$file" '. + [{path: $f, kind: "screenshot", mask: "none-declared", publishable: true}]' <<<"$artifacts")
     publishable=$(jq -c --arg f "$file" '. + [$f]' <<<"$publishable")
   done
-  jq -n --argjson steps "$steps" --argjson artifacts "$artifacts" --argjson publishable "$publishable" \
-    '{app: "shop", control_skill: null, fallback: "playwright", resolved: null, mode: "unattended",
-      trusted_root: null, launch: [], steps: $steps, budgets: [], secrets_mark: [],
-      capture_count: ($artifacts | length), artifacts: $artifacts, values_none: [],
-      publishable: $publishable, capability_gaps: [], blocked: [], cleanup: []}' >"$dir/report.json"
+  if ((e2e)); then
+    jq -n --argjson steps "$steps" --argjson publishable "$publishable" \
+      '{route: "drive", app: "shop", affected: ["cart"],
+        capture: {status: "ran", reason: null, count: ($publishable | length)},
+        entry_points: [$steps[] | "cart | \(.entry_point) | passed"], publishable: $publishable}' >"$dir/e2e-summary.json"
+  else
+    jq -n --argjson steps "$steps" --argjson artifacts "$artifacts" --argjson publishable "$publishable" \
+      '{app: "shop", control_skill: null, fallback: "playwright", resolved: null, mode: "unattended",
+        trusted_root: null, launch: [], steps: $steps, budgets: [], secrets_mark: [],
+        capture_count: ($artifacts | length), artifacts: $artifacts, values_none: [],
+        publishable: $publishable, capability_gaps: [], blocked: [], cleanup: []}' >"$dir/report.json"
+  fi
 done
 
 bash "$plugin/skills/pull-request/scripts/confirm-verdict.sh" record --head "$head_sha" --verdict CONFIRMED
-printf 'base %s\nhead %s\n' "$base_sha" "$head_sha" >evidence/commits.txt

@@ -12,9 +12,10 @@ comment body finds nothing. Every refusal below posts nothing and names its reas
 Text and logs are the record; a capture shows what the text states and never stands in for it. A
 reader who opens no image, or a comment whose media did not upload, still has every result. For
 regulated teams this matches the preference for system logs and audit trails over screenshots in
-FDA's Computer Software Assurance guidance,
-[section (6) "Establishing the Appropriate Record"](https://www.fda.gov/media/188844/download); the
-guidance is an analogy for such teams here, not a requirement this step meets.
+FDA's
+[Computer Software Assurance guidance](https://www.fda.gov/regulatory-information/search-fda-guidance-documents/computer-software-assurance-production-and-quality-management-system-software),
+section (6) "Establishing the Appropriate Record"; the guidance is an analogy for such teams here,
+not a requirement this step meets.
 
 In CI the pr-merge lane posts the same marked comment, not this step: the pr-verify jobs hold read
 tokens only. The comment goes up after a passing verdict and before each merge path's merge, the
@@ -106,10 +107,14 @@ scans it with the rest of the rendered body.
      it, when, the issues it found and their resolution) in the FDA guidance's section (6) linked
      above;
    - **Layout.** The change is small when it has at most two sections (acceptance criteria, else
-     entry point lines) and its captures to attach, Before and After counted together, number at
-     least one and at most `evidence_inline_max_captures` (default 4: one Before and one After for each of two
-     interactions; `0` keeps every change in collapsed sections). A small change keeps
-     `{{#inline}}` and drops every `{{#section}}`; a larger one does the reverse;
+     entry point lines), its captures to attach, Before and After counted together, number at
+     least one and at most `evidence_inline_max_captures` (default 4: one Before and one After for
+     each of two interactions; `0` keeps every change in collapsed sections), and every one of
+     those captures maps to an interaction: each evidence file is a `report.json` whose steps list
+     the capture in `artifacts` beside its `entry_point`. An `e2e-summary.json`, whose
+     `publishable` list maps no capture to an entry point, or any capture no step lists, keeps the
+     collapsed layout, where `Other captures` holds what no section claims. A small change keeps
+     `{{#inline}}` and drops every `{{#section}}`; any other does the reverse;
    - `{{#inline}}` to `{{/inline}}`: `{{capture_line}}` is one line naming the tool that captured
      (`/app-control:drive` for a `report.json`, `/testing:run-e2e` for an `e2e-summary.json`) and
      what each row's captured state is: Before is the PR's base branch (step 1's `baseRefName`),
