@@ -410,6 +410,9 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   Commentary sits above the top rail or below the bottom rail, never between.
 - One plain-language instruction sits directly above each region's top rail. The resume region's is
   "`/clear`, then copy everything between the dashed lines:". A goal region has its own, below.
+  When the next phase starts in another plugin profile, one more line sits directly above that
+  one: "The next phase runs in another plugin profile: exit this session, start the next one with
+  `<start command>`, then in it:". The copy line itself never changes, since recovery keys on it.
 - **Goal region:** when a goal applies, the prompt holds a second railed region for it, unless
   the condition check below omits it. A goal
   applies when the user asked for a fresh goal, or when a `/goal` is active in the producing
@@ -667,7 +670,9 @@ are untouched: prompt-only writes no file, so nothing here has a file to validat
   sixth line, a bullet, and a `Then:` that is not last.
 - **Below the bottom rail, first line:** the sentence `Or reopen the producing session in place:`
   followed by `claude --resume <UUID>` in a code span and a period, the alternative to
-  `/clear`-and-paste when the producing session is still worth reopening. The no-goal-found note
+  `/clear`-and-paste when the producing session is still worth reopening. A session in a plugin
+  profile appends ` --settings "<file>"` inside the code span, since a resumed session does not
+  keep `--settings`. The no-goal-found note
   and the `/loop` re-arm notes the rules above prescribe follow it, unchanged in shape; it is
   outside the copy regions and outside the detection contract.
 

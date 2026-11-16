@@ -248,11 +248,26 @@ worked around: no Python 3.10+ on PATH takes the engine doc's Python-absent fall
 session UUID (`CLAUDE_CODE_SESSION_ID` unset or not a UUID) takes the prompt-only path with the
 reason stated. Never a hand-written handoff file when the script could have run.
 
+**Plugin profile on the resume line.** When `/plugin-profiles:profile` is among the available
+skills (enabled), invoke `/plugin-profiles:profile launch --json` via the Skill tool before `new`;
+when its `file` is not null, pass it to `new` as `--settings-file "<file>"` (on the prompt-only
+path, append ` --settings "<file>"` to the hand-written `claude --resume <UUID>`). Otherwise pass
+no `--settings-file` and write nothing about plugin profiles.
+
 ## Delivery: `/clear`-then-paste
 
 This skill's delivery step is the engine's default exit: the rails resume prompt with the
 "`/clear`, then copy everything between the dashed lines" instruction above the top rail. The user
 types `/clear` and pastes; nothing is launched on their behalf. A forked side task: a new session.
+
+**Phase change.** When the user names a different profile for the next phase and
+`/plugin-profiles:profile` is among the available skills, invoke
+`/plugin-profiles:profile launch <next profile> --json` via the Skill tool before `new` and pass
+its `command` to `new` as `--start-command "<command>"`, which adds a line above the copy line
+telling the user to exit this session and start the next one with that command (on the
+prompt-only path, write that line by hand in the same place). Pass its `file` as
+`--settings-file`. A resume in the same profile keeps plain `/clear`.
+With the skill unavailable, keep `/clear` and say the next profile was not applied.
 
 ## Late events after emit
 

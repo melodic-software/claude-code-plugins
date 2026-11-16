@@ -401,8 +401,9 @@ note the engine doc's "Plugin reload" bullet prescribes. Never write that `/clea
 No plugin changed: say so.
 
 **Plugin profile.** When `/plugin-profiles:profile` is among the available skills (enabled),
-invoke `/plugin-profiles:profile status` via the Skill tool and write the restore entry it prints
-here as given, without parsing it; otherwise write nothing about plugin profiles.
+invoke `/plugin-profiles:profile status` via the Skill tool and write its "Start another session
+here in this profile with:" line here as the restore entry, as given; with no such line, say no
+profile is in force. Otherwise write nothing about plugin profiles.
 
 **TaskList.** Branch on which task tools this session has (read its tool list), never on the model
 name:
