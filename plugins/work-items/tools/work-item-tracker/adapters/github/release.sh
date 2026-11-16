@@ -71,8 +71,8 @@ holder="$(jq -r '.holder // empty' <<<"$lease_json")"
 
 # Every exit-0 path hands the assignee back too, since the caller relies on release for it.
 hand_back() {
-  [[ "$holder" == "$login" ]] && wit_unassign_if_unheld "$owner" "$repo" "$number" "$login" "$lease_comment_id" "$1"
-  emit "$2" "$3"
+  [[ "$holder" == "$login" ]] && wit_hand_back_assignee "$owner" "$repo" "$number" "$login" "$lease_comment_id"
+  emit "$1" "$2"
   exit 0
 }
 
@@ -81,8 +81,7 @@ if [[ -n "$(jq -r '.superseded_at // empty' <<<"$lease_json")" ]]; then
     emit false "lease already superseded"
     exit 0
   }
-  leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
-  hand_back "$leases" false "lease already superseded"
+  hand_back false "lease already superseded"
 fi
 
 if [[ "$holder" != "$login" ]]; then
@@ -100,12 +99,12 @@ now_epoch="$(date -u +%s)"
 if ! wit_lease_is_live "$lease_json" "$now_epoch"; then
   wit_select_active_lease "$leases"
   if [[ "$WIT_ACTIVE_LEASE_ID" != "$lease_comment_id" ]]; then
-    wit_unassign_if_unheld "$owner" "$repo" "$number" "$login" "$lease_comment_id" "$leases"
+    wit_hand_back_assignee "$owner" "$repo" "$number" "$login" "$lease_comment_id"
     printf 'release: comment %s is not the active lease (active: comment %s)\n' \
       "$lease_comment_id" "${WIT_ACTIVE_LEASE_ID:-none}" >&2
     exit "$EX_CONFLICT"
   fi
-  hand_back "$leases" false "lease already expired"
+  hand_back false "lease already expired"
 fi
 
 # The holder is the earliest live lease (claim step 4); a newer live lease is a claimant
@@ -120,7 +119,4 @@ fi
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 released="$(jq -c --arg ts "$now" '. + {superseded_at: $ts}' <<<"$lease_json")"
 wit_patch_lease_comment "$owner" "$repo" "$lease_comment_id" "$released"
-# The hand-back decides on a list read after the PATCH: a same-login loser that superseded
-# its lease since the read above must not keep the assignee alive.
-leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
-hand_back "$leases" true "live lease released"
+hand_back true "live lease released"

@@ -83,7 +83,7 @@ if [[ "$lease_only" == false ]]; then
   # EXIT trap), so this must be an EXIT trap, not ERR. A same-login session may hold
   # the item, so the rollback keeps @me while another live lease of this login does.
   _wit_claim_rollback() {
-    wit_unassign_unless_held "$owner" "$repo" "$number" "$login" "${our_comment_id:-}"
+    wit_hand_back_assignee "$owner" "$repo" "$number" "$login" "${our_comment_id:-}"
   }
   trap _wit_claim_rollback EXIT
 
@@ -155,10 +155,8 @@ winner_holder=""
 
 # Earliest LIVE lease wins. No live lease at all (e.g. ttl 0) → our claim stands;
 # expiry is reclaim's concern.
-# The abort trap backs off: it supersedes our lease, then the rollback keeps @me only
-# while another live lease of this login holds the item, read after that supersede: a
-# winner that has released by then is seen as gone, and one releasing later re-reads
-# the leases after its own PATCH and sees ours superseded, so one of the two removes @me.
+# The abort trap backs off: it supersedes our lease, then hands back @me
+# (wit_hand_back_assignee).
 if [[ -n "$winner_id" && "$winner_id" != "$our_comment_id" ]]; then
   printf 'claim: live lease (comment %s, holder %s) wins — backing off\n' \
     "$winner_id" "$(tr -d '[:cntrl:]' <<<"${winner_holder:-unknown}")" >&2
@@ -166,8 +164,8 @@ if [[ -n "$winner_id" && "$winner_id" != "$our_comment_id" ]]; then
 fi
 
 # A same-login release that ran between step 2 and our post can have removed @me
-# (it saw no other live lease of ours yet); put it back. The release re-reads the
-# leases after its removal, so between the two checks one sees the other's write.
+# or a same-login back-off (each saw no other live lease of ours yet); put it back.
+# Each re-lists the leases after its removal, so one of the two sees the other's write.
 if [[ "$lease_only" == false ]]; then
   wit_read_assignees "$owner" "$repo" "$number"
   if ! jq -e --arg me "$login" 'any(.[]; . == $me)' <<<"$WIT_GH_OUT" >/dev/null; then

@@ -490,37 +490,28 @@ wit_lease_released_by_run() {
     "$verb" "$1" "$run_id" >&2
 }
 
-# wit_unassign_if_unheld <owner> <repo> <number> <login> <released-id> <leases-json>: after a
-# release, remove <login> from the assignees unless another live lease held by <login> remains
-# (CONTRACT.md "Lease protocol", release). <leases-json> is read after the release's PATCH, so
-# a same-login loser that superseded its own lease before that read is seen as gone, and its own
-# re-read after superseding sees this release. A lease posted after the read is caught by the
-# re-read after the removal, which puts the assignee back: a same-login claim posts its lease
-# before it re-checks its assignee, and the release removes the assignee before it re-reads the
-# leases, so one of the two sees the other.
-wit_unassign_if_unheld() {
-  local owner="$1" repo="$2" number="$3" login="$4" released="$5" leases="$6"
-  _wit_login_holds_other "$leases" "$login" "$released" && return 0
-  wit_try_read_assignees "$owner" "$repo" "$number" || {
-    printf '%s: could not read the assignees; %s left assigned\n' "$(basename "$0" .sh)" "$login" >&2
-    return 0
-  }
-  jq -e --arg l "$login" 'any(.[]; . == $l)' <<<"$WIT_GH_OUT" >/dev/null || return 0
+# wit_hand_back_assignee <owner> <repo> <number> <login> <own-id>: after a release, a claim's
+# back-off or failure, or a renew's back-off, remove <login> from the assignees unless a live
+# lease of <login> other than <own-id> holds the item (CONTRACT.md "Lease protocol", claim step
+# 4). It lists the leases itself; a failed list counts as empty. Every caller's own lease is
+# dead (superseded or expired) before that list, so a same-login session that
+# superseded its lease earlier is seen as gone, and its own list after superseding sees this
+# one's. A lease posted after the list is caught by the re-list after the removal, which puts
+# the assignee back: a claim posts its lease before it re-checks its assignee, and this removes
+# the assignee before it re-lists, so one of the two sees the other. A failed assignee read
+# still removes, since an assignee that no lease holds keeps the item off the frontier for good.
+wit_hand_back_assignee() {
+  local owner="$1" repo="$2" number="$3" login="$4" own="$5" leases
+  leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || leases='[]'
+  _wit_login_holds_other "$leases" "$login" "$own" && return 0
+  if wit_try_read_assignees "$owner" "$repo" "$number"; then
+    jq -e --arg l "$login" 'any(.[]; . == $l)' <<<"$WIT_GH_OUT" >/dev/null || return 0
+  fi
   wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
   leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || return 0
-  if _wit_login_holds_other "$leases" "$login" "$released"; then
+  if _wit_login_holds_other "$leases" "$login" "$own"; then
     wit_try_add_assignee "$owner" "$repo" "$number" "$login"
   fi
-}
-
-# wit_unassign_unless_held <owner> <repo> <number> <login> [<excluded-id>]: a claim's
-# back-off and failure paths remove <login> unless a lease list read now shows a live lease
-# of <login> other than <excluded-id>. A failed read removes, since an assignee that no
-# lease holds keeps the item off the frontier for good.
-wit_unassign_unless_held() {
-  local leases
-  leases="$(wit_list_lease_comments "$1" "$2" "$3")" && _wit_login_holds_other "$leases" "$4" "${5:-}" && return 0
-  wit_try_remove_assignee "$1" "$2" "$3" "$4"
 }
 
 # _wit_login_holds_other <leases-json> <login> <excluded-id>: 0 when a live lease other than

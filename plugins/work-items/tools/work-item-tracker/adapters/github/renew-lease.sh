@@ -86,20 +86,29 @@ now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 renewed="$(jq -c --arg ts "$now" '. + {renewed_at: $ts}' <<<"$lease_json")"
 wit_patch_lease_comment "$owner" "$repo" "$lease_comment_id" "$renewed"
 
-# The checks above see only leases posted before their read. A claimant that found this
-# lease expired before the PATCH landed posted before it, so a list read now shows it;
-# one posting later sees the renewed lease and backs off. Outside the margin nobody can
-# have found the lease expired. A failed read keeps the lease, as wit_lease_released_by_run does.
+# A superseded lease is out of reclaim's reach, so a back-off hands its holder's assignee back.
+back_off() {
+  wit_try_supersede_lease_comment "$owner" "$repo" "$lease_comment_id" "$renewed"
+  wit_hand_back_assignee "$owner" "$repo" "$number" "$(jq -r '.holder // empty' <<<"$renewed")" "$lease_comment_id"
+  printf 'renew-lease: lease %s: %s; lease superseded\n' "$lease_comment_id" "$1" >&2
+  exit "$EX_CONFLICT"
+}
+
+# A PATCH that returns after the old expiry may have revived an expired lease, and a
+# same-login claimant that lost to it meanwhile removes the shared assignee: never kept.
+# Within the margin the checks above saw only leases posted before their read; a claimant
+# that found this lease expired before the PATCH landed posted before it, so a list read
+# now shows it, and one posting later sees the renewed lease and backs off. Earlier than
+# that nobody can have found the lease expired. A failed read keeps the lease, as
+# wit_lease_released_by_run does.
 after_epoch="$(date -u +%s)"
-if ((after_epoch >= expires_epoch - WIT_LEASE_SKEW_SECONDS)); then
+if ((after_epoch >= expires_epoch)); then
+  back_off "it expired before the renew landed"
+elif ((after_epoch >= expires_epoch - WIT_LEASE_SKEW_SECONDS)); then
   if leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" ||
     leases="$(wit_list_lease_comments "$owner" "$repo" "$number")"; then
-    if wit_newer_live_lease "$leases" "$after_epoch" "$lease_comment_id"; then
-      wit_try_supersede_lease_comment "$owner" "$repo" "$lease_comment_id" "$renewed"
-      printf 'renew-lease: the renew of lease %s landed too close to expiry and a newer claimant holds; lease superseded\n' \
-        "$lease_comment_id" >&2
-      exit "$EX_CONFLICT"
-    fi
+    ! wit_newer_live_lease "$leases" "$after_epoch" "$lease_comment_id" ||
+      back_off "the renew landed too close to expiry and a newer claimant holds"
   else
     printf 'renew-lease: could not re-read the leases after the renew; lease kept\n' >&2
   fi
