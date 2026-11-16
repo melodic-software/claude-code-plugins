@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "architecture:improve-layout"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "improve-layout"
+          }
+        }
+      ],
+      "why": "bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "architecture:improve",
+            "args": "deepening"
+          }
+        }
+      ],
+      "why": "the improve skill, which no longer has a layout lens"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "coupling:reduce"
+          }
+        }
+      ],
+      "why": "a different plugin's coupling skill"
+    }
+  ]
+}

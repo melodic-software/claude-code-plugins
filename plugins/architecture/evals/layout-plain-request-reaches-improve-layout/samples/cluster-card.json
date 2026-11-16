@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No layout style is recorded (checked: no ADRs, no architecture topic doc, no boundary rules). Window: 18 of 18 commits read survived the filters; 1 cluster. Card c1 (Speculative): src/orders/OrderForm.tsx, src/api/orders.ts, src/db/orderRepo.ts and tests/orders.test.ts, one file in each of src/orders, src/api, src/db and tests (4 files per folder). Spread 4, focus 0.25, crosscutting. Every pair has degree 100 over 6 shared commits. Style: none recorded. Proposed layout: keep the four order files under one src/orders folder (a default, not a style). Route: the interview, then /planning:design. No file was moved.",
+      "why": "names the cluster, its measured spread and focus, no style, and a proposed layout"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "There is too little history to say: no pair reached the shared-commit minimum, so there are no candidates.",
+      "why": "reports no candidate though the history holds one cluster"
+    },
+    {
+      "answer": "I moved OrderForm.tsx, orders.ts, orderRepo.ts and orders.test.ts into src/orders so they live together.",
+      "why": "moves files instead of reporting a card"
+    }
+  ]
+}
