@@ -23,10 +23,10 @@ saving.
 
 ## Skills
 
-- `/context-budget:setup`. Read-only prerequisite check: `node` (the hook launches it by bare
-  name, and a launch failure is non-blocking, so the checkpoint can be configured on yet never
-  fire), the `claude` CLI the engine measures against, the optional Agent SDK that enables exact
-  mode, and the effective `settings_write_ask_enabled` value. Installs nothing.
+- `/context-budget:setup`. Read-only prerequisite check: `node` (the engine's runtime), the
+  `claude` CLI the engine measures against, and the optional Agent SDK that enables exact mode.
+  Installs nothing. The guardrails plugin's settings-write ask covers the project settings
+  `/context-budget:audit fix` edits.
 - `/context-budget:audit`. Take a stamped baseline snapshot, attribute the built-in tool pools
   over the live tool list, present catalogue levers with their honesty categories, and ledger
   any before/after the operator produces. Read-only on bare invocation: it prints exact config
@@ -91,92 +91,6 @@ the band draws nothing.
 
 Tested in: the plugin test kit (terminal and desktop surfaces) on Claude Code 2.1.296, plus
 `claude plugin validate` and `tsc`. No live interactive, `--bg` or Desktop session has run it yet.
-
-## Hook
-
-A PreToolUse checkpoint returns `permissionDecision: "ask"` when a **file-editing tool call**
-(`Write`, `Edit`, `NotebookEdit`) targets a Claude Code settings file, so those
-edits prompt even in auto mode. It matches only the settings files Claude Code reads:
-`settings.json` in the user settings directory (`CLAUDE_CONFIG_DIR`, else `~/.claude`),
-`settings.json` and `settings.local.json` in `.claude/` under the project directory or the
-session's working directory, `settings.local.json` at the main checkout's root, plus
-`managed-settings.json` and `managed-settings.d/` drop-ins in the managed system directory. A
-fixture or example named `.claude/settings.json` elsewhere does not prompt. Kill switch: the
-`settings_write_ask_enabled` plugin option.
-
-- **Pointer:** where Claude Code keeps each settings file:
-  [settings § Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
-  and
-  [§ Where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository);
-  for managed files,
-  [managed settings § Where each mechanism stores the policy](https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy).
-- **As of:** 2026-10-11.
-- **Recheck trigger:** any of these sections moves a settings file or adds one.
-
-It is a checkpoint, not a guarantee: other hooks, settings, and permission modes decide what
-happens to its `ask`. We state that whenever we describe the protection, and read the specifics
-live:
-
-- **Pointer:** [hooks § PermissionRequest](https://code.claude.com/docs/en/hooks#permissionrequest),
-  [settings reference § `disableAllHooks`](https://code.claude.com/docs/en/settings-reference#disableallhooks),
-  [Agent SDK permissions § Bypass permissions mode](https://code.claude.com/docs/en/agent-sdk/permissions#bypass-permissions-mode-bypasspermissions)
-  (hook evaluation order against the mode check), and
-  [headless § Turn off permission prompts in unattended runs](https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs)
-  (what a `-p` run does with a call that would prompt).
-
-A mod (this plugin's or any other installed one) can keep `PreToolUse` settings hooks such as this
-plugin's settings-write checkpoint from running: they run after the last
-mod calls `next`, so a mod that answers a `tool.call` without calling it skips them
-([where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)).
-A mod can also approve a call they blocked, because its `tool.check` hook runs after them
-([approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked)).
-
-**What it does not see.** The checkpoint matches tool names and file paths, not the file on
-disk. These routes change a settings file without an ask:
-
-- A write through the shell: a redirect, a heredoc, `sed -i`, `cp`, `tee`, or a script run by
-  `Bash` or `PowerShell`. None of them passes through a file-editing tool.
-- A tool that renders configuration into place from a source elsewhere, such as a dotfile manager
-  applying a template or symlink. That write is a legitimate action by another program, inside the
-  session or outside it.
-
-Claude Code's `ConfigChange` hook event fires on a settings change whatever wrote the file, but it
-reacts after the write rather than asking before it. That is a different control from this one,
-and this plugin does not register it.
-
-- **Pointer:** [hooks § ConfigChange](https://code.claude.com/docs/en/hooks#configchange) and
-  [§ ConfigChange decision control](https://code.claude.com/docs/en/hooks#configchange-decision-control);
-  for what a PreToolUse matcher filters on,
-  [hooks § Matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns).
-
-**Decision (#3864): the claim is narrowed, and the hook is not widened.** Adding the shell lane
-would put an always-on `Bash|PowerShell` hook under the
-[hook-budget](../../docs/contracts/hook-budget/README.md) ceiling on every shell call in every
-consumer. It would recognize a settings write only by guessing from the command string, and it
-would still miss the render-into-place route. So even after paying that cost, the checkpoint could
-not honestly claim every settings write. The `/context-budget:audit fix` path edits project
-settings through a file-editing tool, so the checkpoint does cover this plugin's own write path.
-Treat a future audit that finds this gap as re-filing it, not as a new defect.
-
-The registration carries no `if` filter, so the hook process spawns on every matched write and the
-script decides. An `if` gate was evaluated for this row and rejected. A probe on Claude Code 2.1.285
-on Windows (2026-09-30) found that in a hook `if`, an `Edit(...)` rule does not match a Write tool
-call at any path tested, inside or outside the working directory. `Write(...)` and `Edit(...)`
-rules each match absolute paths outside cwd for their own tool, under every form tested: the
-home-relative `~/`, the root-anchored `//`, the drive-letter spelling, the root-anchored recursive
-glob, and an unanchored `*.json`. An earlier probe on 2.1.258 (2026-09-02) attributed the skipped
-rules to the path; on 2.1.285 the path is not the cause, and 2.1.258 was not re-probed. Permission
-rules differ: there, an `Edit` rule covers every built-in file-editing tool. One `Edit(...)` gate on
-this `Write|Edit|NotebookEdit` row would therefore drop every Write silently, which is the opposite
-of what the checkpoint exists to do. The row stays unconditioned; splitting it into a gated row per
-tool needs its own probe, and NotebookEdit was not probed.
-
-- **Pointer:** [hooks § Common fields](https://code.claude.com/docs/en/hooks#common-fields) (`if`
-  uses permission rule syntax) and
-  [permissions § What `Read` and `Edit` rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover).
-- **As of:** 2026-10-29.
-- **Recheck trigger:** a Claude Code release note saying a hook `if` `Edit(...)` rule matches Write
-  tool calls. Re-probe before gating this row.
 
 ## What makes the numbers trustworthy
 
@@ -243,7 +157,6 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `settings_write_ask_enabled` | boolean | `true` | Runs the PreToolUse hook that asks before Write, Edit, and NotebookEdit calls aimed at a Claude Code settings file. On by default. Shell writes and files rendered into place are outside its matcher. |
 | `live_display` | string | `"pane"` | Where the live context breakdown shows. pane opens it in a pane when you run /context-budget live; band keeps it above the prompt; off shows nothing and measures nothing. /context-budget live pane, band or off changes it for the session. |
 
 ### How to set these

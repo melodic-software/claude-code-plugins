@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.5.6] - 2026-11-16
+
+### Changed
+
+- The code reviewer's glossary check also covers user-facing labels, headings and route paths, not only types, functions, enum values and messages. It stays advisory.
+
 ## [9.5.5] - 2026-11-16
 
 ### Fixed

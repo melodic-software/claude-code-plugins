@@ -53,6 +53,7 @@ git commit -q -m "Sessions in Redis, orders in PostgreSQL"
 git rm -q src/session/redis_store.py
 mkdir -p src/session
 cat >src/session/cookie_store.py <<'PY'
+# Replaces the session store ADR 0001 chose.
 """Sessions live in signed cookies."""
 
 
