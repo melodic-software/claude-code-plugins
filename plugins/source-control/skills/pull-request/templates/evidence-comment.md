@@ -31,6 +31,8 @@
 {{section_text}}
 
 {{#capture}}
+{{capture_label}}
+
 {{capture_image}}
 
 {{/capture}}

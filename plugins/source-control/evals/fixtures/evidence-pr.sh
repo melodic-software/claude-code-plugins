@@ -3,7 +3,8 @@
 # offline forge (gh-forge) serving open PR 412 with an `## Acceptance criteria` body, a CONFIRMED
 # verifier verdict recorded for the head, and two /app-control:drive report.json files, one from
 # the head (evidence/head) and one from the base (evidence/base), each listing one PNG per
-# interaction in `publishable`. Run it from a case's scaffold.sh in the workspace:
+# interaction in `publishable` under the same file name on both sides. Run it from a case's
+# scaffold.sh in the workspace:
 #   bash evidence-pr.sh <interactions> [--record-fields]
 # <interactions> is the number of acceptance criteria and of driven entry points (one capture
 # each per run). --record-fields commits `evidence_record_fields: true` to main's team config.
@@ -51,7 +52,7 @@ for side in base head; do
   mkdir -p "$dir"
   steps='[]' artifacts='[]' publishable='[]'
   for ((i = 0; i < count; i++)); do
-    file="$side-${names[i]}.png"
+    file="${names[i]}.png"
     printf '%s' "$png" | base64 -d >"$dir/$file"
     steps=$(jq -c --arg ep "${names[i]} page" --arg f "$file" \
       '. + [{action: "open", entry_point: $ep, stated_result: null, observed: "page rendered", artifacts: [$f], outcome: "done"}]' <<<"$steps")

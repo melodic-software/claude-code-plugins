@@ -123,16 +123,19 @@ scans it with the rest of the rendered body.
      for which references `gh` rewrites). A video never goes in a cell: its cell reads
      `video below`, and `{{#video}}` to `{{/video}}`, repeated per video, puts its reference alone
      in its own paragraph (`{{video_ref}}`, formed and path-checked as `{{capture_image}}`) and
-     its caption in the next (`{{video_caption}}`),
-     because a video plays only from a paragraph of its own
-     ([Embedding a video](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli#embedding-a-video));
+     its caption in the next (`{{video_caption}}`)
+     ([Embedding a video](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli#embedding-a-video)
+     for how `gh` embeds one);
    - `{{#section}}` to `{{/section}}`, repeated as one collapsed section per acceptance criterion
      step 1 read from the PR body, else one per entry point line. `{{section_title}}` is the
      criterion or the entry point, `{{section_text}}` its result. A capture no section claims goes
      in a section titled `Other captures`;
-   - `{{#capture}}` to `{{/capture}}`, repeated per capture in that section: `{{capture_image}}` is
+   - `{{#capture}}` to `{{/capture}}`, repeated per capture in that section. `{{capture_label}}`
+     names the run that took it when `--before` is given, since a base and a head capture can
+     share a file name: `Before (base <baseRefName>)` for a `--before` capture, `After (head)` for
+     an `--evidence` one; without `--before`, drop the line. `{{capture_image}}` is
      the image reference `![<alt>](<path>)`, with `<path>` the capture's absolute path and `<alt>`
-     its file name. The template holds the whole reference as one placeholder because the offline
+     its file name, prefixed `Before:` or `After:` and a space when `--before` is given. The template holds the whole reference as one placeholder because the offline
      link check reads a placeholder link target as a missing local file. The path must hold only
      ASCII letters, digits and `/._-`, since any other character (a space, a parenthesis, a
      backslash, a drive colon) can leave the image reference unparsed and publish the local path.
