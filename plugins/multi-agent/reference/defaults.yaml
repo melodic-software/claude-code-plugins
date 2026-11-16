@@ -71,21 +71,22 @@ roles:
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
     pointer_subagent_effort: https://code.claude.com/docs/en/model-config#effort-level-of-subagents-and-teammates
-    as_of: 2026-11-09
-    recheck: model-config's effort table changes the row for clear-scope engineering work, the cost page's orchestrator strategy changes its worker-model advice, a new model is named on the cost page, the guide's task table changes its row for well-scoped coding, the Agent tool's per-spawn effort parameter changes, a role is proposed for haiku (see routing-rubric.md), the default subagent effort setting changes (pointer_subagent_effort), or an ai-slop audit-fix eval case fails a majority of its runs on Sonnet (the mechanical-model measurement, which carries its own date)
+    as_of: 2026-11-16
+    recheck: model-config's effort table changes the row for clear-scope engineering work, the cost page's orchestrator strategy changes its worker-model advice, a new model is named on the cost page, the guide's task table changes its row for well-scoped coding, the Agent tool's per-spawn effort parameter changes, a role is proposed for haiku (see routing-rubric.md), pointer_subagent_effort or the sub-agents page documents CLAUDE_CODE_SUBAGENT_EFFORT (added in Claude Code 2.1.316, https://code.claude.com/docs/en/changelog, for subagents no other source names a level for) or a release lets it outrank a definition's or a call's effort, or an ai-slop audit-fix eval case fails a majority of its runs on Sonnet (the mechanical-model measurement, which carries its own date)
   verifier:
     model: inherit
     effort: high
     basis_model: judgment
-    reason_model: no upstream statement sets a verifier model; a verifier judges the other stages' work, so it is not one of the stages that can drop to a smaller model
+    reason_model: no upstream statement sets a verifier model; a verifier judges the other stages' work, so it is not one of the stages that can drop to a smaller model. pointer_completion_check suggests a separate, smaller model that checks an unattended conversation against a stated completion condition at each end of turn and sends the reason back as the next user message; that check decides whether the loop sends another turn, capped at two or three automatic continuations, and does not judge whether another stage's output is correct, so it is not this role
+    pointer_completion_check: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#unattended-agentic-runs
     basis_effort: upstream
     pointer_effort: https://code.claude.com/docs/en/model-config#choose-an-effort-level
     claim_effort: the effort table's row for work where verification matters or edge cases are likely
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
     pointer_subagent_effort: https://code.claude.com/docs/en/model-config#effort-level-of-subagents-and-teammates
-    as_of: 2026-11-09
-    recheck: model-config's effort table changes the row for verification-heavy work, an upstream page states a model for a verifying or judging agent, the Agent tool's per-spawn effort parameter changes, or the default subagent effort setting changes (pointer_subagent_effort)
+    as_of: 2026-11-16
+    recheck: model-config's effort table changes the row for verification-heavy work, an upstream page states a model for an agent that judges whether another stage's output is correct, the Agent tool's per-spawn effort parameter changes, or pointer_subagent_effort or the sub-agents page documents CLAUDE_CODE_SUBAGENT_EFFORT (added in Claude Code 2.1.316, https://code.claude.com/docs/en/changelog, for subagents no other source names a level for) or a release lets it outrank a definition's or a call's effort
   retrieval:
     model: sonnet
     effort: medium
@@ -97,5 +98,5 @@ roles:
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
     pointer_subagent_effort: https://code.claude.com/docs/en/model-config#effort-level-of-subagents-and-teammates
-    as_of: 2026-11-09
-    recheck: the guide's task table changes its row for search, log and summary subagents, the workflows Cost section changes its smaller-model advice, a model-config change to the sonnet alias or its default effort, the Agent tool's per-spawn effort parameter changes, a role is proposed for haiku (see routing-rubric.md), or the default subagent effort setting changes (pointer_subagent_effort)
+    as_of: 2026-11-16
+    recheck: the guide's task table changes its row for search, log and summary subagents, the workflows Cost section changes its smaller-model advice, a model-config change to the sonnet alias or its default effort, the Agent tool's per-spawn effort parameter changes, a role is proposed for haiku (see routing-rubric.md), or pointer_subagent_effort or the sub-agents page documents CLAUDE_CODE_SUBAGENT_EFFORT (added in Claude Code 2.1.316, https://code.claude.com/docs/en/changelog, for subagents no other source names a level for) or a release lets it outrank a definition's or a call's effort
