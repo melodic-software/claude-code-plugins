@@ -8,8 +8,9 @@ metadata:
   summary: Set up a check for each recorded boundary rule and prove it on an injected violation
 ---
 
-**Arguments.** `$ARGUMENTS`: optional path to a findings file the boundaries lens wrote. Its rules
-that `## Boundary rules` does not hold yet are offered for recording in Phase 1.
+**Arguments.** `[boundaries findings file]`. Optional path to a findings file the boundaries lens
+wrote, in `$ARGUMENTS`; its rules that `## Boundary rules` does not hold yet are offered for
+recording in Phase 1.
 
 This skill ships no tool, config, template or per-language file. It brings the process and the
 rule vocabulary; the mechanism is the one the repository already has, or one researched at run
