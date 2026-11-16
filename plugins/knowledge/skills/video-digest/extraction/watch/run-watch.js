@@ -10,7 +10,9 @@
  * `--from` / `--to` (either optional) acquire only that range of the media
  * (`lib/time-range.js`). Watching runs on the ranged media; every stamp the slice
  * stores is full-video time, and watch.json `timeRange` records the range, the
- * offset added and the offset's error bound from the keyframe-aligned cut.
+ * offset added and the offset's error bound from the keyframe-aligned cut. A ranged
+ * slice's key carries the range (`rangedSliceKey`), so each range of one video is its
+ * own slice.
  *
  * A live-derived video whose captions are not published yet exits 3 with a
  * `captionsPending` report and writes no slice (`acquisition/caption-wait.js`);
@@ -63,6 +65,7 @@ import {
   cuesInMediaTime,
   keyframeOffsetErrorSec,
   parseTimeRangeArgs,
+  rangedSliceKey,
   watchingInVideoTime,
 } from "../lib/time-range.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
@@ -385,7 +388,7 @@ async function watchUrl({
   // The note an expired caption wait left; the queue row's `notes` carries it.
   const captionWait = envelope.acquireMetrics?.captionWait ?? null;
   const sliceKey = adapter.extractSliceKey(url, metadata) ?? metadata.id;
-  const videoSlug = deriveVideoSlug(metadata.title, sliceKey);
+  const videoSlug = deriveVideoSlug(metadata.title, rangedSliceKey(sliceKey, timeRange));
   const sliceDir = resolveWorkSliceDir(resolveWorkRoot(), videoSlug);
   const primary = primaryEntry(envelope);
 

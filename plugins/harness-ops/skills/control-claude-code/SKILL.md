@@ -59,6 +59,17 @@ that keeps `ANTHROPIC_API_KEY` reads the `ANTHROPIC_API_KEY` row of
 <https://code.claude.com/docs/en/env-vars#variables> for what the interactive session does with the
 key, and screenshots that first screen.
 
+Data: none: the session runs in the person's own Claude Code config directory (`CLAUDE_CONFIG_DIR`,
+else `~/.claude`), shared across runs, because the run reuses the account it is signed in with; a
+new directory per run would start signed out. The launch sets no config directory.
+
+Side by side: yes, one `<session>` name each: `launch` reserves the name with a lock file and
+refuses a name that is already running.
+
+Session: build once with no command, since the `claude` on PATH is the build; one isolated session
+per drive, each `launch` starting a new session holder on its own socket, sharing the config
+directory above.
+
 ## Ready
 
 `node <skill-dir>/driver/driver.mjs ready --plugin-dir <plugin-dir> --session <session> --out <run-dir>/<plugin>-ready-init.jsonl --timeout <readyMs>`
@@ -71,6 +82,13 @@ credential's source) and the plugin under test is listed; any other exit means d
 key sources: <https://code.claude.com/docs/en/agent-sdk/typescript#sdksystemmessage> and
 <https://code.claude.com/docs/en/agent-sdk/typescript#apikeysource> (as of 2026-10-26; recheck
 when either section renames a field or changes the values `apiKeySource` reports).
+
+Port owner: not exposed. The print-mode turn is Ready's own process, but the `session` line only
+pings the session's socket, never compares its holder with the launch record, and does not change
+Ready's exit.
+
+Credentials: not exposed. `apiKeySource` shows which key source is in use, not that the saved
+login is valid: Ready stops before any request (Gotchas).
 
 ## Capture
 

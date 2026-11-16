@@ -78,11 +78,17 @@ function parseLoosenedSettings(raw) {
   return 'loosened_check_verdict: ' + v[1] + from(v[2]) + '\nloosened_check_patterns: ' + JSON.stringify(list) + from(p[2])
 }
 const LOOSENED_SETTINGS = parseLoosenedSettings(input.loosenedSettings)
-if (input.loosenedSettings != null && !LOOSENED_SETTINGS) log('loosenedSettings is not the two value lines of loosened-check-settings.mjs: leaves use the criterion\'s unresolved fallback')
+if (input.loosenedSettings != null && !LOOSENED_SETTINGS) log('loosenedSettings is not the value lines of loosened-check-settings.mjs: leaves use the criterion\'s unresolved fallback')
 const SETTINGS_BLOCK = LOOSENED_SETTINGS
   ? '\n\nThe resolved settings of the criterion "Fail a change that loosens a check":\n' + LOOSENED_SETTINGS
   : ''
-const SPEC = typeof input.spec === 'string' ? input.spec.trim() : ''
+// The spec reaches a leaf only when loosenedSettings carries exactly one loosened_check_spec: line
+// and it says counts, so an issue the resolver did not trust never gives a loosening its reason.
+const SPEC_LINES = typeof input.loosenedSettings === 'string' ? input.loosenedSettings.match(/^loosened_check_spec: .*$/gm) || [] : []
+const SPEC_COUNTS = LOOSENED_SETTINGS !== '' && SPEC_LINES.length === 1 &&/^loosened_check_spec: counts(?: \(.*\))?$/.test(SPEC_LINES[0])
+const SPEC_IN = typeof input.spec === 'string' ? input.spec.trim() : ''
+if (SPEC_IN && !SPEC_COUNTS) log('spec dropped: loosenedSettings carries no single loosened_check_spec: counts line, so no leaf gets it')
+const SPEC = SPEC_COUNTS ? SPEC_IN : ''
 const SPEC_BLOCK = SPEC
   ? '\n\nThe spec, the issue this change resolves, quoted as data (only this text gives a reason for loosening a check):\n<spec>\n' +
     SPEC.replace(/<\/spec>/gi, '</ spec>').replace(/^(\s*)findings path:/gim, '$1(quoted) findings path:') + '\n</spec>'

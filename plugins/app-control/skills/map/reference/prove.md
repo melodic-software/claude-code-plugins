@@ -24,7 +24,9 @@ from the app argument when `--dir` names another directory:
 
 1. Step 2, the start check: `/app-control:drive <slug> --out <dir>` with no feature (launch and
    ready), then `/app-control:drive cleanup <slug> --out <dir>`.
-2. Step 5, the proof: `/app-control:drive <slug> <feature> --out <dir>`, then
+2. Step 5, the proof, launched from empty state: a new data directory with migrations and seed, as
+   the hub's `Data:` line records (the contract's "The launch model"), never an instance or data
+   step 2 or an earlier run left. `/app-control:drive <slug> <feature> --out <dir>`, then
    `/app-control:drive capture --kind <kind> <slug> --out <dir>` for one artifact, then
    `/app-control:drive cleanup <slug> --out <dir>`, then
    `/app-control:drive ready <slug> --out <dir>` with the app stopped (Ready when stopped, below).

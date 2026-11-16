@@ -126,6 +126,60 @@ describe("runResumeCli temp-session check", () => {
   });
 });
 
+describe("runResumeCli on ranged slices", () => {
+  /** @param {string} slug @param {{ fromSec: number, toSec: number|null }} timeRange */
+  async function seedRangedSlice(slug, timeRange) {
+    const state = createWatchState({
+      videoId: "qyPCVqFUyDo",
+      videoSlug: slug,
+      sourceUrl: "https://www.youtube.com/watch?v=qyPCVqFUyDo",
+      title: "Talk",
+      timeRange,
+    });
+    await writeWatchState(resolveWorkSliceDir(workRoot, slug), markPhaseComplete(state, "acquire"));
+  }
+
+  it("resumes a ranged slice by its slug and names the range in the prompt", async () => {
+    await seedRangedSlice(`${SLUG}-r3600-4800`, { fromSec: 3600, toSec: 4800 });
+
+    const code = await runResumeCli(["node", "run-resume.js", `${SLUG}-r3600-4800`]);
+
+    expect(code).toBe(0);
+    expect(lastJson().nextPhase).toBe("transcript");
+    expect(lastJson().continuationPrompt).toContain("Range: 1:00:00 to 1:20:00");
+  });
+
+  it("resumes the one slice a video id names", async () => {
+    await seedRangedSlice(`${SLUG}-r3600-4800`, { fromSec: 3600, toSec: 4800 });
+
+    const code = await runResumeCli(["node", "run-resume.js", "qyPCVqFUyDo"]);
+
+    expect(code).toBe(0);
+    expect(lastJson().videoSlug).toBe(`${SLUG}-r3600-4800`);
+  });
+
+  it("fails and lists the slices when a video id names several ranges", async () => {
+    await seedRangedSlice(`${SLUG}-r0-600`, { fromSec: 0, toSec: 600 });
+    await seedRangedSlice(`${SLUG}-r3600-end`, { fromSec: 3600, toSec: null });
+
+    const code = await runResumeCli(["node", "run-resume.js", "qyPCVqFUyDo"]);
+
+    expect(code).toBe(1);
+    expect(stdout).toEqual([]);
+    expect(stderr.join("\n")).toContain(`${SLUG}-r0-600, ${SLUG}-r3600-end`);
+  });
+
+  it("resumes the slice a ranged queue row's video-id cell names", async () => {
+    await seedRangedSlice(`${SLUG}-r0-600`, { fromSec: 0, toSec: 600 });
+    await seedRangedSlice(`${SLUG}-r3600-end`, { fromSec: 3600, toSec: null });
+
+    const code = await runResumeCli(["node", "run-resume.js", "qyPCVqFUyDo-r3600-end"]);
+
+    expect(code).toBe(0);
+    expect(lastJson().videoSlug).toBe(`${SLUG}-r3600-end`);
+  });
+});
+
 describe("runResumeCli slug validation", () => {
   it("rejects a slug that resolves outside the epic dir, writing nothing there", async () => {
     // `../escape/<slug>` from `.work/youtube-watch/` lands on `.work/escape/<slug>`,

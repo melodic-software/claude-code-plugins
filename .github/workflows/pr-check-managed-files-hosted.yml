@@ -115,7 +115,7 @@ jobs:
       - name: Guard managed files
         # The org requires actions pinned to a full commit SHA (reusable
         # workflows may float on main); this pin moves by hand.
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@8e1076f6c33cb9ca3544a1ad2a215fd2262b4a72 # v0.71.0
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@944d346c487c79eaf85dff752586fb59b0f5c539 # v0.74.0
         with:
           # `main` for the soak, per the action's own input contract ("Pin to
           # a full SHA in callers once soak completes"): the guard must read

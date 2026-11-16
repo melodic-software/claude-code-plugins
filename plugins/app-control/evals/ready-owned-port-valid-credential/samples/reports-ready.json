@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Capability gaps: build not exposed.\n\nready: yes",
+      "why": "ready, with the gap listed apart"
+    },
+    {
+      "answer": "**Ready:** yes",
+      "why": "ready in markdown"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ready: no: build not exposed",
+      "why": "treats a capability gap as not ready"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash .claude/skills/control-shop/cli/shop ready ./evidence"
+          }
+        }
+      ],
+      "why": "ran the hub's Ready command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/cli/shop"
+          }
+        }
+      ],
+      "why": "read the CLI instead of running Ready"
+    }
+  ]
+}

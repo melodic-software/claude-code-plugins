@@ -830,7 +830,20 @@ describe("decide", () => {
       assert.deepEqual(decide(facts({ issue: issueOf({ body: `${BODY}\n\nThe lane runs on the subscription login.` }) })), { verdict: "admit", reasons: [] });
       assert.deepEqual(chargeHits("Each lane signs in with its subscription logins.", chargePattern()), []);
       assert.deepEqual(chargeHits("The lane spends Claude subscription usage.", chargePattern()), []);
+      // A lane's subscription leg or token is its Claude OAuth credential.
+      assert.deepEqual(decide(facts({ issue: issueOf({ title: "Give the capture the subscription and fallback legs the other Claude lanes have" }) })), { verdict: "admit", reasons: [] });
+      for (const text of [
+        "- [ ] The fixed \"subscription token cannot go behind the proxy\" reason is removed.",
+        "Give the driver legs subscription and fallback tokens.",
+        "The lane tries its subscription leg, then the subscription fallback.",
+        "Each lane holds two subscription legs and two Subscription Tokens.",
+        "The probe reads the subscription OAuth token.",
+      ]) {
+        assert.deepEqual(chargeHits(text, chargePattern()), [], text);
+      }
       for (const [body, words] of [
+        ["Buy a Copilot subscription for the lane.", "subscription"],
+        ["Upgrade the Claude subscription.", "subscription"],
         ["This needs a plan or seat change.", "seat"],
         ["This needs a paid subscription purchase.", "subscription"],
         ["Create a new Azure subscription for the lane.", "subscription, azure"],

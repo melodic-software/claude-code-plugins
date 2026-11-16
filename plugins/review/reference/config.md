@@ -85,12 +85,17 @@ patterns still apply, and a WARN line says why.
 `--verdict-option` and `--patterns-file` (a file holding the patterns option, never a shell
 argument, written to `<memory_dir>/reviews/<branch-slug>/loosened-check-patterns.json`) for the
 user options, and prints each value with the layers that set it. Given `--spec-issue <number>`, it
-also prints `loosened_check_spec: counts` only when the issue's author is trusted. Where
-`.github/standards/trusted-actors/trusted-actors.json` exists at `--ref`, it decides alone: the
-author must be a User whose id is a human entry. Where `--ref` has no such file, the author must be
-a User whose `author_association` on the issue is `OWNER`, `MEMBER` or `COLLABORATOR`. Any other
-author, a list that exists but does not parse, or a read that fails prints `no reason`, and the
-spec is then not handed to reviewers. The line names the rule that decided.
+also prints `loosened_check_spec: counts` only when the issue's author is trusted. It reads the
+trusted-actor list from the default branch it resolves itself (`refs/remotes/origin/HEAD`, else the
+default branch `gh api` reports), and a `--ref` naming another commit prints `no reason`,
+so a run pointed at a head branch never reads a list that branch edited. Where
+`.github/standards/trusted-actors/trusted-actors.json` exists on the default branch, it decides
+alone: the author must be a User whose id is a human entry. Where the default branch has no such
+file, the author must be a User whose `author_association` on the issue is `OWNER`, `MEMBER` or
+`COLLABORATOR`. Any other author, a list that exists but does not parse, a default branch that
+cannot be resolved, or a read that fails prints `no reason`, and the spec is then not handed to
+reviewers; `review:fanout-sweep` drops a `spec` arg unless its `loosenedSettings` carries the
+`counts` line. The line names the rule that decided.
 
 **Root rule.** The repository file is read only when the repository root (`CLAUDE_PROJECT_DIR`,
 else `git rev-parse --show-toplevel`) is inside a git working tree and is neither `$HOME` nor an
