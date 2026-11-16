@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Black-box test for repin-ci-workflows.sh over a throwaway git repository,
-# with a stub `gh` on PATH that answers from STUB_* JSON through jq.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,7 +41,6 @@ jq -r "$jq" <<<"$json"
 STUB
 chmod +x "$scratch/bin/gh"
 
-# mk_repo <dir> [second-sha]: a committed tree whose workflows pin OLD.
 mk_repo() {
   local dir="$1" second="${2:-$OLD}"
   mkdir -p "$dir/.github/workflows" "$dir/docs/conventions/pr-pipeline" "$dir/tests"
@@ -72,7 +69,6 @@ EOF
   git -C "$dir" -c user.name=t -c user.email=t@t commit -qm init
 }
 
-# run <expected-exit> <name> <args...>: runs the SUT with the stub gh first on PATH.
 run() {
   local want="$1" name="$2" got
   shift 2
@@ -85,7 +81,6 @@ contains() {
   if [[ "$LAST_OUTPUT" == *"$2"* ]]; then ok "$1"; else bad "$1" "no '$2' in: $LAST_OUTPUT"; fi
 }
 
-# --- resolve
 export STUB_RELEASES='[
   {"tag_name":"v0.9.0","draft":false,"prerelease":false},
   {"tag_name":"v0.75.0","draft":false,"prerelease":false},
@@ -101,13 +96,11 @@ STUB_REF="{\"object\":{\"type\":\"commit\",\"sha\":\"$NEW\"}}" run 0 'resolve re
 contains 'a lightweight tag names its commit' "sha=$NEW"
 STUB_RELEASES='[{"tag_name":"v1.0","draft":false,"prerelease":false}]' run 1 'resolve fails with no vX.Y.Z release' resolve
 
-# --- current
 mk_repo "$scratch/cur"
 run 0 'current reads the pin' current --root "$scratch/cur"
 contains 'current names the sha' "sha=$OLD"
 contains 'current names the tag' 'tag=v0.74.0'
 
-# --- apply
 export STUB_COMPARE='{"status":"ahead"}'
 mk_repo "$scratch/move"
 run 0 'apply moves to a newer release' apply "$OLD" v0.74.0 "$NEW" v0.75.0 --root "$scratch/move"

@@ -332,9 +332,6 @@ check "a missing workflow fails machine-specific-paths closed" \
   '[[ $RC == 1 && $ERR == *"FAIL machine-specific-paths"* && $ERR == *"exclude pathspecs cannot be read"* ]]'
 git_test_config "$repo" reset -q --hard "$pre_paths"
 
-# The check-machine-paths composite at the pin pr-require-checks.yml names,
-# fetched from ci-workflows: its default types, its patterns file and its entry
-# script's verdicts must match what check-affected.sh repeats.
 pin="$(grep -oE 'check-machine-paths@[0-9a-f]{40}' "$SELF_DIR/../.github/workflows/pr-require-checks.yml" | head -n1)"
 pin="${pin#*@}"
 composite="$tmp/composite"
@@ -358,8 +355,7 @@ else
   bad "the guardrails patterns file is the composite's"
 fi
 labels=("Windows user path" "macOS user path" "Linux user path" "Windows repo path" "Escaped Windows repo path")
-# Each case is one file; the composite scans a repository holding only it.
-# The paths are assembled from H, U and R so this file holds none.
+# Paths are assembled from H, U and R so this file holds none.
 H=home U=Users R=repos
 while IFS='|' read -r file content; do
   printf '%b\n' "$content" >"$repo/$file"

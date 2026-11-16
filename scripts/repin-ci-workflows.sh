@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Moves this repository's melodic-software/ci-workflows pin to a newer release.
-#
-#   repin-ci-workflows.sh resolve                    newest published full-SemVer release: tag, sha
-#   repin-ci-workflows.sh current [--root <dir>]     the pin the workflows name: sha, tag
-#   repin-ci-workflows.sh apply <old-sha> <old-tag> <new-sha> <new-tag> [--root <dir>]
-#
-# Results go to GITHUB_OUTPUT as key=value lines, or to stdout when it is unset.
-# GitHub is read only through `gh api`, so a test puts a stub `gh` on PATH.
 set -euo pipefail
 shopt -s inherit_errexit
 [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
@@ -27,7 +19,6 @@ out() {
   if [[ -n "${GITHUB_OUTPUT:-}" ]]; then echo "$1" >>"$GITHUB_OUTPUT"; else echo "$1"; fi
 }
 
-# The files apply may rewrite, relative to <root>.
 file_set() {
   local root="$1" f
   for f in "$root"/.github/workflows/*.yml; do
@@ -56,7 +47,6 @@ resolve() {
   out "sha=${sha}"
 }
 
-# Prints "<sha> <tag>" of the one ci-workflows action pin across the file set.
 current_pin() {
   local root="$1" files pins
   files="$(file_set "$root")"

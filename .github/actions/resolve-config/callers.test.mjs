@@ -2751,10 +2751,9 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
   assert.ok(launchers.includes("pr-run-activity-read.yml run act-key") && launchers.includes("pr-run-activity-read.yml run act-token"), launchers.join(", "));
 });
 
-// Every launcher pin must pass `--permission-prompts none` unconditionally,
+// Launchers pass `--permission-prompts none` unconditionally,
 // under which the default mode denies every call no rule allows, as dontAsk
 // does; check-permission-mode.sh accepts default for dontAsk on that basis.
-// The pinned lane.cjs cliArgs runs over each input that changes its argv.
 test("every run-claude-cli step pin in this repo's workflows passes --permission-prompts none", async () => {
   const files = new Set();
   const pins = new Set();

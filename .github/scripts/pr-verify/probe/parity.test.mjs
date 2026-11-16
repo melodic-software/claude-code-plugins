@@ -1,8 +1,6 @@
 // The replay must judge the way pr-verify.yml does. These tests read the
 // workflow and fail when its judge step, prompt step or model route drift
-// from replay.mjs's JUDGE, or when cliArgs, LEG_ENV, CLI_VERSION or
-// MANAGED_SETTINGS differ from run-claude-cli and apply-claude-managed-settings
-// at RUN_CLAUDE_CLI_PIN, fetched from ci-workflows (needs network).
+// from replay.mjs's JUDGE.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -138,10 +136,7 @@ for (const job of JOBS) {
   });
 }
 
-// Pin tests: the expected values come from run-claude-cli's lane.cjs and the
-// two actions' input defaults at RUN_CLAUDE_CLI_PIN.
 const actionYml = (action) => fetchAtPin(RUN_CLAUDE_CLI_PIN, `.github/actions/${action}/action.yml`);
-// An input's default: a one-line scalar, or a `>-` scalar folded.
 const inputDefault = (yml, name) => {
   const block = new RegExp(`^  ${name}:\\n((?: {4,}.*\\n|\\n)*)`, "m").exec(yml)?.[1] ?? "";
   const folded = /^ {4}default: >-\n((?: {6}.*\n?)+)/m.exec(block);
@@ -166,7 +161,6 @@ test("cliArgs is the pinned lane.cjs argv for this lane, with the replay's setti
       pluginDirs: [],
       addDirs: [],
     });
-    // The replay passes its settings file where lane.cjs passes its sandbox settings.
     const at = pinned.indexOf("--settings");
     if (at >= 0 && pinned[at + 1] === lane.SANDBOX_SETTINGS) pinned[at + 1] = "/c/managed-settings.json";
     assert.deepEqual(cliArgs({ model, effort, maxTurns, settingsFile: "/c/managed-settings.json" }), pinned);
