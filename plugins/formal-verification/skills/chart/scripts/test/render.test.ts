@@ -56,7 +56,7 @@ for (const chart of charts) {
   });
 
   test(`${name} parses in mermaid.js, which chat views use`, { skip }, async () => {
-    await mermaid.parse(text);
+    await assert.doesNotReject(mermaid.parse(text));
   });
 }
 

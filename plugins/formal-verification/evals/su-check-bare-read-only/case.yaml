@@ -4,7 +4,7 @@ graders:
   - name: runs-toolchain-check
     type: tool_used
     tool: Bash
-    input_match: 'toolchain\.mjs[^"]*\bcheck\b'
+    input_match: 'toolchain\.mjs(?:\\?"|'')?\s+check\b'
     arm: with-only
   - name: reports-rows
     type: regex
@@ -14,7 +14,7 @@ graders:
   - name: no-install
     type: tool_used
     tool: Bash
-    input_match: 'toolchain\.mjs[^"]*\binstall\b'
+    input_match: 'toolchain\.mjs(?:\\?"|'')?\s+install\b'
     min: 0
     max: 0
     arm: both

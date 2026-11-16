@@ -8,6 +8,8 @@ import { CHART_STATES, DEFAULT_LIMITS, RERUN_STATES } from "./ir.ts";
 import { killGroup, messageOf } from "./run.ts";
 import { checkSpecName, childEnv, freshOut } from "./stage.ts";
 
+const MAX_TIMEOUT_SECONDS = Math.floor((2 ** 31 - 1) / 1000);
+
 const USAGE = `Usage: statechart SPEC.tla --jar FILE [--java FILE] [--chart-states N] [--rerun-states N]
                   [--timeout-seconds N] [--heap SIZE] [--output-bytes N] [--interval-max N]
                   [--modules A,B] [--config FILE] [--view FILE] [--out DIR]
@@ -20,7 +22,8 @@ chart.mmd. The command installs nothing: it runs the jar and the Java you name.
   --chart-states N    The chart budget in distinct states. Default: ${CHART_STATES}.
   --rerun-states N    After the first break, each TLC run stops at N distinct states.
                       Default: ${RERUN_STATES}.
-  --timeout-seconds N Each Java run is killed after N seconds. Default: ${DEFAULT_LIMITS.timeoutSeconds}.
+  --timeout-seconds N Each Java run is killed after N seconds, at most ${MAX_TIMEOUT_SECONDS}.
+                      Default: ${DEFAULT_LIMITS.timeoutSeconds}.
   --heap SIZE         The Java heap cap, as -Xmx takes it. Default: ${DEFAULT_LIMITS.heap}.
   --output-bytes N    Each Java run is killed once it prints N bytes. Default: ${DEFAULT_LIMITS.outputBytes}.
   --interval-max N    A larger interval reaches the view as {lo, hi}. Default: ${DEFAULT_LIMITS.intervalMax}.
@@ -82,6 +85,8 @@ try {
   ] as const)
     if (flags[name] !== undefined && !/^[1-9][0-9]*$/.test(flags[name]))
       throw new Error(`--${name} must be a positive whole number.`);
+  if (Number(flags["timeout-seconds"]) > MAX_TIMEOUT_SECONDS)
+    throw new Error(`--timeout-seconds must be at most ${MAX_TIMEOUT_SECONDS}.`);
   if (flags.heap !== undefined && !/^[1-9][0-9]*[kKmMgG]?$/.test(flags.heap))
     throw new Error("--heap must be a size such as 4g or 512m.");
   if (flags.modules !== undefined && !/^\w+(,\w+)*$/.test(flags.modules))

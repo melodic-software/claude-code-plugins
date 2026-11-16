@@ -43,7 +43,7 @@
       "properties": {
         "chart_states": { "type": "integer", "minimum": 1, "description": "The chart budget in distinct states (--chart-states)." },
         "rerun_states": { "type": "integer", "minimum": 1, "description": "After the first break, each TLC run stops at this many distinct states (--rerun-states)." },
-        "timeout_seconds": { "type": "integer", "minimum": 1, "description": "Wall-clock limit on each Java run; the run's process group is killed past it (--timeout-seconds)." },
+        "timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 2147483, "description": "Wall-clock limit on each Java run; the run's process group is killed past it (--timeout-seconds). At most 2147483, the longest a timer holds." },
         "heap": { "type": "string", "pattern": "^[1-9][0-9]*[kKmMgG]?$", "description": "Java heap cap, the -Xmx value (--heap)." },
         "output_bytes": { "type": "integer", "minimum": 1, "description": "Cap on the bytes one Java run may print; the run is killed past it (--output-bytes)." },
         "interval_max": { "type": "integer", "minimum": 1, "description": "An interval with more members than this reaches the view as {lo, hi} instead of a list (--interval-max)." }

@@ -73,3 +73,8 @@ end_of_line = unset
 indent_size = unset
 insert_final_newline = unset
 trim_trailing_whitespace = unset
+
+# The formal-verification chart corpus: TLC writes each graph.dot with no final
+# newline, and the corpus tests compare the files byte for byte.
+[plugins/formal-verification/skills/chart/scripts/test/corpus/*/graph.dot]
+insert_final_newline = unset

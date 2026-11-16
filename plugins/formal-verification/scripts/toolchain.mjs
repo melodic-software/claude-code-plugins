@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { resolveSettings } from "./settings.mjs";
@@ -74,20 +74,29 @@ function probeJava(java) {
   return { found: true, major: javaMajor(`${r.stdout}${r.stderr}`) };
 }
 
+const RUNTIMES = "Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later";
+const runtimeOk = { node: (n) => n >= 23006000 || (n >= 22018000 && n < 23000000), bun: (n) => n >= 1001005, deno: (n) => n >= 2000000 };
+const runtimeKind = (file) => (basename(file).startsWith("bun") ? "bun" : basename(file).startsWith("deno") ? "deno" : "node");
+
 function probeRuntime(runtime) {
   const r = spawnSync(runtime, ["--version"], { encoding: "utf8" });
   if (r.error || r.status !== 0) return { found: false, detail: `${runtime} --version did not run` };
-  return { found: true, detail: `${runtime} ${r.stdout.trim().split("\n")[0]}` };
+  const line = r.stdout.trim().split("\n")[0];
+  const [, a, b, c] = /(\d+)\.(\d+)\.(\d+)/.exec(line) ?? [];
+  if (!a || !runtimeOk[runtimeKind(runtime)](a * 1e6 + b * 1e3 + Number(c))) return { found: false, detail: `${runtime} is ${line}` };
+  return { found: true, detail: `${runtime} ${line}` };
 }
 
 export function inspect({ dataDir, jar, java, runtime, settings: s, releases = RELEASES }) {
   const rows = [];
   const add = (status, id, detail) => rows.push({ status, id, detail });
 
-  const run = runtime ?? "node";
-  const rt = probeRuntime(run);
-  add(rt.found ? "PASS" : "FAIL", "script-runtime", rt.found ? rt.detail : `${rt.detail}. Install Node, Bun or Deno, or set the script_runtime option.`);
+  let rt;
+  for (const candidate of runtime ? [runtime] : ["node", "bun", "deno"]) if ((rt = probeRuntime(candidate)).found) break;
+  const none = runtime ? rt.detail : "no Node, Bun or Deno on PATH runs it";
+  add(rt.found ? "PASS" : "FAIL", "script-runtime", rt.found ? rt.detail : `${none}; the chart scripts need ${RUNTIMES}. Install one, or set the script_runtime option.`);
 
+  if (!/^[0-9]+$/.test(s.java.min_version)) throw new Error(`java.min_version ${JSON.stringify(s.java.min_version)} is not a Java major version.`);
   const j = java ?? "java";
   const pj = probeJava(j);
   const min = Number(s.java.min_version);
@@ -227,7 +236,15 @@ async function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+const realPath = (p) => {
+  try {
+    return realpathSync(p);
+  } catch {
+    return resolve(p);
+  }
+};
+
+if (process.argv[1] && realPath(process.argv[1]) === realPath(fileURLToPath(import.meta.url))) {
   main(process.argv.slice(2)).then(
     (code) => process.exit(code),
     (error) => {

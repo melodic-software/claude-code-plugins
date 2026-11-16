@@ -4,7 +4,7 @@ graders:
   - name: resolves-toolchain
     type: tool_used
     tool: Bash
-    input_match: 'toolchain\.mjs[^"]*\bresolve\b'
+    input_match: 'toolchain\.mjs(?:\\?"|'')?\s+resolve\b'
     arm: with-only
   - name: reports-blocked
     type: regex
@@ -14,7 +14,7 @@ graders:
   - name: no-install
     type: tool_used
     tool: Bash
-    input_match: '(?:toolchain\.mjs[^"]*\binstall\b|\b(?:mise|apt(?:-get)?|brew|winget|sdk)\s+install\b)'
+    input_match: '(?:toolchain\.mjs(?:\\?"|'')?\s+install\b|\b(?:mise|apt(?:-get)?|brew|winget|sdk)\s+install\b)'
     min: 0
     max: 0
     arm: both

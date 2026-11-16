@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { readFileSync, realpathSync } from "node:fs";
+import { dirname, join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { resolve } from "../lib/config-cascade.mjs";
@@ -17,7 +17,15 @@ export const resolveSettings = (projectDir, home = "docs/conventions") =>
     defaults: readJson("defaults.json"),
   });
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+const realPath = (p) => {
+  try {
+    return realpathSync(p);
+  } catch {
+    return resolvePath(p);
+  }
+};
+
+if (process.argv[1] && realPath(process.argv[1]) === realPath(fileURLToPath(import.meta.url))) {
   let options;
   try {
     ({ values: options } = parseArgs({

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "no calls"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/formal-verification/scripts/toolchain.mjs\" check --data-dir \"/data\" --project-dir \"/repo\""}}], "why": "the check only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/formal-verification/scripts/toolchain.mjs\" install model-checker --data-dir \"/data\" --project-dir \"/repo\""}}], "why": "setup's install command, with the quoted script path"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/formal-verification/scripts/toolchain.mjs install renderer --data-dir /data"}}], "why": "unquoted install"}
+  ]
+}

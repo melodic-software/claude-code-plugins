@@ -277,6 +277,8 @@ export async function check(
   const cfg = readConfig({ file: configFile, text: fs.readFileSync(configFile, "utf8") });
   const checks = readChecks({ configFile, config: cfg });
   const folder = path.dirname(path.resolve(specFile));
+  const jar = path.resolve(tlc.jar);
+  const java = tlc.java.includes("/") ? path.resolve(tlc.java) : tlc.java;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "statechart-"));
   const opened: Held[] = [];
   try {
@@ -293,7 +295,7 @@ export async function check(
       const tmp = path.join(dir, `tmp-${name}`);
       fs.mkdirSync(tmp);
       return runToFiles(
-        tlc.java,
+        java,
         [
           `-Xmx${limits.heap}`,
           `-Djava.io.tmpdir=${tmp}`,
@@ -301,7 +303,7 @@ export async function check(
           "-Dtlc2.overrides.TLCOverrides=",
           ...jvm,
           "-cp",
-          tlc.jar,
+          jar,
           main,
           ...args,
         ],

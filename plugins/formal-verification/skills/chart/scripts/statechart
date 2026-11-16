@@ -8,16 +8,6 @@ while [ -L "$self" ]; do
   esac
 done
 entry=$(dirname "$self")/statechart.ts
-if [ "$1" = --runtime ]; then
-  [ -n "$2" ] || { echo "--runtime needs a file: Node, Bun or Deno." >&2; exit 2; }
-  runtime=$2
-  shift 2
-  case $(basename "$runtime") in
-    bun*) exec "$runtime" "$entry" "$@" ;;
-    deno*) exec "$runtime" run --quiet --no-prompt --allow-read --allow-write --allow-run --allow-env "$entry" "$@" ;;
-    *) exec "$runtime" --disable-warning=ExperimentalWarning "$entry" "$@" ;;
-  esac
-fi
 version() {
   command -v "$1" >/dev/null || { echo 0; return; }
   "$1" --version 2>/dev/null | sed -n '1s/[^0-9]*\([0-9]*\)\.\([0-9]*\)\.\([0-9]*\).*/\1 \2 \3/p' | {
@@ -25,15 +15,33 @@ version() {
     echo $((${major:-0} * 1000000 + ${minor:-0} * 1000 + ${patch:-0}))
   }
 }
-node=$(version node)
-if [ "$node" -ge 23006000 ] || { [ "$node" -ge 22018000 ] && [ "$node" -lt 23000000 ]; }; then
-  exec node --disable-warning=ExperimentalWarning "$entry" "$@"
-fi
-if [ "$(version bun)" -ge 1001005 ]; then
-  exec bun "$entry" "$@"
-fi
-if [ "$(version deno)" -ge 2000000 ]; then
-  exec deno run --quiet --no-prompt --allow-read --allow-write --allow-run --allow-env "$entry" "$@"
+# start KIND FILE ARGS...: exec FILE when its version is supported, else return.
+start() {
+  kind=$1
+  runtime=$2
+  shift 2
+  v=$(version "$runtime")
+  case $kind in
+    node) if [ "$v" -ge 23006000 ] || { [ "$v" -ge 22018000 ] && [ "$v" -lt 23000000 ]; }; then
+      exec "$runtime" --disable-warning=ExperimentalWarning "$entry" "$@"
+    fi ;;
+    bun) [ "$v" -ge 1001005 ] && exec "$runtime" "$entry" "$@" ;;
+    deno) [ "$v" -ge 2000000 ] && exec "$runtime" run --quiet --no-prompt --allow-read --allow-write --allow-run --allow-env "$entry" "$@" ;;
+  esac
+}
+if [ "$1" = --runtime ]; then
+  [ -n "$2" ] || { echo "--runtime needs a file: Node, Bun or Deno." >&2; exit 2; }
+  runtime=$2
+  shift 2
+  case $(basename "$runtime") in
+    bun*) start bun "$runtime" "$@" ;;
+    deno*) start deno "$runtime" "$@" ;;
+    *) start node "$runtime" "$@" ;;
+  esac
+else
+  start node node "$@"
+  start bun bun "$@"
+  start deno deno "$@"
 fi
 echo "statechart needs Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later." >&2
 exit 127

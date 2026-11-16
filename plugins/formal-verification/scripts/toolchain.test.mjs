@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -109,6 +109,60 @@ test("check fails a Java below the floor and passes the jar it is given", () => 
   assert.equal(r.status, 1);
   assert.match(r.stdout, /^FAIL\tjava\t.* is Java 8; Java 11 or later is needed\.$/m);
   assert.match(r.stdout, new RegExp(`^PASS\\tmodel-checker\\t${jar}$`, "m"));
+});
+
+test("a java.min_version that is not a whole number is refused", () => {
+  const jar = join(fresh("jar"), "tla2tools.jar");
+  writeFileSync(jar, JAR);
+  const r = run(toolchain, ["check", "--jar", jar, "--java", fakeJava('openjdk version "25" 2025-09-16'), "--project-dir", project("java:\n  min_version: eleven\n")]);
+  assert.equal(r.status, 1);
+  assert.equal(r.stderr.trim(), 'java.min_version "eleven" is not a Java major version.');
+});
+
+test("a timeout_seconds past what a timer can hold is reported and the shipped value stands", () => {
+  const r = run(settings, ["--project-dir", project("bounds:\n  timeout_seconds: 3000000\n")]);
+  assert.equal(r.status, 0);
+  assert.match(r.stderr, /timeout_seconds/);
+  assert.equal(JSON.parse(r.stdout).bounds.timeout_seconds, 1800);
+});
+
+const fakeRuntime = (name, version) => {
+  const file = join(fresh("bin"), name);
+  writeFileSync(file, `#!/bin/sh\necho '${version}'\n`);
+  chmodSync(file, 0o755);
+  return file;
+};
+
+for (const [name, version, blocked] of [
+  ["node", "v20.11.0", true],
+  ["node", "v23.5.0", true],
+  ["node", "v22.18.0", false],
+  ["node", "v23.6.0", false],
+  ["bun", "1.1.4", true],
+  ["bun", "1.1.5", false],
+  ["deno", "deno 1.46.3 (stable, release, x86_64-unknown-linux-gnu)", true],
+  ["deno", "deno 2.0.0 (stable, release, x86_64-unknown-linux-gnu)", false],
+]) {
+  test(`resolve ${blocked ? "blocks" : "takes"} a --runtime ${name} that prints ${version}`, () => {
+    const jar = join(fresh("jar"), "tla2tools.jar");
+    writeFileSync(jar, JAR);
+    const java = fakeJava('openjdk version "25" 2025-09-16');
+    const r = run(toolchain, ["resolve", "--jar", jar, "--java", java, "--runtime", fakeRuntime(name, version), "--project-dir", project()]);
+    assert.equal(r.status, blocked ? 3 : 0, r.stderr);
+    if (blocked) assert.equal(r.stderr.trim(), "blocked: toolchain missing: script-runtime");
+  });
+}
+
+test("both scripts run when reached through a symlink", () => {
+  const links = fresh("links");
+  symlinkSync(settings, join(links, "settings.mjs"));
+  symlinkSync(toolchain, join(links, "toolchain.mjs"));
+  const s = run(join(links, "settings.mjs"), ["--project-dir", project()]);
+  assert.equal(s.status, 0, s.stderr);
+  assert.equal(JSON.parse(s.stdout).bounds.chart_states, 500);
+  const t = run(join(links, "toolchain.mjs"), []);
+  assert.equal(t.status, 2);
+  assert.match(t.stderr, /^usage: toolchain\.mjs/);
 });
 
 test("javaMajor reads both version schemes", () => {

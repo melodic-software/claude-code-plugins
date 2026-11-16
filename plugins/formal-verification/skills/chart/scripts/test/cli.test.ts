@@ -22,12 +22,14 @@ function run(
     java = path.join(here, "java.ts"),
     command = [process.execPath, path.join(here, "../statechart.ts")],
     env = {},
+    cwd,
   }: {
     args?: string[];
     view?: string;
     java?: string;
     command?: string[];
     env?: NodeJS.ProcessEnv;
+    cwd?: string;
   } = {},
 ) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "statechart-cli-"));
@@ -51,6 +53,7 @@ function run(
     ],
     {
       encoding: "utf8",
+      cwd,
       env: {
         ...process.env,
         STATECHART_REPLAY: dir,
@@ -185,6 +188,63 @@ for (const [what, bin] of [
     assert.deepEqual(r.files, []);
   });
 }
+
+const fakeRuntime = (name: string, version: string) => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "statechart-runtime-")), name);
+  fs.writeFileSync(file, `#!/bin/sh\n[ "$1" = --version ] && echo '${version}' && exit\necho ran\n`, {
+    mode: 0o755,
+  });
+  return file;
+};
+
+for (const [name, version] of [
+  ["node", "v20.11.0"],
+  ["node", "v23.5.0"],
+  ["bun", "1.1.4"],
+  ["deno", "deno 1.46.3 (stable, release, x86_64-unknown-linux-gnu)"],
+]) {
+  test(`the launcher stops with exit 127 when --runtime names ${name} ${version}`, () => {
+    const r = run(path.join(corpus, "Login"), {
+      command: [launcher, "--runtime", fakeRuntime(name, version)],
+    });
+    assert.equal(r.status, 127);
+    assert.equal(
+      r.stderr,
+      "statechart needs Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later.\n",
+    );
+    assert.deepEqual(r.files, []);
+  });
+}
+
+test("the launcher runs statechart.ts on the --runtime it names when that runtime is supported", () => {
+  const dir = path.join(corpus, "MediaPlayer");
+  const r = run(dir, { command: [launcher, "--runtime", process.execPath] });
+  assert.equal(r.stderr, "");
+  assert.equal(r.status, 1);
+  assert.equal(read(path.join(r.out, "chart.mmd")), read(path.join(dir, "chart.mmd")));
+});
+
+test("a relative --jar and --java resolve against the caller's folder, not TLC's", () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), "statechart-cwd-"));
+  fs.writeFileSync(path.join(work, "tla2tools.jar"), "");
+  fs.mkdirSync(path.join(work, "bin"));
+  fs.writeFileSync(
+    path.join(work, "bin", "java"),
+    `#!/bin/sh\nprev=\nfor a in "$@"; do\n  if [ "$prev" = -cp ] && [ ! -f "$a" ]; then echo "no jar at $a" >&2; exit 1; fi\n  prev=$a\ndone\n` +
+      `exec ${JSON.stringify(path.join(here, "java.ts"))} "$@"\n`,
+    { mode: 0o755 },
+  );
+  const r = run(path.join(corpus, "Login"), { java: path.join("bin", "java"), cwd: work });
+  assert.equal(r.stderr, "");
+  assert.equal(r.status, 0);
+});
+
+const timerMax = Math.floor((2 ** 31 - 1) / 1000);
+test(`a --timeout-seconds of ${timerMax} is accepted`, () => {
+  const r = run(path.join(corpus, "Login"), { args: ["--timeout-seconds", String(timerMax)] });
+  assert.equal(r.stderr, "");
+  assert.equal(r.status, 0);
+});
 
 test("the order of TLC's dump and its state IDs do not change the chart or the report", () => {
   let seed = 7;
@@ -1094,6 +1154,11 @@ for (const [what, args, words] of [
     "a config that does not exist",
     ["--config", "Missing.cfg"],
     /Cannot find the TLC config Missing\.cfg/,
+  ],
+  [
+    "a --timeout-seconds past what a timer holds",
+    ["--timeout-seconds", "3000000"],
+    /--timeout-seconds must be at most 2147483\.[\s\S]*Usage:/,
   ],
 ] satisfies [string, string[], RegExp][]) {
   test(`${what} stops the command with exit 2 before TLC runs`, () => {
