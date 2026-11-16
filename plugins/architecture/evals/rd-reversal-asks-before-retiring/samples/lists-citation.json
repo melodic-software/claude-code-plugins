@@ -5,6 +5,9 @@
     },
     {
       "answer": "Citation sweep (git grep for 0002 and the filename): schema.graphql:1, propose drop. Shall I retire 0002?"
+    },
+    {
+      "answer": "Citation sweep: src/api/schema.graphql:1 (repoint to ADR 0003). Retire 0002?"
     }
   ],
   "fail": [
@@ -13,6 +16,12 @@
     },
     {
       "answer": "The schema in src/api/schema.graphql still mentions ADR 0002; retire it?"
+    },
+    {
+      "answer": "Citation sweep: src/api/schema.graphql:1-2, propose drop. Retire 0002?"
+    },
+    {
+      "answer": "Citation sweep: src/api/schema.graphql:1–2, propose drop. Retire 0002?"
     }
   ]
 }

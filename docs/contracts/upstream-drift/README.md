@@ -515,12 +515,29 @@ After a failed write the other upstreams still run, and the run then exits nonze
 - **No hold label.** The filer adds no label on create, reopen or edit: a drift issue is not an
   owner decision, so it carries no `needs-human`, and a re-audit pull request that closes it meets
   no `needs-human` hold at merge. A reopen reopens, then replaces the body and removes any
-  `needs-human` an earlier filer left, so a failed reopen leaves the closed issue unchanged. The issue still does not enter the issue lane on its
-  own: an issue this workflow's token opens starts no intake run, the hourly triage sweep skips
-  github-actions[bot] issues because some quote fork-controlled text, and admission counts only
-  done-when text a listed human wrote. A session agent, or a listed human's issue naming the drift
-  issues, starts the re-audit described below; only a change to a skill's design comes back to the
-  owner.
+  `needs-human` an earlier filer left, so a failed reopen leaves the closed issue unchanged.
+- **Admission with no owner step.** A trusted drift issue is admitted to the issue lane with no
+  owner step (owner decision on #14215, Q195 (a)). It is trusted only when github-actions[bot] (id 41898282)
+  wrote it, nobody else last edited it (the filer's own weekly rewrite is that bot's edit), its
+  title is exactly `Upstream drift: <owner>/<repo>`, and its first body line is the hex-pin lead
+  the filer writes for that id; `driftIssueId` in `.github/scripts/intake-triage/admit.mjs` is the
+  rule's one home. An issue this workflow's token opens starts no intake run, so the hourly triage
+  sweep is its only way in: the sweep dispatches intake for a trusted drift issue and still skips
+  every other github-actions[bot] issue, since some quote fork-controlled text. Admission accepts
+  it as its author, and its done-when is a fixed template (`driftSpecText`) built from the upstream
+  id, never from the body; every other admission criterion applies unchanged. The issue lane's run and pr-verify read that same
+  template in place of the body. A vendored-copy (`pin=unknown`) issue has a different lead line,
+  so it is not trusted and waits for a session agent or a listed human's issue. Every author gate
+  on the way (the sweep, intake's verdict write, admission, the issue lane's blocker check and its
+  `issue.json` writer) asks the same rule. A trusted drift issue is never split: admission takes it
+  at any Size and the lane runs it at the split-child size, since one template covers one
+  upstream's pages. The filer's weekly body rewrite between admission and the lane run does not
+  stop the run, which never reads the body; any other editor's change still does.
+- **No upstream-chosen text in the body.** The sweep's intake run hands the whole body to
+  intake's triage model, so the filer writes only text it controls: the upstream id, the hex pin
+  and head, this repository's own page and check-script paths, and per hex-pin page the counts of
+  changed rows, new units and removed units. It never writes a row's or unit's path, since the
+  upstream chose those names.
 - **`untracked` and `unreachable` block close.** An upstream with any `untracked` or
   `unreachable` page is never closed as clean,
   even beside a `clean` page, and since the report names it, the sweep leaves its issue alone too.
@@ -529,8 +546,9 @@ After a failed write the other upstreams still run, and the run then exits nonze
   neither reopens it nor files another. An open issue's body is replaced in place on each drifted
   run, with no label change and no comment.
 
-The issue is the to-do, and an agent works it. For a git-pinned page, the agent re-audits the
-drifted rows against the upstream head the issue names, following the page's recheck trigger and
+The issue is the to-do, and an agent works it. For a git-pinned page, the agent lists the changed
+rows and units itself by running `scripts/check-upstream-drift.sh --page <page>`, since the issue
+names none, then re-audits them against the upstream head, following the page's recheck trigger and
 any re-pin procedure the page states. It marks each upstream change **take**, **adapt** or
 **reject** (or **already-have**, on a page whose rows use it). It moves the pin, records each
 disposition as [When a trigger fires](#when-a-trigger-fires) requires, and opens one pull request
@@ -545,7 +563,10 @@ applies a take or adapt elsewhere, or restores a vendored copy, links a listed h
 One case goes to the owner: a take or adapt that would change the design of one of this
 repository's skills. The agent does not apply that change. It files the change as its own
 `needs-human` issue, lists it in the pull request body with a link to that issue, and cites that
-issue in the row's disposition. The rest of the re-audit, the pin move included, still lands.
+issue in the row's disposition. The rest of the re-audit, the pin move included, still lands. An
+issue lane run cannot file an issue, so a run working an admitted drift issue stops with
+`design-change` naming that change instead; the lane routes that stop to a person's hold, which
+puts `needs-human` on the drift issue, and the owner decides it there.
 
 ### Claude Code release intake
 

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| S1 | src/pricing.py:2 | `>=` to `>` | survived |",
+      "why": "file:line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The boundary seed in shipping_fee survived.",
+      "why": "no location"
+    },
+    {
+      "answer": "pricing.py line 2",
+      "why": "not file:line"
+    }
+  ]
+}

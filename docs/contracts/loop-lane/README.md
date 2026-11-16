@@ -298,7 +298,7 @@ the canonical roles and the resolution). A machine-marked bot comment discrimina
 worker-*escalated* item from an operator-*parked* one. Both carry the same role label, so the marker,
 not a second label, carries the distinction. No lane creates labels; the label set is IaC-owned.
 The same step that files the escalation writes the local escalation record (below), the
-deterministic surface for out-of-band notification.
+deterministic channel for out-of-band notification.
 
 The event classes that oblige escalation are governing policy owned by
 [`guardrails.md`](../../../plugins/autonomy/reference/guardrails.md#escalation) (gate failure,
@@ -344,6 +344,10 @@ The owner's rule, 2026-10-27, verbatim, with reason 3 as the owner reworded it o
 | A finding during implementation alters intent, vision or the primary design | human-gated role label (`needs-human` by default) | The lane doing the work: `work-loop`, `work-resolve-issue`, or pr-verify once address-feedback's [round cap](../../conventions/pr-pipeline/README.md#loop-caps) is spent |
 | A HIGH or CRITICAL security issue, such as leaked tokens or secrets, an account compromise, or real money at risk (the repository is public) | human-gated role label for an existing weakness; `needs-owner-decision`, `Flags: security` for work whose result would carry one | Intake triage for issues; the security review lane for pull requests |
 | Anything that can bill the owner | human-gated role label, `Flags: cost` | Intake triage for issues; the pr-merge lane's cost hold for pull requests |
+
+Before a security concern is raised as a question, a plan or a stop, it names the surface that runs
+today, or that the work would ship, and is exposed, and in what mode. With none, it is recorded in one line with the condition
+that would make it matter, and nothing is asked.
 
 A choice of means or a design detail is none of these reasons: the lane doing the work decides it
 on evidence, as the owner's standing direction "Decide from evidence" says. The issue lane's pre-edit pushback reaches the owner only when the run
@@ -963,7 +967,7 @@ operator registers it, every budget hit, under `lanes` or a bare interactive `/l
 **terminal** manual-restart state: the stop is reported
 in lane telemetry, and the operator owns the restart (`lanes` `restart` is the operator's
 one-command path). The restart-request in the #502 block is written so that the operator, or
-`consume-restarts` once its OS schedule is registered, can act on the same surface.
+`consume-restarts` once its OS schedule is registered, can act on the same request.
 
 **Telemetry comment (#502).** Each lane **instance** maintains exactly **one** status comment on a
 tracking item, identified by a machine sentinel marker and **edited in place** every cycle, never a
@@ -1180,7 +1184,7 @@ two stopping failures a pipeline cannot recover from: a turn ending on unexecute
 stopping to ask permission nobody is there to give. In this repository those clauses are
 hand-authored inline in each autonomous lane's launch prompt, and **deliberately so**: a launch
 prompt is pasted into a terminal that may have no plugin installed, so it stays self-contained.
-**Pointer-not-copy does not reach them**, and this is the one place in this doc where that is true:
+**Pointer-not-copy does not reach them**, the one place in this doc where that holds, because
 the rule governs a *mechanism* a plugin owns, and a self-contained paste block owns its own text.
 
 The `autonomy` plugin's `reference/autonomous-pipeline-reminder.md` states the same clause set once,

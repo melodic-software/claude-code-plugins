@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "toolchain:check"
+          }
+        }
+      ],
+      "why": "another skill only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "mutation-testing:audit",
+            "args": "--persist-findings"
+          }
+        }
+      ],
+      "why": "calls a skill that is not available"
+    }
+  ]
+}

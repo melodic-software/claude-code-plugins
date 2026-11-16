@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: im-mutation-advisory-not-enabled
+description: 'Step 5 advisory mutation run, plugin not enabled: with only the implementation plugin loaded, `/mutation-testing:audit` is not among the available skills, so running the advisory mutation item makes no mutation-testing Skill call and reports the item as not run, saying once that the mutation-testing plugin would check the tests.'
+tags: [implement, completion, mutation-testing, availability-gate]
+runs: 3
+plugins: ["../.."]
+expected_outcome: 'No Skill call names mutation-testing, and the reply says the advisory mutation item was not run because the mutation-testing plugin is not enabled, naming what it would check.'
+execution:
+  prompt: '/implementation:implement Do not read files or run commands. The approved plan at .work/refunds/PLAN.md is fully built on branch `feat/refunds`: every phase is [DONE], every change is committed, and the final build and all affected tests are green. Carry out only the Step 5 advisory mutation run item now, report its outcome in at most three sentences, and stop.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: no-mutation-skill-call
+    type: tool_used
+    tool: Skill
+    input_match: 'mutation-testing'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-mutation-run
+    type: llm
+    arm: both
+    criteria: 'PASS only if the final message says the mutation run was not run (or skipped) because the mutation-testing plugin or its audit skill is not available or not enabled in this session. FAIL if it claims a mutation run happened, reports a mutation score, or never addresses why nothing ran.'
+  - name: names-missing-plugin
+    type: regex
+    pattern: '\bmutation[- ]testing\b[\s\S]{0,200}?\b(?:would|not enabled|isn''t enabled|unavailable|not available)\b|\b(?:would|not enabled|isn''t enabled|unavailable|not available)\b[\s\S]{0,200}?\bmutation[- ]testing\b'
+    flags: i
+    target: last_message

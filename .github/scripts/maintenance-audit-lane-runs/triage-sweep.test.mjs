@@ -470,6 +470,56 @@ test("a pass dispatches at most 5 issues, oldest first, and records each run on 
   assert.deepEqual(result.dispatched, [1, 2, 3, 4, 5]);
 });
 
+// Owner decision on #14215 (Q195 (a)): an issue the upstream-drift workflow
+// filed reaches intake through this sweep, the only path for an issue a
+// GITHUB_TOKEN opens, when github-actions[bot] wrote it, nobody else last
+// edited it, and its title and first body line are the filer's.
+const DRIFT_TITLE_TEXT = "Upstream drift: mattpocock/sandcastle";
+const DRIFT_LEAD_TEXT = "Upstream `mattpocock/sandcastle` changed since the pin on its docs/upstream page.";
+const driftIssue = (number, over = {}) =>
+  issue(number, { user: { ...BOT, type: "Bot" }, title: DRIFT_TITLE_TEXT, body: `${DRIFT_LEAD_TEXT}\n\nRun: 2026-11-09, https://example.test/run\n`, ...over });
+
+test("a drift-shaped github-actions issue is a candidate; any other github-actions issue is not", () => {
+  const issues = [
+    driftIssue(1),
+    issue(2, { user: BOT, title: "Lane failures this week", body: "<!-- lane-sweep:fp=0123456789abcdef -->" }),
+    driftIssue(3, { title: "Upstream drift: sandcastle" }),
+    driftIssue(4, { body: "Upstream `mattpocock/sandcastle` no longer matches the copy vendored here." }),
+    driftIssue(5, { user: { id: OUTSIDER } }),
+    driftIssue(6, { body: `<!-- factory-monitor key=x -->\n${DRIFT_LEAD_TEXT}` }),
+  ];
+  assert.deepEqual(
+    selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number),
+    [1],
+  );
+});
+
+test("a drift candidate is dispatched only when GraphQL shows no one but github-actions[bot] edited it", async () => {
+  const issues = [driftIssue(1), driftIssue(2), driftIssue(3)];
+  const editors = {
+    1: { editor: null, lastEditedAt: null },
+    2: { editor: { __typename: "Bot", databaseId: BOT.id }, lastEditedAt: "2026-10-18T10:00:00Z" },
+    3: { editor: { __typename: "User", databaseId: HUMAN }, lastEditedAt: "2026-10-18T10:00:00Z" },
+  };
+  const gh = fakeGitHub({ issues });
+  const reads = [];
+  const call = (method, path, body) => {
+    if (method === "POST" && path === "/graphql" && body?.variables?.number !== undefined) {
+      const n = body.variables.number;
+      reads.push(`spec ${n}`);
+      const found = issues.find((i) => i.number === n);
+      return { data: { repository: { issue: { title: found.title, body: found.body, author: { __typename: "Bot", databaseId: BOT.id }, ...editors[n], comments: { totalCount: 0, nodes: [] } } } } };
+    }
+    if (method === "GET" && /\/comments\?/.test(path)) reads.push(path);
+    return gh.call(method, path, body);
+  };
+  const result = await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: gh.setStatus });
+  assert.deepEqual(result.dispatched, [1, 2]);
+  assert.deepEqual(result.failed, []);
+  assert.ok(reads.includes("spec 3"), "the human-edited issue's edit history was read");
+  assert.ok(!reads.some((p) => p.startsWith("/repos/o/r/issues/3/")), "the human-edited issue is skipped before its comments are read");
+});
+
 // Row S3: an intake comment with no verdict label left the issue untriaged.
 // Row S2: the lanes App opened the issue, so apply-verdict's --check refused
 // the App as actor; a dispatch by this job's token passes it.
