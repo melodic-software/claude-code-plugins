@@ -3,6 +3,30 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.5.2] - 2026-11-16
+
+### Changed
+
+- **`review:security-review`, settled manifest flags.** A `manifest <field>: flag` that is not
+  CRITICAL and not a trust-control widening is settled when its thread's lines are unchanged since
+  resolution and the settled-threads file marks the thread `owner reply`. That person, someone on
+  the trusted-actor list, must have stated a decision on the flag, not a question or an
+  acknowledgement, in the thread's last reply apart from the lane's. The lane then gives one summary line,
+  `manifest <field>: settled by <login>, <thread>`, and stops posting the flag as a new blocking
+  thread on every head. The line counts as no finding.
+
+## [9.5.1] - 2026-11-16
+
+### Fixed
+
+- **`review:fanout-sweep`, spec trust.** The workflow hands a `spec` to its leaves only when its
+  `loosenedSettings` arg carries the settings resolver's single `loosened_check_spec: counts` line,
+  so an issue from an untrusted author never gives a loosened check its reason, whatever the
+  orchestrator passes.
+- **Loosened-check settings resolver, trusted-actor list.** `--spec-issue` reads the trusted-actor
+  list only from the default branch the resolver resolves itself, and a `--ref` naming another
+  commit, such as the head branch, gives no reason, so a change cannot add its own author to the list.
+
 ## [9.5.0] - 2026-11-16
 
 ### Added
