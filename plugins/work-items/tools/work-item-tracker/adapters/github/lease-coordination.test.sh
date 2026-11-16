@@ -1106,9 +1106,42 @@ date() {
 export -f date
 rc=0
 bash "$RELEASE" "$ID" --lease-comment-id 1 >/dev/null 2>&1 || rc=$?
-unset -f date
 assert_eq "release of a lease live at its clock read succeeds (0)" "0" "$rc"
 assert_eq "that release supersedes lease 1" "true" "$(superseded 1)"
+cleanup_scenario
+
+# [renew lands after expiry] the PATCH returns after lease 1's old expiry: a same-login
+# claimant may have removed the shared assignee meanwhile, so the renew never keeps it.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf 'alice\n' >"$GH_STUB_DIR/login"
+printf '["alice"]\n' >"$GH_STUB_DIR/assignees"
+lease_array 1 "$(marker alice "2026-07-12T04:00:00Z" 1)" >"$GH_STUB_DIR/lease-comments"
+printf '%s\n' "$((T0 + 3590))" "$((T0 + 3590))" "$((T0 + 3600))" >"$GH_STUB_DIR/clock"
+rc=0
+err="$(bash "$RENEW" "$ID" --lease-comment-id 1 2>&1 >/dev/null)" || rc=$?
+assert_eq "a renew whose PATCH lands after the old expiry exits conflict (7)" "7" "$rc"
+assert_contains "the refusal says the lease expired before the renew landed" "$err" "expired before the renew landed"
+assert_eq "that renew PATCHes lease 1 twice, the second a supersede" "2" "$(grep -c '^PATCH 1' "$GH_STUB_DIR/calls.log")"
+assert_eq "lease 1 ends superseded" "true" "$(superseded 1)"
+assert_eq "alice is handed back" "[]" "$(assignees_now)"
+cleanup_scenario
+unset -f date
+
+# [expired release, stale list] a same-login loser supersedes lease 2 right after the
+# release's lease read; the refused release must not keep alice for lease 2.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf 'alice\n' >"$GH_STUB_DIR/login"
+printf '["alice"]\n' >"$GH_STUB_DIR/assignees"
+jq -cn --arg a "$(marker alice "$PAST" 24)" --arg b "$(marker alice "$FUTURE" 1)" \
+  '[{id:1, node_id:"MDEx", body:$a, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"},
+    {id:2, node_id:"MDEx", body:$b, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"}]' >"$GH_STUB_DIR/lease-comments"
+hook list-1-after put_lease 2 "$(superseded_marker alice)"
+rc=0
+bash "$RELEASE" "$ID" --lease-comment-id 1 >/dev/null 2>&1 || rc=$?
+assert_eq "the release of an expired lease under lease 2 is refused (7)" "7" "$rc"
+assert_eq "it hands back alice once lease 2 is superseded" "[]" "$(assignees_now)"
 cleanup_scenario
 
 [[ $FAILED -eq 0 ]] || exit 1
