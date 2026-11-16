@@ -18,8 +18,10 @@ fix directly, without the plan gate below. Every command built or changed meets 
 read it before the plan and before a review. A team rule in the conventions file (exit codes,
 flags, secrets) wins and applies as written; without one, a secret comes from the environment,
 stdin or a file the caller names, never a flag value. When a plugin this skill routes to
-(toolchain, testing, user-interface, review, discovery) is not installed, say it is missing, print
-`claude plugin install <plugin>@<marketplace>` with `<marketplace>` left as written, and use the
+(toolchain, testing, user-interface, review, discovery) is not enabled, say so, print
+`claude plugin enable <plugin>@<marketplace>`, preceded by
+`claude plugin install <plugin>@<marketplace>` when it is not installed, with `<marketplace>` left
+as written, and use the
 fallback given beside the route.
 
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names, with the `Read` tool; never

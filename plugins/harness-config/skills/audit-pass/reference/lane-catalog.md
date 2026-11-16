@@ -61,7 +61,7 @@ presence-gated with its fallback stated:
   `suppressed` section with its reason, never raised twice.
 - **`/harness-memory:audit`**: invoke when the `harness-memory` plugin is enabled; it owns
   memory-layer hygiene and the within-memory-layer consistency check. It takes an **action verb and
-  no surface filter**, so it is **exactly one lane** covering the whole memory layer. Not installed:
+  no surface filter**, so it is **exactly one lane** covering the whole memory layer. Not enabled:
   the pass reports both as **unchecked**, names that skill as their owner, and emits the one-line
   pointer to the official memory guidance, never a silent skip and never a re-implementation here.
 - **`/harness-config:audit-permission-grants`**, `frontmatter` scope: sibling in this plugin, always

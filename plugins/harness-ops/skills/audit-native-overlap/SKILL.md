@@ -199,7 +199,7 @@ is not the exposure ranking and description length matters too; see
 So the report says what the baking would cost. When the `skill-quality` plugin is enabled, invoke
 `/skill-quality:check listing-budget` over the repo's plugin skill roots and fold its aggregate
 estimate into the Budget exposure section. When that plugin is not enabled, state "budget
-exposure unavailable. `skill-quality` not installed" and continue; never reach into another
+exposure unavailable. `skill-quality` not enabled" and continue; never reach into another
 plugin's files by path to fake the number.
 
 A fleet already over budget does not make baking pointless. It makes a baked phrase the best
@@ -327,7 +327,7 @@ asked for this plugin by name. It emits one clause, front-loaded, carrying the p
 `suggest`, the Native step section or the suggest sentence. Before writing, `description` plus
 `when_to_use` after baking must fit the per-entry cap the native-references convention records,
 measured by `/skill-quality:check <skill>` (when `skill-quality` is not enabled, state "description
-length unmeasured. `skill-quality` not installed" and do not bake); a row that would exceed
+length unmeasured. `skill-quality` not enabled" and do not bake); a row that would exceed
 the cap is not baked. Every wrapped or suggesting skill declares `--unattended` in its
 `argument-hint`. The
 emitted text cites nothing outside its own plugin, a shipped plugin has no copy of this

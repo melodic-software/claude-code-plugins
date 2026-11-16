@@ -248,7 +248,7 @@ reads it. A key nothing reads is cut.
 This section runs `/skill-quality:check`, the `/evals:*` skills, `/docs-hygiene:compress` and
 `/skill-creator:skill-creator` when the `skill-quality`, `evals`, `docs-hygiene` and
 `skill-creator` plugins are enabled. When one is not, say which check did not run and that
-installing that plugin would run it; never report that check as passed.
+enabling that plugin would run it; never report that check as passed.
 
 **Authoring a new skill.** Write the evals before the body: note what Claude gets wrong without
 the skill, build cases for those gaps, measure a baseline, write the minimum that passes. Draw

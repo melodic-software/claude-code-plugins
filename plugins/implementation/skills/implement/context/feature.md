@@ -34,4 +34,4 @@ Commit after each of these milestones:
 
 ## Ecosystem scaffolding skills (invoke only when enabled)
 
-When the session's skill listing carries a scaffolding skill for the artifact being created (a C# MCP-server scaffold with transport configuration, a .NET project-template instantiation skill with package-version resolution), invoke it for scaffolding guidance; otherwise fall back to the project's own scaffolding tooling. Resolve the skill from what is actually installed; never invent a skill name.
+When the session's skill listing carries a scaffolding skill for the artifact being created (a C# MCP-server scaffold with transport configuration, a .NET project-template instantiation skill with package-version resolution), invoke it for scaffolding guidance; otherwise fall back to the project's own scaffolding tooling. Resolve the skill from what the session's skill listing offers; never invent a skill name.

@@ -168,8 +168,8 @@ finish and verify. Show the sort with the rows and let the user move a row acros
 1. **Rows that fit**: work them in this session's branch, one branch and PR per owner plugin. Use
    `/planning:plan` for the edit plan (if the planning plugin is enabled), `/implementation:implement`
    for the edits (if the implementation plugin is enabled) and `/verification:confirm` for the
-   check (if the verification plugin is enabled). A stage whose plugin is missing is not done by
-   hand here: report the rows that needed it as not executed, naming the missing plugin. A
+   check (if the verification plugin is enabled). A stage whose plugin is not enabled is not done by
+   hand here: report the rows that needed it as not executed, naming the plugin to enable. A
    `replace` row is never edited: nominate it into `/harness-ops:audit-native-overlap`
 2. **Rows too large**: file one issue per row through `/work-items:track` (if the work-items plugin
    is enabled), carrying the owner surface, lens, required sentence, item ids and range. That
@@ -225,7 +225,7 @@ report. Rerunning them live costs model runs, so offer `/harness-ops:behavior-pr
 cases and run nothing until the user agrees.
 
 End the run with a report that leads with what waits on the user (rows left out of scope, rows
-filed or reported unfiled, stages skipped for a missing plugin), then the PRs opened and what each
+filed or reported unfiled, stages skipped for a plugin not enabled), then the PRs opened and what each
 changed, what `/verification:confirm` showed, the docs-lag pairs handed off, and the Phase 5 drift
 report with the items filed or skipped.
 

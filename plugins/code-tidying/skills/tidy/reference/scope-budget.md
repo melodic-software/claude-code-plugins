@@ -82,6 +82,6 @@ No upper bound on deferred issues per run. If a single run defers >10 items, tha
 
 1. **Phase D (Hunt + prioritize + scope-budget enforce)**: after building the prioritized findings table, sum the LOC deltas. Apply the greedy selection.
 2. **Phase E (Implement)**: periodically check actual LOC delta against the running estimate (`git diff --stat origin/<default-branch>...HEAD`; under `in-place`, `git diff --cached --stat`, since the tidyings are staged on a branch that may carry unrelated commits). The default form measures the full branch diff, all commits since the branch point, not just uncommitted changes relative to HEAD. If actual exceeds estimated by >25%, stop the current tidying mid-flight and re-budget.
-3. **Phase H (Ship)**: the `## Deferred items` section (follow-up comment, or PR body when `source-control` isn't installed) comes directly from this protocol's filed-issue list.
+3. **Phase H (Ship)**: the `## Deferred items` section (follow-up comment, or PR body when `source-control` isn't enabled) comes directly from this protocol's filed-issue list.
 
 If the budget numbers themselves need to change, that is a change to the shared convention, not a tidy. See the SELF-UPDATE EXTRA HARD list in `reference/exclusions.md`.

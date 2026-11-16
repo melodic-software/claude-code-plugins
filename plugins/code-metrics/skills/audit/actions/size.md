@@ -82,12 +82,12 @@ file nobody edits costs nobody anything.
   above the reference with the commits that touched each since that date, automation authors left
   out, most-changed first. No count is a cutoff: the files high on both length and commits,
   against the others in the table, are the ones worth work. Report both numbers and the date.
-  `/architecture:improve` (if installed) reads the same history to find what to deepen.
+  `/architecture:improve` (if enabled) reads the same history to find what to deepen.
 - **File an issue; do not refactor in passing.** A long file met during other work gets a tracker
   item naming the file, its length, its commit count and the window: through
-  `/work-items:track add` (if installed), else the repository's own tracker. Never split it
+  `/work-items:track add` (if enabled), else the repository's own tracker. Never split it
   inside a change that is about something else.
-- **To stop growth without fixing anything yet**, offer `/toolchain:ratchet` (if installed) on the
+- **To stop growth without fixing anything yet**, offer `/toolchain:ratchet` (if enabled) on the
   number of files at or above the reference (`summary.over_reference.file_lines` in the
   `--json --all` document).
 

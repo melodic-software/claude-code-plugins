@@ -144,10 +144,10 @@ method:
   candidate whose next step is a lint proposal, written through the findings hand-off under
   `<memory_dir>/improvement/<branch-slug>/` (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/unattended.md` "Growing clone classes"). When
   code-metrics is not available, or no detector ran, record a `gap:` line for duplication.
-- Other installed finders that announce an improvement-shaped scan may be consulted the same way.
+- Other enabled finders that announce an improvement-shaped scan may be consulted the same way.
 
 Delegated findings keep their lane attribution in the evidence citation, and they compete in the
-same ranked list as native candidates. Where no lane is installed, the skill's own Tier 0 scan for
+same ranked list as native candidates. Where no lane is enabled, the skill's own Tier 0 scan for
 that dimension stands alone. Reuse-or-replace: never re-implement what an owned lane already does.
 
 In unattended mode, consult only lanes that run without interaction; a lane whose flow is

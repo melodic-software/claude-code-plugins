@@ -160,7 +160,7 @@ If Phase 1 + Phase 2 return nothing actionable (rare: the genre's too obscure or
 | Library or SDK documentation | rarely applicable to Suno prompting | `/context7:lookup` when the `context7` plugin is enabled |
 
 Name the capability you actually used in the Phase 3 confidence note. A capability that is not
-installed is reported as missing, never worked around silently.
+enabled is reported as missing, never worked around silently.
 
 ## Output format
 

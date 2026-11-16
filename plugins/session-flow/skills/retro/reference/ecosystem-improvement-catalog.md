@@ -30,7 +30,7 @@ banned API, a file written in the wrong place, a step skipped before a commit.
   criterion, picks the strongest rung that can decide it and proves the check. Without it, judge
   the finding on the "Guardrail criterion" items a retro can settle from the finding itself: item
   1 (decidable without reasoning), item 2 (it recurs, by the rule "When to propose a check" under
-  [Owner skills](#owner-skills) gives for when the plugin is missing) and item 7 (no stronger rung
+  [Owner skills](#owner-skills) gives for when the plugin is not enabled) and item 7 (no stronger rung
   already covers it). A finding that meets those three takes the [Hooks](#hooks) section's format
   and names the strongest rung of the ladder copy that can decide it. Without the plugin, items
   3-6 and 8 (precision, a message naming the fix, proof on a planted violation, the same command

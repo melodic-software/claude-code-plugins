@@ -156,7 +156,7 @@ A step that cannot finish in this session: leave `[~]` and route the next step w
 `/session-flow:workflow` (if enabled), handing it the `[~]` step and the PR checklist; without
 session-flow, follow the pointer below.
 
-- **Pointer**: when a step cannot finish in this session and session-flow is not installed, fetch
+- **Pointer**: when a step cannot finish in this session and session-flow is not enabled, fetch
   <https://code.claude.com/docs/en/context-window#when-your-context-fills-up> live.
 
 ## 5. After the last step
