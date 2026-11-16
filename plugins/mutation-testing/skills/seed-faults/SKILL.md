@@ -133,10 +133,7 @@ planted the same way, then clean up as Phase 3 says.
 ## Why the agent plants the seeds
 
 Our decision: seeding is agent-driven and tool-agnostic, so it works in any language with a test
-command and needs no mutation tool installed. Whether a given tool can take custom mutation
-operators is the tool's documentation to answer at run time, never this skill's: for StrykerJS read
-[Plugins](https://stryker-mutator.io/docs/stryker-js/plugins/), for mutmut read
-[Configuration](https://mutmut.readthedocs.io/en/latest/#configuration).
+command and needs no mutation tool installed.
 
 ## Next
 
