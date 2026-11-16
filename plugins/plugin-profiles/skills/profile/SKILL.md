@@ -81,8 +81,8 @@ written or declined, and the apply offer in phase 7 is answered.
 3. **The user's work.** Ask what they work on and in which phases (exploring, planning, building,
    reviewing, interface design, harness upkeep), a few questions at a time, multiple choice where
    the answers are known.
-4. **Plugins that ship hooks.** For each installed plugin whose `ships` shows `hooks` or `mod`, ask
-   whether it is always on or per profile; what a hook runs on is in
+4. **Plugins that ship hooks.** For each installed plugin whose `ships` shows `hooks` or `mod`,
+   session-telemetry and plugin-diagnostics included, ask whether it is always on or per profile; what a hook runs on is in
    [hooks: hook lifecycle](https://code.claude.com/docs/en/hooks#hook-lifecycle). Always on: `save always-on --level user --plugins <id>`. Per
    profile: it goes into the profiles the user picks, and every apply names it when it is switched
    off.
