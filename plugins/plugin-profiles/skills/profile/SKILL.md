@@ -61,7 +61,9 @@ prefix) and answer the tool's own prompt.
 ## setup
 
 Walk the user through one phase at a time. A phase is done when its result is shown and the user
-has answered its question or chosen to skip it; only then start the next. Every save and install
+has answered its question or chosen to skip it; only then start the next. A user who says to skip
+questions skips the interview questions only: phase 1 and, for any member not installed, phase 6
+always run. Every save and install
 goes through the preview rule above. Setup is done when each saved profile has been previewed and
 written or declined, and the apply offer in phase 7 is answered.
 
