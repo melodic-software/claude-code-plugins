@@ -25,10 +25,12 @@ name.
    subagent), reads the project's glossary and architecture decision records if
    present, and applies the *deletion test* to anything suspected shallow.
    Would deleting it concentrate complexity, or merely move it?
-2. **Present candidates.** Writes a self-contained HTML report (inline styles and
-   inline SVG only, no remote fetch) to the OS temp directory, one card per
-   candidate with a before/after diagram, a recommendation badge, and a
-   dependency-category badge. Alongside it, writes a durable machine-readable
+2. **Present candidates.** Writes one HTML report to the OS temp directory, on the
+   marketplace's shared page chrome (light and dark from the system setting, with a
+   toggle). Tailwind and Mermaid load from a CDN at exact versions; without the
+   network the page still reads. The header gives the evidence counts the
+   verification gate reproduced, and each candidate has a card with a before/after
+   diagram, a recommendation badge, and a dependency-category badge. Alongside it, writes a durable machine-readable
    candidate list that survives the session.
 3. **Interview the selected candidate.** Once you pick one, walks the decision tree
    covering constraints, dependencies, the shape of the deepened module, what sits
@@ -186,8 +188,11 @@ considered options, optional consequences) beside one or two other shapes, and
 writes nothing at all until you pick one: this plugin never imposes a convention
 on a repository that has none. When a new decision reverses an existing record,
 it retires the old one after your yes: deleted (the default), marked superseded,
-or archived, per `adr_retirement`. `audit` lists records the code or a later
-decision no longer backs, and changes nothing. A team can set its own template,
+or archived, per `adr_retirement`, and in the same change repoints or drops
+each line that cites the old record, listed by `file:line`. After writing a
+record it offers one pointer comment at the code the decision governs, added
+only on your yes. `audit` lists records the code or a later decision no longer
+backs, with the lines citing each, and changes nothing. A team can set its own template,
 extra admission triggers and retirement mode in `architecture.yaml`
 (`reference/config.md`, "Decision-record keys"). The
 upstream template catalog is cited by URL for you to read, under its own

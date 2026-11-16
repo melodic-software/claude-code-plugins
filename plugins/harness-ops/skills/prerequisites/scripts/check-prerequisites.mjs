@@ -23,14 +23,16 @@
 // one is, 2 on a usage error, an unreadable listing or a manifest that fails
 // the schema.
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { rootsFromListing, rootsFromSettings } from "../../../lib/enabled-plugin-roots.mjs";
 import { report, which } from "../../../lib/prerequisites.mjs";
 
-const RANK = { user: 0, project: 1, local: 2, managed: 3 };
+export { rootsFromListing, rootsFromSettings };
+
 const LISTING_TIMEOUT_MS = 30_000;
 const LISTING_MAX_BYTES = 256 * 1024 * 1024;
 
@@ -49,16 +51,6 @@ const realOr = (p) => {
     return path.resolve(p);
   }
 };
-const sameDir = (a, b) => Boolean(a && b) && realOr(a) === realOr(b);
-const isFile = (p) => existsSync(p) && statSync(p).isFile();
-
-function readJson(file) {
-  try {
-    return JSON.parse(readFileSync(file, "utf8"));
-  } catch {
-    return undefined;
-  }
-}
 
 function gitToplevel(cwd) {
   const r = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" });
@@ -77,59 +69,6 @@ function claudeListing(env, platform) {
     shell: /\.(cmd|bat)$/i.test(claude),
   });
   return r.stdout ?? "";
-}
-
-// Install paths of the enabled rows; the most specific scope wins per id.
-export function rootsFromListing(rows, project) {
-  const best = new Map();
-  for (const row of rows) {
-    if (!row || typeof row !== "object" || !row.id || !(row.scope in RANK)) continue;
-    if ((row.scope === "project" || row.scope === "local") && !sameDir(row.projectPath ?? "", project)) continue;
-    const held = best.get(row.id);
-    if (!held || RANK[row.scope] >= RANK[held.scope]) best.set(row.id, row);
-  }
-  return [...best.keys()]
-    .sort()
-    .map((id) => best.get(id))
-    .filter((row) => row.enabled === true && row.installPath)
-    .map((row) => row.installPath);
-}
-
-// { read, roots } from enabledPlugins in the settings files and installed_plugins.json.
-// managed: managed settings files, applied last so a managed true/false wins.
-export function rootsFromSettings(config, project, managed = []) {
-  // User, then project, then local, then managed: a later scope's true/false wins.
-  const files = [path.join(config, "settings.json"), path.join(config, "settings.local.json")];
-  if (project) {
-    files.push(path.join(project, ".claude", "settings.json"), path.join(project, ".claude", "settings.local.json"));
-  }
-  files.push(...managed);
-  const state = {};
-  let read = false;
-  for (const file of files) {
-    if (!isFile(file)) continue;
-    const doc = readJson(file);
-    if (doc === undefined) continue;
-    read = true;
-    const plugins = doc?.enabledPlugins;
-    if (!plugins || typeof plugins !== "object" || Array.isArray(plugins)) continue;
-    if (!Object.values(plugins).every((v) => typeof v === "boolean")) continue;
-    Object.assign(state, plugins);
-  }
-  const enabled = Object.keys(state).filter((key) => state[key]);
-  const installedFile = path.join(config, "plugins", "installed_plugins.json");
-  const hasInstalled = isFile(installedFile);
-  if (hasInstalled) read = true;
-  if (!enabled.length || !hasInstalled) return { read, roots: [] };
-  const installed = readJson(installedFile)?.plugins ?? {};
-  const rows = enabled.sort().flatMap((id) => {
-    const records = installed[id] ?? [];
-    return (Array.isArray(records) ? records : [records])
-      .filter((r) => r && typeof r === "object")
-      .map((r) => ({ ...r, id, enabled: true }));
-  });
-  // The listing's rule: another project's records drop out, and the most specific scope wins.
-  return { read, roots: rootsFromListing(rows, project) };
 }
 
 function parseArgs(argv) {

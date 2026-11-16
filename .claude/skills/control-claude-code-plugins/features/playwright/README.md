@@ -4,7 +4,6 @@ The skills of `plugins/playwright`. Each one is driven with `<plugin-dir>` set t
 
 ## Parts
 
-- `check`: Report whether playwright-cli and a browser resolve. Never installs.
 - `demo-video`: Replay a web flow, render a produced demo video, quality-control it from frames, post it to the PR.
 - `playwright`: Live E2E browser automation with disk-written artifacts.
 - `setup`: Verify the playwright plugin's runtime prerequisites: the playwright-cli binary and a resolvable browser for this machine. No plain-words entry.

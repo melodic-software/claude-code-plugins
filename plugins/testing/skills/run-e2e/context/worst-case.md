@@ -17,8 +17,8 @@ the dirty-file refusal, the revert proof or `--keep`; report it under What broke
 
 1. **Plausible or schema-backed, never random.** Each value is something a real user could produce,
    or the actual limit from the validation schema, database column or API contract. A field with
-   no limit anywhere is a finding: say "unbounded" and test something long but believable. Never
-   use strings of one repeated character.
+   no limit anywhere is a finding: say "no limit found" and test something long but believable.
+   Never use strings of one repeated character.
 2. **Change the data, not the component.** The worst case enters through the same boundary the demo
    data does. Never edit markup or styles to produce a break.
 3. **One dataset, many failures.** Spread different failures across the first rows on screen, as
@@ -60,7 +60,7 @@ List every value the target renders with its source, type, limit and whether it 
 | Field | Source | Type | Limit | Optional |
 |---|---|---|---|---|
 | `name` | `member.name` | string | 255 (`schema:14`) | no |
-| `count` | `workspace.memberCount` | integer | unbounded | no |
+| `count` | `workspace.memberCount` | integer | no limit found | no |
 
 Include the values people forget: counts in headings, relative times, badge and status text,
 labels that come from data, tooltips, images, and the list itself (its length is a value). Read
@@ -200,7 +200,7 @@ equivalents instead of applying these fixes.
 | An avatar adrift beside a three-line name | rows of varying height centered | top-align once text can wrap |
 | The last row cut mid-glyph | a fixed-height box with no scroll affordance | a visible scrollbar or a fade, and intended overflow |
 | A heading breaks mid-word | break-all word breaking | break only when needed |
-| Wrong initials | splitting on the first space and taking a code unit | initials from grapheme clusters, first and last word, a fallback icon |
+| Wrong initials | splitting on the first space and taking a code unit | initials from grapheme clusters, first and last word with a generational suffix (Jr, III) skipped, a fallback icon |
 | An orphaned dash where an optional field was | a placeholder for a missing value | omit the line or reserve its height on purpose |
 | "1 members" | a hardcoded plural | locale plural rules or separate strings |
 | Numbers jitter as they update | proportional figures | tabular figures |

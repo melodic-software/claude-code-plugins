@@ -49,6 +49,7 @@ else
   assets=(
     lib/ui-feedback/host.html
     plugins/adhd/reference/html-chrome.html
+    plugins/architecture/reference/html-chrome.html
     plugins/planning/reference/html-chrome.html
     plugins/playbooks/reference/repo-sweep-plan-page.html
     plugins/visualization/reference/html-chrome.html

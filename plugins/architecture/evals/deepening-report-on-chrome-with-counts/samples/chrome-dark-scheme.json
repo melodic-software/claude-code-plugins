@@ -1,0 +1,4 @@
+{
+  "pass": [{ "answer": "@media (prefers-color-scheme: dark) { :root { --bg: var(--slate); } }", "why": "dark scheme rule" }],
+  "fail": [{ "answer": "", "why": "empty" }, { "answer": ":root { --ivory: #FAF9F5; }", "why": "light only" }]
+}

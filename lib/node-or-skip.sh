@@ -1,7 +1,7 @@
 #!/bin/sh
 # Run node with these arguments and its exit code, or exit 0 silently when node
 # is not on PATH. An exec-form SessionStart row ("command": "node") fails on
-# every new session when node is missing, and harness-ops' node-notice row
+# every new session when node is missing, and plugin-diagnostics' node-notice row
 # already tells the user, so a SessionStart row that launches through node runs
 # this stub in the node-notice row's polyglot shape instead
 # (docs/contracts/prerequisites/README.md#hook-notices):
