@@ -5,8 +5,16 @@
       "why": "bare diff scope with persisted findings"
     },
     {
-      "answer": "Step 3 - Skill /mutation-testing:audit with args --persist-findings (default diff scope)",
-      "why": "same invocation in prose"
+      "answer": "1. **Advisory mutation run.** `Skill: /mutation-testing:audit --persist-findings`. Pass none of `--paths`, `--full` or `--exercised`, so it mutates only this branch's diff.",
+      "why": "the excluded flags are named in prose, not passed"
+    },
+    {
+      "answer": "3. Run /mutation-testing:audit --persist-findings",
+      "why": "invocation at the end of the line"
+    },
+    {
+      "answer": "1. **Advisory mutation run.**\n   `Skill: mutation-testing:audit --persist-findings`",
+      "why": "Skill-tool form without the leading slash"
     }
   ],
   "fail": [
@@ -19,7 +27,7 @@
       "why": "whole configured scope instead of the diff"
     },
     {
-      "answer": "3. `/mutation-testing:audit --exercised --persist-findings`",
+      "answer": "3. `/mutation-testing:audit --persist-findings --exercised`",
       "why": "exercised scope instead of the default diff scope"
     },
     {
