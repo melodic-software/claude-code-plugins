@@ -112,7 +112,7 @@ test("AC1, AC16, AC17: apply writes the profile's entries, leaves the repository
 test("AC19: clear after apply restores the file byte for byte", () => {
   const w = world();
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
-  const r = w.run(["clear"]);
+  const r = w.run(["clear", "--yes"]);
   assert.equal(r.status, 0, r.stderr);
   assert.equal(w.read(), LOCAL_BEFORE);
   assert.deepEqual(w.records(), []);
@@ -122,7 +122,7 @@ test("AC19: with no settings file before the apply, clear removes the file", () 
   const w = world({ local: null });
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
   assert.notEqual(w.read(), null);
-  assert.equal(w.run(["clear"]).status, 0);
+  assert.equal(w.run(["clear", "--yes"]).status, 0);
   assert.equal(existsSync(w.localFile), false);
 });
 
@@ -134,7 +134,7 @@ test("a second apply over a first keeps the first apply's before-values, so clea
   const after = JSON.parse(w.read());
   assert.equal(after.enabledPlugins[`songwriting@${M}`], true);
   assert.equal(after.enabledPlugins[`implementation@${M}`], false);
-  assert.equal(w.run(["clear"]).status, 0);
+  assert.equal(w.run(["clear", "--yes"]).status, 0);
   assert.equal(w.read(), LOCAL_BEFORE);
 });
 
@@ -182,7 +182,7 @@ test("Q69: in a cloud session status says profiles do not apply, and apply and c
   const r = w.run(["apply", "build", "--for", "folder", "--yes"], cloud);
   assert.equal(r.status, 1);
   assert.match(r.stderr, /plugin profiles do not apply here/);
-  assert.equal(w.run(["clear"], cloud).status, 1);
+  assert.equal(w.run(["clear", "--yes"], cloud).status, 1);
   assert.deepEqual(snapshot(settingsFiles(w)), before);
   assert.deepEqual(w.records(), []);
 });
@@ -328,7 +328,7 @@ test("D8: a switch cut off after its first write is recorded off-pending, named 
   const done = JSON.parse(w.run(["status", "--json"]).stdout);
   assert.equal(done.phase, "applied");
   assert.deepEqual(done.pending, []);
-  assert.equal(w.run(["clear"]).status, 0);
+  assert.equal(w.run(["clear", "--yes"]).status, 0);
   assert.equal(w.read(), LOCAL_BEFORE);
 });
 
@@ -388,6 +388,43 @@ test("AC5: check reports an installed plugin no profile names and still exits 0"
   const r = w.run(["check"]);
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /Report: Installed, and no profile names it \(an apply switches it off unless the repository enables it\): songwriting@melodic-software/);
+});
+
+test("check in a cached install reads the catalog of the marketplace it was installed from", () => {
+  const w = world();
+  const cli = installedCopy(w, {});
+  const market = join(w.root, "market");
+  cpSync(join(HERE, "..", "..", "..", ".claude-plugin", "marketplace.json"), join(market, ".claude-plugin", "marketplace.json"));
+  writeTree(w.home, { ".claude/plugins/known_marketplaces.json": { [M]: { source: { source: "github", repo: "melodic-software/claude-code-plugins" }, installLocation: market } } });
+  const r = w.run(["check"], {}, cli);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /Profile check passed against the melodic-software catalog\./);
+});
+
+test("apply always-on --for initial switches on the always-on members alone in user settings", () => {
+  const w = world({ local: null });
+  const r = w.run(["apply", "always-on", "--for", "initial", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  const user = JSON.parse(readFileSync(join(w.home, ".claude", "settings.json"), "utf8")).enabledPlugins;
+  assert.equal(user[`guardrails@${M}`], true);
+  assert.equal(user[`implementation@${M}`], false, "a build member is not in the initial profile");
+  assert.equal(user[`songwriting@${M}`], false);
+});
+
+test("clear previews like apply: --dry-run and a run with nobody to confirm write nothing, --yes restores", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const applied = w.read();
+  const preview = w.run(["clear", "--dry-run"]);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.match(preview.stdout, /Clears profile build from .*settings\.local\.json/);
+  assert.equal(w.read(), applied);
+  const unconfirmed = w.run(["clear"]);
+  assert.equal(unconfirmed.status, 1);
+  assert.match(unconfirmed.stderr, /nobody to confirm/);
+  assert.equal(w.read(), applied);
+  assert.equal(w.run(["clear", "--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
 });
 
 test("list --json names every shipped profile but always-on, which every profile includes, each with its description", () => {

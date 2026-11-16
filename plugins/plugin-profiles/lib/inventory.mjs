@@ -6,6 +6,8 @@
 //                                          for a session-start run that must not start a nested claude
 //   inventory({projectDir, records})    -> Map<id, {id, version, installPath, dependsOn, ships, skills}>
 //   knownMarketplaces([run])            -> Set of the marketplace names this machine has added
+//   marketplaceLocation(configDir, name) -> the folder plugins/known_marketplaces.json gives that
+//                                          marketplace's clone, or throws InventoryError
 //   installPlugin(id, [run])            -> installs one plugin at user scope, or throws InventoryError
 //
 // A project or local install counts only in its own project. dependsOn holds the plugin.json
@@ -57,6 +59,13 @@ export function knownMarketplaces(run = () => claude(["plugin", "marketplace", "
   const list = parseJson(run(), "claude plugin marketplace list --json");
   if (!Array.isArray(list)) throw new InventoryError("claude plugin marketplace list --json did not return a list");
   return new Set(list.map((m) => m?.name).filter((name) => typeof name === "string"));
+}
+
+export function marketplaceLocation(configDir, name) {
+  const path = join(configDir, "plugins", "known_marketplaces.json");
+  const location = readJson(path)?.[name]?.installLocation;
+  if (typeof location !== "string" || !location) throw new InventoryError(`${path} gives no installLocation for the ${name} marketplace`);
+  return location;
 }
 
 export function installPlugin(id, run = (args) => claude(args)) {

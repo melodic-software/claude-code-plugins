@@ -65,7 +65,7 @@ const effective = (layers, id) => PRECEDENCE.map((level) => entriesOf(layers, le
 
 export function plan({ catalog, profile: name, inventory, layers, target }) {
   if (!(target in TARGET_LEVEL)) throw new PlanError(`unknown target ${JSON.stringify(target)}: use session, folder or initial`);
-  const chosen = catalog.profiles.get(name);
+  const chosen = name === catalog.alwaysOn.name ? catalog.alwaysOn : catalog.profiles.get(name);
   if (!chosen) throw new PlanError(`no profile named ${JSON.stringify(name)}`);
   const always = catalog.alwaysOn;
   const blocked = excludedAlwaysOn(catalog, chosen);

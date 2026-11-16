@@ -115,7 +115,8 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" clear
 plugin installed since, a one-session profile the session runs in, and the surface. At session
 start a hook prints the same notice, reading the installed plugins from disk without starting
 `claude`; in a folder with no applied profile it prints nothing. `clear` puts every entry back to what it was before the first apply and
-removes a settings file the tool created. The record lives in the plugin's data folder.
+removes a settings file the tool created; like `apply`, it prints what it changes and writes on
+`--yes` or a yes at the prompt. The record lives in the plugin's data folder.
 
 `inventory` lists the installed plugins, what they depend on, what each ships and its skills.
 `usage` lists how often each skill and plugin was used on this machine, most used first, from the

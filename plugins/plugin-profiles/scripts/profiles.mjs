@@ -3,7 +3,7 @@
 //
 //   profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
 //   profiles.mjs status [--for folder|initial] [--json] [--session-start]
-//   profiles.mjs clear [--for folder|initial]
+//   profiles.mjs clear [--for folder|initial] [--dry-run] [--yes]
 //   profiles.mjs list [--json]
 //   profiles.mjs inventory [--json]
 //   profiles.mjs usage [--json]
@@ -31,7 +31,8 @@
 //          the installed plugins from disk, never from a nested claude, and prints a SessionStart
 //          systemMessage only where a profile was applied.
 // clear    Puts every entry the tool wrote back to its value before the first apply and removes
-//          a settings file the tool created.
+//          a settings file the tool created. Like apply it prints what it changes first and writes
+//          on --yes or a yes typed at the prompt; --dry-run prints and stops.
 // list     The profiles a folder apply can name, each with its description line.
 // inventory  The installed plugins, their dependencies, what each ships and its skills.
 // usage    How often each skill and plugin was used on this machine (lib/usage.mjs), most used
@@ -46,8 +47,9 @@
 //          the file's own lists, --description replaces its description. It prints the whole file
 //          first and writes on --yes or a yes typed at the prompt; ids are comma-separated.
 // check    Checks the profile files at every level (lib/check.mjs says what fails and what is
-//          only reported). --catalog defaults to the marketplace.json of the repository this
-//          plugin sits in, --shipped to this plugin's profiles/. Reads installed plugins from disk.
+//          only reported). --catalog defaults to the marketplace.json of the marketplace this
+//          plugin was installed from (plugins/known_marketplaces.json), or of the repository a
+//          checkout sits in; --shipped to this plugin's profiles/. Reads installed plugins from disk.
 //
 // Exit 0: done, previewed, nothing to change, or the check passed. Exit 1: not applied (no
 // consent, a missing required prerequisite, settings changed by another writer) or the check
@@ -60,7 +62,7 @@ import process from "node:process";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { CheckError, checkProfiles, readMarketplace } from "../lib/check.mjs";
-import { InventoryError, installPlugin, inventory, knownMarketplaces, recordsFromCli, recordsFromDisk } from "../lib/inventory.mjs";
+import { InventoryError, installPlugin, inventory, knownMarketplaces, marketplaceLocation, recordsFromCli, recordsFromDisk } from "../lib/inventory.mjs";
 import { PlanError, TARGET_LEVEL, excludedAlwaysOn, plan } from "../lib/plan.mjs";
 import { OptionsError, managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { missingRequired } from "../lib/prerequisite-gate.mjs";
@@ -84,7 +86,7 @@ const OWN_ROOT = dirname(dirname(realpathSync(fileURLToPath(import.meta.url))));
 const SESSION_VAR = "PLUGIN_PROFILES_SESSION";
 const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
-       profiles.mjs clear [--for folder|initial]
+       profiles.mjs clear [--for folder|initial] [--dry-run] [--yes]
        profiles.mjs list [--json]
        profiles.mjs inventory [--json]
        profiles.mjs usage [--json]
@@ -134,7 +136,7 @@ function parseArgs(argv) {
   const [command, ...rest] = argv;
   if (!["apply", "status", "clear", "list", "inventory", "usage", "install", "save", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
   const opts = { command, name: null, target: command === "apply" ? null : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null };
-  const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json"], status: ["--json", "--session-start"], clear: [], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
+  const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json"], status: ["--json", "--session-start"], clear: ["--dry-run", "--yes"], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
   const values = { check: ["--catalog", "--shipped"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
   const camel = (arg) => arg.slice(2).replace(/-(.)/g, (_, c) => c.toUpperCase());
   for (let i = 0; i < rest.length; i++) {
@@ -421,7 +423,7 @@ function status(opts, where, env, io) {
   return 0;
 }
 
-function clear(opts, where, io) {
+async function clear(opts, where, io) {
   if (doesNotApply(where.surface)) throw new NotApplied(`not cleared: ${refusal(where.surface, opts.target)}`);
   const file = targetFile(where, opts.target);
   const recPath = recordPath(where.dataDir, file);
@@ -433,8 +435,15 @@ function clear(opts, where, io) {
   const settings = readSettings(file);
   const { edits, dropEmpty } = restoreEdits(rec);
   const text = editText(settings, edits, { dropEmpty });
+  const removes = rec.createdFile && Object.keys(JSON.parse(text)).length === 0;
+  io.out(`Clears profile ${rec.profile} from ${file}.`);
+  io.out(removes
+    ? "Removes the file, which the first apply created."
+    : `Puts back ${Object.keys(edits.enabledPlugins).length} plugin entries and ${Object.keys(edits.skillOverrides).length} skill entries to their values before the first apply.`);
+  if (opts.dryRun) return 0;
+  await consent(opts, [], interactive(), "Clear this profile? [y/N] ");
   try {
-    if (rec.createdFile && Object.keys(JSON.parse(text)).length === 0) deleteSettings(file, settings.hash);
+    if (removes) deleteSettings(file, settings.hash);
     else writeSettings(file, settings.hash, text);
   } catch (error) {
     if (error instanceof SettingsConflict) throw new NotApplied(`not cleared: ${file} changed while clearing; run clear again`);
@@ -559,8 +568,15 @@ async function save(opts, where, io) {
   return 0;
 }
 
+/** The marketplace.json this plugin came from: its marketplace's clone for a cached install, else the checkout it sits in. */
+function defaultCatalog(where) {
+  const { pluginId } = resolveInstall(OWN_ROOT);
+  const root = pluginId ? marketplaceLocation(where.configDir, marketplaceOf(pluginId)) : join(OWN_ROOT, "..", "..");
+  return join(root, ".claude-plugin", "marketplace.json");
+}
+
 function check(opts, where, io) {
-  const catalog = readMarketplace(opts.catalog ?? join(OWN_ROOT, "..", "..", ".claude-plugin", "marketplace.json"));
+  const catalog = readMarketplace(opts.catalog ?? defaultCatalog(where));
   const levels = levelsOf(where);
   if (opts.shipped) levels[0].dir = opts.shipped;
   const installed = new Set(inventory({ projectDir: where.projectDir, records: recordsFromDisk(where.configDir) }).keys());
@@ -577,7 +593,7 @@ export async function main(argv, env = process.env, cwd = process.cwd(), io = { 
     const where = locate(env, cwd);
     if (opts.command === "apply") return await apply(opts, where, env, io);
     if (opts.command === "status") return status(opts, where, env, io);
-    if (opts.command === "clear") return clear(opts, where, io);
+    if (opts.command === "clear") return await clear(opts, where, io);
     if (opts.command === "check") return check(opts, where, io);
     if (opts.command === "list") return listProfiles(opts, where, io);
     if (opts.command === "usage") return usage(opts, env, io);
