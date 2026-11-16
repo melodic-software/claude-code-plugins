@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "<p>3 call sites repeat the sequence, 0 tests</p>",
+      "why": "reproduced count"
+    },
+    {
+      "answer": "<li><strong>3</strong> call sites repeat the sequence</li>",
+      "why": "number in its own tag"
+    },
+    {
+      "answer": "<dt>Call sites</dt><dd>3</dd>",
+      "why": "noun first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "<p>5 call sites repeat the sequence</p>",
+      "why": "the scan number"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "pass": [{ "answer": "Which candidate should we explore?", "why": "closing question" }],
+  "fail": [{ "answer": "", "why": "empty" }, { "answer": "The report is written.", "why": "no question" }]
+}
