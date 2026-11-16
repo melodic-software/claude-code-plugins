@@ -3,6 +3,7 @@ plugins:
   - harness-ops@melodic-software
   - harness-config@melodic-software
   - harness-memory@melodic-software
+  - context-budget@melodic-software
   - instruction-placement@melodic-software
   - skill-quality@melodic-software
   - plugin-quality@melodic-software

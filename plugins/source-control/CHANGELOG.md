@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.16.0] - 2026-11-16
+
+### Changed
+
+- The babysit merge gate counts a pr-verify pass whose linked issue is the upstream-drift
+  workflow's (github-actions[bot] wrote it and nobody else last edited it, with that workflow's
+  title and hex-pin lead line) as a trusted spec when the pull request's changed files, base to
+  head, only modify the default branch's `docs/upstream` pages pinned to that upstream, as
+  pr-verify does. The gate reads each github-actions issue once for this rule and the
+  recurring-schedule rule.
+
+- **The Dependabot tier reads the policy's `fastTrack.own`.** `babysit_dependabot.classify` takes each read policy copy's own globs (`own_globs`). A pull request whose every update both copies name (`all_own`, this organization's own releases) takes no `publisher:` reason, and a below-1.0 second-component move is not `major:` for it, so a `melodic-software/ci-workflows` 0.x minor bump sorts `auto`. A first-component move stays major. `dependabot_eligibility` reads the base and default-branch policy copies once and sorts the pull request again under them.
+
 ## [11.15.8] - 2026-11-16
 
 ### Changed

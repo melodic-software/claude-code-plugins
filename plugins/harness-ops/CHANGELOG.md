@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.0.1] - 2026-11-16
+
+### Fixed
+
+- A lane that arms the lane-stop gate under a plugin profile whose merged settings leave `autonomy` off is no longer launched without its gate: the launch refuses it with an error naming the lane, the profile and the fix, and `restart` checks that before stopping the running lane. A lane with no gate, or with no profile, launches as before.
+
 ## [10.0.0] - 2026-11-16
 
 ### Changed

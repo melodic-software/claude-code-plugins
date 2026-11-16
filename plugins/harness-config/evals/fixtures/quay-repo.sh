@@ -13,6 +13,8 @@
 #   postures      three project skills: one deletes with no gate, one delegates deletion to a
 #                 script that asks first, and one reports and stops
 #   unhobble      instruction surfaces of mixed kinds and two hooks, one a policy gate
+#   ladder        a rule on each enforcement-ladder tier, one of them a guidance rule that forbids
+#                 a literal no check covers
 set -euo pipefail
 
 variant="${1:?usage: quay-repo.sh <variant>}"
@@ -285,6 +287,34 @@ SH
   }
 }
 JSON
+  ;;
+ladder)
+  mkdir -p docs/conventions .claude/skills/control-quay
+  cat >docs/conventions/harness-config.yaml <<'YAML'
+rule_inventory:
+  declared:
+    - rule: "an order status is one enum field, never two booleans"
+      enforcer: "src/quay/app.py OrderStatus"
+      rung: make-impossible
+YAML
+  printf '{\n  "permissions": {\n    "allow": ["Bash(pytest)"],\n    "deny": ["Read(./.env)"]\n  }\n}\n' >.claude/settings.json
+  cat >.claude/skills/control-quay/SKILL.md <<'MD'
+---
+name: control-quay
+description: Start quay and post a sample order to prove the queue works. Use to verify a change in the running service.
+---
+
+# Control quay
+
+Run `python -m quay` and post one order; report the queued status it returns.
+MD
+  cat >>CLAUDE.md <<'MD'
+
+## Rules
+
+- Never call `eval` on an order payload.
+MD
+  printf '# Contributing\n\n- Ask the warehouse team before changing the order status names.\n' >CONTRIBUTING.md
   ;;
 *)
   echo "unknown variant: $variant" >&2

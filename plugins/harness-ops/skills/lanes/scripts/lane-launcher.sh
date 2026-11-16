@@ -1547,8 +1547,9 @@ find_profiles_script() {
 # PROFILE_APPLIED to 1 when they carry the lane's profile, whose session file
 # then holds <settings> too. With no profile applied the words still clear an
 # inherited PLUGIN_PROFILES_SESSION: a lane started from a profiled session's
-# shell must not carry its marker. A launch refusal (a required tool missing)
-# returns 1 with the reason as a per-lane error. Under --dry-run nothing is
+# shell must not carry its marker. A launch refusal (a required tool missing, or
+# <settings> arming the lane-stop gate while the merged settings leave autonomy
+# off) returns 1 with the reason as a per-lane error. Under --dry-run nothing is
 # written; a placeholder stands in for the session file. With <mode> check it
 # only asks whether the launch would refuse: launch --dry-run writes no file,
 # and an absent plugin-profiles is left for the launch itself to warn about.
@@ -1581,6 +1582,25 @@ lane_claude_prefix() { # <name> <profile> <cwd> <settings JSON or ""> [check]
   [[ "$errfile" != "/dev/null" ]] && reason="$(tr -d '\r' <"$errfile")" && rm -f "$errfile"
   if ((rc == 0)) && mapfile -t LANE_CLAUDE < <(jq -r '.argv | if type == "array" and length > 0 and all(type == "string") then .[] else error("no argv") end' <<<"$out" 2>/dev/null) &&
     ((${#LANE_CLAUDE[@]})); then
+    # The profile wins on enabledPlugins, so a lane that arms the lane-stop gate
+    # under a profile leaving autonomy off would start without its gate.
+    # enabledPlugins is each plugin as the session will start with it, across
+    # every settings layer.
+    # The gate runs only in the autonomy install the request is keyed under.
+    if [[ -n "$settings" ]] && lane_requests_stop_gate "$settings"; then
+      local refusal="" keys
+      keys="$(jq -c "[(.pluginConfigs // {}) | to_entries[] | select($GATE_ENTRY_REQUESTED) | .key]" <<<"$settings")"
+      if ! jq -e '.enabledPlugins | type == "object"' <<<"$out" >/dev/null 2>&1; then
+        refusal="profiles.mjs launch reported no enabledPlugins to check the lane-stop gate's autonomy against, so the lane is not launched; update plugin-profiles"
+      elif ! jq -e --argjson keys "$keys" '.enabledPlugins as $on | any($keys[]; $on[.] == true)' <<<"$out" >/dev/null 2>&1; then
+        refusal="the lane arms the lane-stop gate under $(jq -r 'join(", ")' <<<"$keys") but profile '$profile' leaves it off and no settings layer enables it for the session, so the lane is not launched; give the lane a profile that includes autonomy"
+      fi
+      if [[ -n "$refusal" ]]; then
+        LANE_CLAUDE=(env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude)
+        err "lane '$name': $refusal"
+        return 1
+      fi
+    fi
     PROFILE_APPLIED=1
     while IFS= read -r line; do [[ -n "$line" ]] && warn "lane '$name': $line"; done <<<"$reason"
     return 0
@@ -1608,6 +1628,11 @@ build_lane_flags() {
     if ((DRY_RUN)); then
       printf 'DRY-RUN: arm lane-stop gate for %s (arm id injected into --settings)\n' "$name"
     else
+      # Check the profile before arming, as restart's preflight does, so a
+      # refusal leaves no armed gate and no session file.
+      if [[ -n "$LANE_PROFILE" ]]; then
+        lane_claude_prefix "$name" "$LANE_PROFILE" "$cwd" "$settings" check || return 1
+      fi
       settings="$(arm_stop_gate "$name" "$settings")" || return 1
     fi
   fi
@@ -1911,10 +1936,11 @@ _restart_one() {
   # A host the launcher does not start leaves the running lane up as well.
   plan_lane_target "$name" "$stage" || return 1
   print_unlaunched_target "$name" "$stage" "$prompt_path" "$settings" && return 0
-  # A profile the relaunch would refuse (a required tool missing) leaves the
-  # running lane up too. A cloud lane carries no profile.
+  # A profile the relaunch would refuse (a required tool missing, or autonomy
+  # off under an armed lane-stop gate) leaves the running lane up too. A cloud
+  # lane carries no profile.
   if [[ -n "$LANE_PROFILE" ]] && ! ((DRY_RUN)) && [[ "$LANE_TARGET" != cloud-session ]]; then
-    lane_claude_prefix "$name" "$LANE_PROFILE" "$(lane_launch_folder "$name")" "" check || return 1
+    lane_claude_prefix "$name" "$LANE_PROFILE" "$(lane_launch_folder "$name")" "$settings" check || return 1
   fi
   stop_lane_if_running "$name"
   local s=$?

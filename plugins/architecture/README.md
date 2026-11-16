@@ -188,8 +188,11 @@ considered options, optional consequences) beside one or two other shapes, and
 writes nothing at all until you pick one: this plugin never imposes a convention
 on a repository that has none. When a new decision reverses an existing record,
 it retires the old one after your yes: deleted (the default), marked superseded,
-or archived, per `adr_retirement`. `audit` lists records the code or a later
-decision no longer backs, and changes nothing. A team can set its own template,
+or archived, per `adr_retirement`, and in the same change repoints or drops
+each line that cites the old record, listed by `file:line`. After writing a
+record it offers one pointer comment at the code the decision governs, added
+only on your yes. `audit` lists records the code or a later decision no longer
+backs, with the lines citing each, and changes nothing. A team can set its own template,
 extra admission triggers and retirement mode in `architecture.yaml`
 (`reference/config.md`, "Decision-record keys"). The
 upstream template catalog is cited by URL for you to read, under its own

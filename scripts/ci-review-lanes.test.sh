@@ -808,6 +808,8 @@ else
 fi
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
   BASE_CONFIG="$ROOT" dep "the repository's own pr-pipeline.yaml lists anthropics (owner decision Q-ANTHROPIC-DEPS)" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "melodic-software/ci-workflows/.github/actions/run-claude-cli@$SHA_OLD # v0.74.0" "melodic-software/ci-workflows/.github/actions/run-claude-cli@$SHA_NEW # v0.75.0")")" \
+  BASE_CONFIG="$ROOT" dep "the repository's own pr-pipeline.yaml lists melodic-software, so a ci-workflows composite-action bump skips the hold" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
 STUB_CHANGED=2 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")$(patch_file action.yml "$(swap "Anthropics/claude-code-base-action@$SHA_OLD" "Anthropics/claude-code-base-action@$SHA_BASE # v2.0.0")")" \
   dep "a listed owner matches in any letter case, over pages, in an action.yml" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
 STUB_CHANGED=2 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")$(patch_file .github/workflows/ci.yml "$(swap actions/checkout@v4 actions/checkout@v5)")" \

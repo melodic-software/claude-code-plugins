@@ -3,6 +3,31 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.0] - 2026-11-16
+
+### Added
+
+- `run-e2e` has a `findings.json` schema for one live verification pass: each finding's id, feature, part, kind, where, entry points, severity, `stated` or `unstated` label and evidence paths, and the pass's build plus each entry's outcome, wall time and tokens.
+- `run-e2e`'s `scripts/findings-compare.sh` compares two `findings.json` files with no model call. It labels each finding id NEW, PRE-EXISTING, GONE or not checked. An id only shows as GONE when the newer pass drove every entry point the earlier finding listed, and every finding is NEW when no baseline is given.
+
+## [5.1.6] - 2026-11-16
+
+### Fixed
+
+- `/testing:plan` asks each planned test's entry to name its expected-value source per `testing:test-value`, where the entries are written, and suggests `/testing:run-e2e` for an API endpoint change even when no served app exists.
+
+## [5.1.5] - 2026-11-16
+
+### Fixed
+
+- The `worst-case` initials fix skips a generational suffix, so `Christopher Alexander Montgomery III` no longer still yields `CI`, and a field with no limit is reported as "no limit found", which says what the search showed.
+
+## [5.1.4] - 2026-11-16
+
+### Changed
+
+- `/testing:write` now says that with `tdd_refactor_step: off` structure is left to the review plugin's design-smell check. `on` stays the default.
+
 ## [5.1.3] - 2026-11-16
 
 ### Changed

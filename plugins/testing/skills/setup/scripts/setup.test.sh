@@ -313,6 +313,13 @@ paths:
   exclude: ['yaml/**']
 tdd_refactor_step: off
 first_test: unit" "$rc:$(cat "$G/docs/conventions/testing.yaml")"
+printf 'map_unit: part\npaths:\n  exclude: [old]\nmap_entry_points: first\n' >"$G/docs/conventions/testing.yaml"
+run_g --exclude 'yaml/**'
+assert_eq "testing.yaml in use: apply keeps the map keys" "0:# Test-file scope and rule levels for the testing plugin (/testing:setup).
+paths:
+  exclude: ['yaml/**']
+map_unit: part
+map_entry_points: first" "$rc:$(cat "$G/docs/conventions/testing.yaml")"
 
 assert_eq "neither check nor apply changed CLAUDE.md or AGENTS.md" "$before" "$(sums)"
 assert_eq "apply wrote no file but docs/conventions/testing.yaml" "docs/conventions/testing.yaml" \

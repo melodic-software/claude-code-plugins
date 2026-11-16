@@ -130,7 +130,8 @@ test("no trace leaves a pass runner: a pass uploads its result, summary and vali
 test("every ci-workflows action is pinned to one full commit", () => {
   const pins = [...(main + pass).matchAll(/uses: melodic-software\/ci-workflows\/[^@\n]+@(\S+) # (.+)/g)].map(([, sha, note]) => `${sha} ${note}`);
   assert.ok(pins.length >= 2);
-  const pin = "944d346c487c79eaf85dff752586fb59b0f5c539 v0.74.0";
+  const pin = pins[0];
+  assert.match(pin, /^[0-9a-f]{40} v\d+\.\d+\.\d+$/);
   for (const found of pins) assert.equal(found, pin);
   // The classifier each pass leg checks out is run-claude-cli's, at the same commit.
   const classifier = [...pass.matchAll(/repository: melodic-software\/ci-workflows\n {10}ref: (\S+) # (.+)/g)].map(([, sha, note]) => `${sha} ${note}`);

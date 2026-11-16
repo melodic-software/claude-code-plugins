@@ -3,6 +3,18 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0] - 2026-11-16
+
+### Added
+
+- `launch --json` with a profile carries `enabledPlugins`: each plugin any settings layer names, on or off as the session will start with it, the session file read as the session layer, so a plugin the repository, managed or user settings enable is reported though the profile writes no entry for it. It is reported under `--dry-run` too, so a launcher can check what a session will start with before it starts one.
+
+## [0.2.2] - 2026-11-16
+
+### Changed
+
+- The `always-on` profile no longer lists `context-budget`, whose settings-write ask now runs in guardrails; `context-budget` moves to `harness-upkeep`.
+
 ## [0.2.1] - 2026-11-16
 
 ### Changed

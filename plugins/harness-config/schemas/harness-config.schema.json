@@ -48,6 +48,27 @@
       "default": false,
       "description": "When true, /harness-config:audit-automation-gaps may state the size of an implementation plan in minutes, hours, days or weeks; when false it gives a relative size (Small, Medium, Large). A quoted \"true\" or \"false\" is a string, not a boolean, and is invalid."
     },
+    "rule_inventory": {
+      "type": "object",
+      "description": "Inputs to the rule-to-enforcer inventory that /harness-config:audit-automation-gaps prints.",
+      "additionalProperties": false,
+      "properties": {
+        "declared": {
+          "type": "array",
+          "description": "Rules held by a mechanism no file shows the inventory, such as a type that makes the mistake impossible or a shared helper a check names. Each item is one inventory row.",
+          "items": {
+            "type": "object",
+            "required": ["rule", "rung"],
+            "additionalProperties": false,
+            "properties": {
+              "rule": { "$ref": "#/$defs/text", "description": "The rule, in one line." },
+              "enforcer": { "$ref": "#/$defs/text", "description": "What holds it: a file, type, helper or check." },
+              "rung": { "type": "string", "pattern": "^[a-z][a-z-]*$", "description": "A rung id of the enforcement ladder the plugin carries; an id the ladder does not list is reported and skipped." }
+            }
+          }
+        }
+      }
+    },
     "suppressions": {
       "type": "object",
       "description": "Deliberately kept findings of /harness-config:audit and /harness-config:audit-pass, keyed by finding_id.",
