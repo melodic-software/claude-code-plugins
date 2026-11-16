@@ -65,11 +65,11 @@ comment, for secrets and machine-specific data.
 
 ### Marking a pull request ready
 
-Two exceptions to the stop, both only by running `/source-control:pull-request ready` to
-completion, which stops on its own gates:
+A local session marks these ready without asking, only by running
+`/source-control:pull-request ready` to completion, which stops on its own gates:
 
-- a PR whose number this session's own `/source-control:pull-request create` returned;
-- for a local session, a PR another session opened (its author is this session's `gh` login and at
+- a PR it opened, in this or an earlier session, or was asked to work on;
+- a PR another session opened (its author is this session's `gh` login and at
   least one of its commits carries the Claude co-author trailer) when that session has agreed by
   message, or is not live in ListAgents and the PR has had no push for an hour (ListAgents misses a
   session on another machine that is not on Remote Control).
