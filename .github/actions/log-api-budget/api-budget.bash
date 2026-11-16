@@ -409,6 +409,8 @@ api_budget_guessed() {
 
 api_budget_label() { [[ $1 == '*' || $1 == any ]] && echo API || echo "$1 API"; }
 api_budget_when() { jq -rn --argjson t "$1" '$t | todate'; }
+# How a stop no header timed is named, as rate-guard.mjs's FALLBACK_NOTE.
+API_BUDGET_FALLBACK_NOTE="fallback: GitHub's refusal carried no reset header, so this time is a guess that holds only this job; a re-run works once GitHub's real reset passes"
 # A rate limit's annotation: a notice when the caller holds (API_BUDGET_HOLD=1,
 # outage posture element 2), else an error. The call returns 1 either way, so
 # a gate that does not hold still fails on it.
@@ -442,6 +444,8 @@ api_budget_refuse() {
   [[ -z $until ]] && return 0
   if status=$(api_budget_server_status "$1" "$until"); then
     echo "::$(api_budget_level) title=GitHub server error::'$2' was not sent: GitHub answered HTTP $status with a Retry-After; no call to it before $(api_budget_when "$until")" >&2
+  elif api_budget_guessed "$until"; then
+    echo "::$(api_budget_level)::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until") ($API_BUDGET_FALLBACK_NOTE)" >&2
   else
     echo "::$(api_budget_level)::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")" >&2
   fi
@@ -452,6 +456,7 @@ api_budget_refuse() {
 # server error hold's status (api_budget_observe), worded and recorded as one.
 api_budget_stop() {
   local dir=${RUNNER_TEMP:-/tmp}/api-budget lines cause=limit
+  [[ $3 != fallback ]] || set -- "$1" "$2" "$API_BUDGET_FALLBACK_NOTE" "${@:4}"
   if [[ ${6:-} =~ ^5[0-9][0-9]$ ]]; then
     cause=server-$6
     lines=("::$(api_budget_level) title=GitHub server error::'$4' got a GitHub server error, HTTP $6 with a Retry-After: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}")

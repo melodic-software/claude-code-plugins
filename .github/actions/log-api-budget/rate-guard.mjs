@@ -498,13 +498,18 @@ export function headerStop({ url, status, headers }, options) {
 export const resetLabel = (seconds) => new Date(seconds * 1000).toISOString().replace(".000Z", "Z");
 const poolLabel = (pool) => (pool === "*" ? "API" : `${pool} API`);
 
+// How a stop no header timed is named (api-budget.bash says the same): the
+// stop file is the job's, so a re-run starts with no stop.
+export const FALLBACK_NOTE =
+  "fallback: GitHub's refusal carried no reset header, so this time is a guess that holds only this job; a re-run works once GitHub's real reset passes";
+
 // serverStatus: the 5xx of a serverErrorHold, the same stop worded as a
-// server error.
+// server error. guessed: the stop's time is a fallback.
 export class RateLimitStop extends Error {
-  constructor(what, pool, reset, serverStatus = null) {
+  constructor(what, pool, reset, serverStatus = null, guessed = false) {
     super(
       serverStatus === null
-        ? `${what} was not sent: GitHub's ${poolLabel(pool)} rate limit holds until ${resetLabel(reset)}`
+        ? `${what} was not sent: GitHub's ${poolLabel(pool)} rate limit holds until ${resetLabel(reset)}${guessed ? ` (${FALLBACK_NOTE})` : ""}`
         : `${what} was not sent: GitHub answered HTTP ${serverStatus} with a Retry-After; no call to it before ${resetLabel(reset)}`,
     );
     this.name = "RateLimitStop";
@@ -601,6 +606,19 @@ function readCauses(path) {
     .map(([, pool, reset, cause]) => ({ pool, reset: Number(reset), cause }));
 }
 
+// The job's guessed file beside the stop file, which api-budget.bash writes
+// too: the `<pool> <reset epoch>` stops whose time is a fallback, read by
+// STOP_LINE's rule; a missing or unreadable file holds none.
+function readGuessed(path) {
+  let text = "";
+  try {
+    text = path ? readFileSync(path, "utf8") : "";
+  } catch {
+    text = "";
+  }
+  return new Set(text.split("\n").slice(0, -1).filter((line) => STOP_LINE.test(line)));
+}
+
 // The 5xx when every stop of `pools` that ends at `at` has a cause line of its
 // own and each is a server error hold, else null: a stop with no cause line (a
 // stop an older writer left), or a rate limit among them, reads as a rate
@@ -633,6 +651,8 @@ export function createRateLimitLatch({
   const stops = readStops(stopFile, log);
   const causeFile = stopFile ? join(dirname(stopFile), "cause") : null;
   const causes = readCauses(causeFile);
+  const guessFile = stopFile ? join(dirname(stopFile), "guessed") : null;
+  const guessed = readGuessed(guessFile);
   const low = new Map();
   const warned = new Set();
   // The resets waited out, summed; the extra second only lands the call after one.
@@ -693,7 +713,8 @@ export function createRateLimitLatch({
       return;
     }
     const status = serverStatus(url);
-    const stop = new RateLimitStop(`${method} ${url}`, heldBy(url, at), at, status);
+    const pool = heldBy(url, at);
+    const stop = new RateLimitStop(`${method} ${url}`, pool, at, status, guessed.has(`${pool} ${at}`));
     const title = status === null ? "" : " title=GitHub server error";
     if (hold) {
       log(`::notice${title}::${stop.message}; this step holds`);
@@ -720,10 +741,14 @@ export function createRateLimitLatch({
     // recorded one, so a failed write is named. Each distinct stop is set
     // and written once.
     const recorded = new Map();
-    const record = ({ pool: held, reset }) => {
+    const record = ({ pool: held, reset, reset_source }) => {
       const key = `${held} ${reset}`;
       if (!recorded.has(key)) {
         stops.set(held, Math.max(stops.get(held) ?? 0, reset));
+        const guess = reset_source === "fallback";
+        if (guess) {
+          guessed.add(key);
+        }
         let failed = "";
         if (stopFile) {
           try {
@@ -731,6 +756,13 @@ export function createRateLimitLatch({
             appendFileSync(stopFile, `${key}\n`);
           } catch (error) {
             failed = `; the stop could not be recorded in the job's stop file (${error?.code ?? error?.message}), so later steps do not see it`;
+          }
+          if (guess && !failed) {
+            try {
+              appendFileSync(guessFile, `${key}\n`);
+            } catch {
+              // A later step names the stop without its fallback note.
+            }
           }
         }
         recorded.set(key, failed);
@@ -773,7 +805,7 @@ export function createRateLimitLatch({
           ? `got a GitHub server error, HTTP ${response.status} with a Retry-After`
           : `hit GitHub's ${poolLabel(verdict.pool)} rate limit (status ${response.status})`;
       const level = `${holds ? "::notice" : "::error"}${server ? " title=GitHub server error" : ""}::`;
-      log(`${level}${method} ${url} ${what}: no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source}); ${then}${unrecorded}`);
+      log(`${level}${method} ${url} ${what}: no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source === "fallback" ? FALLBACK_NOTE : verdict.reset_source}); ${then}${unrecorded}`);
       if (!holds) {
         fail();
       }
@@ -799,6 +831,9 @@ export function createRateLimitLatch({
         stops.set(pool, Math.max(stops.get(pool) ?? 0, reset));
       }
       causes.push(...readCauses(causeFile));
+      for (const key of readGuessed(guessFile)) {
+        guessed.add(key);
+      }
     },
     serverStatus,
     belowFloor: (url) => low.get(poolOf(url)) === true,

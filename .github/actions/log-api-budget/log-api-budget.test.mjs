@@ -5,7 +5,7 @@ import { join } from "node:path";
 import zlib from "node:zlib";
 import { test } from "node:test";
 import { readingLine, recordReading, routeOf } from "./api-budget.mjs";
-import { apiLimits, createRateLimitLatch, PLACEHOLDERS, poolOf, REST_PATH_WORDS, routeOk } from "./rate-guard.mjs";
+import { apiLimits, createRateLimitLatch, FALLBACK_NOTE, PLACEHOLDERS, poolOf, REST_PATH_WORDS, routeOk } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Root reads and writes past any file mode, so the permission cases skip.
@@ -237,6 +237,31 @@ test("routeOf and the shell's api_route template each request path alike, leakin
     assert.equal(bash(dir, "api_budget_route api --method=POST -fquery='query { viewer { login } }' graphql").stdout, "graphql\n");
     assert.equal(bash(dir, "api_budget_route pr view 1").stdout, "other\n");
   }));
+
+test("api-budget.bash names a fallback stop as rate-guard.mjs's FALLBACK_NOTE", () =>
+  withDir((dir) => assert.equal(bash(dir, 'printf %s "$API_BUDGET_FALLBACK_NOTE"').stdout, FALLBACK_NOTE)));
+
+// A stop rate-guard.mjs guessed is named a fallback when the gh wrapper refuses
+// a call on it, and a header-timed stop is not.
+test("gh guard: a refusal on a stop rate-guard.mjs guessed names it a fallback", async () => {
+  const dir = tempDir("api-budget-");
+  try {
+    const stopFile = join(dir, "api-budget", "stop");
+    const options = { log: () => {}, fail: () => {}, limits: () => ({}), stopFile };
+    const refused = async (status, headers) => {
+      rmSync(join(dir, "api-budget"), { recursive: true, force: true });
+      await createRateLimitLatch(options).guard(async () => new Response(JSON.stringify({ message: "API rate limit exceeded for installation ID 1." }), { status, headers }))("https://api.github.com/repos/o/r");
+      const at = new Date(Number(readFileSync(stopFile, "utf8").split(" ")[1]) * 1000).toISOString().replace(".000Z", "Z");
+      return { at, out: guarded(dir, ["200 4000 - {}"], "gh api repos/o/r/pulls/2 >/dev/null || true") };
+    };
+    const guess = await refused(403, {});
+    assert.equal(guess.out.stderr, `::error::'gh api repos/o/r/pulls/2' was not sent: GitHub's core API rate limit holds until ${guess.at} (${FALLBACK_NOTE})\n`);
+    const timed = await refused(403, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(Math.floor(Date.now() / 1000) + 600), "x-ratelimit-resource": "core" });
+    assert.equal(timed.out.stderr, `::error::'gh api repos/o/r/pulls/2' was not sent: GitHub's core API rate limit holds until ${timed.at}\n`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test("api-budget.bash's route word list is rate-guard.mjs's REST_PATH_WORDS", () =>
   withDir((dir) => {
@@ -636,7 +661,9 @@ test("gh guard: a paginated call that fails on a primary limit stops every pool 
     const out = guarded(dir, ["fail gh: API rate limit exceeded for installation. (HTTP 403)"], 'gh api repos/o/r/pulls --paginate || true\ngh api repos/o/r || echo "refused=$?"');
     assert.equal(out.stdout, "refused=1\n");
     assert.equal(out.calls.length, 1);
-    assert.match(out.stderr, /\(fallback\); the call returns 1/);
+    const at = new Date(Number(readFileSync(join(dir, "api-budget", "stop"), "utf8").split(" ")[1]) * 1000).toISOString().replace(".000Z", "Z");
+    assert.ok(out.stderr.includes(`no call to it before ${at} (${FALLBACK_NOTE}); the call returns 1\n`), out.stderr);
+    assert.ok(out.stderr.includes(`::error::'gh api repos/o/r' was not sent: GitHub's core API rate limit holds until ${at} (${FALLBACK_NOTE})\n`), out.stderr);
     const [pool, left] = stopFor(dir);
     assert.equal(pool, "*");
     assert.ok(left >= 3595 && left <= 3600, `stopped for ${left}s`);
@@ -687,7 +714,7 @@ test("gh guard: a paginated primary limit holds to the reset of the one open win
       const [pool, left] = stopFor(dir);
       assert.equal(pool, "*", label);
       assert.ok(left >= seconds - 5 && left <= seconds, `${label}: stopped for ${left}s`);
-      assert.match(out.stderr, seconds === 900 ? /\(x-ratelimit-reset of an earlier reading\)/ : /\(fallback\)/, label);
+      assert.ok(out.stderr.includes(seconds === 900 ? "(x-ratelimit-reset of an earlier reading)" : `(${FALLBACK_NOTE})`), label);
       assert.equal(readFileSync(join(dir, "api-budget", "guessed"), "utf8"), readFileSync(join(dir, "api-budget", "stop"), "utf8"), label);
     }
     // A secondary limit keeps its minute whatever the readings show.
