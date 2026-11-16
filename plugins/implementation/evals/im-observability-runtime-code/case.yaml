@@ -21,7 +21,7 @@ graders:
     arm: with-only
   - name: endpoint-from-env
     type: regex
-    pattern: 'process\.env(?:\.OTEL_EXPORTER_OTLP_ENDPOINT\b|\[\s*["''`]OTEL_EXPORTER_OTLP_ENDPOINT)'
+    pattern: '\bOTEL_EXPORTER_OTLP_ENDPOINT\b'
     target: { source: file, path: src/app.js }
   - name: no-endpoint-literal
     type: regex

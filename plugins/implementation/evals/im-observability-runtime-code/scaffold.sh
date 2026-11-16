@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A small Node service with a structured logger and a metrics client that takes its collector
-# endpoint as an argument, and an approved plan to add a refund path that calls a payment gateway.
 set -euo pipefail
 
 git init -q -b feat/refunds
