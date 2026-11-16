@@ -988,6 +988,22 @@ assert_eq "its rollback removes alice, then adds her back" "REMOVE_ASSIGNEE alic
 assert_eq "alice stays assigned for the same-login winner's lease 3" '["alice"]' "$(assignees_now)"
 cleanup_scenario
 
+# [claim rollback re-add, then the lease ends] as above, but lease 3 is superseded before the
+# rollback's check after its re-add; the re-add must not outlive every lease.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf 'alice\n' >"$GH_STUB_DIR/login"
+printf '[]\n' >"$GH_STUB_DIR/assignees"
+lease_array 1 "$(marker "$LANE" "$FUTURE" 2)" >"$GH_STUB_DIR/lease-comments"
+hook list-3 put_lease 3 "$(marker alice "$FUTURE" 1)"
+hook list-4 put_lease 3 "$(superseded_marker alice)"
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 24 >/dev/null 2>&1 || rc=$?
+assert_eq "the claim losing to the lane backs off (7)" "7" "$rc"
+assert_eq "its rollback removes alice again after the re-add" "2" "$(grep -c '^REMOVE_ASSIGNEE alice' "$GH_STUB_DIR/calls.log")"
+assert_eq "no assignee outlives every lease" "[]" "$(assignees_now)"
+cleanup_scenario
+
 # [hand-back, lease list fails once] a second alice session fails on its arbitration read
 # and its rollback's first list fails too; the retry shows lease 1, so alice is never removed.
 attended_scenario
