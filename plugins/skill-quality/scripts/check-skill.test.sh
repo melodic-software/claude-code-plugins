@@ -4567,6 +4567,57 @@ else
   fail "'## Next' with an enabled gate should warn on phrasing (rc=$rc): $out"
 fi
 
+make_skill next-are-enabled-gate '---
+name: next-are-enabled-gate
+description: "Next fixture. Use when: '"'"'next are enabled gate'"'"'."
+---
+
+## Purpose
+
+Bullet-shape successor section gated on two plugins being enabled.
+
+## Next
+
+- The numbers feed a comparison: `/verification:measure metrics`.
+- A number is about to be quoted: `/code-metrics:principles`, when both plugins are enabled.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-are-enabled-gate 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section carries operative-chain phrasing ('are enabled')" <<<"$out"; then
+  pass "a '## Next' bullet gated on plugins that 'are enabled' warns on the chain phrasing"
+else
+  fail "'## Next' with an 'are enabled' gate should warn on phrasing (rc=$rc): $out"
+fi
+
+make_skill next-not-enabled-gate '---
+name: next-not-enabled-gate
+description: "Next fixture. Use when: '"'"'next not enabled gate'"'"'."
+---
+
+## Purpose
+
+Single-shape successor section whose sentence covers the plugin not being enabled.
+
+## Next
+
+`/code-metrics:principles`. Skip it when code-metrics is not enabled.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-not-enabled-gate 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section carries operative-chain phrasing ('is not enabled')" <<<"$out"; then
+  pass "a '## Next' line covering a plugin that 'is not enabled' warns on the chain phrasing"
+else
+  fail "'## Next' with an 'is not enabled' clause should warn on phrasing (rc=$rc): $out"
+fi
+
 make_skill next-enabled-word '---
 name: next-enabled-word
 description: "Next fixture. Use when: '"'"'next enabled word'"'"'."

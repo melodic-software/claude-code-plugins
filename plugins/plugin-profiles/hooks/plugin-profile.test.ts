@@ -7,7 +7,7 @@ const PROFILES = ['build', 'discovery', 'harness-upkeep', 'interface-design', 'p
 const MORE = 'More profiles'
 
 type Out = { exitCode: number; stdout?: string; stderr?: string }
-type Preview = { upToDate?: boolean; pending?: string[]; mcpOrLspOn?: string[]; prerequisitesMissing?: string[] }
+type Preview = { upToDate?: boolean; pending?: string[]; mcpOrLspOn?: string[]; prerequisitesMissing?: string[]; othersInFolder?: { name: string }[] }
 
 const preview = (p: Preview = {}): Out => ({
   exitCode: 0,
@@ -121,6 +121,15 @@ test('AC10: a switch that enables an MCP or language server names it and the re-
     'playwright@melodic-software ship an MCP or language server, so your next message after the switch re-reads the whole conversation. Apply profile review to this folder?',
   )
   expect(writes(w)).toEqual([])
+})
+
+test('D22: the confirm names the other sessions in the folder, and Apply still writes', async ($, on) => {
+  const w = world(on, ['Apply'], { dry: preview({ othersInFolder: [{ name: 'builder' }, { name: 'reviewer' }] }) })
+  await run($, 'review')
+  expect(w.asks[0].question).toBe(
+    'Other sessions in this folder (builder, reviewer) also get this profile at their next reload or start; to give one its own profile, start it with the launch command instead. Apply profile review to this folder?',
+  )
+  expect(writes(w)).toEqual([['apply', 'review', '--for', 'folder', '--defer-off', '--yes']])
 })
 
 test('AC10: Apply at the MCP prompt writes the on entries, never with --force', async ($, on) => {

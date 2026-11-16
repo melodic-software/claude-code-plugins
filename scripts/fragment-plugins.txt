@@ -72,6 +72,7 @@ planning
 playbooks
 playgrounds
 playwright
+plugin-diagnostics
 plugin-profiles
 plugin-quality
 powershell-format
@@ -84,6 +85,7 @@ repo-hygiene
 retro-audio
 review
 session-flow
+session-telemetry
 skill-quality
 songwriting
 source-control

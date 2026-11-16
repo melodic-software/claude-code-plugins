@@ -3,6 +3,32 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.5.1] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [15.5.0] - 2026-11-16
+
+### Changed
+
+- A background work-loop lane starts in its plugin profile when the plugin-profiles plugin is enabled, and is not launched when that profile needs a missing required tool.
+
+## [15.4.5] - 2026-11-16
+
+### Fixed
+
+- The GitHub adapter's "Close item" posts the closing note as its own comment and then closes, instead of passing it to `gh issue close --comment`. On an issue that was already closed, `gh` skipped the comment and exited 0, so a `/work-items:track done --summary` note (and a triage, recheck or stale close note) was lost while the run reported the item closed. The duplicate-close forms also post their note as a separate comment. `done` now reports an already-closed item as already closed, with the summary added.
+
+## [15.4.4] - 2026-11-16
+
+### Fixed
+
+- The GitHub adapter's `renew-lease` backs off when its PATCH fails within 300 s of the lease's expiry or after it, since GitHub may have applied the PATCH and revived the lease. Before, a failed PATCH exited before the back-off check and kept a lease that might have been revived after expiry.
+- A `renew-lease` back-off tries its supersede twice and hands the assignee back only after one succeeds. Before, a failed supersede still removed the login while the lease stayed live and blocked the item for its TTL.
+- `CONTRACT.md` "Lease protocol" now lists a known limit: three sessions of one login can leave a lease holder unassigned, though the lease still excludes other workers. It also describes what the code does when a claim's rollback list fails and when `release` exits 0 on another login's superseded lease.
+
 ## [15.4.3] - 2026-11-16
 
 ### Changed

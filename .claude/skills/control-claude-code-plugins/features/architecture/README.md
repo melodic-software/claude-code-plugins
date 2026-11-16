@@ -5,7 +5,8 @@ The skills of `plugins/architecture`. Each one is driven with `<plugin-dir>` set
 ## Parts
 
 - `enforce-boundaries`: Set up a check for each recorded boundary rule and prove it on an injected violation.
-- `improve`: Scan the codebase for shallow modules or boundary crossings, then design or hand on the chosen fix.
+- `improve`: Scan for shallow modules, boundary crossings or unwritten conventions, then hand on the fix.
+- `improve-layout`: Check whether files that change together live together, then propose a target layout.
 - `map-components`: Chart the modules inside one deployable as a C4 component view.
 - `map-containers`: Chart deployables, the stores they bind, and contained modules.
 - `map-context`: Chart one software system's C4 system context from tracked configuration.
@@ -38,8 +39,8 @@ The `## Reset` of the driving tool's `skills/invoke` feature.
 
 Drive the skill as the driving tool's `skills/invoke` feature, with `<plugin>` set to `architecture` and
 `<skill>` from Parts. The skill's own `plugins/architecture/skills/<skill>/SKILL.md` gives its arguments.
-The action to drive for `improve` is `layout`, so `<args>` is `layout`: the co-change lens reads the
-checkout's git history and reports the candidates it finds.
+For `improve-layout`, `<args>` is empty: its co-change script reads the checkout's git history and
+reports the clusters it finds.
 
 ## Gotchas
 

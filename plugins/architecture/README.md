@@ -25,10 +25,12 @@ name.
    subagent), reads the project's glossary and architecture decision records if
    present, and applies the *deletion test* to anything suspected shallow.
    Would deleting it concentrate complexity, or merely move it?
-2. **Present candidates.** Writes a self-contained HTML report (inline styles and
-   inline SVG only, no remote fetch) to the OS temp directory, one card per
-   candidate with a before/after diagram, a recommendation badge, and a
-   dependency-category badge. Alongside it, writes a durable machine-readable
+2. **Present candidates.** Writes one HTML report to the OS temp directory, on the
+   marketplace's shared page chrome (light and dark from the system setting, with a
+   toggle). Tailwind and Mermaid load from a CDN at exact versions; without the
+   network the page still reads. The header gives the evidence counts the
+   verification gate reproduced, and each candidate has a card with a before/after
+   diagram, a recommendation badge, and a dependency-category badge. Alongside it, writes a durable machine-readable
    candidate list that survives the session.
 3. **Interview the selected candidate.** Once you pick one, walks the decision tree
    covering constraints, dependencies, the shape of the deepened module, what sits

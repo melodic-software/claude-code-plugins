@@ -3,6 +3,20 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.11] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+- The shared hook library resolves `HOOK_TELEMETRY_SINK=@session-telemetry`, and `@harness-ops`, to the session-telemetry launcher.
+
+## [2.0.10] - 2026-11-16
+
+### Changed
+
+- `/playwright:playwright` is synced to `@playwright/cli` 0.1.24. The `run-code` reference now says to read `console` for errors thrown by listeners a body registers.
+
 ## [2.0.9] - 2026-11-16
 
 ### Changed

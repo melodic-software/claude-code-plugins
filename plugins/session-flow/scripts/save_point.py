@@ -381,6 +381,13 @@ FILL_MARK = "<!-- FILL"
 # U+2014.
 FILL_SLOT_RE = re.compile(r"<!-- FILL: (\S+) — (.*?) -->")
 COPY_LINE = "`/clear`, then copy everything between the dashed lines:"
+
+
+def relaunch_line(start_command: str) -> str:
+    """The line above COPY_LINE when the next session starts in another plugin profile."""
+    return f"The next phase runs in another plugin profile: exit this session, start the next one with `{start_command}`, then in it:"
+
+
 GOAL_COPY_LINE = (
     "Type `/goal ` (with a trailing space), then paste everything between the dashed "
     "lines. Confirm the `◎ /goal active` indicator appears after you send it; if it "
@@ -3168,10 +3175,17 @@ def _this_session_lines() -> list[str]:
 
 
 def _resume_prompt(
-    target: Path, session_id: str, origin: str, origin_path: str
+    target: Path,
+    session_id: str,
+    origin: str,
+    origin_path: str,
+    settings_file: str | None = None,
+    start_command: str | None = None,
 ) -> list[str]:
     """The `## Resume prompt` skeleton lines, shape 2 and shape 3 alike."""
     read_path = _posix(target)
+    settings = f' --settings "{settings_file}"' if settings_file else ""
+    relaunch = [relaunch_line(start_command)] if start_command else []
     return [
         _fill(
             "goal-first",
@@ -3180,6 +3194,7 @@ def _resume_prompt(
                 "end the value with a newline so a blank line follows the region",
             ),
         ),
+        *relaunch,
         COPY_LINE,
         "",
         RAIL,
@@ -3200,7 +3215,7 @@ def _resume_prompt(
             ),
         ),
         "",
-        f"Or reopen the producing session in place: `claude --resume {session_id}`.",
+        f"Or reopen the producing session in place: `claude --resume {session_id}{settings}`.",
         _fill(
             "below-rail",
             "optional: the /goal and /loop re-arm notes save-point.md prescribes below the bottom rail; delete this line when none applies",
@@ -3221,6 +3236,8 @@ def build_skeleton(
     origin: str,
     origin_path: str,
     pred_transcript: str,
+    settings_file: str | None = None,
+    start_command: str | None = None,
 ) -> str:
     previous = pred.basename if pred is not None else None
     if pred is None:
@@ -3362,7 +3379,10 @@ def build_skeleton(
         own_row = _pred_row(pred, pred_transcript)
         section("Prior sessions", [PRIOR_HEADER, PRIOR_SEPARATOR, *rows, own_row])
 
-    section("Resume prompt", _resume_prompt(target, session_id, origin, origin_path))
+    section(
+        "Resume prompt",
+        _resume_prompt(target, session_id, origin, origin_path, settings_file, start_command),
+    )
 
     return "\n".join(fm + body) + "\n"
 
@@ -3405,6 +3425,8 @@ def build_skeleton_3(
     origin: str,
     origin_path: str,
     pred_transcript: str,
+    settings_file: str | None = None,
+    start_command: str | None = None,
 ) -> str:
     root, hop, start = _chain_position(pred, target.name)
     hop_rel = hop_file_path(Path(), root, hop, session_id).as_posix()
@@ -3636,7 +3658,10 @@ def build_skeleton_3(
         ]
     section("Standing preferences", prefs)
 
-    section("Resume prompt", _resume_prompt(target, session_id, origin, origin_path))
+    section(
+        "Resume prompt",
+        _resume_prompt(target, session_id, origin, origin_path, settings_file, start_command),
+    )
     return "\n".join(fm + body) + "\n"
 
 
@@ -3672,6 +3697,16 @@ def cmd_new(args: argparse.Namespace) -> int:
             f"session id {session_id!r} is not a UUID (Remote Control bridge ids are refused; never read CLAUDE_CODE_BRIDGE_SESSION_ID); take the prompt-only path",
         )
     session_id = session_id.lower()
+
+    settings_file = args.settings_file or None
+    if settings_file and any(c in settings_file for c in '"`\n\r'):
+        return _die(
+            2,
+            "--settings-file must not carry a double quote, a backtick or a line break",
+        )
+    start_command = args.start_command or None
+    if start_command and any(c in start_command for c in "`\n\r"):
+        return _die(2, "--start-command must not carry a backtick or a line break")
 
     if args.memory_dir:
         memory_dir = Path(args.memory_dir).expanduser().resolve()
@@ -3793,6 +3828,8 @@ def cmd_new(args: argparse.Namespace) -> int:
         origin_path=origin_path,
         pred_transcript=pred_transcript,
         purpose=purpose,
+        settings_file=settings_file,
+        start_command=start_command,
     )
     if args.shape == 2:
         content = build_skeleton(**common, pred_failed=pred_failed)
@@ -3896,6 +3933,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_new.add_argument(
         "--purpose",
         help="the invocation's purpose text: written as the Resumption brief's first line, and the skills slot is selected for it",
+    )
+    p_new.add_argument(
+        "--settings-file",
+        help="the session's plugin profile settings file (the `file` of `/plugin-profiles:profile launch --json`); the resume line then carries --settings \"<file>\"",
+    )
+    p_new.add_argument(
+        "--start-command",
+        help="on a phase change, the start command of `/plugin-profiles:profile launch <next profile>`; a line above the copy line then says to exit and start the next session with it",
     )
     p_new.add_argument("--now", help="ISO-8601 UTC timestamp override (tests)")
     p_new.add_argument(
