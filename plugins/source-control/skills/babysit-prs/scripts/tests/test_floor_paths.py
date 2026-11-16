@@ -90,7 +90,7 @@ class TheEffectiveFloorDidNotMove(unittest.TestCase):
     change updates these pins in the pull request that makes it."""
 
     def test_each_glob_keeps_its_class(self):
-        self.assertEqual(len(FLOOR.classes), 143)
+        self.assertEqual(len(FLOOR.classes), 144)
         self.assertEqual(
             digest(f"{g}\t{c}" for g, c in FLOOR.classes),
             "d82c6a53fb5ad52b16979e7ae3c3579cae69a9a2539cb9eb512636fad0c13ffe",
