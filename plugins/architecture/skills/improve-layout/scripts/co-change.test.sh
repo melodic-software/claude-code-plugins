@@ -5,7 +5,7 @@
 # report; the settings files through the config cascade; and that two runs give
 # the same bytes.
 #
-#   bash plugins/architecture/skills/improve/scripts/co-change.test.sh
+#   bash plugins/architecture/skills/improve-layout/scripts/co-change.test.sh
 #
 # Exit 0 clean, 1 findings, 2 environment (node or git missing).
 set -euo pipefail

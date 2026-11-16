@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Co-change evidence for /architecture:improve layout. Reads `git log --no-merges --name-only`
+// Co-change evidence for /architecture:improve-layout. Reads `git log --no-merges --name-only`
 // once over a window of commits and reports which files change together, the clusters those
 // pairs form, and how each cluster spreads over folders. Read-only: one git command, one JSON
 // object on stdout, the same bytes for the same history and settings.
@@ -15,7 +15,7 @@
 // through lib/config-cascade.mjs (home default docs/conventions, relative to --repo), defaults
 // from schemas/architecture.schema.json. A flag overrides its key for this run. --no-config skips
 // both files. --repo is the repository's top folder, and each --path a folder relative to it.
-// Measures and their sources: ../research/layout/README.md.
+// Measures and their sources: ../reference/co-change.md.
 //
 // Exit 0 report written, 2 usage or environment (bad flag, git missing, not a git work tree).
 

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Card c1 (Speculative): the four order files spread over src/orders, src/api, src/db and tests, spread 4, focus 0.25, crosscutting. The candidate list is at .work/main/layout-candidates-20261115T120000Z.md. Stopping after the report, as this run is unattended.",
+      "why": "ends with the report and asks nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Card c1 (Speculative): the four order files spread over four folders. Before I judge it: how should this repository group files into folders, by feature or by layer?",
+      "why": "asks a question and waits for an answer"
+    }
+  ]
+}
