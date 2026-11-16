@@ -33,11 +33,13 @@
 //          carries no profile. --with adds a launcher's own settings (claude keeps only the last
 //          --settings), written to a file keyed by the folder, profile and merged content. The
 //          command always clears an inherited PLUGIN_PROFILES_SESSION; the file sets its own. A
-//          session file no launch has written for 30 days is removed by the next launch.
+//          session file no launch has written for 30 days is removed by the next launch. The
+//          session it starts is a claude CLI process whatever surface runs launch, so no surface
+//          refuses it. The file sets PLUGIN_PROFILES_SESSION_FILE to its own path for status.
 //          --unattended stops (exit 1) when the profile switches on a plugin missing a required
 //          prerequisite; otherwise that is printed and the launch goes ahead. --json prints the
 //          result as data, with argv the words a launcher runs before its own arguments.
-// statusThe profile recorded for the folder (or user settings), each entry that differs from
+// status   The profile recorded for the folder (or user settings), each entry that differs from
 //          it, plugins installed since, a switch still pending, a one-session profile named by
 //          PLUGIN_PROFILES_SESSION and the surface. With remember_folder_profile false it reports
 //          the initial profile and names a folder record as not in force. --session-start reads
@@ -99,7 +101,8 @@ import { readUsage, usageFile } from "../lib/usage.mjs";
 
 const OWN_ROOT = dirname(dirname(realpathSync(fileURLToPath(import.meta.url))));
 const SESSION_VAR = "PLUGIN_PROFILES_SESSION";
-const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
+// Set by the file itself, so status names the file a session was launched with, merged or not.
+const SESSION_FILE_VAR = "PLUGIN_PROFILES_SESSION_FILE";const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
        profiles.mjs launch [<name>] [--folder <dir>] [--with <settings file or JSON>] [--unattended] [--json]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
        profiles.mjs clear [--for folder|initial] [--dry-run] [--yes]
@@ -152,7 +155,7 @@ function locate(env, cwd, folder = null) {
 function parseArgs(argv) {
   const [command, ...rest] = argv;
   if (!["apply", "launch", "status", "clear", "list", "inventory", "usage", "install", "save", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
-  const opts = { command, name: null, target: { apply: null, launch: "session" }[command] ?? "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null, folder: null, with: null, unattended: false };
+  const opts = { command, name: null, target: command === "apply" ? null : command === "launch" ? "session" : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null, folder: null, with: null, unattended: false };
   const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json"], launch: ["--unattended", "--json"], status: ["--json", "--session-start"], clear: ["--dry-run", "--yes"], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
   const values = { check: ["--catalog", "--shipped"], launch: ["--folder", "--with"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
   const camel = (arg) => arg.slice(2).replace(/-(.)/g, (_, c) => c.toUpperCase());
@@ -219,7 +222,7 @@ function prepare(opts, where, catalog, records) {
     }
   }
   const edits = { enabledPlugins: diff(now, final.enabledPlugins), skillOverrides: diff(settings.doc.skillOverrides ?? {}, final.skillOverrides) };
-  if (session) edits.env = { [SESSION_VAR]: opts.name };
+  if (session) edits.env = { [SESSION_VAR]: opts.name, [SESSION_FILE_VAR]: file };
   return { file, settings, recPath, previous, inv, plan: result, final, pending, edits };
 }
 
@@ -411,12 +414,10 @@ const quoted = (word) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `"${wor
 
 function launch(opts, where, env, io) {
   const own = launcherSettings(opts.with);
-  const name = opts.name ?? (doesNotApply(where.surface) ? null : ownProfile(where, env));
+  const name = opts.name ?? ownProfile(where, env);
   const argv = ["env", "-u", SESSION_VAR, "claude"];
   const result = { profile: name, folder: where.projectDir, file: null, prerequisitesMissing: [], argv };
   if (name) {
-    const refused = refusal(where.surface, "session", name);
-    if (refused) throw new NotApplied(`not launched: ${refused}`);
     const p = prepare({ ...opts, name, target: "session" }, where, catalogFor(where, "session"), () => recordsFromCli());
     const gate = missingRequired(
       p.plan.enabled.map((id) => p.inv.get(id)),
@@ -431,9 +432,9 @@ function launch(opts, where, env, io) {
     if (Object.keys(skills).length) doc.skillOverrides = skills;
     else delete doc.skillOverrides;
     doc.env = { ...own?.env, [SESSION_VAR]: name };
-    const text = `${JSON.stringify(doc, null, 2)}\n`;
-    result.file = sessionFile(where, name, own ? text : null);
-    replaceFile(result.file, text);
+    result.file = sessionFile(where, name, own ? JSON.stringify(doc) : null);
+    doc.env[SESSION_FILE_VAR] = result.file;
+    replaceFile(result.file, `${JSON.stringify(doc, null, 2)}\n`);
     sweepSessions(where, result.file);
     for (const line of lines) io.err(line);
   } else if (own && !opts.with.trim().startsWith("{")) result.file = resolve(opts.with);
@@ -485,7 +486,7 @@ function statusOf(opts, where, env, records) {
   const base = { surface: where.surface, rememberFolder: true, session: null, leftover: null };
   if (doesNotApply(where.surface)) return { ...base, profile: null, target: opts.target, settingsFile: targetFile(where, opts.target) };
   const name = env[SESSION_VAR];
-  if (name) base.session = { profile: name, file: sessionFile(where, name) };
+  if (name) base.session = { profile: name, file: env[SESSION_FILE_VAR] || sessionFile(where, name) };
   let target = opts.target;
   if (target === "folder" && !where.remembersFolder()) {
     base.rememberFolder = false;

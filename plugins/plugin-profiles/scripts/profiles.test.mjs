@@ -291,12 +291,40 @@ test("launch --with merges a launcher's settings into one file the profile wins 
   assert.notEqual(merged.file, plain);
   const doc = JSON.parse(readFileSync(merged.file, "utf8"));
   assert.equal(doc.model, "opus");
-  assert.deepEqual(doc.env, { LANE: "1", PLUGIN_PROFILES_SESSION: "build" });
+  assert.deepEqual(doc.env, { LANE: "1", PLUGIN_PROFILES_SESSION: "build", PLUGIN_PROFILES_SESSION_FILE: merged.file });
   assert.equal(doc.enabledPlugins[`songwriting@${M}`], false, "the profile's entry wins");
   assert.equal(doc.enabledPlugins["widget@vendor"], true, "an entry the profile leaves alone stays");
   assert.equal(JSON.parse(readFileSync(plain, "utf8")).model, undefined, "the plain file is unchanged");
   const noProfile = launchJson(w, ["--with", own], { PLUGIN_PROFILES_SESSION: "" });
   assert.deepEqual(noProfile.argv.slice(-2), ["--settings", own], "with no profile the launcher's own settings pass through");
+});
+
+test("apply without --for is a usage error and writes nothing, so a folder shared by other sessions is never chosen by default", () => {
+  const w = world();
+  const r = w.run(["apply", "build", "--yes"]);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /--for takes session, folder, initial/);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
+});
+
+test("status in a session from a merged launch names the merged file it was started with", () => {
+  const w = world();
+  const merged = launchJson(w, ["build", "--with", JSON.stringify({ model: "opus" })]);
+  const { env } = JSON.parse(readFileSync(merged.file, "utf8"));
+  assert.equal(env.PLUGIN_PROFILES_SESSION_FILE, merged.file, "the file names itself");
+  const r = w.run(["status"], env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(r.stdout.includes(`pass --settings "${merged.file}" again with --resume`), r.stdout);
+});
+
+test("launch from a VS Code or Desktop session still writes the file and prints a command, since it starts a CLI session", () => {
+  const w = world();
+  for (const entry of ["claude-vscode", "claude-desktop"]) {
+    const r = launchJson(w, ["build"], { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: entry });
+    assert.equal(r.profile, "build", entry);
+    assert.ok(existsSync(r.file), entry);
+  }
 });
 
 test("launch removes session files no launch has written for 30 days", () => {

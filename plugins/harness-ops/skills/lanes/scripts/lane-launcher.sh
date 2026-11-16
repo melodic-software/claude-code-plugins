@@ -1236,6 +1236,15 @@ repo_data_dir() { printf '%s/%s' "$(resolve_data_dir)" "$(repo_marker_key)"; }
 # The lane's linked worktree.
 lane_worktree_path() { printf '%s/worktrees/%s' "$(repo_data_dir)" "$1"; }
 
+# The folder a restart's profile check resolves for: the linked worktree a
+# local-background relaunch starts in (lane_worktree_path, as
+# ensure_lane_worktree uses) once it exists, else the repo root.
+lane_launch_folder() {
+  local path
+  path="$(lane_worktree_path "$1")"
+  if [[ "$LANE_TARGET" == local-background && -d "$path" ]]; then printf '%s' "$path"; else printf '%s' "$REPO"; fi
+}
+
 # Prepare the lane's linked worktree at <sha>. With <require_clean> set, a
 # worktree holding any change refuses (return 1); without it, a dirty
 # worktree is used as it stands (a local lane's own work in progress).
@@ -1899,9 +1908,9 @@ _restart_one() {
   plan_lane_target "$name" "$stage" || return 1
   print_unlaunched_target "$name" "$stage" "$prompt_path" "$settings" && return 0
   # A profile the relaunch would refuse (a required tool missing) leaves the
-  # running lane up too.
-  if [[ -n "$LANE_PROFILE" ]] && ! ((DRY_RUN)); then
-    lane_claude_prefix "$name" "$LANE_PROFILE" "$REPO" "" || return 1
+  # running lane up too. A cloud lane carries no profile.
+  if [[ -n "$LANE_PROFILE" ]] && ! ((DRY_RUN)) && [[ "$LANE_TARGET" != cloud-session ]]; then
+    lane_claude_prefix "$name" "$LANE_PROFILE" "$(lane_launch_folder "$name")" "" || return 1
   fi
   stop_lane_if_running "$name"
   local s=$?

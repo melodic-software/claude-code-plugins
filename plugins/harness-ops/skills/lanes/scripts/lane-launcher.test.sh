@@ -2111,6 +2111,15 @@ out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" STUB_PROFILES_RC=1 run_launcher restar
 assert_eq "missing prerequisite: restart exits 1" 1 "$?"
 assert_not_contains "missing prerequisite: restart leaves the running lane up" "$(cat "$CLAUDE_LOG")" "stop sid-work-1"
 
+et_publish $'default: local-worktree\nskill:\n  fixture:\n    trusted: cloud-session'
+et_lanes fixture:trusted '{"telemetry":{"issue":5},"profile":"focus"}'
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" STUB_PROFILES_RC=1 et_run_trusted restart --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_contains "cloud lane: restart resolves the cloud target" "$out" "cloud-session"
+assert_eq "cloud lane: a profile the local launch would refuse does not stop its restart" 0 "$rc"
+assert_contains "cloud lane: restart sends a new cloud session" "$(cat "$CLAUDE_LOG")" "--cloud"
+
 printf '{"lanes":[{"name":"work","prompt":"work.md","effort":"high","profile":5}]}\n' >"$TMP/pp-bad.json"
 out="$(run_launcher status --repo "$REPO" --config "$TMP/pp-bad.json" --agents-json "$AGENTS_EMPTY" 2>&1)"
 assert_eq "a non-string profile is a config error (exit 3)" 3 "$?"
