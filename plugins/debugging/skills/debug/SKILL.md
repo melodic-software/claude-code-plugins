@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: implement
-  summary: Diagnose broken behavior. Reproduce, hypothesize, instrument, fix with regression test
+  summary: Debug broken behavior. Reproduce, hypothesize, instrument, fix with regression test
 ---
 
 **Arguments.** `[diagnose] [--unattended] [bug description or observation]`. e.g., /debugging:debug photo uploads over 20 MB fail with a 502, or /debugging:debug diagnose photo uploads over 20 MB fail with a 502
@@ -40,7 +40,7 @@ that fails.
 | Action | Selected by | What runs |
 |---|---|---|
 | `debug` (bare) | no action word | All six phases: the full loop ends in a fix with its regression test |
-| `diagnose` | `diagnose` as the first word, or a request in plain words for the cause only ("just tell me why", "don't fix it") | See [Action: diagnose](#action-diagnose) |
+| `diagnose` | `diagnose` as the first word, or a request in plain words for the cause only ("diagnose this", "just tell me why", "don't fix it") | See [Action: diagnose](#action-diagnose) |
 
 Any first word other than `diagnose` is part of the observation.
 
@@ -95,7 +95,7 @@ For any diagnostic run (Phases 1-6), track phase completion. A ready-to-fill che
 
 ## Phase 1: Build the reproduction loop
 
-Write down what you are assuming about the failure first (for the running example: the 502 comes
+Before building the loop, write down what you are assuming about the failure (for the running example: the 502 comes
 from our media service, not the CDN in front of it; staging fails the same way production does). Phase 3 ranks
 hypotheses against that list.
 
