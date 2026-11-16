@@ -4567,6 +4567,31 @@ else
   fail "'## Next' with an enabled gate should warn on phrasing (rc=$rc): $out"
 fi
 
+make_skill next-enabled-word '---
+name: next-enabled-word
+description: "Next fixture. Use when: '"'"'next enabled word'"'"'."
+---
+
+## Purpose
+
+Conforming successor section whose sentence has a word ending in "is" before "enabled".
+
+## Next
+
+`/code-metrics:audit complexity`. It measures what this enabled.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-enabled-word 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q "WARN: '## Next'" <<<"$out"; then
+  pass "a word merely ending in 'is' before 'enabled' is not an availability gate"
+else
+  fail "'## Next' with 'this enabled' should not warn (rc=$rc): $out"
+fi
+
 # 27b. A stage-bearing skill (metadata.workflow-stage in the stage list) with no
 # '## Next' and no older routing heading warns; any routing heading, a
 # conforming '## Next', a non-stage value, or `interview` keeps today's verdict.

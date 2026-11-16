@@ -2473,7 +2473,7 @@ else
   # Either shape is a mention for the human, so the whole block, not just the
   # line that names the successor, is read for the three things the rule
   # excludes: Skill-tool phrasing, an availability gate, a fallback clause.
-  NEXT_OPERATIVE="$(grep -oiE 'skill tool|installed|(is|if|when) enabled|fall ?back|otherwise' <<<"$NEXT_BLOCK" | head -1 || true)"
+  NEXT_OPERATIVE="$(grep -oiE 'skill tool|installed|(^|[^[:alnum:]_])(is|if|when) enabled([^[:alnum:]_]|$)|fall ?back|otherwise' <<<"$NEXT_BLOCK" | head -1 | sed -E -e 's/^[^[:alpha:]]+//' -e 's/[^[:alpha:]]+$//' || true)"
   if [[ -n "$NEXT_OPERATIVE" ]]; then
     NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }carries operative-chain phrasing ('$NEXT_OPERATIVE'); a successor is a mention, with no Skill-tool phrasing, availability gate, or fallback clause"
   fi
