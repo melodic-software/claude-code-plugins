@@ -2030,8 +2030,8 @@ assert_eq "no fixture string was evaluated by the shell" "" "$pwned"
 # --with JSON into the session file it names unless --dry-run, and reports enabledPlugins as
 # the session will start with them: autonomy@m on, or per STUB_PROFILES_AUTONOMY off (no layer
 # enables it), project (the session file leaves it out, the project's settings enable it),
-# othermarket (only autonomy@other on) or nofield (an older profiles.mjs that reports no
-# enabledPlugins). It refuses with exit 1 when
+# othermarket (only autonomy@other on), bare (only a bare autonomy key on) or nofield (an older
+# profiles.mjs that reports no enabledPlugins). It refuses with exit 1 when
 # STUB_PROFILES_RC=1, as a missing required prerequisite does.
 PP_ROOT="$TMP/pp"
 PP_LOG="$TMP/pp.log"
@@ -2050,6 +2050,7 @@ if (!args.includes("--dry-run")) writeFileSync("$PP_FILE", w > 0 ? args[w + 1] :
 const mode = process.env.STUB_PROFILES_AUTONOMY || "on";
 const result = { profile: args[1], argv: ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "claude", "--settings", "$PP_FILE"] };
 if (mode === "othermarket") result.enabledPlugins = { "other@m": true, "autonomy@m": false, "autonomy@other": true };
+else if (mode === "bare") result.enabledPlugins = { "other@m": true, "autonomy": true };
 else if (mode !== "nofield") result.enabledPlugins = { "other@m": true, "autonomy@m": mode !== "off" };
 console.log(JSON.stringify(result));
 STUB
@@ -2171,6 +2172,26 @@ assert_eq "gate keyed under autonomy@m with only autonomy@other on: start exits 
 assert_contains "gate keyed under autonomy@m with only autonomy@other on: the error names the gate's plugin" "$out" \
   "the lane arms the lane-stop gate under autonomy@m but profile 'focus' leaves it off"
 assert_not_contains "gate keyed under autonomy@m with only autonomy@other on: the lane is not launched" "$(cat "$CLAUDE_LOG")" "--bg -n work"
+
+# A gate request keyed under a bare `autonomy` matches only a bare `autonomy` entry.
+PP_BARE_CONFIG="$REPO/.work/lanes/profile-bare-gate-lanes.json"
+cat >"$PP_BARE_CONFIG" <<'JSON'
+{ "prompt_dir": ".work/lanes",
+  "lanes": [
+    { "name": "work", "prompt": "work.md", "effort": "high", "profile": "focus",
+      "settings": { "pluginConfigs": { "autonomy": { "options": { "lane_stop_gate_enabled": true } } } } } ] }
+JSON
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" STUB_PROFILES_AUTONOMY=bare run_launcher start --config "$PP_BARE_CONFIG" --repo "$REPO" --no-pull --no-update --data-dir "$TMP/pp-data" --agents-json "$AGENTS_EMPTY" 2>&1)"
+assert_eq "bare gate request with a bare autonomy entry on: start exits 0" 0 "$?"
+assert_contains "bare gate request with a bare autonomy entry on: the lane launches" "$(cat "$CLAUDE_LOG")" "--settings $PP_FILE --bg -n work"
+
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" run_launcher start --config "$PP_BARE_CONFIG" --repo "$REPO" --no-pull --no-update --data-dir "$TMP/pp-data" --agents-json "$AGENTS_EMPTY" 2>&1)"
+assert_eq "bare gate request with only autonomy@m on: start exits 1" 1 "$?"
+assert_contains "bare gate request with only autonomy@m on: the error names the bare id" "$out" \
+  "the lane arms the lane-stop gate under autonomy but profile 'focus' leaves it off"
+assert_not_contains "bare gate request with only autonomy@m on: the lane is not launched" "$(cat "$CLAUDE_LOG")" "--bg -n work"
 
 : >"$CLAUDE_LOG"
 out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" STUB_PROFILES_AUTONOMY=project ppg_run start --agents-json "$AGENTS_EMPTY" 2>&1)"
