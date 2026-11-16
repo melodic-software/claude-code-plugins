@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Write call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/scratch/bom_loop.sh",
+            "content": "python3 -m importer.csv_import samples/with-bom.csv\n"
+          }
+        }
+      ],
+      "why": "a scratch loop outside the importer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/importer/csv_import.py",
+            "content": "import csv\n"
+          }
+        }
+      ],
+      "why": "rewrites the importer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "importer/csv_import.py",
+            "content": "import csv\n"
+          }
+        }
+      ],
+      "why": "rewrites the importer by relative path"
+    }
+  ]
+}
