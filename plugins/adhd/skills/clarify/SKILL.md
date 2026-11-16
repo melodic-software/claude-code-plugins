@@ -193,7 +193,7 @@ link or path, not the table a second time.
 Routing: "I don't get it / explain simply / what does this mean" goes to `/education:explain`;
 "ELI5 / draw me this / show me a diagram" goes to `/education:illustrate`; "make this clear /
 clarify this / what am I deciding" is this skill. Hand off to the first two through the Skill tool
-when the `education` plugin is installed; when it is not, say which one the ask wants and give a
+when the `education` plugin is enabled; when it is not, say which one the ask wants and give a
 faithful restructure.
 
 ## Gotchas

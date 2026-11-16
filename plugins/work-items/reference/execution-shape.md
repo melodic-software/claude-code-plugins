@@ -105,7 +105,7 @@ Sequential checkpoints on one shared branch; the journey ships as one PR at the 
   full verification gates run before the single PR merges (plus any per-checkpoint gates the
   project's workflow defines). When the **last** item closes, the journey's terminal step is
   opening that single PR from the integration branch (`/source-control:pull-request` when
-  installed) and running the full gates; the container's close-out runs at PR time and the
+  enabled) and running the full gates; the container's close-out runs at PR time and the
   container closes only when the PR ships.
 - The standard `/work-items:work` path provisions worktrees from the default branch and opens
   per-item PRs, so items in this shape are worked on the shared branch directly or through
@@ -163,4 +163,4 @@ boundary), *sub-issue* as a distinct concept (it is an item that happens to have
   (`config.container_label`, default `spec-container`, per CONTRACT.md "Containers and state"); nothing in
   this document introduces a new fixed label, path, or filename.
 - Phase machinery is composed presence-gated: planning close-out, review machinery, and
-  session-flow skills are routed to when installed, with documented manual fallbacks when not.
+  session-flow skills are routed to when enabled, with documented manual fallbacks when not.

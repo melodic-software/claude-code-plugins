@@ -37,8 +37,6 @@ plugins/repo-hygiene/skills/clean/reference/invocation-forms.md 3 # justified: t
 plugins/source-control/skills/worktree/context/audit.md 1 # justified: the sentence tells the model not to emit the token in a command it presents; the literal text is the warning
 plugins/ai-slop/skills/audit/context/persist-findings.md 2 # pending: the steps run bundled scripts through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead
 plugins/ai-slop/skills/audit/context/rubric-fanout.md 1 # pending: the line names a bundled script through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead
-plugins/architecture/skills/improve/actions/boundaries.md 1 # pending: the step runs a bundled helper through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
-plugins/architecture/skills/improve/actions/conventions.md 1 # pending: the step runs a bundled helper through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
 plugins/architecture/skills/map-landscape/reference/scope-modes.md 1 # pending: the command runs a bundled script through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead
 plugins/attribution/skills/audit/context/persist-findings.md 1 # pending: the command runs a bundled script through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead
 plugins/corrections/skills/codify/actions/group.md 2 # pending: the steps run bundled scripts through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead

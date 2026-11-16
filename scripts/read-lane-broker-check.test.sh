@@ -295,6 +295,8 @@ cat >"$STUB_BIN/gh" <<'STUB'
 case "$*" in
 *"--method PATCH"*) echo PATCH >>"$STUB_LOG"; echo 41 ;;
 *"issues/comments/41"*) printf '%s\n' "$COMMENT" ;;
+*"issues/7/comments?per_page=100"*) printf '[]\n' ;;
+*".assignees[].login"*) printf '[]\n' ;;
 *) echo "gh-stub: unhandled: $*" >&2; exit 90 ;;
 esac
 STUB

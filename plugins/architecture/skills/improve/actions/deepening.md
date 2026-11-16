@@ -6,43 +6,17 @@ Three phases, with a verification gate (Phase 1.5) between the scan and the repo
 
 ## Phase 1: Explore for friction
 
-**Check the branch is current with its base before scanning.** A deepening pass is long, and a
-base that moves under it lands its conflicts at the handoff, after the candidates are shaped
-around the stale tree. Run each as its own Bash call, never combined:
+The steps every lens shares are in [../../../reference/improvement-steps.md](../../../reference/improvement-steps.md); this playbook cites each by its section name.
 
-1. `git symbolic-ref --short refs/remotes/origin/HEAD` names the base (for example `origin/main`).
-2. `git fetch origin <base-branch>` refreshes it.
-3. `git rev-list --count HEAD..origin/<base-branch>` counts the commits the branch is behind.
-
-A count above zero is reported with the number, and the user chooses whether to bring the branch
-current before the scan starts; this skill never merges or rebases on its own. A failure at any
-step (no remote, no `origin/HEAD`, offline) is an unknown freshness, said in one line, and the scan
-carries on.
+**Check the branch is current with its base before scanning** ("Base freshness").
 
 **Scope before scanning: YAGNI.** The return on deepening is cheaper change later, so it only
 arrives where code is still being changed; deepening a file no one edits buys nothing. Choose the
-area first, then scan it:
-
-- When the invocation arguments or the conversation already point somewhere (a pain point, a
-  subsystem, a single module), that is the scope, and the history step below is skipped.
-- With no direction given, scan first the paths that change most often. Read them with one
-  read-only call, `git log --name-only --format='%h %an: %s' -100`, longer when no pattern shows,
-  and leave out every commit whose author name contains `[bot]` (release, dependency and automation
-  bots), and a project's other automation accounts the same way when it names them. When no path
-  changes noticeably more than the rest, history sets no priority and the scan covers the whole
-  area.
-- When a spec or plan for upcoming work is given, scan the areas it will change.
-
-The scope chosen here sets each scan subagent's assigned area.
-
-**Size the fan-out from the scope, not from a constant.** Dispatch one scan subagent per area the
-scope decomposed into, since the right width depends on the repository being scanned, not on
-the method. Name the count and the areas to the user before dispatching: scan cost rises with the
-subagent count, and the scan fan-out is the largest cost of a run.
+scope and size the scan fan-out from it ("Scope and fan-out").
 
 Read the project's domain glossary, if it keeps one: invoke `/domain-driven-design:ubiquitous-language lookup` via the Skill tool for the directory being examined when that skill is available; otherwise Glob the repository for `**/*{glossary,Glossary,GLOSSARY,ubiquitous,UBIQUITOUS}*.md` (the root, any `docs/` folder and the module's own folder) and Read the match that covers the area; a path the project's instructions declare, or a `glossary_file` set in `docs/conventions/domain-driven-design.yaml`, wins, and a tool's own reference glossary under a plugin or package `reference/` or `context/` folder is skipped, plus its glossary index in a multi-context repository.
 
-Also read any architecture decision records (ADRs) in the area being examined. Give them the same discovery discipline as the glossary rather than one shallow glob. If the consuming project declares where its decisions live inside the repository (a path in its `CLAUDE.md` / rules, or a documented convention), honor that. Otherwise walk the ladder of common homes in [../../../reference/adr-discovery.md](../../../reference/adr-discovery.md), from the examined directory up to the repo root. ADR placement varies widely; a single default glob misses most of them.
+Also read the architecture decision records in the area being examined ("Recorded decisions").
 
 Walk the codebase through the Agent tool (`subagent_type=Explore`, or any read-only exploration subagent available). Brief each scan subagent with the canonical template in [../research/deepening/scan-briefing.md](../research/deepening/scan-briefing.md): vocabulary primer, friction checklist, dependency categories, the two badge-acceptance heuristics, and the per-candidate return schema. Briefing from it keeps scan quality from varying run-to-run and calibrates confidence against the heuristics at scan time, not leaving it to Phase 2. The scan follows what it finds rather than a fixed route, and records friction wherever it shows up:
 
@@ -89,7 +63,7 @@ The report is one self-contained HTML file under the OS temp directory, one per 
 
 Each candidate gets a card with: files involved, problem (one sentence), solution (one sentence), before/after diagram, benefits in terms of **leverage** and **locality**, recommendation badge (`Strong` / `Worth exploring` / `Speculative`), dependency category badge.
 
-**Order and band the cards by badge, at every count.** Cards render in one band per badge, `Strong` first, then `Worth exploring`, then `Speculative`, and an empty band is left out. The banding is unconditional: no cap, no pagination, and no card behind a collapsed disclosure, since a reader who ran the scan needs every candidate and the bands already say how far each claim can be trusted.
+**Order and band the cards by badge, at every count** ("Badge bands").
 
 Two acceptance heuristics gate the badge:
 
@@ -100,7 +74,7 @@ The last section of the report is the **Top recommendation**. The scaffold and t
 
 Domain nouns come from the project's glossary; architecture nouns come from [../../../reference/vocabulary.md](../../../reference/vocabulary.md).
 
-**Durable candidate artifact.** Alongside the HTML when one is produced (or standing alone, per the carve-out above), write a machine-readable candidate list that survives the session. The HTML, when produced, is the human-readable companion, ephemeral in the temp dir. Write it to the **memory tier**: `<memory_dir>/<topic-slug>/deepening-candidates-<YYYYMMDDTHHMMSSZ>.md`, default `.work/<topic-slug>/…`. `<memory_dir>` is `.work/` unless the consuming repo's `CLAUDE.md` or `.claude/rules` declares another working-docs root. `<topic-slug>` is the scan focus the user named (a path, a subsystem or a module), whether in the invocation arguments or the conversation, else the current branch name, kebab-case. On the session's first memory-tier write, verify the memory root contains a `.gitignore` with `*`, creating it with the Write tool (announced) when absent, never with a shell redirect, and never editing the consumer's root `.gitignore`; create the topic slice directory when absent. Tell the user the path. This file, not the HTML, is the durable handoff a planning step consumes. One entry per candidate:
+**Durable candidate artifact.** Alongside the HTML when one is produced (or standing alone, per the carve-out above), write a machine-readable candidate list that survives the session. The HTML, when produced, is the human-readable companion, ephemeral in the temp dir. Write it to the **memory tier** ("Memory-tier writes"): `<memory_dir>/<topic-slug>/deepening-candidates-<YYYYMMDDTHHMMSSZ>.md`, default `.work/<topic-slug>/…`. This file, not the HTML, is the durable handoff a planning step consumes. One entry per candidate:
 
 ```markdown
 ## <candidate title>
@@ -124,12 +98,12 @@ End the file with two lines: `phase-1.5: downgraded=<n> dropped=<n> corrected=<n
 
 **A reproduced live defect gets its own report.** A `runtime-claim` that Phase 1.5 reproduced as a live bug does not wait for its candidate to be picked: the refactor may never be chosen, and the defect is real either way. Name each one in the reply before the question, security defects first. A dead-code claim is not a defect, and a `runtime-claim` labeled `unverified` is named as unverified, not reported.
 
-- **Not a security defect**: invoke `/bugs:write --file` (if that plugin is installed) with the reproduction, so the report is saved to a file that outlives the session and the user is offered the choice to file it. Without it, give the report in the reply: a title, the steps that reproduce it, expected against actual, and the file and function to fix.
+- **Not a security defect**: invoke `/bugs:write --file` (if that plugin is enabled) with the reproduction, so the report is saved to a file that outlives the session and the user is offered the choice to file it. Without it, give the report in the reply: a title, the steps that reproduce it, expected against actual, and the file and function to fix.
 - **A security defect** (a missing access check, exposed data, an injection): state it to the user in the reply, and put its details in no tracker item, pull request, commit message or other text that may become public. Tell the user to report it through the repository's security policy or a private advisory, and file nothing yourself. Pointer: when the user asks how to report privately on GitHub, fetch [About reporting and disclosing vulnerabilities in projects on GitHub](https://docs.github.com/en/code-security/concepts/vulnerability-reporting-and-management/coordinated-disclosure#about-reporting-and-disclosing-vulnerabilities-in-projects-on-github) live.
 
 The candidate keeps the defect as evidence for the refactor.
 
-**Review-class problems belong to the skills that own them.** A scan also sees problems that are not about module shape: types that opt out of checking, errors caught and discarded, a hard-coded value that should be read from data. Keep each as evidence on the candidate it belongs to, add no finding or badge for it, and name the owning skill once in the reply: `/code-metrics:audit type-debt` (if that plugin is installed) for typing, `/review:quality-gate code` (if that plugin is installed) for the rest. Without either plugin, say that these were seen and not assessed.
+**Review-class problems belong to the skills that own them.** A scan also sees problems that are not about module shape: types that opt out of checking, errors caught and discarded, a hard-coded value that should be read from data. Keep each as evidence on the candidate it belongs to, add no finding or badge for it, and name the owning skill once in the reply: `/code-metrics:audit type-debt` (if that plugin is enabled) for typing, `/review:quality-gate code` (if that plugin is enabled) for the rest. Without either plugin, say that these were seen and not assessed.
 
 Phase 2 proposes no interfaces. Once the report is written, the reply opens with the decision now up to the user, names the top recommendation, gives the report path (when one was written) and the artifact path, and asks: "Which candidate should we explore?"
 
@@ -156,11 +130,4 @@ Branch here when the user wants alternative interfaces for the selected candidat
 
 When the candidate's shape is agreed, update its entry in the candidate artifact to `status: agreed-shape` and fill `agreed-shape` (interface entry points, what the seam hides, tests that survive). **When the agreed shape is a hybrid grafted from a Design-It-Twice fan-out, fill `graft-record` in the same edit**: what was taken from which design, and what was considered and left behind with its reason. It is a sibling field, not part of `agreed-shape`, and this is the only step that writes it: skip it here and the left-behind half survives nowhere, which is the half that stops a later explorer re-proposing a shape this exploration already weighed and dropped. Hand off to `/planning:design` (if enabled), which takes the `agreed-shape` entry as the module design and whose handoff carries it into the plan. If no design or planning tool is available in the project, summarize the agreed shape directly so implementation can proceed.
 
-Before handing off, re-run the Phase 1 base-freshness check and report the behind count, so a base that moved during the interview surfaces now rather than at merge time.
-
-The handoff carries two instructions for whoever implements the shape:
-
-- **A skipped suite is not a pass, and a stub is not the tool.** A test suite that skips because a required tool is missing has verified nothing, and a stand-in binary that echoes its arguments and exits zero is not the tool it replaces. Validation is green only when the suite ran against the real tool.
-- **Retiring a public name sweeps comments and assertions, not only call sites.** When the agreed shape retires a function, type, or other public name, the sweep covers every call site, every comment that names it, and every test assertion that mentions it, including a substring assertion that would pass against either spelling. A passage that records what a past version dropped (a changelog entry, a README history note) keeps the old name, since renaming it would falsify the record.
-
-**When more than one candidate is handed off together**, the handoff also records what a single candidate never needs: the order the candidates land in and why, the files two or more of them touch, and which candidates depend on another landing first. Commit granularity and pull-request shape stay the implementing lane's call and are carried into the handoff, not decided here.
+Before handing off, re-run the base-freshness check, and carry the implementer instructions and, for several candidates, their landing order ("Hand-off").

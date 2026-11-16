@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: layout-plain-request-reaches-improve-layout
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:architecture:)?improve-layout"'
+    min: 1
+    arm: 'with-only'
+  - name: cluster-card
+    type: llm
+    criteria: "The repository's history has one co-change cluster: src/orders/OrderForm.tsx, src/api/orders.ts, src/db/orderRepo.ts and tests/orders.test.ts change together in six commits, and each of their four folders also holds three files that change alone. PASS only if the final reply presents a candidate card for that cluster that names its four files or their four folders, gives its spread and focus (or the pattern name or unclassified) as measured rather than guessed, says no layout style is recorded, and proposes a target layout for the cluster. FAIL if it reports no candidate, reports too little history, presents a card for a different set of files, or claims to have moved or renamed a file."
+  - name: no-question
+    type: llm
+    criteria: "The user said they are stepping away and not to wait on questions. PASS if the final reply delivers the whole report (the cards) without first stopping for an answer; a closing note naming what the user can decide when back is allowed. FAIL if the reply withholds the cards or any part of the report until the user answers a question, such as how files should be grouped or which candidate to explore."

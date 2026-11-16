@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        "docs/notes.md"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "src/billing/violation.js"
+      ]
+    },
+    {
+      "answer": [
+        "src/billing/tmp/probe.js"
+      ]
+    }
+  ]
+}

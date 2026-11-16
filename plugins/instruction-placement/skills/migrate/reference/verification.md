@@ -198,6 +198,6 @@ names stay. For a shadowed sibling, Muse names the file on stderr as ignored in 
 
 ## Progressive disclosure, with a caveat
 
-Run `/docs-hygiene:audit-progressive-disclosure` via the Skill tool, when it is installed, on the
+Run `/docs-hygiene:audit-progressive-disclosure` via the Skill tool, when it is enabled, on the
 finished root `AGENTS.md`: a root file that grew during the migration has moved the cost rather
 than removed it.

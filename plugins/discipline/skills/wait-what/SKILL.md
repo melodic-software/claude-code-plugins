@@ -32,6 +32,6 @@ English alone.
   `discipline-batch` tier is set.
 - **Siblings.** `/discipline:tighten-your-output` when the problem is too many
   words; `/discipline:mind-your-maxims` when the standing communication
-  discipline needs re-anchoring. If installed, `/education:explain` when the
+  discipline needs re-anchoring. If enabled, `/education:explain` when the
   reader needs the idea simplified, not the message re-grounded, and
   `/adhd:clarify` when the content is right but the shape is wrong.

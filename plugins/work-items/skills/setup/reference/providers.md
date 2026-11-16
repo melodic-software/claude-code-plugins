@@ -111,7 +111,7 @@ The seam resolves consumer-local adapters ahead of the bundled pair, so a repo c
 provider, or shadow a bundled one, without forking the plugin. Set `provider` to its name in the
 binding.
 
-`/work-items:onboard-adapter` (if installed) generates one: interview, live-instance exploration, a
+`/work-items:onboard-adapter` (if enabled) generates one: interview, live-instance exploration, a
 hardened security skeleton, an honest capability manifest, and the conformance binding, rather
 than starting from a blank file.
 

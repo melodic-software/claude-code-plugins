@@ -200,7 +200,8 @@ with the question for any blocking install.
 
 - It never installs a check unasked, and never installs an unproven one.
 - It never implements a rung. No analyzer, rule, architecture test or hook is written here. Asked to
-  "just write the analyzer", decline and hand over the rung's pointer.
+  "just write the analyzer", decline and hand over the rung's pointer. For the `architecture-test`
+  rung, also name `/architecture:enforce-boundaries` as the next step when that skill is available.
 - It never fixes an existing violation. The cleanup it offers runs through `/implementation:implement`.
 - Moving a mistake up the ladder is not promotion in the autonomy sense: it changes no work class or
   guardrail class, and neither implies the other.

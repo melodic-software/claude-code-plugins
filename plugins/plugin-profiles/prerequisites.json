@@ -1,0 +1,62 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the profiles command-line tool cannot run, so no profile can be applied, checked or cleared.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      }
+    },
+    {
+      "id": "claude",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "claude"
+        ]
+      },
+      "degrade": "Without the claude command on PATH, apply, status and inventory cannot list the installed plugins; status --session-start still works.",
+      "install": {
+        "docs": "https://code.claude.com/docs/en/setup"
+      }
+    },
+    {
+      "id": "claude-mods",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:register.tsx"
+      ],
+      "detect": {
+        "any": [
+          "claude"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "^([0-9.]+)",
+          "min": "2.1.287"
+        }
+      },
+      "degrade": "Claude Code older than 2.1.287 does not load the module, so /plugin-profile and the in-session switch are missing; the profiles command-line tool still applies, checks and clears a profile.",
+      "install": {
+        "docs": "https://code.claude.com/docs/en/setup#update-claude-code"
+      }
+    }
+  ]
+}

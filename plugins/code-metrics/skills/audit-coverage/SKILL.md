@@ -56,7 +56,7 @@ not its extension.
 Present the markdown report as printed: the scope, the "Coverage of this run" table, the
 references with their provenance, then one row per file and per function. Keep the `--json`
 document when the numbers feed a comparison: pass it to `/verification:measure metrics` when the
-`verification` plugin is installed, treating `status: empty` on either side as INCONCLUSIVE;
+`verification` plugin is enabled, treating `status: empty` on either side as INCONCLUSIVE;
 otherwise keep the JSON beside your notes and compare by hand.
 
 ## Getting a first artifact
@@ -148,7 +148,7 @@ configuration.
   file an artifact never records from a source file the suites never reach; the paths can.
 - Whether the covered code is actually checked by its tests is a different question, and coverage
   alone cannot answer it: a line can execute under a test that asserts nothing.
-  `/mutation-testing:audit` owns that question when the `mutation-testing` plugin is installed;
+  `/mutation-testing:audit` owns that question when the `mutation-testing` plugin is enabled;
   without it, say that the coverage number is an execution count and stop there.
 - Exit 0 whenever a report was produced, including an empty one; exit 2 for a usage error, which
   includes a named artifact or scope path that does not exist; exit 3 when a complexity collector

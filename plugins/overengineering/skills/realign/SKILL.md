@@ -117,7 +117,7 @@ which cannot be read back off an id (`findings-artifact.md` "Finding ids").
 ## Per accepted finding: the four movements
 
 Interview, explore and research, plan, implement. Each composes a sibling skill via the Skill tool
-when its plugin is installed and runs the inline fallback when not. Say which ran and record the
+when its plugin is enabled and runs the inline fallback when not. Say which ran and record the
 presence answer on the finding.
 
 | Movement | Composition (presence-gated) | Inline fallback when absent |

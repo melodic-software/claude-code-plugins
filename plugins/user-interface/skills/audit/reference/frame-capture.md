@@ -180,7 +180,7 @@ Reading rules:
 
 Nothing pasted, and the finding turns on frames (an interruption, a page-load entrance, a fade that
 outlasts its movement): offer a capture through `/app-control:drive capture --kind animation --out
-<scratch directory>`, when that plugin is installed. A capture launches the branch's code and
+<scratch directory>`, when that plugin is enabled. A capture launches the branch's code and
 clicks inside the app, so name the exact command and run it only after the user's yes; with no one
 present to answer, do not capture. It runs only on an app that capture launched, on seeded or test
 data. The project's control skill names the tool that records the kind; for a web app it can name

@@ -58,14 +58,19 @@ nothing until you say yes. An accepted boundary rule goes into the
 `/corrections:codify`, and a paved-path entry goes to
 `/discipline:reuse-or-replace`, which asks before it writes.
 
-The `layout` lens checks whether the files that change together live together.
-A tested script reads your git history once and finds the files that keep
-changing in the same commits, using code-maat's coupling filters. It groups them
-into clusters and measures how far each cluster spreads over folders. Each
-cluster becomes a card, judged against the layout style your repository has
-written down. Pick one and the lens interviews you on the target layout, then
-hands it to planning. It never moves a file. Its settings are the `layout`
-object in `architecture.yaml`.
+The three lenses and `improve-layout` below take their shared steps (base
+freshness, scope, the convention home, memory-tier writes, badge bands, the
+hand-off) the same way, from one plugin reference,
+`reference/improvement-steps.md`.
+
+A separate skill, `/architecture:improve-layout`, checks whether the files that
+change together live together. A tested script reads your git history once and
+finds the files that keep changing in the same commits, using code-maat's
+coupling filters. It groups them into clusters and measures how far each cluster
+spreads over folders. Each cluster becomes a card, judged against the layout
+style your repository has written down. Pick one and the skill interviews you on
+the target layout, then hands it to planning. It never moves a file. Its
+settings are the `layout` object in `architecture.yaml`.
 
 ## Across repositories
 
@@ -189,6 +194,23 @@ upstream template catalog is cited by URL for you to read, under its own
 CC BY-NC-SA 4.0 license; no template prose is copied into this plugin or into
 your records.
 
+## Enforce a boundary rule
+
+`/architecture:enforce-boundaries` turns each rule in the `## Boundary rules`
+section of your architecture topic doc into a check that runs where your
+other checks run. It ships no tool or config: it looks for what the
+repository already has and takes the strongest mechanism that can express the
+rule, a boundary the build already enforces first, then your existing
+architecture-test tool, then a tool researched at run time, and last a check
+in your own convention. Each rule is proven on its own: an injected violation
+must fail the check naming that rule, and the check must pass again once only
+those lines are removed. The check is wired into the command that already runs
+your checks, anything left for you (a CI step, a hook) is reported as not
+wired, and each rule's entry gains the command that enforces it. Every write
+waits for your yes, a new dependency always asks, and an unattended run stops
+at the plan. With no rule recorded it writes nothing and points at the
+`conventions` and `boundaries` lenses.
+
 ## Invoke
 
 ```shell
@@ -196,10 +218,11 @@ your records.
 /architecture:improve deepening  # explicit
 /architecture:improve boundaries # recorded boundary rules against manifest edges
 /architecture:improve conventions # derive conventions and propose rules
-/architecture:improve layout     # do files that change together live together?
+/architecture:improve-layout     # do files that change together live together?
 /architecture:principles seam    # define a module-design term
 /architecture:record-decision    # record one decision into the repo's convention
 /architecture:record-decision audit # list ADRs the code no longer backs
+/architecture:enforce-boundaries # set up and prove a check per recorded boundary rule
 
 /architecture:map-landscape --repos /path/to/a,/path/to/b
 /architecture:map-landscape --root /path/to/code-root
@@ -218,7 +241,9 @@ your records.
 
 Trigger phrases (Claude may also invoke it automatically): "improve
 architecture", "find deepening opportunities", "shallow modules", "architecture
-scan", "make this more testable", "module seams", "locality", "map our
+scan", "make this more testable", "module seams", "locality", "check our layer boundaries", "derive our
+conventions", "do files that change together live together", "co-change layout",
+"map our
 landscape", "system landscape", "what systems do we have", "application
 portfolio", "who owns which repo", "map
 dependencies", "component diagram", "map events", "trace this route", "map

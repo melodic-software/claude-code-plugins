@@ -1,0 +1,21 @@
+{
+  "description": "At session start, names the folder's plugin profile, the entries that differ from it, plugins installed since it was applied, an unfinished switch and the surface; prints nothing in a folder with no applied profile, reads installed plugins from disk and never starts a nested claude. The module answers /plugin-profile, the in-session switch, and runs its one /reload-plugins when the turn ends.",
+  "modules": [
+    "./register.tsx"
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.sh\" \"${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs\" \"status\" \"--session-start\"; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.ps1\" \"${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs\" \"status\" \"--session-start\"",
+            "timeout": 10,
+            "statusMessage": "Reading the folder's plugin profile..."
+          }
+        ]
+      }
+    ]
+  }
+}

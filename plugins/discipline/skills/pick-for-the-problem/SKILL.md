@@ -67,7 +67,7 @@ training-data recall: a tool's maintenance status, licensing, and security
 posture drift constantly. Route to a research capability rather than judging
 from memory: invoke `/discovery:research` via the Skill tool, or
 `/discovery:research deep` for a large surface. Degrade to an explicit in-thread research pass (fetch the primary
-sources yourself and cite them) when that capability is not installed, never a bare recalled verdict.
+sources yourself and cite them) when that capability is not enabled, never a bare recalled verdict.
 State the chosen option with a `Basis:`: `verified` with the source URLs or tool output it rests
 on, or `judgment` only where the call is not consequential (consequential means cross-repo,
 shared infrastructure, irreversible or costly to reverse, or security). A consequential choice research cannot settle is

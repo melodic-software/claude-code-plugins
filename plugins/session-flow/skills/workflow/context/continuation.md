@@ -11,7 +11,7 @@ continue in session, `/clear`, `/rewind`, `session-flow:handoff`, `session-flow:
 `session-flow:clean-stop`, and `/compact`. Two session-flow siblings are deliberately not
 terminals: `reconcile` and `orient` are state hygiene. They inform this decision (what is still
 running, where we stand) but never carry the session forward. Mid-task subagent delegation is a
-spawn-brief decision owned by `session-flow:orchestrate` (if installed); question 2 below is its
+spawn-brief decision owned by `session-flow:orchestrate` (if enabled); question 2 below is its
 only entrance and is the router's one non-terminal edge. A cloud session is not a terminal either:
 it rides along as advice (Output shape, below).
 
@@ -37,7 +37,7 @@ of them itself**. Each input is a pointer to the surface that already owns it, c
 the way the zone word above is consumed: take the informant's answer, inline none of its
 mechanics.
 
-| Input | Owner, if installed | What the router takes |
+| Input | Owner, if enabled | What the router takes |
 |---|---|---|
 | Where we stand, durable and off-thread state | `session-flow:orient` | its briefing's findings: the last save-point, the stage ledger, open PRs and work-items, git state |
 | What is still running | a reconciliation already run this session (`session-flow:reconcile`), else `session-flow:orient`'s read-only off-thread glance | the liveness answer: which off-thread work is finished, which is live |
@@ -92,7 +92,7 @@ boundary.
    question 5 (handoff).*
 2. **Is the remaining work scoped to run away from the keyboard, with no decision the human still owes
    it, no mid-flight approval it must stop for?** → hand the spawn-brief decision to
-   `session-flow:orchestrate` (if installed), then continue to question 3 for this session's own
+   `session-flow:orchestrate` (if enabled), then continue to question 3 for this session's own
    mechanism. *The AFK criterion, asked here because a yes changes who does the remaining work,
    while every question below asks how this session carries it, a question only well-posed once
    the work that is leaving has left. Ordered after question 1 because feasibility the router
@@ -225,7 +225,8 @@ the launch as `/session-flow:continue-in-background --cloud`, which the user mus
 or handoff file sends that skill to its full path, which the cloud delivery refuses: when the file
 is committed and pushed, name the launch as `--cloud prompt <topic> <purpose naming the file's
 repo-relative path>`; when it is not, say the user commits and pushes it first. Judge
-the fit from the upstream criteria, read live through `/discovery:read-docs`, never from memory:
+the fit from the upstream criteria, read live through `/discovery:read-docs` (if that plugin is
+enabled; otherwise fetch each pointer below with WebFetch), never from memory:
 
 - **Pointer**: the decision rule,
   <https://code.claude.com/docs/en/remote-control#remote-control-vs-cloud-sessions>; when cloud
@@ -308,7 +309,7 @@ the parent's window clean:
   report, and visible decay in its own output.
 
 Spawn-brief discipline for workers (turn/budget caps, spec-every-spawn) is owned by
-`session-flow:orchestrate` (if installed); without it, put the relay instruction directly in the
+`session-flow:orchestrate` (if enabled); without it, put the relay instruction directly in the
 worker's spawn brief.
 
 ## Where the mechanism menu lives

@@ -190,7 +190,11 @@ exempt_plugins() {
     dir="$(dirname "$dir")"
   done
 }
-if topic_ready seam-phrasing "explicit installed-ness"; then
+seam_needle="explicit availability condition"
+if [[ -z "$(cite "$ROOT/$(topic_rel seam-phrasing)" "$seam_needle")" ]]; then
+  seam_needle="explicit installed-ness"
+fi
+if topic_ready seam-phrasing "$seam_needle"; then
   # Exempt: the owning plugin and any manifest `dependencies` entry, one name
   # per line from the nearest plugin.json above the component.
   exempt="|$(exempt_plugins | paste -sd'|' -)|"
@@ -219,7 +223,7 @@ if topic_ready seam-phrasing "explicit installed-ness"; then
           window = line[i]
           if (i + 1 <= NR) window = window "\n" line[i + 1]
           if (i + 2 <= NR) window = window "\n" line[i + 2]
-          if (window ~ /installed/ || window ~ /Absent:/ || window ~ /fallback/) continue
+          if (window ~ /installed/ || window ~ /enabled/ || window ~ /Absent:/ || window ~ /fallback/) continue
           printf "probe: seam-phrasing status=candidate convention=%s component=%s:%d note=no gate or fallback within three lines; confirm the line instructs the invocation\n", conv, comp, i
         }
         print "seam-invocations=" seen

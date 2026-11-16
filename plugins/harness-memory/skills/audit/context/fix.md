@@ -73,7 +73,7 @@ For flagged codebase-description content, in preference order:
    across distant folders can mask low cohesion; consider restructuring so the things that
    change together live together, and keep a pointer only for what remains genuinely distant.
    (Write-side doctrine for authoring the pointer itself: `docs-hygiene:write-for-agents`, if
-   that plugin is installed.)
+   that plugin is enabled.)
 
 ### C6 (Consistency) fixes
 
@@ -94,7 +94,7 @@ The finding exists because a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.m
 path, the repository root's included, is read *instead of* the `AGENTS.md`. Removing that
 `CLAUDE.md` is the other way to make the `AGENTS.md` load, and it is not this fix: it is a
 repository-wide move with its own conditions, owned by `/instruction-placement:migrate`, if that
-plugin is installed. Where it is not, say that removing the root `CLAUDE.md` is a repository-wide
+plugin is enabled. Where it is not, say that removing the root `CLAUDE.md` is a repository-wide
 change outside this fix and leave the decision to the operator. Either way, propose the shim here.
 
 ### Synced files: never edit here

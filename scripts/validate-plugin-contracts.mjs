@@ -1473,32 +1473,6 @@ for (const entry of catalogEntries ?? []) {
   }
 }
 
-// The `core` bundle installs a chosen set of plugins through its manifest
-// `dependencies`. It stays off by default itself, so taking the default-on set
-// never installs it, and each member must be a default-on catalog entry
-// (defaultEnabled absent or true), so installing it never adds a plugin the
-// catalog leaves off or does not publish.
-const coreManifestPath = join(pluginRoot, "core", ".claude-plugin", "plugin.json");
-if (catalogEntries !== null && existsSync(coreManifestPath)) {
-  const entries = catalogEntries.filter((e) => e && typeof e === "object");
-  const coreEntry = entries.find((e) => e.name === "core");
-  if (coreEntry && coreEntry.defaultEnabled !== false) {
-    fail(marketplacePath, 'plugin entry "core" must set "defaultEnabled": false');
-  }
-  const byName = new Map(entries.map((e) => [e.name, e]));
-  const deps = [JSON.parse(read(coreManifestPath)).dependencies ?? []]
-    .flat()
-    .map((d) => (typeof d === "string" ? d : d?.name));
-  const absent = deps.filter((n) => !byName.has(n)).sort();
-  const off = deps.filter((n) => byName.get(n)?.defaultEnabled === false).sort();
-  if (absent.length) {
-    fail(coreManifestPath, `dependencies must be catalog plugins (not in the catalog: ${absent.join(", ")})`);
-  }
-  if (off.length) {
-    fail(coreManifestPath, `dependencies must be default-on catalog plugins (not default-on: ${off.join(", ")})`);
-  }
-}
-
 // claude.ai marketplace sync limits. plugin.json: description at most 500
 // characters; `$schema` and `defaultEnabled` are stripped with a warning (the
 // marketplace entry carries defaultEnabled). Skills follow the Agent Skills spec

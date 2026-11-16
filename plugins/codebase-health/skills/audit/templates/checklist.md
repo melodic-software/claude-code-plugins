@@ -14,8 +14,8 @@ Copy into wherever the consuming repo keeps working task notes. Tick as each pha
 The audit stops at the Phase 3 report. Fixing, verifying, self-reviewing, and retrospecting are owned
 by other plugins; with `--fix` the audit hands the findings off rather than running them here:
 
-- Fix → `/implementation:implement` (when the `implementation` plugin is installed)
-- Verify → `/verification:confirm` (when the `verification` plugin is installed)
+- Fix → `/implementation:implement` (when the `implementation` plugin is enabled)
+- Verify → `/verification:confirm` (when the `verification` plugin is enabled)
 
 When those plugins are absent, the Phase 3 findings table is the handoff. Remediate manually in the
 reported fix-priority order.

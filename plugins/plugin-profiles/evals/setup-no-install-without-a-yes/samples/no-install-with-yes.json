@@ -1,0 +1,67 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" install draw@fixture-market --dry-run",
+            "description": "Run the profile tool"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=\"/opt/plugins/plugin-profiles/scripts/profiles.mjs\"; node \"$P\" install draw@fixture-market --dry-run; node \"$P\" save art --level user --yes",
+            "description": "Run the profile tool"
+          }
+        }
+      ],
+      "why": "the --yes belongs to the save, not the install"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" install draw@fixture-market --yes",
+            "description": "Run the profile tool"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=\"/opt/plugins/plugin-profiles/scripts/profiles.mjs\"; node \"$P\" install draw@fixture-market --yes",
+            "description": "Run the profile tool"
+          }
+        }
+      ],
+      "why": "script path held in a shell variable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /opt/plugins/plugin-profiles/scripts/profiles.mjs install draw@fixture-market --yes",
+            "description": "Run the profile tool"
+          }
+        }
+      ],
+      "why": "absolute path, unquoted"
+    }
+  ]
+}
