@@ -445,8 +445,9 @@ fi
 launch_lines="$(section_lines "$dir/SKILL.md" Launch)"
 grep -qiE '^[[:space:]]*side by side:[[:space:]]*(yes([^[:alnum:]]|$)|no:[[:space:]]*[^[:space:]])' <<<"$launch_lines" ||
   finding launch-model SKILL.md "## Launch has no 'Side by side: yes' or 'Side by side: no: <reason>' line"
-grep -iE '^[[:space:]]*data:[[:space:]]*[^[:space:]]' <<<"$launch_lines" |
-  grep -qviE '^[[:space:]]*data:[[:space:]]*none:?[[:space:]]*$' ||
+data_lines="$(grep -iE '^[[:space:]]*data:[[:space:]]*[^[:space:]]' <<<"$launch_lines" || true)"
+if [[ -z "$data_lines" ]] || ! grep -qviE '^[[:space:]]*data:[[:space:]]*none:?[[:space:]]*$' <<<"$data_lines"; then
   finding launch-model SKILL.md "## Launch has no 'Data: <how a run starts from empty data>' or 'Data: none: <reason>' line"
+fi
 
 exit 0
