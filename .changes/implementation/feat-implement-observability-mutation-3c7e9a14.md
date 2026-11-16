@@ -16,4 +16,4 @@ bump: minor
   runs `/mutation-testing:audit --persist-findings` on the committed change's diff once the
   affected tests are green, reports the score, survivors and findings path (or the audit's refusal)
   and continues to the review hand-off whatever the score. A run whose tracked source could not be
-  restored stops before review. Without the plugin, the handoff says once what it would add.
+  restored stops before review. Without the plugin, the item stays in the report as not run and says once what the plugin would add.
