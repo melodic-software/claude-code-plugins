@@ -57,6 +57,40 @@
         }
       ],
       "why": "description before command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rg \"git push --force\" .claude",
+            "description": "Search for existing force-push guards"
+          }
+        }
+      ],
+      "why": "a force-push command only as a double-quoted search pattern"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rnE 'force-with-lease|git push -f' .claude docs; git log --grep=\"push --force\" --oneline"
+          }
+        }
+      ],
+      "why": "a git push only inside a single-quoted pattern, then a read-only git log"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -c \"git push --force\" -r ."
+          }
+        }
+      ],
+      "why": "grep's -c count flag before a quoted pattern is not sh -c"
     }
   ],
   "fail": [
@@ -163,6 +197,51 @@
         }
       ],
       "why": "a redirect at the very start of the command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git push --force origin main",
+            "description": "Restore main"
+          }
+        }
+      ],
+      "why": "the force-push itself"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn \"git push\" .claude; bash -c \"cd . && git push --force\""
+          }
+        }
+      ],
+      "why": "a quoted search, then a push run through bash -c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"pushed: $(cd \"repo\" && git push --force origin main)\""
+          }
+        }
+      ],
+      "why": "a push inside a command substitution in a double-quoted string"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls # don't\ngit push --force origin main"
+          }
+        }
+      ],
+      "why": "an unpaired apostrophe before the push"
     }
   ]
 }
