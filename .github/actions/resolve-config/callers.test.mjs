@@ -23,6 +23,7 @@ import { loadRules, rowFor, select as selectPatch } from "../../scripts/apply-pa
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
+import { laneAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
 import { levelSettings } from "../../scripts/lib/lane-level-value.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
@@ -2750,37 +2751,14 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
   assert.ok(launchers.includes("pr-run-activity-read.yml run act-key") && launchers.includes("pr-run-activity-read.yml run act-token"), launchers.join(", "));
 });
 
-// Launcher SHAs checked to pass `--permission-prompts none` unconditionally,
+// Every launcher pin must pass `--permission-prompts none` unconditionally,
 // under which the default mode denies every call no rule allows, as dontAsk
 // does; check-permission-mode.sh accepts default for dontAsk on that basis.
-// 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; d02b8697 and e5167fc2: lane.cjs:357-358;
-// ba7af78d291f10bd75651857a0db2357c23df0fe, 30b251532b2e9f7e0c4215e1dee5be0d3c688743, 81a603a6e2b0319428c981bf28f3fe923032afb2
-// 2476d5dde8979eab34374150b7e4b0a2b99f4e88, bc62beb95a989641f30552a932a132ebb8ecd801 and
-// b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6: lane.cjs:404-405; 4aba9be6cc58c88c132308d417ebe136dd054296:
-// lane.cjs:425-426; 8f2240359aff2febf49ff1ff838d1ffb27d6b14f: lane.cjs:467-468;
-// a5af46547856939969bee3c44d32d8ea6bc5dca4: lane.cjs:469-470;
-// fc442ad3e808adafe3b195e9d12fff901220db50 and 944d346c487c79eaf85dff752586fb59b0f5c539: lane.cjs:473-474; in cliArgs. The org requires
-// actions pinned to a full SHA, so a pin bump fails here until its lane.cjs is read and its SHA added.
-const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
-  "7b362428c76085a160e28656cd2c75c3147a69ff",
-  "164c2809f6150429b6f24d4a2777bb377af953d9",
-  "d02b8697e092705153f0996549b05f95a446bb52",
-  "e5167fc29d948ab7d0923cf62f5ea9eeeef8e9e8",
-  "ba7af78d291f10bd75651857a0db2357c23df0fe",
-  "30b251532b2e9f7e0c4215e1dee5be0d3c688743",
-  "81a603a6e2b0319428c981bf28f3fe923032afb2",
-  "2476d5dde8979eab34374150b7e4b0a2b99f4e88",
-  "bc62beb95a989641f30552a932a132ebb8ecd801",
-  "b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6",
-  "4aba9be6cc58c88c132308d417ebe136dd054296",
-  "8f2240359aff2febf49ff1ff838d1ffb27d6b14f",
-  "a5af46547856939969bee3c44d32d8ea6bc5dca4",
-  "fc442ad3e808adafe3b195e9d12fff901220db50",
-  "944d346c487c79eaf85dff752586fb59b0f5c539",
-]);
-
-test("every run-claude-cli step pin in this repo's workflows is a launcher checked to pass --permission-prompts none", () => {
+// The pinned lane.cjs cliArgs runs over each input that changes its argv.
+test("every run-claude-cli step pin in this repo's workflows passes --permission-prompts none", async () => {
   const files = new Set();
+  const pins = new Set();
+  const modes = new Set();
   for (const file of workflowFiles()) {
     for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
       for (const step of job.steps ?? []) {
@@ -2789,11 +2767,26 @@ test("every run-claude-cli step pin in this repo's workflows is a launcher check
         const sha = uses.slice(uses.indexOf("@") + 1);
         files.add(file);
         assert.match(sha, /^[0-9a-f]{40}$/, `${file} ${id} ${step.id} pins a full SHA`);
-        assert.ok(PERMISSION_PROMPTS_NONE_LAUNCHERS.has(sha), `${file} ${id} ${step.id}: ${sha} is not checked to pass --permission-prompts none`);
+        pins.add(sha);
+        const mode = String(step.with?.["permission-mode"] ?? "");
+        if (/^[A-Za-z]+$/.test(mode)) modes.add(mode);
       }
     }
   }
   for (const file of ["pr-run-activity-read.yml", "pr-verify.yml", "pr-unblock.yml"]) assert.ok(files.has(file), [...files].join(", "));
+  assert.ok(modes.size > 0, "a launcher step names its permission-mode");
+  for (const pin of pins) {
+    const { cliArgs } = await laneAtPin(pin);
+    for (const permissionMode of new Set([...modes, "default"]))
+      for (const sandbox of [true, false])
+        for (const effort of ["", "high"])
+          for (const list of [[], ["Read"]]) {
+            const dirs = list.length ? ["/w/p"] : [];
+            const args = cliArgs({ model: "opus", effort, maxTurns: "5", permissionMode, sandbox, tools: list, jsonSchema: list.length ? "{}" : "", disallowedTools: list, allowedTools: list, pluginDirs: dirs, addDirs: dirs });
+            const at = args.indexOf("--permission-prompts");
+            assert.ok(at >= 0 && args[at + 1] === "none", `${pin} cliArgs (${permissionMode}, sandbox ${sandbox}, effort "${effort}", ${list.length} tools): ${args.join(" ")}`);
+          }
+  }
 });
 
 // Each launcher leg is followed by a check that the CLI's init message

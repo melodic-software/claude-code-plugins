@@ -1,15 +1,15 @@
 // The replay must judge the way pr-verify.yml does. These tests read the
 // workflow and fail when its judge step, prompt step or model route drift
-// from replay.mjs's JUDGE, or when the ci-workflows pin moves: cliArgs,
-// LEG_ENV, CLI_VERSION and MANAGED_SETTINGS were read from run-claude-cli and
-// apply-claude-managed-settings at RUN_CLAUDE_CLI_PIN, so a new pin means
-// reading them again.
+// from replay.mjs's JUDGE, or when cliArgs, LEG_ENV, CLI_VERSION or
+// MANAGED_SETTINGS differ from run-claude-cli and apply-claude-managed-settings
+// at RUN_CLAUDE_CLI_PIN, fetched from ci-workflows (needs network).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { test } from "node:test";
 
+import { fetchAtPin, laneAtPin } from "../../lib/ci-workflows-at-pin.mjs";
 import { CLI_VERSION, cliArgs, JUDGE, LEG_ENV, legEnv, MANAGED_SETTINGS, promptText, RUN_CLAUDE_CLI_PIN } from "./replay.mjs";
 
 const text = readFileSync(new URL("../../../workflows/pr-verify.yml", import.meta.url), "utf8");
@@ -138,71 +138,49 @@ for (const job of JOBS) {
   });
 }
 
-// Pin tests: the expected values are run-claude-cli's lane.cjs cliArgs and
-// legEnv and the action's input defaults at RUN_CLAUDE_CLI_PIN, with the
-// replay's settings file as --settings' value where lane.cjs passes its
-// sandbox settings.
-test("cliArgs is lane.cjs's argv for this lane, with the replay's settings file", () => {
-  assert.deepEqual(cliArgs({ model: "opus", effort: "", maxTurns: 60, settingsFile: "/c/managed-settings.json" }), [
-    "-p",
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--model",
-    "opus",
-    "--max-turns",
-    "60",
-    "--permission-mode",
-    "dontAsk",
-    "--permission-prompts",
-    "none",
-    "--restricted",
-    "--strict-mcp-config",
-    "--no-session-persistence",
-    "--settings",
-    "/c/managed-settings.json",
-    "--tools",
-    "Read",
-    "--json-schema",
-    '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}',
-    "--disallowedTools",
-    "Read(./.base/**)",
-    "Glob",
-    "Grep",
-    "Bash",
-    "Edit",
-    "Write",
-    "NotebookEdit",
-    "WebFetch",
-    "WebSearch",
-    "Agent",
-    "mcp__*",
-    "--allowedTools",
-    "Read(./pr-verify-data/**)",
-  ]);
-  assert.deepEqual(cliArgs({ model: "sonnet", effort: "high", maxTurns: 5, settingsFile: "/s" }).slice(4, 10), [
-    "--model",
-    "sonnet",
-    "--effort",
-    "high",
-    "--max-turns",
-    "5",
-  ]);
+// Pin tests: the expected values come from run-claude-cli's lane.cjs and the
+// two actions' input defaults at RUN_CLAUDE_CLI_PIN.
+const actionYml = (action) => fetchAtPin(RUN_CLAUDE_CLI_PIN, `.github/actions/${action}/action.yml`);
+// An input's default: a one-line scalar, or a `>-` scalar folded.
+const inputDefault = (yml, name) => {
+  const block = new RegExp(`^  ${name}:\\n((?: {4,}.*\\n|\\n)*)`, "m").exec(yml)?.[1] ?? "";
+  const folded = /^ {4}default: >-\n((?: {6}.*\n?)+)/m.exec(block);
+  if (folded) return folded[1].split("\n").map((line) => line.trim()).filter(Boolean).join(" ");
+  return /^ {4}default: (.*)$/m.exec(block)?.[1].replace(/^"(.*)"$/, "$1");
+};
+
+test("cliArgs is the pinned lane.cjs argv for this lane, with the replay's settings file", async () => {
+  const lane = await laneAtPin(RUN_CLAUDE_CLI_PIN);
+  const sandbox = inputDefault(await actionYml("run-claude-cli"), "sandbox");
+  for (const [model, effort, maxTurns] of [["opus", "", 60], ["sonnet", "high", 5]]) {
+    const pinned = lane.cliArgs({
+      model,
+      effort,
+      maxTurns: String(maxTurns),
+      permissionMode: JUDGE.permissionMode,
+      sandbox: sandbox === "true",
+      tools: JUDGE.tools,
+      jsonSchema: JSON.stringify(JUDGE.schema),
+      disallowedTools: JUDGE.disallowedTools,
+      allowedTools: JUDGE.allowedTools,
+      pluginDirs: [],
+      addDirs: [],
+    });
+    // The replay passes its settings file where lane.cjs passes its sandbox settings.
+    const at = pinned.indexOf("--settings");
+    if (at >= 0 && pinned[at + 1] === lane.SANDBOX_SETTINGS) pinned[at + 1] = "/c/managed-settings.json";
+    assert.deepEqual(cliArgs({ model, effort, maxTurns, settingsFile: "/c/managed-settings.json" }), pinned);
+  }
 });
 
-test("the runner's CLI version, environment additions and managed settings", () => {
-  assert.equal(CLI_VERSION, "latest");
-  assert.deepEqual(LEG_ENV, {
-    CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1",
-    CLAUDE_CODE_RETRY_WATCHDOG: "1",
-    CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS: "1800000",
-  });
-  assert.deepEqual(MANAGED_SETTINGS, {
-    apiKeyHelper: "",
-    allowManagedHooksOnly: true,
-    env: { ANTHROPIC_BASE_URL: "https://api.anthropic.com" },
-    permissions: { disableBypassPermissionsMode: "disable" },
-  });
+test("the runner's CLI version, environment additions and managed settings are the pinned actions'", async () => {
+  const run = await actionYml("run-claude-cli");
+  assert.equal(CLI_VERSION, inputDefault(run, "cli-version"));
+  const { legEnv: pinnedLegEnv } = await laneAtPin(RUN_CLAUDE_CLI_PIN);
+  const added = pinnedLegEnv({}, { leg: "subscription", value: "t" }, { watchdogMaxWaitMs: inputDefault(run, "watchdog-max-wait-ms") });
+  delete added.CLAUDE_CODE_OAUTH_TOKEN;
+  assert.deepEqual(LEG_ENV, added);
+  assert.deepEqual(MANAGED_SETTINGS, JSON.parse(inputDefault(await actionYml("apply-claude-managed-settings"), "settings")));
 });
 
 test("legEnv passes only the allowlist, the runner's additions and the one credential", () => {
