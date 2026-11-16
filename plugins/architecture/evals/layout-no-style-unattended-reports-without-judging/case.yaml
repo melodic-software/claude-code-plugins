@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: layout-no-style-unattended-reports-without-judging
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: script-ran
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'co-change\.mjs'
+    min: 1
+    arm: both
+  - name: names-spread
+    type: regex
+    pattern: '\bspread\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: names-focus
+    type: regex
+    pattern: '\bfocus\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: none-recorded
+    type: regex
+    pattern: 'none recorded'
+    flags: 'i'
+    target: 'last_message'
+  - name: asks-nothing
+    type: llm
+    criteria: "This run is unattended. PASS only if the reply asks the user no question and does not offer to wait for an answer before continuing. FAIL if it asks the user a question to continue."
+  - name: speculative-no-judgment
+    type: llm
+    criteria: "PASS only if every card in the reply carries the Speculative badge and the reply makes no judgment about whether the cluster's layout agrees with a layout style. FAIL if any card is badged Strong or Worth exploring, or the reply judges the layout against a style."

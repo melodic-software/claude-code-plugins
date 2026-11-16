@@ -24,7 +24,6 @@ computer-use
 context-budget
 context-usage
 context7
-core
 corrections
 coupling
 debugging
@@ -73,6 +72,7 @@ planning
 playbooks
 playgrounds
 playwright
+plugin-profiles
 plugin-quality
 powershell-format
 pr-pipeline

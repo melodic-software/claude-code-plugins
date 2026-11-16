@@ -30,7 +30,9 @@ so switching such a plugin off for a session also switched off its session-wide 
    edits and shares as a file, not a setting value.
 3. **Extend rule.** A same-named file at a higher level extends the one below it: members = lower ∪
    `plugins` − `remove`; `exclude`, `optional` and `hide_skills` are unioned. An `exclude` naming an
-   always-on member is rejected.
+   always-on member is rejected. A repository file cannot switch off an always-on member (owner,
+   2026-11-15): its `remove` or `exclude` line naming a member of always-on as the shipped and user
+   files resolve it is ignored and named in the preview; a user-level file still can.
 4. **Marketplace governance.** A profile writes `enabledPlugins` entries only for plugins of the
    marketplaces its ids (and the always-on profile's) name. Plugins of any other marketplace are
    left as they are and listed as left alone.

@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: setup-installs-only-after-yes
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: install-previewed
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+install\s+draw@fixture-market\b(?:[^"\\;&|]|\\[^n])*?--dry-run\b'
+    min: 1
+    arm: 'with-only'
+  - name: install-on-yes
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+install\s+draw@fixture-market\b(?:[^"\\;&|]|\\[^n])*?--yes\b'
+    min: 1
+    max: 1
+    arm: 'with-only'
+  - name: install-previewed-before-install
+    type: tool_order
+    before:
+      tool: 'Bash'
+      input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+install\s+draw@fixture-market\b(?:[^"\\;&|]|\\[^n])*?--dry-run\b'
+    after:
+      tool: 'Bash'
+      input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+install\s+draw@fixture-market\b(?:[^"\\;&|]|\\[^n])*?--yes\b'
+    arm: 'with-only'
+  - name: no-direct-install
+    type: tool_used
+    tool: 'Bash'
+    input_match: '\bclaude(?:\\"|'')?\s+plugin\s+(?:install|i|update|uninstall|enable|disable)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: ends-off-at-user-level
+    type: regex
+    pattern: 'Installed draw@fixture-market; it is off in'
+    target: trace

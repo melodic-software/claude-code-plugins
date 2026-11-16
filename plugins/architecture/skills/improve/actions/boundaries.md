@@ -5,7 +5,9 @@ against the references its build manifests declare. It reports each declared ref
 crosses a recorded boundary, and it turns a rule the user confirms into a proposal for an
 architecture test. It does not invent boundaries from the folder layout, and it writes no test.
 
-Four phases. Each has a gate before the next.
+Four phases. Each has a gate before the next. The steps every lens shares are in
+[../../../reference/improvement-steps.md](../../../reference/improvement-steps.md), cited here by
+section name.
 
 ## Phase 1: Collect the recorded boundary rules
 
@@ -18,8 +20,8 @@ Read one more source, by name, after the list: the `## Boundary rules` section o
 topic doc, `<home>/architecture/README.md`, where `/architecture:improve conventions` writes the
 rules the user accepts. The list's paths do not match that file (`docs/architecture*` misses
 `docs/conventions/architecture/README.md`), so do not rely on the list to reach it. Resolve
-`<home>` with `${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh`; on any exit but 0, or with no
-topic doc or no such section, the source holds nothing, and say so.
+`<home>` ("Convention home"); this lens only reads it. With no home, no topic doc or no such
+section, the source holds nothing, and say so.
 
 Walk the list in its order, then the topic doc's section. For each source that exists in the repository, collect every
 statement that limits which module may reference which. The forms to look for, and the ones to
@@ -52,20 +54,11 @@ The edges come from this plugin's own maps, which cite the file and declaration 
 edge.
 
 **Memory-tier writes.** Every file this lens writes, from the graph in this phase to the findings
-file in Phase 4, goes to `<memory_dir>/improve/<branch-slug>/` and nowhere else, whatever
-`architecture_dir` says. A tracked graph is the user's own `/architecture:map-dependencies` run.
-
-- `<memory_dir>` is `.work/` unless the consuming repository's `CLAUDE.md` or `.claude/rules`
-  declares another working-docs root, the same memory root the deepening lens writes its
-  candidate artifact under (`actions/deepening.md`, "Durable candidate artifact").
-- `<branch-slug>` is the current branch lowercased, with `/` and every character outside
-  `[a-z0-9._-]` replaced by `-`.
-- Before the first write: announce the path; verify the memory root holds a `.gitignore`
-  containing `*`, and create it with the Write tool, announced, when absent; never edit the
-  repository's own `.gitignore`.
-- Write nothing when the memory root is the repository root or no branch resolves. Then no graph
-  is generated: only an existing `<architecture_dir>/dependency-graph.json` can be read, and
-  Phase 4 lists its rows in the report instead of writing a file.
+file in Phase 4, goes to the slice `<memory_dir>/improve/<branch-slug>/` under the shared
+write rules ("Memory-tier writes"), whatever `architecture_dir` says. A tracked graph is the
+user's own `/architecture:map-dependencies` run. When those rules say to write nothing, no graph
+is generated: only an existing `<architecture_dir>/dependency-graph.json` can be read, and Phase 4
+lists its rows in the report instead of writing a file.
 
 Steps:
 
@@ -125,14 +118,11 @@ A confirmed rule belongs on the `architecture-test` rung of the enforcement ladd
 findings file so `/corrections:codify findings` can propose the test:
 
 - **Where.** `<memory_dir>/improve/<branch-slug>/<YYYYMMDDTHHMMSSZ>-boundaries.md`.
-  `<memory_dir>` and `<branch-slug>` are as Phase 2 ("Memory-tier writes") defines them. Never
+  `<memory_dir>` and `<branch-slug>` are as the shared "Memory-tier writes" defines them. Never
   write under `<memory_dir>/reviews/`: this file is input for the enforcement audit, not for the
   review fix action.
-- **How.** Phase 2's memory-tier rules apply: announce the path, keep the `.gitignore` check, and
-  when the memory root is the repository root or no branch resolves, list the rows in the report
-  instead of writing. Never overwrite: an
-  existing name takes `-2`, then `-3`. A write the session's permissions refuse is not a stop:
-  list the rows and say the file was not written.
+- **How.** The shared write rules apply ("Memory-tier writes"); where they put the content in
+  the report, the report lists the rows.
 - **What.** The review-findings shape, one row per confirmed rule, every row placed under the
   `### architecture` dimension heading so the audit classifies it as `structure` and routes it to
   `architecture-test`. The row template is in

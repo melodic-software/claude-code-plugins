@@ -3,7 +3,7 @@
 
 layout:
   # The release, sync and dependency bots by name, not every [bot] author: the lanes bot's commits
-  # are real feature work, so /architecture:improve layout counts them.
+  # are real feature work, so /architecture:improve-layout counts them.
   exclude_authors:
     - "melodic-release[bot]"
     - "melodic-plugin-release[bot]"
