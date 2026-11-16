@@ -51,6 +51,39 @@
         }
       ],
       "why": "launched a server after another command in the same call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "SHOP_MAIL=off python3 shop/server.py --port 18080 --data evidence/data &"
+          }
+        }
+      ],
+      "why": "launched a server behind an environment assignment"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c \"timeout 30 python3 shop/server.py --port 18080 --data evidence/data\""
+          }
+        }
+      ],
+      "why": "launched a server inside bash -c behind timeout"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "{ setsid python3 shop/server.py --port 18080; } >/dev/null"
+          }
+        }
+      ],
+      "why": "launched a server inside a brace group behind setsid"
     }
   ]
 }

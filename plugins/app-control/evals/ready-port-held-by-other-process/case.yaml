@@ -31,7 +31,7 @@ graders:
   - name: launches-nothing
     type: tool_used
     tool: Bash
-    input_match: '(?:"command"\s*:\s*"|[;&|(]|\\n)\s*(?:nohup\s+)?python3?\s+(?:\S*/)?shop/server\.py'
+    input_match: '(?:"command"\s*:\s*"|[;&|({`]|\\n|-c\s+\\?["''])\s*(?:(?:nohup|setsid|exec|env|sudo|timeout\s+\S+|[A-Za-z_]\w*=\S*)\s+)*python3?\s+(?:\S*/)?shop/server\.py'
     min: 0
     max: 0
     arm: both
