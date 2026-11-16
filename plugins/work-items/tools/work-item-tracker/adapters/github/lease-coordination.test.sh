@@ -115,6 +115,7 @@ gh() {
   *".assignees[].login"*)
     n=$(($(cat "$d/assignees.count" 2>/dev/null || printf '0') + 1))
     printf '%s\n' "$n" >"$d/assignees.count"
+    [[ ! -f "$d/assignees-fails-$n" ]] || return 1
     cat "$d/assignees"
     stub_hook "assignees-$n"
     ;;
@@ -958,6 +959,42 @@ assert_eq "a renew landing near expiry under a newer lease exits conflict (7)" "
 assert_contains "the refusal says the renew landed too close to expiry" "$err" "too close to expiry"
 assert_eq "the renewed lease 1 is superseded" "true" "$(superseded 1)"
 assert_eq "the lane's lease 2 stays live" "false" "$(superseded 2)"
+assert_eq "the backed-off renew hands back alice" "[]" "$(assignees_now)"
+cleanup_scenario
+# [renew lands near expiry, own newer lease] the newer lease is alice's, so the back-off
+# keeps her assigned for it.
+short_scenario
+hook "$(next_read list 1)-after" put_lease 2 "$(marker alice "$FUTURE" 1)"
+rc=0
+bash "$RENEW" "$ID" --lease-comment-id 1 >/dev/null 2>&1 || rc=$?
+assert_eq "a renew yielding to alice's own newer lease exits conflict (7)" "7" "$rc"
+assert_eq "that back-off keeps alice for lease 2" '["alice"]' "$(assignees_now)"
+cleanup_scenario
+
+# [claim rollback re-adds] alice loses to a lane lease; between her rollback's lease read
+# and its removal a same-login claim posts lease 3 and wins. The rollback's re-list after
+# the removal sees lease 3 and puts alice back.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf 'alice\n' >"$GH_STUB_DIR/login"
+printf '[]\n' >"$GH_STUB_DIR/assignees"
+lease_array 1 "$(marker "$LANE" "$FUTURE" 2)" >"$GH_STUB_DIR/lease-comments"
+hook list-3 put_lease 3 "$(marker alice "$FUTURE" 1)"
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 24 >/dev/null 2>&1 || rc=$?
+assert_eq "the claim losing to the lane backs off (7)" "7" "$rc"
+assert_eq "its rollback removes alice, then adds her back" "REMOVE_ASSIGNEE alice ADD_ASSIGNEE alice" \
+  "$(grep -E '^(REMOVE|ADD)_ASSIGNEE' "$GH_STUB_DIR/calls.log" | tail -n 2 | paste -sd ' ' -)"
+assert_eq "alice stays assigned for the same-login winner's lease 3" '["alice"]' "$(assignees_now)"
+cleanup_scenario
+
+# [hand-back, assignee read fails] a release whose assignee read fails still removes
+# alice, since an assignee no lease holds would block the item for good.
+attended_scenario
+: >"$GH_STUB_DIR/assignees-fails-$(($(cat "$GH_STUB_DIR/assignees.count") + 1))"
+bash "$RELEASE" "$ID" --lease-comment-id 1 >/dev/null 2>&1
+assert_contains "the release still removes alice" "$(calls)" "REMOVE_ASSIGNEE alice"
+assert_eq "no assignee is left" "[]" "$(assignees_now)"
 cleanup_scenario
 
 # [renew near expiry, re-list fails twice] a failed read keeps the lease: the renew
