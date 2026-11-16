@@ -18,7 +18,9 @@ Usage:
 Sources, one adapter each:
   declared    rule_inventory.declared in <convention home>/harness-config.yaml,
               each item {rule, enforcer, rung}; the only source for rungs no
-              file shows
+              file shows. With no pointer region the home is docs/conventions;
+              a declined home, one that cannot apply, or one that does not
+              resolve gives no declared rows, named with the reason
   settings    .claude/settings.json: each permissions.deny entry is a
               harness-setting; each PreToolUse or PermissionRequest handler is
               an action-guard
@@ -166,11 +168,27 @@ read_status() {
 }
 
 home="docs/conventions"
-if [[ -r "$resolve_home" ]]; then
-  h="$(bash "$resolve_home" --root "$root" 2>/dev/null)" && home="$h"
+skip=""
+if [[ ! -r "$resolve_home" ]]; then
+  note "declared: no convention-home resolver at $resolve_home, so the default home $home is read"
+else
+  h="$(bash "$resolve_home" --root "$root" 2>"$work/home.err")"
+  case $? in
+  0) home="$h" ;;
+  1) ;;
+  4) skip="the repository declined a convention home" ;;
+  5) skip="no convention home applies to this root" ;;
+  *) skip="the convention home did not resolve ($(head -n 1 "$work/home.err"))" ;;
+  esac
 fi
 decl="$home/harness-config.yaml"
-case "$(read_status "$decl")" in
+status="$(read_status "$decl")"
+if [[ -n "$skip" ]]; then
+  [[ "$status" == absent ]] || skip="$skip ($decl is present and not read)"
+  status=skipped
+fi
+case "$status" in
+skipped) note "declared: not read, so no declared rows: $skip" ;;
 absent) note "declared: $decl absent, so no declared rows" ;;
 unreadable) note "declared: $decl unreadable" ;;
 *)
@@ -338,7 +356,8 @@ for t in $(cut -f2 <<<"$rungs" | uniq); do
   by="$(awk -F'\t' -v t="$t" '$4 == t {c[$3]++} END {for (r in c) print r " " c[r]}' "$rows" | sort | paste -sd, - | sed 's/,/, /g')"
   if [[ "$n" -eq 0 ]]; then
     case "$t" in
-    1) by="none declared; no file shows this tier, so only declared rows count" ;;
+    1) if [[ -n "$skip" ]]; then by="declared rows not read (see the declared source line); no file shows this tier"
+       else by="none declared; no file shows this tier, so only declared rows count"; fi ;;
     *) by="none found in the sources below" ;;
     esac
   fi

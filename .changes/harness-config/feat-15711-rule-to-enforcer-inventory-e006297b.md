@@ -14,4 +14,6 @@ bump: minor
   script cannot find or read is named, never counted as zero, and so is each source present but not
   counted: CI workflows, git hook managers, local settings and enabled plugins' hooks.
 - **`rule_inventory.declared` in `harness-config.yaml`.** Rows for rules no file shows, such as a
-  type that makes the mistake impossible; the schema describes the key.
+  type that makes the mistake impossible; the schema describes the key. The file is read from the
+  convention home, or `docs/conventions` when the repository has no pointer region; a declined home
+  or one that does not resolve gives no declared rows and is named with the reason.

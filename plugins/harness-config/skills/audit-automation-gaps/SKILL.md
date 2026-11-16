@@ -366,7 +366,9 @@ looks worth moving up goes to `/corrections:codify` when the `corrections` plugi
 is otherwise named for the human; this audit adds none of them to its candidate list. A rule held
 by a mechanism no file shows, such as a type that makes the mistake impossible, is counted only
 when the repository declares it under `rule_inventory.declared` in its `harness-config.yaml`
-convention file; say so when the codebase tier reads zero.
+convention file; say so when the codebase tier reads zero. A repository that declined a convention
+home, or whose home does not resolve, has no declared rows, and the script's declared line says
+why: copy it.
 
 ### Maturity Assessment
 

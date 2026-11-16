@@ -17,6 +17,8 @@ assert_line() { if grep -Fxq -- "$3" <<<"$2"; then pass "$1"; else fail "$1" "no
 $2"; fi; }
 assert_no() { if grep -Fq -- "$3" <<<"$2"; then fail "$1" "unexpected [$3] in:
 $2"; else pass "$1"; fi; }
+assert_has() { if grep -Fq -- "$3" <<<"$2"; then pass "$1"; else fail "$1" "no [$3] in:
+$2"; fi; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf -- "$TMP"' EXIT
@@ -189,6 +191,47 @@ got="$(bash "$GEN" --root "$E" --rows | awk -F'\t' '{printf "%s%s:%s", sep, $3, 
 assert_eq "parity: every ladder rung maps to its tier" "$expected" "$got"
 n_ids="$(grep -Eo '^(\| `[a-z-]+` \||[0-9]+\. \*\*`[a-z-]+`\*\*)' "$LADDER" | wc -l | tr -d ' ')"
 assert_eq "parity: the ladder copy holds no other rung id" 18 "$n_ids"
+
+home_repo() {
+  new_repo "$1"
+  mkdir -p "$1/docs/conventions"
+  printf 'rule_inventory:\n  declared:\n    - rule: "stale default-home rule"\n      rung: make-impossible\n' >"$1/docs/conventions/harness-config.yaml"
+  printf '<!-- BEGIN GENERATED: convention-home -->\n%s\n<!-- END GENERATED: convention-home -->\n' "$2" >"$1/AGENTS.md"
+}
+TIER1_SKIPPED="| 1 Codebase | 0 | declared rows not read (see the declared source line); no file shows this tier |"
+
+H="$TMP/home-resolved"
+home_repo "$H" 'Team conventions live in `team/conv`.'
+mkdir -p "$H/team/conv"
+printf 'rule_inventory:\n  declared:\n    - rule: "bound-home rule"\n      rung: make-impossible\n' >"$H/team/conv/harness-config.yaml"
+commit_all "$H"
+rows="$(bash "$GEN" --root "$H" --rows)"
+assert_line "home resolved: its row counted" "$rows" "$(printf 'bound-home rule\tdeclared in team/conv/harness-config.yaml\tmake-impossible\t1')"
+assert_no "home resolved: default-home file not read" "$rows" "stale default-home rule"
+assert_line "home resolved: source named" "$(bash "$GEN" --root "$H")" "- declared: team/conv/harness-config.yaml read, 1 item(s)"
+
+H="$TMP/home-declined"
+home_repo "$H" 'declined'
+commit_all "$H"
+out="$(bash "$GEN" --root "$H")"
+assert_no "home declined: leftover file not read" "$(bash "$GEN" --root "$H" --rows)" "stale default-home rule"
+assert_line "home declined: tier 1 not a plain zero" "$out" "$TIER1_SKIPPED"
+assert_line "home declined: named" "$out" "- declared: not read, so no declared rows: the repository declined a convention home (docs/conventions/harness-config.yaml is present and not read)"
+
+H="$TMP/home-unresolved"
+home_repo "$H" 'Team conventions live in `team/missing`.'
+commit_all "$H"
+out="$(bash "$GEN" --root "$H")"
+assert_no "home unresolved: not rebound to docs/conventions" "$(bash "$GEN" --root "$H" --rows)" "stale default-home rule"
+assert_line "home unresolved: tier 1 not a plain zero" "$out" "$TIER1_SKIPPED"
+assert_has "home unresolved: failure named" "$out" "- declared: not read, so no declared rows: the convention home did not resolve (FAIL: pointer target directory missing: team/missing"
+
+H="$TMP/home-not-applicable"
+mkdir -p "$H/docs/conventions"
+printf 'rule_inventory:\n  declared:\n    - rule: "stale default-home rule"\n      rung: make-impossible\n' >"$H/docs/conventions/harness-config.yaml"
+out="$(bash "$GEN" --root "$H")"
+assert_no "home not applicable: file not read" "$(bash "$GEN" --root "$H" --rows)" "stale default-home rule"
+assert_line "home not applicable: named" "$out" "- declared: not read, so no declared rows: no convention home applies to this root (docs/conventions/harness-config.yaml is present and not read)"
 
 bash "$GEN" --bogus >/dev/null 2>&1
 assert_eq "unknown argument exits 2" 2 "$?"
