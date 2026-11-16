@@ -72,7 +72,7 @@ Two guarantees hold across every step:
 
 | Choice | Record | Owner | Writer |
 |---|---|---|---|
-| A build, test, lint or format command for one ecosystem | `.claude/ecosystems/<ecosystem>.yaml` | [`ecosystem-commands`](../ecosystem-commands/README.md) | the owning plugin's re-runnable `setup`; a lane's record pull request, once merged |
+| A build, test, lint or format command for one ecosystem | `.claude/ecosystems/<ecosystem>.yaml` | [`ecosystem-commands`](../ecosystem-commands/README.md) | `/toolchain:setup apply <ecosystem>`, the one writer of `fix-cmd` and `lint-cmd` (a format or lint plugin's setup drafts them for it); a lane's record pull request, once merged |
 | A language, framework or library convention, or a review criterion | the standards index and the files its rows route to | [`standards`](../standards/README.md) | the standards setup, on acceptance |
 | The chosen way for a repeated task | the file the index's `paved-path` row routes to | [`standards`](../standards/README.md#paved-paths) | `/discipline:reuse-or-replace`, after a yes |
 | The order of enforcement mechanisms | the project instructions | [`enforcement-ladder`](../enforcement-ladder/README.md#reordering) | the person |

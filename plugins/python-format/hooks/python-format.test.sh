@@ -30,7 +30,6 @@ set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOOK="$HOOK_DIR/python-format.sh"
 PLUGIN_ROOT="${HOOK_DIR%/*}"
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 REPO_ROOT="$(cd "$PLUGIN_ROOT/../.." && pwd)"
@@ -351,6 +350,7 @@ fi
 # not even the Ruff adapter; a file name never reaches a shell as text.
 STUB="$WORK/stub"
 mkdir -p "$STUB"
+# shellcheck disable=SC2016 # the stub's own shell text
 printf '#!/bin/sh\nfor a in "$@"; do printf "%%s\\n" "$a" >>"%s/stub.log"; printf "formatted\\n" >"$a"; done\n' "$WORK" >"$STUB/stubfmt"
 chmod +x "$STUB/stubfmt"
 REPO_REC="$WORK/record"
@@ -362,6 +362,7 @@ git -C "$REPO_REC" commit -q -m record --no-verify
 git -C "$REPO_REC" update-ref refs/remotes/origin/main HEAD
 git -C "$REPO_REC" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
 printf 'x=1\n' >"$REPO_REC/r.py"
+# shellcheck disable=SC2016 # a literal file name
 CRAFTED='$(touch pwned);c.py'
 printf 'x=1\n' >"$REPO_REC/$CRAFTED"
 : >"$WORK/stub.log"

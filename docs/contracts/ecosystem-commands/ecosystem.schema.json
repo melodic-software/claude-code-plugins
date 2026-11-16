@@ -39,6 +39,10 @@
       "type": ["string", "null"],
       "description": "Lint/format check command (no file modification). Null when lint does not apply."
     },
+    "lint-cmd": {
+      "type": ["string", "null"],
+      "description": "Report-only lint command (no file modification, no format check). The format and lint plugins' git hooks run it over <files>, and /toolchain:lint and /toolchain:check run it in place of check-cmd when it is set. Its findings are read as <path>:<line> lines. Null or absent when the repository has no separate lint command."
+    },
     "fix-cmd": {
       "type": ["string", "null"],
       "description": "Format-only auto-fix command (whitespace, import layout, style). Must not apply semantic/code-changing lint autofixes. Null when the toolchain has no format-fix mode. Code-changing autofixes belong in code-fix-cmd."

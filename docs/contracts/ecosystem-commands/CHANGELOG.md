@@ -1,5 +1,13 @@
 # Changelog for the ecosystem-commands convention
 
+## [1.4.0] - 2026-11-16
+
+Additive schema change: new optional `lint-cmd` key, the report-only lint command, separate from
+formatting. `check-cmd` keeps its meaning, so no existing record changes. `/toolchain:lint` and
+`/toolchain:check` run `lint-cmd` in place of `check-cmd` when it is set, and the format and lint
+plugins' git hooks run `fix-cmd` and `lint-cmd` over `<files>` (the check-placement convention's
+record path). Tolerant readers ignore the key until they upgrade.
+
 ## [1.3.1] - 2026-09-29
 
 Docs-only, no schema shape change: the Consumers section records that `code-metrics` reads `globs`

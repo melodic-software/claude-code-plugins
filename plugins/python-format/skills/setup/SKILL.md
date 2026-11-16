@@ -1,6 +1,6 @@
 ---
-description: "Verify python-format's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up python-format', 'configure python-format', 'is python-format working', formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply [install-ruff] | apply install-git-hooks [scope=local|shared]. Re-runnable."
-argument-hint: "[check|apply] [inspect|install-ruff|install-git-hooks [scope=local|shared]]"
+description: "Verify python-format's prerequisites and which formatter and linter it resolves here, approve the repository's python record for this clone, and register its git pre-commit entries. Use when: 'set up python-format', 'configure python-format', 'is python-format working', 'which formatter does python-format run', formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply [install-ruff] | apply approve-record | apply install-git-hooks [scope=local|shared]. Re-runnable."
+argument-hint: "[check|apply] [inspect|install-ruff|approve-record|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
@@ -11,6 +11,8 @@ allowed-tools:
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs inspect:*)"
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan:*)"
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs plan:*)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh\" --resolve)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh\" --resolve)"
 shell: bash
 ---
 
@@ -34,23 +36,28 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
-reports, `apply` resolves. The only consumer-project files this plugin owns are its git-hook
-entry copies, which `apply install-git-hooks` writes. Rules come from the repository's own
-Ruff config, and the tunables are the native `userConfig` options (the on/off toggle, the
-gitignored-file switch and the end-of-turn check). `apply` is otherwise guidance-and-verify,
-with one more write path: the explicitly invoked `apply install-ruff` install into the repo's
-existing managed environment described below.
+reports, `apply` resolves. Python formatting and linting are two concerns, each resolved per
+repository: the repository's python record (`.claude/ecosystems/python.yaml`: `fix-cmd` formats,
+`lint-cmd` lints), else the plugin's shipped adapter where that tool's own config governs the file,
+else nothing. The plugin ships no tool choice of its own. The only consumer-project files this
+plugin writes are its git-hook entry copies (`apply install-git-hooks`) and this clone's approval of
+the record (`apply approve-record`); the record itself is written by `/toolchain:setup apply
+python`, never here. The tunables are the native `userConfig` options (the on/off toggle, the
+gitignored-file switch and the end-of-turn check). `apply install-ruff` is the one other write
+path: the adapter's tool, installed into the repo's existing managed environment as described
+below.
 
 Action routing: no argument or `check` runs the check; `check inspect` runs only the
 `check inspect` section; `apply` runs the check first, then
-remediation; `apply install-ruff` additionally authorizes the consumer-repo install
-described below. All are non-interactive. Never prompt when the action is given.
-`apply install-git-hooks` asks only where its section says to.
+remediation; `apply install-ruff` and `apply approve-record` each additionally authorize the write
+their section describes. All are non-interactive except where a section says to ask. Never prompt
+when the action is given. `apply install-git-hooks` asks only where its section says to.
 
 ## `check` (read-only)
 
-The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/python-format.sh`) is the single source of
-truth for what it requires and how it resolves things.
+The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/python-format.sh`), the entries and the resolver
+they share are the single source of truth for what the plugin requires and how it resolves
+things; step 3 asks the resolver itself.
 
 **Read it first.** Probe what it actually does, don't recite this file. Then read the
 pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
@@ -69,26 +76,35 @@ or `modified` entry): the entry runs at commit outside Claude Code and reads no 
 1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook then does nothing,
    since it reads the file paths with `jq`.
-3. **Ruff binary.** Resolve it exactly the way the hook's resolution code does: its
-   repo-managed virtual-environment walk (the exact `.venv` interpreter paths it tests for
-   the current platform, walking up from the edited file toward the repo root) and then
-   `PATH`. Test only what the hook tests. A binary the hook would not accept must not PASS
-   here. FAIL when nothing the hook would resolve is present while a Ruff config governs the
-   repo; the hook then skips the file, and the session-start probe is what reports the gap.
-4. **Consumer Ruff config.** Mirror the hook's opt-in walk: it stops at the first
-   (closest) governing config found walking from the edited file's directory up to the repo
-   root, honoring Ruff's own same-directory precedence and counting a `pyproject.toml` only
-   when it carries a `[tool.ruff]` section or any `[tool.ruff.*]` subtable such as
-   `[tool.ruff.lint]`. Read the hook for the exact names and the section test; its test is
-   the authority. Report the governing config the walk discovers, or INFO that none exists.
-   Absence is the opt-out by design, so the plugin is inert (INFO, not FAIL), matching the
-   README's "ships no rules of its own" stance. Do not offer to create a config; say the user
-   can add a `[tool.ruff]` section, `ruff.toml` or `.ruff.toml` to opt in.
+3. **What each concern resolves to.** From the repository root run
+   `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh" --resolve` and
+   `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh" --resolve`. Each prints one row: plugin, concern,
+   source, tool, approval, found, detail, tab-separated. It reads the record and the adapter's
+   config and runs nothing. Report one line per concern from the row, never from this text:
+   - `record:python` with approval `accepted` (the record matches the default branch) or
+     `approved` (this clone approved its current bytes), and found `yes`: PASS, naming the tool.
+   - `record:python` with approval `unapproved`: FAIL. The record, or a file its command names,
+     differs from the default branch, so the hooks run nothing for this concern, not even the
+     adapter. Remediation: merge it, or `apply approve-record` after the person reads it.
+   - `adapter:<name>` with found `yes`: PASS, naming the adapter's tool and that its config opted in.
+   - found `no`: FAIL; the remediation is the record's `install-hint`, or the adapter tool's
+     `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` install hints (Read that path).
+   - `parse-error`: FAIL, quoting the detail (file and line); the hooks run nothing and a commit fails.
+   - `none`: INFO "unresolved": no record names a command for this concern and no shipped
+     adapter's config governs the repository, so nothing runs. This is the opt-out by design.
+   A detail saying the record's key names no `<files>` is INFO beside the row: the hooks run only
+   a command over the changed files, so that key is for `/toolchain:lint` and `/toolchain:check`.
+4. **Draft, never write, the record.** When a concern is unresolved, or the person names a tool the
+   plugin ships no adapter for, find the repository's own formatter and linter by the steps in
+   [reference/ecosystem-resolution.md](../../reference/ecosystem-resolution.md), and draft the
+   `fix-cmd` and `lint-cmd` values: each holds `<files>`, `fix-cmd` only formats (import ordering
+   included) and `lint-cmd` only reports, with findings as `<path>:<line>` lines. Hand the draft to
+   `/toolchain:setup apply python`, the one writer of those keys.
 5. **Hook toggle.** Report the effective `python_format_enabled` value:
    `${user_config.python_format_enabled}` (unexpanded or empty means default `true`). Also report
    `python_format_end_of_turn`: `${user_config.python_format_end_of_turn}` (unexpanded or empty means
    the shipped default `false`), as INFO: on, the Stop row checks the uncommitted changes once per
-   turn; off, only the batch rewrite and the git pre-commit entry run.
+   turn; off, only the batch rewrite and the git pre-commit entries run.
 6. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 7. **Node.js.** Run `command -v node` via Bash. FAIL when absent: every hook launch goes
@@ -98,11 +114,11 @@ or `modified` entry): the entry runs at commit outside Claude Code and reads no 
    hook process cannot resolve. FAIL when the only hit is such a shim, and report the persisted
    resolution from `[Environment]::GetEnvironmentVariable('Path','Machine')` and `'User'`. An
    in-process hit that is not ephemeral is INFO beside that result, not a PASS by itself.
-8. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
-   from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
+8. **Git pre-commit entries.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
+   from the repository. It lists `format` and `lint`. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
    INFO (this clone said no; silent at session start), and `missing`, `stale`, `modified` or `superseded` is a
-   FAIL whose remediation is `apply install-git-hooks`; a `superseded` detail lists what an install under an earlier plugin name left, which that action removes on the user's yes. A `tool\t<tool>\tmissing` line means the
-   installed entry cannot run here: list every such tool with its install method from the
+   FAIL whose remediation is `apply install-git-hooks`; a `superseded` detail lists what an install under an earlier plugin or entry name left (the single entry these two replaced), which that action removes on the user's yes. A `tool\t<tool>\tmissing` line means the
+   installed entry cannot run here: list every such tool (the entry's resolved tool) with its install method from the
    `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
    auto-mode session commits. Outside a git repository, report INFO and skip the step.
 
@@ -150,53 +166,64 @@ with your own edit tools.
    chose to leave remain.
 6. **Verify.** Run `verify` and report its lines as `check` step 8 does.
 
-The entry rewrites: at commit it formats the staged Python files and stages the result, so tell
-the user that a commit can change the files it contains, and that a partly staged Python file is
-refused untouched.
+The `format` entry rewrites: at commit it formats the staged Python files and stages the result,
+so tell the user that a commit can change the files it contains, and that a partly staged Python
+file is refused untouched. The `lint` entry only reports findings on the lines the commit adds.
+A decline of the earlier single entry carries to both.
 
 When the user does not want an entry in this clone, run
-`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry ruff-check`; the
+`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry format` (or `lint`); the
 session-start drift line then stays silent until `verify` runs by hand, and `--undo` reverses it.
 Add `--global` (with or without `--undo`) to decline the entry in every clone;
 `git config --global checks.git-hooks.declined true` declines every entry of every plugin, and an
 entry's own key set to `false` in a clone opts that entry back in. The [adoption
 path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md) explains to the user each scope and why a formatter's cleanup PR comes first.
 
+## `apply approve-record` (attended only)
+
+Approves, for this clone only, the python record as it stands, so the hooks run it while it differs
+from the default branch. An unattended run never approves: stop and report the record unapproved.
+
+1. Run `check` step 3 and show the person the record (`.claude/ecosystems/python.yaml`, and an
+   untracked `.claude/ecosystems/python.local.yaml` when present) and each repository file its
+   `fix-cmd` and `lint-cmd` name: the hooks will run exactly these on every batch and commit.
+2. Ask once whether to approve. Only on the person's yes, run
+   `bash "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/resolve-tool.sh" --approve python` from the
+   repository root, then rerun step 3 and report `approved`.
+
+Any later edit to the record or a file it names makes it unapproved again; approving is per clone
+and is never committed.
+
 ## `apply` (idempotent)
 
 Run `check`, then for each FAIL offer the resolution. Never install anything without the
-consumer's explicit go-ahead in the invocation. `apply install-ruff` installs Ruff **only
-into a managed Python environment the repo already uses**, never by creating one and never
-globally, mirroring how the hook resolves the binary. Resolve the target from what the repo
-already declares:
+consumer's explicit go-ahead in the invocation. `apply install-ruff` installs the Ruff adapter's
+tool **only into a managed Python environment the repo already uses**, never by creating one and
+never globally, mirroring how the adapter resolves the binary. Resolve the target from what the
+repo already declares:
 
 Principles, in order. They decide every case, whatever the tool:
 
-1. **Identify the repo's dependency manager from its own markers.** A lockfile or a
-   `pyproject.toml` tool section (uv, Poetry, Pipenv, PDM, Hatch, …). Recognize the tool
-   from what the repo declares; don't assume from an enumerated list.
-2. **Record through the manager, never around it.** A managed project gets Ruff via that
-   tool's own dev-dependency add command (e.g. `uv add --dev ruff`,
-   `poetry add --group dev ruff`, `pipenv install --dev ruff`, `pdm add -d ruff`) so the
-   manifest and lockfile record it. A bare `pip install` into its environment is state
-   the tool's next sync or clean silently removes.
+1. **Identify the repo's dependency manager from its own markers**: a lockfile or a
+   `pyproject.toml` tool section. Recognize the manager from what the repo declares, and look up
+   its commands in its own documentation at run time; don't assume from a list.
+2. **Record through the manager, never around it.** A managed project gets the tool via that
+   manager's own dev-dependency add command, so the manifest and lockfile record it. A bare
+   `pip install` into its environment is state the manager's next sync or clean silently removes.
 3. **Never create or mutate an environment.** When no environment exists yet, use the
-   tool's record-only mode when it has one (e.g. `uv add --dev ruff --no-sync`; pointer:
-   [`uv add`](https://docs.astral.sh/uv/reference/cli/#uv-add)) and hand the sync/install step to the
-   consumer as their own command; when the tool's add command cannot avoid
+   manager's record-only mode when it has one and hand the sync/install step to the
+   consumer as their own command; when the manager's add command cannot avoid
    creating/instantiating an environment, don't run it. Give it as guidance instead.
-4. **Only where the hook resolves.** The hook resolves repo-ancestor `.venv` interpreters
-   or `PATH`, nothing else. Tools that default their environment to a cache directory
-   (Poetry, Pipenv, and any similar) must have an in-project environment confirmed first
-   (the tool's own config/env answers, e.g. `poetry config virtualenvs.in-project`,
-   `PIPENV_VENV_IN_PROJECT`); otherwise guide (enable in-project mode + recreate, or put
-   `ruff` on `PATH`) rather than installing somewhere the hook never looks.
+4. **Only where the adapter resolves.** The adapter resolves repo-ancestor `.venv` interpreters
+   or `PATH`, nothing else (`${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh`). A manager that defaults
+   its environment to a cache directory must have an in-project environment confirmed first, from
+   the manager's own config; otherwise guide (enable in-project mode and recreate, or put the tool
+   on `PATH`) rather than installing somewhere the adapter never looks.
 5. **Bare `pip install` only into a plain existing `.venv`** with no manager markers of
    any kind. State the change and target environment before running.
 6. **Ambiguity stops.** No environment plus no recognized manager, or conflicting
-   signals → guidance only, anchored on the README's astral install URL
-   (`https://docs.astral.sh/ruff/installation/`), matching the hook's own skip-notice
-   text.
+   signals → guidance only, anchored on the install hints in
+   `${CLAUDE_PLUGIN_ROOT}/prerequisites.json`, matching the entries' missing-tool text.
 
 After any remediation, re-run the relevant `check` probe live via Bash (a pre-computed row
 predates the remediation) and report its actual result.
@@ -223,15 +250,21 @@ only points:
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-- no Ruff config: offer to create a minimal Ruff config in the repository root only when
-  explicitly asked. The plugin imposes no rules of its own.
+- a concern unresolved: `check` step 4's draft, for `/toolchain:setup apply python`. The plugin
+  imposes no rules and no tool of its own, and creates no tool config.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
+## Next
+
+/toolchain:setup apply python, with the drafted `fix-cmd` and `lint-cmd`, when a concern is
+unresolved or the repository wants a tool the plugin ships no adapter for.
+
 ## What this skill does not do
 
-- Run the formatter. Editing any `.py`/`.pyi` file exercises the hook end-to-end; `git commit`
-  exercises the installed pre-commit entry.
+- Run the formatter or the linter. Editing any `.py`/`.pyi` file exercises the batch hook;
+  `git commit` exercises the installed pre-commit entries.
+- Write the python record: `/toolchain:setup apply python` does.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Create a virtual environment, install Ruff globally, or install outside a managed
   environment the repo already uses.

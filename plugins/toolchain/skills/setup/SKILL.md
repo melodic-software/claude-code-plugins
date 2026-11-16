@@ -42,7 +42,7 @@ first**, then report a PASS/FAIL/INFO table; modify nothing.
 
 1. **Configured ecosystems.** For each `$REPO_ROOT/.claude/ecosystems/<ecosystem>.yaml` present,
    report the ecosystem and its resolved command surface
-   (`build-cmd`/`test-cmd`/`check-cmd`/`fix-cmd`/`code-fix-cmd`). Validate each against the contract's
+   (`build-cmd`/`test-cmd`/`check-cmd`/`lint-cmd`/`fix-cmd`/`code-fix-cmd`). Validate each against the contract's
    `ecosystem.schema.json`. **FAIL** a schema-invalid file (with the validation error in the
    remediation line), an ecosystem file excluded by `.gitignore` (`git check-ignore -v` matches;
    teammates would never receive it. Report the matching rule), or an un-ignored but untracked file
@@ -111,8 +111,14 @@ guessing. Offer any ecosystem the repo has that inference missed.
 Materialize one `$REPO_ROOT/.claude/ecosystems/<ecosystem>.yaml` per accepted ecosystem, conforming to
 the contract's `ecosystem.schema.json`. Each file carries a one-line header comment citing the
 contract, `globs` (required), the four command keys (`null` where a phase does not apply), and the
-optional keys that apply (`anchor`, `project-discovery`, `opt-in`, `install-hint`, `gates`, `notes`).
-Confirm each file is tracked, not ignored.
+optional keys that apply (`anchor`, `project-discovery`, `opt-in`, `install-hint`, `gates`, `notes`,
+`lint-cmd`). Confirm each file is tracked, not ignored.
+
+This skill is the one writer of `fix-cmd` and `lint-cmd`. A format or lint plugin's setup drafts the
+values and sends the person here with them. Write `lint-cmd` only as a report-only command over
+`<files>`; the format and lint plugins' git hooks run `fix-cmd` and `lint-cmd` only when the command
+holds `<files>`, and only once the file matches the default branch or the person approves it for
+their clone through that plugin's setup.
 
 Recommend the consumer validate these in their own gate, a `check-jsonschema` hook or CI lane against
 the contract schema catches typos the tolerant reader would otherwise ignore.

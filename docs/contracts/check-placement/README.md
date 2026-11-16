@@ -61,6 +61,9 @@ and what reaches the model.
   re-staging it would stage the author's unstaged hunks too.
 - A formatter too slow for the per-batch ceiling (the `dotnet format` class) runs at `pre-commit`
   only.
+- A format and lint plugin keeps the two concerns apart: a `format` entry that rewrites and a `lint`
+  entry that reports, each resolved on its own ([Record path](#record-path)). Formatting includes
+  import ordering; no lint autofix runs in the batch row or at `pre-commit`.
 
 Pointer: for `PostToolBatch` (no matcher, no `if`, one firing per batch of parallel tool calls),
 see the [hooks reference](https://code.claude.com/docs/en/hooks). As of 2026-10-15, Claude Code
@@ -153,6 +156,20 @@ The installer looks for artifacts and decline keys under those names only, so an
 ships an entry of the same name is never touched. Each name is a migration line: the rename adds
 it, and it is removed once no consumer repository still holds artifacts under that name.
 
+A plugin that split or renamed an entry adds an optional top-level `earlierEntries` array
+(`"earlierEntries": [{"from": "ruff-check", "to": ["format", "lint"]}]`). `from` is the old entry
+name, never a current one; `to` names current entries. The installer reports what an install of
+`from` left (under the plugin's name and each `earlierNames` name) as superseded drift, listed once
+on the first `to` entry, with a copy under the plugin's own name listed as a file to remove and never
+its directory. A decline of `from` counts for every `to` entry, and plan carries it to each entry's
+own key. Each rule is a migration line, like an earlier name.
+
+A plugin whose entries resolve their command per repository ([Record path](#record-path)) adds a
+top-level `ecosystems` array of the `.claude/ecosystems/<id>.yaml` ids it binds, and
+`"resolved": true` on each such entry. For a resolved entry the installer reads the tools from the
+entry script's `--resolve` rows, run under `sh`, which read records and run none; `tools` is the
+fallback when the script cannot answer.
+
 An entry may add an optional `assets` array: files the script reads at run time, such as a default
 config (`"assets": ["config/default-typos.toml"]`).
 
@@ -160,6 +177,37 @@ config (`"assets": ["config/default-typos.toml"]`).
 - Base names are distinct within the entry, and none is `check-lib.sh`.
 - `copy` writes each asset beside the installed script under its base name. At shared scope it
   stages the asset without the exec bit.
+
+### Record path
+
+A format or lint plugin's batch row and both entries resolve, per file and concern, the command they
+run, through the vendored `lib/git-hooks/resolve-tool.sh` (canonical in `lib/`, copied into each
+format and lint plugin and beside each installed entry, with `yaml-subset.awk`):
+
+1. the record bound to one of the plugin's `ecosystems` ids: `fix-cmd` for format, `lint-cmd` for
+   lint ([ecosystem-commands](../ecosystem-commands/README.md)), read through the user-global, team
+   and `.local` layers key by key, and binding a file only when the record's `globs` match it;
+2. the plugin's adapter for a tool whose config governs the file;
+3. nothing.
+
+- **Opt-in.** A hook runs a record command only when it holds `<files>`; a whole-tree command is
+  not a hook opt-in, so that concern takes the adapter rung. Files reach the command as `"$@"` of
+  `sh -c`, never as command text, and a name starting with `-` gains `./`.
+- **Approval.** A key from the team file, or from a `.local` file git tracks, runs only when that
+  file and every tracked repository file its command names (after `$REPO_ROOT/` and a `--opt=`
+  prefix) match the default branch (`refs/remotes/origin/HEAD`, read locally), or when this clone
+  holds an approval of exactly those bytes under `<git common dir>/claude-ecosystems/approved/`,
+  written only by an attended setup (`resolve-tool.sh --approve <id>`). Otherwise the record is
+  unapproved and runs nothing; it never falls through to the adapter. The user-global file and an
+  untracked `.local` file are the user's own and need no approval. A plugin's code-config gates
+  still apply on the record path.
+- **Unreadable record.** A record outside the YAML subset is a parse error: the batch row runs
+  nothing, an entry fails naming the file and line, and setup check reports FAIL.
+- **Findings.** A lint command's output lines `<path>:<line>[:<col>]: <message>`, its paths relative
+  to where it ran or absolute, become repo-relative contract lines filtered to the changed lines.
+  A lint command that exits non-zero with no such line fails closed and shows its output.
+- **Missing tool.** The skip key is the record's first `tool-pin` key, else the base name of the
+  command's first word.
 
 ### Check-script runtime contract
 

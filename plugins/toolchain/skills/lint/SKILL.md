@@ -39,7 +39,7 @@ Run lint and format checks across affected ecosystems in one command. Fills the 
 
 Use `/toolchain:lint` for quick feedback during development. Use `/verification:confirm` before committing.
 
-**The command surface is resolved, not hardcoded.** `/toolchain:lint` resolves each ecosystem's `check-cmd`/`fix-cmd`/`code-fix-cmd` through the shared four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md). Shared with `/toolchain:check`: the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` is authoritative when present; the plugin's bundled portable defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the rung-4 fallback. The consumer's file always wins.
+**The command surface is resolved, not hardcoded.** `/toolchain:lint` resolves each ecosystem's `lint-cmd`/`check-cmd`/`fix-cmd`/`code-fix-cmd` through the shared four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md). Shared with `/toolchain:check`: the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` is authoritative when present; the plugin's bundled portable defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the rung-4 fallback. The consumer's file always wins.
 
 **Two mutators, two gates.** Format-only and code-changing autofixes are separate keys and separate flags. Bare `--fix` must never run semantic lint autofixes (ruff `check --fix`, golangci-lint `--fix`, biome `check --write`, …).
 
@@ -118,9 +118,12 @@ If neither detection path yields changes and no filter specified: report "No cha
 
 **Command selection by mode:**
 
+The record's `lint-cmd` is the report-only lint command the format and lint plugins' git hooks run; a
+check run takes it over `check-cmd` so the hook and this skill run the same verb.
+
 | Mode | Command key | Gate |
 |------|-------------|------|
-| check (default) | `check-cmd` | none (read-only) |
+| check (default) | `lint-cmd` when the record holds a non-null one, else `check-cmd` | none (read-only) |
 | `--fix` | `fix-cmd` | none beyond the flag (format-only by contract) |
 | `--code-fix` | `code-fix-cmd` | [confirmation gate](#code-fix-confirmation-gate) + [scope fence](#code-fix-scope-fence) |
 

@@ -64,11 +64,11 @@ fi
 contract="$CHECKS_TMP/contract"
 : >"$contract"
 failed=0
-tools=""
+tool_names=""
 for ((i = 0; i < RT_GN; i++)); do
   rt_use "$i"
   rt_require
-  [[ ", $tools, " == *", $RT_TOOL, "* ]] || tools="${tools:+$tools, }$RT_TOOL"
+  [[ ", $tool_names, " == *", $RT_TOOL, "* ]] || tool_names="${tool_names:+$tool_names, }$RT_TOOL"
   present=()
   gone=()
   for f in "${RT_FILES[@]}"; do
@@ -102,5 +102,5 @@ checks_changed_lines
 checks_filter_findings <"$contract" >"$CHECKS_TMP/blocking"
 [[ -s "$CHECKS_TMP/blocking" ]] || exit 0
 cat "$CHECKS_TMP/blocking" >&2
-printf '%s: fix the findings %s reported above.\n' "$RT_PLUGIN" "$tools" >&2
+printf '%s: fix the findings %s reported above.\n' "$RT_PLUGIN" "$tool_names" >&2
 exit 1

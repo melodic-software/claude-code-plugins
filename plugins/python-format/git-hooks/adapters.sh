@@ -84,6 +84,7 @@ rt_adapter() { # <concern> <file> <root>
   pf__ruff "$dir" "$3"
   RT_ADAPTER=ruff RT_TOOL=ruff RT_DIR="$3" RT_INSTALL="$PF_INSTALL"
   RT_CONFIGS=".ruff.toml ruff.toml pyproject.toml"
+  # shellcheck disable=SC2016 # the command text sh -c expands, with RT_BIN and the files
   case "$1" in
   format)
     RT_SCRIPT='"$RT_BIN" check --fix-only --fixable I --no-unsafe-fixes --force-exclude --no-cache --quiet -- "$@"; "$RT_BIN" format --force-exclude --no-cache --quiet -- "$@"'
