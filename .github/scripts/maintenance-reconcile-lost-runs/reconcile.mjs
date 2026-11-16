@@ -22,6 +22,14 @@
 //   flaky test the diff did not cause can pass. pr-unblock's fix-ci does not
 //   wait for this re-run unless it is already queued or going, so it may run
 //   beside a fix-ci run (CI minutes, no model).
+// - Floor: a pr-require-checks run, at attempt 1 inside the lookback, whose
+//   failed jobs (Mark Lanes, or CI Status alone) failed only where the
+//   GITHUB_TOKEN hit its rate-limit floor (floorNoted: a rate guard's refusal,
+//   its "could not" lines and the exit note, nothing else). Its failed jobs
+//   are re-run once, recorded, as a flake is, but placed before lane runs: the
+//   floor is gone once the pool resets, and nothing else re-runs a ci-status
+//   that failed alone. Its CI Status then reports a review a kill switch
+//   stopped, which the next pass re-runs (Review).
 // - Lane: a pr-verify or pr-review-main run whose first attempt ended as above
 //   or failure (a judgment that broke, a review every credential leg stopped
 //   on, or a pr-verify run the kill switch stopped, which fails), and whose
@@ -172,7 +180,8 @@
 // closed PR, or a second run for one head, takes no place before a live one,
 // and the newer runs each kill-switch trip adds no longer push the oldest
 // live ones back pass after pass. One pass uploads at most MAX_IN_FLIGHT
-// records, so what would pass that waits too.
+// records, so what would pass that waits too. A pass that defers anything but
+// a flake-only set writes no `clean`, so the pacer runs the next tick.
 // Writes are at least WRITE_GAP_MS apart. The first rate-limit error stops the
 // run.
 //
@@ -606,6 +615,23 @@ export const pendingReviewNoted = (annotations) => {
   const exits = failures.filter((m) => EXIT_NOTE.test(m)).length;
   return pending > 0 && exits <= 1 && pending + exits === failures.length;
 };
+// The refusals a rate guard writes when a call is not sent, or not answered,
+// because the GITHUB_TOKEN's pool is at its floor (rate-guard.mjs RateLimitStop
+// and its refusal log; pr-require-checks.yml's api_budget refusals;
+// reconcile.test.mjs pins each writer). A server error's Retry-After hold is
+// not one.
+export const FLOOR_NOTE =
+  /(?:was not sent: GitHub's .+? rate limit holds until |hit GitHub's .+? rate limit(?: \(status [0-9]+\))?: no call to it before |at or under its stop-floor share [0-9.]+ \(status [0-9]+\): no call to it before )/;
+// The line a failing step writes beside such a refusal, naming what it could
+// not do ("could not read the files of #N; re-run this run.").
+const FLOOR_COMPANION = /^could not /;
+// True when a job failed only where the token hit its floor: at least one
+// refusal, and every other failure annotation is a refusal's companion line or
+// the exit note. A real failure beside a refusal (a gate's own error) is not.
+export const floorNoted = (annotations) => {
+  const failures = (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure").map((a) => String(a.message ?? ""));
+  return failures.some((m) => FLOOR_NOTE.test(m)) && failures.every((m) => FLOOR_NOTE.test(m) || FLOOR_COMPANION.test(m) || EXIT_NOTE.test(m));
+};
 // How long after the last review completes before a Pending re-run: at least
 // rerun-ci-status's `timeout-minutes: 15` (reconcile.test.mjs pins it), so its
 // own re-run has had the time to land. Under its `queue: max` concurrency that
@@ -628,7 +654,7 @@ const lostNow = (item, r, since) => {
   if (r?.head_sha !== item.head) {
     return false;
   }
-  if (item.kind === "infra" || item.kind === "flake" || item.kind === "switch" || item.kind === "pending" || item.kind === "upstream") {
+  if (item.kind === "infra" || item.kind === "flake" || item.kind === "floor" || item.kind === "switch" || item.kind === "pending" || item.kind === "upstream") {
     return r.status === "completed" && r.conclusion === "failure" && r.run_attempt === item.attempt;
   }
   if (item.kind === "review") {
@@ -742,6 +768,22 @@ const withAnnotations = (call, repo, jobs, wanted = () => true) =>
         : job,
     ),
   );
+
+// True when every failed lane job of a run failed only at the token's floor
+// (floorNoted), reading the annotations a job does not already carry. A carried
+// job read carries none, so they are read here.
+const floorFailed = async (call, repo, jobs) => {
+  const lanes = jobs.filter((job) => FAILED.has(job?.conclusion) && !AGGREGATE_JOBS.has(job.name));
+  if (lanes.length === 0 || !lanes.every((job) => job.conclusion === "failure" && Number.isSafeInteger(job.id))) {
+    return false;
+  }
+  for (const job of lanes) {
+    if (!floorNoted(job.annotations ?? (await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`)))) {
+      return false;
+    }
+  }
+  return true;
+};
 
 const NOT_STARTED = "before any of its jobs started";
 // The schedule's interval: a listing of no jobs read this long after its run
@@ -1123,7 +1165,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         }
         if (!infraOnly(jobs)) {
           if (firstFailure(r, jobs, now)) {
-            set.push({ kind: "flake", pr: pull.number, id: r.id, path: r.path, conclusion: "failure", attempt: 1, head: pull.head.sha });
+            const floor = RECORDED_UPSTREAMS.has(r.path) && (await floorFailed(call, repo, jobs));
+            set.push({ kind: floor ? "floor" : "flake", pr: pull.number, id: r.id, path: r.path, conclusion: floor ? "failure (rate-limit floor)" : "failure", attempt: 1, head: pull.head.sha });
           }
           continue;
         }
@@ -1180,6 +1223,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           set.push({ kind: "switch", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (kill switch)", attempt: 1, head: pull.head.sha });
         } else if (checks.run_attempt >= 2 && switchNoted) {
           say(`#${pull.number}: ci-status failed on the kill switch at attempt ${checks.run_attempt}; a re-run needs a person on the trusted-actor list`);
+        } else if (reconcilerRetries(checks, now) && floorNoted(notes)) {
+          set.push({ kind: "floor", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (rate-limit floor)", attempt: 1, head: pull.head.sha });
         } else if (isFailedChecks(checks) && notes && pendingReviewNoted(notes)) {
           // Every PR, not only the lanes App's: a lost rerun-ci-status strands
           // a person's head the same way. ci-status's own pick of each review:
@@ -1567,6 +1612,9 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   let room = Math.max(0, MAX_IN_FLIGHT - inFlight);
   let uploads = MAX_IN_FLIGHT;
   const items = [];
+  // Places deferred that hold more than flake re-runs: recovery work the
+  // next scheduled tick must not skip (main's `clean`, which the pacer reads).
+  let deferred = 0;
   const place = (what, taken) => {
     const records = taken.filter(recorded).length;
     if (room > 0 && records <= uploads) {
@@ -1574,6 +1622,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       room -= 1;
       uploads -= records;
     } else {
+      deferred += taken.some((item) => item.kind !== "flake") ? 1 : 0;
       say(`${what}: deferred, ${room > 0 ? "no record upload left this pass" : `all ${MAX_IN_FLIGHT} re-run places taken`}`);
     }
   };
@@ -1588,7 +1637,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     place(`#${set[0].pr}`, set);
   }
   items.push(...intake, ...verdicts);
-  return { items, failed, settle, heldSince, jobs: [...keepJobs.values()], passes: [...new Map(keepPasses.map((e) => [passesKey(e.pr, e.head), e])).values()] };
+  return { items, failed, deferred, settle, heldSince, jobs: [...keepJobs.values()], passes: [...new Map(keepPasses.map((e) => [passesKey(e.pr, e.head), e])).values()] };
 }
 
 // The item kinds that name no PR: act labels them by kind and reads no PR.
@@ -1599,6 +1648,7 @@ const FAILED_JOBS_WHY = new Map([
   ["verdict", ""],
   ["infra", ", which failed on infra only"],
   ["flake", ", its one re-run before fix-ci takes it"],
+  ["floor", ", which failed only where the GITHUB_TOKEN hit its rate-limit floor"],
   ["switch", ": ci-status failed while the lanes kill switch was on"],
   ["pending", ": ci-status failed on a review that has since finished"],
   ["upstream", ": the upstream-status gate stopped its review, and the gate lets it run now"],
@@ -1729,8 +1779,9 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     }
 
     let result = { items: [], failed: 0 };
-    // A full plan that read every listing; the kill switch, an Actions outage
-    // or a failed listing leaves it false (the pacer's marker reads it).
+    // A full plan that read every listing and deferred no recovery work; the
+    // kill switch, an Actions outage, a failed listing or a deferred place
+    // that is not a flake re-run leaves it false (the pacer's marker reads it).
     let clean = false;
     const write = () => {
       writeFileSync(env.PLAN_PATH, JSON.stringify(result));
@@ -1795,7 +1846,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
         console.log(`::warning title=reconcile::no settled runs carried, so every run is read: ${escapeCommand(error?.message ?? error)}`);
       }
     }
-    const { settle, jobs, passes, heldSince, ...planned } = await plan({
+    const { settle, jobs, passes, heldSince, deferred, ...planned } = await plan({
       repo,
       call,
       say,
@@ -1814,7 +1865,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     if (result.items.some(recorded) && !env.RECORD_PATH) {
       throw new Error("RECORD_PATH is not set");
     }
-    clean = result.failed === 0;
+    clean = result.failed === 0 && deferred === 0;
     write();
     if (env.SETTLED_PATH) {
       writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Map(settle.map((r) => [r.id, r])).values()], jobs, passes, held_since: new Date(heldSince).toISOString() }));

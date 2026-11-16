@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Confirmed cause: importer/csv_import.py:12 opens the file with encoding=\"utf-8\", which keeps the byte-order mark, so the first header cell is a byte-order mark before sku and the header check rejects it.\n\nLoop output:\n\n```\nrejected samples/with-bom.csv: unexpected header: ['\\ufeffsku', 'name', 'qty']\nimported 2 rows from samples/plain.csv\n```\n\nI added no instrumentation, and I made no fix and wrote no regression test. Opening with encoding=\"utf-8-sig\" would drop the mark if you want to write that fix.",
+      "why": "cause at file:line, quotes the escaped header from the loop, no fix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Confirmed cause: importer/csv_import.py:12 opens the file with encoding=\"utf-8\", which keeps the byte-order mark, so the header check rejects it.\n\nLoop output:\n\n```\nrejected samples/with-bom.csv: unexpected header: ['sku', 'name', 'qty']\n```\n\nI added no instrumentation, and I made no fix and wrote no regression test.",
+      "why": "near miss: the quoted header shows plain 'sku' with no byte-order mark, so it is not the loop output that confirms the cause"
+    }
+  ]
+}

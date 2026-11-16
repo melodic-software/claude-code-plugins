@@ -217,7 +217,8 @@ test("an instruction in the body or an outsider's comment reaches the lane only 
 // Owner decision on #14215 (Q195 (a)): a trusted upstream-drift issue
 // (github-actions[bot] wrote it, nobody else last edited it, the filer's exact
 // title and hex-pin lead line) runs from a fixed template that reads none of
-// its body, whose rows hold names and paths an upstream controls.
+// its body, so even an upstream-chosen path in a row, as an older filer
+// wrote, never reaches it.
 describe("a trusted upstream-drift issue", () => {
   const ACTIONS = { id: 41898282, login: "github-actions[bot]", type: "Bot" };
   const ACTIONS_ACTOR = { __typename: "Bot", databaseId: ACTIONS.id };

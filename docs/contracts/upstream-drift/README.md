@@ -525,8 +525,7 @@ After a failed write the other upstreams still run, and the run then exits nonze
   sweep is its only way in: the sweep dispatches intake for a trusted drift issue and still skips
   every other github-actions[bot] issue, since some quote fork-controlled text. Admission accepts
   it as its author, and its done-when is a fixed template (`driftSpecText`) built from the upstream
-  id, never from the body, whose rows hold names and paths an upstream controls; every other
-  admission criterion applies unchanged. The issue lane's run and pr-verify read that same
+  id, never from the body; every other admission criterion applies unchanged. The issue lane's run and pr-verify read that same
   template in place of the body. A vendored-copy (`pin=unknown`) issue has a different lead line,
   so it is not trusted and waits for a session agent or a listed human's issue. Every author gate
   on the way (the sweep, intake's verdict write, admission, the issue lane's blocker check and its
@@ -534,6 +533,11 @@ After a failed write the other upstreams still run, and the run then exits nonze
   at any Size and the lane runs it at the split-child size, since one template covers one
   upstream's pages. The filer's weekly body rewrite between admission and the lane run does not
   stop the run, which never reads the body; any other editor's change still does.
+- **No upstream-chosen text in the body.** The sweep's intake run hands the whole body to
+  intake's triage model, so the filer writes only text it controls: the upstream id, the hex pin
+  and head, this repository's own page and check-script paths, and per hex-pin page the counts of
+  changed rows, new units and removed units. It never writes a row's or unit's path, since the
+  upstream chose those names.
 - **`untracked` and `unreachable` block close.** An upstream with any `untracked` or
   `unreachable` page is never closed as clean,
   even beside a `clean` page, and since the report names it, the sweep leaves its issue alone too.
@@ -542,8 +546,9 @@ After a failed write the other upstreams still run, and the run then exits nonze
   neither reopens it nor files another. An open issue's body is replaced in place on each drifted
   run, with no label change and no comment.
 
-The issue is the to-do, and an agent works it. For a git-pinned page, the agent re-audits the
-drifted rows against the upstream head the issue names, following the page's recheck trigger and
+The issue is the to-do, and an agent works it. For a git-pinned page, the agent lists the changed
+rows and units itself by running `scripts/check-upstream-drift.sh --page <page>`, since the issue
+names none, then re-audits them against the upstream head, following the page's recheck trigger and
 any re-pin procedure the page states. It marks each upstream change **take**, **adapt** or
 **reject** (or **already-have**, on a page whose rows use it). It moves the pin, records each
 disposition as [When a trigger fires](#when-a-trigger-fires) requires, and opens one pull request

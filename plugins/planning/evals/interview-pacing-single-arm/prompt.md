@@ -1,11 +1,11 @@
 ---
-description: "Single arm of the round-versus-single pacing comparison (paired with interview-pacing-round-arm, same task and facts; only the pacing request differs). Source: the consumer's own writing, synthetic. An eval run cannot set the plugin's question_pacing option, so the case uses the in-session request, which the skill says overrides it. Why hard: the four open decisions are not listed, so the skill must find them, then ask only one, in the full layout, without previewing the rest."
+description: "Single arm, first message, of the round-versus-single pacing comparison (paired with interview-pacing-round-arm, same task and facts; only the pacing request differs). Source: the consumer's own writing, synthetic. An eval run cannot set the plugin's question_pacing option, so the case uses the in-session request, which the skill says overrides it. Why hard: the four open decisions are not listed, so the skill must find them, then ask only one, in the full layout, without previewing the rest. Graders are regexes; the deciding rule is in ../interview-pacing.md."
 tags: [interview, pacing, pacing-comparison, hard, no-network]
-runs: 5
+runs: 6
 max_turns: 30
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: "The reply asks exactly one question, on one of date scope, amount format and currencies, who may export, or large exports, in the full layout with the closing probe, lists no other question, then stops"
+expected_outcome: "The reply asks exactly one question, on one of date range, amount format and currencies, who may export, or large exports, in the full layout with the closing probe, lists no other question, then stops"
 ---
 
 /planning:interview me Add a CSV export of invoices to the billing admin page.

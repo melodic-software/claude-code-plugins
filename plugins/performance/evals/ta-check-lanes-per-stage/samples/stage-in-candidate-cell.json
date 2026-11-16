@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| Rank | Candidate | Tier | What is known | Counter that would settle it | Cheapest next instrument |\n|---|---|---|---|---|---|\n| 1 | unit-tests, pre-push | E1 | p50 52.0 s, p90 61.5 s, all 31 suites | suites selected per push | none: timed per check |\n| 2 | shell-lint, pre-commit | E1 | p50 7.8 s, scans 1840 files | files scanned | none |\n",
+      "why": "stage named in the Candidate cell, E1 tier next to it"
+    },
+    {
+      "answer": "| Rank | Candidate | Tier | What is known | Counter that would settle it | Cheapest next instrument |\n|---|---|---|---|---|---|\n| **1** | `shell-lint` (**pre-commit**) | **E1, attributed measurement** | scans every tracked file | files scanned | none |\n",
+      "why": "bold cells"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Rank | Candidate | Tier | What is known | Counter | Next |\n|---|---|---|---|---|---|\n| 1 | unit-tests | E1 | 52 s | suites | none |\n| 2 | shell-lint | E1 | 7.8 s | files | none |\n",
+      "why": "no stage named in any Candidate cell"
+    },
+    {
+      "answer": "| Rank | Candidate | Tier | What is known | Counter | Next |\n|---|---|---|---|---|---|\n| 1 | pre-push hook total | E2 | 66 s | spawns | time each check |\n",
+      "why": "only a lane total at E2"
+    },
+    {
+      "answer": "| Rank | Stage | Candidate | Tier | What is known |\n|---|---|---|---|---|\n| 1 | pre-push | unit-tests | E1 | 52 s |\n",
+      "why": "a Stage column inserted before Candidate breaks the existing column order"
+    }
+  ]
+}

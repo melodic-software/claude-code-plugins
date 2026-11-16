@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "step 1: cull\nstep 5: keep\nstep 8: delete-enforced"
+    },
+    {
+      "answer": "`step 1`: cull"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "step 1: keep",
+      "why": "keeps narration"
+    },
+    {
+      "answer": "step 10: cull",
+      "why": "names a different step"
+    }
+  ]
+}

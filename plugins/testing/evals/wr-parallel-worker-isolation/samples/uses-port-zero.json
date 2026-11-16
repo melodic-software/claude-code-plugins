@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": "Start the server with `port=0` and read `server.server_address[1]` for the port the OS gave it.",
+      "why": "port=0"
+    },
+    {
+      "answer": "Bind with `sock.bind(('127.0.0.1', 0))` and pass the assigned port to the client.",
+      "why": "binds port 0 by address tuple"
+    },
+    {
+      "answer": "Bind the test server to port `0` so the OS picks a free one.",
+      "why": "port in a code span"
+    },
+    {
+      "answer": "Set PORT=0 in the fixture and read back what the server bound.",
+      "why": "upper-case env form"
+    },
+    {
+      "answer": "Ask the OS for an ephemeral port (0) and read it back after binding.",
+      "why": "ephemeral port (0)"
+    },
+    {
+      "answer": "Build it with `HTTPServer((\"127.0.0.1\", 0), Handler)` and read `server.server_address[1]`.",
+      "why": "stdlib server address tuple without bind("
+    },
+    {
+      "answer": "Use `socketserver.TCPServer(('localhost', 0), Handler)` in the fixture.",
+      "why": "socketserver address tuple"
+    },
+    {
+      "answer": "Set API_PORT=0 and read the bound port back from the server.",
+      "why": "prefixed env var name"
+    },
+    {
+      "answer": "Pass server_port=0 to the fixture factory.",
+      "why": "snake_case keyword"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Give each worker its own port, 8000 plus the worker number.",
+      "why": "a computed fixed port, not an OS-assigned one"
+    },
+    {
+      "answer": "Listen on port 8000 and call make_server('localhost', base + offset, 0) for the admin socket.",
+      "why": "a stray ', 0)' and a fixed port"
+    },
+    {
+      "answer": "Keep port 8000 and retry 10 times on a clash.",
+      "why": "fixed port with a retry count"
+    },
+    {
+      "answer": "We support 0 shared state between tests, but keep port 8000 for the server.",
+      "why": "'port' inside another word, fixed port"
+    },
+    {
+      "answer": "Use 8000 + int(os.environ.get(\"WORKER_OFFSET\", 0)) as the port for each worker.",
+      "why": "computed fixed port; a (\"X\", 0) call argument list is not an address tuple"
+    },
+    {
+      "answer": "Read os.getenv('PYTEST_XDIST_WORKER', 0) and add it to 8000.",
+      "why": "getenv default 0, fixed base port"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "`scripts/run-checks.sh` ends on a bare `wait`, which drops each shard's exit status, so a failed shard can pass the hook.",
+      "why": "names wait and the lost exit status"
+    },
+    {
+      "answer": "- The runner's final wait does not track each job, so a shard that fails is reported as a pass.",
+      "why": "names wait and a failure that passes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The runner shards the check four ways in parallel, which is already a good use of the cores.",
+      "why": "no mention of wait"
+    },
+    {
+      "answer": "Waiting on the pre-push hook is the slowest part of the loop.",
+      "why": "waiting is not the wait builtin and no exit status is named"
+    }
+  ]
+}
