@@ -114,10 +114,11 @@ answers, so lane sessions carry none. Which permission mode each lane runs in is
 
 ### Long runs and the final report
 
-On a long run, keep the task list in a file and tick it as you go, so the work survives a
-compaction: read the file, not the scrollback. A session told to run unattended, however short
-the run, sets its stop condition before it starts and keeps such a task file, recording each
-decision it made and why.
+On a long run, keep the task list in a file under `.work/` and tick it as you go, so the work
+survives a compaction: read the file, not the scrollback. A session told to run unattended that
+can write files, however short the run, sets its stop condition before it starts and keeps such a
+task file, recording each decision it made and why. A lane whose skill or workflow defines its own
+state and report follows that instead.
 
 End with four headings, unless a skill defines its own report shape. An empty section says "None".
 
