@@ -251,7 +251,7 @@ reason stated. Never a hand-written handoff file when the script could have run.
 **Plugin profile on the resume line.** When `/plugin-profiles:profile` is among the available
 skills (enabled), invoke `/plugin-profiles:profile launch --json` via the Skill tool before `new`;
 when its `file` is not null, pass it to `new` as `--settings-file "<file>"` (on the prompt-only
-path, append ` --settings "<file>"` to the hand-written `claude --resume <UUID>`). Otherwise pass
+path, add `--settings "<file>"` after the UUID of the hand-written `claude --resume <UUID>`). Otherwise pass
 no `--settings-file` and write nothing about plugin profiles.
 
 ## Delivery: `/clear`-then-paste

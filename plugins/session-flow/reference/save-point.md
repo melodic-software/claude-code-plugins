@@ -671,7 +671,7 @@ are untouched: prompt-only writes no file, so nothing here has a file to validat
 - **Below the bottom rail, first line:** the sentence `Or reopen the producing session in place:`
   followed by `claude --resume <UUID>` in a code span and a period, the alternative to
   `/clear`-and-paste when the producing session is still worth reopening. A session in a plugin
-  profile appends ` --settings "<file>"` inside the code span, since a resumed session does not
+  profile adds `--settings "<file>"` after the UUID inside the code span, since a resumed session does not
   keep `--settings`. The no-goal-found note
   and the `/loop` re-arm notes the rules above prescribe follow it, unchanged in shape; it is
   outside the copy regions and outside the detection contract.
