@@ -1,6 +1,6 @@
 ---
 description: "Plugin profiles: named sets of installed plugins switched on for a folder, for every new folder, or for one session. Use when choosing which plugins load, applying, checking or clearing a profile, asking which profile is in force, or setting up profiles from the installed plugins and usage history."
-argument-hint: "[apply <name>|status|clear|check|setup]"
+argument-hint: "[apply <name>|launch [<name>]|status|clear|check|setup]"
 disable-model-invocation: false
 metadata:
   workflow-stage: session
@@ -9,9 +9,10 @@ metadata:
 
 # Plugin profiles
 
-**Arguments.** `[apply <name>|status|clear|check|setup]`. With no argument, infer the action from
-the conversation: a read-only one (status, check) runs and names what it inferred; apply, clear
-and setup are proposed and wait for a yes. With nothing to infer, run status.
+**Arguments.** `[apply <name>|launch [<name>]|status|clear|check|setup]`. With no argument, infer
+the action from the conversation: a read-only one (status, check) runs and names what it
+inferred; apply, clear and setup are proposed and wait for a yes. A skill that starts a session
+calls launch directly. With nothing to infer, run status.
 
 Every action runs the one command-line tool, and only it reads or writes settings and profile
 files:

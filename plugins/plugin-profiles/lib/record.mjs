@@ -3,6 +3,8 @@
 //
 //   recordPath(dataDir, settingsFile) -> <dataDir>/records/<sha256 of the settings file's real path>.json
 //   readRecord(path) / saveRecord(path, record) / deleteRecord(path)
+//   findRecord(dataDir, settingsFile) -> {path, record}: the file's record; a linked git worktree with
+//     none takes a copy of its main worktree's record when the file still holds every entry it wrote
 //   baseline(doc, record) -> {enabledPlugins, skillOverrides}: the file's entries with each
 //     recorded before-value put back, as if the earlier profile had been cleared
 //   nextRecord(previous, apply) -> the record after this apply; before-values come from the first write
@@ -45,6 +47,48 @@ export function readRecord(path) {
     if (error.code === "ENOENT") return null;
     throw new Error(`the applied-profile record ${path} cannot be read (${error.code ?? error.message})`);
   }
+}
+
+/** The main worktree of the linked git worktree at folder, read from the files git writes; else null. */
+function mainWorktree(folder) {
+  try {
+    const gitdir = /^gitdir:\s*(.+?)\s*$/m.exec(readFileSync(join(folder, ".git"), "utf8"));
+    if (!gitdir) return null;
+    const gitDir = resolve(folder, gitdir[1]);
+    const common = resolve(gitDir, readFileSync(join(gitDir, "commondir"), "utf8").trim());
+    return basename(common) === ".git" ? dirname(common) : null;
+  } catch {
+    return null;
+  }
+}
+
+const holdsEveryEntry = (record, doc) =>
+  Object.entries(SECTIONS).every(([key, section]) =>
+    Object.entries(record[section] ?? {}).every(([name, { after }]) => record.pending?.[name] !== undefined || (doc[key]?.[name] ?? ABSENT) === after));
+
+/** A worktree's settings file copied from the main worktree carries its entries but not its record. */
+function adoptedRecord(dataDir, settingsFile) {
+  const claudeDir = dirname(settingsFile);
+  if (basename(claudeDir) !== ".claude") return null;
+  const main = mainWorktree(dirname(claudeDir));
+  if (!main || realPath(main) === realPath(dirname(claudeDir))) return null;
+  try {
+    const record = readRecord(recordPath(dataDir, join(main, ".claude", basename(settingsFile))));
+    const doc = JSON.parse(readFileSync(settingsFile, "utf8"));
+    return record && doc && typeof doc === "object" && holdsEveryEntry(record, doc) ? { ...record, settingsFile } : null;
+  } catch {
+    return null;
+  }
+}
+
+export function findRecord(dataDir, settingsFile) {
+  const path = recordPath(dataDir, settingsFile);
+  let record = readRecord(path);
+  if (!record) {
+    record = adoptedRecord(dataDir, settingsFile);
+    if (record) saveRecord(path, record);
+  }
+  return { path, record };
 }
 
 export const saveRecord = (path, record) => replaceFile(path, `${JSON.stringify(record, null, 2)}\n`);

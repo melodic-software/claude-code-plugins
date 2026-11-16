@@ -20,6 +20,7 @@ type Preview = {
   pending: string[]
   mcpOrLspOn: string[]
   prerequisitesMissing: string[]
+  othersInFolder?: { name: string }[]
   lines: string[]
 }
 
@@ -54,7 +55,11 @@ async function confirm($: EngineInterface, name: string, preview: Preview): Prom
   const reread = preview.mcpOrLspOn.length
     ? `${list(preview.mcpOrLspOn)} ship an MCP or language server, so your next message after the switch re-reads the whole conversation. `
     : ''
-  return (await $.ui.ask(`${reread}Apply profile ${name} to this folder?`, { options: [APPLY, CANCEL], header: 'Profile' })) === APPLY
+  const sharing = preview.othersInFolder ?? []
+  const others = sharing.length
+    ? `Other sessions in this folder (${list(sharing.map(s => s.name))}) also get this profile at their next reload or start; to give one its own profile, start it with the launch command instead. `
+    : ''
+  return (await $.ui.ask(`${others}${reread}Apply profile ${name} to this folder?`, { options: [APPLY, CANCEL], header: 'Profile' })) === APPLY
 }
 
 async function switchProfile($: EngineInterface, args: string): Promise<string> {

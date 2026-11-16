@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, readdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -912,4 +912,59 @@ test("usage lists skills and plugins most used first and leaves out unused ones"
   assert.deepEqual(u.skills.map((s) => [s.name, s.count]), [["testing:write", 9], ["review:fanout", 3]]);
   assert.equal(u.skills[1].lastUsedAt, "2026-11-01T00:00:00.000Z");
   assert.deepEqual(u.plugins.map((p) => p.name), [`review@${M}`]);
+});
+
+/** A linked git worktree of w.project, laid out as git writes it, holding a copy of the main worktree's settings.local.json. */
+function linkedWorktree(w, local = w.read()) {
+  const wt = join(w.root, "wt");
+  writeTree(w.project, { ".git/worktrees/wt/commondir": "../..\n", ".git/worktrees/wt/gitdir": `${join(wt, ".git")}\n` });
+  writeTree(wt, { ".git": `gitdir: ${join(w.project, ".git", "worktrees", "wt")}\n`, ".claude/settings.local.json": local });
+  const run = (args, extra = {}) => spawnSync(process.execPath, [CLI, ...args], { cwd: wt, env: { ...w.env, ...extra }, encoding: "utf8" });
+  return { wt, run, file: join(wt, ".claude", "settings.local.json") };
+}
+
+test("a linked worktree whose settings copy holds the main worktree's profile entries takes that profile: status, launch and clear work there", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const main = w.read();
+  const t = linkedWorktree(w);
+  assert.match(t.run(["status"]).stdout, new RegExp(`Profile build \\(folder\\) applied .* to ${t.file.replace(/[.\\]/g, "\\$&")}`));
+  assert.equal(w.records().length, 2, "the worktree's file gets a record of its own");
+  const launched = t.run(["launch", "--json"]);
+  assert.equal(JSON.parse(launched.stdout).profile, "build");
+  assert.equal(t.run(["clear", "--yes"]).status, 0);
+  assert.equal(readFileSync(t.file, "utf8"), LOCAL_BEFORE);
+  assert.equal(w.read(), main, "the main worktree keeps its profile");
+  assert.match(w.run(["status"]).stdout, /Profile build \(folder\) applied/);
+});
+
+test("a linked worktree whose settings no longer hold the main worktree's profile entries takes no profile", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`songwriting@${M}`] = true;
+  const t = linkedWorktree(w, `${JSON.stringify(doc, null, 2)}\n`);
+  assert.match(t.run(["status"]).stdout, /No profile is recorded for /);
+  assert.equal(w.records().length, 1);
+});
+
+test("a folder whose .git is a file without a commondir, such as a submodule, takes no profile", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const t = linkedWorktree(w);
+  rmSync(join(w.project, ".git", "worktrees", "wt", "commondir"));
+  assert.match(t.run(["status"]).stdout, /No profile is recorded for /);
+});
+
+test("D22: a folder dry-run names the other live sessions in the folder, leaving out this one", () => {
+  const w = world();
+  const agents = join(w.root, "agents.json");
+  writeFileSync(agents, JSON.stringify([
+    { cwd: w.project, sessionId: "me", name: "this one", kind: "interactive" },
+    { cwd: w.project, sessionId: "b", name: "builder", kind: "background" },
+    { cwd: w.root, sessionId: "c", name: "elsewhere", kind: "interactive" },
+  ]));
+  const r = w.run(["apply", "review", "--for", "folder", "--defer-off", "--dry-run", "--json"], { PP_STUB_AGENTS: agents, CLAUDE_CODE_SESSION_ID: "me" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout).othersInFolder, [{ name: "builder", sessionId: "b", kind: "background" }]);
 });

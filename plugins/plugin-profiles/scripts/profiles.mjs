@@ -82,7 +82,7 @@ import { OptionsError, managedSettingsFiles, readOperatorOptions, resolveInstall
 import { missingRequired } from "../lib/prerequisite-gate.mjs";
 import { replaceFile } from "../lib/atomic-file.mjs";
 import { ALWAYS_ON, PLUGIN_ID, ProfileError, ignoredLine, parseProfile, profileLevels, profileText, readCatalog, readProfileFiles, resolveCatalog } from "../lib/profile-files.mjs";
-import { ABSENT, baseline, deleteRecord, nextRecord, readRecord, realPath, recordPath, restoreEdits, saveRecord } from "../lib/record.mjs";
+import { ABSENT, baseline, deleteRecord, findRecord, nextRecord, realPath, restoreEdits, saveRecord } from "../lib/record.mjs";
 import {
   SettingsConflict,
   SettingsError,
@@ -93,6 +93,7 @@ import {
   settingsPaths,
   writeSettings,
 } from "../lib/settings-io.mjs";
+import { othersInFolder } from "../lib/sessions.mjs";
 import { detectSurface, doesNotApply, refusal, surfaceLine } from "../lib/surface.mjs";
 import { readUsage, usageFile } from "../lib/usage.mjs";
 
@@ -199,8 +200,7 @@ function prepare(opts, where, catalog, records) {
   const file = targetFile(where, opts.target, opts.name);
   const settings = readSettings(file);
   const session = opts.target === "session";
-  const recPath = session ? null : recordPath(where.dataDir, file);
-  const previous = session ? null : readRecord(recPath);
+  const { path: recPath, record: previous } = session ? { path: null, record: null } : findRecord(where.dataDir, file);
   const base = session ? { enabledPlugins: {}, skillOverrides: {} } : baseline(settings.doc, previous);
   const loaded = readLayers({ paths: where.paths, managedFiles: managedSettingsFiles() });
   const layers = { ...loaded, [TARGET_LEVEL[opts.target]]: base };
@@ -253,7 +253,7 @@ function previewLines(p, gate) {
 }
 
 /** What apply --dry-run --json prints: the preview lines and the facts a caller branches on. */
-const previewJson = (p, gate, upToDate) => ({
+const previewJson = (p, gate, upToDate, others) => ({
   profile: p.plan.profile,
   target: p.plan.target,
   file: p.file,
@@ -267,6 +267,7 @@ const previewJson = (p, gate, upToDate) => ({
   ignored: p.plan.ignored,
   repositoryOn: p.plan.repositoryOn,
   repositorySkills: p.plan.repositorySkills,
+  othersInFolder: others,
   lines: previewLines(p, gate),
 });
 
@@ -337,7 +338,8 @@ async function apply(opts, where, env, io) {
   const recorded = p.previous?.profile === opts.name && p.previous.phase === "applied";
   const upToDate = !changeCount(p) && !Object.keys(p.pending).length && opts.target !== "session" && recorded;
   if (opts.json) {
-    io.out(JSON.stringify(previewJson(p, gate, upToDate), null, 2));
+    const others = opts.target === "folder" ? othersInFolder(where.projectDir, env.CLAUDE_CODE_SESSION_ID) : [];
+    io.out(JSON.stringify(previewJson(p, gate, upToDate, others), null, 2));
     return 0;
   }
   for (const line of previewLines(p, gate)) io.out(line);
@@ -372,7 +374,7 @@ async function apply(opts, where, env, io) {
 /** The profile a launch from this session defaults to: the session's own, else the folder's recorded one. */
 function ownProfile(where, env) {
   if (env[SESSION_VAR]) return env[SESSION_VAR];
-  return where.remembersFolder() ? readRecord(recordPath(where.dataDir, where.paths.local))?.profile ?? null : null;
+  return where.remembersFolder() ? findRecord(where.dataDir, where.paths.local).record?.profile ?? null : null;
 }
 
 /** A launcher's own settings, given as claude --settings takes them: a JSON object or a file holding one. */
@@ -451,7 +453,7 @@ function launch(opts, where, env, io) {
 /** The record of one settings file compared with the file now. */
 function recordedStatus(target, where, records) {
   const file = targetFile(where, target);
-  const rec = readRecord(recordPath(where.dataDir, file));
+  const rec = findRecord(where.dataDir, file).record;
   if (!rec) return { profile: null, target, settingsFile: file };
   const doc = readSettings(file).doc;
   const differs = [];
@@ -487,7 +489,7 @@ function statusOf(opts, where, env, records) {
   let target = opts.target;
   if (target === "folder" && !where.remembersFolder()) {
     base.rememberFolder = false;
-    base.leftover = readRecord(recordPath(where.dataDir, targetFile(where, "folder")))?.profile ?? null;
+    base.leftover = findRecord(where.dataDir, targetFile(where, "folder")).record?.profile ?? null;
     target = "initial";
   }
   const recorded = recordedStatus(target, where, records);
@@ -539,8 +541,7 @@ function status(opts, where, env, io) {
 async function clear(opts, where, io) {
   if (doesNotApply(where.surface)) throw new NotApplied(`not cleared: ${refusal(where.surface, opts.target)}`);
   const file = targetFile(where, opts.target);
-  const recPath = recordPath(where.dataDir, file);
-  const rec = readRecord(recPath);
+  const { path: recPath, record: rec } = findRecord(where.dataDir, file);
   if (!rec) {
     io.out(`No profile is recorded for ${file}; nothing to clear.`);
     return 0;
@@ -601,7 +602,7 @@ function usage(opts, env, io) {
 /** The plugins the initial profile switches on: always-on, plus the profile recorded for user settings. */
 function initialMembers(where) {
   const catalog = catalogFor(where, "initial");
-  const rec = readRecord(recordPath(where.dataDir, where.paths.user));
+  const rec = findRecord(where.dataDir, where.paths.user).record;
   const chosen = rec ? catalog.profiles.get(rec.profile) : null;
   return new Set([catalog.alwaysOn, chosen].filter(Boolean).flatMap((p) => [...p.plugins, ...p.optional]));
 }
