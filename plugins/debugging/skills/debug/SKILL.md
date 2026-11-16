@@ -34,7 +34,8 @@ Arguments: `$ARGUMENTS`
 
 `--unattended`, anywhere in the arguments, is not part of the observation: it is the caller declaring that nobody is
 present, which governs the `/debug` offer under "Routing" and the access requests of the Phase 1 surface pass. Take it
-out before reading the rest. Any other `--` token stops the run with a message naming `--unattended` as the one flag.
+out before reading the rest. It is the one flag: any other `--` token is part of the observation, such as a CLI option
+that fails.
 
 | Action | Selected by | What runs |
 |---|---|---|
