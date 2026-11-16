@@ -3,6 +3,15 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1] - 2026-11-16
+
+### Changed
+
+- The `always-on` profile lists `session-telemetry` and `plugin-diagnostics` in place of `harness-ops`, which moves to `harness-upkeep`.
+- Setup's hook-plugin question (phase 4) names `session-telemetry` and `plugin-diagnostics` among the plugins it asks about.
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
 ## [0.2.0] - 2026-11-16
 
 ### Added
