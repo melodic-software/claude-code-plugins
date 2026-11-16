@@ -6,6 +6,8 @@ With VIEW, TLC keeps one representative for each group of states that it counts 
 
 ## EndsAtZero breaks
 TLC's counterexample is in tlc-EndsAtZero.out. It has 1 step:
+```
 0. x=0 clock=0
 1. Tick: x=1 clock=1
+```
 The run stops in "x=1 clock=1" forever.

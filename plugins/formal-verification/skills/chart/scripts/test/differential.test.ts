@@ -462,7 +462,7 @@ for (const [what, c, says] of [
       invariants: ["NotString"],
       deadlock: true,
     },
-    ['The shortest path has 0 steps:\n0. "A"\n'],
+    ['The shortest path has 0 steps:\n```\n0. "A"\n```\n'],
   ],
   [
     "a state that holds an interval reads, and equals the set that TLC builds for it",

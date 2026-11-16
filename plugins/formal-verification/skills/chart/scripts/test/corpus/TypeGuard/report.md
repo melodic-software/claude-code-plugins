@@ -5,9 +5,11 @@ TLC stopped the drawing run with exit 76, so the chart draws only the states tha
 
 ## TypeOK breaks
 The shortest path has 2 steps:
+```
 0. 0
 1. Next: 1
 2. Next: 2
+```
 
 ## Rules not checked
 NeedsTypeOK, NoDeadlock

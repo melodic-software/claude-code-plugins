@@ -91,11 +91,11 @@ test("an invariant named NoDeadlock and a deadlock break as two rules", { skip }
   const report = read(path.join(out, "report.md"));
   assert.match(
     report,
-    /^## NoDeadlock breaks\nThe shortest path has 1 step:\n0\. 0\n1\. Next: 1$/m,
+    /^## NoDeadlock breaks\nThe shortest path has 1 step:\n```\n0\. 0\n1\. Next: 1\n```$/m,
   );
   assert.match(
     report,
-    /^## CHECK_DEADLOCK breaks\nThe shortest path has 3 steps:\n(.*\n){3}3\. Next: 3$/m,
+    /^## CHECK_DEADLOCK breaks\nThe shortest path has 3 steps:\n```\n(.*\n){3}3\. Next: 3\n```$/m,
   );
 });
 
@@ -207,7 +207,7 @@ for (const [input, name, tla] of [
     assert.equal(r.status, tlc.exit);
     const steps = read(path.join(out, "report.md")).match(
       new RegExp(
-        `^## ${tlc.rule} breaks\\nThe shortest path has \\d+ steps?:\\n0\\. .*\\n((?:\\d+\\. .*\\n?)*)`,
+        `^## ${tlc.rule} breaks\\nThe shortest path has \\d+ steps?:\\n\`\`\`\\n0\\. .*\\n((?:\\d+\\. .*\\n)*)\`\`\`$`,
         "m",
       ),
     );
@@ -244,7 +244,7 @@ test("a property that breaks on a loop draws the loop and reports it", { skip },
   assert.equal(r.status, 1);
   assert.match(
     read(path.join(out, "report.md")),
-    /^## Prop breaks\nTLC's counterexample is in tlc-Prop\.out\. It has 3 steps:\n0\. 0\n1\. Next: 1\n2\. Next: 2\n3\. Next: 0\nThe run loops through "0", "1" and "2" forever\.$/m,
+    /^## Prop breaks\nTLC's counterexample is in tlc-Prop\.out\. It has 3 steps:\n```\n0\. 0\n1\. Next: 1\n2\. Next: 2\n3\. Next: 0\n```\nThe run loops through "0", "1" and "2" forever\.$/m,
   );
   assert.equal(read(path.join(out, "chart.mmd")).match(/^ {2}class s\d+ repeats$/gm)?.length, 3);
 });
@@ -283,7 +283,7 @@ test(
     assert.equal(r.status, 1);
     assert.match(
       read(path.join(out, "report.md")),
-      /^## Prop breaks\nTLC's counterexample is in tlc-Prop\.out\. It has 17 steps:\n0\. 0\n1\. Deep: 1\n(.*\n){14}16\. Turn: 16\n17\. Back: 15\nThe run loops through "15" and "16" forever\.$/m,
+      /^## Prop breaks\nTLC's counterexample is in tlc-Prop\.out\. It has 17 steps:\n```\n0\. 0\n1\. Deep: 1\n(.*\n){14}16\. Turn: 16\n17\. Back: 15\n```\nThe run loops through "15" and "16" forever\.$/m,
     );
   },
 );

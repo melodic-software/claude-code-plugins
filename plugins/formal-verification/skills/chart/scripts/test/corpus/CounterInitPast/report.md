@@ -6,7 +6,9 @@ Every initial state is outside the constraints, so TLC explores none of them.
 
 ## NotNine breaks
 The shortest path has 0 steps:
+```
 0. 9
+```
 
 ## Rules that hold
 NoDeadlock

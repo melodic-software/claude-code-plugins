@@ -592,7 +592,7 @@ test("a property that INSTANCE actions break above the chart budget draws their 
   assert.equal(r.configs.ChartRun, undefined);
   assert.match(
     r.report,
-    /^1\. C!Up: 1\n2\. C!Up: 2\n3\. C!Back: 1\nThe run loops through "1" and "2" forever\.$/m,
+    /^1\. C!Up: 1\n2\. C!Up: 2\n3\. C!Back: 1\n```\nThe run loops through "1" and "2" forever\.$/m,
   );
   assert.match(read(path.join(r.out, "chart.mmd")), /^  s\d+ --> s\d+: C!Back$/m);
 });
@@ -1004,7 +1004,7 @@ for (const [what, c] of [
       status: 1,
       states: ["a", "b\u0002c", "d", "e"],
       arrows: ["a --> b\u0002c: Next", "b\u0002c --> d: Next", "d --> e: Next"],
-      says: /^## NotOne breaks\nThe shortest path has 1 step:\n0\. a\n1\. Next: b\cBc$/m,
+      says: /^## NotOne breaks\nThe shortest path has 1 step:\n```\n0\. a\n1\. Next: b\cBc\n```$/m,
     },
   ],
   [
@@ -1015,7 +1015,7 @@ for (const [what, c] of [
       status: 1,
       states: ["a", "P", "b\u0002c", "d", "e"],
       arrows: ["a --> b\u0002c: Next", "b\u0002c --> d: Next", "d --> e: Next"],
-      says: /^## NotOne breaks\nThe shortest path has 1 step:\n0\. a\n1\. Next: P \/ b\cBc$/m,
+      says: /^## NotOne breaks\nThe shortest path has 1 step:\n```\n0\. a\n1\. Next: P \/ b\cBc\n```$/m,
     },
   ],
   [
@@ -1031,7 +1031,7 @@ for (const [what, c] of [
       status: 1,
       states: ["a", "b\u0002c", "d", "e", "p"],
       arrows: ["a --> b\u0002c: Next", "b\u0002c --> d: Next", "d --> e: Next"],
-      says: /^## NotOne breaks\nThe shortest path has 1 step:\n0\. R a, S p\n1\. Next: R b\cBc, S p$/m,
+      says: /^## NotOne breaks\nThe shortest path has 1 step:\n```\n0\. R a, S p\n1\. Next: R b\cBc, S p\n```$/m,
     },
   ],
   [

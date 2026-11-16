@@ -71,6 +71,7 @@ const KEPT = ["PATH", "LANG", "LC_ALL"];
 export function childEnv(home: string, extra: { [name: string]: string } = {}) {
   const env: { [name: string]: string } = {};
   for (const name of KEPT) if (process.env[name] !== undefined) env[name] = process.env[name] as string;
+  // Only the test harness's replaying fake java (test/java.ts) reads these; none carries a credential.
   for (const [name, value] of Object.entries(process.env))
     if (name.startsWith("STATECHART_") && value !== undefined) env[name] = value;
   return { ...env, HOME: home, TMPDIR: home, ...extra };

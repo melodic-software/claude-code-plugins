@@ -6,12 +6,16 @@ The chart marks only the deadlock that TLC reports. Under a CONSTRAINT or an ACT
 
 ## NotThree breaks
 The shortest path has 1 step:
+```
 0. 0
 1. Jump: 3
+```
 
 ## NoDeadlock breaks
 The shortest path has 3 steps:
+```
 0. 0
 1. Inc: 1
 2. Inc: 2
 3. Inc: 3
+```

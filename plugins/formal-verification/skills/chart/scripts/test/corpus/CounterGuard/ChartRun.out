@@ -5,17 +5,17 @@ TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
 Please run the Java VM which executes TLC with a throughput optimized garbage collector by passing the "-XX:+UseParallelGC" property.
 @!@!@ENDMSG 2401 @!@!@
 @!@!@STARTMSG 2187:0 @!@!@
-Running breadth-first search Model-Checking with fp 0 and seed -4951628132506694484 with 1 worker on 8 cores with 23888MB heap and 64MB offheap memory [pid: 571933] (Linux 6.12.94+ amd64, Eclipse Adoptium 25.0.5 x86_64, MSBDiskFPSet, DiskStateQueue).
+Running breadth-first search Model-Checking with fp 0 and seed 1574009414957481541 with 1 worker on 32 cores with 4096MB heap and 64MB offheap memory [pid: 364068] (Linux 6.18.33.2-microsoft-standard-WSL2 amd64, Eclipse Adoptium 25.0.5 x86_64, MSBDiskFPSet, DiskStateQueue).
 @!@!@ENDMSG 2187 @!@!@
 @!@!@STARTMSG 2220:0 @!@!@
 Starting SANY...
 @!@!@ENDMSG 2220 @!@!@
-Parsing file /tmp/statechart-8oKWYc/statechart-2fPczm/ChartRun.tla
-Parsing file /agent/repos/plugins/pstack/skills/statechart/scripts/test/corpus/CounterGuard/CounterGuard.tla
-Parsing file /tmp/statechart-8oKWYc/statechart-2fPczm/tmp-ChartRun/Naturals.tla
-Parsing file /tmp/statechart-8oKWYc/statechart-2fPczm/tmp-ChartRun/TLC.tla
-Parsing file /tmp/statechart-8oKWYc/statechart-2fPczm/tmp-ChartRun/Sequences.tla
-Parsing file /tmp/statechart-8oKWYc/statechart-2fPczm/tmp-ChartRun/FiniteSets.tla
+Parsing file /tmp/statechart-0W2ai1/statechart-RlTPFE/ChartRun.tla
+Parsing file /tmp/statechart-0W2ai1/statechart-RlTPFE/spec/CounterGuard.tla
+Parsing file /tmp/statechart-0W2ai1/statechart-RlTPFE/tmp-ChartRun/Naturals.tla
+Parsing file /tmp/statechart-0W2ai1/statechart-RlTPFE/tmp-ChartRun/TLC.tla
+Parsing file /tmp/statechart-0W2ai1/statechart-RlTPFE/tmp-ChartRun/Sequences.tla
+Parsing file /tmp/statechart-0W2ai1/statechart-RlTPFE/tmp-ChartRun/FiniteSets.tla
 Semantic processing of module Naturals
 Semantic processing of module CounterGuard
 Semantic processing of module Sequences
@@ -26,13 +26,13 @@ Semantic processing of module ChartRun
 SANY finished.
 @!@!@ENDMSG 2219 @!@!@
 @!@!@STARTMSG 2185:0 @!@!@
-Starting... (2026-10-26 21:45:23)
+Starting... (2026-11-15 23:03:50)
 @!@!@ENDMSG 2185 @!@!@
 @!@!@STARTMSG 2189:0 @!@!@
 Computing initial states...
 @!@!@ENDMSG 2189 @!@!@
 @!@!@STARTMSG 2190:0 @!@!@
-Finished computing initial states: 1 distinct state generated at 2026-10-26 21:45:23.
+Finished computing initial states: 1 distinct state generated at 2026-11-15 23:03:50.
 @!@!@ENDMSG 2190 @!@!@
 @!@!@STARTMSG 2111:1 @!@!@
 Evaluating invariant ChartMark failed.
@@ -75,11 +75,11 @@ expressions at the following positions:
 
 @!@!@ENDMSG 2103 @!@!@
 @!@!@STARTMSG 2200:0 @!@!@
-Progress(2) at 2026-10-26 21:45:23: 3 states generated (514 s/min), 2 distinct states found (342 ds/min), 0 states left on queue.
+Progress(2) at 2026-11-15 23:03:50: 3 states generated (469 s/min), 2 distinct states found (313 ds/min), 0 states left on queue.
 @!@!@ENDMSG 2200 @!@!@
 @!@!@STARTMSG 2199:0 @!@!@
 3 states generated, 2 distinct states found, 0 states left on queue.
 @!@!@ENDMSG 2199 @!@!@
 @!@!@STARTMSG 2186:0 @!@!@
-Finished in 353ms at (2026-10-26 21:45:23)
+Finished in 387ms at (2026-11-15 23:03:50)
 @!@!@ENDMSG 2186 @!@!@

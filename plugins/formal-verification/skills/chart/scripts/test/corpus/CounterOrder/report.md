@@ -6,10 +6,14 @@ The chart marks only the deadlock that TLC reports. Under a CONSTRAINT or an ACT
 
 ## NoDeadlock breaks
 The shortest path has 1 step:
+```
 0. 0
 1. A: 1
+```
 
 ## Even breaks
 The shortest path has 1 step:
+```
 0. 0
 1. B: 9
+```

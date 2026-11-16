@@ -5,8 +5,10 @@ TLC reached 6 states and 5 steps. The chart draws 7 states and 6 arrows.
 
 ## NotThree breaks
 The shortest path has 1 step:
+```
 0. jumps=0 x=0
 1. Jump: jumps=1 x=3
+```
 
 ## Rules that hold
 NoDeadlock

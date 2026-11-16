@@ -45,6 +45,7 @@
 .github/scripts/upstream-apply-changelog
 .github/scripts/work-unblock
 .github/scripts/work-resolve-issue
+plugins/formal-verification/skills/chart/scripts
 plugins/knowledge/vendor/node-launcher
 plugins/knowledge/vendor/repo-analysis
 plugins/knowledge/vendor/video-digestion

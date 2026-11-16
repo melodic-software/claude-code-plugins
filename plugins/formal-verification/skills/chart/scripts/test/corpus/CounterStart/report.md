@@ -5,7 +5,9 @@ TLC reached 3 states and 2 steps. The chart draws 4 states and 2 arrows.
 
 ## TypeOK breaks
 The shortest path has 0 steps:
+```
 0. 7
+```
 
 ## Rules that hold
 NoDeadlock
