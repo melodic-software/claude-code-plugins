@@ -749,9 +749,11 @@ Claim sequence (race-safe, same-identity aware):
    comment, the foreign lease wins → supersede own comment, exit `7`. On that loss, on the
    step 2 back-off, and on any failure from step 1 until the emit, the GitHub adapter runs the
    **hand-back** after superseding its own lease. Each of its lease lists retries once before it
-   counts as failed, and each attempt judges liveness at a clock read taken just before it: a
-   renew only moves an expiry later, so a renewing holder never looks expired, while a lease that
-   expires during the list still counts as live and its login then stays for reclaim. It lists the leases (a failed list counts as empty) and stops if one shows a
+   counts as failed, and each attempt counts a lease live when it is live at a clock read taken
+   just before the list or at one taken after it: a renew only moves an expiry later, so a
+   renewing holder never looks expired at the earlier read, a holder whose clock runs up to the
+   skew bound ahead and renews during the list is inside that bound at the later read, and a
+   lease that expires during the list still counts as live, so its login stays for reclaim. It lists the leases (a failed list counts as empty) and stops if one shows a
    live lease of the login other than its own; else it reads the assignees and stops only if that
    read succeeds without the login; else it removes the login, re-lists the leases (stopping on a
    failed list), and assigns the login again if a live lease of it other than its own has

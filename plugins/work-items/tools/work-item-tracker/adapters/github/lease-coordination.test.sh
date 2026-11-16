@@ -1223,6 +1223,30 @@ handback_clock_case() {
 handback_clock_case "renew during the hand-back's re-list" 3
 handback_clock_case "renew during the hand-back's confirm list" 4
 
+# [hand-back clock, fast holder] releasing lease 1, the hand-back reads its clock (T0+10),
+# then a same-login holder whose clock runs 300 s fast renews lease 2 two seconds into the
+# list (renewed_at T0+312). That is past the skew bound at the earlier read and inside it at
+# a read after the list, so alice is never removed.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf 'alice\n' >"$GH_STUB_DIR/login"
+printf '["alice"]\n' >"$GH_STUB_DIR/assignees"
+jq -cn --arg a "$(marker alice "2026-07-12T04:00:00Z" 24)" --arg b "$(marker alice "2026-07-12T04:00:00Z" 1)" \
+  '[{id:1, node_id:"MDEx", body:$a, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"},
+    {id:2, node_id:"MDEx", body:$b, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"}]' >"$GH_STUB_DIR/lease-comments"
+printf '%s\n' "$((T0 + 10))" >"$GH_STUB_DIR/clock"
+h="$(next_read list 2)"
+# shellcheck disable=SC2016  # expanded by the hook's bash
+hook "$h" bash -c 'put_lease 2 "$1" && printf "%s\n" "$2" >"$GH_STUB_DIR/clock"' _ \
+  "$(marker alice "2026-07-12T04:05:12Z" 1)" "$((T0 + 12))"
+rc=0
+bash "$RELEASE" "$ID" --lease-comment-id 1 >/dev/null 2>&1 || rc=$?
+assert_eq "the release of lease 1 succeeds (0) beside a fast-clock holder" "0" "$rc"
+assert_eq "the fast-clock renew landed during the hand-back's list" "0" "$(hook_rc "$h")"
+assert_not_contains "the hand-back never removes alice for the fast-clock lease 2" "$(calls)" "REMOVE_ASSIGNEE alice"
+assert_eq "alice stays assigned beside the fast-clock holder" '["alice"]' "$(assignees_now)"
+cleanup_scenario
+
 # [release clock] the lease expires between two clock reads; release decides on one read,
 # so it releases the lease that was live at that read.
 new_scenario
