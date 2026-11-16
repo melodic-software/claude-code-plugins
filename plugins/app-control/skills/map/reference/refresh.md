@@ -247,15 +247,18 @@ the steps as written; the candidates inform step 6's triage only. Three invarian
 **A stale Ready.** When Ready fails and the source wave cited a port, route, command or check the
 hub's `## Ready` names as moved or removed, open that citation yourself; when it shows the move,
 the control skill is out of date, not the app. An attended pass shows the corrected `## Ready` text
-with the citation and, once the person agrees, records the hub's current `## Ready` text, writes
-the correction in the hub and runs Ready once more. When that retry passes, the live pass goes on
+with the citation and, once the person agrees, records the hub's current `## Ready` text and the
+output of `git status --porcelain -- "<dir>/SKILL.md"`, writes the correction in the hub and runs
+Ready once more. When that retry passes, the live pass goes on
 and the fix ships as doc drift. When it fails, or the person declines, the outcome is **blocked**
 with the evidence and the corrected text in the report. An unattended pass writes nothing and runs
 Ready no further: the outcome is **blocked**, with the corrected text in the report, unwritten. A
 fix to a `cli/` command Ready calls is a driver gap (§ 6), never this retry. Unless the step 6.3
 commit or § Ticket branch's commit carries the written fix, the recorded text goes back into the
-hub before the pass returns (§ Return to the starting branch), whatever ended it, and § Ticket
-branch step 1 does not count this write as the caller's change.
+hub before the pass returns (§ Return to the starting branch), whatever ended it. § Ticket branch
+step 1 does not count this write as the caller's change only when that recorded status printed
+nothing: a hub that already held uncommitted changes before the write is the caller's work, and
+its commit would carry them.
 
 **One launch for features that share app state.** When the hub's launch model has no `Session:`
 line and its `Data:` line names a per-run data directory, not `none:` (the contract's "The launch
@@ -337,7 +340,8 @@ starting branch) other than the default branch and the control skill's upkeep br
 
 1. **Stay.** Switch nothing. When `git status --porcelain -- "<dir>"` prints a line not starting
    `??` (tracked control skill files with uncommitted changes, the caller's own; this pass's
-   stale-Ready write in § 5 does not count), the outcome is
+   stale-Ready write in § 5 does not count, but only when the hub's status recorded before that
+   write printed nothing), the outcome is
    **blocked** with the edits in the report unwritten: the caller commits or stashes those first.
    Changes outside the directory are the caller's work and stay untouched.
 2. **Write**, as step 2 above.
