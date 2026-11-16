@@ -84,15 +84,28 @@ fi
 
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 renewed="$(jq -c --arg ts "$now" '. + {renewed_at: $ts}' <<<"$lease_json")"
-wit_patch_lease_comment "$owner" "$repo" "$lease_comment_id" "$renewed"
 
-# A superseded lease is out of reclaim's reach, so a back-off hands its holder's assignee back.
+# A superseded lease is out of reclaim's reach, so a back-off hands its holder's assignee
+# back. A lease it could not supersede may still be live, so the assignee stays for it.
 back_off() {
-  wit_try_supersede_lease_comment "$owner" "$repo" "$lease_comment_id" "$renewed"
-  wit_hand_back_assignee "$owner" "$repo" "$number" "$(jq -r '.holder // empty' <<<"$renewed")" "$lease_comment_id"
-  printf 'renew-lease: lease %s: %s; lease superseded\n' "$lease_comment_id" "$1" >&2
+  if wit_try_supersede_lease_comment "$owner" "$repo" "$lease_comment_id" "$renewed" ||
+    wit_try_supersede_lease_comment "$owner" "$repo" "$lease_comment_id" "$renewed"; then
+    wit_hand_back_assignee "$owner" "$repo" "$number" "$(jq -r '.holder // empty' <<<"$renewed")" "$lease_comment_id"
+    printf 'renew-lease: lease %s: %s; lease superseded\n' "$lease_comment_id" "$1" >&2
+  else
+    printf 'renew-lease: lease %s: %s; could not supersede the lease, assignee kept\n' "$lease_comment_id" "$1" >&2
+  fi
   exit "$EX_CONFLICT"
 }
+
+# A PATCH that GitHub applies but reports as failed (a timeout) may have revived the lease,
+# so near or past the old expiry it backs off as a late PATCH does below.
+(wit_patch_lease_comment "$owner" "$repo" "$lease_comment_id" "$renewed")
+patch_rc=$?
+if ((patch_rc != 0)); then
+  (($(date -u +%s) < expires_epoch - WIT_LEASE_SKEW_SECONDS)) || back_off "the renew failed near expiry and may have landed"
+  exit "$patch_rc"
+fi
 
 # A PATCH that returns after the old expiry may have revived an expired lease, and a
 # same-login claimant that lost to it meanwhile removes the shared assignee: never kept.

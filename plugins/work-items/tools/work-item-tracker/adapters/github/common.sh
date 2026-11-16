@@ -460,12 +460,13 @@ wit_list_lease_comments() {
 }
 
 # wit_try_supersede_lease_comment <owner> <repo> <comment-id> <lease-json>: best-effort
-# edit adding superseded_at to that lease comment; never fails the caller.
+# edit adding superseded_at to that lease comment; never exits the caller, and returns 1
+# when the edit failed.
 wit_try_supersede_lease_comment() {
   local superseded
   superseded="$(jq -c --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '. + {superseded_at: $ts}' <<<"$4")"
   gh_write api --method PATCH "repos/$1/$2/issues/comments/$3" \
-    -f body="${WIT_LEASE_MARKER}${superseded} -->" >/dev/null 2>&1 || true
+    -f body="${WIT_LEASE_MARKER}${superseded} -->" >/dev/null 2>&1
 }
 
 # wit_lease_released_by_run <comment-id> <lease-json>: the <released-fn> every lease verb
@@ -499,7 +500,8 @@ wit_lease_released_by_run() {
 # superseded its lease earlier is seen as gone, and its own list after superseding sees this
 # one's. A lease posted after the list is caught by the re-list after the removal, which puts
 # the assignee back: a claim posts its lease before it re-checks its assignee, and this removes
-# the assignee before it re-lists, so one of the two sees the other. A failed assignee read
+# the assignee before it re-lists, so of two sessions one sees the other. A third can still
+# leave a holder unassigned (CONTRACT.md "Lease protocol"). A failed assignee read
 # still removes, since an assignee that no lease holds keeps the item off the frontier for good.
 wit_hand_back_assignee() {
   local owner="$1" repo="$2" number="$3" login="$4" own="$5" leases
