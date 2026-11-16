@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.16] - 2026-11-16
+
+### Changed
+
+- The drift delta sweep records a lane as not run when its plugin is not enabled, and its report names enabling the plugin as the remedy, after installing it when it is not installed.
+
 ## [5.0.15] - 2026-11-16
 
 ### Changed

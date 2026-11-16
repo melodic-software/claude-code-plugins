@@ -3,6 +3,12 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1] - 2026-11-16
+
+### Fixed
+
+- `check` reports a user or repository profile file it cannot read, naming the file, and checks the other levels instead of stopping; a shipped profile it cannot read still stops the check with the file named.
+
 ## [0.1.0] - 2026-11-16
 
 ### Added
