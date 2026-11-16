@@ -42,7 +42,9 @@ node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" check "${CLAUDE_PLUGIN_ROOT}"
 
 Keep the quoted option tokens exactly as shown: the script treats an unset option as unset. Each
 prints one row per tool and a summary, and exits 1 when a required tool is missing. Report the rows
-as printed, each FAIL with its remedy. Then print the resolved pins and bounds:
+as printed, each FAIL with its remedy. The declared `tla2tools` row cannot see the plugin data
+directory or the jar option, so it warns even with the jar present: the first command's
+`model-checker` row decides. Then print the resolved pins and bounds:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/settings.mjs" --project-dir "$PWD"
