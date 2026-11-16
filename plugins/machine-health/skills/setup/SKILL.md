@@ -384,7 +384,10 @@ changes the wrapper leaves the copy stale, and `check` step 6 FAILs it and offer
 1. Present the task: the `schtasks` command in step 2, which names it `machine-health monthly`,
    runs it only while the owner is logged on (`/it`), and runs
    `pwsh -NoProfile -File <StateBase>/scheduler/monthly-run.ps1` on the schedule its `/sc`, `/d`
-   and `/st` arguments set; and the owner's allow rules read above. Refuse
+   and `/st` arguments set; and the owner's allow rules read above. Ask whether the run should
+   start in a plugin profile (`/plugin-profiles:profile` lists them; the default is none, the run
+   as it is today); with one named, the wrapper's `-PluginProfile` parameter applies it at each run,
+   and its help in `<StateBase>/scheduler/monthly-run.ps1` says how. Refuse
    the fallback when `${CLAUDE_PLUGIN_DATA}` ends in `-inline`: a `--plugin-dir` session's data directory is not
    the one the task's `claude -p` run writes, so `latest_newer` could never hold. And refuse it
    when `<StateBase>` sits under a cloud sync root, where the audit writes no state: run, appended
@@ -403,6 +406,8 @@ changes the wrapper leaves the copy stale, and `check` step 6 FAILs it and offer
    . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); $i = Install-MonthlyRun -StateBase $stateRoot; $pwsh = (Get-Command pwsh -CommandType Application | Select-Object -First 1).Source; schtasks /create /f /tn 'machine-health monthly' /sc MONTHLY /d 1 /st 09:00 /it /tr ('"{0}" -NoProfile -File "{1}"' -f $pwsh, $i.WrapperPath)
    ```
 
+   With a profile named, end the `/tr` value with it: `('"{0}" -NoProfile -File "{1}" -PluginProfile {2}' -f $pwsh, $i.WrapperPath, '<profile>')`.
+
    It writes the wrapper into `<StateBase>/scheduler` and removes a `scheduled-settings.json` an
    earlier build left there. The wrapper runs only from that folder, never from the plugin install,
    which a plugin update replaces. Re-running this step refreshes the copy and replaces the task. Then show the owner the command the task will run:
@@ -413,6 +418,8 @@ changes the wrapper leaves the copy stale, and `check` step 6 FAILs it and offer
    ```powershell
    pwsh -NoProfile -File (Join-Path $stateRoot 'scheduler/monthly-run.ps1')
    ```
+
+   With a profile named, add `-PluginProfile <profile>`, as in the task.
 
    Then run `check` and report step 6.
 
