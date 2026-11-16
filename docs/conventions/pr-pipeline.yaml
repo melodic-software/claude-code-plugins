@@ -1718,8 +1718,12 @@ merge:
     # ref of one `uses: <owner>/...` line, to a commit a tag of that
     # repository points to. Owner decision Q-ANTHROPIC-DEPS
     # (2026-10-31). Absent or empty, Q24 holds every Dependabot PR.
+    # `melodic-software` is listed because an own release is this
+    # organization's code, not third-party code (owner decision 2026-11-15,
+    # the Dependabot policy's `fastTrack`).
     trusted-action-owners:
       - anthropics
+      - melodic-software
   # No path is held for being trusted alone (owner direction 2026-10-24)
   # except the narrow path floor (babysit_risk.py FLOOR_CLASSES, the paths
   # every consumer shares, joined to `floor-paths` below, this repository's
