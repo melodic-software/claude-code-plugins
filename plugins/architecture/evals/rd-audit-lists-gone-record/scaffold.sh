@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Two decision records. 0001 chose Redis for session storage; a later commit removed the Redis
-# store and its dependency. 0002 (PostgreSQL for orders) still matches the code.
+# store and its dependency, and the cookie store that replaced it cites 0001 on its first line.
+# 0002 (PostgreSQL for orders) still matches the code.
 set -euo pipefail
 
 git init -q -b main
@@ -53,6 +54,7 @@ git commit -q -m "Sessions in Redis, orders in PostgreSQL"
 git rm -q src/session/redis_store.py
 mkdir -p src/session
 cat >src/session/cookie_store.py <<'PY'
+# Replaces the session store ADR 0001 chose.
 """Sessions live in signed cookies."""
 
 

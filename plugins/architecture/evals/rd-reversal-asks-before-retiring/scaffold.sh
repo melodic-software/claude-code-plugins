@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# A service with two numbered decision records; 0002 chose GraphQL for the public API.
+# A service with two numbered decision records; 0002 chose GraphQL for the public API, and the
+# schema's first line cites it.
 set -euo pipefail
 
 git init -q -b main
@@ -32,6 +33,7 @@ Partners asked for flexible queries, so the public API is a GraphQL endpoint.
 MD
 
 cat >src/api/schema.graphql <<'GQL'
+# ADR 0002
 type Query {
   order(id: ID!): Order
 }
