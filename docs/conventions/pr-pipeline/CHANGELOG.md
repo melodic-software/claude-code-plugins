@@ -1,5 +1,28 @@
 # Changelog for the PR pipeline convention
 
+## [10.5.0] - 2026-11-16
+
+### Changed
+
+- pr-verify takes an issue the upstream-drift workflow filed as the spec of a pull request that
+  closes it and only modifies the `docs/upstream` pages pinned to that upstream on main. The spec
+  text names only the upstream id and those pages, never the issue's body, and the entry carries
+  `source` `upstream-drift`. Every other Bot-written issue still has no spec.
+- `docs/upstream/**` joins the floor as an `enforcement` row and CARRY_REFUSES, since the resolver
+  now reads those pages: a pull request touching them holds as `review-path:` until a clean
+  security review binds to its head, and a push touching them stops an approval carrying.
+
+- `merge.dependabot.trusted-action-owners` lists `melodic-software` beside `anthropics`, so a Dependabot pull request that only moves this organization's own action pins (the `melodic-software/ci-workflows` composite actions) to a tagged commit skips `CI Status`'s trust-gate hold. An own release is this organization's code (owner decision 2026-11-15, the Dependabot policy's `fastTrack`).
+
+- The Dependabot tier rule reads the standards Dependabot policy's `fastTrack.own`: a pull request whose every update it names (this organization's own releases) skips the Actions publisher rule, and below 1.0 only its first version component counts, so a `melodic-software/ci-workflows` 0.x minor bump is tier `auto`. pr-unblock's `dependency-classify.mjs` reads the policy at the base; pr-merge reads it at the base and at the default branch head, and both copies must name every update.
+
+## [10.4.2] - 2026-11-16
+
+### Fixed
+
+- An intake size split files each sub-issue with the issue's `host-run` and `attended` labels, and a retry adds them to a part it reuses, so a part of a host-run issue no longer goes to the issue lane.
+- A line split is no longer filed when one of its parts checks a plugin that the default branch lacks and that no line of that part, or of a part the order puts before it, creates. The lanes App posts the new `unbuilt` decline instead. Refine select records which named plugins the default branch lacks, and apply checks the model's parts against that list.
+
 ## [10.4.1] - 2026-11-16
 
 ### Changed

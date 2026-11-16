@@ -62,8 +62,8 @@ export PATH="$bin_dir:$PATH"
 # `sha256sum <downloaded-asset>` here.
 shellcheck_pin="v0.11.0" # .shellcheckrc targets 0.11.0+
 shellcheck_sha="8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
-actionlint_pin="1.7.12" # matches the pin documented in .github/actionlint.yaml
-actionlint_sha="8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+actionlint_pin="1.17.0" # the kjanat/actionlint fork CI runs (ci-workflows actionlint/action.yml `version`); its numbers overlap upstream's, so the SHA-256 is the anchor
+actionlint_sha="620abd485a12b6ab1125b844a876414e1d5bd2af8a3125b27f82b01d0d9d6e5a"
 typos_pin="v1.42.1"
 typos_sha="fe1492d6c1079c328ef66de2094b7a3a4569987ec972ab56002c5db4746a8d1b"
 ec_pin="v3.4.0" # editorconfig-checker 3.x, per .editorconfig-checker.json
@@ -520,8 +520,15 @@ fetch_release_tool() {
 fetch_release_tool shellcheck \
   "https://github.com/koalaman/shellcheck/releases/download/${shellcheck_pin}/shellcheck-${shellcheck_pin}.linux.x86_64.tar.xz" \
   "$shellcheck_sha" "shellcheck-${shellcheck_pin}/shellcheck"
+# fetch_release_tool keeps a tool already on PATH, so a restored snapshot that
+# holds upstream actionlint would never get the fork: remove a non-fork binary
+# from the bin directory first. The fork's version line names kjanat.
+if command -v actionlint >/dev/null 2>&1 &&
+  [[ "$(actionlint -version 2>/dev/null | head -n 1)" != *kjanat* ]]; then
+  rm -f "$bin_dir/actionlint"
+fi
 fetch_release_tool actionlint \
-  "https://github.com/rhysd/actionlint/releases/download/v${actionlint_pin}/actionlint_${actionlint_pin}_linux_amd64.tar.gz" \
+  "https://github.com/kjanat/actionlint/releases/download/v${actionlint_pin}/actionlint_${actionlint_pin}_linux_amd64.tar.gz" \
   "$actionlint_sha" "actionlint"
 fetch_release_tool typos \
   "https://github.com/crate-ci/typos/releases/download/${typos_pin}/typos-${typos_pin}-x86_64-unknown-linux-musl.tar.gz" \

@@ -33,10 +33,18 @@ if ($args.Count -gt 0 -and $args[0] -eq 'node-notice') {
         } catch {
         }
     }
-    $plugin = ($check.TrimStart('/') -split ':')[0]
+    $owner = ($check.TrimStart('/') -split ':')[0]
+    $plugin = ''
+    $manifest = Join-Path -Path (Split-Path -Parent $PSScriptRoot) -ChildPath '.claude-plugin/plugin.json'
+    if (Test-Path -LiteralPath $manifest -PathType Leaf) {
+        $named = [regex]::Match([IO.File]::ReadAllText($manifest), '"name"\s*:\s*"([^"]*)"')
+        if ($named.Success) { $plugin = $named.Groups[1].Value }
+    }
+    if (-not $plugin) { $plugin = $owner }
     if (-not $plugin) { $plugin = 'plugin' }
-    if (-not $check) { $check = 'the plugin check skill' }
-    $msg = "${plugin}: node is not on PATH, so hooks that launch through node (this plugin's and others') do not run. Install Node.js (https://nodejs.org/en/download), restart Claude Code, then run $check."
+    $run = if ($check) { $check } else { 'the plugin check skill' }
+    if ($owner -and $owner -ne $plugin) { $run = "$run when $owner is enabled" }
+    $msg = "${plugin}: node is not on PATH, so hooks that launch through node (this plugin's and others') do not run. Install Node.js (https://nodejs.org/en/download), restart Claude Code, then run $run."
     [Console]::Out.WriteLine('{"systemMessage":"' + $msg + '"}')
     exit 0
 }

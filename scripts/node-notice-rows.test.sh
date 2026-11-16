@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# The fleet's SessionStart prerequisites rows: the shape, then harness-ops' node-notice row run
+# The fleet's SessionStart prerequisites rows: the shape, then plugin-diagnostics' node-notice row run
 # for real the way each default shell would run it (bash, dash, and PowerShell on a Windows
 # machine without Git Bash) with node absent. The runtime cases run on POSIX hosts only.
 #
-# A hook that launches through node cannot report that node is missing, so harness-ops carries
+# A hook that launches through node cannot report that node is missing, so plugin-diagnostics carries
 # the fleet's one shell-form row that calls lib/prerequisites.sh and then lib/prerequisites.ps1.
 # A POSIX shell (bash, or dash as /bin/sh on Debian and Ubuntu) runs the first and leaves at
 # `${PPID:+exit}`, since every POSIX shell sets PPID; PowerShell finds no sh, reads
 # that token as a missing drive, and runs the second. Both share one latch per session.
-# Beside it, harness-ops' prerequisites-fleet.mjs row runs the probe of each enabled plugin that
+# Beside it, plugin-diagnostics' prerequisites-fleet.mjs row runs the probe of each enabled plugin that
 # declares session_probe in its prerequisites.json, so no other plugin carries a row. That row and
 # every other SessionStart row that needs node run lib/node-or-skip.sh in the same polyglot shape,
 # so they exit 0 silently when node is missing.
@@ -25,7 +25,7 @@ ROOT="$(cd "$SELF_DIR/.." && pwd)"
 # matcher table, as of 2026-10-04): the notice and probe latches outlive a compaction, so a
 # re-fire there prints nothing and only starts processes.
 MATCHER='startup|resume|clear|fork'
-HOOKS="$ROOT/plugins/harness-ops/hooks/hooks.json"
+HOOKS="$ROOT/plugins/plugin-diagnostics/hooks/hooks.json"
 
 # --- fleet shape ----------------------------------------------------------------
 carriers=()
@@ -35,10 +35,10 @@ for hooks in "$ROOT"/plugins/*/hooks/hooks.json; do
   jq -e '[.hooks.SessionStart[]?.hooks[]? | select((.command // "") | contains("prerequisites.sh"))] | length > 0' "$hooks" >/dev/null && carriers+=("$plugin")
   jq -e '[.hooks.SessionStart[]?.hooks[]? | select(((.args // [])[0] // "" | endswith("/lib/prerequisites.mjs")) and (.args[1] == "probe"))] | length > 0' "$hooks" >/dev/null && probes+=("$plugin")
 done
-if [[ "${carriers[*]}" == harness-ops ]]; then
-  ok "only harness-ops carries a node-notice row"
+if [[ "${carriers[*]}" == plugin-diagnostics ]]; then
+  ok "only plugin-diagnostics carries a node-notice row"
 else
-  bad "want the node-notice row in harness-ops alone" "carriers=${carriers[*]}"
+  bad "want the node-notice row in plugin-diagnostics alone" "carriers=${carriers[*]}"
 fi
 if ((${#probes[@]} == 0)); then
   ok "no plugin carries its own prerequisites.mjs probe row"
@@ -50,9 +50,9 @@ fi
 want='sh "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh" node-notice /harness-ops:prerequisites; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1" node-notice /harness-ops:prerequisites'
 row="$(jq -r --arg want "$want" --arg m "$MATCHER" '[.hooks.SessionStart[] | select(.matcher == $m) | .hooks[] | select(.command == $want)] | length' "$HOOKS")"
 if [[ "$row" == 1 ]]; then
-  ok "harness-ops' node-notice row is the canonical polyglot under the $MATCHER matcher"
+  ok "plugin-diagnostics' node-notice row is the canonical polyglot under the $MATCHER matcher"
 else
-  bad "harness-ops: want one canonical node-notice row under $MATCHER" "found $row"
+  bad "plugin-diagnostics: want one canonical node-notice row under $MATCHER" "found $row"
 fi
 # The node-or-skip polyglot for one node argument list: each argument double-quoted, the same
 # list after both stubs.
@@ -66,9 +66,9 @@ skip_row() {
 want="$(skip_row '${CLAUDE_PLUGIN_ROOT}/hooks/prerequisites-fleet.mjs')"
 fleet="$(jq -r --arg want "$want" --arg m "$MATCHER" '[.hooks.SessionStart[] | select(.matcher == $m) | .hooks[] | select(.command == $want and (has("args") | not))] | length' "$HOOKS")"
 if [[ "$fleet" == 1 ]]; then
-  ok "harness-ops carries one node-or-skip prerequisites-fleet.mjs row under the $MATCHER matcher"
+  ok "plugin-diagnostics carries one node-or-skip prerequisites-fleet.mjs row under the $MATCHER matcher"
 else
-  bad "harness-ops: want one node-or-skip prerequisites-fleet.mjs row under $MATCHER" "found $fleet"
+  bad "plugin-diagnostics: want one node-or-skip prerequisites-fleet.mjs row under $MATCHER" "found $fleet"
 fi
 
 # No SessionStart row launches node in exec form: that spawn fails on every new session when
@@ -143,11 +143,11 @@ node_absent_cases() {
   }
 
   session='{"session_id":"row-1","hook_event_name":"SessionStart"}'
-  out1="$(printf '%s' "$session" | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$(command -v bash)" -c "$(expand harness-ops)" 2>/dev/null)"
+  out1="$(printf '%s' "$session" | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$(command -v bash)" -c "$(expand plugin-diagnostics)" 2>/dev/null)"
   rc1=$?
-  out2="$(printf '%s' "$session" | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$(command -v bash)" -c "$(expand harness-ops)" 2>/dev/null)"
+  out2="$(printf '%s' "$session" | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$(command -v bash)" -c "$(expand plugin-diagnostics)" 2>/dev/null)"
   rc2=$?
-  if ((rc1 == 0 && rc2 == 0)) && [[ "$out1" == *'"systemMessage":"harness-ops: node is not on PATH'*'then run /harness-ops:prerequisites."}' && -z "$out2" ]]; then
+  if ((rc1 == 0 && rc2 == 0)) && [[ "$out1" == *'"systemMessage":"plugin-diagnostics: node is not on PATH'*'then run /harness-ops:prerequisites when harness-ops is enabled."}' && -z "$out2" ]]; then
     ok "bash: the row prints one notice per session, naming /harness-ops:prerequisites, and exits 0"
   else
     bad "bash: want one notice per session" "rc=$rc1/$rc2 first=$out1 second=$out2"
@@ -159,9 +159,9 @@ node_absent_cases() {
   fi
 
   if DASH="$(command -v dash)"; then
-    out="$(printf '%s' '{"session_id":"row-dash","hook_event_name":"SessionStart"}' | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$DASH" -c "$(expand harness-ops)" 2>/dev/null)"
+    out="$(printf '%s' '{"session_id":"row-dash","hook_event_name":"SessionStart"}' | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$DASH" -c "$(expand plugin-diagnostics)" 2>/dev/null)"
     rc=$?
-    if ((rc == 0)) && [[ "$out" == *'"systemMessage":"harness-ops: node is not on PATH'* && ! -e "$WORK/powershell-ran" ]]; then
+    if ((rc == 0)) && [[ "$out" == *'"systemMessage":"plugin-diagnostics: node is not on PATH'* && ! -e "$WORK/powershell-ran" ]]; then
       ok "dash: the row prints the notice and leaves before the PowerShell half"
     else
       bad "dash: want the notice and no PowerShell half" "rc=$rc out=$out powershell-ran=$([[ -e "$WORK/powershell-ran" ]] && echo yes || echo no)"
@@ -179,10 +179,10 @@ node_absent_cases() {
     mkdir -p "$PS_TOOLS" "$WORK/tmp-ps"
     ln -s "$PWSH" "$PS_TOOLS/powershell"
     ps_row() { printf '%s' "$session" | PATH="$PS_TOOLS" TMPDIR="$WORK/tmp-ps" "$PWSH" -NoProfile -NonInteractive -Command "$(expand "$1")" 2>/dev/null; }
-    out1="$(ps_row harness-ops)"
+    out1="$(ps_row plugin-diagnostics)"
     rc1=$?
-    out2="$(ps_row harness-ops)"
-    if ((rc1 == 0)) && [[ "$out1" == *'"systemMessage":"harness-ops: node is not on PATH'* && -z "$out2" ]]; then
+    out2="$(ps_row plugin-diagnostics)"
+    if ((rc1 == 0)) && [[ "$out1" == *'"systemMessage":"plugin-diagnostics: node is not on PATH'* && -z "$out2" ]]; then
       ok "powershell: with no sh, the row prints one notice per session and exits 0"
     else
       bad "powershell: want one notice per session" "rc=$rc1 first=$out1 second=$out2"

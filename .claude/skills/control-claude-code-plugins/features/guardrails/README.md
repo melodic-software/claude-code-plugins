@@ -14,7 +14,7 @@ none
 
 - `/guardrails:<skill> <args>` as the `logs` prompt, in print mode | driven
 - `/guardrails:<skill> <args>`, typed at the prompt of the terminal session | driven
-- A request in plain words that names the skill's job, typed at the prompt | driven
+- A request in plain words that names the skill's job, typed at the prompt | not driven: the only skill, setup, has no plain-words entry
 - The same skill in Claude Desktop | not driven: terms
 
 ## Reset

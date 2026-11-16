@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # Unit tests for gen-hook-event-registry.sh. Builds a fixture tree per case (a
-# plugins/harness-ops/hooks with a copy of the real hooks.json seeded with
+# plugins/session-telemetry/hooks with a copy of the real hooks.json seeded with
 # stale event-log rows, the real session-log-lib.sh, and a register.ts whose
 # generated block is stale) and runs the generator against a saved copy of the
 # Hooks reference lifecycle table, so nothing here touches the network.
-# test-scope: plugins/harness-ops/hooks/hooks.json
+# test-scope: plugins/session-telemetry/hooks/hooks.json
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/gen-hook-event-registry.sh"
 TABLE="$SELF_DIR/fixtures/hooks-lifecycle-table.md"
-REAL_HOOKS_JSON="$REPO/plugins/harness-ops/hooks/hooks.json"
-LIB="$REPO/plugins/harness-ops/hooks/session-log-lib.sh"
+REAL_HOOKS_JSON="$REPO/plugins/session-telemetry/hooks/hooks.json"
+LIB="$REPO/plugins/session-telemetry/hooks/session-log-lib.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
@@ -78,7 +78,7 @@ $MOD_TAIL"
 new_fixture() {
   local dir
   fixture_tree::build "$1" --plugins || return 1
-  dir="${!1}/plugins/harness-ops/hooks"
+  dir="${!1}/plugins/session-telemetry/hooks"
   mkdir -p "$dir"
   # shellcheck disable=SC2016  # literal hooks.json command text, never expanded here
   jq --indent 2 \
@@ -99,7 +99,7 @@ run_from() { bash "$SCRIPT" --from "$1" --root "$2" --as-of 2026-09-05 2>&1; }
 
 # --- a full run from the saved table -----------------------------------------
 new_fixture f
-H="$f/plugins/harness-ops/hooks"
+H="$f/plugins/session-telemetry/hooks"
 REG="$H/hook-events.registry.json"
 out=$(run_from "$TABLE" "$f")
 rc=$?
@@ -195,7 +195,7 @@ rc=$?
 if ((rc == 1)) && [[ "$out" == *"lacks the BEGIN/END"* ]]; then ok "--check fails on a lost marker"; else fail "--check on a lost marker (rc=$rc): $out"; fi
 
 # --- the category table agrees with session-log-lib.sh -------------------------
-# shellcheck source=../plugins/harness-ops/hooks/session-log-lib.sh
+# shellcheck source=../plugins/session-telemetry/hooks/session-log-lib.sh
 source "$LIB"
 disagree=0 seen=0
 while IFS=$'\t' read -r ev cat; do
@@ -218,9 +218,9 @@ for variant in missing unmarked; do
     new_fixture f --no-mod
   else
     new_fixture f
-    grep -v "BEGIN GENERATED" <<<"$STALE_MOD" >"$f/plugins/harness-ops/hooks/register.ts"
+    grep -v "BEGIN GENERATED" <<<"$STALE_MOD" >"$f/plugins/session-telemetry/hooks/register.ts"
   fi
-  H="$f/plugins/harness-ops/hooks"
+  H="$f/plugins/session-telemetry/hooks"
   cp "$H/hooks.json" "$f/hooks.before"
   out=$(run_from "$TABLE" "$f")
   rc=$?
@@ -233,7 +233,7 @@ done
 
 # --- the under-25-rows refusal ---------------------------------------------------
 new_fixture f
-H="$f/plugins/harness-ops/hooks"
+H="$f/plugins/session-telemetry/hooks"
 head -12 "$TABLE" >"$f/short.md"
 out=$(run_from "$f/short.md" "$f")
 rc=$?
@@ -245,7 +245,7 @@ fi
 
 # --- an unknown event is excluded with a warning, never hooked ----------------------
 new_fixture f
-H="$f/plugins/harness-ops/hooks"
+H="$f/plugins/session-telemetry/hooks"
 # shellcheck disable=SC2016  # the backticks are markdown table text, not a substitution
 sed 's/^| `SessionEnd`  *|/| `MysteryEvent`        |/' "$TABLE" >"$f/odd.md"
 out=$(run_from "$f/odd.md" "$f")

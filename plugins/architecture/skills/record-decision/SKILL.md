@@ -40,7 +40,7 @@ Arguments: `$ARGUMENTS`
 
 | Action | Does |
 |---|---|
-| *(bare)* | Records one decision: Steps 1 to 3. The whole argument is the decision text or a file path |
+| *(bare)* | Records one decision: Steps 1 to 4. The whole argument is the decision text or a file path |
 | `audit` | Lists retire candidates and writes nothing: [Audit](#audit) |
 
 Only `audit` as the first word selects the audit; any other first word is part of the decision.
@@ -117,9 +117,9 @@ everything Step 2 does.
 4. Re-read the target directory immediately before writing, confirming no record has appeared since
    Step 1 that would change the identifier.
 5. Write **exactly one** new record, and report its path. Done when `git status --porcelain` shows
-   that one new path and nothing else, until Step 3 runs.
+   that one new path and nothing else, until Step 3 or Step 4 runs.
 
-Outside Step 3, do not create, rename, or renumber any other file. Report duplicates and leave them
+Outside Steps 3 and 4, do not create, rename, renumber or edit any other file. Report duplicates and leave them
 where they are.
 
 ## Step 2b. No convention
@@ -136,7 +136,7 @@ where they are.
    `git status --porcelain` is exactly what it was before the invocation.
 
 When the human chooses in the same session, create only what they chose (the directory plus the
-first record, its sections taken from the chosen template) and nothing else. A repository's own
+first record, its sections taken from the chosen template) and nothing else, then run Step 4. A repository's own
 convention, found in Step 1, always wins over `adr_template` and the bundled template.
 
 ## Step 3. Retire the record the decision replaces
@@ -146,18 +146,33 @@ person picks. The new record's `Considered options` (or the convention's equival
 retired record by identifier and title and says why it was reversed.
 
 A changed decision gets a new record, never an amendment inside the accepted one: an accepted record
-is edited in place only to rename a term or to set its status.
+is edited in place only to rename a term, to set its status, or to repoint a citation the sweep
+below lists.
+
+**Citation sweep.** Every retirement path runs it, whatever `adr_retirement` says: `delete` and
+`archive` break a path citation, and `supersede` leaves a citation naming a decision no longer in
+force. Search tracked files with `git grep -n` for the old record's identifier, in each form the
+records and existing citations use (`ADR 7`, `ADR-007`, `0007`), and for its filename; report the
+patterns searched. Skip the old record itself and the new record's line naming it. List each hit as
+`file:line` (code, docs, skills, other records) with one proposal: point it at the new record's
+identifier or path, or drop it when there is no new record or the line only made sense with the old
+decision. List a changelog or release-note hit as keep: it is history. Done when every hit carries a
+proposal, or the report says the search found none.
 
 **Partial reversal.** When the new decision reverses only part of a record, keep the old file
 whatever `adr_retirement` says, and in place of steps 1 to 3: after writing the new record, name the
 old one and the superseded-in-part status you will set, naming the part, in the words and form the
-existing records use. Ask. On a yes, edit only that status; on a no, leave it and say so. When the
-records carry no such wording, say so and ask for it.
+existing records use, and run the citation sweep, proposing a change only for a citation of the
+reversed part and listing the rest as keep. Ask. On a yes, edit that status and the proposed
+citation lines only; on a no, leave them and say so. When the records carry no such wording, say so
+and ask for it.
 
-1. After writing the new record, name the old one, the resolved `adr_retirement` and its layer, and
-   what that will do to the old file. Ask. Act only on a yes; on a no, leave it and say so. Done
-   when the person has answered.
-2. Retire it, done when the one change below is on disk:
+1. After writing the new record, name the old one, the resolved `adr_retirement` and its layer, what
+   that will do to the old file, and the citation sweep's hits with their proposals. Ask; one yes
+   covers the retirement and the citation edits. Act only on a yes; on a no, leave them and say so.
+   Done when the person has answered.
+2. Retire it, and edit each proposed citation line as proposed and nothing else in those files. Done
+   when the citation edits and the one change below are on disk:
    - `delete`: remove the file. Its number is never reused (discovery's numbering rule).
    - `supersede`: set the old record's status to superseded by the new identifier, in the words and
      form the existing records use; edit only that status. Retiring an audit candidate with no new
@@ -177,7 +192,17 @@ records carry no such wording, say so and ask for it.
      live.
 
 Done when `git status --porcelain` shows the new record, the one retirement or partial-status
-change, and the line's file if it was written, and nothing else.
+change, the files whose citations were edited, and the line's file if it was written, and nothing
+else.
+
+## Step 4. Offer a pointer comment
+
+After a record is written, offer one pointer comment at the module or line the decision governs: one
+line in that file's comment syntax, citing the record in the form the repository's records and
+citations already use (its identifier, or its path), and no restated reason. Write it only after a
+yes; never add one unasked. The citation sweep finds it when the record is retired, so the pointer
+does not outlive its record. `/code-tidying:remove-comments` (if enabled) keeps such a pointer. Done
+when the pointer is written or declined.
 
 ## Audit
 
@@ -195,13 +220,17 @@ what it was before the invocation.
      record's `file:line`.
    - **Fails admission**: no real alternative was weighed, or none of the "at least one" conditions
      holds. Evidence: the record's `file:line`.
-3. Report retire candidates grouped by those reasons, each with identifier, title and evidence, then
-   the count of records still backed. Offer Step 3 for the candidates the person picks; retirement
-   runs only there, after a yes. Done when the report is delivered.
+3. Run Step 3's citation sweep for each retire candidate; the new record is a Contradicted
+   candidate's later record, and with none the proposal is drop. Done when every candidate has its
+   hits listed, or none.
+4. Report retire candidates grouped by those reasons, each with identifier, title, evidence and its
+   citation hits, then the count of records still backed. Offer Step 3 for the candidates the person
+   picks; retirement and citation edits run only there, after a yes. Done when the report is
+   delivered.
 
 ## Hand-off
 
-Commit the record, and any retirement, in the pull request of the change that made the decision; a
+Commit the record, and any retirement, citation edits and pointer, in the pull request of the change that made the decision; a
 decision with no code change gets a pull request of its own.
 
 ## Upstream template catalog

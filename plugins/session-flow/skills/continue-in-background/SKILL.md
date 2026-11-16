@@ -212,6 +212,14 @@ fallback), then:
    Insert `--effort "<level>"` before the prompt argument when "What the launched session
    inherits" below calls for it.
 
+   **Plugin profile.** When `/plugin-profiles:profile` is among the available skills (enabled),
+   invoke `/plugin-profiles:profile launch --json` via the Skill tool, naming the profile only when
+   the user named one (no name takes this session's own) and adding `--unattended` when this run
+   is unattended. Replace `claude` in the command above with its `argv` words (its `command` field
+   is them, shell-quoted), keeping every argument after it, and name the profile in the launch
+   report along with any `prerequisitesMissing`. A refusal is a launch failure (step 4). When the
+   skill is not available, launch the command above unchanged.
+
    `--permission-mode auto` is always passed, following the marketplace's rule to launch
    unattended local lanes with `--permission-mode auto` (loop-lane convention, "Permission
    modes"). We rely on one denied
@@ -290,7 +298,9 @@ matches its remote:
    no terminal, take the local delivery with the same prompt file instead of the failure
    fallback, so the work keeps moving: local steps 3 and 4 then replace cloud step 3, and the
    report adds that the cloud launch was refused and the run went local. Pointer: probe 3 in
-   [reference/goal-probe.md](reference/goal-probe.md).
+   [reference/goal-probe.md](reference/goal-probe.md). A cloud launch carries no settings file, so
+   when `/plugin-profiles:profile` is among the available skills the report says the cloud session
+   starts without this session's plugin profile.
 3. **Report** the session id and link it prints, plus the return paths: `claude --teleport <id>`
    or `/teleport` to continue it in a terminal (its requirements: Pointer below), which needs the
    same account; `claude -p "<message>" --cloud <id>` to queue a follow-up. Name
@@ -316,7 +326,10 @@ Our rules:
 
 - **CLI configuration is not inherited.** It carries none of the current session's CLI flags
   (e.g. `--mcp-config`, `--settings`, `--add-dir`, `--plugin-dir`). Mirror onto the launch
-  command any such flags the resumed work depends on, and say so in the launch report.
+  command any such flags the resumed work depends on, and say so in the launch report. A plugin
+  profile's `--settings` comes from the launch step's "Plugin profile" paragraph; with a profile,
+  a mirrored `--settings` value goes to that launch as `--with <value>`, which merges both into one
+  file, never as a second flag.
 - **Model and effort are not inherited** from the current session's in-conversation choices.
   They resolve from the launch command's own `--model` / `--effort` flags and, absent those,
   from the settings of the directory it starts in (project/user settings, including `env`

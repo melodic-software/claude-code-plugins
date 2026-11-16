@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: ag-ladder-spread
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'inventory-ran'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'rule-inventory\.sh'
+    min: 1
+  - name: 'five-tier-counts'
+    type: 'regex'
+    pattern: 'Codebase\D{0,40}\b1\b[\s\S]{0,400}?Static analysis\D{0,40}\b2\b[\s\S]{0,400}?Verification\D{0,40}\b1\b[\s\S]{0,400}?Guidance\D{0,40}\b4\b[\s\S]{0,400}?Human\D{0,40}\b1\b'
+    target: 'last_message'
+  - name: 'lower-rule-named'
+    type: 'regex'
+    pattern: 'lower than (?:it|they) could[\s\S]{0,500}?\beval\b'
+    target: 'last_message'
+    flags: 'i'
+  - name: 'no-tier-target'
+    type: 'llm'
+    criteria: 'PASS only if the reply reports how many rules sit on each enforcement-ladder tier and sets no target for them: it states no share, ratio or count a tier should reach and does not call any tier too high, too low or out of balance. Naming the guidance rule that forbids `eval` as a candidate to move up is allowed. FAIL if the reply gives no per-tier counts, or if it sets or implies a target for a tier, for example "most rules should be static analysis here" or "guidance holds too many rules".'
+  - name: 'no-automation-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:settings(?:\.local)?\.json"|\.mcp\.json"|\.claude/hooks/|\.pre-commit-config\.yaml"|harness-config\.yaml")'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-automation-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:settings(?:\.local)?\.json"|\.mcp\.json"|\.claude/hooks/|\.pre-commit-config\.yaml"|harness-config\.yaml")'
+    min: 0
+    max: 0
+    arm: 'both'

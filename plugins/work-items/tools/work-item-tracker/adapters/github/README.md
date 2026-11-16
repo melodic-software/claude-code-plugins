@@ -240,12 +240,23 @@ separately: `sort_by` there emits one separately-sorted array per page, never on
 Close an item (WRITE, see the identity note above):
 
 ```bash
-gh issue close <N> --repo <owner>/<repo> --comment "<closing note>" --reason completed
+gh issue comment <N> --repo <owner>/<repo> --body "<closing note>"
+gh issue close <N> --repo <owner>/<repo> --reason completed
 ```
 
 The `done` action closes with `--reason completed`, and with `--reason "not planned"` for
 `--not-planned`. The accepted reasons are read at
 [gh issue close § Options](https://cli.github.com/manual/gh_issue_close#options).
+
+**Post the note as its own comment, never through `--comment`.** On an issue that is already
+closed, `gh issue close` prints `is already closed`, exits 0, and posts neither its `--comment` nor
+its `--duplicate-of` link
+([close.go at v2.104.0, L117-L120 against L148](https://github.com/cli/cli/blob/v2.104.0/pkg/cmd/issue/close/close.go#L117-L148)).
+Every close in this section therefore posts its note with `gh issue comment`. When the close prints
+`is already closed`, report the item as already closed with the note added, not as closed by this
+run; its close reason stays whatever the earlier close set. A non-zero exit from the close after
+the note is posted leaves the item open: report "note posted, close failed" with the error, and a
+retry runs only the close, never the comment again.
 
 **Re-point dependents first.** The steps and their order are in
 [`reference/issue-conventions.md`](../../../../reference/issue-conventions.md) "Dependents on
@@ -283,8 +294,12 @@ reason `duplicate` and a structured, API-queryable `duplicateOf` relationship, s
 grepping a body header. `<M>` may be an issue number or URL:
 
 ```bash
-gh issue close <N> --repo <owner>/<repo> --duplicate-of <M> --comment "Duplicate of #<M>"
+gh issue close <N> --repo <owner>/<repo> --duplicate-of <M>
+gh issue comment <N> --repo <owner>/<repo> --body "Duplicate of #<M>"
 ```
+
+Here the close goes first, so a rejected close moves to the fallback below without a comment
+already posted.
 
 **Fallback: not-planned + body-append.** For a **cross-repo** duplicate target the native
 relationship is not confirmed to apply. If the native close is rejected, fall back to this; it is
@@ -300,7 +315,8 @@ closing-keyword mechanics" below):
 gh issue view <N> --repo <owner>/<repo> --json body --jq '.body' | tr -d '\r' > /tmp/issue-body.md
 printf '%s\n\n%s\n' "$(cat /tmp/issue-body.md)" "## Duplicate of <M>" \
   | gh issue edit <N> --repo <owner>/<repo> --body-file -
-gh issue close <N> --repo <owner>/<repo> --comment "Duplicate of <M>" --reason "not planned"
+gh issue comment <N> --repo <owner>/<repo> --body "Duplicate of <M>"
+gh issue close <N> --repo <owner>/<repo> --reason "not planned"
 ```
 
 ## Edit labels / assignees

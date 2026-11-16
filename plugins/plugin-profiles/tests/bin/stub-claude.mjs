@@ -2,7 +2,7 @@
 // PP_STUB_LIST names, appends one line per call to PP_STUB_CALLS, and for the first
 // PP_STUB_TOUCH_TIMES calls adds a permission rule to the settings file PP_STUB_TOUCH names, the
 // way a concurrent writer such as a permission answer would. `plugin marketplace list --json`
-// answers from PP_STUB_MARKETPLACES. `plugin install <id> --scope user` adds the plugin to the
+// answers from PP_STUB_MARKETPLACES, `agents --json` from PP_STUB_AGENTS or an empty list. `plugin install <id> --scope user` adds the plugin to the
 // PP_STUB_LIST file and switches it on in $HOME/.claude/settings.json, as the real install does,
 // or fails when PP_STUB_INSTALL_FAIL is set.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -21,6 +21,7 @@ const args = process.argv.slice(2);
 const command = args.join(" ");
 if (command === "plugin list --json") process.stdout.write(readFileSync(env.PP_STUB_LIST, "utf8"));
 else if (command === "plugin marketplace list --json") process.stdout.write(readFileSync(env.PP_STUB_MARKETPLACES, "utf8"));
+else if (command === "agents --json") process.stdout.write(env.PP_STUB_AGENTS ? readFileSync(env.PP_STUB_AGENTS, "utf8") : "[]");
 else if (args[0] === "plugin" && args[1] === "install" && args.length === 5 && args[3] === "--scope" && args[4] === "user") {
   if (env.PP_STUB_INSTALL_FAIL) {
     process.stderr.write(`${env.PP_STUB_INSTALL_FAIL}\n`);

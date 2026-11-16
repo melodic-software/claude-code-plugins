@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generate the hook event registry the harness-ops session event log records
+# Generate the hook event registry the session-telemetry session event log records
 # from, and the event list its mod registers on.
 #
 #   scripts/gen-hook-event-registry.sh --fetch        fetch the Hooks reference,
@@ -22,7 +22,7 @@
 # and per docs/contracts/native-references it states what the reference
 # documented on the as-of date, never that the running binary fires the event.
 #
-# The log is a mod (plugins/harness-ops/hooks/register.ts; ADR 0065). It hooks
+# The log is a mod (plugins/session-telemetry/hooks/register.ts; ADR 0065). It hooks
 # `classic.<Event>` for each observable event, in a block between the module's
 # `GENERATED: observed events` markers that this script writes, and only while
 # session_event_log_enabled is true, so a default-off install starts no process
@@ -101,14 +101,14 @@ command -v jq >/dev/null 2>&1 || {
 
 URL="https://code.claude.com/docs/en/hooks.md"
 BASIS="https://code.claude.com/docs/en/hooks#hook-lifecycle"
-REGISTRY="$ROOT/plugins/harness-ops/hooks/hook-events.registry.json"
-HOOKS_JSON="$ROOT/plugins/harness-ops/hooks/hooks.json"
-MOD_TS="$ROOT/plugins/harness-ops/hooks/register.ts"
+REGISTRY="$ROOT/plugins/session-telemetry/hooks/hook-events.registry.json"
+HOOKS_JSON="$ROOT/plugins/session-telemetry/hooks/hooks.json"
+MOD_TS="$ROOT/plugins/session-telemetry/hooks/register.ts"
 RECHECK="each /harness-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
 MIN_ROWS=25
 
 # classify_to <cat-var> <producer-var> <event>: the category (the same table
-# plugins/harness-ops/hooks/session-log-lib.sh carries, pinned by the test) and
+# plugins/session-telemetry/hooks/session-log-lib.sh carries, pinned by the test) and
 # whether the log may record it.
 classify_to() {
   local c p

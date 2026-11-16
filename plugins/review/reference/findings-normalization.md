@@ -9,7 +9,7 @@ The 5-stage main-thread pipeline that turns heterogeneous free-text findings fro
 | Surface | Native severity | Native confidence | Line basis |
 |---|---|---|---|
 | `code-reviewer` | CRITICAL / IMPORTANT / SUGGESTION | high / medium / low (smells capped at medium, except a Duplicated Code finding naming the diverging change, which may be high) | `file:line` (inferred) |
-| `security-reviewer` | P1–P5 (CVSS); A04 tier-less | high / medium / low | `file:line` or `module` (inferred) |
+| `security-reviewer` | P1–P5 (CVSS); A06:2025 tier-less | high / medium / low | `file:line` or `module` (inferred) |
 | `architecture-guardian` | Violations / Risks / Opportunities | high / medium / low | file-only (Violations); none (Risks/Opportunities) |
 | `doc-drift-detector` | Stale / Missing / Aspirational | high / medium / low (table column) | doc-file line (table) |
 | slice-subagents | project's tiers (or baseline) | high / medium / low (template column) | `file:line` (inferred) |
@@ -53,7 +53,7 @@ Per-surface free-text → records `{surface, file, line, line_basis, category, n
 
 Map native severity → the tier vocabulary in effect (the project's own, else `<plugin-root>/context/severity.md`):
 
-- security-reviewer: P1/P2 → CRITICAL; P3 → IMPORTANT; P4/P5 → SUGGESTION; A04/tier-less → SUGGESTION + `forward-flag: design-review`.
+- security-reviewer: P1/P2 → CRITICAL; P3 → IMPORTANT; P4/P5 → SUGGESTION; A06:2025/tier-less → SUGGESTION + `forward-flag: design-review`.
 - code-reviewer, slice-subagents, pr-review-toolkit: identity mapping (Critical/Important-or-Warning/Suggestion).
 - architecture-guardian: Violation → CRITICAL (broken rule today) or IMPORTANT (drift) by content; **Risk → SUGGESTION + `forward-flag: future` (never a blocking tier)**; Opportunity → SUGGESTION.
 - doc-drift: Stale → IMPORTANT; Missing/Aspirational → SUGGESTION.

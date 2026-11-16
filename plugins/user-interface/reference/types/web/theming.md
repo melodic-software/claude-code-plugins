@@ -253,8 +253,9 @@ mode gets a dark bar or dark mode gets a white one. Give each scheme its own:
 Match the value to the color at the very top of your page: the header background, not the brand
 color. In Next.js set it through the `viewport` export (`themeColor: [{ media, color }]`). If the
 app switches theme with a class rather than the OS setting, update the tag from JavaScript on
-toggle. For an installed PWA, `apple-mobile-web-app-status-bar-style` and the manifest's
-`theme_color`/`background_color` are the same decision. Read the colors from the project's tokens.
+toggle. For an installed PWA, the manifest's `theme_color`/`background_color` are the same
+decision. `apple-mobile-web-app-status-bar-style` takes a style keyword, not a color; Apple's meta
+tag reference below lists them. Read the colors from the project's tokens.
 Never invent them.
 
 The `color-scheme` line in that block is for a two-theme app; a single-theme app follows section 2.
@@ -269,11 +270,15 @@ fix the theme depends on; which browsers apply it is in the MDN pointer below.
   manifest `theme_color` and the meta tag that overrides it per scheme,
   <https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/theme_color#description>;
   Apple, Safari Web Content Guide, "Changing the Status Bar Appearance",
-  <https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/ConfiguringWebApplications/ConfiguringWebApplications.html#//apple_ref/doc/uid/TP40002051-CH3-SW1>
-- **As of**: 2026-10-29
+  <https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/ConfiguringWebApplications/ConfiguringWebApplications.html#//apple_ref/doc/uid/TP40002051-CH3-SW1>;
+  Apple, Safari HTML Reference, "Supported Meta Tags", the
+  `apple-mobile-web-app-status-bar-style` entry,
+  <https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariHTMLRef/Articles/MetaTags.html>
+- **As of**: 2026-11-16
 - **Recheck trigger**: MDN's page changes its Baseline status or what `media` does, Next.js renames
   the `themeColor` field, the manifest page gains a per-scheme `theme_color`, or Apple retires the
-  archived guide.
+  archived guide or the Safari HTML Reference's meta tag page, or changes the status-bar style
+  keywords that page lists.
 
 Autofilled inputs get the browser's pale yellow or blue background regardless of theme; if that
 breaks a dark form, override it:

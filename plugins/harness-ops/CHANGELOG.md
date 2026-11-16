@@ -3,6 +3,41 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.0.1] - 2026-11-16
+
+### Fixed
+
+- A lane that arms the lane-stop gate under a plugin profile whose merged settings leave `autonomy` off is no longer launched without its gate: the launch refuses it with an error naming the lane, the profile and the fix, and `restart` checks that before stopping the running lane. A lane with no gate, or with no profile, launches as before.
+
+## [10.0.0] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+- `/harness-ops:observability`, `/harness-ops:audit-skill-visibility` and `/harness-ops:setup` read session-telemetry's records and options through `scripts/session-telemetry-state.mjs`. When session-telemetry is not enabled they say so, print the install and enable commands, and report what earlier sessions recorded.
+- `/harness-ops:audit-skill-visibility` and its `skill-pair-cooccurrence.sh` read `skill-usage.jsonl.1` before `skill-usage.jsonl`, so usage counts and co-occurrence keep the history a size-capped store rotated out.
+
+### Removed
+
+- The session hooks and their options leave harness-ops. The `*-audit` rows, the telemetry sink, the per-session hook event log and their options are now the `session-telemetry` plugin (off by default); the hook-failure audit and the session-start node and prerequisites notices are the `plugin-diagnostics` plugin (on by default). Enable `session-telemetry@<marketplace>` and set its options again to keep recording; `HOOK_TELEMETRY_SINK=@harness-ops` keeps working through it.
+
+## [9.1.0] - 2026-11-16
+
+### Added
+
+- The lanes launcher reads a per-lane `profile` and starts that lane in the plugin profile through plugin-profiles, with the lane's `settings` merged into the profile's session file. A profile that needs a missing required tool skips that lane with an error, and `restart` checks that before stopping the running lane; with plugin-profiles not installed and enabled, or on a cloud-session lane, the lane launches without the profile and a warning says so. A restart through the restart consumer keeps the profile.
+
+### Changed
+
+- Every lane launch clears an inherited `PLUGIN_PROFILES_SESSION`, so a lane started from a profiled session's shell does not carry that session's profile.
+
+## [9.0.14] - 2026-11-16
+
+### Added
+
+- The README says how to start an interactive session without your own configuration, plugins and customizations to check whether a problem comes from them: `--safe-mode` for a one-off check, a new `CLAUDE_CONFIG_DIR` for a lasting second setup, and why `--bare` is not the switch for it.
+
 ## [9.0.13] - 2026-11-16
 
 ### Changed

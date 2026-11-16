@@ -1,0 +1,154 @@
+{
+  "description": "Records session telemetry: eight audit rows (API errors, config changes, instruction loads, permission denials, compactions, skill usage from the Skill tool and from slash-command expansion, tool failures) that emit the hook-telemetry envelope, seven of them dispatched by event from one emitter and one in its own script. The module records the default-off per-session hook event log and its SessionEnd retention; while the log is off it hooks nothing. At session start it refreshes the launcher in its data directory that HOOK_TELEMETRY_SINK=@session-telemetry (or @harness-ops) resolves to, and the options record readers use.",
+  "modules": [
+    "./register.ts"
+  ],
+  "hooks": {
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/audit-event-emitter.sh"
+            ],
+            "timeout": 5,
+            "statusMessage": "Recording API-error telemetry..."
+          }
+        ]
+      }
+    ],
+    "ConfigChange": [
+      {
+        "matcher": "user_settings|project_settings|local_settings|skills",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/audit-event-emitter.sh"
+            ],
+            "timeout": 5,
+            "statusMessage": "Recording config-change telemetry..."
+          }
+        ]
+      }
+    ],
+    "InstructionsLoaded": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/audit-event-emitter.sh"
+            ],
+            "timeout": 5,
+            "statusMessage": "Recording instructions-loaded telemetry..."
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/audit-event-emitter.sh"
+            ],
+            "timeout": 5,
+            "statusMessage": "Recording permission-denied telemetry..."
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/audit-event-emitter.sh"
+            ],
+            "timeout": 5,
+            "statusMessage": "Recording pre-compact telemetry..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/skill-usage-audit.sh"
+            ],
+            "timeout": 5,
+            "statusMessage": "Recording skill-usage telemetry..."
+          }
+        ]
+      }
+    ],
+    "UserPromptExpansion": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/audit-event-emitter.sh"
+            ],
+            "timeout": 5,
+            "statusMessage": "Recording skill-usage-expansion telemetry..."
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Write|Edit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/audit-event-emitter.sh"
+            ],
+            "timeout": 5,
+            "statusMessage": "Recording tool-failure telemetry..."
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/refresh-sink-launcher.sh\"",
+            "async": true,
+            "timeout": 10,
+            "statusMessage": "Refreshing the telemetry sink launcher..."
+          }
+        ]
+      }
+    ]
+  }
+}

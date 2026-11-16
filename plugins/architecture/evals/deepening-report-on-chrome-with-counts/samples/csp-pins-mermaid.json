@@ -1,0 +1,4 @@
+{
+  "pass": [{ "answer": "<meta http-equiv=\"Content-Security-Policy\" content=\"script-src https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js\">", "why": "exact file in the policy" }],
+  "fail": [{ "answer": "", "why": "empty" }, { "answer": "<meta http-equiv=\"Content-Security-Policy\" content=\"script-src https://cdn.jsdelivr.net\">", "why": "bare origin" }]
+}
