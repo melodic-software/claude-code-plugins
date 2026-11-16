@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: codify-inert-assertion-names-the-pack-diagnostic
+description: 'Loss case for the rule-id rows: a testing:audit rule-inert-assertion finding on a pytest test in a repository that runs ruff stays on analyzer-pack-rule and names the ruff diagnostic to enable, now that the row no longer lists the diagnostic names.'
+tags: [codify]
+plugins: ["../.."]
+expected_outcome: 'Row 1 is defined-diagnostic on analyzer-pack-rule from its rule id. The next step enables ruff''s assert-tuple diagnostic (F631) in the ruff configuration the repository already runs, rather than writing a new analyzer.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify findings findings.md What rung does the row get, and what exactly gets enabled? This run has no Bash tool: skip the proof and report the check as unproven, and present the proposal in the report, writing nothing.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: pack-rule-rung
+    type: 'regex'
+    pattern: 'analyzer-pack-rule'
+    flags: 'i'
+    arm: 'both'
+  - name: names-the-diagnostic
+    type: 'regex'
+    pattern: '\bF631\b|assert-tuple'
+    flags: 'i'
+    arm: 'both'

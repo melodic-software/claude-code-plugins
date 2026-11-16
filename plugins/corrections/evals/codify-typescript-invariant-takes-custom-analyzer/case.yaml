@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: codify-typescript-invariant-takes-custom-analyzer
+description: 'Gain case: a TypeScript invariant that needs a value''s type, not its syntax, takes the custom-analyzer rung; it is not sent to a syntactic matcher or to a .NET-only rung.'
+tags: [codify]
+plugins: ["../.."]
+expected_outcome: 'Row 1 is semantic-invariant on custom-analyzer, with the build handed to /implementation:implement. The reply does not call custom-analyzer .NET-only and links no C# analyzer tutorial.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify findings findings.md What class and rung does row 1 get, and what is the next step? This run has no Bash tool: skip the proof and report the check as unproven, and present the proposal in the report, writing nothing.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: custom-analyzer-rung
+    type: 'regex'
+    pattern: '^(?=[\s\S]*semantic-invariant)(?=[\s\S]*custom-analyzer)(?=[\s\S]*/implementation:implement)'
+    flags: 'i'
+    arm: 'both'
+  - name: not-sent-to-dotnet
+    type: 'regex'
+    pattern: 'learn\.microsoft\.com|roslyn|(?<!not )(?<!n''t )(?<!no longer )\.NET-only|(?<!not )only for \.NET'
+    flags: 'i'
+    match: 'not_contains'
+    arm: 'both'

@@ -140,6 +140,10 @@ Setting `fanout.frontier_guard: false` is an explicit opt-in to frontier
 fan-outs. Set it on the layer whose scope you mean: the personal override for one
 checkout, the user-global file for every repository on one machine.
 
+Before a fan-out wider than about four workers, run one worker as a pilot and
+confirm plan usage remains for the rest: a usage limit reached mid-fan-out
+stops every worker at once.
+
 ## Example team file
 
 This `docs/conventions/multi-agent.yaml` raises the worker's effort and
