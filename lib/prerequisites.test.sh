@@ -136,6 +136,19 @@ if [[ -n "$a" && -n "$b" ]]; then
 else
   fail "sh node-notice: no session id gave a=$a b=$b"
 fi
+# Run from a plugin's lib/, the notice names that plugin, the one whose hook printed it; a check
+# skill of another plugin is named with the condition under which it can run.
+CARRIER="$WORK/carrier"
+mkdir -p "$CARRIER/lib" "$CARRIER/.claude-plugin"
+cp "$LIB/prerequisites.sh" "$LIB/prerequisites.ps1" "$CARRIER/lib/"
+printf '{\n  "name": "plugin-diagnostics",\n  "version": "0.0.0"\n}\n' >"$CARRIER/.claude-plugin/plugin.json"
+want_carrier='{"systemMessage":"plugin-diagnostics: node is not on PATH, so hooks that launch through node (this plugin'"'"'s and others'"'"') do not run. Install Node.js (https://nodejs.org/en/download), restart Claude Code, then run /harness-ops:prerequisites when harness-ops is enabled."}'
+out="$(printf '%s' '{"session_id":"sess-carrier"}' | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$SH" "$CARRIER/lib/prerequisites.sh" node-notice /harness-ops:prerequisites)"
+if [[ "$out" == "$want_carrier" ]]; then
+  pass "sh node-notice: run from a plugin's lib/, the notice names that plugin and gates the other plugin's check skill"
+else
+  fail "sh node-notice: carrier notice gave $out"
+fi
 out="$(printf '%s' '{"session_id":"sess-5"}' | TMPDIR="$WORK/tmp" "$SH" "$LIB/prerequisites.sh" node-notice /demo-plugin:check)"
 if [[ -z "$out" ]]; then
   pass "sh node-notice: node present prints nothing"
@@ -154,6 +167,12 @@ if [[ -n "${PWSH:-}" ]]; then
     pass "pwsh node-notice: node absent prints one SessionStart notice to the user"
   else
     fail "pwsh node-notice: node absent gave $out"
+  fi
+  out="$(printf '%s' '{"session_id":"sess-carrier"}' | PATH="$EMPTY" TMPDIR="$WORK/tmp-ps" "$PWSH" -NoProfile -NonInteractive -File "$CARRIER/lib/prerequisites.ps1" node-notice /harness-ops:prerequisites)"
+  if [[ "${out%$'\r'}" == "$want_carrier" ]]; then
+    pass "pwsh node-notice: run from a plugin's lib/, the notice names that plugin and gates the other plugin's check skill"
+  else
+    fail "pwsh node-notice: carrier notice gave $out"
   fi
   out="$(notice_ps "$s1" /demo-plugin:check)"
   if [[ -z "$out" ]]; then

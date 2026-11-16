@@ -5,7 +5,6 @@ The skills of `plugins/testing`. Each one is driven with `<plugin-dir>` set to `
 ## Parts
 
 - `audit`: Detect tests that cannot fail. Report, gate, or persist.
-- `check`: Report whether node and jq resolve for the testing hooks. Never installs.
 - `check-visual-parity`: Baseline screenshots before a change, pixel counts against them after.
 - `cleanup`: Rewrite, quarantine or delete low-value tests behind a mutation gate, or delete cannot-fail ones.
 - `diagnose`: Root-cause failing tests, never retry blindly.

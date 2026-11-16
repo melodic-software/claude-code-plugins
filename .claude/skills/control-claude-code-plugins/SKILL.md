@@ -60,6 +60,21 @@ The driving tool's `## Mask`.
   its git history.
 - A Parts line marked `No slash command.` or `No plain-words entry.` names the entry points that
   skill lacks.
+- After the first turn the session may draw "Teach auto mode about your environment?". Escape
+  dismisses it; record that as its own step.
+- `wait-for` matches any text on the screen, so the second entry point in one session can match the
+  first one's answer, and a tool-call line can match a file name. For the later entry point, wait
+  on text only its own answer prints, then check the screenshot shows a new answer. In that same
+  session the skill is already loaded, so the plain-words turn does not show whether the model would
+  pick it unaided.
+- The terminal session draws tables with box characters and can wrap or scroll long output off the
+  visible screen, so a literal read from a SKILL.md or a print-mode log may never match there.
+  Matching is case-exact.
+- Many skill turns run longer than `stepMs` (25 s to over a minute here). When a wait times out,
+  take the screenshot after the turn's `done` line and record what it shows.
+- A skill step that needs Bash rarely stops at once: the session tries a subagent, which has no
+  shell either, then applies the script's rules by hand. Record that result as hand-applied, not
+  as the script's output.
 
 ## Features
 

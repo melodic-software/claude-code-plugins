@@ -5,6 +5,18 @@ Notable changes to the hook-telemetry envelope contract. The envelope is version
 compatibility"). Removal, rename, or type-change of a field is a major `schema_version` bump; a field is
 marked deprecated here for one minor cycle before removal.
 
+## Sink path resolution, envelope unchanged at 1.1 - 2026-11-16
+
+Not an envelope field, so no `schema_version` change (README "Versioning").
+
+- `HOOK_TELEMETRY_SINK` gains the reserved value `@session-telemetry`: the producer resolves it to the
+  launcher session-telemetry keeps in its plugin data directory, the most recently refreshed one when
+  several installs keep one, and skips the event when none is found. `@harness-ops` stays valid as an
+  alias of it and resolves to the same launcher; a launcher in a harness-ops data directory is never
+  run. The reference sink, its options and its records are session-telemetry's
+  ([session-telemetry data](../session-telemetry-data/README.md)).
+- Producers: `hook::emit_telemetry` in `lib/hook-utils.sh` and context-usage's mod.
+
 ## Data schemas, envelope unchanged at 1.1 - 2026-11-10
 
 - `zone-crossing-inject`: the `zone`, `previous` and `armed` values are now `light`, `moderate` and

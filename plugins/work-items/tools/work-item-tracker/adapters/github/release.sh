@@ -69,7 +69,8 @@ else
 fi
 holder="$(jq -r '.holder // empty' <<<"$lease_json")"
 
-# Every exit-0 path hands the assignee back too, since the caller relies on release for it.
+# Every exit-0 path for the caller's own lease hands the assignee back too, since the caller
+# relies on release for it; another login's superseded lease exits 0 with no write.
 hand_back() {
   [[ "$holder" == "$login" ]] && wit_hand_back_assignee "$owner" "$repo" "$number" "$login" "$lease_comment_id"
   emit "$1" "$2"

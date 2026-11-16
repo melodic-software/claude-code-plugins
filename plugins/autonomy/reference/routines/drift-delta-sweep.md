@@ -46,7 +46,10 @@ prerequisite ([guardrail contract](../guardrails.md)).
 
 - **Advisory report.** One report per run, carrying one section per lane, a **coverage line**
   naming which enforcement-surface layers and which audit dimension this cycle walked, and a
-  "lanes not run" section naming each absent or blocked lane and why it did not run.
+  "lanes not run" section naming each lane whose plugin is not enabled or that was blocked, and
+  why it did not run. For a plugin that is not enabled, the remedy it names is the host's
+  plugin enable command, preceded by its plugin install command when the plugin is not
+  installed.
 - **Work items.** Filed through the governed queue for movement whose correction needs
   authorial judgment.
 
@@ -60,20 +63,20 @@ is what has to justify it.
 ## Fan-out
 
 The class's instruction content: three lanes, invoked in this order. Each names the plugin
-that owns it, is gated on that plugin's presence at the point of invocation, and states its
+that owns it, is gated on that plugin being enabled at the point of invocation, and states its
 fallback in the same sentence.
 
 1. **The instruction-placement delta lane.** Invoke `/instruction-placement:delta` when the
-   `instruction-placement` plugin is enabled; where it is absent, record the lane as not run
-   and continue. The lane owns what moved in the instruction-placement findings since its own
+   `instruction-placement` plugin is enabled; where it is not enabled, record the lane as not
+   run and continue. The lane owns what moved in the instruction-placement findings since its own
    last run. Bootstrap rule: where the lane reports no prior artifact to compare against,
    invoke `/instruction-placement:audit` instead, which is read-only apart from writing its own
    findings artifact, so the next cycle has a baseline, and record the cycle as a bootstrap
    in the coverage line.
 
 2. **The enforcement-surface delta lane.** Invoke `/overengineering:delta` with `--unattended`
-   and the cycle's two layers when the `overengineering` plugin is enabled; where it is
-   absent, record the lane as not run and continue. The lane owns what moved in the
+   and the cycle's two layers when the `overengineering` plugin is enabled; where it is not
+   enabled, record the lane as not run and continue. The lane owns what moved in the
    enforcement surface since its own last run. The layer pair rotates on the ISO week number,
    read with `date -u +%V`; the pair index is (ISO week − 1) mod 5:
 
@@ -90,7 +93,7 @@ fallback in the same sentence.
 
 3. **The repository drift audit lane.** Invoke `/codebase-health:audit` without `--fix` and
    with exactly one dimension flag when the `codebase-health` plugin is enabled; where it is
-   absent, record the lane as not run and continue. The lane owns the full drift pass over
+   not enabled, record the lane as not run and continue. The lane owns the full drift pass over
    documentation, configuration, code, and architecture claims; it is a full pass every cycle
    and never a delta. The dimension rotates on the same ISO week number; the dimension index
    is (ISO week − 1) mod 4:
@@ -162,5 +165,5 @@ escalation rules.
 The proven manual pattern at class level is the operator-run cadence pass over report-only
 drift detectors: report-only drift-watch rows already carried in a consumer's recurring
 schedule, and the recurring-wiring guidance the enforcement-surface lane gives for its own
-repeat runs. Said plainly: no run record exists yet for these three lanes together. The `v1`
+repeat runs. No run record exists yet for these three lanes together. The `v1`
 status rests on the class-level pattern, not on a logged run of this fan-out.

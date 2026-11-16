@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [4.0.9] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
 ## [4.0.8] - 2026-11-16
 
 ### Changed

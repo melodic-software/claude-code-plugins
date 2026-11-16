@@ -3786,5 +3786,28 @@ class CommandWithoutFrontmatterTest(unittest.TestCase):
         self.assertTrue(frontmatter.get("_malformed"))
 
 
+class CollectJsonlRotationTest(unittest.TestCase):
+    """A store past its cap keeps its history in `<store>.1`; both are read."""
+
+    def test_rotated_rows_count_and_set_the_horizon(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = os.path.join(tmp, "skill-usage.jsonl")
+            with open(store + ".1", "w", encoding="utf-8") as handle:
+                handle.write('{"ts":"2026-01-01T00:00:00Z","skill":"a:old"}\n')
+            with open(store, "w", encoding="utf-8") as handle:
+                handle.write('{"ts":"2026-02-01T00:00:00Z","skill":"a:new"}\n')
+            events, horizon = engine.collect_jsonl(store)
+        self.assertEqual([e["skill"] for e in events], ["a:old", "a:new"])
+        self.assertEqual(horizon, _utc(2026, 1, 1))
+
+    def test_live_store_alone_still_reads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = os.path.join(tmp, "skill-usage.jsonl")
+            with open(store, "w", encoding="utf-8") as handle:
+                handle.write('{"ts":"2026-02-01T00:00:00Z","skill":"a:new"}\n')
+            events, _ = engine.collect_jsonl(store)
+        self.assertEqual([e["skill"] for e in events], ["a:new"])
+
+
 if __name__ == "__main__":
     unittest.main()
