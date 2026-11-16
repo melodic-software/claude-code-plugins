@@ -1,8 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { categoryFilter } from './register.ts'
 
-// categoryFilter restates slog_category_enabled (session-log-lib.sh); session-event-log.test.sh
-// runs the same inputs through the bash function.
+// session-event-log.test.sh runs these inputs through slog_category_enabled.
 const CATEGORIES = ['session', 'prompt', 'tool', 'permission', 'agent', 'task', 'turn', 'config', 'worktree', 'compaction', 'model', 'mcp', 'display', 'other']
 
 const cases: [unknown, readonly string[]][] = [

@@ -1,6 +1,6 @@
 # Move the harness-ops session event log into a mod
 
-- Status: accepted
+- Status: accepted; amended 2026-11-16 (registration follows the event categories)
 - Date: 2026-10-04
 
 ## Context
@@ -96,3 +96,13 @@ and the last two, found while building the module, in a
   managed scope), so `session_log_pre_prune_command` keeps its trust boundary.
 - `scripts/gen-hook-event-registry.test.sh` asserts the generated module block and the absence of
   event-log rows in `hooks.json`, in place of the retired producer rows.
+
+## Amendment (2026-11-16): registration follows the event categories
+
+The module, now in session-telemetry, hooks only the observable events whose category
+`session_event_log_categories` enables, plus `SessionEnd` always, for retention. Registering every
+event made an event outside the chosen categories start a process only to be filtered out, and
+where `sec-default` holds `classic.*` events it reported every event as skipped, not only the ones
+the user chose to record
+([#15976](https://github.com/melodic-software/claude-code-plugins/issues/15976)). This narrows the
+Decision and supersedes nothing.

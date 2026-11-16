@@ -25,9 +25,8 @@ export const scriptEnv = (options: PluginOptions, root: string): Record<string, 
   TRACEPARENT: '',
 })
 
-// Whether session_event_log_categories enables a category, read as session-log-lib.sh's
-// slog_category_enabled reads the string scriptEnv hands it: unset or empty enables every
-// category; otherwise commas are separators and the value splits on space, tab and newline only.
+// Parses session_event_log_categories exactly as slog_category_enabled (session-log-lib.sh) does,
+// which splits on bash's default IFS: space, tab and newline, never \r.
 export const categoryFilter = (value: unknown): ((category: string) => boolean) => {
   const text = value === undefined ? '' : String(value)
   if (text === '') return () => true
@@ -35,7 +34,7 @@ export const categoryFilter = (value: unknown): ((category: string) => boolean) 
   return category => listed.has(category)
 }
 
-const logOnce =($: EngineInterface, key: string, text: string) => {
+const logOnce = ($: EngineInterface, key: string, text: string) => {
   if (logged.has(key)) return
   logged.add(key)
   $.ui.log(`session-telemetry: ${text}`, { to: 'debug' })
@@ -60,8 +59,7 @@ async function run($: EngineInterface, script: string, stdin?: string) {
 
 // The write only records, so no event waits on it: it runs on a timer, outside the event, as the
 // async settings rows did. SessionEnd's stays awaited, as its row stayed synchronous: its hooks
-// share the 1.5-second teardown budget. SessionEnd is hooked whatever the categories, for
-// retention, and writes its record only when the session category is enabled.
+// share the 1.5-second teardown budget.
 async function record($: EngineInterface, e: ClassicEvent, next: Next) {
   const payload = JSON.stringify(e)
   if (e.hook_event_name !== 'SessionEnd') {
@@ -85,10 +83,9 @@ export const register: Register = (on, options) => {
   if (options.session_event_log_enabled !== true) return
   config = options
   const wants = categoryFilter(options.session_event_log_categories)
-  // scripts/gen-hook-event-registry.sh writes the block below from hook-events.registry.json, one
-  // hook per event marked observe, registered only when session_event_log_categories enables its
-  // category; SessionEnd always, for retention. Claude Code reads each event name from a string
-  // literal, so each stays one literal call.
+  // scripts/gen-hook-event-registry.sh writes the block below from hook-events.registry.json;
+  // Claude Code reads each event name from a string literal. SessionEnd is unguarded: it runs
+  // retention whatever the categories.
   // BEGIN GENERATED: observed events
   if (wants('config')) on('classic.ConfigChange', record).catch(passThrough)
   if (wants('config')) on('classic.CwdChanged', record).catch(passThrough)

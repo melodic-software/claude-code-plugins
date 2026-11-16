@@ -159,8 +159,7 @@ assert_file_absent "filtered category → nothing written" "$P/.observability/cl
 run "$P" "$(payload s5 Stop)" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES=session,turn >/dev/null
 assert_eq "listed category → written" "turn" "$(jq -r .category "$P/.observability/claude/sessions/s5.jsonl")"
 
-# The parse table register.ts's categoryFilter is held to (category-filter.test.ts):
-# one input vector pins both parsers.
+# The inputs category-filter.test.ts runs through register.ts's categoryFilter.
 CATS="session prompt tool permission agent task turn config worktree compaction model mcp display other"
 VAR=CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES
 filter_case() { # <label> <expected enabled categories> [<option value>; absent means unset]
