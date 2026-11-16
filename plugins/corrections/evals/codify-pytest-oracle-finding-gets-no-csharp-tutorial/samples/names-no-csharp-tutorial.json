@@ -2,6 +2,9 @@
   "pass": [
     {
       "answer": "Row 1: semantic-invariant, rung custom-analyzer, class-basis rule-id. Build hand-off: /implementation:implement, in the linter the repository already runs."
+    },
+    {
+      "answer": "This is a pytest repository, so no C# tutorial applies. Row 1: semantic-invariant, custom-analyzer; hand the rung and the check to /implementation:implement."
     }
   ],
   "fail": [

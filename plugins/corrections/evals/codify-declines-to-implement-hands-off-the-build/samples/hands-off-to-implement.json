@@ -2,6 +2,9 @@
   "pass": [
     {
       "answer": "I won't write the analyzer: codify only proposes. Row 3 is semantic-invariant, rung custom-analyzer. Hand the rung and the check to /implementation:implement, and the analyzer's message must name the injected clock as the fix."
+    },
+    {
+      "answer": "I won't write it, and there is no tutorial to point you at. Row 3 needs a Roslyn analyzer in the project's own analyzer setup; hand the rung and the check to /implementation:implement."
     }
   ],
   "fail": [

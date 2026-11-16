@@ -2,6 +2,12 @@
   "pass": [
     {
       "answer": "Row 1: semantic-invariant, custom-analyzer, built in the linter the repository already runs."
+    },
+    {
+      "answer": "custom-analyzer is not .NET-only: row 1 takes it, built in the TypeScript linter the repository already runs."
+    },
+    {
+      "answer": "The rung isn't .NET-only any more, so row 1 is semantic-invariant on custom-analyzer."
     }
   ],
   "fail": [

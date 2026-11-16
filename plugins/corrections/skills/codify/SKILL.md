@@ -197,9 +197,10 @@ holds neither.
 
 Problems first: a mistake that meets the ladder's "Guardrail criterion" with no check in the
 repository yet, stated in those words as a "no guardrail" finding naming that section; an unproven
-check; a count below threshold; an unresolved old ref. Then the count, the rung by its id, the scope, the proof line from the script, and the proposal path or that nothing was written. When
-the repository's instructions or a stub named a rung by an alias, add the notice naming the rename
-that the ladder's alias line requires. End with the question for any blocking install.
+check; a count below threshold; an unresolved old ref. Then the count, the rung by its id, the scope, the proof line from the script, and the proposal path or that nothing was written. A rung
+id read through the ladder's [alias](reference/enforcement-ladder.md#tier-2-static-analysis), from
+the repository's instructions, a stub or a findings file, gets one line naming the old id and the
+current one. End with the question for any blocking install.
 
 ## Boundary
 

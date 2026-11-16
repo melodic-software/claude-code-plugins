@@ -14,7 +14,7 @@ execution:
 graders:
   - name: names-no-csharp-tutorial
     type: 'regex'
-    pattern: 'learn\.microsoft\.com|roslyn|C#[^\n]{0,40}tutorial|tutorial[^\n]{0,40}C#'
+    pattern: 'learn\.microsoft\.com|roslyn|(?:follow|see|read|use|start with|work through)[^\n]{0,40}\bC#[^\n]{0,40}tutorial'
     flags: 'i'
     match: 'not_contains'
     arm: 'both'
