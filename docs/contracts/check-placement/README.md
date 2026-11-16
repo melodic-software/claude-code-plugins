@@ -242,7 +242,8 @@ command line of `.husky/<event>` (and the Husky.Net tasks a `husky run --group` 
 selects), the lefthook jobs `lefthook dump` reports, git config hooks, and any other hook file.
 `installed` says whether git finds an executable hook file for the stage. An item that is a stamped
 entry copy names its plugin and entry. Only the calling plugin's own entries that rewrite nothing
-and whose tools are present are run, from their installed copies, on the staged set (`pre-commit`),
+and whose tools are present are run, from installed copies that start `#!/bin/sh` (an older copy
+the dispatcher runs by its own first line is reported not measured), on the staged set (`pre-commit`),
 a message file outside the repository (`commit-msg`) or the branch against its upstream
 (`pre-push`), and get `measured: { medianMs, minMs, maxMs, runs, input, exitCodes }`; every other
 item gets `notMeasured` with the reason. `inspect` itself writes nothing in the repository; a
