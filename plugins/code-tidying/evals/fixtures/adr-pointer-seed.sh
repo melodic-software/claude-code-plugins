@@ -11,6 +11,10 @@ printf '%s\n' \
   '' \
   'The status call retries twice, because the upstream API returns 502 on a cold start.' \
   'Rejected: unbounded retries, which hide a real outage.' >docs/adr/0007-retry-budget.md
+printf '%s\n' \
+  '# fetcher' \
+  '' \
+  'Architecture decision records live in docs/adr/, one file per decision, named NNNN-slug.md.' >CLAUDE.md
 # shellcheck disable=SC2016 # the fixture's $attempt is literal script text
 printf '%s\n' \
   '#!/usr/bin/env bash' \
@@ -23,5 +27,5 @@ printf '%s\n' \
   '  # print the attempt number' \
   '  echo "attempt $attempt"' \
   'done' >fetch.sh
-git add docs/adr/0007-retry-budget.md fetch.sh
+git add CLAUDE.md docs/adr/0007-retry-budget.md fetch.sh
 git -c user.name=eval -c user.email=eval@example.invalid commit -q -m "add fixtures"
