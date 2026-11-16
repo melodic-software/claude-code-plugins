@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: deepening-dependent-candidates-one-tree
+description: "deepening.md Phase 3: of three selected candidates, the one that depends on another is interviewed with it as one tree, the depended-on candidate first, and the reply says so; the unrelated candidate stays its own design fork. Hard: the easy reply interviews all three one after another, or folds all three into one tree."
+tags: [architecture, improve, deepening, interview, read-only, hard]
+expected_outcome: "Says the tax module and the invoice total candidates are treated as one tree because the second needs the first's interface, starts with the tax module, keeps the mail sender as its own separate fork, and asks the first question about the tax module."
+execution:
+  prompt: "/architecture:improve deepening. Phases 1 to 2 already ran; do not scan the repository or open its files, though you may read this skill's own files. The report had three candidates and I pick all three: (1) Tax module: fold TaxRates, TaxRounding and TaxExemptions into one module with a single quote(order) entry point. (2) Invoice total: move the totalling now spread over three controllers into one module; it calls the tax code on every line, so its shape depends on the entry point candidate 1 ends up with. (3) Mail sender: put the SMTP and the recording adapter behind one port; it touches neither of the other two. Before your first interview question, say how you will work through the three and in what order, then ask that first question and stop."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: one-tree-for-the-dependent-pair
+    type: llm
+    criteria: "PASS only if all of these hold: (a) the reply says candidates 1 (tax module) and 2 (invoice total) are interviewed together as one tree, one design or one combined thread, and gives the dependency as the reason; (b) candidate 1 comes before candidate 2; (c) candidate 3 (mail sender) is kept as its own separate interview or design fork, not part of that tree; (d) the first question asked is about the tax module. FAIL if the three are simply interviewed one after another as three separate forks with no statement that 1 and 2 form one tree, or if all three are folded into one tree."

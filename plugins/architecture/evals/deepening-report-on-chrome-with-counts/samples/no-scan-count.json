@@ -1,0 +1,4 @@
+{
+  "pass": [{ "answer": "<p>3 call sites repeat the sequence</p>", "why": "no scan number" }],
+  "fail": [{ "answer": "<p>Five call sites repeat the sequence</p>", "why": "the scan number" }]
+}
