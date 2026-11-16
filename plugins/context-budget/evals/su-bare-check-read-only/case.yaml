@@ -3,7 +3,7 @@ name: su-bare-check-read-only
 graders:
   - name: status-table-all-rows
     type: regex
-    pattern: '^(?=[\s\S]*^\|(?:\s*#?\d+\s*\|)?[^|\n]*\b[Nn]ode(?:\.js)?\b[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|(?:\s*#?\d+\s*\|)?\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*\b[Nn]ode(?:\.js)?\b)(?=[\s\S]*^\|(?:\s*#?\d+\s*\|)?[^|\n]*(?:\bCLI\b|[Cc]laude(?: Code)?(?![- ]?[Aa]gent)\b)[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|(?:\s*#?\d+\s*\|)?\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*(?:\bCLI\b|[Cc]laude(?: Code)?(?![- ]?[Aa]gent)\b))(?=[\s\S]*^\|(?:\s*#?\d+\s*\|)?[^|\n]*(?:\bSDK\b|claude-agent-sdk)[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|(?:\s*#?\d+\s*\|)?\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*(?:\bSDK\b|claude-agent-sdk))(?=[\s\S]*^\|(?:\s*#?\d+\s*\|)?[^|\n]*(?:[Tt]oggle|[Ss]ettings[\s_-]*write)[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|(?:\s*#?\d+\s*\|)?\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*(?:[Tt]oggle|[Ss]ettings[\s_-]*write))'
+    pattern: '^(?=[\s\S]*^\|(?:\s*#?\d+\s*\|)?[^|\n]*\b[Nn]ode(?:\.js)?\b[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|(?:\s*#?\d+\s*\|)?\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*\b[Nn]ode(?:\.js)?\b)(?=[\s\S]*^\|(?:\s*#?\d+\s*\|)?[^|\n]*(?:\bCLI\b|[Cc]laude(?: Code)?(?![- ]?[Aa]gent)\b)[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|(?:\s*#?\d+\s*\|)?\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*(?:\bCLI\b|[Cc]laude(?: Code)?(?![- ]?[Aa]gent)\b))(?=[\s\S]*^\|(?:\s*#?\d+\s*\|)?[^|\n]*(?:\bSDK\b|claude-agent-sdk)[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|(?:\s*#?\d+\s*\|)?\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*(?:\bSDK\b|claude-agent-sdk))'
     flags: 'm'
     target: 'last_message'
   - name: reads-audit-prereqs

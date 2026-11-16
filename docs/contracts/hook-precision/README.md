@@ -98,18 +98,18 @@ for their own tool. Permission rules differ: there, an `Edit` rule covers every 
 file-editing tool. That looks like an upstream matching gap, not a marketplace defect, and it is
 not fixed here (#3680).
 
-Any hook whose matcher includes Write and must see every write (for example the context-budget
-settings checkpoint, matcher `Write|Edit|NotebookEdit`) stays unconditioned. One `Edit(...)` gate
+Any hook whose matcher includes Write and must see every write (for example the guardrails
+settings-write checkpoint, matcher `Write|Edit|NotebookEdit`) stays unconditioned. One `Edit(...)` gate
 on that row would drop every Write silently.
 
 - **Claim:** the gap is in Claude Code's `if` matcher, which this marketplace does not patch. It
   is recorded here, not reported upstream. A guard row whose matcher includes Write stays
   unconditioned, or splits into a gated row per tool after its own probe.
-- **Basis:** the dated probe in `plugins/context-budget/README.md` (the paragraph starting "The
+- **Basis:** the dated probe in `plugins/guardrails/README.md` (the paragraph starting "The
   registration carries no `if` filter") and #3680; for permission rules,
   [permissions § What `Read` and `Edit` rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover).
 - **Recheck:** a Claude Code release note saying a hook `if` `Edit(...)` rule matches Write tool
-  calls. Re-probe before adding an `if` gate to the context-budget row.
+  calls. Re-probe before adding an `if` gate to the settings-write-ask row.
 
 ## What this convention is not
 

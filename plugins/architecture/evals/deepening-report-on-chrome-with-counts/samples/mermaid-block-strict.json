@@ -1,0 +1,4 @@
+{
+  "pass": [{ "answer": "<pre class=\"mermaid\">flowchart LR</pre><script>mermaid.initialize({ securityLevel: \"strict\" })</script>", "why": "block and strict mode" }],
+  "fail": [{ "answer": "", "why": "empty" }, { "answer": "<pre class=\"mermaid\">flowchart LR</pre><script>mermaid.initialize({ securityLevel: \"loose\" })</script>", "why": "loose mode" }]
+}

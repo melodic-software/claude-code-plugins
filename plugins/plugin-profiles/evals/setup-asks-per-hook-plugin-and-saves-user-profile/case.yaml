@@ -15,26 +15,17 @@ graders:
     input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+usage\b'
     min: 1
     arm: 'with-only'
-  - name: save-previewed
+  - name: per-hook-question-asked
+    type: regex
+    target: last_message
+    flags: 'i'
+    pattern: '^(?=[\s\S]*notes-hooks)[\s\S]*?(?:always[ -]on[^.?!\n]*\bor\b[^.?!\n]*(?:per[ -]profile|only (?:on |loaded )?(?:in|by) (?:the |some )?profiles)[^.!\n]*\?|(?:per[ -]profile|only (?:on |loaded )?(?:in|by) (?:the |some )?profiles)[^.?!\n]*\bor\b[^.?!\n]*always[ -]on[^.!\n]*\?|always[ -]on[^.?!\n]*\bor\b[^.?!\n]*\?[^\n]*(?:\n[^\n]*){0,4}?\n[ \t]*(?:[-*]|\d+\.)[ \t]+(?:\*\*)?per[ -]profile)'
+  - name: no-profile-saved-before-answer
     type: tool_used
     tool: 'Bash'
-    input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+save\s+docs\b(?:[^"\\;&|]|\\[^n])*?--dry-run\b'
-    min: 1
-    arm: 'with-only'
-  - name: save-written-at-user-level
-    type: tool_used
-    tool: 'Bash'
-    input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+save\s+docs\b(?=(?:[^"\\;&|]|\\[^n])*?--level\s+user\b)(?=(?:[^"\\;&|]|\\[^n])*?--yes\b)'
-    min: 1
-    arm: 'with-only'
-  - name: save-previewed-before-written
-    type: tool_order
-    before:
-      tool: 'Bash'
-      input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+save\s+docs\b(?:[^"\\;&|]|\\[^n])*?--dry-run\b'
-    after:
-      tool: 'Bash'
-      input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+save\s+docs\b(?=(?:[^"\\;&|]|\\[^n])*?--level\s+user\b)(?=(?:[^"\\;&|]|\\[^n])*?--yes\b)'
+    input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?profiles\.mjs)(?:[^"\\]|\\.)*?(?:profiles\.mjs|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)(?:\\"|'')?\s+save\b(?=(?:[^"\\;&|]|\\[^n])*?--yes\b)'
+    min: 0
+    max: 0
     arm: 'with-only'
   - name: no-hand-written-profile
     type: tool_used

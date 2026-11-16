@@ -1,0 +1,35 @@
+{
+  "name": "plugin-diagnostics",
+  "description": "Detects and reports why installed plugins cannot run: hooks that fail to launch, and missing runtimes or prerequisite tools.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "version": "0.1.0",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "hooks",
+    "diagnostics",
+    "prerequisites",
+    "plugins"
+  ],
+  "metadata": {
+    "category": "claude-code"
+  },
+  "userConfig": {
+    "hook_failure_audit_enabled": {
+      "type": "boolean",
+      "title": "Hook-failure-audit hook",
+      "description": "Warns once per session per hook when the transcript records hook launch or exec failures Claude Code never surfaced. On by default.",
+      "default": true
+    },
+    "stdin_read_timeout": {
+      "type": "number",
+      "title": "Hook stdin read timeout (seconds)",
+      "description": "Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open. Default 2.",
+      "default": 2,
+      "min": 1
+    }
+  }
+}

@@ -4,13 +4,15 @@ The skills of `plugins/review`. Each one is driven with `<plugin-dir>` set to `p
 
 ## Parts
 
-- `check`: Report whether node resolves and the connected-page Artifact guard is registered. Never installs.
 - `code-review`: Org CI code-review lane command for a GitHub pull request.
+- `council`: Configurable reviewer panel chosen per change, with optional fix rounds.
 - `explain-change`: Change digest for a pull request, markdown record plus an interactive view.
 - `fanout`: Fan review out across every reviewer surface into one ranked report.
+- `merge-risk`: Checked merge-risk rating of one pull request with a demote-only flag.
 - `quality-gate`: Single-lens review checkpoint routed to the matching reviewer.
+- `reviewer-media`: Narrated walkthrough video for a pull request's reviewers, placed in its description.
 - `security-review`: Org CI security-review lane command for a GitHub pull request.
-- `setup`: Check or apply the review plugin's repository setup: the standards index and docs/conventions/review.yaml settings. No plain-words entry.
+- `setup`: Check or apply the review plugin's repository setup: the standards index, docs/conventions/review.yaml settings, and the repository's own design-smell list. No plain-words entry.
 
 ## Sub-features
 

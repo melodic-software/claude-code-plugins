@@ -61,18 +61,20 @@ When the change set deletes, narrows, or softens a standing instruction (`CLAUDE
 
 ### OWASP Top 10 floor
 
+Ids and categories are the [OWASP Top 10:2025](https://top10.owasp.org/2025/) edition.
+
 | OWASP | Category | Specific checks |
 |---|---|---|
-| A01 | Broken Access Control | IDOR (CWE-639), path traversal (CWE-22), missing authorization on endpoints; authorization each route or handler must opt in to, with no central decision point and no default deny, even when every current route carries its check ([OWASP Proactive Controls C1](https://top10proactive.owasp.org/archive/2024/the-top-10/c1-accesscontrol/)) |
-| A02 | Cryptographic Failures | Weak crypto (CWE-326/327), TLS misuse (CWE-295), JWT signing/validation, secrets in code |
-| A03 | Injection | SQL (CWE-89), command (CWE-77/78), XSS (CWE-79). Covered per-ecosystem |
-| A04 | Insecure Design | Threat modeling. Flag for design review, do not tier |
-| A05 | Security Misconfiguration | CORS (CWE-942), missing CSP (CWE-1021), cookie config (CWE-614/1004), debug endpoints in prod (CWE-489), verbose errors (CWE-209) |
-| A06 | Vulnerable & Outdated Components | Read the manifests and lockfiles for known-vulnerable, EOL or abandoned packages (CWE-1104); run no audit command (step 2's run-none rule), and name the one that would settle a doubt |
-| A07 | Identification & Authentication Failures | Session fixation (CWE-384), weak session IDs, JWT alg=none (CWE-345/347) |
-| A08 | Software & Data Integrity Failures | Insecure deserialization (CWE-502) |
-| A09 | Security Logging & Monitoring Failures | PII in logs without redaction, missing audit trail for sensitive ops |
-| A10 | Server-Side Request Forgery | User-controlled URLs in HTTP clients (CWE-918). Verify allowlist and private-IP block |
+| [A01:2025](https://top10.owasp.org/2025/A01_2025-Broken_Access_Control/) | Broken Access Control | IDOR (CWE-639), path traversal (CWE-22), missing authorization on endpoints; authorization each route or handler must opt in to, with no central decision point and no default deny, even when every current route carries its check ([OWASP Proactive Controls C1](https://top10proactive.owasp.org/archive/2024/the-top-10/c1-accesscontrol/)); user-controlled URLs in HTTP clients (CWE-918): verify allowlist and private-IP block |
+| [A02:2025](https://top10.owasp.org/2025/A02_2025-Security_Misconfiguration/) | Security Misconfiguration | CORS (CWE-942), missing CSP (CWE-1021), cookie config (CWE-614/1004), debug endpoints in prod (CWE-489) |
+| [A03:2025](https://top10.owasp.org/2025/A03_2025-Software_Supply_Chain_Failures/) | Software Supply Chain Failures | Read the manifests and lockfiles for known-vulnerable, EOL or abandoned packages (CWE-1104); run no audit command (step 2's run-none rule), and name the one that would settle a doubt |
+| [A04:2025](https://top10.owasp.org/2025/A04_2025-Cryptographic_Failures/) | Cryptographic Failures | Weak crypto (CWE-326/327), JWT signing/validation, secrets in code |
+| [A05:2025](https://top10.owasp.org/2025/A05_2025-Injection/) | Injection | SQL (CWE-89), command (CWE-77/78), XSS (CWE-79). Covered per-ecosystem |
+| [A06:2025](https://top10.owasp.org/2025/A06_2025-Insecure_Design/) | Insecure Design | Threat modeling. Flag for design review, do not tier |
+| [A07:2025](https://top10.owasp.org/2025/A07_2025-Authentication_Failures/) | Authentication Failures | Session fixation (CWE-384), weak session IDs, JWT alg=none (CWE-345/347), TLS misuse (CWE-295) |
+| [A08:2025](https://top10.owasp.org/2025/A08_2025-Software_or_Data_Integrity_Failures/) | Software or Data Integrity Failures | Insecure deserialization (CWE-502) |
+| [A09:2025](https://top10.owasp.org/2025/A09_2025-Security_Logging_and_Alerting_Failures/) | Security Logging and Alerting Failures | PII in logs without redaction, missing audit trail for sensitive ops |
+| [A10:2025](https://top10.owasp.org/2025/A10_2025-Mishandling_of_Exceptional_Conditions/) | Mishandling of Exceptional Conditions | Verbose errors (CWE-209) |
 
 ## Output format
 

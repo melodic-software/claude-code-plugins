@@ -24,6 +24,24 @@ graders:
     min: 0
     max: 0
     arm: both
+  - name: citing-file-not-edited
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"[^"]*schema\.graphql'
+    min: 0
+    max: 0
+    arm: both
+  - name: citing-file-not-overwritten
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"[^"]*schema\.graphql'
+    min: 0
+    max: 0
+    arm: both
+  - name: lists-citation
+    type: regex
+    pattern: 'schema\.graphql:1\b'
+    target: last_message
   - name: names-old-record
     type: regex
     pattern: '\b(?:ADR[- ]?0*2|0002)\b'

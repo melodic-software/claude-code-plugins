@@ -1,3 +1,5 @@
+# GENERATED from plugins/session-telemetry/hooks/harness-ops-paths.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # shellcheck shell=bash
 # Plugin-local path policy for user-configured repository destinations, plus
 # the shared skill-usage store writer both skill-usage producers call.
@@ -161,8 +163,7 @@ harness_ops::ensure_git_exclude() {
   if [[ -n "$dir" ]]; then
     line="/$(harness_ops::gitignore_escape "$dir")/"
   else
-    # Store dir IS the repo root — ignore the specific store file, not the tree.
-    line="/$(harness_ops::gitignore_escape "$store_file")"
+    line="/$(harness_ops::gitignore_escape "$store_file")*"
   fi
   if [[ -f "$exclude_file" ]] && grep -qxF -- "$line" "$exclude_file" 2>/dev/null; then
     return 0
@@ -175,7 +176,7 @@ harness_ops::ensure_git_exclude() {
 # shared body of the two producers (skill-usage-audit.sh on PostToolUse/Skill,
 # audit-event-emitter.sh's UserPromptExpansion row): resolve the configured
 # destination, re-verify it after mkdir, keep git status clean in the repo
-# scope, and write the row. Best-effort throughout; every skip is surfaced to
+# scope, and write the row under the skill_usage_max_bytes cap (slog_append_capped). Best-effort throughout; every skip is surfaced to
 # the user (the options are theirs to fix) once per session via hook::notice_once markers keyed
 # "<notice_prefix>-badscope / -badconfig / -nodest" and emitted for
 # <hook_event>. expansion_type is recorded only when non-empty (the tool-path
@@ -192,7 +193,7 @@ harness_ops::record_skill_use() {
   *)
     if hook::notice_once "${notice_prefix}-badscope" "$input"; then
       hook::emit_skip_notice "$hook_event" "" \
-        "harness-ops skill-usage logging: unknown skill_usage_scope \"${scope}\" (valid: repo, user, data-dir) — using the default repo scope."
+        "session-telemetry skill-usage logging: unknown skill_usage_scope \"${scope}\" (valid: repo, user, data-dir) — using the default repo scope."
     fi
     scope="repo"
     ;;
@@ -201,10 +202,10 @@ harness_ops::record_skill_use() {
     if hook::notice_once "${notice_prefix}-badconfig" "$input"; then
       if [[ "$scope" == "data-dir" ]]; then
         hook::emit_skip_notice "$hook_event" "" \
-          "harness-ops: skill-usage logging skipped: scope \"data-dir\" needs CLAUDE_PLUGIN_DATA, which is not set."
+          "session-telemetry: skill-usage logging skipped: scope \"data-dir\" needs CLAUDE_PLUGIN_DATA, which is not set."
       else
         hook::emit_skip_notice "$hook_event" "" \
-          "harness-ops: skill-usage logging skipped: skill_usage_dir is not a contained relative path for scope \"${scope}\". /plugin configure harness-ops fixes it."
+          "session-telemetry: skill-usage logging skipped: skill_usage_dir is not a contained relative path for scope \"${scope}\". /plugin configure session-telemetry fixes it."
       fi
     fi
   elif mkdir -p "$log_dir" 2>/dev/null &&
@@ -226,11 +227,11 @@ harness_ops::record_skill_use() {
       hook s "skill-usage-audit" \
       source s "$src" \
       ${exp_keys[@]+"${exp_keys[@]}"}
-    hook::append_jsonl "${log_dir}/skill-usage.jsonl" "$line"
+    slog_append_capped "${log_dir}/skill-usage.jsonl" "$line" "${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_MAX_BYTES:-}"
   else
     if hook::notice_once "${notice_prefix}-nodest" "$input"; then
       hook::emit_skip_notice "$hook_event" "" \
-        "harness-ops: skill-usage logging skipped: the configured destination could not be created safely."
+        "session-telemetry: skill-usage logging skipped: the configured destination could not be created safely."
     fi
   fi
 }

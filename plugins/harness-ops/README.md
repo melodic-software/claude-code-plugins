@@ -3,7 +3,8 @@
 ## Contents
 
 - [Skills](#skills)
-- [The audit hooks](#the-audit-hooks)
+- [Session telemetry](#session-telemetry)
+- [Run a session clean](#run-a-session-clean)
 - [Install](#install)
 - [How the skills adapt to your repo](#how-the-skills-adapt-to-your-repo)
 - [Requirements](#requirements)
@@ -11,23 +12,23 @@
 - [License](#license)
 
 A Claude Code plugin for running Claude Code well over time. It ships eighteen
-skills and a family of telemetry-emitter hooks, including a skill that diagnoses why
+skills and no hooks, including a skill that diagnoses why
 most of an installed skill fleet never gets used.
 audit-native-overlap maps native Claude Code surfaces against the current
 repo's own components so a custom skill never silently duplicates what the
 product now ships.
 audit-install-state reports on the machine-scope `~/.claude` install directory
 itself. audit-performance captures slowness evidence at the moment a machine or
-session feels slow so the cause is diagnosed instead of nuked, including the
+session feels slow so the cause is diagnosed before anything gets deleted, including the
 fan-out layer of hooks, statusline, spawn cost, and subagent concurrency.
 observability reads what your sessions actually did. known-issues tracks what
 upstream has broken, and changelog integration keeps your repo current with what
 upstream has shipped. The plugins skill keeps your own plugin fleet current,
 and lanes launches and manages your loop lanes as background sessions; the
 operator morning view that reads their telemetry is `/work-items:morning-brief`. A
-re-runnable `setup` action settles where the known-issues registry lives,
-and the `*-audit` hooks feed observability with per-hook execution telemetry
-Claude Code's native OTEL cannot see.
+re-runnable `setup` action settles where the known-issues registry lives.
+Observability also reads the per-hook execution telemetry Claude Code's native
+OTEL cannot see, which the session-telemetry plugin records.
 
 ## Skills
 
@@ -52,297 +53,33 @@ Claude Code's native OTEL cannot see.
 | `/harness-ops:setup` | `check` reports the effective known-issues-registry, skill-usage-log and hook-log-root destinations, their defaults, path containment, the hook log root's self-ignoring guard, and retired conventions (`retirements.yaml`), and prints the guidance for routing personal option changes through Claude Code's plugin configuration prompt; `apply` writes exactly one file, the guard inside the hook log root, and runs the gated retirement cleanup. |
 | `/harness-ops:inventory` | Lists every Claude Code surface this machine can invoke: built-in commands, subagents, tools, bundled skills and workflows, and installed plugin components. `/harness-ops:audit-mod-posture` reads its report for built-in mods; the on-disk audit is `/harness-ops:audit-install-state`. |
 
-## The audit hooks
+## Session telemetry
 
-Eight advisory `*-audit` hooks, registered as nine rows because
-`skill-usage-audit` has two producers, emit the marketplace
-[hook-telemetry envelope](../../docs/contracts/hook-telemetry/README.md). One
-JSON event per run carrying that hook's own `duration_ms`, outcome, and a
-privacy-safe subject. Each is independently toggleable via its own `userConfig`
-boolean (default **on**; see [Per-hook kill switches](#per-hook-kill-switches)).
+The `*-audit` hooks, the telemetry sink and the per-session hook event log that observability,
+audit-skill-visibility and setup read are the `session-telemetry` plugin's; the hook-failure audit and
+the session-start prerequisite notices are the `plugin-diagnostics` plugin's. harness-ops does not
+depend on either: each reading skill says when session-telemetry is not enabled, prints the commands
+that turn it on, and reports what earlier sessions recorded. Where the records live:
+[session telemetry data](../../docs/contracts/session-telemetry-data/README.md).
 
-Three scripts serve those nine rows. `hooks/audit-event-emitter.sh` carries
-seven of them and picks the row from the payload's `hook_event_name`, the way
-`session-event-log.sh` next to it serves 28 events from one file; the
-seven events are distinct, so the event alone selects the row. Each row still
-reads its own `<name>_enabled` switch and emits the same telemetry `hook` id,
-`hook_event`, `status` and `data` fields it emitted as a standalone script, so
-no downstream reader can tell the difference. The two rows with earned behavior
-of their own keep their files: `skill-usage-audit.sh`, whose kill switch is
-inlined above its library `source` because it sits on the hot `PostToolUse`
-path, and `hook-failure-audit.sh` (below).
+## Run a session clean
 
-The [hook budget](../../docs/contracts/hook-budget/README.md) is accounted per
-`hooks.json` entry, and the collapse changes no entry: the same nine audit rows,
-on the same events, with the same matchers, and one event still spawns exactly
-one process. Per-entry cost is unchanged for an enabled row (the same library,
-the same `jq` passes, plus one bash pattern match to read the event) and lower
-when every switch is off, because the emitter reads all seven switches before it
-parses the library. A row that is off on its own pays one buffered payload it
-did not pay before, because the row is only known once the event has been read;
-it parsed the same library then as now, and no extra process runs either way.
+To tell whether a problem comes from your own configuration, plugins and customizations or from
+Claude Code itself, start one interactive session without them and see whether the problem
+recurs, before filing it with `/harness-ops:known-issues` or deleting anything.
 
-The six pure emitter rows are a no-op until a consumer wires a sink (below);
-`skill-usage-audit` is one exception. Both its producers also write the shared
-`skill-usage.jsonl` second store unconditionally (disable the whole feature with
-`skill_usage_audit_enabled=false`; pick the store's home with `skill_usage_scope`
-and `skill_usage_dir`). In the default repo scope the store dir is kept out of
-`git status` via an idempotent machine-local `.git/info/exclude` entry
-(`skill_usage_git_exclude=false` opts out for teams that commit the telemetry).
-
-One row per Skill call, with these fields:
-
-| Field | Present | What it holds |
-|---|---|---|
-| `ts` | always | UTC timestamp of the call, `YYYY-MM-DDTHH:MM:SSZ` |
-| `event` | always | `SkillUse`, the key readers filter this store on |
-| `skill` | always | the skill name, leading slash stripped |
-| `branch` | always | the checked-out branch, `unknown` outside a git work tree |
-| `project` | always | the project root's basename, for display |
-| `project_id` | always | basename plus a digest, collision-resistant across checkouts in the user and data-dir scopes |
-| `hook` | always | `skill-usage-audit` |
-| `source` | always | `tool` (the Skill tool) or `expansion` (a user-typed slash command) |
-| `expansion_type` | expansion path only | `slash_command` or `mcp_prompt` |
-
-`hook-failure-audit` is the other exception. Its user-facing `systemMessage`
-warning fires regardless of sink wiring (only its envelope needs a sink),
-because its whole subject is failures nothing else surfaces: a hook that fails
-to launch is a non-blocking error, the guarded tool call proceeds as if
-approved, and the only durable trace is a transcript attachment no human reads
-(#2577). It runs once per `Stop`, tails a bounded window of the session
-transcript for `hook_non_blocking_error` attachments (structural match on the
-attachment type, never substring), and warns once per session per distinct
-failing hook registration, keyed on `hookName` plus the registered command because several plugins
-share an event and matcher, re-warning when a new registration starts failing. It
-lives in this
-plugin, not in the plugin it might report on, deliberately: an in-plugin
-detector shares its plugin's registration form and dies with it, which is
-exactly how disk-hygiene's guard monitor missed the #1416 incident class.
-
-Each failure record is classed one of four ways, and the warning gives each
-class its own diagnosis and remedy:
-
-- **launch failure**: stderr carries an exec-failure signature; the hook never
-  ran.
-- **stale config**: exit 127 and the whole stderr is bash's missing-script line
-  (`bash: <path>: No such file or directory`). The session still runs hook
-  config it loaded before a plugin update or an in-place edit deleted that
-  script; the remedy is `/reload-plugins`, or a restart.
-- **ambiguous**: exit 126 or 127 with neither of the above, so the registered
-  command and the hook's own commands are both suspects.
-- **completed non-zero exit**: the hook ran and failed.
-
-Its budget share is stated as a **process count**, not a duration, and the host
-is the reason. The [hook-budget
-convention](../../docs/contracts/hook-budget/README.md) states each
-always-on hook's budget as k x S plus measured work (k = fewest spawns, S = one no-op spawn's time), not a fixed millisecond figure, and on the host in #3508 one
-process creation costs 180-2,841 ms (median 1,108 ms at 501 concurrent
-processes), so the count is what decides whether the set fits and a duration
-measured anywhere else does not transfer. On a turn with **no** hook failure
-recorded, the common case, the hook costs **9 process creations and 4 program
-execs**: one `wc` for the tail-cap decision, one `grep` pre-filter that opens
-the transcript directly, and two `jq` passes inside the synced `hook-utils.sh`.
-The creations above that are subshell forks inside the same shared library. It
-was 18 creations and 6 execs before #3512. Counts are measured with `strace -ff
--e trace=clone,clone3,fork,vfork,execve`, not `bash -x`: a command substitution
-whose command carries its own redirection forks a subshell that xtrace cannot
-see, and those forks were most of the cost. `hook-failure-audit.test.sh`
-asserts both ceilings. Windows Git Bash, the host the convention binds to,
-measured S (the bash spawn floor) at 33 ms on 2026-09-30, through the bash the
-launcher spawns (20 ms on the PATH bash), but the hook-failure-audit wall
-there is still unmeasured for this row, so its spawn-equivalents (hook wall
-divided by the same-run S) are still owed.
-
-`skill-usage-audit` is captured by two disjoint producers so both invocation
-paths are measured: the model-invoked `Skill` tool (`PostToolUse`) and the
-user-typed slash command (`UserPromptExpansion`, which bypasses the `Skill`
-tool). Events carry a `source` field (`tool` vs `expansion`) so consumers can
-tell the paths apart; both share the same telemetry `hook` id and second store.
-
-Its share of the budget is stated as a **git process count**, the part of the
-row's cost that varies with the store's contents. The store write spawns
-**3 git processes**: the repo-root read, the `.git/info/exclude` hygiene read
-(repo scope only), and one `git rev-parse --abbrev-ref HEAD` for the branch.
-Measured with `strace -ff -e trace=execve` on a throwaway fixture repository,
-the same method the `hook-failure-audit` counts above use. This row is not in
-the always-on per-tool-call set: its matcher is `Skill`, so an ordinary tool
-call spawns nothing.
-
-| Hook | Event | Emits | Why it earns its spawn |
-|---|---|---|---|
-| `api-error-audit` | StopFailure | API turn-failure `error_type` (never the message body) | The event only fires when a turn fails at the API, so the hook costs nothing on a healthy session |
-| `config-change-audit` | ConfigChange | the mutated `config_source` | Matcher-scoped to the four sources that can change behavior, and a settings or skills change is rare |
-| `instructions-loaded-audit` | InstructionsLoaded | `<repo-relative-file>:<load_reason>` (absolute prefix stripped; session_start filtered by default) | The highest-volume row here, and the only one whose cost is worth watching. It is advisory: InstructionsLoaded ignores the exit code, so the hook never gates a load, and the session_start write-time filter keeps the noisiest reason out of the store by default |
-| `permission-denied-audit` | PermissionDenied | classifier denials, `Bash:<first-token>` subject | Fires only on an actual denial, and it is the only durable record of what the classifier refused |
-| `pre-compact-audit` | PreCompact | compaction `trigger` (`manual`/`auto`) | Once per compaction, which is the rarest event this plugin observes |
-| `skill-usage-audit` (tool path) | PostToolUse (`Skill`) | model-invoked skill; `source: "tool"`; also writes the `skill-usage.jsonl` second store | Matcher-scoped to `Skill`, so it is skipped on every other tool call rather than firing per PostToolUse |
-| `skill-usage-audit` (expansion path) | UserPromptExpansion | user-typed `/command` (`slash_command`/`mcp_prompt`); `source: "expansion"` + `expansion_type`; same second store | Fires per expanded slash command, not per prompt, and it is the only path that sees a user-typed invocation (the `Skill` tool never runs) |
-| `tool-failure-audit` | PostToolUseFailure | Write/Edit/Bash failures, privacy-safe subject | Matcher-scoped to the three tools whose failures are actionable, and the event fires only on failure |
-| `hook-failure-audit` | Stop | unsurfaced `hook_non_blocking_error` attachments; envelope subjects are hook names only; also warns via `systemMessage` | The only per-turn row, and it is the sole surface for a hook that failed to launch while its guarded tool call proceeded |
-
-None captures a command body, absolute path, error message, or argument body, only category labels, privacy-safe subjects, and (for `instructions-loaded-audit`)
-the repo-relative path of the loaded rule file.
-
-The InstructionsLoaded row carries no matcher on purpose. That event's matcher selects on load
-reason, and the row passes every reason through verbatim into its subject, so
-scoping to the full documented set would skip nothing and would silently drop any reason a later
-release adds. Scoping below that set is worse: the only reason worth excluding for cost is
-`session_start`, which the row already drops at write time, and it drops it behind the
-`instructions_loaded_audit_log_session_start` option. A matcher that excluded `session_start` would
-stop the hook from ever spawning on it, leaving that option switched on but unable to log anything.
-The row therefore stays unscoped until the option is retired.
-
-### Per-hook kill switches
-
-Each audit hook is toggled by its own `userConfig` boolean (default **on**; set
-to `false` for a clean no-op). Disable one hook without touching the others.
-The hooks read them through the native `CLAUDE_PLUGIN_OPTION_<KEY>` hook-process
-mirror. Seven rows share `audit-event-emitter.sh`, which reads the switch of the
-row the event selected: sharing a script does not share a switch, and turning one
-row off leaves the other six emitting.
-
-| Hook | Option |
-|---|---|
-| `api-error-audit` | `api_error_audit_enabled` |
-| `config-change-audit` | `config_change_audit_enabled` |
-| `instructions-loaded-audit` | `instructions_loaded_audit_enabled` |
-| `permission-denied-audit` | `permission_denied_audit_enabled` |
-| `pre-compact-audit` | `pre_compact_audit_enabled` |
-| `skill-usage-audit` (both paths) | `skill_usage_audit_enabled` |
-| `tool-failure-audit` | `tool_failure_audit_enabled` |
-| `hook-failure-audit` | `hook_failure_audit_enabled` |
-
-`instructions-loaded-audit` drops deterministic, high-volume `session_start`
-loads by default; set `instructions_loaded_audit_log_session_start=true` to opt
-back into logging them. A `stdin_read_timeout` option (seconds, default `2`) is
-an **idle** bound on reading each hook's payload: any byte arriving resets it, so
-a large or slowly-delivered payload is never cut off while it is still coming,
-and it fires only once the pipe has gone silent for that long, at which point
-these audit hooks fail open (skip). On a shell whose `read -t` accepts fractional
-values the bound is read in four slices, so the stall is detected within a
-quarter of the configured interval of it; where fractional timeouts are
-unavailable (Bash 3.2, the macOS system shell) it is read as one window and a
-producer that sends bytes then goes silent can take up to two intervals. A producer
-that keeps emitting is bounded by Claude Code's own hook timeout, not by this
-value. A setting this shell's `read -t` will not accept, or `0`, falls back to
-the default.
-
-Set them interactively with `/plugin configure harness-ops@<marketplace>`, or headless on the
-install command:
-
-```shell
-claude plugin install harness-ops@<marketplace> --config skill_usage_audit_enabled=false
-```
-
-Option scoping (user vs project settings, and the per-repository escape hatch)
-per "How to set these" below.
-
-### Wiring the reference sink
-
-A migrated emitter is inert without a consumer. `hooks/hook-telemetry-sink.sh`
-is a **reference** sink: it reads an envelope on stdin and appends one line under
-the hook log root, `<project-root>/.observability/claude` by default (the
-`session_event_log_dir` option moves it). An envelope carrying
-`data.session_id` lands in `sessions/<session_id>.jsonl`, beside the
-per-session event log; one without lands in the shared `hook-events.jsonl`
-in the legacy shape; that file rotates to `hook-events.jsonl.1` at
-`hook_events_max_bytes` whatever the session-log switch is set to. Both are
-what the `observability` skill reads. The root carries a self-ignoring
-`.gitignore`, created on the first write (or by
-`/harness-ops:setup apply`); rows left at the old
-`.claude/observability/hook-events.jsonl` location are detected by setup as
-retirement `harness-ops-r001` and migrated on request.
-
-Wire it with the reserved value `@harness-ops`, committed in the repository's
-`settings.json`. No copy of the sink goes in the repository and no per-machine
-path goes in the settings:
-
-```json
-{ "env": { "HOOK_TELEMETRY_SINK": "@harness-ops" } }
-```
-
-At each session start this plugin rewrites, only when it changed, a launcher in
-its plugin data directory, `~/.claude/plugins/data/harness-ops-<marketplace>/hook-telemetry-sink.sh`
-(under `CLAUDE_CONFIG_DIR` when that is set). The data directory survives plugin
-updates; the installed sink under `${CLAUDE_PLUGIN_ROOT}` moves on each one, and
-Claude Code copies `settings.json` `env` values as written, with no
-`${CLAUDE_PLUGIN_ROOT}` expansion. Every producer resolves `@harness-ops` to that
-launcher (`docs/contracts/hook-telemetry` at the repository root, "Sink path
-resolution"), which runs the installed sink with this plugin's
-`session_event_log_dir` and `hook_events_max_bytes`, so rows from every producer
-land in the same root. Until the first session start writes the launcher, and on
-a machine without this plugin, producers skip the event.
-
-Two other forms remain, for a sink of your own or a pinned copy:
-
-- **A repository copy**, wired by a repo-relative path such as
-  `.claude/hooks/hook-telemetry-sink.sh` (a relative value resolves against the
-  consuming repository's root). The sink sources two files from its own
-  directory, so copy all three side by side:
-  `hooks/hook-telemetry-sink.sh`, `hooks/hook-utils.sh` (for
-  `hook::repo_root_to`) and `hooks/session-log-lib.sh` (the record formatter
-  and root guard). A copy does not follow plugin updates.
-- **An absolute path** to the installed sink under your plugin cache. It is
-  per-machine and moves on each plugin update.
-
-Any envelope producer (this plugin's hooks, guardrails, the formatters) then
-flows into the same store. The sink is fire-and-forget and best-effort, a slow
-or absent sink silently drops the event; it is for observability, not
-audit-of-record.
-
-### The per-session hook event log (off by default)
-
-Independently of any sink, `session_event_log_enabled=true` turns on the log.
-It is a mod: the hooks module `hooks/register.ts` hooks one `classic.<Event>`
-per observable hook event (28 events; the generated
-`hooks/hook-events.registry.json` says which, and why `WorktreeCreate`,
-`MessageDisplay` and `FileChanged` are left out), and only while the switch is
-on. `PreToolUse` and `PostToolUse` are left out too: they fire on every tool
-call, so an enabled log would cost a process creation per call. Tool activity
-is still recorded through `PostToolUseFailure` and `PostToolBatch`. A batch is
-one line, not a per-call record: it carries the first `tool_name` and
-`tool_use_id` the payload text holds, normally the first call's. Each fire
-appends one line to `<root>/sessions/<session_id>.jsonl`: the correlation keys
-the payload carries (`prompt_id`, `tool_use_id`, `agent_id`), the event and its
-category, the tool and a repo-relative file path when present.
-
-Process cost: with the switch off (the default) the module hooks nothing, so no
-event starts a process (k = 0; `hooks/session-event-log.test.ts` counts the
-processes for every event). On, a mod cannot append to a file, so each event
-starts one process: the module hands the event's payload to
-`hooks/session-event-log.sh` through `node hooks/exec-bash.mjs`, the same script
-and launcher the settings rows ran, and `SessionEnd` starts a second for
-retention. No event waits on the write, which runs on a timer after the event
-goes on; `SessionEnd` waits for both, inside its teardown budget. Enabled, a 2 KB payload costs about 5 ms and a 512 KB one 36 ms of
-script time on the Linux CI host. The parallel wall, the 4 KB and 16 KB appends,
-`ls -t`, and the late-EOF stall are measured by
-[`hooks/measure-hook-log-budget.sh`](hooks/measure-hook-log-budget.sh) and
-recorded in
-[`reference/hook-log-budget.md`](reference/hook-log-budget.md). On Windows Git
-Bash (2026-09-30), thirty parallel events take 466 ms wall on, and the 4 KB and
-16 KB appends leave 0 corrupt lines out of 33. `ls -t` ties at one-second
-resolution there, so no ordering is claimed. The switch stays off by default.
-
-The module needs Claude Code 2.1.287 or later with mods on, and was tested with
-`claude plugin test` on Claude Code 2.1.289; no live session type was run. Where
-mods are off (below 2.1.287, under `disableAllHooks`, with `--bare`, or when
-mods are switched off), the log does not run: no session file is written and
-retention does not prune. On a machine with managed settings, or for a user
-signed in with a Team or Enterprise plan, the built-in guard `sec-default`
-holds every `classic.*` event, so the log does not run there either. Mods start
-processes in the CLI only; where `$.process.run` cannot run, the module writes
-nothing and logs that once to the debug log. A row's `traceparent` key is not
-written, since a mod receives no per-hook `TRACEPARENT`. These differences from
-the settings rows the log replaced are recorded in
-[ADR 0065](../../docs/adr/0065-move-the-harness-ops-session-event-log-into-a-mod.md).
-
-`session_event_log_categories` narrows the set. At `SessionEnd` the retention
-script, gated by the same switch, keeps the newest
-`session_log_keep_sessions` or the last `session_log_keep_days` days, and
-`session_log_pre_prune_command` hands an archiver the files about to go. The
-root carries its own `*` `.gitignore`, so nothing under it reaches
-`git status`; `/harness-ops:setup` reports the toggles and the guard,
-`/harness-ops:observability session` reads the result.
+- **`claude --safe-mode`** is the switch to use. It is documented for troubleshooting a broken
+  configuration, and sign-in, model, built-in tools and permissions keep working. What it turns
+  off, and which managed settings still apply:
+  [CLI reference § CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags).
+- **`--bare`** is not for this. It is built for scripted runs and changes more than your
+  customizations:
+  [Run Claude Code programmatically § Start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode).
+- **`CLAUDE_CONFIG_DIR`** pointed at a new directory gives a separate configuration directory
+  with its own settings, session history and login, so you sign in again there. Use it when you
+  want a lasting second setup rather than a one-off check:
+  [Environment variables § Variables](https://code.claude.com/docs/en/env-vars#variables),
+  [Authentication § Log in with multiple accounts](https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts).
 
 ## Install
 
@@ -385,29 +122,14 @@ your own repository's context:
 
 ## Requirements
 
-The audit hooks are Bash scripts (Git Bash on native Windows, so install
-[Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)) and
-use `jq`; without jq they fail open (no audit line is written).
-
-**Node.js on PATH.** Every hook row except `hook-failure-audit` starts through
-`node hooks/exec-bash.mjs`, which finds the real Bash and runs the script. Claude Code's native
-binary neither ships nor uses Node.js ([setup](https://code.claude.com/docs/en/setup), fetched
-2026-09-29), so without `node` on PATH those hooks do not launch. The `hook-failure-audit` Stop row
-is shell form (`"shell": "bash"`) and needs no node, so it still reports the failed launches. `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether `node` and `jq` resolve.
-
-**Mods for the session event log.** The per-session hook event log runs in the hooks module, so it
-needs Claude Code 2.1.287 or later with mods on; where mods are off it does not run (see
-[The per-session hook event log](#the-per-session-hook-event-log-off-by-default)). The audit rows
-are settings hooks and run with mods off.
-
 `audit-install-state` needs **Python 3.11+ only**. No PowerShell, no third-party packages, no
 `jq`. Its inventory, surface classification, filename-scheme resolution, retention resolution and
 sampling are pure `os.walk` + `stat` + regex and behave identically on every platform. The only
 OS-specific code is one function, `probe_pid()`, with a POSIX body (`os.kill(pid, 0)`) and a Windows
 body (`OpenProcess`); a probe that cannot run reports `unverified`, never `dead`.
 
-Core flows need only `git`, `jq`, `gh` (authenticated), `python3`, and `node` (the hooks, and
-resolving the known-issues registry directory).
+Core flows need only `git`, `jq`, `gh` (authenticated), `python3`, and `node` (resolving the
+known-issues registry directory, and whether session-telemetry is enabled).
 Optional: `duckdb` for OTEL store queries and `npx` for ccusage. The machine-level
 `otelcol-contrib` service and Aspire dashboard Compose stack are provisioned separately; the
 plugin observes them but does not start them. Every skill reports missing optional tooling
@@ -424,10 +146,7 @@ to set these keys, checked against
 | `registry_dir` | a contained project-relative directory of letters, digits, `.`, `_`, `-`, `/` and `\` | none: `${CLAUDE_PLUGIN_DATA}` | Where `/harness-ops:known-issues` keeps `registry.json`, for everyone working in the repository. Beats the `registry_dir` option; a personal `harness-ops.local.yaml` beats it. Read from the working tree by `scripts/registry-dir.mjs`, which reports the layer that set it (`/harness-ops:setup` shows it); an absolute, drive, UNC, traversal or escaping-symlink value, or one holding any other character (the value reaches a shell command), is named and dropped, and resolves to the plugin data directory. Team and personal values join the git toplevel; the option joins the session's project directory, as it always has. |
 | `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/harness-ops:audit-install-state` dispatches its fresh-context cross-review (`strict` also for a single-agent run) and `/harness-ops:changelog` its local verifier: `light` and `off` skip both and mark what they would have checked `unverified`. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 
-The per-hook kill switches, `instructions_loaded_audit_log_session_start`, and
-`stdin_read_timeout` are documented under
-[Per-hook kill switches](#per-hook-kill-switches). These further `userConfig`
-options tune the skills:
+These `userConfig` options tune the skills:
 
 - **`install_new`** (string, optional). New-catalog-plugin install policy for the `plugins`
   skill's `sync` action. `ask` (default) offers not-yet-installed catalog plugins in
@@ -462,32 +181,6 @@ options tune the skills:
   comments written by `<slug>[bot]` when the lanes run `gh` under that App's installation
   token. Leave it unset under a personal or machine-user token. An empty value, or an
   unrendered `${user_config.lane_app_slug}` placeholder, is treated as no slug.
-- **`skill_usage_scope`** (string, optional), where the `skill-usage-audit`
-  second store lives. `repo` (default) keeps it in the project tree, with a
-  machine-local `.git/info/exclude` entry so `git status` stays clean; `user`
-  resolves the same `skill_usage_dir` subpath under `$HOME` for one cross-repo
-  operator store (rows carry `project` + collision-resistant `project_id`
-  fields); `data-dir` writes
-  `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>`. Plugin-owned, update-safe,
-  never in any repo tree. `/config` shows the three values as a picker; a value
-  set by hand outside it falls back to `repo` with a one-time advisory. The default
-  stays `repo` on purpose. The store stays in the project tree, matching
-  the observability posture that telemetry is project-local, and the exclude entry removes the status noise that
-  motivated the scope knob. (The hook log
-  root is a separate tree with its own self-ignoring guard; see "Wiring the
-  reference sink".)
-- **`skill_usage_git_exclude`** (boolean, default `true`). Repo scope only:
-  idempotently exclude the store dir via `.git/info/exclude` (never touches
-  `.gitignore` or tracked files). Set `false` when your team deliberately
-  commits the telemetry.
-- **`skill_usage_dir`** (string, optional). Contained relative directory,
-  resolved under the scope root (repo scope: repo root; user scope: `$HOME`),
-  where `skill-usage-audit` writes its `skill-usage.jsonl` second store (the
-  "measuring skills" record, separate from the telemetry envelope); leave unset
-  to use `.claude/observability`. The same containment rules apply in every
-  scope; the `data-dir` scope ignores it. An invalid
-  value produces a visible advisory and skips the second-store write; telemetry
-  through an independently configured sink can still proceed.
 
 Run `/harness-ops:setup` to validate this choice. Claude Code owns persistence through its plugin
 configuration prompt; rerun setup afterward to verify the rendered value.
@@ -496,26 +189,6 @@ Remaining variability is covered by the env vars above and conventional
 project-relative defaults; the bundled scripts make no outbound network calls
 except `gh`/`curl` reads of GitHub and Claude status pages in the
 known-issues skill.
-
-### Option details
-
-**`session_event_log_enabled`.** Off, the hooks module hooks no event, so the log starts no process.
-On, each recorded event starts one process. The log runs only where mods load.
-
-**`session_event_log_dir`.** Inside a checkout the directory carries a self-ignoring `.gitignore`,
-created on the first write. In a linked worktree the path is relative to the main checkout, not the
-worktree. The hooks write there and `/harness-ops:observability` reads there, so a worktree
-session's logs stay after the worktree is removed.
-
-**`hook_events_max_bytes`.** Read only when a harness-ops hook emits the envelope: an emitter in
-another plugin that runs the sink keeps the 10485760 default. A value above 999999999999999999 is
-ignored and the default applies.
-
-**`session_log_pre_prune_command`.** The session files about to be pruned are moved into the
-directory passed as the argument, and its physical delete waits for the next retention run after
-24 hours, so an archiver has a stable set to read. The command runs through `bash -c`, so it is
-trusted configuration: on current releases project and local `pluginConfigs` are ignored and only
-the user's own settings supply it (recheck: the plugins reference's user-configuration section).
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -531,27 +204,6 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `directory_source_pull` | string | `"ask"` | Sync action for a directory marketplace whose git checkout is clean, on a branch with an upstream, and only behind it. ask (default) offers to run git pull --ff-only and continues the sync with the refreshed catalog; never only reports the command. An autonomous session never asks or pulls. |
 | `quiet_auto_update_marketplaces` | string | *(none)* | Comma-separated marketplace names whose sync report shows autoUpdate: off without the suggestion to enable it. Empty, the default, keeps the suggestion for every marketplace with autoUpdate off. |
 | `update_other_paths` | boolean | `false` | Whether sync also updates the outdated project and local plugin records of every other present path on this machine, one CLI call per record. Off (the default), sync reports how many it left and how to update them. |
-| `skill_usage_audit_enabled` | boolean | `true` | Emits telemetry on skill usage, on by default. Shared by both skill-usage audit hooks (the Skill-tool and slash-command expansion paths), and also gates the shared skill-usage.jsonl store. |
-| `skill_usage_scope` | string | `"repo"` | Where the skill-usage store lives. repo (default) keeps it in the project tree, out of git status via a machine-local .git/info/exclude entry; user puts the skill_usage_dir subpath under $HOME as one cross-repo store; data-dir uses ${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>. |
-| `skill_usage_dir` | string | *(none)* | Relative directory where the skill-usage-audit hooks write skill-usage.jsonl, under the skill_usage_scope root (repo: the project root; user: $HOME). Leave unset to use .claude/observability. The data-dir scope ignores it. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. |
-| `skill_usage_git_exclude` | boolean | `true` | Adds the repo-scope store's directory to .git/info/exclude when it sits inside a git work tree, so git status stays clean. On by default; machine-local, and never touches .gitignore or tracked files. Set false if your team deliberately commits the telemetry. |
-| `api_error_audit_enabled` | boolean | `true` | Emits turn-failure telemetry on API errors. On by default. |
-| `config_change_audit_enabled` | boolean | `true` | Emits telemetry on config-source mutations. On by default. |
-| `instructions_loaded_audit_enabled` | boolean | `true` | Emits telemetry on rule and instruction file loads. On by default. |
-| `instructions_loaded_audit_log_session_start` | boolean | `false` | Makes the instructions-loaded-audit hook log session_start instruction loads. Off by default, because those loads are deterministic and high-volume. |
-| `permission_denied_audit_enabled` | boolean | `true` | Emits telemetry on permission denials. On by default. |
-| `pre_compact_audit_enabled` | boolean | `true` | Emits telemetry on context-compaction events. On by default. |
-| `tool_failure_audit_enabled` | boolean | `true` | Emits telemetry on Write, Edit, and Bash tool failures. On by default. |
-| `hook_failure_audit_enabled` | boolean | `true` | Warns once per session per hook when the transcript records hook launch or exec failures Claude Code never surfaced. On by default. |
-| `session_event_log_enabled` | boolean | `false` | Appends one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every event the generated registry marks observable. Runs in the hooks module, so it needs mods on. Off (the default), no event starts a process; on, each starts one. It also gates SessionEnd retention. |
-| `session_event_log_dir` | string | `".observability/claude"` | Project-relative directory holding the per-session hook event log (sessions/) and the telemetry sink's hook-events.jsonl. Default .observability/claude. Absolute, drive, UNC, traversal and escaping paths are invalid, and the project root itself is refused. |
-| `session_event_log_categories` | string | *(none)* | Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty, the default, records every category the registry marks observable. |
-| `session_event_log_content` | boolean | `false` | Also records each event's top-level content strings (prompt, last_assistant_message, message, task text, error and the like) in the session event log; content the 64 KB read cap cuts is marked truncated. Off by default; has no effect while session_event_log_enabled is off. |
-| `session_log_keep_sessions` | number<br>*min 1* | `30` | At SessionEnd, keeps the newest N session files regardless of age; default 30. A file is kept when it is among the newest N OR younger than session_log_keep_days. |
-| `session_log_keep_days` | number<br>*min 1* | `14` | At SessionEnd, keeps every session file younger than N days regardless of count; default 14. A file is kept when it is younger than N days OR among the newest session_log_keep_sessions. |
-| `session_log_pre_prune_command` | string | *(none)* | Command run detached at SessionEnd with one argument: a directory holding the session files about to be pruned, deleted on the next retention run after 24 hours. Leave unset to delete directly. Runs through bash -c, so only your own user settings can supply it. |
-| `hook_events_max_bytes` | number<br>*min 1* | `10485760` | Size at which the telemetry sink rotates the shared hook-events.jsonl to hook-events.jsonl.1, replacing any older .1, so the pair stays near twice this value. Default 10485760. Applies whether or not the per-session event log is on. |
-| `stdin_read_timeout` | number<br>*min 1* | `2` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open. Default 2. |
 | `lane_app_slug` | string | *(none)* | Slug of the GitHub App whose installation token the lanes run gh under, passed as --app-slug to the restart consumer and the telemetry upsert so they read the lanes' own telemetry. Needed only under an App token. Absent: the identity resolves from gh api user. Must match ^\[a-z0-9\]\[a-z0-9-\]*$. |
 
 ### How to set these
