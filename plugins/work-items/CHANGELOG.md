@@ -3,6 +3,14 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.4.4] - 2026-11-16
+
+### Fixed
+
+- The GitHub adapter's `renew-lease` backs off when its PATCH fails within 300 s of the lease's expiry or after it, since GitHub may have applied the PATCH and revived the lease. Before, a failed PATCH exited before the back-off check and kept a lease that might have been revived after expiry.
+- A `renew-lease` back-off tries its supersede twice and hands the assignee back only after one succeeds. Before, a failed supersede still removed the login while the lease stayed live and blocked the item for its TTL.
+- `CONTRACT.md` "Lease protocol" now lists a known limit: three sessions of one login can leave a lease holder unassigned, though the lease still excludes other workers. It also describes what the code does when a claim's rollback list fails and when `release` exits 0 on another login's superseded lease.
+
 ## [15.4.3] - 2026-11-16
 
 ### Changed
