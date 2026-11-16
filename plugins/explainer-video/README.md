@@ -57,7 +57,7 @@ to set these keys, checked against
 `scripts/stills.py` turns a `storyboard.json` into one video of held 3840x2160 frames: each
 moment's frame comes from an escaping HTML template captured with Playwright for Python's Chromium
 (installed on the first stills render), narration is rebuilt in video time and loudness-normalized,
-captions are burned in (GitHub's player shows no soft captions) and kept as a soft track and
+captions are burned in and kept as a soft track and
 `captions.srt`, and the video is encoded once at CRF 18. Every hold's frame must reach luma SSIM
 0.999 against its source above the caption band. The narration, frame text and screenshot sidecars
 pass a secret and machine-data scan before anything renders
