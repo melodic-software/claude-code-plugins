@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Q4: **Which role may export?**\nContext: support cannot see payment details (user, round 2).\nMy recommendation: `finance` only.\nBasis: verified, user, round 2\nAlternatives:\n- (a) Both roles\n\nIs there something else that would change this recommendation?", "why": "one recommendation"},
+    {"answer": "Q4: Which date range does one export cover?\nWithheld: whether finance ever reconciles part-months, which only finance can confirm.\n\nIs there something else that would change this?", "why": "one withheld question"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Q4: Which role? My recommendation: finance.\n\nQ5: Which range? My recommendation: one month.", "why": "two questions"}
+  ]
+}
