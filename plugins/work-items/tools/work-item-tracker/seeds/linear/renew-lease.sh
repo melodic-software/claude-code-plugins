@@ -66,8 +66,8 @@ if ! wit_linear_lease_live "$LEASE"; then
 fi
 
 # Live is not enough: an earlier live lease holds the item, in claim's step-4 order.
-while IFS=$'\t' read -r ehandle elease; do
-  if [[ -z "$ehandle" ]] || ! wit_linear_lease_live "$elease"; then continue; fi
+while IFS=$'\t' read -r ehandle earlier_lease; do
+  if [[ -z "$ehandle" ]] || ! wit_linear_lease_live "$earlier_lease"; then continue; fi
   printf 'linear: lease %s on %s is outranked by the earlier live lease %s; not renewing\n' \
     "$LEASE_COMMENT_ID" "$ID" "$ehandle" >&2
   exit "$EX_CONFLICT"
