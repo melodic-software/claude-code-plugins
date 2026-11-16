@@ -57,7 +57,7 @@ The summary is institutional memory someone reads later, so lead with what was d
 
 1. **Check the decomposed parent.** When this run closed the item, its body has a `## Parent` section opening `Refs #<parent>` and the `<!-- work-items:born-triaged -->` marker, and that parent is open, run "Decomposed parent close" in [`reference/issue-conventions.md`](../../../reference/issue-conventions.md) for that parent, and report what it did.
 
-1. **Confirm:** "Closed **#N**: {title}. Summary: {summary}". When the adapter's close reports the item was already closed, say "**#N** was already closed; summary added" instead.
+1. **Confirm:** "Closed **#N**: {title}. Summary: {summary}". When the adapter's close reports the item was already closed, say "**#N** was already closed; summary added" instead. When the close fails after the summary was posted, say "**#N**: note posted, close failed" with the error, and retry only the close.
 
 ## Notes
 

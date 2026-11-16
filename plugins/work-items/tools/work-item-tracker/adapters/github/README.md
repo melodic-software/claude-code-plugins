@@ -254,7 +254,9 @@ its `--duplicate-of` link
 ([close.go at v2.104.0, L117-L120 against L148](https://github.com/cli/cli/blob/v2.104.0/pkg/cmd/issue/close/close.go#L117-L148)).
 Every close in this section therefore posts its note with `gh issue comment`. When the close prints
 `is already closed`, report the item as already closed with the note added, not as closed by this
-run; its close reason stays whatever the earlier close set.
+run; its close reason stays whatever the earlier close set. A non-zero exit from the close after
+the note is posted leaves the item open: report "note posted, close failed" with the error, and a
+retry runs only the close, never the comment again.
 
 **Re-point dependents first.** The steps and their order are in
 [`reference/issue-conventions.md`](../../../../reference/issue-conventions.md) "Dependents on
