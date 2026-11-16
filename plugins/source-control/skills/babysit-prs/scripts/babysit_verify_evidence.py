@@ -407,6 +407,9 @@ PASSES = ("pass", "pass-notes")
 # The lead of a FAIL note on the pull request body, and only of such a note
 # (pr-verify prompt.md, spec-prompt.md and chunk-note.md say so word for word).
 BODY_NOTE = "PR body"
+# write-verdict.mjs NOTES_MAX: a record holding this many notes may have lost
+# the rest, a file note among them.
+NOTES_MAX = 30
 # Artifacts last at most 90 days in this repository (the retention maximum,
 # and the repository's setting), so a verdict on an older pull request may be
 # gone. 80 leaves ten days of margin (judgment).
@@ -4262,7 +4265,8 @@ class Reader:
         connect or disconnect from the last FAIL's creation to the pass run's
         completion was a trusted person's (`_relinked_by_people`). The pass
         judged the fixed body, which a head of the same change cannot carry.
-        A FAIL with no note, or any other note, keeps the same-change rule. A
+        A FAIL with no note, any other note, or NOTES_MAX notes (the rest may
+        have been cut) keeps the same-change rule. A
         record, time or read that fails is False."""
         fails = fail_artifacts.get(sha, [])
         if not passes or not fails:
@@ -4276,7 +4280,7 @@ class Reader:
                     or record.get("head_sha") != sha
                     or record.get("verdict") != "fail"
                     or not is_json_array(notes)
-                    or not notes
+                    or not 0 < len(notes) < NOTES_MAX
                     or not all(
                         isinstance(n, str) and n.startswith(BODY_NOTE) for n in notes
                     )

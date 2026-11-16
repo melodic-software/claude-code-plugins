@@ -948,6 +948,20 @@ class TheBodyNoteTokenIsTheVerifiersOwn(unittest.TestCase):
                 text = " ".join((RESOLVER.parent / name).read_text().split())
                 self.assertIn(rule, text)
 
+    def test_the_gate_knows_where_the_writer_cuts_the_notes(self) -> None:
+        writer = RESOLVER.parent / "write-verdict.mjs"
+        script = (
+            f"import {{ NOTES_MAX }} from {json.dumps(writer.as_uri())};"
+            " console.log(NOTES_MAX);"
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(int(proc.stdout), ve.NOTES_MAX)
+
 
 if __name__ == "__main__":
     unittest.main()

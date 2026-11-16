@@ -1553,6 +1553,10 @@ class AFixedBodyClearsABodyOnlyFailOnTheSameChange(unittest.TestCase):
         self.assertIsNone(evidence.refusal)
         self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
 
+    def test_twenty_nine_body_notes_clear_as_none_can_have_been_cut(self) -> None:
+        fake = self.body_fail([BODY_NOTES_16602[1]] * 29)
+        self.assertIsNone(read(fake).refusal)
+
     def test_no_body_edit_after_the_fail_keeps_it(self) -> None:
         for label, answer in (
             ("nothing in the window", relink_answer()),
@@ -1574,6 +1578,8 @@ class AFixedBodyClearsABodyOnlyFailOnTheSameChange(unittest.TestCase):
             ("no notes", []),
             ("a note on an undelivered item", ["AC12 is not delivered: add the list."]),
             ("the token mid-note", ["The PR body cuts the list short."]),
+            # write-verdict.mjs keeps the first 30 notes, so a file note may be cut.
+            ("thirty body notes", [BODY_NOTES_16602[1]] * 30),
         ):
             with self.subTest(label):
                 fake = self.body_fail(notes)
