@@ -9,8 +9,28 @@ import {
   keyframeOffsetErrorSec,
   parseClock,
   parseTimeRangeArgs,
+  rangedSliceKey,
   watchingInVideoTime,
 } from "./time-range.js";
+
+describe("rangedSliceKey", () => {
+  it("leaves the key as it is with no range", () => {
+    expect(rangedSliceKey("abc123", null)).toBe("abc123");
+  });
+
+  it("appends -r<from>-<to> in whole seconds, end for an open end and 0 for an open start", () => {
+    expect(rangedSliceKey("abc123", { fromSec: 3600, toSec: 4800 })).toBe("abc123-r3600-4800");
+    expect(rangedSliceKey("abc123", { fromSec: 3600, toSec: null })).toBe("abc123-r3600-end");
+    expect(rangedSliceKey("abc123", { fromSec: 0, toSec: 1200 })).toBe("abc123-r0-1200");
+  });
+
+  it("keeps two ranges of one video apart", () => {
+    const first = rangedSliceKey("abc123", { fromSec: 0, toSec: 600 });
+    const second = rangedSliceKey("abc123", { fromSec: 600, toSec: 1200 });
+    expect(first).not.toBe(second);
+    expect(second).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+});
 
 describe("parseClock", () => {
   it("reads h:mm:ss, m:ss and plain seconds", () => {

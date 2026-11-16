@@ -144,7 +144,7 @@ describe("recovery maximum frame gap", () => {
  * Seed `sliceDir` with a recorded watch.json and the temp work, frames and
  * contact-sheet dirs an interrupted run leaves behind, then run recovery.
  *
- * @param {{ maxFrameGapSec?: unknown }} [recorded] - fields the original run recorded
+ * @param {{ maxFrameGapSec?: unknown, timeRange?: { fromSec: number, toSec: number|null } }} [recorded] - fields the original run recorded
  * @param {Record<string, unknown>} [info] - extra fields for the seeded info.json
  * @returns {Promise<number>} the recovery CLI's exit code
  */
@@ -241,6 +241,51 @@ describe("recovery duration mismatch", () => {
     expect(await fs.readFile(path.join(sliceDir, "README.md"), "utf8")).not.toContain(
       "## Duration mismatch",
     );
+  });
+});
+
+describe("recovery of a ranged slice", () => {
+  beforeEach(async () => {
+    sliceDir = await fs.mkdtemp(path.join(os.tmpdir(), "recover-ranged-"));
+    captured.stderr.length = 0;
+    await fs.writeFile(path.join(sliceDir, "README.md"), "# Slice\n");
+  });
+
+  afterEach(async () => {
+    captured.probedDurationSec = null;
+    await fs.rm(sliceDir, { recursive: true, force: true });
+  });
+
+  // The ranged media runs 125s for a 30s-150s range: 5s of it sits before the range's start.
+  it("adds the recorded range's start to every frame time and keeps the range", async () => {
+    captured.probedDurationSec = 125;
+
+    const recorded = { timeRange: { fromSec: 30, toSec: 150 } };
+    expect(await recoverSeededSlice(recorded, { duration: 200 })).toBe(0);
+
+    const selection = JSON.parse(
+      await fs.readFile(path.join(sliceDir, "key-frames", "selection.json"), "utf8"),
+    );
+    const timeByFile = Object.fromEntries(
+      selection.selectedFrames.map((frame) => [frame.file, frame.timestampSec]),
+    );
+    expect(timeByFile).toEqual({
+      "scene_0001.png": 42.5,
+      "scene_0002.png": 77.25,
+      "scene_0003.png": null,
+      "anchor_00073000_0001.png": 103,
+    });
+    const state = JSON.parse(
+      await fs.readFile(path.join(sliceDir, "run-state", "watch.json"), "utf8"),
+    );
+    expect(state.timeRange).toEqual({
+      fromSec: 30,
+      toSec: 150,
+      offsetSec: 30,
+      cut: "keyframe",
+      offsetErrorSec: 5,
+    });
+    expect(state.durationMismatch).toBeUndefined();
   });
 });
 
