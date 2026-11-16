@@ -186,9 +186,9 @@ edit the canonical source, then rerun the script. -->
   </table>
 </div>
 
-<h2>Self-containment</h2>
+<h2>Assets and network</h2>
 <div class="panel">
-  <p>A rendered view ships as one file: inline CSS and JS only, no external requests, assets as data URIs when unavoidable. Escape any interpolated content; the rendered-views convention owns the escaping baseline.</p>
+  <p>A rendered view ships as one file: inline CSS and JS, assets as data URIs when unavoidable. It may load a popular, widely used library from a public CDN, pinned to an exact version, when the page still shows its content without it; a view destined for a published Artifact loads nothing. Escape any interpolated content; the rendered-views convention owns the escaping baseline and this network rule.</p>
 </div>
 <script>
   document.addEventListener("click", function (event) {

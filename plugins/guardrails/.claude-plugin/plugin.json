@@ -106,6 +106,12 @@
       "description": "Comma-separated <app slug>:<check name> pairs block-unresolved-pr-merge never judges as pending or failing. The default names the pr-merge lane's merge job, which runs as the merger, not a gate, by display name and by job id. Empty judges every check.",
       "default": "github-actions:Merge,github-actions:merge"
     },
+    "block_lane_pr_disable_auto_enabled": {
+      "type": "boolean",
+      "title": "Block-lane-PR-disable-auto guard",
+      "description": "Blocks gh pr merge --disable-auto, or the disablePullRequestAutoMerge mutation through gh api graphql, on a pull request the lanes App opened, and says to hold it with the do-not-merge label instead. A target it cannot read is blocked. On by default.",
+      "default": true
+    },
     "block_fix_request_post_enabled": {
       "type": "boolean",
       "title": "Block-fix-request-post guard",

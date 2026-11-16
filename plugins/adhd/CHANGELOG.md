@@ -3,6 +3,15 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-11-16
+
+### Changed
+
+- `clarify`'s local-file page may load a popular, widely used library from a public CDN, pinned to a
+  version, with a fallback that keeps the decision table showing when the CDN is unreachable; a page
+  published as a claude.ai Artifact stays self-contained. The shared chrome reference states the same
+  rule.
+
 ## [0.10.16] - 2026-11-13
 
 ### Changed

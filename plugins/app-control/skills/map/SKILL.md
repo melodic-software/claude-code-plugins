@@ -192,10 +192,12 @@ run learns is placed per Lessons below.
    symlink that leads outside that directory is an `index-glob` finding and is never resolved.
    Report only what the rules find, never a finding that might apply.
 2. Judge the copied recipe, which the script cannot: a hub or feature section that repeats the
-   commands or steps of a recipe kept elsewhere (a `run-<name>` or verify skill, `cli/README.md`,
-   another feature's Drive) instead of naming it, against the contract's "Driver commands". Report
-   it as `copied-recipe | <path> | <section>: <the recipe it copies>`. A pointer, or the one command
-   a section owns, is not a finding.
+   commands or steps of a recipe kept elsewhere instead of naming it, against the contract's
+   "Driver commands". First read where each recipe is kept: the `run-<name>` and verify project
+   skills beside the control skill, in its parent folder (`.claude/skills/` in a project), the
+   control skill's own `cli/README.md`, and the other features' `## Drive`. Report it as
+   `copied-recipe | <path> | <section>: <the recipe it copies>`. A pointer, or the one command a
+   section owns, is not a finding.
 3. Report every finding in that line form, then their count. Add no verdict word (pass, fail, clean,
    healthy, valid, broken); the findings are the result, and fixing them is a separate run.
 
