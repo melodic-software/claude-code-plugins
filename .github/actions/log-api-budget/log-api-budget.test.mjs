@@ -710,12 +710,17 @@ test("gh guard: a paginated primary limit holds to the reset of the one open win
       rmSync(join(dir, "api-budget"), { recursive: true, force: true });
       mkdirSync(join(dir, "api-budget"), { recursive: true });
       if (readings.length) writeFileSync(join(dir, "api-budget", "github-token"), `${readings.join("\n")}\n`);
-      const out = guarded(dir, [primary], "gh api repos/o/r/pulls --paginate || true");
+      const out = guarded(dir, [primary], "gh api repos/o/r/pulls --paginate || true\ngh api repos/o/r/pulls/2 >/dev/null || true");
       const [pool, left] = stopFor(dir);
       assert.equal(pool, "*", label);
       assert.ok(left >= seconds - 5 && left <= seconds, `${label}: stopped for ${left}s`);
       assert.ok(out.stderr.includes(seconds === 900 ? "(x-ratelimit-reset of an earlier reading)" : `(${FALLBACK_NOTE})`), label);
       assert.equal(readFileSync(join(dir, "api-budget", "guessed"), "utf8"), readFileSync(join(dir, "api-budget", "stop"), "utf8"), label);
+      // Only a fallback-sourced stop is named a fallback when a later call is refused.
+      const at = new Date(Number(readFileSync(join(dir, "api-budget", "stop"), "utf8").split(" ")[1]) * 1000).toISOString().replace(".000Z", "Z");
+      const refusal = `::error::'gh api repos/o/r/pulls/2' was not sent: GitHub's core API rate limit holds until ${at}`;
+      assert.ok(out.stderr.includes(seconds === 900 ? `${refusal}\n` : `${refusal} (${FALLBACK_NOTE})\n`), `${label}: ${out.stderr}`);
+      assert.equal(existsSync(join(dir, "api-budget", "fallback")), seconds !== 900, label);
     }
     // A secondary limit keeps its minute whatever the readings show.
     rmSync(join(dir, "api-budget"), { recursive: true, force: true });

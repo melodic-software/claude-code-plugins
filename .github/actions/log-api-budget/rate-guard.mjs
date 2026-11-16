@@ -504,12 +504,12 @@ export const FALLBACK_NOTE =
   "fallback: GitHub's refusal carried no reset header, so this time is a guess that holds only this job; a re-run works once GitHub's real reset passes";
 
 // serverStatus: the 5xx of a serverErrorHold, the same stop worded as a
-// server error. guessed: the stop's time is a fallback.
+// server error. fallback: the stop's time is a fallback.
 export class RateLimitStop extends Error {
-  constructor(what, pool, reset, serverStatus = null, guessed = false) {
+  constructor(what, pool, reset, serverStatus = null, fallback = false) {
     super(
       serverStatus === null
-        ? `${what} was not sent: GitHub's ${poolLabel(pool)} rate limit holds until ${resetLabel(reset)}${guessed ? ` (${FALLBACK_NOTE})` : ""}`
+        ? `${what} was not sent: GitHub's ${poolLabel(pool)} rate limit holds until ${resetLabel(reset)}${fallback ? ` (${FALLBACK_NOTE})` : ""}`
         : `${what} was not sent: GitHub answered HTTP ${serverStatus} with a Retry-After; no call to it before ${resetLabel(reset)}`,
     );
     this.name = "RateLimitStop";
@@ -606,10 +606,10 @@ function readCauses(path) {
     .map(([, pool, reset, cause]) => ({ pool, reset: Number(reset), cause }));
 }
 
-// The job's guessed file beside the stop file, which api-budget.bash writes
-// too: the `<pool> <reset epoch>` stops whose time is a fallback, read by
+// The job's fallback file beside the stop file, which api-budget.bash writes
+// too: the `<pool> <reset epoch>` stops whose source is `fallback`, read by
 // STOP_LINE's rule; a missing or unreadable file holds none.
-function readGuessed(path) {
+function readFallbacks(path) {
   let text = "";
   try {
     text = path ? readFileSync(path, "utf8") : "";
@@ -651,8 +651,8 @@ export function createRateLimitLatch({
   const stops = readStops(stopFile, log);
   const causeFile = stopFile ? join(dirname(stopFile), "cause") : null;
   const causes = readCauses(causeFile);
-  const guessFile = stopFile ? join(dirname(stopFile), "guessed") : null;
-  const guessed = readGuessed(guessFile);
+  const fallbackFile = stopFile ? join(dirname(stopFile), "fallback") : null;
+  const fallbacks = readFallbacks(fallbackFile);
   const low = new Map();
   const warned = new Set();
   // The resets waited out, summed; the extra second only lands the call after one.
@@ -714,7 +714,7 @@ export function createRateLimitLatch({
     }
     const status = serverStatus(url);
     const pool = heldBy(url, at);
-    const stop = new RateLimitStop(`${method} ${url}`, pool, at, status, guessed.has(`${pool} ${at}`));
+    const stop = new RateLimitStop(`${method} ${url}`, pool, at, status, fallbacks.has(`${pool} ${at}`));
     const title = status === null ? "" : " title=GitHub server error";
     if (hold) {
       log(`::notice${title}::${stop.message}; this step holds`);
@@ -745,9 +745,9 @@ export function createRateLimitLatch({
       const key = `${held} ${reset}`;
       if (!recorded.has(key)) {
         stops.set(held, Math.max(stops.get(held) ?? 0, reset));
-        const guess = reset_source === "fallback";
-        if (guess) {
-          guessed.add(key);
+        const fallback = reset_source === "fallback";
+        if (fallback) {
+          fallbacks.add(key);
         }
         let failed = "";
         if (stopFile) {
@@ -757,9 +757,9 @@ export function createRateLimitLatch({
           } catch (error) {
             failed = `; the stop could not be recorded in the job's stop file (${error?.code ?? error?.message}), so later steps do not see it`;
           }
-          if (guess && !failed) {
+          if (fallback && !failed) {
             try {
-              appendFileSync(guessFile, `${key}\n`);
+              appendFileSync(fallbackFile, `${key}\n`);
             } catch {
               // A later step names the stop without its fallback note.
             }
@@ -831,8 +831,8 @@ export function createRateLimitLatch({
         stops.set(pool, Math.max(stops.get(pool) ?? 0, reset));
       }
       causes.push(...readCauses(causeFile));
-      for (const key of readGuessed(guessFile)) {
-        guessed.add(key);
+      for (const key of readFallbacks(fallbackFile)) {
+        fallbacks.add(key);
       }
     },
     serverStatus,

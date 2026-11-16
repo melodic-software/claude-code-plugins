@@ -795,7 +795,7 @@ test("each stop's cause goes in the job's cause file, and a later latch words a 
 
 // A refusal with no reset header stops for primaryFallbackSeconds. Its time is
 // named a fallback, held only by this job, wherever it is reported.
-test("a stop no header timed goes in the guessed file, and its hit and refusals name it a fallback", async () =>
+test("a stop no header timed goes in the fallback file, not guessed, and its hit and refusals name it a fallback", async () =>
   withDir(async (dir) => {
     const stopFile = join(dir, "api-budget", "stop");
     const lines = [];
@@ -805,7 +805,8 @@ test("a stop no header timed goes in the guessed file, and its hit and refusals 
     await latch.guard(gh.fetch)(URL_A);
     const reset = VECTORS.vector_now + 3600;
     const at = new Date(reset * 1000).toISOString().replace(".000Z", "Z");
-    assert.equal(readFileSync(join(dir, "api-budget", "guessed"), "utf8"), `* ${reset}\n`);
+    assert.equal(readFileSync(join(dir, "api-budget", "fallback"), "utf8"), `* ${reset}\n`);
+    assert.deepEqual(readdirSync(join(dir, "api-budget")).sort(), ["cause", "fallback", "stop"]);
     assert.deepEqual(lines, [`::error::GET ${URL_A} hit GitHub's API rate limit (status 403): no call to it before ${at} (${FALLBACK_NOTE}); this step fails`]);
     const refused = `::error::GET ${URL_B} was not sent: GitHub's API rate limit holds until ${at} (${FALLBACK_NOTE})`;
     for (const next of [latch, createRateLimitLatch(options)]) {
