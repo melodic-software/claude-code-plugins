@@ -7,6 +7,38 @@
     {
       "answer": "Owner: implementation:implement-dispatch. Existing issue: none found.",
       "why": "plugin:skill form, case-insensitive owner label"
+    },
+    {
+      "answer": "- **Owner:** `implementation:implement-dispatch`, taken from your message.",
+      "why": "bold label and backticks around the owner"
+    },
+    {
+      "answer": "Both gaps belong to `implementation:implement-dispatch`.",
+      "why": "owner named in prose"
+    },
+    {
+      "answer": "| # | Gap | Owner | Existing issue |\n|---|---|---|---|\n| 1 | Skipped because it needs a PLAN.md | `implementation:implement-dispatch` | not searched |",
+      "why": "owner in the Owner column of a findings table"
+    },
+    {
+      "answer": "Done. The review turned up two skill-fit gaps, and both are in `implementation:implement-dispatch`.",
+      "why": "gaps attributed to the skill with 'both are in'"
+    },
+    {
+      "answer": "This checkpoint found two skill-fit gaps, both in `implementation:implement-dispatch`.",
+      "why": "gaps attributed to the skill with 'both in'"
+    },
+    {
+      "answer": "Both gaps are owned by `implementation:implement-dispatch`.",
+      "why": "owned by"
+    },
+    {
+      "answer": "Owner of both gaps: `implementation:implement-dispatch`.",
+      "why": "owner label a few words before the skill"
+    },
+    {
+      "answer": "The owning skill is `implementation:implement-dispatch`.",
+      "why": "owning skill"
     }
   ],
   "fail": [
@@ -21,6 +53,26 @@
     {
       "answer": "No skill-fit gaps found; you ran /implementation:implement-dispatch.",
       "why": "echoes the prompt without an owner line"
+    },
+    {
+      "answer": "On the owner field, `implementation:implement-dispatch` isn't in this session's skill listing, so the field reads `no owner found`.",
+      "why": "names the skill only to say no owner was found"
+    },
+    {
+      "answer": "| # | Gap | Owner |\n|---|---|---|\n| 1 | You ran `/implementation:implement-dispatch` and skipped it | no owner found |",
+      "why": "table names the skill in the gap, with no owner found"
+    },
+    {
+      "answer": "You hand-dispatched three workers on your own instead of `/implementation:implement-dispatch`.",
+      "why": "everyday 'your own' is not an owner label"
+    },
+    {
+      "answer": "- My own context holds only this invocation; I have no record of your `/implementation:implement-dispatch` run.",
+      "why": "'own' far from the skill, which is named only as the user's run"
+    },
+    {
+      "answer": "- **Suggested route:** Skill change on `implementation:implement-dispatch`.",
+      "why": "names the route's target, not the gap's owner"
     }
   ]
 }
