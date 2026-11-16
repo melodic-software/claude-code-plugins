@@ -344,7 +344,7 @@ REPORT="$(
             reason: "",
             rate: ((.numerator * 100 / .denominator) | floor) }
         end)
-  ' <"$STORE" 2>/dev/null
+  ' < <(cat -- "$STORE.1" 2>/dev/null; cat -- "$STORE") 2>/dev/null
 )" || true
 
 if [[ -z "$REPORT" ]]; then

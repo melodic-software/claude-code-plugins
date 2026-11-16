@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# The hook-failure-audit row puts the payload's session_id into its envelope
-# `data` (additive, docs/contracts/hook-telemetry rule 1) so a sink can route
-# the line into the per-session log. Driven black-box with a minimal payload
-# that carries a session_id, once without one, and once with a hostile one, and
-# the captured envelope is read back.
 # test-scope: plugins/plugin-diagnostics/hooks/hook-failure-audit.sh
 set -uo pipefail
 
@@ -19,18 +14,16 @@ mkdir -p "$PROJ"
 DATA_DIR="$TEST_TMPDIR/data"
 mkdir -p "$DATA_DIR"
 
-# A transcript carrying one unsurfaced failure.
 TRANSCRIPT="$TEST_TMPDIR/transcript.jsonl"
 printf '{"attachment":{"type":"hook_non_blocking_error","hookName":"PreToolUse:demo","toolUseID":"toolu_x","hookEvent":"PreToolUse","stderr":"boom","stdout":"","exitCode":1,"command":"bash demo.sh","durationMs":2},"type":"attachment","uuid":"u","session_id":"s"}\n' >"$TRANSCRIPT"
 MEMBERS="\"transcript_path\":\"$TRANSCRIPT\",\"hook_event_name\":\"Stop\""
 
-# drive <payload> <capture-file>
 drive() {
-  local sink
-  : >"$2"
-  sink="$(make_sink "$2")"
+  local payload="$1" capture_file="$2" sink
+  : >"$capture_file"
+  sink="$(make_sink "$capture_file")"
   env HOOK_TELEMETRY_SINK="$sink" CLAUDE_PROJECT_DIR="$PROJ" CLAUDE_PLUGIN_DATA="$DATA_DIR" \
-    bash "$HOOK_DIR/hook-failure-audit.sh" <<<"$1" >/dev/null 2>&1
+    bash "$HOOK_DIR/hook-failure-audit.sh" <<<"$payload" >/dev/null 2>&1
 }
 
 hook="hook-failure-audit"

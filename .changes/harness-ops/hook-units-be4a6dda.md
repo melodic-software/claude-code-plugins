@@ -9,3 +9,4 @@ bump: major
 ### Changed
 
 - `/harness-ops:observability`, `/harness-ops:audit-skill-visibility` and `/harness-ops:setup` read session-telemetry's records and options through `scripts/session-telemetry-state.mjs`. When session-telemetry is not enabled they say so, print the install and enable commands, and report what earlier sessions recorded.
+- `/harness-ops:audit-skill-visibility` and its `skill-pair-cooccurrence.sh` read `skill-usage.jsonl.1` before `skill-usage.jsonl`, so usage counts and co-occurrence keep the history a size-capped store rotated out.

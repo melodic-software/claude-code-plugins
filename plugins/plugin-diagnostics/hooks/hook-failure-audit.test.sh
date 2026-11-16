@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for hook-failure-audit.sh (plugin-diagnostics plugin). Black-box.
-#
 # The fixture failure record is a structural copy of a REAL transcript
 # attachment from the #1416/#2577 incident host (session ac1c95e3, 2026-08-13):
 # a disk-hygiene destructive-guard registration resolving `bash` to the Windows
