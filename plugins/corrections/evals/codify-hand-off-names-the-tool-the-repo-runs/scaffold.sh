@@ -21,10 +21,7 @@ type = "forbidden"
 source_modules = ["app.domain"]
 forbidden_modules = ["app.web"]
 EOF
-cat >Makefile <<'EOF'
-lint:
-	lint-imports
-EOF
+printf 'lint:\n\tlint-imports\n' >Makefile
 cat >src/app/persistence/orders.py <<'EOF'
 def load(order_id):
     return {"id": order_id}
