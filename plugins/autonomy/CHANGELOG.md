@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.0] - 2026-11-16
+
+### Added
+
+- **A `whole-map-live-verification` routine class.** `reference/routines.md` lists it under Code quality / knowledge (`AGT`, `R + WI`, `repo`, `C1`) with status `join: proven recurring manual pattern`. Its Class parameters bullet says the pass is `/testing:run-e2e map`, starts by hand, and takes any cadence the consumer picks. No leaf under `routines/` is written until a consumer records a manual run.
+
 ## [5.0.18] - 2026-11-16
 
 ### Changed
