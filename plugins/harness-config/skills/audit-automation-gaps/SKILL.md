@@ -344,6 +344,30 @@ Either way, a time budget the user states is quoted in the user's words.
 
 **Order by value/impact**, highest value first. Value = frequency × severity × ease of implementation.
 
+### Ladder spread
+
+Print how the repository's enforcement spreads across the ladder's tiers, on every run and whatever
+the category filter:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/rule-inventory.sh"
+```
+
+Copy its tier table and its "Sits lower than it could" list into the report as printed, with the
+script's line naming what a row counts and every source line that names an absent or unreadable
+file. The table holds all five tiers; a tier the script found empty stays in it with its reason.
+Both are rollups of one inventory, one row per rule (rule, enforcer, rung, tier), which `--rows`
+prints when a reader needs the rows behind a count.
+
+This section is read-only and sets no target. State no share, ratio or count a tier should reach,
+and do not call a tier too high or too low: the ladder's proportion is a direction with no number.
+The "Sits lower than it could" entries are candidates for a person to judge, not verdicts. One that
+looks worth moving up goes to `/corrections:codify` when the `corrections` plugin is enabled, and
+is otherwise named for the human; this audit adds none of them to its candidate list. A rule held
+by a mechanism no file shows, such as a type that makes the mistake impossible, is counted only
+when the repository declares it under `rule_inventory.declared` in its `harness-config.yaml`
+convention file; say so when the codebase tier reads zero.
+
 ### Maturity Assessment
 
 End with a one-paragraph assessment of the repo's automation maturity: what's well-covered, the
