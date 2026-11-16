@@ -8,6 +8,14 @@ test("a cloud session allows no target, whatever its entrypoint", () => {
   assert.match(refusal(s, "folder", "build"), /^plugin profiles do not apply here/);
 });
 
+test("a Desktop session inside WSL allows no target, while the CLI inside WSL allows all three", () => {
+  const desktop = detectSurface({ CLAUDE_CODE_ENTRYPOINT: "claude-desktop", CLAUDECODE: "1", WSL_DISTRO_NAME: "Ubuntu" });
+  assert.equal(desktop.id, "desktop-wsl");
+  assert.match(refusal(desktop, "folder", "build"), /^plugin profiles do not apply here/);
+  const cli = detectSurface({ CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDECODE: "1", WSL_DISTRO_NAME: "Ubuntu" });
+  assert.equal(refusal(cli, "session", "build"), null);
+});
+
 test("the CLI and claude -p allow all three targets", () => {
   for (const entry of ["cli", "sdk-cli"]) {
     const s = detectSurface({ CLAUDE_CODE_ENTRYPOINT: entry, CLAUDECODE: "1" });

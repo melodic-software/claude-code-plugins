@@ -1,7 +1,7 @@
 // The profile planner: what applying one profile at one target writes, and what it reports.
 // Pure: every input arrives as an argument and nothing here reads or writes a file.
 //
-//   plan({catalog, profile, inventory, layers, target}) -> Plan, or throws PlanError
+//   plan({catalog, profile, inventory, layers, current, target}) -> Plan, or throws PlanError
 //
 // catalog    ProfileCatalog from profile-files.mjs: {alwaysOn, profiles: Map<name, profile>}, each
 //            profile {name, description, plugins, optional, exclude, hideSkills} as Sets.
@@ -9,6 +9,8 @@
 // layers     {managed, session, local, project, user}, each {enabledPlugins, skillOverrides} as
 //            plain objects; a missing level is empty. The target's own level holds what the file
 //            would hold with this tool's earlier entries put back (record.mjs baseline).
+// current    the same levels as the files hold now, which enabled and disabled are measured
+//            against; defaults to layers.
 // target     "session" (a --settings file), "folder" (.claude/settings.local.json) or "initial"
 //            (user settings.json).
 //
@@ -63,7 +65,7 @@ export const excludedAlwaysOn = (catalog, profile) => [...profile.exclude].filte
 
 export const effective = (layers, id) => PRECEDENCE.map((level) => entriesOf(layers, level)[id]).find((v) => v !== undefined);
 
-export function plan({ catalog, profile: name, inventory, layers, target }) {
+export function plan({ catalog, profile: name, inventory, layers, current = layers, target }) {
   if (!(target in TARGET_LEVEL)) throw new PlanError(`unknown target ${JSON.stringify(target)}: use session, folder or initial`);
   const chosen = name === catalog.alwaysOn.name ? catalog.alwaysOn : catalog.profiles.get(name);
   if (!chosen) throw new PlanError(`no profile named ${JSON.stringify(name)}`);
@@ -98,8 +100,8 @@ export function plan({ catalog, profile: name, inventory, layers, target }) {
     ...[...optional].filter((id) => !inventory.has(id)).map((id) => ({ id, optional: true, install: install(id) })),
   ];
 
-  const enabled = Object.keys(writes).filter((id) => writes[id] && effective(layers, id) !== true);
-  const disabled = Object.keys(writes).filter((id) => !writes[id] && effective(layers, id) === true);
+  const enabled = Object.keys(writes).filter((id) => writes[id] && effective(current, id) !== true);
+  const disabled = Object.keys(writes).filter((id) => !writes[id] && effective(current, id) === true);
   const ships = (id) => inventory.get(id).ships;
   const managedSkills = layers.managed?.skillOverrides ?? {};
   const skillWrites = Object.fromEntries(

@@ -185,8 +185,8 @@ function prepare(opts, where, catalog, records) {
   const loaded = readLayers({ paths: where.paths, managedFiles: managedSettingsFiles() });
   const layers = { ...loaded, [TARGET_LEVEL[opts.target]]: base };
   const inv = inventory({ projectDir: where.projectDir, records: records() });
-  const result = plan({ catalog, profile: opts.name, inventory: inv, layers, target: opts.target });
-  const now = session ? {} : (settings.doc.enabledPlugins ?? {});
+  const result = plan({ catalog, profile: opts.name, inventory: inv, layers, current: loaded, target: opts.target });
+  const now = settings.doc.enabledPlugins ?? {};
   const final = { enabledPlugins: { ...base.enabledPlugins, ...result.writes }, skillOverrides: { ...base.skillOverrides, ...result.skillWrites } };
   const pending = {};
   if (opts.deferOff) {
@@ -198,7 +198,7 @@ function prepare(opts, where, catalog, records) {
       }
     }
   }
-  const edits = { enabledPlugins: diff(now, final.enabledPlugins), skillOverrides: diff(session ? {} : (settings.doc.skillOverrides ?? {}), final.skillOverrides) };
+  const edits = { enabledPlugins: diff(now, final.enabledPlugins), skillOverrides: diff(settings.doc.skillOverrides ?? {}, final.skillOverrides) };
   if (session) edits.env = { [SESSION_VAR]: opts.name };
   return { file, settings, recPath, previous, inv, plan: result, final, pending, edits };
 }

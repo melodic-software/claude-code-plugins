@@ -40,8 +40,8 @@ The user sees every change before it is made, so each write runs twice:
 `--yes` stands for that answer, so it is never passed on a guess, on an earlier yes for a
 different write, or when nobody is there to answer: with no one to ask, stop after the preview
 and report what would change. When the preview names a missing required prerequisite, `--yes`
-does not apply it; tell the user to run the apply in their own terminal (in this session, the `!`
-prefix) and answer the tool's own prompt.
+does not apply it; tell the user to run the apply in a separate terminal and answer the tool's own
+prompt.
 
 ## Actions
 
@@ -51,8 +51,9 @@ prefix) and answer the tool's own prompt.
 - **apply `<name>`**: `apply <name> --for folder|initial|session`. Ask where when the user has not
   said: `folder` for this folder, `initial` for every folder without its own profile, `session` for
   one session started with the `claude --settings` command the tool prints. Run `list` first when
-  the name is unknown. A folder apply holds from the next session start; to switch inside this
-  session, tell the user to run `/plugin-profile`.
+  the name is unknown. To switch inside this session, tell the user to run `/plugin-profile`; when
+  an apply takes effect is in
+  [plugin commands: /reload-plugins](https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins).
 - **clear**: `clear [--for folder|initial]` restores what the tool wrote.
 - **check**: `check` reports profile files that name plugins the catalog or machine lacks; relay
   each FAIL and Report line.
@@ -80,8 +81,8 @@ written or declined, and the apply offer in phase 7 is answered.
    reviewing, interface design, harness upkeep), a few questions at a time, multiple choice where
    the answers are known.
 4. **Plugins that ship hooks.** For each installed plugin whose `ships` shows `hooks` or `mod`, ask
-   whether it is always on or per profile, because a hook runs in every session it is on in, while
-   a skill only costs listing space. Always on: `save always-on --level user --plugins <id>`. Per
+   whether it is always on or per profile; what a hook runs on is in
+   [hooks: hook lifecycle](https://code.claude.com/docs/en/hooks#hook-lifecycle). Always on: `save always-on --level user --plugins <id>`. Per
    profile: it goes into the profiles the user picks, and every apply names it when it is switched
    off.
 5. **Propose profiles.** Start from `list --json`. For each phase the user named, propose the
@@ -106,8 +107,9 @@ written or declined, and the apply offer in phase 7 is answered.
 
 ## Gotchas
 
-- A plugin switched off in a running session stays loaded until the next session start; only
-  `/plugin-profile` switches inside a session, and it is a command the user types.
+- Only `/plugin-profile` switches inside a session, and it is a command the user types; when a
+  plugin switched off unloads is in
+  [plugin commands: /reload-plugins](https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins).
 - `save` rewrites the whole file in the tool's form and drops comments; its preview says so, so
   show that line too.
 - An install the user approved ends with the plugin off at user level when the initial profile

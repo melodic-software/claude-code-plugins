@@ -5,7 +5,8 @@
 //
 // CLAUDE_CODE_REMOTE=true marks a cloud session (documented on the env-vars page). The values of
 // CLAUDE_CODE_ENTRYPOINT are not documented: cli, sdk-cli (claude -p), claude-vscode and
-// claude-desktop are the values Claude Code 2.1.325 sets. CLAUDECODE=1 marks a process Claude Code
+// claude-desktop are the values Claude Code 2.1.325 sets. WSL sets WSL_DISTRO_NAME in every process
+// it starts, which tells a Desktop WSL session apart; Desktop loads no plugins there. CLAUDECODE=1 marks a process Claude Code
 // started, so a run with neither variable is a terminal, where `claude --settings` is the CLI.
 // Only the CLI is known to honor `claude --settings`; an undetected surface allows the folder
 // level alone.
@@ -20,8 +21,9 @@ const KNOWN = {
 };
 
 export function detectSurface(env) {
-  if (env.CLAUDE_CODE_REMOTE === "true") return { id: "cloud", name: "a cloud session", targets: [] };
+  if (env.CLAUDE_CODE_REMOTE === "true") return { id: "cloud", name: "a cloud session", why: "reads no local or user settings", targets: [] };
   const entry = env.CLAUDE_CODE_ENTRYPOINT;
+  if (entry === "claude-desktop" && env.WSL_DISTRO_NAME) return { id: "desktop-wsl", name: "a Claude Desktop WSL session", why: "loads no plugins", targets: [] };
   if (Object.hasOwn(KNOWN, entry ?? "")) return { id: entry, ...KNOWN[entry] };
   if (!entry && !env.CLAUDECODE) return { id: "terminal", name: "a terminal outside Claude Code", targets: ALL };
   return { id: "unknown", name: "surface not detected", targets: ["folder"] };
@@ -30,7 +32,7 @@ export function detectSurface(env) {
 export const doesNotApply = (surface) => surface.targets.length === 0;
 
 export function refusal(surface, target, profile) {
-  if (doesNotApply(surface)) return `plugin profiles do not apply here: ${surface.name} reads no local or user settings, so nothing is written`;
+  if (doesNotApply(surface)) return `plugin profiles do not apply here: ${surface.name} ${surface.why}, so nothing is written`;
   if (surface.targets.includes(target)) return null;
   const offer = profile ? `; apply it to this folder instead: apply ${profile} --for folder` : "";
   return `--for ${target} is not available on ${surface.name}${offer}`;

@@ -4,13 +4,15 @@ import { chmodSync, cpSync, existsSync, readdirSync, readFileSync, writeFileSync
 import { delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { parseProfile } from "../lib/profile-files.mjs";
 import { tempDir, writeTree } from "../tests/temp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI = join(HERE, "profiles.mjs");
 const STUB_BIN = join(HERE, "..", "tests", "bin");
 const M = "melodic-software";
-const ALWAYS = ["plugin-profiles", "guardrails", "session-flow", "source-control", "context-usage", "rate-limits", "context-budget", "harness-ops", "eol-normalizer"];
+const ALWAYS_FILE = join(HERE, "..", "profiles", "always-on.yaml");
+const ALWAYS = parseProfile(readFileSync(ALWAYS_FILE, "utf8"), ALWAYS_FILE).plugins.map((id) => id.split("@")[0]);
 const BUILD = ["implementation", "toolchain", "review", "testing"];
 
 const LOCAL_BEFORE = `{
@@ -138,6 +140,17 @@ test("a second apply over a first keeps the first apply's before-values, so clea
   assert.equal(w.read(), LOCAL_BEFORE);
 });
 
+test("a second apply previews what it switches against the folder as it is now, not as it was before the first apply", () => {
+  const w = world();
+  writeTree(w.home, { ".claude/plugin-profiles/notes.yaml": `plugins: [songwriting@${M}]\n` });
+  writeTree(w.root, { "installs/songwriting/.mcp.json": { mcpServers: { x: { command: "x" } } } });
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const preview = JSON.parse(w.run(["apply", "notes", "--for", "folder", "--dry-run", "--json"]).stdout);
+  assert.ok(preview.enabled.includes(`songwriting@${M}`), `build switched songwriting off, so notes switches it on: ${preview.enabled}`);
+  assert.deepEqual(preview.mcpOrLspOn, [`songwriting@${M}`]);
+  assert.ok(preview.disabled.includes(`implementation@${M}`), `build switched implementation on, so notes switches it off: ${preview.disabled}`);
+});
+
 test("a repository profile shapes the folder but never the user settings an initial apply writes", () => {
   const w = world({ local: null });
   writeTree(w.project, { "docs/conventions/plugin-profiles/build.yaml": `plugins: [songwriting@${M}]\n` });
@@ -164,6 +177,25 @@ test("AC2: a one-session apply writes a --settings file naming the profile, says
   assert.deepEqual(w.records(), [], "a one-session apply records no folder profile");
 });
 
+test("regenerating a one-session file drops the entries the profile no longer writes", () => {
+  const w = world();
+  const profile = (text) => writeTree(w.home, { ".claude/plugin-profiles/notes.yaml": text });
+  const regenerate = () => {
+    const r = w.run(["apply", "notes", "--for", "session", "--yes"]);
+    assert.equal(r.status, 0, r.stderr);
+    return JSON.parse(readFileSync(/claude --settings "(.+)"/.exec(r.stdout)[1], "utf8"));
+  };
+  profile(`plugins: [songwriting@${M}, widget@vendor]\nhide_skills: [review:fanout]\n`);
+  const first = regenerate();
+  assert.equal(first.enabledPlugins["widget@vendor"], true);
+  assert.equal(first.skillOverrides["review:fanout"], "off");
+  profile(`plugins: [songwriting@${M}]\n`);
+  const second = regenerate();
+  assert.equal("widget@vendor" in second.enabledPlugins, false, "a marketplace the profile no longer names leaves the file");
+  assert.equal("review:fanout" in (second.skillOverrides ?? {}), false, "a skill no longer hidden leaves the file");
+  assert.equal(second.enabledPlugins[`songwriting@${M}`], true);
+});
+
 test("Q69: on VS Code a one-session apply is refused with the folder offer and writes nothing", () => {
   const w = world();
   const before = snapshot(settingsFiles(w));
@@ -174,17 +206,49 @@ test("Q69: on VS Code a one-session apply is refused with the folder offer and w
   assert.deepEqual(snapshot(settingsFiles(w)), before);
 });
 
-test("Q69: in a cloud session status says profiles do not apply, and apply and clear write nothing", () => {
+const CLOUD = { CLAUDECODE: "1", CLAUDE_CODE_REMOTE: "true", CLAUDE_CODE_ENTRYPOINT: "remote" };
+const DESKTOP_WSL = { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "claude-desktop", WSL_DISTRO_NAME: "Ubuntu" };
+
+test("Q69: cloud and Desktop WSL sessions: status says plugin profiles do not apply, and apply, clear and install write nothing", () => {
+  for (const [surface, env] of [["a cloud session", CLOUD], ["a Claude Desktop WSL session", DESKTOP_WSL]]) {
+    const w = world();
+    const before = snapshot(settingsFiles(w));
+    assert.match(w.run(["status"], env).stdout, new RegExp(`Surface: ${surface}; plugin profiles do not apply here and nothing is written`));
+    for (const args of [["apply", "build", "--for", "folder", "--yes"], ["apply", "build", "--for", "initial", "--yes"], ["clear", "--yes"], ["install", `debugging@${M}`, "--yes"]]) {
+      const r = w.run(args, env);
+      assert.equal(r.status, 1, `${surface}: ${args.join(" ")}`);
+      assert.match(r.stderr, /plugin profiles do not apply here/);
+    }
+    assert.deepEqual(snapshot(settingsFiles(w)), before, surface);
+    assert.deepEqual(w.records(), [], surface);
+    assert.equal(w.calls().includes("plugin install"), false, surface);
+  }
+});
+
+test("status names the session's surface", () => {
   const w = world();
-  const cloud = { CLAUDECODE: "1", CLAUDE_CODE_REMOTE: "true", CLAUDE_CODE_ENTRYPOINT: "remote" };
-  const before = snapshot(settingsFiles(w));
-  assert.match(w.run(["status"], cloud).stdout, /plugin profiles do not apply here/);
-  const r = w.run(["apply", "build", "--for", "folder", "--yes"], cloud);
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /plugin profiles do not apply here/);
-  assert.equal(w.run(["clear", "--yes"], cloud).status, 1);
-  assert.deepEqual(snapshot(settingsFiles(w)), before);
-  assert.deepEqual(w.records(), []);
+  for (const [entry, line] of [["cli", "Surface: the Claude Code CLI (applies --for session, folder, initial)."], ["claude-vscode", "Surface: VS Code (applies --for folder, initial)."], ["claude-desktop", "Surface: Claude Desktop (applies --for folder, initial)."]]) {
+    const env = { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: entry };
+    assert.ok(w.run(["status"], env).stdout.split("\n").includes(line), entry);
+    assert.equal(JSON.parse(w.run(["status", "--json"], env).stdout).surface.id, entry);
+  }
+});
+
+test("#16432: apply --for initial sets the initial profile in user settings, status --for initial names it, and clear --for initial puts user settings back", () => {
+  const w = world({ local: null });
+  const userFile = join(w.home, ".claude", "settings.json");
+  const before = readFileSync(userFile, "utf8");
+  const r = w.run(["apply", "build", "--for", "initial", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  const user = JSON.parse(readFileSync(userFile, "utf8"));
+  assert.equal(user.enabledPlugins[`implementation@${M}`], true, "a build member is on in user settings");
+  assert.equal(user.enabledPlugins[`songwriting@${M}`], false);
+  assert.equal(user.theme, "dark");
+  assert.equal(existsSync(w.localFile), false, "an initial apply writes no folder file");
+  const s = JSON.parse(w.run(["status", "--for", "initial", "--json"]).stdout);
+  assert.deepEqual([s.profile, s.target, s.settingsFile], ["build", "initial", userFile]);
+  assert.equal(w.run(["clear", "--for", "initial", "--yes"]).status, 0);
+  assert.equal(readFileSync(userFile, "utf8"), before);
 });
 
 test("inside Claude Code with no known entrypoint, status reads surface not detected and only a folder apply runs", () => {
@@ -207,24 +271,27 @@ const sessionStart = (w, extra = {}, cli = CLI) => {
   writeFileSync(w.env.PP_STUB_CALLS, "");
   const r = w.run(["status", "--session-start"], { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli", ...extra }, cli);
   assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stderr, "");
   assert.equal(w.calls(), "", "status --session-start started the stub claude");
   return r.stdout;
 };
 
-test("the session-start notice prints nothing in a folder with no applied profile", () => {
+test("the session-start notice prints nothing in a folder with no applied profile, and speaks once one is applied", () => {
   const w = world();
   installOnDisk(w);
   assert.equal(sessionStart(w), "");
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.match(JSON.parse(sessionStart(w)).systemMessage, /Profile build \(folder\) applied/);
 });
 
-test("Q69: in a cloud session the session-start notice prints nothing and writes nothing, even where a profile is applied", () => {
+test("Q69: in cloud and Desktop WSL sessions the session-start notice prints nothing and writes nothing, even where a profile is applied", () => {
   const w = world();
   installOnDisk(w);
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
-  assert.match(JSON.parse(sessionStart(w)).systemMessage, /Profile build \(folder\) applied/, "outside the cloud the notice speaks");
+  assert.match(JSON.parse(sessionStart(w)).systemMessage, /Profile build \(folder\) applied/, "on the CLI the notice speaks");
   const before = snapshot(settingsFiles(w));
   const records = w.records();
-  assert.equal(sessionStart(w, { CLAUDE_CODE_REMOTE: "true", CLAUDE_CODE_ENTRYPOINT: "remote" }), "");
+  for (const env of [CLOUD, DESKTOP_WSL]) assert.equal(sessionStart(w, env), "", env.CLAUDE_CODE_ENTRYPOINT);
   assert.deepEqual(snapshot(settingsFiles(w)), before);
   assert.deepEqual(w.records(), records);
 });
