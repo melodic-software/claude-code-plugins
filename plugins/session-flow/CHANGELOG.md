@@ -1,5 +1,19 @@
 # Changelog: session-flow plugin
 
+## [9.3.1] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract. This covers the save-point's suggested-skills slot, `orient`'s timeline hand-off and the workflow skill's cloud-route docs read, `audit-friction`'s collaborator check and `keep-going`'s `rate-limits` reading.
+
+### Fixed
+
+- `/session-flow:retro`: the gotcha on mechanical findings puts "when the `corrections` plugin is
+  enabled" on the hand-off to `/corrections:codify`, where the condition applies.
+- `/session-flow:retro`: without the `corrections` plugin, the catalog's "Check first" step states
+  in item 2 that one occurrence of a policy-class mistake is enough to propose a check, beside a
+  repeat with the same cause.
+
 ## [9.3.0] - 2026-11-15
 
 ### Added

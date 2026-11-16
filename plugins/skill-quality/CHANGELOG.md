@@ -3,6 +3,13 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.21] - 2026-11-16
+
+### Changed
+
+- The `## Next` operative-phrasing check also flags an enabled-wording gate (`is enabled`,
+  `if enabled`, `when enabled`, as whole words), the gate shape the seam-phrasing contract now uses.
+
 ## [1.1.20] - 2026-11-15
 
 ### Changed
