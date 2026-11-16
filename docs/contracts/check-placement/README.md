@@ -233,7 +233,8 @@ its adapter. `detect` also recognizes other hook managers (the pre-commit framew
 overcommit, husky v4) and returns them as conflict decisions. A set `core.hooksPath` is treated as
 husky or foreign, never as plain. A `.husky/task-runner.json` marks Husky.Net: `detect` returns
 `husky` with `variant: "husky.net"`, since Husky.Net runs `.husky/<event>` as husky does and the
-husky adapter drives it unchanged.
+husky adapter drives it. One difference: Husky.Net points `core.hooksPath` at `.husky` itself, so
+git runs `.husky/<event>` directly and skips it unless it is executable.
 
 **`inspect`.** For each git hook stage, `inspect` lists every item that runs, under whichever
 manager the repository uses: plain dispatcher markers and a chained `<event>.pre-checks`, each
