@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: codify-custom-rule-ships-rule-tests
+description: 'Gain case: a custom rule codify proposes for a repository that already tests its ESLint rules with RuleTester ships with its own valid and invalid rule tests in that harness, and the proposal states what the rule does not catch.'
+tags: [codify, rules]
+plugins: ["../.."]
+expected_outcome: 'Row 1 takes custom-analyzer, built in the repository''s own ESLint rules folder by /implementation:implement. The proposal requires RuleTester tests with valid and invalid cases (the Secret-typed logger call invalid; a non-Secret logger call valid) and lists what the rule does not catch, such as an aliased or re-exported logger, computed member access, or a Secret passed through a wrapper.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify findings findings.md What rung does row 1 get, and what must the proposed check ship with? This run has no Bash tool: skip the proof and report the check as unproven, and present the proposal in the report, writing nothing.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: rule-tests-in-the-harness
+    type: 'regex'
+    pattern: '^(?=[\s\S]*RuleTester)(?=[\s\S]*\binvalid\b)(?=[\s\S]*\bvalid\b)'
+    flags: 'i'
+    arm: 'both'
+  - name: states-what-it-misses
+    type: llm
+    focus: last_message
+    arm: 'both'
+    criteria: 'The reply proposes a custom lint rule (an analyzer) that fails a logger call receiving a value typed Secret. PASS only if the reply states, as part of the proposal, at least one concrete case the rule will not catch, such as a logger imported under another name or re-exported, a computed or dynamic member access (logger["info"]), a Secret passed through a wrapper function or another indirect path, or a value whose Secret type was cast away. FAIL if the reply presents the rule as catching every case or names no limit of the rule.'
