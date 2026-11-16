@@ -1,7 +1,7 @@
 # mutation-testing
 
 A Claude Code plugin for the **test stage** of a disciplined dev workflow. It measures whether a test
-suite can actually *detect* faults, not merely *execute* code. The three skills share one concern,
+suite can actually *detect* faults, not merely *execute* code. The four skills share one concern,
 proving the tests check something.
 
 | Skill | What it does |
@@ -9,6 +9,7 @@ proving the tests check something.
 | `/mutation-testing:principles` | Knowledge router. Mutant states, operator catalogs, mutation score vs covered-code score vs test strength vs MSI, the oracle gap, equivalent mutants, arid nodes, and why not to gate on the score. Five reference spokes load on demand; a quick decision guide answers the common questions with no file load. |
 | `/mutation-testing:setup` | Verify and configure. Detect the ecosystem, confirm the mutation tool is installed and drives the project's test runner, measure the baseline suite, settle the diff target and operator set, write the tracked config and an empty arid-node suppression record. `check` inspects read-only; `apply` interviews and writes. |
 | `/mutation-testing:audit` | Mutation analysis, read-only with respect to tracked source. By default it is diff-scoped: at most one mutant per changed line, executed against the cached covering tests, always reverted. `--exercised [<test-path>]` instead mutates the production code the changed tests call and runs each mutant against those tests only, so it judges the new tests rather than the suite; it needs the `testing` plugin to recognize test files and, under the manual protocol, the config's `test-command`. Survivor triage is delegated to a fresh-context reviewer, which also says why each productive survivor lived (`no-assertion` or `input-gap`); the report ranks files by oracle gap and hands survivors to the test-authoring lane. `--persist-findings` additionally writes the survivors into the memory tier as a findings file the `review:fanout` `fix` action consumes. Before that write, it proves the destination is outside tracked space, either by probing the checkout that governs the destination or by establishing from two independent signals that no checkout does. `--record-mutants <file>` records the mutants an exercised run applied; `--replay-mutants <file>` applies exactly those mutants after the tests change and reports `Gate: block` when a kill was lost (`/testing:cleanup` uses the pair). |
+| `/mutation-testing:seed-faults` | Fault seeding, agent-driven and tool-agnostic. Plants a few hand-written, realistic defects (5 by default, `--count` to change it) one at a time in a throwaway worktree outside the repository, runs the selected tests against each, and reports seeds caught over seeds planted, with every surviving seed's `file:line` and change. Hand-seeded faults are harder to detect than real ones, so the ratio is an estimate of thoroughness, not a defect count. Nothing planted is committed and the worktree is removed; `--reviewer` grades a fresh-context reviewer that is never told seeds were planted. |
 
 ## Why this exists
 

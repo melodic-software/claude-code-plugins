@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The check's message must name the fix: assert on the returned total."
+    },
+    {
+      "answer": "Requirement: the fix is named in the check's message, so whoever trips it knows what to assert instead."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Rung: custom-analyzer. Check: unproven."
+    }
+  ]
+}

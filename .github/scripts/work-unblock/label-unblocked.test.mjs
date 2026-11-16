@@ -5720,6 +5720,24 @@ test("a parked issue stays parked for each reason the close does not send it to 
   }
 });
 
+// #14215: a trusted upstream-drift issue (github-actions[bot] wrote it,
+// nobody else last edited it, the filer's title and hex-pin lead line) is an
+// author intake admits, so a closed blocker unparks it like any other.
+test("a trusted upstream-drift issue parked on a blocker unparks once the blocker closes; a person-edited one stays", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const ACTIONS = { id: 41898282, login: "github-actions[bot]", type: "Bot" };
+  const title = "Upstream drift: mattpocock/sandcastle";
+  const body = "Upstream `mattpocock/sandcastle` changed since the pin on its docs/upstream page.\n\nRun: 2026-10-16, https://example.test/run\n";
+  const spec = (editor) => ({ title, body, author: { __typename: "Bot", databaseId: ACTIONS.id }, editor, lastEditedAt: editor ? "2026-10-16T09:00:00Z" : null, comments: [] });
+  const drift = (editor) => parkedWorld({ rest: { user: ACTIONS, title, body }, extra: { specs: { 20: spec(editor) } } });
+  const trusted = drift(null);
+  assert.equal(await onClose(trusted), 0);
+  assert.deepEqual(writes(trusted.calls), unparkedWrites);
+  const edited = drift({ __typename: "User", databaseId: OWNER.id });
+  assert.equal(await onClose(edited), 0);
+  assert.deepEqual(writes(edited.calls), []);
+});
+
 test("another milestone does not cordon a parked issue", async (t) => {
   t.mock.method(console, "log", () => {});
   const parked = parkedWorld({ rest: { milestone: { title: "Next" } } });

@@ -216,6 +216,17 @@ reads the file itself, through a script where the key names one below.
   when git tracks the file, as `pr_body_required_sections` is. Neither is read at the home
   directory or outside a git working tree. An unknown value at a level is reported, naming the
   level, and the default applies.
+- `evidence_inline_max_captures` and `evidence_record_fields`: how
+  `/source-control:pull-request evidence` lays out its comment
+  ([evidence.md](../skills/pull-request/reference/evidence.md) step 4).
+  `evidence_inline_max_captures`, a whole number from 0 to 999, default `4`, is the most captures
+  a change with at most two acceptance criteria may have and still show them as a Before/After
+  table; a change with no capture, and every change under `0`, keeps collapsed sections. `evidence_record_fields`, `true` or
+  `false`, default `false`, adds the who, when and issues-found record block. Team level only,
+  with no `userConfig` option: both are repository policy. Read at the pull request's base branch,
+  never the head, by `skills/pull-request/scripts/read-evidence-layout.sh`, and honored only when
+  that base is the base repository's default branch. An invalid value, a base that is not the
+  default branch, a file that does not parse or a failed read leaves the default, with a notice.
 - `sync_stale_base`: `true` or `false`, whether
   [`push-branch.sh`](../skills/pull-request/scripts/push-branch.sh) merges the pull request's
   base into a branch behind it on overlapping paths just before it pushes (the script header

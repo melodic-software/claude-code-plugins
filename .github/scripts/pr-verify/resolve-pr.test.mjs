@@ -412,7 +412,8 @@ const PAGES = new Map([
   [OTHER_PAGE, "emilkowalski/skills"],
 ]);
 const DRIFT_LEAD = `Upstream \`${DRIFT_ID}\` changed since the pin on its docs/upstream page.`;
-// A body as write_body builds it, with a row whose path an upstream controls.
+// A body with write_body's lead and an upstream-chosen path in a row, as an
+// older filer wrote: the spec must never read it.
 const DRIFT_BODY = [
   DRIFT_LEAD,
   "",
@@ -431,7 +432,13 @@ const drift = (overrides = {}) => ({ ...ISSUE, title: `Upstream drift: ${DRIFT_I
 const DRIFT_SPEC = [
   `# Upstream drift: ${DRIFT_ID}`,
   "",
-  `Re-audit the docs/upstream page pinned to upstream \`${DRIFT_ID}\`: \`${DRIFT_PAGE}\`. For each upstream change since the page's pin, record its disposition (take, adapt or reject, or already-have on a page whose rows use it) on the page as docs/contracts/upstream-drift/README.md, "When a trigger fires", requires, and move the pin to the upstream head re-audited. The pull request changes only that page: a take or adapt is recorded there, and applying it to any other file is outside this spec.`,
+  `Re-audit the docs/upstream page pinned to upstream \`${DRIFT_ID}\`: \`${DRIFT_PAGE}\`. For each upstream change since the page's pin, record its disposition (take, adapt or reject, or already-have on a page whose rows use it) on the page as docs/contracts/upstream-drift/README.md, "When a trigger fires", requires, and move the pin to the upstream head re-audited. The pull request changes only that page: a take or adapt is recorded there, and applying it to any other file is outside this spec. A take or adapt that would change the design of one of this repository's skills is not applied: the run stops with \`design-change\` naming it, so the owner decides it (docs/contracts/upstream-drift/README.md, "One case goes to the owner"). The pull request body closes this issue with \`Closes #<this issue>\`.`,
+  "",
+  "## Done when",
+  "",
+  `- [ ] Every upstream change since the pin of each page pinned to \`${DRIFT_ID}\` has a take, adapt, reject or already-have disposition recorded on that page.`,
+  "- [ ] Each of those pages pins the upstream head it was re-audited against.",
+  "- [ ] The pull request changes only those pages, and its body closes this issue with `Closes`.",
 ].join("\n");
 const PAGE_ONLY = [{ filename: DRIFT_PAGE, status: "modified" }];
 

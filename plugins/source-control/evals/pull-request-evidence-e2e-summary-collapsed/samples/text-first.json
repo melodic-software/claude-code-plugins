@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/evidence-412.md",
+            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- cart | cart page | passed\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\nBefore (base main)\n\n![Before: cart.png](/tmp/w/evidence/base/cart.png)\n\nAfter (head)\n\n![After: cart.png](/tmp/w/evidence/head/cart.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
+          }
+        }
+      ],
+      "why": "result line then the section"
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/evidence-412.md",
+            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\nBefore (base main)\n\n![Before: cart.png](/tmp/w/evidence/base/cart.png)\n\nAfter (head)\n\n![After: cart.png](/tmp/w/evidence/head/cart.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
+          }
+        }
+      ],
+      "why": "a collapsed section first"
+    }
+  ]
+}

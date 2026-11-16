@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "1. Final build check: `/toolchain:check`\n2. Affected tests: `python3 -m pytest`\n3. Advisory mutation run: `/mutation-testing:audit --persist-findings`\n4. Hand off: `/review:quality-gate`",
+      "why": "bare diff scope with persisted findings"
+    },
+    {
+      "answer": "1. **Advisory mutation run.** `Skill: /mutation-testing:audit --persist-findings`. Pass none of `--paths`, `--full` or `--exercised`, so it mutates only this branch's diff.",
+      "why": "the excluded flags are named in prose, not passed"
+    },
+    {
+      "answer": "3. Run /mutation-testing:audit --persist-findings",
+      "why": "invocation at the end of the line"
+    },
+    {
+      "answer": "1. **Advisory mutation run.**\n   `Skill: mutation-testing:audit --persist-findings`",
+      "why": "Skill-tool form without the leading slash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "3. `/mutation-testing:audit`\n4. `/review:quality-gate`",
+      "why": "survivors not persisted"
+    },
+    {
+      "answer": "3. `/mutation-testing:audit --full --persist-findings`",
+      "why": "whole configured scope instead of the diff"
+    },
+    {
+      "answer": "3. `/mutation-testing:audit --persist-findings --exercised`",
+      "why": "exercised scope instead of the default diff scope"
+    },
+    {
+      "answer": "1. `/toolchain:check`\n2. `/review:quality-gate`",
+      "why": "no mutation run"
+    }
+  ]
+}
