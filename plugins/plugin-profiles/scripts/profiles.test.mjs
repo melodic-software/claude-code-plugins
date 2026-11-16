@@ -389,3 +389,59 @@ test("AC5: check reports an installed plugin no profile names and still exits 0"
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /Report: Installed, and no profile names it \(an apply switches it off unless the repository enables it\): songwriting@melodic-software/);
 });
+
+test("list --json names every shipped profile but always-on, which every profile includes, each with its description", () => {
+  const w = world();
+  const r = w.run(["list", "--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  const profiles = JSON.parse(r.stdout);
+  assert.deepEqual(profiles.map((p) => p.name).sort(), ["build", "discovery", "harness-upkeep", "interface-design", "planning", "review"]);
+  assert.equal(profiles.find((p) => p.name === "build").description, "Write the change, test, review, verify, open and merge the PR, and run lanes.");
+});
+
+test("list --json adds a repository profile to the shipped ones", () => {
+  const w = world();
+  writeTree(w.project, { "docs/conventions/plugin-profiles/songs.yaml": `description: Write songs.\nplugins: [songwriting@${M}]\n` });
+  const names = JSON.parse(w.run(["list", "--json"]).stdout).map((p) => p.name);
+  assert.ok(names.includes("songs"), names.join(", "));
+});
+
+test("AC6, AC10: apply --dry-run --json previews an in-session switch as data, names the MCP plugin it switches on, and writes nothing", () => {
+  const w = world();
+  writeTree(w.root, { "installs/implementation/.mcp.json": { mcpServers: { x: { command: "x" } } } });
+  const r = w.run(["apply", "build", "--for", "folder", "--defer-off", "--dry-run", "--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  const preview = JSON.parse(r.stdout);
+  assert.equal(preview.profile, "build");
+  assert.equal(preview.upToDate, false);
+  assert.deepEqual(preview.mcpOrLspOn, [`implementation@${M}`]);
+  assert.deepEqual(preview.pending, [`songwriting@${M}`]);
+  assert.ok(preview.lines.includes(`Left on until the next apply (1): songwriting@${M}`), preview.lines.join("\n"));
+  assert.ok(preview.lines.includes(`Switches on plugins with an MCP or language server: implementation@${M}`), preview.lines.join("\n"));
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
+});
+
+test("apply --dry-run --json reads upToDate once the profile is applied", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(JSON.parse(w.run(["apply", "build", "--for", "folder", "--dry-run", "--json"]).stdout).upToDate, true);
+});
+
+test("apply --json without --dry-run is a usage error and writes nothing", () => {
+  const w = world();
+  const r = w.run(["apply", "build", "--for", "folder", "--yes", "--json"]);
+  assert.equal(r.status, 2);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("AC11: an in-session switch in a session started from a one-session file is refused with the way to start one, and writes nothing", () => {
+  const w = world();
+  const before = snapshot(settingsFiles(w));
+  const r = w.run(["apply", "review", "--for", "folder", "--defer-off", "--yes"], { PLUGIN_PROFILES_SESSION: "build" });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /this session runs in profile build from a one-session settings file/);
+  assert.match(r.stderr, /apply review --for session/);
+  assert.deepEqual(snapshot(settingsFiles(w)), before);
+  assert.deepEqual(w.records(), []);
+});

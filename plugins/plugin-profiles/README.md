@@ -74,6 +74,27 @@ Apply writes only the `enabledPlugins` and `skillOverrides` entries, never your 
 committed `.claude/settings.json`. Plugins the repository enables there stay on unless the profile
 excludes them, and a plugin the repository sets to `false` stays off. Apply installs nothing.
 
+`list` names the profiles a folder apply can use, each with its description line.
+
+## Switch in a running session
+
+`/plugin-profile` switches this folder's profile without a model turn: it lists the profiles (or
+takes one by name, `/plugin-profile review`), shows the same preview as `apply --dry-run`, and asks
+before writing. When the switch would turn on a plugin that ships an MCP or language server, the
+question names it and says your next message re-reads the whole conversation.
+
+On Apply it writes the entries that switch plugins on and runs `/reload-plugins` once, when the
+next turn ends (or when you run `/reload-plugins` yourself first). Then it writes the entries that
+switch plugins off: those plugins stay loaded for this session and go at the next session start. A
+switch cut off between the two writes is named by `status` and finished by the next apply.
+
+It refuses the switch when `remember_folder_profile` is false or the session was started from a
+one-session file, and says how to start a session in that profile instead. A plugin it would switch
+on that lacks a required prerequisite is left to `apply` in a terminal.
+
+The command is a mod and needs Claude Code 2.1.287 or later (tested on 2.1.325, interactive CLI
+sessions); `apply` works without it.
+
 ## Status and clear
 
 ```bash

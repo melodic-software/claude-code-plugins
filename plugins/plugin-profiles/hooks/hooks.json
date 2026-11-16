@@ -1,5 +1,8 @@
 {
-  "description": "At session start, names the folder's plugin profile, the entries that differ from it, plugins installed since it was applied, an unfinished switch and the surface the session runs on. Prints nothing in a folder with no applied profile. Reads installed plugins from disk and never starts a nested claude.",
+  "description": "At session start, names the folder's plugin profile, the entries that differ from it, plugins installed since it was applied, an unfinished switch and the surface; prints nothing in a folder with no applied profile, reads installed plugins from disk and never starts a nested claude. The module answers /plugin-profile, the in-session switch, and runs its one /reload-plugins when the turn ends.",
+  "modules": [
+    "./register.tsx"
+  ],
   "hooks": {
     "SessionStart": [
       {

@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 // Apply a plugin profile to a folder, to user settings, or to one session.
 //
-//   profiles.mjs apply <name> --for session|folder|initial [--dry-run] [--yes] [--defer-off]
+//   profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
 //   profiles.mjs status [--for folder|initial] [--json] [--session-start]
 //   profiles.mjs clear [--for folder|initial]
+//   profiles.mjs list [--json]
 //   profiles.mjs inventory [--json]
 //   profiles.mjs check [--catalog <marketplace.json>] [--shipped <dir>]
 //
 // apply    Prints what the profile changes, then writes it on --yes or a yes typed at the prompt;
-//          with nobody to ask and no --yes it writes nothing. --dry-run prints and stops. A plugin
+//          with nobody to ask and no --yes it writes nothing. --dry-run prints and stops; with
+//          --json it prints the preview lines and what a caller branches on as one object. A plugin
 //          it would switch on whose required prerequisites are missing stops the write unless a
 //          person types yes to the stated consequence; --yes alone never covers that. --for folder
 //          writes .claude/settings.local.json, initial writes user settings.json, session writes a
@@ -16,7 +18,8 @@
 //          entries that switch plugins on and records the ones that switch plugins off as
 //          pending, for an in-session switch; the next apply writes them. A target the surface
 //          does not support (lib/surface.mjs) is refused, and so is --for folder when the
-//          remember_folder_profile option is false.
+//          remember_folder_profile option is false, and --defer-off in a session that
+//          PLUGIN_PROFILES_SESSION names.
 // status   The profile recorded for the folder (or user settings), each entry that differs from
 //          it, plugins installed since, a switch still pending, a one-session profile named by
 //          PLUGIN_PROFILES_SESSION and the surface. With remember_folder_profile false it reports
@@ -25,6 +28,7 @@
 //          systemMessage only where a profile was applied.
 // clear    Puts every entry the tool wrote back to its value before the first apply and removes
 //          a settings file the tool created.
+// list     The profiles a folder apply can name, each with its description line.
 // inventory  The installed plugins, their dependencies and what each ships.
 // check    Checks the profile files at every level (lib/check.mjs says what fails and what is
 //          only reported). --catalog defaults to the marketplace.json of the repository this
@@ -61,9 +65,10 @@ import { detectSurface, doesNotApply, refusal, surfaceLine } from "../lib/surfac
 
 const OWN_ROOT = dirname(dirname(realpathSync(fileURLToPath(import.meta.url))));
 const SESSION_VAR = "PLUGIN_PROFILES_SESSION";
-const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run] [--yes] [--defer-off]
+const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
        profiles.mjs clear [--for folder|initial]
+       profiles.mjs list [--json]
        profiles.mjs inventory [--json]
        profiles.mjs check [--catalog <marketplace.json>] [--shipped <dir>]`;
 
@@ -103,13 +108,13 @@ function locate(env, cwd) {
 
 function parseArgs(argv) {
   const [command, ...rest] = argv;
-  if (!["apply", "status", "clear", "inventory", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
+  if (!["apply", "status", "clear", "list", "inventory", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
   const opts = { command, name: null, target: command === "apply" ? null : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null };
-  const flags = { apply: ["--dry-run", "--yes", "--defer-off"], status: ["--json", "--session-start"], clear: [], inventory: ["--json"], check: [] }[command];
-  const values = { check: ["--catalog", "--shipped"] }[command] ?? ["--for"];
+  const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json"], status: ["--json", "--session-start"], clear: [], list: ["--json"], inventory: ["--json"], check: [] }[command];
+  const values = { check: ["--catalog", "--shipped"], list: [], inventory: [] }[command] ?? ["--for"];
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
-    if (values.includes(arg) && command !== "inventory") {
+    if (values.includes(arg)) {
       if (rest[i + 1] === undefined) throw new UsageError(`${arg} needs a value`);
       opts[arg === "--for" ? "target" : arg.slice(2)] = rest[++i];
     }
@@ -119,9 +124,18 @@ function parseArgs(argv) {
   }
   if (command === "apply" && !opts.name) throw new UsageError("apply needs a profile name");
   const targets = command === "apply" ? Object.keys(TARGET_LEVEL) : ["folder", "initial"];
-  if (command !== "inventory" && command !== "check" && !targets.includes(opts.target)) throw new UsageError(`--for takes ${targets.join(", ")}`);
+  if (!["list", "inventory", "check"].includes(command) && !targets.includes(opts.target)) throw new UsageError(`--for takes ${targets.join(", ")}`);
   if (opts.deferOff && opts.target === "session") throw new UsageError("--defer-off applies to a folder or user settings, not a one-session file");
+  if (command === "apply" && opts.json && !opts.dryRun) throw new UsageError("apply --json prints a preview and needs --dry-run");
   return opts;
+}
+
+const levelsOf = (where) => profileLevels({ pluginRoot: OWN_ROOT, configDir: where.configDir, projectDir: where.projectDir });
+
+/** The profiles an apply at target resolves; the initial profile never takes a repository's files. */
+function catalogFor(where, target) {
+  const levels = levelsOf(where);
+  return readCatalog(target === "initial" ? levels.filter((l) => l.level !== "repository") : levels);
 }
 
 const sessionFile = (where, name) => join(where.dataDir, "sessions", `${name}.json`);
@@ -165,23 +179,42 @@ const changeCount = (p) => Object.keys(p.edits.enabledPlugins).length + Object.k
 const sameChange = (a, b) => JSON.stringify([a.final, a.pending, a.edits]) === JSON.stringify([b.final, b.pending, b.edits]);
 const list = (ids) => (ids.length ? ids.join(", ") : "none");
 
-function preview(p, gate, out) {
+/** The lines that say what an apply changes; the terminal prompt and the mod's preview both show them. */
+function previewLines(p, gate) {
   const r = p.plan;
-  out(`Profile ${r.profile} for ${r.target}: ${p.file}`);
-  out(`Switches on (${r.enabled.length}): ${list(r.enabled)}`);
-  out(`Switches off (${r.disabled.length}): ${list(r.disabled)}`);
-  if (Object.keys(p.pending).length) out(`Left on until the next apply (${Object.keys(p.pending).length}): ${list(Object.keys(p.pending))}`);
-  out(`Writes ${Object.keys(p.edits.enabledPlugins).length} plugin entries and ${Object.keys(p.edits.skillOverrides).length} skill entries.`);
-  if (r.hookPluginsOff.length) out(`Switches off plugins that ship hooks or a mod: ${list(r.hookPluginsOff)}`);
-  if (r.mcpOrLspOn.length) out(`Switches on plugins with an MCP or language server: ${list(r.mcpOrLspOn)}`);
-  for (const pin of r.pinned) out(`Pinned by ${pin.by} settings (${pin.value}), left alone: ${pin.id}`);
-  for (const m of r.missing) out(`Not installed${m.optional ? " (optional)" : ""}: ${m.id}. Install it with: ${m.install}`);
-  out(`Left alone, from marketplaces this profile does not name (${r.untouched.length}): ${list(r.untouched)}`);
+  const lines = [
+    `Profile ${r.profile} for ${r.target}: ${p.file}`,
+    `Switches on (${r.enabled.length}): ${list(r.enabled)}`,
+    `Switches off (${r.disabled.length}): ${list(r.disabled)}`,
+  ];
+  if (Object.keys(p.pending).length) lines.push(`Left on until the next apply (${Object.keys(p.pending).length}): ${list(Object.keys(p.pending))}`);
+  lines.push(`Writes ${Object.keys(p.edits.enabledPlugins).length} plugin entries and ${Object.keys(p.edits.skillOverrides).length} skill entries.`);
+  if (r.hookPluginsOff.length) lines.push(`Switches off plugins that ship hooks or a mod: ${list(r.hookPluginsOff)}`);
+  if (r.mcpOrLspOn.length) lines.push(`Switches on plugins with an MCP or language server: ${list(r.mcpOrLspOn)}`);
+  for (const pin of r.pinned) lines.push(`Pinned by ${pin.by} settings (${pin.value}), left alone: ${pin.id}`);
+  for (const m of r.missing) lines.push(`Not installed${m.optional ? " (optional)" : ""}: ${m.id}. Install it with: ${m.install}`);
+  lines.push(`Left alone, from marketplaces this profile does not name (${r.untouched.length}): ${list(r.untouched)}`);
   for (const g of gate) {
     const tool = g.tool ? `${g.tool}: ${g.detail}.` : `${g.detail}.`;
-    out(`Missing required prerequisite of ${g.plugin}: ${tool}${g.degrade ? ` ${g.degrade}` : ""}${g.install.length ? ` Install (${g.install.join("; ")}).` : ""}`);
+    lines.push(`Missing required prerequisite of ${g.plugin}: ${tool}${g.degrade ? ` ${g.degrade}` : ""}${g.install.length ? ` Install (${g.install.join("; ")}).` : ""}`);
   }
+  return lines;
 }
+
+/** What apply --dry-run --json prints: the preview lines and the facts a caller branches on. */
+const previewJson = (p, gate, upToDate) => ({
+  profile: p.plan.profile,
+  target: p.plan.target,
+  file: p.file,
+  upToDate,
+  enabled: p.plan.enabled,
+  disabled: p.plan.disabled,
+  pending: Object.keys(p.pending),
+  mcpOrLspOn: p.plan.mcpOrLspOn,
+  hookPluginsOff: p.plan.hookPluginsOff,
+  prerequisitesMissing: gate.map((g) => g.plugin),
+  lines: previewLines(p, gate),
+});
 
 async function ask(question) {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -235,17 +268,24 @@ async function apply(opts, where, env, io) {
   if (opts.target === "folder" && !where.remembersFolder()) {
     throw new NotApplied(`not applied: folder remembering is off (remember_folder_profile), so every session starts from the initial profile; start one session in ${opts.name} with apply ${opts.name} --for session, or set the initial profile with apply ${opts.name} --for initial`);
   }
-  const levels = profileLevels({ pluginRoot: OWN_ROOT, configDir: where.configDir, projectDir: where.projectDir });
-  const catalog = readCatalog(opts.target === "initial" ? levels.filter((l) => l.level !== "repository") : levels);
+  if (opts.deferOff && env[SESSION_VAR]) {
+    throw new NotApplied(`not applied: this session runs in profile ${env[SESSION_VAR]} from a one-session settings file, so a switch here would not hold; start a session in ${opts.name} with apply ${opts.name} --for session, then the claude --settings command it prints`);
+  }
+  const catalog = catalogFor(where, opts.target);
   const records = () => recordsFromCli();
   let p = prepare(opts, where, catalog, records);
   const gate = missingRequired(
     p.plan.enabled.map((id) => p.inv.get(id)),
     { env, platform: process.platform, cwd: where.projectDir, dataDirOf: (id) => join(where.configDir, "plugins", "data", dataDirName(id)) },
   );
-  preview(p, gate, io.out);
   const recorded = p.previous?.profile === opts.name && p.previous.phase === "applied";
-  if (!changeCount(p) && opts.target !== "session" && recorded) {
+  const upToDate = !changeCount(p) && opts.target !== "session" && recorded;
+  if (opts.json) {
+    io.out(JSON.stringify(previewJson(p, gate, upToDate), null, 2));
+    return 0;
+  }
+  for (const line of previewLines(p, gate)) io.out(line);
+  if (upToDate) {
     io.out("Nothing to change: the settings already match this profile.");
     return 0;
   }
@@ -378,6 +418,13 @@ function clear(opts, where, io) {
   return 0;
 }
 
+function listProfiles(opts, where, io) {
+  const profiles = [...catalogFor(where, "folder").profiles.values()].map((p) => ({ name: p.name, description: p.description }));
+  if (opts.json) io.out(JSON.stringify(profiles, null, 2));
+  else for (const p of profiles) io.out(`${p.name}${p.description ? `: ${p.description}` : ""}`);
+  return 0;
+}
+
 function listInventory(opts, where, io) {
   const inv = [...inventory({ projectDir: where.projectDir, records: recordsFromCli() }).values()];
   if (opts.json) io.out(JSON.stringify(inv, null, 2));
@@ -390,7 +437,7 @@ function listInventory(opts, where, io) {
 
 function check(opts, where, io) {
   const catalog = readMarketplace(opts.catalog ?? join(OWN_ROOT, "..", "..", ".claude-plugin", "marketplace.json"));
-  const levels = profileLevels({ pluginRoot: OWN_ROOT, configDir: where.configDir, projectDir: where.projectDir });
+  const levels = levelsOf(where);
   if (opts.shipped) levels[0].dir = opts.shipped;
   const installed = new Set(inventory({ projectDir: where.projectDir, records: recordsFromDisk(where.configDir) }).keys());
   const { failures, reports } = checkProfiles({ files: readProfileFiles(levels), catalog, installed });
@@ -408,6 +455,7 @@ export async function main(argv, env = process.env, cwd = process.cwd(), io = { 
     if (opts.command === "status") return status(opts, where, env, io);
     if (opts.command === "clear") return clear(opts, where, io);
     if (opts.command === "check") return check(opts, where, io);
+    if (opts.command === "list") return listProfiles(opts, where, io);
     return listInventory(opts, where, io);
   } catch (error) {
     if (error instanceof NotApplied) {

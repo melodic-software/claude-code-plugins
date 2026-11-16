@@ -7,6 +7,7 @@
   },
   "version": "0.0.0",
   "license": "MIT",
+  "types": "./types/index.d.ts",
   "keywords": [
     "plugins",
     "profiles",
