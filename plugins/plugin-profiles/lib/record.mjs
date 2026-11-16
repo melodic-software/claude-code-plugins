@@ -22,7 +22,8 @@ export const SCHEMA = 1;
 export const ABSENT = "absent";
 const SECTIONS = { enabledPlugins: "entries", skillOverrides: "skillOverrides" };
 
-function realPath(path) {
+/** The path with symbolic links resolved as far as it exists, so one folder has one key. */
+export function realPath(path) {
   for (let dir = resolve(path), rest = []; ; rest.unshift(basename(dir)), dir = dirname(dir)) {
     try {
       return join(realpathSync.native(dir), ...rest);

@@ -47,8 +47,14 @@ prompt. A `Not installed` line does not stop an apply: only a missing required p
 ## Actions
 
 - **status**: `status` names the profile in force for this folder, each entry that differs from it,
-  plugins installed since, an unfinished switch, a one-session profile, and the surface. Relay it;
-  for a restore line in a handoff, use the `apply` command it implies.
+  plugins installed since, an unfinished switch, a one-session profile, the surface, and the
+  command that starts another session here in the profile in force. Relay it; a handoff's restore
+  line is that command.
+- **launch `[<name>]`**: `launch [<name>] [--folder <dir>]` writes the one-session file for the
+  folder and profile and prints the `claude` command that starts a session in it; with no name it
+  takes this session's profile. It writes no settings file, so it needs no preview. Every launcher
+  (a handoff, a background session, a lane) starts sessions through it; see its usage for
+  `--with`, `--unattended` and `--json`.
 - **apply `<name>`**: `apply <name> --for folder|initial|session`. Ask where when the user has not
   said: `folder` for this folder, `initial` for every folder without its own profile, `session` for
   one session started with the `claude --settings` command the tool prints. Run `list` first when

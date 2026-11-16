@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, readdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -250,6 +250,86 @@ test("regenerating a one-session file drops the entries the profile no longer wr
   assert.equal("widget@vendor" in second.enabledPlugins, false, "a marketplace the profile no longer names leaves the file");
   assert.equal("review:fanout" in (second.skillOverrides ?? {}), false, "a skill no longer hidden leaves the file");
   assert.equal(second.enabledPlugins[`songwriting@${M}`], true);
+});
+
+const launchJson = (w, args, extra = {}) => {
+  const r = w.run(["launch", ...args, "--json"], extra);
+  assert.equal(r.status, 0, r.stderr);
+  return JSON.parse(r.stdout);
+};
+
+test("launch writes one file per folder and profile, asks nothing, changes no settings file, and prints a command that clears an inherited marker", () => {
+  const w = world();
+  const before = snapshot(settingsFiles(w));
+  const first = launchJson(w, ["build"]);
+  assert.deepEqual(first.argv, ["env", "-u", "PLUGIN_PROFILES_SESSION", "claude", "--settings", first.file]);
+  const session = JSON.parse(readFileSync(first.file, "utf8"));
+  assert.equal(session.env.PLUGIN_PROFILES_SESSION, "build");
+  assert.equal(session.enabledPlugins[`songwriting@${M}`], false);
+  assert.equal(launchJson(w, ["build"]).file, first.file, "the same folder and profile reuse one file");
+  const other = join(w.root, "other");
+  writeTree(other, { "keep.txt": "x" });
+  assert.notEqual(launchJson(w, ["build", "--folder", other]).file, first.file, "another folder gets its own file");
+  assert.deepEqual(snapshot(settingsFiles(w)), before);
+});
+
+test("launch with no name takes this session's profile, else the folder's, else carries none", () => {
+  const w = world();
+  assert.equal(launchJson(w, [], { PLUGIN_PROFILES_SESSION: "build" }).profile, "build");
+  const none = launchJson(w, []);
+  assert.equal(none.profile, null);
+  assert.deepEqual(none.argv, ["env", "-u", "PLUGIN_PROFILES_SESSION", "claude"]);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(launchJson(w, []).profile, "build");
+});
+
+test("launch --with merges a launcher's settings into one file the profile wins in, keyed apart from the plain file", () => {
+  const w = world();
+  const plain = launchJson(w, ["build"]).file;
+  const own = JSON.stringify({ model: "opus", env: { LANE: "1" }, enabledPlugins: { [`songwriting@${M}`]: true, "widget@vendor": true } });
+  const merged = launchJson(w, ["build", "--with", own]);
+  assert.notEqual(merged.file, plain);
+  const doc = JSON.parse(readFileSync(merged.file, "utf8"));
+  assert.equal(doc.model, "opus");
+  assert.deepEqual(doc.env, { LANE: "1", PLUGIN_PROFILES_SESSION: "build" });
+  assert.equal(doc.enabledPlugins[`songwriting@${M}`], false, "the profile's entry wins");
+  assert.equal(doc.enabledPlugins["widget@vendor"], true, "an entry the profile leaves alone stays");
+  assert.equal(JSON.parse(readFileSync(plain, "utf8")).model, undefined, "the plain file is unchanged");
+  const noProfile = launchJson(w, ["--with", own], { PLUGIN_PROFILES_SESSION: "" });
+  assert.deepEqual(noProfile.argv.slice(-2), ["--settings", own], "with no profile the launcher's own settings pass through");
+});
+
+test("launch removes session files no launch has written for 30 days", () => {
+  const w = world();
+  const file = launchJson(w, ["build"]).file;
+  const stale = join(dirname(file), "stale.json");
+  writeFileSync(stale, "{}");
+  const old = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+  utimesSync(stale, old, old);
+  launchJson(w, ["build"]);
+  assert.equal(existsSync(stale), false);
+  assert.equal(existsSync(file), true);
+});
+
+test("an unattended launch whose profile misses a required prerequisite stops and writes nothing; an attended one says so and goes ahead", () => {
+  const w = world({ prerequisiteMissing: true });
+  const r = w.run(["launch", "build", "--unattended"]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /not launched: profile build switches on a plugin missing a required prerequisite/);
+  assert.match(r.stderr, /pp-absent-tool/);
+  assert.equal(existsSync(join(w.home, ".claude", "plugins", "data", "plugin-profiles-inline", "sessions")), false);
+  const attended = w.run(["launch", "build"]);
+  assert.equal(attended.status, 0, attended.stderr);
+  assert.match(attended.stderr, /Missing required prerequisite of implementation@melodic-software/);
+  assert.match(attended.stdout, /Start the session with: env -u PLUGIN_PROFILES_SESSION claude --settings /);
+});
+
+test("status prints the command that starts another session in the profile in force", () => {
+  const w = world();
+  assert.doesNotMatch(w.run(["status"]).stdout, /Start another session/);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.match(w.run(["status"]).stdout, /Start another session here in this profile with: node \S*profiles\.mjs launch build --folder /);
+  assert.match(w.run(["status"], { PLUGIN_PROFILES_SESSION: "review" }).stdout, /launch review --folder /);
 });
 
 test("Q69: on VS Code a one-session apply is refused with the folder offer and writes nothing", () => {
