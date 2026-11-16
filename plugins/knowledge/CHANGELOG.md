@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.2.1] - 2026-11-15
+
+### Changed
+
+- `course-digest` invokes `/discovery:explore` and `/discovery:research` before integrating an action item when each is among the available skills, not when the `discovery` plugin is merely installed, so a plugin that is installed but disabled takes the stated fallback.
+
 ## [3.2.0] - 2026-11-15
 
 ### Changed
