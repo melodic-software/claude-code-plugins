@@ -1142,7 +1142,7 @@ for (const [what, make, words] of [
   [
     "a file",
     (out) => fs.writeFileSync(out, "keep me\n"),
-    /cannot be the output folder\. ENOTDIR: not a directory/,
+    /cannot be the output folder\. It is not a folder\. Pass --out with a new folder\./,
   ],
   [
     "a broken link",
