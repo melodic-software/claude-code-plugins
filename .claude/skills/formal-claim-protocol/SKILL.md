@@ -102,7 +102,7 @@ model, and the races live between comment, assignee and clock reads that no unit
 
 ## Run
 
-One command per cfg; each takes two to three minutes:
+One command per cfg; each takes about a minute:
 
 ```text
 /formal-verification:chart .claude/skills/formal-claim-protocol/model/ClaimProtocol.tla --config .claude/skills/formal-claim-protocol/model/LocalLane.cfg --view .claude/skills/formal-claim-protocol/model/view.mjs --rerun-states 2000000

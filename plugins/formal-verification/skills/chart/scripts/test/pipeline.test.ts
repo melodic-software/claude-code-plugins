@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { inspect } from "node:util";
 import { checkView } from "../frontends/view.ts";
+import { MAX_BUG_LINES } from "../guard.ts";
 import {
   type CheckResult,
   EC,
@@ -247,6 +248,34 @@ test("a PROPERTY that breaks with no path writes TLC's counterexample", () => {
     /^## Settles breaks\nTLC found a counterexample\. It is in tlc-Settles\.out\.$/m,
   );
   assert.equal(body(files, "tlc-Settles.out"), "State 1: <Initial predicate>\nx = 0\n");
+});
+
+test("a property TLC passes under its SYMMETRY warning is not listed as holding", () => {
+  const result = twoStates([]);
+  result.properties[0].symmetry = true;
+  const { report } = compile(result, noView);
+  assert.match(report, /^## Rules that hold\nSmall$/m);
+  assert.match(report, /^## Rules checked under SYMMETRY\nSettles\nTLC found no violation, but/m);
+});
+
+test("a cut invariant path names a file that holds its run's trace", () => {
+  const result = twoStates([]);
+  const steps = MAX_BUG_LINES + 5;
+  result.graph.states.clear();
+  result.graph.steps = [];
+  for (let i = 0; i <= steps; i++) {
+    result.graph.states.set(`${i}`, {
+      vars: { x: i },
+      start: i === 0,
+      breaks: i === steps ? [small] : [],
+    });
+    if (i) result.graph.steps.push({ from: `${i - 1}`, to: `${i}`, action: "Grow" });
+  }
+  const trace = [{ code: EC.TLC_STATE_PRINT2, level: LEVEL.STATE, body: ["1: <Grow>", "x = 9"] }];
+  result.rules = [{ rule: small, outcome: "broken", messages: trace }];
+  const { report, files } = compile(result, noView);
+  assert.match(report, /^\.\.\. 6 more steps; the full path is in tlc-Small\.out$/m);
+  assert.equal(body(files, "tlc-Small.out"), "State 1: <Grow>\nx = 9\n");
 });
 
 test("a rule named NoDeadlock leaves the deadlock rule a name of its own", () => {

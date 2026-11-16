@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameS
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { resolveSettings } from "./settings.mjs";
+import { droppedLine, resolveSettings } from "./settings.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const USAGE = "usage: toolchain.mjs <check|resolve|install model-checker|install renderer> [--data-dir D] [--jar F] [--java F] [--runtime F] [--project-dir P]";
@@ -21,7 +21,8 @@ const SOURCE_KEY = /\.(url|sha256|integrity)$/;
 const unset = (v) => !v || v.startsWith("${");
 
 export function settings(projectDir) {
-  const { values, layers } = resolveSettings(projectDir);
+  const { values, layers, dropped } = resolveSettings(projectDir);
+  if (dropped.length) process.stderr.write(`${droppedLine(dropped)}\n`);
   for (const layer of layers) {
     (layer.error_keys ?? []).forEach((key, i) => {
       if (key && SOURCE_KEY.test(key))
@@ -97,7 +98,7 @@ export function inspect({ dataDir, jar, java, runtime, settings: s, releases = R
   add(rt.found ? "PASS" : "FAIL", "script-runtime", rt.found ? rt.detail : `${none}; the chart scripts need ${RUNTIMES}. Install one, or set the script_runtime option.`);
 
   if (!/^[0-9]+$/.test(s.java.min_version)) throw new Error(`java.min_version ${JSON.stringify(s.java.min_version)} is not a Java major version.`);
-  const j = java ?? "java";
+  if (!/^[1-9][0-9]*[kKmMgG]?$/.test(s.bounds.heap)) throw new Error(`bounds.heap ${JSON.stringify(s.bounds.heap)} is not a Java heap size such as 4g.`);  const j = java ?? "java";
   const pj = probeJava(j);
   const min = Number(s.java.min_version);
   if (!pj.found) add("FAIL", "java", `${pj.detail}. Install Java ${min} or later (for example ${s.java.distribution}), or set the java option. The plugin never installs Java.`);
@@ -231,6 +232,8 @@ async function main(argv) {
     console.error(`blocked: toolchain missing: ${missing.join(", ")}`);
     return 3;
   }
+  for (const [key, value] of Object.entries({ jar: found.jar, java: found.java, runtime: found.runtime }))
+    if (/['"$`\p{Cc}]/u.test(value ?? "")) throw new Error(`${key} ${JSON.stringify(value)} has a quote, $, backquote or control character, which a shell command cannot take as written.`);
   const { bounds, allowed_modules } = opts.settings;
   console.log(JSON.stringify({ jar: found.jar, java: found.java, runtime: found.runtime, bounds, allowed_modules }));
   return 0;

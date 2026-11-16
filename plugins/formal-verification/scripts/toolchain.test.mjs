@@ -119,6 +119,43 @@ test("a java.min_version that is not a whole number is refused", () => {
   assert.equal(r.stderr.trim(), 'java.min_version "eleven" is not a Java major version.');
 });
 
+const resolveWith = (yaml) => {
+  const jar = join(fresh("jar"), "tla2tools.jar");
+  writeFileSync(jar, JAR);
+  return run(toolchain, ["resolve", "--jar", jar, "--java", fakeJava('openjdk version "25" 2025-09-16'), "--project-dir", project(yaml)]);
+};
+
+test("resolve refuses a convention heap that a shell would read as more than a value", () => {
+  const r = resolveWith('bounds:\n  heap: "4g$(touch x)"\n');
+  assert.equal(r.status, 1);
+  assert.equal(r.stdout, "");
+  assert.equal(r.stderr.trim(), 'bounds.heap "4g$(touch x)" is not a Java heap size such as 4g.');
+});
+
+test("a repository file cannot add a module, and resolve names the ones it dropped", () => {
+  const r = resolveWith('allowed_modules: ["TLC", "Json", "TLC;id"]\n');
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout).allowed_modules, ["TLC"]);
+  assert.equal(r.stderr.trim(), 'settings: allowed_modules: a repository file can only remove modules, so "Json", "TLC;id" stays out.');
+});
+
+test("a repository file can narrow the allowed modules", () => {
+  const r = resolveWith('allowed_modules: ["Naturals", "Sequences"]\n');
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout).allowed_modules, ["Naturals", "Sequences"]);
+  assert.equal(r.stderr, "");
+});
+
+test("resolve refuses a jar or java path with a quote or $", () => {
+  const dir = fresh("jar");
+  const jar = join(dir, "it's.jar");
+  writeFileSync(jar, JAR);
+  const r = run(toolchain, ["resolve", "--jar", jar, "--java", fakeJava('openjdk version "25" 2025-09-16'), "--project-dir", project()]);
+  assert.equal(r.status, 1);
+  assert.equal(r.stdout, "");
+  assert.match(r.stderr, /^jar ".*it's\.jar" has a quote, \$, backquote or control character/);
+});
+
 test("a timeout_seconds past what a timer can hold is reported and the shipped value stands", () => {
   const r = run(settings, ["--project-dir", project("bounds:\n  timeout_seconds: 3000000\n")]);
   assert.equal(r.status, 0);

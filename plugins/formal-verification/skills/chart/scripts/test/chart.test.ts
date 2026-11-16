@@ -275,6 +275,13 @@ test("each corpus bug path is the shortest way to its rule", () => {
   assert.deepEqual(paths.NoDeadlock, ["Next", "Next", "Next"]);
 });
 
+test("readVerdict sees TLC's warning that SYMMETRY can miss a liveness violation", () => {
+  const read = (name: string) =>
+    readVerdict(readMessages(fileLines(corpus(name, "verdict-1.out")))).symmetry;
+  assert.equal(read("PickWorker"), true);
+  assert.equal(read("MediaPlayerProps"), false);
+});
+
 test("a chart of only the bug paths words each one with the view, asked once for each state and step", () => {
   const spec = corpusSpec("FirstRule");
   const rules = stateRules(spec);

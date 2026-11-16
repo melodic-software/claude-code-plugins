@@ -23,8 +23,10 @@ export function readVerdict(messages: Iterable<Part>) {
   let broke: Break | undefined;
   let distinct = 0;
   let initial = 0;
+  let symmetry = false;
   for (const m of messages) {
     if (typeof m === "string") continue;
+    if (m.code === EC.TLC_FEATURE_UNSUPPORTED_LIVENESS_SYMMETRY) symmetry = true;
     const count = DISTINCT.get(m.code)?.exec(textOf(m));
     if (count) distinct = Math.max(distinct, Number(count[1]));
     if (m.code === EC.TLC_INIT_GENERATED1 || m.code === EC.TLC_INIT_GENERATED2)
@@ -36,5 +38,5 @@ export function readVerdict(messages: Iterable<Part>) {
     const name = named?.[1].exec(textOf(m))?.[1];
     if (named && name) broke = { kind: named[0], name };
   }
-  return { broke, distinct, initial };
+  return { broke, distinct, initial, symmetry };
 }

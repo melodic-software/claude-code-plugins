@@ -69,6 +69,16 @@ test("referencedModules reads EXTENDS and INSTANCE and skips comments", () => {
   assert.equal(moduleName(text), "M");
 });
 
+test("referencedModules reads past a comment mark inside a string", () => {
+  const text = spec(
+    "M",
+    'EXTENDS Naturals\nOpen == "(*"\nJ == INSTANCE Json\nClose == "*)"\nS == "\\\\*" K == INSTANCE IOUtils\nQ == "a\\"(*"',
+  );
+  assert.deepEqual(referencedModules(text).sort(), ["IOUtils", "Json", "Naturals"]);
+  assert.equal(usesGeneratedName(spec("M", 'S == "\\\\*" ChartMark == TRUE')), "ChartMark");
+  assert.equal(moduleName(`X == "(*"\n${spec("M", 'Y == "*)"')}`), "M");
+});
+
 test("usesGeneratedName finds a generated name only outside comments", () => {
   assert.equal(usesGeneratedName(spec("M", "ChartMark == TRUE")), "ChartMark");
   assert.equal(usesGeneratedName(spec("M", "\\* ChartMark is ours")), undefined);

@@ -1,6 +1,7 @@
 import { mermaidLines } from "./backends/mermaid.ts";
 import { plainText } from "./backends/plain-text.ts";
 import { report } from "./backends/report.ts";
+import { MAX_BUG_LINES } from "./guard.ts";
 import {
   type Answers,
   type Bug,
@@ -8,6 +9,7 @@ import {
   type CheckedView,
   type CheckResult,
   type Graph,
+  must,
   PART,
   ruleKey,
   type Story,
@@ -68,7 +70,9 @@ export function compile(result: CheckResult, view: CheckedView) {
   files.set("report.md", [text]);
   files.set("tlc.out", plainText(result.messages));
   const drawn = new Set<string>();
-  for (const b of found) if (b.rule.kind !== "property") drawn.add(ruleKey(b.rule));
+  for (const b of found)
+    if (b.rule.kind !== "property" && must(stories, b).length <= MAX_BUG_LINES)
+      drawn.add(ruleKey(b.rule));
   for (const { rule, outcome, messages } of [...result.rules, ...result.properties])
     if (outcome === "broken" && messages && !drawn.has(ruleKey(rule)))
       files.set(`tlc-${rule.name}.out`, plainText(messages));

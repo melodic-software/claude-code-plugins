@@ -105,6 +105,7 @@ export const EC = {
   TLC_STATE_PRINT3: 2218,
   TLC_SANY_END: 2219,
   TLC_SANY_START: 2220,
+  TLC_FEATURE_UNSUPPORTED_LIVENESS_SYMMETRY: 2279,
 } as const;
 
 export const LEVEL = { NONE: 0, ERROR: 1, TLCBUG: 2, WARNING: 3, STATE: 4 } as const;
@@ -117,7 +118,11 @@ export type Verdict = {
   messages: Iterable<Part> | undefined;
 };
 
-export type Property = Verdict & { bug: Lasso | undefined; initialOnly: boolean };
+export type Property = Verdict & {
+  bug: Lasso | undefined;
+  initialOnly: boolean;
+  symmetry?: boolean;
+};
 
 export type Stop = { status: number | null; message: string };
 

@@ -61,7 +61,7 @@ export function stageSpec(specFile: string, into: string, allowed: string[]) {
     for (const used of referencedModules(text))
       if (!own.has(used) && !allowed.includes(used))
         throw new Error(
-          `The module ${name} uses ${used}, which is not in the allowed modules (${allowed.join(", ")}). Modules such as Json read and write files on this machine; add one to the allowed modules setting only when you trust the spec.`,
+          `The module ${name} uses ${used}, which is not in the allowed modules (${allowed.join(", ")}). Modules such as Json read and write files on this machine; pass one with --modules only when you trust the spec.`,
         );
   return path.join(into, spec);
 }

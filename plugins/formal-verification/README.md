@@ -29,8 +29,9 @@ Version pins and default bounds are keys in the consumer's
 [`schemas/formal-verification.schema.json`](schemas/formal-verification.schema.json). An absent key
 takes the shipped value in [`defaults.json`](defaults.json). Download URLs and checksums are not
 settings: they live only in [`releases.json`](releases.json), and a version chosen in the
-convention file must have an entry there. `scripts/settings.mjs` prints the
-resolved values:
+convention file must have an entry there. The convention files can only remove modules from the
+shipped `allowed_modules`: a module they add is dropped, with a line naming it.
+`scripts/settings.mjs` prints the resolved values:
 
 ```shell
 node <plugin root>/scripts/settings.mjs --project-dir .

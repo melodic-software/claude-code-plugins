@@ -55,8 +55,14 @@ export function colonsBeforeHash(s: string) {
 export function stripComments(tla: string) {
   let out = "";
   let depth = 0;
+  const literal = /"(?:\\.|[^"\\\n])*"?/y;
   for (let i = 0; i < tla.length; i++) {
-    if (tla.startsWith("(*", i)) {
+    if (!depth && tla[i] === '"') {
+      literal.lastIndex = i;
+      const text = literal.exec(tla)![0];
+      out += text;
+      i += text.length - 1;
+    } else if (tla.startsWith("(*", i)) {
       depth++;
       i++;
     } else if (depth && tla.startsWith("*)", i)) {

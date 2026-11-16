@@ -152,17 +152,17 @@ export function report(
         : `The shortest path has ${steps}:`,
     );
     const path = stepsOf(must(stories, bug));
-    out.push(
-      pathBlock(path, bug.rule.kind === "property" ? `tlc-${bug.rule.name}.out` : "tlc.out"),
-    );
+    out.push(pathBlock(path, `tlc-${bug.rule.name}.out`));
     if (bug.loop !== undefined) out.push(forever(path.slice(bug.loop), bug.stutters));
   }
   const drawn = new Set<string>();
   for (const b of found) drawn.add(ruleKey(b.rule));
   const holds: string[] = [];
   const unchecked: string[] = [];
-  for (const { rule, outcome, messages } of [...rules, ...properties]) {
-    if (outcome === "holds") holds.push(rule.name);
+  const symmetric: string[] = [];
+  for (const v of [...rules, ...properties]) {
+    const { rule, outcome, messages } = v;
+    if (outcome === "holds") ("symmetry" in v && v.symmetry ? symmetric : holds).push(rule.name);
     else if (outcome === "not checked") unchecked.push(rule.name);
     else if (messages && !drawn.has(ruleKey(rule)))
       out.push(
@@ -172,6 +172,13 @@ export function report(
       );
   }
   if (holds.length) out.push("", "## Rules that hold", holds.join(", "));
+  if (symmetric.length)
+    out.push(
+      "",
+      "## Rules checked under SYMMETRY",
+      symmetric.join(", "),
+      "TLC found no violation, but it warns that SYMMETRY can make it miss a violation of a liveness property. Check these rules again without SYMMETRY.",
+    );
   if (unchecked.length) out.push("", "## Rules not checked", unchecked.join(", "));
   if (unchecked.length && states.cut)
     out.push(

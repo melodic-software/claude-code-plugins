@@ -204,13 +204,12 @@ for (const [name, version] of [
   ["deno", "deno 1.46.3 (stable, release, x86_64-unknown-linux-gnu)"],
 ]) {
   test(`the launcher stops with exit 127 when --runtime names ${name} ${version}`, () => {
-    const r = run(path.join(corpus, "Login"), {
-      command: [launcher, "--runtime", fakeRuntime(name, version)],
-    });
+    const runtime = fakeRuntime(name, version);
+    const r = run(path.join(corpus, "Login"), { command: [launcher, "--runtime", runtime] });
     assert.equal(r.status, 127);
     assert.equal(
       r.stderr,
-      "statechart needs Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later.\n",
+      `${runtime} did not run, or its version is not supported.\nstatechart needs Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later.\n`,
     );
     assert.deepEqual(r.files, []);
   });

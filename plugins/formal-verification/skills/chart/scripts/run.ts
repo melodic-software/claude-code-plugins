@@ -325,6 +325,7 @@ export async function check(
     const all = [...rules];
     for (const name of spec.properties) all.push({ kind: "property", name });
     const verdicts = new Map<string, Verdict>();
+    const symmetric = new Set<string>();
     const decide = (rule: Rule, outcome: Outcome, r?: FileResult) =>
       verdicts.set(ruleKey(rule), { rule, outcome, messages: r && messagesOf(r.output) });
     const judge = async () => {
@@ -355,7 +356,8 @@ export async function check(
           bounded ? "ChartBound" : spec.module,
         ]);
         first ??= r;
-        const { broke, distinct, initial } = readVerdict(messagesOf(r.output));
+        const { broke, distinct, initial, symmetry } = readVerdict(messagesOf(r.output));
+        if (symmetry) for (const rule of properties) symmetric.add(rule);
         states.distinct = Math.max(states.distinct, distinct);
         states.initial = Math.max(states.initial, initial);
         const rule = broke && brokenRule(group, broke);
@@ -405,6 +407,7 @@ export async function check(
           ...v,
           bug: v.outcome === "broken" && v.messages ? bugOf(readTrace(v.messages)) : undefined,
           initialOnly: initialOnly.has(rule.name),
+          symmetry: symmetric.has(rule.name),
         });
       }
       return properties;

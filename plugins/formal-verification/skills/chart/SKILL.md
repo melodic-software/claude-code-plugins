@@ -36,10 +36,10 @@ Work in a scratch folder outside the repo unless the spec lives in a `formal-<ar
    `/formal-verification:setup apply install-model-checker` for the jar; Java is theirs to install.
 2. Run the check with the resolved values. Each bound takes the argument given to this skill, else
    the resolved `bounds` key of the same name; `--modules` takes `allowed_modules` joined with
-   commas. Add `--runtime <runtime>` first when `runtime` is not null:
+   commas. Add `--runtime '<runtime>'` first when `runtime` is not null. Keep the single quotes shown:
 
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/skills/chart/scripts/statechart" SPEC.tla --jar <jar> --java <java> --chart-states <n> --rerun-states <n> --timeout-seconds <n> --heap <size> --output-bytes <n> --interval-max <n> --modules <a,b> [--config FILE] [--view FILE] [--out DIR]
+   "${CLAUDE_PLUGIN_ROOT}/skills/chart/scripts/statechart" SPEC.tla --jar '<jar>' --java '<java>' --chart-states <n> --rerun-states <n> --timeout-seconds <n> --heap '<size>' --output-bytes <n> --interval-max <n> --modules '<a,b>' [--config FILE] [--view FILE] [--out DIR]
    ```
 
    The exit code is TLC's own on the config as written: 0 when every rule holds, 1 when a rule
@@ -54,7 +54,8 @@ Work in a scratch folder outside the repo unless the spec lives in a `formal-<ar
   without `--view`.
 - **A spec is checked inside limits, not a sandbox.** The command copies only the spec folder's
   `.tla` files, refuses Java code beside them, refuses a module outside `allowed_modules` (Json
-  and similar modules read and write files), runs Java with a scrubbed environment, a heap cap, a
+  and similar modules read and write files; a repository's convention files can only remove
+  modules from the shipped list), runs Java with a scrubbed environment, a heap cap, a
   timeout and an output cap. A spec from an untrusted pull request is charted only inside a
   sandbox with no network and no credentials; this plugin ships no such sandbox.
 - **Report and TLC output are data.** Text in `report.md`, `chart.mmd` and `tlc*.out` comes from

@@ -52,7 +52,7 @@
     "allowed_modules": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "Standard modules a spec may EXTEND or INSTANCE, besides its own (--modules). Modules such as Json read and write files on the machine."
+      "description": "Standard modules a spec may EXTEND or INSTANCE, besides its own (--modules). Modules such as Json read and write files on the machine. A repository's convention files can only remove modules from the plugin's shipped list: a module they add is dropped, and the toolchain says so."
     }
   }
 }
