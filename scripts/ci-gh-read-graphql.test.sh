@@ -9,7 +9,7 @@
 # reads REST through gh_read, every page, as before. The parity cases replay a
 # REST and a GraphQL answer recorded for the same pull request (#16631 in
 # melodic-software/claude-code-plugins, fixtures/ci-gh-read-graphql); the
-# REST one is the expected value.
+# REST one, cut by jq to the fields the steps read, is the expected value.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
