@@ -99,9 +99,12 @@ async page => {
     ok("the note carries every manifest id with the value the person set", JSON.stringify(sent) === JSON.stringify({ "card-gap": "24", accent: "#aa3300", font: "Georgia, serif", dense: "on", align: "center" }), sent);
     ok("the note's data log holds the Seed press", JSON.stringify(posted[0]?.data?.log) === JSON.stringify([{ op: "seed", n: 10 }, { op: "content", name: "worst" }, { op: "content", name: "demo" }]), posted[0]?.data);
 
+    const standing = await page.textContent("#status");
     await page.click("#tab-controls");
     const seeded = await rows();
     await page.click("#reset-controls");
+    ok("Reset controls says so on the Controls tab, where it can be seen", /back at their defaults/.test(await page.textContent("#controls-said")) && await page.isVisible("#controls-said"), await page.textContent("#controls-said"));
+    ok("opening the Controls tab and resetting leaves the Notes status as it was", standing !== "" && (await page.textContent("#status")) === standing, [standing, await page.textContent("#status")]);
     ok("Reset controls puts every control back at its default, shown and written", (await shown("Card gap")) === "12px" && (await css("--card-gap")) === "12px"
       && (await css("--accent")) === "#0d9488" && (await attr("data-control-dense", "A")) === "off" && (await attr("data-control-align")) === "start");
     ok("Reset controls leaves the data as it was", (await rows()) === seeded && seeded === before + 10, [seeded, await rows()]);
