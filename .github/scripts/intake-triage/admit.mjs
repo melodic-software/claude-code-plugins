@@ -1061,8 +1061,8 @@ const actionsBot = (actor) => actor?.__typename === "Bot" && actor.databaseId ==
 // editor, lastEditedAt}): github-actions[bot] wrote it and nobody else last
 // edited it, and its title and first body line are the two lines the filer
 // writes for one upstream id with a drifted hex-pin page. Nothing else of
-// the body is read: its rows hold names and paths an upstream controls, so a
-// caller takes the spec from driftSpecText. Admission, the triage sweep, the
+// the body is read, and a caller takes the spec from driftSpecText, so no
+// body text, whoever wrote it, becomes spec. Admission, the triage sweep, the
 // issue lane and pr-verify judge it here. Pure.
 export const driftIssueId = (item) => (actionsBot(item?.author) && (item.lastEditedAt == null || actionsBot(item.editor)) ? driftShape(item.title, item.body) : null);
 
