@@ -7,7 +7,7 @@
 - [Checks for auto-memory (MEMORY.md + topic files)](#checks-for-auto-memory-memorymd--topic-files)
 - [Audit output format](#audit-output-format)
 
-Version: 1.7.0
+Version: 1.8.0
 Last updated: 2026-10-11
 Source: official Claude Code docs, chiefly
 [How CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load),
@@ -306,9 +306,23 @@ that posture honest, so give C5-kept navigation entries particular attention her
    - A Claude Code hook (deterministic)
 2. WARN per instruction that could move up the hierarchy
 3. Include which enforcement level it could move to
+4. For each instruction a deterministic check already enforces (a hook, a CI check, a linter
+   rule, a test), WARN and flag the prose for deletion, naming the enforcing check by its location
+   (the hook file, CI workflow and job, lint rule id, or test path). The check must be located in
+   the repository or its CI; the prose's own claim that something enforces it is not enough.
+   Where the check covers less than the prose states, flag only the covered part. A move up the
+   hierarchy from item 2 ends the same way: once the check exists, the prose goes in that change.
+5. **Hold instead of delete** when the instruction matches a protected class in the
+   [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md):
+   it keeps its prose even when a check enforces it. Report the hold, its class and the
+   enforcing check.
+
+**Provenance**: items 4 and 5 are this repo's rule, not doc-stated, so the `update` action must
+not overwrite them.
 
 **Why**: Prefer deterministic enforcement over documentation. When a guideline can become a
-compile-time or runtime check, that is the stronger default.
+compile-time or runtime check, that is the stronger default, and once the check exists the prose
+is a second copy of the rule that can drift from it.
 
 ### C9: Build and Test Commands Present [FAIL]
 

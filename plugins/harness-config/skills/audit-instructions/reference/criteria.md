@@ -1,5 +1,5 @@
 ---
-version: 1.32.0
+version: 1.33.0
 last-updated: 2026-11-09
 ---
 
@@ -280,16 +280,28 @@ each only on the surfaces its row names.
 
 ### Deletion tiers
 
-Two deletion tiers, editorial and consequential, and one hold outside them, protected. One
+Three deletion tiers, editorial, enforced and consequential, and one hold outside them,
+protected. One
 grammar. The grammar is `unhobble`'s re-add gate: a ledger row, same-cause
 aggregation, and a commit that cites the rows. This catalog does not define a second grammar.
 The operational form is `/harness-config:unhobble watch`.
 
 - **Editorial.** I1 (removal would not change behavior), I4 (derivable or redundant), and stale
   scaffolding that restates the obvious. Propose the cut. No watch.
+- **Enforced.** Prose restating a rule a deterministic check already enforces: a hook, a CI
+  check, a linter rule, or a test. The rule lives in the check, so the prose is flagged for
+  deletion even when it governs a situation, with the enforcing check named by its location (the
+  hook file, CI workflow and job, lint rule id, or test path). No watch: the named check is what
+  clears this tier. The check must be located in the repository or its CI; the prose's own claim
+  that something enforces it ("CI rejects other titles") identifies the candidate but does not
+  clear it. Report such a candidate as flagged for deletion pending the check's location, never
+  as a kept hard constraint. Where the check covers less than the prose states, only the covered
+  part goes.
 - **Protected.** A candidate matching the instruction exception register. Hold. Never a watch
-  and never a deletion. Compression in place or hook conversion stays available.
-- **Consequential.** A rule that governs a situation and is outside the register. Do not present
+  and never a deletion, even when a check enforces it: report the enforcing check beside the
+  hold. Compression in place or hook conversion stays available.
+- **Consequential.** A rule that governs a situation, outside the register, and enforced by no
+  check. Do not present
   the deletion as applicable. Propose opening a watch for that rule. The cut becomes applicable
   only when a closed watch is cited: its qualifying-session count met and zero attributed rows.
   The recommended commit cites that watch. That citation is what clears this tier.
@@ -302,7 +314,8 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   something the model already does correctly.
 - **Remediate:** cut it. This check's cut is editorial (Deletion tiers) and does not require a
   watch. If the line enforces a governed situation, it is consequential: convert per I5 or open a
-  watch, and do not cut it on this check alone.
+  watch, and do not cut it on this check alone. If a deterministic check already enforces it,
+  flag it for deletion under I5 with the check named.
 - **Hold instead of delete** when the candidate matches a protected class in the
   [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md),
   on I5's terms. This bar asks whether removal would change behavior *today*; a protected rail's
@@ -398,17 +411,22 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: I1–I5 partition.
 
-- **Detect:** a rule the model already follows without it, or one that must fire every time with
-  zero exceptions.
-- **Remediate:** an already-followed rule that does not govern a situation is an editorial
-  deletion. A rule that governs a situation is consequential: open a watch, and propose the
-  deletion only when a closed watch is cited (Deletion tiers). Convert a must-always rule to a
-  hook either way; conversion is not a deletion.
+- **Detect:** a rule the model already follows without it, one that must fire every time with
+  zero exceptions, or one a deterministic check already enforces (a hook, a CI check, a linter
+  rule, a test).
+- **Remediate:** a rule a deterministic check already enforces is not also kept as prose: flag
+  the prose for deletion and name the enforcing check (Deletion tiers, enforced). Convert a
+  must-always rule with no check to a hook or another deterministic check; once the check
+  exists, the prose goes in the same change, named against that check. An already-followed rule
+  that does not govern a situation is an editorial deletion. Any other rule that governs a
+  situation is consequential: open a watch, and propose the deletion only when a closed watch is
+  cited.
 - **Hold instead of delete** when the candidate matches a protected class in the
   [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md).
   "The model already does this" is the weakest possible evidence against a rail whose absence is
   unrecoverable, and the hook conversion stays available: converting a protected rule to a
-  deterministic mechanism is a remediation, deleting it is not.
+  deterministic mechanism is a remediation, deleting it is not. A protected rule keeps its prose
+  even when a check enforces it; report the check beside the hold.
 - **Source:** best-practices, "Keep CLAUDE.md short" (already-followed rules) and "Enforce steps with
   hooks".
 
@@ -474,7 +492,9 @@ disagrees with it.
   surface's to make, not this row's to override.
 - **Remediate:** propose removal or a briefer instruction; verify per Deletion tiers (a
   consequential removal needs a closed watch, an editorial one does not) that default performance
-  holds or improves.
+  holds or improves. When a cull keeps the hard constraints, a step a deterministic check already
+  enforces is not one of them: flag it for deletion with the check named, per I5 (on
+  memory-layer surfaces, the harness-memory audit's C8).
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Source:** prompting best practices, "Leverage thinking & interleaved thinking capabilities"
   (the gate-meeting, model-agnostic one). Convergent model guide: Fable 5, "Recommended
