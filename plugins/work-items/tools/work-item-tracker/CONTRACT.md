@@ -707,11 +707,10 @@ backs off, and a lane run that finds a live local lease backs off without starti
   read after the PATCH is at or past the old expiry, the PATCH may have revived an expired lease,
   so it supersedes its own lease, runs claim step 4's hand-back for the lease's holder, and exits
   `7`, whatever the leases show. When that clock read is within the margin before the old
-  expiry, it re-reads
-  the leases (one retry on a failed read); a newer live lease there makes it supersede its own
+  expiry, it re-reads the leases (one retry on a failed read); a newer live lease there makes it supersede its own
   lease, run claim step 4's hand-back for the lease's holder on a fresh list (a superseded lease
-  is beyond reclaim), and exit `7`, and a list it still cannot read keeps the renewed lease (exit `0`, with a
-  warning). On exit `7` the session no longer holds the item, so it stops writing to it, and to
+  is beyond reclaim), and exit `7`, and a list it still cannot read keeps the renewed lease (exit
+  `0`, with a warning). A clock read earlier than the margin adds no read. On exit `7` the session no longer holds the item, so it stops writing to it, and to
   continue it claims again, which backs off if another session holds it. That check has no
   compare-and-swap either: it covers a claimant that posted before the re-list, while a renew
   stalled between the re-list and its return stays open, and GitHub's read-after-write
@@ -743,11 +742,14 @@ Claim sequence (race-safe, same-identity aware):
 4. Re-read all lease comments. If an earlier live lease exists that is not our own
    comment, the foreign lease wins → supersede own comment, exit `7`. On that loss, on the
    step 2 back-off, and on any failure from step 1 until the emit, the GitHub adapter runs the
-   **hand-back** after superseding its own lease: it lists the leases (a failed list counts as
-   empty) and stops if one shows a live lease of the login other than its own; else it reads the
-   assignees and stops only if that read succeeds without the login; else it removes the login,
-   re-lists the leases (stopping on a failed list), and assigns the login again if a live lease
-   of it other than its own has appeared. Release and renew hand back the same way after their
+   **hand-back** after superseding its own lease. Each of its lease lists retries once before it
+   counts as failed. It lists the leases (a failed list counts as empty) and stops if one shows a
+   live lease of the login other than its own; else it reads the assignees and stops only if that
+   read succeeds without the login; else it removes the login, re-lists the leases (stopping on a
+   failed list), and assigns the login again if a live lease of it other than its own has
+   appeared. After such a re-add it lists the leases once more and removes the login again if
+   that list shows no such lease, so a re-add never outlives the lease that earned it (a failed
+   list keeps the re-add). Release and renew hand back the same way after their
    own supersede; the hand-back always lists the leases itself, after the caller's own lease is
    dead, so between any two sessions of one login one sees the other's write. On a win,
    re-read assignees and assign self again if a same-login release removed it after step 2.
@@ -768,9 +770,9 @@ which, like `claim`'s, replaces the `gh api user` lookup and is asserted by the 
 edit still needs the token's write access), and, for a live lease, not outranked by an earlier
 live lease under claim step 4 (the completed-run rule included); a newer live lease is a claimant
 that has not backed off yet and does not stop the release. Anything else is refused with exit `7`
-and nothing is written: a cross-item handle, another login's lease, a live handle an earlier live
-lease outranks, or an expired handle under a newer non-superseded lease. That last refusal still
-runs the hand-back below, since its lease no longer holds the item. The login check
+and no lease is written: a cross-item handle, another login's lease, a live handle an earlier
+live lease outranks, or an expired handle under a newer non-superseded lease. Only that last
+refusal edits anything: it runs the hand-back below, since its lease no longer holds the item. The login check
 exists because lease handles are public (a GitHub comment id), and within one login the handle
 tells sessions apart, as for `renew-lease`. An already-superseded or expired lease is an
 idempotent no-op (`released: false`, exit `0`), because it already blocks nobody. A live lease is
@@ -812,7 +814,8 @@ claim's `lease_comment_id`) rather than relying on push activity (`/work-items:w
   MUST emit ordered unique numeric `lease_comment_id` handles.
 - **Ambiguous lease post.** A lease comment POST that GitHub applies but reports as failed (a
   timeout) returns no comment id, so the claim cannot supersede it: that lease blocks the item
-  for its TTL, and the claim's rollback keeps the assignee for it.
+  for its TTL. The claim's rollback keeps the assignee for it when its lease list shows that
+  lease; when the list fails twice the rollback removes the assignee.
 
 ## Containers and state
 

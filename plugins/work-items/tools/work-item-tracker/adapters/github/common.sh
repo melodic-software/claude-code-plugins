@@ -493,7 +493,8 @@ wit_lease_released_by_run() {
 # wit_hand_back_assignee <owner> <repo> <number> <login> <own-id>: after a release, a claim's
 # back-off or failure, or a renew's back-off, remove <login> from the assignees unless a live
 # lease of <login> other than <own-id> holds the item (CONTRACT.md "Lease protocol", claim step
-# 4). It lists the leases itself; a failed list counts as empty. Every caller's own lease is
+# 4). It lists the leases itself, each list retried once; a list failed twice counts as empty
+# at the first read and ends the hand-back at the re-list. Every caller's own lease is
 # dead (superseded or expired) before that list, so a same-login session that
 # superseded its lease earlier is seen as gone, and its own list after superseding sees this
 # one's. A lease posted after the list is caught by the re-list after the removal, which puts
@@ -502,16 +503,22 @@ wit_lease_released_by_run() {
 # still removes, since an assignee that no lease holds keeps the item off the frontier for good.
 wit_hand_back_assignee() {
   local owner="$1" repo="$2" number="$3" login="$4" own="$5" leases
-  leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || leases='[]'
+  leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" ||
+    leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || leases='[]'
   _wit_login_holds_other "$leases" "$login" "$own" && return 0
   if wit_try_read_assignees "$owner" "$repo" "$number"; then
     jq -e --arg l "$login" 'any(.[]; . == $l)' <<<"$WIT_GH_OUT" >/dev/null || return 0
   fi
   wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
-  leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || return 0
-  if _wit_login_holds_other "$leases" "$login" "$own"; then
-    wit_try_add_assignee "$owner" "$repo" "$number" "$login"
-  fi
+  leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" ||
+    leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || return 0
+  _wit_login_holds_other "$leases" "$login" "$own" || return 0
+  wit_try_add_assignee "$owner" "$repo" "$number" "$login"
+  # The lease that earned the re-add may have ended meanwhile (a renew that revived it for a
+  # moment backs off and finds the login already gone), so the re-add must not outlive it.
+  leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" ||
+    leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || return 0
+  _wit_login_holds_other "$leases" "$login" "$own" || wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
 }
 
 # _wit_login_holds_other <leases-json> <login> <excluded-id>: 0 when a live lease other than
