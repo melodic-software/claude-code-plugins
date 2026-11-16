@@ -3,6 +3,12 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2] - 2026-11-16
+
+### Changed
+
+- The `always-on` profile no longer lists `context-budget`, whose settings-write ask now runs in guardrails; `context-budget` moves to `harness-upkeep`.
+
 ## [0.2.1] - 2026-11-16
 
 ### Changed
