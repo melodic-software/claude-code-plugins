@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/claude/plugins/data/harness-config-melodic-software/findings.json",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "the persisted verdicts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/settings.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "writes settings"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/conventions/harness-config.yaml",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "declares a rule the audit should only report"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/hooks/no-eval.sh",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "writes a hook script"
+    }
+  ]
+}
