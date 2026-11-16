@@ -14,7 +14,7 @@ execution:
 graders:
   - name: names-skill-and-plugin
     type: regex
-    pattern: '^(?![^\n]*no owner found)[^\n]*\b(?:own(?:er|ers|ed|ing)?|belongs? to)\b[^\n]*implementation:implement-dispatch\b|^\|[^\n]*\bown(?:er|ing)\b[^\n]*\|[ \t]*\n(?:\|[^\n]*\n)*?\|(?![^\n]*no owner found)[^\n]*implementation:implement-dispatch\b'
+    pattern: '^(?![^\n]*no owner found)[^\n]*?(?:\b(?:owners?|owned by|owning|belongs? to)\b[^\n.;!?|]{0,30}?|\b(?:are|is|both|all|each) in[ \t*`(]*)/?implementation:implement-dispatch\b|^\|[^\n]*\bown(?:er|ing)\b[^\n]*\|[ \t]*\n(?:\|[^\n]*\n)*?\|(?![^\n]*no owner found)[^\n]*implementation:implement-dispatch\b'
     flags: 'mi'
     arm: with-only
   - name: reports-skill-fit-gap

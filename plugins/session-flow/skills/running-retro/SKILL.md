@@ -77,9 +77,10 @@ So resolve every input to a concrete value and pass it in the delegation prompt,
   transcript is `<SESSION_DATA_DIR>/<session-id>.jsonl`, subagents
   `<SESSION_DATA_DIR>/<session-id>/subagents/`. Confirm it with one Read of the transcript's first
   line and nothing else: never list, glob or search for it. When that Read fails or is denied, pass
-  `transcript: unreadable` in the subagent's Transcript slot, add that to the subjective-state
-  note, and carry on through step 5: the analysis then runs on the user's account and this
-  conversation, and its findings still go to the ledger.
+  `transcript: unreadable` in the subagent's Transcript slot, fill its User's account slot with
+  what the user and this conversation say happened (corrections, skills invoked or bypassed),
+  add the unreadable transcript to the subjective-state note, and carry on through step 5: the
+  analysis then runs on that account, and its findings still go to the ledger.
 - **Parser (absolute path)**. Resolve `${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse_transcript.py`
   to its absolute form and pass that; the invocation + Python-3.10+ interpreter detection live in
   retro's Phase 1.1 (`${CLAUDE_PLUGIN_ROOT}/skills/retro/context/session.md`). Point the subagent
