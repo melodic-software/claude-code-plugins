@@ -614,8 +614,8 @@ WSL load was 4 to 17 during the run. Every judged payload was faster in all 5 bl
 | `bash <<'EOF'` running `rm -rf build/x` | 463.8 | 334.8 | -129.0 |
 | common call (`git status --short`) | 30.4 | 31.0 | +0.6, inside noise (branch lower in 2 of 5 blocks) |
 
-A judged delete still costs about 190 ms over the common call, about 9.5 S at the 20 ms S of the
-harness in the #9754 entry. That overage is the shell's own parse and the one `git`. Linux and macOS keep one
+A judged delete still costs about 190 ms over the common call, about 9.5 spawns' worth (S is the
+cost of one process spawn, 20 ms in the harness of the #9754 entry). That overage is the shell's own parse and the one `git`. Linux and macOS keep one
 `realpath` per judgment and lose the three `timeout` processes.
 
 `block-root-delete-target-resolve.test.sh` runs in the Windows CI lane and compares the shell's
@@ -624,7 +624,7 @@ answers with `realpath` and `cygpath` there. That lane is informational, not a r
 there and does not block a merge.
 
 **block-root-delete-target shells and launchers from Bash (#9768).** The arm starts no process of its
-own, so its k is 0: the text `eval` joins, `watch` runs, `wsl` hands its shell, `cmd /c` runs and a
+own, so its k (the number of processes a call spawns) is 0: the text `eval` joins, `watch` runs, `wsl` hands its shell, `cmd /c` runs and a
 stdin shell reads (a heredoc, a here-string, or what `echo`, `printf` or `cat` pipes into it) is
 parsed in-process as a `bash -c` operand is, and an `echo`'s escapes and a `printf`'s output are
 expanded by the `printf -v` builtin. Each target it then judges takes the path a recursive `rm`
@@ -1429,8 +1429,8 @@ After: one hook process; `RUN_GUARDS_PROFILE=1` reports the per-guard slices ins
 as ≈ 167 / 163 / 197 / 18 / 233 / 253 / 156 / 37 ms, **≈ 1,220 ms** in total, the
 remainder being fork cost, since each guard still runs in its own subshell so that its
 `exit` and `trap` behave as they do standalone. That is a halving of the per-Bash-call
-CPU cost and a drop from eight process spawns to one; it was still above the
-convention's ≤ 1 s typical ceiling of that time on a loaded host, and the remaining remediation is
+CPU cost and a drop from eight process spawns to one; that total was still above the
+convention's ≤ 1 s typical ceiling on a loaded host, and the remaining remediation is
 the guards' own per-call work (the subshell fork itself, and the external programs a
 guard spawns on its hot path), not the dispatcher. The per-Write sets fell the same way:
 three PreToolUse processes to one, three PostToolUse processes to one.
