@@ -9,6 +9,6 @@ bump: minor
   survivors for a change.
 - **Parallel isolation in `/testing:write`.** The determinism controls give each worker its own
   database or schema, bind test servers to port 0, give each test its own temp directory, and bar
-  mutating a file or environment variable another worker reads, with pointers to the worker-id docs
-  of pytest-xdist, Jest and Playwright.
+  mutating a file or environment variable another worker reads. The agent finds its runner's
+  worker id from the repository's test config and the runner's current docs at run time.
 - Eval cases `tv-surviving-mutant-signal` and `wr-parallel-worker-isolation`.
