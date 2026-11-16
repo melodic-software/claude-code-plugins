@@ -2,8 +2,9 @@
 
 Read this before writing or changing code that runs at runtime: a service, an API handler, a
 worker or job, a CLI, a hook or a script someone else runs. The rules hold in every language; the
-two examples show one way to follow them in .NET and in JavaScript or TypeScript. Where the
-repository already has a logging or telemetry setup, follow it, and apply these rules inside it.
+two examples show one way to follow them in .NET and in JavaScript or TypeScript. The examples
+choose no library: use the logging and telemetry libraries the repository already has, found the
+way `ecosystem-resolution.md` in this folder describes, and apply these rules inside them.
 
 ## Rules
 
@@ -19,7 +20,9 @@ repository already has a logging or telemetry setup, follow it, and apply these 
 | Catching an error | Catch where the code can act on it, and record it with the exception object (stack included) and the fields that identify the operation; rethrow or return a failure the caller can see | A message without the exception loses the stack, and a swallowed error leaves no trace |
 
 Never log secrets, tokens or personal data in a field or a message; redact at the logging layer
-when the platform offers it.
+when the platform offers it. An error object can carry them too (a client error holding request
+headers or a connection string), so log it through a serializer that keeps the type, message,
+stack and code and drops the rest.
 
 ## .NET
 

@@ -30,7 +30,7 @@ graders:
     target: { source: file, path: src/app.js }
   - name: no-raised-level-committed
     type: regex
-    pattern: 'level\s*:\s*["''`](?:debug|trace)["''`]'
+    pattern: '(?:level\s*:|\?\?|\|\|)\s*["''`](?:debug|trace)["''`]'
     match: not_contains
     target: { source: file, path: src/app.js }
   - name: fields-not-built-strings

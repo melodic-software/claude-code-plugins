@@ -9,6 +9,10 @@
     {
       "answer": "import { createLogger } from \"./logger.js\";\nimport { createMetricsClient } from \"./metrics.js\";\nimport { refundOrder } from \"./refunds.js\";\n\nexport function buildApp() {\n  const logger = createLogger({ level: \"debug\" });\n  const metrics = createMetricsClient({\n    endpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,\n    serviceName: \"orders\",\n  });\n  return { logger, metrics, refundOrder: (orderId, gateway) => refundOrder({ gateway, logger, metrics }, orderId) };\n}\n",
       "why": "debug level committed"
+    },
+    {
+      "answer": "import { createLogger } from \"./logger.js\";\nimport { createMetricsClient } from \"./metrics.js\";\nimport { refundOrder } from \"./refunds.js\";\n\nexport function buildApp() {\n  const logger = createLogger({ level: process.env.LOG_LEVEL ?? \"debug\" });\n  const metrics = createMetricsClient({\n    endpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,\n    serviceName: \"orders\",\n  });\n  return { logger, metrics, refundOrder: (orderId, gateway) => refundOrder({ gateway, logger, metrics }, orderId) };\n}\n",
+      "why": "debug committed as the fallback"
     }
   ]
 }
