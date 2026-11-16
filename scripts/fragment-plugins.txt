@@ -24,7 +24,6 @@ computer-use
 context-budget
 context-usage
 context7
-core
 corrections
 coupling
 debugging

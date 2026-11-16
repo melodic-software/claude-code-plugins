@@ -1726,19 +1726,6 @@
         "display",
         "hooks"
       ]
-    },
-    {
-      "name": "core",
-      "source": "./plugins/core",
-      "category": "claude-code",
-      "defaultEnabled": false,
-      "tags": [
-        "bundle",
-        "dependencies",
-        "default-on",
-        "plugin-set",
-        "install"
-      ]
     }
   ]
 }
