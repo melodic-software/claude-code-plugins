@@ -26,8 +26,10 @@ run of the same character at least as long with nothing after it; a fence
 inside another fence is content and does not count. An opener may follow any
 mix of blockquote markers (`>`), list markers (`-`, `*`, `+`, `1.`, `1)`) and
 their indentation. A closer may carry only indentation and exactly the
-opener's number of `>` markers; any other line, a list marker included, is
-content of the open fence.
+opener's number of `>` markers. A line with fewer `>` markers than the opener
+ends its blockquote and so the fence, and is then read as a normal line that
+may open a fence. Any other line, a list marker included, is content of the
+open fence.
 
 Exit 0 with the lines printed; 2 when git cannot list files or no file is in
 scope, because a count of nothing would pass any ceiling.
@@ -64,6 +66,7 @@ SKIPPED_DIRS = frozenset(
 CONTAINER_PREFIX = r"(?:\s*(?:>|[-*+](?=\s)|\d{1,9}[.)](?=\s)))*\s*"
 OPENING = re.compile(rf"^({CONTAINER_PREFIX})(`{{3,}}|~{{3,}})(.*)$")
 CLOSING = re.compile(r"^([\s>]*)(`{3,}|~{3,})\s*$")
+QUOTE_MARKERS = re.compile(r"[\s>]*")
 
 
 def fail(message: str) -> int:
@@ -93,15 +96,18 @@ def count_fences(text: str) -> int:
     quote_depth = 0
     for line in text.splitlines():
         if fence:
-            closing = CLOSING.match(line)
-            if (
-                closing
-                and closing.group(1).count(">") == quote_depth
-                and closing.group(2)[0] == fence[0]
-                and len(closing.group(2)) >= len(fence)
-            ):
+            if QUOTE_MARKERS.match(line).group(0).count(">") < quote_depth:
                 fence = ""
-            continue
+            else:
+                closing = CLOSING.match(line)
+                if (
+                    closing
+                    and closing.group(1).count(">") == quote_depth
+                    and closing.group(2)[0] == fence[0]
+                    and len(closing.group(2)) >= len(fence)
+                ):
+                    fence = ""
+                continue
         match = OPENING.match(line)
         if not match:
             continue
