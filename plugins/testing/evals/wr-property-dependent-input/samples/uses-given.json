@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "from hypothesis import given\n\n\n@given(invoices())\ndef test_total_is_sum_of_lines(invoice):\n    assert invoice_total(invoice) >= 0\n",
+      "why": "a Hypothesis property"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def test_total():\n    assert invoice_total(Invoice('EUR', ())) == 0\n",
+      "why": "an example test only"
+    },
+    {
+      "answer": "# @given(invoices())\ndef test_total():\n    pass\n",
+      "why": "the decorator only in a comment"
+    }
+  ]
+}

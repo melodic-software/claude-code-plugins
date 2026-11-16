@@ -74,7 +74,9 @@ taken as `release_timestamp` plus `duration`. The wait is bounded: a re-check ev
 most 12 hours from the stream's end (from the first hold when the end is unknown). Once that
 deadline passes, the run takes the exhausted-ladder path above and records the ended wait. Every
 other value, an absent one, and a `was_live` stream whose end is unknown or older than the window
-take the exhausted-ladder path at once, with no wait. The constants live in
+take the exhausted-ladder path at once, with no wait. A ranged `watch` (`--from`/`--to`) with ASR
+detected also skips the wait, unless `--transcript-strategy` names a caption strategy: it has the
+ranged media, so the `asr` rung transcribes it, and the `captionWait` note records the skip. The constants live in
 `extraction/acquisition/caption-wait.js`; the queue side is `../../context/watch-queue.md`
 "Caption wait". The observation behind the decision, auto-captions arriving about 2 hours after
 a stream ended, is [#14743](https://github.com/melodic-software/claude-code-plugins/issues/14743).

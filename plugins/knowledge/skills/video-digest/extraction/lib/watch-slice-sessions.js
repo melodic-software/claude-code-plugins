@@ -47,3 +47,23 @@ export function parseSessionsFromClaimInventory(claimInventoryBody) {
   }
   return sessions;
 }
+
+/**
+ * The sessions that overlap a ranged slice's `watch.json` `timeRange`, so its floors grade
+ * only the part that was watched. An open session end, or an open range end, runs to the
+ * end of the video. With no range every session is kept.
+ *
+ * @template {{ startSec: number, endSec: number|null }} Session
+ * @param {readonly Session[]} sessions - full-video time
+ * @param {{ fromSec: number, toSec: number|null }|null|undefined} timeRange
+ * @returns {Session[]}
+ */
+export function sessionsInTimeRange(sessions, timeRange) {
+  if (!timeRange) return [...sessions];
+  const rangeEnd = timeRange.toSec ?? Number.POSITIVE_INFINITY;
+  return sessions.filter(
+    (session) =>
+      session.startSec < rangeEnd &&
+      (session.endSec ?? Number.POSITIVE_INFINITY) > timeRange.fromSec,
+  );
+}

@@ -5,6 +5,14 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.0.8] - 2026-11-15
+
+### Changed
+
+- The bundled enforcement ladder is 3.1.1: its Rungs section names the sources of the order
+  (Lauren Tan for the tiers, Simon Brown for a compiler setting above an architecture test). No
+  rung, id or rule changes.
+
 ## [5.0.7] - 2026-11-15
 
 ### Changed

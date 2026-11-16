@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "session-flow:handoff", "args": "file retry-backoff"}}
+      ],
+      "why": "no Skill call names plugin-profiles"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "plugin-profiles:profile", "args": "status"}}
+      ],
+      "why": "calls the profile skill although it is not available"
+    }
+  ]
+}

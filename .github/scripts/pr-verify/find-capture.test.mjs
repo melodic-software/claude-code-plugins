@@ -61,7 +61,11 @@ const fake = ({ listings, records = [run()], artifacts = [artifact()] }) => {
 test("the run-name and artifact name it looks for are the capture workflow's, and never a verdict's", () => {
   const workflow = readFileSync(new URL("../../workflows/pr-verify-capture.yml", import.meta.url), "utf8");
   assert.match(workflow, new RegExp(`^run-name: ${runTitle("\\$\\{\\{ github\\.event\\.workflow_run\\.id \\}\\}", "\\$\\{\\{ github\\.event\\.workflow_run\\.head_sha \\}\\}")}$`, "m"));
-  assert.match(workflow, /^ {10}name: pr-capture-\$\{\{ steps\.pr\.outputs\.pr-number \}\}-\$\{\{ steps\.pr\.outputs\.head-sha \}\}$/m);
+  // The resolver's pull request and head, or, when the credit gate stopped the job before the resolver, the event's.
+  assert.match(
+    workflow,
+    /^ {10}name: pr-capture-\$\{\{ steps\.pr\.outputs\.pr-number \|\| github\.event\.workflow_run\.pull_requests\[0\]\.number \}\}-\$\{\{ steps\.pr\.outputs\.head-sha \|\| github\.event\.workflow_run\.head_sha \}\}$/m,
+  );
   assert.equal(artifactName(PR, HEAD), `pr-capture-41-${HEAD}`);
   assert.doesNotMatch(artifactName(PR, HEAD), /^pr-verify-/);
 });

@@ -2,7 +2,12 @@
 # /code-metrics:audit size entry point: lines per file, comment-aware when
 # `scc` resolves, comment-agnostic from the bundled counter otherwise.
 #
-#   audit-size.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [<path>...]
+#   audit-size.sh [--json] [--all] [--base <ref>] [--file-lines <n>] [--commits-since <date>] [--config <resolved.json>] [<path>...]
+#
+# `--file-lines <n>` replaces the resolved `size.file_lines` reference for this
+# run, and the report names the option as the layer that supplied it.
+# `--commits-since <date>` adds, for each file at or above the reference, the
+# commits since <date> that touched it, automation authors left out.
 #
 # Prints the markdown report; `--json` prints the `code-metrics/v2` document
 # instead. Scope, lanes, and the collector ladder are the dispatcher's
@@ -21,7 +26,7 @@ DISPATCH="$PLUGIN_ROOT/scripts/dispatch.sh"
 # shellcheck source=../../../scripts/entry-common.sh
 source "$PLUGIN_ROOT/scripts/entry-common.sh"
 
-cm_entry_args "${BASH_SOURCE[0]}" 11 "$@"
+cm_entry_args "${BASH_SOURCE[0]}" 16 "$@"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -36,6 +41,50 @@ if [[ -z "$CM_CONFIG" ]]; then
   CM_CONFIG="$WORK/config.json"
   cm_resolve_config "$CM_CONFIG" || exit 2
 fi
+
+# Take `--file-lines <n>` out of the pass-through arguments and write it into a
+# copy of the resolved document, so a caller's --config file is left as it was.
+FILE_LINES=""
+COMMITS_SINCE=""
+REST=()
+set -- "${CM_PASS_ARGS[@]}"
+while [[ $# -gt 0 ]]; do
+  if [[ "$1" == "--file-lines" ]]; then
+    if [[ $# -lt 2 || ! "$2" =~ ^[1-9][0-9]*$ ]]; then
+      echo "audit-size.sh: --file-lines takes a positive whole number, got '${2-}'" >&2
+      exit 2
+    fi
+    FILE_LINES="$2"
+    shift 2
+    continue
+  fi
+  if [[ "$1" == "--commits-since" ]]; then
+    if [[ $# -lt 2 || -z "$2" || "$2" == -* ]]; then
+      echo "audit-size.sh: --commits-since takes a date git log --since accepts, got '${2-}'" >&2
+      exit 2
+    fi
+    COMMITS_SINCE="$2"
+    shift 2
+    continue
+  fi
+  REST+=("$1")
+  shift
+done
+CM_PASS_ARGS=("${REST[@]}")
+if [[ -n "$FILE_LINES" ]]; then
+  "${PY[@]}" -I -c '
+import json, sys
+source, destination, value = sys.argv[1], sys.argv[2], int(sys.argv[3])
+doc = json.load(open(source))
+doc.setdefault("size", {})["file_lines"] = value
+doc.setdefault("_layers", {})["size.file_lines"] = "this run (--file-lines)"
+for entry in doc.get("thresholds", []):
+    if entry.get("config_key") == "size.file_lines":
+        entry["provenance"] = "passed with --file-lines for this run; the caller states where the number comes from"
+json.dump(doc, open(destination, "w"))
+' "$CM_CONFIG" "$WORK/config-run.json" "$FILE_LINES" || exit 2
+  CM_CONFIG="$WORK/config-run.json"
+fi
 MODE="$("${PY[@]}" -I -c 'import json,sys; print((json.load(open(sys.argv[1])).get("size") or {}).get("mode") or "file-lines")' "$CM_CONFIG")"
 case "$MODE" in
 file-lines) MEASURES="file_lines" ;;
@@ -49,5 +98,11 @@ esac
 bash "$DISPATCH" audit-size --measures "$MEASURES" --config "$CM_CONFIG" "${CM_PASS_ARGS[@]}" >"$WORK/report.json"
 rc=$?
 [[ $rc -eq 0 || $rc -eq 3 ]] || exit "$rc"
+if [[ -n "$COMMITS_SINCE" ]]; then
+  "${PY[@]}" -I "$SCRIPT_DIR/size_commits.py" add --since "$COMMITS_SINCE" "$WORK/report.json" || exit 2
+fi
 cm_emit_document audit-size "$JSON" "$WORK/report.json" || exit 2
+if [[ -n "$COMMITS_SINCE" && "$JSON" -ne 1 ]]; then
+  "${PY[@]}" -I "$SCRIPT_DIR/size_commits.py" render "$WORK/report.json"
+fi
 exit "$rc"

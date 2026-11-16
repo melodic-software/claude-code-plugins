@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: wr-fuzz-follows-property
+description: 'Fuzz follows the property guidance. A fuzz test asked for a Python duration parser routes to context/property.md, uses the property library the project already lists (Hypothesis in the test extras) rather than a separate fuzzing tool, and states a rule stronger than "does not crash" (the round trip through format_duration). skill-fired and read-property read the tool calls; uses-project-library, no-separate-fuzzer and states-round-trip read tests/test_duration_fuzz.py. Needs --scaffold --allow-tools Write Edit.'
+tags: [testing, write, property, fuzz, project-library, scaffold, no-network]
+expected_outcome: 'Reads context/property.md; tests/test_duration_fuzz.py imports hypothesis, not atheris, and checks that parse_duration reads format_duration''s output back to the same seconds.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Write a fuzz test for parse_duration in src/duration.py and put it in tests/test_duration_fuzz.py. Dependencies are not installed in this checkout, so write the file and do not run it. Use the `testing:write` skill if you have it.'
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: read-property
+    type: tool_used
+    tool: Read
+    input_match: '"file_path"\s*:\s*"[^"]*skills/write/context/property\.md"'
+  - name: uses-project-library
+    type: regex
+    pattern: '^\s*(?:from\s+hypothesis\b|import\s+hypothesis\b)'
+    flags: m
+    target: { source: file, path: tests/test_duration_fuzz.py }
+  - name: no-separate-fuzzer
+    type: regex
+    pattern: '\batheris\b|\bpythonfuzz\b'
+    match: not_contains
+    target: { source: file, path: tests/test_duration_fuzz.py }
+  - name: states-round-trip
+    type: regex
+    pattern: '\bparse_duration\(\s*format_duration\(|=\s*format_duration\([\s\S]*?\bparse_duration\('
+    target: { source: file, path: tests/test_duration_fuzz.py }

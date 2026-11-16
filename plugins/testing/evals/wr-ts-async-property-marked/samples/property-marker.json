@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "import fc from 'fast-check';\nimport { it } from 'vitest';\n\nit('decodes what it encodes', async () => {\n  await fc.assert(fc.asyncProperty(fc.record({ id: fc.string(), tags: fc.array(fc.string()), score: fc.double({ noNaN: true }) }), async (r) => {\n    expect(await decodeRecord(await encodeRecord(r))).toEqual(r);\n  }));\n});\n",
+      "why": "fc.assert and fc.asyncProperty"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "import { it } from 'vitest';\n\nit('decodes what it encodes', async () => {\n  const r = { id: 'a', tags: ['x'], score: 1 };\n  expect(await decodeRecord(await encodeRecord(r))).toEqual(r);\n});\n",
+      "why": "an example test, no property"
+    },
+    {
+      "answer": "import { test } from '@fast-check/vitest';\n\ntest.prop([gen])('decodes', async (r) => {});\n",
+      "why": "a property through a call no adapter marker lists"
+    }
+  ]
+}

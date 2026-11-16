@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "9.4.0",
+  "version": "9.4.1",
   "license": "MIT",
   "keywords": [
     "review",
@@ -85,6 +85,22 @@
       "title": "Design-smell baseline",
       "description": "default (default): the code-reviewer agent checks the shipped design-smell baseline. off: no smell check. A repository-relative .md path: that list, or the shipped one when the file is missing or the change edits it. A repository's docs/conventions/review.yaml smell_baseline wins over this option.",
       "default": "default"
+    },
+    "loosened_check_verdict": {
+      "type": "string",
+      "title": "Loosened-check verdict",
+      "description": "fail (default): a change that loosens a check without the spec's reason is a blocking review finding. note: the finding blocks nothing. fail here or in a repository's docs/conventions/review.yaml (default branch) wins over note.",
+      "default": "fail",
+      "options": [
+        "fail",
+        "note"
+      ]
+    },
+    "loosened_check_patterns": {
+      "type": "string",
+      "title": "Loosened-check patterns (JSON)",
+      "description": "Your entries for the loosened-check review criterion as a JSON list: path globs for a check's own files, or text: then a regex for changed lines. Empty (default): none. Every layer's entries apply, docs/conventions/review.yaml (default branch) included.",
+      "default": ""
     },
     "council_max_rounds": {
       "type": "number",

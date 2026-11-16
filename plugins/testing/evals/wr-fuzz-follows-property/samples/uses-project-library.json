@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "from hypothesis import given, strategies as st\n\nfrom src.duration import parse_duration\n",
+      "why": "the property library the test extras list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "import sys\n\nimport atheris\n\nwith atheris.instrument_imports():\n    from src.duration import parse_duration\n",
+      "why": "a separate fuzzing tool the project does not list"
+    },
+    {
+      "answer": "# could use hypothesis here\nimport random\n",
+      "why": "named in a comment, not imported"
+    }
+  ]
+}
