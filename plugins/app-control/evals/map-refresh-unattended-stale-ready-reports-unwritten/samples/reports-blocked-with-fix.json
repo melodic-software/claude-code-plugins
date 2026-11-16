@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "**Outcome: blocked.** Ready failed because the hub is stale, not the app: src/server.ts:12 listens on port 4100. Corrected `## Ready`, unwritten: `curl -fsS http://127.0.0.1:4100/healthz`.",
+      "why": "outcome word in bold, port and colon citation"
+    },
+    {
+      "answer": "The control skill is out of date. This unattended pass writes nothing and runs Ready no further, so the outcome is BLOCKED.\n\nProposed Ready (not written): `curl -fsS http://127.0.0.1:4100/healthz`, per src/server.ts line 12.",
+      "why": "upper-case outcome and a line-number citation"
+    },
+    {
+      "answer": "Outcome — blocked\n\n| Fix | Citation | Written |\n|---|---|---|\n| Ready: port 3000 -> 4100 | `src/server.ts:12` | no |",
+      "why": "table form"
+    },
+    {
+      "answer": "Report\n- outcome: blocked: Ready fails on port 3000\n- stale Ready: the app listens on 4100 (server.ts (line 12)); corrected text left unwritten",
+      "why": "parenthesized line citation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Outcome: changed. I updated the hub's ## Ready to curl port 4100 (src/server.ts:12) and Ready now passes.",
+      "why": "wrote the fix and never says blocked"
+    },
+    {
+      "answer": "The pass is not blocked: Ready should check 4100, per src/server.ts:12.",
+      "why": "negated outcome"
+    },
+    {
+      "answer": "Outcome: blocked. Ready failed: nothing answers on port 3000.",
+      "why": "no corrected text or citation"
+    },
+    {
+      "answer": "Outcome: blocked. The corrected Ready checks port 4100.",
+      "why": "corrected text without the citation"
+    },
+    {
+      "answer": "Outcome: blocked. src/server.ts:120 listens on port 4100.",
+      "why": "a different line"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The cart feature has one entry point, the Add to cart button.",
+      "why": "answers a different question"
+    }
+  ]
+}

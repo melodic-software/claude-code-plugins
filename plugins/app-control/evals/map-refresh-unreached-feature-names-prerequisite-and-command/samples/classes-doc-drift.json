@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Doc drift: the entry point's `not driven: pending` names no prerequisite; the correction reads `not driven: needs a write grant for staging`.",
+      "why": "class at line start"
+    },
+    {
+      "answer": "**Triage class:** doc drift. The reason names no prerequisite.",
+      "why": "labeled class in bold"
+    },
+    {
+      "answer": "The `not driven: pending` reason is doc drift, since the feature file names the grant nowhere.",
+      "why": "names the class after is"
+    },
+    {
+      "answer": "I'd classify the entry point as documentation drift.",
+      "why": "long form after classify as"
+    },
+    {
+      "answer": "| Class | Entry |\n|---|---|\n| doc drift | `cli/shop export --env staging`: not driven: needs a staging write grant |",
+      "why": "table cell"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Product regression: the export no longer runs.",
+      "why": "wrong class"
+    },
+    {
+      "answer": "Triage: missing data, not doc drift; the account lacks a grant.",
+      "why": "names doc drift only to reject it"
+    },
+    {
+      "answer": "The entry point is not doc drift; leave it.",
+      "why": "negated after is"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
