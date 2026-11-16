@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: id-brief-observability-line
+description: 'Dispatch brief item 20: a phase that adds runtime code gets an `Observability:` line with the path of the plugin''s reference/observability.md, and a docs-only phase gets `Observability: none (<reason>)`. Read-only: the session prints the two lines and dispatches nothing.'
+tags: [implement-dispatch, brief, observability, read-only]
+runs: 3
+plugins: ["../.."]
+expected_outcome: 'Phase 2''s brief line reads `Observability:` followed by a path ending in reference/observability.md; phase 3''s reads `Observability: none (...)` with a reason.'
+execution:
+  prompt: '/implementation:implement-dispatch Do not dispatch anything, do not read files and do not run commands. Autonomous run of an approved plan. Phase 2 adds `src/handlers/refund.ts`, an HTTP handler that calls the payment gateway, with its test. Phase 3 only edits `docs/refunds.md`. For each of the two phase briefs, print exactly the one line the brief carries that starts with `Observability:`, labeled with its phase, then stop.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 600
+graders:
+  - name: runtime-phase-names-reference
+    type: regex
+    pattern: 'Phase 2[^\n]*\n?[^\n]*Observability:[^\n]*reference/observability\.md'
+    flags: i
+    target: last_message
+  - name: docs-phase-none
+    type: regex
+    pattern: 'Phase 3[^\n]*\n?[^\n]*Observability:\s*`?none\s*\([^)\n]+\)'
+    flags: i
+    target: last_message

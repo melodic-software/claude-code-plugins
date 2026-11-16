@@ -628,6 +628,51 @@ erun
 assert_eq "and the e2e mode does not print them" "" "$(grep -E '^(tdd_refactor_step|first_test)	' <<<"$out")"
 rm -f "$TY"
 
+# --- map: the run-e2e map keys, same layer order as the e2e keys --------------
+mrun() {
+  rc=0
+  err="$(mktemp "$T/err.XXXXXX")"
+  out="$(bash "$RESOLVE" map --root "$REPO" "$@" 2>"$err")" || rc=$?
+  err="$(cat "$err")"
+}
+reset
+rm -f "$TY"
+mrun
+assert_eq "map with no layer: both keys at their defaults" \
+  "0:map_unit	feature	default
+map_entry_points	all	default" "$rc:$out"
+mrun --user map_unit=part --user 'map_entry_points=${user_config.map_entry_points}'
+assert_eq "userConfig sets a key; an unrendered option reads as unset" \
+  "map_unit	part	userConfig
+map_entry_points	all	default" "$out"
+printf 'map_unit: feature\nmap_entry_points: first\n' >"$TY"
+mrun --user map_unit=part --user map_entry_points=all
+assert_eq "testing.yaml wins over userConfig" \
+  "map_unit	feature	$TY
+map_entry_points	first	$TY" "$out"
+printf 'map_unit: part\n' >"$REPO/.claude/testing.local.yaml"
+printf 'map_entry_points: all\n' >"$HOME/.claude/testing.yaml"
+mrun
+assert_eq "the personal override wins over testing.yaml, which wins over the user-global file" \
+  "map_unit	part	$REPO/.claude/testing.local.yaml
+map_entry_points	first	$TY" "$out"
+rm -f "$REPO/.claude/testing.local.yaml" "$HOME/.claude/testing.yaml"
+printf 'map_unit: module\n' >"$TY"
+mrun --user map_unit=part
+assert_eq "an unknown value takes the default, not userConfig" "0:map_unit	feature	default" "$rc:$(head -1 <<<"$out")"
+assert_contains "naming the file, key and value" "$err" "$TY: map_unit: unknown value 'module'"
+printf 'map_unit: part\nmap_entry_points: first\npaths:\n  exclude: [map-file/**]\n' >"$TY"
+run
+assert_eq "map keys in testing.yaml do not stop the scan config" "0:map-file/**" "$rc:$(records paths.exclude)"
+assert_eq "and print no scan record" "" "$(records map_unit)$(records map_entry_points)"
+rm -f "$TY"
+mrun --user e2e_driver=run
+assert_eq "--user in map names only a map key" 2 "$rc"
+erun --user map_unit=part
+assert_eq "--user in e2e refuses a map key" 2 "$rc"
+erun
+assert_eq "and the e2e mode does not print the map keys" "" "$(grep -E '^map_' <<<"$out")"
+
 erun --user nonsense
 assert_eq "--user without <key>=<value> is a usage error" 2 "$rc"
 erun --user other_key=x

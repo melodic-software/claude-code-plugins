@@ -19,6 +19,11 @@ goes through `/app-control:drive` (SKILL.md Step 1), the app's control skill, wh
 browser tool, and none of these keys is read: drive has no headed or headless setting, and a
 recording there is the control skill's `video` capture (SKILL.md, Drive route).
 
+The `map` scope has two more keys, `map_unit` and `map_entry_points`, read only by a map pass,
+which always takes the drive route. They sit on the YAML surface, in the layer order of
+`e2e_driver` (Precedence) with `userConfig` options of the same names, and
+`scripts/resolve-config.sh map` resolves them. [map.md](map.md) owns their values and meaning.
+
 This file owns the keys: meaning, allowed values, defaults, and precedence. Layer mechanics belong
 to the
 [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/config-cascade/README.md).
@@ -113,14 +118,16 @@ any file layer, and "drive it with playwright" overrides `e2e_driver`.
 4. User-global (`~/.claude/testing/e2e.md`)
 5. Bundled default (`recording: off`, `browser_mode: headless`)
 
-`e2e_driver`, `reuse_running_instance` and `browser_driver`, highest authority first:
+`e2e_driver`, `reuse_running_instance`, `browser_driver`, `map_unit` and `map_entry_points`,
+highest authority first:
 
 1. Explicit session prompt
 2. Personal override (`.claude/testing.local.yaml`)
 3. Team (`docs/conventions/testing.yaml`)
 4. User-global (`~/.claude/testing.yaml`)
 5. The plugin `userConfig` option of the same name
-6. Bundled default (`auto` for the first two, `playwright-cli` for `browser_driver`)
+6. Bundled default (`auto` for the first two, `playwright-cli` for `browser_driver`, `feature`
+   for `map_unit`, `all` for `map_entry_points`)
 
 On own driving, when the app has a control skill (`/app-control:map` writes it), the driving tool
 its hub names sits between the session prompt and every `e2e_driver` layer: a session instruction
@@ -141,3 +148,7 @@ from the `docs/conventions/testing.md` config block or `.claude/testing.yaml`, t
 older teammate's release reads. Set them in `docs/conventions/testing.yaml`; set them in
 `~/.claude/testing.yaml` or `.claude/testing.local.yaml` only on a machine that runs this release
 or later.
+
+A release that reads `docs/conventions/testing.yaml` but predates `map_unit` and
+`map_entry_points` refuses those two keys there too, which stops its test scan. Add them to the
+team file once every member runs a release that has the `map` scope.

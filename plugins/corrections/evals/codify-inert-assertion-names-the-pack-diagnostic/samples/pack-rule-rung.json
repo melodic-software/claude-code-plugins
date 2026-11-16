@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Rung: analyzer-pack-rule. The rule id maps to defined-diagnostic; enable the pack diagnostic in the project's ruff configuration."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Rung: custom-analyzer. Hand the analyzer build to /implementation:implement."
+    }
+  ]
+}

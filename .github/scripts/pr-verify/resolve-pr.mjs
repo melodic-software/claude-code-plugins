@@ -72,7 +72,7 @@ import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { carriesSplit, loadRules, personChecks, readSchedule, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { ACTIONS_BOT_ID, carriesSplit, DRIFT_TITLE, driftIssueId, driftSpecText, loadRules, personChecks, readSchedule, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 
 export { refsIssue };
@@ -728,9 +728,6 @@ async function creditedSiblings(readRefs, repository, number, body, base, humans
   return credited;
 }
 
-// github-actions[bot], which maintenance-file-recurring-issues.yml files as.
-const ACTIONS_BOT_ID = 41898282;
-
 // The spec of an issue the recurring filer opened, or null: the title and body
 // file-due.mjs builds from the one schedule row its one marker line names, in
 // the schedule this script's checkout holds (main's, in pr-verify.yml). The
@@ -751,10 +748,6 @@ export function recurringSpec(issue, schedule) {
 // STRICT_RE).
 const PIN_PREFIX = "**Last audited upstream state:**";
 const PIN_MARKER = /^\*\*Last audited upstream state:\*\* `([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)@[0-9a-f]{40}`/;
-// scripts/upstream-drift-issues.sh's title, and its lead line for an upstream
-// with a drifted hex-pin page (write_body), both built from the upstream id.
-const DRIFT_TITLE = /^Upstream drift: ([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/;
-const driftLead = (id) => `Upstream \`${id}\` changed since the pin on its docs/upstream page.`;
 // GitHub's compare lists at most this many files; a list that long may be cut.
 const COMPARE_FILES_CAP = 300;
 
@@ -785,25 +778,14 @@ export function upstreamPages(dir = fileURLToPath(new URL("../../../docs/upstrea
 }
 
 // The spec of an issue the upstream-drift workflow filed, or null. The issue
-// counts when github-actions[bot] wrote it and nobody else last edited it, its
-// title and first body line are the two lines upstream-drift-issues.sh writes
-// for one upstream id with a drifted hex-pin page, `pages` (this checkout's)
-// pins that id, and `files`, the pull request's changed files, are only
-// modifications of those pages. The spec is built from the id and those page
-// paths; no other line of the issue is read, so a string an upstream put in
-// its rows never becomes spec.
+// counts when it is a trusted drift issue (admit.mjs driftIssueId), `pages`
+// (this checkout's) pins its upstream id, and `files`, the pull request's
+// changed files, are only modifications of those pages. The spec is
+// admit.mjs driftSpecText for the id and those page paths, so a string an
+// upstream put in the issue's rows never becomes spec.
 export function driftSpec(issue, pages, files) {
-  const author = issue?.author;
-  const editor = issue?.editor;
-  const id = DRIFT_TITLE.exec(String(issue?.title ?? ""))?.[1];
-  const lead = String(issue?.body ?? "").split("\n", 1)[0].replace(/\r$/, "");
-  if (
-    author?.__typename !== "Bot" ||
-    author.databaseId !== ACTIONS_BOT_ID ||
-    (issue.lastEditedAt != null && (editor?.__typename !== "Bot" || editor.databaseId !== ACTIONS_BOT_ID)) ||
-    id === undefined ||
-    lead !== driftLead(id)
-  ) {
+  const id = driftIssueId(issue);
+  if (id === null) {
     return null;
   }
   const own = [...pages].filter(([, upstream]) => upstream === id).map(([page]) => page);
@@ -816,12 +798,7 @@ export function driftSpec(issue, pages, files) {
   ) {
     return null;
   }
-  const named = own.map((page) => `\`${page}\``).join(", ");
-  return [
-    `# Upstream drift: ${id}`,
-    "",
-    `Re-audit the docs/upstream page${own.length > 1 ? "s" : ""} pinned to upstream \`${id}\`: ${named}. For each upstream change since the page's pin, record its disposition (take, adapt or reject, or already-have on a page whose rows use it) on the page as docs/contracts/upstream-drift/README.md, "When a trigger fires", requires, and move the pin to the upstream head re-audited. The pull request changes only ${own.length > 1 ? "those pages" : "that page"}: a take or adapt is recorded there, and applying it to any other file is outside this spec.`,
-  ].join("\n");
+  return driftSpecText(id, own);
 }
 
 // The files a pull request changes from `base` to `head` (GET compare, three

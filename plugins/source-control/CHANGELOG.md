@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.17.0] - 2026-11-16
+
+### Added
+
+- Merging after AI review now requires a lanes App pull request to carry a merge-risk rating for the pinned head. With `demote=true`, the session merges only when an owner decision covers each HIGH or CRITICAL reason, and sends any other reason to the owner.
+
 ## [11.16.0] - 2026-11-16
 
 ### Changed

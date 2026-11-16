@@ -8,8 +8,8 @@ name: Release Publish Plugins
 # the head it checked.
 #
 # Both run as the dedicated release GitHub App, never GITHUB_TOKEN: a pull
-# request that GITHUB_TOKEN opens or updates starts no `pull_request` runs, and
-# the release pull request needs `ci-status`. The commit goes through the GraphQL
+# request that GITHUB_TOKEN opens or updates gets its `pull_request` runs only
+# after approval, and the release pull request needs `ci-status` unattended. The commit goes through the GraphQL
 # createCommitOnBranch mutation, which GitHub signs, so main's
 # required_signatures rule accepts it.
 #

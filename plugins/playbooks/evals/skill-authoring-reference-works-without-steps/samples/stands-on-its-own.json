@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "# Branch names\n\nInput: the ticket key, given by the caller.\n\nBuild the branch name as `<type>/<KEY>-<three-word-slug>`, all lowercase, where `<type>` is `feat`, `fix` or `docs`.",
+      "why": "names its own input, no step references, keeps the rule"
+    },
+    {
+      "answer": "# Branch names\n\nGet the ticket key from the issue the work closes. Name the branch `<type>/<KEY>-<three-word-slug>`, lowercase; `<type>` is one of `feat`, `fix`, `docs`.",
+      "why": "says where the key comes from without leaning on the sequence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Branch names\n\nTake the `$KEY` you looked up in step 2 and build `<type>/<KEY>-<three-word-slug>`, all lowercase, where `<type>` is `feat`, `fix` or `docs`.",
+      "why": "still leans on step 2"
+    },
+    {
+      "answer": "# Branch names\n\nInput: the ticket key.\n\nBuild `<type>/<KEY>-<three-word-slug>`, all lowercase, where `<type>` is `feat`, `fix` or `docs`. Then continue with step 4.",
+      "why": "still hands back into the step sequence"
+    },
+    {
+      "answer": "# Branch names\n\nInput: the ticket key.\n\nName the branch after the ticket.",
+      "why": "drops the naming rule"
+    }
+  ]
+}

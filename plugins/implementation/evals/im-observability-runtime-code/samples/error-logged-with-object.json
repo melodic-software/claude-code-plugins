@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "export class RefundError extends Error {}\n\nexport async function refundOrder({ gateway, logger, metrics }, orderId) {\n  const log = logger.child({ orderId });\n  try {\n    await gateway.refund(orderId);\n  } catch (err) {\n    log.error({ err }, \"payment gateway refused refund\");\n    throw new RefundError(\"refund failed\", { cause: err });\n  }\n  metrics.count(\"refunds\");\n  log.info({ event: \"order.refunded\" }, \"order refunded\");\n}\n",
+      "why": "error object as err field"
+    },
+    {
+      "answer": "export class RefundError extends Error {}\n\nexport async function refundOrder({ gateway, logger, metrics }, orderId) {\n  const log = logger.child({ orderId });\n  try {\n    await gateway.refund(orderId);\n  } catch (err) {\n    log.error({ error: err, orderId }, \"payment gateway refused refund\");\n    throw new RefundError(\"refund failed\", { cause: err });\n  }\n  metrics.count(\"refunds\");\n  log.info({ event: \"order.refunded\" }, \"order refunded\");\n}\n",
+      "why": "error object as error field"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "export class RefundError extends Error {}\n\nexport async function refundOrder({ gateway, logger, metrics }, orderId) {\n  const log = logger.child({ orderId });\n  try {\n    await gateway.refund(orderId);\n  } catch (err) {\n    log.error({ message: err.message }, \"payment gateway refused refund\");\n    throw new RefundError(\"refund failed\", { cause: err });\n  }\n  metrics.count(\"refunds\");\n  log.info({ event: \"order.refunded\" }, \"order refunded\");\n}\n",
+      "why": "only the message, no error object"
+    },
+    {
+      "answer": "export class RefundError extends Error {}\n\nexport async function refundOrder({ gateway, logger, metrics }, orderId) {\n  const log = logger.child({ orderId });\n  try {\n    await gateway.refund(orderId);\n  } catch (err) {\n    throw new RefundError(\"refund failed\", { cause: err });\n  }\n  metrics.count(\"refunds\");\n  log.info({ event: \"order.refunded\" }, \"order refunded\");\n}\n",
+      "why": "failure not recorded"
+    }
+  ]
+}

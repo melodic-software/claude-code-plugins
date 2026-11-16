@@ -13,7 +13,9 @@ discovers. Run it directly with: python3 test_validate_cases.py
 """
 
 import json
+import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -118,6 +120,24 @@ class ValidatorTestCase(unittest.TestCase):
             capture_output=True,
             text=True,
             env={"PATH": ""},
+        )
+
+    def engine_dir(self, **scripts):
+        """A PATH directory holding one /bin/sh executable per keyword."""
+        directory = Path(tempfile.mkdtemp(prefix="bin-", dir=self._tmp))
+        for name, body in scripts.items():
+            path = directory / name
+            path.write_text("#!/bin/sh\n" + body, encoding="utf-8")
+            path.chmod(0o755)
+        return directory
+
+    def validate_on_path(self, directory, *args):
+        """Run with `directory` as the whole PATH, so only its engines run."""
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), str(self.eval_dir)] + list(args),
+            capture_output=True,
+            text=True,
+            env=dict(os.environ, PATH=str(directory)),
         )
 
     def assert_fail(self, result, *substrings):
@@ -1521,10 +1541,23 @@ class R2Regression(ValidatorTestCase):
 
 
 HAS_NODE = shutil.which("node") is not None
+# Runs the real node under the caller's PATH, so a validator whose PATH holds
+# only this wrapper sees node and never an installed bun.
+REAL_NODE = 'PATH=%s\nexport PATH\nexec node "$@"\n' % shlex.quote(
+    os.environ.get("PATH", "")
+)
 
 
 class JavaScriptSyntax(ValidatorTestCase):
     """Python's `re` accepts syntax that the binary's JavaScript engine does not."""
+
+    def validate(self, *args):
+        """Run with node alone, so an installed bun does not reword the findings.
+        Windows cannot run the /bin/sh wrapper, so it keeps the inherited PATH."""
+        if os.name == "nt":
+            return ValidatorTestCase.validate(self, *args)
+        scripts = {"node": REAL_NODE} if HAS_NODE else {}
+        return self.validate_on_path(self.engine_dir(**scripts), *args)
 
     TOKENS = (
         ("backslash-A", "\\\\Aabc", "\\A"),
@@ -1687,6 +1720,87 @@ class JavaScriptSyntax(ValidatorTestCase):
         self.case("c", prompt=CLEAN_PROMPT, graders={"g": regex_grader("conftest")})
         self.samples("c", "g", passing=["conftest.py"], failing=["nothing"])
         result = self.validate_without_node()
+        self.assert_clean(result)
+        self.assertNotIn("JavaScript", result.stdout)
+
+
+def probe_stub(output, status=0, stderr=""):
+    """A stand-in engine that drains stdin, prints `output` and exits `status`."""
+    body = "while read -r _; do :; done\nprintf '%%s' '%s'\n" % output
+    if stderr:
+        body += "printf '%%s\\n' '%s' >&2\n" % stderr
+    return body + "exit %d\n" % status
+
+
+# Probe output for one grader over a must-pass then a must-fail sample.
+SORTED = '[{"answers":[{"found":true,"count":1},{"found":false,"count":0}]}]'
+NO_MATCH = '[{"answers":[{"found":false,"count":0},{"found":false,"count":0}]}]'
+
+
+@unittest.skipIf(os.name == "nt", "the stub engines are /bin/sh scripts")
+class BunEngine(ValidatorTestCase):
+    """With bun on PATH, samples are graded under bun (JavaScriptCore) as well
+    as node (V8). Stub engines stand in for both, so no real bun is needed."""
+
+    def setUp(self):
+        ValidatorTestCase.setUp(self)
+        self.case("c", prompt=CLEAN_PROMPT, graders={"g": regex_grader("conftest")})
+        self.samples("c", "g", passing=["conftest.py"], failing=["nothing"])
+
+    def run_engines(self, **outputs):
+        return self.validate_on_path(self.engine_dir(**outputs))
+
+    def test_a_sample_the_engines_disagree_on_fails_naming_both_verdicts(self):
+        result = self.run_engines(node=probe_stub(SORTED), bun=probe_stub(NO_MATCH))
+        self.assert_fail(
+            result,
+            'must-pass sample 1: JavaScript engines disagree on grader "g": '
+            "node passes it (1 matches), bun fails it (0 matches)",
+            "c/samples/g.json",
+        )
+
+    def test_a_sample_both_engines_sort_the_other_way_fails_once(self):
+        result = self.run_engines(node=probe_stub(NO_MATCH), bun=probe_stub(NO_MATCH))
+        self.assert_fail(
+            result,
+            'must-pass sample 1 fails grader "g" under JavaScript '
+            "(node: 0 matches, bun: 0 matches)",
+        )
+        self.assertEqual(1, result.stdout.count("under JavaScript"))
+
+    def test_a_pattern_only_bun_rejects_fails_naming_bun(self):
+        result = self.run_engines(
+            node=probe_stub(SORTED), bun=probe_stub('[{"error":"bad pattern"}]')
+        )
+        self.assert_fail(
+            result,
+            'grader "g" pattern does not compile under JavaScript (bun: bad pattern)',
+        )
+        self.assertNotIn("(node:", result.stdout)
+
+    def test_bun_alone_grades_the_samples(self):
+        result = self.run_engines(bun=probe_stub(NO_MATCH))
+        self.assert_fail(result, 'fails grader "g" under JavaScript (bun: 0 matches)')
+
+    def test_a_failing_bun_run_warns_and_keeps_node_findings(self):
+        result = self.run_engines(
+            node=probe_stub(SORTED), bun=probe_stub("", status=3, stderr="boom")
+        )
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn(
+            "graders not checked under JavaScript: bun failed (boom)", result.stdout
+        )
+        self.assertNotIn("FAIL", result.stdout)
+
+    def test_without_bun_node_findings_are_unchanged(self):
+        result = self.run_engines(node=probe_stub(NO_MATCH))
+        self.assert_fail(
+            result, 'must-pass sample 1 fails grader "g" under JavaScript (0 matches)'
+        )
+        self.assertNotRegex(result.stdout, r"\bbun\b")
+
+    def test_engines_that_agree_with_the_labels_add_nothing(self):
+        result = self.run_engines(node=probe_stub(SORTED), bun=probe_stub(SORTED))
         self.assert_clean(result)
         self.assertNotIn("JavaScript", result.stdout)
 

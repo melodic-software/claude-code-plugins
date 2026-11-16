@@ -48,6 +48,12 @@ conventions it cites. A phase that cannot honor one of them is a divergence: STO
 never redesign in place. A brief that says `Design: none`, or carries no excerpt, sets no design
 guardrail; that absence alone is not a STOP.
 
+**Runtime code follows the observability reference.** Before writing or changing code that runs at
+runtime (a service, handler, worker, CLI, hook or script), read
+[`${CLAUDE_PLUGIN_ROOT}/reference/observability.md`](${CLAUDE_PLUGIN_ROOT}/reference/observability.md)
+and write its logging, telemetry and error handling by those rules. This holds even when the brief
+does not say it.
+
 **Report discoveries; do not act on them.** Your return carries the extension field
 `discoveries:`, after `counts:` and before `open_questions:`, `[]` when there are none, each entry
 `{type: stale-dependency | better-option | assumption-confirmed | assumption-doubtful | other,

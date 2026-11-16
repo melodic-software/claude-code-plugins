@@ -11,6 +11,7 @@ plain prompt.
 - [A named receiver](#a-named-receiver)
 - [Multi-turn and the open pipe](#multi-turn-and-the-open-pipe)
 - [Background sessions](#background-sessions)
+- [Start in the target's plugin profile](#start-in-the-targets-plugin-profile)
 - [Mechanisms not used here](#mechanisms-not-used-here)
 - [Getting a reply back](#getting-a-reply-back)
 - [Signed-out Windows lane](#signed-out-windows-lane)
@@ -165,6 +166,88 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
   - **Pointer**: [Agent view: Limitations](https://code.claude.com/docs/en/agent-view#limitations),
     fetched live.
 
+## Start in the target's plugin profile
+
+When the task names a plugin profile, a turn or session started in a WSL lane (R2, R4, R5) starts
+in that lane's profile, through plugin-profiles' `profiles.mjs launch` on the target. Each step
+runs over the row's hop; `<dir>` is the directory the session starts in.
+
+1. Find the script: run `claude plugin list --json` on the target and take the `installPath` of
+   the entry whose `id` starts with `plugin-profiles@` and whose `enabled` is true. The script is
+   `<installPath>/scripts/profiles.mjs`.
+2. Run `launch` there with `--unattended`, since nobody answers a relay start, and put the verb's
+   own `--settings` JSON in `--with`, so the started session carries one settings file
+   (`profiles.mjs` merges it into the profile's):
+
+   ```console
+   <ssh> <wsl-alias> 'cd <dir> && node <profiles.mjs> launch <profile> --folder <dir> --unattended --json --with "{\"crossSessionInbound\":\"accept\"}"'
+   ```
+
+   Leave out `--with` when the verb carries no `--settings`. On exit 1 (the profile switches on a
+   plugin missing a required tool) start nothing and report the reason it printed.
+3. Start the session with the printed `command` in place of `claude`, and the verb's other
+   arguments after it, without its `--settings`:
+
+   ```console
+   printf '%s\n' '<prompt>' | <ssh> <wsl-alias> 'cd <dir> && <command> -p -n <name>'
+   ```
+
+With no profile named, or no enabled `plugin-profiles@` entry in step 1, start the session as the
+row does without this section, and say with the result that the profile was not applied and why.
+
+### On a Windows lane (R1, R3, R6)
+
+The printed `command` is a POSIX `env` line, so on a Windows lane one PowerShell script runs the
+same three steps from `argv` instead: it removes each variable `argv` names after `-u` from its
+own environment and passes the words after `claude` to `claude.exe`. The prompt never enters the
+script text: a first call writes it to a file in `<win-dir>`, quoted as the WSL rows quote a
+prompt, and the script starts `claude.exe` from that file. The script goes to
+`powershell.exe -Command -` on stdin as a quoted heredoc, so only PowerShell parses it. Here for a
+named receiver over R3:
+
+```console
+printf '%s' '<prompt>' | <ssh> <wsl-alias> 'cat > <win-dir>/relay-prompt-<name>.txt'
+<ssh> <wsl-alias> 'cd <win-dir> && /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command -' <<'PS'
+function Q([string]$a) { '"' + ($a -replace '(\\*)"', '$1$1\"' -replace '(\\+)$', '$1$1') + '"' }
+$claude = "$env:USERPROFILE/.local/bin/claude.exe"; $s = Join-Path $env:TEMP 'relay-settings.json'; $p = Join-Path $PWD.Path 'relay-prompt-<name>.txt'
+Set-Content -Path $s -Value '{"crossSessionInbound":"accept"}' -Encoding ascii
+$root = ((& $claude plugin list --json | Out-String | ConvertFrom-Json) | Where-Object { "$($_.id)" -like 'plugin-profiles@*' -and $_.enabled -eq $true } | Select-Object -First 1).installPath
+$a = @('--settings', $s); $ok = $root -and (Get-Command node -ErrorAction SilentlyContinue)
+if (-not $ok) { 'profile <profile> not applied: plugin-profiles or node is missing on this lane' }
+if ($ok) { $r = & node (Join-Path $root 'scripts/profiles.mjs') launch <profile> --folder $PWD.Path --unattended --json --with $s }
+if ($ok -and $LASTEXITCODE) { "not started: profiles.mjs launch exited $LASTEXITCODE"; Remove-Item $p; exit 1 }
+if ($ok) { $argv = @(($r | Out-String | ConvertFrom-Json).argv); $i = 1; while ($argv[$i] -ceq '-u') { Remove-Item "Env:$($argv[$i + 1])" -ErrorAction Ignore; $i += 2 }; $a = @($argv[($i + 1)..($argv.Count - 1)]) }
+$c = Start-Process -FilePath $claude -ArgumentList ((@($a) + '-p', '-n', '<name>' | ForEach-Object { Q $_ }) -join ' ') -RedirectStandardInput $p -NoNewWindow -Wait -PassThru; Remove-Item $p; exit $c.ExitCode
+
+PS
+```
+
+On R1 the same two calls run locally:
+`printf '%s' '<prompt>' > <win-dir>/relay-prompt-<name>.txt`, then
+`cd <win-dir> && /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command - <<'PS'`
+followed by the same script lines.
+
+- The verb's own settings go to `--with` as a file, never as a JSON argument. Leave out `$s`,
+  `--with $s` and `--settings $s` when the verb carries no `--settings`.
+  - **Pointer**: when a JSON argument from this script arrives changed, fetch
+    [about_Parsing: Passing arguments that contain quote characters](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_parsing?view=powershell-5.1#passing-arguments-that-contain-quote-characters)
+    live.
+- Each statement sits on one line, and a blank line ends the input.
+  - **Pointer**: when the script stops part way or runs a statement twice, fetch
+    [about_PowerShell_exe: -Command](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1#-command)
+    live.
+- A launch refused for a missing required tool prints "not started" and exits 1: start nothing
+  else and report the reason launch printed on stderr. "not applied" means the session started
+  without the profile: say so with the result.
+- `claude.exe` starts through `Start-Process` with every argument passed through `Q`, and a `-p`
+  prompt arrives on stdin from the file.
+  - **Pointer**: `Q` follows the Microsoft C runtime's argument rules; when an argument arrives
+    split or changed, fetch [Parsing C command-line arguments](https://learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments)
+    live (the rules open the page, before its first heading).
+- For a background session, which takes its prompt as an argument, replace the last line's
+  `'-p', '-n', '<name>'` with `'--bg', '--name', '<name>', [IO.File]::ReadAllText($p)` and drop
+  `-RedirectStandardInput $p`.
+
 ## Mechanisms not used here
 
 Each fails the fleet's per-lane account split or needs a human; see the linked page before
@@ -243,6 +326,7 @@ also rests on documented flag behavior.
 | Port 22 script hop | Not probed in this pass |
 | `notify_when_idle` from a `-p` sender | Message delivered; the notice never reached the sender, whose turn ended first |
 | `-p --remote-control` | Did not connect; Remote Control is interactive only |
+| [Start in the target's plugin profile](#start-in-the-targets-plugin-profile) | Untested on a live hop. On R1 (Windows PowerShell 5.1, Claude Code 2.1.325, 2026-11-16) the Windows script's parts ran: `-Command -` read the heredoc; `plugin list --json` parsed; the not-installed branch started `claude.exe --settings <file> --version`; a `--dry-run` launch through Windows `node` exited 0 and the `argv` walk left `claude --settings <session file>`; an inline JSON argument to `node` arrived as `{crossSessionInbound:accept}`; on Windows PowerShell 5.1.26100, a two-entry JSON array piped as `ConvertFrom-Json \| Where-Object` matched no entry, and `(… \| ConvertFrom-Json) \| Where-Object` matched the `plugin-profiles@` one; with `node` standing in for `claude.exe`, a 60-byte prompt file holding `'`, `’`, `"`, `" --version "`, a blank line and a line `PS` arrived with an unchanged SHA-256 on stdin through `Start-Process -RedirectStandardInput`, and as one argument through `Q` for the background form; the script's not-installed branch then started `claude.exe --settings <file> --version` from the file and removed it. No `-p` turn started in a profile. Recheck when the lane's PowerShell version changes |
 | Cost | Most of each one-line `-p` turn's cost was SessionStart hooks and context loading; measure a turn per <https://code.claude.com/docs/en/costs#track-your-costs> |
 
 ## What the relay does not change

@@ -12,7 +12,9 @@ none of this conversation).
    `context/session.md` Phase 1.1 (given as an absolute path); do not re-implement either. Prefer the
    `--chain-from` form when a handoff chain was passed and the continuity gate (same Phase 1.0)
    holds; otherwise the single-session `--sessions` form. If no Python 3.10+ is available or the
-   parser errors, note it and continue with a transcript-only read.
+   parser errors, note it and continue with a transcript-only read. When the Transcript input reads
+   `transcript: unreadable`, run neither and do not look for the file: work from the User's
+   account input and the subjective-state note, and say the findings rest on them.
 2. **Carry forward prior checkpoints (running = cumulative).** When a prior running-retro ledger is
    named in the inputs, read it and walk its `previous_running_retro` frontmatter pointer backward,
    reading each earlier ledger in turn, to gather the findings already recorded for this chain. This
@@ -83,8 +85,9 @@ Each skill-fit finding carries two fields beyond the table columns (its Evidence
 subagent return, redacted):
 
 - **Owning plugin and skill**: the plugin and skill the gap belongs to, read from the transcript's
-  skill invocation or the repo's skill listing. Write `no owner found` when none is evidenced,
-  and never guess one.
+  skill invocation, the user's account of it, or the session's skill listing already in context
+  (its `<plugin>:<skill>` names). Never search the filesystem for a skill or plugin file to find
+  or confirm one. Write `no owner found` when none is evidenced, and never guess one.
 - **Existing issue**: any matching open issue, or `none found`. The subagent makes no network
   calls, so it leaves this `not searched` and the main agent fills it (SKILL.md step 5).
 
@@ -155,7 +158,10 @@ producing the findings block.
 Inputs (all absolute/concrete):
 - Session data dir: <resolved SESSION_DATA_DIR>
 - Current session id: <CLAUDE_CODE_SESSION_ID>
-- Transcript: <SESSION_DATA_DIR>/<session-id>.jsonl
+- Transcript: <SESSION_DATA_DIR>/<session-id>.jsonl, or "transcript: unreadable" (then do not
+  look for it)
+- User's account (only when the transcript is unreadable): <what the user and the main
+  conversation say happened: corrections, skills invoked or bypassed>, or "n/a"
 - Subagents dir: <SESSION_DATA_DIR>/<session-id>/subagents/
 - Parser (absolute): <resolved .../skills/retro/scripts/parse_transcript.py>
 - Parser invocation + interpreter detection: read <resolved .../skills/retro/context/session.md> Phase 1.1
