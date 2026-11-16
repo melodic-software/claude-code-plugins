@@ -226,4 +226,17 @@ printf '%s\n' "$(envelope config-change-audit ConfigChange ok 4 x '')" |
 assert_file_absent "a cap past 2^63-1 falls back to the default" "$P13/$ROOT_REL/hook-events.jsonl.1"
 assert_eq "a cap past 2^63-1 still appends" 4 "$(wc -l <"$P13/$ROOT_REL/hook-events.jsonl" | tr -d ' ')"
 
+if command -v flock >/dev/null 2>&1; then
+  P14="$TEST_TMPDIR/p14"
+  mkdir -p "$P14/$ROOT_REL"
+  LOG14="$P14/$ROOT_REL/hook-events.jsonl"
+  : >"$LOG14"
+  flock "$LOG14.lock" sleep 4 &
+  holder=$!
+  sleep 0.5
+  run_sink "$P14" "$(envelope config-change-audit ConfigChange ok 4 x '')"
+  assert_eq "a lock held past the wait still appends the row" 1 "$(wc -l <"$LOG14" | tr -d ' ')"
+  wait "$holder" 2>/dev/null
+fi
+
 report

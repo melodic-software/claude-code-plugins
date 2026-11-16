@@ -441,8 +441,11 @@ slog_append_capped() {
   [[ "$slog__max" =~ ^[1-9][0-9]{0,17}$ ]] || slog__max=10485760
   if command -v flock >/dev/null 2>&1; then
     (
-      flock -w 2 9 || exit 0
-      slog__append_over_cap "$slog__f" "$slog__l" "$slog__max"
+      if flock -w 2 9; then
+        slog__append_over_cap "$slog__f" "$slog__l" "$slog__max"
+      else
+        printf '%s\n' "$slog__l" >>"$slog__f"
+      fi
     ) 9>"${slog__f}.lock" 2>/dev/null
   else
     slog__append_over_cap "$slog__f" "$slog__l" "$slog__max" 2>/dev/null
