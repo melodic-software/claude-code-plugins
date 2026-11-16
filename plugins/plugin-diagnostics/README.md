@@ -1,8 +1,11 @@
 # plugin-diagnostics
 
 Detects and reports why installed plugins cannot run: hooks that fail to launch, and missing runtimes
-or prerequisite tools. It is hooks only: no skills. It is on by default, and works whether or not any
-other plugin is enabled.
+or prerequisite tools. It is hooks only: no skills. It is on by default for a new install, and works
+whether or not any other plugin is enabled. If you already had this marketplace installed, updating
+it does not install plugin-diagnostics (ADR 0109,
+[probe row `default-on-existing-users`](../../docs/adr/0109-switch-plugin-sets-by-profile-and-gate-optional-calls-on-enabled-skills.md#probe-record-claude-code-21325-2026-11-15)):
+run `claude plugin install plugin-diagnostics@melodic-software`.
 
 ## Contents
 

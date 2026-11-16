@@ -62,6 +62,12 @@ depend on either: each reading skill says when session-telemetry is not enabled,
 that turn it on, and reports what earlier sessions recorded. Where the records live:
 [session telemetry data](../../docs/contracts/session-telemetry-data/README.md).
 
+`plugin-diagnostics` is on by default for a new install only. If you installed harness-ops before
+these hooks moved out of it, updating the marketplace does not install plugin-diagnostics (ADR 0109,
+[probe row `default-on-existing-users`](../../docs/adr/0109-switch-plugin-sets-by-profile-and-gate-optional-calls-on-enabled-skills.md#probe-record-claude-code-21325-2026-11-15)),
+so nothing reports a hook that fails to launch until you run
+`claude plugin install plugin-diagnostics@melodic-software`.
+
 ## Run a session clean
 
 To tell whether a problem comes from your own configuration, plugins and customizations or from
