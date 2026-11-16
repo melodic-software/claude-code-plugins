@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.10] - 2026-11-16
+
+### Changed
+
+- `/playwright:playwright` is synced to `@playwright/cli` 0.1.24. The `run-code` reference now says to read `console` for errors thrown by listeners a body registers.
+
 ## [2.0.9] - 2026-11-16
 
 ### Changed
