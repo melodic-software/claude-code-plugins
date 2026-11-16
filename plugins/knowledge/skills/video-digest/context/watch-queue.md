@@ -33,7 +33,7 @@ evolutions". Keep the `claims/<n>.json` shape stable so a later implementation c
 | --- | --- |
 | `#` | 1-based row index (stable after insert; do not renumber on complete) |
 | `URL` | Canonical source URL (canonicalized by the source layer before it is written) |
-| `video-id` | The source's slice key, and the dedupe key. YouTube: the 11-char video id. X: the status id (`display_id`). See `../reference/sources/`. A ranged row adds the range suffix `-r<fromSec>-<toSec>` (`end` for an open end, `0` for an open start), so dedupe is on video id plus range: `7zZy1QTvokM-r3600-4800` and `7zZy1QTvokM` are two rows. |
+| `video-id` | The source's slice key, and the dedupe key. YouTube: the 11-char video id. X: the status id (`display_id`). See `../reference/sources/`. A ranged row adds the range suffix `-r<fromSec>-<toSec>` (`end` for an open end, `0` for an open start), so dedupe is on video id plus range: `7zZy1QTvokM-r3600-4800` and `7zZy1QTvokM` are two rows. Write the cell from preflight's `queueKey`, which carries the suffix; never compose it by hand. |
 | `title` | Video title from the preflight probe (escaped + 60-char capped), so the row is legible without opening the URL |
 | `channel` | `Display Name (@handle)` from the preflight probe |
 | `slug` | Filled after first bootstrap (`derive-video-slug.js`); may be pre-filled at queue time when companion brief materialized |
@@ -47,7 +47,7 @@ Claim metadata (`claimedAt`, `claimedBy`) lives in `claims/<n>.json`, not in the
 | Action | Behavior |
 | --- | --- |
 | `queue <url> [url...]` | Ensure `QUEUE.md` exists (from template); preflight each URL (validate + fetch title/channel); append rows; dedupe by the `video-id` cell |
-| `queue <url> --from <h:mm:ss> --to <h:mm:ss>` | One ranged row (either bound optional, YouTube only): the `video-id` cell carries the range suffix |
+| `queue <url> --from <h:mm:ss> --to <h:mm:ss>` | One ranged row (either bound optional, YouTube only): pass the same `--from`/`--to` to preflight; its `queueKey`, the `video-id` cell, carries the range suffix |
 | `queue list` | Display table + list active claim files under `claims/`; name each `awaiting_captions` row with the next check time from its `notes` |
 | `watch` (no URL) | FIFO: first row `queue-claim.js next` lists with successful exclusive claim |
 | `watch <n>` | Claim row `#n` only (parallel path across terminals) |
@@ -196,7 +196,7 @@ Paths here are relative to the resolved work root, not always the repo root. See
 When the operator supplies companion URL(s) with queue intent, record them before watch. **SSOT:** `companion-primary-sources.md`. Template: `templates/companion-source-brief.md`.
 
 1. After preflight `enqueue`, derive `video-slug` from `displayTitle` + the row's `video-id` cell
-   (range suffix included).
+   (preflight's `queueKey`, range suffix included).
 2. Write `.work/<watch-epic>/<video-slug>/source/companion-sources.md` (section fan-out table + integration checklist).
 3. Pre-fill `slug` on the `QUEUE.md` row; set `notes` → `companion — source/companion-sources.md`.
 
@@ -206,9 +206,14 @@ Before appending rows, validate each URL and fetch its title + channel through t
 
 ```bash
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" acquisition/preflight-metadata.js "<url>" ["<url>"...]
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" acquisition/preflight-metadata.js "<url>" [--from <h:mm:ss>] [--to <h:mm:ss>]
 ```
 
-Emits a JSON array (one entry per URL). Per entry use `action` to decide:
+The ranged form takes exactly one URL. A source without range support (X) rejects a ranged add as
+`invalid-url`.
+
+Emits a JSON array (one entry per URL). Every entry carries `queueKey`, the `video-id` cell to
+write: the `videoId`, plus the range suffix on a ranged add. Per entry use `action` to decide:
 
 | `action` | `status` | What to do |
 | --- | --- | --- |
@@ -232,4 +237,4 @@ counts) is the `reject` / `unavailable` row. Acquisition also fails such a post 
 probed and may fail as `X acquisition degraded`; stop retrying one id after 3 such degraded failures.
 See `../reference/sources/x.md`.
 
-`displayTitle` / `displayChannel` are already markdown-escaped (`\` → `\\`, `|` → `\|`) and title-capped, so paste them directly. Dedupe by `videoId`, plus the range suffix on a ranged add, against existing rows' `video-id` cells. CLI exit code is `2` when any URL resolved to `reject`.
+`displayTitle` / `displayChannel` are already markdown-escaped (`\` → `\\`, `|` → `\|`) and title-capped, so paste them directly. Dedupe by `queueKey` (the `videoId`, plus the range suffix on a ranged add) against existing rows' `video-id` cells. CLI exit code is `2` when any URL resolved to `reject`.
