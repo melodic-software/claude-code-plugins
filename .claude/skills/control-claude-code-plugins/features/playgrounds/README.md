@@ -12,9 +12,9 @@ none
 
 ## Entry points
 
-- `/playgrounds:<skill> <args>` as the `logs` prompt, in print mode | driven
-- `/playgrounds:<skill> <args>`, typed at the prompt of the terminal session | driven
-- A request in plain words that names the skill's job, typed at the prompt | driven
+- `/playgrounds:<skill> <args>` as the `logs` prompt, in print mode | not driven: the local session does not load the playground dependency (see Gotchas)
+- `/playgrounds:<skill> <args>`, typed at the prompt of the terminal session | not driven: the local session does not load the playground dependency (see Gotchas)
+- A request in plain words that names the skill's job, typed at the prompt | not driven: the local session does not load the playground dependency (see Gotchas)
 - The same skill in Claude Desktop | not driven: terms
 
 ## Reset
