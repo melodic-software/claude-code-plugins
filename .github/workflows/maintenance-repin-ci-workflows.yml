@@ -1,10 +1,9 @@
 name: Maintenance Repin CI Workflows
 
 # Moves the melodic-software/ci-workflows action pins, the eval legs' checkout
-# refs and the pr-run-activity.md link to the newest ci-workflows release, in
-# one pull request armed to auto-merge. Dependabot ignores
-# melodic-software/ci-workflows/*; scripts/repin-ci-workflows.sh does the
-# rewrite and scripts/repin-ci-workflows.test.sh covers it.
+# refs and the pr-run-activity.md link to the newest ci-workflows release
+# (scripts/repin-ci-workflows.sh), in one pull request armed to auto-merge.
+# Dependabot ignores melodic-software/ci-workflows/*.
 on:
   workflow_dispatch:
   schedule:
@@ -32,8 +31,8 @@ jobs:
         ${{ secrets.CLAUDE_LANES_REPIN_APP_CLIENT_ID != ''
             && secrets.CLAUDE_LANES_REPIN_APP_PRIVATE_KEY != '' }}
     steps:
-      # Resolved before checkout, so a dispatch from another branch neither
-      # runs that branch's script nor retargets the pull request.
+      # Before checkout, so a dispatch from another branch neither runs that
+      # branch's script nor retargets the pull request.
       - name: Resolve the default branch
         id: default-branch
         env:
@@ -89,59 +88,83 @@ jobs:
           permission-pull-requests: write
           permission-workflows: write
 
-      - name: Open or update the re-pin pull request
-        id: pull-request
+      # One commit through createCommitOnBranch, which GitHub signs, on a branch
+      # cut from the checked-out tip. An open pull request already at this
+      # release is left alone for its CI.
+      - name: Commit the re-pin and open the pull request
         if: steps.repin.outputs.changed == 'true' && env.HAS_APP_CREDENTIAL == 'true'
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
-        with:
-          token: ${{ steps.app-token.outputs.token }}
-          sign-commits: true
-          branch: chore/repin-ci-workflows
-          base: ${{ steps.default-branch.outputs.name }}
-          add-paths: |
-            .github/workflows
-            docs/conventions/pr-pipeline/pr-run-activity.md
-          commit-message: |
-            chore(ci): re-pin ci-workflows actions to ${{ steps.release.outputs.tag }}
-
-            Co-Authored-By: claude-lanes-repin <noreply@github.com>
-          title: "chore(ci): re-pin ci-workflows actions to ${{ steps.release.outputs.tag }}"
-          body: |
-            No related issue: automated re-pin to the newest ci-workflows release
-
-            ## Summary
-
-            Moves every `melodic-software/ci-workflows/.github/actions/...` pin
-            in `.github/workflows/`, the eval legs' ci-workflows checkout refs and
-            the `pr-run-activity.md` link from `${{ steps.current.outputs.tag }}`
-            to `${{ steps.release.outputs.tag }}` (`${{ steps.release.outputs.sha }}`).
-            `pr-check-managed-files-hosted.yml` is left to the standards sync.
-
-            ## Fix
-
-            Opened by `.github/workflows/maintenance-repin-ci-workflows.yml`
-            through `scripts/repin-ci-workflows.sh`, which refuses a release that
-            does not contain the current pin.
-
-            ## Verification
-
-            - `scripts/repin-ci-workflows.test.sh` covers the rewrite.
-            - `callers.test.mjs` and `parity.test.mjs` check the launchers and the
-              pr-verify replay against run-claude-cli at the new pin.
-
-            ## Related
-
-            - https://github.com/melodic-software/ci-workflows/releases/tag/${{ steps.release.outputs.tag }}
-
-      - name: Arm auto-merge on the re-pin pull request
-        if: steps.pull-request.outputs.pull-request-number != ''
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          PR_NUMBER: ${{ steps.pull-request.outputs.pull-request-number }}
+          BASE: ${{ steps.default-branch.outputs.name }}
+          OLD_TAG: ${{ steps.current.outputs.tag }}
+          NEW_TAG: ${{ steps.release.outputs.tag }}
+          NEW_SHA: ${{ steps.release.outputs.sha }}
         run: |
+          set -euo pipefail
           . .github/actions/log-api-budget/api-budget.bash
           api_budget_wrap_gh repin-app
-          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto
+          branch=chore/repin-ci-workflows
+          title="chore(ci): re-pin ci-workflows actions to ${NEW_TAG}"
+          refs="repos/$GITHUB_REPOSITORY/git/refs"
+          base_sha="$(git rev-parse HEAD)"
+          number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --base "$BASE" --state open --json number,title,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0] // empty | "\(.number) \(.title)"')"
+          if [[ "${number#* }" == "$title" ]]; then
+            echo "Pull request #${number%% *} already re-pins to ${NEW_TAG}; leaving it alone."
+            exit 0
+          fi
+          number="${number%% *}"
+          adds="$RUNNER_TEMP/additions.jsonl"
+          : >"$adds"
+          while IFS= read -r path; do
+            base64 -w0 "$path" | jq -Rsc --arg path "$path" '{path: $path, contents: .}' >>"$adds"
+          done < <(git diff --name-only)
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" --silent 2>/dev/null; then
+            gh api -X PATCH "$refs/heads/$branch" -f sha="$base_sha" -F force=true --silent
+          else
+            gh api -X POST "$refs" -f ref="refs/heads/$branch" -f sha="$base_sha" --silent
+          fi
+          jq -n \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg oid "$base_sha" \
+            --arg branch "$branch" \
+            --arg headline "$title" \
+            --slurpfile additions "$adds" \
+            '{
+              query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
+              variables: {input: {
+                branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                expectedHeadOid: $oid,
+                message: {headline: $headline},
+                fileChanges: {additions: $additions}
+              }}
+            }' | gh api graphql --input - | jq -er '.data.createCommitOnBranch.commit.oid'
+          body="$RUNNER_TEMP/body.md"
+          cat >"$body" <<EOF
+          No related issue: automated re-pin to the newest ci-workflows release
+
+          ## Summary
+
+          Moves every \`melodic-software/ci-workflows/.github/actions/...\` pin in \`.github/workflows/\`, the eval legs' ci-workflows checkout refs and the \`pr-run-activity.md\` link from ${OLD_TAG} to ${NEW_TAG} (\`${NEW_SHA}\`). \`pr-check-managed-files-hosted.yml\` is left to the standards sync.
+
+          ## Fix
+
+          Written by \`.github/workflows/maintenance-repin-ci-workflows.yml\` through \`scripts/repin-ci-workflows.sh\`, which refuses a release that does not contain the current pin.
+
+          ## Verification
+
+          - \`scripts/repin-ci-workflows.test.sh\` covers the rewrite.
+          - \`callers.test.mjs\`, \`parity.test.mjs\` and \`check-affected.test.sh\` check this repository against the actions at the new pin.
+
+          ## Related
+
+          - https://github.com/melodic-software/ci-workflows/releases/tag/${NEW_TAG}
+          EOF
+          if [[ -z "$number" ]]; then
+            number="$(gh pr create --repo "$GITHUB_REPOSITORY" --base "$BASE" --head "$branch" --title "$title" --body-file "$body" | grep -o '[0-9]*$')"
+          else
+            gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --title "$title" --body-file "$body"
+          fi
+          gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --auto
 
       - name: Log the API budget at the end
         if: always()
