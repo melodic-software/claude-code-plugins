@@ -589,8 +589,18 @@ function check(opts, where, io) {
   const levels = levelsOf(where);
   if (opts.shipped) levels[0].dir = opts.shipped;
   const installed = new Set(inventory({ projectDir: where.projectDir, records: recordsFromDisk(where.configDir) }).keys());
-  const { failures, reports } = checkProfiles({ files: readProfileFiles(levels), catalog, installed });
-  for (const line of reports) io.out(`Report: ${line}`);
+  const unreadable = [];
+  const files = levels.flatMap((level) => {
+    try {
+      return readProfileFiles([level]);
+    } catch (error) {
+      if (level.level === "shipped" || !(error instanceof ProfileError)) throw error;
+      unreadable.push(`${error.message} (the other ${level.level} profiles in ${level.dir} were not checked)`);
+      return [];
+    }
+  });
+  const { failures, reports } = checkProfiles({ files, catalog, installed });
+  for (const line of [...unreadable, ...reports]) io.out(`Report: ${line}`);
   if (!failures.length) {
     io.out(`Profile check passed against the ${catalog.name} catalog.`);
     return 0;

@@ -14,6 +14,9 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 root="${1:-$here}"
-exec node "$here/plugins/plugin-profiles/scripts/profiles.mjs" check \
+home="$(mktemp -d)"
+trap 'rm -rf "${home:?}"' EXIT
+HOME="$home" USERPROFILE="$home" CLAUDE_CONFIG_DIR="$home/.claude" CLAUDE_PROJECT_DIR="$root" \
+  node "$here/plugins/plugin-profiles/scripts/profiles.mjs" check \
   --catalog "$root/.claude-plugin/marketplace.json" \
   --shipped "$root/plugins/plugin-profiles/profiles"

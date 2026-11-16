@@ -535,6 +535,33 @@ test("AC5: check reports an installed plugin no profile names and still exits 0"
   assert.match(r.stdout, /Report: Installed, and no profile names it \(an apply switches it off unless the repository enables it\): songwriting@melodic-software/);
 });
 
+test("AC5: check reports a malformed user or repository profile by its path, checks the other levels, and still exits 0", () => {
+  const w = world();
+  const userFile = join(w.home, ".claude", "plugin-profiles", "broken.yaml");
+  const repoFile = join(w.project, "docs", "conventions", "plugin-profiles", "team.yaml");
+  writeTree(w.root, { "home/.claude/plugin-profiles/broken.yaml": "plugins: notalist\n", "project/docs/conventions/plugin-profiles/team.yaml": "plugins:\n  - ghost@vendor\n" });
+  const r = w.run(["check"]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.ok(r.stdout.includes(`Report: ${userFile}: plugins must be a list of names`), r.stdout + r.stderr);
+  assert.ok(r.stdout.includes(`Report: ${repoFile}: ghost@vendor is not installed. Install it with: claude plugin install ghost@vendor`), r.stdout + r.stderr);
+  assert.match(r.stdout, /Profile check passed against the melodic-software catalog\./);
+
+  writeTree(w.root, { "project/docs/conventions/plugin-profiles/team.yaml": "flavor: blue\n" });
+  const both = w.run(["check"]);
+  assert.equal(both.status, 0, both.stdout + both.stderr);
+  assert.ok(both.stdout.includes(`Report: ${repoFile}: unknown key "flavor"`), both.stdout + both.stderr);
+});
+
+test("check exits 2 naming the file when a shipped profile is malformed", () => {
+  const w = world();
+  const shipped = join(w.root, "shipped");
+  cpSync(SHIPPED, shipped, { recursive: true });
+  writeFileSync(join(shipped, "build.yaml"), "plugins: notalist\n");
+  const r = w.run(["check", "--shipped", shipped]);
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.ok(r.stderr.includes(`${join(shipped, "build.yaml")}: plugins must be a list of names`), r.stderr);
+});
+
 test("check in a cached install reads the catalog of the marketplace it was installed from", () => {
   const w = world();
   const cli = installedCopy(w, {});
