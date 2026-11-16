@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.2] - 2026-11-16
+
+### Fixed
+
+- **Eval `interview-context-unfamiliar-term-upstream`, grader `context-claims-referenced`.** A
+  `file:line` citation of a file with no extension now counts as a reference when the file is a
+  path with a `/` or a common extensionless name (`README`, `LICENSE`, `CHANGELOG`, `NOTICE`,
+  `CODEOWNERS`, or a name ending in `file` such as `Makefile`), so `README:7` passes. A time, a
+  host and port, or a ratio such as `10:30`, `localhost:8080` or `N:1` still does not.
+
 ## [5.5.1] - 2026-11-16
 
 ### Changed
