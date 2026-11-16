@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Hooks | project | Check | PreToolUse on Bash, block a forced push to main | Basis: verified | High |\n\nConsidered and dropped: a CLAUDE.md line saying never force-push main. The hook decides it, so the line adds nothing.",
+      "why": "a check, and the prose line named only as dropped"
+    },
+    {
+      "answer": "| 1 | Hooks | project | Check | PreToolUse on Bash, block a forced push to main | Basis: verified | High |\n| 2 | CLAUDE.md | project | Pointer | Name where the integration fixtures live, which the session searched for | Basis: verified | Low |",
+      "why": "a CLAUDE.md row for a different finding does not count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "R1: PreToolUse hook on Bash that blocks git push --force to main.\nR2: CLAUDE.md: \"Never force-push main; the hook blocks it.\"",
+      "why": "a pointer line beside the check"
+    },
+    {
+      "answer": "R1: add to .claude/rules/git.md: \"Do not rewrite main's history.\"",
+      "why": "prose rule only"
+    },
+    {
+      "answer": "I'd save a feedback memory: never force-push main in this repo.",
+      "why": "memory only"
+    }
+  ]
+}

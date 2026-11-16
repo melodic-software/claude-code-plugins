@@ -1466,14 +1466,20 @@ class RunValidityTest(unittest.TestCase):
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("check permission denials: FAIL", proc.stdout)
 
-    def denied_in_sandbox(self, calls, trace_at=("claude-eval-ab", "out"), allowed=()):
+    def denied_in_sandbox(self, calls, trace_at=("claude-eval-ab", "out"), allowed=(),
+                          session_id=None):
         """The clean result at two runs per arm, measurable-criterion's second
         with-arm run scoring 0 against its sibling's 1 and denied each (tool,
         input) in calls, its trace at <dir>/<trace_at...>/trace.jsonl, after an
-        allowed Bash call for each command in allowed. The sandbox's own
-        plugin-data directory is <dir>/claude-eval-ab/config/plugins/data."""
+        allowed Bash call for each command in allowed, its init line naming
+        session_id when given. The sandbox's own plugin-data directory is
+        <dir>/claude-eval-ab/config/plugins/data."""
         trace = self.dir.joinpath(*trace_at, "trace.jsonl")
         trace.parent.mkdir(parents=True, exist_ok=True)
+        init = {"type": "system", "subtype": "init", "model": "claude-opus-5-5",
+                "tools": ["Skill"]}
+        if session_id:
+            init["session_id"] = session_id
         entries = [
             {"tool_name": tool, "tool_use_id": "d%d" % i, "tool_input": tool_input}
             for i, (tool, tool_input) in enumerate(calls)
@@ -1483,7 +1489,7 @@ class RunValidityTest(unittest.TestCase):
             for i, c in enumerate(allowed)
         ]
         trace.write_text(
-            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            json.dumps(init, separators=(",", ":")) + "\n"
             + json.dumps({"type": "assistant", "message": {"content": uses}})
             + "\n"
             + json.dumps({"type": "result", "is_error": False, "permission_denials": entries})
@@ -1735,6 +1741,59 @@ class RunValidityTest(unittest.TestCase):
             self.assertDenials(proc, "WARN")
             self.assertIn("1 denied read of the session's own tool results, not counted",
                           proc.stdout)
+
+    SESSION = "00000000-0000-4000-8000-000000000001"
+
+    def own_transcript(self, *parts, sandbox="claude-eval-ab", session=SESSION):
+        return str(self.dir.joinpath(
+            sandbox, "config", "projects", "-tmp-claude-eval-ab-home-cwd",
+            *(parts or (session + ".jsonl",))))
+
+    def test_a_read_of_the_sessions_own_transcript_is_a_warning(self):
+        transcript = self.own_transcript()
+        subagents = self.own_transcript(self.SESSION, "subagents")
+        for calls in (
+            [("Read", {"file_path": transcript, "limit": 1})],
+            [("Read", {"file_path": subagents + "/agent-a1.jsonl"})],
+            [("Glob", {"pattern": "*.jsonl", "path": subagents})],
+            [("Bash", {"command": "head -n 1 '%s'" % transcript})],
+            [("Bash", {"command": "wc -l " + transcript})],
+        ):
+            proc = self.denied_in_sandbox(calls, session_id=self.SESSION)
+            self.assertDenials(proc, "WARN")
+            self.assertIn("1 denied read of the session's own transcript, not counted",
+                          proc.stdout)
+            self.assertIn("tool-results directory or at the session's own transcript,",
+                          proc.stdout)
+
+    def test_a_search_for_the_transcript_or_any_other_read_near_it_still_fails(self):
+        sandbox = self.dir / "claude-eval-ab"
+        projects = str(sandbox / "config" / "projects")
+        transcript = self.own_transcript()
+        other = self.own_transcript(session="00000000-0000-4000-8000-000000000002")
+        for calls, session_id in (
+            ([("Bash", {"command": "ls %s/" % projects})], self.SESSION),
+            ([("Bash", {"command": "ls -d %s/*/" % projects})], self.SESSION),
+            ([("Bash", {"command": "ls %s" % transcript})], self.SESSION),
+            ([("Glob", {"pattern": "*/%s*" % self.SESSION, "path": projects})], self.SESSION),
+            ([("Glob", {"pattern": "projects/*/%s*" % self.SESSION,
+                        "path": str(sandbox / "config")})], self.SESSION),
+            ([("Read", {"file_path": projects})], self.SESSION),
+            ([("Read", {"file_path": str(Path(transcript).parent)})], self.SESSION),
+            ([("Read", {"file_path": other})], self.SESSION),
+            ([("Read", {"file_path": transcript})], None),
+            ([("Read", {"file_path": self.own_transcript(sandbox="claude-eval-zz")})],
+             self.SESSION),
+            ([("Read", {"file_path": self.own_transcript(self.SESSION, "memory", "a.md")})],
+             self.SESSION),
+            ([("Write", {"file_path": transcript, "content": "x"})], self.SESSION),
+            ([("Bash", {"command": "cat CLAUDE.md; head -n 1 " + transcript})], self.SESSION),
+            ([("Bash", {"command": "head -n 1 %s; ls %s" % (transcript, projects)})],
+             self.SESSION),
+        ):
+            proc = self.denied_in_sandbox(calls, session_id=session_id)
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn("of the session's own transcript, not counted", proc.stdout)
 
     def test_a_bash_read_of_tool_results_named_by_a_variable_is_a_warning(self):
         saved = self.own_results("tool-results", "toolu_01Example.txt")
