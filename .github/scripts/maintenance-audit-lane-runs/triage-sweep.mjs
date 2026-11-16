@@ -25,7 +25,11 @@
 // listing (driftShaped) and its edit history from one GraphQL read before
 // anything else, and one that fails it is skipped. An issue a workflow's
 // GITHUB_TOKEN opens starts no intake run, so this dispatch is a drift
-// issue's only way in. Per issue, one comment holds the runs
+// issue's only way in. Its body's rows still reach intake's triage model:
+// the ci-workflows reusable reads the body itself, and its rows name paths
+// and file names the upstream repository chooses. That model has no tools
+// and writes only allowlisted labels and fields, and the issue lane and
+// pr-verify read driftSpecText, never the body. Per issue, one comment holds the runs
 // dispatched and, once read, how each ended; after 2 that reached intake and left it untriaged (a run the
 // kill switch or a gate skipped before intake does not count, up to 6
 // dispatches, and nor do the first 24 whose verdict stopped on a GitHub 5xx,
