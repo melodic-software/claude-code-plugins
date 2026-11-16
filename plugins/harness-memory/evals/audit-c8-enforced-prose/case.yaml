@@ -18,4 +18,4 @@ graders:
     target: 'last_message'
   - name: 'checks-named'
     type: 'llm'
-    criteria: 'PASS only if the reply names the pr-title.yml lint-title job as the check enforcing the PR-title line it flags for deletion, and names the block-force-push.sh hook beside the force-push hold, giving a protected class (a security or safety rail) as the reason the force-push prose stays. FAIL if either check is not named, or the force-push line is flagged for deletion.'
+    criteria: 'PASS only if the reply names the pr-title.yml lint-title job as the check enforcing the PR-title line it flags for deletion, and names the block-force-push.sh hook beside the force-push hold, giving a protected class in the instruction exception register (such as a destructive-action or security rail) as the reason the force-push prose stays. FAIL if either check is not named, or the force-push line is flagged for deletion.'

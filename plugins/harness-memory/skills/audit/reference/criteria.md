@@ -8,7 +8,7 @@
 - [Audit output format](#audit-output-format)
 
 Version: 1.8.0
-Last updated: 2026-10-11
+Last updated: 2026-11-16
 Source: official Claude Code docs, chiefly
 [How CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load),
 [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short),
@@ -309,13 +309,17 @@ that posture honest, so give C5-kept navigation entries particular attention her
 4. For each instruction a deterministic check already enforces (a hook, a CI check, a linter
    rule, a test), WARN and flag the prose for deletion, naming the enforcing check by its location
    (the hook file, CI workflow and job, lint rule id, or test path). The check must be located in
-   the repository or its CI; the prose's own claim that something enforces it is not enough.
+   the repository or its CI, must fail or block rather than only warn, and must be active
+   everywhere the prose loads (scope it does not reach keeps its prose); the prose's own claim
+   that something enforces it is not enough.
    Where the check covers less than the prose states, flag only the covered part. A move up the
    hierarchy from item 2 ends the same way: once the check exists, the prose goes in that change.
 5. **Hold instead of delete** when the instruction matches a protected class in the
    [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md):
    it keeps its prose even when a check enforces it. Report the hold, its class and the
-   enforcing check.
+   enforcing check. Membership goes by consequence, what breaks when the rule is absent (a
+   destructive-action or security rail, for example); when the register cannot be read, hold a
+   candidate that may match one and say the register was unread.
 
 **Provenance**: items 4 and 5 are this repo's rule, not doc-stated, so the `update` action must
 not overwrite them.
