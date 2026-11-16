@@ -1,5 +1,6 @@
 description: Hygiene and audits of a repository, its Claude Code setup, the machine and the GitHub org, including repo-sweep steps and Claude Code changelog ingestion.
 plugins:
+  - harness-ops@melodic-software
   - harness-config@melodic-software
   - harness-memory@melodic-software
   - instruction-placement@melodic-software

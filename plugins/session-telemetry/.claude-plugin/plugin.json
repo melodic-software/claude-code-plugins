@@ -1,0 +1,158 @@
+{
+  "name": "session-telemetry",
+  "description": "Collects telemetry about each Claude Code session (hook runs, session events and skill use) from this plugin's hooks and from any plugin's hook-telemetry producers, for later analysis.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "version": "0.0.0",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "telemetry",
+    "hooks",
+    "observability",
+    "skill-usage",
+    "audit"
+  ],
+  "metadata": {
+    "category": "claude-code"
+  },
+  "userConfig": {
+    "skill_usage_audit_enabled": {
+      "type": "boolean",
+      "title": "Skill-usage-audit hook",
+      "description": "Emits telemetry on skill usage, on by default. Shared by both skill-usage audit hooks (the Skill-tool and slash-command expansion paths), and also gates the shared skill-usage.jsonl store.",
+      "default": true
+    },
+    "skill_usage_scope": {
+      "type": "string",
+      "title": "Skill-usage log scope",
+      "description": "Where the skill-usage store lives. repo (default) keeps it in the project tree, out of git status via a machine-local .git/info/exclude entry; user puts the skill_usage_dir subpath under $HOME as one cross-repo store; data-dir uses ${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>.",
+      "default": "repo",
+      "options": [
+        "repo",
+        "user",
+        "data-dir"
+      ]
+    },
+    "skill_usage_dir": {
+      "type": "string",
+      "title": "Skill-usage log directory",
+      "description": "Relative directory where the skill-usage-audit hooks write skill-usage.jsonl, under the skill_usage_scope root (repo: the project root; user: $HOME). Leave unset to use .claude/observability. The data-dir scope ignores it. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid."
+    },
+    "skill_usage_git_exclude": {
+      "type": "boolean",
+      "title": "Git exclude for the repo-scope store",
+      "description": "Adds the repo-scope store's directory to .git/info/exclude when it sits inside a git work tree, so git status stays clean. On by default; machine-local, and never touches .gitignore or tracked files. Set false if your team deliberately commits the telemetry.",
+      "default": true
+    },
+    "skill_usage_max_bytes": {
+      "type": "number",
+      "title": "Skill-usage file size cap (bytes)",
+      "description": "Size at which a skill-usage producer rotates skill-usage.jsonl to skill-usage.jsonl.1, replacing any older .1, so the pair stays near twice this value. Default 10485760.",
+      "default": 10485760,
+      "min": 1
+    },
+    "api_error_audit_enabled": {
+      "type": "boolean",
+      "title": "API-error-audit hook",
+      "description": "Emits turn-failure telemetry on API errors. On by default.",
+      "default": true
+    },
+    "config_change_audit_enabled": {
+      "type": "boolean",
+      "title": "Config-change-audit hook",
+      "description": "Emits telemetry on config-source mutations. On by default.",
+      "default": true
+    },
+    "instructions_loaded_audit_enabled": {
+      "type": "boolean",
+      "title": "Instructions-loaded-audit hook",
+      "description": "Emits telemetry on rule and instruction file loads. On by default.",
+      "default": true
+    },
+    "instructions_loaded_audit_log_session_start": {
+      "type": "boolean",
+      "title": "Session-start instruction-load logging",
+      "description": "Makes the instructions-loaded-audit hook log session_start instruction loads. Off by default, because those loads are deterministic and high-volume.",
+      "default": false
+    },
+    "permission_denied_audit_enabled": {
+      "type": "boolean",
+      "title": "Permission-denied-audit hook",
+      "description": "Emits telemetry on permission denials. On by default.",
+      "default": true
+    },
+    "pre_compact_audit_enabled": {
+      "type": "boolean",
+      "title": "Pre-compact-audit hook",
+      "description": "Emits telemetry on context-compaction events. On by default.",
+      "default": true
+    },
+    "tool_failure_audit_enabled": {
+      "type": "boolean",
+      "title": "Tool-failure-audit hook",
+      "description": "Emits telemetry on Write, Edit, and Bash tool failures. On by default.",
+      "default": true
+    },
+    "session_event_log_enabled": {
+      "type": "boolean",
+      "title": "Session-event-log hook",
+      "description": "Appends one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every event the generated registry marks observable. Runs in the hooks module, so it needs mods on. Off (the default), no event starts a process; on, each starts one. It also gates SessionEnd retention.",
+      "default": false
+    },
+    "session_event_log_dir": {
+      "type": "string",
+      "title": "Hook log root directory",
+      "description": "Project-relative directory holding the per-session hook event log (sessions/) and the telemetry sink's hook-events.jsonl. Default .observability/claude. Absolute, drive, UNC, traversal and escaping paths are invalid, and the project root itself is refused.",
+      "default": ".observability/claude"
+    },
+    "session_event_log_categories": {
+      "type": "string",
+      "title": "Session-event-log categories",
+      "description": "Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty, the default, records every category the registry marks observable.",
+      "default": ""
+    },
+    "session_event_log_content": {
+      "type": "boolean",
+      "title": "Session-event-log content fields",
+      "description": "Also records each event's top-level content strings (prompt, last_assistant_message, message, task text, error and the like) in the session event log; content the 64 KB read cap cuts is marked truncated. Off by default; has no effect while session_event_log_enabled is off.",
+      "default": false
+    },
+    "session_log_keep_sessions": {
+      "type": "number",
+      "title": "Session files to keep",
+      "description": "At SessionEnd, keeps the newest N session files regardless of age; default 30. A file is kept when it is among the newest N OR younger than session_log_keep_days.",
+      "default": 30,
+      "min": 1
+    },
+    "session_log_keep_days": {
+      "type": "number",
+      "title": "Session file retention (days)",
+      "description": "At SessionEnd, keeps every session file younger than N days regardless of count; default 14. A file is kept when it is younger than N days OR among the newest session_log_keep_sessions.",
+      "default": 14,
+      "min": 1
+    },
+    "session_log_pre_prune_command": {
+      "type": "string",
+      "title": "Pre-prune command",
+      "description": "Command run detached at SessionEnd with one argument: a directory holding the session files about to be pruned, deleted on the next retention run after 24 hours. Leave unset to delete directly. Runs through bash -c, so only your own user settings can supply it.",
+      "default": ""
+    },
+    "hook_events_max_bytes": {
+      "type": "number",
+      "title": "Hook events file size cap (bytes)",
+      "description": "Size at which the telemetry sink rotates the shared hook-events.jsonl to hook-events.jsonl.1, replacing any older .1, so the pair stays near twice this value. Default 10485760. Applies whether or not the per-session event log is on.",
+      "default": 10485760,
+      "min": 1
+    },
+    "stdin_read_timeout": {
+      "type": "number",
+      "title": "Hook stdin read timeout (seconds)",
+      "description": "Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open. Default 2.",
+      "default": 2,
+      "min": 1
+    }
+  }
+}

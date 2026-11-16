@@ -146,7 +146,7 @@ emit `data.session_id`; other hooks appear only in the whole-root report.
 |---|---|---|---|---|---|
 
 Per turn (`prompt_id`): <N> turns, <max> events in the busiest. Subagents (`agent_id`): <N>.
-(or) `_no data: session_event_log_enabled is off; /harness-ops:setup to turn it on_`
+(or) `_no data: session-telemetry or its session_event_log_enabled is off; /harness-ops:setup to turn it on_`
 
 ## Toggles and retention in effect
 

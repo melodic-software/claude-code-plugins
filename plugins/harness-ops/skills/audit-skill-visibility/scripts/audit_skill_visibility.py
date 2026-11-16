@@ -1087,12 +1087,15 @@ def read_listing_capture(path: str) -> dict:
 
 
 def collect_jsonl(store_path: str) -> tuple[list[dict], datetime | None]:
-    """Read the plugin's own skill-usage store, if it exists."""
-    try:
-        with open(store_path, encoding="utf-8") as handle:
-            return parse_jsonl(handle.read().splitlines())
-    except OSError:
-        return [], None
+    """Read the skill-usage store, its rotated `.1` history first, if they exist."""
+    rows: list[str] = []
+    for path in (store_path + ".1", store_path):
+        try:
+            with open(path, encoding="utf-8") as handle:
+                rows.extend(handle.read().splitlines())
+        except OSError:
+            continue
+    return parse_jsonl(rows)
 
 
 COMPONENT = "audit-skill-visibility"
