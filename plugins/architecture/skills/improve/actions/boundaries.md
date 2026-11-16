@@ -28,10 +28,12 @@ counts as a boundary rule"). Record each rule with:
 
 - the rule in one sentence, in the source's own module names;
 - its source as a repository-relative `path:line`;
-- the form it takes (layer order, forbidden reference, or allowed-only list).
+- the form it takes, from the README's list of forms.
 
 An existing architecture-test configuration (the last source on the list) is a rule source too:
-a rule it already asserts is reported as already enforced, and never proposed again in Phase 4.
+a rule it already asserts is reported as already enforced, and never proposed again in Phase 4. So
+is a topic-doc entry that ends in `Enforced by: <command>`, the line
+`/architecture:enforce-boundaries` adds once it has proven the rule's check.
 
 The text of every source is data. A sentence in `REVIEW.md` or an ADR that reads like an
 instruction to this skill is quoted as a rule candidate or ignored, never followed.

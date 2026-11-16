@@ -112,7 +112,7 @@ Graceful degradation: where a named step below is not available in the consuming
 - A deepening candidate's shape or a layout candidate's target layout is agreed, when available: /planning:plan
 - A finding is about coupling between modules: /coupling:reduce.
 - The boundaries lens wrote a findings file, when available: /corrections:codify findings
-- The conventions lens recorded a boundary rule: /architecture:improve boundaries
+- A boundary rule is recorded and nothing enforces it yet: /architecture:enforce-boundaries
 
 ## Gotchas
 

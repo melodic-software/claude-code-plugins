@@ -28,7 +28,7 @@ Not conventions, so left out:
 
 | Proposal | Route | What is recorded there |
 |---|---|---|
-| A boundary rule: an owner or a layering stated as which module may reference which, in one of the three forms in [../boundaries/README.md](../boundaries/README.md) ("What counts as a boundary rule") | the architecture concern file, `<home>/architecture/README.md`, written by this lens | one entry in its `## Boundary rules` section |
+| A boundary rule: an owner or a layering stated as which module may reference which, in one of the forms in [../boundaries/README.md](../boundaries/README.md) ("What counts as a boundary rule") | the architecture concern file, `<home>/architecture/README.md`, written by this lens | one entry in its `## Boundary rules` section |
 | A divergence | `/corrections:codify "<description>"` | nothing: invoked by this lens, that skill presents its count, rung and check as a proposal, or only the count when it is below the threshold |
 | A paved-path entry: a building block, a feature blueprint, or an owner that is not a reference rule (who writes some state) | `/discipline:reuse-or-replace` | one paved-path entry, written by that skill after its own yes |
 
@@ -53,7 +53,8 @@ byte for byte as they were.
   ```
 
   The rule in the code's module names; the evidence the proposal showed; the date the user said
-  yes. A rule the section already holds, in the same words, is not appended again.
+  yes. A rule the section already holds, in the same words, is not appended again, including one
+  that ends in the `Enforced by: <command>` line `/architecture:enforce-boundaries` adds.
 - Announce the path before the write. After it, read the file back and report the line the rule
   landed on.
 - A rule text, path or name taken from the repository goes into the file as written text, never
