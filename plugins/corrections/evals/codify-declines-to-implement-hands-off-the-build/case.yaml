@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: codify-declines-to-implement-hands-off-the-build
+description: 'Asked to just write the analyzer, the skill declines and hands the build of the rung and its check to /implementation:implement, pointing at no language-specific tutorial. Replaces codify-declines-to-implement-the-rung, whose tutorial outcome is retired.'
+tags: [codify, ported]
+plugins: ["../.."]
+expected_outcome: 'The answer declines, hands the rung and the check to /implementation:implement, links no analyzer tutorial, and writes no analyzer.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify findings findings.md Good, the third finding needs a custom analyzer. Just write the analyzer for me.'
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: hands-off-to-implement
+    type: 'regex'
+    pattern: '^(?![\s\S]*(?:learn\.microsoft\.com|roslyn-sdk|\b(?:follow(?:s|ed|ing)?|see|read(?:s|ing)?|us(?:e|es|ed|ing)|start(?:s|ed|ing)? with|work(?:s|ed|ing)? through)\b[^\n]{0,40}\btutorial))(?=[\s\S]*/implementation:implement)'
+    flags: 'i'
+    arm: 'both'
+  - name: writes-no-analyzer
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"[^"]*\.cs"'
+    min: 0
+    max: 0
+    arm: 'both'

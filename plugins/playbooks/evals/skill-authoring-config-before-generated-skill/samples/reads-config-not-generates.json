@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## setup\n\n1. Read the linter name from `.claude/lint.md` (`linter:`). If it is set, stop: setup is done.\n2. Otherwise detect the linter from the repository's manifests (`eslint`, `ruff` or `golangci-lint`) and write it to `.claude/lint.md` as `linter: <name>`.\n\nEvery run of this skill reads `linter:` from that file.",
+      "why": "records the name in config the shipped skill reads, no generated copy"
+    },
+    {
+      "answer": "## setup\n\nOn every run, find the linter from the repository's own config: `eslint.config.*` or `.eslintrc*`, `[tool.ruff]` in `pyproject.toml`, or `.golangci.yml`. Don't write a copy of this skill into the repository; a copy stops getting this skill's fixes.",
+      "why": "the shipped skill reads the repository's linter config live, no generated copy"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## setup\n\n1. Detect the repository's linter from its manifests.\n2. Write `.claude/skills/lint-here/SKILL.md`, a copy of this skill with `<LINTER>` replaced by the detected name.\n3. Tell the user to run `/lint-here` from now on.",
+      "why": "still generates a per-repository skill"
+    },
+    {
+      "answer": "## setup\n\n1. Detect the repository's linter and write it to `.claude/lint.md` as `linter: <name>`.\n2. Optionally also generate `.claude/skills/lint-here/SKILL.md` with the name filled in, for repositories that prefer their own skill.",
+      "why": "keeps the generated skill as an option beside config"
+    }
+  ]
+}

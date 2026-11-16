@@ -98,7 +98,13 @@ one line per check, detail lines indented under it:
                       NAME=value commands whose names it expands (a value
                       with a / must be a path there, any other a plain
                       literal), and one opening cd there; several such
-                      pipelines may be joined by ; or &&; with
+                      pipelines may be joined by ; or &&; so are the same
+                      reads aimed only at the session's own transcript,
+                      <sandbox>/config/projects/<project>/<session_id>.jsonl
+                      or its <session_id>/subagents/, the id from the
+                      trace's init line, which a skill analyzing its own
+                      session reads (a listing or glob of the projects tree,
+                      or another session's file, still counts); with
                       --own-copy-search-warns, so is a Read, Grep or
                       Glob aimed only at or under the plugin copy the run's
                       init line lists as loaded (a suite.root or suite.plugins
@@ -259,6 +265,7 @@ SANDBOX_PLUGIN_DATA = ("config", "plugins", "data")
 # Where a run's session persists a large tool result it already received:
 # <sandbox>/config/projects/<project>/<session>/tool-results/.
 SANDBOX_PROJECTS, TOOL_RESULTS_DIR = ("config", "projects"), "tool-results"
+TRACE_SESSION, TRANSCRIPT_SUFFIX, SUBAGENTS_DIR = "session_id", ".jsonl", "subagents"
 TOOL_RESULTS_READERS = ("Read", "Grep", "Glob")
 # A Bash pipeline the same reads may take, joined only by `|`: per command, the
 # short flags it may cluster, the flags that take a number (glued, -A40, or the
@@ -2171,6 +2178,37 @@ def own_results_denial(run, denial):
     return all(in_tool_results(p, projects) for p in reads)
 
 
+def in_own_transcript(path, projects, session):
+    """True when path is <projects>/<project>/<session>.jsonl, or at or under
+    <projects>/<project>/<session>/subagents."""
+    if not under(path, projects):
+        return False
+    rel = os.path.relpath(os.path.realpath(path), os.path.realpath(projects))
+    parts = rel.split(os.sep)
+    return (len(parts) == 2 and parts[1] == session + TRANSCRIPT_SUFFIX) or (
+        len(parts) >= 3 and parts[1] == session and parts[2] == SUBAGENTS_DIR
+    )
+
+
+def own_transcript_denial(run, denial):
+    """True when the denial is a Read, Grep or Glob, or a read-only Bash command
+    (bash_sequence_reads), whose every target path is the session's own
+    transcript, config/projects/<project>/<session_id>.jsonl, or under its
+    <session_id>/subagents/, the session id read from the trace's init line. A
+    skill that analyzes its own session reads that file; the run's permission
+    settings deny its config directory, so the read is denied whatever the case
+    does, and a case cannot place the file there. A listing or glob of the
+    projects tree, another session's file, a write, or any other path never
+    qualifies, so a search for the file still counts."""
+    reads = denial[5]
+    sandbox = sandbox_dir(run)
+    session = init_line(run).get(TRACE_SESSION)
+    if not sandbox or not reads or not isinstance(session, str) or not session:
+        return False
+    projects = os.path.join(sandbox, *SANDBOX_PROJECTS)
+    return all(in_own_transcript(p, projects, session) for p in reads)
+
+
 def own_copies(run, roots):
     """The plugin directories the run's init line lists as loaded whose path is
     the suite root or a suite.plugins path: the copy of the plugin this run
@@ -2538,9 +2576,14 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
     # the denials left.
     data = {r: [d for d in every[r] if own_data_denial(r, d)] for r in traced}
     results = {
-        r: [d for d in every[r] if d not in data[r] and own_results_denial(r, d)]
+        r: [
+            d
+            for d in every[r]
+            if d not in data[r] and (own_results_denial(r, d) or own_transcript_denial(r, d))
+        ]
         for r in traced
     }
+    transcript = {r: [d for d in results[r] if not own_results_denial(r, d)] for r in traced}
     searched = {
         r: [
             d
@@ -2629,10 +2672,15 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
         summary += "; %s under the run's own plugin-data directory, not counted" % plural(
             set_aside, "denial"
         )
-    read_back = sum(len(results[r]) for r in denied)
+    read_own = sum(len(transcript[r]) for r in denied)
+    read_back = sum(len(results[r]) for r in denied) - read_own
     if read_back:
         summary += "; %s of the session's own tool results, not counted" % plural(
             read_back, "denied read"
+        )
+    if read_own:
+        summary += "; %s of the session's own transcript, not counted" % plural(
+            read_own, "denied read"
         )
     self_search = sum(len(searched[r]) for r in denied)
     if self_search:
@@ -2672,11 +2720,12 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             " run of its case was denied in both arms, none inside the plugin; and"
             " any named call other than Skill aimed only under the run's own"
             " plugin-data directory, or a Read, Grep, Glob or read-only Bash pipeline"
-            " aimed only at the session's own tool-results directory,%s%s%s%s which never"
+            " aimed only at the session's own tool-results directory%s,%s%s%s%s which never"
             " counts toward a"
             " FAIL; a run's score was taken under such a denial, so compare it only"
             " with runs denied the same way): %s"
             % (
+                " or at the session's own transcript" if read_own else "",
                 " or, under --own-copy-search-warns, a Read, Grep or Glob aimed only"
                 " at the plugin copy a finished run loaded that no tool_used grader of"
                 " its case names," if own_copy_search_warns else "",

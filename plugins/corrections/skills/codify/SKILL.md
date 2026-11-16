@@ -182,7 +182,11 @@ The proposal holds: the description, the occurrences counted, the rung id and th
 behind it, the scope and why, the check command, the proof result (old ref, both exit codes), the
 missing-context answer when it applies, the existing violations with the cleanup or ratchet offer,
 and the install step with whether it blocks, both taken from
-["Next step per rung"](reference/finding-classes.md#next-step-per-rung). `ratchet_offer` false
+["Next step per rung"](reference/finding-classes.md#next-step-per-rung). For a checking rung the
+install step is the build hand-off: hand over the rung and the check, naming
+`/implementation:implement` as the builder, to build it in the repository's own tooling. When that
+skill is not available, the proposal ends with the rung and the check. Either way the proposal states that the check's message must name the fix, so
+whoever trips it knows what to do instead. `ratchet_offer` false
 leaves the ratchet offer out; the existing violations and any cleanup offer stay. A proposal for a
 codebase, static-analysis or verification rung also holds the literal `Codifies:` line for the pull
 request that lands it, and the task-list item that carries it when the work is filed as an issue,
@@ -193,15 +197,18 @@ holds neither.
 
 Problems first: a mistake that meets the ladder's "Guardrail criterion" with no check in the
 repository yet, stated in those words as a "no guardrail" finding naming that section; an unproven
-check; a count below threshold; an unresolved old ref. Then the count, the rung by its id, the scope, the proof line from the script, and the proposal path or that nothing was written. End
-with the question for any blocking install.
+check; a count below threshold; an unresolved old ref. Then the count, the rung by its id, the scope, the proof line from the script, and the proposal path or that nothing was written. A rung
+id read through the ladder's [alias](reference/enforcement-ladder.md#tier-2-static-analysis), from
+the repository's instructions, a stub or a findings file, gets one line naming the old id and the
+current one. End with the question for any blocking install.
 
 ## Boundary
 
 - It never installs a check unasked, and never installs an unproven one.
 - It never implements a rung. No analyzer, rule, architecture test or hook is written here. Asked to
-  "just write the analyzer", decline and hand over the rung's pointer. For the `architecture-test`
-  rung, also name `/architecture:enforce-boundaries` as the next step when that skill is available.
+  "just write the analyzer", decline and hand over the rung and the check, naming
+  `/implementation:implement` as the builder. For the `architecture-test` rung, also name
+  `/architecture:enforce-boundaries` as the next step when that skill is available.
 - It never fixes an existing violation. The cleanup it offers runs through `/implementation:implement`.
 - Moving a mistake up the ladder is not promotion in the autonomy sense: it changes no work class or
   guardrail class, and neither implies the other.
@@ -215,7 +222,7 @@ with the question for any blocking install.
 - hook: /harness-config:audit-automation-gaps.
 - make-impossible: /architecture:improve.
 - a group at or over the threshold: /corrections:codify "<the group's mistake>".
-- existing violations to clean up: /implementation:implement.
+- existing violations to clean up, or a proven check to build: /implementation:implement.
 
 ## Gotchas
 

@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: skill-authoring-config-before-generated-skill
+description: "Config before a generated skill: a setup action that writes a per-repository copy of the skill whose only difference is the linter's name is replaced by one shipped skill that reads the name from repository config. Written from plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md, Body."
+tags: [skill-authoring, composition]
+expected_outcome: "The rewritten section no longer generates a per-repository skill; the shipped skill gets the linter on each run from repository configuration, either the repository's own linter config or an entry setup records there."
+execution:
+  allowed_tools: [Read, Skill]
+  max_turns: 20
+  timeout_seconds: 600

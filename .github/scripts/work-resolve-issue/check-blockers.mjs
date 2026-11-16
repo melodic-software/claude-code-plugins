@@ -3,12 +3,15 @@
 // would otherwise skip, in the check-admission job before any model run. No model, no
 // write; it never fails the job or hands the issue to a person.
 //
-// - Authorship first, by admission's rule (admit.mjs authorAdmitted): an
-//   issue neither a listed human nor the lanes App wrote does not run, for
+// - Authorship first, by admission's rule (admit.mjs authorTrust): an
+//   issue neither a listed human nor the lanes App wrote, and no trusted
+//   upstream-drift issue, does not run, for
 //   good, whoever added agent-ready, since the run would work from an
 //   outsider's text: `untrusted` and `outsider` are true, and
 //   work-resolve-issue.yml's report-skip removes agent-ready and comments that
-//   a listed human re-files the work as a new issue. No read past the issue's own.
+//   a listed human re-files the work as a new issue. No read past the issue's
+//   own. A trusted drift issue runs as a split child does (`split-child`
+//   true): admission takes it at any Size, since it is never split.
 // The issue's events are its label events plus its Work status field
 // changes shaped as label events (read-status.mjs statusEvents), so a verdict
 // or admission written only to the field counts as one.
@@ -74,7 +77,7 @@ import { readRouting, routingLabel } from "../../actions/check-born-triaged/chec
 import { createGitHub, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
-import { authorAdmitted, blockersOf, clearedPastReport, closedByTrusted, finishedParent, judgedSince, loadRules, openSubIssues, stillBlocking, trustedElsewhere, trustedSplitChild, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { authorTrust, blockersOf, clearedPastReport, closedByTrusted, finishedParent, judgedSince, loadRules, openSubIssues, stillBlocking, trustedElsewhere, trustedSplitChild, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -94,6 +97,7 @@ export async function main({ env = process.env, github, log = console.log, write
   let pending;
   let subs;
   let splitChild;
+  let drift = false;
   let finished = null;
   let rechecked = false;
   // Logs why the run does not proceed and writes its outputs; never fails the job.
@@ -119,7 +123,9 @@ export async function main({ env = process.env, github, log = console.log, write
     if (!rechecked) {
       const issue = await client("GET", base);
       const routing = readRouting(join(env.BASE_PATH || ".base", "docs/conventions/work-items.yaml"), { who: "check-blockers", log });
-      outsider = !authorAdmitted(issue, humans, appId);
+      const trust = await authorTrust(client, repository, issue, humans, appId);
+      outsider = trust === null;
+      drift = trust === "drift";
       const events = outsider ? [] : await statusReader({ env, github: client, repository, log }).events(Number(number));
       const isApp = (actor) => actor?.id === appId;
       held = !outsider && untrustedHold({ labels: issue?.labels, events, humans, isApp });
@@ -163,7 +169,7 @@ export async function main({ env = process.env, github, log = console.log, write
     write({ proceed: "true", untrusted: "false" });
     return 0;
   }
-  write({ proceed: "true", untrusted: "false", "split-child": String(splitChild || finished !== null), ...(finished && { "verify-close": finished.join(",") }) });
+  write({ proceed: "true", untrusted: "false", "split-child": String(splitChild || drift || finished !== null), ...(finished && { "verify-close": finished.join(",") }) });
   return 0;
 }
 
