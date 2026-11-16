@@ -17,6 +17,10 @@
     },
     {
       "answer": "notes-hooks ships a SessionStart hook. Do you want it always on, or loaded only by some profiles?\n- Always on\n- Per profile",
+      "why": "the per-profile choice worded as 'only by some profiles'"
+    },
+    {
+      "answer": "notes-hooks ships a SessionStart hook. Do you want it always on, or loaded with the profiles you pick?\n- Always on\n- Per profile",
       "why": "per profile named only in the options directly under the question"
     }
   ],
