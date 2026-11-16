@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "plan only, nothing written"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/explore-directions-x/explore-directions.html",
+            "content": "<!doctype html>"
+          }
+        }
+      ],
+      "why": "built a variant when only the plan was asked for"
+    }
+  ]
+}
