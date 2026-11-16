@@ -118,14 +118,20 @@ it must pass, near misses it must reject, an empty answer, and an answer to a di
 | A sample file with no must-pass or no must-fail answers, or named after no grader | WARN |
 | A setting the script cannot reproduce offline, such as the `y` or `v` regex flag | WARN |
 | A pattern with Python-only syntax: `\A`, `\Z`, `\z`, a possessive quantifier, an atomic group, a `(?P<` group or `(?P=` reference, a `(?#` comment, a `(?(` conditional. The finding names the grader and the token | FAIL |
-| With `node` on PATH: a `pattern` or `input_match` that does not compile under JavaScript, or a sample JavaScript's `RegExp` sorts the other way | FAIL |
+| With `node` or `bun` on PATH: a `pattern` or `input_match` that does not compile under JavaScript, or a sample JavaScript's `RegExp` sorts the other way | FAIL |
+| With both on PATH: a sample whose verdict under `node` (V8) differs from its verdict under `bun` (JavaScriptCore) | FAIL |
 | An `llm` or `baseline` grader with samples: they need a paid judge calibration run | WARN |
 
 The script FAILs the Python-only tokens listed above; that check needs nothing installed. When
 `node` is on PATH it also grades each regex grader and each `tool_used` `input_match`, with their
-samples, through `RegExp`, and without `node` it skips that part silently. A grader built from the
-shared matchers is checked by `scripts/check-matchers.py`, which requires `node`; the plugin
-README's shared grader matchers section covers it.
+samples, through `RegExp`. `node` runs V8, but `claude plugin eval` runs graders in JavaScriptCore,
+because the CLI ships as a Bun executable, and the two engines can disagree: in one measured pass a
+whole-reply negative lookahead matched under V8 and found no match under JavaScriptCore. When `bun`
+is on PATH the script grades the same samples under it too, names the engine in each finding, and
+FAILs any sample the two engines sort differently. With neither on PATH it skips that part
+silently. A grader built from the shared matchers is checked by `scripts/check-matchers.py`, which
+requires `node` and grades under `node` alone; the plugin README's shared grader matchers section
+covers it.
 
 The script never calls a judge. Samples on an `llm` grader are the labeled answers a calibration
 run feeds the judge, and that run is the operator's to start.
@@ -136,9 +142,13 @@ run feeds the judge, and that run is the operator's to start.
   The sample check grades as the binary does, per its grader code read against the
   [grader types](https://code.claude.com/docs/en/plugin-evals#grader-types) table; Python's `re`
   stands in for the JavaScript regex engine, and the script's header lists where the two differ.
-- **As of**: 2026-10-01
+  The CLI's engine rests on [Bun joins Anthropic](https://bun.com/blog/bun-joins-anthropic) ("Claude
+  Code ships as a Bun executable") and the [Bun runtime](https://bun.com/docs/runtime) page ("Bun
+  uses the JavaScriptCore engine").
+- **As of**: 2026-11-16
 - **Recheck trigger**: the next Claude Code release, a release that adds a file the loader reads
-  from a case directory, or a grader whose sample verdict disagrees with its verdict in a real run.
+  from a case directory, a Claude Code build on a runtime other than Bun, or a grader whose sample
+  verdict disagrees with its verdict in a real run.
 
 ## When the parser stops
 
