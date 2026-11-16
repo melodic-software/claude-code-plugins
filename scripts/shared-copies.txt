@@ -565,6 +565,7 @@ lib/rendered-view.md plugins/planning/reference/rendered-view.md
 lib/html-chrome.html plugins/visualization/reference/html-chrome.html
 lib/html-chrome.html plugins/adhd/reference/html-chrome.html
 lib/html-chrome.html plugins/planning/reference/html-chrome.html
+lib/html-chrome.html plugins/architecture/reference/html-chrome.html
 lib/rendered-view.md plugins/architecture/reference/rendered-view.md
 lib/rendered-view.md plugins/discovery/reference/rendered-view.md
 lib/rendered-view.md plugins/debugging/reference/rendered-view.md
