@@ -62,6 +62,7 @@ declare -A GUARD_FIELDS=(
   ["block-github-post-content.sh"]='.tool_input.command .tool_name .cwd'
   ["block-exported-msys-pathconv.sh"]='.tool_input.command .tool_name'
   ["block-foreground-wait.sh"]='.tool_input.command .tool_name'
+  ["block-lane-pr-disable-auto.sh"]='.tool_input.command .tool_name .cwd'
   ["block-no-verify.sh"]='.tool_input.command .tool_name'
   ["block-noncanonical-commit.sh"]='.tool_input.command .cwd .tool_name'
   ["block-root-delete-target.sh"]='.tool_input.command .tool_name .cwd'
