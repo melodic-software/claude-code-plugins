@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "from hypothesis import example, given, strategies as st\n\n\n@given(st.text())\n@example(\"!!!\")\ndef test_slug_is_never_empty(title):\n    assert slugify(title) != \"\"\n",
+      "why": "a Hypothesis property"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def test_punctuation_title():\n    assert slugify(\"!!!\") == \"untitled\"\n",
+      "why": "an example test only"
+    }
+  ]
+}

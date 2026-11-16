@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: audit-size-uses-the-repo-limit-and-files-an-issue
+description: on a scaffolded repository whose linter configuration sets a 400-line module limit and which has no code-metrics layer, with two files over it (one committed nine times, one once), the size report counts against the repository's own limit and the reply ties acting to change frequency and an issue. Needs --scaffold and --allow-tools Bash Write Edit, so the must-not graders can fail.
+tags: [audit, size, outcome]
+expected_outcome: 'Runs the bundled audit-size.sh with --file-lines 400 and with --commits-since, says the 400 comes from the repository''s own linter configuration, calls no file a failure, singles out the often-changed long file over the stable one, and recommends a tracker issue rather than splitting a file now. It edits and writes nothing.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/code-metrics:audit size --all\n\nThen tell me which of the long files, if any, we should do something about, and what."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: ran-with-the-repo-limit
+    type: tool_used
+    tool: Bash
+    input_match: 'audit-size\.sh[^|;&]*--file-lines\s+400\b'
+  - name: ran-the-commit-count
+    type: tool_used
+    tool: Bash
+    input_match: 'audit-size\.sh[^|;&]*--commits-since'
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: acts-on-churn-by-issue
+    type: llm
+    focus: last_message
+    criteria: 'The repository has two files over its 400-line limit: ledger.py, changed in many commits, and constants.py, changed once. PASS only if all three hold: (1) the reply says the 400 reference comes from the repository''s own linter configuration (naming .pylintrc or pylint is enough); (2) it treats how often a file changes as what decides whether to act, and singles out ledger.py over constants.py on that ground; (3) what it recommends doing is opening or filing an issue or tracker item for the file, not splitting or refactoring it now in this session. FAIL if it recommends acting on both files on length alone, calls a file a failure or violation, never mentions change frequency, or proposes to refactor now.'

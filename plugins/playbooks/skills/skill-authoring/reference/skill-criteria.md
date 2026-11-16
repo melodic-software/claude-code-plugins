@@ -144,6 +144,12 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
   ([Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill)).
   A split is the exception: split only when the parts change independently or answer different
   requests.
+- **Layer on a skill, never restate it.** When another skill owns a behavior this skill needs,
+  call that skill by name and write only this skill's own steps around the call. Its
+  instructions, checklist and defaults stay out of this body. Why: a copy goes on being followed
+  after the owning skill changes, so the two then disagree and nothing flags it. When the owning
+  skill may not be installed, one line says what this skill does without it; that line is not a
+  second copy of the procedure.
 - **SKILL.md is a router, under 5,000 tokens.** It is the hub: it holds the standing rules and
   routes each action to its own spoke under `actions/`, one file per action, so a run loads the
   router and the one action it needs. The cap is a house setting; `/skill-quality:check` estimates the count at 4

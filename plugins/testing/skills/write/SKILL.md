@@ -73,7 +73,7 @@ repeat every such line verbatim in the final summary. With `off`, write no such 
 |--------|-------------|
 | Writing new tests, TDD, "test this code" | [context/write.md](context/write.md) |
 | "Where should this test go", new test project decision, fixture patterns | [context/organize.md](context/organize.md) |
-| Property or invariant tests; parsers, serializers, pure transforms, collections or stateful classes; a shrunk counterexample to pin | [context/property.md](context/property.md), after write.md |
+| Property, invariant or fuzz tests, for any target (a running UI included); parsers, serializers, pure transforms, collections or stateful classes; a shrunk counterexample to pin | [context/property.md](context/property.md), after write.md |
 | Replace, rewrite, migrate or port; pin legacy behavior before a refactor; approval, snapshot, golden master or old-versus-new tests | [context/characterization.md](context/characterization.md), after write.md |
 | `blind`, or acceptance tests a separate agent writes from the spec without reading the implementation | [context/blind-author.md](context/blind-author.md), after write.md |
 

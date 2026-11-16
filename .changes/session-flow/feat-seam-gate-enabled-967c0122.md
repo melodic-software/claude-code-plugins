@@ -1,11 +1,6 @@
 ---
-bump: minor
+bump: patch
 ---
-
-### Added
-
-- The handoff save-point's "Environment to re-establish" section writes the restore entry `/plugin-profiles:profile status` prints when that skill is available, and no profile entry otherwise.
-- Eval case `wf-disabled-plugin-takes-fallback`: wrap-up takes the retro fallback when the corrections plugin is installed but switched off.
 
 ### Changed
 

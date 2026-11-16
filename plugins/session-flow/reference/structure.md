@@ -400,9 +400,9 @@ disabled or uninstalled, its skills no longer resolve. Give the user that step i
 note the engine doc's "Plugin reload" bullet prescribes. Never write that `/clear` or the resume prompt loads the new version.
 No plugin changed: say so.
 
-**Plugin profile.** Invoke `/plugin-profiles:profile status` (if that skill is among the available
-skills) and write the restore entry it prints, as given, beside the plugin-changes entry; otherwise
-write no profile entry, and the plugin-changes entry above stands alone.
+**Plugin profile.** When `/plugin-profiles:profile` is among the available skills (enabled),
+invoke `/plugin-profiles:profile status` via the Skill tool and write the restore entry it prints
+here as given, without parsing it; otherwise write nothing about plugin profiles.
 
 **TaskList.** Branch on which task tools this session has (read its tool list), never on the model
 name:

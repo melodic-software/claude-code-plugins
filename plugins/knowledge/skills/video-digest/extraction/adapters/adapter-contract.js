@@ -304,6 +304,9 @@ export function primaryEntry(envelope) {
  *   queue row recorded; sources without a caption wait ignore it
  * @property {import('../lib/time-range.js').TimeRange|null} [timeRange] - the part of
  *   the media to download; only passed to an adapter declaring the `timeRange` capability
+ * @property {boolean} [skipCaptionWait] - the caller can transcribe the downloaded media
+ *   (a ranged watch with ASR available), so a full-mode acquisition with an open caption
+ *   wait proceeds caption-less and notes the skip; sources without a caption wait ignore it
  * @property {object} [deps] - adapter-specific injectable I/O (tests only)
  */
 

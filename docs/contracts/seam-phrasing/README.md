@@ -10,18 +10,22 @@ the *rule*.
 
 Every optional reference to another plugin's skill carries, at the reference site:
 
-1. **The gate** is an explicit availability condition on the invocation: the target skill is
-   among the available skills, meaning its plugin is enabled in this session, not merely
-   installed. A plugin can be installed and switched off (by a plugin profile, a settings
-   scope or the user), and then its skills are absent and the fallback runs
-   ([eval](../../../plugins/session-flow/evals/wf-disabled-plugin-takes-fallback/case.yaml)). The sentence is
-   "invoke `/other-plugin:skill` (if that plugin is enabled)" or an equivalent
-   "when the `<name>` plugin is enabled" clause. The gate names the plugin, not the
-   marketplace (marketplace-qualified IDs never appear in reusable content outside
-   install-recipe sites and the third-party route-row fields the carve-outs below name).
-   For a user-only target (`disable-model-invocation: true`), the Skill tool cannot reach it,
-   so the sentence is "tell the user to run `/other-plugin:skill` (if that plugin is
-   enabled)" ([evidence](#hand-off-phrasing-measured)).
+1. **The gate** is an explicit availability condition on the invocation:
+   "invoke `/other-plugin:skill` when it is among the available skills (enabled)" or an
+   equivalent "when `/other-plugin:skill` is among the available skills" clause. Available
+   means enabled, not merely installed: a plugin can stay installed while it is off
+   ([Install and manage plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins)),
+   for example after a plugin profile switches it off, and the reference then takes its
+   fallback. The gate names the plugin, never the marketplace (marketplace-qualified IDs
+   never appear in reusable content outside install-recipe sites and the third-party
+   route-row fields the carve-outs below name).
+   For a user-only target (`disable-model-invocation: true`), the Skill tool cannot reach it
+   and its description is not in context
+   ([Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill)),
+   so the skill itself never shows as available. The sentence is "tell the user to run
+   `/other-plugin:skill` when the `other-plugin` plugin is enabled", and the plugin counts as
+   enabled when another of its skills is among the available skills
+   ([evidence](#hand-off-phrasing-measured)).
 2. **The fallback** is what the skill does instead, stated in the same sentence or the one
    adjacent: degrade to a bundled capability, record into the artifact at hand, or report
    the missing optional capability clearly. "Skip silently" is not a fallback.
@@ -57,6 +61,9 @@ this carve-out leaves the gate rule above unchanged.
   native manifest `dependencies` entry instead, and needs no gate phrasing.
 - Not a tool-availability check: probing for a CLI or MCP tool at runtime is the
   prerequisites-and-failure-behavior rules' territory.
+- Not install-state text: lines that report or change what is installed (plugin sync and
+  install steps, install recipes, eval fixtures that describe a setup) are not gates and keep
+  their installed wording.
 
 ## Cross-marketplace install uplift (carve-out, 2026-09-01)
 
@@ -76,7 +83,8 @@ qualification is the content, not a leak. Bounds:
 - Such a routing gate carries the marketplace parity token ("installed from its
   marketplace") when its overlap verdict row records `baked.description_phrase`, so fleet
   parity traces it to the store exactly as native gates trace to theirs
-  (`plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py`).
+  (`plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py`). The token records
+  provenance and sits beside the availability condition, not in place of it.
 - Fleet seam audits treat a marketplace-qualified ID outside install-uplift content and the
   route-row carve-out as a violation, unchanged.
 
@@ -84,8 +92,8 @@ qualification is the content, not a leak. Bounds:
 
 The hand-off phrasing eval (#11959) compared three hand-off sentences:
 
-- A: the gated token in prose, "invoke `/plugin:skill`" plus the gate clause, which then read
-  "installed"; the three arms differed only in how the invocation is worded.
+- A: the gated token in prose, "invoke `/plugin:skill`" followed by the installed-ness
+  parenthetical the gate used before it became an availability condition.
 - B: the same token "via the Skill tool".
 - C: `Call the Skill tool with "plugin:skill"`.
 
@@ -94,7 +102,8 @@ the hand-off sentence: 9 model-invocable cases, 3 runs each. Every arm handed of
 and Sonnet 5.5 gave the same 27 of 27 for A and C. For a user-only target, A and "tell the user to
 run `/plugin:skill`" each named the command in 9 of 9 runs with no Skill call.
 
-No arm beat A, so the shape above stands. The fixture skills are short, so the result does not
+No arm beat A, so the gated token stays in prose. The measurement did not cover the gate's
+availability wording, only where the token sits. The fixture skills are short, so the result does not
 cover a hand-off deep in a long skill body. The user-only tie goes to "tell the user to run", the
 wording element 1 of the shape sets with its gate, since the Skill tool cannot reach a user-only
 skill.
@@ -107,7 +116,6 @@ skill.
 
 Fleet audits check dim-11-adjacent seam phrasing against this shape: gate present, fallback
 stated, no marketplace qualification outside an install-recipe site or the fields the route-row
-carve-out names. Existing adopters
-(work-items' tracker seam, harness-ops' known-issues reference, session-flow's stage-skill
-preference, planning's glossary hand-off) conform by carrying all three elements at each
-instructed invocation.
+carve-out names. A site conforms when it carries all three elements at each instructed
+invocation. A gate still written as an installed-ness condition does not conform: it moves to
+the availability wording above.

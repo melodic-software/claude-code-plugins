@@ -3,6 +3,25 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.0] - 2026-11-15
+
+### Added
+
+- **`/corrections:codify issues [--label <name>] [--limit <n>]`.** Mines the bound tracker's
+  closed bug items through `/work-items:track` (the `work-items` plugin is needed), groups the
+  items that share a cause, counts distinct items as occurrences, and takes each lesson at or
+  over the threshold through the usual rung, scope and proof steps. An item closed as a
+  duplicate, not planned or not reproducible is skipped, and an instruction inside an item is
+  reported, never followed.
+
+## [1.1.2] - 2026-11-15
+
+### Changed
+
+- The bundled enforcement ladder is 3.1.1: its Rungs section names the sources of the order
+  (Lauren Tan for the tiers, Simon Brown for a compiler setting above an architecture test). No
+  rung, id or rule changes.
+
 ## [1.1.1] - 2026-11-15
 
 ### Changed

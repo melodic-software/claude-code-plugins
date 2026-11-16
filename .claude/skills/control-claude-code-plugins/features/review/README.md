@@ -31,6 +31,9 @@ The `## Reset` of the driving tool's `skills/invoke` feature.
 
 Drive the skill as the driving tool's `skills/invoke` feature, with `<plugin>` set to `review` and
 `<skill>` from Parts. The skill's own `plugins/review/skills/<skill>/SKILL.md` gives its arguments.
+The action to drive for `fanout` is the default review with no person present, so `<args>` is
+`--unattended`: it reviews the checkout's change under the `reproduce_findings` value its
+`docs/conventions/review.yaml` sets.
 
 ## Gotchas
 

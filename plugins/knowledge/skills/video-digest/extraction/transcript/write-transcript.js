@@ -19,7 +19,7 @@ import {
 
 import { primaryEntry } from "../adapters/adapter-contract.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
-import { cuesInVideoTime, describeTimeRange } from "../lib/time-range.js";
+import { cuesInRange, cuesInVideoTime, describeTimeRange } from "../lib/time-range.js";
 import { detectAsrCapability, runAsrTranscription } from "./asr-transcribe.js";
 import { buildRepairLexicon, repairCues } from "./proper-noun-repair.js";
 import { resolveTranscriptStrategy } from "./transcript-strategy.js";
@@ -182,12 +182,17 @@ export function dropParagraphBoundaryRepeats(transcript, cues) {
  *
  * @param {string} vttText
  * @param {boolean} isAutoCaption
- * @param {{ repairLexicon?: readonly string[] | null }} [options] - a non-empty
+ * @param {{ repairLexicon?: readonly string[] | null, timeRange?: import('../lib/time-range.js').TimeRange|null }} [options] - a non-empty
  *   `repairLexicon` applies proper-noun repair over the cleaned cues (the
- *   `captions+repair` strategy)
+ *   `captions+repair` strategy); a `timeRange` keeps only the cleaned cues that
+ *   overlap it, in full-video time
  * @returns {{ transcript: string, cueCount: number, paragraphCount: number, cleanedAutoCaptions: boolean, cleanedManualCaptions: boolean, repairedTermCount: number }}
  */
-export function buildTranscriptText(vttText, isAutoCaption, { repairLexicon = null } = {}) {
+export function buildTranscriptText(
+  vttText,
+  isAutoCaption,
+  { repairLexicon = null, timeRange = null } = {},
+) {
   let cleanedManualCaptions = false;
   let cues;
 
@@ -200,6 +205,9 @@ export function buildTranscriptText(vttText, isAutoCaption, { repairLexicon = nu
     const cleaned = cleanManualCaptions(vttText);
     cues = cleaned.cues;
     cleanedManualCaptions = cleaned.cleanedManualCaptions;
+  }
+  if (timeRange) {
+    cues = cuesInRange(cues, timeRange);
   }
 
   let repairedTermCount = 0;
@@ -362,7 +370,7 @@ export function transcriptFilename(entryIndex, primaryEntryIndex) {
  * @param {import('../lib/time-range.js').TimeRange|null} [options.timeRange] - the
  *   range a ranged watch acquired: recorded in the README, and ASR cues (timed from
  *   the ranged media's start) get its start added so every stamp is full-video time.
- *   Captions already cover the whole video in full-video time.
+ *   Captions cover the whole video in full-video time, so their cues are cut to the range.
  * @param {object} [io]
  * @param {typeof fs.readFile} [io.readFile]
  * @param {typeof fs.writeFile} [io.writeFile]
@@ -460,12 +468,14 @@ export async function writeEnvelopeTranscriptArtifacts(
     } else {
       const caption = /** @type {NonNullable<typeof entry.caption>} */ (entry.caption);
       const vttText = String(await readFile(caption.path, "utf8"));
+      const parsedCues = parseVttSegment(vttText).map(toWatchCue);
       built = {
         ...buildTranscriptText(vttText, caption.isAutoCaption, {
           repairLexicon: plan.strategy === "captions+repair" ? repairLexicon : null,
+          timeRange,
         }),
         // The raw parsed caption cues, as watching always received them.
-        sourceCues: parseVttSegment(vttText).map(toWatchCue),
+        sourceCues: timeRange ? cuesInRange(parsedCues, timeRange) : parsedCues,
       };
     }
 

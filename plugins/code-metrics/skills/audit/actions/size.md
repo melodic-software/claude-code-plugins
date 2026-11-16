@@ -28,7 +28,26 @@ other does; `lanes.other.enabled: false` opts it out.
 "<skill-dir>/scripts/audit-size.sh" src/ lib/util.py     # explicit paths (a missing one is a usage error)
 "<skill-dir>/scripts/audit-size.sh" --all                # every tracked or untracked-but-not-ignored file
 "<skill-dir>/scripts/audit-size.sh" --json --all src/    # the code-metrics/v2 document instead of markdown
+"<skill-dir>/scripts/audit-size.sh" --file-lines 300     # count against the repository's own limit for this run
+"<skill-dir>/scripts/audit-size.sh" --all --commits-since "1 year ago"   # add commits per file at or above the reference
 ```
+
+## Which reference
+
+One reference, no stages: nothing here marks a second, higher length as "must refactor".
+
+1. A code-metrics layer that sets `size.file_lines` is the repository's stated reference: run
+   with no `--file-lines`.
+2. Otherwise look for a file-length limit the repository already enforces: a rule in the
+   configuration of whichever linter or analyzer it runs. Find it by reading that configuration;
+   this plugin ships no list of tools or rule names. When one is set, pass it as
+   `--file-lines <n>`, and tell the reader which file and rule it came from, and how that tool
+   counts lines when it differs from non-blank lines. The report shows the layer as
+   `this run (--file-lines)`. Offer `/code-metrics:setup apply size.file_lines=<n>` to make it the
+   team reference.
+3. With neither, the bundled default applies.
+
+A limit a tool defines but the repository has not turned on is not the repository's limit.
 
 Present the markdown report to the user as printed. It opens with the scope and a "Coverage of
 this run" table (lane, collector, status, reason), then the reference with its provenance and
@@ -53,6 +72,25 @@ side as INCONCLUSIVE); otherwise keep the JSON beside your notes and compare by 
   as an explicitly named path that does not exist; exit 3 when `scc` resolved but produced nothing
   parseable, with its stderr in the run table.
 
+## Acting on a long file
+
+A file at or above the reference is a candidate, not a task. Length alone is weak evidence: a long
+file nobody edits costs nobody anything.
+
+- **Act only when the file also changes often.** Run the script with `--commits-since <date>`
+  (anything `git log --since` takes, such as `"1 year ago"`): it adds a table of the files at or
+  above the reference with the commits that touched each since that date, automation authors left
+  out, most-changed first. No count is a cutoff: the files high on both length and commits,
+  against the others in the table, are the ones worth work. Report both numbers and the date.
+  `/architecture:improve` (if installed) reads the same history to find what to deepen.
+- **File an issue; do not refactor in passing.** A long file met during other work gets a tracker
+  item naming the file, its length, its commit count and the window: through
+  `/work-items:track add` (if installed), else the repository's own tracker. Never split it
+  inside a change that is about something else.
+- **To stop growth without fixing anything yet**, offer `/toolchain:ratchet` (if installed) on the
+  number of files at or above the reference (`summary.over_reference.file_lines` in the
+  `--json --all` document).
+
 ## Configuration
 
 Everything tunable resolves through the code-metrics layers (user-global, team
@@ -61,7 +99,8 @@ Everything tunable resolves through the code-metrics layers (user-global, team
 `function_lines` measure comparing each function's non-empty lines against
 `size.function_lines_pct` of the file's, from a collector that reports function ranges such as
 `lizard` or `radon`; Bash has none and its row says so), scope exclusions (`scope.exclude`), and
-per-lane collector order. The report names the layer that supplied any value a personal layer
+per-lane collector order. `--file-lines <n>` replaces the reference for one run and writes no
+layer. The report names the layer that supplied any value a personal layer
 changed. `/code-metrics:setup` writes the team file and probes the collectors.
 
 ## What this action does not do

@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.4.0] - 2026-11-15
+
+### Added
+
+- **`/planning:interview`, round header.** One `Later:` line names the topics of rounds that are
+  known to follow and not ready yet. It lists topics, not questions: nothing on it takes a
+  `Q<N>` or a register row.
+
 ## [5.3.0] - 2026-11-15
 
 ### Added

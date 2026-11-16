@@ -150,6 +150,7 @@ describe("run-watch time range (CLI-level)", () => {
 
     expect(vi.mocked(acquireMedia).mock.calls[0][1]).toMatchObject({
       timeRange: { fromSec: 3600, toSec: 4800 },
+      skipCaptionWait: true,
     });
     // ASR ran on the ranged media; watching gets those cues back in media time.
     expect(vi.mocked(orchestrateWatching).mock.calls[0][0].cues).toEqual([
@@ -180,6 +181,137 @@ describe("run-watch time range (CLI-level)", () => {
     expect(selection.selectedFrames[0]).toMatchObject({ timestampSec: 3610, timestampErrorSec: 5 });
     expect(selection.densificationWindows[0]).toMatchObject({ startSec: 3605, endSec: 3620 });
     expect(selection.interleavedTimeline.map((entry) => entry.timestampSec)).toEqual([3600, 3610]);
+  });
+
+  it("skips the caption wait for a captionless live-derived video and records the path", async () => {
+    const mediaPath = path.join(fixtureDir, `${VIDEO_ID}.mp4`);
+    const infoPath = path.join(fixtureDir, `${VIDEO_ID}.info.json`);
+    await fs.writeFile(mediaPath, "binary", "utf8");
+    // The stream ended an hour ago, so its caption wait is still open.
+    const info = {
+      id: VIDEO_ID,
+      title: "Conference Stream",
+      duration: 2 * 3600,
+      live_status: "was_live",
+      release_timestamp: Math.floor(Date.now() / 1000) - 3 * 3600,
+    };
+    const actual = await vi.importActual("../adapters/registry.js");
+    vi.mocked(acquireMedia).mockImplementation((url, options) =>
+      /** @type {typeof acquireMedia} */ (actual.acquireMedia)(url, options, {
+        withThrottle: (/** @type {() => Promise<unknown>} */ fn) => fn(),
+        sleep: async () => {},
+        spawn: async () => ({
+          success: true,
+          code: 0,
+          signal: null,
+          stdout: "",
+          stderr: "",
+          timedOut: false,
+        }),
+        listFiles: async () => [mediaPath, infoPath],
+        readFile: async () => JSON.stringify(info),
+      }),
+    );
+
+    const code = await runWatchCli([
+      "node",
+      "run-watch.js",
+      YOUTUBE_URL,
+      "--skip-research",
+      "--from",
+      "1:00:00",
+      "--to",
+      "1:20:00",
+    ]);
+    expect(code).toBe(0);
+
+    const output = JSON.parse(captured.stdout.join(""));
+    expect(output.captionWait).toContain("caption wait skipped on a ranged run");
+    const state = JSON.parse(await fs.readFile(watchStatePath(output.sliceDir), "utf8"));
+    expect(state.phases.acquire.metrics.captionWait).toContain(
+      "caption wait skipped on a ranged run with no captions (live_status was_live",
+    );
+    expect(state.phases.transcript.metrics.transcriptStrategy).toBe("asr");
+    const transcript = await fs.readFile(
+      path.join(output.sliceDir, "source", "transcript.txt"),
+      "utf8",
+    );
+    expect(transcript).toMatch(/^\[60:00\] first ranged cue/);
+  });
+
+  it("keeps the caption wait under an explicit caption strategy, which never falls to ASR", async () => {
+    vi.mocked(acquireMedia).mockResolvedValue({ success: false, error: "stop after acquire" });
+
+    await runWatchCli([
+      "node",
+      "run-watch.js",
+      YOUTUBE_URL,
+      "--transcript-strategy",
+      "captions",
+      "--from",
+      "1:00:00",
+    ]);
+
+    expect(vi.mocked(acquireMedia).mock.calls[0][1]).toMatchObject({ skipCaptionWait: false });
+  });
+
+  it("cuts caption cues to the range, in full-video time", async () => {
+    const mediaPath = path.join(fixtureDir, `${VIDEO_ID}.mp4`);
+    const captionPath = path.join(fixtureDir, `${VIDEO_ID}.en.vtt`);
+    await fs.writeFile(mediaPath, "binary", "utf8");
+    await fs.writeFile(
+      captionPath,
+      [
+        "WEBVTT",
+        "",
+        "00:59:50.000 --> 00:59:55.000",
+        "before the range",
+        "",
+        "01:00:05.000 --> 01:00:10.000",
+        "inside the range",
+        "",
+        "01:25:00.000 --> 01:25:05.000",
+        "after the range",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    vi.mocked(acquireMedia).mockResolvedValue({
+      success: true,
+      data: createAcquisitionEnvelope({
+        entries: [
+          {
+            mediaPath,
+            captionPaths: [captionPath],
+            metadataPath: path.join(fixtureDir, `${VIDEO_ID}.info.json`),
+            caption: { path: captionPath, rung: "manual-en", isAutoCaption: false },
+          },
+        ],
+        metadata: parseVideoMetadata({ id: VIDEO_ID, title: "Sample Talk", duration: 32300 }),
+        workDir: fixtureDir,
+      }),
+    });
+
+    const code = await runWatchCli([
+      "node",
+      "run-watch.js",
+      YOUTUBE_URL,
+      "--skip-research",
+      "--from",
+      "1:00:00",
+      "--to",
+      "1:20:00",
+    ]);
+    expect(code).toBe(0);
+
+    const { sliceDir } = JSON.parse(captured.stdout.join(""));
+    const transcript = await fs.readFile(path.join(sliceDir, "source", "transcript.txt"), "utf8");
+    expect(transcript).toMatch(/^\[60:05\] inside the range/);
+    expect(transcript).not.toContain("before the range");
+    expect(transcript).not.toContain("after the range");
+    expect(vi.mocked(orchestrateWatching).mock.calls[0][0].cues).toEqual([
+      { startSec: 5, endSec: 10, text: "inside the range" },
+    ]);
   });
 
   it("refuses a range for a source whose adapter cannot acquire one", async () => {

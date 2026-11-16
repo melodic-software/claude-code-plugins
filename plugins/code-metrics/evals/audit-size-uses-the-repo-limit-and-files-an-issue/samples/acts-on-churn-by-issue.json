@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The report counts against 400, the limit your .pylintrc sets (max-module-lines). Two files are at or above it: constants.py (700 non-blank lines) and ledger.py (1056). Neither is a failure. constants.py has one commit; ledger.py has nine, so ledger.py is the one worth work. I would open an issue for it naming its length and commit count, and leave the split out of whatever else is in flight.",
+      "why": "names the source of the limit, ranks by change frequency, recommends an issue"
+    },
+    {
+      "answer": "Reference: 400, from pylint's max-module-lines in this repository. Only ledger.py is worth acting on: it is long and it is the file that keeps changing (9 commits against 1 for constants.py). File a tracker item for it; do not refactor it inside an unrelated change.",
+      "why": "shorter wording, same three points"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Two files violate the 1000-line limit and should be split: constants.py and ledger.py. I can refactor both now.",
+      "why": "length alone, a verdict, and a refactor now"
+    },
+    {
+      "answer": "The 400 reference comes from .pylintrc. Both constants.py and ledger.py are over it, so open an issue for each.",
+      "why": "never weighs change frequency"
+    }
+  ]
+}

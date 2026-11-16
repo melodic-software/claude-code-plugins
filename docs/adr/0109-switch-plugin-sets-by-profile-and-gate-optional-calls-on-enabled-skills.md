@@ -36,7 +36,8 @@ so switching such a plugin off for a session also switched off its session-wide 
 5. **Hook units.** Session-wide hooks move into two hook-only plugins, `session-telemetry` and
    `plugin-diagnostics`. The rule they follow is the hook-unit rule in
    [`docs/review/hooks.md`](../review/hooks.md): a hook unit depends on nothing of another plugin.
-   Whether harness-ops declares `session-telemetry` as a dependency is open with the owner.
+   harness-ops does not declare `session-telemetry` as a dependency (owner, Q75): a disabled
+   dependency stops its dependent loading, so harness-ops' readers check availability and fall back.
 6. **`core` is removed** in the same release that ships plugin-profiles; the always-on profile
    replaces its list.
 7. **Optional calls gate on enabled.** The
@@ -85,4 +86,3 @@ Throwaway marketplace in an isolated `CLAUDE_CONFIG_DIR` for the plugin probes.
 
 - Claude Code ships a native plugin-set feature; the profile engine maps onto it or retires.
 - A probe row above reads differently on a later Claude Code version.
-- The owner decides the harness-ops dependency question.

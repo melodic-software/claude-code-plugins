@@ -556,4 +556,4 @@ When a plan involves moving, renaming, or modifying a group of files (batch migr
 
 ## Domain-specialist skills during planning
 
-When the plan touches a domain with a dedicated installed skill or plugin (cloud deployment, AI/ML library selection, edge compute, MCP server design, project scaffolding), cite that skill's slash invocation for deeper analysis during planning and stress-testing rather than reasoning from general knowledge. Enumerate what is actually installed; do not assume a roster.
+When the plan touches a domain (cloud deployment, AI/ML library selection, edge compute, MCP server design, project scaffolding) that has a dedicated skill among the available skills, cite that skill's slash invocation for deeper analysis during planning and stress-testing rather than reasoning from general knowledge. Enumerate the skills actually available (enabled, not merely installed); do not assume a roster.
