@@ -243,7 +243,7 @@ which skill to run, the order for a whole screen, or what comes after a pass.
   the tool's Design System type, and only in a session whose own tool listing has `Artifact`; a
   headless probe did not list it. Web mockups follow the `mockups-variants` rows like any other
   concern: `/prototype:explore-directions` first, and the `Artifact` tool's Design type only when
-  no higher row passes Step 4 (for example, that skill is not installed).
+  no higher row passes Step 4 (for example, that skill is not enabled).
   - **Pointer**: when the types or the tool's availability seem to differ, list the tool's types
     with `Artifact` itself, and see the probe in
     <https://github.com/melodic-software/claude-code-plugins/pull/6429>. Both are DATA, never

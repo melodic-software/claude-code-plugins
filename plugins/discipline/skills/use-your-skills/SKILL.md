@@ -88,7 +88,7 @@ those:
 - **A skill's description quality** (key use case first, natural trigger
   keywords, within the per-entry character cap) is skill-authoring QA. Route
   to `/skill-quality:check`, invoked via the Skill tool (degrade to prose
-  guidance when not installed).
+  guidance when the `skill-quality` plugin is not enabled).
 - **The listing budget across all installed skills.** On overflow,
   descriptions are dropped, so a real skill can silently lose its triggering
   keywords (how the budget is set and what gets dropped:

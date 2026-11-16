@@ -59,9 +59,9 @@ presence-gated with its fallback stated:
   the document marks each. Its own suppression handling reads the same `harness-config.yaml`
   record this pass reads, so a finding the audit reports as suppressed is carried into the
   `suppressed` section with its reason, never raised twice.
-- **`/harness-memory:audit`**: invoke when the `harness-memory` plugin is installed; it owns
+- **`/harness-memory:audit`**: invoke when the `harness-memory` plugin is enabled; it owns
   memory-layer hygiene and the within-memory-layer consistency check. It takes an **action verb and
-  no surface filter**, so it is **exactly one lane** covering the whole memory layer. Not installed:
+  no surface filter**, so it is **exactly one lane** covering the whole memory layer. Not enabled:
   the pass reports both as **unchecked**, names that skill as their owner, and emits the one-line
   pointer to the official memory guidance, never a silent skip and never a re-implementation here.
 - **`/harness-config:audit-permission-grants`**, `frontmatter` scope: sibling in this plugin, always
@@ -94,7 +94,7 @@ presence-gated with its fallback stated:
 
 Structural skill lint is deliberately **not** dispatched: it answers shape rather than content, and
 its fan-out over a large corpus would consume the dispatch budget reserved for instruction-content
-lanes. Route it out (`skill-quality:check` when installed).
+lanes. Route it out (`skill-quality:check` when enabled).
 
 ## The dispatch substrate is probed, never asserted
 

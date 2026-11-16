@@ -45,7 +45,7 @@ against those sources before relying on a time-sensitive detail; the platform mo
 - **Theme-aware** (light/dark), **responsive**, and **favicon required**: this
   plugin builds every published page to these three rules, and follows the Artifact
   tool's own description in the session where it asks for more. An artifact-design
-  capability, when installed, owns the craft on top of them.
+  capability, when enabled, owns the craft on top of them.
 - **Connector-backed live data**: a published page can call declared MCP
   connectors at view time, showing current data rather than a build-time snapshot.
   The CSP decision above still holds: the page makes no data call of its own. Who
@@ -144,7 +144,7 @@ policy is no network calls, so the paths are zero-dependency:
 - **On a page:** hand-authored inline **SVG + CSS** primitives (bars, lines,
   scatter, area, stat tiles). The *craft* of palette, scales, marks, and
   accessibility is a chart-craft/dataviz capability's concern; route to it when
-  installed.
+  enabled.
 - **In the terminal:** Unicode-on-monospace approximations inside a code fence.
   Bar rows (`█▉▊…`) and sparklines (`▁▂▃▄▅▆▇█`) suit small, at-a-glance quantities.
 

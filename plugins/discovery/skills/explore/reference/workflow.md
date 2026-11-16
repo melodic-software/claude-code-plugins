@@ -48,7 +48,7 @@ Code has context only git reveals, who changed it, when, why, and what else chan
 Understand how the pieces fit together before moving any of them.
 
 - **Directory layout**, if the project documents its repository structure, verify the doc matches reality; otherwise map the tree yourself
-- **Project references / imports**. Map the dependency graph by grepping the ecosystem's import/reference token across its build-config files (per-ecosystem tokens: [`ecosystem-discovery.md`](ecosystem-discovery.md). Compose `/toolchain:check`'s covered-ecosystem set when the `toolchain` plugin is installed, retaining fallback ecosystems the seam does not cover; otherwise the reference's fallback table)
+- **Project references / imports**. Map the dependency graph by grepping the ecosystem's import/reference token across its build-config files (per-ecosystem tokens: [`ecosystem-discovery.md`](ecosystem-discovery.md). Compose `/toolchain:check`'s covered-ecosystem set when the `toolchain` plugin is enabled, retaining fallback ecosystems the seam does not cover; otherwise the reference's fallback table)
 - **Solution / workspace membership**. Check the repo's solution or workspace file at the root for what's included
 - **Layer boundaries**. Respect any dependency-direction rules the project declares
 - **Planned direction**. Cross-reference findings with any stated direction in the project's own `CLAUDE.md` or docs. Assess how changes must fit the repo's current state and planned direction

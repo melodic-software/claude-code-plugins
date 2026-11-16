@@ -101,7 +101,7 @@ never combined with `&&` or other commands in one call. The record for these sha
    `Deferred: Q<N> ...`, `Blocked: Q<N> ...`) verbatim into the step commit's `Scope decisions:`
    section. A `Blocked:` line, or a `Deferred:` line tagged USER-RESERVED, means ask the user
    that question before step 5, then record the user's answer beside that line in the section.
-   When the planning plugin is not installed, ask the questions as one short numbered list
+   When the planning plugin is not enabled, ask the questions as one short numbered list
    in chat and record each question and answer for the commit.
 5. Apply the agreed fixes, through the skill's own fix path when it has one.
 
@@ -153,10 +153,10 @@ never combined with `&&` or other commands in one call. The record for these sha
    anything in the step went wrong, then `/clear` and `/playbooks:repo-sweep next`.
 
 A step that cannot finish in this session: leave `[~]` and route the next step with
-`/session-flow:workflow` (if installed), handing it the `[~]` step and the PR checklist; without
+`/session-flow:workflow` (if enabled), handing it the `[~]` step and the PR checklist; without
 session-flow, follow the pointer below.
 
-- **Pointer**: when a step cannot finish in this session and session-flow is not installed, fetch
+- **Pointer**: when a step cannot finish in this session and session-flow is not enabled, fetch
   <https://code.claude.com/docs/en/context-window#when-your-context-fills-up> live.
 
 ## 5. After the last step

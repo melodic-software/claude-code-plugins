@@ -51,7 +51,7 @@ releases.
 What clears each dimension resolves down the same ladder as the discipline
 itself: what the consuming project declares wins; failing that, the contract
 `/discovery:research` states as mandatory disciplines, when the `discovery`
-plugin is installed; failing both, the floor below. The floor is this skill's
+plugin is enabled; failing both, the floor below. The floor is this skill's
 own baseline, deliberately lighter than a research pass's numbers, because it
 settles one claim mid-conversation:
 
@@ -121,7 +121,7 @@ next step. Apply the contract in
 ground the affected code and its consumers or blast radius through
 `/discovery:explore`, and the authoritative sources the contract names
 through `/discovery:research`,
-when the `discovery` plugin is installed; without it, do the same reads and
+when the `discovery` plugin is enabled; without it, do the same reads and
 fetches inline. Report each as old → new → why when the evidence moved it,
 or unchanged with why, in one of the contract's three outcomes:
 `Basis: verified`, `Basis: judgment` (never on a consequential one), or

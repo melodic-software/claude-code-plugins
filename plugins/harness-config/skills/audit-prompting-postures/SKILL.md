@@ -40,7 +40,7 @@ live).
 
 - Text that is present and wrong, covering over-prescription, stale claims, emphasis language and
   retired parameters, is `audit-instructions`. When one sweep wants both lanes, run both skills; a
-  coordinated pass (`audit-pass`, when installed) composes them.
+  coordinated pass (`audit-pass`, when enabled) composes them.
 - Structural skill lint is `skill-quality:check`; token brevity is `docs-hygiene:compress`.
 - Upstream-owned surfaces (installed plugin cache, managed materializations) produce routing
   recommendations to the owning repository, never in-place proposals, the same exclusion

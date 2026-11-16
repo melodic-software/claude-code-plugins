@@ -95,7 +95,7 @@ intent is unsettled, so the Brief aims at an agreed outcome.
   effort is charted into decisions only after an interview outgrows one session, and the chart
   can graduate here
 - When the users themselves are unsettled (who they are, what they need), UX research and
-  synthesis come before the PRD, through a user-experience capability (if installed, e.g.
+  synthesis come before the PRD, through a user-experience capability (if enabled, e.g.
   /user-experience:shape); without one, interview the human about the users inline
 - **Effort:** settling product intent with the human, one open question at a time
 
@@ -113,13 +113,13 @@ design section, which is how they reach the implementer.
   The skip is recorded as a one-line early exit with its reason, not left implicit, so the plan
   stage can see it. On the full path, size alone never skips it
 - Domain modeling, prototypes, and architecture surveys feed it; a decision that passes the
-  admission test of an architecture-decision capability (if installed, e.g.
+  admission test of an architecture-decision capability (if enabled, e.g.
   /architecture:record-decision) is recorded as an architecture decision before planning; without
   one, each decision made over a weighed alternative is listed for the human to judge whether it
   earns a record
 - A user-facing flow or screen is designed before the technical design: the flow and navigation
-  through a user-experience capability (if installed, e.g. /user-experience:structure), then the
-  screens through an interface-design capability (if installed, e.g. /user-interface:design);
+  through a user-experience capability (if enabled, e.g. /user-experience:structure), then the
+  screens through an interface-design capability (if enabled, e.g. /user-interface:design);
   without them, sketch the flow and screens inline
 - **Effort:** settling contracts and boundaries with the human, where a wrong boundary is paid for
   in every later phase
@@ -187,11 +187,11 @@ when that reviewer has returned, unless the `verification` level is `light` or `
   cannot color what that reviewer concludes
   - **Pointer**: for the review-against-your-spec step, see
     [Review against your spec](https://code.claude.com/docs/en/best-practices#review-against-your-spec)
-- For a high-stakes diff, prefer a cross-vendor advisor **when one is installed and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback (this preference is this repository's judgment, not an upstream rule),
+- For a high-stakes diff, prefer a cross-vendor advisor **when one is enabled and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback (this preference is this repository's judgment, not an upstream rule),
   never a route to a command that may not resolve
   (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository)
 - A diff that changes a user interface also gets an interface review through an interface-review
-  capability (if installed, e.g. /user-interface:audit); without one, the code review covers it
+  capability (if enabled, e.g. /user-interface:audit); without one, the code review covers it
 - **Effort:** judging a diff for defects, where a missed defect ships
 
 ## 11. Verify outcome
@@ -201,7 +201,7 @@ Prove the change achieved its intent, with evidence.
 - Mechanical pass first: build + test + lint per the consuming repo's commands
 - Then outcome confirmation: does the result match the Brief and plan? Exercise the affected flow,
   not just the compiler. The verdict comes from a fresh-context verifier, not the author
-  (an outcome-verification capability, if installed, e.g. /verification:confirm, dispatches one
+  (an outcome-verification capability, if enabled, e.g. /verification:confirm, dispatches one
   at the level it reads; without one, dispatch the verifier with the Brief and the diff, except
   under this skill's `light` or `off` level (Stage 10), where the report notes
   `verification: skipped (<level>)`)

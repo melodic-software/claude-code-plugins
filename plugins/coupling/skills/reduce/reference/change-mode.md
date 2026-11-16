@@ -129,7 +129,7 @@ Pick the smallest form that stops the propagation, following the sequencing rule
   to resolve it, then uses the placeholder throughout.
 - **Template token.** Templates carry a token the renderer fills.
 - **Generated snippet or extraction.** Prose that has to show the value is generated from the owner,
-  or extracted by `/docs-hygiene:extract-ssot` when that plugin is installed.
+  or extracted by `/docs-hygiene:extract-ssot` when that plugin is enabled.
 
 Apply the "externalize only what varies" test from [`remediations.md`](remediations.md): a value
 stated twice that never varies can stay literal. Converting a site that introduces a new owner (a

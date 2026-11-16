@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "shared-no-billing src/shared src/billing\nbilling-no-reporting src/billing src/reporting\n"
+    },
+    {
+      "answer": "shared-no-billing src/shared src/billing\nbilling-must-not-import-reporting  src/billing  src/reporting\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "shared-no-billing src/shared src/billing\n"
+    },
+    {
+      "answer": "src/reporting src/billing\n"
+    }
+  ]
+}

@@ -55,7 +55,7 @@ The failing test from step 1 must now pass. If it still fails:
 
 ### Step 5: Regression
 
-Run the full test suite for the affected project(s), not only the test you wrote: the fix can have side effects elsewhere. `/toolchain:check` is SSOT for the exact per-ecosystem command (or the project's own test command when the `toolchain` plugin is absent); the block below is illustrative (.NET):
+Run the full test suite for the affected project(s), not only the test you wrote: the fix can have side effects elsewhere. `/toolchain:check` is SSOT for the exact per-ecosystem command (or the project's own test command when the `toolchain` plugin is not enabled); the block below is illustrative (.NET):
 
 ```bash
 # Single project

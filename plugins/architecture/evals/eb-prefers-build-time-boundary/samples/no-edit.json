@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat go.mod",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/billing/billing.go",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/docs/conventions/architecture/README.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    }
+  ]
+}

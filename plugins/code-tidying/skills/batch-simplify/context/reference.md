@@ -67,7 +67,7 @@ If zero items were deferred across all groups, state explicitly: *"No items defe
 Resolve each group's verification command through the registered ecosystem-command owner.
 Do not maintain a command table here. In order:
 
-1. When the `toolchain` plugin is installed, invoking `/toolchain:check` via the Skill tool
+1. When the `toolchain` plugin is enabled, invoking `/toolchain:check` via the Skill tool
    (scoped to the group's files) is the verification step. It resolves the consuming project's tracked
    per-ecosystem command config and its own portable defaults.
 2. Otherwise, the consuming project's own canonical commands (its `CLAUDE.md` / CI config

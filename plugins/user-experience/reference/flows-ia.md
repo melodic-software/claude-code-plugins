@@ -65,7 +65,7 @@ evidence ([nng-task-analysis]).
   went wrong and offer a specific recovery action. "Something went wrong" + a back button ends the
   journey; specificity continues it. These are Nielsen's heuristics
   3, 5 and 9; the heuristic set itself belongs to
-  `/user-interface:design` when installed. Basis: [nng-heuristics], HIGH (single source); treating
+  `/user-interface:design` when enabled. Basis: [nng-heuristics], HIGH (single source); treating
   them as flow-level checks is judgment over MEDIUM evidence.
   - **Pointer**: for the current wording of heuristics 3, 5 and 9, read Nielsen's "10 Usability
     Heuristics for User Interface Design" at
