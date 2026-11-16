@@ -189,11 +189,18 @@ rows=$(jq -c '.hooks | del(.SessionStart) | to_entries[] | .key as $e | .value[]
   | .hooks[] | . + {_event: $e, _matcher: $m}' "$HOOKS_JSON")
 dispatcher=0
 workflow=0
+node_guards=0
 while IFS= read -r row; do
   cmd=$(jq -r '.command' <<<"$row")
   [[ "$cmd" == "node" ]] || fail "exec-form command is $cmd, not node"
   jq -e '.args' <<<"$row" >/dev/null || fail "row has no args: $cmd"
   first=$(jq -r '.args[0]' <<<"$row")
+  if [[ "$first" == *"/hooks/settings-write-ask.mjs" || "$first" == *"/hooks/connected-page-gate.mjs" ]]; then
+    jq -e '._event == "PreToolUse" and (.args | length) == 1 and (has("shell") | not)' <<<"$row" >/dev/null ||
+      fail "node guard row is not a bare PreToolUse node row: $first"
+    node_guards=$((node_guards + 1))
+    continue
+  fi
   [[ "$first" == *"/hooks/exec-bash.mjs" ]] || fail "args[0] is not exec-bash.mjs: $first"
   jq -e 'has("shell") | not' <<<"$row" >/dev/null || fail "row still sets shell"
   if jq -e '(.args | index("--require-true")) != null' <<<"$row" >/dev/null; then
@@ -226,6 +233,7 @@ done <<<"$rows"
 # Write|Edit, the three MCP rows and Bash|PowerShell, each through the dispatcher.
 [[ "$dispatcher" -eq 5 ]] || fail "expected the five dispatcher rows, found $dispatcher"
 [[ "$workflow" -eq 1 ]] || fail "expected one workflow row, found $workflow"
+[[ "$node_guards" -eq 2 ]] || fail "expected the settings-write-ask and connected-page-gate node rows, found $node_guards"
 
 # --- no launcher skip flag on a blocking row ----------------------------------
 # A --skip-* launcher flag decides in node, before any guard runs, that a row

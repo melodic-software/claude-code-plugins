@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# See docs/adr/0007\nset -euo pipefail\n\nretries=2\nfor ((attempt = 1; attempt <= retries; attempt++)); do\n  echo \"attempt $attempt\"\ndone\n",
+      "why": "the pointer that restated the reason is gone"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\n# See docs/adr/0007\nset -euo pipefail\n\nretries=2\n# See docs/adr/0007: two retries because the upstream API returns 502 on a cold start\nfor ((attempt = 1; attempt <= retries; attempt++)); do\n  echo \"attempt $attempt\"\ndone\n",
+      "why": "the restated reason was kept"
+    }
+  ]
+}

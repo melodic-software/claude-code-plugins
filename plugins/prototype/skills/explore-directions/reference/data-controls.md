@@ -54,6 +54,7 @@ rather than shrinking it.
 
 ## On the real stack
 
-The page's own data loading is the source, and every write is stubbed, so the bar does not seed or
-clear the app's records. Drive the real page to its full, empty and long-list cases the way
+The page's own data loading is the source, and every write is stubbed (or sent to a declared vendor
+sandbox, per SKILL.md "Writes are stubbed by default"), so the bar does not seed or clear the app's
+records. Drive the real page to its full, empty and long-list cases the way
 [worst content](switcher.md#worst-content) says.

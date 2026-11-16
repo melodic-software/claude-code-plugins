@@ -3,6 +3,13 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.18] - 2026-11-16
+
+### Changed
+
+- The isolation ladder's credential condition for CI lanes no longer says the token is revoked
+  when the job ends: the job revokes it where it can, and the one-hour expiry is the bound.
+
 ## [5.0.17] - 2026-11-16
 
 ### Changed

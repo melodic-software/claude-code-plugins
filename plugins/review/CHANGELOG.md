@@ -3,6 +3,29 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.0.0] - 2026-11-16
+
+### Added
+
+- `/review:explain-change`'s `build-digest.mjs --connect` prints a warning on stderr, whether or not guardrails is enabled, that the page it wrote is local-only, works only on this machine and must never be published as an Artifact. Its stdout still prints only the page path.
+
+### Removed
+
+- The connected-page Artifact guard and its `connected_page_guard_enabled` option leave review for the guardrails plugin, which runs the same guard. Without guardrails enabled, nothing blocks publishing a connected page as an Artifact, which exposes the local session-bridge port. Enable guardrails to keep the guard, and set `connected_page_guard_enabled` again there if you had changed it: the value set here does not carry over. review now registers no hook.
+- `scripts/check-hook-registration.sh` is removed with the hook it checked, and the node prerequisite's notice no longer names it.
+
+## [9.5.6] - 2026-11-16
+
+### Changed
+
+- The code reviewer's glossary check also covers user-facing labels, headings and route paths, not only types, functions, enum values and messages. It stays advisory.
+
+## [9.5.5] - 2026-11-16
+
+### Fixed
+
+- **`security-reviewer` cites the OWASP Top 10:2025.** The OWASP floor names the edition, links each id to its 2025 category page, and files every existing check under its 2025 id: SSRF joins A01:2025, outdated components become A03:2025, TLS misuse moves to A07:2025 and verbose errors to A10:2025. No check is added or dropped; the tier-less design-review row is now A06:2025, here and in the findings-normalization crosswalk.
+
 ## [9.5.4] - 2026-11-16
 
 ### Changed

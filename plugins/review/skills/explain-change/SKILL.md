@@ -101,7 +101,7 @@ The script reads the repository, host and pull request number from the pull requ
 
 ### Answer the reader's questions from the page
 
-The reader can ask this session questions from the page instead of pasting them. Only when the page stays a local file (`medium.publishes` is `false`, or the `--publish-gate` run returned `file`) and the reader is at this machine: the page is served from `127.0.0.1`. A connected page is never published, so skip this in every other case, and when python3 or curl is missing. The copy and save buttons still close the loop.
+The reader can ask this session questions from the page instead of pasting them. Only when the page stays a local file (`medium.publishes` is `false`, or the `--publish-gate` run returned `file`) and the reader is at this machine: the page is served from `127.0.0.1`. A connected page is never published: the gate that denies an Artifact publish of one runs only when the guardrails plugin is enabled, so say so when you build one and give `claude plugin enable guardrails@<marketplace>`. Skip this in every other case, and when python3 or curl is missing. The copy and save buttons still close the loop.
 
 1. Start the view server on a new data dir under the OS temp directory, never beside the record (`ensure-running` creates it private):
 
