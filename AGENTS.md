@@ -87,7 +87,8 @@ Merging is a judgment, not a fixed stop: merge when the user or the task wants t
 the body, or a human comment asking to wait). A body hold or wait comment stops the merge until the
 owner lifts it; the owner deciding the PR in their own words, in a session or on the PR, lifts it.
 Ask first when any of those is missing, or when the change alters what agents may do unattended and
-the owner has not decided that change.
+the owner has not decided that change. A lanes App pull request also needs its merge-risk rating on
+the current head: `plugins/source-control/skills/pull-request/reference/merge.md` §4.2.1.
 
 ### Review advisories while issue filing is paused
 
