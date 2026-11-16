@@ -20,6 +20,10 @@ does better. No result changes the default by itself.
 | `interview-pacing-single-arm` | single | round 1 answered | 6 |
 | `interview-pacing-single-arm-step-2` | single | round 1, then A and D answered, D's mechanism deferred to planning | 6 |
 | `interview-pacing-single-arm-step-3` | single | as step 2, plus B answered | 6 |
+| `interview-pacing-single-arm-open-b` | single | round 1, then A, C, D and the month's date answered | 6 |
+| `interview-pacing-single-arm-open-d` | single | round 1, then A, B, C and the month's date answered | 6 |
+
+The two `open` cases were added by Amendment 2, below.
 
 The step cases put single pacing's later questions (B and C) in front of the grader. Their earlier
 answers are stated in the prompt, as round 1's are in every case.
