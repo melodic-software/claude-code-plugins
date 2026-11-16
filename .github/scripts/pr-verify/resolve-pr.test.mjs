@@ -412,7 +412,8 @@ const PAGES = new Map([
   [OTHER_PAGE, "emilkowalski/skills"],
 ]);
 const DRIFT_LEAD = `Upstream \`${DRIFT_ID}\` changed since the pin on its docs/upstream page.`;
-// A body as write_body builds it, with a row whose path an upstream controls.
+// A body with write_body's lead and an upstream-chosen path in a row, as an
+// older filer wrote: the spec must never read it.
 const DRIFT_BODY = [
   DRIFT_LEAD,
   "",
