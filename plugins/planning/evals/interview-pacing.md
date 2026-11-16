@@ -144,3 +144,27 @@ Verdict: **ROUNDS HOLD UP** (Cr 6/6 >= 5/6; Qr 1.00 >= Qs 1.00 - 0.10). Both arm
 ceiling on per-question quality, so the measure does not separate them on this task: round asks
 every planted decision in one turn, and single pacing needs about 10 turns for the same frontier.
 Single pacing never reached B in these runs: after A and D, both step cases asked C first.
+
+## Amendment 2 (2026-11-16, written before run 3)
+
+A deviation from the rule above, from a review finding on the pull request: the step cases state
+decisions as answered whatever an earlier case asked, so run 2's Qs held only A and C while Qr held
+all four, and pooling different decision mixes can credit pacing for a difference in how hard each
+decision is to ask well. Run 2's verdict is withdrawn; read under this amendment it is
+INCONCLUSIVE (only A and C matched).
+
+- **Matched decisions.** For each decision X, an arm's observations are its runs where `covers-X`
+  passes. X is matched when the round arm and the single arm each have at least **3** observations
+  of X. Basis: judgment, half of one six-run case.
+- **Metric.** Qr and Qs become per-question quality pooled over matched decisions only:
+  `quality-X` passes over `covers-X` passes, summed over the matched X, per arm. Report each
+  decision's numbers for both arms beside them.
+- **Rule.** INCONCLUSIVE when fewer than all four decisions are matched. With all four matched, the
+  thresholds above apply unchanged to the matched Qr and Qs, with Cr as before.
+- **Cases.** Two single-arm cases are added so B and D reach the single arm:
+  `interview-pacing-single-arm-open-b` (A, C, D and the month's date already answered) and
+  `interview-pacing-single-arm-open-d` (A, B, C and the month's date already answered), 6 runs
+  each, same graders.
+- **Run 3** runs all six cases once with the command above, `--max-cost-usd 25` (36 runs at run 2's
+  cost per run is about 15 USD), and a `TMPDIR` only this session uses. The INVALID list holds,
+  with "fewer than 9 single slots" read over all five single cases.
