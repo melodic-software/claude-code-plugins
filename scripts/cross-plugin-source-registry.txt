@@ -185,8 +185,8 @@ context/recommendation-basis.md
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/html-chrome.html, the rendered-views shared chrome
 # (docs/contracts/rendered-views/README.md, "The shared chrome reference").
-# The visualization, adhd and planning plugins carry the generated copies,
-# which stay byte-identical to each other.
+# The visualization, adhd, planning and architecture plugins carry the
+# generated copies, which stay byte-identical to each other.
 reference/html-chrome.html
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the

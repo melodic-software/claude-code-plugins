@@ -98,3 +98,13 @@ lane in two jobs. Its contract is
 - Accepted residual: on `pull_request`, the caller and `pr-run-activity.yml` load from the PR's
   merge commit, so a PR that edits `.github/workflows/` controls both jobs. The bound is who can push
   `.github/workflows/`, not the job split.
+
+## Amendment (2026-11-16): a third exemption to the `GITHUB_TOKEN` rule
+
+Point 5's recheck trigger has fired. GitHub now also exempts `pull_request` events with the
+`opened`, `synchronize` or `reopened` activity types: when a workflow using `GITHUB_TOKEN` creates or
+updates a pull request, "the resulting `pull_request` event creates workflow runs in an
+**approval-required** state"
+([triggering a workflow from a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow),
+fetched 2026-11-16). A check run written with `GITHUB_TOKEN` still starts no workflow run, so the
+decision stands.

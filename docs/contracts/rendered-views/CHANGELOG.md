@@ -3,6 +3,11 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The architecture plugin carries the chrome, 2026-11-16
+
+- **A fourth adopter.** `plugins/architecture/reference/html-chrome.html` is generated from the
+  canonical chrome, for the `/architecture:improve` deepening report. The chrome is unchanged.
+
 ## A view may load a pinned CDN library, 2026-11-15
 
 - **The self-containment bullet of the Security baseline is lifted.** A view may load a popular,

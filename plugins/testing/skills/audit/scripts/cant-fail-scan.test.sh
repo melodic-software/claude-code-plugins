@@ -6,7 +6,6 @@
 # affected-tests mapping reaches this suite from any of them.
 # test-scope: plugins/testing/skills/audit/evals/fixtures/*
 # test-scope: plugins/testing/hooks/hooks.json
-# test-scope: plugins/mutation-testing/scripts/fixtures/dotnet-test-selection/*
 # test-scope: plugins/testing/evals/au-*/case.yaml
 # shellcheck disable=SC2016  # single-quoted fixture text is literal shell source
 set -uo pipefail
@@ -1237,8 +1236,18 @@ run_file --file "$PREC/ATests.cs"
 assert_contains "no detect match prefers the claimant with no detect list" "$out" "adapter: cs-xunit"
 
 # --- claim by content: a C# file no files: glob names ------------------------
-# The mutation-testing fixture's *Specs.cs and *TestsExtra.cs hold [Fact] tests.
-DTS="$SCRIPT_DIR/../../../../mutation-testing/scripts/fixtures/dotnet-test-selection"
+# *Specs.cs and *TestsExtra.cs hold [Fact] tests that no files: glob names.
+DTS="$TMP_ROOT/dts"
+mkdir -p "$DTS/src/Shop" "$DTS/tests/Shop.Tests" "$DTS/tests/Shop.Specs"
+printf 'namespace Shop;\npublic static class Calculator\n{\n    public static int Add(int a, int b) => a + b;\n}\n' >"$DTS/src/Shop/Calculator.cs"
+printf 'using Xunit;\npublic class CalculatorTests\n{\n    [Fact]\n    public void Add_Sums() => Assert.Equal(5, Calculator.Add(2, 3));\n}\n' \
+  >"$DTS/tests/Shop.Tests/CalculatorTests.cs"
+printf 'using Xunit;\npublic class CalculatorTestsExtra\n{\n    [Fact]\n    public void Add_OfZero() => Assert.Equal(7, Calculator.Add(7, 0));\n}\n' \
+  >"$DTS/tests/Shop.Tests/CalculatorTestsExtra.cs"
+printf 'using Xunit;\nnamespace Shop.Specs\n{\n    public class DiscountSpecs\n    {\n        [Fact]\n        public void Add_OfNegatives() => Assert.Equal(-3, Calculator.Add(-1, -2));\n    }\n}\n' \
+  >"$DTS/tests/Shop.Specs/DiscountSpecs.cs"
+printf 'using Xunit;\nnamespace Shop.Specs;\npublic class OtherSpecs\n{\n    [Fact]\n    public void Add_IsCommutative() => Assert.Equal(Calculator.Add(4, 1), Calculator.Add(1, 4));\n}\n' \
+  >"$DTS/tests/Shop.Specs/OtherSpecs.cs"
 for f in tests/Shop.Tests/CalculatorTestsExtra.cs tests/Shop.Specs/DiscountSpecs.cs tests/Shop.Specs/OtherSpecs.cs; do
   run_file --file "$DTS/$f"
   assert_contains "a [Fact] in ${f##*/} claims it for cs-xunit" "$out" "adapter: cs-xunit"

@@ -14,6 +14,7 @@ is exhaustive over the file.
 - [The test net (tiers 2 and 3)](#the-test-net-tiers-2-and-3)
 - [Exempt surfaces](#exempt-surfaces)
 - [Outside-constraint keeps (`necessary`, shipped keep list)](#outside-constraint-keeps-necessary-shipped-keep-list)
+- [ADR pointers](#adr-pointers)
 - [Not exempt, but the highest-cost misclassification: route to class C](#not-exempt-but-the-highest-cost-misclassification-route-to-class-c)
 - [Path exclusions](#path-exclusions)
 - [Narrative staging: text is never silently destroyed](#narrative-staging-text-is-never-silently-destroyed)
@@ -192,6 +193,16 @@ from here; a comment the code contradicts is class A.
 
 Neither kind covers a comment that names a workaround: with a link or without, it is staged and
 deleted, and step 7 lists it as open root-cause work, unless it is a `TODO(#issue)` marker.
+
+## ADR pointers
+
+An ADR pointer is a one-line comment that names one of this repository's decision records and
+restates none of its reason ([keep-list.md](keep-list.md) sets the four conditions). It is not an
+exempt surface. The shipped keep list keeps it under `necessary`; `explanatory` keeps it because it
+passes criterion 2 ([triage.md](triage.md)): the record it names is where the reasoning lives, so
+finding that record is no ground for deletion; `none` deletes it. A pointer whose record is missing
+is class A in every posture. A comment that adds the record's reason to the pointer is ordinary
+rationale and is staged and deleted like any other.
 
 ## Not exempt, but the highest-cost misclassification: route to class C
 

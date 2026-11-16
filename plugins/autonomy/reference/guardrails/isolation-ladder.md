@@ -79,9 +79,10 @@ all five of these conditions hold (this marketplace records the decision as ADR 
 1. **Trusted actors only.** Only text from the operator and trusted bots reaches the lane prompt,
    checked per item against one centrally managed trusted-actor list.
 2. **Same-repository change requests only.** No lane acts on a change request from a fork.
-3. **Short-lived, scoped credentials.** Each job mints its own token, valid for at most one hour,
-   scoped to what that job needs and revoked when the job ends. No long-lived write token reaches a
-   model step, and no model step can write the required status check or change a workflow.
+3. **Short-lived, scoped credentials.** Each job gets its own token, valid for at most one hour and
+   scoped to what that job needs. The job revokes it at the end where it can; the one-hour expiry is
+   the bound. No long-lived write token reaches a model step, and no model step can write the
+   required status check or change a workflow.
 4. **A kill switch.** One org-level switch stops every lane without a code change; a switch the
    lane cannot read counts as off.
 5. **Fresh runner per job.** No state carries from one job to the next.

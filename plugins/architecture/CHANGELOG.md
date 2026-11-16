@@ -3,6 +3,36 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.0] - 2026-11-16
+
+### Added
+
+- `record-decision` Step 3: a citation sweep lists, by `file:line`, every tracked line citing the retired record's identifier or path, and proposes pointing each at the new record or dropping it, applied in the same change behind the same yes. It runs for every `adr_retirement` value and for a partial reversal, where only citations of the reversed part change.
+- `record-decision audit`: each retire candidate lists the lines citing it; the audit stays read-only.
+- `record-decision` Step 4: after a record is written, it offers one pointer comment at the code the decision governs, citing the record in the repository's own form, and writes it only after a yes.
+
+## [5.1.0] - 2026-11-16
+
+### Added
+
+- **The deepening report follows the system's light or dark setting.** `/architecture:improve
+  deepening` builds its report on the shared page chrome, now bundled as
+  `reference/html-chrome.html`, with the System, Light and Dark toggle.
+- **A header line of evidence counts.** The report's header lists up to four counts (call sites,
+  copies, tests), each a number the verification gate reproduced. With the gate skipped, the line
+  is left out.
+- **Dependent candidates are interviewed as one tree.** When a selected candidate depends on
+  another selected one, the interview treats them as one tree and says so; a card names the
+  candidate it depends on.
+
+### Changed
+
+- **The report loads Tailwind and Mermaid from a CDN**, each at an exact version named in the
+  page's content security policy. Graph-shaped diagrams are Mermaid blocks; layer stacks, size
+  bars and deep modules stay hand-built. Without the network the page shows the chrome's styling
+  and each Mermaid block's source. Mermaid runs in strict mode with HTML labels off, and a
+  repository-derived string in a Mermaid label keeps only letters, digits, spaces and `_ . / : -`.
+
 ## [5.0.1] - 2026-11-16
 
 ### Changed

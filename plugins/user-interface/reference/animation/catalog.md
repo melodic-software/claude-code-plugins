@@ -432,8 +432,8 @@ moving parts, then run what is left in parallel unless the order means something
    once, with no reverse stagger, along the path it entered by (`exit` in behaviors.md).
 9. **Interruption.** A re-trigger mid-sequence stops every animation still running before starting
    the next; never stack them. Anything that resumes afterwards (an idle loop) waits until every
-   reset animation has finished. A guard that only gates input (the buildup has finished) is not
-   rendered state. Rapid switching must never leave two views mounted.
+   reset animation has finished. Input is never held until a buildup finishes (`stagger`
+   above). Rapid switching must never leave two views mounted.
 10. **Attention loops.** An idle hint that invites interaction holds off for several seconds at
     first, repeats rarely, stops during interaction, and restarts once the reset completes.
 11. **Reduced motion collapses the choreography**: no delays, no movement, the group appears

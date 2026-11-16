@@ -363,16 +363,20 @@ Write posture splits by scope, and the split is not negotiable:
 
 - **Project scope** (`.claude/settings.json`, `.claude/settings.local.json`): may be edited, one
   lever at a time, after the operator approves the exact diff shown in advance. Make that edit
-  with a file-editing tool (`Edit` or `Write`), never through the shell. The plugin's PreToolUse
-  checkpoint returns `permissionDecision: "ask"` for a file-editing tool call that targets a
-  settings file, so even in auto mode the write prompts rather than sliding through. It does not
-  see a settings write made through `Bash` or `PowerShell`, or one rendered into place by another
-  program such as a dotfile manager (README "Hook" names each route and records why the hook is
-  not widened). **A checkpoint, not a guarantee**: other hooks, settings, and permission modes
-  decide what happens to its `ask`, including in `bypassPermissions` and headless runs. Before
-  describing the protection, read those limits at the pointers in the "Hook" section of
-  `${CLAUDE_PLUGIN_ROOT}/README.md` (`PermissionRequest` hooks, `disableAllHooks`, hook order
-  against the mode check, and `-p` denials) and say so.
+  with a file-editing tool (`Edit` or `Write`), never through the shell. Where the guardrails
+  plugin is enabled, its `settings-write-ask` PreToolUse checkpoint returns
+  `permissionDecision: "ask"` for a file-editing tool call that targets a settings file, so even
+  in auto mode the write prompts rather than sliding through. It does not see a settings write
+  made through `Bash` or `PowerShell`, or one rendered into place by another program such as a
+  dotfile manager (the guardrails README's "Settings-write ask" section names each route and
+  records why the hook is not widened). **A checkpoint, not a guarantee**: other hooks,
+  settings, and permission modes decide what happens to its `ask`, including in
+  `bypassPermissions` and headless runs. Before describing the protection, read those limits at
+  the pointers in that section (`PermissionRequest` hooks, `disableAllHooks`, hook order against
+  the mode check, and `-p` denials) and say so. This session cannot tell whether guardrails is
+  enabled (its one skill is user-only), so before the write always say that the checkpoint runs
+  only when the guardrails plugin is enabled, and that without it the write goes through with no
+  ask; give `claude plugin enable guardrails@<marketplace>`.
 - **User-global** (`~/.claude/settings.json`): **never written by this skill.** Print the exact
   edit, fully resolved and paste-ready; applying it is the operator's. "Protected path" is not a
   human-confirmation guarantee: in auto mode the classifier, not a person, decides a write there.

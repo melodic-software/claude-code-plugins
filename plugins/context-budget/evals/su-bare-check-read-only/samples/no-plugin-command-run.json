@@ -43,7 +43,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "claude plugin install context-budget@m -s user --config settings_write_ask_enabled=false",
+            "command": "claude plugin install context-budget@m -s user --config live_display=off",
             "description": "x"
           }
         }

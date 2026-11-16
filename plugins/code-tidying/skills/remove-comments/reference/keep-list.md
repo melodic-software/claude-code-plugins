@@ -12,7 +12,13 @@ The shipped keep list. A repository replaces it through the `comment_keep_list` 
   nothing in this repository could remove the reason. The outside fact itself need not be provable
   from here; a comment the code contradicts is class A;
 - an **issue or RFC link that explains a constraint** the code cannot state (`# Header order is
-  fixed by RFC 9110 section 5.3`).
+  fixed by RFC 9110 section 5.3`);
+- an **ADR pointer**: one line that names one of this repository's decision records by the id or
+  path form its ADR folder uses (`# See docs/adr/0042`), restates none of the record's reason, and
+  sits at a module header or on a line whose decision the code does not make obvious. Keep it only
+  when the named record exists; a pointer to a missing record is class A. A comment that also
+  states the reason is ordinary rationale, not this keep.
 
-A comment naming a workaround is never one of the two outside-constraint keeps, link or not: it is
-deleted and listed as open root-cause work, unless it is a `TODO(#issue)` marker.
+A comment naming a workaround is never one of the two outside-constraint keeps or an ADR pointer,
+link or not: it is deleted and listed as open root-cause work, unless it is a `TODO(#issue)`
+marker.

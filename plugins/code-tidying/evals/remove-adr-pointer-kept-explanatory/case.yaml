@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: remove-adr-pointer-kept-explanatory
+description: explanatory keeps a one-line ADR pointer even though the ADR it names holds the reasoning, and deletes a pointer that restates the ADR's reason
+tags: [calibration, explanatory, adr-pointer, invented]
+expected_outcome: The header line "# See docs/adr/0007" stays (criterion 2 passes for a pointer); the comment that adds the cold-start reason fails criterion 2 because the ADR holds that reason, so it is deleted with its narrative staged; the "print the attempt number" comment is deleted as class A; code is unchanged.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:remove-comments explanatory fetch.sh
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: pointer-kept
+    type: regex
+    pattern: '^#!/usr/bin/env bash\n# See docs/adr/0007\nset -euo pipefail$'
+    flags: m
+    target: { source: file, path: fetch.sh }
+  - name: restated-reason-deleted
+    type: regex
+    pattern: '#[^\n]*cold start'
+    match: not_contains
+    target: { source: file, path: fetch.sh }
+  - name: restating-comment-deleted
+    type: regex
+    pattern: '#[^\n]*print the attempt number'
+    match: not_contains
+    target: { source: file, path: fetch.sh }
+  - name: code-intact
+    type: regex
+    pattern: '^retries=2\n(#[^\n]*\n)?for \(\(attempt = 1; attempt <= retries; attempt\+\+\)\); do\n(  #[^\n]*\n)?  echo "attempt \$attempt"\ndone$'
+    flags: m
+    target: { source: file, path: fetch.sh }
+  - name: proof-ran
+    type: tool_used
+    tool: Bash
+    input_match: change-shape
+    arm: both
