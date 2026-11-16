@@ -117,6 +117,12 @@ checks before the first drive that the command is on PATH; if it is not, the run
 setting, the value, where it came from, and the two ways forward (install the tool, or set
 `browser_driver` to one you have). It never substitutes another tool or switches mid-run.
 
+`/testing:run-e2e map` drives every feature of the app's control skill, with no base ref, and
+writes `findings.json` and `e2e-summary.json` at the top of its run directory. `features=` narrows
+it and `max_entries=` caps it. Two keys shape it, in the same layers as `e2e_driver`:
+`map_unit` (`feature | part`, default `feature`) and `map_entry_points` (`all | first`, default
+`all`), resolved by `scripts/resolve-config.sh map`. The pass is in `run-e2e/context/map.md`.
+
 `pixel_tolerance` is a map in `docs/conventions/testing.yaml`: `pixels`, the differing pixels per
 image `/testing:check-visual-parity` accepts (a whole number, default 0), and `reason`, required when
 `pixels` is above 0. Quote a reason that holds a colon followed by a space. The team value is read
@@ -196,6 +202,8 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `e2e_driver` | string | `"auto"` | Who drives when /testing:run-e2e drives the app itself, not through /app-control:drive: auto (default) picks the repo's harness when a spec covers the flow, else run or playwright; harness, run, playwright, or chrome (attended only). docs/conventions/testing.yaml wins. |
 | `reuse_running_instance` | string | `"auto"` | When run-e2e drives the app itself, not through /app-control:drive: true, or auto (default) when attended, reuses an app that already answers. With a Workspace environment entry, false and unattended auto start their own instance; without, unattended auto reuses and false stops. testing.yaml wins. |
 | `browser_driver` | string | `"playwright-cli"` | The browser tool command (letters, digits, . _ -) a /testing:run-e2e playwright drive uses when run-e2e drives the app itself, not through /app-control:drive. Default playwright-cli. Missing from PATH, the run stops naming this setting; it never switches tools. testing.yaml wins. |
+| `map_unit` | string | `"feature"` | What one entry of a /testing:run-e2e map pass is: feature (default) drives each feature of the control skill once; part drives each part of each feature that /app-control:drive resolves. testing.yaml wins. |
+| `map_entry_points` | string | `"all"` | Which entry points a /testing:run-e2e map pass checks per entry: all (default), or first, reporting the others not checked. testing.yaml wins. |
 | `pixel_tolerance` | number<br>*min 0* | `0` | Differing pixels per image /testing:check-visual-parity accepts. It can only lower the repository's pixel_tolerance in docs/conventions/testing.yaml, never raise it. 0 by default. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
 
