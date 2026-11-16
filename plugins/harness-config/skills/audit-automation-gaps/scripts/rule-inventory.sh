@@ -51,8 +51,12 @@ Sits lower than it could: a guidance-tier statement in which never, do not,
 don't or must not is followed, within six words of the same clause, by a
 backticked literal forbids that literal, which a pattern check could match.
 It is listed unless the statement carries "Enforced by:" or the literal
-appears in a static-analysis or codebase row. These are candidates for a
-person to judge, not findings.
+appears as a whole token in the pattern text of a static-analysis or
+codebase row: a deny entry, a hook's matcher and if value, a recorded
+command line, or a declared rule. A whole token is not preceded or followed
+by a letter, digit, _, - or ., so --force is not inside --force-exclude.
+Test file names and enforcer labels name a file, not a pattern, and are not
+searched. These are candidates for a person to judge, not findings.
 
 Exit: 0 once the inventory is produced (a source it could not read is named
 in the output); 2 for a usage error, a root it cannot enter, or a ladder copy
@@ -113,6 +117,8 @@ rows="$work/rows.tsv"
 notes="$work/notes.txt"
 : >"$notes"
 note() { printf '%s\n' "$*" >>"$notes"; }
+cover="$work/cover.txt"
+: >"$cover"
 
 emit() {
   local t="${rung_map#* "$3":}"
@@ -124,6 +130,7 @@ emit() {
   t="${t%% *}"
   [[ "$text" =~ ^[[:space:]]*(.*[^[:space:]])[[:space:]]*$ ]] && text="${BASH_REMATCH[1]}"
   printf '%s\t%s\t%s\t%s\n' "$text" "$2" "$3" "$t" >>"$rows"
+  [[ -z "${4:-}" || "$t" -gt 2 ]] || printf '%s\n' "${4//[$'\t\r']/ }" >>"$cover"
 }
 
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -210,7 +217,7 @@ unreadable) note "declared: $decl unreadable" ;;
       if [[ -z "$r" || -z "$g" ]]; then
         note "declared: item $n in $decl lacks a rule or a rung; skipped"
       else
-        emit "$r" "${e:-declared in $decl}" "$g"
+        emit "$r" "${e:-declared in $decl}" "$g" "$r"
       fi
       n=$((n + 1))
     done
@@ -229,12 +236,13 @@ unreadable) note "settings: $settings unreadable" ;;
   elif ! jq -e 'type == "object"' "$settings" >/dev/null 2>&1; then
     note "settings: $settings is not a JSON object"
   else
-    while IFS= read -r d; do emit "$d" "$settings permissions.deny" harness-setting; done \
+    while IFS= read -r d; do emit "$d" "$settings permissions.deny" harness-setting "$d"; done \
       < <(jq -r '(.permissions.deny // [])[] | strings' "$settings")
-    while IFS= read -r h; do emit "$h" "$settings hooks" action-guard; done \
-      < <(jq -r '(.hooks // {}) | to_entries[] | select(.key == "PreToolUse" or .key == "PermissionRequest")
+    while IFS=$'\t' read -r ev m cond; do
+      emit "$ev $m${cond:+ if $cond}" "$settings hooks" action-guard "$m${cond:+ $cond}"
+    done < <(jq -r '(.hooks // {}) | to_entries[] | select(.key == "PreToolUse" or .key == "PermissionRequest")
         | .key as $ev | (.value // [])[] | (.matcher // "*") as $m | (.hooks // [])[]
-        | "\($ev) \($m)" + (if .if then " if \(.if)" else "" end)' "$settings")
+        | [$ev, $m, (.if // "")] | map(tostring | gsub("[\t\r\n]"; " ")) | join("\t")' "$settings")
     note "settings: $settings read"
   fi
   ;;
@@ -253,7 +261,7 @@ for f in .claude/ecosystems/*.yaml; do
     build-cmd) rung=compiler-setting ;;
     *) continue ;;
     esac
-    emit "$name $key: $cmd" "$f" "$rung"
+    emit "$name $key: $cmd" "$f" "$rung" "$cmd"
   done < <(awk '
     function val(v) { sub(/^[[:space:]]+/, "", v); sub(/[[:space:]]+$/, "", v); return v }
     block && /^[^[:space:]#]/ { block = "" }
@@ -326,7 +334,21 @@ if [[ "$rows_only" = 1 ]]; then
   exit 0
 fi
 
-awk -F'\t' '$4 <= 2 { print $1; print $2 }' "$rows" >"$work/strong.txt"
+covered() {
+  awk '
+    function tok(c) { return c ~ /[[:alnum:]_.-]/ }
+    BEGIN { lit = ARGV[1]; ARGV[1] = ""; n = length(lit) }
+    {
+      p = 0
+      while ((i = index(substr($0, p + 1), lit)) > 0) {
+        s = p + i
+        if (!tok(substr($0, s - 1, s > 1)) && !tok(substr($0, s + n, 1))) { found = 1; exit }
+        p = s
+      }
+    }
+    END { exit !found }
+  ' "$1" "$cover"
+}
 lower="$work/lower.txt"
 : >"$lower"
 # shellcheck disable=SC2016 # the backticks are Markdown code-span delimiters
@@ -339,7 +361,7 @@ while IFS=$'\t' read -r rule enforcer rung tier; do
   while [[ "$rest" =~ $forbid_re ]]; do
     lit="${BASH_REMATCH[5]}"
     rest="${rest#*"${BASH_REMATCH[0]}"}"
-    grep -Fq -- "$lit" "$work/strong.txt" || open="${open:+$open, }\`$lit\`"
+    covered "$lit" || open="${open:+$open, }\`$lit\`"
   done
   [[ -z "$open" ]] || printf '%s: forbids %s (%s)\n' "$enforcer" "$open" "$rung" >>"$lower"
 done <"$rows"

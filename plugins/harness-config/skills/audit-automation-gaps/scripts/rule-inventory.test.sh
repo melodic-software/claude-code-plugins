@@ -85,6 +85,34 @@ out="$(bash "$GEN" --root "$B")"
 assert_line "B: no candidate" "$out" "Sits lower than it could: 0 guidance rule(s) forbid a literal that a pattern check could match (candidates to judge, not findings)"
 assert_line "B: every statement counted" "$out" "| 4 Guidance | 5 | instruction 5 |"
 
+G="$TMP/whole-token"
+new_repo "$G"
+mkdir -p "$G/.claude/ecosystems" "$G/evals"
+printf 'check-cmd: "ruff check --force-exclude <files>"\n' >"$G/.claude/ecosystems/python.yaml"
+cat >"$G/.claude/settings.json" <<'EOF'
+{"permissions": {"deny": ["Read(./.env)", "Edit(.github/workflows/*)"]},
+ "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "guard.sh", "if": "Bash(git push --no-verify*)"}]}]}}
+EOF
+printf 'x\n' >"$G/evals/case.test.sh"
+cat >"$G/AGENTS.md" <<'EOF'
+- Never push with `--force` to a shared branch.
+- Never call `eval` in shell scripts.
+- Never edit `settings.json` without a review.
+- Never edit `.github/workflows` from a session.
+- Never pass `--no-verify` to git.
+- Do not use `PreToolUse` hooks for formatting.
+EOF
+commit_all "$G"
+assert_line "G: hook row" "$(bash "$GEN" --root "$G" --rows)" "$(printf 'PreToolUse Bash if Bash(git push --no-verify*)\t.claude/settings.json hooks\taction-guard\t2')"
+out="$(bash "$GEN" --root "$G")"
+assert_line "G: --force not hidden by --force-exclude" "$out" '- AGENTS.md:1: forbids `--force` (instruction)'
+assert_line "G: eval not hidden by a test path under evals/" "$out" '- AGENTS.md:2: forbids `eval` (instruction)'
+assert_line "G: settings.json not hidden by a deny row's enforcer label" "$out" '- AGENTS.md:3: forbids `settings.json` (instruction)'
+assert_no "G: a literal a deny entry holds stays out" "$out" 'forbids `.github/workflows`'
+assert_no "G: a literal a hook if value holds stays out" "$out" 'forbids `--no-verify`'
+assert_line "G: a hook event name covers nothing" "$out" '- AGENTS.md:6: forbids `PreToolUse` (instruction)'
+assert_line "G: four candidates" "$out" "Sits lower than it could: 4 guidance rule(s) forbid a literal that a pattern check could match (candidates to judge, not findings)"
+
 C="$TMP/empty"
 new_repo "$C"
 out="$(bash "$GEN" --root "$C")"
