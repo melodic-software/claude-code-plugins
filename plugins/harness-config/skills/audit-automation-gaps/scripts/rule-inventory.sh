@@ -97,7 +97,7 @@ rungs="$(awk '
   /^\| `[a-z-]+` \|/ { id = $0; sub(/^\| `/, "", id); sub(/`.*/, "", id); print id "\t" tier "\t" name }
 ' "$ladder")"
 [[ -n "$rungs" ]] || { echo "rule-inventory.sh: no rung ids found in $ladder" >&2; exit 2; }
-tier_of() { awk -F'\t' -v r="$1" '$1 == r {print $2; exit}' <<<"$rungs"; }
+rung_map=" $(awk -F'\t' '{printf "%s:%s ", $1, $2}' <<<"$rungs")"
 
 work="$(mktemp -d)" || exit 2
 trap 'rm -rf -- "$work"' EXIT
@@ -107,15 +107,16 @@ notes="$work/notes.txt"
 : >"$notes"
 note() { printf '%s\n' "$*" >>"$notes"; }
 
-clean() { tr '\t\r' '  ' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
 emit() {
-  local t
-  t="$(tier_of "$3")"
-  if [[ -z "$t" ]]; then
+  local t="${rung_map#* "$3":}"
+  local text="${1//[$'\t\r']/ }"
+  if [[ "$t" == "$rung_map" ]]; then
     note "skipped: rung \`$3\` from $2 is not a rung of ladder $ladder_version"
     return
   fi
-  printf '%s\t%s\t%s\t%s\n' "$(printf '%s' "$1" | clean)" "$2" "$3" "$t" >>"$rows"
+  t="${t%% *}"
+  [[ "$text" =~ ^[[:space:]]*(.*[^[:space:]])[[:space:]]*$ ]] && text="${BASH_REMATCH[1]}"
+  printf '%s\t%s\t%s\t%s\n' "$text" "$2" "$3" "$t" >>"$rows"
 }
 
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
