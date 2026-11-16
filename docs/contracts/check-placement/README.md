@@ -219,8 +219,9 @@ the consumer git floor moves.
 ### HookManager port
 
 ```text
-detect(repo)                  -> { manager: "lefthook"|"husky"|"plain"|"conflict", evidence[] }
+detect(repo)                  -> { manager: "lefthook"|"husky"|"plain"|"conflict", evidence[], variant? }
 list(repo)                    -> [{ entryId, event, scope, stamp }]
+inspect(repo, runs?)          -> { manager, variant?, evidence[], hooksDir, stages[{ event, installed, hookFile, items[] }] }   # read-only
 plan(repo, entries, scope)    -> { actions[], decisions[] }
 copy(repo, entry, scope)      -> "installed" | "refreshed" | "unchanged" | "blocked" | "unsafe-path" | "stage-failed"   # plugin-owned files only
 decline(repo, entryId)        -> sets the git config --local key (--global: the global one)
@@ -230,7 +231,27 @@ decline(repo, entryId)        -> sets the git config --local key (--global: the 
 (D1). Entry names, events and scopes are manager-neutral; each manager's file format stays inside
 its adapter. `detect` also recognizes other hook managers (the pre-commit framework, simple-git-hooks,
 overcommit, husky v4) and returns them as conflict decisions. A set `core.hooksPath` is treated as
-husky or foreign, never as plain.
+husky or foreign, never as plain. A `.husky/task-runner.json` marks Husky.Net: `detect` returns
+`husky` with `variant: "husky.net"`, since Husky.Net runs `.husky/<event>` as husky does and the
+husky adapter drives it. One difference: Husky.Net points `core.hooksPath` at `.husky` itself, so
+git runs `.husky/<event>` directly and skips it unless it is executable.
+
+**`inspect`.** For each git hook stage, `inspect` lists every item that runs, under whichever
+manager the repository uses: plain dispatcher markers and a chained `<event>.pre-checks`, each
+command line of `.husky/<event>` (and the Husky.Net tasks a `husky run --group` or `--name` line
+selects), the lefthook jobs `lefthook dump` reports, git config hooks (the events left after an
+empty-value reset; one with `hook.<name>.enabled=false` is reported disabled), and any other hook
+file. `installed` says whether git finds an executable hook file for the stage. An item that is a
+stamped entry copy names its plugin and entry; a script path from a command, marker or lefthook
+job is followed only inside the work tree or the hooks directory. Only the calling plugin's own entries, on their own event, that
+rewrite nothing and whose tools are present are run, and only from an installed copy whose script,
+lib and assets hash to what the plugin ships now: a stamp alone proves nothing, so an edited or
+forged copy is never run and an older one gets a refresh hint. They run on the staged set (`pre-commit`),
+a message file outside the repository (`commit-msg`) or the branch against its upstream
+(`pre-push`), and get `measured: { medianMs, minMs, maxMs, runs, input, exitCodes }`; every other
+item gets `notMeasured` with the reason. `inspect` itself writes nothing in the repository; a
+timed entry does only what it does in a real hook run. Its numbers feed
+the [duration budgets](#duration-budgets) for placing a check.
 
 **`hooks-path-owned`.** When `core.hooksPath` hands the local hooks directory to another tool (any
 value except the plain shared `.githooks`), `plan` returns only one decision,
