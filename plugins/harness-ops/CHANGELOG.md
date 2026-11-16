@@ -3,6 +3,13 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.0.2] - 2026-11-16
+
+### Fixed
+
+- A lane that arms the lane-stop gate under a plugin profile is checked before the gate is armed, so a `start` refused for leaving `autonomy` off no longer leaves an armed gate and a session file behind.
+- The check requires the `autonomy` plugin id the lane's gate request is keyed under to be enabled; an `autonomy` plugin from another marketplace no longer passes it.
+
 ## [10.0.1] - 2026-11-16
 
 ### Fixed
