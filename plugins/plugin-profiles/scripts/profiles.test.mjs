@@ -294,7 +294,6 @@ test("launch --with merges a launcher's settings into one file the profile wins 
   assert.deepEqual(doc.env, { LANE: "1", PLUGIN_PROFILES_SESSION: "build", PLUGIN_PROFILES_SESSION_FILE: merged.file });
   assert.equal(doc.enabledPlugins[`songwriting@${M}`], false, "the profile's entry wins");
   assert.equal(doc.enabledPlugins["widget@vendor"], true, "an entry the profile leaves alone stays");
-  assert.deepEqual(merged.settings, doc, "the result carries the merged content the file holds");
   assert.equal(JSON.parse(readFileSync(plain, "utf8")).model, undefined, "the plain file is unchanged");
   const noProfile = launchJson(w, ["--with", own], { PLUGIN_PROFILES_SESSION: "" });
   assert.deepEqual(noProfile.argv.slice(-2), ["--settings", own], "with no profile the launcher's own settings pass through");
@@ -1020,12 +1019,21 @@ test("an empty PLUGIN_PROFILES_SESSION counts as unset: status falls back to the
   assert.doesNotMatch(r.stdout, /one-session settings file/);
 });
 
+test("launch --json reports each plugin as the session will start with it, an entry the profile does not write included, under --dry-run too", () => {
+  const w = world();
+  const real = launchJson(w, ["build"]);
+  const written = JSON.parse(readFileSync(real.file, "utf8")).enabledPlugins;
+  assert.equal(`toolchain@${M}` in written, false, "the profile writes no entry for a plugin the repository enables");
+  assert.equal(real.enabledPlugins[`toolchain@${M}`], true, "the repository's entry is in force for the session");
+  assert.equal(real.enabledPlugins[`songwriting@${M}`], false, "the profile's entry wins over user settings");
+  assert.deepEqual(launchJson(w, ["build", "--dry-run"]).enabledPlugins, real.enabledPlugins);
+});
+
 test("launch --dry-run checks and prints the command but writes no session file", () => {
   const w = world({ prerequisiteMissing: true });
   const sessions = join(w.home, ".claude", "plugins", "data", "plugin-profiles-inline", "sessions");
   const ok = launchJson(w, ["build", "--dry-run"]);
   assert.match(ok.file, /-build\.json$/);
-  assert.equal(ok.settings.enabledPlugins[`songwriting@${M}`], false, "the merged settings are reported without a file");
   assert.equal(existsSync(sessions), false, "nothing written");
   const refused = w.run(["launch", "build", "--dry-run", "--unattended"]);
   assert.equal(refused.status, 1, "the unattended stop still applies");

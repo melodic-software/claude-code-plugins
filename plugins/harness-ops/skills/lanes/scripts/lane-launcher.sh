@@ -1584,11 +1584,20 @@ lane_claude_prefix() { # <name> <profile> <cwd> <settings JSON or ""> [check]
     ((${#LANE_CLAUDE[@]})); then
     # The profile wins on enabledPlugins, so a lane that arms the lane-stop gate
     # under a profile leaving autonomy off would start without its gate.
-    if [[ -n "$settings" ]] && lane_requests_stop_gate "$settings" &&
-      ! jq -e '.settings.enabledPlugins // {} | to_entries | any((.key == "autonomy" or (.key | startswith("autonomy@"))) and .value == true)' <<<"$out" >/dev/null 2>&1; then
-      LANE_CLAUDE=(env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude)
-      err "lane '$name': the lane arms the lane-stop gate but profile '$profile' leaves autonomy off in the settings it starts with, so the lane is not launched; give the lane a profile that includes autonomy"
-      return 1
+    # enabledPlugins is each plugin as the session will start with it, across
+    # every settings layer.
+    if [[ -n "$settings" ]] && lane_requests_stop_gate "$settings"; then
+      local refusal=""
+      if ! jq -e '.enabledPlugins | type == "object"' <<<"$out" >/dev/null 2>&1; then
+        refusal="profiles.mjs launch reported no enabledPlugins to check the lane-stop gate's autonomy against, so the lane is not launched; update plugin-profiles"
+      elif ! jq -e '.enabledPlugins | to_entries | any((.key == "autonomy" or (.key | startswith("autonomy@"))) and .value == true)' <<<"$out" >/dev/null 2>&1; then
+        refusal="the lane arms the lane-stop gate but profile '$profile' leaves autonomy off and no settings layer enables it for the session, so the lane is not launched; give the lane a profile that includes autonomy"
+      fi
+      if [[ -n "$refusal" ]]; then
+        LANE_CLAUDE=(env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude)
+        err "lane '$name': $refusal"
+        return 1
+      fi
     fi
     PROFILE_APPLIED=1
     while IFS= read -r line; do [[ -n "$line" ]] && warn "lane '$name': $line"; done <<<"$reason"
