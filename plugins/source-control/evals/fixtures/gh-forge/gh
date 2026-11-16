@@ -12,7 +12,8 @@
 # `pr close`, `pr update-branch`, `issue comment` and `issue edit`.
 # reassess-state.sh seeds what the reassess cases need: pr-overlay.json (merged over the first pull request),
 # comments.json (its conversation comments), reviews.json (its reviews) and merged-prs.json (pull requests
-# already merged into the base). The last `pr comment` body is kept in comment-body.md for a grader.
+# already merged into the base). The last `pr comment` body is kept in comment-body.md for a grader;
+# `pr comment --help` lists the flags, `--attach` among them, that the evidence step checks for.
 # shellcheck disable=SC2154 # PR_* come from the state file sourced below
 set -uo pipefail
 
@@ -385,6 +386,11 @@ case "$cmd $sub" in
     ;;
   "pr comment")
     shift 2
+    if [[ " $* " == *" --help "* || " $* " == *" -h "* ]]; then
+      printf 'Usage:  gh pr comment [<number> | <url> | <branch>] [flags]\n\nFlags:\n'
+      printf '      --attach file\n  -b, --body text\n  -F, --body-file file\n      --create-if-none\n      --delete-last\n      --edit-last\n      --yes\n'
+      exit 0
+    fi
     parse "$@"
     pr_matches "${args[0]:-}" || refuse pr comment "$@"
     record "pr comment" "$@"

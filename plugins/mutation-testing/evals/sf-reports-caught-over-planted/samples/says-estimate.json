@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "1 of 3 caught; this is an estimate of thoroughness.",
+      "why": "estimate"
+    },
+    {
+      "answer": "Treat this as a rough estimate.",
+      "why": "estimate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1 of 3 caught, so the suite has 2 defects.",
+      "why": "no estimate wording"
+    }
+  ]
+}

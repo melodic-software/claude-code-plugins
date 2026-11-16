@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "3. Advisory mutation run: not run, the mutation-testing plugin is not enabled.",
+      "why": "says the plugin is not enabled"
+    },
+    {
+      "answer": "Handoff note: the `mutation-testing` plugin would check whether these tests detect injected faults.",
+      "why": "says what the plugin would do"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. `/toolchain:check`\n2. `/review:quality-gate`\n3. `/verification:confirm .work/refunds/PLAN.md`",
+      "why": "the missing plugin is never mentioned"
+    }
+  ]
+}
