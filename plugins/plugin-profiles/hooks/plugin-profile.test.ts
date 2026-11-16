@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 // The /plugin-profile command and its end-of-turn reload. The command-line tool is stubbed by its
-// argument vector; its own behaviour is tested by scripts/profiles.test.mjs.
+// argument vector; scripts/profiles.test.mjs tests the tool itself.
 
 const PROFILES = ['build', 'discovery', 'harness-upkeep', 'interface-design', 'planning', 'review']
 const MORE = 'More profiles'
