@@ -519,9 +519,10 @@ After a failed write the other upstreams still run, and the run then exits nonze
   lane: the lane starts only when a listed person or the lanes App sets the issue's Work status to
   agent-ready, and an issue this workflow's token opens starts no intake run. The label holds the
   issue until a listed human lifts it, as the
-  [loop-lane label table](../loop-lane/README.md) says for `needs-human`. Lifting it hands the
-  issue to an agent for the re-audit described below; it does not ask that person to mark each
-  upstream change, and only a change to a skill's design comes back to the owner.
+  [loop-lane label table](../loop-lane/README.md) says for `needs-human`. Lifting it and setting
+  Work status to agent-ready hands the issue to an agent for the re-audit described below; neither
+  step asks that person to mark each upstream change, and only a change to a skill's design comes
+  back to the owner.
 - **`untracked` and `unreachable` block close.** An upstream with any `untracked` or
   `unreachable` page is never closed as clean,
   even beside a `clean` page, and since the report names it, the sweep leaves its issue alone too.
