@@ -193,6 +193,9 @@ export const PATCH_SPLIT_PENDING = "its last run's patch was over the scan job's
 // splits again. It parks at status: confirmed and, as the only refusal, adds
 // host-run.
 export const PATCH_SPLIT_CHILD = "its last run's patch was over the scan job's size cap (scan-refused-patch), and a size-split sub-issue never splits again (owner Q93), so a builder session takes it";
+// The same refusal on a trusted drift issue (driftIssueId), which is never
+// split.
+export const PATCH_DRIFT = "its last run's patch was over the scan job's size cap (scan-refused-patch), and a trusted upstream-drift issue is never split, so a builder session takes it";
 // Every wait reason refine.mjs splits on.
 export const SPLIT_PENDING = new Set([SIZE_SPLIT_PENDING, PATCH_SPLIT_PENDING]);
 // The refusal a Size Large issue gets once it has sub-issues and every one is
@@ -1068,6 +1071,18 @@ export const driftIssueId = (item) => (actionsBot(item?.author) && (item.lastEdi
 // read. Pure.
 export const driftShaped = (issue) => issue?.user?.id === ACTIONS_BOT_ID && driftShape(issue.title, issue.body) !== null;
 
+// Which author rule admits the REST issue `issue` in `repository`: "listed"
+// (authorAdmitted), "drift" (a trusted drift issue, confirmed by one specOf
+// read made only for a drift-shaped issue), or null. Every author gate on a
+// drift issue's way from intake to the issue lane asks here. A failed read
+// throws.
+export async function authorTrust(github, repository, issue, humans, appId) {
+  if (authorAdmitted(issue, humans, appId)) {
+    return "listed";
+  }
+  return driftShaped(issue) && driftIssueId(await specOf(github, repository, issue.number)) !== null ? "drift" : null;
+}
+
 // The fixed spec of a trusted drift issue for upstream `id`, built from `id`
 // and `pages` (the docs/upstream pages pinned to it, when the caller read
 // them) alone. pr-verify (resolve-pr.mjs driftSpec), admission's criteria
@@ -1301,11 +1316,15 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const holdFor = (code) => holdCodes.add(code);
   // A trusted size-split sub-issue never splits again, so Size Large neither
   // parks nor refuses it; a run has no turn or time cap (owner Q93, C13).
+  // A trusted drift issue is never split either: its spec is one fixed
+  // template for one upstream's pages, which no split partitions, and the
+  // issue lane runs it at split-child-size (check-blockers.mjs).
   const splitChild = splitChildBody(spec, humans, taskList) !== null;
-  if (splitChild && !rules.sizes.includes("large")) {
+  const drift = issue.user?.id === ACTIONS_BOT_ID && driftIssueId(spec) !== null;
+  const unsplit = splitChild || drift;
+  if (unsplit && !rules.sizes.includes("large")) {
     rules = { ...rules, sizes: [...rules.sizes, "large"] };
   }
-  const drift = issue.user?.id === ACTIONS_BOT_ID && driftIssueId(spec) !== null;
   if (!authorAdmitted(issue, humans, appId) && !drift) {
     refuse.push("the author is neither a listed human nor the lanes App");
     holdFor("security");
@@ -1357,11 +1376,13 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     } else if (openSubs.length === 0 && !finished) {
       refuse.push(SIZE_SPLIT_DONE);
     }
-  } else if (overCap && splitChild) {
-    // A sub-issue never splits again, so the same work would only stop at the
-    // same cap: it parks for a builder instead of re-admitting unchanged.
-    refuse.push(PATCH_SPLIT_CHILD);
-    hostWork.add(PATCH_SPLIT_CHILD);
+  } else if (overCap && unsplit) {
+    // A sub-issue never splits again, nor does a drift issue, so the same work
+    // would only stop at the same cap: it parks for a builder instead of
+    // re-admitting unchanged.
+    const reason = splitChild ? PATCH_SPLIT_CHILD : PATCH_DRIFT;
+    refuse.push(reason);
+    hostWork.add(reason);
   } else if (!rules.sizes.includes(size)) {
     refuse.push(`Size ${size} is not one of ${rules.sizes.join(", ")}`);
   }

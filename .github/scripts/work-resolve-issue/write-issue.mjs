@@ -82,8 +82,8 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { fieldEvents, issueStatusFromBase } from "../../actions/resolve-config/resolve-config.mjs";
-import { authorAdmitted, carriesSplit, closedByTrusted, driftIssueId, driftShaped, driftSpecText, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
-import { admittedAt, matchesRecord, timeOf } from "../lib/admission-record.mjs";
+import { ACTIONS_BOT_ID, authorAdmitted, carriesSplit, closedByTrusted, driftIssueId, driftShaped, driftSpecText, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { admittedAt, contentHash, matchesRecord, timeOf } from "../lib/admission-record.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
@@ -115,7 +115,10 @@ const ISSUE_EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!)
 // as after it, and an unparsable time is a change. Fail closed: a change whose
 // account is unread, or a page that may hide an older change after
 // `frozenAt`, is "edited". A failed read or an unexpected shape throws.
-async function readEditsSince(github, repository, number, frozenAt, trusted) {
+// `bodyFree` is an account whose body edits do not count: github-actions[bot]
+// on a trusted drift issue, whose body the run never reads (driftSpecText),
+// so the filer's weekly rewrite leaves the run's spec as admitted.
+async function readEditsSince(github, repository, number, frozenAt, trusted, bodyFree = null) {
   const [owner, name] = repository.split("/");
   const issue = (await github("POST", "/graphql", { query: ISSUE_EDITS_QUERY, variables: { owner, name, number: Number(number) } }))
     ?.data?.repository?.issue;
@@ -132,7 +135,8 @@ async function readEditsSince(github, repository, number, frozenAt, trusted) {
   };
   const body = since(issue.userContentEdits, "hasNextPage", "editedAt", "editor");
   const title = since(issue.timelineItems, "hasPreviousPage", "createdAt", "actor");
-  const bodyChanged = after(issue.lastEditedAt);
+  const freeOnly = bodyFree !== null && !body.hidden && body.changes.length > 0 && body.changes.every((node) => node?.editor?.databaseId === bodyFree);
+  const bodyChanged = after(issue.lastEditedAt) && !freeOnly;
   if (!bodyChanged && title.changes.length === 0) {
     return "";
   }
@@ -256,8 +260,12 @@ export async function main({ env = process.env, github, log = console.log, write
     const frozenAt = admission.at;
     // Edits since the admission decide first; a record also holds the hashes
     // of the text it admitted, which this run's one read must match.
-    let refused = await readEditsSince(client, repository, env.ISSUE_NUMBER, frozenAt, new Set([...ids, lanesAppId]));
-    if (!refused && admission.kind === "record" && !matchesRecord(admission.record, { title: data.title, body: data.body ?? "" })) {
+    // On a trusted drift issue only the title, which names the upstream, is
+    // the admitted text the run reads.
+    const drift = driftId !== null;
+    let refused = await readEditsSince(client, repository, env.ISSUE_NUMBER, frozenAt, new Set([...ids, lanesAppId]), drift ? ACTIONS_BOT_ID : null);
+    const recordMatches = (record) => (drift ? contentHash(data.title) === record.titleSha256 : matchesRecord(record, { title: data.title, body: data.body ?? "" }));
+    if (!refused && admission.kind === "record" && !recordMatches(admission.record)) {
       refused = "edited";
     }
     if (refused) {

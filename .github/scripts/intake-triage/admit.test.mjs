@@ -20,7 +20,10 @@ import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, confirmedOnly, DEFER
 import { readRouting } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { TRACKER_BINDING_PATH } from "../pr-merge/merge-holds.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
-import { VERDICT_MARKER } from "./apply-verdict.mjs";
+import { checkRun, VERDICT_MARKER } from "./apply-verdict.mjs";
+import { main as checkBlockers } from "../work-resolve-issue/check-blockers.mjs";
+import { selectCandidates } from "../maintenance-audit-lane-runs/triage-sweep.mjs";
+import { rmSync } from "node:fs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./split-child.vectors.json", import.meta.url), "utf8"));
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
@@ -4322,5 +4325,91 @@ describe("hold reason codes", () => {
     assert.ok(text.startsWith(refusalText("a reason")));
     assert.deepEqual(parseReason(text), { lane: "intake-triage", reason: "intent" });
     assert.throws(() => heldRefusalText("a reason", "none"), /never hands work to a person/);
+  });
+});
+
+// #14215 done-when items 2 and 3, through every gate on the way: the triage
+// sweep selects the issue, intake's verdict check would mint, admission
+// admits it, and the issue lane's check-blockers runs it, with no person
+// step; a design-changing finding routes the run to a person's hold.
+describe("a trusted upstream-drift issue from sweep to the issue lane", () => {
+  const ACTIONS_ID = 41898282;
+  const TITLE = "Upstream drift: mattpocock/sandcastle";
+  const FILED_BODY = "Upstream `mattpocock/sandcastle` changed since the pin on its docs/upstream page.\n\nRun: 2026-10-18, https://example.test/run\n";
+  const filed = (over = {}) =>
+    issueOf({ title: TITLE, body: FILED_BODY, user: { id: ACTIONS_ID, login: "github-actions[bot]", type: "Bot" }, created_at: "2026-10-18T09:00:00Z", ...over });
+  const graphSpec = (editor = null) => ({
+    title: TITLE,
+    body: FILED_BODY,
+    author: { __typename: "Bot", databaseId: ACTIONS_ID },
+    editor,
+    lastEditedAt: editor ? "2026-10-18T10:00:00Z" : null,
+    comments: [],
+  });
+  const verdictEnv = { ACTOR_ID: String(ACTIONS_ID), EVENT_NAME: "workflow_dispatch", RUN_ATTEMPT: "1", ISSUE_NUMBER: "7", GITHUB_REPOSITORY: "o/r" };
+  const logins = new Map([["melodic-automation-lanes[bot]", APP]]);
+  // The lane's field read finds no Work status change beyond admission's.
+  const blockersRun = async (admitGithub) => {
+    const github = (method, path, body) =>
+      method === "POST" && path === "/graphql" && body.query.includes("ISSUE_FIELD_ADDED_EVENT") ? { data: { repository: { issue: { timelineItems: { nodes: [] } } } } } : admitGithub(method, path, body);
+    const dir = tempDir("drift-chain-");
+    try {
+      const actors = join(dir, "trusted-actors.json");
+      writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ kind: "human", id: HUMAN, login: "person" }] }));
+      const outputs = {};
+      const lines = [];
+      const env = { GITHUB_REPOSITORY: "o/r", ISSUE_NUMBER: "7", TRUSTED_ACTORS_PATH: actors, LANES_APP_ID: String(APP), BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) };
+      await checkBlockers({ env, github, log: (line) => lines.push(line), write: (values) => Object.assign(outputs, values) });
+      return { ...outputs, lines };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  test("an unedited drift issue reaches the issue lane with no person step", async () => {
+    const swept = selectCandidates({ issues: [filed({ labels: [] })], now: new Date("2026-10-18T12:00:00Z"), authorIds: new Set([String(HUMAN), String(APP)]) });
+    assert.deepEqual(swept.map((i) => i.number), [7], "the sweep selects it for an intake dispatch");
+
+    const fake = fakeGitHub({ issue: filed(), spec: graphSpec() });
+    assert.equal(await checkRun({ env: verdictEnv, humans, logins, github: fake.github, log: () => {} }), true, "intake's verdict is written for it");
+
+    const admitted = await go(fake);
+    assert.equal(admitted.outcome, "admitted");
+    assert.ok(writes(fake.calls).includes(STATUS(AGENT_READY)), writes(fake.calls).join("\n"));
+
+    const lane = await blockersRun(fake.github);
+    assert.equal(lane.proceed, "true", JSON.stringify(lane));
+    assert.equal(lane.outsider, undefined);
+    assert.equal(lane["split-child"], "true", "the lane runs it at split-child-size, never splitting it");
+  });
+
+  test("the same issue a person last edited stops at every gate", async () => {
+    const fake = fakeGitHub({ issue: filed(), spec: graphSpec({ __typename: "User", databaseId: HUMAN }) });
+    assert.equal(await checkRun({ env: verdictEnv, humans, logins, github: fake.github, log: () => {} }), false);
+    assert.notEqual((await go(fake)).outcome, "admitted");
+    assert.equal((await blockersRun(fake.github)).outsider, "true");
+  });
+
+  test("Size large is admitted and never parks for a split; a patch over the scan cap goes to a builder", () => {
+    const issue = filed();
+    const spec = { ...graphSpec(), commentCount: 0 };
+    const large = { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } };
+    assert.deepEqual(decide(facts({ issue, spec, verdict: large })), { verdict: "admit", reasons: [] });
+    const capStop = {
+      user: { id: APP },
+      created_at: "2026-10-21T10:00:00Z",
+      body: "<!-- work-resolve-issue outcome=intake run=555 -->\nThe work-resolve-issue lane stopped on this issue (`scan-refused-patch`): the scan job refused the run's patch for its size.",
+    };
+    assert.deepEqual(decide(facts({ issue, spec, comments: [capStop] })), {
+      verdict: "refuse",
+      reasons: ["its last run's patch was over the scan job's size cap (scan-refused-patch), and a trusted upstream-drift issue is never split, so a builder session takes it"],
+      hostRun: true,
+    });
+  });
+
+  test("a run that finds a design change holds the issue for the owner with needs-human", () => {
+    assert.match(driftSpecText("mattpocock/sandcastle"), /the run stops with `design-change`/);
+    assert.equal(stopRoute(runCode("design-change: the take rewrites a skill's flow")), "hold");
+    assert.equal(decide(facts({ issue: filed({ labels: [{ name: "needs-human" }] }), spec: graphSpec() })).verdict, "skip", "a held drift issue is never admitted");
   });
 });

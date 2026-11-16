@@ -256,6 +256,31 @@ describe("a trusted upstream-drift issue", () => {
     assert.equal(issue.body, TEMPLATE);
   });
 
+  // The filer rewrites an open drift issue's body each drifted week. The run
+  // never reads the body, so that rewrite after the admission record does not
+  // stop the run; anyone else's edit after it still does.
+  test("the filer's rewrite after the admission record still runs; any other editor's refuses edited", async () => {
+    const admitted = { ...DRIFT, body: `${DRIFT.body}\nan older week's rows\n` };
+    // Body edits newest first, as GitHub lists them; the filer's is the last.
+    const rewrite = (bodyEdits) =>
+      fakeGitHub({
+        comments: [],
+        issue: DRIFT,
+        spec: { title: DRIFT.title, body: DRIFT.body, author: ACTIONS_ACTOR, editor: ACTIONS_ACTOR, lastEditedAt: "2026-10-15T00:00:00Z" },
+        issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z", bodyEdits },
+        admissions: [record(13, admitted)],
+      });
+    const filerEdit = { editedAt: "2026-10-15T00:00:00Z", editor: { databaseId: ACTIONS.id } };
+    const filer = await run(rewrite([filerEdit]), { sender: String(LANES_BOT.id) });
+    assert.equal(filer.code, 0, filer.logged.join("\n"));
+    assert.equal(filer.issue.body, TEMPLATE);
+    assert.deepEqual(filer.outputs, []);
+    const stranger = await run(rewrite([filerEdit, { editedAt: "2026-10-14T00:00:00Z", editor: { databaseId: STRANGER.id } }]), { sender: String(LANES_BOT.id) });
+    assert.equal(stranger.code, 1);
+    assert.equal(stranger.issue, null);
+    assert.deepEqual(stranger.outputs, [{ refused: "edited" }]);
+  });
+
   test("one a person last edited, another bot's, or a wrong title writes no file", async () => {
     for (const [name, github] of [
       ["a listed human's edit", drift({ editor: { __typename: "User", databaseId: OWNER.id }, lastEditedAt: "2026-10-20T00:00:00Z" })],

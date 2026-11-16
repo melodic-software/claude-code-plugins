@@ -12,12 +12,12 @@ enforceability tier changes.
 A trusted drift issue enters the issue lane with no owner step, by the owner's decision on #14215
 (Q195 (a)): github-actions[bot] wrote it, nobody else last edited it, and its title and first body
 line are the two the filer writes for a drifted hex-pin page. The hourly triage sweep dispatches
-intake for it, admission accepts it as its author, and its done-when, the issue lane's spec and
-pr-verify's spec are one fixed template built from the upstream id, never from its body. A lane
-run that finds a design-changing take or adapt stops with `design-change`, which holds the issue
-for the owner, since the lane cannot file an issue. The "No hold label" and new "Admission with no
-owner step" bullets say so, and name the two author gates (`apply-verdict.mjs`,
-`check-blockers.mjs`) that do not read the rule yet.
+intake for it, intake writes its verdict, admission and the issue lane accept it as its author,
+and its done-when, the issue lane's spec and pr-verify's spec are one fixed template built from
+the upstream id, never from its body. It is never split, and the filer's weekly rewrite does not
+stop its lane run. A lane run that finds a design-changing take or adapt stops with
+`design-change`, which holds the issue for the owner, since the lane cannot file an issue. The
+"No hold label" and new "Admission with no owner step" bullets say so.
 
 ## [6.3.0] - 2026-11-16
 

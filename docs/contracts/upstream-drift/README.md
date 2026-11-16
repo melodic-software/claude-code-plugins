@@ -528,10 +528,12 @@ After a failed write the other upstreams still run, and the run then exits nonze
   id, never from the body, whose rows hold names and paths an upstream controls; every other
   admission criterion applies unchanged. The issue lane's run and pr-verify read that same
   template in place of the body. A vendored-copy (`pin=unknown`) issue has a different lead line,
-  so it is not trusted and waits for a session agent or a listed human's issue. Two author gates
-  do not read this rule yet and still turn a drift issue away: intake's
-  `.github/scripts/intake-triage/apply-verdict.mjs`, which writes no verdict, and the issue lane's
-  `.github/scripts/work-resolve-issue/check-blockers.mjs`; #14215 tracks them.
+  so it is not trusted and waits for a session agent or a listed human's issue. Every author gate
+  on the way (the sweep, intake's verdict write, admission, the issue lane's blocker check and its
+  `issue.json` writer) asks the same rule. A trusted drift issue is never split: admission takes it
+  at any Size and the lane runs it at the split-child size, since one template covers one
+  upstream's pages. The filer's weekly body rewrite between admission and the lane run does not
+  stop the run, which never reads the body; any other editor's change still does.
 - **`untracked` and `unreachable` block close.** An upstream with any `untracked` or
   `unreachable` page is never closed as clean,
   even beside a `clean` page, and since the report names it, the sweep leaves its issue alone too.
