@@ -10,8 +10,8 @@ name: Release Generate Dependabot Changelog Fragments
 # fragments, armed to auto-merge. The release pull request then takes them.
 #
 # It runs as the release GitHub App, never GITHUB_TOKEN: a pull request that
-# GITHUB_TOKEN opens or updates starts no `pull_request` runs, and this one needs
-# `ci-status`. The commit goes through createCommitOnBranch, which GitHub signs,
+# GITHUB_TOKEN opens or updates gets its `pull_request` runs only after
+# approval, and this one needs `ci-status` unattended. The commit goes through createCommitOnBranch, which GitHub signs,
 # so main's required_signatures rule accepts it (the pattern of
 # release-publish-plugins.yml). A fragment is named after its merge commit, so
 # a rerun writes nothing twice.
