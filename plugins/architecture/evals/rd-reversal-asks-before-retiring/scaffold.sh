@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# A service with two numbered decision records; 0002 chose GraphQL for the public API, and the
-# schema's first line cites it.
+# A service with two numbered decision records; 0002 chose GraphQL for the public API.
 set -euo pipefail
 
 git init -q -b main
