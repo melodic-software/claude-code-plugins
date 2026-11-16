@@ -277,7 +277,8 @@ fix the theme depends on; which browsers apply it is in the MDN pointer below.
 - **As of**: 2026-11-16
 - **Recheck trigger**: MDN's page changes its Baseline status or what `media` does, Next.js renames
   the `themeColor` field, the manifest page gains a per-scheme `theme_color`, or Apple retires the
-  archived guide.
+  archived guide or the Safari HTML Reference's meta tag page, or changes the status-bar style
+  keywords that page lists.
 
 Autofilled inputs get the browser's pale yellow or blue background regardless of theme; if that
 breaks a dark form, override it:
