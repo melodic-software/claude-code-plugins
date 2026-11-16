@@ -4,7 +4,7 @@ tags: [plugin-profiles, profile, setup, outcome]
 runs: 1
 max_turns: 30
 timeout_seconds: 600
-allowed_tools: [Skill, Bash, Read, Write, AskUserQuestion]
+allowed_tools: [Skill, Bash, Read, Write]
 expected_outcome: "Setup lists notes-hooks and draw with their skills, then asks whether notes-hooks is always on or per profile and stops there, saving nothing."
 ---
 
