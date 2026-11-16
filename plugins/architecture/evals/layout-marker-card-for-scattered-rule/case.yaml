@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: layout-marker-card-for-scattered-rule
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: cites-source-line
+    type: regex
+    pattern: 'ARCHITECTURE\.md:22'
+    target: 'last_message'
+  - name: routes-to-conventions
+    type: regex
+    pattern: '/architecture:improve conventions'
+    target: 'last_message'
+  - name: tax-file-kept
+    type: file_exists
+    path: 'lib/tax.ts'
+  - name: invoice-file-kept
+    type: file_exists
+    path: 'src/billing/invoice.ts'
+  - name: ledger-view-file-kept
+    type: file_exists
+    path: 'src/reports/ledger-view.ts'
+  - name: marker-card
+    type: llm
+    criteria: "PASS only if the reply states that src/billing/invoice.ts, src/reports/ledger-view.ts and lib/tax.ts share no folder and no file-name part, and presents a card for that rule proposing a shared file-name part (such as a common suffix or prefix) the rule could be enforced by. FAIL if it gives the rule no card, or proposes moving the files instead of a name marker."
