@@ -26,8 +26,8 @@ Sources, one adapter each:
               analyzer-pack-rule, of test-cmd a behavior-test, of build-cmd a
               compiler-setting
   test files  tracked files named *.test.*, *.spec.*, *_test.*, test_*.* or
-              *Tests.*, one behavior-test row per file (a unit of files, not
-              of test cases)
+              *Tests.*, outside fixtures and testdata directories, one
+              behavior-test row per file (a unit of files, not of test cases)
   control     .claude/skills/control-*/SKILL.md, a runtime-verification each
   review      statements of REVIEW.md, an automated-review each
   instruction statements of every tracked CLAUDE.md and AGENTS.md and of
@@ -249,7 +249,7 @@ else
   note "ecosystems: $eco_n record(s) read"
 fi
 
-tests="$(own_files | grep -E '(^|/)([^/]+\.test\.[^/]+|[^/]+\.spec\.[^/]+|[^/]+_test\.[^/]+|test_[^/]+\.[^/]+|[^/]*[a-z]Tests\.[^/]+)$' || true)"
+tests="$(grep -Ev '(^|/)(fixtures|testdata)/' "$work/files" | grep -E '(^|/)([^/]+\.test\.[^/]+|[^/]+\.spec\.[^/]+|[^/]+_test\.[^/]+|test_[^/]+\.[^/]+|[^/]*[a-z]Tests\.[^/]+)$' || true)"
 if [[ -n "$tests" ]]; then
   while IFS= read -r t; do emit "tests in $t" "$t" behavior-test; done <<<"$tests"
 fi
