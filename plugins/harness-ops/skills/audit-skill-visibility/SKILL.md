@@ -287,29 +287,38 @@ the same engine. It is not needed to get a report.
 Python 3.11+ is the only requirement. No third-party packages, matching
 `inventory.py` and `install_state.py`.
 
-### The skill-usage store the hooks write
+### The skill-usage store session-telemetry writes
 
-The hooks write `skill-usage.jsonl` where the `skill_usage_scope` and `skill_usage_dir` options
-say. Neither script here guesses that location: `audit_skill_visibility.py` takes it as
-`--skill-usage`, and `scripts/skill-pair-cooccurrence.sh` resolves it through the resolver the
-hooks themselves call. Hand it the rendered option values (a skill subprocess inherits no
-`CLAUDE_PLUGIN_OPTION_*` mirror), resolve once, pass the one path to both:
+session-telemetry's hooks write `skill-usage.jsonl` where its `skill_usage_scope` and
+`skill_usage_dir` options say, read through the session-telemetry data contract
+(`docs/contracts/session-telemetry-data/README.md` in the marketplace repository):
+
+!`node "${CLAUDE_PLUGIN_ROOT}/scripts/session-telemetry-state.mjs" 2>/dev/null || echo "session-telemetry state unknown: node did not run"`
+
+When those lines say session-telemetry is not enabled, say so in the report, print the install and
+enable lines they give as they are, and carry on: the visibility verdicts need no store, and a store
+earlier sessions left is still read below; a missing store reports as missing, as it always does.
+
+Neither script here guesses the store's location: `audit_skill_visibility.py` takes it as
+`--skill-usage`, and `scripts/skill-pair-cooccurrence.sh` resolves it through this plugin's copy of
+the resolver the hooks call. Hand it the `option skill_usage_scope` and `option skill_usage_dir`
+values and the `data_dir` line above (empty when no line names one), resolve once, pass the one path
+to both:
 
 ```bash
 STORE="$(bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/skill-pair-cooccurrence.sh" \
-  --scope "${user_config.skill_usage_scope}" --dir "${user_config.skill_usage_dir}" \
-  --data-root "${CLAUDE_PLUGIN_DATA}" --print-store)"
+  --scope "<skill_usage_scope>" --dir "<skill_usage_dir>" \
+  --data-root "<data_dir>" --print-store)"
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/audit_skill_visibility.py" \
   --skill-usage "$STORE"
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/skill-pair-cooccurrence.sh" \
   --store "$STORE" --pair <caller>,<callee>
 ```
 
-An empty or unrendered option value reads as its default, as it does in the hooks. `--data-root`
-is the `data-dir` scope's answer and the other two scopes ignore it, so the one call above serves
-all three. It is written out here rather than read from the environment because the script takes
-no `CLAUDE_PLUGIN_DATA` fallback: we treat the skill body's own expansion as the only trustworthy
-source. Which processes receive the variable is read live from
+An empty option value reads as its default, as it does in the hooks. `--data-root` is the
+`data-dir` scope's answer and the other two scopes ignore it, so the one call above serves all
+three. It is written out here rather than read from the environment because the script takes no
+`CLAUDE_PLUGIN_DATA` fallback, and this plugin's own data directory is not session-telemetry's. Which processes receive the variable is read live from
 [plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves).
 Flags, that reason, and missing-store behavior:
 [reference/pair-cooccurrence.md](reference/pair-cooccurrence.md).

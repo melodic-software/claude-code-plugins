@@ -340,8 +340,8 @@ else
 fi
 rm -f "$ABS10" "$OUT10"
 
-# --- Test 10b: HOOK_TELEMETRY_SINK=@harness-ops resolves to the launcher -------
-# harness-ops keeps <plugin data root>/harness-ops-<marketplace>/hook-telemetry-sink.sh.
+# --- Test 10b: HOOK_TELEMETRY_SINK=@session-telemetry (or @harness-ops) resolves to the launcher
+# session-telemetry keeps <plugin data root>/session-telemetry-<marketplace>/hook-telemetry-sink.sh.
 # A repository hook has no CLAUDE_PLUGIN_DATA, so the producer finds the data
 # root under CLAUDE_CONFIG_DIR, else $HOME/.claude; a plugin hook finds it
 # beside its own data directory.
@@ -361,7 +361,7 @@ emit_reserved() {
   (
     unset CLAUDE_PLUGIN_DATA CLAUDE_CONFIG_DIR
     for kv in "$@"; do export "${kv?}"; done
-    HOOK_TELEMETRY_SINK=@harness-ops hook::emit_telemetry "sample-hook" "PostToolUse" "ok" \
+    HOOK_TELEMETRY_SINK="${RESERVED:-@session-telemetry}" hook::emit_telemetry "sample-hook" "PostToolUse" "ok" \
       "$EPOCHREALTIME" '{"tool":"Write","file":"x.py"}' "$WORK/repo10b" 2>/dev/null
   )
   wait_for_sink "$out" "${EMIT_POLLS:-$SINK_POLLS}"
@@ -370,78 +370,104 @@ mkdir -p "$WORK/repo10b"
 
 CFG10b="$WORK/cfg10b"
 OUT10b1="$WORK/out10b1"
-put_launcher "$CFG10b/plugins/data/harness-ops-mkt" "$OUT10b1"
+put_launcher "$CFG10b/plugins/data/session-telemetry-mkt" "$OUT10b1"
 if emit_reserved "$OUT10b1" "CLAUDE_CONFIG_DIR=$CFG10b"; then
-  ok "@harness-ops: a repository hook finds the launcher under CLAUDE_CONFIG_DIR"
+  ok "@session-telemetry: a repository hook finds the launcher under CLAUDE_CONFIG_DIR"
 else
-  fail "@harness-ops: no envelope through the CLAUDE_CONFIG_DIR launcher"
+  fail "@session-telemetry: no envelope through the CLAUDE_CONFIG_DIR launcher"
 fi
 
 HOME10b="$WORK/home10b"
 OUT10b2="$WORK/out10b2"
-put_launcher "$HOME10b/.claude/plugins/data/harness-ops-mkt" "$OUT10b2"
+put_launcher "$HOME10b/.claude/plugins/data/session-telemetry-mkt" "$OUT10b2"
 if emit_reserved "$OUT10b2" "HOME=$HOME10b"; then
-  ok "@harness-ops: with no CLAUDE_CONFIG_DIR the launcher is found under \$HOME/.claude"
+  ok "@session-telemetry: with no CLAUDE_CONFIG_DIR the launcher is found under \$HOME/.claude"
 else
-  fail "@harness-ops: no envelope through the \$HOME/.claude launcher"
+  fail "@session-telemetry: no envelope through the \$HOME/.claude launcher"
 fi
 
 DATA10b="$WORK/data10b/plugins/data"
 OUT10b3="$WORK/out10b3"
-mkdir -p "$DATA10b/harness-ops-a" "$DATA10b/guardrails-mkt"
-put_launcher "$DATA10b/harness-ops-b" "$OUT10b3"
+mkdir -p "$DATA10b/session-telemetry-a" "$DATA10b/guardrails-mkt"
+put_launcher "$DATA10b/session-telemetry-b" "$OUT10b3"
 if emit_reserved "$OUT10b3" "CLAUDE_PLUGIN_DATA=$DATA10b/guardrails-mkt/" "CLAUDE_CONFIG_DIR=$WORK/elsewhere"; then
-  ok "@harness-ops: a plugin hook finds the launcher beside its own data dir, past a sibling with none"
+  ok "@session-telemetry: a plugin hook finds the launcher beside its own data dir, past a sibling with none"
 else
-  fail "@harness-ops: no envelope through the sibling launcher"
+  fail "@session-telemetry: no envelope through the sibling launcher"
 fi
 
 # The most recently refreshed launcher wins, even over the caller's own data
 # dir, so every producer picks the same install and its log root.
 OUT10b4="$WORK/out10b4"
 OUT10b4_stale="$WORK/out10b4-stale"
-put_launcher "$DATA10b/harness-ops-a" "$OUT10b4"
-put_launcher "$DATA10b/harness-ops-z" "$OUT10b4_stale"
-touch -t 203001010000 "$DATA10b/harness-ops-a/hook-telemetry-sink.sh"
-touch -t 202001010000 "$DATA10b/harness-ops-z/hook-telemetry-sink.sh"
-if emit_reserved "$OUT10b4" "CLAUDE_PLUGIN_DATA=$DATA10b/harness-ops-z"; then
-  ok "@harness-ops: the newest launcher wins, even over the caller's own"
+put_launcher "$DATA10b/session-telemetry-a" "$OUT10b4"
+put_launcher "$DATA10b/session-telemetry-z" "$OUT10b4_stale"
+touch -t 203001010000 "$DATA10b/session-telemetry-a/hook-telemetry-sink.sh"
+touch -t 202001010000 "$DATA10b/session-telemetry-z/hook-telemetry-sink.sh"
+if emit_reserved "$OUT10b4" "CLAUDE_PLUGIN_DATA=$DATA10b/session-telemetry-z"; then
+  ok "@session-telemetry: the newest launcher wins, even over the caller's own"
 else
-  fail "@harness-ops: the newest launcher was not chosen"
+  fail "@session-telemetry: the newest launcher was not chosen"
 fi
 if [[ -e "$OUT10b4_stale" ]]; then
-  fail "@harness-ops: the older launcher ran"
+  fail "@session-telemetry: the older launcher ran"
 else
-  ok "@harness-ops: the older launcher was not run"
+  ok "@session-telemetry: the older launcher was not run"
 fi
 
 DATAW10b="$WORK/dataw10b/plugins/data"
 OUT10b7="$WORK/out10b7"
 mkdir -p "$DATAW10b/guardrails-mkt"
-put_launcher "$DATAW10b/harness-ops-mkt" "$OUT10b7"
+put_launcher "$DATAW10b/session-telemetry-mkt" "$OUT10b7"
 if emit_reserved "$OUT10b7" "CLAUDE_PLUGIN_DATA=${DATAW10b}\\guardrails-mkt\\" "CLAUDE_CONFIG_DIR=$WORK/elsewhere"; then
-  ok "@harness-ops: a backslash CLAUDE_PLUGIN_DATA (Windows native) still finds the sibling launcher"
+  ok "@session-telemetry: a backslash CLAUDE_PLUGIN_DATA (Windows native) still finds the sibling launcher"
 else
-  fail "@harness-ops: a backslash CLAUDE_PLUGIN_DATA found no launcher"
+  fail "@session-telemetry: a backslash CLAUDE_PLUGIN_DATA found no launcher"
 fi
 
 CFGF10b="$WORK/cfgf10b"
 OUT10b8="$WORK/out10b8"
 mkdir -p "$WORK/lonely10b/plugins/data/guardrails-mkt"
-put_launcher "$CFGF10b/plugins/data/harness-ops-mkt" "$OUT10b8"
+put_launcher "$CFGF10b/plugins/data/session-telemetry-mkt" "$OUT10b8"
 if emit_reserved "$OUT10b8" "CLAUDE_PLUGIN_DATA=$WORK/lonely10b/plugins/data/guardrails-mkt" "CLAUDE_CONFIG_DIR=$CFGF10b"; then
-  ok "@harness-ops: with no sibling launcher a plugin hook falls through to the config dir"
+  ok "@session-telemetry: with no sibling launcher a plugin hook falls through to the config dir"
 else
-  fail "@harness-ops: no fall-through to the config dir"
+  fail "@session-telemetry: no fall-through to the config dir"
 fi
 
 OUT10b5="$WORK/out10b5"
-printf '#!/usr/bin/env bash\ncat >%q\n' "$OUT10b5" >"$WORK/repo10b/@harness-ops"
-chmod +x "$WORK/repo10b/@harness-ops"
+printf '#!/usr/bin/env bash\ncat >%q\n' "$OUT10b5" >"$WORK/repo10b/@session-telemetry"
+chmod +x "$WORK/repo10b/@session-telemetry"
 if EMIT_POLLS=25 emit_reserved "$OUT10b5" "CLAUDE_CONFIG_DIR=$WORK/empty-cfg"; then
-  fail "@harness-ops: with no launcher the value was joined onto the repo root and run"
+  fail "@session-telemetry: with no launcher the value was joined onto the repo root and run"
 else
-  ok "@harness-ops: with no launcher nothing is sent (fail-open)"
+  ok "@session-telemetry: with no launcher nothing is sent (fail-open)"
+fi
+
+# @harness-ops stays valid wiring: it resolves through the same session-telemetry
+# launcher. A launcher an older harness-ops left in its own data dir is not run.
+CFGH10b="$WORK/cfgh10b"
+OUT10b9="$WORK/out10b9"
+OUT10b9_old="$WORK/out10b9-old"
+put_launcher "$CFGH10b/plugins/data/session-telemetry-mkt" "$OUT10b9"
+put_launcher "$CFGH10b/plugins/data/harness-ops-mkt" "$OUT10b9_old"
+touch -t 203001010000 "$CFGH10b/plugins/data/harness-ops-mkt/hook-telemetry-sink.sh"
+if RESERVED=@harness-ops emit_reserved "$OUT10b9" "CLAUDE_CONFIG_DIR=$CFGH10b"; then
+  ok "@harness-ops: resolves to the session-telemetry launcher"
+else
+  fail "@harness-ops: no envelope through the session-telemetry launcher"
+fi
+if [[ -e "$OUT10b9_old" ]]; then
+  fail "@harness-ops: a harness-ops data-dir launcher ran"
+else
+  ok "@harness-ops: a harness-ops data-dir launcher is not run, even when newer"
+fi
+OUT10b10="$WORK/out10b10"
+put_launcher "$WORK/cfgh10b-old/plugins/data/harness-ops-mkt" "$OUT10b10"
+if RESERVED=@session-telemetry EMIT_POLLS=25 emit_reserved "$OUT10b10" "CLAUDE_CONFIG_DIR=$WORK/cfgh10b-old"; then
+  fail "@session-telemetry: a harness-ops launcher alone was run"
+else
+  ok "@session-telemetry: with only a harness-ops launcher nothing is sent (fail-open)"
 fi
 
 OUT10b6="$WORK/out10b6"

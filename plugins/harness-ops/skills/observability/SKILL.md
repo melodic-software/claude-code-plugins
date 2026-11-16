@@ -28,13 +28,18 @@ separate body Bash calls rather than pre-compute lines ([gather-block convention
 ## Pre-computed context
 
 ccusage availability: !`command -v npx >/dev/null 2>&1 && echo "npx present" || echo "npx MISSING"`
-Rendered options (empty or unrendered means the manifest default): root `${user_config.session_event_log_dir}`; enabled `${user_config.session_event_log_enabled}`; categories `${user_config.session_event_log_categories}`; keep-sessions `${user_config.session_log_keep_sessions}`; keep-days `${user_config.session_log_keep_days}`; pre-prune-command `${user_config.session_log_pre_prune_command}`
+session-telemetry, whose hooks write the hook log root and the skill-usage store (docs/contracts/session-telemetry-data in the marketplace repository): !`node "${CLAUDE_PLUGIN_ROOT}/scripts/session-telemetry-state.mjs" 2>/dev/null || echo "session-telemetry state unknown: node did not run"`
 Hook event log, then the logging pipeline's six rows (default root, observed state only): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --hook-events 2>/dev/null || echo "event count unknown"; bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --pipeline --observed 2>/dev/null || echo "pipeline unknown"`
 
-That line's two probes carry no option and print no option tier. The section 2.6 re-run
-(data-sources.md), fed the rendered values above as flags, is the one place the options render:
-run it before reading either probe's output into a report, and pass `--root` when the rendered
-root is not the default.
+Those lines give each session-telemetry option as `option <key>=<value>`: the value its hooks last ran
+with, else its default. When they say session-telemetry is not enabled, say so at the top of the
+report, print the install and enable lines they give as they are, and carry on: every report below
+reads the records earlier sessions left, and the OTEL and ccusage sources do not depend on it.
+
+The hook-event probes carry no option and print no option tier. The section 2.6 re-run
+(data-sources.md), fed the option values above as flags, is the one place the options apply:
+run it before reading either probe's output into a report, and pass `--root` when
+`option session_event_log_dir` is not the default.
 OTEL collector :4318: !`bash -c 'source "${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/net-probe.sh" && port_status 4318' 2>/dev/null || echo unknown`
 OTEL store: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --otel-store 2>/dev/null || echo "unknown"`
 
@@ -298,10 +303,10 @@ Pointer: for where a `${…}` reference resolves, see
 ## Gotchas
 
 - Empty stores are normal on first run. Degrade gracefully
-- **No `${user_config.*}` inside a pre-compute command.** We render `${user_config.*}` values only in plain skill content, never on a shell line: a placeholder left unrendered on a shell line is a bash `bad substitution`, and we treat one failed pre-compute line as aborting the whole invocation. The options render as plain content above the probe lines; the probe lines pass none and print no option tier (`--observed`), so a manifest default never appears where an effective value belongs; the model hands the rendered values to the probe through its own Bash call, the one place the options render. Pointer: for where `${user_config.*}` renders, see <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>; for what a failed pre-compute line does, see <https://code.claude.com/docs/en/skills#when-an-injected-command-fails>.
+- **The hook-logging options are session-telemetry's.** This skill cannot render them as `${user_config.*}`, which names only this plugin's options, so `scripts/session-telemetry-state.mjs` prints them from session-telemetry's `options.json`; every pre-compute line ends in an `|| echo` fallback, since we treat one failed pre-compute line as aborting the whole invocation. The hook-event probe lines pass no option and print no option tier (`--observed`), so a manifest default never appears where an effective value belongs; the model hands the option values to the probe through its own Bash call, the one place the options apply. Pointer: for what a failed pre-compute line does, see <https://code.claude.com/docs/en/skills#when-an-injected-command-fails>.
 - **The pipeline line names two tiers.** `envelope:` counts rows the telemetry sink wrote for the audit hooks, across `sessions/*.jsonl` (rows marked `source: "envelope"`) and the whole shared `hook-events.jsonl` plus its rotated `hook-events.jsonl.1` (the legacy shape for a hook payload with no session id); those follow the per-hook audit toggles and never the event-log switch. `event log:` is the switch. `event log: off` beside a populated root is the normal state, not a contradiction
 - **`session_id` joins only per-session files**. Rows in `sessions/<id>.jsonl` carry the id; rows in the shared `hook-events.jsonl` do not, and are never attributed to a session (say "legacy rows, shared file, time proximity only"). OTEL rows join on `session_id`; `cwd` + `branch` + time proximity is the fallback for a producer that sends none. We treat `session_id` as present on every hook input, so a row without one comes from a producer that dropped it, never from the harness. Pointer: <https://code.claude.com/docs/en/hooks#common-input-fields>. As of: 2026-09-06, Claude Code 2.1.263. Recheck trigger: the common input fields drop `session_id`
-- **Per-hook duration per session covers producers that emit `data.session_id`** (the nine harness-ops audit hooks). Other hooks appear in the whole-root tables only
+- **Per-hook duration per session covers producers that emit `data.session_id`** (session-telemetry's audit hooks and plugin-diagnostics' hook-failure audit). Other hooks appear in the whole-root tables only
 - **Row order is write order, not fire order**. Within one second, group by `prompt_id` or `tool_use_id`, not by adjacency. How an event's hooks are scheduled: the hook-handler-fields pointer in the `hooks` row above
 - **Stop is a per-turn event, not a session boundary**. We treat Stop as firing once per turn, so a session with many turns emits many Stop rows, and `SessionEnd` as the session boundary. Aggregate per session on `SessionEnd`, never on Stop. Pointer: <https://code.claude.com/docs/en/hooks#hook-lifecycle>.
 - **`cc_spans` / `cc_traces`**. Views skip bind until `cc-traces.json` has content

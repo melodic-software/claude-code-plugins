@@ -38,7 +38,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/skill-pair-cooccurrence.sh"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-WRITER="$PLUGIN_ROOT/hooks/skill-usage-audit.sh"
+WRITER="$PLUGIN_ROOT/../session-telemetry/hooks/skill-usage-audit.sh"
 
 FAILED=0
 CASE_NUM=0
