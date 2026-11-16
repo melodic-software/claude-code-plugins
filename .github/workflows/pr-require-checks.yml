@@ -2891,6 +2891,10 @@ jobs:
         if: needs.select-tests.outputs.run_tests == 'true'
         run: scripts/check-cross-plugin-source-drift.sh --check
 
+      - name: Check that no plugin loads a file from a sibling plugin
+        if: needs.select-tests.outputs.run_tests == 'true'
+        run: scripts/check-plugin-imports.sh
+
       # Counter ceilings from .performance/ratchets.json: each counter's command
       # runs and the step fails when one rises above its checked-in ceiling.
       # Counters only, never durations, so the answer does not move with runner

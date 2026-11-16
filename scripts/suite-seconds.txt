@@ -801,6 +801,7 @@ scripts/check-manifest-duplicate-keys.test.sh 1
 scripts/check-orphaned-fixtures.test.sh 1
 scripts/check-pipefail-grep-q.test.sh 1
 scripts/check-plugin-catalog-enablement.test.sh 1
+scripts/check-plugin-imports.test.sh 1
 scripts/check-plugin-manifest-presence.test.sh 1
 scripts/check-publisher-token-alignment.test.sh 1
 scripts/check-purged-em-dashes.test.sh 2

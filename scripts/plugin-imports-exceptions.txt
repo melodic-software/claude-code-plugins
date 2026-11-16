@@ -1,0 +1,10 @@
+# Accepted crossings of the boundary rule scripts/check-plugin-imports.sh enforces,
+# one line per file and sibling plugin:
+#   <path> <sibling plugin> <date accepted> <reason>
+# Each is a test that holds two plugins to one contract, where a copy in the
+# test's own plugin would stop checking the other side. A `#` starts a comment,
+# so a reason never holds one.
+plugins/harness-ops/skills/lanes/scripts/restart-consumer.test.sh work-items 2026-11-16 agreement gate: the restart consumer and the morning brief must carry the same telemetry discovery literals and search limit
+plugins/plugin-quality/scripts/zones-inline-drift.test.sh context-usage 2026-11-16 agreement gate: the inline zone floor must match the context-usage reader contract that owns it
+plugins/repo-fleet-hygiene/skills/apply/scripts/apply-plan.test.sh guardrails 2026-11-16 agreement gate: the lease-guarded delete apply-plan prints must pass the real block-dangerous-git hook, and an abbreviated lease must not
+plugins/repo-fleet-hygiene/skills/sync/scripts/sync-fleet.test.sh source-control 2026-11-16 integration: sync-fleet is handed worktree-create.sh by --worktree-create, and the test runs the real helper, its exit-3 refusal included
