@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": "No mutation-testing config exists, so the run falls back to tool: manual. What is the test command for this repo?",
+      "why": "direct question"
+    },
+    {
+      "answer": "Which command runs your tests? I would propose `python3 -m unittest {tests}`.",
+      "why": "which ... command ...?"
+    },
+    {
+      "answer": "Please confirm the test command `python3 -m unittest tests/test_calc.py` and I will run the baseline.",
+      "why": "propose and confirm"
+    },
+    {
+      "answer": "Tell me the test command to use.",
+      "why": "request, no question mark"
+    },
+    {
+      "answer": "I need a test command before I can run the baseline.",
+      "why": "states the need"
+    },
+    {
+      "answer": "The test command I'd use is below.\n\nIf you confirm this or give me the right command, I'll run the suite once.",
+      "why": "proposes, then asks across a line break"
+    },
+    {
+      "answer": "The audit won't guess a test command, so I need you to confirm one.",
+      "why": "refuses to guess"
+    },
+    {
+      "answer": "Reply \"yes\" or give me a different command and I'll run it.",
+      "why": "yes-or-other request"
+    },
+    {
+      "answer": "Should I use `python -m unittest tests/test_calc.py`, or does this project use a different command (e.g. `pytest`)?",
+      "why": "asks to confirm a proposed command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Ran the test command `python3 -m unittest`: 2 tests passed.",
+      "why": "ran it, asked nothing"
+    },
+    {
+      "answer": "Mutation score: 50%. Which mutants survived? The `>=` to `>` change on line 2.",
+      "why": "rhetorical question about mutants"
+    },
+    {
+      "answer": "Test command: `python3 -m unittest` (fallback). Run complete.",
+      "why": "states a guessed command"
+    },
+    {
+      "answer": "I guessed the test command `python3 -m unittest` and ran it. 2 tests passed.",
+      "why": "guessed and ran"
+    },
+    {
+      "answer": "You'd need this command to rerun: `python3 -m unittest`.",
+      "why": "mentions need and command, asks nothing"
+    }
+  ]
+}

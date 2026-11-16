@@ -19,8 +19,17 @@
 //   gate), including once a wait admission left on it has cleared.
 //
 // The needs-triage floor label is no triage label: it lands on open whether
-// or not intake runs. github-actions[bot] issues are left out: the lane
-// sweep's can quote fork-controlled log lines. Per issue, one comment holds the runs
+// or not intake runs. github-actions[bot] issues are left out (the lane
+// sweep's can quote fork-controlled log lines), but for a trusted
+// upstream-drift issue (admit.mjs driftIssueId): its shape is read from the
+// listing (driftShaped) and its edit history from one GraphQL read before
+// anything else, and one that fails it is skipped. An issue a workflow's
+// GITHUB_TOKEN opens starts no intake run, so this dispatch is a drift
+// issue's only way in. Its body's rows still reach intake's triage model:
+// the ci-workflows reusable reads the body itself, and its rows name paths
+// and file names the upstream repository chooses. That model has no tools
+// and writes only allowlisted labels and fields, and the issue lane and
+// pr-verify read driftSpecText, never the body. Per issue, one comment holds the runs
 // dispatched and, once read, how each ended; after 2 that reached intake and left it untriaged (a run the
 // kill switch or a gate skipped before intake does not count, up to 6
 // dispatches, and nor do the first 24 whose verdict stopped on a GitHub 5xx,
@@ -50,6 +59,7 @@ import { pathToFileURL } from "node:url";
 import { BORN_TRIAGED_MARKER, humanIds, readRouting, ROUTING_DEFAULTS, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { budgetedCall, createBudget } from "./collect.mjs";
+import { driftIssueId, driftShaped, specOf } from "../intake-triage/admit.mjs";
 import { UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { loadTrustedActors, statusLabels as labelsByField } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
@@ -131,7 +141,7 @@ export function selectCandidates({ issues, now, authorIds, statusLabels = new Ma
     return !labels.some((n) => TRIAGED.test(n)) || bornReady(i, labels);
   };
   return issues
-    .filter((i) => !i.pull_request && authorIds.has(String(i.user?.id)) && untriagedOrReady(i) && now - new Date(i.created_at) >= MIN_AGE_MS)
+    .filter((i) => !i.pull_request && (authorIds.has(String(i.user?.id)) || driftShaped(i)) && untriagedOrReady(i) && now - new Date(i.created_at) >= MIN_AGE_MS)
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at) || a.number - b.number);
 }
 
@@ -411,6 +421,10 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     if (checked >= MAX_CHECKED) break;
     if (result.dispatched.length >= MAX_DISPATCHES && result.handed.length >= MAX_HANDED) break;
     try {
+      if (!authorIds.has(String(issue.user?.id)) && driftIssueId(await specOf(call, repo, number)) === null) {
+        console.log(`triage-sweep: #${number} skipped: it has the drift-issue shape, but someone other than github-actions[bot] last edited it`);
+        continue;
+      }
       const comments = [];
       let full = false;
       for (let page = 1; page <= COMMENT_PAGES; page += 1) {

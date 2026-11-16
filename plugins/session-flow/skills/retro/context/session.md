@@ -301,7 +301,10 @@ docs lookup the catalog below describes. Never recommend features from training-
 
 **Load the catalog.** Read `<plugin-root>/skills/retro/reference/ecosystem-improvement-catalog.md`
 before filling the table, and put each finding through its "Check first" step before choosing a
-target: a finding a check could decide gets a check row, not a CLAUDE.md or rules row. With the
+target: a finding a check could decide gets a check row and no `CLAUDE.md`, `AGENTS.md` or rules
+line in any form (a row, a sentence or a Phase 4 option), not even as a fallback for a check that
+is withheld or declined. A withheld check goes under "Queue for follow-up"; a declined one becomes
+an unapplied finding at Phase 4. With the
 `corrections` plugin enabled, a new check's row has as its action
 `/corrections:codify "<the mistake>"`, run only after the user picks the row at Phase 4: the retro
 neither makes that call while filling the table nor offers to write that check. The placement
@@ -391,7 +394,7 @@ score; until such a set exists for a surface, every change to it waits for the p
 - **Personal (not committed):** proposed auto-memory entries, created only on approval
 - **Project (already validated this session):** rule/instruction-file updates codifying what
   happened (a gotcha discovered through failures, a convention established through implementation).
-  Apply on approval
+  Apply on approval. A finding with a check row has no line here
 - **Queue for follow-up (needs further research):** recommendations beyond what this session
   validated. List them; do not make those changes now
 

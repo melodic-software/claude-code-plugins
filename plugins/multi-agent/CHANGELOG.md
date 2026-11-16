@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.0] - 2026-11-16
+
+### Added
+
+- The fan-out guard section now asks for one pilot worker and a check that plan usage remains before a fan-out wider than about four workers, since a usage limit reached mid-fan-out stops every worker at once.
+
 ## [3.0.7] - 2026-11-16
 
 ### Changed
