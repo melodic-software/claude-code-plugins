@@ -165,5 +165,5 @@ escalation rules.
 The proven manual pattern at class level is the operator-run cadence pass over report-only
 drift detectors: report-only drift-watch rows already carried in a consumer's recurring
 schedule, and the recurring-wiring guidance the enforcement-surface lane gives for its own
-repeat runs. Said plainly: no run record exists yet for these three lanes together. The `v1`
+repeat runs. No run record exists yet for these three lanes together. The `v1`
 status rests on the class-level pattern, not on a logged run of this fan-out.
