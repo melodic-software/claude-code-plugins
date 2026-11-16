@@ -58,9 +58,10 @@ nothing until you say yes. An accepted boundary rule goes into the
 `/corrections:codify`, and a paved-path entry goes to
 `/discipline:reuse-or-replace`, which asks before it writes.
 
-The three lenses take their shared steps (base freshness, scope, the
-convention home, memory-tier writes, badge bands, the hand-off) the same way,
-from one plugin reference, `reference/improvement-steps.md`.
+The three lenses and `improve-layout` below take their shared steps (base
+freshness, scope, the convention home, memory-tier writes, badge bands, the
+hand-off) the same way, from one plugin reference,
+`reference/improvement-steps.md`.
 
 A separate skill, `/architecture:improve-layout`, checks whether the files that
 change together live together. A tested script reads your git history once and
