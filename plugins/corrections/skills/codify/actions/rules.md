@@ -65,7 +65,7 @@ A person's invocation writes it to `.work/codify/<branch-slug>/<UTC-timestamp>-r
 (section 6's slug and `.gitignore` rule), then runs, from the repository root:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/rules-ledger.mjs" <ledger path>
+node "<plugin-root>/scripts/rules-ledger.mjs" <ledger path>
 ```
 
 Exit 0 means every rule is accounted for. Exit 1 lists each rule dropped or left incomplete: fix
@@ -74,7 +74,9 @@ invocation writes nothing and presents the ledger in the report, saying it was n
 
 A person's invocation also writes one proposal per input file that has a `check` row,
 `<UTC-timestamp>-rules-<file slug>-proposal.md`, holding every check row from that file with what
-section 6 lists for each. The prose deletions go in the same proposal, so the check and the
+section 6 lists for each: a rule the check needs written ships with valid and invalid test cases in
+the tool's own rule-test harness, found at run time
+([adding-a-team-rule.md](../reference/adding-a-team-rule.md#a-custom-rule-ships-with-its-tests)). The prose deletions go in the same proposal, so the check and the
 deletion land together. This action edits no instruction file.
 
 ## 6. Report

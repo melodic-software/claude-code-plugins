@@ -32,7 +32,11 @@ A rule codify proposes to write (on `custom-analyzer` or `syntax-pattern-rule`, 
 - **Invalid cases**: code the rule must report, at least the known cases it was written for.
 - **Valid cases**: code the rule must leave alone, at least each legitimate use step 1 found.
 - **The tool's own harness**: the cases run in the rule-test harness the analyzer or linter ships,
-  where it has one; otherwise in the repository's own test runner.
+  where it has one; otherwise in the repository's own test runner. Find the harness at run time:
+  first from the repository (its existing rule tests and the tool's configuration), then from the
+  tool's current documentation, through `/discovery:research` when the repository does not settle
+  it. The proposal names the harness it found, with where it found it, and lists the valid and
+  invalid cases under those words.
 
 The proposal also states what the rule does not catch, so no one reads it as complete. Name each
 gap that applies to the rule's matching: an aliased or renamed import, a computed or dynamic member
