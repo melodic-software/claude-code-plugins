@@ -38,7 +38,6 @@ const fixed = {
   renLost: "Lost the item on renew",
 };
 
-// The leases are listed and judged by the claim, the renew and the release alike.
 const judging = { claim: "Lease posted", renew: "Renewing", release: "Releasing" };
 
 const word = (v, c) => {
