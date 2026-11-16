@@ -131,6 +131,22 @@ class SkillStackFencesTest(unittest.TestCase):
         self.stage()
         self.assertEqual(self.counts(), {SKILL: 2})
 
+    def test_blockquote_closer_does_not_close_a_top_level_fence(self) -> None:
+        self.write(
+            SKILL,
+            "```markdown\n> ```python\n> x = 1\n> ```\n```\n\n```python\nx = 1\n```\n",
+        )
+        self.stage()
+        self.assertEqual(self.counts(), {SKILL: 1})
+
+    def test_blockquote_fence_closes_only_on_a_blockquote_closer(self) -> None:
+        self.write(
+            SKILL,
+            "> ```python\n> x = 1\n```\n> ```\n\n```go\nx\n```\n",
+        )
+        self.stage()
+        self.assertEqual(self.counts(), {SKILL: 2})
+
     def test_fences_inside_another_fence_are_content(self) -> None:
         self.write(
             SKILL,

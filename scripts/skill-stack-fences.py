@@ -23,9 +23,11 @@ block (`!`), and the queries and patterns skills run against their own data
 edit here. An untagged fence does not count. Fences follow CommonMark: an
 opening run of three or more backticks or tildes at any indent, closed by a
 run of the same character at least as long with nothing after it; a fence
-inside another fence is content and does not count. Container prefixes come
-off before an opener or a closer is matched: any mix of blockquote markers
-(`>`), list markers (`-`, `*`, `+`, `1.`, `1)`) and their indentation.
+inside another fence is content and does not count. An opener may follow any
+mix of blockquote markers (`>`), list markers (`-`, `*`, `+`, `1.`, `1)`) and
+their indentation. A closer may carry only indentation and exactly the
+opener's number of `>` markers; any other line, a list marker included, is
+content of the open fence.
 
 Exit 0 with the lines printed; 2 when git cannot list files or no file is in
 scope, because a count of nothing would pass any ceiling.
@@ -60,7 +62,8 @@ SKIPPED_DIRS = frozenset(
     {"evals", "tests", "test", "__tests__", "fixtures", "testdata", "vendor"}
 )
 CONTAINER_PREFIX = r"(?:\s*(?:>|[-*+](?=\s)|\d{1,9}[.)](?=\s)))*\s*"
-OPENING = re.compile(rf"^{CONTAINER_PREFIX}(`{{3,}}|~{{3,}})(.*)$")
+OPENING = re.compile(rf"^({CONTAINER_PREFIX})(`{{3,}}|~{{3,}})(.*)$")
+CLOSING = re.compile(r"^([\s>]*)(`{3,}|~{3,})\s*$")
 
 
 def fail(message: str) -> int:
@@ -87,23 +90,26 @@ def tag_of(info: str) -> str:
 def count_fences(text: str) -> int:
     count = 0
     fence = ""
+    quote_depth = 0
     for line in text.splitlines():
-        match = OPENING.match(line)
         if fence:
+            closing = CLOSING.match(line)
             if (
-                match
-                and match.group(1)[0] == fence[0]
-                and len(match.group(1)) >= len(fence)
-                and not match.group(2).strip()
+                closing
+                and closing.group(1).count(">") == quote_depth
+                and closing.group(2)[0] == fence[0]
+                and len(closing.group(2)) >= len(fence)
             ):
                 fence = ""
             continue
+        match = OPENING.match(line)
         if not match:
             continue
-        marker, info = match.groups()
+        prefix, marker, info = match.groups()
         if marker[0] == "`" and "`" in info:
             continue
         fence = marker
+        quote_depth = prefix.count(">")
         tag = tag_of(info)
         if tag and tag not in EXCLUDED_TAGS:
             count += 1
