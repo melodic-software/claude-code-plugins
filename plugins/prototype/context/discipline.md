@@ -32,7 +32,7 @@ examples.
 | The person driving it | 1 | **Starts with one command** | The user has to find a file path or a flag before the loans prototype runs, instead of one entry in the project's existing task runner |
 | | 2 | **State in full view** | After a key press, a click or a variant switch, a value changed that the screen does not show, such as a fine that grew while only the due date was printed |
 | The code itself | 3 | **Memory only, unless storage is the question** | Loan state is still there after the process exits. Only when storage behavior is what is being tested does a store exist, and then its name says it may be wiped, such as `prototype-scratch.sqlite` |
-| | 4 | **No polish** | Time went into shared helpers, test files or error handling beyond what keeps it running; each one slows the next change, and a prototype exists to be changed |
+| | 4 | **No polish** | Time went into shared helpers, test files or error handling beyond what keeps it running; each one slows the next change, and the next change is the point |
 | Whoever comes later | 5 | **Marked as disposable from the start** | A reader who opens `src/loans/renewal.prototype.ts` or the `/shipments` variant folder cannot tell it is not production code, or it sits in a new top-level directory instead of next to the code it would replace, inside the project's existing layout and routing |
 | | 6 | **Delete or absorb when done** | Code is removed before the answer, including more than the winner (see [When done](#when-done)), is written down |
 
@@ -161,5 +161,5 @@ repository's own secrets and machine-data check, and pushes only when that check
 
 Ordering note: **mock before you wire**. When a change has both a "does the interaction work"
 question and real integration work, run the throwaway mock (this plugin) before any wiring. A
-mock that fails kills the wiring work for free; wiring first means every wrong design guess
-has to be reworked in live code.
+mock that fails kills the wiring work for free; wiring first turns every design misfire into
+rework of live code.

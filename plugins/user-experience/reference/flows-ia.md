@@ -62,8 +62,8 @@ evidence ([nng-task-analysis]).
     <https://baymard.com/research-articles/checkout-flow-average-form-fields>.
 - **Errors at every step boundary.** Give a clearly marked way out of an unwanted action, and
   prevent error-prone conditions or confirm before the person commits. Error pages: explain what
-  went wrong and offer a specific recovery action. An error page that says only "Something went wrong" and offers a back button
-  leaves people nowhere to go, and a specific message with a recovery action lets them continue. These are Nielsen's heuristics
+  went wrong and offer a specific recovery action. "Something went wrong" + a back button ends the
+  journey; specificity continues it. These are Nielsen's heuristics
   3, 5 and 9; the heuristic set itself belongs to
   `/user-interface:design` when enabled. Basis: [nng-heuristics], HIGH (single source); treating
   them as flow-level checks is judgment over MEDIUM evidence.
@@ -80,7 +80,7 @@ evidence ([nng-task-analysis]).
   `reference/first-run.md` `## First-use empty states` covers the empty state a new person sees.
   Basis: judgment.
 - **First value over a tour.** Onboarding that creates the user's first item in one step beats an
-  8-stop feature tour. The tour only explains the product, while the first item already gives the person something usable. Basis: judgment;
+  8-stop feature tour. The tour teaches the product; the shortcut delivers value. Basis: judgment;
   `reference/first-run.md` has the rest of the first-run flow.
 - **Leaving is as easy as joining.** A cancel, unsubscribe or delete path takes no more steps than
   the sign-up did. Basis: judgment; `reference/evaluation.md` `## Fair-choice check` has the full
