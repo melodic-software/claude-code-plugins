@@ -17,6 +17,10 @@
     {
       "answer": "1. `/toolchain:check`\n2. `/review:quality-gate`",
       "why": "no mutation run"
+    },
+    {
+      "answer": "1. `/review:quality-gate`\n2. `/mutation-testing:audit --persist-findings`\n3. Survivors go to `/review:fanout fix`.",
+      "why": "review listed first, mentioned again after the audit"
     }
   ]
 }

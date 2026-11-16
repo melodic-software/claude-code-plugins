@@ -18,7 +18,7 @@ graders:
     target: last_message
   - name: audit-before-review
     type: regex
-    pattern: '\bmutation-testing:audit\b[\s\S]*?\breview\b'
+    pattern: '^(?:(?!\breview\b)[\s\S])*?\bmutation-testing:audit\b[\s\S]*?\breview\b'
     flags: i
     target: last_message
   - name: score-does-not-block

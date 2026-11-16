@@ -3,6 +3,10 @@
     {
       "answer": "export class RefundError extends Error {}\n\nexport async function refundOrder({ gateway, logger, metrics }, orderId) {\n  const log = logger.child({ orderId });\n  try {\n    await gateway.refund(orderId);\n  } catch (err) {\n    log.error({ err }, \"payment gateway refused refund\");\n    throw new RefundError(\"refund failed\", { cause: err });\n  }\n  metrics.count(\"refunds\");\n  log.info({ event: \"order.refunded\" }, \"order refunded\");\n}\n",
       "why": "fields object and constant message"
+    },
+    {
+      "answer": "export class RefundError extends Error {}\n\nexport async function refundOrder({ gateway, logger, metrics }, orderId) {\n  const log = logger.child({ orderId });\n  try {\n    await gateway.refund(orderId);\n  } catch (err) {\n    log.error({ err }, \"payment gateway refused refund\");\n    throw new RefundError(\"refund failed\", { cause: err });\n  }\n  metrics.count(\"refunds\");\n  log.info({ event: \"order.refunded\" }, `order refunded`);\n}\n",
+      "why": "constant template literal as the message"
     }
   ],
   "fail": [
@@ -13,6 +17,14 @@
     {
       "answer": "export class RefundError extends Error {}\n\nexport async function refundOrder({ gateway, logger, metrics }, orderId) {\n  const log = logger.child({ orderId });\n  try {\n    await gateway.refund(orderId);\n  } catch (err) {\n    log.error({ err }, \"payment gateway refused refund\");\n    throw new RefundError(\"refund failed\", { cause: err });\n  }\n  metrics.count(\"refunds\");\n  log.info(\"order \" + orderId + \" refunded\");\n}\n",
       "why": "concatenated message"
+    },
+    {
+      "answer": "export class RefundError extends Error {}\n\nexport async function refundOrder({ gateway, logger, metrics }, orderId) {\n  const log = logger.child({ orderId });\n  try {\n    await gateway.refund(orderId);\n  } catch (err) {\n    log.error({ err }, \"payment gateway refused refund\");\n    throw new RefundError(\"refund failed\", { cause: err });\n  }\n  metrics.count(\"refunds\");\n  log.info({ event: \"order.refunded\" }, `order ${orderId} refunded`);\n}\n",
+      "why": "interpolated message after the fields object"
+    },
+    {
+      "answer": "export class RefundError extends Error {}\n\nexport async function refundOrder({ gateway, logger, metrics }, orderId) {\n  const log = logger.child({ orderId });\n  try {\n    await gateway.refund(orderId);\n  } catch (err) {\n    log.error({ err }, \"payment gateway refused refund\");\n    throw new RefundError(\"refund failed\", { cause: err });\n  }\n  metrics.count(\"refunds\");\n  log.info({ event: \"order.refunded\" }, \"order \" + orderId + \" refunded\");\n}\n",
+      "why": "concatenated message after the fields object"
     }
   ]
 }

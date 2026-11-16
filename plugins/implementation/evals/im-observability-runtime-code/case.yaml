@@ -35,7 +35,7 @@ graders:
     target: { source: file, path: src/app.js }
   - name: fields-not-built-strings
     type: regex
-    pattern: '\.(?:debug|info|warn|error)\(\s*(?:`|["''][^"''\n]*["'']\s*\+)'
+    pattern: '\.(?:debug|info|warn|error)\(\s*(?:`|["''][^"''\n]*["'']\s*\+|\{[^}]*\}\s*,\s*(?:`[^`]*\$\{|["''][^"''\n]*["'']\s*\+))'
     match: not_contains
     target: { source: file, path: src/refunds.js }
   - name: error-logged-with-object
