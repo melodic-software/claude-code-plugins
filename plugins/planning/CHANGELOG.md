@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.4.2] - 2026-11-16
+
+### Changed
+
+- `shared/web/proto-pin.js`, the generated copy of `lib/ui-feedback/proto-pin.js`, adds control
+  values to its view snapshot and answers the notes host's Controls tab, both only on a page that
+  carries the controls runtime. The prototype page loads no controls runtime and ignores the
+  ready message's new fields and the new content message, so it behaves as before.
+
 ## [5.4.1] - 2026-11-15
 
 ### Changed
