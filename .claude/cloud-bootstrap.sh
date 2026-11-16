@@ -520,6 +520,13 @@ fetch_release_tool() {
 fetch_release_tool shellcheck \
   "https://github.com/koalaman/shellcheck/releases/download/${shellcheck_pin}/shellcheck-${shellcheck_pin}.linux.x86_64.tar.xz" \
   "$shellcheck_sha" "shellcheck-${shellcheck_pin}/shellcheck"
+# fetch_release_tool keeps a tool already on PATH, so a restored snapshot that
+# holds upstream actionlint would never get the fork: remove a non-fork binary
+# from the bin directory first. The fork's version line names kjanat.
+if command -v actionlint >/dev/null 2>&1 &&
+  [[ "$(actionlint -version 2>/dev/null | head -n 1)" != *kjanat* ]]; then
+  rm -f "$bin_dir/actionlint"
+fi
 fetch_release_tool actionlint \
   "https://github.com/kjanat/actionlint/releases/download/v${actionlint_pin}/actionlint_${actionlint_pin}_linux_amd64.tar.gz" \
   "$actionlint_sha" "actionlint"
