@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.35.3] - 2026-11-16
+
+### Fixed
+
+- skill-authoring's structured-output rule now says each style example pair shows the input it came from beside the output, labeled apart, and that a `Bad:`/`Good:` contrast of two outputs is not such a pair.
+
 ## [0.35.2] - 2026-11-16
 
 ### Changed
