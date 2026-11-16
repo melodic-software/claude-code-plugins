@@ -115,6 +115,10 @@ pair "a Python comment" "$A/a.py" '# LIB = Path(__file__).resolve().parents[2] /
 pair "a path with no anchor, held as data" "$A/a.mjs" 'const path = "reference/../../beta/lib/x.mjs";' 'import { x } from "../../beta/lib/x.mjs";' plugins/beta/lib/x.mjs
 pair "a glob held as data" "$A/a.py" 'PATHS = ("plugins/beta/lib/**", "../beta/lib/**")' 'LIB = os.path.join(HERE, "../../beta/lib")' plugins/beta/lib
 
+tree "$A/run" $'#!/usr/bin/env bash\nsource "$SCRIPT_DIR/../../beta/lib/x.sh"' "$A/notes" 'source "$SCRIPT_DIR/../../beta/lib/x.sh"'
+expect_crossing "an extensionless #! script is read" "$A/run:2" plugins/beta/lib/x.sh
+if [[ $ERR != *"$A/notes"* ]]; then ok "an extensionless file with no #! is not read"; else bad "an extensionless file with no #! is not read" "$ERR"; fi
+
 tree "$A/a.sh" $'source "$SCRIPT_DIR/../lib/x.sh"\ncat "$SCRIPT_DIR/../../../docs/x.md"\ncat "$SCRIPT_DIR/../../gamma/x.sh"'
 expect_pass "a path inside the own plugin, outside plugins/, or into no plugin passes"
 

@@ -5,8 +5,8 @@
 #
 #   scripts/check-plugin-imports.sh
 #
-# Every tracked shell, Node, Python and PowerShell file under plugins/<a>/ is
-# read for relative paths in a load position. Each is resolved against the
+# Every tracked shell, Node, Python and PowerShell file under plugins/<a>/, and
+# every tracked extensionless file starting with `#!`, is read for relative paths in a load position. Each is resolved against the
 # file's own directory, and one that lands in plugins/<b>/, b != a, is a crossing:
 #   - a path after a variable or this-file anchor: $SCRIPT_DIR/../x,
 #     ${HERE}/../x, $(dirname "$0")/../x, ${BASH_SOURCE%/*}/../x,
@@ -179,6 +179,12 @@ pathspecs=()
 for ext in sh bash mjs js cjs ts mts cts py ps1 psm1; do
   pathspecs+=("plugins/*.$ext")
 done
+while IFS= read -r p; do
+  [[ "${p##*/}" != *.* && -f "$p" ]] || continue
+  first=""
+  IFS= read -r -n 2 first <"$p" || true
+  [[ "$first" == '#!' ]] && pathspecs+=(":(literal)$p")
+done < <(git ls-files plugins)
 grep_rc=0
 hits="$(git grep -n -I -E -e '\.\.[/\\]' -e "[\"']\.\.[\"']" -e '\.parent' -- "${pathspecs[@]}")" || grep_rc=$?
 if ((grep_rc > 1)); then
