@@ -2839,6 +2839,15 @@ parent's task-list lines or those of intake's refinement on it (below), so a lan
 never supplies its own spec. A listed human's comment on such an issue reaches the verifier, but it
 never makes the issue trusted, and neither does a listed human's edit of its body. To give work a Bot
 filed a spec, a listed human opens an issue that restates it, and the pull request links that one.
+One Bot issue is its own spec (owner decision 2026-11-16): the issue
+`maintenance-file-upstream-drift-issues.yml` files for one upstream, when github-actions[bot] wrote
+it and nobody else last edited it, its title is `Upstream drift: <owner>/<repo>` and its first
+body line is the hex-pin lead `scripts/upstream-drift-issues.sh` writes for that id. It counts
+only for a pull request that closes it and only modifies the `docs/upstream` pages whose
+`**Last audited upstream state:**` marker on main pins that id. Its spec text is built from the id
+and those page paths, never from the issue's body, so an upstream path or name in its rows never
+reaches the verifier as a requirement. A re-audit that applies a take or adapt to any other file
+still needs a listed human's issue.
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:
@@ -2963,7 +2972,11 @@ head:
   comment read refuses `verify:unreadable`. It then allows the merge only when every linked
   issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
   list's humans, the pull request's author included, or is a sub-issue intake's size split filed
-  whose body counts as its parent's text (otherwise `verify:untrusted-spec`). That sub-issue counts
+  whose body counts as its parent's text, or is the upstream-drift workflow's issue as above, its
+  title, first body line, author and last editor read again, and the pull request's changed files
+  from its base to the head (GET compare) only modifications of `docs/upstream` pages that pin its
+  upstream at the default branch's tip, read there (otherwise `verify:untrusted-spec`; a failed
+  read refuses `verify:unreadable`). That sub-issue counts
   when the lanes App wrote it, a listed human filed its native parent in this repository, its body
   opens with the split header for that parent, every line after the header is one of the parent's
   trusted task-list lines (a line of the parent's listed-human body or comments that starts with

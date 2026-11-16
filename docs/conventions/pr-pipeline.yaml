@@ -1865,6 +1865,8 @@ merge:
         class: enforcement
       - glob: ".github/recurring-schedule.json"
         class: enforcement
+      - glob: "docs/upstream/**"
+        class: enforcement
       - glob: ".github/scripts/recurring-schedule/file-due.mjs"
         class: enforcement
       - glob: ".github/scripts/lib/github-rest.mjs"

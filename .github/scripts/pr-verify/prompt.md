@@ -30,7 +30,10 @@ DIFF_PARTSCHUNK_NOTE
   such a human wrote, intake triage's unedited refinement comment (opening
   `<!-- intake-triage refinement -->`) posted before the pull request opened. An issue the recurring
   filer opened carries `source` `recurring-schedule`: its `body` is the title and body built from its
-  `.github/recurring-schedule.json` row on main, never the issue's own text. When the pull request links
+  `.github/recurring-schedule.json` row on main, never the issue's own text. An issue the
+  upstream-drift workflow opened carries `source` `upstream-drift`: its `body` names only the
+  upstream and the docs/upstream pages on main pinned to it, never the issue's own text, and it is
+  present only when the pull request closes it and changes nothing but those pages. When the pull request links
   no issue and a trusted person or a script wrote its title and body, the file instead holds one
   entry with `source` `pull-request`: that title and body. Each entry's `spec_kind` says how it
   is linked: `closes` (an issue the pull request closes), `refs` (the one issue a `Refs:` line
