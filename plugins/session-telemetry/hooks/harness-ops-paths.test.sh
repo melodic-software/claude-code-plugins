@@ -200,16 +200,18 @@ if git -C "$REPO" init -q 2>/dev/null; then
   mkdir -p "$REPO5"
   git -C "$REPO5" init -q 2>/dev/null
   harness_ops::ensure_git_exclude "$REPO5" '.'
-  if grep -qxF -- '/skill-usage.jsonl' "$REPO5/.git/info/exclude" 2>/dev/null; then
+  if grep -qxF -- '/skill-usage.jsonl*' "$REPO5/.git/info/exclude" 2>/dev/null; then
     ok "repo-root store excludes the store file, not the tree"
   else
     bad "repo-root store excludes the store file, not the tree"
   fi
   : >"$REPO5/skill-usage.jsonl"
+  : >"$REPO5/skill-usage.jsonl.lock"
+  : >"$REPO5/skill-usage.jsonl.1"
   if [[ -z "$(git -C "$REPO5" status --porcelain 2>/dev/null)" ]]; then
-    ok "repo-root store file invisible to git status"
+    ok "repo-root store, its lock and its rotated copy invisible to git status"
   else
-    bad "repo-root store file invisible to git status"
+    bad "repo-root store, its lock and its rotated copy invisible to git status"
   fi
 fi
 # --- The skill-usage store record -------------------------------------------

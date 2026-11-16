@@ -163,8 +163,7 @@ harness_ops::ensure_git_exclude() {
   if [[ -n "$dir" ]]; then
     line="/$(harness_ops::gitignore_escape "$dir")/"
   else
-    # Store dir IS the repo root — ignore the specific store file, not the tree.
-    line="/$(harness_ops::gitignore_escape "$store_file")"
+    line="/$(harness_ops::gitignore_escape "$store_file")*"
   fi
   if [[ -f "$exclude_file" ]] && grep -qxF -- "$line" "$exclude_file" 2>/dev/null; then
     return 0
