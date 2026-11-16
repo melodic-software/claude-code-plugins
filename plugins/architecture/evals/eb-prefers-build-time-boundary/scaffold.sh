@@ -31,16 +31,16 @@ cat >billing/ledger/ledger.go <<'GO'
 package ledger
 
 type Entry struct {
-	Account string
-	Cents   int64
+    Account string
+    Cents   int64
 }
 
 func Balance(entries []Entry) int64 {
-	var total int64
-	for _, e := range entries {
-		total += e.Cents
-	}
-	return total
+    var total int64
+    for _, e := range entries {
+        total += e.Cents
+    }
+    return total
 }
 GO
 
@@ -50,7 +50,7 @@ package billing
 import "example.com/shop/billing/ledger"
 
 func Outstanding(entries []ledger.Entry) int64 {
-	return ledger.Balance(entries)
+    return ledger.Balance(entries)
 }
 GO
 
@@ -60,8 +60,8 @@ package reporting
 import "example.com/shop/billing"
 
 func Total(entries [][]int64) int64 {
-	_ = billing.Outstanding
-	return 0
+    _ = billing.Outstanding
+    return 0
 }
 GO
 
