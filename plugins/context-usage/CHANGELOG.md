@@ -5,6 +5,14 @@ All notable changes to the `context-usage` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.0.6] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+- `HOOK_TELEMETRY_SINK=@session-telemetry`, and `@harness-ops`, resolve to the session-telemetry launcher; a launcher in a harness-ops data directory is not run.
+
 ## [6.0.5] - 2026-11-16
 
 ### Changed

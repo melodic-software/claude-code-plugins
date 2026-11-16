@@ -15,8 +15,8 @@
       "goal": "A clean Write inside a git repository costs the Write|Edit|NotebookEdit PreToolUse row (the first PreToolUse handler naming secret-pattern-detection.sh) at most this many processes; an Edit measures the same. The row fires on every file edit. Ideal k x S is 1 x S: exec form gives k = 1 (docs/contracts/hook-budget/README.md, The budget). The programs this check starts today are 3 execs (node, bash, grep), the floor recorded in plugins/guardrails/reference/edit-write-guards/PLAN.md; the rest are bash forks. Clean content skips both git probes in hardcoded-path-check. Lowering the count is #4390's spawn-reduction work, and agents lower this ceiling as it falls. Measured 7 on WSL2 Ubuntu with bash 5.3.9, dash as sh, git 2.53.0, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: Linux spawn counts against Windows wall time, not measured"
     },
     {
-      "name": "harness-ops-stop-hook-failure-audit-growth",
-      "command": "bash scripts/hook-census.sh harness-ops Stop hook-failure-audit.sh '{\"session_id\":\"census\",\"transcript_path\":\"@TRANSCRIPT@\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --seed --measure growth",
+      "name": "plugin-diagnostics-stop-hook-failure-audit-growth",
+      "command": "bash scripts/hook-census.sh plugin-diagnostics Stop hook-failure-audit.sh '{\"session_id\":\"census\",\"transcript_path\":\"@TRANSCRIPT@\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --seed --measure growth",
       "field": "growth",
       "ceiling": 0,
       "goal": "A warm Stop reads the same transcript bytes at 10 MiB as at 50 KiB: the cursor read follows what the turn appended, not the session's length (#4408). Measured on ubuntu-24.04 with bash 5.2.21, git 2.55.0, jq 1.7, strace 6.8; the ratchet step prints the current versions. Correlation: unproven: not measured"

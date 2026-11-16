@@ -84,8 +84,8 @@ The marketplace also runs every vendored skill's check weekly in its
 
 ## Why this wraps the upstream skill
 
-Verdict: keep the wrapper. Microsoft's own skill, `@playwright/cli` 0.1.23
-(checked 2026-11-03; recheck when a newer `@playwright/cli` release changes its `SKILL.md`
+Verdict: keep the wrapper. Microsoft's own skill, `@playwright/cli` 0.1.24
+(checked 2026-11-16; recheck when a newer `@playwright/cli` release changes its `SKILL.md`
 description, length, or reference layout), falls short of the skill-authoring guidance this
 marketplace follows:
 
@@ -95,7 +95,7 @@ marketplace follows:
   guidance tells authors to stay under, and carries the whole command reference
   inline, so every invocation loads all of it. For that size guidance, see
   [Skills: Add supporting files](https://code.claude.com/docs/en/skills#add-supporting-files).
-- Seven of its ten reference files run past 100 lines (up to 433) with no
+- Six of its ten reference files run past 100 lines (up to 433) with no
   contents list.
 
 This wrapper is a 163-line hub with trigger phrases, routes to eleven

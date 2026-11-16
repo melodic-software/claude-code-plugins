@@ -1,0 +1,83 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the session-telemetry hooks cannot launch, so no telemetry is recorded.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      }
+    },
+    {
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:audit-event-emitter.sh",
+        "hook:session-event-log.sh",
+        "hook:session-retention.sh",
+        "hook:skill-usage-audit.sh"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, the session-telemetry hooks skip their work.",
+      "install": {
+        "docs": "https://jqlang.org/download/"
+      }
+    },
+    {
+      "id": "claude",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "claude"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "^([0-9.]+)",
+          "min": "2.1.287"
+        }
+      },
+      "degrade": "Claude Code older than 2.1.287 is unsupported: the module that writes the per-session hook event log and runs its SessionEnd retention does not load there, so the log stays empty even when switched on. The audit hooks in settings still run.",
+      "install": {
+        "docs": "https://code.claude.com/docs/en/setup#update-claude-code"
+      }
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "python3"
+        ],
+        "reject_store_alias": true
+      },
+      "degrade": "Without Python 3, hooks/measure-hook-log-budget.sh, the maintainers' cost measurement, records the ls -t timestamp resolution as unknown. No hook needs it.",
+      "install": {
+        "docs": "https://www.python.org/downloads/"
+      }
+    }
+  ]
+}

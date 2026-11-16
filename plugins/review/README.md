@@ -114,18 +114,12 @@ Invoke via `@review:<agent>` or let Claude delegate.
   checkout).
 
 - **Prerequisite check**. `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether node
-  resolves; `bash "<plugin root>/scripts/check-hook-registration.sh"` reports whether the
-  connected-page guard below is registered and denies a sample page. Both are read-only.
+  resolves. Read-only.
 
 ### Hook
 
-A PreToolUse hook on the `Artifact` tool denies a call that would publish an HTML page whose
-content security policy names a loopback `connect-src`: a connected page (built with
-`--connect`) works only on this machine and stays a local file. It reads the file content, so a
-connected page from any builder is caught, in `file_path` or in `files`. Every other Artifact
-call passes, as does a file it cannot read. Turn it off with `connected_page_guard_enabled`.
-It is not the approval-marker publish gate (#7956), and it does not cover
-`/visualization:present`'s `--argument artifact` flag.
+None. The guardrails plugin's connected-page guard denies publishing a page built with
+`--connect` as an Artifact.
 
 ### Workflows
 
@@ -296,7 +290,6 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `connected_page_guard_enabled` | boolean | `true` | Runs the PreToolUse hook that denies an Artifact publish of an HTML page whose content security policy names a loopback connect-src. On by default. Turn off to allow publishing such a page. |
 | `downstream_probe` | string | `"run"` | run (default): /review:quality-gate downstream mode writes one probe for its safety fact in a temp directory outside the tree and runs it. report: it shows the probe without running it. report here or in a repository's docs/conventions/review.yaml (default branch) wins over run. |
 | `fanout_diversity` | string | `"lens"` | lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: one review prompt per fan-out model tier. codex: the lens roster plus the Codex reviewer as the model panel. A repository's docs/conventions/review.yaml fanout_diversity wins over this option. |
 | `fanout_act_on_cap` | number<br>*min 1* | `2` | How many rows under each By axis heading (Spec, Standards) of a /review:fanout report are marked act on; default 2, a whole number of at least 1. The other rows stay in the report, marked no. A repository's docs/conventions/review.yaml fanout_act_on_cap wins over this option. |

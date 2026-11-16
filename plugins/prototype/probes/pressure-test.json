@@ -39,6 +39,12 @@
       "request": "Before we lock the public interface for the scheduler, I want to play with a draft of the calls, by job id or by name, in a scratch harness."
     },
     {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can Stripe actually refund part of a captured payment and then tell us by webhook when it settles? I want to prove that in their test mode before we design around it."
+    },
+    {
       "id": "pos-val-01",
       "split": "validation",
       "expect_trigger": true,
@@ -67,6 +73,12 @@
       "split": "validation",
       "expect_trigger": true,
       "request": "I want to try our draft refund policy against strange orderings of events interactively before anyone writes production code."
+    },
+    {
+      "id": "pos-val-06",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We're counting on the shipping carrier's API to hand back a tracking number the moment a label is bought. Check that it really does, using their sandbox, before we commit to them."
     },
     {
       "id": "neg-train-01",
@@ -99,6 +111,12 @@
       "request": "Draw an ERD of our tables from the Prisma schema so I can see which entities relate to which."
     },
     {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Research the email delivery providers Postmark and SendGrid and recommend one for us based on their pricing tiers and support plans."
+    },
+    {
       "id": "neg-val-01",
       "split": "validation",
       "expect_trigger": false,
@@ -127,6 +145,12 @@
       "split": "validation",
       "expect_trigger": false,
       "request": "Settle the domain types for loyalty points (balances, accruals, expiries) and the contract the checkout service will call, so I can plan the work."
+    },
+    {
+      "id": "neg-val-06",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Compare Twilio and MessageBird on per-message price for US texts and tell us which SMS vendor is cheaper."
     }
   ]
 }

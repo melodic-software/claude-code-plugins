@@ -27,7 +27,7 @@ mkdir -p "$repo/${patterns_lib%/*}"
 cp "$SELF_DIR/../$patterns_lib" "$repo/$patterns_lib"
 # Each stub exits with STUB_<NAME> (default 0), so a case picks which check fails.
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
-  check-spoke-plugin-root check-as-of-recheck check-cost-figures check-cross-plugin-source-drift check-changelog-parity check-changed-skills \
+  check-spoke-plugin-root check-as-of-recheck check-cost-figures check-cross-plugin-source-drift check-plugin-imports check-changelog-parity check-changed-skills \
   check-comment-hygiene setup-env; do
   var="STUB_$(printf '%s' "$s" | tr 'a-z-' 'A-Z_')"
   printf '#!/usr/bin/env bash\necho "%s ran: $*" >&2\nexit "${%s:-0}"\n' "$s" "$var" >"$repo/scripts/$s.sh"
@@ -254,6 +254,9 @@ run STUB_SYNC_PLUGIN_OPTIONS_DOCS=1 -- --base base
 check "a failing plugin-options-docs fails the check" '[[ $RC == 1 && $ERR == *"FAIL plugin-options-docs"* ]]'
 run STUB_CHECK_CHANGELOG_PARITY=1 -- --base base
 check "a failing changelog-parity fails the check" '[[ $RC == 1 && $ERR == *"FAIL changelog-parity"* ]]'
+run STUB_CHECK_PLUGIN_IMPORTS=1 -- --base base
+check "plugin-imports runs on a diff with no plugin file, and its finding fails the check" \
+  '[[ $RC == 1 && $ERR == *"check-plugin-imports ran"* && $ERR == *"FAIL plugin-imports"* ]]'
 
 # cross-plugin-source-drift runs only when a plugin file or its registry changed.
 run STUB_CHECK_CROSS_PLUGIN_SOURCE_DRIFT=1 -- --base base
@@ -571,7 +574,7 @@ mkdir -p "$tools/scripts/lib"
 cp "$SELF_DIR/check-affected.sh" "$tools/scripts/"
 cp "$SELF_DIR/lib/markdownlint-config-data.mjs" "$tools/scripts/lib/"
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
-  check-spoke-plugin-root check-as-of-recheck check-cost-figures check-cross-plugin-source-drift check-changelog-parity check-changed-skills \
+  check-spoke-plugin-root check-as-of-recheck check-cost-figures check-cross-plugin-source-drift check-plugin-imports check-changelog-parity check-changed-skills \
   check-comment-hygiene; do
   printf '#!/usr/bin/env bash\necho "copy of %s read $CHECK_DATA_ROOT" >&2\nexit "${COPY_STUB_RC:-1}"\n' "$s" >"$tools/scripts/$s.sh"
 done
@@ -587,6 +590,8 @@ check "a copy run elsewhere points the spoke, options-docs and changelog-parity 
   '[[ $ERR == *"copy of check-spoke-plugin-root read $repo"* && $ERR == *"copy of sync-plugin-options-docs read $repo"* && $ERR == *"copy of check-changelog-parity read $repo"* ]]'
 check "a copy run elsewhere runs its own comment-hygiene against the checked tree" \
   '[[ $ERR == *"copy of check-comment-hygiene read $repo"* && $ERR != *"check-comment-hygiene ran"* ]]'
+check "a copy run elsewhere points plugin-imports at the checked tree" \
+  '[[ $ERR == *"copy of check-plugin-imports read $repo"* && $ERR != *"check-plugin-imports ran"* ]]'
 check "a copy run elsewhere skips the checked tree's tests" \
   '[[ $ERR == *"SKIP tests"* && $ERR != *"copy of affected-tests"* ]]'
 

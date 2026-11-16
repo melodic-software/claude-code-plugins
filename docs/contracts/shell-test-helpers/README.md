@@ -5,7 +5,7 @@ primitives and a plugin script's exit-code taxonomy are **not** consolidated int
 cross-plugin mechanism. Both stay duplicated or divergent per plugin, on purpose. The
 [plugin philosophy](../../plugin-philosophy.md) owns the portability boundary this rests on: a plugin
 never imports files from a sibling plugin, and cooperation crosses that boundary only through a
-documented public seam. A shared shell assertion library is neither.
+documented public interface. A shared shell assertion library is neither.
 
 ## Why not the existing vendoring mechanism
 
@@ -22,10 +22,11 @@ below are not that: they are three genuinely different *assertion-primitive* sha
 (`make_sink`, `wait_for_sink`, `check_envelope`) is a different fact and does use the mechanism; see
 [The telemetry-sink helper](#the-telemetry-sink-helper).
 
-- **Hook-contract shape** (`ok`/`bad`, `PASS`/`FAIL` counters; both files also keep their own
+- **Hook-contract shape** (`ok`/`bad`, `PASS`/`FAIL` counters; each file also keeps its own
   plugin-local `make_sink`, outside the vendored sink helper):
   [`guardrails/hooks/guardrails-test-helpers.sh`](../../../plugins/guardrails/hooks/guardrails-test-helpers.sh),
-  [`harness-ops/hooks/harness-ops-test-helpers.sh`](../../../plugins/harness-ops/hooks/harness-ops-test-helpers.sh).
+  [`session-telemetry/hooks/session-telemetry-test-helpers.sh`](../../../plugins/session-telemetry/hooks/session-telemetry-test-helpers.sh),
+  [`plugin-diagnostics/hooks/plugin-diagnostics-test-helpers.sh`](../../../plugins/plugin-diagnostics/hooks/plugin-diagnostics-test-helpers.sh).
 - **Skill-script shape** (`pass`/`fail`, `FAILED`/`CASE_NUM` counters, file-existence assertions):
   [`source-control/scripts/test-helpers.sh`](../../../plugins/source-control/scripts/test-helpers.sh),
   and `/repo-hygiene:clean`'s bundled test-helper copy, named rather than linked because it sits
@@ -79,8 +80,8 @@ the canonical through [`scripts/shared-copies.txt`](../../../scripts/shared-copi
 `--check` fails on a copy that differs from what it generates. The contract suite is
 [`lib/hook-test-sink.test.sh`](../../../lib/hook-test-sink.test.sh).
 
-- `guardrails` and `harness-ops` keep their own plugin-local `make_sink`. The two differ in contract
-  (guardrails' takes a stub body, harness-ops' takes a capture file) and stay outside the vendored
+- `guardrails`, `session-telemetry` and `plugin-diagnostics` keep their own plugin-local `make_sink`. They
+  differ in contract (guardrails' takes a stub body, the other two take a capture file) and stay outside the vendored
   helper.
 - The `ok` / `fail` counters stay duplicated per plugin. Only the sink helper is shared.
 - `scripts/lib/test-harness.sh` remains the repo-tooling-layer precedent and does not change the
@@ -102,7 +103,8 @@ The rationale is in [`scripts/lib/awk-probe.sh`](../../../scripts/lib/awk-probe.
 
 ## Deferred, not rejected
 
-`guardrails-test-helpers.sh` and `harness-ops-test-helpers.sh` share a shape closely (both are
+`guardrails-test-helpers.sh`, `session-telemetry-test-helpers.sh` and `plugin-diagnostics-test-helpers.sh`
+share a shape closely (all are
 hook-contract helpers with near-identical `ok`/`bad` bodies). If they converge to byte-identical,
 vendoring just that pair through the existing `lib/` and registry mechanism, the same pattern
 `hook-utils.sh` and `hook-test-sink.sh` use, is the smaller, precedented move, revisited then rather
@@ -110,7 +112,7 @@ than spread across all the plugins now.
 
 ## Conformance
 
-Each assertion-helper copy site above (the guardrails, harness-ops, source-control, repo-hygiene and
+Each assertion-helper copy site above (the guardrails, session-telemetry, plugin-diagnostics, source-control, repo-hygiene and
 work-item-tracker helpers) carries a one-line pointer back to this doc. The vendored sink copies are
 generated from the canonical file and are governed by `scripts/sync-shared-copies.sh --check` instead. A new plugin adding
 its own `*.test.sh` assertion helper is not required to register anything here. Duplication of this

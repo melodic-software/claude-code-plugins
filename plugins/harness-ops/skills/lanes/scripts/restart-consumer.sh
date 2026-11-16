@@ -153,8 +153,8 @@
 # comment whose marker another writer identity owns.
 #
 # The relaunch delegates to `lane-launcher.sh restart <lane>`, which already
-# carries that lane's prompt file, --model, --effort and --settings (the
-# session-only autonomy-tier override) from the same config, so the lane's
+# carries that lane's prompt file, --model, --effort, --settings (the
+# session-only autonomy-tier override) and plugin profile from the same config, so the lane's
 # existing launch shape and autonomy tier are respected by construction rather
 # than re-implemented here. `claude respawn` is deliberately NOT used: it
 # restarts a background session with the conversation intact

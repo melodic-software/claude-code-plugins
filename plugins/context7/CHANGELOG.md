@@ -3,6 +3,14 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.12] - 2026-11-16
+
+### Changed
+
+- **`/context7:lookup` synced to upstash/context7 `4087030`.** The vendored `find-docs` and `context7-cli` baselines are refreshed, and `metadata.upstream-version` names that commit. Upstream replaced its `/facebook/react` example library ID with `/reactjs/react.dev`, since `/facebook/react` now returns a redirect and no docs; the examples in the lookup and CLI references use the new ID.
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
 ## [1.0.11] - 2026-11-15
 
 ### Changed
