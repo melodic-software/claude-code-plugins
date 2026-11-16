@@ -4,6 +4,21 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [6.2.0] - 2026-11-16
+
+Changed guidance; minor under this contract's own rule. No required part, canonical name, or
+enforceability tier changes.
+
+Adopting an upstream change is no longer always a person's decision, by the owner's decision of
+2026-11-16. For a git-pinned page, an agent re-audits the drifted rows against the upstream head
+its issue names, marks each change take, adapt or reject, moves the pin, and opens one pull
+request per upstream that merges through the loop lanes; for a vendored row, it restores or
+re-vendors the copy. Only a take or adapt that would change one of this repository's skill designs
+goes to the owner: the agent files it as its own `needs-human` issue, lists it in the pull request
+body, and does not apply it. Lifting the `needs-human` label the filer sets hands the issue to an
+agent rather than asking a person to mark each change, and the enforceability row for a fired
+trigger names the re-auditing agent as the judge.
+
 ## [6.1.0] - 2026-11-15
 
 Additive guidance; minor under this contract's own rule. No required part, canonical name, or

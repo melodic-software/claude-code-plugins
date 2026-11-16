@@ -3,6 +3,13 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.4.3] - 2026-11-16
+
+### Changed
+
+- The shared chrome reference's network panel says a rendered view may load a pinned library from a
+  public CDN when the page still shows its content without it; an Artifact view loads nothing.
+
 ## [5.4.2] - 2026-11-16
 
 ### Changed
