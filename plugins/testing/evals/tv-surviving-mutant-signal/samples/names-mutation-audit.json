@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "A surviving mutant on the changed lines means no test checks them. Run `/mutation-testing:audit` on the change to list the survivors.",
+      "answer": "A surviving mutant on the changed code means no test checks the behavior that mutant changed. Run `/mutation-testing:audit` on the change to list the survivors.",
       "why": "names the slash command"
     }
   ],

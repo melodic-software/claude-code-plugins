@@ -15,7 +15,8 @@ graders:
     input_match: '"skill"\s*:\s*"(?:testing:)?write"'
   - name: uses-port-zero
     type: regex
-    pattern: '\b[Pp]ort\s*[=:]?\s*0\b|,\s*0\s*\)'
+    pattern: '\bport\b[^0-9\n]{0,12}\b0\b|\bbind\(\s*\(\s*[''"][^''"\n]*[''"]\s*,\s*0\s*\)'
+    flags: i
     target: last_message
   - name: meets-expectations
     type: llm

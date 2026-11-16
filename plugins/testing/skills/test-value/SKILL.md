@@ -162,9 +162,9 @@ https://jestjs.io/docs/snapshot-testing.
 
 A surviving mutant on changed code is one more signal of this class: the changed line was
 altered and every test stayed green, so unless the mutant is equivalent (behaves exactly as the
-original), no test checks what that line does. Assert the behavior
-the mutant changed, with an expected value from §1. `/mutation-testing:audit` produces the
-surviving mutants for a change.
+original), no test checks the behavior the mutant changed. Assert that behavior, with an expected
+value from §1. `/mutation-testing:audit` (when that plugin is enabled) produces the surviving
+mutants for a change.
 
 **Change detectors** (fail on any edit, prove no behavior):
 

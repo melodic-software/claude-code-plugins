@@ -2,17 +2,37 @@
   "pass": [
     {
       "answer": "Start the server with `port=0` and read `server.server_address[1]` for the port the OS gave it.",
-      "why": "binds port 0"
+      "why": "port=0"
     },
     {
       "answer": "Bind with `sock.bind(('127.0.0.1', 0))` and pass the assigned port to the client.",
       "why": "binds port 0 by address tuple"
+    },
+    {
+      "answer": "Bind the test server to port `0` so the OS picks a free one.",
+      "why": "port in a code span"
+    },
+    {
+      "answer": "Set PORT=0 in the fixture and read back what the server bound.",
+      "why": "upper-case env form"
+    },
+    {
+      "answer": "Ask the OS for an ephemeral port (0) and read it back after binding.",
+      "why": "ephemeral port (0)"
     }
   ],
   "fail": [
     {
       "answer": "Give each worker its own port, 8000 plus the worker number.",
       "why": "a computed fixed port, not an OS-assigned one"
+    },
+    {
+      "answer": "Listen on port 8000 and call make_server('localhost', base + offset, 0) for the admin socket.",
+      "why": "a stray ', 0)' and a fixed port"
+    },
+    {
+      "answer": "Keep port 8000 and retry 10 times on a clash.",
+      "why": "fixed port with a retry count"
     }
   ]
 }
