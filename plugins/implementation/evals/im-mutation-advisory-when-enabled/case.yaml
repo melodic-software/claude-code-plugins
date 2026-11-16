@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: im-mutation-advisory-when-enabled
+description: 'Step 5 advisory mutation run, plugin enabled: with a mutation-testing stand-in (the audit skill''s name and flags) loaded beside implementation, the remaining Step 5 items for a committed, green change include `/mutation-testing:audit --persist-findings` on its default diff scope (no --full, --paths or --exercised) ahead of the review hand-off, and a low score with survivors does not stop the run. Read-only: the session prints the steps and runs nothing.'
+tags: [implement, completion, mutation-testing, availability-gate, read-only]
+runs: 3
+plugins: ["../..", "mutation-testing-stub"]
+expected_outcome: 'The numbered Step 5 list has a `/mutation-testing:audit --persist-findings` step with no scope flag, placed before `/review:quality-gate`, and states that the reported 41% score and seven survivors are reported and the run continues to the review hand-off rather than stopping.'
+execution:
+  prompt: '/implementation:implement Do not read files, run commands or invoke skills. The approved plan at .work/refunds/PLAN.md is fully built on branch `feat/refunds`: every phase is [DONE], every change is committed, and the final build and all affected tests are green. Print, as a numbered list, every remaining Step 5 item in the order you would run it, each with its exact command or skill invocation. Then say what you would do next if that mutation run reported a covered-code score of 41% with seven surviving mutants, and stop.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: audit-invocation
+    type: regex
+    pattern: '^(?=[^\n]*/mutation-testing:audit\b)(?=[^\n]*--persist-findings)(?![^\n]*--(?:full|paths|exercised)\b)'
+    flags: mi
+    target: last_message
+  - name: audit-before-review
+    type: regex
+    pattern: '/mutation-testing:audit\b[\s\S]*?/review:quality-gate'
+    flags: i
+    target: last_message
+  - name: score-does-not-block
+    type: llm
+    arm: both
+    criteria: 'PASS only if the final message says that the 41% score and seven survivors are reported (for example the score, survivor count or persisted findings path) and that the run then continues to the following Step 5 items or the review hand-off, without stopping, failing, or making killing those survivors a precondition for continuing. FAIL if it treats the score as a gate, stops the run on it, or says nothing about what happens after that result.'

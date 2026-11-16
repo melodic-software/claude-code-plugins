@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: im-mutation-advisory-not-enabled
+description: 'Step 5 advisory mutation run, plugin not enabled: with only the implementation plugin loaded, `/mutation-testing:audit` is not among the available skills, so the remaining Step 5 items carry no mutation invocation and the handoff says once that the mutation-testing plugin would check the tests. Read-only: the session prints the steps and runs nothing.'
+tags: [implement, completion, mutation-testing, availability-gate, read-only]
+runs: 3
+plugins: ["../.."]
+expected_outcome: 'The numbered Step 5 list has no `/mutation-testing:audit` invocation, and one line says the mutation-testing plugin is not enabled or would check whether the tests detect injected faults.'
+execution:
+  prompt: '/implementation:implement Do not read files, run commands or invoke skills. The approved plan at .work/refunds/PLAN.md is fully built on branch `feat/refunds`: every phase is [DONE], every change is committed, and the final build and all affected tests are green. Print, as a numbered list, every remaining Step 5 item in the order you would run it, each with its exact command or skill invocation, then stop.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: no-audit-invocation
+    type: regex
+    pattern: '/mutation-testing:audit[^\n]*--persist-findings'
+    match: not_contains
+    target: last_message
+  - name: names-missing-plugin
+    type: regex
+    pattern: '\bmutation[- ]testing\b[^\n]*\b(?:would|not enabled|isn''t enabled|unavailable|not available)\b|\b(?:would|not enabled|isn''t enabled|unavailable|not available)\b[^\n]*\bmutation[- ]testing\b'
+    flags: i
+    target: last_message
