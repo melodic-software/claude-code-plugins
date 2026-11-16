@@ -37,6 +37,9 @@ make_skill() { # <case name> <parts lines>
 
 Start nothing.
 
+Data: none: the repository keeps no data
+Side by side: yes
+
 ## Ready
 
 true

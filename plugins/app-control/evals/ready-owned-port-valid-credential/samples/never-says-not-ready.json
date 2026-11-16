@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Port 18080: pid 5120, the launched pid. whoami: 200, buyer.\n\nready: yes",
+      "why": "ready"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ready: no: port 18080 is held by pid 5120",
+      "why": "says not ready although the launched pid holds the port"
+    }
+  ]
+}

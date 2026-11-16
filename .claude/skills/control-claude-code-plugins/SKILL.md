@@ -22,6 +22,13 @@ or out.
 The driving tool's `## Launch`. Only terminal-session entry points need it: a `logs` capture runs
 Claude Code in print mode and starts and stops its own process.
 
+Data: none: a run reuses the person's signed-in Claude Code config directory, per the driving
+tool's `Data:` line.
+
+Side by side: yes, one `<session>` name per run, per the driving tool's `Side by side:` line.
+
+Session: one session per plugin, per the driving tool's `Session:` line.
+
 ## Ready
 
 The driving tool's `## Ready`.

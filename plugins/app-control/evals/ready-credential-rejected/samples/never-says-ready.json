@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "ready: no: the API rejected the buyer token (401)",
+      "why": "not ready"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "SHOP_API_TOKEN: set (environment).\n\nready: yes",
+      "why": "reports ready because the variable is set"
+    }
+  ]
+}
