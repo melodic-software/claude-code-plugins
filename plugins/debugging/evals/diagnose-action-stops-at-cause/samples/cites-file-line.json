@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Cause: importer/csv_import.py:12 opens the file with encoding=\"utf-8\".",
+      "why": "file:line"
+    },
+    {
+      "answer": "The check at csv_import.py line 15 compares the header to EXPECTED_HEADER.",
+      "why": "file and line in words"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The importer opens the file as utf-8 in read_rows.",
+      "why": "no file:line"
+    },
+    {
+      "answer": "See importer/csv_import.py for the header check.",
+      "why": "file without a line"
+    }
+  ]
+}

@@ -8,7 +8,9 @@ bug from a lucky one: no phase proceeds without a fast, deterministic,
 agent-runnable pass/fail signal.
 
 Invoke it with `/debugging:debug <bug description>`, or let Claude reach for it
-when you describe broken behavior with no pre-existing reproduction.
+when you describe broken behavior with no pre-existing reproduction. For the cause
+alone, `/debugging:debug diagnose <bug description>` stops at the confirmed cause at
+file:line with the loop output, and changes no code.
 
 ## Skills
 
@@ -19,7 +21,9 @@ when you describe broken behavior with no pre-existing reproduction.
 
 ## The six phases
 
-1. **Build the reproduction loop**, where most of the effort goes. One quick command
+1. **Build the reproduction loop**, where most of the effort goes. A surface pass first
+   finds the app's logs, ports and telemetry (through `/app-control:drive ready` when the
+   project has a control skill). Then one quick command
    that gives the same pass or fail for this bug on every run. Ten kinds of loop,
    ranked from a failing test down to a script a person runs by hand.
 2. **Reproduce**. Run the loop; confirm it shows *the* failure the user described,

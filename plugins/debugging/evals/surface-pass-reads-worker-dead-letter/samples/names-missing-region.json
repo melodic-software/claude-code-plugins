@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "var/dead-letter/A-1003.error.txt holds KeyError: KeyError('NI'): region NI has no tax rate.",
+      "why": "names the region"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "One order fails its tax lookup and is moved to the dead-letter directory.",
+      "why": "never names the region"
+    }
+  ]
+}

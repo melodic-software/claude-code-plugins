@@ -1,6 +1,6 @@
 ---
-description: "Debug and diagnose broken behavior via a disciplined six-phase loop: build feedback loop → reproduce → hypothesize → instrument → fix + regression test → cleanup. Use when: the user reports an OBSERVED FAILURE with no pre-existing reproduction, in any of three shapes: wrong or broken behavior ('diagnose this', 'debug this', 'why is X broken', 'X is throwing'), a performance regression ('this is slow'), or an intermittent or flaky failure, whether seen in the UI, logs, production, or a screenshot. Phase 1 builds the loop; no phase proceeds without a fast, deterministic signal. Skip when: the symptom is already a failing test with no reproduction gap. Cycle it directly. Skip when a captured profile, trace or heap snapshot is in hand and the failure does not reproduce (`/debugging:analyze-profile`). Outputs: reproduction loop, root-cause hypothesis, regression test or documented seam gap, cleaned fix, post-mortem finding."
-argument-hint: "[--unattended] [bug description or observation]"
+description: "Debug broken behavior via a disciplined six-phase loop: build feedback loop → reproduce → hypothesize → instrument → fix + regression test → cleanup. Use when: the user reports an OBSERVED FAILURE with no pre-existing reproduction, in any of three shapes: wrong or broken behavior ('debug this', 'why is X broken', 'X is throwing'), a performance regression ('this is slow'), or an intermittent or flaky failure, whether seen in the UI, logs, production, or a screenshot. Phase 1 builds the loop; no phase proceeds without a fast, deterministic signal. Action diagnose ('diagnose this', 'just find the cause') stops at the confirmed cause at file:line, changing no code. Skip when: the symptom is already a failing test with no reproduction gap. Cycle it directly. Skip when a captured profile, trace or heap snapshot is in hand and the failure does not reproduce (`/debugging:analyze-profile`). Outputs: reproduction loop, root-cause hypothesis, regression test or documented seam gap, cleaned fix, post-mortem finding."
+argument-hint: "[diagnose] [--unattended] [bug description or observation]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Diagnose broken behavior. Reproduce, hypothesize, instrument, fix with regression test
 ---
 
-**Arguments.** `[--unattended] [bug description or observation]`. e.g., /debugging:debug photo uploads over 20 MB fail with a 502
+**Arguments.** `[diagnose] [--unattended] [bug description or observation]`. e.g., /debugging:debug photo uploads over 20 MB fail with a 502, or /debugging:debug diagnose photo uploads over 20 MB fail with a 502
 
 ## Repository context. Gather first
 
@@ -33,7 +33,24 @@ separate body Bash calls rather than pre-compute lines ([gather-block convention
 Arguments: `$ARGUMENTS`
 
 `--unattended`, anywhere in the arguments, is not part of the observation: it is the caller declaring that nobody is
-present, which governs the `/debug` offer under "Routing". Take it out before reading the rest.
+present, which governs the `/debug` offer under "Routing" and the access requests of the Phase 1 surface pass. Take it
+out before reading the rest. Any other `--` token stops the run with a message naming `--unattended` as the one flag.
+
+| Action | Selected by | What runs |
+|---|---|---|
+| `debug` (bare) | no action word | All six phases: the full loop ends in a fix with its regression test |
+| `diagnose` | `diagnose` as the first word, or a request in plain words for the cause only ("just tell me why", "don't fix it") | See [Action: diagnose](#action-diagnose) |
+
+Any first word other than `diagnose` is part of the observation.
+
+## Action: diagnose
+
+A diagnosis detects and isolates the fault; it does not correct it. Run Phases 1 to 4, then stop once
+one Phase 3 row is confirmed. The report gives the cause at file:line, the loop command, and the loop
+output that confirms the row. Before reporting, remove every Phase 4 probe (the first group of Phase 6,
+"Remove what the run added") and change no other code: no fix, no regression test. Phase 5 and the rest
+of Phase 6 do not run, except that the report carries any lessons about driving the app (Phase 6,
+"Leave a record"). The loop command stays in the report so the fix that follows can reuse it.
 
 ## Purpose
 
@@ -81,6 +98,34 @@ hypotheses against that list.
 
 Most of this skill's effort belongs here. The loop is done when one command returns pass or fail
 for this bug, quickly, the same way each time, with no person needed to run it.
+
+### Surface pass
+
+Before building the loop, find where the app shows what it does. When the `app-control` plugin is
+enabled and the project has a control skill, run `/app-control:drive ready` (with `--unattended`
+when this run has it): it reports each surface's URL, port, logs and telemetry, and lists what the
+app does not expose. Otherwise, or when drive reports no control skill, read the surfaces from the
+project's manifests and launch config (package scripts, compose files, IDE launch settings, a
+Procfile).
+
+Read the surfaces the app type has:
+
+| App type | Surfaces to read |
+|---|---|
+| Browser app | the server log, and the browser console and network panel |
+| API | the request log, with each request's status and timing |
+| Worker | its queue depth and its dead-letter state |
+| CLI | the exit status and stderr |
+
+Never assume a port. A dev server can move to the next free port when its own is taken unless the
+config pins it (Vite: [`server.strictPort`](https://vite.dev/config/server-options#server-strictport)),
+so read the port from the running process's output or from drive's report.
+
+Each source the run needs and cannot reach becomes a request to the user for scoped access: read
+access to that log, a redacted export, a seat on that dashboard. Never ask for a secret itself. A
+subagent cannot ask the user, so it reports the request to its parent; under `--unattended`, the
+request goes into the output. A missing surface does not lift the rule below: with no loop, the
+run stops.
 
 ### Picking a loop
 
@@ -191,7 +236,9 @@ ranked**: a list of one invites every later test to be read as support for it.
 A row is ready only when its "refuted if" cell names a result you could observe. If you cannot fill
 that cell, the cause is too vague to test: narrow it until you can, or delete the row.
 
-Ground the ranking in real repo state before you rank: recent commits in the affected area, open issues, architecture decision records, banned-symbol entries, known-issue or quirks notes, and the project instruction files and ADRs nearest the affected file. A hypothesis that contradicts a documented constraint ranks low; one that matches a recent change ranks high.
+Ground the ranking in real repo state before you rank. Read the project's domain glossary first where one exists, so each row uses the project's own terms. Then read recent commits in the affected area, open issues, architecture decision records, banned-symbol entries, known-issue or quirks notes, and the project instruction files and ADRs nearest the affected file. A hypothesis that contradicts a documented constraint ranks low; one that matches a recent change ranks high.
+
+Check what each environment runs, too: its recent deployments, the ref it runs, the workflow runs for the deployed commit (GitHub lists runs by [`head_sha`](https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository)), and recent tickets. A change that lines up with the failure is a lead to test, never proof: some failures have no causing change.
 
 Two symptom shapes come with a known first suspect:
 
@@ -302,6 +349,10 @@ The run is not done until every line below holds. They fall into three groups.
 - The commit message or PR description names the hypothesis that proved right, so whoever debugs
   this area next starts from it.
 - If the loop revealed a recurring class of bug, record it in your project's known-issues / quirks notes
+- List the lessons learned about driving the app (a port that moved, a log that was not where the
+  docs said, a sign-in step the loop needed). This skill writes none of them into a control skill:
+  `/app-control:map` is the one writer of a control skill's Gotchas, so when the `app-control`
+  plugin is enabled, give each lesson as a `/app-control:map refresh "<lesson>"` line for it to place.
 - Propose one cheap, always-on signal (a log line, a metric or an assertion) that would have shown
   the deciding fact (the value or state that settled the Phase 3 table) at first look. A deep dig
   means the failure did not show that fact, and a signal left on shows it the next time without
@@ -309,6 +360,8 @@ The run is not done until every line below holds. They fall into three groups.
   existed, the first failing run would have shown the fact. Propose it in the record and leave it
   out of the fix commit, because a signal left on in production needs its own review for cost and
   noise; a Phase 4 probe kept as that signal loses its tag and goes through the same review.
+  Design guidance for observability by default, built in as code is written, is owned by
+  `/implementation:implement` when the `implementation` plugin is enabled.
   Whether to propose is the `always_on_signal` key of `<home>/debugging.yaml` under the git toplevel. Run
   `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"` and follow its exit code; never
   parse the instruction file yourself. Exit 0 prints `<home>`; exit 1 (no pointer) means
@@ -370,12 +423,12 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 - **Does not refactor mid-fix**. Keep the diff focused. Architectural findings go to Phase 6
 - **Does not re-derive a known classification**. When the symptom matches a shape your environment already classifies (a known-error taxonomy, a test-investigation routine), lean on that instead of re-deriving it
 - **Does not ship a workaround in place of the cause**. A workaround that ships carries a tracking link or a removal condition in its comment, and the code-tidying comment-residue audit flags one with neither as `unjustified-workaround`. Before shipping one, go back to Phase 3 if the diff's odd behavior cannot be followed without that explanatory comment: the cause is still unfound
-- **Does not fix when the user asked only for a diagnosis**. Stop once a hypothesis is confirmed: report the cause at file:line with the loop output that confirms it, remove the Phase 4 instrumentation, and change no other code. Without that request, fixing is the default
+- **Does not fix when the user asked only for a diagnosis**. That request runs [Action: diagnose](#action-diagnose). Without it, fixing is the default
 
 ## Next
 
 - The fix landed with its regression test, or a documented seam gap: `/verification:confirm fix`, then `/review:quality-gate`.
-- Stopped at a diagnosis on request: `/implementation:implement fix`.
+- A `diagnose` run stopped at the cause: `/implementation:implement fix`, reusing the reported loop.
 - An artifact with no reproduction: `/debugging:analyze-profile`.
 - The root cause is a design flaw that a focused patch cannot fix: `/planning:interview`.
 - No feedback loop could be built and the failure needs recording for later: `/bugs:write --file`.
