@@ -39,7 +39,7 @@ banned API, a file written in the wrong place, a step skipped before a commit.
   column names one place, which meets it, as the ladder's item 6 says. A finding that fails
   item 1, 2 or 7 goes on to the placement decision tree, since the ladder keeps it on the guidance
   tier. Give a finding that gets a check row no CLAUDE.md, `AGENTS.md` or rules-file row, a pointer
-  to the check included: the check replaces the line.
+  to the check or a fallback in case the check is declined included: the check replaces the line.
 - **No**: go on to the placement decision tree below.
 
 ## Placement Decision Tree
