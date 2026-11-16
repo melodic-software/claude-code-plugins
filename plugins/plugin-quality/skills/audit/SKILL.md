@@ -386,7 +386,7 @@ runs is used when enabled, with a one-line fallback when absent:
 
 Four more seams are named by **role** and resolved at run time by matching the role against the
 skills this session lists, never from a list here. They run at `high` effort and above; below that
-the write-up says they were skipped. Each is used when a skill filling the role is installed:
+the write-up says they were skipped. Each is used when a skill filling the role is enabled:
 
 - **Adversarial re-examination**, a blind fresh-context attempt to refute each finding. *Absent:* a
   fresh subagent re-derives each finding from its cited artifact and reports what did not reproduce.

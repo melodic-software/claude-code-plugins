@@ -63,7 +63,7 @@ sees one shape.
 
 An item is **ready** when every blocker has resolved. Blockers come from three sources:
 
-- **Tracker edges.** When the `work-items` plugin's tracker seam is installed and bound, read each
+- **Tracker edges.** When the `work-items` plugin is enabled and its tracker seam is bound, read each
   tracker entry with the seam's `get-item <id>` verb, resolving the dispatcher the way
   `/work-items:track` does. Ready means `state` is open and `blocked_by_count` is 0. The count
   covers blockers outside the list, and a blocker closed as won't-do still blocks, per the seam

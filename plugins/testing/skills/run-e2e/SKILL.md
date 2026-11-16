@@ -245,7 +245,7 @@ After the run and its cleanup, bring each touched feature's control skill (one i
   `clean`, `changed` or `blocked` result. A blocked pass is reported, never a failed run.
 - It does not resolve: no feature was matched (Step 2), so nothing is refreshed; the
   `touched features not matched (app-control not installed)` line stands and `## Next` names
-  installing app-control. The run never stops or fails for this.
+  enabling app-control, installing it first if it is not installed. The run never stops or fails for this.
 - `trusted-root=` was given: the control skill came from outside this checkout, so nothing is
   refreshed; report `control skill not refreshed (trusted-root run)` per touched feature.
 
@@ -385,8 +385,8 @@ records live in [context/bundled-run.md](context/bundled-run.md).
 - All scenarios pass, the change is not yet reviewed, and no other Test-stage check (coverage plan, test quality) is still pending: `/review:quality-gate`.
 - All scenarios pass after review: `/verification:confirm outcome`.
 - A scenario fails: `/testing:diagnose`.
-- Touched features not matched (app-control not installed): install app-control, then run this
-  skill again.
+- Touched features not matched (app-control not installed): enable app-control, installing it
+  first if it is not installed, then run this skill again.
 
 ## Gotchas
 

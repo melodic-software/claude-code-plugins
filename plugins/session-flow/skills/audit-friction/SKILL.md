@@ -61,7 +61,7 @@ Apply this policy unless the person states another, and say once that it is in f
 ## Collaborators
 
 These skills belong to other plugins and are optional. Before the step that uses one, check that it
-is installed; when it is not, say so once in the report and take its fallback:
+is enabled; when it is not, say so once in the report and take its fallback:
 
 - `/harness-config:audit-permission-state` (step 3): run `F cause` without `--merge`. It exits 1
   and matches no rule, so the brief marks rule causes unmapped.

@@ -6,7 +6,8 @@ names a source, not a mistake, so section 1's exceptions do not lift the thresho
 
 1. **Gate.** The excerpts belong to `/session-flow:audit-sessions`, which owns the session store and
    its redaction. Use it when the `session-flow` plugin is enabled; otherwise say this action needs
-   that plugin and stop.
+   that plugin, print `claude plugin enable session-flow@<marketplace>`, preceded by
+   `claude plugin install session-flow@<marketplace>` when it is not installed, and stop.
 2. **Target.** Ask which user-scope file the preferences are for, unless the invocation names one:
    the user `CLAUDE.md`, a user-level rule file, or a user output style. A repository file (a project
    `CLAUDE.md`, `AGENTS.md`, a rule under a repository's `.claude/rules/`) is never a target, because
