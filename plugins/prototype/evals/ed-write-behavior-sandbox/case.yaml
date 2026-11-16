@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: ed-write-behavior-sandbox
+description: "Head contract for write handling, MB:plugins/prototype/skills/explore-directions/SKILL.md 'Writes are stubbed by default': when the question names a write's behavior, the plan states which write goes to the vendor's sandbox and keeps every other write stubbed; the HTML mockup cannot make the call, so the plan suggests the real stack; no production key or real record is used. no-write checks that only the plan was given."
+tags: [explore-directions, hard]
+runs: 3
+expected_outcome: "The reply gives the plan line before any variant code. It states that 'mark all delivered' goes to the carrier's sandbox with a sandbox key while every other write stays stubbed, says the offline HTML mockup cannot make that call and suggests the real-stack override, and uses no production key or real record."
+execution:
+  prompt: "/prototype:explore-directions How should the /shipments page let a dispatcher mark all parcels delivered? Part of the question is how our carrier Routa's 'mark all delivered' call behaves when the list spans several pages. Give me only the plan for now; do not build anything yet."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 600

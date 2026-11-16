@@ -106,6 +106,48 @@ test("an actions update from an unlisted publisher is review", () => {
   assert.equal(tier("bump someone/pkg from 1.0.0 to 1.1.0").tier, "auto", "outside github_actions the publisher is not read");
 });
 
+// The policy's fastTrack.own: this organization's own releases, as
+// ci-workflows' automerge-dependabot gate reads them.
+const OWN_POLICY = { ...NO_POLICY, fastTrack: { own: ["melodic-software/*"] } };
+const RUN_CLI = "melodic-software/ci-workflows/.github/actions/run-claude-cli";
+const OWN_REF = "dependabot/github_actions/first-party-actions-0a1b2c3d4e";
+const own = (title, { body = "", commits = [], policy = OWN_POLICY } = {}) =>
+  classify({ author: "dependabot[bot]", headRef: OWN_REF, title, body, labels: [], ciStatus: "success", commits, policy });
+const ownGroup = (...lines) => [`build: Bump the first-party-actions group across 1 directory with ${lines.length} updates`, lines.map(([name, from, to]) => `Updates \`${name}\` from ${from} to ${to}\n`).join("")];
+
+test("an own release's 0.x minor update is auto", () => {
+  const [title, body] = ownGroup([RUN_CLI, "0.74.0", "0.75.0"], [`${RUN_CLI.replace("run-claude-cli", "select-model-credential")}`, "0.74.0", "0.75.0"]);
+  assert.deepEqual([own(title, { body }).tier, own(title, { body }).reasons], ["auto", []]);
+  const commits = [commit(metadata([RUN_CLI, "semver-minor", "0.75.0"]))];
+  assert.deepEqual(own(`build: Bump ${RUN_CLI} from 0.74.0 to 0.75.0`, { commits }).reasons, [], "the metadata's semver-minor");
+  assert.equal(own(title, { body }).updates[0].major, false);
+});
+
+test("an own release's patch update is auto", () => {
+  const commits = [commit(metadata([RUN_CLI, "semver-patch", "0.74.1"]))];
+  assert.deepEqual(own(`build: Bump ${RUN_CLI} from 0.74.0 to 0.74.1`, { commits }).tier, "auto");
+});
+
+test("an own release's first-component major stays review", () => {
+  assert.deepEqual(own(`build: Bump ${RUN_CLI} from 0.75.0 to 1.0.0`).reasons, [`major:${RUN_CLI}`]);
+  const commits = [commit(metadata([RUN_CLI, "semver-major", "1.0.0"]))];
+  assert.deepEqual(own(`build: Bump ${RUN_CLI} from 0.75.0 to 1.0.0`, { commits }).reasons, [`major:${RUN_CLI}`]);
+});
+
+test("a group mixing an own release and a third-party action is unchanged", () => {
+  const [title, body] = ownGroup([RUN_CLI, "0.74.0", "0.75.0"], ["someone/action", "1.0.0", "1.1.0"]);
+  assert.deepEqual(own(title, { body }).reasons, [`major:${RUN_CLI}`, `publisher:${RUN_CLI}`, "publisher:someone/action"]);
+});
+
+test("with no policy copy or no fastTrack.own an own release is unchanged", () => {
+  const [title, body] = ownGroup([RUN_CLI, "0.74.0", "0.75.0"]);
+  for (const policy of [null, NO_POLICY, { ...NO_POLICY, fastTrack: { own: "melodic-software/*" } }]) {
+    const result = own(title, { body, policy });
+    assert.equal(result.tier, "review", JSON.stringify(policy));
+    assert.ok(result.reasons.includes(`major:${RUN_CLI}`) && result.reasons.includes(`publisher:${RUN_CLI}`), JSON.stringify(policy));
+  }
+});
+
 test("a red ci-status is review and a running one is not", () => {
   for (const ci of ["action_required", "cancelled", "failure", "startup_failure", "timed_out"]) {
     assert.ok(tier("bump x from 1.0.0 to 1.0.1", { ci }).reasons.includes("ci-status-red"), ci);

@@ -818,6 +818,32 @@
       ]
     },
     {
+      "name": "session-telemetry",
+      "source": "./plugins/session-telemetry",
+      "category": "claude-code",
+      "defaultEnabled": false,
+      "tags": [
+        "claude-code",
+        "telemetry",
+        "hooks",
+        "observability",
+        "skill-usage",
+        "audit"
+      ]
+    },
+    {
+      "name": "plugin-diagnostics",
+      "source": "./plugins/plugin-diagnostics",
+      "category": "claude-code",
+      "tags": [
+        "claude-code",
+        "hooks",
+        "diagnostics",
+        "prerequisites",
+        "plugins"
+      ]
+    },
+    {
       "name": "plugin-quality",
       "source": "./plugins/plugin-quality",
       "category": "claude-code",

@@ -77,6 +77,10 @@ For each change area, produce the plan below. Omit a fuzz-target or contract-tes
 changed code matches its row: do not print it empty, write it as "none", or list it under "Not
 testing".
 
+Every planned test's entry names where its expected value comes from and cites
+`testing:test-value` (if enabled) for that choice, canned responses for a third-party client
+included.
+
 Test names follow the project's documented pattern; when undocumented, mirror the ecosystem's
 idiom (the PascalCase placeholders are illustrative, .NET/xUnit):
 
@@ -84,11 +88,11 @@ idiom (the PascalCase placeholders are illustrative, .NET/xUnit):
 ## Test Plan for [branch/PR description]
 
 ### Unit tests
-- [ ] `{Method}_Should{Behavior}_When{Condition}` — {why this matters}
+- [ ] `{Method}_Should{Behavior}_When{Condition}` — {why this matters}; expected value: {source}, per `testing:test-value`
 - [ ] ...
 
 ### Integration tests
-- [ ] `{Subject}_{Behavior}` — {what this validates}
+- [ ] `{Subject}_{Behavior}` — {what this validates}; expected value: {source}, per `testing:test-value`
 - [ ] ...
 
 ### Architecture tests
@@ -106,7 +110,7 @@ idiom (the PascalCase placeholders are illustrative, .NET/xUnit):
 ### Contract tests (only if a service client or consumed endpoint changed; otherwise omit this section)
 - [ ] {Consumer} → {provider interaction} — {requests sent, response fields relied on, where the provider verifies it}
 
-### E2E verification (if UI/API changes)
+### E2E verification (if UI/API changes; an API endpoint change counts even when no served app exists)
 - [ ] Navigate to {endpoint}, verify {behavior}
 - [ ] Submit {form}, confirm {response}
 - [ ] Screenshot: {page} showing {expected state}
@@ -139,11 +143,9 @@ Prioritize gaps by:
 Present the test plan to the user. Then suggest:
 
 - `/testing:write` for identified unit/integration gaps. **For HIGH/CRITICAL coverage gaps**, the `advisor`-tool checkpoint (when available in the session) applies after the new tests land
-- `/testing:run-e2e` for UI/API verification scenarios
+- `/testing:run-e2e` for UI/API verification scenarios, an API endpoint change included even when
+  no served app exists (`/testing:run-e2e non-ui` then covers it)
 - `/testing:write organize` if new test projects are needed
-
-For each planned test, name where its expected value will come from: `testing:test-value` (if
-enabled).
 
 ## Next
 

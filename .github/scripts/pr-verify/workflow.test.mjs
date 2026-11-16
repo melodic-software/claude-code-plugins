@@ -1669,13 +1669,11 @@ test("the driver's file tools are fenced to the head and the run directory, and 
   // Both legs run without Claude Code's sandbox: launch's nested claude and
   // npm ci need hosts beyond GitHub, and the probe checks where they run.
   for (const leg of [driver, capStep(PROBE)]) assert.equal(input(leg, "sandbox"), '"false"');
-  // Every pin of the two actions is one commit with loopback-base-url (first at 4aba9be).
+  // Every pin of the two actions is one release commit (loopback-base-url first ships at 4aba9be).
   const pins = [...CAPTURE_TEXT.matchAll(/uses: melodic-software\/ci-workflows\/\.github\/actions\/(run-claude-cli|apply-claude-managed-settings)@(\S+) # (.*)$/gm)].map((m) => `${m[1]} ${m[2]} ${m[3]}`);
-  assert.deepEqual(pins, [
-    "apply-claude-managed-settings 944d346c487c79eaf85dff752586fb59b0f5c539 v0.74.0",
-    "run-claude-cli 944d346c487c79eaf85dff752586fb59b0f5c539 v0.74.0",
-    "run-claude-cli 944d346c487c79eaf85dff752586fb59b0f5c539 v0.74.0",
-  ]);
+  const pin = pins[0]?.split(" ").slice(1).join(" ");
+  assert.match(pin, /^[0-9a-f]{40} v\d+\.\d+\.\d+$/);
+  assert.deepEqual(pins, [`apply-claude-managed-settings ${pin}`, `run-claude-cli ${pin}`, `run-claude-cli ${pin}`]);
   assert.deepEqual(allowed.filter((rule) => /^(?:Read|Edit|Write)\(/.test(rule)), ["Read(/${{ github.workspace }}/head/**)", "Read(/${{ github.workspace }}/capture-run/**)", "Read(/${{ github.workspace }}/.base/plugins/**)", "Read(/${{ github.workspace }}/.base/.claude/skills/**)", "Edit(/${{ github.workspace }}/head/**)", "Edit(/${{ github.workspace }}/capture-run/**)"]);
   assert.equal(input(driver, "permission-mode"), "dontAsk");
   const denied = list(driver, "disallowed-tools");

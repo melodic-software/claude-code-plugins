@@ -6,7 +6,7 @@ Copy into your working task notes. Tick as each phase completes.
 
 - [ ] Phase 1: Discover candidates (self-generated). Enumerate automation gaps across hooks + MCP + skills + agents + scheduled routines
 - [ ] Phase 2: Deep-dive each candidate. Evaluate against the rungs in `context/enforcement-ladder.md`; cost-benefit analysis
-- [ ] Phase 3: Present results. Categorized recommendations with rationale + anti-noise doctrine compliance
+- [ ] Phase 3: Present results. Categorized recommendations with rationale + anti-noise doctrine compliance + the ladder spread (five tier counts, sits lower than it could)
 - [ ] Phase 4: Implement (if `--implement` or user requests). Apply approved candidates with plan + incremental validation
 
 ## Anti-noise doctrine (applied throughout Phase 2)

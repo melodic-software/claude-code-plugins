@@ -3,6 +3,14 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.32] - 2026-11-16
+
+### Changed
+
+- The shared hook library resolves `HOOK_TELEMETRY_SINK=@session-telemetry`, and `@harness-ops`, to the session-telemetry launcher.
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
 ## [0.21.31] - 2026-11-16
 
 ### Changed

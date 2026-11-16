@@ -4,8 +4,7 @@ The skills of `plugins/speech`. Each one is driven with `<plugin-dir>` set to `p
 
 ## Parts
 
-- `check`: Report each missing speech prerequisite. Never installs.
-- `narrate`: Script in, narration.wav and words.json out (kokoro local; elevenlabs optional, third-party).
+- `narrate`: Script in, narration.wav and words.json out (kokoro local, or a voice fallback chain).
 - `setup`: Set up the speech plugin's text-to-speech prerequisites. No plain-words entry.
 
 ## Sub-features

@@ -9,6 +9,7 @@
 # list. It fails closed when it cannot tell.
 # test-scope: .github/workflows/pr-require-checks.yml
 # test-scope: docs/conventions/work-items.yaml
+# test-scope: docs/conventions/source-control.yaml
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

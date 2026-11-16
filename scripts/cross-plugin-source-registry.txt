@@ -160,9 +160,13 @@ scripts/yaml-subset.awk
 lib/plugin-options.mjs
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for
 # the duplication audit: the channel-F settings reader and every copy, the
-# harness-ops and plugin-profiles ones at the path above, the source-control
-# and corrections ones at paths of their own.
-lib/plugin-options.mjs -> plugins/source-control/skills/babysit-loop/scripts/operator-options.mjs plugins/corrections/scripts/lib/plugin-options.mjs plugins/harness-ops/lib/plugin-options.mjs plugins/plugin-profiles/lib/plugin-options.mjs
+# harness-ops, plugin-profiles and plugin-diagnostics ones at the path above, the
+# source-control and corrections ones at paths of their own.
+lib/plugin-options.mjs -> plugins/source-control/skills/babysit-loop/scripts/operator-options.mjs plugins/corrections/scripts/lib/plugin-options.mjs plugins/harness-ops/lib/plugin-options.mjs plugins/plugin-profiles/lib/plugin-options.mjs plugins/plugin-diagnostics/lib/plugin-options.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/enabled-plugin-roots.mjs, which harness-ops and plugin-diagnostics carry at this path.
+lib/enabled-plugin-roots.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/setup-apply.mjs.
@@ -181,8 +185,8 @@ context/recommendation-basis.md
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/html-chrome.html, the rendered-views shared chrome
 # (docs/contracts/rendered-views/README.md, "The shared chrome reference").
-# The visualization, adhd and planning plugins carry the generated copies,
-# which stay byte-identical to each other.
+# The visualization, adhd, planning and architecture plugins carry the
+# generated copies, which stay byte-identical to each other.
 reference/html-chrome.html
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the

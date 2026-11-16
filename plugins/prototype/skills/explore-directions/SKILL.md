@@ -137,6 +137,16 @@ and say why each one fails. For a returns panel the list is `/shipments`, the or
 and the account page. The check matters because a variant judged on a bare route loses the same
 realism the override was asked for.
 
+**Writes are stubbed by default.** A write (cancel, reroute, mark all delivered) goes to a stub, so
+the variants are read-only. When the question names a write's behavior, such as how a carrier's
+"mark all delivered" or its paging behaves, that write may go to the vendor's sandbox instead:
+sandbox keys only, read from the environment and never written into a file, never against
+production or regulated data, and every record synthetic ("Synthetic data only" still holds). State
+it at the top of the prototype: in the plan line, the mount block's fence comment and the first
+line of each variant file that makes the call. Reseed the sandbox records before each review pass,
+and remove them when the exercise ends. The mockup's CSP blocks every remote call, so a
+sandbox write needs the real stack; suggest that override, and keep stubs on the mockup.
+
 ## HTML mockup substrate
 
 When the intent selector picks this row, the variants live in one self-contained `file://` HTML
@@ -260,7 +270,7 @@ the variant count, screens, states, screenshots, and review-mode and real-stack 
 `standard` values are the ones this file states.
 Before any code, record the plan as one line per screen naming the route, the host, the variant
 keys and the screen's states, for example: "Plan: `/shipments`, HTML mockup in the app's look,
-variants A to C, states populated, empty, loading, error." List the states the screen has, such
+variants A to C, states populated, empty, loading, error, writes stubbed." List the states the screen has, such
 as empty, loading, populated, error, validation and permission-limited; every variant builds
 every listed state. For a single screen the count is **3 variants** unless the level or the user
 sets another number or the design space is genuinely wide, and never more than 5: past five, new
@@ -458,7 +468,7 @@ Ordered from the costliest outcome on `/shipments` down:
 
 | What goes wrong | What it costs | Prevent it |
 |---|---|---|
-| B's "Cancel shipment" button calls the live API while the team clicks through the review | A customer's real parcel is cancelled | Point every write (cancel, reroute, refund) at a stub, so the variants are read-only |
+| B's "Cancel shipment" button calls the live API while the team clicks through the review | A customer's real parcel is cancelled | Point every write (cancel, reroute, refund) at a stub, or at the vendor's sandbox when the question is that write's behavior ([Writes are stubbed by default](#where-the-variants-live)) |
 | The chosen variant is merged as written | Prototype code with no tests and minimal error handling reaches customers and fails on the first carrier timeout | Rebuild the chosen design to production standards as part of folding it in |
 | Under sub-shape A, `/shipments`' parcel list gains a `variant` prop and a branch per variant | Dead props and unused variants stay in shipped code after the run | Keep each variant in its own file behind one fenced, dev-only mount block, and grep the fences away in step 5 |
 | Every variant shows five short parcel names and no delayed parcels | The layout that breaks on a 60-character recipient name or forty parcels in transit wins the review | Fill each variant with step 2's worst content |

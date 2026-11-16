@@ -538,7 +538,11 @@ any re-pin procedure the page states. It marks each upstream change **take**, **
 disposition as [When a trigger fires](#when-a-trigger-fires) requires, and opens one pull request
 per upstream that closes the issue. For a `pin=unknown` row, the agent restores or re-vendors what
 the row's check script names. Either pull request merges through the
-[loop lanes](../loop-lane/README.md) like any other.
+[loop lanes](../loop-lane/README.md) like any other. The pr-verify verifier takes the drift issue as
+the spec of a pull request that closes it and changes only that upstream's pages, from the upstream
+id and the page paths alone
+([pr-pipeline, trusted spec](../../conventions/pr-pipeline/README.md)); a pull request that also
+applies a take or adapt elsewhere, or restores a vendored copy, links a listed human's issue.
 
 One case goes to the owner: a take or adapt that would change the design of one of this
 repository's skills. The agent does not apply that change. It files the change as its own

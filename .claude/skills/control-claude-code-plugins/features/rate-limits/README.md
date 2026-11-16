@@ -4,7 +4,6 @@ The skills of `plugins/rate-limits`. Each one is driven with `<plugin-dir>` set 
 
 ## Parts
 
-- `check`: Report whether node resolves and whether the rate-limits mod can load. Never installs.
 - `setup`: Verify the rate-limits plugin on this machine. No plain-words entry.
 
 ## Sub-features
@@ -15,7 +14,7 @@ none
 
 - `/rate-limits:<skill> <args>` as the `logs` prompt, in print mode | driven
 - `/rate-limits:<skill> <args>`, typed at the prompt of the terminal session | driven
-- A request in plain words that names the skill's job, typed at the prompt | driven
+- A request in plain words that names the skill's job, typed at the prompt | not driven: the only skill, setup, has no plain-words entry
 - The same skill in Claude Desktop | not driven: terms
 
 ## Reset

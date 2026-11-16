@@ -11,7 +11,10 @@ pull requests"):
   version component changes or, below 1.0, the second does; every
   `github_actions` update (head branch `dependabot/github_actions/...`) comes
   from the `actions`, `github` or `anthropics` publisher; and the newest
-  `ci-status` run on the head is not red.
+  `ci-status` run on the head is not red. A pull request whose every update
+  each read policy copy's `fastTrack.own` names (`all_own`, this
+  organization's own releases) skips the publisher rule, and below 1.0 only
+  its first component counts.
 - `review`: anything else, including anything this cannot read, every
   update to a dependency the standards Dependabot policy lists under
   `autoMerge.reviewOnly` (`review_only`), and an npm or pip update whose
@@ -53,7 +56,7 @@ import posixpath
 import re
 from collections import Counter
 from collections.abc import Callable, Collection, Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import quote
@@ -127,6 +130,8 @@ class Update:
     major: bool | None  # None when unreadable
     # The new version, for the provenance gate; None when unread.
     version: str | None = field(default=None, compare=False)
+    # Whether the first version component changed; None when unread.
+    first_major: bool | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
@@ -388,9 +393,17 @@ def is_major(old: str, new: str) -> bool | None:
     return a[0] != b[0] or (a[0] == 0 and a[1] != b[1])
 
 
+def is_first_major(old: str, new: str) -> bool | None:
+    """Whether the first numeric version component changed; None when either
+    side is not a version."""
+    a, b = _parts(old), _parts(new)
+    return None if a is None or b is None else a[0] != b[0]
+
+
 def parse_metadata(message: str) -> list[Update] | None:
     """The `updated-dependencies` entries of one commit message, or None when
-    it has none. A `semver-minor` update to a 0.x version is major."""
+    it has none. A `semver-minor` update to a 0.x version is major;
+    `first_major` is True only for `semver-major`."""
     lines = str(message).replace("\r\n", "\n").split("\n")
     try:
         start = next(
@@ -411,13 +424,16 @@ def parse_metadata(message: str) -> list[Update] | None:
         kind = entry.get("update-type", "").removeprefix("version-update:")
         version = _parts(entry.get("dependency-version", ""))
         major: bool | None = None
+        first: bool | None = None
         if kind == "semver-major":
-            major = True
+            major = first = True
         elif kind == "semver-patch":
-            major = False
+            major = first = False
         elif kind == "semver-minor" and version is not None:
-            major = version[0] == 0
-        updates.append(Update(entry["name"], major, entry.get("dependency-version")))
+            major, first = version[0] == 0, False
+        updates.append(
+            Update(entry["name"], major, entry.get("dependency-version"), first)
+        )
     return updates
 
 
@@ -427,26 +443,26 @@ def parse_title(title: str, body: str) -> list[Update] | None:
     subject = _PREFIX.sub("", str(title), count=1)
     if group := _GROUP.search(subject):
         found = [
-            Update(m.group(1), is_major(m.group(2), m.group(3)), m.group(3))
+            Update(
+                m.group(1),
+                is_major(m.group(2), m.group(3)),
+                m.group(3),
+                is_first_major(m.group(2), m.group(3)),
+            )
             for m in _UPDATE_LINE.finditer(str(body))
         ]
         return found if len(found) == int(group.group(1)) else None
     if single := _SINGLE.search(subject):
-        return [
-            Update(
-                single.group(1),
-                is_major(single.group(2), single.group(3)),
-                single.group(3),
-            )
-        ]
+        old, new = single.group(2), single.group(3)
+        return [Update(single.group(1), is_major(old, new), new, is_first_major(old, new))]
     return None
 
 
-def subject_major(message: str, update: Update) -> bool | None:
-    """The jump a metadata entry with no `update-type` (a security update
-    writes none) reads from its own Dependabot commit's subject, never the
-    editable PR title: only when the subject opens with `Bump <pkg> from <a>
-    to <b>` for the same package and the entry's version is `<b>`; None
+def subject_jump(message: str, update: Update) -> tuple[str, str] | None:
+    """The `(from, to)` a metadata entry with no `update-type` (a security
+    update writes none) reads from its own Dependabot commit's subject, never
+    the editable PR title: only when the subject opens with `Bump <pkg> from
+    <a> to <b>` for the same package and the entry's version is `<b>`; None
     otherwise, a group subject included."""
     subject = _PREFIX.sub("", str(message).split("\n", 1)[0], count=1)
     if update.version is None or _GROUP.search(subject):
@@ -458,7 +474,47 @@ def subject_major(message: str, update: Update) -> bool | None:
         or single.group(3) != update.version
     ):
         return None
-    return is_major(single.group(2), single.group(3))
+    return single.group(2), single.group(3)
+
+
+def subject_major(message: str, update: Update) -> bool | None:
+    """`subject_jump`'s `is_major`, or None."""
+    jump = subject_jump(message, update)
+    return None if jump is None else is_major(*jump)
+
+
+def own_globs(policy: Any) -> tuple[str, ...]:
+    """The standards Dependabot policy's `fastTrack.own` globs (this
+    organization's own releases), each `*` matching any run of characters,
+    `/` included, as ci-workflows' automerge-dependabot gate reads them; ()
+    when the policy has none or they are not a list of non-empty strings."""
+    track = policy.get("fastTrack") if isinstance(policy, dict) else None
+    own = track.get("own") if isinstance(track, dict) else None
+    if isinstance(own, list) and all(isinstance(g, str) and g for g in own):
+        return tuple(own)
+    return ()
+
+
+def _own_regex(glob: str) -> re.Pattern[str]:
+    return re.compile("^" + ".*".join(re.escape(p) for p in glob.split("*")) + "$")
+
+
+def all_own(updates: Sequence[Update], globs: Sequence[str]) -> bool:
+    """Whether every update is an own release under `globs`: such a pull
+    request takes no `publisher:` reason, and a below-1.0 second-component
+    move is not major for it; a first-component move still is."""
+    patterns = [_own_regex(g) for g in globs]
+    return bool(updates) and bool(patterns) and all(
+        any(p.match(u.name) for p in patterns) for u in updates
+    )
+
+
+def _from_subject(message: str, update: Update) -> Update:
+    """`update` with its jump read from its commit's subject (`subject_jump`)."""
+    jump = subject_jump(message, update)
+    if jump is None:
+        return Update(update.name, None, update.version)
+    return Update(update.name, is_major(*jump), update.version, is_first_major(*jump))
 
 
 def _segment(head_ref: Any) -> str:
@@ -473,10 +529,13 @@ def classify(
     head_ref: str,
     ci_status: str,
     commits: Sequence[Any] = (),
+    own: Sequence[Sequence[str]] = (),
 ) -> Classification:
     """The tier from what Dependabot wrote: its commits' metadata, the title,
     the body's `Updates` lines and the head branch, and the newest `ci-status`
-    conclusion on the head."""
+    conclusion on the head. `own` holds each read policy copy's `own_globs`;
+    when every one names every update (`all_own`), the pull request skips the
+    publisher rule and below 1.0 only its first component counts."""
     ecosystem = _segment(head_ref)
     metadata: list[Update] | None = None
     for item in commits:
@@ -486,9 +545,7 @@ def classify(
             entries = parse_metadata(message)
             if entries is not None:
                 metadata = (metadata or []) + [
-                    u
-                    if u.major is not None
-                    else Update(u.name, subject_major(message, u), u.version)
+                    u if u.major is not None else _from_subject(message, u)
                     for u in entries
                 ]
     titled = parse_title(title, body)
@@ -503,6 +560,13 @@ def classify(
             by_name[u.name] != u.major for u in metadata
         ):
             reasons.append("sources-disagree")
+    # Every read policy copy must name this organization's own releases.
+    is_own = bool(own) and all(all_own(updates, globs) for globs in own)
+    if is_own:
+        updates = [
+            replace(u, major=False) if u.major and u.first_major is False else u
+            for u in updates
+        ]
     for update in updates:
         if update.major is None:
             reasons.append(f"unparsed-version:{update.name}")
@@ -510,6 +574,7 @@ def classify(
             reasons.append(f"major:{update.name}")
         if (
             ecosystem == "github_actions"
+            and not is_own
             and update.name.split("/")[0] not in ACTIONS_PUBLISHERS
         ):
             reasons.append(f"publisher:{update.name}")

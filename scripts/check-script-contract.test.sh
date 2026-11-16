@@ -109,6 +109,7 @@ REGISTRY=(
   "check-orphaned-fixtures.sh|-|-|-"
   "check-pipefail-grep-q.sh|awk|-|pipefail_grep_q"
   "check-plugin-catalog-enablement.sh|jq|-|-"
+  "check-plugin-imports.sh|git|-|plugin_imports"
   "check-plugin-manifest-presence.sh|jq|-|-"
   "check-plugin-profiles.sh|node|-|-"
   "check-publisher-token-alignment.sh|-|-|-"
@@ -349,6 +350,19 @@ recipe::docs_naming() { # <clean|violation>
   capture run_in "$f" bash scripts/check-docs-naming.sh --check
 }
 
+recipe::plugin_imports() { # <clean|violation>
+  # shellcheck disable=SC2016  # the source lines are literal fixture text
+  local load='source "$SCRIPT_DIR/../lib/x.sh"'
+  # shellcheck disable=SC2016
+  [[ "$1" == violation ]] && load='source "$SCRIPT_DIR/../../beta/lib/x.sh"'
+  fixture_tree::build f --sut "$SELF_DIR/check-plugin-imports.sh" --git --plugins --label plugin-imports || return 2
+  mkdir -p "$f/plugins/alpha/scripts" "$f/plugins/beta/lib"
+  printf '%s\n' "$load" >"$f/plugins/alpha/scripts/a.sh"
+  printf 'x\n' >"$f/plugins/beta/lib/x.sh"
+  git_test_config "$f" add -A >/dev/null || return 2
+  capture run_in "$f" bash scripts/check-plugin-imports.sh
+}
+
 recipe::convention_yaml() { # <clean|violation>
   fixture_tree::build f --sut "$SELF_DIR/check-convention-yaml.sh" --git --label convention-yaml || return 2
   mkdir -p "$f/docs/conventions" "$f/plugins/alpha/schemas" "$f/lib"
@@ -501,6 +515,7 @@ declare -A VIOLATION_NEEDLE=(
   [changelog_parity]='MISSING CHANGELOG:'
   [changelog_fragments]='NOT IN FRAGMENT MODE:'
   [docs_naming]='is not lower-kebab-case'
+  [plugin_imports]='plugins/alpha/scripts/a.sh:1: breaks the boundary rule'
   [convention_yaml]='docs/conventions/alpha.yaml: no schema'
   [adr_numbers]='0001: docs/adr/0001-first.md, docs/adr/0001-second.md'
   [spoke_plugin_root]='plugins/demo/skills/audit/context/step.md: contains'

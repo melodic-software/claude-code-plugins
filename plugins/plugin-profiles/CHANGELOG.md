@@ -3,6 +3,43 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0] - 2026-11-16
+
+### Added
+
+- `launch --json` with a profile carries `enabledPlugins`: each plugin any settings layer names, on or off as the session will start with it, the session file read as the session layer, so a plugin the repository, managed or user settings enable is reported though the profile writes no entry for it. It is reported under `--dry-run` too, so a launcher can check what a session will start with before it starts one.
+
+## [0.2.2] - 2026-11-16
+
+### Changed
+
+- The `always-on` profile no longer lists `context-budget`, whose settings-write ask now runs in guardrails; `context-budget` moves to `harness-upkeep`.
+
+## [0.2.1] - 2026-11-16
+
+### Changed
+
+- The `always-on` profile lists `session-telemetry` and `plugin-diagnostics` in place of `harness-ops`, which moves to `harness-upkeep`.
+- Setup's hook-plugin question (phase 4) names `session-telemetry` and `plugin-diagnostics` among the plugins it asks about.
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [0.2.0] - 2026-11-16
+
+### Added
+
+- `launch [<name>] [--folder <dir>]` writes the one-session file for a folder and profile and prints the `claude` command that starts a session in it, asking nothing and changing no settings file. With no name it takes this session's profile, else the folder's; with neither the command carries no profile. The command always clears an inherited `PLUGIN_PROFILES_SESSION`. `--with` takes a launcher's own settings (a JSON object or a file) and writes one file holding both, since `claude` keeps only the last `--settings`. `--unattended` stops when the profile switches on a plugin missing a required prerequisite. `--dry-run` does every check and prints the result but writes no file. `--json` prints the result with the words a launcher runs before its own arguments. An empty `PLUGIN_PROFILES_SESSION` counts as unset everywhere it is read. A session file no launch has written for 30 days is removed by the next launch. Launch works from any surface, since the session it starts is a CLI session, and each session file sets `PLUGIN_PROFILES_SESSION_FILE` to its own path, so `status` names the file a session was started with, merged or not.
+- `/plugin-profile`'s confirmation names the other live sessions in the folder (from `claude agents`), which get the new profile at their next reload or start, and says to start one with the launch command to give it its own. It still applies on Apply. `apply --dry-run --json` carries them as `othersInFolder`.
+- `status` prints the command that starts another session here in the profile in force, which a handoff uses as its restore line.
+
+### Changed
+
+- The one-session file is one per folder and profile, so sessions in two folders with one profile no longer share a file.
+
+### Fixed
+
+- A new git worktree whose `.claude/settings.local.json` was copied from the main worktree now takes the main worktree's folder profile when the copy still holds every entry that profile wrote, so `status`, the session-start notice, `clear` and `launch` with no name see the profile there instead of reporting none. Reading it there writes nothing; the next `apply` in the worktree records it.
+
 ## [0.1.1] - 2026-11-16
 
 ### Fixed

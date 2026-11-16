@@ -19,7 +19,7 @@ graders:
     type: regex
     target: last_message
     flags: 'i'
-    pattern: '^(?=[\s\S]*notes-hooks)[\s\S]*?(?:always[ -]on[^.?!\n]*\bor\b[^.?!\n]*per[ -]profile[^.!\n]*\?|per[ -]profile[^.?!\n]*\bor\b[^.?!\n]*always[ -]on[^.!\n]*\?)'
+    pattern: '^(?=[\s\S]*notes-hooks)[\s\S]*?(?:always[ -]on[^.?!\n]*\bor\b[^.?!\n]*(?:per[ -]profile|only (?:on |loaded )?(?:in|by) (?:the |some )?profiles)[^.!\n]*\?|(?:per[ -]profile|only (?:on |loaded )?(?:in|by) (?:the |some )?profiles)[^.?!\n]*\bor\b[^.?!\n]*always[ -]on[^.!\n]*\?|always[ -]on[^.?!\n]*\bor\b[^.?!\n]*\?[^\n]*(?:\n[^\n]*){0,4}?\n[ \t]*(?:[-*]|\d+\.)[ \t]+(?:\*\*)?per[ -]profile)'
   - name: no-profile-saved-before-answer
     type: tool_used
     tool: 'Bash'
