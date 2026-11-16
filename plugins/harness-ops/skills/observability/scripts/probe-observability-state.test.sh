@@ -46,6 +46,7 @@
 # test-scope: plugins/harness-ops/skills/observability/SKILL.md
 
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/probe-observability-state.sh"
@@ -458,8 +459,8 @@ out="$(bash "$SCRIPT" 2>&1)"
 rc=$?
 assert_eq "no mode exits 3" "3" "$rc"
 case "$out" in
-*"a mode is required"*) pass "no mode names the requirement on stderr" ;;
-*) fail "no mode names the requirement on stderr" "a mode is required" "$out" ;;
+  *"a mode is required"*) pass "no mode names the requirement on stderr" ;;
+  *) fail "no mode names the requirement on stderr" "a mode is required" "$out" ;;
 esac
 
 bash "$SCRIPT" --bogus >/dev/null 2>&1
@@ -472,8 +473,8 @@ out="$(bash "$SCRIPT" --hook-events --otel-store 2>&1)"
 rc=$?
 assert_eq "conflicting modes exit 3" "3" "$rc"
 case "$out" in
-*"mutually exclusive"*) pass "conflicting modes are named on stderr" ;;
-*) fail "conflicting modes are named on stderr" "mutually exclusive" "$out" ;;
+  *"mutually exclusive"*) pass "conflicting modes are named on stderr" ;;
+  *) fail "conflicting modes are named on stderr" "mutually exclusive" "$out" ;;
 esac
 
 bash "$SCRIPT" --help >/dev/null 2>&1
