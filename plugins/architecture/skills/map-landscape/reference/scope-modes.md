@@ -30,7 +30,7 @@ the operator's whole configured fleet, including personal directories nobody ask
 which self-ignores. Never commit it, and never copy it into the architecture directory as a record
 of the fleet.
 
-### When the plugin is absent
+### When the plugin is not enabled
 
 Fall back to the bundled walk, and announce the fallback: the operator has to know the collaborator
 did not run. Fall back the same way when the plan file is missing or carries a `schema_version`

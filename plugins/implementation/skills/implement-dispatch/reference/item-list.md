@@ -83,7 +83,7 @@ An item is **ready** when every blocker has resolved. Blockers come from three s
   entry in list order is blocked by the earlier one, and that edge resolves the way a declared
   edge does.
 
-Tracker entries with no seam that can read edges (the plugin is absent, no binding resolves, or
+Tracker entries with no seam that can read edges (the plugin is not enabled, no binding resolves, or
 the probe or a read exits non-zero) and no declared edges have no known order: STOP and report it
 rather than guessing one. A cycle among declared edges is a STOP too.
 

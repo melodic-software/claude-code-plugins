@@ -28,7 +28,7 @@ to its minimum, but the lane itself always runs. Depth is the throughput lever; 
 
 ## The lane catalog
 
-Each lane runs once per item, in this order. A lane is *composed from* the installed skill catalog.
+Each lane runs once per item, in this order. A lane is *composed from* the enabled skill catalog.
 The skills named are its reference realization (published as sibling plugins in this marketplace), not
 a re-specification of their contracts. `work-items` installs standalone and hard-depends on none of
 them: where a lane's skill is not enabled, the lane is to degrade to the consumer's own workflow for

@@ -13,7 +13,7 @@ Each is **presence-gated**: invoke the named skill via the Skill tool when its p
 otherwise keep the observation in the report as a plain note naming what the operator would need,
 and do not judge it against the placement rubric instead.
 
-| The candidate actually raises | Route to | Fallback when the plugin is absent |
+| The candidate actually raises | Route to | Fallback when the plugin is not enabled |
 |---|---|---|
 | Does the current model still need this instruction? | `harness-config:audit-instructions` | Note it as a model-era-fit question, unjudged |
 | Is the memory layer healthy in size, index integrity, and conflicts? | `harness-memory:audit` | Note the symptom and the file it appeared in |

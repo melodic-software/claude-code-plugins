@@ -292,7 +292,7 @@ When all planned work is done:
 - **Does not auto-execute plans**. Guides execution with checkpoints and validation. Code changes are still judgment calls
 - **Does not replace `/verification:confirm`**. The `verification` plugin's outcome-verification skill (a separate plugin, when enabled) does comprehensive build + test + lint + outcome verification. This skill does incremental validation during implementation
 - **Does not produce plans**. A planning pass does. If the plan needs revision, this skill routes back to it
-- **Does not replace `/toolchain:check`**. The `toolchain` plugin's check skill (a separate plugin, when enabled) is the SSOT for build commands; this skill invokes it at the right moments and falls back to the project's own build command when that plugin is absent
+- **Does not replace `/toolchain:check`**. The `toolchain` plugin's check skill (a separate plugin, when enabled) is the SSOT for build commands; this skill invokes it at the right moments and falls back to the project's own build command when that plugin is not enabled
 - **Does not orchestrate workers**. `/implementation:implement-dispatch` owns the orchestrated dispatch cadence for worker-routed phases and autonomous runs. This skill detects the routing and chains to it
 
 ## Next

@@ -220,8 +220,8 @@ forcing every session through stage 1. Common classes:
   improvements rather than mid-flight work. Each finding the user picks up is a new idea entering a
   fresh cycle at the interview; it never merges into an in-progress cycle's later stages.
 
-These are classes, not an inventory. Match the arriving situation to its class, then check what the
-consuming setup actually installs for that class, the same rule as stage execution: never invent
+These are classes, not an inventory. Match the arriving situation to its class, then check which
+skills for that class are enabled in the session, the same rule as stage execution: never invent
 skill names, and degrade to inline work when nothing is enabled.
 
 ## When two capabilities both fit

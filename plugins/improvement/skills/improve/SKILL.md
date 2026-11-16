@@ -116,7 +116,7 @@ unless the user redirects. `dry-run` presents the pick with its proposed diff an
 
 ## Step 4. Route to an owning lane, or fix it here
 
-When an installed skill owns the kind of fix picked, invoke it via the Skill tool, scoped to the
+When an enabled skill owns the kind of fix picked, invoke it via the Skill tool, scoped to the
 target. What happens next depends on what that skill returns:
 
 - **It ships its own PR** (for example `/code-tidying:tidy`): its run is this run's result, and
@@ -126,7 +126,7 @@ target. What happens next depends on what that skill returns:
   with the steps below. Unattended runs skip a lane that needs a human pick and fix the gap here
   instead, or move to the next candidate.
 
-Any installed skill whose description owns the gap qualifies; the examples are not a closed list.
+Any enabled skill whose description owns the gap qualifies; the examples are not a closed list.
 
 Otherwise, and after a lane that does not ship, fix it here:
 

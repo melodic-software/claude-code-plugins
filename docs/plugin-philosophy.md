@@ -109,7 +109,7 @@ Keep plugins horizontally decoupled:
     for who tags which repository, and
     [create a release tag](https://code.claude.com/docs/en/plugins/dependencies#create-a-release-tag)
     for the tag name and the command that makes it, live.
-- Every plugin remains useful alone. If an optional collaborator is absent, use a documented fallback
+- Every plugin remains useful alone. If an optional collaborator is not enabled, use a documented fallback
   or report the missing optional capability clearly.
 - Every cross-plugin reference is therefore either declared (the `dependencies` array above, which
   Claude Code installs automatically) or guarded behind an "if enabled" check with the documented
@@ -1200,7 +1200,7 @@ The default worker is a **generic fresh-context subagent carrying rich inline in
 task, the artifact, the criteria, and the output shape all travel in the dispatch prompt. A non-fork
 subagent starts without the parent conversation (Pointer:
 <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>), which is
-exactly the independence the checkpoint buys. A skill may prefer an installed **named agent** on the next rung,
+exactly the independence the checkpoint buys. A skill may prefer an enabled **named agent** on the next rung,
 but only when the named-agent bar below is met, and the site always states the generic fallback
 (presence-gate-plus-fallback, [seam phrasing](contracts/seam-phrasing/README.md)). The top rung, for
 high-stakes verdicts where correlated model blind spots are the risk, is a **cross-vendor advisor**

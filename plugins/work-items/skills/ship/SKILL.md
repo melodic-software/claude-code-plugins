@@ -127,8 +127,8 @@ every session joining the journey (cloud or local) must hear the same rules:
 
 ### 4. Route the next step
 
-Say what's next and hand it to the owner. Presence-gated: route to an installed skill by name;
-when a named plugin is absent, state the manual fallback instead.
+Say what's next and hand it to the owner. Presence-gated: route to an enabled skill by name;
+when a named plugin is not enabled, state the manual fallback instead.
 
 | Journey state | Route |
 |---|---|

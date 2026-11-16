@@ -5,7 +5,7 @@ Copy into your project's working-notes location (or track inline). Tick each box
 ## Lifecycle
 
 - [ ] Phase 0: Parse action + detect state. Live PR lookup, branch check, route to the phase
-- [ ] Phase 1: Prep. Classify the diff; run each class's skills (agents/inline fallback when a plugin is absent); verify findings; simplify; comment pass; run the project's build+test+lint gate
+- [ ] Phase 1: Prep. Classify the diff; run each class's skills (agents/inline fallback when a plugin is not enabled); verify findings; simplify; comment pass; run the project's build+test+lint gate
 - [ ] Phase 2: Create. Branch-name conformance check; push through `scripts/push-branch.sh`; open the PR with `Closes #N` if the branch carries an issue number, as a draft that Phase 2.5 flips unless the open state is `draft`
 - [ ] Phase 2.5: Ready. Update the branch from its base; security review over the PR diff; verify gate on the updated head; mark the PR ready
 - [ ] Phase 3: Monitor. Push channel (when available) or Monitor watch fallback; CI watch + comment response loop; research before any fix
