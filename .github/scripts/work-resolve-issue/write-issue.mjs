@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // write-issue.mjs: writes issue.json for the resolve-issue skill. The title,
-// body and labels go in as written: an issue neither a listed human nor the
-// lanes App wrote fails the run here, behind the check-admission job's own stop
+// body and labels go in as written, but for a trusted upstream-drift issue
+// (admit.mjs driftIssueId), whose body is admit.mjs driftSpecText and which
+// carries `source: "upstream-drift"`: an issue neither a listed human nor the
+// lanes App wrote, and no such drift issue, fails the run here, behind the check-admission job's own stop
 // (check-blockers.mjs), and the skill still reads them as data. Comments go in only when select-trusted-text's author and
 // edit rules keep them, oldest first, each tagged with its author's kind from
 // the trusted-actor list. A human's comment whose first line is
@@ -80,8 +82,8 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { fieldEvents, issueStatusFromBase } from "../../actions/resolve-config/resolve-config.mjs";
-import { authorAdmitted, carriesSplit, closedByTrusted, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
-import { admittedAt, matchesRecord, timeOf } from "../lib/admission-record.mjs";
+import { ACTIONS_BOT_ID, authorAdmitted, carriesSplit, closedByTrusted, driftIssueId, driftShaped, driftSpecText, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { admittedAt, contentHash, matchesRecord, timeOf } from "../lib/admission-record.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
@@ -113,7 +115,10 @@ const ISSUE_EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!)
 // as after it, and an unparsable time is a change. Fail closed: a change whose
 // account is unread, or a page that may hide an older change after
 // `frozenAt`, is "edited". A failed read or an unexpected shape throws.
-async function readEditsSince(github, repository, number, frozenAt, trusted) {
+// `bodyFree` is an account whose body edits do not count: github-actions[bot]
+// on a trusted drift issue, whose body the run never reads (driftSpecText),
+// so the filer's weekly rewrite leaves the run's spec as admitted.
+async function readEditsSince(github, repository, number, frozenAt, trusted, bodyFree = null) {
   const [owner, name] = repository.split("/");
   const issue = (await github("POST", "/graphql", { query: ISSUE_EDITS_QUERY, variables: { owner, name, number: Number(number) } }))
     ?.data?.repository?.issue;
@@ -130,7 +135,8 @@ async function readEditsSince(github, repository, number, frozenAt, trusted) {
   };
   const body = since(issue.userContentEdits, "hasNextPage", "editedAt", "editor");
   const title = since(issue.timelineItems, "hasPreviousPage", "createdAt", "actor");
-  const bodyChanged = after(issue.lastEditedAt);
+  const freeOnly = bodyFree !== null && !body.hidden && body.changes.length > 0 && body.changes.every((node) => node?.editor?.databaseId === bodyFree);
+  const bodyChanged = after(issue.lastEditedAt) && !freeOnly;
   if (!bodyChanged && title.changes.length === 0) {
     return "";
   }
@@ -230,9 +236,17 @@ export async function main({ env = process.env, github, log = console.log, write
     const repository = env.GITHUB_REPOSITORY;
     const data = await client("GET", `/repos/${repository}/issues/${env.ISSUE_NUMBER}`);
     // The check-admission job stops this run first (check-blockers.mjs); this holds the
-    // line if a run gets past it.
+    // line if a run gets past it. A trusted drift issue (admit.mjs
+    // driftIssueId) passes, and its body is never written: issue.json carries
+    // driftSpecText instead.
+    let spec;
+    let driftId = null;
     if (!authorAdmitted(data, humans, lanesAppId)) {
-      throw new Error("the issue's author is neither a listed human nor the lanes App");
+      spec = driftShaped(data) ? await specOf(client, repository, env.ISSUE_NUMBER) : undefined;
+      driftId = spec === undefined ? null : driftIssueId(spec);
+      if (driftId === null) {
+        throw new Error("the issue's author is neither a listed human nor the lanes App, and it is no trusted upstream-drift issue");
+      }
     }
     const { kept, dropped } = await selectTrustedIssueComments({
       github: client,
@@ -246,8 +260,12 @@ export async function main({ env = process.env, github, log = console.log, write
     const frozenAt = admission.at;
     // Edits since the admission decide first; a record also holds the hashes
     // of the text it admitted, which this run's one read must match.
-    let refused = await readEditsSince(client, repository, env.ISSUE_NUMBER, frozenAt, new Set([...ids, lanesAppId]));
-    if (!refused && admission.kind === "record" && !matchesRecord(admission.record, { title: data.title, body: data.body ?? "" })) {
+    // On a trusted drift issue only the title, which names the upstream, is
+    // the admitted text the run reads.
+    const drift = driftId !== null;
+    let refused = await readEditsSince(client, repository, env.ISSUE_NUMBER, frozenAt, new Set([...ids, lanesAppId]), drift ? ACTIONS_BOT_ID : null);
+    const recordMatches = (record) => (drift ? contentHash(data.title) === record.titleSha256 : matchesRecord(record, { title: data.title, body: data.body ?? "" }));
+    if (!refused && admission.kind === "record" && !recordMatches(admission.record)) {
       refused = "edited";
     }
     if (refused) {
@@ -258,7 +276,7 @@ export async function main({ env = process.env, github, log = console.log, write
     // The body's checks a person runs, as admission read them: the comments
     // posted before the admission, every one read, on the body as written now.
     const taskList = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"];
-    const spec = await specOf(client, repository, env.ISSUE_NUMBER);
+    spec ??= await specOf(client, repository, env.ISSUE_NUMBER);
     const before = spec.comments.filter((node) => timeOf(node.createdAt) < frozenAt);
     const moved =
       spec.commentCount === spec.comments.length && spec.body === (data.body ?? "")
@@ -324,7 +342,8 @@ export async function main({ env = process.env, github, log = console.log, write
     const issue = {
       number: data.number,
       title: data.title,
-      body: data.body ?? "",
+      body: driftId === null ? (data.body ?? "") : driftSpecText(driftId),
+      ...(driftId !== null && { source: "upstream-drift" }),
       labels: (data.labels ?? []).map((label) => (typeof label === "string" ? label : label.name)),
       comments: comments.filter((comment) => !cut.has(comment)),
       ...(moved.length > 0 && { person_checks: moved.map((n) => taskItems(spec.body, taskList)[n - 1].text) }),

@@ -2854,7 +2854,10 @@ only for a pull request that closes it and only modifies the `docs/upstream` pag
 `**Last audited upstream state:**` marker on main pins that id. Its spec text is built from the id
 and those page paths, never from the issue's body, so an upstream path or name in its rows never
 reaches the verifier as a requirement. A re-audit that applies a take or adapt to any other file
-still needs a listed human's issue.
+still needs a listed human's issue. The same rule (`driftIssueId` in
+`.github/scripts/intake-triage/admit.mjs`) lets the triage sweep dispatch intake for such an issue
+and admission accept it as its author, and the same template (`driftSpecText`) is its done-when and
+the issue lane's `issue.json` body (owner decision on #14215, Q195 (a)).
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:
@@ -3587,8 +3590,8 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 
 | Identity | Workflows | Why |
 |---|---|---|
-| `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
-| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
+| `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, except a dispatch and a pull request it opens or pushes to, whose `pull_request` runs wait for approval ([GitHub](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow)); the lane sweep's digest and the monitoring lane rely on this so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
+| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs unattended, which a `GITHUB_TOKEN` write does not (its pull request pushes start runs only after approval); one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
 | Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `release-generate-dependabot-changelog-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 

@@ -425,9 +425,10 @@ declares_both_fixtures B "$CASE_B"
 # #12476: restate action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, and restate decides nothing new, writes no Brief and reads silence as no yes
 # #12663: workflow-stage renamed contract -> interview only; every other key byte-identical, no qualifier added, so the auto-guard and lock STOP-on-gap defenses hold
 # Document surface folded into the interview: the frontmatter adds the document trigger phrases and the `document` argument word; the Action Router adds one row that resolves a named surface and then runs `auto`, leaving the `lock` row and its STOP-on-gap reading untouched; the roster renames case 38 and adds cases 46-51, which register the recipient questions open and resolve none on anyone behalf, so neither defense is weakened
+# #14879: the description now opens with the vague-build case (a build request that names no problem, users or scope); every other key byte-identical, no qualifier added to auto or lock, so the auto-guard and lock STOP-on-gap defenses hold
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "6269696f79badf7e6b1fba3dbab1c9a939db04f59c6d0bb111e54ecc4dde46ce"
+  "66f4633a977b9e9855874b98d242b7cc45a2205588f616cb8867cf5d518b97da"
 
 # The Gates block restates the auto-guard, the `lock` STOP-on-gap, the register gate, the
 # confirmation gate and the Step 4 `--brief` cross-check near the top of SKILL.md, where a
