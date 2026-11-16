@@ -304,9 +304,9 @@ The operational form is `/harness-config:unhobble watch`.
   and never a deletion, even when a check enforces it: report the enforcing check beside the
   hold. Compression in place or hook conversion stays available. When the register cannot be
   read, hold a candidate that may match a class by consequence and say the register was unread.
-- **Consequential.** A rule that governs a situation, outside the register, and enforced by no
-  check. Do not present
-  the deletion as applicable. Propose opening a watch for that rule. The cut becomes applicable
+- **Consequential.** A rule that governs a situation, outside the register, with no check that
+  meets the Enforced bar: no check at all, or one that only warns or reaches less than the prose
+  (the uncovered part). Do not present the deletion as applicable. Propose opening a watch for that rule. The cut becomes applicable
   only when a closed watch is cited: its qualifying-session count met and zero attributed rows.
   The recommended commit cites that watch. That citation is what clears this tier.
 
@@ -419,13 +419,14 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 - **Detect:** a rule the model already follows without it, one that must fire every time with
   zero exceptions, or one a deterministic check already enforces (a hook, a CI check, a linter
   rule, a test).
-- **Remediate:** a rule a deterministic check already enforces is not also kept as prose: flag
-  the prose for deletion and name the enforcing check (Deletion tiers, enforced). Convert a
-  must-always rule with no check to a hook or another deterministic check; once the check
-  exists, the prose goes in the same change, named against that check. An already-followed rule
-  that does not govern a situation is an editorial deletion. Any other rule that governs a
-  situation is consequential: open a watch, and propose the deletion only when a closed watch is
-  cited.
+- **Remediate:** a rule a deterministic check already enforces to the Enforced bar is not also
+  kept as prose: flag the prose for deletion and name the enforcing check (Deletion tiers,
+  enforced). Convert a must-always rule with no such check, including one whose check only warns
+  or reaches less than the prose, to a hook or another blocking check; once the check exists,
+  the prose goes in the same change, named against that check. An already-followed rule that does
+  not govern a situation is an editorial deletion. Any other rule that governs a situation,
+  including the part a warning-only or narrower check leaves uncovered, is consequential: open a
+  watch, and propose the deletion only when a closed watch is cited.
 - **Hold instead of delete** when the candidate matches a protected class in the
   [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md).
   "The model already does this" is the weakest possible evidence against a rail whose absence is

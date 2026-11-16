@@ -312,7 +312,9 @@ that posture honest, so give C5-kept navigation entries particular attention her
    the repository or its CI, must fail or block rather than only warn, and must be active
    everywhere the prose loads (scope it does not reach keeps its prose); the prose's own claim
    that something enforces it is not enough.
-   Where the check covers less than the prose states, flag only the covered part. A move up the
+   Where the check covers less than the prose states, flag only the covered part. A check that
+   only warns, and the part a narrower check leaves uncovered, are not enforced: they keep their
+   prose and fall under item 2 (WARN that they could move up the hierarchy). A move up the
    hierarchy from item 2 ends the same way: once the check exists, the prose goes in that change.
 5. **Hold instead of delete** when the instruction matches a protected class in the
    [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md):
