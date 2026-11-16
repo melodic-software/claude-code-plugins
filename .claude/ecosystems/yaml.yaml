@@ -9,8 +9,9 @@ check-cmd: |
 fix-cmd: null
 opt-in: "GitHub Actions workflows present"
 install-hint: |
-  actionlint: winget install rhysd.actionlint | brew install actionlint
+  actionlint: the kjanat/actionlint fork, v1.17.0 from https://github.com/kjanat/actionlint/releases (CI's actionlint composite installs it and verifies the linux_amd64 archive by SHA-256 620abd485a12b6ab1125b844a876414e1d5bd2af8a3125b27f82b01d0d9d6e5a; the unqualified actionlint package in winget and Homebrew installs upstream, which rejects $/ action references and concurrency.queue)
   zizmor: pip install zizmor==1.32.0
 tool-pin:
+  actionlint: "1.17.0"
   zizmor: "1.32.0"
 notes: "Lint-only: owned by /toolchain:lint. actionlint runs from the repository root with no arguments and finds every workflow itself; a zizmor finding is advisory."
