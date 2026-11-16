@@ -116,6 +116,18 @@ has "status: clean" "the clean component says so"
 has "status=aligned" "at least one probe aligns"
 has "explicit disable-model-invocation" "the invocation-mode probe aligns"
 
+OLD="$WORK/old-wording"
+git init -q "$OLD" >/dev/null 2>&1
+plant_home "$OLD"
+printf '%s\n' 'The gate is an explicit installed-ness condition on the invocation.' \
+  >"$OLD/docs/conventions/seam-phrasing/README.md"
+mkdir -p "$OLD/skills/clean"
+cp "$ROOT/skills/clean/SKILL.md" "$OLD/skills/clean/SKILL.md"
+run 0 "a seam-phrasing convention still worded as installed-ness is graded" \
+  --component "$OLD/skills/clean/SKILL.md" --root "$OLD"
+has "seam-phrasing status=aligned convention=docs/conventions/seam-phrasing/README.md:1" "the old wording still runs the seam check"
+lacks "basis-missing" "the old wording is not a missing basis"
+
 mkdir -p "$ROOT/skills/args"
 cat >"$ROOT/skills/args/SKILL.md" <<'EOF'
 ---

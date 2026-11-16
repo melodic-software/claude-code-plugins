@@ -190,7 +190,13 @@ exempt_plugins() {
     dir="$(dirname "$dir")"
   done
 }
-if topic_ready seam-phrasing "explicit availability condition"; then
+# A convention adopted before the gate became an availability condition still
+# carries the installed-ness wording, and is graded the same.
+seam_needle="explicit availability condition"
+if [[ -z "$(cite "$ROOT/$(topic_rel seam-phrasing)" "$seam_needle")" ]]; then
+  seam_needle="explicit installed-ness"
+fi
+if topic_ready seam-phrasing "$seam_needle"; then
   # Exempt: the owning plugin and any manifest `dependencies` entry, one name
   # per line from the nearest plugin.json above the component.
   exempt="|$(exempt_plugins | paste -sd'|' -)|"
