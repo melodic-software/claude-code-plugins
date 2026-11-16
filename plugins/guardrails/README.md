@@ -184,6 +184,25 @@ live:
   [headless § Turn off permission prompts in unattended runs](https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs)
   (what a `-p` run does with a call that would prompt).
 
+What we measured in one headless run (`claude -p`, `--permission-mode default`, `Write`, `Edit`
+and `Read` allowed, Linux) asking for a `Write`, then an `Edit`, to `.claude/settings.json` in the
+working directory:
+
+- The hook returned `permissionDecision: "ask"` with its reason, "guardrails: this edit changes
+  settings for every future session…".
+- Claude Code's own settings-file check rejected each write. The transcript records
+  `permissionDecision` `{"decision": "reject", "source": "config", "reasonCode": "safetyCheck",
+  "circuitBreaker": "claudeSettingsFile"}`.
+- The tool error was Claude Code's text, without the hook's reason: "Claude requested
+  permissions to write to WORKDIR/.claude/settings.json, but you haven't granted it yet."
+- The file was not written.
+
+Whether the reason shows in an interactive prompt is not measured.
+
+- **As of:** Claude Code 2.1.325, 2026-11-16.
+- **Recheck trigger:** a Claude Code changelog entry that changes how a PreToolUse `ask` resolves
+  in a headless run, or how Claude Code guards writes to its settings files.
+
 **What it does not see.** The checkpoint matches tool names and file paths, not the file on
 disk. These routes change a settings file without an ask:
 
