@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "find /tmp/wt -name __pycache__ -prune -exec rm -rf {} +", "description": "d"}}], "why": "deletes bytecode dirs"},
+    {"answer": [{"tool": "Bash", "input": {"command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_pricing", "description": "d"}}], "why": "disables bytecode writes"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cd /tmp/wt && python3 -B -m unittest tests.test_pricing", "description": "d"}}], "why": "runs without bytecode"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cd /tmp/wt && python3 -m unittest tests.test_pricing", "description": "d"}}], "why": "runs with the cache in place"}
+  ]
+}

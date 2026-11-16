@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "mutation-testing:seed-faults"
+          }
+        }
+      ],
+      "why": "qualified name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "mutation-testing:seed-faults",
+            "args": "--count 3"
+          }
+        }
+      ],
+      "why": "with args"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "mutation-testing:audit"
+          }
+        }
+      ],
+      "why": "the mutant audit"
+    }
+  ]
+}

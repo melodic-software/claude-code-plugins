@@ -68,14 +68,24 @@ skill:
 `/mutation-testing:audit` delegates it to a fresh context rather than to the context that authored
 the tests.
 
+**"Mutants or hand-seeded faults?"**. Both plant a known fault and ask whether the tests notice.
+A mutant comes from a fixed operator catalog applied to every eligible line, so its score is
+repeatable and per line; a seeded fault is a realistic bug written by hand, so it tests the
+suite against the kind of defect a developer ships. Andrews, Briand and Labiche (ICSE 2005) found
+mutants behave like real faults while hand-seeded faults were harder to detect than real ones, so
+a seeded result is an estimate of thoroughness, never a defect count. Seeding is
+`/mutation-testing:seed-faults`.
+
 ## Next
 
 - No mutation run on the change yet: `/mutation-testing:audit`.
+- The question is whether the suite catches realistic bugs: `/mutation-testing:seed-faults`.
 - A survivor is judged productive: `/testing:write`.
 
 ## What this skill does NOT do
 
 - Run a mutation tool. That is `/mutation-testing:audit`.
+- Plant hand-written faults. That is `/mutation-testing:seed-faults`.
 - Install or configure one. That is `/mutation-testing:setup`.
 - Answer general test-design questions (mocking, four pillars, classical vs London). Those belong to
   `/tdd:principles` when the `tdd` plugin is enabled; without it, consult your project's own
