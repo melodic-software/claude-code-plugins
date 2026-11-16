@@ -517,7 +517,11 @@ After a failed write the other upstreams still run, and the run then exits nonze
   labeled closed issue and a failed label add leaves the issue closed. An in-place edit of an open
   issue adds no label. Removing `needs-human` does not admit a bot-authored issue to the issue
   lane: the lane starts only when a listed person or the lanes App sets the issue's Work status to
-  agent-ready, and an issue this workflow's token opens starts no intake run.
+  agent-ready, and an issue this workflow's token opens starts no intake run. The label holds the
+  issue until a listed human lifts it, as the
+  [loop-lane label table](../loop-lane/README.md) says for `needs-human`. Lifting it hands the
+  issue to an agent for the re-audit described below; it does not ask that person to mark each
+  upstream change, and only a change to a skill's design comes back to the owner.
 - **`untracked` and `unreachable` block close.** An upstream with any `untracked` or
   `unreachable` page is never closed as clean,
   even beside a `clean` page, and since the report names it, the sweep leaves its issue alone too.
@@ -526,10 +530,19 @@ After a failed write the other upstreams still run, and the run then exits nonze
   neither reopens it nor files another. An open issue's body is replaced in place on each drifted
   run, with no label change and no comment.
 
-Whether to adopt an
-upstream change stays a person's decision: the issue is the to-do, and re-auditing the rows, which
-moves the pin and records the outcome as [When a trigger fires](#when-a-trigger-fires) requires, is
-what closes it.
+The issue is the to-do, and an agent works it. For a git-pinned page, the agent re-audits the
+drifted rows against the upstream head the issue names, following the page's recheck trigger and
+any re-pin procedure the page states. It marks each upstream change **take**, **adapt** or
+**reject** (or **already-have**, on a page whose rows use it). It moves the pin, records each
+disposition as [When a trigger fires](#when-a-trigger-fires) requires, and opens one pull request
+per upstream that closes the issue. For a `pin=unknown` row, the agent restores or re-vendors what
+the row's check script names. Either pull request merges through the
+[loop lanes](../loop-lane/README.md) like any other.
+
+One case goes to the owner: a take or adapt that would change the design of one of this
+repository's skills. The agent does not apply that change. It files the change as its own
+`needs-human` issue, lists it in the pull request body with a link to that issue, and cites that
+issue in the row's disposition. The rest of the re-audit, the pin move included, still lands.
 
 ### Claude Code release intake
 
@@ -551,7 +564,7 @@ Classified per `melodic-software/standards` `standards/engineering/enforceabilit
 | A pointer carries no as-of date or recheck trigger | **Detect-then-judge**, not built: a stamp beside a pointer is greppable, and whether the record holds a number or string copied or measured from upstream is a judgment. |
 | Every stored-value stamp carries a recheck trigger | **Deterministic** by nature (a presence check) once stamps and triggers use greppable forms. The check, flagging a dated stamp in a file that states no trigger, is **built, off by default, repo override enabled**: `/attribution:audit` runs it when `trigger_less_stamp_check` is true, the shipped default is false, and this repository sets it true in `docs/conventions/attribution.yaml`. It was built after its build trigger, a trigger-less stamp landing on `main` again, fired. |
 | The trigger clears the observability bar | **Reasoning-only**. Whether an event is decidable from evidence is a judgment about meaning. |
-| A trigger has fired | **Detect-then-judge** for [pinned git upstreams](#pinned-git-upstreams): `scripts/check-upstream-drift.sh` flags a change under a linked path or scope, and a person decides whether the change touches the decision, and for the Claude Code changelog record, where [the release intake lane](#claude-code-release-intake) takes in each unread release. **Reasoning-only** for every other stored value today; detect-then-judge there too if a hash store lands: the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
+| A trigger has fired | **Detect-then-judge** for [pinned git upstreams](#pinned-git-upstreams): `scripts/check-upstream-drift.sh` flags a change under a linked path or scope, and the re-auditing agent decides whether the change touches the decision ([Weekly drift issues](#weekly-drift-issues) says when the owner decides). **Detect-then-judge** too for the Claude Code changelog record, where [the release intake lane](#claude-code-release-intake) takes in each unread release. **Reasoning-only** for every other stored value today; detect-then-judge there too if a hash store lands: the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
 
 ### Recorded decision: an adoption gate is deferred, and the check named above would have missed the case that prompted it
 
