@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.4] - 2026-11-16
+
+### Changed
+
+- `/testing:write` now says that with `tdd_refactor_step: off` structure is left to the review plugin's design-smell check. `on` stays the default.
+
 ## [5.1.3] - 2026-11-16
 
 ### Changed
