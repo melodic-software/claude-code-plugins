@@ -6,43 +6,17 @@ Three phases, with a verification gate (Phase 1.5) between the scan and the repo
 
 ## Phase 1: Explore for friction
 
-**Check the branch is current with its base before scanning.** A deepening pass is long, and a
-base that moves under it lands its conflicts at the handoff, after the candidates are shaped
-around the stale tree. Run each as its own Bash call, never combined:
+The steps every lens shares are in [../../../reference/improvement-steps.md](../../../reference/improvement-steps.md); this playbook cites each by its section name.
 
-1. `git symbolic-ref --short refs/remotes/origin/HEAD` names the base (for example `origin/main`).
-2. `git fetch origin <base-branch>` refreshes it.
-3. `git rev-list --count HEAD..origin/<base-branch>` counts the commits the branch is behind.
-
-A count above zero is reported with the number, and the user chooses whether to bring the branch
-current before the scan starts; this skill never merges or rebases on its own. A failure at any
-step (no remote, no `origin/HEAD`, offline) is an unknown freshness, said in one line, and the scan
-carries on.
+**Check the branch is current with its base before scanning** ("Base freshness").
 
 **Scope before scanning: YAGNI.** The return on deepening is cheaper change later, so it only
 arrives where code is still being changed; deepening a file no one edits buys nothing. Choose the
-area first, then scan it:
-
-- When the invocation arguments or the conversation already point somewhere (a pain point, a
-  subsystem, a single module), that is the scope, and the history step below is skipped.
-- With no direction given, scan first the paths that change most often. Read them with one
-  read-only call, `git log --name-only --format='%h %an: %s' -100`, longer when no pattern shows,
-  and leave out every commit whose author name contains `[bot]` (release, dependency and automation
-  bots), and a project's other automation accounts the same way when it names them. When no path
-  changes noticeably more than the rest, history sets no priority and the scan covers the whole
-  area.
-- When a spec or plan for upcoming work is given, scan the areas it will change.
-
-The scope chosen here sets each scan subagent's assigned area.
-
-**Size the fan-out from the scope, not from a constant.** Dispatch one scan subagent per area the
-scope decomposed into, since the right width depends on the repository being scanned, not on
-the method. Name the count and the areas to the user before dispatching: scan cost rises with the
-subagent count, and the scan fan-out is the largest cost of a run.
+scope and size the scan fan-out from it ("Scope and fan-out").
 
 Read the project's domain glossary, if it keeps one: invoke `/domain-driven-design:ubiquitous-language lookup` via the Skill tool for the directory being examined when that skill is available; otherwise Glob the repository for `**/*{glossary,Glossary,GLOSSARY,ubiquitous,UBIQUITOUS}*.md` (the root, any `docs/` folder and the module's own folder) and Read the match that covers the area; a path the project's instructions declare, or a `glossary_file` set in `docs/conventions/domain-driven-design.yaml`, wins, and a tool's own reference glossary under a plugin or package `reference/` or `context/` folder is skipped, plus its glossary index in a multi-context repository.
 
-Also read any architecture decision records (ADRs) in the area being examined. Give them the same discovery discipline as the glossary rather than one shallow glob. If the consuming project declares where its decisions live inside the repository (a path in its `CLAUDE.md` / rules, or a documented convention), honor that. Otherwise walk the ladder of common homes in [../../../reference/adr-discovery.md](../../../reference/adr-discovery.md), from the examined directory up to the repo root. ADR placement varies widely; a single default glob misses most of them.
+Also read the architecture decision records in the area being examined ("Recorded decisions").
 
 Walk the codebase through the Agent tool (`subagent_type=Explore`, or any read-only exploration subagent available). Brief each scan subagent with the canonical template in [../research/deepening/scan-briefing.md](../research/deepening/scan-briefing.md): vocabulary primer, friction checklist, dependency categories, the two badge-acceptance heuristics, and the per-candidate return schema. Briefing from it keeps scan quality from varying run-to-run and calibrates confidence against the heuristics at scan time, not leaving it to Phase 2. The scan follows what it finds rather than a fixed route, and records friction wherever it shows up:
 
@@ -79,17 +53,17 @@ Verification can be a second cheap read-only subagent pass or inline reproductio
 
 **Re-badge first.** Before rendering, map each surviving candidate's scan `confidence` to its `recommendation` badge (`strong` → `Strong`, `worth-exploring` → `Worth exploring`, `speculative` → `Speculative`), then re-badge against the two acceptance heuristics below (deletion-test acceptance form, two-adapter rule) and the Phase 1.5 verification result. Scan-time confidence is an input, not the final badge. A candidate whose `shallow-signal` failed to reproduce, or whose value rests on a one-adapter abstraction, cannot carry `Strong`. **Promotion closes the same gate:** if re-badging lifts a candidate the scan rated below `strong` up to `Strong`, apply the Phase 1.5 reproduction to its `shallow-signal` *before* it carries the badge, or, when the level skipped Phase 1.5, label it `unverified`. A `Strong` claim reaches the report reproduced or labeled `unverified`, no matter which way the badge was reached, so the Phase 1.5 guarantee holds across both the original strong set and any promotions.
 
-The report is one self-contained HTML file under the OS temp directory, one per run, created via a secure temp-file primitive so the path is unpredictable and permissions are restrictive. On Unix/Linux, create a run directory with `mktemp -d "${TMPDIR:-/tmp}/deepening-review-XXXXXX"` and write `report.html` inside it. Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable. A directory plus a fixed filename is the form that keeps the Xs trailing while still yielding a meaningful `.html` name. On Windows, use a user-scoped temp under `%LOCALAPPDATA%\Temp` or equivalent. Resolve that one path deterministically. Never branch on an injected scratchpad path or `CLAUDE_JOB_DIR`. Show it to the user through the platform's opener: `start` (Windows), `open` (macOS) or `xdg-open` (Linux), each given the path. Report the absolute path. Do **not** delete the file after reporting: the path is the delivery mechanism and must stay readable for the user to open. It outlives the invocation, which is why one run writes one file and never an accumulating tree.
+The report is one HTML file under the OS temp directory, one per run, created via a secure temp-file primitive so the path is unpredictable and permissions are restrictive. On Unix/Linux, create a run directory with `mktemp -d "${TMPDIR:-/tmp}/deepening-review-XXXXXX"` and write `report.html` inside it. Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable. A directory plus a fixed filename is the form that keeps the Xs trailing while still yielding a meaningful `.html` name. On Windows, use a user-scoped temp under `%LOCALAPPDATA%\Temp` or equivalent. Resolve that one path deterministically. Never branch on an injected scratchpad path or `CLAUDE_JOB_DIR`. Show it to the user through the platform's opener: `start` (Windows), `open` (macOS) or `xdg-open` (Linux), each given the path. Report the absolute path. Do **not** delete the file after reporting: the path is the delivery mechanism and must stay readable for the user to open. It outlives the invocation, which is why one run writes one file and never an accumulating tree.
 
-**The rendered-views security baseline governs the report.** The baseline is owned by `docs/contracts/rendered-views/README.md` ("Security baseline") in the marketplace repository; its rules are repeated here because this skill runs where that file is not on disk. Everything taken from the scanned repository is untrusted data: escape `&`, `<`, `>`, `"`, and `'` in text and attribute positions; never interpolate unescaped content into `<script>` or `<style>`; never build an event-handler attribute from input. A view may load a popular, widely used library from a public CDN, pinned to an exact version, and makes no other external request; a page that loads one has a fallback for when the CDN is unreachable, so the page still shows its content, and a view destined for a published claude.ai Artifact stays self-contained, assets inline. The two additions specific to this report (which strings count as repository-derived, and no `<script>` inside SVG) live in [../research/deepening/html-report.md](../research/deepening/html-report.md). Build layout from an inline `<style>` block; draw diagrams as inline SVG or hand-built HTML/CSS: inline SVG node-and-edge for graph-shaped relationships, hand-built divs for the layer stacks and size bars that a node-and-edge drawing cannot show. <!-- contract-restatement: rendered-views-security-baseline -->
+**The rendered-views security baseline governs the report.** The baseline is owned by `docs/contracts/rendered-views/README.md` ("Security baseline") in the marketplace repository; its rules are repeated here because this skill runs where that file is not on disk. Everything taken from the scanned repository is untrusted data: escape `&`, `<`, `>`, `"`, and `'` in text and attribute positions; never interpolate unescaped content into `<script>` or `<style>`; never build an event-handler attribute from input. A view may load a popular, widely used library from a public CDN, pinned to an exact version, and makes no other external request; a page that loads one has a fallback for when the CDN is unreachable, so the page still shows its content, and a view destined for a published claude.ai Artifact stays self-contained, assets inline. The three additions specific to this report (which strings count as repository-derived, no `<script>` inside SVG, and what a repository-derived string may hold inside a Mermaid block) live in [../research/deepening/html-report.md](../research/deepening/html-report.md), with the scaffold: the page is built on this plugin's chrome reference and loads two pinned libraries, Tailwind for layout and Mermaid for graph-shaped diagrams, while hand-built divs and inline SVG draw the layer stacks, size bars and deep modules that a node-and-edge drawing cannot show. <!-- contract-restatement: rendered-views-security-baseline -->
 
 **Another repository's files are not rendered to HTML until this lane is wired through the rendered-views escape helper.** When the scanned repository is not the user's own work (a freshly cloned third-party checkout, a vendored or fetched tree), skip the HTML report: the durable candidate artifact below is the deliverable, and say in one line why no page was produced. This is the baseline's third bullet applied to this skill; it overrides the report step above, not the scan.
 
 **Resolve `medium` before writing the report.** The shared medium resolver decides, with this plugin's `medium` option as the skill's Arguments line states it and the `--medium` argument when given; print its report line and notices in the reply. Procedure, and what each resolved medium does to this report: [../../../reference/rendered-view.md](../../../reference/rendered-view.md) "The deepening report".
 
-Each candidate gets a card with: files involved, problem (one sentence), solution (one sentence), before/after diagram, benefits in terms of **leverage** and **locality**, recommendation badge (`Strong` / `Worth exploring` / `Speculative`), dependency category badge.
+The header carries one line of evidence counts, each a number Phase 1.5 reproduced ("Header" in the report format). Each candidate gets a card with: files involved, problem (one sentence), solution (one sentence), before/after diagram, benefits in terms of **leverage** and **locality**, recommendation badge (`Strong` / `Worth exploring` / `Speculative`), dependency category badge, and the candidate it depends on when it has one.
 
-**Order and band the cards by badge, at every count.** Cards render in one band per badge, `Strong` first, then `Worth exploring`, then `Speculative`, and an empty band is left out. The banding is unconditional: no cap, no pagination, and no card behind a collapsed disclosure, since a reader who ran the scan needs every candidate and the bands already say how far each claim can be trusted.
+**Order and band the cards by badge, at every count** ("Badge bands").
 
 Two acceptance heuristics gate the badge:
 
@@ -100,7 +74,7 @@ The last section of the report is the **Top recommendation**. The scaffold and t
 
 Domain nouns come from the project's glossary; architecture nouns come from [../../../reference/vocabulary.md](../../../reference/vocabulary.md).
 
-**Durable candidate artifact.** Alongside the HTML when one is produced (or standing alone, per the carve-out above), write a machine-readable candidate list that survives the session. The HTML, when produced, is the human-readable companion, ephemeral in the temp dir. Write it to the **memory tier**: `<memory_dir>/<topic-slug>/deepening-candidates-<YYYYMMDDTHHMMSSZ>.md`, default `.work/<topic-slug>/…`. `<memory_dir>` is `.work/` unless the consuming repo's `CLAUDE.md` or `.claude/rules` declares another working-docs root. `<topic-slug>` is the scan focus the user named (a path, a subsystem or a module), whether in the invocation arguments or the conversation, else the current branch name, kebab-case. On the session's first memory-tier write, verify the memory root contains a `.gitignore` with `*`, creating it with the Write tool (announced) when absent, never with a shell redirect, and never editing the consumer's root `.gitignore`; create the topic slice directory when absent. Tell the user the path. This file, not the HTML, is the durable handoff a planning step consumes. One entry per candidate:
+**Durable candidate artifact.** Alongside the HTML when one is produced (or standing alone, per the carve-out above), write a machine-readable candidate list that survives the session. The HTML, when produced, is the human-readable companion, ephemeral in the temp dir. Write it to the **memory tier** ("Memory-tier writes"): `<memory_dir>/<topic-slug>/deepening-candidates-<YYYYMMDDTHHMMSSZ>.md`, default `.work/<topic-slug>/…`. This file, not the HTML, is the durable handoff a planning step consumes. One entry per candidate:
 
 ```markdown
 ## <candidate title>
@@ -135,7 +109,7 @@ Phase 2 proposes no interfaces. Once the report is written, the reply opens with
 
 ## Phase 3: Interview loop on selected candidates
 
-When the user has chosen a candidate, work through its decision tree in three groups: what the deepened module looks like (its shape, and what the seam hides), what it has to work within (its dependencies and constraints), and what will prove it (the tests that remain). When the user selects several, interview each to its own agreed shape in turn; each is its own design fork. The skill still stops at the handoff and implements none of them.
+When the user has chosen a candidate, work through its decision tree in three groups: what the deepened module looks like (its shape, and what the seam hides), what it has to work within (its dependencies and constraints), and what will prove it (the tests that remain). When the user selects several, interview each to its own agreed shape in turn; each is its own design fork. The exception is a candidate that depends on another selected one, because it changes the same module or needs the other's interface first: interview those as one tree, the candidate the others depend on first, and say at the start which candidates are being treated as one tree and why. Each still gets its own `agreed-shape` entry. The skill still stops at the handoff and implements none of them.
 
 Side effects inline as decisions crystallize:
 
@@ -156,11 +130,4 @@ Branch here when the user wants alternative interfaces for the selected candidat
 
 When the candidate's shape is agreed, update its entry in the candidate artifact to `status: agreed-shape` and fill `agreed-shape` (interface entry points, what the seam hides, tests that survive). **When the agreed shape is a hybrid grafted from a Design-It-Twice fan-out, fill `graft-record` in the same edit**: what was taken from which design, and what was considered and left behind with its reason. It is a sibling field, not part of `agreed-shape`, and this is the only step that writes it: skip it here and the left-behind half survives nowhere, which is the half that stops a later explorer re-proposing a shape this exploration already weighed and dropped. Hand off to `/planning:design` (if enabled), which takes the `agreed-shape` entry as the module design and whose handoff carries it into the plan. If no design or planning tool is available in the project, summarize the agreed shape directly so implementation can proceed.
 
-Before handing off, re-run the Phase 1 base-freshness check and report the behind count, so a base that moved during the interview surfaces now rather than at merge time.
-
-The handoff carries two instructions for whoever implements the shape:
-
-- **A skipped suite is not a pass, and a stub is not the tool.** A test suite that skips because a required tool is missing has verified nothing, and a stand-in binary that echoes its arguments and exits zero is not the tool it replaces. Validation is green only when the suite ran against the real tool.
-- **Retiring a public name sweeps comments and assertions, not only call sites.** When the agreed shape retires a function, type, or other public name, the sweep covers every call site, every comment that names it, and every test assertion that mentions it, including a substring assertion that would pass against either spelling. A passage that records what a past version dropped (a changelog entry, a README history note) keeps the old name, since renaming it would falsify the record.
-
-**When more than one candidate is handed off together**, the handoff also records what a single candidate never needs: the order the candidates land in and why, the files two or more of them touch, and which candidates depend on another landing first. Commit granularity and pull-request shape stay the implementing lane's call and are carried into the handoff, not decided here.
+Before handing off, re-run the base-freshness check, and carry the implementer instructions and, for several candidates, their landing order ("Hand-off").

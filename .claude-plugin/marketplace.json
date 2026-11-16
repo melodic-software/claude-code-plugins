@@ -806,6 +806,44 @@
       ]
     },
     {
+      "name": "plugin-profiles",
+      "source": "./plugins/plugin-profiles",
+      "category": "claude-code",
+      "tags": [
+        "plugins",
+        "profiles",
+        "enabled-plugins",
+        "settings",
+        "skills"
+      ]
+    },
+    {
+      "name": "session-telemetry",
+      "source": "./plugins/session-telemetry",
+      "category": "claude-code",
+      "defaultEnabled": false,
+      "tags": [
+        "claude-code",
+        "telemetry",
+        "hooks",
+        "observability",
+        "skill-usage",
+        "audit"
+      ]
+    },
+    {
+      "name": "plugin-diagnostics",
+      "source": "./plugins/plugin-diagnostics",
+      "category": "claude-code",
+      "tags": [
+        "claude-code",
+        "hooks",
+        "diagnostics",
+        "prerequisites",
+        "plugins"
+      ]
+    },
+    {
       "name": "plugin-quality",
       "source": "./plugins/plugin-quality",
       "category": "claude-code",
@@ -1713,19 +1751,6 @@
         "recording",
         "display",
         "hooks"
-      ]
-    },
-    {
-      "name": "core",
-      "source": "./plugins/core",
-      "category": "claude-code",
-      "defaultEnabled": false,
-      "tags": [
-        "bundle",
-        "dependencies",
-        "default-on",
-        "plugin-set",
-        "install"
       ]
     }
   ]

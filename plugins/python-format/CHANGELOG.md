@@ -3,6 +3,14 @@
 All notable changes to the `python-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.11] - 2026-11-16
+
+### Changed
+
+- The shared hook library resolves `HOOK_TELEMETRY_SINK=@session-telemetry`, and `@harness-ops`, to the session-telemetry launcher.
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
 ## [2.0.10] - 2026-11-15
 
 ### Changed

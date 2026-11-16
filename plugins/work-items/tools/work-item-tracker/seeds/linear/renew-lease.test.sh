@@ -72,6 +72,22 @@ rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$HANDLE")"
 assert_eq "superseded lease → exit 7" "7" "$rc"
 assert_contains "and says it was superseded" "$(lin_err)" "superseded"
 
+# --- a live lease an EARLIER live lease outranks is refused (claim step 4) ---
+EARLIER="$(jq -cn --arg b "$(lin_lease_body $((HANDLE - 1000)) kyle "$NOW" 24)" \
+  '[{id: "uuid-comment-earlier", body: $b, createdAt: "2026-08-20T12:00:00.500Z"}]')"
+seed_lease "$(jq -cn --argjson a "$EARLIER" --argjson b "$(lin_lease_node "$HANDLE" kyle "$NOW" 24)" '$a + $b')"
+rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$HANDLE")"
+assert_eq "an outranked live lease → exit 7" "7" "$rc"
+assert_contains "and names the earlier lease" "$(lin_err)" "outranked"
+if [[ "$(lin_requests)" == *"commentUpdate"* ]]; then
+  fail "an outranked lease is not written to" "no commentUpdate" "commentUpdate issued"
+else
+  pass "an outranked lease is not written to"
+fi
+# The earlier lease itself still renews under the newer one.
+rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$((HANDLE - 1000))")"
+assert_eq "the earlier lease renews (0) under a newer live lease" "0" "$rc"
+
 # --- a ttl-0 lease is born expired ---
 seed_lease "$(lin_lease_node "$HANDLE" kyle "$NOW" 0)"
 rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$HANDLE")"

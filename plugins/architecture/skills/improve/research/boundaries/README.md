@@ -6,14 +6,16 @@ live" list in [../enforcement-ladder.md](../enforcement-ladder.md).
 
 ## What counts as a boundary rule
 
-A boundary rule names two groups of modules and says which way references between them may go.
-Three forms cover the rules repositories write down:
+A boundary rule limits which references between modules may exist. This table is the one list of
+recorded forms; every lens and `/architecture:enforce-boundaries` read it here:
 
 | Form | Example statement | What crosses it |
 |---|---|---|
 | Layer order | "Layers, outermost first: Web, Services, Core. A layer references only layers inside it." | an edge from an inner layer to an outer one |
 | Forbidden reference | "Reporting must not reference Payments directly." | any edge from the first group to the second |
 | Allowed-only list | "Shipping.Domain references nothing but Shared.Kernel." | any edge from the first group to a node outside the list |
+| Entry-points only | "Other modules reach Billing only through `billing/index`; tests too." | any reference from outside the module to one of its files other than its entry points, a test's included |
+| No cycles | "No module depends on itself through others." | a chain of references that returns to the module it started from |
 
 Not boundary rules, so left out of the lens:
 
@@ -24,7 +26,7 @@ Not boundary rules, so left out of the lens:
 - a description of the current structure with no "must" or "only": a diagram of today's references
   records what is, not what is allowed.
 
-When a source states a rule in a form that fits none of the three, quote it to the user in Phase 3
+When a source states a rule in a form that fits none of these, quote it to the user in Phase 3
 and ask how it maps, rather than forcing it into one.
 
 ## Naming a rule's modules in the graph
@@ -50,8 +52,12 @@ That fixes what this lens can check:
 - **Checkable:** rules between projects, packages in a workspace, or modules with their own
   manifest.
 - **Not checkable:** rules between folders or namespaces inside one project, because a source
-  import is not an edge in these maps. Report these rules as `not checkable from manifests`. An
-  architecture test can still assert them, so a confirmed one is still handed on in Phase 4.
+  import is not an edge in these maps; every entry-points only rule, because an edge names the
+  project referenced, not the file inside it; and a no-cycles rule within one project. Report these
+  rules as `not checkable from manifests`. An architecture test can still assert them, so a
+  confirmed one is still handed on in Phase 4.
+- **No cycles between projects** is checkable: each cycle `/architecture:map-dependencies` reports
+  among the rule's projects is a crossing.
 - **Partly checkable:** when the graph's `findings` carry `unread-reference-tags` or
   `unread-manifest` entries, the edge list is short. A rule with no crossing in such a graph is
   reported as `no crossing found` with the unread count beside it, not as clean.

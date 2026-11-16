@@ -1,5 +1,39 @@
 # Changelog: session-flow plugin
 
+## [9.4.1] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+- The bundled `lib/node-or-skip.sh` comment names plugin-diagnostics' node notice.
+
+## [9.4.0] - 2026-11-16
+
+### Added
+
+- `continue-in-background` starts the background session in the session's plugin profile when the plugin-profiles plugin is enabled, and the cloud launch report says the cloud session starts without it.
+- `save_point.py new --settings-file <file>` puts `--settings "<file>"` on the handoff's `claude --resume` line; the handoff skill passes the file plugin-profiles gives it.
+- A handoff whose next phase runs in another profile adds a line above the copy line (`save_point.py new --start-command`) telling the user to exit and start the next session with that profile's start command; the copy line itself is unchanged, so `/session-flow:find-handoff` still finds it.
+
+### Changed
+
+- The handoff's plugin profile restore entry is the "Start another session here in this profile with:" line from `/plugin-profiles:profile status`.
+
+## [9.3.1] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract. This covers the save-point's suggested-skills slot, `orient`'s timeline hand-off and the workflow skill's cloud-route docs read, `audit-friction`'s collaborator check and `keep-going`'s `rate-limits` reading.
+
+### Fixed
+
+- `/session-flow:retro`: the gotcha on mechanical findings puts "when the `corrections` plugin is
+  enabled" on the hand-off to `/corrections:codify`, where the condition applies.
+- `/session-flow:retro`: without the `corrections` plugin, the catalog's "Check first" step states
+  in item 2 that one occurrence of a policy-class mistake is enough to propose a check, beside a
+  repeat with the same cause.
+
 ## [9.3.0] - 2026-11-15
 
 ### Added

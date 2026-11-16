@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Boundary rules\n\n- billing must not import reporting. Evidence: src/billing/invoice.js:1. Accepted 2026-10-30. Enforced by: `bash scripts/check.sh`.\n"
+    },
+    {
+      "answer": "- Billing must not import reporting. Accepted 2026-10-30. Enforced by: `bash scripts/check-imports.sh` (billing-no-reporting).\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- billing must not import reporting. Evidence: src/billing/invoice.js:1. Accepted 2026-10-30.\n"
+    },
+    {
+      "answer": "- billing must not import reporting.\n\nEnforced by: `bash scripts/check.sh`\n"
+    }
+  ]
+}

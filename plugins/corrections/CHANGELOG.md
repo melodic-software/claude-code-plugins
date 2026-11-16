@@ -3,6 +3,22 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.2] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [1.2.1] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract. `/corrections:codify issues` now stops when `work-items` is installed but off instead of calling `/work-items:track`, and both it and `preferences` print `claude plugin enable`, preceded by `claude plugin install` when the plugin is not installed.
+
+- **`/corrections:codify`, `architecture-test` rung.** Besides the rung's pointer, it names
+  `/architecture:enforce-boundaries` as the next step when that skill is available. Codify still
+  writes no check.
+
 ## [1.2.0] - 2026-11-15
 
 ### Added

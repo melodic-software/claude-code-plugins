@@ -1,11 +1,11 @@
 {
   "name": "architecture",
-  "description": "improve uses Ousterhout's deep-module lens to find shallow modules, seam leaks, and locality gaps, reports them as HTML, and interviews the chosen one. map-landscape charts a C4 system landscape and portfolio table with drift checks. map-dependencies, map-components, map-containers, map-context, map-flow, map-events, map-data, and map-deployment draw dependency, C4, sequence, event, data, and deployment views from committed files. record-decision writes an ADR in the repo's convention.",
+  "description": "improve scans for module friction through three lenses: deepening (shallow modules, seam leaks, locality gaps), boundaries (recorded rules against manifest references) and conventions (unwritten conventions proposed as rules). improve-layout checks whether files that change together live together. enforce-boundaries sets up and proves a check per recorded boundary rule. The map-* skills draw landscape, dependency, C4, sequence, event, data and deployment views. record-decision writes an ADR.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "4.5.3",
+  "version": "5.1.0",
   "userConfig": {
     "medium": {
       "type": "string",

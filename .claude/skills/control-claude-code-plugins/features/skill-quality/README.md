@@ -5,7 +5,6 @@ The skills of `plugins/skill-quality`. Each one is driven with `<plugin-dir>` se
 ## Parts
 
 - `check`: Static QA gate for skill frontmatter, caps, and evals.
-- `check-prerequisites`: Report whether the tools skill-quality declares resolve. Never installs.
 - `setup`: Verify where this repository's skills live for skill-quality, the resolved skills_root, and explain how to change the personal skills_root option through Claude Code. No plain-words entry.
 
 ## Sub-features

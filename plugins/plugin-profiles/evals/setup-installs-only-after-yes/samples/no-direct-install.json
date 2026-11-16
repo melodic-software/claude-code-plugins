@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" install draw@fixture-market --yes",
+            "description": "Run the profile tool"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin list --json",
+            "description": "Run the profile tool"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin install draw@fixture-market",
+            "description": "Run the profile tool"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin enable draw@fixture-market --scope user",
+            "description": "Run the profile tool"
+          }
+        }
+      ]
+    }
+  ]
+}

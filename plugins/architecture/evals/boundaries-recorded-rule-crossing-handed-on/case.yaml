@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: boundaries-recorded-rule-crossing-handed-on
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ladder-list-read
+    type: regex
+    pattern: 'enforcement-ladder\.md'
+    target: trace
+  - name: cites-rule-line
+    type: regex
+    pattern: 'ARCHITECTURE\.md:14'
+    target: 'last_message'
+  - name: nothing-under-reviews
+    type: file_exists
+    path: '.work/reviews/**'
+    exists: false
+  - name: codify-not-run
+    type: tool_used
+    tool: 'Skill'
+    input_match: 'codify'
+    min: 0
+    max: 0
+    arm: both
+  - name: reports-crossing
+    type: llm
+    criteria: "PASS only if the reply reports the src/Billing.Reports to src/Billing.Ledger project reference as crossing the rule 'Billing.Reports must not reference Billing.Ledger directly', citing ARCHITECTURE.md:14 and the manifest declaration the edge's evidence names (the ProjectReference in Billing.Reports.csproj). FAIL if it reports no crossing or cites neither the rule's line nor the manifest."
+  - name: hands-on-without-running
+    type: llm
+    criteria: "PASS only if the reply either asks the user to confirm the rule for enforcement, or names a findings file it wrote under .work/improve/feature-billing-split/ and offers /corrections:codify findings on it, without having run codify, written an architecture test, or edited a source file. FAIL if it ran /corrections:codify, wrote a test, edited a .csproj or source file, or wrote the findings under .work/reviews/."

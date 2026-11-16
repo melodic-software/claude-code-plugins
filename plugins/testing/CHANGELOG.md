@@ -3,6 +3,26 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.4] - 2026-11-16
+
+### Changed
+
+- `/testing:write` now says that with `tdd_refactor_step: off` structure is left to the review plugin's design-smell check. `on` stays the default.
+
+## [5.1.3] - 2026-11-16
+
+### Changed
+
+- The shared hook library resolves `HOOK_TELEMETRY_SINK=@session-telemetry`, and `@harness-ops`, to the session-telemetry launcher.
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [5.1.2] - 2026-11-16
+
+### Changed
+
+- `/testing:run-e2e` takes its own-driving path when app-control is not enabled, and both its route suggestion and its `## Next` name enabling app-control, installing it first if it is not installed, per the seam-phrasing contract.
+
 ## [5.1.1] - 2026-11-15
 
 ### Changed

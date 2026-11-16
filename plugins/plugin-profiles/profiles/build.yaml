@@ -1,0 +1,24 @@
+description: Write the change, test, review, verify, open and merge the PR, and run lanes.
+plugins:
+  - implementation@melodic-software
+  - toolchain@melodic-software
+  - debugging@melodic-software
+  - testing@melodic-software
+  - tdd@melodic-software
+  - mutation-testing@melodic-software
+  - playwright@melodic-software
+  - app-control@melodic-software
+  - evals@melodic-software
+  - review@melodic-software
+  - code-tidying@melodic-software
+  - user-interface@melodic-software
+  - verification@melodic-software
+  - performance@melodic-software
+  - work-items@melodic-software
+  - corrections@melodic-software
+  - multi-agent@melodic-software
+  - code-metrics@melodic-software
+  - ai-slop@melodic-software
+  - autonomy@melodic-software
+  - writing@melodic-software
+  - developer-experience@melodic-software

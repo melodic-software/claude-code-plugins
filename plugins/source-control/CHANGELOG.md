@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.15.8] - 2026-11-16
+
+### Changed
+
+- The shared hook library resolves `HOOK_TELEMETRY_SINK=@session-telemetry`, and `@harness-ops`, to the session-telemetry launcher.
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [11.15.7] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract.
+
 ## [11.15.6] - 2026-11-16
 
 ### Changed

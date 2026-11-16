@@ -6,7 +6,6 @@ The skills of `plugins/session-flow`. Each one is driven with `<plugin-dir>` set
 
 - `audit-friction`: Mine sessions for permission and autonomy friction and end in one decision brief.
 - `audit-sessions`: Cross-session audit of transcripts with routed, never-applied findings.
-- `check`: Report whether node and jq resolve for the session-flow observer hook. Never installs.
 - `clean-stop`: Make everything durable before the machine goes away.
 - `continue-in-background`: Delegate the task to a fresh background agent now.
 - `find-handoff`: Recover a lost handoff or resume prompt after /clear.

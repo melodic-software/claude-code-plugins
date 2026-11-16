@@ -3,6 +3,20 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.18] - 2026-11-16
+
+### Changed
+
+- `/firecrawl:update`'s sync record moves to the current upstream `SKILL.md` (SHA256 `b4d49850`), with CLI 1.29.0, still npm latest. Re-audit of the upstream page: no change to `/firecrawl:firecrawl`. `parse -S`, `parse -Q`, `doctor <job-id>`, `monitor`, `developer` and the research index are already covered. The experimental `x download` is not added: `crawl` and `scrape` with `-o` already save pages to disk. Upstream's MCP-first install order, connectors, keyless tier, Alexandria, workflow and build skills, `init` flags, and the AgentID, WorkOS ID-JAG and Stripe Projects credential paths stay out, as at the last sync, since the wrapper uses the CLI with `FIRECRAWL_API_KEY` auth.
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [0.8.17] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract.
+
 ## [0.8.16] - 2026-11-15
 
 ### Changed

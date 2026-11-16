@@ -3,6 +3,24 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.0] - 2026-11-16
+
+### Added
+
+- `/code-tidying:remove-comments` keeps a one-line ADR pointer (`# See docs/adr/0042`) that names an existing decision record of the repository, restates none of its reason, and sits at a module header or a non-obvious decision line: the shipped keep list keeps it under `necessary`, and it passes the earn-its-keep test under `explanatory`. A pointer that also states the record's reason is still ordinary rationale.
+
+## [0.48.6] - 2026-11-16
+
+### Changed
+
+- The bundled prerequisites stubs' node notice names the plugin whose hook printed it, and names a check skill of another plugin with the condition that that plugin is enabled.
+
+## [0.48.5] - 2026-11-16
+
+### Changed
+
+- Optional calls to another plugin's skills are gated on that plugin being enabled, so a plugin that is installed but switched off takes the documented fallback, per the seam-phrasing contract.
+
 ## [0.48.4] - 2026-11-15
 
 ### Changed

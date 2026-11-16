@@ -217,7 +217,8 @@ Lanes are defined in a JSON config, resolved first-hit-wins:
 `--config FILE` → `$HARNESS_OPS_LANES_CONFIG` → `<repo>/.work/lanes/lanes.json`. Each lane
 carries a `name`, a `prompt` file path, a required `effort`, and optional `model`/`settings`
 (a session-only `claude --settings` override, e.g. opting the lane into the
-`autonomy` plugin's lane-stop gate), `stage` (the stage skill, for the execution target) and
+`autonomy` plugin's lane-stop gate), `profile` (a plugin profile the lane starts in, when
+`plugin-profiles` is enabled), `stage` (the stage skill, for the execution target) and
 `telemetry` (the lane's telemetry binding), and `schedule` (`every_minutes`, for
 `print-schedule`; "Scheduled runs" in the config contract covers `run-once` and the entries). The full
 schema, resolution rules, and the prompt-storage seam live in
