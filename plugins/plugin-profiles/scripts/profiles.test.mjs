@@ -294,6 +294,7 @@ test("launch --with merges a launcher's settings into one file the profile wins 
   assert.deepEqual(doc.env, { LANE: "1", PLUGIN_PROFILES_SESSION: "build", PLUGIN_PROFILES_SESSION_FILE: merged.file });
   assert.equal(doc.enabledPlugins[`songwriting@${M}`], false, "the profile's entry wins");
   assert.equal(doc.enabledPlugins["widget@vendor"], true, "an entry the profile leaves alone stays");
+  assert.deepEqual(merged.settings, doc, "the result carries the merged content the file holds");
   assert.equal(JSON.parse(readFileSync(plain, "utf8")).model, undefined, "the plain file is unchanged");
   const noProfile = launchJson(w, ["--with", own], { PLUGIN_PROFILES_SESSION: "" });
   assert.deepEqual(noProfile.argv.slice(-2), ["--settings", own], "with no profile the launcher's own settings pass through");
@@ -1024,6 +1025,7 @@ test("launch --dry-run checks and prints the command but writes no session file"
   const sessions = join(w.home, ".claude", "plugins", "data", "plugin-profiles-inline", "sessions");
   const ok = launchJson(w, ["build", "--dry-run"]);
   assert.match(ok.file, /-build\.json$/);
+  assert.equal(ok.settings.enabledPlugins[`songwriting@${M}`], false, "the merged settings are reported without a file");
   assert.equal(existsSync(sessions), false, "nothing written");
   const refused = w.run(["launch", "build", "--dry-run", "--unattended"]);
   assert.equal(refused.status, 1, "the unattended stop still applies");

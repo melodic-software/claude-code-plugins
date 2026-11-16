@@ -2027,8 +2027,9 @@ assert_eq "no fixture string was evaluated by the shell" "" "$pwned"
 # Plugin profile: a lane's `profile` starts it through profiles.mjs launch
 # ============================================================================
 # Stands in for plugin-profiles' profiles.mjs launch: logs its argv, writes the
-# --with JSON into the session file it names unless --dry-run, and refuses with exit 1 when
-# STUB_PROFILES_RC=1, as a missing required prerequisite does.
+# --with JSON into the session file it names unless --dry-run, reports the merged settings
+# with autonomy@m on unless STUB_PROFILES_AUTONOMY=off (a profile that leaves it off), and
+# refuses with exit 1 when STUB_PROFILES_RC=1, as a missing required prerequisite does.
 PP_ROOT="$TMP/pp"
 PP_LOG="$TMP/pp.log"
 PP_FILE="$TMP/pp-session.json"
@@ -2043,7 +2044,9 @@ if (process.env.STUB_PROFILES_RC === "1") {
 }
 const w = args.indexOf("--with");
 if (!args.includes("--dry-run")) writeFileSync("$PP_FILE", w > 0 ? args[w + 1] : "{}");
-console.log(JSON.stringify({ profile: args[1], argv: ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "claude", "--settings", "$PP_FILE"] }));
+const own = w > 0 ? JSON.parse(args[w + 1]) : {};
+const settings = { ...own, enabledPlugins: { ...own.enabledPlugins, "autonomy@m": process.env.STUB_PROFILES_AUTONOMY !== "off" } };
+console.log(JSON.stringify({ profile: args[1], settings, argv: ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "claude", "--settings", "$PP_FILE"] }));
 STUB
 PP_LIST="[{\"id\":\"other@m\",\"enabled\":true,\"installPath\":\"/nowhere\"},{\"id\":\"plugin-profiles@m\",\"enabled\":true,\"installPath\":\"$PP_ROOT\"}]"
 PP_CONFIG="$REPO/.work/lanes/profile-lanes.json"
@@ -2107,7 +2110,7 @@ assert_eq "profile dry run: writes no session file" "" "$(cat "$PP_LOG")"
 out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" pp_run restart work 2>&1)"
 assert_contains "profile: restart relaunches with the session file" "$(cat "$CLAUDE_LOG")" "--settings $PP_FILE --bg -n work"
 assert_eq "profile: restart checks once with --dry-run, then launches once" \
-  "launch focus --folder $REPO --unattended --json --dry-run|launch focus --folder $REPO --unattended --json --with {\"env\":{\"LANE_X\":\"1\"}}" \
+  "launch focus --folder $REPO --unattended --json --with {\"env\":{\"LANE_X\":\"1\"}} --dry-run|launch focus --folder $REPO --unattended --json --with {\"env\":{\"LANE_X\":\"1\"}}" \
   "$(paste -sd'|' "$PP_LOG")"
 
 out="$(STUB_CLAUDE_PLUGIN_LIST='[]' pp_run restart work 2>&1)"
@@ -2126,6 +2129,37 @@ rc=$?
 assert_contains "cloud lane: restart resolves the cloud target" "$out" "cloud-session"
 assert_eq "cloud lane: a profile the local launch would refuse does not stop its restart" 0 "$rc"
 assert_contains "cloud lane: restart sends a new cloud session" "$(cat "$CLAUDE_LOG")" "--cloud"
+
+# A lane that arms the lane-stop gate under a profile: the merged settings must
+# leave autonomy on, or the lane is not launched.
+PP_GATE_CONFIG="$REPO/.work/lanes/profile-gate-lanes.json"
+cat >"$PP_GATE_CONFIG" <<'JSON'
+{ "prompt_dir": ".work/lanes",
+  "lanes": [
+    { "name": "work",   "prompt": "work.md",   "effort": "high", "profile": "focus",
+      "settings": { "pluginConfigs": { "autonomy@m": { "options": { "lane_stop_gate_enabled": true } } } } },
+    { "name": "decide", "prompt": "decide.md", "effort": "high", "profile": "focus" } ] }
+JSON
+ppg_run() { run_launcher "$@" --config "$PP_GATE_CONFIG" --repo "$REPO" --no-pull --no-update --data-dir "$TMP/pp-data"; }
+
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" ppg_run start --agents-json "$AGENTS_EMPTY" 2>&1)"
+assert_eq "gate under a profile with autonomy: start exits 0" 0 "$?"
+assert_contains "gate under a profile with autonomy: the lane launches" "$(cat "$CLAUDE_LOG")" "--settings $PP_FILE --bg -n work"
+
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" STUB_PROFILES_AUTONOMY=off ppg_run start --agents-json "$AGENTS_EMPTY" 2>&1)"
+assert_eq "gate under a profile without autonomy: start exits 1" 1 "$?"
+assert_contains "gate under a profile without autonomy: the error names the lane, the profile and the fix" "$out" \
+  "ERROR: lane 'work': the lane arms the lane-stop gate but profile 'focus' leaves autonomy off in the settings it starts with, so the lane is not launched; give the lane a profile that includes autonomy"
+assert_not_contains "gate under a profile without autonomy: the lane is not launched" "$(cat "$CLAUDE_LOG")" "--bg -n work"
+assert_contains "no gate under a profile without autonomy: the lane launches" "$(cat "$CLAUDE_LOG")" "--bg -n decide"
+
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" STUB_PROFILES_AUTONOMY=off ppg_run restart work --agents-json "$AGENTS_RUNNING" 2>&1)"
+assert_eq "gate under a profile without autonomy: restart exits 1" 1 "$?"
+assert_contains "gate under a profile without autonomy: restart names the refusal" "$out" "leaves autonomy off"
+assert_not_contains "gate under a profile without autonomy: restart leaves the running lane up" "$(cat "$CLAUDE_LOG")" "stop sid-work-1"
 
 printf '{"lanes":[{"name":"work","prompt":"work.md","effort":"high","profile":5}]}\n' >"$TMP/pp-bad.json"
 out="$(run_launcher status --repo "$REPO" --config "$TMP/pp-bad.json" --agents-json "$AGENTS_EMPTY" 2>&1)"

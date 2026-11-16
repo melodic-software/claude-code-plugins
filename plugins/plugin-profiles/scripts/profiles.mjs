@@ -40,7 +40,8 @@
 //          --unattended stops (exit 1) when the profile switches on a plugin missing a required
 //          prerequisite; otherwise that is printed and the launch goes ahead. --dry-run does every
 //          check and prints the same result but writes no file. --json prints the
-//          result as data, with argv the words a launcher runs before its own arguments.
+//          result as data, with argv the words a launcher runs before its own arguments and, with a
+//          profile, settings: the merged content the session file holds.
 // status   The profile recorded for the folder (or user settings), each entry that differs from
 //          it, plugins installed since, a switch still pending, a one-session profile named by
 //          PLUGIN_PROFILES_SESSION and the surface. With remember_folder_profile false it reports
@@ -439,6 +440,7 @@ function launch(opts, where, env, io) {
     doc.env = { ...own?.env, [SESSION_VAR]: name };
     result.file = sessionFile(where, name, own ? JSON.stringify(doc) : null);
     doc.env[SESSION_FILE_VAR] = result.file;
+    result.settings = doc;
     if (!opts.dryRun) {
       replaceFile(result.file, `${JSON.stringify(doc, null, 2)}\n`);
       sweepSessions(where, result.file);
