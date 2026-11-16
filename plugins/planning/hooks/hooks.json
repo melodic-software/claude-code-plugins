@@ -1,0 +1,17 @@
+{
+  "description": "Adds one context line pointing at /planning:interview when a prompt is a short build request that states no problem, users or scope.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/vague-build-nudge.mjs"],
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
