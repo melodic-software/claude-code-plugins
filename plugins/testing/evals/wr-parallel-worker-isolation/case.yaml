@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: wr-parallel-worker-isolation
+description: 'An integration suite moving to four pytest-xdist workers shares one database, a fixed server port, one output file and a process environment variable. testing:write gives each worker its own database or schema named from the worker id, binds the server to port 0 and reads back the assigned port, gives each test its own temp directory, and stops tests mutating the shared environment variable. skill-fired reads the Skill calls, uses-port-zero the reply; meets-expectations (llm) judges the reply. Read-only tools, graded on the reply.'
+tags: [testing, write, determinism, parallel, no-network]
+expected_outcome: 'Per-worker database or schema named from the xdist worker id, server bound to port 0 with the assigned port read back, a temp directory per test, and no environment variable mutated where another worker reads it.'
+execution:
+  prompt: "We are turning on pytest-xdist with -n 4 for our integration tests. Today every test uses one Postgres database named app_test, the test API server listens on port 8000, a fixture writes /tmp/fixtures/out.json, and a few tests set os.environ['FEATURE_X'] directly. Using the testing:write skill, what do I change so these tests stay isolated when they run in parallel?"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: uses-port-zero
+    type: regex
+    pattern: '\b[Pp]ort\s*[=:]?\s*0\b|,\s*0\s*\)'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user is moving an integration suite to four pytest-xdist workers; tests share one database app_test, a server on fixed port 8000, the file /tmp/fixtures/out.json, and set os.environ directly. PASS only if the reply (1) gives each worker its own database or schema, named from the xdist worker id, (2) binds the server to port 0 (an OS-assigned port) and reads back the actual port instead of using 8000, (3) gives each test its own temp directory instead of the fixed /tmp path, and (4) stops tests mutating os.environ in a way another test or worker reads, for example by scoping and restoring it per test. FAIL if any point is missing or contradicted.'

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Start the server with `port=0` and read `server.server_address[1]` for the port the OS gave it.",
+      "why": "binds port 0"
+    },
+    {
+      "answer": "Bind with `sock.bind(('127.0.0.1', 0))` and pass the assigned port to the client.",
+      "why": "binds port 0 by address tuple"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Give each worker its own port, 8000 plus the worker number.",
+      "why": "a computed fixed port, not an OS-assigned one"
+    }
+  ]
+}

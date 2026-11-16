@@ -160,6 +160,12 @@ https://jestjs.io/docs/snapshot-testing.
 | `rule-throw-only-oracle` | `var w = new Widget(); Assert.NotNull(w);`: only a throwing constructor fails it | assert what the constructor sets; `cant-fail-ok: <why>` for a smoke test kept to prove wiring |
 | `rule-snapshot-only` | a snapshot is the only oracle | review it as code; scrub volatile values (times, ids, seeds) with the tool's matcher or scrubber; when your own change breaks it, fix the bug or confirm the diff is intended before regenerating, never re-approve blind (§4) |
 
+A surviving mutant on changed code is one more signal of this class: the changed line was
+altered and every test stayed green, so unless the mutant is equivalent (behaves exactly as the
+original), no test checks what that line does. Assert the behavior
+the mutant changed, with an expected value from §1. `/mutation-testing:audit` produces the
+surviving mutants for a change.
+
 **Change detectors** (fail on any edit, prove no behavior):
 
 | Rule | Shape | Fix |
