@@ -2759,7 +2759,7 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
 // b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6: lane.cjs:404-405; 4aba9be6cc58c88c132308d417ebe136dd054296:
 // lane.cjs:425-426; 8f2240359aff2febf49ff1ff838d1ffb27d6b14f: lane.cjs:467-468;
 // a5af46547856939969bee3c44d32d8ea6bc5dca4: lane.cjs:469-470;
-// fc442ad3e808adafe3b195e9d12fff901220db50: lane.cjs:473-474; in cliArgs. The org requires
+// fc442ad3e808adafe3b195e9d12fff901220db50 and 944d346c487c79eaf85dff752586fb59b0f5c539: lane.cjs:473-474; in cliArgs. The org requires
 // actions pinned to a full SHA, so a pin bump fails here until its lane.cjs is read and its SHA added.
 const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "7b362428c76085a160e28656cd2c75c3147a69ff",
@@ -2776,6 +2776,7 @@ const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "8f2240359aff2febf49ff1ff838d1ffb27d6b14f",
   "a5af46547856939969bee3c44d32d8ea6bc5dca4",
   "fc442ad3e808adafe3b195e9d12fff901220db50",
+  "944d346c487c79eaf85dff752586fb59b0f5c539",
 ]);
 
 test("every run-claude-cli step pin in this repo's workflows is a launcher checked to pass --permission-prompts none", () => {
@@ -9745,7 +9746,7 @@ const EVAL_LEG_CREDENTIALS = {
   subscription: ["CLAUDE_CODE_OAUTH_TOKEN", "${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}"],
   fallback: ["CLAUDE_CODE_OAUTH_TOKEN", "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"],
 };
-const CLASSIFIER_PIN = "fc442ad3e808adafe3b195e9d12fff901220db50";
+const CLASSIFIER_PIN = "944d346c487c79eaf85dff752586fb59b0f5c539";
 for (const [file, gateId, [keyId, subId, fbId], keyJob, marker] of [
   ["maintenance-measure-skill-edit-pass.yml", "check-key-credit", ["run-eval", "run-eval-subscription", "run-eval-fallback"], "pass", "key-credit-stop-maintenance-measure-skill-edit.yml-pass"],
   ["pr-run-plugin-evals.yml", "check-key-credit", ["run-eval", "run-eval-subscription", "run-eval-fallback"], "eval", "key-credit-stop-pr-run-plugin-evals.yml-eval"],
