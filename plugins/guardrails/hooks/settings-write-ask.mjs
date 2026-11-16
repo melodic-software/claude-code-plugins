@@ -5,16 +5,12 @@
 //
 // This is a CHECKPOINT, NOT A GUARANTEE: other hooks, settings, and permission
 // modes decide what happens to its ask. README "Settings-write ask" holds the pointer record
-// for those limits. Probe (headless -p runs of this hook, Linux,
-// Claude Code 2.1.263, 2026-09-06): the ask fires and blocks in a
-// headless run that skips permissions, under default, auto, and
-// bypassPermissions, surfacing as a tool error carrying the
-// permissionDecisionReason. Headless "ask" degrades to block-with-reason
-// since nothing can prompt. Interactive behavior remains unmeasured; do not
-// extrapolate. The checkpoint's value is that a matched file-editing tool
-// cannot rewrite a settings file silently while this plugin is enabled.
-// A shell write is outside that claim. Recheck when a Claude Code changelog entry changes how a
-// PreToolUse "ask" resolves in a headless run.
+// for those limits and the measured headless run: the hook returns its ask with
+// the reason, Claude Code's own settings-file check rejects the write, and the
+// tool error carries Claude Code's text, not this hook's reason. Interactive
+// behavior is unmeasured; do not extrapolate. The checkpoint's value is that a
+// matched file-editing tool cannot rewrite a settings file silently while this
+// plugin is enabled. A shell write is outside that claim.
 //
 // Fail-open: on any internal error or unrecognized payload, exit 0 with no
 // output — a broken checkpoint must not block unrelated writes. Kill switch:
