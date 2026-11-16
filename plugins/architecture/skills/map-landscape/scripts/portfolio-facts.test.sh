@@ -233,6 +233,24 @@ assert_equals "owner ladder: CODEOWNERS default rule beats the remote" "$(field 
 assert_contains "owner ladder: evidence names the CODEOWNERS path" "$out" '.github/CODEOWNERS'
 assert_not_contains "owner ladder: the non-default rule owner is not taken" "$out" '"owner":"docs-team"'
 
+# --- Case group 6b: credentials in the origin URL never reach the record ------
+cred_repo="$(make_repo cred-remote)"
+printf 'x\n' >"$cred_repo/README.md"
+git -C "$cred_repo" remote add origin "https://someone:not-a-real-value@example.invalid/acme/cred-remote.git"
+commit_repo "$cred_repo"
+out="$(bash "$SCRIPT" "$cred_repo")"
+assert_equals "remote: https user and password are dropped" "$(field "$out" remote)" "https://example.invalid/acme/cred-remote.git"
+assert_equals "remote: owner still resolves without the userinfo" "$(field "$out" owner)" "acme"
+git -C "$cred_repo" remote set-url origin "https://not-a-real-value@example.invalid/acme/cred-remote.git"
+out="$(bash "$SCRIPT" "$cred_repo")"
+assert_equals "remote: an https token with no password is dropped" "$(field "$out" remote)" "https://example.invalid/acme/cred-remote.git"
+git -C "$cred_repo" remote set-url origin "ssh://git:not-a-real-value@example.invalid/acme/cred-remote.git"
+out="$(bash "$SCRIPT" "$cred_repo")"
+assert_equals "remote: an ssh password is dropped and the user kept" "$(field "$out" remote)" "ssh://git@example.invalid/acme/cred-remote.git"
+git -C "$cred_repo" remote set-url origin "ssh://git@example.invalid/acme/cred-remote.git"
+out="$(bash "$SCRIPT" "$cred_repo")"
+assert_equals "remote: an ssh user with no password is unchanged" "$(field "$out" remote)" "ssh://git@example.invalid/acme/cred-remote.git"
+
 # --- Case group 7: remote owner is the fallback rung ------------------------
 remote_repo="$(make_repo remote-only)"
 printf 'x\n' >"$remote_repo/README.md"
