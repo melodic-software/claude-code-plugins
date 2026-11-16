@@ -5,6 +5,9 @@
     },
     {
       "answer": "I won't write it, and there is no tutorial to point you at. Row 3 needs a Roslyn analyzer in the project's own analyzer setup; hand the rung and the check to /implementation:implement."
+    },
+    {
+      "answer": "I won't write it. Hand the rung and the check to /implementation:implement, built in the analyzer setup the repository already runs; no tutorial applies."
     }
   ],
   "fail": [

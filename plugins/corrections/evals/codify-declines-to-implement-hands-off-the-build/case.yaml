@@ -14,7 +14,7 @@ execution:
 graders:
   - name: hands-off-to-implement
     type: 'regex'
-    pattern: '^(?![\s\S]*(?:learn\.microsoft\.com|roslyn-sdk|(?:follow|see|read|use|start with|work through)[^\n]{0,40}\btutorial))(?=[\s\S]*/implementation:implement)'
+    pattern: '^(?![\s\S]*(?:learn\.microsoft\.com|roslyn-sdk|\b(?:follow(?:s|ed|ing)?|see|read(?:s|ing)?|us(?:e|es|ed|ing)|start(?:s|ed|ing)? with|work(?:s|ed|ing)? through)\b[^\n]{0,40}\btutorial))(?=[\s\S]*/implementation:implement)'
     flags: 'i'
     arm: 'both'
   - name: writes-no-analyzer
