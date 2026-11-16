@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**CRITICAL**\n- `jest.config.js:7-8`: Fail a change that loosens a check (threshold lowered): the coverage minimums drop from 85/90 to 60/75 and the spec does not name it. Restore them and test the tiers.",
+      "why": "cites the criterion by its title"
+    },
+    {
+      "answer": "| 1 | CRITICAL | high | Bundled criterion \"fail a change that loosens a check\": branches 85 to 60 with no spec reason | jest.config.js:7 | Restore the threshold |",
+      "why": "the title in another case, inside a table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**IMPORTANT**\n- `jest.config.js:7-8`: the coverage thresholds drop from 85/90 to 60/75 with no reason given.",
+      "why": "names the lowering without citing the criterion"
+    },
+    {
+      "answer": "The change loosens a coverage check at jest.config.js:7.",
+      "why": "describes a loosened check without the criterion's title"
+    }
+  ]
+}

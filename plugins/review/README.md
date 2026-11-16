@@ -132,8 +132,12 @@ It is not the approval-marker publish gate (#7956), and it does not cover
 - **`/review:fanout-sweep`** (`workflows/fanout-sweep.js`). The leaf fan-out of
   `/review:fanout run-everything` as a saved workflow: the four reviewer agents by tier, then one
   `brief-reviewer` agent per project criteria slice, then one `stage-normalizer` agent that turns the raw findings
-  into records. Its `args` carry `diffBase` (required; without it the run dispatches nothing),
-  `slices`, `roles` and `maxConcurrent` (default 4). `roles` is the map `/multi-agent:route all`
+  into records. Its `args` carry `diffBase` and `loosenedCheck`, the path of the bundled
+  "Fail a change that loosens a check" criterion that `code-reviewer`, every slice and every model
+  tier apply (both required; without
+  either the run dispatches nothing), plus `loosenedSettings` (that criterion's two resolved setting
+  lines), `spec` (the issue text the change resolves), `slices`, `roles`, `maxConcurrent`
+  (default 4), `diversity`, `session` and `findingsPaths`. `roles` is the map `/multi-agent:route all`
   prints; only the extractor is routed, and without it a built-in fallback runs the extractor on
   `sonnet` at `medium`. The reviewer agents, slices included, keep the model and effort pinned in
   their own definitions.
@@ -273,7 +277,11 @@ unreproduced ones listed but not acted on (`require`), or skip the step (`off`, 
 person's yes to that exact command. `smell_baseline` decides which
 design-smell list the `code-reviewer` agent checks: the shipped baseline (`default`), none (`off`),
 or a path to the repository's own list, which `/review:setup apply` can write from the catalog in
-[`reference/design-smells.md`](reference/design-smells.md). The `council_*` keys configure
+[`reference/design-smells.md`](reference/design-smells.md). `loosened_check_verdict` and
+`loosened_check_patterns` tune the bundled review criterion "Fail a change that loosens a check":
+whether an unreasoned loosening blocks (`fail`, the default and a policy floor) or is only noted
+(`note`), and which extra files and lines count as a check's own code. Both read the repository
+value from the default branch. The `council_*` keys configure
 `/review:council`: its member catalog, fallback panel, selection rules, round count, score table and
 the repository-only lane switch, read from the base branch when a change edits the file. Keys,
 values and resolution:
@@ -295,6 +303,8 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `reproduce_findings` | string | `"off"` | off (default): reports unchanged. label: findings at or above the floor go to a refute gate and get evidence labels; refuted ones are not acted on. require: unreproduced ones are not acted on either. Nothing runs reviewed code without your yes. The repository's docs/conventions/review.yaml wins. |
 | `reproduce_findings_floor` | string | `"IMPORTANT"` | The lowest tier the reproduce_findings gate checks; findings below it are labeled not-attempted. IMPORTANT (default), CRITICAL or SUGGESTION; another value is reported and every finding is checked. A repository's docs/conventions/review.yaml reproduce_findings_floor wins over this option. |
 | `smell_baseline` | string | `"default"` | default (default): the code-reviewer agent checks the shipped design-smell baseline. off: no smell check. A repository-relative .md path: that list, or the shipped one when the file is missing or the change edits it. A repository's docs/conventions/review.yaml smell_baseline wins over this option. |
+| `loosened_check_verdict` | string | `"fail"` | fail (default): a change that loosens a check without the spec's reason is a blocking review finding. note: the finding blocks nothing. fail here or in a repository's docs/conventions/review.yaml (default branch) wins over note. |
+| `loosened_check_patterns` | string | *(none)* | Your entries for the loosened-check review criterion as a JSON list: path globs for a check's own files, or text: then a regex for changed lines. Empty (default): none. Every layer's entries apply, docs/conventions/review.yaml (default branch) included. |
 | `council_max_rounds` | number<br>*min 1* | `1` | How many review rounds /review:council runs at most; default 1, a whole number of at least 1. Above 1, /review:fanout fix runs between rounds. A repository's docs/conventions/review.yaml council_max_rounds wins over this option. |
 | `council_scores` | string | `"off"` | on: the /review:council report carries a mark table by member and round; off (default): none. A repository's docs/conventions/review.yaml council_scores wins over this option. |
 | `council_members` | string | *(none)* | Your /review:council member catalog as JSON, the shape of council_members in docs/conventions/review.yaml, e.g. {"codex-adv":{"provider":"codex","brief":"adversarial"}}. Empty (default): the repository's value or three Opus members. The repository's value wins; invalid JSON is reported and ignored. |
