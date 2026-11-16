@@ -1211,7 +1211,7 @@ test("the credit gate holds no secret, checks nothing out and reads only the mar
   assert.match(gate, /^ {8}continue-on-error: true$/m);
   // select-model-credential's start call, which reads check-key-credit's
   // marker gate with the probing marker at its own pin.
-  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # \S/m);
+  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@944d346c487c79eaf85dff752586fb59b0f5c539 # \S/m);
   assert.equal(input(gate, "leg"), "start");
   // The marker's name carries key-job: review-handoffs, the job that uploads it.
   assert.equal(input(gate, "key-job"), "review-handoffs");
@@ -1652,7 +1652,7 @@ test("the legs run the review lanes' credentials in the review lanes' order", ()
   const fallbackSet = { [KEY]: undefined, [SUB]: "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}", [FB]: undefined };
   order.forEach((job, i) => {
     const check = step("Check the credential", job);
-    assert.match(check, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # \S/m, job);
+    assert.match(check, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@944d346c487c79eaf85dff752586fb59b0f5c539 # \S/m, job);
     assert.equal(input(check, "leg"), legName[job], job);
     assert.equal(input(check, "role"), input(step("Review chunk 1", job), "role"), job);
     assert.equal(input(check, "credential-set"), `\${{ secrets.${used[i][1]} != '' }}`, job);

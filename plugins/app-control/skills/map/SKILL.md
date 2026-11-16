@@ -123,7 +123,10 @@ drive finds a control skill by its hub.
   recipe, first found: a `run-<name>` project skill; a recorded `.claude/skills/verify/SKILL.md`;
   else the documented start command, and offer the person `/run-skill-generator` to type. Our rule:
   name a recipe, never copy it or write into its directory; the upstream behavior of those two is
-  a pointer record in [`${CLAUDE_SKILL_DIR}/reference/naming.md`](reference/naming.md#upstream-recipes). Ready reads
+  a pointer record in [`${CLAUDE_SKILL_DIR}/reference/naming.md`](reference/naming.md#upstream-recipes). Launch
+  starts from empty data and records the launch model from the Run and Data rows: its `Data:` and
+  `Side by side:` lines, and `Session:` for a short-lived app (the contract's "The launch model").
+  Ready checks the port belongs to this instance and the credentials are valid, reads
   `build: not exposed` when the app shows no build identifier, and checks the rest. When a test
   harness hosts its own instance, Ready checks the harness's build and the services it needs.
   Each check in Ready exits non-zero when it fails: a listing ends in `grep -q` on the expected
@@ -137,8 +140,8 @@ drive finds a control skill by its hub.
 ### 5. Prove
 
 Invoke `/app-control:drive` via the Skill tool on one seeded feature, naming the feature and the
-control skill. It runs the hub's Ready first and drives the feature's steps, recording each step's
-entry point. Report done only after that run passes. Never repeat a sign-in step for an account
+control skill. It launches from empty state, per the hub's `Data:` line, runs the hub's Ready
+first and drives the feature's steps, recording each step's entry point. Report done only after that run passes. Never repeat a sign-in step for an account
 that already submitted an attempt in this run. When a step fails because the control skill is
 wrong (a handle, a route, a state the steps need that `Preconditions:` does not name), fix the
 control skill and run again, once; a second failure leaves it written but unproven. When it fails
@@ -189,10 +192,12 @@ run learns is placed per Lessons below.
    symlink that leads outside that directory is an `index-glob` finding and is never resolved.
    Report only what the rules find, never a finding that might apply.
 2. Judge the copied recipe, which the script cannot: a hub or feature section that repeats the
-   commands or steps of a recipe kept elsewhere (a `run-<name>` or verify skill, `cli/README.md`,
-   another feature's Drive) instead of naming it, against the contract's "Driver commands". Report
-   it as `copied-recipe | <path> | <section>: <the recipe it copies>`. A pointer, or the one command
-   a section owns, is not a finding.
+   commands or steps of a recipe kept elsewhere instead of naming it, against the contract's
+   "Driver commands". First read where each recipe is kept: the `run-<name>` and verify project
+   skills beside the control skill, in its parent folder (`.claude/skills/` in a project), the
+   control skill's own `cli/README.md`, and the other features' `## Drive`. Report it as
+   `copied-recipe | <path> | <section>: <the recipe it copies>`. A pointer, or the one command a
+   section owns, is not a finding.
 3. Report every finding in that line form, then their count. Add no verdict word (pass, fail, clean,
    healthy, valid, broken); the findings are the result, and fixing them is a separate run.
 
@@ -270,7 +275,8 @@ In refresh, a placed lesson is doc drift and ships with the pass's other correct
 - Map runs repository code before asking anything: step 2 launches the app through drive. Read the
   start command before that check, and stop when it does more than start the app (deploys,
   migrates a shared database, sends).
-- A process that answers a health check is not yet usable: Ready also checks the build and the data.
+- A process that answers a health check is not yet usable: Ready also checks the port is this
+  instance's, the credentials are valid, and the build and the data.
 - A local run can still reach real people or shared systems; the Side effects and Shared systems
   rows exist for that.
 - A control skill written without the step 5 run is unproven; later runs trust its handles.

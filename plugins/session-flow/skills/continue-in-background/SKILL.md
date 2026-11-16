@@ -92,7 +92,7 @@ completion condition, armed as its `/goal`. Settle it while producing the save-p
    case 3 when no checkable condition is left. Either way the report still advises `/goal clear`
    for the goal active here.
 2. **No goal applies** → draft one from the remaining work with `/planning:draft-goal-condition`
-   (if the `planning` plugin is installed; otherwise draft inline a condition the transcript can
+   (when it is among the available skills; otherwise draft inline a condition the transcript can
    demonstrate, and say once that the `planning` plugin would pick the repetition lever and check
    the draft against the documented condition limit) and write the save-point with it as a fresh
    goal; its on-screen goal region is the display.

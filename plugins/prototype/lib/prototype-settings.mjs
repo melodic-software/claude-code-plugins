@@ -68,11 +68,13 @@ export function resolveLevel({ projectRoot, home, userConfig = null, prompt = nu
     const first = run(schema);
     const notices = errorsOf(first, (key) => key !== "level");
     const complete = {};
+    // A dimension with a schema default (controls) takes it when no layer sets it.
+    const optional = Object.entries(schema.properties.levels.additionalProperties.properties).filter(([, d]) => d.default !== undefined).map(([k, d]) => [k, d.default]);
     for (const [name, raw] of Object.entries(first.values.levels ?? {})) {
       const missing = REQUIRED.filter((d) => raw?.[d] === undefined);
       if (!NAME.test(name)) notices.push(`level ${JSON.stringify(name)}: a level name is lowercase letters, digits and hyphens, at most 32; not a level`);
       else if (missing.length) notices.push(`level ${name}: sets no ${missing.join(", ")}; not a level`);
-      else complete[name] = { ...Object.fromEntries(LISTS.map((d) => [d, []])), ...raw };
+      else complete[name] = { ...Object.fromEntries([...LISTS.map((d) => [d, []]), ...optional]), ...raw };
     }
     const names = Object.keys(complete);
     const second = run({ ...schema, properties: { ...schema.properties, level: { ...schema.properties.level, enum: names } } });

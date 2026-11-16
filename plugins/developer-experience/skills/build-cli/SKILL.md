@@ -18,8 +18,10 @@ fix directly, without the plan gate below. Every command built or changed meets 
 read it before the plan and before a review. A team rule in the conventions file (exit codes,
 flags, secrets) wins and applies as written; without one, a secret comes from the environment,
 stdin or a file the caller names, never a flag value. When a plugin this skill routes to
-(toolchain, testing, user-interface, review, discovery) is not installed, say it is missing, print
-`claude plugin install <plugin>@<marketplace>` with `<marketplace>` left as written, and use the
+(toolchain, testing, user-interface, review, discovery) is not enabled, say so, print
+`claude plugin enable <plugin>@<marketplace>`, preceded by
+`claude plugin install <plugin>@<marketplace>` when it is not installed, with `<marketplace>` left
+as written, and use the
 fallback given beside the route.
 
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names, with the `Read` tool; never
@@ -50,7 +52,7 @@ Each recommendation (a library, a layout, a default) carries a `Basis:` line per
    drift apart.
 3. **Research.** Take the argument parser, layout and test style the project already uses. Where
    it has none, research the choice from official docs at run time: through
-   `/discovery:research` when the discovery plugin is installed; otherwise in this session,
+   `/discovery:research` when the discovery plugin is enabled; otherwise in this session,
    official docs first, the basis labeled.
 4. **Withhold what you cannot settle.** A choice the user left open, or a consequential one
    (data that cannot be recovered, security, a new dependency for the whole team) that the
@@ -71,9 +73,9 @@ Each recommendation (a library, a layout, a default) carries a `Basis:` line per
    conventions edit this skill makes; anything else goes through `/developer-experience:setup`.
 7. **Verify** in the same turn as the writing, by running the checks yourself; a list of commands
    for the user to run is not verification. Build and test through `/toolchain:check` when the
-   toolchain plugin is installed; otherwise run the project's own build and test commands (its
+   toolchain plugin is enabled; otherwise run the project's own build and test commands (its
    ecosystem file, else its build files, else ask). Run one smoke run through `/testing:run-e2e`
-   when the testing plugin is installed; otherwise run the command yourself: `--help`, then the
+   when the testing plugin is enabled; otherwise run the command yourself: `--help`, then the
    dry-run, then a real run only when it changes nothing or the user agreed. A script runs once on
    this platform and must exit 0; when a run could change anything, use its dry-run or ask first
    and say why. Run each as one plain command (no `cd`, `;`, `&&` or pipe), so an earlier denial of
@@ -86,7 +88,7 @@ Each recommendation (a library, a layout, a default) carries a `Basis:` line per
    review: never revert or delete work to make a check pass.
 
 Wording and layout of help text, errors and output: `/user-interface:design` when the
-user-interface plugin is installed; otherwise follow the project's existing commands.
+user-interface plugin is enabled; otherwise follow the project's existing commands.
 
 ## Review mode
 
@@ -98,7 +100,7 @@ findings to the fifteen rules, the secrets rule and correctness. Use a non-fork 
 review stays blind to this session (pointer: when choosing the subagent type, fetch
 <https://code.claude.com/docs/en/sub-agents#what-loads-at-startup> live). General code review
 beyond the contract is `/review:quality-gate`, when the review
-plugin is installed; otherwise say it was not run.
+plugin is enabled; otherwise say it was not run.
 
 Before that dispatch, run
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin developer-experience --skill build-cli`

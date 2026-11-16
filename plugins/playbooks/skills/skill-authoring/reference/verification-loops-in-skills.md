@@ -97,10 +97,10 @@ Work 1 and 2, then 3.
 **Do not confuse this with a skill that never surfaced at all.** An appended step that did not run is
 a skill that *did* load and skipped an instruction. A skill that did not trigger is a different
 failure with more than one owner: a description that does not match how the work is phrased is
-skill-authoring QA (`/skill-quality:check`, if installed), a listing entry dropped by the shared
-description budget is a configuration question (`/harness-config:audit`, if installed), and the habit
+skill-authoring QA (`/skill-quality:check`, if enabled), a listing entry dropped by the shared
+description budget is a configuration question (`/harness-config:audit`, if enabled), and the habit
 of consulting the listing at all has its own corrector (`/discipline:use-your-skills`, if
-installed). Different failure, different remedy, and each diagnostic resolves only where its
+enabled). Different failure, different remedy, and each diagnostic resolves only where its
 plugin is present.
 
 - **Pointer**: for real-work testing and steps 1 and 2, see

@@ -188,22 +188,22 @@ any published contract surface (API shapes, message schemas, tool schemas). Thos
 lane by definition.
 
 **F. Verify the batch.** Invoke `/toolchain:check` via the Skill tool for the affected
-ecosystems when the `toolchain` plugin is installed; otherwise run the consuming project's
+ecosystems when the `toolchain` plugin is enabled; otherwise run the consuming project's
 own build, test, and lint commands (its CLAUDE.md or rules may name them). A reduction that
 breaks a test was secretly behavioral: revert that reduction, reclassify it as route lane,
 and continue. Never ship red.
 
 **G. Ship.** Present the verified diff, or when the session should open a pull request,
-invoke `/source-control:pull-request create` via the Skill tool when that plugin is installed; otherwise use the
+invoke `/source-control:pull-request create` via the Skill tool when that plugin is enabled; otherwise use the
 repo's own PR convention with a body listing each reduction as `edge → mechanism → why safe`.
 One coupling pass per PR; structure-only, no behavioral riders. A human merges. This skill
 never auto-merges.
 
 **H. Ledger update and report.** Update statuses (`applied`, `deferred`, `routed`,
 `rejected`). Schema in [`reference/ledger.md`](reference/ledger.md). For route-lane
-candidates: hand the top one to `/architecture:improve`, invoked via the Skill tool (if that plugin is installed), for
+candidates: hand the top one to `/architecture:improve`, invoked via the Skill tool (if that plugin is enabled), for
 design exploration, and file the rest by invoking `/work-items:track add` via the Skill tool
-when that plugin is installed, else the repo's own tracker, else present the list to the user. For each confirmed
+when that plugin is enabled, else the repo's own tracker, else present the list to the user. For each confirmed
 duplicate writer, write the ownership-rule findings file under `<memory_dir>/coupling/<branch-slug>/`
 per [`reference/remediations.md`](reference/remediations.md) "Duplicate writers", name it in the
 ledger entry's `outcome`, and offer `/corrections:codify findings <file>` when that skill is
@@ -245,7 +245,7 @@ skill is ever extended to judge work its own session produced outside those gate
 - **Does not review a diff.** Pre-merge review is a review tool's job; this hunts standing
   coupling in existing artifacts.
 - **Does not deep-design one boundary.** A route-lane candidate needing interface
-  exploration goes to `/architecture:improve` (when installed) or a design session.
+  exploration goes to `/architecture:improve` (when enabled) or a design session.
 - **Does not apply general tidyings.** Rename/inline/extract without a coupling edge is
   `/code-tidying:tidy` territory.
 - **Does not enforce.** Blocking a new literal for a value that already has an owner is a
@@ -255,18 +255,18 @@ skill is ever extended to judge work its own session produced outside those gate
 
 ## Composition
 
-Graceful degradation: where a named collaborator is not installed, inline the equivalent
+Graceful degradation: where a named collaborator is not enabled, inline the equivalent
 work or present the handoff manually; never skip silently. Every skill named in the `Then` column
 is invoked via the Skill tool.
 
 | When | Then |
 |------|------|
-| Route-lane candidate needs design exploration | `/architecture:improve` when installed; else summarize the candidate for a design session |
-| Deferred or route-lane items need tracking | `/work-items:track add` when installed; else the repo's own tracker; else present the list |
-| Batch needs build/test verification | `/toolchain:check` when installed; else the project's own commands |
-| Shipping a PR | `/source-control:pull-request create` when installed; else the repo's own PR convention |
-| A docs finding is pure prose dedup | `/docs-hygiene:extract-ssot` when installed owns the extraction; else apply per the remediation catalog |
-| A `change` is an identifier rename, not a value | `/docs-hygiene:rename-references` when installed owns the sweep; else run `change` and review each row; records still stay |
+| Route-lane candidate needs design exploration | `/architecture:improve` when enabled; else summarize the candidate for a design session |
+| Deferred or route-lane items need tracking | `/work-items:track add` when enabled; else the repo's own tracker; else present the list |
+| Batch needs build/test verification | `/toolchain:check` when enabled; else the project's own commands |
+| Shipping a PR | `/source-control:pull-request create` when enabled; else the repo's own PR convention |
+| A docs finding is pure prose dedup | `/docs-hygiene:extract-ssot` when enabled owns the extraction; else apply per the remediation catalog |
+| A `change` is an identifier rename, not a value | `/docs-hygiene:rename-references` when enabled owns the sweep; else run `change` and review each row; records still stay |
 
 ## Next
 

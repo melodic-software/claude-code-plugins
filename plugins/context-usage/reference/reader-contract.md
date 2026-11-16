@@ -338,7 +338,7 @@ skill's module check), none of the following runs except the PostCompact marker.
   figures and the settings in force only, because a command's reply is stored as a transcript row
   Claude reads; it writes the router pointer and the docs link as a separate transcript line
   Claude does not read. The menu does not say which option fits when, so that line says to route
-  the next step with `/session-flow:workflow` (if installed). Without session-flow, we send the
+  the next step with `/session-flow:workflow` (if enabled). Without session-flow, we send the
   operator to the docs section on a filling context and restate none of it. Pointer: for the
   command reply reaching the model and `$.ui.log` not, see the `CommandRunResult`, `CommandOutput`
   and `ui.log` doc comments in the build's `claude-code/index.d.ts` types. Pointer: for what to do

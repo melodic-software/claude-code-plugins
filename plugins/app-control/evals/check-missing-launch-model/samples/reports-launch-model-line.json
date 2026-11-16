@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "launch-model | SKILL.md | ## Launch has no 'Side by side: yes' or 'Side by side: no: <reason>' line\n\nCount: 1",
+      "why": "the check action's <rule> | <path> | <detail> line for this finding"
+    },
+    {
+      "answer": "```\nlaunch-model | SKILL.md | ## Launch does not say whether two instances run side by side\n```",
+      "why": "the same rule and path, the detail reworded by hand"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The hub's Launch section does not say whether two instances can run side by side.",
+      "why": "names the finding in prose, without the line form only the check action defines"
+    },
+    {
+      "answer": "launch-model | SKILL.md | ## Launch has no 'Data: <how a run starts from empty data>' or 'Data: none: <reason>' line",
+      "why": "reports the Data line, which the hub has, and misses the side-by-side line"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

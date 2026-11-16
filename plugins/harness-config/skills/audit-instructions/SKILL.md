@@ -63,7 +63,7 @@ On **memory-layer surfaces** (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local
 `.claude/rules/`, and `rules/` under the user root Phase A resolves), this skill runs only the
 model-era checks I6–I39. It never runs or reports the hygiene checks I1–I5 (line-necessity, length,
 placement, inferable content, rule-to-hook) on these surfaces; that layer belongs to the
-`harness-memory` plugin. When it is installed, route memory-layer hygiene to its `audit` skill; when
+`harness-memory` plugin. When it is enabled, route memory-layer hygiene to its `audit` skill; when
 it is not, emit a single one-line pointer to the official CLAUDE.md include/exclude guidance
 (recorded with I1–I5 in [reference/criteria.md](reference/criteria.md)). Either way, no I1–I5
 hygiene finding is ever produced here. On **non-memory surfaces** (skill bodies, agent definitions,
@@ -349,7 +349,7 @@ non-fork** subagents, since this is a self-grade of the audit's own proposals an
 producing context would not be independent (pointer: when checking what a fork inherits, fetch [How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents)
 live), prompted to refute: "would removing this instruction cause Claude to make mistakes? Argue that it is still load-bearing." Where the removal call is
 high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is
-installed and set up**, e.g. the OpenAI Codex plugin, invoked per its own docs, with the
+enabled and set up**, e.g. the OpenAI Codex plugin, invoked per its own docs, with the
 fresh-context same-vendor subagent as the stated fallback, never a route to a command that may not
 resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
 Batch one verifier per lane that produced proposals (not one per finding or per surface), counted

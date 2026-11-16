@@ -300,7 +300,7 @@ remedy.
 | Ranking candidates across several dimensions at once | `improvement:find` |
 | The scrutiny posture itself | `discipline:reason-dont-recite`, `discipline:recheck-against-upstream`, `discipline:scrutinize-dont-coast` |
 
-**Non-sibling routes are presence-gated.** Where the named skill is not installed, say so inline,
+**Non-sibling routes are presence-gated.** Where the named skill is not enabled, say so inline,
 state what it would have owned, and record the fallback in `Routed-to`. A route to a surface that
 does not exist is a dropped finding wearing a handoff.
 

@@ -3,6 +3,39 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.5.2] - 2026-11-16
+
+### Changed
+
+- **`review:security-review`, settled manifest flags.** A `manifest <field>: flag` that is not
+  CRITICAL and not a trust-control widening is settled when its thread's lines are unchanged since
+  resolution and the settled-threads file marks the thread `owner reply`. That person, someone on
+  the trusted-actor list, must have stated a decision on the flag, not a question or an
+  acknowledgement, in the thread's last reply apart from the lane's. The lane then gives one summary line,
+  `manifest <field>: settled by <login>, <thread>`, and stops posting the flag as a new blocking
+  thread on every head. The line counts as no finding.
+
+## [9.5.1] - 2026-11-16
+
+### Fixed
+
+- **`review:fanout-sweep`, spec trust.** The workflow hands a `spec` to its leaves only when its
+  `loosenedSettings` arg carries the settings resolver's single `loosened_check_spec: counts` line,
+  so an issue from an untrusted author never gives a loosened check its reason, whatever the
+  orchestrator passes.
+- **Loosened-check settings resolver, trusted-actor list.** `--spec-issue` reads the trusted-actor
+  list only from the default branch the resolver resolves itself, and a `--ref` naming another
+  commit, such as the head branch, gives no reason, so a change cannot add its own author to the list.
+
+## [9.5.0] - 2026-11-16
+
+### Added
+
+- Bundled review criterion "Fail a change that loosens a check" (`skills/quality-gate/context/loosened-check.md`): a change that skips, focuses or deletes a test, changes an expected value to match the code, lowers a threshold, adds a suppression, sets a check to soft-fail, removes a check, raises a retry count or a test's own timeout, or edits a check's own code, runner, workflow or settings so it accepts more fails unless the spec names it and says why. A removal passes when the spec names it; a soft-fail passes only as a flaky test's quarantine with the spec's reason. Only spec text gives a reason, never the pull request body or comments. `/review:quality-gate`'s diff modes, the `code-reviewer` agent and the `/review:fanout` leaves that review code (`code-reviewer`, the criteria slices and the model-diversity hunters) always apply it: a project's own criteria add findings beside it, and no project document, instruction file or text in the change replaces or relaxes it.
+- Settings `loosened_check_verdict` (`fail` or `note`, default `fail`, a policy floor) and `loosened_check_patterns` (path globs or `text:` patterns, the union of every layer), each a user option and a `docs/conventions/review.yaml` key read from the default branch, resolved by `scripts/loosened-check-settings.mjs`, which reads the free-form patterns option from a file (`--patterns-file`) written with the Write tool, never from a shell argument. Given `--spec-issue`, it decides whether the issue's text may give a loosening its reason: only when a trusted person wrote the issue: a human entry of the default branch's `.github/standards/trusted-actors/trusted-actors.json` where that list exists, otherwise a human whose `author_association` on the issue is `OWNER`, `MEMBER` or `COLLABORATOR`. A list that exists but does not parse gives no reason. Otherwise reviewers get no spec.
+- The `fanout-sweep` workflow requires `loosenedCheck` (the criterion's path, which `code-reviewer`, every slice and every model tier reads; the other named leaves do not, so one loosening is not reported by each of them) and dispatches nothing without it. It also takes `loosenedSettings` (the criterion's two resolved setting lines, given to the same leaves) and `spec` (the issue text, quoted as data in every leaf prompt). `/review:fanout` resolves the settings in both review modes.
+- Nine eval cases for the criterion's verdicts, one of them a repository whose own review criteria allow skipped tests and one whose spec issue's author is not a trusted person, and a criterion-citation grader on the lowered-coverage case. Each case that hands a spec seeds a trusted-actor list on its default branch and runs the real resolver in its scaffold.
+
 ## [9.4.1] - 2026-11-15
 
 ### Changed

@@ -34,7 +34,7 @@ keep going.
 
 | Invocation | What it does |
 |---|---|
-| bare `[<app>] [<feature>]` | Launch unless the app is already running and fit, writing the launch record as "Record at launch" in [`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md) says, run `ready`, then perform the feature's Drive steps and save evidence after each step |
+| bare `[<app>] [<feature>]` | Launch unless the instance in this run's launch record under `--out` is still running and fit (any other running app is reached only through `--attach`), writing the launch record as "Record at launch" in [`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md) says, run `ready`, then perform the feature's Drive steps and save evidence after each step |
 | `ready` | Run the control skill's Ready command (read-only) and report what is reachable |
 | `capture --kind <kind>` | Record the kind with the tool the control skill's `## Capture` section names for it, one artifact per tier row; `threads` (a stack of every thread, for a hang), and a `cpu` or `heap` recorder that takes a pid, bind to the launched pid ([`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md)) |
 | `cleanup` | Stop only what this run started, then confirm every evidence path in the report still exists and is not empty |
@@ -167,8 +167,10 @@ it as step 9 does. The report names `affected.json`; the file's fields and its g
 
 ## Rules
 
-- **Ready means usable.** A port answering is not enough: the surface answers, the build is the one
-  expected when the app exposes one, and it uses the expected data. Report each surface (URL, port,
+- **Ready means usable.** A port answering is not enough: the surface answers, the port is held by
+  the instance this run drives (the one it launched, or under `--attach` the pid the person named), the credentials the run uses are valid, the build is the one
+  expected when the app exposes one, and it uses the expected data, which a launch starts empty
+  (contract "The launch model"). Report each surface (URL, port,
   command), the build, the data and the telemetry the app exposes (log files, an OTLP endpoint, a
   dashboard). A signal the app does not expose is listed as a capability gap. Ready also checks
   each dependency service of the selected environment (contract "Environments"): it answers, and,
@@ -300,8 +302,9 @@ write a `values:` value to any file.
 
 ## Gotchas
 
-- **An app already running is not yours.** An interactive run drives it only when it is fit, and
-  attaches to it only through [Attach](#attach); an unattended run never attaches to it and records
+- **An app already running is not yours.** Drive reuses only the instance in this run's launch
+  record under `--out`. An interactive run reaches any other running app only through
+  [Attach](#attach); an unattended run never attaches to it and records
   `blocked: app already running, not started by this run`.
   Cleanup stops only what this run started.
 - **Evidence that exists is not evidence that holds.** Check each artifact is not empty before

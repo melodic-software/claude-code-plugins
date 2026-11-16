@@ -70,6 +70,9 @@ make_clean() {
 
 Run the `run-shop` skill. See the [cart feature](features/cart/README.md) and the [docs](https://example.invalid/docs).
 
+Data: a new directory per run, `bin/migrate` then `bin/seed demo`
+Side by side: yes, each on its own port
+
 ## Ready
 
 curl -fsS http://localhost:8080/healthz
@@ -513,6 +516,44 @@ replace "$SKILL/SKILL.md" "$HAND_OFF_LINE" "$HAND_OFF_LINE
 values: config.account.email"
 assert_equals "mask hand-off: the hand-off beside another line is read as the hub's own mask" "$(run_check)" \
   "mask-missing | SKILL.md | ## Capture records screenshot $MASK_DETAIL"
+
+# launch-model: the hub's ## Launch records its Data and Side by side lines.
+# shellcheck disable=SC2016 # the backticks are a Markdown code span, not a substitution
+DATA_LINE='Data: a new directory per run, `bin/migrate` then `bin/seed demo`'
+SIDE_LINE="Side by side: yes, each on its own port"
+new_case
+replace "$SKILL/SKILL.md" "$SIDE_LINE" ""
+assert_equals "launch-model: no Side by side line" "$(run_check)" \
+  "launch-model | SKILL.md | ## Launch has no 'Side by side: yes' or 'Side by side: no: <reason>' line"
+new_case
+replace "$SKILL/SKILL.md" "$DATA_LINE" ""
+assert_equals "launch-model: no Data line" "$(run_check)" \
+  "launch-model | SKILL.md | ## Launch has no 'Data: <how a run starts from empty data>' or 'Data: none: <reason>' line"
+new_case
+replace "$SKILL/SKILL.md" "$SIDE_LINE" "Side by side: no"
+assert_equals "launch-model: no with no reason" "$(run_check)" \
+  "launch-model | SKILL.md | ## Launch has no 'Side by side: yes' or 'Side by side: no: <reason>' line"
+new_case
+replace "$SKILL/SKILL.md" "$SIDE_LINE" "Side by side: no: the app holds a lock on its data directory"
+replace "$SKILL/SKILL.md" "$DATA_LINE" "Data: none: the app keeps no data"
+assert_equals "launch-model: no with a reason, and Data none with a reason" "$(run_check)" ""
+new_case
+replace "$SKILL/SKILL.md" "$DATA_LINE" "Data: none:"
+assert_equals "launch-model: Data none with no reason" "$(run_check)" \
+  "launch-model | SKILL.md | ## Launch has no 'Data: <how a run starts from empty data>' or 'Data: none: <reason>' line"
+new_case
+replace "$SKILL/SKILL.md" "$SIDE_LINE" '```text
+Side by side: yes
+```'
+assert_equals "launch-model: a fenced line does not count" "$(run_check)" \
+  "launch-model | SKILL.md | ## Launch has no 'Side by side: yes' or 'Side by side: no: <reason>' line"
+new_case
+replace "$SKILL/SKILL.md" "$SIDE_LINE" ""
+replace "$SKILL/SKILL.md" "Stop the process the launch started." "Stop the process the launch started.
+
+Side by side: yes"
+assert_equals "launch-model: a line outside ## Launch does not count" "$(run_check)" \
+  "launch-model | SKILL.md | ## Launch has no 'Side by side: yes' or 'Side by side: no: <reason>' line"
 
 bash "$CHECK" "$SKILL" --root >/dev/null 2>&1
 assert_equals "usage: --root with no value exits 2" "$?" "2"

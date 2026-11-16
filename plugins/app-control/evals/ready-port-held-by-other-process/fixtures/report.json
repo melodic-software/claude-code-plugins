@@ -1,0 +1,23 @@
+{
+  "app": "shop",
+  "control_skill": "control-shop (project: .claude/skills/control-shop/SKILL.md)",
+  "fallback": null,
+  "resolved": null,
+  "mode": "unattended",
+  "trusted_root": null,
+  "launch": [
+    {
+      "app": "shop",
+      "pid": 5120,
+      "uid": 1000,
+      "start_time": 48213377,
+      "command_line": "python3 shop/server.py --port 18080 --data evidence/data",
+      "command_line_sha256": "11001b49c760cd2c4038f92e5726ccf8506502b5ba93e5bffd269940b32195c1"
+    }
+  ],
+  "ready": null,
+  "steps": [],
+  "capability_gaps": [],
+  "blocked": [],
+  "cleanup": null
+}

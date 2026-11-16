@@ -13,7 +13,11 @@ edit the canonical source, then rerun the script. -->
   is a selection's quote (anchor.textQuote), cut to the schema's limits. Every string reaches the
   screen through textContent. When the server stops answering, the notes written here stay on this
   page and Copy all notes makes one prototype-notes block for the session to import. A draft stays
-  on this page, out of that block, until it is sent.
+  on this page, out of that block, until it is sent. The Controls tab renders the framed page's
+  controls manifest, kept only when controls.schema.json admits it, through the registry in
+  controls.js, beside the data controls and content sets the page marks, each kept only as
+  note.schema.json admits a data step or a content set; it sends the frame values and presses,
+  never markup, and a note keeps only the control values the manifest names.
 -->
 <html lang="en">
 <head>
@@ -32,7 +36,12 @@ edit the canonical source, then rerun the script. -->
   ol { margin: 0; padding-inline-start: 1.4em; display: grid; gap: 8px; }
   .where, .state { font-size: 0.9em; opacity: 0.75; }
   .reply { margin: 2px 0 0; padding-inline-start: 8px; border-inline-start: 3px solid rgb(13 148 136); }
-  #panel { display: flex; flex-direction: column; gap: 10px; }
+  #panel, [role="tabpanel"] { display: flex; flex-direction: column; gap: 10px; }
+  [role="tablist"] { display: flex; gap: 4px; }
+  [role="tab"][aria-selected="true"] { font-weight: 700; border-block-end: 2px solid currentColor; }
+  fieldset { margin: 0; display: grid; gap: 6px; }
+  fieldset.bare { border: 0; padding: 0; }
+  .uifc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
   body.docked { grid-template-columns: minmax(0, 1fr) auto; }
   [hidden] { display: none !important; }
   @media (max-width: 720px) { body, body.docked { grid-template-columns: 1fr; grid-template-rows: 60vh auto; } }
@@ -43,6 +52,11 @@ edit the canonical source, then rerun the script. -->
 <aside aria-label="Notes">
   <button type="button" id="dock" aria-expanded="true" aria-controls="panel">Hide notes (N)</button>
   <div id="panel">
+  <div role="tablist" aria-label="Dock">
+    <button type="button" role="tab" id="tab-notes" aria-controls="notes-panel" aria-selected="true">Notes</button>
+    <button type="button" role="tab" id="tab-controls" aria-controls="controls-panel" aria-selected="false" tabindex="-1">Controls</button>
+  </div>
+  <div role="tabpanel" id="notes-panel" aria-labelledby="tab-notes">
   <h1>Notes to Claude</h1>
   <p id="status" role="status" aria-live="polite">Loading the mockup.</p>
   <p id="session" class="state"></p>
@@ -65,15 +79,27 @@ edit the canonical source, then rerun the script. -->
     <textarea id="block" readonly></textarea>
   </div>
   </div>
+  <div role="tabpanel" id="controls-panel" aria-labelledby="tab-controls" hidden>
+    <p id="controls-status" class="state">The mockup has not loaded yet.</p>
+    <fieldset id="controls-fields" class="bare"><div id="controls-list"></div></fieldset>
+    <p><button type="button" id="copy-config" disabled>Copy config</button> <button type="button" id="reset-controls" disabled>Reset controls</button></p>
+    <p id="controls-said" role="status" aria-live="polite"></p>
+    <div id="config-out" hidden>
+      <label for="config">The current config</label>
+      <textarea id="config" readonly></textarea>
+    </div>
+  </div>
+  </div>
 </aside>
+<script src="/controls.js"></script>
 <script type="module">
-  import { problems } from "/note-model.mjs";
+  import { problems, use } from "/note-model.mjs";
 
   const $ = (id) => document.getElementById(id);
   const frame = $("page"), composer = $("composer"), text = $("text");
   const buttons = { element: $("pick"), region: $("region") };
   const say = (t) => { $("status").textContent = t; };
-  let schema = null, token = null, ready = false, loads = 0, picking = null, wantText = false, draft = null, noSession = false;
+  let schema = null, cschema = null, token = null, ready = false, loads = 0, picking = null, wantText = false, draft = null, noSession = false;
   let editing = null, opener = null, ids = 0, sending = false;
   // This page load's notes: {id, note, where, seq, draft}; seq is null until the session has it, and
   // a draft is one the person has not sent yet.
@@ -86,9 +112,75 @@ edit the canonical source, then rerun the script. -->
   const live = () => ready && loads < 2;
   const QUOTE = () => schema.$defs.anchor.properties.textQuote;
 
+  // The Controls tab: the manifest's controls once the contract admits them, then the data controls and the content set
+  // the page marks, as built-in entries (ids outside the manifest's id pattern, so none collides).
+  const C = window.uiFeedbackControls;
+  let controls = [], values = {}, builtins = [], content = null;
+  function takeControls(m) {
+    const P = schema.properties;
+    const found = m.controls == null || m.controls === false ? [] : problems(m.controls, cschema, cschema, "manifest");
+    const list = m.controls && !found.length ? m.controls.controls : [];
+    const refused = C.refused(list);
+    controls = refused ? [] : list;
+    values = C.defaults(controls);
+    const steps = (Array.isArray(m.data) ? m.data : []).filter((st) => fits(st, schema.$defs.dataStep)).slice(0, cschema.properties.controls.maxItems);
+    builtins = steps.map((st, i) => ({ id: `@data-${i}`, label: [st.op, st.n ?? st.name].filter((x) => x !== undefined).join(" "), group: "data", type: "action", press: st }));
+    if (fits(m.content, P.content)) {
+      content = m.content;
+      builtins.push({ id: "@content", label: "Worst content", group: "content", type: "toggle", options: P.content.enum, default: m.content, content: true });
+    }
+    $("controls-status").textContent = found.length ? `The mockup's controls manifest is outside the controls contract (${found[0]}), so only its data controls are here.`
+      : refused ? `The mockup's controls manifest is refused (${refused}), so only its data controls are here.`
+      : m.controls === false ? "The mockup's controls manifest is not JSON, so only its data controls are here."
+      : m.controls == null ? "The mockup has no controls manifest." : `${controls.length} control(s) from the mockup's manifest.`;
+    for (const b of [$("copy-config"), $("reset-controls")]) b.disabled = !controls.length;
+    renderControls();
+  }
+  function renderControls() {
+    const focused = document.activeElement?.id;
+    $("controls-list").replaceChildren(C.panel(document, [...controls, ...builtins], { ...values, "@content": content }, change));
+    if (focused?.startsWith("uifc-")) $(focused)?.focus();
+  }
+  const sayControls = (t) => { $("controls-said").textContent = t; };
+  function change(c, v) {
+    if (picking) setPick(null);
+    sayControls("");
+    if (c.press) toFrame({ type: "press", step: c.press });
+    else if (c.content) toFrame({ type: "press", step: { op: "content", name: v } });
+    else { values[c.id] = v; toFrame({ type: "set", values: { [c.id]: v } }); }
+  }
+  function copyConfig() {
+    $("config").value = C.config(controls, values);
+    $("config-out").hidden = false;
+    $("config").select();
+    const done = () => sayControls("Copied the config. Paste it to Claude.");
+    if (navigator.clipboard) navigator.clipboard.writeText($("config").value).then(done, () => sayControls("Select the config below and copy it."));
+    else sayControls("Select the config below and copy it.");
+  }
+  function resetControls() {
+    values = C.defaults(controls);
+    toFrame({ type: "set", values });
+    renderControls();
+    sayControls("The controls are back at their defaults; the data is unchanged.");
+  }
+
+  const tabs = [$("tab-notes"), $("tab-controls")];
+  /** Show one tab's panel, as the WAI-ARIA tabs pattern does: only the selected tab is in the tab order. */
+  function selectTab(tab, focus = true) {
+    for (const t of tabs) {
+      t.setAttribute("aria-selected", String(t === tab));
+      t.tabIndex = t === tab ? 0 : -1;
+      $(t.getAttribute("aria-controls")).hidden = t !== tab;
+    }
+    if (tab !== tabs[0] && picking) setPick(null);
+    if (focus) tab.focus();
+  }
+
   /** Turn pick mode on for one kind ("element" or "region"), or off. */
   function setPick(kind) {
     picking = kind && live() ? kind : null;
+    // A pick's instructions are on the Notes tab, so a pick started from the Controls tab shows it.
+    if (picking) selectTab(tabs[0], false);
     for (const [k, b] of Object.entries(buttons)) b.setAttribute("aria-pressed", String(picking === k));
     toFrame({ type: "mode", on: !!picking, kind: picking || "element", max: schema?.properties.elements.maxItems });
     say(picking === "element" ? "Click an element in the mockup to pin a note to it. Esc cancels."
@@ -122,6 +214,8 @@ edit the canonical source, then rerun the script. -->
     if (fits(m.rect, P.rect)) note.rect = { x: m.rect.x, y: m.rect.y, w: m.rect.w, h: m.rect.h };
     if (fits(s.data, P.data)) note.data = JSON.parse(JSON.stringify(s.data));
     if (fits(s.viewport, P.viewport)) note.viewport = { ...s.viewport };
+    const kept = Object.fromEntries(controls.filter((c) => typeof s.controls?.[c.id] === "string").map((c) => [c.id, s.controls[c.id]]));
+    if (Object.keys(kept).length && fits(kept, P.controls)) note.controls = kept;
     if (kind === "text") {
       if (!fits(m.quote, QUOTE())) return null;
       anchor.textQuote = { exact: m.quote.exact };
@@ -154,6 +248,7 @@ edit the canonical source, then rerun the script. -->
     opener = from;
     setPick(null);
     if ($("panel").hidden) setPanel(true);
+    selectTab(tabs[0], false);
     $("picked").textContent = `${{ element: "Picked", text: "Selected", region: "Marked" }[note.kind]}: ${where(note)}`;
     composer.hidden = false;
     text.value = entry ? entry.note.text : "";
@@ -259,7 +354,8 @@ edit the canonical source, then rerun the script. -->
     document.body.classList.toggle("docked", !open);
     $("dock").setAttribute("aria-expanded", String(open));
     $("dock").textContent = open ? "Hide notes (N)" : "Show notes (N)";
-    if (open) (buttons.element.disabled ? $("copy") : buttons.element).focus();
+    if (open && tabs[1].getAttribute("aria-selected") === "true") tabs[1].focus();
+    else if (open) (buttons.element.disabled ? $("copy") : buttons.element).focus();
     else $("dock").focus();
   }
 
@@ -358,8 +454,10 @@ edit the canonical source, then rerun the script. -->
       if (ready) return;
       ready = true;
       for (const b of [...Object.values(buttons), $("quote")]) b.disabled = false;
+      takeControls(m);
       say("Pick an element (P), mark a region (R), or select text in the mockup and press Note on selected text (T).");
     } else if (m.type === "escape") setPick(null);
+    else if (m.type === "content" && fits(m.name, schema.properties.content)) { content = m.name; renderControls(); }
     else if (m.type === "want-text") askText();
     else if (m.type === "pinned" && picking === "element") {
       const note = noteFrom(m, "element");
@@ -386,6 +484,19 @@ edit the canonical source, then rerun the script. -->
   $("dock").addEventListener("click", () => setPanel($("panel").hidden));
   $("cancel").addEventListener("click", closeComposer);
   $("copy").addEventListener("click", copyAll);
+  $("copy-config").addEventListener("click", copyConfig);
+  $("reset-controls").addEventListener("click", resetControls);
+  for (const t of tabs) {
+    t.addEventListener("click", () => selectTab(t));
+    t.addEventListener("keydown", (e) => {
+      const i = tabs.indexOf(t), to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+      // During a region pick the arrows move the region: the document's handler takes them.
+      if (to === undefined || picking === "region") return;
+      e.preventDefault();
+      e.stopPropagation();
+      selectTab(tabs[(to + tabs.length) % tabs.length]);
+    });
+  }
   const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { if (draft) closeComposer(); else setPick(null); return; }
@@ -407,21 +518,25 @@ edit the canonical source, then rerun the script. -->
   });
 
   try {
-    const [s, t, page] = await Promise.all([
+    const [s, cs, t, page] = await Promise.all([
       fetch("/note.schema.json").then((r) => r.json()),
+      fetch("/controls.schema.json").then((r) => r.json()),
       fetch("/api/token").then((r) => r.json()),
       fetch("/api/page"),
     ]);
     if (!page.ok) throw new Error((await page.json()).error);
     schema = s;
+    cschema = cs;
+    use(s, cs);
     token = t.token;
     frame.addEventListener("load", () => {
       loads += 1;
       if (loads > 1) {
         ready = false;
         picking = null;
-        for (const b of [...Object.values(buttons), $("quote")]) b.disabled = true;
+        for (const b of [...Object.values(buttons), $("quote"), $("controls-fields"), $("copy-config"), $("reset-controls")]) b.disabled = true;
         say("The mockup loaded another page in its frame, so this page stopped listening to it. Reload to start again.");
+        $("controls-status").textContent = "The mockup loaded another page in its frame, so these controls no longer reach it. Reload to start again.";
       }
     });
     frame.srcdoc = await page.text();

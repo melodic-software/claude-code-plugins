@@ -58,4 +58,4 @@ collision check reads them to tell a resume from a slug collision.
   concurrency refusal waits, then one more dispatch → retry window → inline-with-disclosure, never
   for a unit the profile maps to another model → degraded marker + re-run trigger); do not tick
   the phase complete on a degraded marker
-- Phase 5 interview invocation: skip (present artifact only) when the planning plugin is absent
+- Phase 5 interview invocation: skip (present artifact only) when the planning plugin is not enabled

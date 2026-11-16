@@ -56,7 +56,7 @@ the signed delta, then how many classes are new since that run and how many gain
 lane`, offer the user the install command that headline carries (`npm install -g jscpd`, or a
 devDependency) and run it only when they confirm; never install silently and never `npx`-fetch it.
 Keep the `--json` document when the numbers feed a comparison:
-`/verification:measure metrics` consumes it when the `verification` plugin is installed (treat a
+`/verification:measure metrics` consumes it when the `verification` plugin is enabled (treat a
 report whose `status` is `empty` on either side as INCONCLUSIVE); otherwise keep the JSON beside
 your notes and compare by hand.
 

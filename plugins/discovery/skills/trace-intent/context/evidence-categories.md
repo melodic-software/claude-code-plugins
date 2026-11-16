@@ -8,9 +8,9 @@ body is a hardcoded assumption about a consumer that will not hold.
 
 | Category | Resolves through | Reports as a gap when |
 |---|---|---|
-| Source control | `/discovery:explore git` when installed; otherwise the session's own history access | No repository resolves |
+| Source control | `/discovery:explore git` when enabled; otherwise the session's own history access | No repository resolves |
 | Long-form documents | The consuming repo's own documentation tree, wherever it keeps one | No documentation surface is discoverable |
-| Issue tracker | `/work-items:track` when the `work-items` plugin is installed, which owns the provider-neutral seam; otherwise whatever tracker interface the session has | No tracker resolves |
+| Issue tracker | `/work-items:track` when the `work-items` plugin is enabled, which owns the provider-neutral seam; otherwise whatever tracker interface the session has | No tracker resolves |
 
 Vendors named anywhere in this file are illustrations of what a category can contain. None is a
 requirement, a default, or a supported integration.

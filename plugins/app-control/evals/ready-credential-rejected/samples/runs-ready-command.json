@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": ".claude/skills/control-shop/cli/shop ready ./evidence"
+          }
+        }
+      ],
+      "why": "ran the hub's Ready command, which makes the read-only call that needs the credential"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printenv SHOP_API_TOKEN >/dev/null && echo set"
+          }
+        }
+      ],
+      "why": "checked only that the variable is set and never ran Ready"
+    }
+  ]
+}

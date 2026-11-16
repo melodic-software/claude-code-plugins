@@ -202,7 +202,7 @@ task, your output destination, or the main session's sink and confirm gate.
    line and record a finding only when it instructs an invocation without the gate and fallback.
    Then check the component against two more sources, reading each at the cited line. Postures:
    the `discipline:*` skills this session lists that apply to the component, never a list you
-   carry; with none listed, say the discipline plugin is absent in the Standards alignment section
+   carry; with none listed, say the discipline plugin is not enabled in the Standards alignment section
    and skip. A disagreement cites `convention: discipline:<name>` and `component: <path>:<line>`.
    Standards repository: when the audited repo declares one, or a local `melodic-software/standards`
    checkout holds a relevant `components/*/policy.json` or convention doc, cite

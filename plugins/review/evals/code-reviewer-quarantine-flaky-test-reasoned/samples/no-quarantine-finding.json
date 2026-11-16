@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Criteria read: none present\nLoosened-check verdict: fail (default); patterns: 0\n\nThe soft-fail \"Quarantined tests\" step quarantines one flaky test that the spec (#88) names, with its reason, so it passes the loosened-check criterion.\n\n**SUGGESTION**\n- `test/quarantine/upload-retry.test.js:17`: the 50 ms bound races two random delays; #89's fake timers will fix it. Confidence: medium\n\nCoverage: all changed files reviewed",
+      "why": "names the quarantine as allowed and only suggests on the timing flaw"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**CRITICAL**\n- `.github/workflows/ci.yml:15`: Fail a change that loosens a check (check set to soft-fail): the quarantined step no longer fails the job. Remove `continue-on-error`. Confidence: high",
+      "why": "flags a spec-reasoned quarantine as blocking"
+    },
+    {
+      "answer": "**IMPORTANT**\n- `package.json:6`: the test script no longer runs test/quarantine/, so the retry test is excluded from the required check without justification. Confidence: medium",
+      "why": "asks for action and says there is no justification, though the spec gives one"
+    }
+  ]
+}

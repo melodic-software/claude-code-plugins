@@ -4,6 +4,27 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.3.0] - 2026-11-16
+
+### Changed
+
+`/knowledge:video-digest watch --from/--to`: a ranged slice's key gets the range as a suffix,
+`-r<fromSec>-<toSec>` (`end` for an open `--to`), so each range of one video is its own slice
+instead of sharing the whole video's directory. `run-watch.js --recover` now recovers a ranged
+slice: it plans in the ranged media's time and adds the recorded range start back, where it used
+to refuse. `resume` names the range in the continuation prompt. Given a video id, or a ranged
+`<id>-r<from>-<to>` key, instead of a slug, it resumes the one slice that matches, or lists the
+slugs when a bare id matches several. `QUEUE.md` dedupes on video id plus range: a ranged row's
+`video-id` cell carries the same suffix, and `watch <n>` passes it back as `--from`/`--to`. A
+ranged slice made before this release keeps its unsuffixed slug; resume or recover it by that
+slug, since re-running the same range writes a new suffixed slice.
+
+## [3.2.1] - 2026-11-15
+
+### Changed
+
+- `course-digest` invokes `/discovery:explore` and `/discovery:research` before integrating an action item when each is among the available skills, not when the `discovery` plugin is merely installed, so a plugin that is installed but disabled takes the stated fallback.
+
 ## [3.2.0] - 2026-11-15
 
 ### Changed

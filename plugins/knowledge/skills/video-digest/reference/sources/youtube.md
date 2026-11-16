@@ -17,8 +17,10 @@ Owned hosts are `youtube.com` and `youtu.be`. Host matching is suffix-aware, so 
 
 Slice key = the 11-character video id (`[A-Za-z0-9_-]{11}`), derived from the URL rather than from
 post-redirect metadata; metadata `id` is a fallback only when the URL yields none. One id → one
-slice; the id is also the `QUEUE.md` dedupe key. Canonicalization is identity: every claimed
-variant is acquired verbatim.
+whole-video slice; the id is also the `QUEUE.md` dedupe key. A ranged watch (`--from`/`--to`)
+adds `-r<fromSec>-<toSec>` to the key, so each range is its own slice and its own queue row
+(`../../context/watch-pipeline.md`). Canonicalization is identity: every claimed variant is
+acquired verbatim.
 
 ## Acquisition
 

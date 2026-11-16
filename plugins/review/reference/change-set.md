@@ -68,8 +68,8 @@ panel to produce noise.
 The official Claude Security plugin's `/claude-security` scan is a self-orchestrating multi-agent
 workflow, not a dispatchable leaf. Never add it to a fan-out or a panel. When the request is a
 whole-repo security audit rather than a change-set review, recommend it (presence-gated: only when
-its command appears in the skill listing; otherwise suggest installing
-`claude-security@claude-plugins-official`). The pointer record for its jobs, prerequisites, and
+its command appears in the skill listing; otherwise suggest enabling
+`claude-security@claude-plugins-official`, installing it first if it is not installed). The pointer record for its jobs, prerequisites, and
 output contract lives once, in the `quality-gate` skill's security context
 ([../skills/quality-gate/context/security.md](../skills/quality-gate/context/security.md#deep-scan-escalation)).
 

@@ -8,6 +8,7 @@ levels:
     states: core
     extra_states: []
     evidence: per-variant
+    controls: brief
     offers: []
     phrases: [a quick sketch, a rough sketch, just a sketch]
   standard:
@@ -16,6 +17,7 @@ levels:
     states: planned
     extra_states: []
     evidence: per-state
+    controls: everything
     offers: [review-mode, real-stack]
     phrases: []
   full:
@@ -24,5 +26,6 @@ levels:
     states: planned
     extra_states: [narrow-viewport, dark-scheme, reduced-motion]
     evidence: per-state
+    controls: everything
     offers: [review-mode, real-stack]
     phrases: [the full package, the full treatment]

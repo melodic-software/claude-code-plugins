@@ -15,6 +15,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { runCheckWatchOutcomes } from "../evals/check-watch-outcomes.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
+import { describeTimeRange } from "../lib/time-range.js";
 import {
   normalizePortableTempPath,
   resolveTempSession,
@@ -377,10 +378,14 @@ export function buildContinuationPrompt(state) {
       /** @type {PhaseRecord} */ (value)?.metrics?.skipped ? `${name} (skipped)` : name,
     );
 
+  const rangeLine = state.timeRange
+    ? `Range: ${describeTimeRange(state.timeRange)}. Every timestamp in this slice is full-video time.\n`
+    : "";
+
   return `# Continue /knowledge:video-digest watch
 
 Video slug: \`${state.videoSlug}\`
-Locate the slice: \`watch/run-resume.js ${state.videoSlug}\` (SKILL.md resume) reports it as \`sliceDir\`.
+${rangeLine}Locate the slice: \`watch/run-resume.js ${state.videoSlug}\` (SKILL.md resume) reports it as \`sliceDir\`.
 
 ## Video metadata
 

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**CRITICAL**\n- `.github/workflows/ci.yml:14`: Fail a change that loosens a check (check set to soft-fail): `continue-on-error: true` on the Lint step means lint failures no longer fail the job. The spec asks for it and gives a reason, but only a quarantined flaky test may soft-fail; lint is not a test. Keep the step required and fix or scope the new rules instead. Confidence: high",
+      "why": "blocking finding that names the soft-fail and why the spec reason does not allow it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Criteria read: none present\n\nNo findings. The Lint soft-fail is what #63 asks for, with its reason.\n\nCoverage: all changed files reviewed",
+      "why": "accepts the soft-fail because the spec gives a reason"
+    },
+    {
+      "answer": "**SUGGESTION**\n- `.github/workflows/ci.yml:14`: consider a date to remove `continue-on-error` from Lint. Confidence: low",
+      "why": "only a suggestion, not a finding that needs action"
+    }
+  ]
+}

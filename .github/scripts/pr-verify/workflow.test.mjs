@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { test } from "node:test";
@@ -1550,6 +1550,33 @@ test("the collected capture is run-e2e's summary and its listed regular files, o
   assert.equal(readFileSync(path.join(ran.out, "login", "shot.png"), "utf8"), "png");
   for (const absent of ["login/link.png", "secret.txt", "etc/passwd"]) assert.ok(!existsSync(path.join(ran.out, absent)), absent);
   assert.match(ran.stdout, /e2e-summary\.json and 1 publishable files/);
+  // A cause in the driven session's summary is dropped: only the capture job's own steps record one.
+  const forged = path.join(runDir, "forged");
+  mkdirSync(forged);
+  const forgedSummary = { ...summary, capture: { status: "blocked", reason: "the key hit a credit stop on this run's probe", cause: "credit-stop", count: 0 }, publishable: [] };
+  writeFileSync(path.join(forged, "e2e-summary.json"), JSON.stringify(forgedSummary));
+  const forgedOutput = path.join(workspace, "structured-forged.json");
+  writeFileSync(forgedOutput, JSON.stringify({ summary: path.join(forged, "e2e-summary.json") }));
+  const stripped = collect({ DRIVE_OUTCOME: "success", OUTPUT_FILE: forgedOutput });
+  assert.deepEqual(stripped.summary, { ...forgedSummary, capture: { status: "blocked", reason: "the key hit a credit stop on this run's probe", count: 0 } });
+  assert.deepEqual(readdirSync(stripped.out), ["e2e-summary.json"]);
+  // The flat shape write-verdict.mjs also reads loses its cause too.
+  const flat = path.join(runDir, "flat");
+  mkdirSync(flat);
+  writeFileSync(path.join(flat, "e2e-summary.json"), JSON.stringify({ capture: "blocked", capture_count: 0, cause: "empty-key", features: [], reason: "x" }));
+  const flatOutput = path.join(workspace, "structured-flat.json");
+  writeFileSync(flatOutput, JSON.stringify({ summary: path.join(flat, "e2e-summary.json") }));
+  assert.deepEqual(collect({ DRIVE_OUTCOME: "success", OUTPUT_FILE: flatOutput }).summary, { capture: "blocked", capture_count: 0, features: [], reason: "x" });
+  // A strip that fails records the capture blocked and leaves no temporary file behind.
+  const tmp = tempDir("capture-collect-tmp-");
+  const bin = tempDir("capture-collect-bin-");
+  const realJq = spawnSync("bash", ["-c", "command -v jq"], { encoding: "utf8" }).stdout.trim();
+  writeFileSync(path.join(bin, "jq"), `#!/bin/bash\ncase "$*" in *"del(.cause)"*) exit 5 ;; esac\nexec '${realJq}' "$@"\n`, { mode: 0o755 });
+  const failedOut = path.join(workspace, "out-strip-failed");
+  const failedStrip = runStep(capStep("Collect the capture"), { PATH: `${bin}:${process.env.PATH}`, GITHUB_WORKSPACE: workspace, APP: "claude-code", OUT: failedOut, TMPDIR: tmp, DRIVE_OUTCOME: "success", OUTPUT_FILE: forgedOutput });
+  assert.equal(failedStrip.status, 0, failedStrip.stderr);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(failedOut, "e2e-summary.json"), "utf8")), { route: "none", app: "claude-code", affected: [], capture: { status: "blocked", reason: "the summary could not be read without its cause", count: 0 }, entry_points: [], publishable: [] });
+  assert.deepEqual(readdirSync(tmp), []);
   const blocked = (status, reason) => ({ route: "none", app: "claude-code", affected: [], capture: { status, reason, count: 0 }, entry_points: [], publishable: [] });
   assert.deepEqual(collect({ DRIVE_OUTCOME: "failure", DRIVE_CLASS: "timeout" }).summary, blocked("blocked", "the capture session ended without a result (timeout)"));
   assert.deepEqual(collect({ DRIVE_OUTCOME: "skipped" }).summary, blocked("blocked", "the capture session ended without a result (skipped)"));
@@ -1645,9 +1672,9 @@ test("the driver's file tools are fenced to the head and the run directory, and 
   // Every pin of the two actions is one commit with loopback-base-url (first at 4aba9be).
   const pins = [...CAPTURE_TEXT.matchAll(/uses: melodic-software\/ci-workflows\/\.github\/actions\/(run-claude-cli|apply-claude-managed-settings)@(\S+) # (.*)$/gm)].map((m) => `${m[1]} ${m[2]} ${m[3]}`);
   assert.deepEqual(pins, [
-    "apply-claude-managed-settings fc442ad3e808adafe3b195e9d12fff901220db50 fc442ad 2026-11-09",
-    "run-claude-cli fc442ad3e808adafe3b195e9d12fff901220db50 fc442ad 2026-11-09",
-    "run-claude-cli fc442ad3e808adafe3b195e9d12fff901220db50 fc442ad 2026-11-09",
+    "apply-claude-managed-settings 944d346c487c79eaf85dff752586fb59b0f5c539 v0.74.0",
+    "run-claude-cli 944d346c487c79eaf85dff752586fb59b0f5c539 v0.74.0",
+    "run-claude-cli 944d346c487c79eaf85dff752586fb59b0f5c539 v0.74.0",
   ]);
   assert.deepEqual(allowed.filter((rule) => /^(?:Read|Edit|Write)\(/.test(rule)), ["Read(/${{ github.workspace }}/head/**)", "Read(/${{ github.workspace }}/capture-run/**)", "Read(/${{ github.workspace }}/.base/plugins/**)", "Read(/${{ github.workspace }}/.base/.claude/skills/**)", "Edit(/${{ github.workspace }}/head/**)", "Edit(/${{ github.workspace }}/capture-run/**)"]);
   assert.equal(input(driver, "permission-mode"), "dontAsk");
@@ -2100,14 +2127,22 @@ const walkFromCredit = (credit) => {
 
 // The walk gives "Pick the next leg" empty outputs, which matches
 // ci-workflows select.cjs next() at the pinned 5b5110a: an empty `state`
-// (the key call skipped) hands on no next-leg, so the blocked capture and
-// its upload stay skipped. A pin bump that changes next() voids this case.
-test("a key in a credit stop ends the capture at the credit read: no resolver, no GitHub read, no capture upload", () => {
+// (the key call skipped) hands on no next-leg. The blocked capture runs on
+// the credit read's own next-leg. A pin bump that changes next() voids this
+// case.
+test("a key in a credit stop skips the resolver and every GitHub read, and records the capture blocked for its credit stop", () => {
   const stopped = walkFromCredit({ "next-leg": "subscription", marker: CAP_MARKER, "probing-marker": "" });
-  // Only the skipped leg's record, the budget log and the next-leg call, none of which reads the REST API.
-  assert.deepEqual(stopped, ["Report the skipped key leg", "Log the API budget", "Pick the next leg"]);
-  for (const name of ["Resolve the pull request", "Check the trigger", MATCH, "Check the credential", "Resolve the capture's model", ...CAP_PROBING_STEPS, BLOCKED, "Scan the capture for credentials", "Upload the capture"]) {
+  // The skipped leg's record, the budget log, the next-leg call and the blocked capture, none of which reads the REST API.
+  assert.deepEqual(stopped, ["Report the skipped key leg", "Log the API budget", "Pick the next leg", BLOCKED]);
+  for (const name of ["Resolve the pull request", "Check the trigger", MATCH, "Check the credential", "Resolve the capture's model", ...CAP_PROBING_STEPS]) {
     assert.ok(!stopped.includes(name), name);
+  }
+  assert.doesNotMatch(capStep(BLOCKED), /\bgh\b|curl/);
+  // The capture it wrote is scanned and uploaded; with none written (no pull request in the event) nothing is.
+  const after = (written) => ({ steps: { collect: { outcome: "skipped" }, "handoff-capture": { outcome: "success", outputs: { written } }, match: { outputs: {} }, "scan-capture": { outputs: { clean: "true" } } } });
+  for (const name of ["Scan the capture for credentials", "Upload the capture"]) {
+    assert.ok(runs(capStep(name), after("true")), name);
+    assert.ok(!runs(capStep(name), after("")), name);
   }
   // A read that failed (next-leg empty) or chose the key runs the resolver, so a read fault never stops a capture.
   for (const leg of ["", "key"]) {
@@ -2219,6 +2254,29 @@ test("a probe that handed off skips the probe check and every step from the head
   assert.ok(capIndex(CAP_HANDOFF) < capIndex(PROBE_CHECK));
 });
 
+// The expected alert: a credit stop on the capture's key raises an
+// alert naming the key's role and the run that hit it, the warning
+// annotation every lane raises on a key's handoff, also in the run summary.
+test("a credit stop on the capture's key raises a warning naming the pr-verify role's key and the run, in the annotations and the run summary", { skip: process.platform === "win32" && "bash step" }, () => {
+  const report = (laneClass) => {
+    const summary = path.join(tempDir("capture-handoff-"), "summary.md");
+    writeFileSync(summary, "");
+    const ran = runStep(capStep(CAP_HANDOFF), { LANE_CLASS: laneClass, GITHUB_SERVER_URL: "https://github.com", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "43742536648", GITHUB_STEP_SUMMARY: summary });
+    assert.equal(ran.status, 0, ran.stderr);
+    return { stdout: ran.stdout, summary: readFileSync(summary, "utf8") };
+  };
+  const credit = report("credit-stop");
+  const line = "the pr-verify role's API key (PR_VERIFY_CLAUDE_API_KEY) hit a credit stop in run https://github.com/o/r/actions/runs/43742536648; rotate a spare key in";
+  assert.equal(credit.stdout, `::warning::${line}\n`);
+  assert.equal(credit.summary, `${line}\n`);
+  const auth = report("auth");
+  assert.equal(auth.stdout, "::warning::the API refused the pr-verify role's API key (PR_VERIFY_CLAUDE_API_KEY), class auth, in run https://github.com/o/r/actions/runs/43742536648; the owner must replace the secret\n");
+  // The probe leg's lane-outcome record carries the same stop: its class and handoff.
+  const record = capStep("Record the probe leg");
+  assert.equal(input(record, "known-failure-class"), "${{ steps.probe.outputs.lane-class }}");
+  assert.equal(input(record, "handoff"), "${{ steps.probe.outputs.handoff }}");
+});
+
 const BLOCKED = "Write the blocked capture";
 
 test("a key that cannot capture records the capture blocked in the capture job, with no second leg", () => {
@@ -2233,30 +2291,74 @@ test("a key that cannot capture records the capture blocked in the capture job, 
   assert.equal(capIndex(HEAD_CHECKOUT), capIndex(BLOCKED) + 1);
   const write = capStep(BLOCKED);
   assert.match(write, /^ {8}id: handoff-capture$/m);
-  assert.equal(stepIf(write), "steps.next.outputs.next-leg == 'subscription'");
+  assert.equal(stepIf(write), "steps.next.outputs.next-leg == 'subscription' || steps.credit.outputs.next-leg == 'subscription'");
+  // The cause's only inputs: the credit read and the next-leg call, both before any head code, and the run's own ids.
+  assert.equal(input(write, "HELD"), "${{ steps.credit.outputs.next-leg }}");
   assert.equal(input(write, "WHY"), "${{ steps.next.outputs.next-reason }}");
+  assert.equal(input(write, "ORIGIN_RUN"), "${{ steps.credit.outputs.origin-run }}");
+  assert.doesNotMatch(write, /steps\.(drive|collect|head|prompt|sibling)\b|capture-run|secrets\./);
+  // It names the capture as the upload does.
+  const name = /^ {10}name: pr-capture-\$\{\{ (.*) \}\}-\$\{\{ (.*) \}\}$/m.exec(capStep("Upload the capture"));
+  assert.equal(input(write, "PR_NUMBER"), `\${{ ${name[1]} }}`);
+  assert.equal(input(write, "HEAD_SHA"), `\${{ ${name[2]} }}`);
   // No job reads the leg any more, so the capture job exports none.
   assert.doesNotMatch(jobIn(CAPTURE_TEXT, CAP), /^ {4}outputs:/m);
   // The scan and the upload take any one capture: the driver's, the blocked one or the match step's.
-  const either = "(steps.collect.outcome == 'success' || steps.handoff-capture.outcome == 'success' || steps.match.outputs.applicable == 'false')";
+  const either = "(steps.collect.outcome == 'success' || steps.handoff-capture.outputs.written == 'true' || steps.match.outputs.applicable == 'false')";
   assert.equal(stepIf(capStep("Scan the capture for credentials")), `always() && ${either}`);
   assert.equal(stepIf(capStep("Upload the capture")), `(always() && ${either}) && steps.scan-capture.outputs.clean == 'true'`);
 });
 
-test("the blocked capture says a subscription token cannot go behind the key proxy", { skip: process.platform === "win32" && "bash step" }, () => {
-  const out = path.join(tempDir("capture-blocked-"), "pr-capture");
-  const ran = runStep(capStep(BLOCKED), { APP: "claude-code-plugins", OUT: out, WHY: "credit-stop" });
-  assert.equal(ran.status, 0, ran.stderr);
-  // The reason the plan fixes for this case: a subscription token cannot go behind the key proxy.
-  assert.deepEqual(JSON.parse(readFileSync(path.join(out, "e2e-summary.json"), "utf8")), {
-    route: "none",
-    app: "claude-code-plugins",
-    affected: [],
-    capture: { status: "blocked", reason: "subscription token cannot go behind the proxy (R41)", count: 0 },
-    entry_points: [],
-    publishable: [],
-  });
-  assert.match(ran.stdout, /^::notice::the key could not capture \(credit-stop\); /m);
+// The causes the owner's decision names: credit stop, empty key or probe
+// handoff, each with its own reason, and no "subscription token cannot go
+// behind the proxy".
+test("the blocked capture records its cause: credit stop, empty key or probe handoff, each with its own reason", { skip: process.platform === "win32" && "bash step" }, () => {
+  const head = "c".repeat(40);
+  const write = (env) => {
+    const dir = tempDir("capture-blocked-");
+    const out = path.join(dir, "pr-capture");
+    const output = path.join(dir, "output");
+    writeFileSync(output, "");
+    const ran = runStep(capStep(BLOCKED), { APP: "claude-code-plugins", OUT: out, PR_NUMBER: "41", HEAD_SHA: head, GITHUB_OUTPUT: output, GITHUB_SERVER_URL: "https://github.com", GITHUB_REPOSITORY: "o/r", ...env });
+    const summary = path.join(out, "e2e-summary.json");
+    return { ...ran, output: readFileSync(output, "utf8"), summary: existsSync(summary) ? JSON.parse(readFileSync(summary, "utf8")) : null };
+  };
+  const shape = (reason, cause) => ({ route: "none", app: "claude-code-plugins", affected: [], capture: { status: "blocked", reason, cause, count: 0 }, entry_points: [], publishable: [] });
+  const cases = [
+    // The marker is forgeable by a same-repository workflow, so the reason names the marker, not an observed stop.
+    [{ HELD: "subscription", ORIGIN_RUN: "43742536648" }, "credit-stop", "the credit gate's credit-stop marker held the key off; the marker names run https://github.com/o/r/actions/runs/43742536648"],
+    [{ HELD: "subscription", ORIGIN_RUN: "" }, "credit-stop", "the credit gate's credit-stop marker held the key off"],
+    [{ HELD: "key", WHY: "credit-stop" }, "credit-stop", "the key hit a credit stop on this run's probe"],
+    [{ WHY: "no-key" }, "empty-key", "the key (PR_VERIFY_CLAUDE_API_KEY) is empty"],
+    [{ WHY: "auth" }, "probe-handoff", "the probe leg handed off: the API refused the key (class auth)"],
+    // A reason off the next-leg call's list keeps the capture blocked and the job green, and is printed nowhere.
+    [{ WHY: "limit-stop $(id)" }, "unrecognized", "the key could not capture, for a reason the capture does not recognize"],
+  ];
+  const reasons = new Set();
+  for (const [env, cause, reason] of cases) {
+    const ran = write(env);
+    assert.equal(ran.status, 0, ran.stderr);
+    assert.deepEqual(ran.summary, shape(reason, cause), JSON.stringify(env));
+    assert.equal(ran.output, "written=true\n");
+    assert.equal(ran.stdout, `::notice::the key could not capture (${cause}): ${reason}; the capture is recorded blocked\n`);
+    // write-verdict.mjs takes the cause into the verdict's evidence.
+    assert.equal(fromE2eSummary(ran.summary).cause, cause);
+    reasons.add(reason);
+  }
+  assert.equal(reasons.size, cases.length);
+  assert.doesNotMatch(capStep(BLOCKED), /subscription token cannot go behind the proxy|R41/);
+  // A credit read's run id that is not a run id is left out of the reason.
+  assert.equal(write({ HELD: "subscription", ORIGIN_RUN: "1; rm -rf /" }).summary.capture.reason, "the credit gate's credit-stop marker held the key off");
+  const unknown = write({ WHY: "limit-stop $(id)" });
+  assert.doesNotMatch(unknown.stdout + unknown.stderr + JSON.stringify(unknown.summary), /limit-stop|\$\(id\)/);
+  // With no pull request and head to name it by (an event with no pull request), nothing is written or uploaded.
+  for (const ids of [{ PR_NUMBER: "" }, { HEAD_SHA: "main" }, { PR_NUMBER: "41 x" }]) {
+    const none = write({ HELD: "subscription", ...ids });
+    assert.equal(none.status, 0);
+    assert.equal(none.summary, null);
+    assert.equal(none.output, "");
+    assert.match(none.stdout, /^::notice::the key could not capture \(credit-stop\), but the run names no pull request and head, so no capture is uploaded$/m);
+  }
 });
 
 test("the probe's Write and Grep through links in the run directory must be refused, with the driver's own allowances", { skip: process.platform === "win32" && "bash step" }, () => {

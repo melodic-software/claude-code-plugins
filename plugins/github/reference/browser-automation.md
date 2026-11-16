@@ -23,7 +23,7 @@ An offer is only possible when a browser integration is actually present in the 
    presence in the session's tool surface is the gate). No tools present means this
    integration is absent; do not name it in the offer.
 2. **playwright**: invoke the `playwright` plugin's browser skill (when that plugin is
-   installed); when it is not installed, this integration is absent and the ladder falls
+   enabled); when it is not enabled, this integration is absent and the ladder falls
    through to guided manual steps with a settings deep link.
 
 When neither integration is present, no offer is made. State plainly that the surface is

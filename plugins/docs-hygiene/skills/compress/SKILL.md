@@ -48,7 +48,7 @@ A layer holding anything other than `keep` or `cut` is named in the output (the 
 
 | Value | Backend | What may be cut |
 |---|---|---|
-| `keep` | in-session Edit, even when caveman is installed ([why `keep` skips caveman](${CLAUDE_PLUGIN_ROOT}/reference/config.md#caveman-removes-articles)) | the batch path's word-level set without articles: filler, hedging, pleasantries, verbose verb phrases, passive to active, nominalization collapse. No sentence or restatement deletion, on a single file as in a batch. An article dropped anyway is restored in the revert pass |
+| `keep` | in-session Edit, even when caveman is enabled ([why `keep` skips caveman](${CLAUDE_PLUGIN_ROOT}/reference/config.md#caveman-removes-articles)) | the batch path's word-level set without articles: filler, hedging, pleasantries, verbose verb phrases, passive to active, nominalization collapse. No sentence or restatement deletion, on a single file as in a batch. An article dropped anyway is restored in the revert pass |
 | `cut` | caveman when available, otherwise in-session Edit (Step A onward, unchanged) | articles too; a single-file Edit run may use the full matrix, restatement deletion included |
 
 Report the result once per run, as the last line of the summary: `compress_articles: keep (default)`, `compress_articles: cut (docs/conventions/docs-hygiene.yaml)`, or `compress_articles: cut (userConfig)`.
@@ -171,7 +171,7 @@ Audit action output: table with `target`, `expected_yield_pct`, `classify` (SKIP
 
 ## Gotchas
 
-- **Self-audit drifts toward expansion.** Run the semantic-diff dispatch as a separate fresh-context audit, never a self-audit by the model that produced the edits: self-audit re-adds words just removed ("preserve clarity"; an observed failure, see ## Sources). Prefer a cross-vendor advisor for that audit **when one is installed and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository). For batch fan-out follow `context/fan-out-orchestration.md`: the main session dispatches separate compress + audit subagents and reconciles per finding, so every audit stays under its control rather than inside a compressor's context.
+- **Self-audit drifts toward expansion.** Run the semantic-diff dispatch as a separate fresh-context audit, never a self-audit by the model that produced the edits: self-audit re-adds words just removed ("preserve clarity"; an observed failure, see ## Sources). Prefer a cross-vendor advisor for that audit **when one is enabled and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository). For batch fan-out follow `context/fan-out-orchestration.md`: the main session dispatches separate compress + audit subagents and reconciles per finding, so every audit stays under its control rather than inside a compressor's context.
 
   - **Pointer**: when a design question turns on whether a subagent can spawn its own, fetch
     [Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)

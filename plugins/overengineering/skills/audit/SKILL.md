@@ -26,7 +26,7 @@ earn their carry cost. Every incumbent is a retirement candidate until evidence 
 silence is not evidence in either direction.
 
 Which automation is missing is `/harness-config:audit-automation-gaps`'s question. Route a gap that
-surfaces mid-walk there when that plugin is installed; otherwise record it in the findings artifact
+surfaces mid-walk there when that plugin is enabled; otherwise record it in the findings artifact
 as an observation for the human. This walk never proposes new automation.
 
 **The surface is everything that governs work here, wherever it is registered**, including settings
@@ -152,7 +152,7 @@ qualitative bar carries the argument instead.
 When intent reconstruction scores MEDIUM or LOW (§4):
 
 - **Attended (default)**: ask checkpoint questions, recommendation first, one small numbered set,
-  batched. Use `planning:interview`'s mechanics when installed, otherwise ask inline.
+  batched. Use `planning:interview`'s mechanics when enabled, otherwise ask inline.
 - **Unattended**: record `OPEN-INTENT` and move on. Never invent an intent.
 
 "I don't know" is accepted: it routes the item to §8's empirical track with intent recorded as
@@ -160,7 +160,7 @@ unrecovered.
 
 ## Neighbor routing
 
-Every route is **presence-gated**: check the plugin is installed, else take the inline fallback.
+Every route is **presence-gated**: check the plugin is enabled, else take the inline fallback.
 Record the route and the presence answer in the finding's `Routed-to`.
 
 | Finding class | Route (presence-gated) | Inline fallback when absent |

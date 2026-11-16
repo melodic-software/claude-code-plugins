@@ -321,7 +321,7 @@ jobs:
         if: steps.wip.outputs.capped == 'false'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@944d346c487c79eaf85dff752586fb59b0f5c539 # v0.74.0
         with:
           leg: start
           key-job: resolve-issue
@@ -436,6 +436,7 @@ jobs:
       checks: write
       issues: write
       id-token: write
+    cache-mode: read
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
       start-gate: true
@@ -638,6 +639,7 @@ jobs:
       checks: write
       issues: write
       id-token: write
+    cache-mode: read
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
       start-gate: true
@@ -739,6 +741,7 @@ jobs:
       checks: write
       issues: write
       id-token: write
+    cache-mode: read
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
       lane: work-resolve-issue
@@ -847,6 +850,7 @@ jobs:
       checks: write
       issues: write
       id-token: write
+    cache-mode: read
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
       lane: work-resolve-issue
@@ -881,6 +885,7 @@ jobs:
     concurrency:
       group: work-resolve-issue-write-${{ github.event.issue.number }}
       queue: max
+    cache-mode: read
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
       lane: work-resolve-issue
@@ -1306,6 +1311,7 @@ jobs:
       checks: write
       issues: write
       id-token: write
+    cache-mode: read
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
       lane: work-resolve-issue

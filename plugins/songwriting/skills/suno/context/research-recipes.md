@@ -29,7 +29,7 @@ Tools (in priority order):
    - AllMusic for genre lineage + influences
 2. **A web-search capability, when one is available.** Use whichever the session offers, preferring
    one that returns citations and accepts a recency filter. Where the `firecrawl` plugin is
-   installed, `/firecrawl:firecrawl search` is the bundled route. With no search capability
+   enabled, `/firecrawl:firecrawl search` is the bundled route. With no search capability
    available, say so and fall back to the WebFetch sources above plus the clarifying questions in
    "When research finds nothing useful".
 3. **Context7**, only if the user references a specific tool/SDK/library (rarely applicable for Suno prompting)
@@ -155,12 +155,12 @@ If Phase 1 + Phase 2 return nothing actionable (rare: the genre's too obscure or
 | Capability | Use for | Route |
 |------|---------|-------|
 | Direct URL fetch | help.suno.com pages, Wikipedia, AllMusic, Genius | WebFetch |
-| Web search with citations | trends, niche genres, artist profiles | whatever search capability the session offers; `/firecrawl:firecrawl search` when the `firecrawl` plugin is installed |
-| Scrape a page WebFetch cannot reach | a 403, a rate limit, or a JS-rendered page | `/firecrawl:firecrawl scrape` when the `firecrawl` plugin is installed; otherwise report the page as unreachable |
-| Library or SDK documentation | rarely applicable to Suno prompting | `/context7:lookup` when the `context7` plugin is installed |
+| Web search with citations | trends, niche genres, artist profiles | whatever search capability the session offers; `/firecrawl:firecrawl search` when the `firecrawl` plugin is enabled |
+| Scrape a page WebFetch cannot reach | a 403, a rate limit, or a JS-rendered page | `/firecrawl:firecrawl scrape` when the `firecrawl` plugin is enabled; otherwise report the page as unreachable |
+| Library or SDK documentation | rarely applicable to Suno prompting | `/context7:lookup` when the `context7` plugin is enabled |
 
 Name the capability you actually used in the Phase 3 confidence note. A capability that is not
-installed is reported as missing, never worked around silently.
+enabled is reported as missing, never worked around silently.
 
 ## Output format
 
