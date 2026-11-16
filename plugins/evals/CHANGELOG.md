@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.19.0] - 2026-11-16
+
+### Added
+
+- `/evals:validate` now grades regex and `tool_used` `input_match` samples under `bun` (JavaScriptCore, the engine the Bun-built CLI runs graders in) as well as `node` (V8) when `bun` is on PATH. A sample whose verdict differs between the two engines is a FAIL naming both verdicts, and each JavaScript finding names its engine. With no `bun`, the findings are the same as before. The validate skill now says which engine each one runs.
+
 ## [0.18.18] - 2026-11-16
 
 ### Fixed
