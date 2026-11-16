@@ -68,7 +68,7 @@ Every other row is a handoff, with `kind` naming why:
 | `security` | Fails condition 5 |
 | `unverified` | Fails condition 2 or 3 |
 | `docs-lag` | A changelog-versus-docs pair, for `/harness-ops:known-issues` |
-| `stage-missing` | The planning, implementation or verification plugin is not installed |
+| `stage-missing` | The planning, implementation or verification plugin is not enabled |
 | `not-applied` | Its branch failed: the plan was unapproved or verification failed |
 | `docs-conformance`, `native-drift` | As in the phase table |
 

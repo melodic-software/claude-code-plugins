@@ -32,8 +32,8 @@ The agent covers per-ecosystem injection/XSS/deserialization/path-traversal chec
 Some asks outgrow a diff-scoped agent pass: a whole-repository audit, threat-model depth, or
 independently verified findings with patch suggestions. For those, recommend the official Claude
 Security plugin's `/claude-security` command instead of widening this mode. Presence-gated: route to it only
-when its command appears in the skill listing; otherwise suggest installing
-`claude-security@claude-plugins-official`. Jobs, prerequisites, and output contract are
+when its command appears in the skill listing; otherwise suggest enabling
+`claude-security@claude-plugins-official`, installing it first if it is not installed. Jobs, prerequisites, and output contract are
 upstream-owned. Do not restate them. Pointer: prerequisites at
 [claude-security: prerequisites](https://code.claude.com/docs/en/claude-security#prerequisites),
 installation at

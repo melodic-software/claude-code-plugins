@@ -1,7 +1,7 @@
 # Auditing a skill
 
 When the audited component is a skill, also run `skill-quality:check` (its static
-contract gate) when installed, and lean on its findings; absent, this file is the manual fallback.
+contract gate) when enabled, and lean on its findings; absent, this file is the manual fallback.
 
 ## Read first
 
@@ -15,7 +15,7 @@ contract gate) when installed, and lean on its findings; absent, this file is th
   budget drops it is `/harness-ops:audit-skill-visibility`'s to answer.
 - **Progressive disclosure**: grade the hub and its references against
   `/playbooks:skill-authoring` `## Body` and `## Reference files`, or run
-  `/docs-hygiene:audit-progressive-disclosure` when installed. Does the hub stay thin as coverage
+  `/docs-hygiene:audit-progressive-disclosure` when enabled. Does the hub stay thin as coverage
   grows?
 - **Composition**: if it orchestrates other skills, is each loaded inline or forked
   (`context: fork`), and does what a forked skill can see match what the step needs? Are the named

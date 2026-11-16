@@ -55,7 +55,7 @@ apply` owns both.
 2. **`--repos <path>[,<path>...]`**: exactly those repositories. Facts come from every path; edges
    come from the first path only (the `--edges-from` default). No discovery runs at all.
 3. **`--root <dir>`** (repeatable): discovery, delegated to the `repo-fleet-hygiene` plugin when it
-   is installed and an announced bundled walk when it is not. Read
+   is enabled and an announced bundled walk when it is not. Read
    [scope-modes.md](${CLAUDE_PLUGIN_ROOT}/skills/map-landscape/reference/scope-modes.md) before
    running this mode; the collaborator's plan is wider than the roots you asked for, and charting it
    unfiltered grows the landscape to the operator's whole configured fleet.

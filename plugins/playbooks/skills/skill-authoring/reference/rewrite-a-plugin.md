@@ -13,8 +13,8 @@ ships; this page says how to run it across a plugin. "Step N" below is the proto
 ## Before you start
 
 This page runs `/skill-quality:check`, the `/evals:*` skills and `/docs-hygiene:compress` when the
-`skill-quality`, `evals` and `docs-hygiene` plugins are installed. When one is not, say which
-step's check did not run and that installing that plugin would run it; never report that step as
+`skill-quality`, `evals` and `docs-hygiene` plugins are enabled. When one is not, say which
+step's check did not run and that enabling that plugin would run it; never report that step as
 passed.
 
 - Run `/evals:plugin-eval preflight <plugin>`. A case that grants `Bash`, `Write` or `Edit` needs a

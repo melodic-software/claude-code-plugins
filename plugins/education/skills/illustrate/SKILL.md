@@ -12,7 +12,7 @@ metadata:
 # Illustrate a topic as small diagrams
 
 The deliverable is a **markdown record**; every view renders it: an **interactive page** by
-default, and a **video** when the explainer-video plugin is installed and the reader wants one.
+default, and a **video** when the explainer-video plugin is enabled and the reader wants one.
 
 ## Read the arguments
 
@@ -85,7 +85,7 @@ Write one JSON model. The builder turns it into the record and the page, so the 
 **The STE register.** Invoke `/docs-hygiene:write-for-humans` via the Skill tool and apply the
 ASD-STE100 rules its Load layer names (the "Load" section of its sentence rules) to every
 `summary`, `caption`, and `text` line, never to identifiers or `sources`. When that skill is not
-installed, say the STE register is unavailable and write in the plain register.
+enabled, say the STE register is unavailable and write in the plain register.
 
 ## Step 3. Build the record and the page
 
@@ -179,16 +179,16 @@ record. On a yes, hand it the record as a storyboard, not as a topic:
    record's folder. Done when it reports the video's path; give that path to the reader.
 
 When it is not listed, say in one line that the video view is
-unavailable because the explainer-video plugin is not installed. Never install it.
+unavailable because the explainer-video plugin is not enabled. Never install it.
 
 ## Boundaries
 
 - **Plainer words, not a picture** ("explain this simply", "I don't get it") is
   `/education:explain`; invoke it via the Skill tool.
 - **Reorganizing a dense message** without losing precision is `/adhd:clarify` via the Skill tool
-  (if installed). Without it, restructure in place and keep the terms verbatim.
+  (if enabled). Without it, restructure in place and keep the terms verbatim.
 - **Picking the best form for content already in the conversation** (a table, a chart, a
-  code-shape sketch) is `/visualization:visualize` via the Skill tool (if installed).
+  code-shape sketch) is `/visualization:visualize` via the Skill tool (if enabled).
 - **Ongoing coaching** is `/education:teach`.
 
 ## Related
@@ -207,7 +207,7 @@ unavailable because the explainer-video plugin is not installed. Never install i
 ## Gotchas
 
 - **A bare `/eli5` is not this skill.** This skill registers `/education:illustrate` only. A typed
-  bare `/eli5` reaches the community `eli5` plugin's skill when that plugin is installed; do not
+  bare `/eli5` reaches the community `eli5` plugin's skill when that plugin is enabled; do not
   promise the user that this skill sees every ELI5 request.
 - **No diagram, no explainer.** A simple, correct answer with no diagram has not met the contract.
   When the topic truly has no structure to draw, say so and hand off to `/education:explain`.

@@ -20,7 +20,7 @@ examples use Next.js/React, but the principles are framework-agnostic).
 
 **Visual direction.** When the project has no look of its own for the page (no tokens, no brand, no
 existing screens to match), the aesthetic direction (type pairing, palette, the hero's composition)
-goes to `/frontend-design:frontend-design` when it is installed; `/user-interface:design` routes it
+goes to `/frontend-design:frontend-design` when it is enabled; `/user-interface:design` routes it
 there. Without it, the rules in this file and the sibling concerns still stand on their own. Making
 a marketing or brand surface look designed rather than generated is the `generic-defaults` concern,
 with the shared rule in `../../principles.md`; this file does not restate it.

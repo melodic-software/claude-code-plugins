@@ -195,7 +195,7 @@ product quality*. Only the official free preview is available; the normative bod
 ## Mutation-testing literature
 
 Deliberately not summarized beyond the coverage section above. Invoke `/mutation-testing:principles`
-when the mutation-testing plugin is installed; it owns the primary sources, the vocabulary, and what
+when the mutation-testing plugin is enabled; it owns the primary sources, the vocabulary, and what
 a surviving mutant means. Otherwise the concern is out of this plugin's scope and nothing here
 substitutes for it: coverage tells you a line executed and cannot tell you it was checked, and no
 measure in this plugin closes that gap.

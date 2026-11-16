@@ -75,7 +75,7 @@ The container body **is** the spec, and it is the only durable spec source at th
 topic's memory slice is never committed, so at close-out in another checkout the tracker item is
 all that is left. Read it exactly as [spec.md](spec.md) Rung 2 prescribes:
 `/work-items:track view <promoted id>`, invoked via the Skill tool when the `work-items` plugin is
-installed, otherwise the tracker's own tooling, scoped to the promoted id's repository either way
+enabled, otherwise the tracker's own tooling, scoped to the promoted id's repository either way
 (a bare number reads the current repository, which for a cross-repo container is a different item
 sharing the number), never by reaching into a sibling plugin's CLI.
 

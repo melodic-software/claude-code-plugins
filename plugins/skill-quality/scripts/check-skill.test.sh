@@ -4496,7 +4496,7 @@ description: "Next fixture. Use when: '"'"'next operative'"'"'."
 ## Purpose
 
 Single-shape successor section written as an operative chain: prose first, a
-Skill-tool instruction, an installed-ness gate, and a fallback clause.
+Skill-tool instruction, an availability gate, and a fallback clause.
 
 ## Next
 
@@ -4540,6 +4540,56 @@ if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section carries operative-chain p
   pass "a bullet-shape '## Next' with a fallback clause warns on the chain phrasing"
 else
   fail "bullet '## Next' with a fallback should warn on phrasing (rc=$rc): $out"
+fi
+
+make_skill next-enabled-gate '---
+name: next-enabled-gate
+description: "Next fixture. Use when: '"'"'next enabled gate'"'"'."
+---
+
+## Purpose
+
+Single-shape successor section that carries the availability gate.
+
+## Next
+
+/code-metrics:principles (if that plugin is enabled)
+
+## Gotchas
+
+None known.
+'
+out="$(run next-enabled-gate 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section carries operative-chain phrasing ('is enabled')" <<<"$out"; then
+  pass "a '## Next' line gated on the plugin being enabled warns on the chain phrasing"
+else
+  fail "'## Next' with an enabled gate should warn on phrasing (rc=$rc): $out"
+fi
+
+make_skill next-enabled-word '---
+name: next-enabled-word
+description: "Next fixture. Use when: '"'"'next enabled word'"'"'."
+---
+
+## Purpose
+
+Conforming successor section whose sentence has a word ending in "is" before "enabled".
+
+## Next
+
+`/code-metrics:audit complexity`. It measures what this enabled.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-enabled-word 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q "WARN: '## Next'" <<<"$out"; then
+  pass "a word merely ending in 'is' before 'enabled' is not an availability gate"
+else
+  fail "'## Next' with 'this enabled' should not warn (rc=$rc): $out"
 fi
 
 # 27b. A stage-bearing skill (metadata.workflow-stage in the stage list) with no

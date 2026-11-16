@@ -76,7 +76,7 @@ removes its layer in either style. Pass them to `build_edl.py` as
    as a capture source, fetch
    [Page.startScreencast](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-startScreencast)
    live.
-4. **Narration (only when `demo_narration` is true).** When the speech plugin is installed, run
+4. **Narration (only when `demo_narration` is true).** When the speech plugin is enabled, run
    `/speech:narrate` once per line into `<work>/audio/<step>/`, `<work>/audio/<step>.outcome/` and,
    for a typing step, `<work>/audio/<step>.results/`; each folder gets `narration.wav` and
    `words.json`. Without the speech plugin, skip narration and say so.

@@ -86,7 +86,7 @@ across findings, particularly the sweep: a straggler found after four renames
 cannot be attributed to one of them.
 
 The sweep covers the reference forms the plan did not classify. If
-`docs-hygiene` is installed it runs `/docs-hygiene:rename-references`; without
+`docs-hygiene` is enabled it runs `/docs-hygiene:rename-references`; without
 it, the recipe's own sweep over the tracked files does the same job.
 
 Report the script's five output rows as it wrote them. `DRIFTED` above zero is

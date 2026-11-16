@@ -41,7 +41,7 @@ past it at the top. The table stops at 200 rows; its last line and the summary n
 whole `code-metrics/v2` document was written to (under
 `<CLAUDE_PLUGIN_DATA>/reports/<state-key>/` when that value names code-metrics, else `~/.claude/plugins/data/code-metrics/reports/<state-key>/`), so the numbers past the cap are on disk without a
 second run. Pass that document, or a `--json` run's output, to `/verification:measure metrics`
-when the `verification` plugin is installed, treating `status: empty` on either side as
+when the `verification` plugin is enabled, treating `status: empty` on either side as
 INCONCLUSIVE; otherwise keep it beside your notes and compare by hand.
 
 ## Reading the numbers

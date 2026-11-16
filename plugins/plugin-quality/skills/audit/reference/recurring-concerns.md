@@ -51,10 +51,10 @@ A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
   in multiple hand-maintained places within this component? Name each duplicate site and the owner
   you believe should hold the value.
 - **Doctrine owner:** when the fix is extract-or-point, not a plugin-local judgment call, route to
-  `/docs-hygiene:extract-ssot` when installed (Rule of Three, remedies, and the extraction workflow).
+  `/docs-hygiene:extract-ssot` when enabled (Rule of Three, remedies, and the extraction workflow).
   When the duplicated value is a plugin-shipped constant or config field, also read **One owner per
   value** in `docs/plugin-philosophy.md`. Restatement across instruction surfaces (skills, agents,
-  rules) is `/harness-config:audit-instructions` territory when that plugin is installed.
+  rules) is `/harness-config:audit-instructions` territory when that plugin is enabled.
 - **Inline-floor contracts:** where a contract file declares consumers copy named values verbatim,
   check the copies actually match. Byte-identity drift between a writer's contract and a consumer's
   inlined constants is a silent split-brain.

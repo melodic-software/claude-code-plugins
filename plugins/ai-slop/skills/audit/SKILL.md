@@ -348,7 +348,7 @@ carries the reason.
   outside markdown files other than the three kinds above; structural markdown (heading
   hierarchy, multiple H1, title case) belongs to the markdown linter lane. Reshaping text so it
   leads with the point and carries fewer words is `/writing:be-concise`, which owns that
-  doctrine when the `writing` plugin is installed; AI-writing tells in a commit message, PR body
+  doctrine when the `writing` plugin is enabled; AI-writing tells in a commit message, PR body
   or interface copy are this skill's.
 - **Does not weaken rules to pass its own corpus**: a deliberate house style is config in the
   consuming repo, never a shipped-default change.

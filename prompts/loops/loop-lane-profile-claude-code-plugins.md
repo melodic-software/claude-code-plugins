@@ -467,7 +467,7 @@ terminals mutating the same row.
 > single-terminal attended session may write it.
 >
 > Use `/planning:interview` to drive an escalated question to a decision
-> **when the `planning` plugin is installed here**; otherwise ask the
+> **when the `planning` plugin is enabled here**; otherwise ask the
 > focused questions inline, one at a time, most consequential first, the
 > same fallback attend-queue itself specifies, since `work-items` installs
 > independently of `planning` and an unconditional invocation would just

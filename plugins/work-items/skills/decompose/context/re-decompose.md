@@ -35,7 +35,7 @@ edited spec, never hand-patched into meaning something the spec no longer says.
    **container body** (spec-on-tracker, an ordinary body edit through the bound adapter, behind
    the same user approval as any tracker write) or the **topic Brief** (PLAN.md via the
    tier-selected lookup) when no container was published. Re-run the interview machinery
-   (`/planning:interview` when installed, else a direct question round) or apply the user's
+   (`/planning:interview` when enabled, else a direct question round) or apply the user's
    directed edits. The edited spec is what legitimizes the reroute, never regenerate items
    against a spec that still says the old thing.
 

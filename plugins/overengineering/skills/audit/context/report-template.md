@@ -99,7 +99,7 @@ manufacturing a finding to justify the pass is the failure this whole method is 
 
 ## Layer 3: the rendered HTML view
 
-**Presence-gated on the visualization plugin.** When `visualization:visualize` is installed, offer it
+**Presence-gated on the visualization plugin.** When `visualization:visualize` is enabled, offer it
 the artifact for a rendered view. The artifact stays the source of truth and the rendering is a
 second presentation of it, never a place a finding appears first.
 
@@ -123,7 +123,7 @@ line and take the `null` row.
 | `medium` is `null` (no setting decided) | Offered; when taken, `visualization:visualize` picks the medium itself. |
 | `page` is `true` | Offered; when taken, passes the JSON's `medium` to `visualization:visualize` as its argument. |
 
-**Documented fallback when that plugin is not installed: skip it.** Say nothing beyond a single line
+**Documented fallback when that plugin is not enabled: skip it.** Say nothing beyond a single line
 noting that the optional rendered view was unavailable (none when the JSON's `page` is `false`),
 and do not substitute a hand-built HTML file, an inline chart, or an extra markdown file. Layers 1 and 2 are complete on their own; a substitute
 built here would be a third record to keep in sync, which is exactly what the single-source-of-truth
