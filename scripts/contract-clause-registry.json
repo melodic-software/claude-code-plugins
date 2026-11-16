@@ -213,8 +213,13 @@
         },
         {
           "name": "cdn-pinned-version",
-          "pattern": "pinned to a version",
-          "hint": "carry the version pin: a CDN library is loaded pinned to a version"
+          "pattern": "pinned to an exact version",
+          "hint": "carry the version pin: a CDN library is loaded pinned to an exact version"
+        },
+        {
+          "name": "no-other-request",
+          "pattern": "no other external request",
+          "hint": "carry the limit: beyond the pinned CDN library, the view makes no other external request"
         },
         {
           "name": "cdn-fallback",

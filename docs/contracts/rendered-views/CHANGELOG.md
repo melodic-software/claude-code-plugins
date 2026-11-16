@@ -6,7 +6,7 @@ versioned; this log records each change to it.
 ## A view may load a pinned CDN library, 2026-11-15
 
 - **The self-containment bullet of the Security baseline is lifted.** A view may load a popular,
-  widely used library from a public CDN, pinned to a version, and makes no other external request.
+  widely used library from a public CDN, pinned to an exact version, and makes no other external request.
   A page that loads one has a fallback for when the CDN is unreachable, so it still shows its
   content. A view destined for a published claude.ai Artifact stays self-contained, and a page the
   shared builder or the escape helper emits stays under its validator profile.

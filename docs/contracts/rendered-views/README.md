@@ -718,7 +718,7 @@ the checked-in helper in the third bullet instead of this skeleton alone.
   `"`, and `'` in text and attribute positions; never interpolate unescaped content into
   `<script>` or `<style>`; never build event-handler attributes from input.
 - A view may load a popular, widely used library (a chart or diagram renderer) from a
-  public CDN, pinned to a version, and makes no other external request. A page that loads one
+  public CDN, pinned to an exact version, and makes no other external request. A page that loads one
   has a fallback for when the CDN is unreachable: the page still shows its content, as a table,
   the diagram's source, or plain text. A view destined for a published claude.ai Artifact stays
   self-contained, assets inline, and so does a page the shared builder or the escape helper
