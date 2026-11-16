@@ -15,7 +15,8 @@
 #   - literal arguments after an anchor in join, resolve or Join-Path:
 #     join(here, "..", "x"), os.path.join(HERE, "../x"), Join-Path $PSScriptRoot '..\x';
 #   - pathlib: Path(__file__).parents[2] / "x", HERE.parent / "x".
-# A variable anchor is taken to be the file's directory. Comment lines, and path
+# A variable named *PLUGIN_ROOT or *PLUGIN_DIR is taken to be the plugin's root, any
+# other variable anchor the file's directory. Comment lines, and path
 # strings with no anchor (globs, fixture data, schema text), are not crossings.
 #
 # scripts/plugin-imports-exceptions.txt lists accepted crossings, one line per
@@ -94,14 +95,14 @@ re_pathlib='(Path\(__file__\)(\.resolve\(\))?|[A-Za-z_][A-Za-z0-9_]*)(\.parents\
 declare -a crossings=()
 declare -A crossing_keys=()
 
-# consider <file> <line no> <rel>: records a crossing when <rel>, resolved
-# against <file>'s directory, lands in another plugin's directory.
+# consider <file> <line no> <rel> [<base>]: records a crossing when <rel>, resolved
+# against <base> (default <file>'s directory), lands in another plugin's directory.
 consider() {
   local file="$1" n="$2" rel="$3" own sib
   [[ "$rel" == *..* ]] || return 0
   own="${file#plugins/}"
   own="${own%%/*}"
-  norm "${file%/*}" "$rel"
+  norm "${4:-${file%/*}}" "$rel"
   [[ "$REPLY" == plugins/?* ]] || return 0
   sib="${REPLY#plugins/}"
   sib="${sib%%/*}"
@@ -121,7 +122,7 @@ literals() {
 }
 
 scan_line() {
-  local file="$1" n="$2" line="$3" ext="${1##*.}" s rest base ups
+  local file="$1" n="$2" line="$3" ext="${1##*.}" s rest base ups own whole
   s="${line#"${line%%[![:space:]]*}"}"
   case "$ext" in
   mjs | js | cjs | jsx | ts | mts | cts | tsx)
@@ -137,8 +138,15 @@ scan_line() {
   # Each form is tried only on a line holding its keyword: a regex match costs far more.
   rest="$line"
   while [[ "$rest" == *'$'* || "$rest" == *__dirname* || "$rest" == *import.meta.dirname* ]] && [[ "$rest" =~ $re_anchor ]]; do
-    consider "$file" "$n" "${BASH_REMATCH[2]}"
-    rest="${rest#*"${BASH_REMATCH[0]}"}"
+    whole="${BASH_REMATCH[0]}"
+    case "${BASH_REMATCH[1]}" in
+    *PLUGIN_ROOT | *PLUGIN_ROOT\} | *PLUGIN_DIR | *PLUGIN_DIR\})
+      own="${file#plugins/}"
+      consider "$file" "$n" "${BASH_REMATCH[2]}" "plugins/${own%%/*}"
+      ;;
+    *) consider "$file" "$n" "${BASH_REMATCH[2]}" ;;
+    esac
+    rest="${rest#*"$whole"}"
   done
 
   case "$ext" in
@@ -154,7 +162,7 @@ scan_line() {
 
   rest="$line"
   while [[ "$rest" == *join* || "$rest" == *resolve* || "$rest" == *Join-Path* ]] && [[ "$rest" =~ $re_join ]]; do
-    local whole="${BASH_REMATCH[0]}"
+    whole="${BASH_REMATCH[0]}"
     literals "${BASH_REMATCH[3]}"
     consider "$file" "$n" "$REPLY"
     rest="${rest#*"$whole"}"
@@ -162,7 +170,8 @@ scan_line() {
 
   rest="$line"
   while [[ "$rest" == *.parent* ]] && [[ "$rest" =~ $re_pathlib ]]; do
-    local whole="${BASH_REMATCH[0]}" chain="${BASH_REMATCH[3]}" index="${BASH_REMATCH[4]}" tail="${BASH_REMATCH[6]}"
+    local chain="${BASH_REMATCH[3]}" index="${BASH_REMATCH[4]}" tail="${BASH_REMATCH[6]}"
+    whole="${BASH_REMATCH[0]}"
     base="${BASH_REMATCH[1]}"
     if [[ -n "$index" ]]; then ups=$((10#$index + 1)); else ups=$((${#chain} / 7)); fi
     # Path(__file__) is the file, one level below the directory the rest resolves against.

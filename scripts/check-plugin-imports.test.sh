@@ -84,6 +84,12 @@ expect_crossing "a JS from specifier fails" "$A/a.mjs:1" plugins/beta/lib/x.mjs
 expect_crossing "a JS dynamic import fails" "$A/a.mjs:2" plugins/beta/lib/y.mjs
 expect_crossing "a JS require fails" "$A/a.mjs:3" plugins/beta/lib/z.cjs
 
+tree "$A/deep/a.sh" 'LIB="$PLUGIN_ROOT/../beta/lib/x.sh"'
+expect_crossing "a path after a plugin-root variable fails" "$A/deep/a.sh:1" plugins/beta/lib/x.sh
+
+tree "$A/deep/a.sh" 'LIB="$PLUGIN_ROOT/../alpha/lib/x.sh"'
+expect_pass "a plugin-root variable that stays in the plugin passes"
+
 tree "$A/a.tsx" 'import { x } from "../../beta/lib/x.ts";'
 expect_crossing "a TSX from specifier fails" "$A/a.tsx:1" plugins/beta/lib/x.ts
 
