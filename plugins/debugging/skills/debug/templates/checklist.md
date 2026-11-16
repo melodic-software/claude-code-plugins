@@ -4,7 +4,7 @@ Copy into your project's working-notes location, or track inline. Tick as each p
 
 ## Phases
 
-- [ ] Phase 1: Build the reproduction loop. One command, quick to run, that reports pass or fail for this bug
+- [ ] Phase 1: Build the reproduction loop. Surface pass first (where the app logs and reports, which port it holds, which sources need scoped access), then one command, quick to run, that reports pass or fail for this bug
 - [ ] Phase 2: Reproduce. Confirm the bug manifests deterministically or characterize non-determinism, then minimize the reproduction
 - [ ] Phase 3: Hypothesize. List candidate root causes in priority order
 - [ ] Phase 4: Instrument. Add logging / breakpoints; gather evidence per hypothesis
@@ -14,4 +14,5 @@ Copy into your project's working-notes location, or track inline. Tick as each p
 ## Skip criteria
 
 - Phase 4 skipped if Phase 3 hypothesis is conclusively verified by Phase 2 repro alone
+- A `diagnose` run stops after Phase 4 once a row is confirmed: probes removed, no fix, no regression test
 - Phase 6 cleanup is never skipped for tagged probes. A probe worth keeping as permanent observability loses its `[DEBUG-...]` tag and is reviewed as a production logging change, so the cleanup grep still returns nothing

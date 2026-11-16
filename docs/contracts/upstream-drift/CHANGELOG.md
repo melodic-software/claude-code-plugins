@@ -4,6 +4,18 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [6.5.0] - 2026-11-16
+
+Changed guidance; minor under this contract's own rule. No required part, canonical name, or
+enforceability tier changes.
+
+The weekly drift issue body holds no text the upstream chooses, since the triage sweep hands it to
+intake's triage model: per drifted hex-pin page it gives counts of changed rows, new units and
+removed units in place of their paths, and its footer has the agent list them with
+`scripts/check-upstream-drift.sh --page <page>`. The lead line and title the trusted drift-issue
+rule checks are unchanged. The new "No upstream-chosen text in the body" bullet and the re-audit
+paragraph say so.
+
 ## [6.4.0] - 2026-11-16
 
 Changed guidance; minor under this contract's own rule. No required part, canonical name, or

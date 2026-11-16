@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "A surviving mutant on the changed code means no test checks the behavior that mutant changed. Run `/mutation-testing:audit` on the change to list the survivors.",
+      "why": "names the slash command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run a mutation testing tool such as Stryker on the change and look for surviving mutants.",
+      "why": "no pointer to the audit skill"
+    }
+  ]
+}

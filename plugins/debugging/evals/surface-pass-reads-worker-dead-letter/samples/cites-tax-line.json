@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Confirmed cause: worker/tax.py:9 looks up TAX_RATES[region] and the table has no NI entry, so order A-1003 raises KeyError and goes to var/dead-letter.",
+      "why": "file:line form"
+    },
+    {
+      "answer": "The lookup in worker/tax.py on line 9 raises KeyError: 'NI'.",
+      "why": "file then line in words"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The tax table has no NI entry, so A-1003 is dead-lettered.",
+      "why": "no file or line"
+    },
+    {
+      "answer": "worker/run.py:28 catches the error and dead-letters the job.",
+      "why": "names the catch site, not the lookup"
+    }
+  ]
+}

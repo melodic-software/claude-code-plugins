@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Phase 2: `Observability: /plugins/implementation/reference/observability.md`\nPhase 3: `Observability: none (docs only, no runtime code)`",
+      "why": "same line"
+    },
+    {
+      "answer": "**Phase 2**\n`Observability: <plugin-cache>/implementation/1.0.0/reference/observability.md`",
+      "why": "label on its own line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Phase 2: `Observability: none (handler only)`\nPhase 3: `Observability: none (docs only)`",
+      "why": "runtime phase given none"
+    },
+    {
+      "answer": "Phase 2: `Observability: follow good logging practice`",
+      "why": "no reference path"
+    }
+  ]
+}

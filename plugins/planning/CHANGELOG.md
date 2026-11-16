@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.1] - 2026-11-16
+
+### Changed
+
+- The interview's description opens with its use for a build request that names no problem, users or scope, such as "add search to the product", so the skill listing shows that case first.
+
 ## [5.5.0] - 2026-11-16
 
 ### Added

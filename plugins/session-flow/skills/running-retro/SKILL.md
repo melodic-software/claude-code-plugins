@@ -77,7 +77,8 @@ So resolve every input to a concrete value and pass it in the delegation prompt,
   transcript is `<SESSION_DATA_DIR>/<session-id>.jsonl`, subagents
   `<SESSION_DATA_DIR>/<session-id>/subagents/`. Confirm it with one Read of the transcript's first
   line and nothing else: never list, glob or search for it. When that Read fails or is denied, pass
-  `transcript: unreadable` in the subagent's Transcript slot, fill its User's account slot with
+  `transcript: unreadable` in the subagent's Transcript slot and `not available` in its Subagents
+  dir slot, fill its User's account slot with
   what the user and this conversation say happened (corrections, skills invoked or bypassed),
   add the unreadable transcript to the subjective-state note, and carry on through step 5: the
   analysis then runs on that account, and its findings still go to the ledger.
@@ -154,7 +155,9 @@ subagent's own pass: the ledger outlives the session and travels to other sessio
 
 ### 5. Offer routing, never auto-apply
 
-Present the checkpoint findings, then offer the forward routes; act only on the ones the user picks:
+Present the checkpoint findings, each skill-fit gap with an `Owner:` field or an Owner column
+naming `<plugin>:<skill>` or `no owner found`, then offer the forward routes; act only on the ones
+the user picks:
 
 - **Codify a durable learning** → `/corrections:codify "<the learning>"` when the `corrections`
   plugin is enabled, otherwise `/session-flow:retro`, whose session mode codifies approved
