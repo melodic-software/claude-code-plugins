@@ -2,7 +2,11 @@
   "pass": [
     {
       "answer": "## setup\n\n1. Read the linter name from `.claude/lint.md` (`linter:`). If it is set, stop: setup is done.\n2. Otherwise detect the linter from the repository's manifests (`eslint`, `ruff` or `golangci-lint`) and write it to `.claude/lint.md` as `linter: <name>`.\n\nEvery run of this skill reads `linter:` from that file.",
-      "why": "stores the name in config, the shipped skill reads it, no generated copy"
+      "why": "records the name in config the shipped skill reads, no generated copy"
+    },
+    {
+      "answer": "## setup\n\nOn every run, find the linter from the repository's own config: `eslint.config.*` or `.eslintrc*`, `[tool.ruff]` in `pyproject.toml`, or `.golangci.yml`. Don't write a copy of this skill into the repository; a copy stops getting this skill's fixes.",
+      "why": "the shipped skill reads the repository's linter config live, no generated copy"
     }
   ],
   "fail": [
