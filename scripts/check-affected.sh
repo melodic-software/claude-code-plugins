@@ -67,6 +67,7 @@
 #                          --check, when a plugins/ file, that script or its
 #                          registry scripts/cross-plugin-source-registry.txt
 #                          changed
+#   - plugin-imports:      scripts/check-plugin-imports.sh
 #   - plugin-options-docs: python3 scripts/sync-plugin-options-docs.py --check
 #   - changelog-parity:    scripts/check-changelog-parity.sh in the --check,
 #                          --check-bump, --check-preserved and --check-order
@@ -699,6 +700,9 @@ if ((drift_touched)); then
 else
   skip cross-plugin-source-drift "no plugin file, drift script or registry changed"
 fi
+
+run_check plugin-imports "scripts/check-plugin-imports.sh" \
+  "$tools/scripts/check-plugin-imports.sh"
 
 # The generator writes the READMEs, so a copy's older generator fails a branch
 # that changes it and regenerates them.
