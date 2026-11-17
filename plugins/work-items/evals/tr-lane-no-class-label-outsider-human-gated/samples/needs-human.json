@@ -11,7 +11,7 @@
   ],
   "fail": [
     {
-      "answer": "Applies agent-ready and status:ready.",
+      "answer": "Applies agent-ready and status: ready.",
       "why": "delegable"
     },
     {

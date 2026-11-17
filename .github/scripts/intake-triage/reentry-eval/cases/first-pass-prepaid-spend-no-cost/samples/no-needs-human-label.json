@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "{\"labels\":[\"priority: medium\"],\"comment\":\"Size: Medium\\nComplexity: Low\\nUncertainty: Known\\nFlags: none\\nBlocked by: none\\nBlast radius: one new scheduled workflow and the telemetry issue it posts to.\\nReversible: yes; delete the workflow.\\nOpen questions: none\",\"needs_human\":false,\"reason\":\"First-pass triage.\",\"type\":\"Feature\"}",
+      "why": "the expected first-pass reply"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"labels\":[\"priority: medium\",\"needs-human\"],\"comment\":\"Size: Medium\\nComplexity: Low\\nUncertainty: Known\\nFlags: none\\nBlocked by: none\",\"needs_human\":false,\"reason\":\"First-pass triage.\",\"type\":\"Task\"}",
+      "why": "holds the issue for a person"
+    }
+  ]
+}

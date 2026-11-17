@@ -55,11 +55,10 @@ for this repository. A name is `lane-transcript-<job-id>-<attempt>`: `TRANSCRIPT
 `pull.mjs` holds every job-id an upload step passes, by workflow, including the `ci-workflows`
 reusables this repository calls with the transcript key, and the pull lists each with attempts 1
 to 3. `pull.test.mjs` fails when a workflow that calls `upload-lane-transcript` or such a
-reusable is missing from that list, or a local job-id with no expression in it is, so a new upload
-step adds its job-id there; a job-id that changes inside a reusable is not checked. One gap:
-`pr-run-activity-read.yml`'s reuse summary puts the issue number in its job-id, which no fixed
-list can name, so the pull does not reach it. Each name is listed newest first, back to the last
-successful pull less 6 hours (7 days on the first pull), by the artifact's own `created_at`, so a
+reusable is missing from that list, or a local job-id is (an expression in it matches any text),
+so a new upload step adds its job-id there, and a job-id holds no value a fixed list cannot name,
+such as an issue number; a job-id that changes inside a reusable is not checked. Each name is
+listed newest first, back to the last successful pull less 6 hours (7 days on the first pull), by the artifact's own `created_at`, so a
 re-run attempt of an older run is still pulled. It skips an artifact it already holds, an expired one, one over 64 MiB, and one whose
 run's head repository is not this repository: the public key is public, so a fork's run could seal
 a record. A zip must hold exactly `transcript.json.gz.sealed`. A record that does not open for the

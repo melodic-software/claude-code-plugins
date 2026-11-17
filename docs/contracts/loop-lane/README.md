@@ -37,11 +37,11 @@ contract that operates within that policy.
 
 A drained repository runs three cooperating sessions, each with exactly one authority:
 
-| Session | Authority | Never does |
-|---|---|---|
-| Worker loop (`work-loop`) | Claims items, authors PRs | Merges |
-| Babysit lane (`babysit-loop`) | Advances and merges PRs within the matrix's merge-policy column | Decides operator-owned questions |
-| Attended queue (`attend-queue`) | Human-in-the-loop triage and escalation answers | Runs unattended |
+| Session | Authority | Never does | Brake or accelerator |
+|---|---|---|---|
+| Worker loop (`work-loop`) | Claims items, authors PRs | Merges | Accelerator: claims and builds items with no person |
+| Babysit lane (`babysit-loop`) | Advances and merges PRs within the matrix's merge-policy column | Decides operator-owned questions | Accelerator: merges with no person, up to its merge rung |
+| Attended queue (`attend-queue`) | Human-in-the-loop triage and escalation answers | Runs unattended | Neither: a person works the held items; the holds are the brakes |
 
 The worker loop is PR-only; merge authority belongs to the babysit lane; judgment belongs to the
 attended queue. No lane crosses into another's authority.

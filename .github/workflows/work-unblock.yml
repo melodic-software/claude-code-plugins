@@ -3,14 +3,18 @@ name: Work Unblock
 # What this does, in plain words:
 #
 # When an issue closes, each issue it was blocking may now be ready to work.
-# This workflow labels `agent-ready`, oldest first, each blocked issue that is
-# open, has every blocker closed, for any reason, by a listed human or a merge
-# in this repository (a pull request blocker: merged here; another
-# repository's blocker: closed there by a listed human), carries no hold
-# (Work status or label: needs-owner-decision, needs-reporter-info,
-# needs-human), and whose agent-ready label was never removed, or had its
-# Work status set to ready by the lanes App or a listed human after its
-# newest removal. That label starts work-resolve-issue.yml. The rules are in
+# This workflow sets the Work status field to agent-ready, oldest opened
+# first, on each blocked issue that is open, not already agent-ready, has
+# every blocker closed, for any reason, by a listed human or a merge in this
+# repository (a pull request blocker: merged here; another repository's
+# blocker: closed there by a listed human), has no open sub-issue, carries no
+# hold (Work status or label: needs-owner-decision, needs-reporter-info,
+# needs-human, provenance: untrusted, attended, host-run,
+# security: outside-actor), and whose agent-ready was never removed, or had
+# its Work status set to ready by the lanes App or a listed human after its
+# newest removal. One a merged `Refs:` pull request may already have done is parked
+# at Work status confirmed instead. That field write starts
+# work-resolve-issue.yml. The rules are in
 # .github/scripts/work-unblock/label-unblocked.mjs; the lane and its
 # effect (mutate-tracker) are in docs/conventions/pr-pipeline.yaml.
 #
