@@ -1,10 +1,10 @@
 ---
-description: 'Legacy triage 32. A small change whose outcome nobody can know until it is tried gets uncertainty=murky (probe-first) through set-dimensions.sh; since that mode is not run, the item is human-gated (status:ready, needs-human, raw marker cleared) with a comment naming a probe as the next step, and no probe starts. murky-uncertainty and needs-human read the reply. Read-only tools, graded on the reply.'
+description: 'Legacy triage 32. A small change whose outcome nobody can know until it is tried gets uncertainty=murky (probe-first) through set-dimensions.sh; since that mode is not run, the item is human-gated (status: ready, needs-human, raw marker cleared) with a comment naming a probe as the next step, and no probe starts. murky-uncertainty and needs-human read the reply. Read-only tools, graded on the reply.'
 tags: [triage, dimensions, uncertainty]
 max_turns: 15
 timeout_seconds: 420
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: 'The run sets uncertainty=murky with size quick through set-dimensions.sh, applies status:ready and needs-human and clears the raw marker, comments naming a probe or spike as the next step, applies no agent-ready, and starts no probe.'
+expected_outcome: 'The run sets uncertainty=murky with size quick through set-dimensions.sh, applies status: ready and needs-human and clears the raw marker, comments naming a probe or spike as the next step, applies no agent-ready, and starts no probe.'
 ---
 
 /work-items:triage 522

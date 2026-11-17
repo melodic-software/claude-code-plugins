@@ -15,7 +15,7 @@
       "why": "missing"
     },
     {
-      "answer": "Applied labels: C3, agent-ready, status:ready.",
+      "answer": "Applied labels: C3, agent-ready, status: ready.",
       "why": "applies the class label instead of proposing it"
     },
     {

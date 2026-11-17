@@ -88,7 +88,7 @@ test("build fills every case with the composed prompt and writes the issue files
       instructions,
       callerText: CALLER,
     });
-    assert.equal(cases.length, 5);
+    assert.equal(cases.length, 9);
     for (const name of cases) {
       const dir = join(out, "evals", name);
       const prompt = JSON.parse(
@@ -118,6 +118,12 @@ test("build fills every case with the composed prompt and writes the issue files
       for (const comment of issue.comments)
         assert.match(comment.url, /#issuecomment-\d+$/u, name);
       assert.ok(existsSync(join(dir, "workspace", "AGENTS.md")));
+      assert.ok(
+        existsSync(
+          join(dir, "workspace", ".intake-triage-eval", "merged-pulls.json"),
+        ),
+        "the merged pull requests file the prompt names",
+      );
       assert.ok(
         statSync(join(dir, "scaffold.sh")).mode & 0o100,
         "scaffold is executable",

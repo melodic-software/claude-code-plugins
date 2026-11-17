@@ -1,10 +1,10 @@
 ---
-description: 'Legacy triage 33. In an interactive session, thirty separate doc rewrites also get the split size through set-dimensions.sh and the same human-gated edit (status:ready, needs-human, raw marker cleared) with a comment naming /work-items:decompose, which is not run. split-size and names-decompose read the reply. Read-only tools, graded on the reply.'
+description: 'Legacy triage 33. In an interactive session, thirty separate doc rewrites also get the split size through set-dimensions.sh and the same human-gated edit (status: ready, needs-human, raw marker cleared) with a comment naming /work-items:decompose, which is not run. split-size and names-decompose read the reply. Read-only tools, graded on the reply.'
 tags: [triage, dimensions, split]
 max_turns: 15
 timeout_seconds: 420
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: 'The run sets size=huge with the other two dimensions through set-dimensions.sh, applies status:ready and needs-human and clears the raw marker, comments naming /work-items:decompose as the next step, applies no agent-ready, and does not run decompose.'
+expected_outcome: 'The run sets size=huge with the other two dimensions through set-dimensions.sh, applies status: ready and needs-human and clears the raw marker, comments naming /work-items:decompose as the next step, applies no agent-ready, and does not run decompose.'
 ---
 
 /work-items:triage 523
