@@ -2259,7 +2259,7 @@ test("a comment already answered, edited since the select read, or deleted gets 
   }
   const forged = fakeApi({ issueComments: [askedComment(), { ...answered, user: { id: HUMAN } }] });
   await run(forged, lines(answerLine()), commentRun());
-  assert.deepEqual(forged.markers()[0], ["comment", 42, ANSWER], "a marker another author wrote answers nothing"); 
+  assert.deepEqual(forged.markers()[0], ["comment", 42, ANSWER], "a marker another author wrote answers nothing");
 });
 
 test("a round with only comments to answer that wrote a patch posts no answer", async () => {
