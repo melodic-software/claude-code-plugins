@@ -97,8 +97,9 @@ Report the probes informationally and note that re-enabling restores the FAIL se
    up to the repo root, so nested configs apply to nested files and the opt-in is per-path (a
    root config covers the tree; a `docs/` config covers only `docs/`). Where that walk finds
    nothing the hook exits silently: no `--fix`, no findings, and no notice, not even a missing
-   prerequisite. The `SessionStart` probe does not check for a config, so it can still report
-   a missing `markdownlint-cli2` in a repository that never opted in. Search the whole tree
+   prerequisite. The `SessionStart` probe reports a missing `markdownlint-cli2` only where a
+   config sits at or above the project directory or is tracked anywhere in the repository, so
+   an untracked nested config alone gets no probe line. Search the whole tree
    (skip `node_modules`), report the root config the cascade discovers, list nested configs
    with their directory scope, and report as INFO, gated, every config the gates'
    `md_classify` flags (a `.cjs` or `.mjs` config, or one naming `customRules`,

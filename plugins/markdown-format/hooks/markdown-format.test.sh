@@ -67,7 +67,9 @@ expect "manifest: markdownlint-cli2 is needed only where a config the gates scan
   "$(sed -n 's/^ *md_scan_family "\$1" //p' "$PLUGIN_ROOT/git-hooks/markdown-gates.sh" | tr ' ' '\n' | jq -R . | jq -sc .)" \
   "$(jq -c '.requires[0].when.config_any' "$MANIFEST")"
 
-if command -v git >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then
+  echo "SKIP: the probe cases run git alone on PATH, which Git for Windows cannot"
+elif command -v git >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
   PROBE_DIR="$(mktemp -d)"
   ln -s "$(command -v git)" "$PROBE_DIR/git"
   PROBE_NODE="$(node -p process.execPath)"

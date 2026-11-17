@@ -51,30 +51,34 @@ expect "manifest: actionlint is needed only where a workflow file is" \
   '["**/.github/workflows/*.yml","**/.github/workflows/*.yaml"]' \
   "$(jq -c '.requires[] | select(.id == "actionlint") | .when.config_any' "$MANIFEST")"
 
-PROBE_DIR="$(mktemp -d)"
-ln -s "$(command -v git)" "$PROBE_DIR/git"
-PROBE_NODE="$(node -p process.execPath)"
-probe_says() {
-  local r="$1" f
-  shift
-  git init -q "$r"
-  for f in "$@"; do mkdir -p "$(dirname "$r/$f")" && : >"$r/$f"; done
-  git -C "$r" add -- "$@"
-  (cd "$r" && printf '{"session_id":"t"}' | env -i PATH="$PROBE_DIR" HOME="$r" CLAUDE_PROJECT_DIR="$r" \
-    "$PROBE_NODE" "$PLUGIN_ROOT/lib/prerequisites.mjs" probe "$PLUGIN_ROOT") || echo "probe exited $?"
-}
-reports() {
-  local label="$1" want="$2" got=no out
-  shift 2
-  out="$(probe_says "$@")"
-  [[ "$out" == *"actionlint: actionlint not on the hook PATH"* ]] && got=yes
-  [[ "$out" == *"probe exited"* ]] && got="failed: $out"
-  expect "$label" "$want" "$got"
-}
-reports "probe: a root workflow file reports a missing actionlint" yes "$PROBE_DIR/root" .github/workflows/ci.yml
-reports "probe: a nested workflow file reports a missing actionlint" yes "$PROBE_DIR/nested" svc/.github/workflows/ci.yaml
-reports "probe: a YAML file outside .github/workflows stays quiet" no "$PROBE_DIR/none" .github/dependabot.yml
-rm -rf "$PROBE_DIR"
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then
+  echo "SKIP: the probe cases run git alone on PATH, which Git for Windows cannot"
+else
+  PROBE_DIR="$(mktemp -d)"
+  ln -s "$(command -v git)" "$PROBE_DIR/git"
+  PROBE_NODE="$(node -p process.execPath)"
+  probe_says() {
+    local r="$1" f
+    shift
+    git init -q "$r"
+    for f in "$@"; do mkdir -p "$(dirname "$r/$f")" && : >"$r/$f"; done
+    git -C "$r" add -- "$@"
+    (cd "$r" && printf '{"session_id":"t"}' | env -i PATH="$PROBE_DIR" HOME="$r" CLAUDE_PROJECT_DIR="$r" \
+      "$PROBE_NODE" "$PLUGIN_ROOT/lib/prerequisites.mjs" probe "$PLUGIN_ROOT") || echo "probe exited $?"
+  }
+  reports() {
+    local label="$1" want="$2" got=no out
+    shift 2
+    out="$(probe_says "$@")"
+    [[ "$out" == *"actionlint: actionlint not on the hook PATH"* ]] && got=yes
+    [[ "$out" == *"probe exited"* ]] && got="failed: $out"
+    expect "$label" "$want" "$got"
+  }
+  reports "probe: a root workflow file reports a missing actionlint" yes "$PROBE_DIR/root" .github/workflows/ci.yml
+  reports "probe: a nested workflow file reports a missing actionlint" yes "$PROBE_DIR/nested" svc/.github/workflows/ci.yaml
+  reports "probe: a YAML file outside .github/workflows stays quiet" no "$PROBE_DIR/none" .github/dependabot.yml
+  rm -rf "$PROBE_DIR"
+fi
 
 echo "actionlint hooks: $PASS passed, $FAIL failed"
 ((FAIL == 0))

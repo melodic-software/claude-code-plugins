@@ -76,28 +76,32 @@ fi
 expect "manifest: pwsh is needed only where a settings file is" '["PSScriptAnalyzerSettings.psd1"]' \
   "$(jq -c '.requires[] | select(.id == "pwsh") | .when.config_any' "$MANIFEST")"
 
-PROBE_DIR="$(mktemp -d)"
-ln -s "$(command -v git)" "$PROBE_DIR/git"
-PROBE_NODE="$(node -p process.execPath)"
-probe_says() {
-  local r="$1" f
-  shift
-  git init -q "$r"
-  for f in "$@"; do mkdir -p "$(dirname "$r/$f")" && : >"$r/$f"; done
-  git -C "$r" add -- "$@"
-  (cd "$r" && printf '{"session_id":"t"}' | env -i PATH="$PROBE_DIR" HOME="$r" CLAUDE_PROJECT_DIR="$r" \
-    "$PROBE_NODE" "$PLUGIN_ROOT/lib/prerequisites.mjs" probe "$PLUGIN_ROOT") || echo "probe exited $?"
-}
-NOTICE="powershell-format: pwsh not on the hook PATH"
-case "$(probe_says "$PROBE_DIR/nested" mod/PSScriptAnalyzerSettings.psd1)" in
-*"$NOTICE"*) ok "probe: a settings file tracked only in a subdirectory reports a missing pwsh" ;;
-*) fail "probe: a nested settings file did not report pwsh" ;;
-esac
-case "$(probe_says "$PROBE_DIR/none" mod/build.ps1)" in
-*"$NOTICE"* | *"probe exited"*) fail "probe: a repository with no settings file reported pwsh, or the probe failed" ;;
-*) ok "probe: a repository with no settings file stays quiet about pwsh" ;;
-esac
-rm -rf "$PROBE_DIR"
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then
+  echo "SKIP: the probe cases run git alone on PATH, which Git for Windows cannot"
+else
+  PROBE_DIR="$(mktemp -d)"
+  ln -s "$(command -v git)" "$PROBE_DIR/git"
+  PROBE_NODE="$(node -p process.execPath)"
+  probe_says() {
+    local r="$1" f
+    shift
+    git init -q "$r"
+    for f in "$@"; do mkdir -p "$(dirname "$r/$f")" && : >"$r/$f"; done
+    git -C "$r" add -- "$@"
+    (cd "$r" && printf '{"session_id":"t"}' | env -i PATH="$PROBE_DIR" HOME="$r" CLAUDE_PROJECT_DIR="$r" \
+      "$PROBE_NODE" "$PLUGIN_ROOT/lib/prerequisites.mjs" probe "$PLUGIN_ROOT") || echo "probe exited $?"
+  }
+  NOTICE="powershell-format: pwsh not on the hook PATH"
+  case "$(probe_says "$PROBE_DIR/nested" mod/PSScriptAnalyzerSettings.psd1)" in
+  *"$NOTICE"*) ok "probe: a settings file tracked only in a subdirectory reports a missing pwsh" ;;
+  *) fail "probe: a nested settings file did not report pwsh" ;;
+  esac
+  case "$(probe_says "$PROBE_DIR/none" mod/build.ps1)" in
+  *"$NOTICE"* | *"probe exited"*) fail "probe: a repository with no settings file reported pwsh, or the probe failed" ;;
+  *) ok "probe: a repository with no settings file stays quiet about pwsh" ;;
+  esac
+  rm -rf "$PROBE_DIR"
+fi
 # harness-ops' prerequisites-fleet.mjs runs the probe behind the kill switch; its own test covers the gate.
 if jq -e '.session_probe.run_if_unset_or_true == "POWERSHELL_FORMAT_ENABLED"' "$MANIFEST" >/dev/null &&
   jq -e '.hooks | has("SessionStart") | not' "$HOOKS_JSON" >/dev/null; then

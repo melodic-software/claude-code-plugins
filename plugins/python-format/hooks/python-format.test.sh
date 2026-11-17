@@ -70,7 +70,9 @@ else
   fail "manifest binding needs jq and $MANIFEST"
 fi
 
-if command -v git >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then
+  echo "SKIP: the probe cases run git alone on PATH, which Git for Windows cannot"
+elif command -v git >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
   PROBE_DIR="$(mktemp -d)"
   ln -s "$(command -v git)" "$PROBE_DIR/git"
   PROBE_NODE="$(node -p process.execPath)"
