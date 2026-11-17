@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [
+        "README.md",
+        "docs/guide.md"
+      ],
+      "why": "the scaffold's files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "README.md",
+        ".claude/ecosystems/markdown.yaml"
+      ],
+      "why": "wrote the markdown record"
+    }
+  ]
+}
