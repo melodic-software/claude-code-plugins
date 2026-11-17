@@ -493,8 +493,9 @@ unresolved thread. `address-feedback-select` lists up to ten, oldest first, in `
 opened, or one that changes `.github/workflows/`. The model reads them with the review-thread tool's `comments`, makes no edit for
 them, and records each `answered`; `publish-feedback` posts one top-level comment per answer,
 starting with that marker line, after the thread replies and only when they escalate nothing,
-skipping a comment edited or answered since. A round that answers only comments still counts
-toward the round cap. To start a round at once, an account on the
+skipping a comment edited or answered since. The sweep sends the head again for a comment
+edited after the last round, or left over when a round answered its ten, within the same bounds.
+A round that answers only comments still counts toward the round cap. To start a round at once, an account on the
 trusted-actor list dispatches the lane directly:
 
 ```bash

@@ -3901,3 +3901,13 @@ test("a round that answered a capped batch lets the sweep send the comments it l
   await requestMain(t, stalled);
   assert.deepEqual(stalled.calls.dispatch, [], "a round that answered nothing is not resent");
 });
+
+test("a comment edited after its round sends the head once more", async (t) => {
+  const round = roundRun("address-feedback", "success", "Passed", "2026-10-17T20:30:00Z");
+  const edited = askApi({ asks: [{ ...ASK, updated_at: "2026-10-17T20:35:00Z" }], checks: [answeredRound, answeredReply, round] });
+  await requestMain(t, edited);
+  assert.equal(edited.calls.dispatch.length, 1);
+  const unedited = askApi({ asks: [{ ...ASK, updated_at: ASK.created_at }], checks: [answeredRound, answeredReply, round] });
+  await requestMain(t, unedited);
+  assert.deepEqual(unedited.calls.dispatch, []);
+});

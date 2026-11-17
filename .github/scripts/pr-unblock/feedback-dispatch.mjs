@@ -1176,7 +1176,9 @@ async function sweepAsked(context) {
     return null;
   }
   const answers = comments.filter((comment) => answeredIds([comment], appSenderId).size > 0);
-  const times = [...asked, ...answers].map((comment) => Date.parse(comment.created_at ?? "")).filter(Number.isFinite);
+  const times = [...asked.map((comment) => comment.updated_at ?? comment.created_at), ...answers.map((comment) => comment.created_at)]
+    .map((time) => Date.parse(time ?? ""))
+    .filter(Number.isFinite);
   return times.length === 0 ? null : dispatchSince(context, Math.max(...times), "comment addressed to the lane");
 }
 
