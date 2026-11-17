@@ -1185,7 +1185,7 @@ export STUB_APP_ID=''
 expect "a missing LANES_APP_ID fails closed without a call" 1 0 "::error::the job's LANES_APP_ID is not a numeric id"
 # A numeric id that is not merge.agent-identity's trusted-actor id would read
 # the lanes App's pull request as another author's and skip every hold.
-export STUB_APP_ID=315045210
+export STUB_APP_ID=300666570
 expect "a LANES_APP_ID other than merge.agent-identity's fails the lanes App's pull request closed" 1 0 "is not melodic-automation-lanes[bot]'s trusted-actor id (337595936)"
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 expect "a LANES_APP_ID other than merge.agent-identity's fails any pull request closed" 1 0 "is not melodic-automation-lanes[bot]'s trusted-actor id"

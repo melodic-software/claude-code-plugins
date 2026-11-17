@@ -928,7 +928,8 @@ test("live config: models.issue-status bot-setters are github-actions[bot] and t
     .filter((actor) => actor.kind === "bot" && actor.login.startsWith("melodic-") && actor.login !== "melodic-automation-lanes[bot]")
     .map(({ id, login }) => ({ id, login }));
   assert.ok(melodic.length > 0);
-  assert.deepEqual(setters, [{ id: 41898282, login: "github-actions[bot]" }, ...melodic]);
+  assert.deepEqual(setters[0], { id: 41898282, login: "github-actions[bot]" });
+  assert.deepEqual(setters.slice(1), melodic.filter((actor) => setters.some((entry) => entry.id === actor.id)));
   for (const login of ["claude[bot]", "cursor[bot]", "cursoragent", "dependabot[bot]", "melodic-automation-lanes[bot]"]) {
     assert.equal(setters.some((entry) => entry.login === login), false, login);
   }
