@@ -7,7 +7,7 @@ every rule here; suggest a change to them, never override them.
 
 Forms are where users do real work, and they notice every rough edge: the label that doesn't focus
 the input, the page that zooms on iOS, the button that fires twice, the Enter key that does nothing.
-None of these are hard to fix; they're just easy to forget. Wire up the semantics the platform gives
+Each is easy to fix and easy to forget. Wire up the semantics the platform gives
 you (`<form>`, `<label>`, `<button>`), then layer on the details below.
 
 The examples are HTML, CSS and React (JSX). In another framework, keep the behavior and write it in

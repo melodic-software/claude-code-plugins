@@ -6,11 +6,11 @@ drawer or collapsed panel, a menu, a list whose rows can be removed, an error, a
 countdown, a keyboard shortcut, or a page and its headings. The project's own components, tokens
 and conventions win over every rule here; suggest a change to them, never override them.
 
-The accessibility floor in `../../principles.md` applies first; this file is its web detail. The
-lane that excludes people when it's wrong. Fix these first. A large share of users will experience
-your interface through a thumb, a keyboard, or a screen reader, never a mouse. UI that only works
-with a fine pointer and perfect vision is broken UI, no matter how polished it looks. The rules
-below are not enhancements to add later; they are the baseline.
+The accessibility floor in `../../principles.md` applies first; this file is its web detail. A
+mistake in this lane excludes people, so fix these first. Some users reach your interface through a
+thumb, a keyboard, or a screen reader and never touch a mouse. UI that only works with a fine
+pointer and perfect vision is broken however polished it looks. The rules below are the baseline,
+so do not defer them.
 
 The examples are HTML, CSS, JavaScript and React (JSX). In another framework, keep the behavior and
 write it in that framework's own idiom.
