@@ -2858,6 +2858,14 @@ still needs a listed human's issue. The same rule (`driftIssueId` in
 `.github/scripts/intake-triage/admit.mjs`) lets the triage sweep dispatch intake for such an issue
 and admission accept it as its author, and the same template (`driftSpecText`) is its done-when and
 the issue lane's `issue.json` body (owner decision on #14215, Q195 (a)).
+The monitoring lane's main-red incident is its own spec too: when github-actions[bot] wrote it and
+nobody else last edited it, its title is `Restore the failing required checks on main` (`issues.mjs`
+`FILING`) and its first body line is the marker for `incident:main-red`, it counts for a pull
+request that closes it or names it on a `Refs:` line, whatever files that pull request changes.
+Its spec text is one fixed text (resolve-pr.mjs `MAIN_RED_SPEC`), never the issue's body: fix the
+cause of the failing or flaky required check without weakening, skipping or deleting a check, and
+widen no further. The lane closes the incident itself once main stays green, so a `Refs:` pull
+request for it names no remaining work. Intake and admission do not trust it.
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:
@@ -2985,8 +2993,9 @@ head:
   whose body counts as its parent's text, or is the upstream-drift workflow's issue as above, its
   title, first body line, author and last editor read again, and the pull request's changed files
   from its base to the head (GET compare) only modifications of `docs/upstream` pages that pin its
-  upstream at the default branch's tip, read there (otherwise `verify:untrusted-spec`; a failed
-  read refuses `verify:unreadable`). That sub-issue counts
+  upstream at the default branch's tip, read there, or is the main-red incident as above, its
+  title, first body line, author and last editor read again (otherwise `verify:untrusted-spec`; a
+  failed read refuses `verify:unreadable`). That sub-issue counts
   when the lanes App wrote it, a listed human filed its native parent in this repository, its body
   opens with the split header for that parent, every line after the header is one of the parent's
   trusted task-list lines (a line of the parent's listed-human body or comments that starts with

@@ -49,7 +49,9 @@ included, that a body plainly says it delivered in part, list the chunks that de
 does, nor does this pull request's body, a sibling it names that has no entry there included. An
 issue's `scope` limits each done-when item to the targets it lists. When an entry's `spec_kind` is `refs`, the body in `CONTEXT_FILE` says which part is
 delivered: judge that part only, and return `fail` when it names no delivered part or no remaining
-work, or claims the whole issue.
+work, or claims the whole issue. A `refs` entry with `source` `main-red-incident` is the exception:
+fixing the failing check's cause is the whole delivery and the monitoring lane closes the issue
+itself, so judge the diff against its whole `body` and require no remaining work.
 
 List the spec's outcome and each done-when item in `items`, each with the numbers of the chunks that
 together deliver it, in `chunks`, empty when none does. A script fails the head on an empty list, and

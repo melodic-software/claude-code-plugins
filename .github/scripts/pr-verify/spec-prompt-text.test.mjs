@@ -23,6 +23,13 @@ test("a refs pull request that names no remaining work fails, under either judge
   assert.ok(spec.includes("return `fail` when it names no delivered part or no remaining work, or claims the whole issue."));
 });
 
+test("a refs pull request for a main-red incident needs no remaining work, under either judge", () => {
+  const rule =
+    "A `refs` entry with `source` `main-red-incident` is the exception: fixing the failing check's cause is the whole delivery and the monitoring lane closes the issue itself, so judge the diff against its whole `body` and require no remaining work.";
+  assert.ok(chunk.includes(rule), "prompt.md carries the main-red exception");
+  assert.ok(spec.includes(rule), "spec-prompt.md carries the main-red exception");
+});
+
 test("nothing a chunk reports is cut from the final judge", () => {
   assert.doesNotMatch(spec, /notes_left_out|A cut can hide/);
   for (const text of [spec, flat("./chunk-note.md")]) assert.doesNotMatch(text, /leaves? (it |the path )?out|a count of the files/);

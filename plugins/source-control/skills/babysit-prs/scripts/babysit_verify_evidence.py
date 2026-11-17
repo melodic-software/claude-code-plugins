@@ -102,7 +102,9 @@ failed read, a list cut short or no such run keeps the FAIL.
   last edited, with the upstream-drift workflow's title and hex-pin lead line
   (`drift_issue`) on a pull request whose changed files only modify the
   default branch's docs/upstream pages pinned to that upstream
-  (`drift_scope`), else `verify:untrusted-spec`. A
+  (`drift_scope`), or is a main-red incident github-actions[bot] filed,
+  nobody else last edited, under the monitoring lane's title and marker
+  line (`main_red_incident`), else `verify:untrusted-spec`. A
   pass refused `verify:spec-changed` for an issue edit or a spec comment
   added or edited is judged again at the same head: resolve-pr.mjs judges a
   head whose passes all predate the spec's last change, and the lost-run
@@ -728,21 +730,29 @@ RELINK_QUERY = (
 ADMISSION_RULES_PATH = ".github/actions/resolve-config/admission-rules.json"
 # The recurring schedule `recurring_row` reads (resolve-pr.mjs recurringSpec).
 RECURRING_SCHEDULE_PATH = ".github/recurring-schedule.json"
-# The issue fields `recurring_row` and `drift_issue` read (resolve-pr.mjs
-# recurringSpec and driftSpec), one read per issue.
+# The issue fields `recurring_row`, `drift_issue` and `main_red_incident` read
+# (resolve-pr.mjs recurringSpec, driftSpec and mainRedIncident), one read per
+# issue.
 ACTIONS_ISSUE_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "issue(number:$n){title body lastEditedAt author{...actor} editor{...actor}}}}"
     f"{ACTOR_FRAGMENT}"
 )
-# github-actions[bot], which maintenance-file-recurring-issues.yml and
-# maintenance-file-upstream-drift-issues.yml file as.
+# github-actions[bot], which maintenance-file-recurring-issues.yml,
+# maintenance-file-upstream-drift-issues.yml and maintenance-monitor-signals.yml
+# file as.
 ACTIONS_BOT_ID = 41898282
 # file-due.mjs SCHEDULE_MARKER.
 SCHEDULE_MARKER_RE = re.compile(r"^<!-- recurring-schedule id=(\S+) -->\r?$", re.M)
 # resolve-pr.mjs DRIFT_TITLE and driftLead: scripts/upstream-drift-issues.sh's
 # title and its hex-pin lead line.
 DRIFT_TITLE_RE = re.compile(r"Upstream drift: ([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)")
+# resolve-pr.mjs MAIN_RED_TITLE and MAIN_RED_KEY: maintenance-monitor-signals
+# issues.mjs FILING["1 main red"] title and its marker line for that key.
+MAIN_RED_TITLE = "Restore the failing required checks on main"
+MAIN_RED_MARKER_RE = re.compile(
+    r"<!-- factory-monitor key=incident:main-red fp=[0-9a-f]{16} -->"
+)
 # resolve-pr.mjs PIN_PREFIX and PIN_MARKER: check-upstream-drift.sh's git pin
 # marker (MARKER_PREFIX, STRICT_RE).
 PIN_PREFIX = "**Last audited upstream state:**"
@@ -834,12 +844,9 @@ def recurring_row(issue: Any, schedule: Any) -> bool:
     )
 
 
-def drift_issue(issue: Any) -> str | None:
-    """resolve-pr.mjs driftSpec's issue half: the upstream id when `issue`
-    (as `ACTIONS_ISSUE_QUERY` reads it) is one github-actions[bot] wrote and
-    nobody else last edited, titled `Upstream drift: <id>`, whose first body
-    line is the hex-pin lead scripts/upstream-drift-issues.sh writes for that
-    id; else None. Pure."""
+def actions_bot_only(issue: Any) -> bool:
+    """admit.mjs actionsBotOnly: whether github-actions[bot] wrote `issue`
+    (as `ACTIONS_ISSUE_QUERY` reads it) and nobody else last edited it. Pure."""
     issue = json_object(issue)
 
     def actions(actor: Any) -> bool:
@@ -849,18 +856,45 @@ def drift_issue(issue: Any) -> str | None:
             and actor.get("databaseId") == ACTIONS_BOT_ID
         )
 
+    return actions(issue.get("author")) and (
+        issue.get("lastEditedAt") is None or actions(issue.get("editor"))
+    )
+
+
+def drift_issue(issue: Any) -> str | None:
+    """resolve-pr.mjs driftSpec's issue half: the upstream id when `issue`
+    (as `ACTIONS_ISSUE_QUERY` reads it) is one github-actions[bot] wrote and
+    nobody else last edited, titled `Upstream drift: <id>`, whose first body
+    line is the hex-pin lead scripts/upstream-drift-issues.sh writes for that
+    id; else None. Pure."""
+    issue = json_object(issue)
     title = issue.get("title")
     body = issue.get("body")
     match = DRIFT_TITLE_RE.fullmatch(title) if isinstance(title, str) else None
     lead = body.split("\n", 1)[0].removesuffix("\r") if isinstance(body, str) else None
     counts = (
-        actions(issue.get("author"))
-        and (issue.get("lastEditedAt") is None or actions(issue.get("editor")))
+        actions_bot_only(issue)
         and match is not None
         and lead
         == f"Upstream `{match[1]}` changed since the pin on its docs/upstream page."
     )
     return match[1] if counts and match is not None else None
+
+
+def main_red_incident(issue: Any) -> bool:
+    """resolve-pr.mjs mainRedIncident: whether `issue` (as
+    `ACTIONS_ISSUE_QUERY` reads it) is a main-red incident the monitoring lane
+    filed: github-actions[bot] wrote it and nobody else last edited it, under
+    the lane's exact title, its first body line the marker for the main-red
+    key. Nothing else of the body is read. Pure."""
+    issue = json_object(issue)
+    body = issue.get("body")
+    return (
+        actions_bot_only(issue)
+        and issue.get("title") == MAIN_RED_TITLE
+        and isinstance(body, str)
+        and MAIN_RED_MARKER_RE.fullmatch(body.split("\n", 1)[0]) is not None
+    )
 
 
 def page_pin(text: Any) -> str | None:
@@ -2805,6 +2839,12 @@ class Reader:
         node = self._actions_issue(issue)
         return node is not None and recurring_row(node, self._schedule())
 
+    def _incident(self, issue: dict[str, Any]) -> bool:
+        """Whether recorded linked issue `issue`, which github-actions[bot]
+        wrote, is a main-red incident (`main_red_incident`)."""
+        node = self._actions_issue(issue)
+        return node is not None and main_red_incident(node)
+
     def _drift(self, issue: dict[str, Any], pr: Any, head: Any) -> bool:
         """Whether recorded linked issue `issue`, which github-actions[bot]
         wrote, is the upstream-drift workflow's (`drift_issue`) and the pull
@@ -2900,7 +2940,8 @@ class Reader:
         size split's sub-issue whose body counts (`_split_child`), a
         recurring issue naming its schedule row (`_recurring`), or the
         upstream-drift workflow's issue for a pull request `pr` that at
-        `head` only modifies its upstream's pages (`_drift`)."""
+        `head` only modifies its upstream's pages (`_drift`), or a main-red
+        incident the monitoring lane filed (`_incident`)."""
 
         def trusted(issue: dict[str, Any], role: str) -> bool:
             return self._trusted_actor(
@@ -2918,6 +2959,7 @@ class Reader:
             or self._split_child(issue)
             or self._drift(issue, pr, head)
             or self._recurring(issue)
+            or self._incident(issue)
             for issue in issues
         )
 
