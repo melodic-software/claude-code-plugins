@@ -24,7 +24,7 @@ graders:
   - name: 'no-record-run'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command":"(?:\./)?scripts/lint-go\b'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\\n)\s*)?(?:(?:ba|da|z)?sh\s+(?:-\w+\s+)*)?(?:\./)?scripts/lint-go\b'
     min: 0
     max: 0
     arm: 'both'
