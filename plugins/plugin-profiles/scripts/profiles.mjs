@@ -200,7 +200,7 @@ function otherDataDirs(where) {
 function primaryHome(where, file) {
   if (realPath(file) === realPath(where.paths.user)) return join(where.configDir, "plugin-profiles-state");
   const level = folderLevel(dirname(dirname(file)), { home: where.home });
-  return level.shared ? join(level.commonDir, "plugin-profiles") : null;
+  return level.recordInGit ? join(level.commonDir, "plugin-profiles") : null;
 }
 
 /** A settings file's record: its primary home first, then this copy's data folder, then other copies'. */
@@ -745,7 +745,7 @@ function recordedStatus(target, where, records) {
     profile: rec.profile,
     target: rec.target,
     settingsFile: file,
-    repositoryWide: target === "folder" && where.folder.shared,
+    repositoryWide: target === "folder" && where.folder.worktrees,
     phase: rec.phase,
     appliedAt: rec.appliedAt,
     differs,

@@ -1558,3 +1558,14 @@ test("#16914: on Windows start spawns the claude.exe on PATH with no shell, and 
   assert.match(claudeCommand({ PATH: "E:\\x" }, "win32", () => false).refusal, /no claude\.exe on PATH/);
   assert.deepEqual(claudeCommand({}, "linux"), { file: "claude" });
 });
+
+test("#16914: status says every worktree reads the folder file only once the repository has a linked worktree", () => {
+  const w = world();
+  writeTree(w.project, { ".git/HEAD": "ref: refs/heads/main\n" });
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const before = w.run(["status"]).stdout;
+  assert.match(before, /Profile build \(folder\) applied /);
+  assert.doesNotMatch(before, /every worktree/);
+  writeTree(w.project, { ".git/worktrees/wt/commondir": "../..\n" });
+  assert.match(w.run(["status"]).stdout, /, which every worktree of this repository reads\./);
+});

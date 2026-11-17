@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { realPath } from "./record.mjs";
@@ -44,12 +44,22 @@ const defaultHome = () => process.env.HOME || process.env.USERPROFILE || homedir
  * the repository root's, or the folder's own on Windows, outside git, at the home folder, or where the root, .git or .claude is not the user's.
  */
 export function folderLevel(projectDir, { platform = process.platform, home = defaultHome(), uid = process.getuid?.() } = {}) {
-  const own = { file: join(projectDir, ...LOCAL), root: null, commonDir: null, shared: false };
+  const own = { file: join(projectDir, ...LOCAL), root: null, commonDir: null, recordInGit: false, worktrees: false };
   if (platform === "win32") return own;
   const repo = gitRepository(projectDir);
   if (!repo) return own;
   const kept = { ...own, ...repo };
   if (realPath(repo.root) === realPath(home)) return kept;
   if (uid !== undefined && [repo.root, join(repo.root, ".git"), join(repo.root, ".claude")].some((p) => (statOf(p)?.uid ?? uid) !== uid)) return kept;
-  return { file: join(repo.root, ...LOCAL), ...repo, shared: true };
+  return { file: join(repo.root, ...LOCAL), ...repo, recordInGit: true, worktrees: hasLinkedWorktrees(repo) };
+}
+
+/** Whether the root's file is read by more than one worktree: a main checkout whose repository has linked worktrees. */
+function hasLinkedWorktrees({ root, commonDir }) {
+  if (realPath(commonDir) !== realPath(join(root, ".git"))) return false;
+  try {
+    return readdirSync(join(commonDir, "worktrees")).length > 0;
+  } catch {
+    return false;
+  }
 }

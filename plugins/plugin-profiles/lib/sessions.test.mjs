@@ -39,6 +39,23 @@ test("counts a session in any worktree or subdirectory of the repository as in t
   assert.deepEqual(othersInFolder(wt, "me", answer(JSON.stringify(agents))).map((a) => a.name), ["sub", "main"]);
 });
 
+test("#16914: a session in a submodule or in a sibling worktree of a bare repository is not named, since it reads another file", () => {
+  const root = tempDir();
+  const main = join(root, "main");
+  writeTree(main, { ".git/HEAD": "ref: refs/heads/main\n", ".git/modules/sub/HEAD": "x\n", "sub/.git": "gitdir: ../.git/modules/sub\n" });
+  const bare = join(root, "bare.git");
+  writeTree(bare, { HEAD: "x\n", "worktrees/b1/commondir": "../..\n", "worktrees/b2/commondir": "../..\n" });
+  writeTree(join(root, "b1"), { ".git": `gitdir: ${join(bare, "worktrees", "b1")}\n` });
+  writeTree(join(root, "b2"), { ".git": `gitdir: ${join(bare, "worktrees", "b2")}\n` });
+  const agents = [
+    { cwd: join(main, "sub"), sessionId: "s", name: "in submodule", kind: "interactive" },
+    { cwd: join(root, "b2"), sessionId: "w", name: "bare sibling", kind: "interactive" },
+    { cwd: main, sessionId: "m", name: "main", kind: "interactive" },
+  ];
+  assert.deepEqual(othersInFolder(main, "me", answer(JSON.stringify(agents))).map((a) => a.name), ["main"]);
+  assert.deepEqual(othersInFolder(join(root, "b1"), "me", answer(JSON.stringify(agents))).map((a) => a.name), []);
+});
+
 test("gives an empty list when claude fails, prints something else, or cannot start", () => {
   for (const run of [answer("[]", 1), answer("not json"), answer("{}"), () => ({ error: new Error("ENOENT") })]) {
     assert.deepEqual(othersInFolder("/x", "me", run), []);
