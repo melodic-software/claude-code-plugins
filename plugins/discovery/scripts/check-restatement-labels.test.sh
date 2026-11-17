@@ -372,9 +372,7 @@ run 1 "a root holding claims: [] is checked against its sub-slices" \
   "$claims_free" --sub-slice "$sub_a"
 run 0 "without --sub-slice a claims: [] root finds no ID to look for" "$claims_free"
 expect_out "the unchecked root reports ids=0" 'status=pass ids=0 labeled=0 mentions=0 quoted=0'
-# Each researcher numbers its claims alone, so sub-slices may reuse an ID. A
-# sub-slice's IDs are namespaced by its directory name: <name>/X1 names one
-# claim, and a bare X1 names every claim declaring it.
+
 x1_a="$(mkslice x1-a "$(claim X1 MEDIUM)" 'Index.')"
 x1_b="$(mkslice x1-b "$(claim X1 LOW)" 'Index.')"
 x1_c="$(mkslice x1-c "$(claim X1 HIGH)" 'Index.')"
