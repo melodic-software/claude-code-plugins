@@ -452,8 +452,8 @@ with no backticks, bold or quote marker: `manifest <field>: flag, <reason>`. Its
 then the last line above the footer. The pr-unblock lane matches that first line to find a
 `dependencies` flag it may settle.
 
-In the summary, fold every `manifest <field>:` line into one block at its end, after the overview
-and the findings, as `<details>`, then `<summary>Manifest lines (N)</summary>` with `N` the lines
+In the summary, fold every `manifest <field>:` line into one block after the overview and the
+findings, as `<details>`, then `<summary>Manifest lines (N)</summary>` with `N` the lines
 inside, a blank line, the lines (each starting with its marker, after a list bullet at most), a
 blank line and `</details>`. With no such line, post no block. The `critical-findings: <n>` line
 stays outside the block.

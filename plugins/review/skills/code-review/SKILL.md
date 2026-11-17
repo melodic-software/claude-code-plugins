@@ -307,8 +307,8 @@ cross-file / whole-PR findings; use commit-blob permalinks with the supplied
 HEAD SHA for locations no changed line can carry.
 
 **Fold the detail lines.** Put every `Pre-existing (advisory):` line and every `manifest <field>:`
-line of the summary in one block at its end, after the overview and the blocking findings, so a
-reader sees what blocks first:
+line of the summary in one block after the overview and the blocking findings, so a reader sees
+what blocks first, and before the `Verifier dropped N of M candidates.` line, which stays last:
 
 ```markdown
 <details>

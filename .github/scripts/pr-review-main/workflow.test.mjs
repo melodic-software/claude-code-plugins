@@ -1582,6 +1582,8 @@ test("each leg copies the review criteria criteria.txt lists", () => {
       "plugins/review/skills/code-review/evals/case.md": "eval",
       "plugins/review/skills/security-review/SKILL.md": "other lane",
       "plugins/review/reference/ref.md": "ref",
+      "plugins/review/skills/quality-gate/context/loosened-check.md": "criterion",
+      "plugins/review/skills/quality-gate/context/code.md": "not copied",
       "REVIEW.md": "review",
       "docs/standards/s.md": "standard",
       ".claude/rules/r.md": "rule",
@@ -1597,6 +1599,7 @@ test("each leg copies the review criteria criteria.txt lists", () => {
     assert.deepEqual(readdirSync(data, { recursive: true }).filter((f) => f.endsWith(".md")).sort(), [
       "review/reference/ref.md",
       "review/skills/code-review/SKILL.md",
+      "review/skills/quality-gate/context/loosened-check.md",
       "standards/REVIEW.md",
       "standards/rules/r.md",
       "standards/standards/s.md",

@@ -265,17 +265,6 @@ const releaseMarker = (event) => {
   return `<!-- intake-reenter:release ${event.actorId} ${event.at} -->`;
 };
 
-// A Markdown link to this run, from the values GitHub sets on every step;
-// empty when one is missing or not its expected shape, so the body stays fixed
-// text.
-export const runLink = (env, repository) => {
-  const id = env.GITHUB_RUN_ID ?? "";
-  const server = env.GITHUB_SERVER_URL ?? "";
-  return /^[1-9][0-9]{0,19}$/.test(id) && /^https:\/\/[A-Za-z0-9.-]+$/.test(server) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)
-    ? ` This run: [intake-reenter run ${id}](${server}/${repository}/actions/runs/${id}).`
-    : "";
-};
-
 async function dropRecord(client, repository, id) {
   try {
     await client("DELETE", `/repos/${repository}/issues/comments/${id}`);
@@ -312,7 +301,7 @@ async function releaseField({ client, repository, base, issue, humans, lanesAppI
     return 0;
   }
   const record = await client("POST", `${base}/comments`, {
-    body: `${marker}\nA listed human released the issue's Work status hold, so it goes back to intake triage.${runLink(env, repository)}`,
+    body: `${marker}\nA listed human released the issue's Work status hold, so it goes back to intake triage.`,
   });
   try {
     if (release.to === null) {

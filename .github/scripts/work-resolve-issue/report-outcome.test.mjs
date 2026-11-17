@@ -5953,8 +5953,7 @@ test("the PR body gains a non-empty section for each required name it lacks, aft
 });
 
 test("the required sections come from pr_body_required_sections, and nothing usable reads as none", () => {
-  const dir = join(dirname(fileURLToPath(import.meta.url)), ".tmp-required-sections");
-  mkdirSync(dir, { recursive: true });
+  const dir = tempDir("required-sections-");
   try {
     const file = join(dir, "source-control.yaml");
     writeFileSync(file, "pr_body_required_sections:\n  - Summary\n  - ' Risk '\n  - 7\n  - \"## <!-- x -->\"\nother: 1\n");
