@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Skipped `dossier/400-checkout-redesign`: it is the head of open pull request #412.",
+      "why": "branch then reason"
+    },
+    {
+      "answer": "Open PR #412 still uses this branch, so it stays:\n\n- dossier/400-checkout-redesign (skipped)",
+      "why": "reason then branch on a later line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Deleted `dossier/400-checkout-redesign` (3 commits).",
+      "why": "deleted, no pull request reason"
+    },
+    {
+      "answer": "Skipped one dossier branch because a pull request is open.",
+      "why": "branch not named"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

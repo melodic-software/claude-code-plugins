@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Skipped (more than one match for `dossier/400-`): `dossier/400-checkout-redesign`, `dossier/400-checkout-v2`.",
+      "why": "both named"
+    },
+    {
+      "answer": "- dossier/400-checkout-v2: skipped, ambiguous\n- dossier/400-checkout-redesign: skipped, ambiguous",
+      "why": "both named in the other order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Deleted `dossier/400-checkout-redesign`.",
+      "why": "only one named"
+    },
+    {
+      "answer": "Two dossier branches match #400; none deleted.",
+      "why": "neither named"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

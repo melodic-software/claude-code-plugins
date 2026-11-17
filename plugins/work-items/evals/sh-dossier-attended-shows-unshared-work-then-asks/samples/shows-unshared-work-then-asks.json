@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "`dossier/400-checkout-redesign` holds 3 commits not on main, changing notes/research.md, notes/decisions.md and prototype/sketch.html.\n\nDelete `dossier/400-checkout-redesign`?",
+      "why": "count and files, then the question"
+    },
+    {
+      "answer": "| Branch | Commits not on main | Files |\n|---|---|---|\n| dossier/400-checkout-redesign | 3 | 3 files changed, 8 insertions(+) |\n\nShall I delete this branch, yes or no?",
+      "why": "table with a stat summary"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Deleted `dossier/400-checkout-redesign` and closed #400.",
+      "why": "no count, no files, no question"
+    },
+    {
+      "answer": "`dossier/400-checkout-redesign` holds 3 commits not on main. Delete it?",
+      "why": "no files shown"
+    },
+    {
+      "answer": "`dossier/400-checkout-redesign` holds 3 commits not on main, changing notes/research.md and prototype/sketch.html. Deleting it now.",
+      "why": "no question before the delete"
+    },
+    {
+      "answer": "Changed files: notes/research.md, notes/decisions.md. Delete the dossier branch?",
+      "why": "no commit count"
+    }
+  ]
+}
