@@ -21,7 +21,9 @@ false positive, which ADR 0108 set as the condition for moving the lint to `bloc
    repository under the `melodic-software` and `kyle-sexton` owners at the `necessary` posture (its
    `aggressive` alias), one pull request per repository, with an explicit target so the repository
    rung's safe-mode fallback does not apply. No person approves a deletion; the pull request's review
-   lanes and the criterion in decision 3 are the check.
+   lanes and the criterion in decision 3 are the check. A review lane reads the reviewed repository's
+   own criteria, so a repository whose review criteria lack decision 3's rule gets it in a pull
+   request that merges before its removal pull request opens.
 2. **The comment lint blocks.** `comment_lint` in this repository's team file
    (`docs/conventions/code-tidying.yaml`) is `block`: a commit or pull request that adds a comment
    outside the posture fails. The allow list, the off-by-default level for other repositories and
