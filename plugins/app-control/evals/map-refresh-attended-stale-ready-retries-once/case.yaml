@@ -26,5 +26,5 @@ graders:
   - name: puts-recorded-text-back
     type: regex
     flags: i
-    pattern: '(?:^|\n)(?=[^\n]*(?:\b3000\b|recorded (?:`## Ready` )?text|recorded Ready|original Ready))[^\n]*\b(?:put(?:s|ting)? (?:it |the [^\n]{0,40})?back|goes back|go back|restor(?:e|es|ed|ing)|revert(?:s|ed|ing)?|written back|writ(?:e|es) (?:it |the [^\n]{0,40})?back)\b'
+    pattern: '(?:^|\n)(?=[^\n]*(?:\b3000\b|recorded (?:`## Ready` )?text|recorded Ready|original Ready))[^\n]*\b(?:put(?:s|ting)? (?:it |the [^\n]{0,40})?back|goes back|go back|restore[sd]?|restoring|revert(?:s|ed|ing)?|written back|writ(?:e|es) (?:it |the [^\n]{0,40})?back)\b'
     arm: both
