@@ -22,7 +22,7 @@ JF_LINT_FLAGS='lint --reporter=concise --error-on-warnings --max-diagnostics=non
 
 rt_wants() {
   case "$1" in
-  .githooks/* | */.githooks/*) return 1 ;;
+  .githooks/*) return 1 ;;
   *.ts | *.tsx | *.js | *.jsx | *.mjs | *.cjs | *.mts | *.cts | *.json | *.jsonc) return 0 ;;
   *) return 1 ;;
   esac

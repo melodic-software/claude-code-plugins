@@ -201,6 +201,10 @@ mkdir -p "$REPO/.githooks/javascript-format"
 printf 'export const a=1\n' >"$REPO/.githooks/javascript-format/copy.ts"
 git -C "$REPO" add -f .githooks/javascript-format/copy.ts
 expect "an installed copy under .githooks/ is skipped" "0||" "$(check "$REPO")"
+mkdir -p "$REPO/pkg/.githooks"
+printf 'export const n=1\n' >"$REPO/pkg/.githooks/n.ts"
+git -C "$REPO" add -f pkg/.githooks/n.ts
+expect "only the root .githooks/ is skipped: a nested .githooks/ file is formatted" "0|pkg/.githooks/n.ts||export const n = 1;" "$(check "$REPO")|$(cat "$REPO/pkg/.githooks/n.ts")"
 
 new_repo
 printf 'export const a=1\n' >"$REPO/gone.ts"
