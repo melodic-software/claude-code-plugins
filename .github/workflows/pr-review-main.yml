@@ -1098,7 +1098,9 @@ jobs:
             case $how in copy | copy-if-present) ;; *) continue ;; esac
             src=${src//"{skill}"/$SKILL}
             if [ "$how" = copy-if-present ] && ! [ -e ".base/$src" ]; then continue; fi
-            cp -R ".base/$src" "$DATA/${dest//"{skill}"/$SKILL}"
+            dest=$DATA/${dest//"{skill}"/$SKILL}
+            mkdir -p "${dest%/*}"
+            cp -R ".base/$src" "$dest"
           done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
 
@@ -2045,7 +2047,9 @@ jobs:
             case $how in copy | copy-if-present) ;; *) continue ;; esac
             src=${src//"{skill}"/$SKILL}
             if [ "$how" = copy-if-present ] && ! [ -e ".base/$src" ]; then continue; fi
-            cp -R ".base/$src" "$DATA/${dest//"{skill}"/$SKILL}"
+            dest=$DATA/${dest//"{skill}"/$SKILL}
+            mkdir -p "${dest%/*}"
+            cp -R ".base/$src" "$dest"
           done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
 
@@ -2966,7 +2970,9 @@ jobs:
             case $how in copy | copy-if-present) ;; *) continue ;; esac
             src=${src//"{skill}"/$SKILL}
             if [ "$how" = copy-if-present ] && ! [ -e ".base/$src" ]; then continue; fi
-            cp -R ".base/$src" "$DATA/${dest//"{skill}"/$SKILL}"
+            dest=$DATA/${dest//"{skill}"/$SKILL}
+            mkdir -p "${dest%/*}"
+            cp -R ".base/$src" "$dest"
           done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
 
@@ -2999,6 +3005,13 @@ jobs:
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@70a7fd774bd210e8e158bc1fdd308c07e4711a07 # v0.74.1
+
+      - name: Warn that the fallback token reviews
+        if: steps.credential.outputs.present == 'true'
+        env:
+          LANE: ${{ matrix.lane }}
+          REASON: ${{ steps.credential.outputs.fallback-reason }}
+        run: echo "::warning title=pr-review-main fallback::lane=$LANE reviews on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN (reason=${REASON:-unread}); the subscription leg handed it on"
 
       - name: Isolate the runner
         if: steps.credential.outputs.present == 'true'

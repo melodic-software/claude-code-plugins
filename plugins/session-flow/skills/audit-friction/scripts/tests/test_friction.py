@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 
 SCRIPTS = Path(__file__).resolve().parents[1]
-COLLECT = SCRIPTS.parents[1] / "audit-sessions" / "scripts" / "collect.py"
+COLLECT = SCRIPTS.parents[2] / "scripts" / "collect.py"
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "friction"
 WINDOW = ("--since", "2026-09-01", "--until", "2026-09-30")
 HOOK_KEY = "denied/hook/shellguard/BLOCKED: file write through the shell. Use the Write tool."

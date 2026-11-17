@@ -15,7 +15,7 @@ import pytest
 import redact
 
 RULES_FILE = (
-    Path(__file__).resolve().parents[2] / "vendor" / "gitleaks" / "gitleaks-rules.json"
+    Path(__file__).resolve().parents[4] / "vendor" / "gitleaks" / "gitleaks-rules.json"
 )
 # AWS's documented example access key id.
 AWS_EXAMPLE_KEY = "".join(("AKIA", "IOSFODNN7", "EXAMPLE"))

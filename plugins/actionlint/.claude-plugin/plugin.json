@@ -28,7 +28,7 @@
     "actionlint_end_of_turn": {
       "type": "boolean",
       "title": "Check workflows in uncommitted changes at turn end",
-      "description": "At the end of each turn, run the pre-commit actionlint check over the workflow lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Off by default.",
+      "description": "At the end of each turn, run the pre-commit lint entry over the workflow lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Off by default.",
       "default": false
     }
   }

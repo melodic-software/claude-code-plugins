@@ -93,6 +93,7 @@ docs/contracts/enforcement-ladder/README.md plugins/session-flow/skills/retro/re
 docs/contracts/enforcement-ladder/README.md plugins/harness-config/skills/audit-automation-gaps/context/enforcement-ladder.md
 docs/contracts/enforcement-ladder/README.md plugins/architecture/skills/improve/research/enforcement-ladder.md
 docs/contracts/enforcement-ladder/README.md plugins/corrections/skills/codify/reference/enforcement-ladder.md
+docs/contracts/enforcement-ladder/README.md plugins/formal-verification/skills/specify/reference/enforcement-ladder.md
 docs/contracts/standards/README.md plugins/improvement/reference/standards-contract.md
 docs/contracts/type-discipline/README.md plugins/planning/skills/design/reference/type-discipline.md
 docs/contracts/type-discipline/README.md plugins/implementation/reference/type-discipline.md
@@ -628,7 +629,7 @@ lib/yaml-subset.mjs plugins/overengineering/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/plugin-profiles/lib/yaml-subset.mjs
 lib/resolve-convention-home.sh plugins/corrections/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/prototype/lib/resolve-convention-home.sh
-lib/redact.py plugins/session-flow/skills/audit-sessions/scripts/redact.py
+lib/redact.py plugins/session-flow/scripts/redact.py
 lib/redact.py plugins/corrections/tools/findings-buffer/lib/redact.py
 lib/plugin-options.mjs plugins/source-control/skills/babysit-loop/scripts/operator-options.mjs
 lib/plugin-options.mjs plugins/corrections/scripts/lib/plugin-options.mjs
@@ -940,7 +941,7 @@ lib/media-render/media_scan.py plugins/source-control/tools/reviewer-media/lib/m
 lib/redact.py plugins/source-control/tools/reviewer-media/lib/redact.py
 lib/media-render/media_scan.py plugins/speech/scripts/media_scan.py
 lib/redact.py plugins/speech/scripts/redact.py
-plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json plugins/speech/vendor/gitleaks/gitleaks-rules.json
+plugins/session-flow/vendor/gitleaks/gitleaks-rules.json plugins/speech/vendor/gitleaks/gitleaks-rules.json
 lib/media-render/media_encode.py plugins/playwright/skills/demo-video/scripts/media_encode.py
 lib/media-render/media_encode.py plugins/pixel-art/scripts/media_encode.py
 lib/media-render/media_encode.py plugins/animation/scripts/media_encode.py

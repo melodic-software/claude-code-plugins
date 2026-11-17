@@ -187,6 +187,7 @@
 //   GITHUB_OUTPUT       --find-prior: the step output file
 //   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT
 //                       (the attempt whose scan-refusal markers are read)
+import { execFileSync } from "node:child_process";
 import { appendFileSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join, posix, resolve } from "node:path";
 import process from "node:process";
@@ -1681,6 +1682,29 @@ export function decide({
   };
 }
 
+export function requiredSections(path, run = execFileSync) {
+  let text;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch {
+    return [];
+  }
+  try {
+    const list = JSON.parse(run("yq", ["-o=json", "-I=0", ".pr_body_required_sections // []", "-"], { input: text, encoding: "utf8", timeout: 30_000, maxBuffer: 1 << 20 }));
+    return Array.isArray(list) ? list.filter((name) => typeof name === "string" && SECTION_NAME.test(name.trim())).map((name) => name.trim()) : [];
+  } catch {
+    return [];
+  }
+}
+
+const SECTION_NAME = /^[A-Za-z0-9][A-Za-z0-9 ._/-]{0,59}$/;
+
+export function withRequiredSections(body, names) {
+  const have = new Set(body.split("\n").flatMap((line) => (line.startsWith("## ") ? [line.slice(3).trim().toLowerCase()] : [])));
+  const missing = [...new Set(names)].filter((name) => !have.has(name.toLowerCase()));
+  return missing.length === 0 ? body : [body, ...missing.flatMap((name) => ["", `## ${name}`, "", "The work-resolve-issue lane has nothing for this section; the sections above carry the run's report."])].join("\n");
+}
+
 function humanLabelFrom(path) {
   let config;
   try {
@@ -2714,6 +2738,9 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         });
     const lane = readLaneCredential(dir);
     plan = withCredential(plan, lane);
+    if (plan.action === "open-pr") {
+      plan = { ...plan, body: withRequiredSections(plan.body, requiredSections(env.SOURCE_CONTROL_CONFIG ?? ".base/docs/conventions/source-control.yaml")) };
+    }
     if (plan.action === "turn-cap") {
       // Once per run, like the limited marker: a rerun of this report finds
       // its own marker and posts nothing.

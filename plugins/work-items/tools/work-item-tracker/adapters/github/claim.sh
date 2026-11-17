@@ -127,8 +127,12 @@ lease="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg holder "$login" --arg now "
    + (if ($ttl_minutes | tonumber) > 0 then {ttl_minutes: ($ttl_minutes | tonumber)} else {} end)
    + (if $sid != "" then {session_id: $sid} else {} end)
    + (if $phase != "" then {phase: $phase} else {} end)')"
+footer="" run_id="${session_id#run-}"
+if [[ "$session_id" == "run-$run_id" && "$run_id" =~ ^[1-9][0-9]{0,19}$ && "${GITHUB_SERVER_URL:-}" =~ ^https://[A-Za-z0-9.-]+$ ]]; then
+  footer=$'\n\n'"Claimed by [workflow run $run_id](${GITHUB_SERVER_URL}/$owner/$repo/actions/runs/$run_id)."
+fi
 wit_run_gh write api "repos/$owner/$repo/issues/$number/comments" \
-  -f body="${WIT_LEASE_MARKER}${lease} -->" --jq '.id'
+  -f body="${WIT_LEASE_MARKER}${lease} -->${footer}" --jq '.id'
 our_comment_id="$WIT_GH_OUT"
 
 # A claim that fails before its emit supersedes its own comment, so a lease whose

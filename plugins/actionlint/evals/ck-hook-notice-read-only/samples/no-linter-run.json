@@ -333,6 +333,30 @@
         }
       ],
       "why": "presence probe then quoted version probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh\" --resolve",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "--resolve prints the resolution row and runs nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh --resolve .github/workflows/ci.yml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "--resolve with a path runs nothing"
     }
   ],
   "fail": [
@@ -766,6 +790,66 @@
         }
       ],
       "why": "quoted path, other flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh\" --worktree",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "runs the lint entry over the work tree under bash"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "runs the lint entry over the staged changes under sh"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/plugins/cache/m/actionlint/1.0.0/git-hooks/lint.sh --worktree",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "runs the lint entry by its bare path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp/proj && \"${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "runs the lint entry after a cd"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "runs the adapter file"
     }
   ]
 }

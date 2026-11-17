@@ -53,6 +53,18 @@
       "type": "array",
       "items": { "type": "string" },
       "description": "Standard modules a spec may EXTEND or INSTANCE, besides its own (--modules). Modules such as Json read and write files on the machine. A repository's convention files can only remove modules from the plugin's shipped list: a module they add is dropped, and the toolchain says so."
+    },
+    "skills_dir": {
+      "type": "string",
+      "description": "The folder, relative to the repository root, that holds the repository's formal-<area> skills. /formal-verification:specify writes there and scripts/check.mjs checks every formal-* folder in it."
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "scripts/check.mjs, the pass or fail gate on the repository's formal-<area> skills.",
+      "properties": {
+        "on_stale": { "type": "string", "enum": ["warn", "fail"], "description": "What a check whose covered code changed since its sync commit reports. A sync.yaml entry's own on_stale wins over this." }
+      }
     }
   }
 }

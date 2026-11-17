@@ -8,13 +8,25 @@ Public interface:
   integer counters in `stats`: `records` (objects yielded), `bad_lines` (lines that are not a JSON
   object), `incomplete` (an unterminated final line that does not parse: a session still being
   written, not a bad line) and `unknown` (records whose `record_kind` is `unknown`).
+  A gzipped file, or one whose text starts with `[`, is a lane leg instead: one JSON array of
+  `claude -p --output-format stream-json` messages (the sealed transcript a lane uploads). Each
+  object in it is yielded through `stream_record`; an item that is not an object, a top-level value
+  that is not an array, or a file that does not decompress or parse counts one `bad_lines` each.
+- `stream_record(message)` is a stream-json message with the transcript's names for the fields the
+  readers use, added beside the originals: `sessionId` from `session_id`, `toolUseResult` from
+  `tool_use_result`, `version` from the init message's `claude_code_version`, `compactMetadata`
+  (`trigger`, `preTokens`) from `compact_metadata` (`trigger`, `pre_tokens`), and for a user or
+  assistant message `isSidechain`, true when `parent_tool_use_id` is set: a subagent's messages
+  arrive inline in the array rather than in a file of their own. A field the message lacks (an
+  older CLI writes no `timestamp`) stays absent.
 - `decode_line(line, stats=None)` is the record on one transcript line already read as text, else
   None for a blank line or one that is not a JSON object, updating the same `stats` counters as
   `iter_records`, which is built on it. A tailer that reads appended bytes calls it per line; an
   unparsed line without its trailing newline counts as `incomplete`, not `bad_lines`.
 - `record_kind(record)` is the record's `type` when it is one of `RECORD_TYPES`, else `unknown`.
   `IGNORED_RECORD_TYPES`, a subset, is known only so drift checks stop reporting it: a caller
-  skips such a record before counting anything from it.
+  skips such a record before counting anything from it. `STREAM_RECORD_TYPES`, another subset,
+  holds the stream-json message types only a lane leg carries; none feeds a metric.
 - `UsageLedger` holds one usage per assistant message: streaming writes one message as several
   records, so usage is keyed by `message.id` (fallback: record `uuid`) and the last record wins.
   Summing per record double-counts tokens. `add(record)`, then `totals()` gives `TOKEN_FIELDS`
@@ -57,8 +69,10 @@ Callers put this directory on `sys.path` and `import transcript_reader`. Stdlib 
 
 from __future__ import annotations
 
+import gzip
 import json
 import re
+import zlib
 from collections.abc import Iterator
 from pathlib import Path
 from typing import NamedTuple
@@ -120,7 +134,18 @@ IGNORED_RECORD_TYPES = frozenset(
         "artifact-autoreact-ledger",  # artifact auto-react state
     }
 )
-RECORD_TYPES = IGNORED_RECORD_TYPES | frozenset(
+STREAM_RECORD_TYPES = frozenset(
+    {
+        "rate_limit_event",
+        "stream_event",
+        "tool_progress",
+        "tool_use_summary",
+        "auth_status",
+        "prompt_suggestion",
+        "conversation_reset",
+    }
+)
+RECORD_TYPES = IGNORED_RECORD_TYPES | STREAM_RECORD_TYPES | frozenset(
     {
         "ai-title",  # used: `aiTitle`, the generated session title, a predecessor link key
         "user",
@@ -171,9 +196,58 @@ def decode_line(line: str, stats: dict[str, int] | None = None) -> dict | None:
     return record
 
 
+GZIP_MAGIC = b"\x1f\x8b"
+
+
+def _first_text_char(path: Path) -> str:
+    with Path(path).open(encoding="utf-8", errors="replace") as handle:
+        return handle.read(64).lstrip()[:1]
+
+
+def _stream_array(path: Path, gzipped: bool, counts: dict[str, int]) -> Iterator[dict]:
+    try:
+        raw = gzip.decompress(path.read_bytes()) if gzipped else path.read_bytes()
+        messages = json.loads(raw.decode("utf-8", errors="replace"))
+    except (OSError, EOFError, ValueError, zlib.error):
+        messages = None
+    if not isinstance(messages, list):
+        counts["bad_lines"] += 1
+        return
+    for message in messages:
+        if not isinstance(message, dict):
+            counts["bad_lines"] += 1
+            continue
+        counts["records"] += 1
+        if record_kind(message) == "unknown":
+            counts["unknown"] += 1
+        yield stream_record(message)
+
+
+def stream_record(message: dict) -> dict:
+    record = dict(message)
+    aliases = {"session_id": "sessionId", "tool_use_result": "toolUseResult"}
+    for stream_name, transcript_name in aliases.items():
+        if stream_name in message and transcript_name not in message:
+            record[transcript_name] = message[stream_name]
+    if message.get("type") == "system" and message.get("subtype") == "init" and "claude_code_version" in message:
+        record.setdefault("version", message["claude_code_version"])
+    compact = message.get("compact_metadata")
+    if isinstance(compact, dict) and "compactMetadata" not in message:
+        record["compactMetadata"] = {"trigger": compact.get("trigger"), "preTokens": compact.get("pre_tokens")}
+    if message.get("type") in {"user", "assistant"} and "isSidechain" not in message:
+        record["isSidechain"] = message.get("parent_tool_use_id") is not None
+    return record
+
+
 def iter_records(path: Path, stats: dict[str, int] | None = None) -> Iterator[dict]:
     counts = _init_stats(stats)
-    with Path(path).open(encoding="utf-8", errors="replace") as handle:
+    path = Path(path)
+    with path.open("rb") as handle:
+        gzipped = handle.read(2) == GZIP_MAGIC
+    if gzipped or _first_text_char(path) == "[":
+        yield from _stream_array(path, gzipped, counts)
+        return
+    with path.open(encoding="utf-8", errors="replace") as handle:
         for line in handle:
             record = decode_line(line, counts)
             if record is not None:

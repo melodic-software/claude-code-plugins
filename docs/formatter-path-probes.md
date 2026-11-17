@@ -44,7 +44,7 @@ The per-edit notice rules above apply only to hooks outside this table.
 | `spelling` | none / `git-hooks/typos-check.sh` | `command -v typos` | cargo / release binary | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
 | `go-format` | `hooks/go-format.sh` / `git-hooks/goimports-format.sh` | `command -v goimports`, `command -v go` | `go install …/goimports@latest` | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
 | `powershell-format` | none / `git-hooks/powershell-check.sh` | `command -v pwsh`, then the PSScriptAnalyzer module | host PowerShell install | pre-commit contract (pwsh and PSScriptAnalyzer) | `lib/prerequisites.mjs check`; SessionStart probe |
-| `actionlint` | none / `git-hooks/actionlint-check.sh` | `command -v actionlint` | release binary / `go install` | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
+| `actionlint` | none / `git-hooks/lint.sh` | `command -v actionlint` | release binary / `go install` | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
 | `eol-normalizer` | `hooks/normalize-eol.sh` | `command -v perl` (optional fast path) | pure-shell fallback when perl missing | n/a (degrades, does not skip) | n/a |
 
 Bootstrap hardening that puts fleet tools on the **harness** process PATH (or pins them as

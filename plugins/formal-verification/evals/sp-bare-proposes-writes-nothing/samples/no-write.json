@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [], "why": "no calls"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/repo/src/lock.js"}}], "why": "reads only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/repo/.claude/skills/formal-lock/SKILL.md", "content": "---\nname: formal-lock\n---\n"}}], "why": "writes the formal-area skill"}
+  ]
+}

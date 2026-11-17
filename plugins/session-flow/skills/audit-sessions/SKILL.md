@@ -86,6 +86,8 @@ says. Exit 3 means no store exists under `D`: after the envelope, add one line t
   absolute path, in its Windows drive form when `pwd -W` gives one, with every character outside
   `[A-Za-z0-9]` replaced by `-`. When no score file exists at that slug, use the name of the
   `~/.claude/projects/` directory that holds the current session's JSONL as the slug.
+- **Lane score history** (read by `trends`): `D/scores/lanes/<lane>.md`, one file per CI lane,
+  that `/session-flow:retro ci-runs` appends to.
 - **Uninstall can delete the store.** Say so before the first collect on a machine: the store is the
   only lasting copy of these numbers, because Claude Code removes old transcripts on its own
   schedule and a deleted store cannot be rebuilt for sessions already removed. Which uninstall
@@ -96,14 +98,17 @@ says. Exit 3 means no store exists under `D`: after the envelope, add one line t
 - **The collector parses transcript files directly**, although Claude Code does not document their
   entry format. That is a deliberate decision: no interface reports per-session Stop-hook wait or
   active time. The two metrics that read undocumented records (`hooks.stop_ms`, `time.active_s`)
-  are labeled heuristic and watched by invariant canaries in `reference/canaries.json`; see the
+  are labeled heuristic and watched by invariant canaries in the plugin's
+  `${CLAUDE_PLUGIN_ROOT}/reference/canaries.json`; see the
   rules' `basis` in `reference/sweep-rules.json`, and the measurements behind the thresholds in
   `reference/threshold-derivation.md`.
   - **Pointer**: <https://code.claude.com/docs/en/sessions#where-transcripts-are-stored>
   - **Recheck trigger**: that section names a supported interface for per-session hook or active
     time, or a drift run reports an invariant canary lost.
-- Scripts: `S="${CLAUDE_PLUGIN_ROOT}/skills/audit-sessions/scripts"`. Pick an interpreter that is
-  Python 3.10 or newer, as `/session-flow:retro` does; with none, stop and say so.
+- Scripts: `S="${CLAUDE_PLUGIN_ROOT}/skills/audit-sessions/scripts"` (the sweep) and
+  `P="${CLAUDE_PLUGIN_ROOT}/scripts"` (the session collector, shared with `/session-flow:audit-friction`).
+  Pick an interpreter that is Python 3.10 or newer, as `/session-flow:retro` does; with none, stop
+  and say so.
 
 ## Options
 
@@ -120,7 +125,7 @@ the scripts' own defaults differ (collect keeps records forever).
 ## Step 1: Collect
 
 ```bash
-"$PY" "$S/collect.py" collect --data-dir "<D>" \
+"$PY" "$P/collect.py" collect --data-dir "<D>" \
   --retention-days "$RETENTION" --excerpt-chars "$EXCERPT_CHARS" --excerpt-words "$EXCERPT_WORDS"
 ```
 
@@ -171,7 +176,7 @@ a shape it does not know.
 
 The thresholds are a shipped reference baseline, the same for every installation, not this
 machine's own: their basis is in `reference/sweep-rules.json`, and
-the drift canaries are in `reference/canaries.json`. Neither is restated here. The report shows
+the drift canaries are in `${CLAUDE_PLUGIN_ROOT}/reference/canaries.json`. Neither is restated here. The report shows
 this store's p90 beside each threshold and marks a stale baseline where that p90 passes the rules
 file's recheck trigger. The mark is advisory: when you present it, say the findings on that metric
 may flag normal use on this machine. It leaves the exit code unchanged.
