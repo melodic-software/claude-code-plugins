@@ -150,7 +150,8 @@ for (const { file, kind } of files) {
         const permissions = job?.permissions;
         const empty = permissions !== null && typeof permissions === "object" && !Array.isArray(permissions) && Object.keys(permissions).length === 0;
         const checkout = (job?.steps ?? []).some((step) => /^actions\/checkout@/.test(String(step?.uses ?? "")));
-        if (job && empty && !checkout && job.environment === undefined && !/\bsecrets\./.test(JSON.stringify(job))) {
+        const secret = job?.secrets !== undefined || (JSON.stringify(job).match(/\$\{\{[\s\S]*?\}\}/g) ?? []).some((expression) => /\bsecrets\b/.test(expression));
+        if (job && empty && !checkout && job.environment === undefined && !secret) {
           isolatedJobs.add(`${file}#${String(pair.key?.value ?? pair.key)}`);
         }
       }

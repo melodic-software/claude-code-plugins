@@ -323,6 +323,28 @@ run_case "a listed sealed-upstream job that reads a secret fails" 1 \
   "add_sealed_job 'permissions: {}' '      - run: echo ok' '        env:' '          TOKEN: \${{ secrets.TOKEN }}'" \
   "is in a sealed-upstream job of family \`pack-*\` that holds a checkout, a secret, an environment or permissions other than {}"
 
+ISOLATION_MESSAGE="is in a sealed-upstream job of family \`pack-*\` that holds a checkout, a secret, an environment or permissions other than {}"
+for form in "TOKEN: \${{ secrets['TOKEN'] }}" "TOKEN: \${{ secrets[\"TOKEN\"] }}" "ALL: \${{ toJSON(secrets) }}" "ALL: \${{ secrets }}"; do
+  export SECRET_LINE="          $form"
+  run_case "a listed sealed-upstream job whose env holds ${form#*: } fails" 1 \
+    "add_sealed_job 'permissions: {}' '      - run: echo ok' '        env:' \"\$SECRET_LINE\"" \
+    "$ISOLATION_MESSAGE"
+done
+
+export SECRET_LINE="          token: \${{ secrets.TOKEN }}"
+run_case "a listed sealed-upstream job whose with: value reads a secret fails" 1 \
+  "add_sealed_job 'permissions: {}' '      - uses: acme/tool@v1' '        with:' \"\$SECRET_LINE\"" \
+  "$ISOLATION_MESSAGE"
+
+export SECRET_PERMS=$'permissions: {}\n    secrets: inherit'
+run_case "a listed sealed-upstream job with secrets: inherit fails" 1 \
+  "add_sealed_job \"\$SECRET_PERMS\"" \
+  "$ISOLATION_MESSAGE"
+
+run_case "the word secrets outside an expression is no secret" 0 \
+  "add_sealed_job 'permissions: {}' '      - run: echo no secrets here'" \
+  "check-artifact-retention: 5 upload step(s) match"
+
 run_case "a listed sealed-upstream job with a token permission fails" 1 \
   "add_sealed_job 'permissions: { contents: read }'" \
   "is in a sealed-upstream job of family \`pack-*\` that holds a checkout, a secret, an environment or permissions other than {}"
