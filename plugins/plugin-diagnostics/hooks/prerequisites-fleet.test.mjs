@@ -156,6 +156,17 @@ describe("prerequisites-fleet", { skip: !posix && "the claude stub is a POSIX sh
     assert.equal(await f.run("p2", { CLAUDE_PROJECT_DIR: projB }), "");
   });
 
+  test("a plugin the session's settings file turns off is not probed, and an unreadable session file adds nothing", async () => {
+    const f = fleet({ plugins: [gated("alpha"), gated("beta")] });
+    const session = path.join(tempDir("prereq-fleet-session-"), "session.json");
+    writeFileSync(session, JSON.stringify({ enabledPlugins: { "alpha@mkt": false } }));
+    const message = await f.run("q1", { SESSION_SETTINGS_FILE: session });
+    assert.doesNotMatch(message, /alpha:/);
+    assert.match(message, /^beta: /);
+    writeFileSync(session, "{ not json");
+    assert.match(await f.run("q2", { SESSION_SETTINGS_FILE: session }), /^alpha: /);
+  });
+
   test("a plugin a managed policy disables is not probed, and an unreadable managed file probes nothing", async () => {
     const f = fleet({ plugins: [gated("alpha"), gated("beta")] });
     const dir = tempDir("prereq-fleet-managed-");

@@ -8,8 +8,8 @@
 //   session-telemetry: enabled  |  session-telemetry: not enabled, ...  plus the lines that turn it on
 //   data_dir=<its plugin data directory>
 //   option <key>=<value>   each option its hooks last ran with (options.json), else its manifest default
-// Enabled means enabledPlugins in the user, project and managed settings, the rule
-// /harness-ops:prerequisites reads; a --plugin-dir or --settings session is not seen.
+// Enabled means enabledPlugins in the user, project, session and managed settings, the rule
+// /harness-ops:prerequisites reads (lib/enabled-plugin-roots.mjs); a --plugin-dir session is not seen.
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -48,7 +48,7 @@ export function state({ project, env = process.env, ownRoot = OWN_ROOT }) {
     // No documented managed path on this platform.
   }
   const nameOf = (root) => readJson(path.join(root, ".claude-plugin", "plugin.json"))?.name;
-  const enabledRoot = rootsFromSettings(config, project, managed).roots.find((root) => nameOf(root) === NAME);
+  const enabledRoot = rootsFromSettings(config, project, managed, env).roots.find((root) => nameOf(root) === NAME);
   const records = readJson(path.join(config, "plugins", "installed_plugins.json"))?.plugins?.[id];
   const installedRoot = [records ?? []].flat().find((r) => r?.installPath && existsSync(r.installPath))?.installPath;
   const root = enabledRoot ?? installedRoot;

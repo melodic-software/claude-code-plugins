@@ -1126,7 +1126,7 @@ JSON
 printf 'You are the work lane.\n' >"$HOME_REPO/.work/lanes/work.md"
 : >"$CLAUDE_LOG"
 out="$(run_launcher start --repo "$HOME_REPO" --agents-json "$AGENTS_EMPTY" --data-dir "$TMP/data-home" --dry-run 2>&1)"
-assert_contains "default config resolves to .work/lanes/lanes.json" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --bg -n work"
+assert_contains "default config resolves to .work/lanes/lanes.json" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work"
 assert_contains "default prompt_dir resolves to .work/lanes" "$out" "$HOME_REPO/.work/lanes/work.md"
 assert_not_contains "the lanes/ home emits no deprecation warning" "$out" "pre-move lane config"
 
@@ -1140,7 +1140,7 @@ cat >"$OLD_REPO/.work/lanes.json" <<'JSON'
 JSON
 printf 'You are the work lane.\n' >"$OLD_REPO/.work/work.md"
 out="$(run_launcher start --repo "$OLD_REPO" --agents-json "$AGENTS_EMPTY" --data-dir "$TMP/data-old" --dry-run 2>&1)"
-assert_contains "pre-move config is read rather than failing the run" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --bg -n work"
+assert_contains "pre-move config is read rather than failing the run" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work"
 assert_contains "pre-move config warns about the move" "$out" "reading the pre-move lane config"
 assert_contains "the warning names the destination" "$out" "$OLD_REPO/.work/lanes/"
 assert_contains "a pre-move config keeps the pre-move prompt_dir default" "$out" "$OLD_REPO/.work/work.md"
@@ -1157,7 +1157,7 @@ JSON
 printf 'You are the work lane.\n' >"$BOTH_REPO/.work/lanes/work.md"
 printf 'stale\n' >"$BOTH_REPO/.work/stale.md"
 out="$(run_launcher start --repo "$BOTH_REPO" --agents-json "$AGENTS_EMPTY" --data-dir "$TMP/data-both" --dry-run 2>&1)"
-assert_contains "with both present the lanes/ home wins" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --bg -n work"
+assert_contains "with both present the lanes/ home wins" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work"
 assert_not_contains "the leftover pre-move config is not read" "$out" "-n stale"
 assert_not_contains "no warning when the lanes/ home exists" "$out" "pre-move lane config"
 
@@ -1398,7 +1398,7 @@ assert_contains "the default branch is fetched first" "$out" "DRY-RUN: git -C $(
 assert_contains "the commit the file was read at is printed" "$out" "read docs/conventions/execution-target.yaml at origin/main $ET_SHA_NOW"
 assert_contains "skill.fixture.trusted supplies the value" "$out" "execution target cloud-session (skill.fixture.trusted)"
 assert_contains "the cloud launch runs from a linked worktree at the fetched SHA" "$out" "worktree add --quiet --detach $(printf '%q' "$ET_WT") $ET_SHA_NOW"
-assert_contains "a cloud-session lane prints a claude --cloud line" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --cloud"
+assert_contains "a cloud-session lane prints a claude --cloud line" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --cloud"
 assert_contains "the cloud prompt opens with the stage-start probe" "$out" 'stage-start\ probe\ preamble'
 assert_not_contains "a cloud-session lane does not also launch locally" "$out" "claude --bg"
 
@@ -1413,7 +1413,7 @@ et_publish 'default: local-background'
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "default supplies local-background" "$out" "execution target local-background (default)"
 assert_contains "local-background launches from the linked worktree" "$out" "DRY-RUN: cd $(printf '%q' "$ET_WT")"
-assert_contains "local-background is claude --bg -n <name> --permission-mode auto" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --bg -n work --permission-mode auto"
+assert_contains "local-background is claude --bg -n <name> --permission-mode auto" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work --permission-mode auto"
 assert_contains "a local-background lane reads mods unknown, naming its host" "$out" "mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on local-background)"
 # status reads the policy the local origin/HEAD names, without fetching, and an
 # already-running lane skipped by start resolves its own target too.
@@ -1483,18 +1483,18 @@ et_lanes work-items:work-loop
 et_publish ""
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "an absent file is reported with the SHA read" "$out" "docs/conventions/execution-target.yaml absent at origin/main $ET_SHA_NOW"
-assert_contains "an absent file keeps today's launch" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --bg -n work --permission-mode auto"
+assert_contains "an absent file keeps today's launch" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work --permission-mode auto"
 # shellcheck disable=SC2016 # the literal $(...) is the fixture.
 et_publish 'default: "$(touch PWNED_VALUE)"'
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "an unknown value names the file and the SHA it was read at" "$out" "at default in docs/conventions/execution-target.yaml at origin/main $ET_SHA_NOW; local-worktree"
-assert_contains "an unknown value keeps today's launch" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --bg -n work --permission-mode auto"
+assert_contains "an unknown value keeps today's launch" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work --permission-mode auto"
 out="$(et_run status 2>&1)"
 assert_contains "status reports an unknown value with the ref and SHA it read" "$out" "at default in docs/conventions/execution-target.yaml at origin/HEAD $ET_SHA_NOW; local-worktree"
 et_publish $'default: [unclosed'
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "a file the parser rejects is reported" "$out" "does not parse"
-assert_contains "a file the parser rejects keeps today's launch" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --bg -n work --permission-mode auto"
+assert_contains "a file the parser rejects keeps today's launch" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work --permission-mode auto"
 
 # Only the default branch counts: an uncommitted working-tree edit moves nothing.
 et_publish 'default: local-worktree'
@@ -1561,7 +1561,7 @@ jq -n --arg b "$fb_body" '{work: [{body: $b, user: {login: "intruder"}}]}' >"$ET
 et_cloud_lane
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run --telemetry-json "$ET_TELEMETRY_SPOOF" 2>&1)"
 assert_not_contains "[fix 3] a fallback from another author changes nothing" "$out" "telemetry carries an execution-target fallback"
-assert_contains "[fix 3] the lane still goes to the cloud" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --cloud"
+assert_contains "[fix 3] the lane still goes to the cloud" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --cloud"
 et_lanes fixture:trusted
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "[fix 3] a cloud lane without telemetry.issue is refused" "$out" "the lane has no numeric telemetry.issue"
@@ -1588,7 +1588,7 @@ assert_eq "[fix 4] a triage lane is skipped when the policy read is refused" 1 "
 assert_not_contains "[fix 4] the skipped triage lane launches nothing" "$out" "claude --"
 et_lanes work-items:work-loop
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
-assert_contains "[fix 4] other lanes launch local-worktree when the policy read is refused" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --bg -n work --permission-mode auto"
+assert_contains "[fix 4] other lanes launch local-worktree when the policy read is refused" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work --permission-mode auto"
 git -C "$ET_REPO" remote set-head origin main >/dev/null 2>&1
 
 # --- [fix 5] the App check uses origin's slug, not gh's default repository ----
@@ -1607,7 +1607,7 @@ et_origin_github
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "[N2] an insteadOf rule rewriting origin refuses the policy read" "$out" "origin's URL is rewritten by a url.*.insteadOf rule"
 assert_not_contains "[N2] the rewritten origin's policy is not read" "$out" "read docs/conventions/execution-target.yaml"
-assert_contains "[N2] the lane launches local-worktree" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --bg -n work --permission-mode auto"
+assert_contains "[N2] the lane launches local-worktree" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work --permission-mode auto"
 et_origin_local
 git -C "$ET_REPO" config --add remote.origin.url https://github.com/acme/elsewhere.git
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
@@ -1637,18 +1637,18 @@ assert_contains "[N5] --telemetry-json warns that the read is a local file" "$ou
 out="$(STUB_GH_INSTALLATIONS='{"installations":[{"id":9,"app_slug":"other-app","repository_selection":"all","account":{"login":"acme"}}]}' \
   et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "no Claude GitHub App refuses the cloud launch" "$out" "cloud-session refused (no Claude GitHub App installation"
-assert_contains "the refused trusted lane launches local-worktree" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --bg -n work --permission-mode auto"
+assert_contains "the refused trusted lane launches local-worktree" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work --permission-mode auto"
 assert_not_contains "the refused lane prints no claude --cloud line" "$out" "claude --cloud"
 out="$(STUB_GH_INSTALLATIONS='{"installations":[{"id":9,"app_slug":"claude","repository_selection":"selected","account":{"login":"acme"}}]}' \
   STUB_GH_REPOS='{"repositories":[{"full_name":"acme/other"}]}' et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "an installation selecting other repositories does not cover this one" "$out" "cloud-session refused (no Claude GitHub App"
 out="$(STUB_GH_INSTALLATIONS='{"installations":[{"id":9,"app_slug":"claude","repository_selection":"selected","account":{"login":"acme"}}]}' \
   STUB_GH_REPOS='{"repositories":[{"full_name":"Acme/Widgets"}]}' et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
-assert_contains "an installation selecting this repository covers it" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --cloud"
+assert_contains "an installation selecting this repository covers it" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --cloud"
 et_lanes fixture:trusted '{"telemetry":{"issue":5},"profile":"focus"}'
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "a cloud-session lane says its profile is not applied" "$out" "cannot carry a settings file, so profile 'focus' was not applied"
-assert_contains "the profiled cloud lane still goes to the cloud" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --cloud"
+assert_contains "the profiled cloud lane still goes to the cloud" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --cloud"
 et_cloud_lane
 out="$(STUB_GH_INSTALL_RC=1 et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "a failed installations read refuses the cloud launch" "$out" "cloud-session refused (no Claude GitHub App"
@@ -1665,7 +1665,7 @@ git -C "$ET_REPO" worktree add -q --detach "$ET_WT" HEAD
 printf 'scratch\n' >"$ET_WT/untracked.txt"
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "a dirty linked worktree refuses the cloud launch" "$out" "cloud-session refused (no clean linked worktree"
-assert_contains "the dirty-worktree refusal launches local-worktree" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --bg -n work"
+assert_contains "the dirty-worktree refusal launches local-worktree" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work"
 rm -f "$ET_WT/untracked.txt"
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "a clean existing linked worktree is moved to the fetched SHA" "$out" "checkout --quiet --detach $ET_SHA_NOW"
@@ -1673,12 +1673,12 @@ assert_contains "a clean existing linked worktree is moved to the fetched SHA" "
 # A fallback marker from an authorized author moves exactly one launch local.
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run --telemetry-json "$ET_TELEMETRY_FB" 2>&1)"
 assert_contains "a telemetry fallback marker launches local-worktree" "$out" "telemetry carries an execution-target fallback; this launch runs local-worktree"
-assert_contains "the fallback launch is today's local launch" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --bg -n work --permission-mode auto"
+assert_contains "the fallback launch is today's local launch" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work --permission-mode auto"
 : >"$CLAUDE_LOG"
 out="$(et_run_trusted start --data-dir "$ET_DATA" --telemetry-json "$ET_TELEMETRY_FB" 2>&1)"
 assert_contains "a real fallback launch runs claude --bg" "$(cat "$CLAUDE_LOG")" "--bg -n work --permission-mode auto"
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run --telemetry-json "$ET_TELEMETRY_FB" 2>&1)"
-assert_contains "the next launch after an honored fallback probes the cloud again" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --cloud"
+assert_contains "the next launch after an honored fallback probes the cloud again" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --cloud"
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run --telemetry-json "$TMP/missing-telemetry.json" 2>&1)"
 assert_contains "unreadable telemetry refuses the cloud launch" "$out" "lane telemetry could not be read"
 
@@ -1694,7 +1694,7 @@ assert_not_contains "[P5] the launch record prints without control characters" "
 assert_contains "[P5] the record's printable text still prints" "$out" "already sent to the cloud (]0;x[31mred)"
 printf '2026-10-04T00:00:00Z at %s\n' "$ET_SHA_NOW" >"$ET_DATA/lanes/$ET_KEY/work-cloud-launch"
 out="$(et_run_trusted restart --data-dir "$ET_DATA" --dry-run 2>&1)"
-assert_contains "restart sends a new cloud session" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --cloud"
+assert_contains "restart sends a new cloud session" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --cloud"
 # A real cloud launch: the stub logs one line per argv, so the probe preamble
 # and the lane prompt both reach the single prompt argument.
 : >"$CLAUDE_LOG"
@@ -1850,7 +1850,7 @@ et_publish 'default: local-background'
 out="$(et_run run-once work --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "run-once reads the execution target" "$out" "execution target local-background (default)"
 assert_contains "run-once on local-background runs from the linked worktree" "$out" "DRY-RUN: cd $(printf '%q' "$ET_WT")"
-assert_contains "the dry run previews the print-mode pass" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude -p --permission-mode auto"
+assert_contains "the dry run previews the print-mode pass" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude -p --permission-mode auto"
 et_publish 'default: cloud-routine'
 : >"$CLAUDE_LOG"
 out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
@@ -1953,7 +1953,7 @@ assert_contains "the good lane keeps its schtasks entry" "$out" 'schtasks /Creat
 et_lanes work-items:work-loop '{"schedule":{"every_minutes":0}}'
 out="$(et_run run-once work --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_eq "run-once proceeds past a bad schedule" 0 "$?"
-assert_contains "run-once previews its pass despite a bad schedule" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude -p"
+assert_contains "run-once previews its pass despite a bad schedule" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude -p"
 
 # An integral number written with a fraction (20.0) is the whole number 20.
 et_lanes work-items:work-loop '{"schedule":{"every_minutes":20.0}}'
@@ -2048,7 +2048,7 @@ if (process.env.STUB_PROFILES_RC === "1") {
 const w = args.indexOf("--with");
 if (!args.includes("--dry-run")) writeFileSync("$PP_FILE", w > 0 ? args[w + 1] : "{}");
 const mode = process.env.STUB_PROFILES_AUTONOMY || "on";
-const result = { profile: args[1], argv: ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "claude", "--settings", "$PP_FILE"] };
+const result = { profile: args[1], argv: ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "-u", "SESSION_SETTINGS_FILE", "claude", "--settings", "$PP_FILE"] };
 if (mode === "othermarket") result.enabledPlugins = { "other@m": true, "autonomy@m": false, "autonomy@other": true };
 else if (mode === "bare") result.enabledPlugins = { "other@m": true, "autonomy": true };
 else if (mode !== "nofield") result.enabledPlugins = { "other@m": true, "autonomy@m": mode !== "off" };
@@ -2106,7 +2106,7 @@ done
 : >"$PP_LOG"
 out="$(STUB_CLAUDE_PLUGIN_LIST="$PP_LIST" pp_run run-once work --dry-run 2>&1)"
 assert_contains "profile dry run: previews the launch call" "$out" "DRY-RUN: node $PP_ROOT/scripts/profiles.mjs launch focus --folder $REPO --unattended --json --with"
-assert_contains "profile dry run: run-once starts with the session file" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --settings "
+assert_contains "profile dry run: run-once starts with the session file" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --settings "
 assert_contains "profile dry run: a placeholder stands for the session file" "$out" "focus\\ session\\ file"
 assert_contains "profile dry run: run-once flags follow the placeholder" "$out" " -p --permission-mode auto"
 assert_eq "profile dry run: writes no session file" "" "$(cat "$PP_LOG")"
