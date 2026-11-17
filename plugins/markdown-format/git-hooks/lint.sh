@@ -147,7 +147,6 @@ mf_link() {
   local r="${1#./}"
   [[ -e "$mirror/$r" || -L "$mirror/$r" || "$checked" == *"$US$r$US"* ]] && return 0
   case "$r" in *.md | *.mdc | *.markdown) return 0 ;; *) ;; esac
-  case "/$r" in */node_modules/*) return 0 ;; *) ;; esac
   [[ "$r" == */* ]] && mkdir -p "$mirror/${r%/*}"
   ln -s "$PWD/$r" "$mirror/$r"
 }

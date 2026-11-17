@@ -402,6 +402,17 @@ $HINT" "$(check "$REPO")"
 done
 
 new_repo NONE
+style_pkg "$REPO/node_modules" true
+printf 'node_modules/\n' >"$REPO/.gitignore"
+printf '{ "extends": "./node_modules/my-style/style.json" }\n' >"$REPO/.markdownlint.json"
+git -C "$REPO" add -A
+git -C "$REPO" commit -q -m cfg --no-verify
+printf '# T\n\n<b>x</b>\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+expect "a config that extends a file inside node_modules by relative path lints under it" "1||$HTML
+$HINT" "$(check "$REPO")"
+
+new_repo NONE
 style_pkg "$REPO/node_modules" false
 style_pkg "$REPO/sub/node_modules" true
 printf 'node_modules/\n' >"$REPO/.gitignore"
