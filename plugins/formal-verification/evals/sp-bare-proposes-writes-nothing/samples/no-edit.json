@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [], "why": "no calls"},
+    {"answer": [{"tool": "Grep", "input": {"pattern": "lease", "path": "/repo"}}], "why": "searches only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/repo/src/lock.js", "old_string": "a", "new_string": "b"}}], "why": "edits product code"}
+  ]
+}

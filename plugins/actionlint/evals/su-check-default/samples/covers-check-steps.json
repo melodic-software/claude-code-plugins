@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "| # | Check | Result | Detail |\n|---|---|---|---|\n| 1 | Bash version | PASS | 5.2 |\n| 2 | `node` | PASS | /usr/bin/node |\n| 3 | `actionlint` | PASS | /usr/local/bin/actionlint |\n| 4 | actionlint config | INFO | no `.github/actionlint.yaml`; built-in defaults |\n| 5 | `actionlint_enabled` | INFO | default true |\n| 6 | Hook registration | INFO | confirm in /plugin |\n| 7 | Git pre-commit entry | FAIL | missing; run /actionlint:setup apply install-git-hooks |"
+      "answer": "| # | Check | Result | Detail |\n|---|---|---|---|\n| 1 | Bash version | PASS | 5.2 |\n| 2 | `node` | PASS | /usr/bin/node |\n| 3 | `actionlint` | PASS | /usr/local/bin/actionlint |\n| 4 | Lint resolution | INFO | adapter, no `.github/actionlint.yaml`: actionlint defaults |\n| 5 | `actionlint_enabled` | INFO | default true |\n| 6 | Hook registration | INFO | confirm in /plugin |\n| 7 | Git pre-commit entry | FAIL | missing; run /actionlint:setup apply install-git-hooks |"
     },
     {
       "answer": "Check | Status\n--- | ---\nbash | ✅\n.github/actionlint.yml | INFO\nHook toggles | INFO\nPlugin enabled for this project | INFO\ngit-hooks verify | ❌ FAIL",

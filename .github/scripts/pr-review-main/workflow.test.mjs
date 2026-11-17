@@ -1582,6 +1582,8 @@ test("each leg copies the review criteria criteria.txt lists", () => {
       "plugins/review/skills/code-review/evals/case.md": "eval",
       "plugins/review/skills/security-review/SKILL.md": "other lane",
       "plugins/review/reference/ref.md": "ref",
+      "plugins/review/skills/quality-gate/context/loosened-check.md": "criterion",
+      "plugins/review/skills/quality-gate/context/code.md": "not copied",
       "REVIEW.md": "review",
       "docs/standards/s.md": "standard",
       ".claude/rules/r.md": "rule",
@@ -1597,6 +1599,7 @@ test("each leg copies the review criteria criteria.txt lists", () => {
     assert.deepEqual(readdirSync(data, { recursive: true }).filter((f) => f.endsWith(".md")).sort(), [
       "review/reference/ref.md",
       "review/skills/code-review/SKILL.md",
+      "review/skills/quality-gate/context/loosened-check.md",
       "standards/REVIEW.md",
       "standards/rules/r.md",
       "standards/standards/s.md",
@@ -1858,9 +1861,13 @@ test("every later leg repeats the key leg's steps but for its credential and why
   // Only the key leg reads main's tip; a later leg checks out the commit it recorded.
   const keyNames = STEPS[KEY].map((s) => s.name).filter((name) => name !== "Resolve main's tip");
   assert.deepEqual(STEPS[SUB].map((s) => s.name), keyNames);
-  assert.deepEqual(STEPS[FB].map((s) => s.name), keyNames.filter((name) => name !== "Pick the next leg" && name !== "Hand the lane on"));
+  const FB_WARNING = "Warn that the fallback token reviews";
+  assert.deepEqual(
+    STEPS[FB].map((s) => s.name).filter((name) => name !== FB_WARNING),
+    keyNames.filter((name) => name !== "Pick the next leg" && name !== "Hand the lane on"),
+  );
   for (const job of [SUB, FB]) {
-    for (const s of STEPS[job]) assert.equal(normal(s.block), normal(step(s.name, KEY)), `${job}: ${s.name}`);
+    for (const s of STEPS[job].filter((s) => s.name !== FB_WARNING)) assert.equal(normal(s.block), normal(step(s.name, KEY)), `${job}: ${s.name}`);
     // Each record names why it ran: the route's reason, checked by the
     // credential call against report-lane-outcome's closed list.
     assert.equal(input(step("Check the credential", job), "reason"), "${{ matrix.reason }}");
@@ -1880,6 +1887,16 @@ test("every later leg repeats the key leg's steps but for its credential and why
     assert.equal(gates(job), gates(KEY));
   }
   assert.equal(input(step("Report chunk 1's outcome", KEY), "fallback-reason"), undefined);
+});
+
+test("the fallback leg warns, once its credential is present, that it reviews the lane", () => {
+  const warn = step("Warn that the fallback token reviews", FB);
+  assert.equal(/^ {8}if: (.*)$/m.exec(warn)[1], "steps.credential.outputs.present == 'true'");
+  assert.ok(index("Apply the Claude managed settings", FB) + 1 === index("Warn that the fallback token reviews", FB));
+  const run = /^ {8}run: (.*)$/m.exec(warn)[1];
+  const out = spawnSync("bash", ["-e", "-c", run], { env: { ...process.env, LANE: "claude-review", REASON: "limit-stop" }, encoding: "utf8" }).stdout;
+  assert.match(out, /^::warning title=pr-review-main fallback::lane=claude-review reviews on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN \(reason=limit-stop\)/);
+  for (const job of [KEY, SUB]) assert.equal(STEPS[job].some((s) => s.name === "Warn that the fallback token reviews"), false, job);
 });
 
 test("one lane handed on beside one that reviewed routes only the handed-on lane", () => {
