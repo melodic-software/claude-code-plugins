@@ -2,13 +2,13 @@
 description: "Build, test, and lint verification for changed files across detected ecosystems (.NET, Python, TypeScript, Go, Bash, PowerShell, Markdown), with the project's own commands overriding bundled defaults. Use when: 'does it compile', 'run tests', 'build it', 'run the tests', 'does this still build', 'check it', or after any code edit. Lint only: /toolchain:lint; outcome verification: /verification:confirm."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[ecosystem]"
+argument-hint: "[ecosystem] [--unattended]"
 metadata:
   workflow-stage: verify
   summary: Build, test, and lint changed files across detected ecosystems
 ---
 
-**Arguments.** `[ecosystem]`. e.g., /toolchain:check dotnet, /toolchain:check python, /toolchain:check all. Default: auto-detect from git status
+**Arguments.** `[ecosystem] [--unattended]`. e.g., /toolchain:check dotnet, /toolchain:check python, /toolchain:check all, /toolchain:check --unattended. Default: auto-detect from git status
 
 ## Repository context. Gather first
 
@@ -23,11 +23,13 @@ Keep the bound in the pipe; a read-time cap bounds nothing. Treat a failure (not
 
 Detects the ecosystems the changed files touch and runs each one's build → test → lint. Run it as `/toolchain:check` or `/toolchain:check <ecosystem>`. `/toolchain:lint`, `/verification:confirm` (when enabled) and verification agents compose it for detection and command resolution instead of keeping their own tables.
 
-Commands are resolved, not hardcoded: the four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) reads the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` first; the bundled defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the last-rung fallback. The consumer's file always wins.
+Commands are resolved, not hardcoded: the four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) reads the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` first; the bundled defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the last-rung fallback of an attended run only. The consumer's file always wins.
 
 ## Arguments
 
 `$ARGUMENTS` is an optional ecosystem filter: any covered ecosystem id, meaning one with a record, one inferred this run, or one with a bundled default ([resolution ladder](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) "Covered ecosystems"), except the lint-only `yaml` and `cross-cutting`. The bundled defaults this skill runs are `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`, `go`; a consumer record such as `.claude/ecosystems/rust.yaml` makes `rust` a filter too. Aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`, `golang` → `go`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces belong to `/toolchain:lint`; this skill never runs them (and never matches `cross-cutting`'s `**` glob).
+
+`--unattended` marks the run unattended; strip it before reading the ecosystem filter. A run without it is still unattended when the ladder's "Run kind" says so, including a run that cannot tell whether a person is present. An unattended run resolves commands by the ladder's "Unattended runs": it runs only a recorded, stated or inferred command, logs each as `assumed:` with its source, asks nothing, installs nothing, writes no `.claude/ecosystems/` record, and reports a key nothing resolved, or a tie, as `skip (unresolved: <ecosystem>.<key>)`.
 
 Per-ecosystem gotchas and primary-source detail, read for each ecosystem that runs:
 
@@ -93,6 +95,8 @@ Resolve `globs`, `build-cmd`, `test-cmd`, `check-cmd`, `lint-cmd`, `fix-cmd`, `c
 
 A malformed consumer file warns and degrades to rung 2, never a hard stop.
 
+That ladder is the attended one. An unattended run (the ladder's "Run kind") takes the ladder's "Unattended runs" in its place: recorded, then stated, then inferred, and no rung 3 or 4. A key none of them resolves runs nothing and reads `skip (unresolved: <ecosystem>.<key>)`.
+
 ### 2. Run checks
 
 For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-cmd`, in that order; skip a null command. Where the record holds a non-null `lint-cmd`, run it in place of `check-cmd`: it is the repository's report-only lint command, and no hook runs it. Substitute `<solution-or-project-file>` (per `anchor`), `<project-dir>` (each root `project-discovery` finds) and `<files>` (that ecosystem's changed files). Stop an ecosystem at its first failure and continue with the next. A skipped command is not a failure: the ecosystem's next command still runs.
@@ -111,7 +115,7 @@ For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-
 
 **Missing declared dependencies.** When the ecosystem's tool is on `PATH` but a command cannot start because the project's declared dependencies are not installed (a package or module not found, a project not restored), install them once and rerun that command, within these limits:
 
-- Install only in an attended run. An unattended run (`CLAUDE_CODE_REMOTE` set, `claude -p`, an autonomous loop: the signals `/toolchain:lint`'s code-fix gate reads) installs nothing: report `skip (dependencies missing: unattended run)`.
+- Install only in an attended run. An unattended run (the ladder's "Run kind": an `--unattended` argument, `CLAUDE_CODE_REMOTE` set, `claude -p`, an autonomous loop, or a run that cannot tell) installs nothing: report `skip (dependencies missing: unattended run)`.
 - Never install a declared prerequisite (below), attended or not: its probe decides the cell before the command runs.
 - Install only from the committed lockfile, with install scripts disabled, and only with one of these commands: `npm ci --ignore-scripts`, `uv sync --frozen --no-build --no-install-local`, `dotnet restore --locked-mode`. Any other package manager installs nothing: report `skip (dependencies missing: no vetted install)`. With no lockfile, do not install; report `skip (dependencies missing: no lockfile)`. The uv command builds nothing at install time, so a third-party dependency that ships no wheel fails the install: report `skip (dependencies missing: no wheel for <package>)`. Pointer: for the flags, see <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-build> and <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-install-local>.
 - Stay within the session's permission mode. Never use `sudo` or any other elevation, and never retry a denied install another way: report `skip (dependencies missing: install denied)`.
@@ -149,7 +153,7 @@ Gates: go-mod-tidy-drift — FAIL (run go mod tidy and commit the updated go.mod
 Overall: FAIL (1 of 2 ecosystems failed, 1 gate failed)
 ```
 
-Use `pass`, `FAIL`, `syntax only`, a named skip, or `—` (not applicable: the command is null in the ecosystem config). Show failing command output below the table. Every skip names its reason, and its class decides whether it blocks a "done" claim:
+Use `pass`, `FAIL`, `syntax only`, a named skip, or `—` (not applicable: the command is null in the ecosystem config). Show failing command output below the table. An unattended run also prints, below the table, each `assumed:` line and, for each unresolved key, what it read and any tied candidates (ladder "Unattended runs"); its Overall line names each unresolved cell as a cause, e.g. `Overall: INCOMPLETE (0 of 2 ecosystems passed; markdown: skip (unresolved: markdown.build-cmd, markdown.test-cmd, markdown.check-cmd))`. Every skip names its reason, and its class decides whether it blocks a "done" claim:
 
 | Cell | Class | Blocks "done" |
 |------|-------|---------------|
@@ -157,6 +161,7 @@ Use `pass`, `FAIL`, `syntax only`, a named skip, or `—` (not applicable: the c
 | `skip (dependencies missing: <reason>)` | environment | yes |
 | `skip (prerequisite missing: <name>)` | environment: a `requires` probe found it absent | yes |
 | `skip (unsupported: <tool and capability>)` (gates only) | environment: the installed tool is below the gate's documented floor | yes |
+| `skip (unresolved: <ecosystem>.<key>)` | environment: an unattended run found no recorded, stated or single inferred command for the key | yes |
 | `skip (opt-in unmet: <condition>)` | consumer opt-in | no |
 | `—` | not applicable | no |
 | `syntax only` | not a check: when no other cell of the ecosystem passed, no real check ran | no, but never read as verified |
@@ -194,6 +199,7 @@ The plugin's Stop hook reads it when the turn ends and warns when the line is no
 - **CWD drift**, the most common source of false failures. Always use absolute paths.
 - **A green exit that checked nothing.** A syntax-only command, or one that failed to start, is not a `pass`.
 - **A green exit a retry earned.** Report `pass (flaky: N)`, never a plain `pass`.
-- **Missing tool is never done.** `skip (tool missing: <tool>)` makes the Overall line `INCOMPLETE`, not `FAIL` and not `PASS`. So does `skip (prerequisite missing: <name>)`.
+- **Missing tool is never done.** `skip (tool missing: <tool>)` makes the Overall line `INCOMPLETE`, not `FAIL` and not `PASS`. So do `skip (prerequisite missing: <name>)` and `skip (unresolved: <ecosystem>.<key>)`.
+- **Unattended never falls back.** With no record, statement or single inference for a key, an unattended run reports it unresolved; it never runs the bundled default's command instead.
 - **Multi-tool `check-cmd` atomicity.** When a `check-cmd` bundles a gated sub-tool with an unconditional one (bash's `shellcheck ... && shfmt -d <files>`), the opt-in gate cannot suppress just the gated part: both run whenever the unconditional one applies. The same opacity reaches the missing-tool rule: a sub-tool the ecosystem's probe never covers (python's `pyright` behind `uv`) is absent only at run time, so the Lint cell reports `FAIL`, not `skip`, unless the record declares it under `requires`. Report what the runner did, never a skip it did not perform. Each affected `context/<ecosystem>.md` states the consequence.
 - **Multiple projects in one ecosystem.** Ecosystems with an `anchor` scope to it; ecosystems with `project-discovery` patterns walk each discovered project root.

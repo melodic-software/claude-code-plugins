@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: ck-unattended-tie-unresolved
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: test-unresolved
+    type: regex
+    pattern: 'skip\W{0,4}\(\s*unresolved:\s*[`*]{0,2}typescript\.test-cmd'
+    flags: i
+    target: last_message
+  - name: names-both-candidates
+    type: regex
+    pattern: 'npm (?:run )?test[\s\S]{0,400}?make test|make test[\s\S]{0,400}?npm (?:run )?test'
+    target: last_message
+  - name: neither-ran
+    type: file_exists
+    path: .calls.log
+    exists: false
+  - name: overall-incomplete
+    type: regex
+    pattern: 'Overall\W{0,8}INCOMPLETE\b'
+    target: last_message
