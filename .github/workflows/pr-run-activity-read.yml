@@ -3751,7 +3751,7 @@ jobs:
         with:
           execution-file: ${{ steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file || steps.summary-fallback.outputs.execution-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: reuse-summary-${{ inputs.issue-number }}-${{ inputs.fallback == '' && 'key' || inputs.fallback == 'fallback' && 'fallback' || 'token' }}
+          job-id: reuse-summary${{ inputs.fallback == 'fallback' && '-fallback' || inputs.fallback != '' && '-subscription' || '' }}
 
       # The summary leg's lane-outcome record: its credential, outcome and
       # durationMs.
