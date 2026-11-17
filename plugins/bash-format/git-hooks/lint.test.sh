@@ -320,6 +320,11 @@ mkdir -p "$REPO/.githooks/bash-format"
 printf '%s\necho "$undefined_var"\n' "$SHEBANG" >"$REPO/.githooks/bash-format/copy.sh"
 git -C "$REPO" add -f .githooks/bash-format/copy.sh
 expect "an installed copy under .githooks/ is skipped" "0||" "$(check "$REPO")"
+mkdir -p "$REPO/sub/.githooks"
+printf '%s\necho "$undefined_var"\n' "$SHEBANG" >"$REPO/sub/.githooks/own.sh"
+git -C "$REPO" add -f sub/.githooks/own.sh
+expect "a script under a nested .githooks/ is linted; only the root one is skipped" "1||sub/.githooks/own.sh:2: warning: undefined_var is referenced but not assigned. [SC2154]
+$HINT" "$(check "$REPO")"
 
 new_repo
 printf '%s\necho "$undefined_var"\n' "$TABBED" >"$REPO/a.sh"

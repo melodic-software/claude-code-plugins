@@ -10,7 +10,7 @@ BF_SC_INSTALL='see https://github.com/koalaman/shellcheck#installing'
 
 rt_wants() {
   case "$1" in
-  .githooks/* | */.githooks/*) return 1 ;;
+  .githooks/*) return 1 ;;
   *.sh | *.bash) return 0 ;;
   *) return 1 ;;
   esac

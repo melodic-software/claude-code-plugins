@@ -187,6 +187,11 @@ mkdir -p "$REPO/.githooks/bash-format"
 printf '%s\n' "$TABBED" >"$REPO/.githooks/bash-format/copy.sh"
 git -C "$REPO" add -f .githooks/bash-format/copy.sh
 expect "an installed copy under .githooks/ is skipped" "0||" "$(check "$REPO")"
+mkdir -p "$REPO/sub/.githooks"
+printf '%s\n' "$TABBED" >"$REPO/sub/.githooks/own.sh"
+git -C "$REPO" add -f sub/.githooks/own.sh
+expect "a script under a nested .githooks/ is formatted; only the root one is skipped" "0|sub/.githooks/own.sh|" "$(check "$REPO")"
+expect "the root .githooks/ copy keeps its bytes" "$TABBED" "$(cat "$REPO/.githooks/bash-format/copy.sh")"
 
 new_repo
 printf '%s\n' "$TABBED" >"$REPO/a.sh"
