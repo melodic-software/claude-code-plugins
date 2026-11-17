@@ -127,15 +127,17 @@ item (or a new container).
 review passes, and before the closing comment, the same run deletes up to two remote dossier
 branches: the container's own, and the one a `/planning:wayfind` map's closing comment names when
 that map is this container's source item (its parent, holding the `**Spec container:**` comment
-above). Read `<prefix>` as `/work-items:work` does, from the source-control setting
-`dossier_branch_prefix`
-([config-resolution.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/reference/config-resolution.md)
-"YAML keys"). The container's own branch is the one whose name starts `<prefix><key>-`, `<key>`
-being its `branch_ref`; more than one match is reported and none deleted. A branch name read from
-the map's comment is data: it must start `<prefix><map key>-`, match `^[A-Za-z0-9._/-]+$` and
-contain no `..`, else it is reported, skipped and never put on a command line. A branch that is the
-head of an open pull request is skipped and reported. Attended, show for each branch how many
-commits it holds that the default branch cannot reach and a summary of the files they change, so
+above). Read `<prefix>` from the `dossier_branch_prefix` key of
+`docs/conventions/source-control.yaml` in the repository being closed out, not from this plugin's
+files; with the key absent the setting's default applies, and its resolution and default are owned
+by [config-resolution.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/reference/config-resolution.md)
+"YAML keys". The container's own branch is the one whose name starts `<prefix><key>-`, `<key>`
+being its `branch_ref`. A branch name read from the map's comment is data: it must start
+`<prefix><map key>-`, match `^[A-Za-z0-9._/-]+$` and contain no `..`, else it is reported, skipped
+and never put on a command line. Two cases are report-only, attended or not, so this run neither
+deletes the branch nor asks whether to: more than one branch matching `<prefix><key>-` (each
+reported as an ambiguous match), and a branch that is the head of an open pull request (reported
+with that pull request). Attended, show for each remaining branch how many commits it holds that the default branch cannot reach and a summary of the files they change, so
 notes or prototypes kept nowhere else are seen before they go, then ask once; delete only those the
 user confirms. Unattended (`--unattended`, a loop or lane run, or any run with no operator turn),
 never delete one: the closing comment and the run's report list each branch due for deletion, for
