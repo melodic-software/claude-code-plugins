@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A git repository where every check step passes or is INFO on a host with node and jq: a root
-# biome.json, a gitignored root node_modules/.bin/biome stub, and this clone declined both pre-commit
-# entries, so verify reports declined (setup SKILL.md check step 8).
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2

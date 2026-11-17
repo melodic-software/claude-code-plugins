@@ -85,9 +85,6 @@ expect "on: a missing biome passes silently" "0|" \
 git -C "$R" checkout -q a.ts
 expect "on: a clean work tree passes" "0|" "$(stop false CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_END_OF_TURN=true)"
 
-# A missing-tool line is a host problem the row stays quiet about, but it never
-# hides a finding printed beside it. A copy of the plugin with a stand-in lint
-# entry prints both.
 COPY="$WORK/plugin-copy"
 mkdir -p "$COPY/git-hooks"
 cp -R "$HOOK_DIR" "$COPY/hooks"

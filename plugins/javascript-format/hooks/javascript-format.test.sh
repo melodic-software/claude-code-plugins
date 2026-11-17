@@ -2,18 +2,6 @@
 # Black-box contract test for the javascript-format PostToolBatch row, launched exactly
 # as hooks.json registers it (node exec-bash.mjs with the row's args).
 #
-# Proves WIRING: one PostToolBatch row and no PostToolUse row; the row formats
-# the .ts, .tsx, .js, .jsx, .mjs, .cjs, .mts, .cts, .json and .jsonc files a
-# Write, Edit or MultiEdit in the batch named, once per Biome config directory per
-# batch, and never anything a Read named; it prints nothing (no finding, no
-# disclosure reaches the model) and exits 0; a Biome config must govern the file
-# (present -> run, absent -> leave bytes untouched; the topmost config in the
-# repository wins; the hidden .biome.json does not opt in); only formatting and
-# import sorting run, never a lint fix; a typescript record never runs; a
-# crafted file name never runs as shell; the config's own ignores, .githooks/,
-# gitignored files and the kill switch are honored; a batch with no matching
-# edit costs only the launcher and one bash.
-#
 # Self-contained: builds throwaway git repos with runtime-generated fixtures.
 # Each repo gets a node_modules/.bin/biome shim that forwards to a real Biome, so
 # the hook's node_modules resolution path is exercised. The row is run from an
@@ -208,9 +196,6 @@ printf '{"b":2,"a":1}\n' >"$REPO/data.json"
 run_edit "$REPO/data.json" >/dev/null
 expect "a JSON file is formatted" '{ "b": 2, "a": 1 }' "$(cat "$REPO/data.json")"
 
-# Import sorting counts as format: the imports sort. No lint fix runs: a let
-# that useConst's safe fix would make const stays let, and an unused import
-# stays for the person or the lint entry's report.
 printf 'import { b } from "./b";\nimport { a } from "./a";\nexport { a, b };\n' >"$REPO/imports.ts"
 run_edit "$REPO/imports.ts" >/dev/null
 expect "import sorting is applied" "$(printf 'import { a } from "./a";\nimport { b } from "./b";')" "$(head -2 "$REPO/imports.ts")"
@@ -357,9 +342,6 @@ else
   echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
 fi
 
-# --- A record never runs ---------------------------------------------------------
-# A typescript record names a formatter; the batch row runs the Biome adapter,
-# never the record's command, and a file name never reaches a shell as text.
 STUB="$WORK/stub"
 mkdir -p "$STUB"
 # shellcheck disable=SC2016 # the stub's own shell text

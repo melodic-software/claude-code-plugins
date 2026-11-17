@@ -1,15 +1,9 @@
 #!/usr/bin/env bash
-# Contract tests for the javascript-format lint entry (git-hooks/lint.sh): the
-# resolved lint command reports, never rewrites; a finding blocks only on a line
-# the change adds; output becomes repo-relative "<path>:<line>: <message>"; a
-# linter that fails without a parseable finding fails closed; --worktree checks
-# uncommitted changes; a .claude/ecosystems/ record never runs.
-# Expected values are Biome's documented output, pinned against Biome 2.6.7:
-# `biome lint --reporter=concise` prints "<mark> <path>:<line>:<col>: <category>:
-# <message>", an unused variable is lint/correctness/noUnusedVariables, and a
-# config Biome cannot parse prints "<path>/biome.json:<line>:<col> parse" lines,
-# which must not read as a finding.
-# Set BIOME_TEST_BIN to a native Biome binary; else `biome` on PATH is used.
+# Expected values pinned against Biome 2.6.7: `lint --reporter=concise` prints
+# "<mark> <path>:<line>:<col>: <category>: <message>", and a config Biome cannot
+# parse prints "<path>/biome.json:<line>:<col> parse" lines, which must not read
+# as a finding (https://biomejs.dev/reference/cli/#--reporterformat).
+# BIOME_TEST_BIN names a native Biome binary; else `biome` on PATH is used.
 # test-scope: plugins/javascript-format/git-hooks/entries.json plugins/javascript-format/git-hooks/adapters.sh
 # test-scope: plugins/javascript-format/lib/git-hooks/check-lib.sh plugins/javascript-format/lib/git-hooks/resolve-tool.sh
 # shellcheck disable=SC2016 # record commands are literal text
@@ -28,7 +22,7 @@ mkdir -p "$HOME"
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -39,7 +33,7 @@ expect() { # <label> <want> <got>
 }
 
 n=0
-new_repo() { # [biome.json body; "NONE" for no config]
+new_repo() {
   n=$((n + 1))
   REPO="$WORK/r$n"
   git init -q -b main "$REPO"
@@ -54,7 +48,7 @@ new_repo() { # [biome.json body; "NONE" for no config]
   git -C "$REPO" add -A
   git -C "$REPO" commit -q -m seed --no-verify
 }
-record() { # <body>: commit .claude/ecosystems/typescript.yaml
+record() {
   mkdir -p "$REPO/.claude/ecosystems"
   printf '%s\n' "$1" >"$REPO/.claude/ecosystems/typescript.yaml"
   git -C "$REPO" add .claude/ecosystems/typescript.yaml
@@ -63,7 +57,6 @@ record() { # <body>: commit .claude/ecosystems/typescript.yaml
 
 BIN="$WORK/bin"
 mkdir -p "$BIN"
-# A stand-in a record could name: one finding per file. No hook may call it.
 cat >"$BIN/stublint" <<'EOF'
 #!/bin/sh
 for a in "$@"; do printf '%s/%s:2:5: X1 bad thing\n' "$PWD" "$a"; done
@@ -71,7 +64,7 @@ exit 1
 EOF
 chmod +x "$BIN/stublint"
 
-check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
+check() {
   local repo="$1" out rc
   shift
   out="$(cd "$repo" && PATH="$BIN:$PATH" bash "$CHECK" "$@" 2>"$WORK/stderr")"
@@ -222,8 +215,6 @@ lint-cmd: "stublint <files>"'
   expect "with a record and a Biome config, Biome lints and the record's linter never runs" "0||" "$(check "$REPO")"
 fi
 
-# The lint-output contract holds on the adapter path with a stand-in biome: a
-# linter that fails with no finding fails closed.
 new_repo
 CRASH="$WORK/crash"
 mkdir -p "$CRASH"

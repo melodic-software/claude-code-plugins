@@ -1,28 +1,7 @@
 #!/usr/bin/env bash
-# PostToolBatch hook: format the JavaScript, TypeScript and JSON files a batch of
-# tool calls wrote.
-#
-#   javascript-format.sh                 the PostToolBatch row
-#   javascript-format.sh --end-of-turn   the opt-in Stop row (javascript_format_end_of_turn)
-#
-# Formats only: once per batch, over every .ts, .tsx, .js, .jsx, .mjs, .cjs,
-# .mts, .cts, .json and .jsonc file a Write, Edit or MultiEdit in the batch
-# named, the Biome adapter runs where a biome.json or biome.jsonc governs the
-# file (git-hooks/adapters.sh, through lib/git-hooks/resolve-tool.sh: the
-# formatter and the assist actions the repository's config enables, import
-# sorting by default, with the linter off). A .claude/ecosystems/ record is
-# never run here; /toolchain:lint runs it. No lint fix runs here; findings are
-# the lint entry's job (git-hooks/lint.sh). It prints nothing and always exits
-# 0, so nothing reaches the model per edit.
-#
-# PostToolBatch has no matcher, so the row fires on every batch. The launcher
-# cannot prefilter on ten extensions (its flag takes one text), so this script
-# does it with a bash pattern before any other process starts, then reads
-# tool_calls[].tool_input.file_path itself. A file that Read named is never
-# rewritten. Files under .githooks/ are installed copies and are skipped, as are
-# gitignored files unless javascript_format_lint_gitignored is true. The batch
-# payload carries no pre-edit bytes, so a file that already drifted from the
-# config is rewritten whole, as the pre-commit entry would.
+# PostToolBatch has no matcher, so this row fires on every batch and filters by
+# extension itself before any other process starts:
+# https://code.claude.com/docs/en/hooks#posttoolbatch
 
 set -uo pipefail
 
@@ -32,16 +11,9 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 IFS= read -r -d '' INPUT || :
 
-# The opt-in Stop row: the lint entry run over the uncommitted changes, without
-# rewriting. Findings exit 2 so the model fixes them before the turn ends; once
-# a Stop hook has continued the turn (stop_hook_active) the row stays quiet, so
-# it blocks at most once per turn.
 if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
   err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/lint.sh" --worktree 2>&1 >/dev/null)" && exit 0
-  # A missing linter is a host problem: the SessionStart probe reports it, and
-  # blocking every turn end on it would not help the model. Only those lines
-  # are dropped; any finding printed beside them is still handed back.
   report=""
   while IFS= read -r line; do
     case "$line" in
@@ -49,7 +21,6 @@ if [[ "${1:-}" == --end-of-turn ]]; then
     *) report+="$line"$'\n' ;;
     esac
   done <<<"$err"
-  # silent-skip-ok: only missing-tool lines remained, which the SessionStart probe reports.
   [[ -n "${report//[[:space:]]/}" ]] || exit 0
   printf '%s' "$report" >&2
   exit 2
@@ -67,7 +38,6 @@ source "$HOOK_DIR/../lib/git-hooks/resolve-tool.sh"
 # shellcheck source=../git-hooks/adapters.sh
 source "$HOOK_DIR/../git-hooks/adapters.sh"
 
-# Per repository root, the files to format, in batch order.
 ROOTS=()
 FILES=()
 seen=$'\n'
@@ -88,8 +58,6 @@ while IFS= read -r path; do
   FILES+=("$file")
 done <<<"$PATHS"
 
-# One run per repository root and resolved command (one per Biome config
-# directory), over all its files.
 done_roots=$'\n'
 for i in "${!ROOTS[@]}"; do
   root="${ROOTS[i]}"

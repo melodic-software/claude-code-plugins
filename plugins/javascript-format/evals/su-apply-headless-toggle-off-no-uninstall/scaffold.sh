@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A git repository with a root biome.json and a gitignored biome stub where this clone has declined
-# both pre-commit entries, so check's verify step prints declined and the only question is the toggle
-# (setup SKILL.md check step 8 and apply).
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A git repository whose own config shows its formatter and linter (a .prettierrc.json and an
-# eslint.config.js, both named in package.json), with no record and no Biome config. apply drafts
-# the fix-cmd and lint-cmd for /toolchain:setup and writes no record itself.
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2

@@ -1,22 +1,4 @@
 #!/bin/sh
-# javascript-format pre-commit format entry: rewrite the staged JavaScript,
-# TypeScript and JSON files with the resolved format command, then re-stage them.
-#
-#   format.sh             the staged changes (git runs it as pre-commit)
-#   format.sh --worktree  does nothing: formatting happens at commit
-#   format.sh --resolve [<path>...]  print the format row, or one per path
-#                         (resolve-tool.sh rt_print); runs nothing
-#
-# The command resolves per file through lib/git-hooks/resolve-tool.sh to the
-# Biome adapter in adapters.sh where a Biome config governs the file, else to
-# nothing; a .claude/ecosystems/ record is never run here. It formats and sorts
-# imports and applies no lint fix. A partly staged file is refused before
-# anything is rewritten (re-staging a rewrite would stage its unstaged hunks
-# too), and so is a commit whose Biome config above a staged file differs
-# between the index and the work tree. A staged file since deleted from the work
-# tree is never rewritten. A missing tool follows the check-placement contract:
-# checks.skipmissing, else fail for an agent and a notice for a person.
-#
 # POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
 case "$0" in
@@ -65,8 +47,6 @@ if [[ -n "${RT_DRIFT_CONFIGS:-}" ]]; then
 fi
 ((RT_GN)) || exit 0
 
-# Every group's tool first: a missing one skips its own group only, and an
-# agent's missing tool fails the entry once the other groups have run.
 runs=()
 tool_failed=0
 for ((i = 0; i < RT_GN; i++)); do

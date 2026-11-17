@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A git repository with a Berry-format yarn.lock, no .yarnrc.yml and no node_modules, and this clone
-# declined both pre-commit entries (setup SKILL.md apply: ask the repo's own Yarn for the linker).
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2

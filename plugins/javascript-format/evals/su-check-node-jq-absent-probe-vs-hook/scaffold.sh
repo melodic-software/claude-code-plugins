@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A git repository with a root biome.json and a gitignored root node_modules/.bin/biome stub, and
-# this clone declined both pre-commit entries (setup SKILL.md check steps 2, 3 and 7).
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2

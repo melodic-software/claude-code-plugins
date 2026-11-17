@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A git repository with TypeScript files, no record and no Biome config, so both concerns
-# resolve to nothing: the plugin is inert by design.
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2

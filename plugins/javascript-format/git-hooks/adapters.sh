@@ -1,19 +1,8 @@
 #!/bin/sh
 # shellcheck shell=bash
-# javascript-format's side of lib/git-hooks/resolve-tool.sh: the ecosystem ids
-# whose records setup reports (hooks never run them), the files it acts on, and
-# its Biome adapter. Sourced by the batch hook and both git-hook entries.
-#
-# The adapter governs a file only when a biome.json or biome.jsonc sits in its
-# directory or above it, up to the repository root; the topmost one wins and
-# Biome runs from that directory, as Biome itself discovers configuration. Only
-# the canonical names count, not the hidden .biome.json variants, which Biome
-# loads from 2.4 on. Biome comes from a node_modules/.bin the repository does
-# not commit, walking up from the file, else PATH. Format runs the formatter and
-# the assist actions the repository's config enables (import sorting by
-# default), with the linter off; lint reports and fixes nothing.
-# BIOME_CONFIG_PATH is unset for every run: Biome reads it as a config-path
-# override, which would swap the config that opted the file in for another.
+# Biome reads its config from the working directory, and BIOME_CONFIG_PATH
+# overrides that, so every run starts in the governing config's directory with
+# the variable unset: https://biomejs.dev/reference/cli/#--config-pathpath
 
 # shellcheck disable=SC2034 # read by resolve-tool.sh
 RT_PLUGIN=javascript-format
@@ -22,10 +11,10 @@ RT_IDS="typescript javascript json"
 # shellcheck disable=SC2034 # read by the entries: the config names whose drift refuses a commit
 RT_DRIFT_CONFIGS="biome.json biome.jsonc"
 JF_INSTALL='npm i -D @biomejs/biome, or another method at https://biomejs.dev/guides/getting-started/'
-# Concise lint lines are "<mark> <path>:<line>:<col>: <category>: <message>":
-# the mark goes, so the line starts with its path. Every other line gains
-# "biome: ", so no summary or config error parses as a finding and a failing
-# run with none fails closed.
+# A concise line is "<mark> <path>:<line>:<col>: <category>: <message>"
+# (https://biomejs.dev/reference/cli/#--reporterformat): the mark goes, and
+# every other line gains "biome: " so a config parse error never reads as a
+# finding.
 JF_CONCISE='s/^[^ ][^ ]* \([^:]*:[0-9][0-9]*:[0-9][0-9]*: \)/\1/
 t
 s/^/biome: /'
@@ -43,8 +32,6 @@ jf__config_here() {
   [[ -f "$1/biome.json" || -f "$1/biome.jsonc" ]]
 }
 
-# jf__topmost <dir> <root>: 0 when a Biome config sits at <dir> or above it, up
-# to <root>; JF_CONFIG_DIR is the topmost such directory.
 jf__topmost() {
   local dir="$1"
   JF_CONFIG_DIR=""
@@ -57,20 +44,17 @@ jf__topmost() {
   [[ -n "$JF_CONFIG_DIR" ]]
 }
 
-# A node_modules the repository commits is its code, not the user's install.
 jf__local_bin_here() {
   [[ -x "$1/node_modules/.bin/biome" && -z "$(git -C "$1" ls-files -- ':(literal)node_modules' 2>/dev/null)" ]]
 }
 
-jf__dir() { # <file> <root>: sets JF_DIR to the file's directory, absolute
+jf__dir() {
   JF_DIR="$1"
   [[ "$JF_DIR" == /* || "$JF_DIR" == [A-Za-z]:[\\/]* ]] || JF_DIR="$2/$JF_DIR"
   [[ "$JF_DIR" == */* ]] && JF_DIR="${JF_DIR%/*}"
   return 0
 }
 
-# jf__biome <dir> <root>: sets RT_BIN, the node_modules/.bin/biome walking up
-# from <dir> to <root>, else biome on PATH. Cached per starting directory.
 jf__biome() {
   if [[ "${JF_BIN_FROM:-}" != "$1|$2" ]]; then
     local dir="$1"
@@ -89,8 +73,6 @@ jf__biome() {
   RT_BIN="$JF_BIN"
 }
 
-# jf__detail <config dir> <root>: sets RT_DETAIL to the governing config and
-# the binary, repo-relative.
 jf__detail() {
   local name rel="${1#"$2"}"
   rel="${rel#/}"
@@ -102,7 +84,7 @@ jf__detail() {
 }
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh and the entries
-rt_adapter() { # <concern> <file> <root>
+rt_adapter() {
   jf__dir "$2" "$3"
   jf__topmost "$JF_DIR" "$3" || return 1
   jf__biome "$JF_DIR" "$3"
@@ -121,7 +103,7 @@ rt_adapter() { # <concern> <file> <root>
 }
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh
-rt_adapter_in_repo() { # <concern> <root>
+rt_adapter_in_repo() {
   local f config_dir="$2"
   if ! jf__config_here "$2"; then
     f="$(git -C "$2" ls-files -- ':(glob)**/biome.json' ':(glob)**/biome.jsonc' 2>/dev/null | head -n 1)"
@@ -137,14 +119,12 @@ rt_adapter_in_repo() { # <concern> <root>
   jf__detail "$config_dir" "$2"
 }
 
-# Every biome.json or biome.jsonc counts toward config drift.
 rt_config_counts() { return 0; }
 
-# rt_lint_index <path>: lint the staged copy of a file gone from the work tree,
-# from a scratch mirror holding it beside a copy of every Biome config and
-# ignore file on the way down from the top level, so the repository's config,
-# its includes and (with vcs.useIgnoreFile) its ignores still hold. Biome's
-# --stdin-file-path would bypass both.
+# A file gone from the work tree is linted in a scratch mirror beside copies of
+# the Biome configs and ignore files above it, not from stdin, whose virtual
+# paths bypass files.includes and VCS ignores:
+# https://biomejs.dev/reference/cli/#--stdin-file-pathpath
 rt_lint_index() {
   local base="${CHECKS_TMP:?}/staged" rel=. rest="$1" name sub
   mkdir -p "$base"

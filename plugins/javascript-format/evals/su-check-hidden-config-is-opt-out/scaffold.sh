@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A git repository whose only Biome file is a hidden .biome.json, so no config governs it, and this
-# clone declined both pre-commit entries (setup SKILL.md check steps 3, 4 and 8).
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2

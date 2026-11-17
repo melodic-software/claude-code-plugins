@@ -1,23 +1,4 @@
 #!/bin/sh
-# javascript-format lint entry: report what the resolved lint command finds on
-# the lines this change adds. It never rewrites a file.
-#
-#   lint.sh             the staged changes (git runs it as pre-commit)
-#   lint.sh --worktree  the uncommitted changes against HEAD, untracked files
-#                       included (the opt-in end-of-turn Stop row)
-#   lint.sh --resolve [<path>...]  print the lint row, or one per path
-#                       (resolve-tool.sh rt_print); runs nothing
-#
-# The command resolves per file through lib/git-hooks/resolve-tool.sh to the
-# Biome adapter in adapters.sh where a Biome config governs the file, else to
-# nothing; a .claude/ecosystems/ record is never run here. Its output becomes
-# "<path>:<line>: <message>" lines, repo-relative, and only those on added
-# lines block (stderr, exit 1). A linter that exits non-zero with no parseable
-# finding fails closed. A partly staged file is refused, since the linter reads
-# the work tree. A staged file gone from the work tree is linted from the index.
-# A missing tool follows the check-placement contract: checks.skipmissing,
-# else fail for an agent and a notice for a person.
-#
 # POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
 case "$0" in
@@ -68,8 +49,6 @@ fi
 contract="$CHECKS_TMP/contract"
 : >"$contract"
 failed=0
-# Every group's tool first: a missing one skips its own group only, and an
-# agent's missing tool fails the entry after the other groups have reported.
 runs=()
 for ((i = 0; i < RT_GN; i++)); do
   rt_use "$i"

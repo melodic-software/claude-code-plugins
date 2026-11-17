@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A git repository with a root biome.json and a gitignored root node_modules/.bin/biome stub, and
-# packages/vendored with its own biome.jsonc and a committed node_modules/.bin/biome stub
-# (setup SKILL.md check steps 3-4; hooks/javascript-format.sh refuses a committed node_modules).
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2

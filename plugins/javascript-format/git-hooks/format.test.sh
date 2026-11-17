@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
-# Contract tests for the javascript-format pre-commit format entry
-# (git-hooks/format.sh): staged JavaScript, TypeScript and JSON files are
-# rewritten by the resolved format command and re-staged, a partly staged one is
-# refused untouched, only formatting and import sorting run (no lint fix), the
-# Biome adapter acts only where a Biome config governs the file, a
-# .claude/ecosystems/ record never runs, file names never reach a shell as text,
-# and the vendored installer wires the entries so `git commit` runs them.
-# Expected values are Biome's documented behavior, pinned against Biome 2.6.7:
-# `x=1` formats to `x = 1;`; `check --write --linter-enabled=false` sorts imports
-# (the organizeImports assist action) and applies no lint fix, so a `let` that
-# useConst would turn into `const` stays `let`.
-# Set BIOME_TEST_BIN to a native Biome binary; else `biome` on PATH is used.
+# Expected values pinned against Biome 2.6.7: `check --write --linter-enabled=false`
+# formats and sorts imports and applies no lint fix, so a `let` useConst would
+# rewrite stays `let` (https://biomejs.dev/reference/cli/#biome-check).
+# BIOME_TEST_BIN names a native Biome binary; else `biome` on PATH is used.
 # test-scope: plugins/javascript-format/git-hooks/entries.json plugins/javascript-format/git-hooks/adapters.sh
 # test-scope: plugins/javascript-format/lib/git-hooks/check-lib.sh plugins/javascript-format/lib/git-hooks/install.mjs
 # test-scope: plugins/javascript-format/lib/git-hooks/resolve-tool.sh
@@ -33,14 +25,10 @@ REAL_HOME="$HOME"
 export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1 HOME="$WORK/home"
 mkdir -p "$HOME"
 
-# biome on the suite's PATH: the real one, under the real HOME, which a version
-# manager's shim needs.
 BIN="$WORK/bin"
 mkdir -p "$BIN"
 printf '#!/bin/sh\nHOME="%s" exec "%s" "$@"\n' "$REAL_HOME" "$REAL_BIOME" >"$BIN/biome"
 chmod +x "$BIN/biome"
-# A stand-in a record could name: logs each argument and rewrites each file it
-# is handed to "formatted". No hook may call it.
 cat >"$BIN/stubfmt" <<EOF
 #!/bin/sh
 for a in "\$@"; do
@@ -78,7 +66,7 @@ new_repo() { # [biome.json body; "NONE" for no config]
   git -C "$REPO" add -A
   git -C "$REPO" commit -q -m seed --no-verify
 }
-record() { # <body>: commit .claude/ecosystems/typescript.yaml
+record() {
   mkdir -p "$REPO/.claude/ecosystems"
   printf '%s\n' "$1" >"$REPO/.claude/ecosystems/typescript.yaml"
   git -C "$REPO" add .claude/ecosystems/typescript.yaml
@@ -145,7 +133,6 @@ git -C "$REPO" add a.ts notes.md
 printf 'notes\nmore unstaged\n' >"$REPO/notes.md"
 expect "a partly staged file that is not Biome's does not refuse the commit" "0|a.ts|" "$(check "$REPO")"
 
-# Import sorting counts as format; no lint fix runs at commit.
 new_repo
 printf 'import { b } from "./b";\nimport { a } from "./a";\nexport { a, b };\n' >"$REPO/a.ts"
 git -C "$REPO" add a.ts
@@ -260,7 +247,6 @@ git -C "$REPO" reset -q
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOBIOME" bash "$CHECK" 2>&1)"
 expect "missing biome with nothing of Biome's staged: an agent is not failed" "0|" "$?|$out"
 
-# biome only in the repo's own node_modules/.bin, and only in a nested one.
 new_repo
 mkdir -p "$REPO/node_modules/.bin"
 cp "$BIN/biome" "$REPO/node_modules/.bin/biome"
@@ -292,8 +278,6 @@ out="$(cd "$REPO" && CLAUDECODE=1 PATH="$BIN:$PATH" bash "$CHECK" 2>&1)"
 expect "a committed node_modules/.bin/biome is passed over for the one on PATH" "0|a.ts" "$?|$out"
 expect "the committed biome never ran" no "$([[ -e "$WORK/committed-ran" ]] && echo yes || echo no)"
 
-# A record never runs from the entry: the Biome adapter does, and a file name
-# reaches Biome as data.
 new_repo
 record 'globs: ["*.ts"]
 fix-cmd: "stubfmt <files>"'
@@ -317,8 +301,6 @@ expect "a record with no Biome config runs nothing at commit" "0||" "$(check "$R
 expect "the file stays as written" "export const a=1" "$(cat "$REPO/a.ts")"
 expect "--resolve says the record is not run by hooks and names what runs it" "javascript-format	format	none		n/a	no Biome config; the typescript record is not run by hooks; /toolchain:lint and /toolchain:check run it" "$(cd "$REPO" && PATH="$BIN:$PATH" bash "$CHECK" --resolve)"
 
-# --resolve <path>: one row per file, the adapter naming the topmost config
-# that governs it and the binary it would run.
 new_repo NONE
 mkdir -p "$REPO/app/src" "$REPO/scripts" "$REPO/app/node_modules/.bin"
 printf '{}\n' >"$REPO/app/biome.jsonc"
