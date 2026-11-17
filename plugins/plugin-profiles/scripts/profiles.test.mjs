@@ -227,6 +227,7 @@ test("AC2: a one-session apply writes a --settings file naming the profile, says
   const sessionFile = /claude --settings "(.+)"/.exec(r.stdout)[1];
   const session = JSON.parse(readFileSync(sessionFile, "utf8"));
   assert.equal(session.env.PLUGIN_PROFILES_SESSION, "build");
+  assert.equal(session.env.SESSION_SETTINGS_FILE, sessionFile, "the prerequisite readers read the file as the session layer");
   assert.equal(session.enabledPlugins[`songwriting@${M}`], false);
   assert.match(r.stdout, /A resumed session does not keep --settings/);
   assert.deepEqual(snapshot(settingsFiles(w)), before);
@@ -262,7 +263,7 @@ test("launch writes one file per folder and profile, asks nothing, changes no se
   const w = world();
   const before = snapshot(settingsFiles(w));
   const first = launchJson(w, ["build"]);
-  assert.deepEqual(first.argv, ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "claude", "--settings", first.file]);
+  assert.deepEqual(first.argv, ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "-u", "SESSION_SETTINGS_FILE", "claude", "--settings", first.file]);
   const session = JSON.parse(readFileSync(first.file, "utf8"));
   assert.equal(session.env.PLUGIN_PROFILES_SESSION, "build");
   assert.equal(session.enabledPlugins[`songwriting@${M}`], false);
@@ -278,7 +279,7 @@ test("launch with no name takes this session's profile, else the folder's, else 
   assert.equal(launchJson(w, [], { PLUGIN_PROFILES_SESSION: "build" }).profile, "build");
   const none = launchJson(w, []);
   assert.equal(none.profile, null);
-  assert.deepEqual(none.argv, ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "claude"]);
+  assert.deepEqual(none.argv, ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "-u", "SESSION_SETTINGS_FILE", "claude"]);
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
   assert.equal(launchJson(w, []).profile, "build");
 });
@@ -291,7 +292,7 @@ test("launch --with merges a launcher's settings into one file the profile wins 
   assert.notEqual(merged.file, plain);
   const doc = JSON.parse(readFileSync(merged.file, "utf8"));
   assert.equal(doc.model, "opus");
-  assert.deepEqual(doc.env, { LANE: "1", PLUGIN_PROFILES_SESSION: "build", PLUGIN_PROFILES_SESSION_FILE: merged.file });
+  assert.deepEqual(doc.env, { LANE: "1", PLUGIN_PROFILES_SESSION: "build", PLUGIN_PROFILES_SESSION_FILE: merged.file, SESSION_SETTINGS_FILE: merged.file });
   assert.equal(doc.enabledPlugins[`songwriting@${M}`], false, "the profile's entry wins");
   assert.equal(doc.enabledPlugins["widget@vendor"], true, "an entry the profile leaves alone stays");
   assert.equal(JSON.parse(readFileSync(plain, "utf8")).model, undefined, "the plain file is unchanged");
@@ -349,7 +350,7 @@ test("an unattended launch whose profile misses a required prerequisite stops an
   const attended = w.run(["launch", "build"]);
   assert.equal(attended.status, 0, attended.stderr);
   assert.match(attended.stderr, /Missing required prerequisite of implementation@melodic-software/);
-  assert.match(attended.stdout, /Start the session with: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --settings /);
+  assert.match(attended.stdout, /Start the session with: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --settings /);
 });
 
 test("status prints the command that starts another session in the profile in force", () => {
@@ -999,12 +1000,12 @@ test("D22: a folder dry-run names the other live sessions in the folder, leaving
   assert.deepEqual(JSON.parse(r.stdout).othersInFolder, [{ name: "builder", sessionId: "b", kind: "background" }]);
 });
 
-test("a launch with no profile from a profiled shell clears both inherited variables, and status ignores a file variable with no marker", () => {
+test("a launch with no profile from a profiled shell clears every inherited variable, and status ignores a file variable with no marker", () => {
   const w = world();
-  const inherited = { PLUGIN_PROFILES_SESSION: "", PLUGIN_PROFILES_SESSION_FILE: "/parent/sessions/x-build.json" };
+  const inherited = { PLUGIN_PROFILES_SESSION: "", PLUGIN_PROFILES_SESSION_FILE: "/parent/sessions/x-build.json", SESSION_SETTINGS_FILE: "/parent/sessions/x-build.json" };
   const none = launchJson(w, [], inherited);
   assert.equal(none.profile, null);
-  assert.deepEqual(none.argv, ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "claude"]);
+  assert.deepEqual(none.argv, ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "-u", "SESSION_SETTINGS_FILE", "claude"]);
   const r = w.run(["status"], inherited);
   assert.equal(r.status, 0, r.stderr);
   assert.doesNotMatch(r.stdout, /one-session settings file|\/parent\/sessions/);

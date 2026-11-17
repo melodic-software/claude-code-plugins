@@ -13,7 +13,9 @@
 // the project's .claude directory instead, skipping a whole file whose
 // enabledPlugins holds a non-Boolean value (Claude Code ignores that file's
 // keys), and pick install records by the same project and scope rule; that
-// fallback does not read the managed scope. Output that is not a
+// fallback does not read the managed scope. A session started with a settings file
+// that SESSION_SETTINGS_FILE names (lib/enabled-plugin-roots.mjs) takes the settings
+// route with that file read, since `claude plugin list` does not see it. Output that is not a
 // JSON list is an error (exit 2), never a fallback. Only when none of that state
 // exists and this repo has plugins/*/prerequisites.json, scan those.
 //
@@ -28,7 +30,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { rootsFromListing, rootsFromSettings } from "../../../lib/enabled-plugin-roots.mjs";
+import { rootsFromListing, rootsFromSettings, sessionSettingsFile } from "../../../lib/enabled-plugin-roots.mjs";
 import { report, which } from "../../../lib/prerequisites.mjs";
 
 export { rootsFromListing, rootsFromSettings };
@@ -110,7 +112,7 @@ export function run(argv, ctx = {}, io = {}) {
   if (roots.length === 0) {
     const config = env.CLAUDE_CONFIG_DIR || path.join(env.HOME || homedir(), ".claude");
     const project = env.CLAUDE_PROJECT_DIR || gitToplevel(cwd);
-    const listing = claudeListing(env, platform);
+    const listing = sessionSettingsFile(env) ? "" : claudeListing(env, platform);
     if (listing.trim()) {
       let rows;
       let detail = "not a JSON list";
@@ -126,7 +128,7 @@ export function run(argv, ctx = {}, io = {}) {
       stateRead = true;
       roots = rootsFromListing(rows, project);
     } else {
-      const found = rootsFromSettings(config, project);
+      const found = rootsFromSettings(config, project, [], env);
       stateRead = found.read;
       roots = found.roots;
     }

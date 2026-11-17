@@ -164,6 +164,18 @@ out="$(run_stub "[]")"
 rc=$?
 expect_eq "cli: an empty list is an empty fleet, not a repository scan" 0 "$rc"
 
+# A session whose settings file SESSION_SETTINGS_FILE names takes the settings
+# route with that file read after the project-local layer, since the listing does
+# not see it: a plugin the file turns off is not read, whatever the listing says.
+printf '%s\n' '{"enabledPlugins":{"plugin-b@m":true}}' >"$PROJECT/.claude/settings.local.json"
+printf '%s\n' '{"enabledPlugins":{"plugin-b@m":false}}' >"$WORK/session.json"
+listing="[{\"id\":\"plugin-b@m\",\"scope\":\"local\",\"enabled\":true,\"installPath\":\"$WORK/plugin-b\",\"projectPath\":\"$PROJECT\"}]"
+out="$(cd "$PROJECT" && PATH="$STUB_PATH" STUB_LIST="$listing" SESSION_SETTINGS_FILE="$WORK/session.json" CLAUDE_CONFIG_DIR="$CONFIG" CLAUDE_PROJECT_DIR="$PROJECT" "$NODE" "$SCRIPT")"
+expect_has "session: a plugin the session file turns off is not read" 'missing=0 present=0' "$out"
+out="$(cd "$PROJECT" && PATH="$STUB_PATH" STUB_LIST="$listing" SESSION_SETTINGS_FILE="$WORK/absent.json" CLAUDE_CONFIG_DIR="$CONFIG" CLAUDE_PROJECT_DIR="$PROJECT" "$NODE" "$SCRIPT")"
+expect_has "session: a missing session file adds nothing" $'plugin-b\tabsent-b\tcli\trequired\tmissing' "$out"
+rm "$PROJECT/.claude/settings.local.json"
+
 # Unparsable claude output is an error, not a settings fallback.
 printf '%s\n' '{"enabledPlugins":{"plugin-b@m":true}}' >"$PROJECT/.claude/settings.local.json"
 out="$(run_stub "not json" 2>&1)"
