@@ -187,7 +187,7 @@ Think of subagents as automations for the most common PR workflows:
 
 A hook auto-formats Claude's code. Claude generates well-formatted code 90% of the time; the hook catches edge cases preventing CI failures.
 
-Run it once per batch of edits rather than after every edit: a formatter that rewrites the file between edits Claude sent together can break the later ones. A `PostToolBatch` hook fires after the whole batch, so every edit lands first:
+Run it once per batch of edits rather than after every edit: a formatter that rewrites the file between edits Claude sent together can break the later ones. Use a `PostToolBatch` hook for that (for when it fires, see the hooks pointer below):
 
 ```json
 "PostToolBatch": [

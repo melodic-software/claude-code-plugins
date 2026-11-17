@@ -347,14 +347,14 @@ Sources:
 
 ## 77. /goal: Keep Claude Working Until the Condition Is Met
 
-Surfaced by @ClaudeDevs on May 12, 2026, described as "shipped recently" (exact ship date pending changelog confirmation). `/goal` sets a completion condition. Claude keeps working until condition is true. Every time it tries to stop, model checks the condition against the transcript. If not done, it keeps going. If done, you get a "Goal achieved" summary.
+Surfaced by @ClaudeDevs on May 12, 2026, described as "shipped recently" (exact ship date pending changelog confirmation). `/goal` sets a completion condition, and Claude keeps working toward it.
 
 ```bash
 # set a completion condition
 /goal all tests in test/auth pass and the lint step is clean
 ```
 
-**How it works:** the Ralph loop, built into Claude Code. Each stop attempt is intercepted; model self-checks against your condition before exiting. Loop only breaks when condition is satisfied.
+**How it works:** the Ralph loop, built into Claude Code; for how the condition is checked and when the goal ends, see the pointer below.
 
 **Companion tools (already in this skill):**
 
