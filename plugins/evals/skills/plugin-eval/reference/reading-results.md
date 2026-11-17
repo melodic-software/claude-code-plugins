@@ -153,6 +153,13 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   - **Pointer**: when judging which cases a plugin path loads in, fetch the `plugins` row of
     [prompt.md fields](https://code.claude.com/docs/en/plugin-evals#prompt-md-fields)
     live.
+- `programs started` fails any run whose trace has a failed tool result or a Bash result showing
+  a mise shim error (`<name> is not a valid shim`), or `command not found` for an interpreter such
+  as `node`, `npx`, `python3` or `uv`. That run could not execute the skill's code, so its score
+  measures the missing program. Any other `command not found` is a warning, since a case may run a
+  missing command on purpose. Each text counts only where it opens an output line, as the shell or
+  mise prints it, so a grep that quotes it does not. The detail names the run, the program and the
+  first call that failed.
 - An invocation probe's denial of a named call other than Skill is a warning when it follows the
   graded Skill call, or the run held a should-not-fire case whose denial-free runs all held; the
   gate prints each probe case's fire counts with and without denials.

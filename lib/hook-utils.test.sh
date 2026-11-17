@@ -95,9 +95,10 @@ chmod +x "$STUB2"
 out_nojq=$(
   export HOOK_TELEMETRY_SINK="$STUB2"
   PATH="$EMPTY_BIN" hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.py","findings":[]}' 2>/dev/null
+  echo $? >"$WORK/nojq.rc"
   wait
 )
-rc_nojq=$?
+rc_nojq=$(<"$WORK/nojq.rc")
 wait_for_sink "$SINK_FILE2" "$SINK_POLLS" || true
 rmdir "$EMPTY_BIN" 2>/dev/null || true
 if [[ $rc_nojq -eq 0 ]]; then

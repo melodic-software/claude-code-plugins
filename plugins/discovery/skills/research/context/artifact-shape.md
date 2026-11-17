@@ -374,12 +374,12 @@ findings:
     verified: read         # read | ran | grep | inferred — see below
     paths:                 # repo-relative, never absolute; the outcome gate checks this
       - "src/payments/rounding.ts:112-140"
-  - finding: "tests/payments/test_rounding.py passes"
+  - finding: "<test file> passes"
     verified: ran
-    command: "python -m pytest tests/payments/test_rounding.py -q"   # only with verified: ran
-    result: "4 passed"     # the observed output, quoted, not a reading of it
+    command: "<the command that was run, verbatim>"   # only with verified: ran
+    result: "<observed output>"   # the observed output, quoted, not a reading of it
     paths:
-      - "tests/payments/test_rounding.py"
+      - "<test file path>"
 produced_by: <phase or dimension id>
 ---
 ```

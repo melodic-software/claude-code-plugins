@@ -1,6 +1,6 @@
 # MCP Tool Audit Checklist
 
-20 criteria (C1-C20) derived from three upstream authorities, cited so the current text governs. Do
+21 criteria (C1-C21) derived from three upstream authorities, cited so the current text governs. Do
 not recap them here, read them at the source:
 
 - [MCP specification 2026-07-28: Tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
@@ -179,9 +179,15 @@ them.
 |---|-----------|-----------|----------|-----------------|
 | C20 | **Every `x-mcp-header` meets the spec's constraints, and none marks a sensitive parameter** | SPEC-MUST + SPEC-SHOULD | FAIL (WARN for a sensitive parameter, or for a value source cannot show) | A tool with no `x-mcp-header` passes; the keyword is optional. For each one declared, check its value and the property it sits on against every constraint in the spec section: a violation = FAIL, for the client consequence the section states. Marking a parameter that carries a secret or personal data (password, API key, token, PII) = WARN, per the section's SHOULD NOT. When auditing source, accept however the SDK attaches an extension keyword to one property's schema (a Zod `.meta()` or JSON Schema override, a Python `Field(json_schema_extra=...)`, a .NET schema attribute). A value built at run time, which source cannot show, = WARN naming the parameter |
 
+## 9. Preview counterpart (C21)
+
+| # | Criterion | Authority | Severity | How to evaluate |
+|---|-----------|-----------|----------|-----------------|
+| C21 | **A destructive tool has a preview counterpart**. A tool whose `readOnlyHint` is not true and whose `destructiveHint` is true (declared, or by C13's default) has a preview or dry-run counterpart, a separate tool or a mode of the same tool, that runs the same checks and changes nothing | OPINION | info | A read-only tool (`readOnlyHint: true`) or a non-destructive tool passes; `destructiveHint` counts only when `readOnlyHint` is false (MCP `ToolAnnotations`). Missing counterpart = info. A counterpart that skips checks the real call runs, or that can change state, does not count. The rule this mirrors is the `--dry-run` trait in "Writing the driver CLI" of the app-control control-skill contract (<https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/app-control/reference/control-skill.md#writing-the-driver-cli>): a dry run checks as a real run would, grants nothing, and is trusted only once a run was seen to change nothing |
+
 ## Scoring
 
-- **20 criteria** across 8 categories.
+- **21 criteria** across 9 categories.
 - Per-tool score: count of PASS / WARN / FAIL / info.
 - Per-server score: those counts aggregated across the server's tools **plus** its server-level
   criterion outcomes (C4's per-server `instructions` clause), so nothing evaluated is dropped. `n/a`

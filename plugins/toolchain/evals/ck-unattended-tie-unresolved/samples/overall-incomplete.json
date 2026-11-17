@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "Overall: INCOMPLETE (0 of 1 ecosystems passed; typescript: skip (unresolved: typescript.test-cmd))"}
+  ],
+  "fail": [
+    {"answer": "Overall: PASS (1 of 1 ecosystems passed)"},
+    {"answer": "Overall: FAIL (1 of 1 ecosystems failed)"}
+  ]
+}

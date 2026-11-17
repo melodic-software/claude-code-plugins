@@ -110,6 +110,7 @@ docs/contracts/ecosystem-resolution/generic-resolution.md plugins/javascript-for
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/markdown-format/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/powershell-format/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/actionlint/reference/ecosystem-resolution.md
+docs/contracts/ecosystem-resolution/generic-resolution.md plugins/discovery/reference/ecosystem-resolution.md
 docs/contracts/pr-scope-budget/README.md plugins/improvement/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md

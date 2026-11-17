@@ -3,6 +3,14 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.5.1] - 2026-11-17
+
+### Changed
+
+- `/corrections:codify` names past sessions as a count source: a correction
+  `/session-flow:audit-sessions` finds in an earlier session reaches codify through that skill, and
+  the sessions it names count as occurrences.
+
 ## [1.5.0] - 2026-11-17
 
 ### Added
