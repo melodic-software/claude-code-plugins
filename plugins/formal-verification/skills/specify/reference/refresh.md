@@ -80,7 +80,10 @@ a check that ends `in sync` or `updated` with its seeded break caught. A propose
    commit that changed the verification files (`git log -1 --format=%H -- <folder> <outside_model
    paths>`), and say that you did.
 2. **Run it as it is.** Make the throwaway worktree:
-   `git worktree add --detach <scratch folder outside the repository> <commit checked>`. Run each
+   `git worktree add --detach <scratch folder outside the repository> <commit checked>`. On a
+   ticket branch, bring the ticket's own verification into it, so the pass reads and later writes
+   the ticket's version, not the merge base's:
+   `git -C <scratch> restore --source=<ticket HEAD> -- <folder> <outside_model paths>`. Run each
    check there once before you change anything, and record the result. First make sure its tool
    runs, by [`create.md`](create.md) "Make sure the tool runs": never install one, and a missing
    tool leaves the check `blocked: tool missing: <tool>`. A pass here does not tell you that the code
@@ -118,10 +121,12 @@ a check that ends `in sync` or `updated` with its seeded break caught. A propose
 5. **Rerun and judge each result.**
    - **Pass:** the check can now pass on a description that has lost the ability to fail. Break the
      new code the way the property guards against, such as removing a new check or reordering a new
-     step, and confirm that the check catches it. Make the break in the throwaway worktree, by
-     [`create.md`](create.md) "Prove it before you hand off" steps 2 and 3. Then drop the break
-     (`git -C <scratch> restore -- <file>`). A break the check misses leaves it `blocked: seeded
-     break not caught`.
+     step, and confirm that the check catches it. First commit the refreshed verification in the
+     throwaway worktree (`git -C <scratch> add -A`, then `git -C <scratch> commit -m refreshed`),
+     so the break can be undone without losing step 4's edits. Make the break there, by
+     [`create.md`](create.md) "Prove it before you hand off" steps 2 and 3. Then drop the break,
+     in the code and in any model copy that carried it (`git -C <scratch> restore -- .`). A break
+     the check misses leaves it `blocked: seeded break not caught`.
    - **Fail:** replay the counterexample against the real code, step by step. If a step cannot
      happen in the code, the verification is wrong. Fix the verification, and say what was wrong. If
      every step can happen, it is a bug. Name the commit that introduced it, from the commits step 3
@@ -135,7 +140,9 @@ a check that ends `in sync` or `updated` with its seeded break caught. A propose
    assumptions, and the sync commit, from the throwaway worktree into the place "Commit" below
    names. Set the sync commit to the commit that you checked, and `seeded_break` to the break step 5
    used, with that commit. Do not move the sync commit for a blocked check, and say so in the
-   report. A file that a check ending without a write also reads stays as it was, and the check that
+   report. When the commit checked is a ticket branch's `HEAD`, leave the sync commit and
+   `seeded_break` as they were, and report the break that was caught: both commits must be on the
+   default branch, so they move in the follow-up change after the ticket lands. A file that a check ending without a write also reads stays as it was, and the check that
    needed it is `blocked: shares <file> with <check>`. Then follow the verify skill once as the next
    agent would, so that you know its steps still run: its `## Run` commands and its `## Reading a
    result`, then `/formal-verification:specify check` on the folder. Remove the throwaway worktree
