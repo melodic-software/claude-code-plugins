@@ -1,5 +1,7 @@
 ---
-bump: none
+bump: patch
 ---
 
-No release needed (docs): name who reads a live system's current state
+### Changed
+
+- The interview reads a fact a connected system holds now (a database, a tracker, a service) directly through its CLI or MCP tool, and records it as a captured assumption.
