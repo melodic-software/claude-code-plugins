@@ -40,14 +40,14 @@ al__config() {
 }
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh and the entry
-al__set() { # <root>
+al__set() {
   RT_ADAPTER=actionlint RT_TOOL=actionlint RT_BIN=actionlint RT_DIR="$1" RT_INSTALL="$AL_INSTALL"
   RT_CONFIGS="actionlint.yaml actionlint.yml"
   RT_DETAIL="config $AL_CONFIG; binary actionlint on PATH"
 }
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh and the entry
-rt_adapter() { # <concern> <file> <root>
+rt_adapter() {
   [[ "$1" == lint ]] || return 1
   al__config "$3"
   al__set "$3"
@@ -56,7 +56,7 @@ rt_adapter() { # <concern> <file> <root>
 }
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh
-rt_adapter_in_repo() { # <concern> <root>
+rt_adapter_in_repo() {
   if [[ "$1" != lint ]]; then
     RT_DETAIL="actionlint only lints"
     return 1
@@ -69,15 +69,10 @@ rt_adapter_in_repo() { # <concern> <root>
   al__set "$2"
 }
 
-# rt_config_counts <config path>: 0 only for the root's .github config, the
-# one actionlint reads.
 rt_config_counts() {
   [[ "$1" == .github/actionlint.yaml || "$1" == .github/actionlint.yml ]]
 }
 
-# rt_lint_index <path>: lint the staged copy of a file, for one partly staged
-# or gone from the work tree; -stdin-filename keeps the config's paths: rules
-# for that path and names it in the findings.
 rt_lint_index() {
   # shellcheck disable=SC2086 # AL_FLAGS splits into its flags
   git show ":$1" 2>/dev/null | (cd "$RT_DIR" && "$RT_BIN" $AL_FLAGS -stdin-filename "$1" -)

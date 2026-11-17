@@ -46,7 +46,7 @@ expect() { # <label> <want> <got>
 
 CONFIG=$'self-hosted-runner:\n  labels: []\n'
 n=0
-new_repo() { # [NONE: no actionlint config | yml: the config as actionlint.yml]
+new_repo() {
   n=$((n + 1))
   REPO="$WORK/r$n"
   git init -q -b main "$REPO"
