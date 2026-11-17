@@ -278,8 +278,7 @@ than warn.
 2. Verify each referenced file exists, **reading each reference in context**: instructional files
    cite non-existent paths on purpose (examples, counter-examples, future-deferred refs, regex
    patterns), so a blind existence check false-flags heavily
-3. Check version numbers against the repo's actual pin files (e.g. an SDK pin vs `global.json`, a Node
-   pin vs `.nvmrc`)
+3. Check version numbers against the repo's actual pin files
 4. Check counts (e.g., "13 MCP servers" vs actual `.mcp.json`)
 5. FAIL for missing files or wrong versions
 6. WARN for stale counts
@@ -298,7 +297,7 @@ that posture honest, so give C5-kept navigation entries particular attention her
 **How to check**:
 
 1. For each rule/instruction, check if it could be:
-   - A compiler setting (nullable, warnings-as-errors)
+   - A compiler setting
    - A static-analyzer or linter rule
    - An architecture test
    - A pre-commit/pre-push git hook
@@ -348,12 +347,11 @@ which are not repo-scoped.
    absence branch. Any command CLAUDE.md itself still states goes through steps 2-3 regardless,
    because a stale stated command misleads whether or not a correct one exists elsewhere
 1. Look for the repo's build and test invocations stated as runnable commands
-2. Verify each stated command against the repo's own manifest or task runner (`package.json`
-   scripts, `Makefile`, `*.csproj`, `pyproject.toml`, or ecosystem equivalent)
+2. Verify each stated command against the repo's own manifest or task runner
 3. FAIL for a stated command that does not exist there, which is worse than an absent one: Claude runs it
    and the check fails for the wrong reason
 4. WARN if either command is absent, or if present only as prose naming the tool without the
-   invocation ("we use pytest" is not a command)
+   invocation
 5. Do not flag a repo that has no build or test step; flag only a missing statement of one that exists
 
 **Boundary with C7.** C7 owns *references*: file paths, version pins, counts. C9 owns *commands*.
