@@ -62,13 +62,24 @@ HINT='bash-format: fix the findings above, or adjust the repository .shellcheckr
 mkdir -p "$WORK/sc-stub"
 cat >"$WORK/sc-stub/shellcheck" <<'STUB'
 #!/usr/bin/env bash
+if [[ "$1" == --version ]]; then
+  printf 'ShellCheck - shell script analysis tool\nversion: %s\n' "${SC_STUB_VERSION:-0.11.0}"
+  exit 0
+fi
 len=0
-for a in "$0" "$@"; do len=$((len + ${#a} + 1)); done
+dfa_off=""
+for a in "$0" "$@"; do
+  len=$((len + ${#a} + 1))
+  [[ "$a" == --extended-analysis=false ]] && dfa_off=1
+done
 if ((len > 32767)); then
   echo "shellcheck: Argument list too long" >&2
   exit 126
 fi
 while [[ $# -gt 0 && "$1" != -- ]]; do shift; done
+if [[ -n "$dfa_off" && $# -gt 0 ]]; then
+  printf '%s\n' "${@:2}" >>"$SC_STUB_LOG.dfa-off"
+fi
 shift
 echo -- >>"$SC_STUB_LOG"
 rc=0
@@ -93,6 +104,7 @@ STUB
 chmod +x "$WORK/sc-stub/shellcheck"
 sc_stub() { # <repo> -> "<rc>|<stdout and stderr>"
   : >"$WORK/sc.log"
+  : >"$WORK/sc.log.dfa-off"
   local out
   out="$(cd "$1" && SC_STUB_LOG="$WORK/sc.log" PATH="$WORK/sc-stub:$PATH" bash "$CHECK" 2>&1)"
   printf '%s|%s' "$?" "$out"
@@ -124,6 +136,37 @@ git -C "$REPO" add a-broken.sh
 out="$(sc_stub "$REPO")"
 expect "a first batch's status above 1 still blocks after a later batch passes" \
   "1|bash-format: shellcheck failed:" "${out%%$'\n'*}"
+
+new_repo
+for f in a b c d e f g h; do
+  printf '%s\necho %s\n' "$SHEBANG" "$f" >"$REPO/$f.sh"
+done
+printf '%s\necho broken\n' "$SHEBANG" >"$REPO/z-broken.sh"
+git -C "$REPO" add -A
+out="$(sc_stub "$REPO")"
+expect "one parallel lane's status above 1 fails the hook though every other lane passes" \
+  "1|bash-format: shellcheck failed:" "${out%%$'\n'*}"
+rm "$REPO/z-broken.sh"
+printf '%s\necho z\n' "$SHEBANG" >"$REPO/z-finding.sh"
+git -C "$REPO" add -A
+expect "one parallel lane's finding blocks though every other lane passes" "1|z-finding.sh:2: warning: stub finding [SC2154]
+$HINT" "$(sc_stub "$REPO")"
+
+new_repo
+{
+  printf '%s\n' "$SHEBANG"
+  for i in {1..2000}; do printf 'echo %s\n' "$i"; done
+} >"$REPO/big.sh"
+head -n 2000 "$REPO/big.sh" >"$REPO/edge.sh"
+printf '%s\necho small\n' "$SHEBANG" >"$REPO/small.sh"
+git -C "$REPO" add big.sh edge.sh small.sh
+expect "over 2,000 lines: only that script is linted without dataflow analysis" "0||big.sh" \
+  "$(sc_stub "$REPO")|$(cat "$WORK/sc.log.dfa-off")"
+expect "over 2,000 lines: every script is still linted once" "big.sh
+edge.sh
+small.sh" "$(grep -vx -- -- "$WORK/sc.log" | sort)"
+expect "over 2,000 lines with a ShellCheck older than 0.10: full analysis, no flag it would reject" "0||" \
+  "$(SC_STUB_VERSION=0.9.0 sc_stub "$REPO")|$(cat "$WORK/sc.log.dfa-off")"
 
 new_repo
 printf '%s\necho m\n' "$SHEBANG" >"$REPO/a-mute.sh"

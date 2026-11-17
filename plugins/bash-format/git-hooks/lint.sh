@@ -97,10 +97,25 @@ sc_rcdir() {
   [[ -e .shellcheckrc || -e shellcheckrc ]] && rcdir=.
   return 0
 }
+sc_lines() {
+  local n
+  n="$(wc -l)" || n=0
+  printf '%s\n' "$((n))"
+}
+sc_large() {
+  (($1 > BF_SC_LARGE_LINES)) || return 1
+  if [[ -z "${sc_dfa_flag:-}" ]]; then
+    sc_dfa_flag=no
+    [[ "$("$RT_BIN" --version 2>/dev/null)" =~ version:\ ([0-9]+)\.([0-9]+) ]] &&
+      ((BASH_REMATCH[1] > 0 || BASH_REMATCH[2] >= 10)) && sc_dfa_flag=yes
+  fi
+  [[ "$sc_dfa_flag" == yes ]]
+}
 sc_sources() {
-  local probe
+  local probe opts=()
+  sc_large "$(sc_lines <"$1")" && opts=(--extended-analysis=false)
   probe="$(sed 's/#[[:space:]]*shellcheck/#_/g' -- "$1" |
-    (unset SHELLCHECK_OPTS && "$RT_BIN" --norc -s bash -f gcc -S info -) 2>&1)"
+    (unset SHELLCHECK_OPTS && "$RT_BIN" --norc ${opts[@]+"${opts[@]}"} -s bash -f gcc -S info -) 2>&1)"
   (($? <= 1)) || return 0
   grep -q -e '\[SC109[01]\]' -e ': error: ' <<<"$probe"
 }
@@ -149,8 +164,61 @@ if ! dedupe_files; then
   lint=(${files[@]+"${files[@]}"})
   : >"$copies"
 fi
+sc_lanes() {
+  local n
+  n="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null)"
+  [[ "$n" =~ ^[1-9][0-9]*$ ]] || n=2
+  ((n > 8)) && n=8
+  ((n > ${#lint[@]})) && n=${#lint[@]}
+  lanes=$n
+}
+sc_lint() {
+  local i n l r kind lanes status=0 plan="$CHECKS_TMP/plan" pids=()
+  : >"$plan.sizes"
+  : >"$out.lanes"
+  for i in "${!lint[@]}"; do
+    n="$(sc_lines <"${lint[i]}")"
+    kind=S
+    sc_large "$n" && kind=L
+    printf '%s\t%s\t%s\n' "$n" "$kind" "$i" >>"$plan.sizes"
+  done
+  sc_lanes
+  LC_ALL=C sort -t $'\t' -k1,1nr "$plan.sizes" | awk -F '\t' -v n="$lanes" '{
+      b = 0; for (l = 1; l < n; l++) if (load[l] < load[b]) b = l
+      load[b] += $1 + 1; print b "\t" $2 "\t" $3
+    }' >"$plan" || return 3
+  for ((l = 0; l < lanes; l++)); do
+    (
+      small=() large=() worst=0
+      while IFS=$'\t' read -r lane kind i; do
+        ((lane == l)) || continue
+        if [[ "$kind" == L ]]; then large+=("${lint[i]}"); else small+=("${lint[i]}"); fi
+      done <"$plan"
+      if ((${#small[@]})); then
+        rt_run "${small[@]}"
+        worst=$?
+      fi
+      if ((${#large[@]})); then
+        RT_SCRIPT="$BF_SC_LARGE_SCRIPT"
+        rt_run "${large[@]}"
+        r=$?
+        ((r > worst)) && worst=$r
+      fi
+      exit "$worst"
+    ) >"$CHECKS_TMP/lane.$l" 2>&1 &
+    pids+=($!)
+  done
+  for i in "${!pids[@]}"; do
+    wait "${pids[i]}"
+    r=$?
+    ((r > status)) && status=$r
+    cat "$CHECKS_TMP/lane.$i" >>"$out.lanes" || status=3
+  done
+  LC_ALL=C sort -s -t : -k1,1 -k2,2n -k3,3n "$out.lanes" >>"$out" || status=3
+  return "$status"
+}
 if ((${#lint[@]})); then
-  rt_run "${lint[@]}" >>"$out" 2>&1
+  sc_lint
   rc=$?
 fi
 if [[ -s "$copies" ]]; then
@@ -176,7 +244,9 @@ if [[ -s "$copies" ]]; then
   fi
 fi
 for f in ${indexed[@]+"${indexed[@]}"}; do
-  git show ":$f" 2>/dev/null | "$RT_BIN" -x -f gcc -S warning - >"$CHECKS_TMP/one" 2>&1
+  opts=()
+  sc_large "$(git show ":$f" 2>/dev/null | sc_lines)" && opts=(--extended-analysis=false)
+  git show ":$f" 2>/dev/null | "$RT_BIN" -x ${opts[@]+"${opts[@]}"} -f gcc -S warning - >"$CHECKS_TMP/one" 2>&1
   one=${PIPESTATUS[1]}
   ((one > rc)) && rc=$one
   escaped="$(printf '%s' "$f" | sed 's/[#&\\]/\\&/g')"

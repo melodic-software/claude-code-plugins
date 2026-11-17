@@ -7,6 +7,9 @@ RT_PLUGIN=bash-format
 RT_IDS=bash
 BF_SHFMT_INSTALL='see https://github.com/mvdan/sh#shfmt'
 BF_SC_INSTALL='see https://github.com/koalaman/shellcheck#installing'
+# shellcheck disable=SC2016 # the command text sh -c expands, with RT_BIN and the files
+BF_SC_LARGE_SCRIPT='"$RT_BIN" -x --extended-analysis=false -f gcc -S warning -- "$@"'
+BF_SC_LARGE_LINES=2000
 
 rt_wants() {
   case "$1" in
