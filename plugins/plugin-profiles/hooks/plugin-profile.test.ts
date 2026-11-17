@@ -26,8 +26,16 @@ const preview = (p: Preview = {}): Out => ({
 const CLEAR_PREVIEW = 'Clears profile review from /p/.claude/settings.local.json.\nPuts back 3 plugin entries and 0 skill entries to their values before the first apply.\n'
 const NEXT_STEP = 'Send any message, or run /reload-plugins now, to load the change into this session; a new session starts with it.'
 
-const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?: Out; clearDry?: Out; clear?: Out; reloadHangs?: boolean } = {}) => {
-  const w = { runs: [] as string[][], envs: [] as (Record<string, string> | undefined)[], asks: [] as { question: string; options: string[] }[], logs: [] as string[], commands: [] as string[], registered: [] as string[] }
+const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?: Out; clearDry?: Out; clear?: Out; reloadHangs?: boolean; noPane?: boolean } = {}) => {
+  const w = { runs: [] as string[][], envs: [] as (Record<string, string> | undefined)[], asks: [] as { question: string; options: string[] }[], logs: [] as string[], commands: [] as string[], registered: [] as string[], panes: [] as string[], closed: [] as string[] }
+  on('ui.open', ($: unknown, e: { id: string }) => {
+    w.panes.push(e.id)
+    return { value: cli.noPane ? { isPlaced: false, reason: 'no surface' } : { isPlaced: true } }
+  })
+  on('ui.close', ($: unknown, e: { id: string }) => {
+    w.closed.push(e.id)
+    return { value: undefined }
+  })
   on('process.run', ($: unknown, e: { argv: readonly string[]; init?: { env?: Record<string, string> } }) => {
     const args = e.argv.slice(2)
     w.runs.push([...args])
@@ -79,14 +87,66 @@ const settle = async () => {
 }
 const writes = (w: { runs: string[][] }) => w.runs.filter(r => r[0] === 'apply' && !r.includes('--dry-run'))
 
+const PICKER = {
+  plugin: 'plugin-profiles',
+  component: 'Pane',
+  requestId: 'plugin-profile-picker',
+  props: { title: 'Which profile should this folder use?', isFocused: true, bodyColumns: 80, placement: 'dock', scroll: { offset: 0, bodyRows: 20 }, view: {} },
+} as const
+
+/** Starts /plugin-profile, picks `value` in the pane drawn on `surface`, and resolves the command's answer. */
+const runPicking = async ($: any, value: string, surface: 'terminal' | 'desktop' | 'vscode' | 'mobile' = 'terminal') => {
+  const answer = run($)
+  await settle()
+  const ui = await $.ui.mount({ ...PICKER, surface })
+  if (surface === 'mobile') await ui.press({ key: `profile:${value}` })
+  else await ui.select({ key: 'profile', value })
+  await ui.unmount()
+  return answer
+}
+
 test('session.start registers /plugin-profile', async ($, on) => {
   const w = world(on, [])
   await $.session.start({ cwd: '/p' } as any)
   expect(w.registered).toEqual(['plugin-profile'])
 })
 
-test('AC6: the picker pages through every profile, previews the pick, asks, then writes the on entries', async ($, on) => {
-  const w = world(on, [MORE, 'review', 'Apply'])
+test('#16747: the picker is one pane listing every profile and No profile; a pick previews, asks, then writes the on entries', async ($, on) => {
+  const w = world(on, ['Apply'])
+  const answer = run($)
+  await settle()
+  const ui = await $.ui.mount({ ...PICKER, surface: 'terminal' })
+  const select = await ui.find({ key: 'profile' })
+  expect((select?.props.options as { value: string }[]).map(o => o.value)).toEqual([...PROFILES, 'No profile'])
+  await ui.select({ key: 'profile', value: 'review' })
+  await ui.unmount()
+  const { text } = await answer
+  expect(w.panes).toEqual(['plugin-profile-picker'])
+  expect(w.closed).toEqual(['plugin-profile-picker'])
+  expect(w.asks).toEqual([{ question: 'Apply profile review to this folder?', options: ['Apply', 'Cancel'] }])
+  expect(writes(w)).toEqual([['apply', 'review', '--for', 'folder', '--defer-off', '--yes']])
+  expect(text).toContain('Switched this folder to profile review.')
+})
+
+test('#16747: on mobile, which may not draw a Select, the pane holds one Button per profile', async ($, on) => {
+  const w = world(on, ['Apply'])
+  await runPicking($, 'planning', 'mobile')
+  expect(w.runs[1]).toEqual(['apply', 'planning', '--for', 'folder', '--defer-off', '--dry-run', '--json'])
+})
+
+test('#16747: Cancel in the picker pane chooses nothing and writes nothing', async ($, on) => {
+  const w = world(on, [])
+  const answer = run($)
+  await settle()
+  const ui = await $.ui.mount({ ...PICKER, surface: 'mobile' })
+  await ui.press({ key: 'cancel' })
+  await ui.unmount()
+  expect((await answer).text).toBe('No profile chosen; nothing changed.')
+  expect(w.runs).toEqual([['list', '--json']])
+})
+
+test('AC6: where the pane cannot be placed, the picker pages through every profile, previews the pick, asks, then writes the on entries', async ($, on) => {
+  const w = world(on, [MORE, 'review', 'Apply'], { noPane: true })
   const { text } = await run($)
   expect(w.asks[0].options).toEqual(['build', 'discovery', 'harness-upkeep', MORE])
   expect(w.asks[1].options).toEqual(['interface-design', 'planning', 'review', MORE])
@@ -118,8 +178,8 @@ test('AC6: Cancel at the confirm writes nothing', async ($, on) => {
   expect(writes(w)).toEqual([])
 })
 
-test('AC6: a dismissed picker writes nothing', async ($, on) => {
-  const w = world(on, [])
+test('AC6: a dismissed paged picker writes nothing', async ($, on) => {
+  const w = world(on, [], { noPane: true })
   const { text } = await run($)
   expect(text).toBe('No profile chosen; nothing changed.')
   expect(w.runs).toEqual([['list', '--json']])
@@ -241,7 +301,7 @@ test('AC11: the module loaded again by the reload finishes the switch at its ses
 })
 
 test('#16747: the profile list and the preview log one line per call, never a newline-joined block', async ($, on) => {
-  const w = world(on, ['review', 'Cancel'], { dry: preview({ lines: ['Profile review for folder: /p/.claude/settings.local.json', 'Switches on (1): review@melodic-software'] }) })
+  const w = world(on, ['review', 'Cancel'], { noPane: true, dry: preview({ lines: ['Profile review for folder: /p/.claude/settings.local.json', 'Switches on (1): review@melodic-software'] }) })
   await run($)
   expect(w.logs.some(line => line.includes('\n'))).toBe(false)
   expect(w.logs).toContain('build: build work')
@@ -265,11 +325,10 @@ test('#16747: a switch that turns nothing off says only that the profile is in f
 })
 
 test('#16747: the picker offers No profile, which previews the clear, asks, clears, and reloads at the turn end', async ($, on) => {
-  const w = world(on, [MORE, MORE, 'No profile', 'Apply'])
-  const { text } = await run($)
-  expect(w.asks[2].options).toEqual(['No profile', MORE])
+  const w = world(on, ['Apply'])
+  const { text } = await runPicking($, 'No profile')
   expect(w.logs).toContain('Puts back 3 plugin entries and 0 skill entries to their values before the first apply.')
-  expect(w.asks[3]).toEqual({ question: 'Clear the profile from this folder?', options: ['Apply', 'Cancel'] })
+  expect(w.asks).toEqual([{ question: 'Clear the profile from this folder?', options: ['Apply', 'Cancel'] }])
   expect(w.runs.slice(1)).toEqual([
     ['clear', '--for', 'folder', '--dry-run'],
     ['clear', '--for', 'folder', '--yes'],
@@ -283,17 +342,17 @@ test('#16747: the picker offers No profile, which previews the clear, asks, clea
 })
 
 test('#16747: Cancel at the clear confirm clears nothing', async ($, on) => {
-  const w = world(on, [MORE, MORE, 'No profile', 'Cancel'])
-  expect((await run($)).text).toBe('Not cleared; nothing changed.')
+  const w = world(on, ['Cancel'])
+  expect((await runPicking($, 'No profile')).text).toBe('Not cleared; nothing changed.')
   expect(w.runs.filter(r => r[0] === 'clear' && r.includes('--yes'))).toEqual([])
 })
 
 test('#16747: a folder with no profile says what loads and how to drop an earlier profile still loaded', async ($, on) => {
-  const w = world(on, [MORE, MORE, 'No profile'], { clearDry: { exitCode: 0, stdout: 'No profile is recorded for /p/.claude/settings.local.json; nothing to clear.\n' } })
-  const { text } = await run($)
+  const w = world(on, [], { clearDry: { exitCode: 0, stdout: 'No profile is recorded for /p/.claude/settings.local.json; nothing to clear.\n' } })
+  const { text } = await runPicking($, 'No profile')
   expect(text).toBe(
     "This folder has no profile to clear; its plugins come from your user and project settings. If this session still has an earlier profile's plugins loaded, run /reload-plugins to load what the settings say now.",
   )
-  expect(w.asks.length).toBe(3)
+  expect(w.asks).toEqual([])
   expect(w.runs.filter(r => r.includes('--yes'))).toEqual([])
 })

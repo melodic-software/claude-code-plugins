@@ -90,9 +90,10 @@ excludes them, and a plugin the repository sets to `false` stays off. Apply inst
 
 ## Switch in a running session
 
-`/plugin-profile` switches this folder's profile without a model turn: it lists the profiles (or
-takes one by name, `/plugin-profile review`), shows the same preview as `apply --dry-run`, and asks
-before writing. When the switch would turn on a plugin that ships an MCP or language server, the
+`/plugin-profile` switches this folder's profile without a model turn: it opens a pane listing
+every profile and **No profile** in one picker (on mobile, a button each; where no pane can be
+placed, the question dialog a page at a time), or takes one by name, `/plugin-profile review`. It
+then shows the same preview as `apply --dry-run`, one line per row, and asks before writing. When the switch would turn on a plugin that ships an MCP or language server, the
 question names it and says your next message re-reads the whole conversation.
 
 On Apply it writes the entries that switch plugins on and runs `/reload-plugins` once, when the

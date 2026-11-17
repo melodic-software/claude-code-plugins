@@ -4,6 +4,7 @@ bump: minor
 
 ### Added
 
+- `/plugin-profile` picks from one pane listing every profile and **No profile**, with a Cancel button: a Select, or a button per entry on mobile, which may not draw a Select; where no pane can be placed it falls back to the paged question dialog ([#16747](https://github.com/melodic-software/claude-code-plugins/issues/16747)).
 - `/plugin-profile` offers **No profile**, which clears this folder's profile behind the same preview and confirm as a switch, then reloads at the next turn's end; a folder with no profile says so and how to drop an earlier profile's plugins still loaded ([#16747](https://github.com/melodic-software/claude-code-plugins/issues/16747)).
 
 ### Fixed

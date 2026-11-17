@@ -2,8 +2,10 @@
 // /reload-plugins is queued, then cleared when the off entries are written.
 export type Switch = { profile: string; phase: 'armed' | 'reloading'; off?: string[]; kind?: 'clear' }
 
+export type PickerEntry = { value: string; label: string }
+
 declare module 'claude-code' {
   interface PluginState {
-    'plugin-profiles': { switch: Switch | null }
+    'plugin-profiles': { switch: Switch | null; picker: PickerEntry[] }
   }
 }

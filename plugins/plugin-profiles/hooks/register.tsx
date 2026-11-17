@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Switch } from '../types'
+import type { PickerEntry, Switch } from '../types'
 
 // The command-line tool decides every rule (which profiles exist, what an apply writes, when a
 // switch is refused); this module only asks the person and runs it.
@@ -10,6 +10,7 @@ const COMMAND = 'plugin-profile'
 const RELOAD = 'reload-plugins'
 const MORE = 'More profiles'
 const CLEAR = 'No profile'
+const PICKER = 'plugin-profile-picker'
 const APPLY = 'Apply'
 const CANCEL = 'Cancel'
 const NOTHING_TO_CLEAR = 'No profile is recorded'
@@ -48,12 +49,35 @@ const registerCommand = ($: EngineInterface) =>
     argumentHint: '[profile]',
   })
 
+const picker = atom({ plugin: 'plugin-profiles', key: 'picker' } as const, [] as PickerEntry[])
+let choose: ((name: string | undefined) => void) | undefined
+
+const entriesOf = (profiles: readonly Profile[]): PickerEntry[] => [
+  ...profiles.map(p => ({ value: p.name, label: `${p.name}${p.description ? `: ${p.description}` : ''}` })),
+  { value: CLEAR, label: `${CLEAR}: clear this folder's profile, back to your user and project settings` },
+]
+
+async function chosen($: EngineInterface, name: string | undefined) {
+  const done = choose
+  choose = undefined
+  await $.ui.close({ id: PICKER }).catch(() => undefined)
+  done?.(name)
+}
+
+/** Every profile in one pane; undefined when the person closes it. */
 async function pick($: EngineInterface, profiles: readonly Profile[]): Promise<string | undefined> {
-  show($, [
-    ...profiles.map(p => `${p.name}${p.description ? `: ${p.description}` : ''}`),
-    `${CLEAR}: clear this folder's profile, back to your user and project settings`,
-  ])
-  const names = [...profiles.map(p => p.name), CLEAR]
+  const entries = entriesOf(profiles)
+  await update($, picker, () => entries)
+  const picked = new Promise<string | undefined>(resolve => (choose = resolve))
+  const opened = await $.ui.open({ id: PICKER, title: 'Which profile should this folder use?', focus: true, closeOnEscape: true })
+  if (opened.isPlaced) return picked
+  choose = undefined
+  return pickByPages($, entries)
+}
+
+async function pickByPages($: EngineInterface, list: readonly PickerEntry[]): Promise<string | undefined> {
+  show($, list.map(e => e.label))
+  const names = list.map(e => e.value)
   for (let start = 0; ; start = start + PAGE >= names.length ? 0 : start + PAGE) {
     const options = names.length <= PAGE + 1 ? names : [...names.slice(start, start + PAGE), MORE]
     const answer = (await $.ui.ask('Which profile should this folder use?', { options, header: 'Profile' })).trim()
@@ -87,7 +111,7 @@ async function clearProfile($: EngineInterface): Promise<string> {
   if (!(await confirmed($, 'Clear the profile from this folder?'))) return 'Not cleared; nothing changed.'
   const cleared = await cli($, ['clear', '--for', 'folder', '--yes'])
   if (cleared.exitCode !== 0) return failure(cleared)
-  await update($, pending, () => ({ profile: CLEAR, phase: 'armed', kind: 'clear' }))
+  await update($, pending, (): Switch => ({ profile: CLEAR, phase: 'armed', kind: 'clear' }))
   return `Cleared this folder's profile. ${NEXT_STEP}`
 }
 
@@ -101,8 +125,9 @@ async function switchProfile($: EngineInterface, args: string): Promise<string> 
     try {
       name = (await pick($, JSON.parse(listed.stdout) as Profile[])) ?? ''
     } catch {
-      return 'No profile chosen; nothing changed.'
+      name = ''
     }
+    if (!name) return 'No profile chosen; nothing changed.'
   }
   if (name === CLEAR) return clearProfile($)
   const dry = await cli($, ['apply', name, '--for', 'folder', '--defer-off', '--dry-run', '--json'])
@@ -116,7 +141,7 @@ async function switchProfile($: EngineInterface, args: string): Promise<string> 
   if (!(await confirm($, name, preview))) return 'Not applied; nothing changed.'
   const applied = await cli($, ['apply', name, '--for', 'folder', '--defer-off', '--yes'])
   if (applied.exitCode !== 0) return failure(applied)
-  await update($, pending, () => ({ profile: name, phase: 'armed', off: preview.pending }))
+  await update($, pending, (): Switch => ({ profile: name, phase: 'armed', off: preview.pending }))
   const stay = preview.pending.length
     ? ` The plugins it switches off (${list(preview.pending)}) stay loaded in this session until a later /${RELOAD} or the next session start.`
     : ''
@@ -172,6 +197,39 @@ export const register: Register = on => {
       await registerCommand($).catch(() => undefined)
     }
     return next(e)
+  }).catch(($, e, next) => next(e))
+
+  // A mobile app that does not say it draws Select shows nothing for it, so mobile gets a Button
+  // per profile: https://code.claude.com/docs/en/plugins/mods/interface#build-a-tree-from-elements
+  on('ui.render', { component: 'Pane', requestId: PICKER }, async ($, e) => {
+    const { Box, Text, Select, Button } = $.ui.resolve(e)
+    const entries = await read($, picker)
+    if (!entries.length) return <Text dimColor>No profiles to pick.</Text>
+    return (
+      <Box flexDirection="column">
+        <Text dimColor>Pick one; the next step shows what it changes and asks before writing.</Text>
+        {e.surface === 'mobile' ? (
+          entries.map(entry => (
+            <Button key={`profile:${entry.value}`} onPress={() => void chosen($, entry.value)}>
+              {entry.label}
+            </Button>
+          ))
+        ) : (
+          <Select key="profile" label="Profile" autoFocus options={entries} onSelect={value => void chosen($, value)} />
+        )}
+        <Button key="cancel" role="dismiss" onPress={() => void chosen($, undefined)}>
+          Cancel
+        </Button>
+      </Box>
+    )
+  })
+
+  on('ui.close', { id: PICKER }, async ($, e, next) => {
+    const result = await next(e)
+    const done = choose
+    choose = undefined
+    done?.(undefined)
+    return result
   }).catch(($, e, next) => next(e))
 
   on('command.run', { command: COMMAND }, async ($, e) => {
