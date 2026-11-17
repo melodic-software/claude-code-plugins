@@ -77,7 +77,7 @@ server. Record each result as:
 - **WARN**. Criterion partially met or could be improved
 - **FAIL**. Criterion not met
 - **info**. An optimization opportunity rather than a defect; the severity `reference/checklist.md`
-  assigns to C8, C11, C14, and by default to C17-C19
+  assigns to C8, C11, C14, C21, and by default to C17-C19
 - **n/a**. The criterion has no subject here, so it cannot pass: a server whose construction site
   declares no `instructions` gives C4's per-server clause nothing to size
 - **undetermined**. The subject was not reachable in the scanned scope (no server construction site
@@ -132,7 +132,8 @@ they appear only in the server-level criterion table and never count as a pass. 
 is never FAIL. Annotations are
 OPTIONAL in the spec (C12-C14) or Claude-Code-specific advisories (C17-C19); only a declared value
 Claude Code silently ignores can FAIL (C18). Likewise an absent `x-mcp-header` passes, and only a
-declared one that breaks the spec's constraints can FAIL (C20).
+declared one that breaks the spec's constraints can FAIL (C20). A destructive tool with no preview
+counterpart is info only (C21).
 
 ## What this skill does not do
 

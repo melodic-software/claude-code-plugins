@@ -42,7 +42,7 @@ first**, then report a PASS/FAIL/INFO table; modify nothing.
 
 1. **Configured ecosystems.** For each `$REPO_ROOT/.claude/ecosystems/<ecosystem>.yaml` present,
    report the ecosystem and its resolved command surface
-   (`build-cmd`/`test-cmd`/`check-cmd`/`lint-cmd`/`fix-cmd`/`code-fix-cmd`). Validate each against the contract's
+   (`build-cmd`/`test-cmd`/`test-changed-cmd`/`check-cmd`/`lint-cmd`/`fix-cmd`/`code-fix-cmd`). Validate each against the contract's
    `ecosystem.schema.json`. **FAIL** a schema-invalid file (with the validation error in the
    remediation line), an ecosystem file excluded by `.gitignore` (`git check-ignore -v` matches;
    teammates would never receive it. Report the matching rule), or an un-ignored but untracked file
@@ -73,14 +73,20 @@ user confirming. If `$ARGUMENTS` names one ecosystem, scope the whole run to jus
 Detect which ecosystems apply from what actually exists, and draft each one's command surface. Seed
 the draft from the bundled portable default at
 [`${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/<ecosystem>.yaml`](${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/),
-then specialize it to the repo:
+then specialize it to the repo.
+
+When the repo has its own task runner or wrapper scripts (a task file, a manifest's scripts block,
+a scripts directory its docs or CI call), draft each command key from the matching task or script
+before the bundled default, in any ecosystem. Draft `test-changed-cmd` from the repo's own test
+runner's way of selecting tests for changed files, over `<files>`; when the repo has no such
+selection, look it up with `/discovery:research` for the runner the repo uses, and leave the key
+out when none exists. Never put a per-stack selector into a bundled default.
 
 - **dotnet**. `*.slnx`/`*.sln`/`*.csproj` present. Resolve the `anchor` (solution file at root, else
   nearest project). Note any repo-specific trap in `notes` (e.g. the xUnit v3 `--nologo` pin).
 - **python**. `pyproject.toml`/`uv.lock`. Prefer `uv run …` when `uv.lock` exists, else plain
   `ruff`/`pytest`. Set `project-discovery` to the `pyproject.toml` roots.
-- **typescript**. `package.json`/`tsconfig*.json`. Read the `scripts` block for the real `test-cmd`;
-  pick `check-cmd`/`fix-cmd` (format-only) and `code-fix-cmd` (semantic lint autofixes) from the
+- **typescript**. `package.json`/`tsconfig*.json`. Pick `check-cmd`/`fix-cmd` (format-only) and `code-fix-cmd` (semantic lint autofixes) from the
   configured linter (`biome.json` → Biome format vs check --write; eslint config → ESLint).
 - **bash** / **powershell**. Shell/PowerShell files present; keep the bundled check/fix commands
   unless the repo documents its own.
@@ -112,7 +118,7 @@ Materialize one `$REPO_ROOT/.claude/ecosystems/<ecosystem>.yaml` per accepted ec
 the contract's `ecosystem.schema.json`. Each file carries a one-line header comment citing the
 contract, `globs` (required), the four command keys (`null` where a phase does not apply), and the
 optional keys that apply (`anchor`, `project-discovery`, `opt-in`, `install-hint`, `requires`, `gates`, `notes`,
-`lint-cmd`).
+`lint-cmd`, `test-changed-cmd`).
 Write `requires` for a command that needs more than its tool on `PATH`, such as a runtime package
 it imports or the tool build CI pins, instead of an install step inside the command string.
 Confirm each file is tracked, not ignored.

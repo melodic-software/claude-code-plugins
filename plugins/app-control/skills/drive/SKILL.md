@@ -35,7 +35,7 @@ keep going.
 | Invocation | What it does |
 |---|---|
 | bare `[<app>] [<feature>]` | Launch unless the instance in this run's launch record under `--out` is still running and fit (any other running app is reached only through `--attach`), writing the launch record as "Record at launch" in [`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md) says, run `ready`, then perform the feature's Drive steps and save evidence after each step. On a reused instance, first check the contract's "Reset on a reused instance": when it does not allow the Reset, perform none, stop the recorded instance as `cleanup` does and launch fresh, or record `blocked: <reason>` where a fresh launch cannot run. Otherwise perform the feature's `## Reset` as written, recorded as a step and held to the Rules below, so the steps start from its baseline (contract "Driving conventions"); a `## Reset` that reads `none` performs nothing. A `## Reset` that stops, restarts or relaunches the app stops the recorded instance as `cleanup` does, performs the rest of the Reset, launches as the hub's `## Launch` says, replaces that app's launch record entry with the new process ("Record at launch") and runs `ready` |
-| `ready` | Run the control skill's Ready command (read-only) and report what is reachable, with each environment's data sources and the kinds it is missing |
+| `ready` | Run the control skill's Ready command (read-only) and report what is reachable, with each environment's data sources, their credentials' grants checks and the kinds it is missing |
 | `capture --kind <kind>` | Record the kind with the tool the control skill's `## Capture` section names for it, one artifact per tier row; `threads` (a stack of every thread, for a hang), and a `cpu` or `heap` recorder that takes a pid, bind to the launched pid ([`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md)) |
 | `cleanup` | Stop only what this run started, then confirm every evidence path in the report still exists and is not empty |
 | `affected --base <ref> [--head <ref>]` | Map the diff `<base>...<head>` (`--head` defaults to `HEAD`) to the control skill's features and write `affected.json` (see [Affected](#affected)); launches nothing |
@@ -179,8 +179,12 @@ it as step 9 does. The report names `affected.json`; the file's fields and its g
   read them as images; either one missing is a capability gap naming the narrowest tool or grant.
 - **Ready lists the data sources.** For every environment in committed config, resolve `extends`
   first, then report each source it ends with, inherited ones included, with its kind, where and
-  read level, then check all five kinds against it and
-  list as missing each kind none of its sources has (contract "Data sources"). Ready reads none of them; a caller reads one only at its level.
+  read level, its `credential` variable name and its `data` category, readers and review, then
+  check all five kinds against it and list as missing each kind none of its sources has (contract
+  "Data sources"). For a source with a `credential`, run its `grants` command where its `read`
+  level allows a read in this run and report the exit, or `not run` with the level; report the
+  source `capped at attended` when it has no `grants` or the command did not exit 0. Ready reads
+  none of the sources; a caller reads one only at its level after the cap.
 - **Every run lists its lessons.** Under `lessons`, list what this run learned about driving the app
   (a wait a step needed, a handle that matched nothing, a precondition the data lacked), each as one
   `/app-control:map refresh "<lesson>"` line, or `none`. Write none into the control skill; map

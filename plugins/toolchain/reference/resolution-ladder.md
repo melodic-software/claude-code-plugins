@@ -13,6 +13,9 @@ conforming to the contract's `ecosystem.schema.json`. Command keys are **opaque 
 
 - `build-cmd`: build/compile verification; `null` when the ecosystem has no build step
 - `test-cmd`: test command; `null` when no test framework is wired
+- `test-changed-cmd`: optional change-scoped test command over `<files>`. `/toolchain:check` runs
+  it in place of `test-cmd` for a change, and `test-cmd` under `all` or when `<files>` is empty.
+  The repository's CI calls the same recorded command. No bundled default sets it.
 - `check-cmd`: lint/format check, no file modification; `null` when lint does not apply
 - `fix-cmd`: **format-only** auto-fix (whitespace / import layout / style); `null` when absent.
   Must not apply semantic/code-changing lint autofixes. `/toolchain:lint --fix` runs this key.

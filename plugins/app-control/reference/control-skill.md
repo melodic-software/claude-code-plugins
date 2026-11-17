@@ -660,7 +660,7 @@ Each entry, keyed by the name the team gave it, may hold:
 | `extends` | Another entry in the same file whose fields this one starts from; its own fields replace them one by one, and `services` and `sources` merge by name |
 | `writes` | Per write, keyed by step id (or `cli/` command for a feature without a steps file), the key the caller passes as `--step` per the Write grants floor: `never`, `attended` or `unattended`. A write not listed has no grant |
 | `systems` | Per external system a step writes to in this environment, by name: a `writes` map of the same shape |
-| `sources` | Per data source an agent can reach in this environment, by name: its `kind`, `where` and `read` level, per [Data sources](#data-sources) |
+| `sources` | Per data source an agent can reach in this environment, by name: its `kind`, `where` and `read` level, and its optional `credential`, `grants` and `data`, per [Data sources](#data-sources) |
 | `production` | `true` marks the environment production, per the Production floor |
 
 An `extends` naming no entry, or a chain that loops, is rejected before anything starts. An entry
@@ -678,11 +678,31 @@ holds:
   only with a person present in this session; `unattended`, with no one present too. An entry with
   no `read` reads as `never`.
 
+An entry read with a credential also holds:
+
+- `credential`: the name of the environment variable that holds it, per [Config](#config), never
+  the secret;
+- `grants`: how the credential's read-only grants were shown: a read-only command the consumer
+  supplies that lists what the credential may do in the store and exits 0 only when it may change
+  nothing.
+
+An entry may also hold `data`: the data category the source exposes, who may read it, and a
+reference to the review that decided both (`category`, `readers`, `review`). The control skill
+records that review; it does not perform it.
+
+An entry with a `credential` and no `grants`, or whose `grants` command does not exit 0, is
+capped at `attended` whatever its `read` says. Basis: a read-only rule enforced only in the
+agent's tool can be bypassed by the text the agent sends, so the guarantee rests on the store's
+own grants, the stance ADR 0086 in the marketplace repository takes for its read tier.
+
 An environment's sources are those left once `extends` is resolved, inherited ones included. Each of
 the five kinds with no entry there is missing, the tracker and the error reporter included. `/app-control:drive ready` reports each
-environment's sources with their read levels and lists the missing kinds; it reads none of them.
-A caller reads a source only through its `where` and only at its level. `/app-control:map` create
-and refresh write the entries; `never` is the safe level, and only a person sets another.
+environment's sources with their read levels, each `credential` by variable name, each `data` field
+and each cap, and lists the missing kinds. It runs each `grants` command where the entry's `read`
+level allows a read in this run and reports its exit, or `not run` with that level; that command shows grants, not the source's
+contents, and ready reads none of the sources. A caller reads a source only through its `where`
+and only at its level after the cap. `/app-control:map` create and refresh write the entries;
+`never` is the safe level, and only a person sets another.
 
 A `## Launch` or `## Ready` command names these urls by placeholder: `<environment url>` for the
 selected entry's `url`, `<<service> service url>` for a dependency service's. The run splits the
