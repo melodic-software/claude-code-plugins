@@ -5,7 +5,7 @@ context:
 graders:
   - name: 'expectation-1'
     type: 'regex'
-    pattern: 'language idioms: none declared for'
+    pattern: 'language idioms:\W{0,4}none declared for'
     flags: 'i'
     target: 'last_message'
   - name: 'expectation-2'

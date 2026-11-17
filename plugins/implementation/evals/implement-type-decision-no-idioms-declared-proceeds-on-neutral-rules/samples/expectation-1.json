@@ -7,6 +7,10 @@
     {
       "answer": "Language idioms: none declared for Python (read: no docs/standards/README.md, no .claude/standards.yaml, CONTRIBUTING.md states none).",
       "why": "the line at a sentence start, capitalized"
+    },
+    {
+      "answer": "- **Language idioms:** none declared for Python (the repo has no standards index).",
+      "why": "the line with its label in bold"
     }
   ],
   "fail": [
