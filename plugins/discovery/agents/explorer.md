@@ -91,10 +91,6 @@ fires it.
   harness claim"): run inside a dispatched general-purpose subagent on the harness
   `claude --version` reports as `2.1.268 (Claude Code)`, it observed the `Contents of <path>:`
   block appended to `Read` tool results.
-- **As of**: 2026-09-13
-- **Recheck trigger**: the consuming repository's Claude Code minor version moves past 2.1.268, a
-  release note names subagent context inheritance, memory loading, or path-scoped rule triggering,
-  or a read of a covered path inside a subagent injects nothing.
 
 ## Preload liveness: the first thing you do
 
