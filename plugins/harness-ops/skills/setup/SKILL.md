@@ -192,7 +192,8 @@ The options live in Claude Code's native plugin configuration, which setup must 
 - **Turning hook logging on:** session-telemetry must be enabled (the state lines above give the
   commands). Its `session_event_log_enabled` is off by default, and while off its hooks module hooks
   no event, so the log starts no process. Turning it on makes the module
-  start one process per observable hook event plus `SessionEnd` retention, and only where mods load;
+  start one process per observable hook event in the categories `session_event_log_categories`
+  enables, plus `SessionEnd` retention, and only where mods load;
   session-telemetry's README carries the measured cost and where it does not run.
 - **Reconfiguring a personal option**: `registry_dir` is this plugin's, the skill-usage and
   hook-logging options are session-telemetry's. Through Claude Code's native flow, interactively with

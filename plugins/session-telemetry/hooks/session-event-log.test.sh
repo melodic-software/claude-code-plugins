@@ -159,6 +159,29 @@ assert_file_absent "filtered category → nothing written" "$P/.observability/cl
 run "$P" "$(payload s5 Stop)" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES=session,turn >/dev/null
 assert_eq "listed category → written" "turn" "$(jq -r .category "$P/.observability/claude/sessions/s5.jsonl")"
 
+# The inputs category-filter.test.ts runs through register.ts's categoryFilter.
+CATS="session prompt tool permission agent task turn config worktree compaction model mcp display other"
+VAR=CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES
+filter_case() { # <label> <expected enabled categories> [<option value>; absent means unset]
+  local env_arg=(-u "$VAR")
+  (($# > 2)) && env_arg=("$VAR=$3")
+  # shellcheck disable=SC2016 # the inner bash -c expands $0 and $1
+  assert_eq "slog_category_enabled, $1" "$2" "$(env "${env_arg[@]}" bash -c \
+    'source "$0"; out=(); for c in $1; do slog_category_enabled "$c" && out+=("$c"); done; printf "%s" "${out[*]}"' \
+    "$HOOK_DIR/session-log-lib.sh" "$CATS")"
+}
+filter_case "unset → all" "$CATS"
+filter_case "empty → all" "$CATS" ""
+filter_case "only a space → none" "" " "
+filter_case "tool,permission → both" "tool permission" "tool,permission"
+filter_case "padded list → both" "tool permission" " tool , permission "
+filter_case "empty item → both" "tool permission" "tool,,permission"
+filter_case "TOOL → none (case-sensitive)" "" "TOOL"
+filter_case "unknown → none" "" "bogus"
+filter_case "tab separated → both" "tool permission" $'tool\tpermission'
+filter_case "newline separated → both" "tool permission" $'tool\npermission'
+filter_case "carriage return is not a separator → none" "" $'tool\rpermission'
+
 # --- configured root: contained relative only; the project root itself is refused
 P=$(project roots)
 run "$P" "$(payload s6 PostToolUse)" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR=telemetry/claude >/dev/null
