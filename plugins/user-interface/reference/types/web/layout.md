@@ -36,8 +36,8 @@ because layout doesn't own forms. Next comes one concern for whatever the screen
 1. **One primary action per view.** If three buttons carry equal visual weight, none of them is the
    next step. Demote: primary, secondary ghost, text link. Secondary actions are visually quieter.
 2. **Hierarchy is subtraction.** Make the important thing prominent by making everything else
-   recede; don't make everything louder. Restraint, because equal emphasis everywhere leaves no focal point. Fewer
-   borders, fewer shadows, fewer competing focal points.
+   recede; don't make everything louder, because equal emphasis everywhere leaves no focal point.
+   Fewer borders, fewer shadows, fewer competing focal points.
 3. **Space with system, not eyeballing.** Spacing follows a consistent scale, not arbitrary one-off
    values, and `gap` over per-child margins.
 4. **Know when to break the rules.** A rule here is the default; context decides, as the

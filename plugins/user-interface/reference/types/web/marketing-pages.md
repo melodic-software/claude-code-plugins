@@ -9,7 +9,7 @@ Marketing pages earn more animation budget than product UI (a visitor sees a lan
 a hundred times a day), but the budget is still small, and most sites overspend it. The pages that
 convert are fast, readable, and honest: content in the DOM, fonts that don't shift, motion that maps
 to what the user is doing. Restraint is the house style here: skip the scroll theatrics, ship the
-page pre-rendered, and spend your effort on the details visitors feel but never name. They get one
+page pre-rendered. Visitors get one
 visit to make their case, so the failures here are different from product UI: the link preview with
 no image, the page that performs at the visitor instead of answering them, the blog that's fetched
 from the CMS on every request.

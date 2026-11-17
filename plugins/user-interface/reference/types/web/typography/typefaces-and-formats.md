@@ -39,7 +39,7 @@ Category communicates before any individual font does:
   tabular IDs.
 - **Display**: drawn to be seen big: posters, heroes, mastheads. Often too spindly or too quirky for
   paragraph duty.
-- **Script**: imitates handwriting. A garnish for rare decorative moments, never a workhorse.
+- **Script**: imitates handwriting. Use it for rare decorative moments, never for body text or interface labels.
 
 CSS's generic keywords cover these loosely; `cursive` maps to script faces and `fantasy` to
 decorative ones.

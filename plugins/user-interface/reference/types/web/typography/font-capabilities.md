@@ -64,7 +64,7 @@ axes only:
   font-optical-sizing: auto;
 }
 
-/* Right: a custom axis has no property, so the tag is the only door */
+/* Right: a custom axis has no property, so the tag is the only option */
 .pull-quote {
   font-variation-settings: "SOFT" 80;
 }
@@ -130,7 +130,7 @@ every change unless its digits share one width, which is what tabular figures gi
   `font-variant-caps: small-caps` rather than shrinking uppercase text.
 - **Superior figures** ride above the line (the ² in m²); **inferior figures** hang below (the ₂ in
   CO₂). `font-variant-position: super` / `sub` selects genuine glyphs instead of scaled-and-shifted
-  imposters.
+  substitutes.
 
 Both silently require the glyphs to exist in the font; verify before relying on them.
 
