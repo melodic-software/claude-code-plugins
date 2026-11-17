@@ -103,7 +103,10 @@ that slice's `tempSession`, only those and only when each resolves inside the OS
 directory it cannot remove gets a stderr warning naming it and stays for removal by hand; the close
 still succeeds. A failed close leaves them in place for the re-run. A watch that fails before
 `watch.json` records `tempSession` (an acquisition error, a 429) removes the three directories it
-made, downloaded media included; once recorded, they stay for `--recover`.
+made, downloaded media included; once recorded, they stay for `--recover`. Before the download it
+checks that the temp directory has twice the selected formats' size free, exits 1 when it does not,
+and warns when no size is known; to stage elsewhere, set `TMPDIR` for the whole session
+(`gotchas.md` "Small temp filesystem").
 
 **Closing a sampler gap.** When the visual pass finds a stretch the sampler left without timed
 frames, re-run `run-watch.js` with a smaller `--max-frame-gap-sec`; that is the supported fix. It
