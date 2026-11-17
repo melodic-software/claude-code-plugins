@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Preview extends local, so it has server-log, shop-db, otel and preview-issues.\nMissing local: tracker, errors\nMissing staging: telemetry, database, errors\nMissing preview: errors\nSources read: none",
+      "why": "counts the sources preview inherits from local"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Missing preview: logs, database, telemetry, errors",
+      "why": "ignores the sources preview inherits through extends"
+    },
+    {
+      "answer": "Missing preview: none",
+      "why": "misses errors, which neither preview nor local has"
+    }
+  ]
+}

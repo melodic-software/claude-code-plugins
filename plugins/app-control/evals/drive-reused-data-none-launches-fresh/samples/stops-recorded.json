@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Drive stops the recorded instance and launches fresh.\nReset performed: no\nStops: 7311",
+      "why": "stops the recorded pid before the fresh launch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Drive keeps pid 7311 running and drives reviews on it without a Reset.\nReset performed: no\nStops: none",
+      "why": "keeps reusing the instance instead of launching fresh"
+    }
+  ]
+}
