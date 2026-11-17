@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: interview-skips-quick-change-typo
-description: A comment typo fix, quick to review and cheap to retry, is not gated by an interview; the user is told it needs no interview or Brief
+description: "A comment typo fix, quick to review and cheap to retry, is not gated by an interview; the user is told it needs no interview or Brief. On Sonnet this case also passed with the skip rule removed from the skill, so it guards against the skill forcing an interview on a quick change and does not show that the rule causes the skip."
 tags: [interview, routing, quick-change, scaffold]
 expected_outcome: The reply treats the typo fix as quick to review and cheap to retry and says it needs no interview or Brief (it may make the fix itself); it asks no numbered question round, writes no interview ledger, and no Write or Edit touches PLAN.md.
 context:
