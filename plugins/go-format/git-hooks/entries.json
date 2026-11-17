@@ -1,11 +1,15 @@
 {
+  "earlierEntries": [{ "from": "goimports-format", "to": ["format"] }],
+  "ecosystems": ["go"],
   "entries": [
     {
-      "name": "goimports-format",
+      "name": "format",
       "event": "pre-commit",
-      "script": "goimports-format.sh",
+      "script": "format.sh",
       "tools": ["goimports"],
-      "rewrites": true
+      "rewrites": true,
+      "resolved": true,
+      "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh"]
     }
   ]
 }

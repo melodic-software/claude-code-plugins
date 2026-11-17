@@ -55,7 +55,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node /plugins/bash-format/lib/git-hooks/install.mjs decline --entry shell-check"
+            "command": "node /plugins/bash-format/lib/git-hooks/install.mjs decline --entry format"
           }
         }
       ],

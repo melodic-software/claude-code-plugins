@@ -5,7 +5,7 @@
 # keeps it from blocking twice in one turn; the plugin kill switch wins. The
 # spawn budget case fences the cost every user pays per turn with the option
 # off: the node launcher only.
-# test-scope: plugins/bash-format/hooks/hooks.json plugins/bash-format/git-hooks/shell-check.sh plugins/bash-format/.claude-plugin/plugin.json
+# test-scope: plugins/bash-format/hooks/hooks.json plugins/bash-format/git-hooks/lint.sh plugins/bash-format/.claude-plugin/plugin.json
 # shellcheck disable=SC2016 # fixtures hold literal shell text, not expansions
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_BASH_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED
@@ -79,9 +79,10 @@ expect "on: the plugin kill switch wins" "0|" \
 # already reports the missing tool.
 NOTOOL="$WORK/no-shellcheck"
 mkdir -p "$NOTOOL"
-for t in node git bash sed awk cat mktemp rm dirname grep tr jq; do
+for t in git bash sh sed awk cat mktemp rm dirname grep tr jq; do
   ln -s "$(command -v "$t")" "$NOTOOL/$t"
 done
+ln -s "$(node -e 'process.stdout.write(process.execPath)')" "$NOTOOL/node"
 expect "on: a missing shellcheck passes silently" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_BASH_FORMAT_END_OF_TURN=true PATH="$NOTOOL")"
 git -C "$R" checkout -q a.sh

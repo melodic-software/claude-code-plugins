@@ -1,5 +1,5 @@
 ---
-description: "check, asked why no repo config is reported and whether the hook is inert without one. setup SKILL.md lines 34-36 (no consumer-config opt-in gate, unlike Ruff and typos) and lines 95-96 (no consumer-config probe by design; report it as INFO, not a gap). Legacy 'does not write any repository configuration' is enforced by no-write, no-edit and no-config-shell-write. Needs --scaffold --allow-tools Bash Write Edit so the must-not graders can fail."
+description: "check, asked why no repo config is reported and whether the hook is inert without one. setup SKILL.md Purpose (no consumer-config opt-in gate, unlike sibling formatter plugins whose adapters run only where their tool's config opts a file in) and the note after check step 10 (no consumer-config probe by design; report it as INFO, not a gap). Legacy 'does not write any repository configuration' is enforced by no-write, no-edit and no-config-shell-write. Needs --scaffold --allow-tools Bash Write Edit so the must-not graders can fail."
 tags: [go-format, setup, check, must-not, no-network]
 max_turns: 14
 timeout_seconds: 360
