@@ -187,6 +187,13 @@ git -C "$REPO" add notes.md
 expect "a typo on an unchanged line does not block" "0|" "$(check "$REPO")"
 
 new_repo
+mkdir -p "$REPO/.githooks"
+printf '#!/bin/sh\necho teh hook\n' >"$REPO/.githooks/pre-commit"
+git -C "$REPO" add .githooks/pre-commit
+expect "a staged .githooks/pre-commit typo is reported, as typos-check reported it" "1|.githooks/pre-commit:2: \`teh\` should be \`the\`
+$HINT" "$(check "$REPO")"
+
+new_repo
 printf 'an old teh line\nstaged teh\n' >"$REPO/notes.md"
 git -C "$REPO" add notes.md
 printf 'an old teh line\nstaged the\n' >"$REPO/notes.md"

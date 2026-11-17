@@ -19,10 +19,7 @@ fi
 export SP_CONFIG
 
 rt_wants() {
-  case "$1" in
-  .githooks/* | */.githooks/*) return 1 ;;
-  *) return 0 ;;
-  esac
+  return 0
 }
 
 sp__config_name() {
