@@ -51,7 +51,8 @@ compare's numbers.
 
 A deviation from the rule above, written and committed before the rerun it governs.
 
-- **Why.** The first compare under the rule was not met.
+- **Why.** The first compare (the rule above, with the filter deviation the Record names) was not
+  met.
   - Opus read `non-inferior at margin 0.05` (paired change +0.24, interval +0.02 to +0.46).
   - Sonnet read `not shown non-inferior at margin 0.05` (paired change +0.21, interval -0.07 to
     +0.48, over 4 cases).
@@ -80,9 +81,20 @@ A deviation from the rule above, written and committed before the rerun it gover
 
 ## Record
 
-The first four-case compare, run under the registered rule above (b9ad83fa8a). It ran before at
-main `35c687f674` and after at `a70e47f513`, with sonnet at 6 runs a side and opus at 3. All four
-result files read `verdict: VALID`.
+The first four-case compare. It used the rule registered above (b9ad83fa8a) with one deviation: its
+case filter. It ran before at main `35c687f674` and after at `a70e47f513`, with sonnet at 6 runs a
+side and opus at 3. All four result files read `verdict: VALID`.
+
+- **Filter, a deviation from the registered rule.** The rule's `--case 'map-refresh-[su]*'` matched
+  no case, because the CLI's glob has no bracket class; that attempt ran no model. The scored runs
+  used `--case 'map-refresh-*'` on all four invocations (sonnet and opus, before and after). Each
+  result file records it as `suite.caseFilter: map-refresh-*`.
+- **Selection.** In the plugin copy of each side, the same way on both, the fifth `map-refresh-*`
+  case folder, `map-refresh-ticket-branch-commits-there`, was removed. Each result file lists the
+  same four scored cases: `map-refresh-shared-launch-groups-same-state`,
+  `map-refresh-spot-check-and-unmapped-sweep`,
+  `map-refresh-unattended-stale-ready-reports-unwritten` and
+  `map-refresh-unreached-feature-names-prerequisite-and-command`.
 
 | Case | Sonnet before → after | Opus before → after |
 |---|---|---|
@@ -103,10 +115,11 @@ result files read `verdict: VALID`.
   each "pattern not found". The trace of run 2 shows a correct reply that the grader failed. The reply
   reads "`src/server.ts:11-12` reads `// The shop moved off 3000 so it can sit beside the admin
   console.` followed by `app.listen(4100, "127.0.0.1");`", and gives the corrected Ready, unwritten.
-  Run 3's trace was not read before the kept sandboxes were removed.
+  Sonnet run 3's failing trace was not read: its kept sandbox was removed first, so its miss is not
+  traced.
 - **Opus confirm.** Non-inferior, every case at 1.000 after.
-- **Result under the gate: met.** No case dropped, the dip traces to the grader and not to the
-  changed text, and Opus confirms.
+- **Result under the gate: met.** No case dropped, the one miss read (run 2) traces to the grader and
+  not to the changed text, and Opus confirms.
 
 The grader fix that accepts such a range (b25f07b3e0) came after these numbers. It is a disclosed
 follow-up fix and was not a scoring input.
@@ -139,7 +152,8 @@ the app. It was written and committed before its run, under the owner's eval gat
 
 **Result.**
 
-- Both files read `verdict: VALID`.
+- Both files read `verdict: VALID`. Both ran the registered filter with no deviation: each records
+  `suite.caseFilter: drive-reused-launch-reset-restart-rerecords` and scores that one case.
 - BEFORE scored 1.00, 1.00, 1.00, and AFTER scored 1.00, 1.00, 1.00. The noise report prints
   `compare verdict: n too small to call (cases scored in both results: 1; 3 or more are needed)`.
 - No loss, so no opus confirm ran. The result is met.
