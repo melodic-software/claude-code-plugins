@@ -1,7 +1,8 @@
 # formal-verification
 
 Formal verification for the part of a codebase where a bug costs most and tests reach least.
-`/formal-verification:chart` checks a TLA+ model with TLC, draws its states as a Mermaid chart, and
+`/formal-verification:specify` finds that part, writes a check for it and checks the result against
+the contract. `/formal-verification:chart` checks a TLA+ model with TLC, draws its states as a Mermaid chart, and
 gives the shortest path to each rule that breaks, for a person to judge. A consumer keeps each model
 in its own `formal-<area>` skill, shaped by [`reference/formal-skill.md`](reference/formal-skill.md).
 
@@ -16,6 +17,7 @@ in its own `formal-<area>` skill, shaped by [`reference/formal-skill.md`](refere
 
 | Skill | What it does |
 |---|---|
+| `/formal-verification:specify` | Bare proposes the promise most worth proving: its harm, its tool and the `formal-<area>` folder `create` would write; it writes nothing. `create "<promise>"` first checks that your project instructions opt in to the enforcement ladder's `formal-verification` rung (without it, it goes on only on your yes for that run, and an unattended run reports `blocked: formal verification not opted in`), chooses the tool with you, writes the model and the `formal-<area>` skill, and proves a seeded break, made in a throwaway git worktree, is caught; `create --unattended` is a dry run. `check` runs `scripts/check.mjs`, the contract check. Names no verification tool and installs none. Model-invoked too, so `/corrections:codify` can chain to it. |
 | `/formal-verification:chart` | Model-checks a TLA+ spec with TLC and writes `chart.mmd` and `report.md`: each rule that holds, each that breaks with its shortest path, and the rules a bound left unchecked. Model-invoked too, so a `formal-<area>` skill's Run can call it. |
 | `/formal-verification:setup` | `check` reports the script runtime, Java, the model checker and the renderer; `apply install-model-checker` and `apply install-renderer` download the pinned file into the plugin data directory and keep it only when its checksum matches. Typed only. |
 
@@ -40,6 +42,28 @@ node <plugin root>/scripts/settings.mjs --project-dir .
 A bound for one model goes in that model's run command (`--chart-states`, `--rerun-states`), in its
 `formal-<area>` skill.
 
+`skills_dir` (default `.claude/skills`) is where `formal-<area>` skills live. `check.on_stale`
+(`warn` by default, or `fail`) says what the contract check reports for a check whose covered code
+changed after its sync commit; a `sync.yaml` entry's own `on_stale` wins over it.
+
+## The contract check
+
+`scripts/check.mjs` passes or fails each `formal-<area>` skill against
+[`reference/formal-skill.md`](reference/formal-skill.md) and edits nothing:
+
+```shell
+node <plugin root>/scripts/check.mjs --project-dir . [--skills-dir DIR] [--default-ref REF] [SKILL_DIR...]
+```
+
+`--default-ref` names the default branch's ref; a sync or seeded-break commit not on it fails,
+because a squash or rebase merge discards a commit only a feature branch holds. A ref that does not
+resolve draws one warning and skips that check.
+
+`--skills-dir` wins over the `skills_dir` key; CI passes `.claude/skills` so the pull request's own
+convention file cannot move the check. It exits 0 with no failure, 1 with one, and 2 when it cannot
+run. It reads git history, so a
+shallow clone fails the sync-commit check.
+
 ## Prerequisites
 
 | Tool | Who installs it |
@@ -57,7 +81,7 @@ also checks the jar's pinned SHA-256.
 ## Tests
 
 `node --test scripts/toolchain.test.mjs` covers settings resolution and the toolchain check and
-install. The chart scripts carry their own suite under `skills/chart/scripts/test/`.
+install; `node --test scripts/check.test.mjs` covers the contract check. The chart scripts carry their own suite under `skills/chart/scripts/test/`.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -100,7 +124,12 @@ For a Claude Code release without `plugin configure`, see [Plugin install](https
 
 `/formal-verification:chart` carries the `statechart` skill of pstack in
 [cursor/plugins](https://github.com/cursor/plugins), its text and its scripts, changed so that the
-scripts take the jar, Java and bounds as arguments and install nothing. The record is
+scripts take the jar, Java and bounds as arguments and install nothing.
+`/formal-verification:specify` and the `formal-<area>` contract carry the text of pstack's
+`create-formal-verification-skill`, except its sentence "TLA+ is the default": per
+[ADR 0101](../../docs/adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md), the
+tool is chosen from the consumer's repository and recorded only in its `formal-<area>` skill. The
+record is
 [`docs/upstream/cursor-pstack.md`](../../docs/upstream/cursor-pstack.md). Those files are used under
 this license:
 

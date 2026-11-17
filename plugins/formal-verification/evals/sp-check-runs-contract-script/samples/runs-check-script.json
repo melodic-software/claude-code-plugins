@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/formal-verification/scripts/check.mjs\" --project-dir \"/repo\""}}], "why": "the skill's command"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/formal-verification/scripts/check.mjs --project-dir /repo .claude/skills/formal-lock"}}], "why": "one folder named"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no calls"},
+    {"answer": [{"tool": "Bash", "input": {"command": "ls .claude/skills"}}], "why": "its own look instead of the script"}
+  ]
+}

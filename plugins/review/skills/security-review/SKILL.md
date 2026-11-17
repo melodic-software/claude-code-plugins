@@ -452,6 +452,12 @@ with no backticks, bold or quote marker: `manifest <field>: flag, <reason>`. Its
 then the last line above the footer. The pr-unblock lane matches that first line to find a
 `dependencies` flag it may settle.
 
+In the summary, fold every `manifest <field>:` line into one block after the overview and the
+findings, as `<details>`, then `<summary>Manifest lines (N)</summary>` with `N` the lines
+inside, a blank line, the lines (each starting with its marker, after a list bullet at most), a
+blank line and `</details>`. With no such line, post no block. The `critical-findings: <n>` line
+stays outside the block.
+
 **Hold for a person.** When the wrapper's output schema has a `hold` field, fill it only for the
 classes the wrapper's prompt defines, each named by its criterion, with a reason naming the
 findings or files. A `critical-security` hold (one or more CRITICAL findings, a CRITICAL

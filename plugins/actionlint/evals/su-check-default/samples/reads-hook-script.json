@@ -5,7 +5,7 @@
         {
           "tool": "Read",
           "input": {
-            "file_path": "/opt/plugins/cache/m/actionlint/1.0.0/git-hooks/actionlint-check.sh"
+            "file_path": "/opt/plugins/cache/m/actionlint/1.0.0/git-hooks/lint.sh"
           }
         }
       ]
@@ -15,7 +15,7 @@
         {
           "tool": "Read",
           "input": {
-            "file_path": "D:\\plugins\\cache\\m\\actionlint\\1.0.0\\git-hooks\\actionlint-check.sh"
+            "file_path": "D:\\plugins\\cache\\m\\actionlint\\1.0.0\\git-hooks\\adapters.sh"
           }
         }
       ],
@@ -39,7 +39,7 @@
         {
           "tool": "Read",
           "input": {
-            "file_path": "/opt/plugins/cache/m/actionlint/1.0.0/git-hooks/actionlint-check.test.sh"
+            "file_path": "/opt/plugins/cache/m/actionlint/1.0.0/git-hooks/lint.test.sh"
           }
         }
       ],

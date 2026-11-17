@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: sp-check-runs-contract-script
+graders:
+  - name: runs-check-script
+    type: tool_used
+    tool: Bash
+    input_match: 'scripts/check\.mjs\b'
+    arm: with-only
+  - name: reports-summary
+    type: regex
+    pattern: 'formal-<area> skill|failure\(s\)|\b(?:FAIL|WARN|pass(?:es|ed)?)\b'
+    target: last_message
+    arm: with-only
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
