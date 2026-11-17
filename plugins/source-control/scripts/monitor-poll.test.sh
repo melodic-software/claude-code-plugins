@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for the PR monitor's poll script,
-# skills/pull-request/scripts/monitor-poll.sh, the command the Monitor watch
-# runs. It runs from a copy of the plugin's layout against a stub `gh`. No
-# network.
-#
 # A failed check read must keep the baseline: the discriminating cases are a
 # failed FIRST read (the second good poll must only record) and a failed read
 # BETWEEN two good polls (nothing is emitted twice).
@@ -34,8 +29,6 @@ git init -q "$CHECKOUT"
 git -C "$CHECKOUT" remote add origin https://github.com/owner/repo.git
 unset GH_REPO
 
-# The poll script in a copy of the plugin's layout: target-repo.sh and its
-# library are the real ones, the threads script is a stub (below).
 PLUGIN="$TEST_TMPDIR/plugin"
 mkdir -p "$PLUGIN/skills/pull-request/scripts" "$PLUGIN/scripts" "$PLUGIN/lib"
 cp -p "$SRC" "$SCRIPT_DIR/../skills/pull-request/scripts/target-repo.sh" "$PLUGIN/skills/pull-request/scripts/"
@@ -72,7 +65,6 @@ case "$args" in
 esac
 exit 0
 STUB
-# The threads read is poll 1's last call; its marker tells a test poll 1 ran.
 cat >"$PLUGIN/scripts/source-control-review-threads" <<'STUB'
 touch "$FX/threads-read"
 echo "THREADS_OK unresolved=0"
@@ -88,10 +80,6 @@ runs_json() {
   printf '{"check_runs":[%s]}' "$out"
 }
 
-# run_poll <fixture-dir> [arg...] — runs the poll script on PR 7 against the
-# stub, with no sleep between polls and any further arguments passed on;
-# stdout only. Any temp file it made would land in POLL_TMP, which must stay
-# empty.
 POLL_TMP="$TEST_TMPDIR/poll-tmp"
 mkdir -p "$POLL_TMP"
 run_poll() {
@@ -133,8 +121,6 @@ out3="$(run_poll "$FX3")"
 assert_not_contains "clean polls: baseline check a not emitted" "$out3" "a: pass"
 assert_eq "clean polls: b is emitted once" "1" "$(grep -c '^b: pass$' <<<"$out3")"
 
-# --- --once: the run ends after the first poll that prints a line, long
-# before the PR merges.
 FX7="$TEST_TMPDIR/fx7"
 mkdir -p "$FX7"
 runs_json a >"$FX7/checks.1"
@@ -186,12 +172,11 @@ assert_eq "comment-read rate limit: exit status" "2" "$rc6"
 assert_contains "comment-read rate limit: names the error" "$out6" "RATE-LIMITED — watch stopped: API rate limit exceeded"
 
 # --- the script runs no rm and makes no temp file: an auto-mode session's
-# safety check denied a Monitor command that ran rm.
+# safety check denied a Monitor command that ran rm:
+# https://github.com/melodic-software/claude-code-plugins/issues/16201
 assert_eq "poll script runs no rm" "" "$(grep -nE '(^|[^[:alnum:]_-])rm([^[:alnum:]_-]|$)' "$SRC")"
 assert_eq "poll script makes no temp file" "" "$(grep -n 'mktemp' "$SRC")"
 
-# --- a stopped watch exits. TaskStop sends TERM to the watch and its
-# children; the real sleep holds the watch inside its loop until then.
 FX5="$TEST_TMPDIR/fx5"
 mkdir -p "$FX5"
 runs_json a >"$FX5/checks.1"
@@ -202,9 +187,8 @@ for _ in $(seq 100); do
   [[ -e "$FX5/threads-read" ]] && break
   sleep 0.1
 done
-sleep 0.5 # the rate-limit check ends poll 1, then its sleep starts
+sleep 0.5
 assert_eq "running watch: poll 1 reached its threads read" "yes" "$([[ -e "$FX5/threads-read" ]] && echo yes || echo no)"
-# target-repo.sh names the repository on stderr; any other line is an error.
 assert_eq "running watch: poll 1 ran clean" "" "$(grep -v '^target repository: ' "$TEST_TMPDIR/out5")"
 kill -TERM "$pid5" 2>/dev/null
 pkill -TERM -P "$pid5" 2>/dev/null
@@ -221,6 +205,7 @@ wait "$pid5" 2>/dev/null
 # some hosts) never parses the poll itself; and each command as written, its
 # placeholders filled in, runs a watch to completion against the stub. The
 # quotes are dropped before the split: the fixture paths hold no whitespace.
+# https://github.com/melodic-software/claude-code-plugins/issues/16353
 SKILL_DOC="$SCRIPT_DIR/../skills/pull-request/reference/monitor.md"
 PROVIDER_DOC="$SCRIPT_DIR/../reference/providers/github/pull-request/monitor.md"
 skill_cmd=$(sed -n 's/^[[:space:]]*command: //p' "$SKILL_DOC")

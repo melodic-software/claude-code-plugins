@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for the Monitor watch's poll script, monitor-poll.sh: the checks baseline a
-# re-arm starts from, and the repository it reads. Black-box, run from a copy of the plugin's
-# layout against a stubbed `gh` on PATH.
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,8 +25,6 @@ mkdir -p "$OUTSIDE"
 export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
 unset GH_REPO
 
-# The poll script runs from a copy of the plugin's layout, so the threads script it calls from
-# the plugin's scripts/ directory is a stub. target-repo.sh and its library are the real ones.
 PLUGIN="$TEST_TMPDIR/plugin"
 mkdir -p "$PLUGIN/skills/pull-request/scripts" "$PLUGIN/scripts" "$PLUGIN/lib"
 cp -p "$SCRIPT_DIR/monitor-poll.sh" "$SCRIPT_DIR/target-repo.sh" "$PLUGIN/skills/pull-request/scripts/"
@@ -81,8 +75,6 @@ exit 0
 STUB_EOF
 chmod +x "$STUB_DIR/gh"
 
-# run_poll [arg...]: the watch on PR 5 with no sleep between polls, the checkout from
-# TEST_CHECKOUT (default the acme/app checkout), and any further arguments passed on.
 run_poll() {
   rm -f "$TEST_TMPDIR/count"
   (cd "$OUTSIDE" && PATH="$STUB_DIR:$PATH" GH_STUB_COUNT="$TEST_TMPDIR/count" \
@@ -149,10 +141,6 @@ assert_contains "snapshot run with a failed checks read says so" "$out" "SNAPSHO
 [[ -e "$TEST_TMPDIR/failed-snap" ]] && snap_written=yes || snap_written=no
 assert_eq "snapshot run with a failed checks read writes no file" "no" "$snap_written"
 
-# A triangular flow: the checkout pushes to the fork me/app and its upstream is acme/app, where
-# the PR is open. target-repo.sh resolves the checkout to the fork, so the reference names the base
-# repository in its place and looks the PR up by its me:feature head; the watch given that
-# repository with --repo reads acme/app only.
 TRI="$TEST_TMPDIR/triangular"
 git init -q -b feature "$TRI"
 git -C "$TRI" remote add origin https://github.com/me/app.git
