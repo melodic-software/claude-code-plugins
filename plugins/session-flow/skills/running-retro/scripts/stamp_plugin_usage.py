@@ -20,7 +20,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-_PARSER = Path(__file__).resolve().parents[2] / "retro" / "scripts" / "parse_transcript.py"
+_PARSER = Path(__file__).resolve().parents[3] / "scripts" / "parse_transcript.py"
 _FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 _PARSE_TIMEOUT_SECONDS = 300
 

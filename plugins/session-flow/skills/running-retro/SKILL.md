@@ -82,13 +82,13 @@ So resolve every input to a concrete value and pass it in the delegation prompt,
   what the user and this conversation say happened (corrections, skills invoked or bypassed),
   add the unreadable transcript to the subjective-state note, and carry on through step 5: the
   analysis then runs on that account, and its findings still go to the ledger.
-- **Parser (absolute path)**. Resolve `${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse_transcript.py`
-  to its absolute form and pass that; the invocation + Python-3.10+ interpreter detection live in
-  retro's Phase 1.1 (`${CLAUDE_PLUGIN_ROOT}/skills/retro/context/session.md`). Point the subagent
-  there, do not restate them.
+- **Parser (absolute path)**. Resolve `${CLAUDE_PLUGIN_ROOT}/scripts/parse_transcript.py` and
+  `${CLAUDE_PLUGIN_ROOT}/reference/transcript-parser.md`, which holds its invocation and the
+  Python 3.10+ interpreter check, to their absolute forms and pass both. Point the subagent at that
+  file; do not restate it.
 - **Handoff-chain pointers**, if this session resumed from a handoff, pass the chain so the
-  subagent's parser run spans the whole transcript chain, subject to the continuity gate in retro's
-  Phase 1.0 (`${CLAUDE_PLUGIN_ROOT}/skills/retro/context/session.md`).
+  subagent's parser run spans the whole transcript chain, subject to the continuity gate in that
+  same file.
 - **Prior running-retro ledger**, if this session's ledger (or its chain) carries a
   `previous_running_retro` pointer, resolve that prior ledger's absolute path and pass it so the
   subagent carries forward earlier checkpoints' findings (the "running" = cumulative guarantee). This

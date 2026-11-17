@@ -163,6 +163,44 @@
         "The answer names /session-flow:audit-sessions pr with --number 812 and --repo acme/billing",
         "It does not run a session or quick retrospective, parse a transcript or score a session"
       ]
+    },
+    {
+      "id": 17,
+      "name": "ci-runs-without-a-sink-asks-for-one",
+      "prompt": "/session-flow:retro ci-runs --lane pr-verify --last 2. I have not set the lane_transcript_sink option.",
+      "expected_output": "With no --sink and the lane_transcript_sink option unset, the skill stops and says --sink <dir> or the option names the sink. It does not look for a sink in a default location such as ~/.local/share, and runs neither lane_legs.py nor the parser.",
+      "files": [],
+      "expectations": [
+        "The answer asks for --sink or the lane_transcript_sink option",
+        "It does not search ~/.local/share or any other default location for a sink",
+        "It runs neither lane_legs.py nor parse_transcript.py"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "ci-runs-resolves-legs-and-skips-2c",
+      "prompt": "/session-flow:retro ci-runs --lane pr-verify --last 2 --sink /srv/lane-transcripts",
+      "expected_output": "The skill runs lane_legs.py with --sink /srv/lane-transcripts --lane pr-verify --last 2, then parse_transcript.py --legs over the transcript paths it returned. It judges each leg against the pr-verify lane's own workflow and prompt rather than the interview-to-retro workflow, states that 2C is skipped because a CI lane leg has no human turns, and appends one row per run, Type ci-run, to the lane's score history under scores/lanes/pr-verify.md.",
+      "files": [],
+      "expectations": [
+        "Runs lane_legs.py with the sink, --lane pr-verify and --last 2",
+        "Runs parse_transcript.py --legs over the returned transcript paths",
+        "States that the feedback-memory regression check (2C) is skipped because a lane leg has no human turns",
+        "Scores against the lane's workflow and prompt, not the staged interview-to-retro workflow",
+        "Writes or proposes the scores to scores/lanes/pr-verify.md, one row per run with Type ci-run"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "ci-runs-mixed-selection-stops",
+      "prompt": "/session-flow:retro ci-runs 4471 --lane pr-verify --sink /srv/lane-transcripts",
+      "expected_output": "A run reference and a filter were both given. The skill stops and says ci-runs takes run references or filters, not both, naming the three selection forms. It runs no retrospective.",
+      "files": [],
+      "expectations": [
+        "The answer says run references and filters do not mix",
+        "It names the accepted selection forms",
+        "It does not score a run or write to a score history"
+      ]
     }
   ]
 }

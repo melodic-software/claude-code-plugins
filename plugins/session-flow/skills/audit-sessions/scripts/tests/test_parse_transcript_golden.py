@@ -19,7 +19,7 @@ import sys
 import pytest
 from conftest import FIXTURES, SCRIPTS
 
-PARSER = SCRIPTS.parents[1] / "retro" / "scripts" / "parse_transcript.py"
+PARSER = SCRIPTS.parents[2] / "scripts" / "parse_transcript.py"
 GOLDEN = FIXTURES / "golden"
 CASES = sorted(p.stem for p in (GOLDEN / "expected").glob("*.json"))
 

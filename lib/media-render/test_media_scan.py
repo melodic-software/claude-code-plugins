@@ -6,7 +6,7 @@ import media_scan as ms   # needs redact.py importable: media-render.test.sh put
 HERE = Path(__file__).resolve().parent
 RULES = next((p for p in (HERE / 'vendor' / 'gitleaks' / 'gitleaks-rules.json',
                           HERE.parents[1] / 'vendor' / 'gitleaks' / 'gitleaks-rules.json',
-                          HERE.parents[1] / 'plugins' / 'session-flow' / 'skills' / 'audit-sessions' / 'vendor'
+                          HERE.parents[1] / 'plugins' / 'session-flow' / 'vendor'
                           / 'gitleaks' / 'gitleaks-rules.json') if p.is_file()), None)
 
 

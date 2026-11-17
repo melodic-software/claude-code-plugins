@@ -1,13 +1,17 @@
 {
   "pass": [
     {
-      "answer": "A missing `.shellcheckrc` is INFO: ShellCheck applies its own defaults."
+      "answer": "A missing `.shellcheckrc` is INFO: ShellCheck still runs and applies its own defaults."
     }
   ],
   "fail": [
     {
       "answer": "A missing `.shellcheckrc` is not a problem.",
       "why": "near miss: no grade, no reason"
+    },
+    {
+      "answer": "A missing `.shellcheckrc` is INFO: without it the hooks run no ShellCheck.",
+      "why": "wrong reason: the lint adapter runs without an rc"
     },
     {
       "answer": "A missing `.shellcheckrc` is a FAIL: nothing gets linted without it.",

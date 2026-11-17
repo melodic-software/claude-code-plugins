@@ -134,6 +134,10 @@ concurrency:
     && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
   cancel-in-progress: false
 
+env:
+  EVAL_MODEL: claude-sonnet-5-5
+  EVAL_JUDGE_MODEL: claude-opus-5-5
+
 jobs:
   # The key's credit gate (ci-workflows select-model-credential, its start
   # call: check-key-credit's one artifact-list call for the marker the key leg
@@ -536,7 +540,7 @@ jobs:
           for attempt in 1 2 3; do
             status=0
             claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
-              --model claude-sonnet-5-5 --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
+              --model "$EVAL_MODEL" --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
             if grep -qF "$credential" "$out"; then
               echo "::error::the probe's result holds the credential, so no pull request case runs"
               exit 1
@@ -636,8 +640,8 @@ jobs:
           args=(
             --trust-plugin
             --no-publish
-            --model claude-sonnet-5-5
-            --judge-model claude-opus-5-5
+            --model "$EVAL_MODEL"
+            --judge-model "$EVAL_JUDGE_MODEL"
             --max-cost-usd "$MAX_COST"
             --keep-temp
           )
@@ -1217,7 +1221,7 @@ jobs:
           for attempt in 1 2 3; do
             status=0
             claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
-              --model claude-sonnet-5-5 --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
+              --model "$EVAL_MODEL" --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
             if grep -qF "$credential" "$out"; then
               echo "::error::the probe's result holds the credential, so no pull request case runs"
               exit 1
@@ -1291,8 +1295,8 @@ jobs:
           args=(
             --trust-plugin
             --no-publish
-            --model claude-sonnet-5-5
-            --judge-model claude-opus-5-5
+            --model "$EVAL_MODEL"
+            --judge-model "$EVAL_JUDGE_MODEL"
             --max-cost-usd "$MAX_COST"
             --keep-temp
           )
@@ -1791,7 +1795,7 @@ jobs:
           for attempt in 1 2 3; do
             status=0
             claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
-              --model claude-sonnet-5-5 --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
+              --model "$EVAL_MODEL" --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
             if grep -qF "$credential" "$out"; then
               echo "::error::the probe's result holds the credential, so no pull request case runs"
               exit 1
@@ -1865,8 +1869,8 @@ jobs:
           args=(
             --trust-plugin
             --no-publish
-            --model claude-sonnet-5-5
-            --judge-model claude-opus-5-5
+            --model "$EVAL_MODEL"
+            --judge-model "$EVAL_JUDGE_MODEL"
             --max-cost-usd "$MAX_COST"
             --keep-temp
           )

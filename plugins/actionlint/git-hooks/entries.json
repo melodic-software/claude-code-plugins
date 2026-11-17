@@ -1,11 +1,15 @@
 {
+  "earlierEntries": [{ "from": "actionlint-check", "to": ["lint"] }],
+  "ecosystems": ["github-actions"],
   "entries": [
     {
-      "name": "actionlint-check",
+      "name": "lint",
       "event": "pre-commit",
-      "script": "actionlint-check.sh",
+      "script": "lint.sh",
       "tools": ["actionlint"],
-      "rewrites": false
+      "rewrites": false,
+      "resolved": true,
+      "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh"]
     }
   ]
 }

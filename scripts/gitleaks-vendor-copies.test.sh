@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # The gitleaks rules each carrier vendors match the session-flow copy vendor_gitleaks_rules.py writes, byte for
 # byte. The check lives here because no plugin may cite another's private files.
-# test-scope: plugins/session-flow/skills/audit-sessions/vendor/gitleaks/* plugins/corrections/tools/findings-buffer/vendor/gitleaks/* plugins/explainer-video/vendor/gitleaks/*
+# test-scope: plugins/session-flow/vendor/gitleaks/* plugins/corrections/tools/findings-buffer/vendor/gitleaks/* plugins/explainer-video/vendor/gitleaks/*
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SELF_DIR/.." && pwd)"
-CANON="$REPO/plugins/session-flow/skills/audit-sessions/vendor/gitleaks"
+CANON="$REPO/plugins/session-flow/vendor/gitleaks"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"

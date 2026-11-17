@@ -15,7 +15,10 @@
           "shfmt"
         ]
       },
-      "degrade": "Without shfmt, the hook cannot format edited shell scripts.",
+      "when": {
+        "config_any": [{ "file": ".editorconfig", "pattern": "^\\s*\\[[^\\]\\n]*(\\*\\.(sh|bash)([^A-Za-z0-9]|$)|[{,](sh|bash)[,}])" }]
+      },
+      "degrade": "Without shfmt, the shfmt adapter cannot format edited shell scripts.",
       "install": {
         "docs": "https://github.com/mvdan/sh#shfmt"
       }
@@ -32,7 +35,7 @@
           "shellcheck"
         ]
       },
-      "degrade": "Without shellcheck, the hook cannot lint edited shell scripts.",
+      "degrade": "Without shellcheck, the ShellCheck adapter cannot lint staged shell scripts.",
       "install": {
         "docs": "https://github.com/koalaman/shellcheck#installing"
       }

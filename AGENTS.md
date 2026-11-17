@@ -139,6 +139,10 @@ Org architecture (cross-repo decisions, glossary, why each trust link exists): p
 
 To run a skill here and record evidence, use `/app-control:drive claude-code-plugins <plugin>/<skill>`; its control skill is `.claude/skills/control-claude-code-plugins/`.
 
+## Formal verification
+
+This repository opts in to formal verification: `/corrections:codify` may place a rule on the enforcement ladder's `formal-verification` rung.
+
 ## Running tests locally
 
 Run node suites with `node --test --test-concurrency=4`, and at most one full `.github` suite (about

@@ -8,8 +8,8 @@ Reads the `*.jsonl` transcripts directly inside each `--dir`, newest first, thro
 `scripts/transcript_reader.py`. A user or assistant text record matches when it contains any term,
 compared as plain text without regard to case (a term is never a pattern). Each match prints one
 JSON line on stdout: `session`, `file`, `time`, `role`, `term`, `snippet`. The snippet is cut from
-the record's text after the whole text went through the audit-sessions redactor
-(`skills/audit-sessions/scripts/redact.py`), so a secret is never split before redaction sees it.
+the record's text after the whole text went through the plugin's redactor
+(`scripts/redact.py`), so a secret is never split before redaction sees it.
 
 Bounds: a snippet holds at most SNIPPET_CHARS characters, a session at most PER_SESSION matches,
 a run at most MAX_MATCHES. stderr carries one `scanned:` line and, when a bound was hit, one
@@ -28,14 +28,10 @@ import sys
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[3]
-for _path in (
-    PLUGIN_ROOT / "scripts",
-    PLUGIN_ROOT / "skills" / "audit-sessions" / "scripts",
-):
-    if str(_path) not in sys.path:
-        sys.path.insert(0, str(_path))
+if str(PLUGIN_ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
 
-import redact  # noqa: E402  (skills/audit-sessions/scripts/redact.py)
+import redact  # noqa: E402  (scripts/redact.py)
 import transcript_reader  # noqa: E402  (scripts/transcript_reader.py)
 
 SNIPPET_CHARS = 240

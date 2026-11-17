@@ -1,6 +1,6 @@
 {
   "name": "formal-verification",
-  "description": "Formal verification for the part of a codebase where a bug costs most. /formal-verification:chart model-checks a TLA+ spec with TLC and draws its states as a Mermaid chart, with the shortest path to each broken rule for a person to judge. /formal-verification:setup checks the toolchain and installs the pinned, checksummed model checker only on a typed yes. A consumer's formal-<area> skill follows reference/formal-skill.md.",
+  "description": "Formal verification for the part of a codebase where a bug costs most. /formal-verification:chart model-checks a TLA+ spec with TLC and draws its states as a Mermaid chart, with the shortest path to each broken rule for a person to judge. /formal-verification:setup checks the toolchain and installs the pinned, checksummed model checker only on a typed yes. A consumer's formal-<area> skill follows reference/formal-skill.md; /formal-verification:specify proposes, writes and checks them.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"

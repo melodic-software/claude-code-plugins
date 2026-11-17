@@ -77,9 +77,10 @@ D/audit-sessions/
 
 - Records carry `"schema": "session-record/v1"`, the plugin version that wrote them
   (`collector_version`, provenance only) and `collector_digest`: SHA-256 over the files that shape
-  a record, CRLF read as LF. Those files are `collect.py`, `census.py`, `friction_scan.py` and `redact.py`,
-  `vendor/gitleaks/gitleaks-rules.json`, and the plugin's `scripts/transcript_reader.py` and
-  `lib/state-key.sh` (`COLLECTOR_INPUTS` in `collect.py`). A record without the digest is
+  a record, CRLF read as LF. Those files, all under the plugin root, are `scripts/collect.py`,
+  `scripts/census.py`, `scripts/friction_scan.py`, `scripts/redact.py`,
+  `scripts/transcript_reader.py`, `vendor/gitleaks/gitleaks-rules.json` and `lib/state-key.sh`
+  (`COLLECTOR_INPUTS` in `collect.py`). A record without the digest is
   re-ingested once.
 - New fields are added within v1, and readers treat a missing field as null.
 - A breaking change moves the store to `store/v2/` and ships a v1-to-v2 migrator in `collect.py`.

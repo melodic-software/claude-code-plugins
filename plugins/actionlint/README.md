@@ -10,6 +10,13 @@ It ships no rules of its own and no binary. It runs the `actionlint` already on 
 
 ## Behavior
 
+- **Every workflow file, with or without a config.** The hooks lint each GitHub Actions workflow
+  file a change touches. When the repository commits `.github/actionlint.yaml` or
+  `.github/actionlint.yml` at its root, the config actionlint itself reads, actionlint applies it;
+  without one it runs on its built-in defaults. A repository with no workflow files gets nothing.
+  The hooks never run a command from the repository's github-actions record
+  (`.claude/ecosystems/github-actions.yaml`); `/toolchain:lint` and `/toolchain:check` run that on
+  request. `/actionlint:setup check` reports which applies.
 - **Report only.** The check never rewrites a file. A finding prints as
   `<path>:<line>: <message>` on stderr and exits `1`. A finding about a whole workflow (a job
   with no `runs-on`) carries the line actionlint names for it.
@@ -19,7 +26,9 @@ It ships no rules of its own and no binary. It runs the `actionlint` already on 
   `.github/workflows/*.yaml` are linted. Other YAML is left alone, and files under `.githooks/`
   (installed copies) are skipped.
 - **A partly staged file is linted as staged.** The check reads the index, so the lint matches
-  what the commit records.
+  what the commit records, under the config's `paths:` rules for that file.
+- **Fails closed.** When actionlint exits non-zero without a `<path>:<line>` finding (a config it
+  cannot parse, for example), the commit is blocked and actionlint's output shown.
 - **External run-block linters disabled (`-shellcheck= -pyflakes=`).**
   actionlint's embedded-bash ShellCheck and `shell: python` pyflakes integrations are turned off
   at commit time; run the full integrations in CI. For how the integration runs, see
@@ -30,12 +39,14 @@ It ships no rules of its own and no binary. It runs the `actionlint` already on 
 
 ## Git pre-commit entry
 
-The plugin ships one git-hook entry, `actionlint-check` (`git-hooks/entries.json`). It reaches
+The plugin ships one git-hook entry, `lint` (`git-hooks/entries.json`). It reaches
 every author, not only Claude, once `/actionlint:setup apply install-git-hooks [scope=local|shared]`
 registers it with the repository's hook manager (lefthook, husky or plain git hooks). Local scope
 stays in this clone; shared scope commits the copy under `.githooks/actionlint/`.
 `/actionlint:setup check` reports drift, and the SessionStart probe prints one line when the
-entry is missing, stale or edited.
+entry is missing, stale or edited. An installed copy of the earlier `actionlint-check` entry is
+reported as superseded until `apply install-git-hooks` retires it, and a decline of
+`actionlint-check` carries over to `lint`.
 
 When `actionlint` is missing, an agent's commit fails with the install command; a person's commit
 gets a one-line notice and goes through. `git -c checks.skipmissing=actionlint commit ...` skips the
@@ -87,8 +98,8 @@ Then verify prerequisites with `/actionlint:setup check` and register the pre-co
 
 ## Configuration
 
-For actionlint's own configuration file, see
-[actionlint configuration: Configuration file](https://github.com/rhysd/actionlint/blob/main/docs/config.md#configuration-file).
+The repository's own actionlint configuration file, when present, tunes actionlint; see
+[actionlint configuration: Configuration file](https://github.com/kjanat/actionlint/blob/v1.17.0/docs/config.md#configuration-file).
 Two `userConfig` options tune the hooks themselves:
 
 - **`actionlint_enabled`** (boolean, default `true`). Kill switch for the plugin's Claude Code
@@ -116,7 +127,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `actionlint_enabled` | boolean | `true` | Turn the plugin's Claude Code hooks (the opt-in end-of-turn check and the session-start probe) on or off |
-| `actionlint_end_of_turn` | boolean | `false` | At the end of each turn, run the pre-commit actionlint check over the workflow lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Off by default. |
+| `actionlint_end_of_turn` | boolean | `false` | At the end of each turn, run the pre-commit lint entry over the workflow lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Off by default. |
 
 ### How to set these
 

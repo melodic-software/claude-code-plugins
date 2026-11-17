@@ -71,7 +71,11 @@ from collections import Counter
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-import census
+_PLUGIN_SCRIPTS = str(Path(__file__).resolve().parents[3] / "scripts")
+if _PLUGIN_SCRIPTS not in sys.path:
+    sys.path.insert(0, _PLUGIN_SCRIPTS)
+
+import census  # noqa: E402  (plugin-level scripts/census.py)
 
 SCHEMA = "audit-sessions.sweep/v1"
 TICKETS_SCHEMA = "audit-sessions.tickets/v1"

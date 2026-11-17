@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "formal-verification check: 1 formal-<area> skill(s), 0 failure(s), 0 warning(s)", "why": "the summary as printed"},
+    {"answer": "WARN formal-claims: check \"one-holder\": covered code changed since sync commit 0123456789ab: src/claim.sh", "why": "a WARN line"},
+    {"answer": "The check passed: formal-claim-protocol meets the contract.", "why": "a paraphrase"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "I looked at the folder and it seems fine.", "why": "no result of the script"}
+  ]
+}

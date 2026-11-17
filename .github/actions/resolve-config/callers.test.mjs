@@ -4803,6 +4803,83 @@ test("pr-run-activity-read.yml: a payload over its cap carries only its byte cou
   assert.match(committed.seal.outputs["sealed-length"], /^[1-9][0-9]*$/);
 });
 
+// The sealer copy sits in RUNNER_TEMP while head code runs, so the copy step
+// records each file's SHA-256 from the base, and the step between the carry
+// and the seal fails, and the seal does not run, unless every file matches.
+test("pr-run-activity-read.yml: the seal step runs only on a sealer copy that matches the SHA-256 recorded from the base", (t) => {
+  const steps = runSteps();
+  const at = (id) => steps.findIndex((s) => s.id === id);
+  const copy = steps[at("seal-copy")];
+  const check = steps[at("seal-check")];
+  const seal = steps[at("seal")];
+  assert.equal(copy.name, "Copy the patch collector and the output sealer from the base");
+  assert.ok(at("seal-copy") < steps.findIndex((s) => s.name === "Check out the PR head"), "recorded before head code");
+  assert.equal(at("seal-check"), at("carry") + 1, "checked after the carry step places the copy");
+  assert.equal(at("seal"), at("seal-check") + 1, "checked immediately before the seal step");
+  assert.equal(seal.uses.split(" ")[0], "./.lane-seal");
+  const outcomes = (carry, checked) => ({ "steps.carry.outcome": carry, "steps.seal-check.outcome": checked });
+  assert.equal(evaluate(check.if, { "steps.carry.outcome": "success" }), true, "checked after an earlier failure too");
+  assert.equal(evaluate(check.if, { "steps.carry.outcome": "failure" }), false);
+  assert.equal(evaluate(seal.if, outcomes("success", "success")), true);
+  for (const checked of ["failure", "skipped"]) assert.equal(evaluate(seal.if, outcomes("success", checked)), false, `no seal when the check is ${checked}`);
+  // The copy step, run on a base, records the hashes the check step reads.
+  const root = tempDir("seal-check-");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const base = join(root, "work", ".base");
+  const temp = join(root, "temp");
+  const files = { "action.yml": "seal-lane-output/action.yml", "seal.mjs": "seal-lane-output/seal.mjs", "scan-carrier.pub": "../lane-keys/scan-carrier.pub" };
+  for (const dir of [".github/scripts/read-patch", "lib", ".github/actions/seal-lane-output", ".github/lane-keys"]) mkdirSync(join(base, dir), { recursive: true });
+  for (const file of [".github/scripts/read-patch/collect-patch.sh", ".github/scripts/read-patch/check-permission-mode.sh", "lib/publish-gate.mjs"]) writeFileSync(join(base, file), "");
+  for (const [name, source] of Object.entries(files)) {
+    writeFileSync(join(base, name === "scan-carrier.pub" ? ".github/lane-keys" : ".github/actions/seal-lane-output", name), readFileSync(new URL(source, ACTIONS)));
+  }
+  const copyOutput = join(root, "copy-output");
+  writeFileSync(copyOutput, "");
+  const copied = runStep(copy, join(root, "work"), { DEST: join(temp, "read-patch"), SEAL_DIR: join(temp, "seal-lane-output"), GITHUB_OUTPUT: copyOutput });
+  assert.equal(copied.status, 0, copied.stderr);
+  const recorded = outputLines(copyOutput);
+  const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
+  assert.deepEqual(recorded, {
+    "action-sha256": sha(readFileSync(new URL(files["action.yml"], ACTIONS))),
+    "seal-sha256": sha(readFileSync(new URL(files["seal.mjs"], ACTIONS))),
+    "key-sha256": sha(readFileSync(new URL(files["scan-carrier.pub"], ACTIONS))),
+  });
+  // Each hash the check step reads is one the copy step writes.
+  const env = {};
+  for (const [name, value] of Object.entries(check.env)) {
+    const [, output] = /^\$\{\{ steps\.seal-copy\.outputs\.([\w-]+) \}\}$/.exec(value) ?? [];
+    assert.ok(Object.hasOwn(recorded, output ?? ""), `${name} reads a hash the copy step records`);
+    env[name] = recorded[output];
+  }
+  assert.equal(Object.keys(env).length, 3);
+  const checkWith = (change = () => {}, overrides = {}) => {
+    const workspace = mkdtempSync(join(root, "workspace-"));
+    const lane = join(workspace, ".lane-seal");
+    mkdirSync(lane);
+    for (const name of Object.keys(files)) writeFileSync(join(lane, name), readFileSync(join(temp, "seal-lane-output", name)));
+    change(lane);
+    return runStep(check, workspace, { GITHUB_WORKSPACE: workspace, ...env, ...overrides });
+  };
+  const clean = checkWith();
+  assert.equal(clean.status, 0, clean.stdout + clean.stderr);
+  for (const name of Object.keys(files)) {
+    for (const [what, change] of [
+      ["rewritten", (lane) => writeFileSync(join(lane, name), "rewritten\n")],
+      ["missing", (lane) => rmSync(join(lane, name))],
+      ["a link", (lane) => { rmSync(join(lane, name)); symlinkSync(join(temp, "seal-lane-output", name), join(lane, name)); }],
+    ]) {
+      const failed = checkWith(change);
+      assert.equal(failed.status, 1, `${name} ${what}`);
+      assert.match(failed.stdout, new RegExp(`^::error::the sealer copy's ${name.replace(".", "\\.")} `, "m"), `${name} ${what}`);
+    }
+  }
+  for (const name of Object.keys(env)) {
+    const failed = checkWith(undefined, { [name]: "" });
+    assert.equal(failed.status, 1, `${name} empty`);
+    assert.match(failed.stdout, /^::error::/m);
+  }
+});
+
 test("pr-run-activity-read.yml: the run fields keep at most four local-command stderr entries", async (t) => {
   const root = tempDir("act-turns-");
   t.after(() => rmSync(root, { recursive: true, force: true }));

@@ -4127,6 +4127,10 @@ CARRY_REFUSES: tuple[str, ...] = (
     _skill_scripts("harness-ops:changelog"),
     "plugins/instruction-placement/scripts/**",
     "plugins/app-control/scripts/**",
+    "plugins/formal-verification/scripts/**",
+    "plugins/formal-verification/lib/**",
+    "plugins/formal-verification/defaults.json",
+    "plugins/formal-verification/schemas/**",
 )
 
 
