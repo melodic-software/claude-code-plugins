@@ -738,7 +738,7 @@ lib/git-hooks/install.mjs -> plugins/*/lib/git-hooks/install.mjs
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies, which sit at a
 # different path in each plugin.
-lib/redact.py -> plugins/session-flow/skills/audit-sessions/scripts/redact.py plugins/corrections/tools/findings-buffer/lib/redact.py
+lib/redact.py -> plugins/session-flow/scripts/redact.py plugins/corrections/tools/findings-buffer/lib/redact.py
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/check-convention-facts.mjs, the advisory current-facts check a setup
@@ -814,12 +814,12 @@ scripts/media_scan.py
 scripts/redact.py
 # Dedicated check: scripts/sync-shared-copies.sh --check. The rules the scan
 # floor reads. Canonical:
-# plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json.
+# plugins/session-flow/vendor/gitleaks/gitleaks-rules.json.
 vendor/gitleaks/gitleaks-rules.json
 
 # No dedicated check for the speech copy: accepted, enforced by this script's
 # --check. The license that travels with the vendored gitleaks rules.
-# Canonical copy: plugins/session-flow/skills/audit-sessions/vendor/gitleaks/LICENSE-gitleaks.
+# Canonical copy: plugins/session-flow/vendor/gitleaks/LICENSE-gitleaks.
 vendor/gitleaks/LICENSE-gitleaks
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:

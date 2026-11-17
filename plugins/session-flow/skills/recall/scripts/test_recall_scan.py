@@ -274,15 +274,11 @@ class RecallScanTest(unittest.TestCase):
         copy = self.tmp / "plugin"
         (copy / "skills" / "recall" / "scripts").mkdir(parents=True)
         (copy / "scripts").mkdir()
-        (copy / "skills" / "audit-sessions" / "scripts").mkdir(parents=True)
-        rules = copy / "skills" / "audit-sessions" / "vendor" / "gitleaks"
+        rules = copy / "vendor" / "gitleaks"
         rules.mkdir(parents=True)
         shutil.copy(SCAN, copy / "skills" / "recall" / "scripts" / "recall_scan.py")
         shutil.copy(PLUGIN_ROOT / "scripts" / "transcript_reader.py", copy / "scripts")
-        shutil.copy(
-            PLUGIN_ROOT / "skills" / "audit-sessions" / "scripts" / "redact.py",
-            copy / "skills" / "audit-sessions" / "scripts",
-        )
+        shutil.copy(PLUGIN_ROOT / "scripts" / "redact.py", copy / "scripts")
         (rules / "gitleaks-rules.json").write_text(
             '{"rules": [{"id": "broken", "regex": "("}]}', encoding="utf-8"
         )

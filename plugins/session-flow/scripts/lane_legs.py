@@ -13,6 +13,8 @@ leg whose `is_error` is true, `success` a success that did not error, else the s
 outcome), and `--model` (a substring of any model the leg used). `--last N` keeps the N newest runs
 left. Run references and filters do not mix.
 
+A metrics line with no newline is an append cut short, not a row.
+
 The sink layout and every row field are in docs/contracts/lane-transcripts/README.md. A row written
 before the provider-neutral fields reads them from the GitHub ones (`run_id`, `job_id`), with no
 `run_url`. A leg's `kind` is `subscription` or `fallback` when its key names one, else `key`; a
@@ -45,7 +47,6 @@ def fail(message: str) -> NoReturn:
 
 def read_rows(sink: Path) -> list[dict]:
     text = (sink / "metrics.jsonl").read_text(encoding="utf-8", errors="replace")
-    # A last line with no newline is an append cut short, not a row.
     complete = text[: text.rfind("\n") + 1]
     rows = []
     for line in complete.splitlines():

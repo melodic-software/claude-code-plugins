@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 import pytest
-from conftest import FIXTURES, SCRIPTS, envelope, run_cli
+from conftest import FIXTURES, PLUGIN_SCRIPTS, SCRIPTS, envelope, run_cli
 
 STATE_KEY = SCRIPTS.parents[2] / "lib" / "state-key.sh"
 
@@ -64,7 +64,7 @@ def multi(copy_fixture, tmp_path):
 
 
 def collect(data_dir: Path, root: Path, *extra: str, env: dict | None = None) -> subprocess.CompletedProcess[str]:
-    args = [sys.executable, str(SCRIPTS / "collect.py"), "collect", "--data-dir", str(data_dir)]
+    args = [sys.executable, str(PLUGIN_SCRIPTS / "collect.py"), "collect", "--data-dir", str(data_dir)]
     return subprocess.run(
         [*args, "--projects-root", str(root), *extra],
         capture_output=True,
@@ -341,12 +341,12 @@ def test_skipping_run_leaves_the_store_a_forced_run_would_write(data_dir, multi)
 
 # The files that decide what a record holds, relative to the plugin root, as the requirement lists them.
 HASHED_INPUTS = (
-    "skills/audit-sessions/scripts/collect.py",
-    "skills/audit-sessions/scripts/census.py",
-    "skills/audit-sessions/scripts/friction_scan.py",
-    "skills/audit-sessions/scripts/redact.py",
+    "scripts/collect.py",
+    "scripts/census.py",
+    "scripts/friction_scan.py",
+    "scripts/redact.py",
     "scripts/transcript_reader.py",
-    "skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json",
+    "vendor/gitleaks/gitleaks-rules.json",
     "lib/state-key.sh",
 )
 PLUGIN_ROOT = SCRIPTS.parents[2]
@@ -363,7 +363,7 @@ def plugin_copy(tmp_path):
 
 
 def collect_with(plugin: Path, data_dir: Path, root: Path, *extra: str) -> dict:
-    script = plugin / "skills" / "audit-sessions" / "scripts" / "collect.py"
+    script = plugin / "scripts" / "collect.py"
     args = [sys.executable, str(script), "collect", "--data-dir", str(data_dir), "--projects-root", str(root), *extra]
     result = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert result.returncode == 0, result.stderr
@@ -407,7 +407,7 @@ def test_plugin_version_change_alone_skips_every_session(data_dir, multi, plugin
 def test_line_ending_change_alone_skips_every_session(data_dir, multi, plugin_copy):
     root, _ = multi
     assert counts(collect_with(plugin_copy, data_dir, root)) == (3, 0)
-    script = plugin_copy / "skills" / "audit-sessions" / "scripts" / "collect.py"
+    script = plugin_copy / "scripts" / "collect.py"
     lf = script.read_bytes().replace(b"\r\n", b"\n")
     script.write_bytes(lf.replace(b"\n", b"\r\n"))
     assert counts(collect_with(plugin_copy, data_dir, root)) == (0, 3)
@@ -441,7 +441,7 @@ def unhashed_plugin_files(plugin: Path, data_dir: Path, root: Path, tmp_path: Pa
     driver, out = tmp_path / "audit_driver.py", tmp_path / "touched.json"
     driver.write_text(AUDIT_DRIVER, encoding="utf-8")
     plugin = plugin.resolve()
-    script = plugin / "skills" / "audit-sessions" / "scripts" / "collect.py"
+    script = plugin / "scripts" / "collect.py"
     args = [sys.executable, str(driver), str(script), str(out), "collect", "--data-dir", str(data_dir),
             "--projects-root", str(root)]
     result = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", timeout=60)
@@ -468,7 +468,7 @@ def test_every_plugin_file_collect_reads_is_hashed(data_dir, multi, tmp_path):
 
 def test_unhashed_import_or_read_is_caught(data_dir, multi, plugin_copy, tmp_path):
     root, _ = multi
-    scripts = plugin_copy / "skills" / "audit-sessions" / "scripts"
+    scripts = plugin_copy / "scripts"
     (scripts / "extra.py").write_text("VALUE = 1\n", encoding="utf-8")
     (plugin_copy / "lib" / "rules.txt").write_text("x\n", encoding="utf-8")
     collect_py = scripts / "collect.py"
@@ -476,7 +476,7 @@ def test_unhashed_import_or_read_is_caught(data_dir, multi, plugin_copy, tmp_pat
     hook = 'import extra  # noqa\n(PLUGIN_ROOT / "lib" / "rules.txt").read_text()\nSCHEMA = '
     collect_py.write_text(source.replace("SCHEMA = ", hook, 1), encoding="utf-8")
     assert unhashed_plugin_files(plugin_copy, data_dir, root, tmp_path) == {
-        casefold("skills/audit-sessions/scripts/extra.py"),
+        casefold("scripts/extra.py"),
         casefold("lib/rules.txt"),
     }
 
@@ -696,19 +696,17 @@ def test_subagent_branch_and_pr_link_are_stored_apart_from_the_main_session(data
 
 def collect_failing_closed(data_dir: Path, root: Path, tmp_path: Path) -> subprocess.CompletedProcess[str]:
     """Collect from a copy of the plugin's script layout whose one vendored rule cannot compile."""
-    skill = tmp_path / "plugin" / "skills" / "audit-sessions"
-    (skill / "scripts").mkdir(parents=True)
-    (tmp_path / "plugin" / "scripts").mkdir()
+    plugin = tmp_path / "plugin"
+    (plugin / "scripts").mkdir(parents=True)
     # The same manifest, so the copy reports the same collector version as the real script.
-    shutil.copytree(SCRIPTS.parents[2] / ".claude-plugin", tmp_path / "plugin" / ".claude-plugin")
-    shutil.copy2(SCRIPTS.parents[2] / "scripts" / "transcript_reader.py", tmp_path / "plugin" / "scripts")
-    for name in ("collect.py", "census.py", "friction_scan.py", "redact.py"):
-        shutil.copy2(SCRIPTS / name, skill / "scripts")
-    (skill / "vendor" / "gitleaks").mkdir(parents=True)
+    shutil.copytree(PLUGIN_SCRIPTS.parent / ".claude-plugin", plugin / ".claude-plugin")
+    for name in ("collect.py", "census.py", "friction_scan.py", "redact.py", "transcript_reader.py"):
+        shutil.copy2(PLUGIN_SCRIPTS / name, plugin / "scripts")
+    (plugin / "vendor" / "gitleaks").mkdir(parents=True)
     rules = {"rules": [{"id": "broken", "regex": "(unclosed", "keywords": []}], "source_version": "test"}
-    (skill / "vendor" / "gitleaks" / "gitleaks-rules.json").write_text(json.dumps(rules), encoding="utf-8")
+    (plugin / "vendor" / "gitleaks" / "gitleaks-rules.json").write_text(json.dumps(rules), encoding="utf-8")
 
-    script = skill / "scripts" / "collect.py"
+    script = plugin / "scripts" / "collect.py"
     return subprocess.run(
         [sys.executable, str(script), "collect", "--data-dir", str(data_dir), "--projects-root", str(root)],
         capture_output=True, text=True, encoding="utf-8", timeout=60,
@@ -813,7 +811,7 @@ def test_unusable_bash_gives_null_identity_and_one_warning(data_dir, multi, tmp_
 
 def test_concurrent_collectors_leave_valid_records(data_dir, multi):
     root, _ = multi
-    args = [sys.executable, str(SCRIPTS / "collect.py"), "collect", "--data-dir", str(data_dir)]
+    args = [sys.executable, str(PLUGIN_SCRIPTS / "collect.py"), "collect", "--data-dir", str(data_dir)]
     args += ["--projects-root", str(root), "--force"]
     runs = [subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) for _ in range(2)]
     for run in runs:

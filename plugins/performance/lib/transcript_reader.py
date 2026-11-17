@@ -136,7 +136,6 @@ IGNORED_RECORD_TYPES = frozenset(
         "artifact-autoreact-ledger",  # artifact auto-react state
     }
 )
-# Stream-json message types a lane leg carries and a session transcript never does; none feeds a metric.
 STREAM_RECORD_TYPES = frozenset(
     {
         "rate_limit_event",
