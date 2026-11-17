@@ -1248,7 +1248,8 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
     or disconnect from the FAIL's creation to the pass's start was a trusted
     person's; any other actor, a read that fails or the same linked issues
     keep it. It still counts toward the FAIL cap, and a merge-only head
-    carries it forward unless it was superseded at its own head."""
+    carries it forward unless it was superseded at its own head or by the
+    merge-only head's own pass under the same rule."""
 
     @staticmethod
     def relinked(sha: str = HEAD) -> FakeGitHub:
@@ -1396,14 +1397,18 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
         self.assertEqual(evidence.refusal, "verify:earlier-fail")
         self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
 
-    def test_a_merge_only_head_with_no_pass_at_the_failed_head_carries_it(
+    def test_a_merge_only_heads_own_pass_supersedes_a_relinked_fail(
         self,
     ) -> None:
-        fake = self.merge_only(superseded=True)
-        fake.artifacts = [
-            a for a in fake.artifacts if a["name"] != named(EARLIER, "pass")
-        ]
-        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        # No pass at the failed head: the head's pass, created after the
+        # people's relink, judged it, so it supersedes the FAIL there.
+        for superseded, refusal in ((True, None), (False, "verify:earlier-fail")):
+            with self.subTest(superseded=superseded):
+                fake = self.merge_only(superseded=superseded)
+                fake.artifacts = [
+                    a for a in fake.artifacts if a["name"] != named(EARLIER, "pass")
+                ]
+                self.assertEqual(read(fake).refusal, refusal)
 
 
 class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
@@ -1517,6 +1522,7 @@ BODY_NOTES_16602 = [
     " running `/harness-config:audit-automation-gaps` here after release plus"
     " `scripts/sync-shared-copies.sh --check`.",
 ]
+NOTE_ON_A_FILE = "notes.txt:2: restore the dropped line."
 
 
 class AFixedBodyClearsABodyOnlyFailOnTheSameChange(unittest.TestCase):
@@ -1524,9 +1530,10 @@ class AFixedBodyClearsABodyOnlyFailOnTheSameChange(unittest.TestCase):
     alone, so a pass at a head of the same change clears it once a trusted
     person edited the body after the FAIL and before the pass run was
     created, and only trusted people edited the body or relinked until the
-    pass completed (issue #16660). A note on anything else, no such edit, an
-    untrusted editor or a pass created before the edit keep
-    `verify:earlier-fail`."""
+    pass completed (issue #16660). No such edit, an untrusted editor or a
+    pass created before the edit keep `verify:earlier-fail`; a FAIL with a
+    note on anything else gives way under the same conditions, superseded
+    by the head's pass (AFailAnsweredInTheBodyGivesWayAtAMergeOnlyHead)."""
 
     @staticmethod
     def body_fail(
@@ -1571,19 +1578,20 @@ class AFixedBodyClearsABodyOnlyFailOnTheSameChange(unittest.TestCase):
                 fake = self.body_fail(answer=answer)
                 self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
-    def test_a_note_on_a_file_beside_body_notes_keeps_it(self) -> None:
-        mixed = [BODY_NOTES_16602[0], "notes.txt:2: restore the dropped line."]
-        self.assertEqual(read(self.body_fail(mixed)).refusal, "verify:earlier-fail")
+    def test_a_note_on_a_file_beside_body_notes_gives_way_to_the_edit(
+        self,
+    ) -> None:
+        # Not body-fixed, which takes body notes alone, but the pass created
+        # after the person's body edit supersedes the FAIL at the head.
         for label, notes in (
+            ("a note on a file", [BODY_NOTES_16602[0], NOTE_ON_A_FILE]),
             ("no notes", []),
             ("a note on an undelivered item", ["AC12 is not delivered: add the list."]),
             ("the token mid-note", ["The PR body cuts the list short."]),
-            # write-verdict.mjs keeps the first 30 notes, so a file note may be cut.
             ("thirty body notes", [BODY_NOTES_16602[1]] * 30),
         ):
             with self.subTest(label):
-                fake = self.body_fail(notes)
-                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+                self.assertIsNone(read(self.body_fail(notes)).refusal)
 
     def test_an_untrusted_body_edit_keeps_it(self) -> None:
         outsider = {"__typename": "User", "login": "outsider", "databaseId": 999}
@@ -1608,6 +1616,64 @@ class AFixedBodyClearsABodyOnlyFailOnTheSameChange(unittest.TestCase):
         fake = self.body_fail()
         fake.runs[2] = judged(2, "2026-10-15T00:00:01Z")
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+
+class AFailAnsweredInTheBodyGivesWayAtAMergeOnlyHead(unittest.TestCase):
+    """A counted FAIL at an earlier head of the same change, answered by a
+    trusted body edit, gives way at a head that only merged main since once
+    that head carries a counted pass created after the edit, under the
+    trusted-edit conditions a FAIL's own head applies (`_superseded`): one
+    supersession rule, whatever the FAIL's notes (issue #16367). The edit
+    with no counted pass after it, an untrusted edit or no edit after the
+    FAIL keep `verify:earlier-fail`."""
+
+    @staticmethod
+    def answered(answer: Any = None) -> FakeGitHub:
+        """A FAIL at EARLIER (run 2, created OLDER_START) noting a file, so
+        `_body_fixed` never clears it, no pass there, and a pass at HEAD (run
+        1, created RUN_STARTED, done PASS_DONE), a head that only merged main
+        since; a person edited the body between them unless `answer` says
+        otherwise."""
+        return AFixedBodyClearsABodyOnlyFailOnTheSameChange.body_fail(
+            [NOTE_ON_A_FILE], answer
+        )
+
+    def test_a_pass_after_a_persons_body_edit_clears_it(self) -> None:
+        evidence = read(self.answered())
+        self.assertIsNone(evidence.refusal)
+        self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
+        self.assertIs(evidence.report()["supersededAtHead"], False)
+
+    def test_the_edit_with_no_counted_pass_after_it_keeps_it(self) -> None:
+        # The pass's run was created before the edit: it judged the old body.
+        fake = self.answered(relink_answer([(PASS_RUNNING, HUMAN)]))
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        # The pass's run did not succeed, so no pass at the head counts.
+        fake = self.answered()
+        fake.runs[1] = run(1, updated_at=PASS_DONE, conclusion="failure")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_an_untrusted_edit_or_none_after_the_fail_keeps_it(self) -> None:
+        outsider = {"__typename": "User", "login": "outsider", "databaseId": 999}
+        for label, answer in (
+            ("outsider edit", relink_answer([(RELINK_AT, outsider)])),
+            ("App edit", relink_answer([(RELINK_AT, LANES_ACTOR)])),
+            ("ghost edit", relink_answer([(RELINK_AT, None)])),
+            (
+                "person edit, then the App's while the pass ran",
+                relink_answer([(PASS_RUNNING, LANES_ACTOR), (RELINK_AT, HUMAN)]),
+            ),
+            ("nothing in the window", relink_answer()),
+            ("a person's connect only", relink_answer([], [(RELINK_AT, HUMAN)])),
+            (
+                "an edit before the FAIL",
+                relink_answer([("2026-10-13T00:00:00Z", HUMAN)]),
+            ),
+            ("failed read", "error"),
+        ):
+            with self.subTest(label):
+                fake = self.answered(answer)
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
 
 def rename(old: str, new: str) -> str:

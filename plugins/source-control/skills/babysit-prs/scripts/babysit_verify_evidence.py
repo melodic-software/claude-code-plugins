@@ -69,8 +69,12 @@ failed read, a list cut short or no such run keeps the FAIL.
   another pull request, head or verdict keep `verify:earlier-fail`. So does
   a FAILed head of the same change, a merge-only head's included, unless its
   FAIL is superseded at its own head by the passes there (the rule above),
-  or every note of every counted FAIL there starts with `PR body` (BODY_NOTE:
-  it asked for a body change alone) and, for each counted pass at the head,
+  or superseded under that same rule by the passes at the head, each pass
+  run created after the trusted body edit or relink that answers the FAIL
+  (`_superseded` `judged_at`: a FAIL answered in the body then clears at a
+  later merge-only head, and an unanswered one carries), or every note of
+  every counted FAIL there starts with `PR body` (BODY_NOTE: it asked for a
+  body change alone) and, for each counted pass at the head,
   a trusted person edited the body from the last such FAIL's creation to the
   pass run's creation and only trusted people edited the body or connected
   or disconnected an issue up to its completion (`_body_fixed`). Any
@@ -3786,6 +3790,9 @@ class Reader:
                 lambda sha: (
                     self._wider_pass(number, sha, fail_artifacts, passes)
                     or superseded(sha)
+                    or self._superseded(
+                        number, sha, fail_artifacts, passes, judged_at=head
+                    )
                     or self._body_fixed(number, sha, fail_artifacts, passes)
                 ),
             )
@@ -4233,19 +4240,25 @@ class Reader:
         sha: str,
         fail_artifacts: dict[str, list[tuple[int, str, Any]]],
         passes: list[tuple[int, str, Any]],
+        *,
+        judged_at: str | None = None,
     ) -> bool:
-        """The pull request's linked issues or body changed at `sha` after its
-        FAIL there, by trusted people only, and it passed there since: every
-        counted FAIL at `sha` records this pull request, head and verdict,
-        every counted pass at `sha` was created after them (`_passes_follow`),
+        """The pull request's linked issues or body changed after its FAIL at
+        `sha`, by trusted people only, and it passed at `judged_at` (`sha`
+        when unset) since: every counted FAIL at `sha` records this pull
+        request, head and verdict, every counted pass records this pull
+        request and `judged_at` and was created after them (`_passes_follow`),
         and up to each pass's run's completion (`updated_at`: the run read the
         spec after it started) only trusted people edited the body or
         connected or disconnected an issue (`_relinked_by_people`): at least
         once from the first FAIL's creation, for a pass whose linked issues
         differ from each FAIL's (a relink), else at least one body edit from
         the last FAIL's creation (a body fix, resolve-pr.mjs `body-edited`).
-        A superseded FAIL still counts toward `max_fails`. A record, time or
+        At another head than `sha` (a merge-only head) that edit or relink
+        also falls before the pass run's creation, so the pass judged it. A
+        superseded FAIL still counts toward `max_fails`. A record, time or
         read that fails is False."""
+        judged_at = judged_at or sha
         fails = fail_artifacts.get(sha, [])
         if not passes or not fails:
             return False
@@ -4266,7 +4279,7 @@ class Reader:
             same: list[bool] = []
             for run_id, name, artifact in passes:
                 record = self._record(run_id, name, artifact)
-                if record.get("pr") != number or record.get("head_sha") != sha:
+                if record.get("pr") != number or record.get("head_sha") != judged_at:
                     return False
                 same.append(_linked_numbers(record) in judged)
             if not self._passes_follow(
@@ -4278,16 +4291,19 @@ class Reader:
                 return False
             first = min(c for c in created if c)
             last = max(c for c in created if c)
-            if not all(
-                self._relinked_by_people(
-                    number,
-                    last if body else first,
-                    postmerge._time(self._updated.get(run_id)),
-                    body_edit=body,
-                )
-                for (run_id, _, _), body in zip(passes, same, strict=True)
-            ):
-                return False
+            for (run_id, _, _), body in zip(passes, same, strict=True):
+                since = last if body else first
+                ends = [postmerge._time(self._updated.get(run_id))]
+                if judged_at != sha:
+                    begun = self._fresh_created(run_id)
+                    if begun is None:
+                        return False
+                    ends.append(begun)
+                if not all(
+                    self._relinked_by_people(number, since, end, body_edit=body)
+                    for end in ends
+                ):
+                    return False
         except (_Unreadable, postmerge.PostMergeReadError):
             return False
         return True
