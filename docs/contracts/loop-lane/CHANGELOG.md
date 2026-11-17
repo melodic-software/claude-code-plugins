@@ -5,6 +5,17 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [19.9.1] - 2026-11-17
+
+Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant
+changed.
+
+- **Floor-drift exception list.** The in-file annotation comparison names `# lane-coverage-ok:`
+  alone: `scripts/check-silent-skips.sh` reads its quiet-skip exemptions from
+  `scripts/silent-skip-exemptions.txt`. The paragraph now states where `check-lane-coverage.sh`
+  reads that annotation: a trailing comment on the job key, or the contiguous comment block above
+  it.
+
 ## [19.9.0] - 2026-11-17
 
 Minor: additive guidance. No topology, escalation-contract mechanism, capability-tier or §4

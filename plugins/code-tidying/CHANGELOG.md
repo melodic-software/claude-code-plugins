@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.2] - 2026-11-17
+
+### Fixed
+
+- The comment lint keeps the version comment trailing a `ref:` line pinned to a full commit id, as it already did for a pinned `uses:` line, so a re-pin that moves checkout refs no longer fails the lint.
+
 ## [0.51.1] - 2026-11-17
 
 ### Fixed
