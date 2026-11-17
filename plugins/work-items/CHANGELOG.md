@@ -3,6 +3,22 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.5.4] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker honors an entry's optional `when` (`config_any`: file names, or a file and a pattern its text must match): the SessionStart probe stays silent about the entry unless one of those configs sits in the project directory or above it, and `check` reports it INFO there.
+
+- The GitHub tracker's `claim`, given `--session-id run-<id>` with `GITHUB_SERVER_URL` set, adds a readable link to that workflow run below the lease marker, so the issue lane's claim comment shows which run holds the issue. Lease reads are unchanged.
+
+- The shared config cascade copy now exports its `fileState` and `escapes` path guards, so a script that reads other repository files can refuse a symlink or a path outside the checkout the same way. Nothing that already used the cascade changes.
+
+### Fixed
+
+- `/work-items:triage` spells the ready status `status: ready`, the label the tracker carries, in the skill and its evals; `status:ready` named no label.
+- `/work-items:triage` posts one triage comment beside each brief, in the shape the intake lane's comment uses: `Blast radius:` and `Reversible:` lines, numbered open questions each with a `RECOMMENDED:` answer and its basis, and the `**Decision recorded.**` reply line. For a bug it adds the version the reporter ran and the reproduction, run through `/app-control:drive` when the repository has a control skill and the `app-control` plugin is enabled.
+- The role-label rule in the triage outcome reference is titled by what it checks, the item author's trust, not by work classes.
+
 ## [15.5.3] - 2026-11-17
 
 ### Fixed

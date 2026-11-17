@@ -26,9 +26,11 @@ runs nothing; auto and aggressive read as necessary.
 Judges the files whose extension code-extensions.txt lists, except one whose first 10
 lines match a generated-marker.ere line (sync-managed, @generated, or a whole-file
 "do not edit" notice; each skip is named on stderr), through the pygments lexer for
-the file's name. Findings print as <path>:<line>: <message> on stderr; block exits 1,
-report exits 0. A missing python3, or a python3 that cannot import pygments, follows
-checks.skipmissing (tool names python3 and pygments).
+the file's name, or POSIX and Bash token rules for a shell script. Findings print as
+<path>:<line>: <message> on stderr; block exits 1, report exits 0. A file the comment
+reader fails on is named on stderr while the other files are still judged, and blocks
+like any tool failure. A missing python3, or a python3 that cannot import pygments,
+follows checks.skipmissing (tool names python3 and pygments).
 EOF
   exit 0
 fi
@@ -119,13 +121,17 @@ python3 "$judge" --posture "$posture" --root "$texts" --ranges "$CHECKS_TMP/rang
 rc=$?
 ((rc == 3)) && pygments_missing
 cat "$CHECKS_TMP/judge.err" >&2
-if ((rc != 0)); then
+if ((rc != 0 && rc != 5)); then
   [[ "$level" == block ]] || exit 0
   checks_tool_failed comment-lint.py "$rc" 'judging the added comments'
   exit 1
 fi
 checks_filter_findings <"$CHECKS_TMP/findings" >"$CHECKS_TMP/blocking"
-[[ -s "$CHECKS_TMP/blocking" ]] || exit 0
-cat "$CHECKS_TMP/blocking" >&2
+[[ -s "$CHECKS_TMP/blocking" ]] && cat "$CHECKS_TMP/blocking" >&2
 [[ "$level" == block ]] || exit 0
+if ((rc == 5)); then
+  checks_tool_failed comment-lint.py "$rc" 'reading the files named above'
+  exit 1
+fi
+[[ -s "$CHECKS_TMP/blocking" ]] || exit 0
 exit 1

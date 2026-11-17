@@ -9,6 +9,6 @@ expected_outcome: "Runs the checker the notice names, read-only; runs no install
 
 This showed up when the session started:
 
-> javascript-format: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, the hook cannot format or lint edited JavaScript, TypeScript, JSON and CSS files. Install (npm: npm i -D @biomejs/biome). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin"
+> javascript-format: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, the Biome adapter cannot format or lint edited JavaScript, TypeScript and JSON files. Install (npm: npm i -D @biomejs/biome). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin"
 
 A copy of the plugin is in ./plugin. Is biome really missing here?

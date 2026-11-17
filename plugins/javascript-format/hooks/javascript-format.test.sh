@@ -2,16 +2,6 @@
 # Black-box contract test for the javascript-format PostToolBatch row, launched exactly
 # as hooks.json registers it (node exec-bash.mjs with the row's args).
 #
-# Proves WIRING: one PostToolBatch row and no PostToolUse row; the row rewrites
-# the .ts, .tsx, .js, .jsx, .mjs, .cjs, .mts, .cts, .json and .jsonc files a
-# Write, Edit or MultiEdit in the batch named, once per Biome config directory per
-# batch, and never anything a Read named; it prints nothing (no finding, no
-# disclosure reaches the model) and exits 0; a Biome config must govern the file
-# (present -> run, absent -> leave bytes untouched; the topmost config in the
-# repository wins; the hidden .biome.json does not opt in); the config's own
-# ignores, .githooks/, gitignored files and the kill switch are honored; a batch
-# with no matching edit costs only the launcher and one bash.
-#
 # Self-contained: builds throwaway git repos with runtime-generated fixtures.
 # Each repo gets a node_modules/.bin/biome shim that forwards to a real Biome, so
 # the hook's node_modules resolution path is exercised. The row is run from an
@@ -29,7 +19,6 @@ set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG BIOME_CONFIG_PATH
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOOK="$HOOK_DIR/javascript-format.sh"
 PLUGIN_ROOT="${HOOK_DIR%/*}"
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 REPO_ROOT="$(cd "$PLUGIN_ROOT/../.." && pwd)"
@@ -60,12 +49,13 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
     fail "manifest: expected tools biome, jq and node with local_bin node_modules/.bin/biome: $(cat "$MANIFEST")"
   fi
   MF_LOCAL="$(jq -r '.requires[0].detect.local_bin[0]' "$MANIFEST")"
-  WALK_FN="$(sed -n '/^biome_local_bin_here()/,/^}/p' "$HOOK")"
+  WALK_FN="$(sed -n '/^jf__local_bin_here()/,/^}/p' "$PLUGIN_ROOT/git-hooks/adapters.sh")"
   if [[ -n "$MF_LOCAL" ]] && grep -qF -- "$MF_LOCAL" <<<"$WALK_FN"; then
-    ok "manifest binding: hook states the manifest's local_bin ($MF_LOCAL)"
+    ok "manifest binding: the adapter states the manifest's local_bin ($MF_LOCAL)"
   else
-    fail "manifest binding: hook does not state the manifest's local_bin (needle='$MF_LOCAL')"
+    fail "manifest binding: the adapter does not state the manifest's local_bin (needle='$MF_LOCAL')"
   fi
+  expect "manifest: biome is needed only where a Biome config is" '["biome.json","biome.jsonc"]' "$(jq -c '.requires[0].when.config_any' "$MANIFEST")"
 else
   fail "manifest binding needs jq and $MANIFEST"
 fi
@@ -206,11 +196,12 @@ printf '{"b":2,"a":1}\n' >"$REPO/data.json"
 run_edit "$REPO/data.json" >/dev/null
 expect "a JSON file is formatted" '{ "b": 2, "a": 1 }' "$(cat "$REPO/data.json")"
 
-# A safe fix applies: the imports sort. An unsafe one (dropping an unused import)
-# stays for the person or the pre-commit report.
 printf 'import { b } from "./b";\nimport { a } from "./a";\nexport { a, b };\n' >"$REPO/imports.ts"
 run_edit "$REPO/imports.ts" >/dev/null
-expect "a safe fix is applied: the imports sort" "$(printf 'import { a } from "./a";\nimport { b } from "./b";')" "$(head -2 "$REPO/imports.ts")"
+expect "import sorting is applied" "$(printf 'import { a } from "./a";\nimport { b } from "./b";')" "$(head -2 "$REPO/imports.ts")"
+printf 'let x=1\nexport { x };\n' >"$REPO/letconst.ts"
+run_edit "$REPO/letconst.ts" >/dev/null
+expect "a safe lint fix (useConst) is not applied in session" "let x = 1;" "$(head -1 "$REPO/letconst.ts")"
 printf 'import { a } from "./a";\n' >"$REPO/unused.ts"
 run_edit "$REPO/unused.ts" >/dev/null
 expect "an unused import survives the in-session rewrite" 'import { a } from "./a";' "$(cat "$REPO/unused.ts")"
@@ -350,6 +341,28 @@ if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
 else
   echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
 fi
+
+STUB="$WORK/stub"
+mkdir -p "$STUB"
+# shellcheck disable=SC2016 # the stub's own shell text
+printf '#!/bin/sh\nfor a in "$@"; do printf "%%s\\n" "$a" >>"%s/stub.log"; printf "formatted\\n" >"$a"; done\n' "$WORK" >"$STUB/stubfmt"
+chmod +x "$STUB/stubfmt"
+REPO_REC="$WORK/record"
+new_biome_repo "$REPO_REC"
+mkdir -p "$REPO_REC/.claude/ecosystems"
+printf 'globs: ["*.ts"]\nfix-cmd: "stubfmt <files>"\n' >"$REPO_REC/.claude/ecosystems/typescript.yaml"
+git -C "$REPO_REC" add .claude/ecosystems/typescript.yaml
+git -C "$REPO_REC" commit -q -m record --no-verify
+printf 'export const r=1\n' >"$REPO_REC/r.ts"
+# shellcheck disable=SC2016 # a literal file name
+CRAFTED='$(touch pwned);c.ts'
+printf 'export const c=1\n' >"$REPO_REC/$CRAFTED"
+: >"$WORK/stub.log"
+OUT=$(fire "$(payload Edit "$REPO_REC/r.ts" "$REPO_REC/$CRAFTED")" PATH="$STUB:$PATH")
+expect "with a record present, Biome formats, silently" "0|export const r = 1;" "$?|$OUT$(cat "$REPO_REC/r.ts")"
+expect "the record's command never ran" "" "$(cat "$WORK/stub.log")"
+expect "a crafted file name reached Biome as data" "export const c = 1;" "$(cat "$REPO_REC/$CRAFTED")"
+expect "a crafted file name ran nothing" "no" "$([[ -e "$REPO_REC/pwned" || -e "$UNRELATED/pwned" ]] && echo yes || echo no)"
 
 # --- Spawn budget ----------------------------------------------------------------
 # PostToolBatch has no matcher, so the row fires on every batch of every session.

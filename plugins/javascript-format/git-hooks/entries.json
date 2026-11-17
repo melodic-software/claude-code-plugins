@@ -1,12 +1,25 @@
 {
   "earlierNames": ["biome-format"],
+  "earlierEntries": [{ "from": "biome-check", "to": ["format", "lint"] }],
+  "ecosystems": ["typescript", "javascript", "json"],
   "entries": [
     {
-      "name": "biome-check",
+      "name": "format",
       "event": "pre-commit",
-      "script": "biome-check.sh",
+      "script": "format.sh",
       "tools": ["biome"],
-      "rewrites": true
+      "rewrites": true,
+      "resolved": true,
+      "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh"]
+    },
+    {
+      "name": "lint",
+      "event": "pre-commit",
+      "script": "lint.sh",
+      "tools": ["biome"],
+      "rewrites": false,
+      "resolved": true,
+      "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh"]
     }
   ]
 }

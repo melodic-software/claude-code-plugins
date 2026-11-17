@@ -1,34 +1,44 @@
 # powershell-format
 
-A Claude Code plugin that formats and lints PowerShell at git pre-commit. On every commit
-that stages a `.ps1`, `.psm1`, or `.psd1` file it runs
+A Claude Code plugin that formats and lints PowerShell at git pre-commit, as two separate
+concerns. On every commit that stages a `.ps1`, `.psm1`, or `.psd1` file, its PSScriptAnalyzer
+adapter runs
 [PSScriptAnalyzer](https://learn.microsoft.com/powershell/utility-modules/psscriptanalyzer/overview)'s
-`Invoke-Formatter` (formatting in place, then re-staging the result) and
-`Invoke-ScriptAnalyzer` (linting), and blocks the commit only on a finding on a line the
-commit adds. It covers every author, human or agent, once the entry is installed with
-`/powershell-format:setup apply install-git-hooks`.
+`Invoke-Formatter` (formatting in place, then re-staging the result) and, separately,
+`Invoke-ScriptAnalyzer` (linting, which reports and fixes nothing), and blocks the commit only on
+a finding on a line the commit adds. It covers every author, human or agent, once the entries
+are installed with `/powershell-format:setup apply install-git-hooks`.
 
 It uses **your repository's own analyzer settings**. It ships no rules of its own
-and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`.
+and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`. The hooks run
+only this adapter; they never run a command from the repository's powershell record
+(`.claude/ecosystems/powershell.yaml`), which `/toolchain:lint` and `/toolchain:check` run on
+request.
 
 ## Behavior
 
-- **Pre-commit entry `powershell-check`.** The staged PowerShell files are rewritten with
+- **Pre-commit entry `format`.** The staged PowerShell files are rewritten with
   `Invoke-Formatter` and re-staged; the rewritten paths print on stdout. A file that is
   partly staged is refused untouched (`<path>: partly staged; format it or stage it fully,
-  then commit`), because re-staging a rewrite would stage its unstaged hunks too. Findings
-  print as `<path>:<line>: [<severity>] <rule>: <message>` on stderr and block the commit
-  only when the line is one the commit adds.
+  then commit`), because re-staging a rewrite would stage its unstaged hunks too. It reports
+  no finding. `Invoke-Formatter` applies only the formatting rules your settings file
+  configures.
+- **Pre-commit entry `lint`.** `Invoke-ScriptAnalyzer` reports, never rewrites. Findings print as
+  `<path>:<line>: [<severity>] <rule>: <message>` on stderr and block the commit only when the
+  line is one the commit adds. A run that exits non-zero with no such line fails closed and shows
+  its output. A staged file since deleted from the work tree is analyzed from the index. Both
+  entries replace the single `powershell-check` entry of earlier releases; a decline of it
+  carries to both.
 - **No per-edit hook.** Nothing runs when Claude edits a PowerShell file. A rewrite costs
   more than the 1 s per-batch ceiling (see [Hook budget](#hook-budget-accounting)), and a
   finding reported per edit costs the model attention without helping it finish. Findings
   arrive at commit time instead.
 - **Opt-in end-of-turn check.** With `powershell_format_end_of_turn` on, a Stop row runs the
-  same check over the uncommitted changes, without rewriting, and hands the findings back
-  once per turn. Off by default.
+  `lint` entry over the uncommitted changes and hands the findings back once per turn. Off by
+  default.
 - **Opt-in on a settings file.** PSScriptAnalyzer runs **only on a file a
   `PSScriptAnalyzerSettings.psd1` governs**, found by walking up from the file to the
-  repository root and stopping at the closest one, and the entry passes that file to the
+  repository root and stopping at the closest one, and the entries pass that file to the
   analyzer explicitly. A repo without a settings file is left untouched rather than
   formatted and linted with PSScriptAnalyzer's built-in defaults. A settings file that
   declares `CustomRulePath` is additionally gated on explicit approval. See
@@ -37,6 +47,7 @@ and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`.
   [Settings Support in ScriptAnalyzer](https://learn.microsoft.com/powershell/utility-modules/psscriptanalyzer/using-scriptanalyzer#settings-support-in-scriptanalyzer)
   live.
 - **Installed copies are skipped.** A file under `.githooks/` is never rewritten.
+- **File names are data.** They reach `pwsh` as arguments, never as shell text.
 - **Missing tools.** A missing `pwsh` or PSScriptAnalyzer module fails an agent's commit with
   the install command and a one-line skip key (`git -c checks.skipmissing=pwsh commit ...`,
   or `PSScriptAnalyzer`); a person's commit gets a one-line notice and proceeds. `pwsh` is
@@ -47,7 +58,7 @@ and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`.
 The opt-in `PSScriptAnalyzerSettings.psd1` is **executed-adjacent configuration**,
 not inert data. A settings file may declare a `CustomRulePath` naming PowerShell rule
 modules, and this plugin treats every module it names as code the analyzer may run.
-The entry therefore never runs the
+The entries therefore never run the
 analyzer under such a settings file without an explicit approval: it skips the
 run and prints a trust-gate notice. A person's notice names the settings file and the approval marker to
 create; an agent commit's notice says the run was skipped and that approval is
@@ -134,7 +145,7 @@ Then verify prerequisites with `/powershell-format:setup check`.
 ## Configuration
 
 The formatting and linting rules come from the
-`PSScriptAnalyzerSettings.psd1` already in your repository, which the entry reads
+`PSScriptAnalyzerSettings.psd1` already in your repository, which the entries read
 automatically. To change the rules, edit that file.
 
 Two behavior knobs are exposed as native `userConfig` options:
@@ -160,8 +171,8 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `powershell_format_enabled` | boolean | `true` | Turns the end-of-turn check and the session-start probe on or off. The git pre-commit entry is registered by /powershell-format:setup apply install-git-hooks and is not affected. |
-| `powershell_format_end_of_turn` | boolean | `false` | At the end of each turn, run the pre-commit PSScriptAnalyzer check over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default. |
+| `powershell_format_enabled` | boolean | `true` | Turns the end-of-turn check and the session-start probe on or off. The git pre-commit entries are registered by /powershell-format:setup apply install-git-hooks and are not affected. |
+| `powershell_format_end_of_turn` | boolean | `false` | At the end of each turn, run the pre-commit lint entry over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default. |
 
 ### How to set these
 

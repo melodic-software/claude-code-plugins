@@ -1,12 +1,24 @@
 {
+  "earlierEntries": [{ "from": "powershell-check", "to": ["format", "lint"] }],
+  "ecosystems": ["powershell"],
   "entries": [
     {
-      "name": "powershell-check",
+      "name": "format",
       "event": "pre-commit",
-      "script": "powershell-check.sh",
+      "script": "format.sh",
       "tools": ["pwsh"],
       "rewrites": true,
-      "assets": ["git-hooks/powershell-check.ps1"]
+      "resolved": true,
+      "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh", "git-hooks/psscriptanalyzer.ps1"]
+    },
+    {
+      "name": "lint",
+      "event": "pre-commit",
+      "script": "lint.sh",
+      "tools": ["pwsh"],
+      "rewrites": false,
+      "resolved": true,
+      "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh", "git-hooks/psscriptanalyzer.ps1"]
     }
   ]
 }

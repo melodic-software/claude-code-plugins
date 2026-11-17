@@ -1,5 +1,5 @@
 ---
-description: "Verify javascript-format's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up javascript-format', 'configure javascript-format', 'is javascript-format working', formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply [install-biome] | apply install-git-hooks [scope=local|shared]. Re-runnable."
+description: "Verify javascript-format's prerequisites and which formatter and linter its hooks run here, and register its git pre-commit entries. Use when: 'set up javascript-format', 'configure javascript-format', 'is javascript-format working', 'which formatter does javascript-format run', formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply [install-biome] | apply install-git-hooks [scope=local|shared]. Re-runnable."
 argument-hint: "[check|apply] [inspect|install-biome|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
@@ -11,6 +11,14 @@ allowed-tools:
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs inspect:*)"
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan:*)"
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs plan:*)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh\" --resolve)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh\" --resolve:*)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh --resolve)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh --resolve:*)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh\" --resolve)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh\" --resolve:*)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh --resolve)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh --resolve:*)"
 shell: bash
 ---
 
@@ -34,23 +42,27 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
-reports, `apply` resolves. The only consumer-project files this plugin owns are its git-hook
-entry copies, which `apply install-git-hooks` writes. Rules come from the repository's own
-Biome config, and the tunables are the native `userConfig` options (the on/off toggle, the
-gitignored-file switch and the end-of-turn check). `apply` is otherwise guidance-and-verify,
-with one more write path: the explicitly invoked `apply install-biome` dependency install
-described below.
+reports, `apply` resolves. JavaScript, TypeScript and JSON formatting and linting are two concerns.
+The hooks run only the plugin's shipped adapter, where that tool's own config governs the file, and
+otherwise nothing; they never run a command from the repository's typescript, javascript or json
+record (`.claude/ecosystems/<id>.yaml`), which `/toolchain:lint` and `/toolchain:check` run on
+request. The only consumer-project files this plugin writes are its git-hook entry copies
+(`apply install-git-hooks`); a record is written by `/toolchain:setup apply <id>`, never here. The
+tunables are the native `userConfig` options (the on/off toggle, the gitignored-file switch and the
+end-of-turn check). `apply install-biome` is the one other write path: the adapter's tool, added
+through the repository's own package manager as described below.
 
 Action routing: no argument or `check` runs the check; `check inspect` runs only the
 `check inspect` section; `apply` runs the check first, then
-remediation; `apply install-biome` additionally authorizes the consumer-repo dependency
-install described below. All are non-interactive. Never prompt when the action is given.
+remediation; `apply install-biome` additionally authorizes the install its section describes. All
+are non-interactive except where a section says to ask. Never prompt when the action is given.
 `apply install-git-hooks` asks only where its section says to.
 
 ## `check` (read-only)
 
-The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/javascript-format.sh`) is the single source of
-truth for what it requires and how it resolves things.
+The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/javascript-format.sh`), the entries and the resolver
+they share are the single source of truth for what the plugin requires and how it resolves
+things; step 3 asks the resolver itself.
 
 **Read it first.** Probe what it actually does, don't recite this file. Then read the
 pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
@@ -58,44 +70,56 @@ table with one remediation line per FAIL. Do not modify anything.
 Read each option value from this text; never put a `${user_config.*}` string in a shell command.
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
-When the plugin's toggle is disabled, every prerequisite absence except Node.js (probe 7)
-downgrades from FAIL to INFO. The hook exits through its enabled-gate before probing
-anything, so a deliberately disabled plugin is not broken. Report those probes
-informationally and note that re-enabling restores the FAIL semantics. Node.js stays FAIL
-when disabled: the runner must start `node` before `exec-bash.mjs` can evaluate the gate. A tool
-the git pre-commit entry needs keeps the grade it gets with the toggle on while that entry is
-installed (step 8 reports it as a `tool` line beside an `ok`, `stale` or `modified` entry): the
-entry runs at commit outside Claude Code and reads no toggle.
+When the plugin's toggle is disabled, every prerequisite absence except Node.js downgrades
+from FAIL to INFO. The hook script exits through its enabled-gate before probing anything, so
+a deliberately disabled plugin is not broken. Node.js stays FAIL: `hooks.json` spawns `node`
+before the script can read the toggle. Report the probes informationally and note that re-enabling
+restores the FAIL semantics. A tool the git pre-commit entries need keeps the grade it gets with
+the toggle on while an entry is installed (step 8 reports it as a `tool` line beside an `ok`,
+`stale` or `modified` entry): the entries run at commit outside Claude Code and read no toggle.
 
 1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook then does nothing,
    since it reads the file paths with `jq`.
-3. **Biome binary.** Resolve it exactly the way the hook's resolution code does: its
-   repo-local install walk (the `node_modules/.bin` path it tests, walking up from the
-   edited file toward the repo root) and then `PATH`. Test only what the hook tests. A
-   binary the hook would not accept must not PASS here. FAIL when nothing the hook would
-   resolve is present while a Biome config governs the repo; the hook then skips the file.
-   The `SessionStart` probe resolves biome separately: read
-   `local_bin` in `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` and `findLocalBin` in
-   `${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs` for its walk limit and file tests
-   and compare them with the hook's, instead of assuming they match. The probe does not check
-   for a Biome config, so it reports a missing biome in repositories with no `biome.json` too;
-   it is the probe that reports the gap. A PASS here means the hook resolves it.
-4. **Consumer Biome config.** Mirror the hook's opt-in walk: it records the topmost
-   governing config found walking from the edited file's directory up to the repo root, and
-   deliberately accepts only the config names the hook treats as the opt-in. Read the hook:
-   the hidden dotted variants are intentionally excluded. Report the governing config the
-   walk discovers, or INFO that none exists. Absence is the opt-out by design, so the
-   plugin is inert (INFO, not FAIL), matching the README's "ships no rules of its own"
-   stance. Do not offer to create a config; say the user can add a `biome.json` or
-   `biome.jsonc` to opt in.
+3. **What each concern resolves to.** From the repository root run
+   `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh" --resolve` and
+   `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh" --resolve`. Each prints one row: plugin, concern,
+   source, tool, found, detail, tab-separated. It reads the adapter's config and runs nothing.
+   Append repository paths (`--resolve src/a.ts pkg/b.ts`) for one row per file when the answer can
+   differ per file, as an adapter's config walk does; the detail column then names the config that
+   governs that file and the binary that would run, or why nothing resolved. An adapter's own rules
+   (which config opts a file in, where its binary comes from) are in
+   `${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh`: read them to explain why a row names that config.
+   Report one line per concern from the rows, never from this text:
+   - `adapter:<name>` with found `yes`: PASS, naming the adapter's tool and that its config opted in.
+   - found `no`: FAIL; the remediation is the adapter tool's
+     `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` install hints (Read that path).
+   - `none`: INFO "unresolved": no shipped adapter's config governs the repository, so the hooks run
+     nothing. This is the opt-out by design.
+   A detail saying a record exists is INFO beside the row: the hooks never run it, and
+   `/toolchain:lint` or `/toolchain:check` runs it on request.
+
+   The `SessionStart` probe resolves the adapter's tool separately, and only where its `when`
+   config sits at or above the project directory: read `when` and `local_bin` in
+   `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` and `findLocalBin` in
+   `${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs`, and compare them with the adapter's walk instead
+   of assuming they match. A config only in a nested directory opts files in for the hooks, but
+   the probe stays silent there.
+4. **Draft, never write, the record.** When a concern is unresolved, or the person names a tool the
+   plugin ships no adapter for, say that the hooks will not run that tool: they run only the shipped
+   adapter. Find the repository's own formatter and linter by the steps in
+   [reference/ecosystem-resolution.md](../../reference/ecosystem-resolution.md), and draft the
+   `fix-cmd` and `lint-cmd` values: each holds `<files>`, `fix-cmd` only formats (import ordering
+   included) and `lint-cmd` only reports, with findings as `<path>:<line>` lines. Hand the draft to
+   `/toolchain:setup apply <id>` (the record's ecosystem id), the one writer of those keys, so
+   `/toolchain:lint` and `/toolchain:check` can run them on request.
 5. **Hook toggle and options.** Report the effective `javascript_format_enabled` value:
    `${user_config.javascript_format_enabled}` (unexpanded or empty means default `true`), and the
    effective `javascript_format_lint_gitignored` value:
    `${user_config.javascript_format_lint_gitignored}` (unexpanded or empty means default `false`).
-   Also report `javascript_format_end_of_turn`: `${user_config.javascript_format_end_of_turn}` (unexpanded
-   or empty means the shipped default `false`), as INFO: on, the Stop row checks the uncommitted
-   changes once per turn; off, only the batch rewrite and the git pre-commit entry run.
+   Also report `javascript_format_end_of_turn`: `${user_config.javascript_format_end_of_turn}`
+   (unexpanded or empty means the shipped default `false`), as INFO: on, the Stop row lints the
+   uncommitted changes once per turn; off, only the batch format and the git pre-commit entries run.
 6. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 7. **Node.js.** Run `command -v node` via Bash. FAIL when absent: every hook launch goes
@@ -105,13 +129,16 @@ entry runs at commit outside Claude Code and reads no toggle.
    `docs/formatter-path-probes.md`), so a PASS means Node is on Bash's `PATH` only. Say
    so, and report INFO that hook availability is not established when the hooks still fail
    to start.
-8. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
-   from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
-   INFO (this clone said no; silent at session start), and `missing`, `stale`, `modified` or `superseded` is a
-   FAIL whose remediation is `apply install-git-hooks`; a `superseded` detail lists what an install under an earlier plugin name left, which that action removes on the user's yes. A `tool\t<tool>\tmissing` line means the
-   installed entry cannot run here: list every such tool with its install method from the
-   `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
-   auto-mode session commits. Outside a git repository, report INFO and skip the step.
+8. **Git pre-commit entries.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
+   from the repository. It lists `format` and `lint`. Each line is `<state>\t<entry>[\t<detail>]`:
+   `ok` is PASS, `declined` is INFO (this clone said no; silent at session start), and `missing`,
+   `stale`, `modified` or `superseded` is a FAIL whose remediation is `apply install-git-hooks`; a
+   `superseded` detail lists what an install under an earlier plugin or entry name left (the single
+   entry these two replaced), which that action removes on the user's yes. A `tool\t<tool>\tmissing`
+   line means the installed entry cannot run here: list every such tool (the entry's resolved tool)
+   with its install method from the `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so
+   a lane or cloud setup script can provision it before an auto-mode session commits. Outside a git
+   repository, report INFO and skip the step.
 
 ## `check inspect` (read-only)
 
@@ -157,12 +184,13 @@ with your own edit tools.
    chose to leave remain.
 6. **Verify.** Run `verify` and report its lines as `check` step 8 does.
 
-The entry rewrites: at commit it formats the staged JavaScript, TypeScript and JSON files and
-stages the result, so tell the user that a commit can change the files it contains, and that a
-partly staged one is refused untouched.
+The `format` entry rewrites: at commit it formats the staged JavaScript, TypeScript and JSON files
+and stages the result, so tell the user that a commit can change the files it contains, and that a
+partly staged one is refused untouched. The `lint` entry only reports findings on the lines the
+commit adds. A decline of the earlier single entry carries to both.
 
 When the user does not want an entry in this clone, run
-`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry biome-check`; the
+`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry format` (or `lint`); the
 session-start drift line then stays silent until `verify` runs by hand, and `--undo` reverses it.
 Add `--global` (with or without `--undo`) to decline the entry in every clone;
 `git config --global checks.git-hooks.declined true` declines every entry of every plugin, and an
@@ -172,26 +200,34 @@ path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/con
 ## `apply` (idempotent)
 
 Run `check`, then for each FAIL offer the resolution. Never install anything without the
-consumer's explicit go-ahead in the invocation. `apply install-biome` adds
-`@biomejs/biome` as a dev dependency in the consumer repository **using the repository's
-own package manager**, resolved in order: lockfile (`pnpm-lock.yaml` → `pnpm add -D`,
-`yarn.lock` → `yarn add -D`, `bun.lock`/`bun.lockb` → `bun add -d`, `package-lock.json` →
-`npm install --save-dev`), then the `package.json` `"packageManager"` field when no
-lockfile exists, then npm only when neither signal is present. With no `package.json`, an
-ambiguous multi-lockfile state, or a lockfile that contradicts `packageManager`, stop with
-manager-specific guidance instead of guessing. Never introduce a competing lockfile. The
-change is stated before running. For a Yarn repository, don't infer the linker. Ask the
-repo's own Yarn: run `yarn config get nodeLinker` in the repo. `pnp` → skip the install and
-give guidance, because Plug'n'Play generates a loader file, not the `node_modules/.bin` shim
-the hook resolves; install `@biomejs/biome` on `PATH` or switch the linker.
-`node-modules`/`pnpm`, or Yarn Classic → install. Pointer for the linker values and their
-default: [`nodeLinker`](https://yarnpkg.com/configuration/yarnrc#nodeLinker). As of: 2026-11-10.
-Recheck trigger: that setting gains a value that also yields no `node_modules/.bin` shim. The
-verify-after-remediation rule below is
-the backstop when an install still yields no usable shim. After any remediation, re-run the
-relevant `check` probe live via Bash (a pre-computed row predates the remediation) and report
-its actual result. Never claim resolved on the install
-command's exit code alone. For everything else `apply` only points:
+consumer's explicit go-ahead in the invocation. `apply install-biome` adds the Biome adapter's
+tool as a dev dependency of the consumer repository **through the package manager the repository
+already uses**, never globally, mirroring how the adapter resolves the binary.
+
+Principles, in order. They decide every case, whatever the tool:
+
+1. **Identify the repo's package manager from its own markers**: its lockfile, then the
+   `package.json` field that names a manager when no lockfile exists, then the platform's default
+   manager only when neither signal is present. Recognize the manager from what the repo declares,
+   and look up its commands in its own documentation at run time; don't assume from a list.
+2. **Record through the manager, never around it.** The tool goes in through that manager's own
+   dev-dependency add command, so the manifest and lockfile record it. Never introduce a
+   competing lockfile.
+3. **Only where the adapter resolves.** The adapter resolves a `node_modules/.bin` the repository
+   does not commit, walking up from the file, or `PATH`, nothing else
+   (`${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh`). Ask the repo's own manager, by its own config
+   command, whether its install mode yields that directory; never infer the mode from the files
+   present. When it does not, skip the install and guide instead (put the tool on `PATH`, or change
+   the install mode) rather than installing somewhere the adapter never looks.
+4. **Ambiguity stops.** No `package.json`, more than one lockfile, or a lockfile that contradicts
+   the declared manager: guidance only, anchored on the install hints in
+   `${CLAUDE_PLUGIN_ROOT}/prerequisites.json`, matching the entries' missing-tool text. State the
+   change and the target before running anything.
+
+After any remediation, re-run the relevant `check` probe live via Bash (a pre-computed row
+predates the remediation) and report its actual result.
+Never claim resolved on the install command's exit code alone. For everything else `apply`
+only points:
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
@@ -213,15 +249,23 @@ command's exit code alone. For everything else `apply` only points:
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-- no Biome config: offer to create a minimal `biome.json` in the repository root only when
-  explicitly asked. The plugin imposes no rules of its own.
+- a concern unresolved: `check` step 4's draft, for `/toolchain:setup apply <id>`. The plugin
+  imposes no rules and no tool of its own; it offers to create a minimal config for the Biome
+  adapter in the repository root only when the person explicitly asks for one.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
+## Next
+
+/toolchain:setup apply <id>, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a
+tool the plugin ships no adapter for; /toolchain:lint then runs it on request.
+
 ## What this skill does not do
 
-- Run the formatter. Editing any supported file exercises the hook end-to-end; `git commit`
-  exercises the installed pre-commit entry.
+- Run the formatter or the linter. Editing any supported file exercises the batch hook;
+  `git commit` exercises the installed pre-commit entries.
+- Write a typescript, javascript or json record: `/toolchain:setup apply <id>` does.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
+- Install Biome globally or outside the package manager the repository already uses.
 - Download or execute tools during `check`; network use happens only in an explicitly
   requested `apply install-biome` inside the consumer repository.

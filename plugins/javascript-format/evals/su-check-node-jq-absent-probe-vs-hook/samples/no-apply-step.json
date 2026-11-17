@@ -55,7 +55,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node /plugins/javascript-format/lib/git-hooks/install.mjs decline --entry biome-check"
+            "command": "node /plugins/javascript-format/lib/git-hooks/install.mjs decline --entry format"
           }
         }
       ],

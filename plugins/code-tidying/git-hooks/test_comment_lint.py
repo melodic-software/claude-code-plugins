@@ -1,18 +1,22 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "comment-lint.py"
 _spec = importlib.util.spec_from_file_location("comment_lint", SCRIPT)
 lint = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(lint)
+lint._CENSUS._ShellComments.STRICT = True
 
 MESSAGE = (
     "comment outside the {} posture: delete it, move the reason into the code or the commit "
@@ -445,6 +449,186 @@ class RunsAndLexers(unittest.TestCase):
 
     def test_powershell_comment_after_whitespace_still_fails(self):
         self.assertEqual(flagged("n.ps1", "$x = 1 # a note\n"), [1])
+
+
+DESYNC = "cat >stub <<'STUB'\necho \"$STUB_LOG\" \"it's\"\nSTUB\n"
+
+
+class ShellTokenRecognition(unittest.TestCase):
+    """A '#' starts a shell comment only where POSIX token recognition says so."""
+
+    def test_hash_inside_quotes_after_a_heredoc_is_no_comment(self):
+        for line in (
+            "printf '#!/bin/bash\\necho m\\n' >a.sh",
+            "x='a\\n# stub: finding'",
+            'y="b # no"',
+            "z=$'c\\n# no'",
+        ):
+            with self.subTest(line=line):
+                self.assertEqual(flagged("a.sh", DESYNC + line + "\n"), [])
+
+    def test_heredoc_bodies_are_no_comments(self):
+        cases = (
+            'cat <<"EOF"\n# body\nEOF\n',
+            "cat <<\\EOF\n# body\nEOF\n",
+            "cat <<-'EOF'\n\t# body $EOF_X\n\tEOF\necho '# no'\n",
+            "cat <<A <<'B'\n# a\nA\n# b\nB\n",
+            "x=$(cat <<EOF\n# body\nEOF\n)\n",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged("a.sh", text), [])
+
+    def test_hash_inside_a_word_is_no_comment(self):
+        for line in ('url=$base#frag', 'echo "${x}"#tail', "echo 'a'#b", "echo $(id)#x"):
+            with self.subTest(line=line):
+                self.assertEqual(flagged("a.sh", line + "\n"), [])
+
+    def test_parameter_hash_forms_are_no_comments(self):
+        for line in ("n=$#", "m=${#x}", 'p="${x#*/}"', "q=$((16#ff))", "(( 1 << 2 ))"):
+            with self.subTest(line=line):
+                self.assertEqual(flagged("a.sh", DESYNC + line + "\necho '# no'\n"), [])
+
+    def test_real_comments_still_fail(self):
+        cases = (
+            (DESYNC + "echo done # trailing\n", [4]),
+            ("echo a;# after an operator\n", [1]),
+            ("x=$(echo a # inside a substitution\n)\n", [1]),
+            ("cat <<EOF\nbody\nEOF\n# after the body\n", [4]),
+            ("a=(1 # in an array\n2)\n", [1]),
+            ('grep -q x <<<"$1"\n# after a here-string\n', [2]),
+            ("[[ $x =~ ((a)+)$ ]] && y=${x:-{\\}}\n# after a regex\n", [2]),
+            ("done < <(((${#a[@]})) && printf '%s\\n' x)\n# after <(\n", [2]),
+            ('x="$(echo case)"\n# after an argument named case\n', [2]),
+            ("x=$(case a in a) echo;; esac)\n# after a case command\n", [2]),
+            ("x=$(if true; then case a in (a) :;; esac; fi)\n# after a nested case\n", [2]),
+            ("cat <<$'EOF'\nbody\nEOF\n# after an ANSI-C delimiter\n", [4]),
+            ("cat <<$'E\\x4fF'\n# body\nEOF\n# after an escaped delimiter\n", [4]),
+            ('cat <<$"EOF"\n# body\nEOF\n# after a locale delimiter\n', [4]),
+        )
+        for text, want in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged("a.sh", text), want)
+
+    def test_an_unparsed_construct_never_hides_later_comments(self):
+        cases = (
+            ("echo 'unterminated\n# a\necho b # c\n", [2, 3]),
+            ('echo "unterminated\n# a\n', [2]),
+            ("x=$(echo\n# a\n", [2]),
+            ("y=${x\n# a\n", [2]),
+            ("(( a ) )\n# a\n", [2]),
+            ("cat <<EOF\n# body\nno delimiter\n", [2]),
+            ("cat <<'EOF\n# a\n", [2]),
+            ('cat <<"EOF\n# a\n', [2]),
+            ("cat <<$'EOF\n# a\n", [2]),
+        )
+        for text, want in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged("a.sh", text), want)
+
+    def test_a_construct_lost_on_a_last_line_without_newline_ends_cleanly(self):
+        cases = (
+            ("# a\necho 'x", [1]),
+            ('# a\necho "x', [1]),
+            ("# a\ny=${x", [1]),
+            ("# a\necho $(a", [1]),
+            ("# a\n$(((a)) && b)", [1]),
+        )
+        for text, want in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged("a.sh", text), want)
+
+
+SWEEP_SHELL = (
+    "#!/usr/bin/env bash\n"
+    + DESYNC
+    + "printf '#!/bin/bash\\necho m\\n' >a.sh # one\n"
+    + "y=\"b # no $(echo case) ${x#*/} ${#x} $#\"; z=$'c\\n# no'; w=$\"d\"\n"
+    + "cat <<'A' <<\"B\" <<$'C\\x44' <<-\\E <<$\"F\" <<G\n# a\nA\n# b\nB\n# c\nCD\n\t# e\n\tE\n# f\nF\n$g\nG\n"
+    + "x=$(case a in (a) echo ')';; b) :;; esac) `echo b # in ticks`\n"
+    + "(( 1 << 2 )) && q=$((16#ff)) && [[ $x =~ ((a)+)$ ]] && r=${x:-{\\}}\n"
+    + "done < <(((${#a[@]})) && printf '%s\\n' x) # two\n"
+    + "grep -q x <<<\"$1\" # three\nurl=$base#frag; echo \"${x}\"#tail \\\n  # four\n"
+)
+
+
+def _sweep_texts():
+    texts = [("composite", SWEEP_SHELL)]
+    for path in sorted((HERE / "fixtures").glob("*.sh.txt")):
+        texts.append((path.name, path.read_text(encoding="utf-8")))
+    return texts
+
+
+class ShellTruncationSweep(unittest.TestCase):
+    """Cut every shell text at every offset: the scan always finishes, and a comment added after the cut is found."""
+
+    def test_every_prefix_scans_and_a_comment_after_it_is_found(self):
+        from pygments.lexers import get_lexer_by_name
+
+        lexer = get_lexer_by_name("bash", stripnl=False)
+        cuts = 0
+        for name, text in _sweep_texts():
+            for cut in range(len(text) + 1):
+                cuts += 1
+                bare = text[:cut]
+                got = lint._CENSUS.tokens(bare, lexer)
+                if "".join(value for _, value in got) != bare:
+                    self.fail(f"{name} cut at {cut}: the tokens do not cover {bare!r}")
+                probe = bare + "\n\n# z\n"
+                got = [
+                    value
+                    for tok, value in lint._CENSUS.tokens(probe, lexer)
+                    if lint._CENSUS.is_comment_token(tok)
+                ]
+                if "# z" not in got:
+                    self.fail(f"{name} cut at {cut}: '# z' not found in {probe!r}")
+        self.assertGreater(cuts, 1000)
+
+
+class ScannerFailure(unittest.TestCase):
+    def test_strict_scan_is_on_under_test(self):
+        self.assertTrue(lint._CENSUS._ShellComments.STRICT)
+
+    def test_a_scan_that_stops_short_falls_back_to_line_comments(self):
+        scanner = lint._CENSUS._ShellComments
+        real = scanner._command
+
+        def stop_short(self, close, start):
+            real(self, close, start)
+            self.i = start
+
+        with mock.patch.object(scanner, "STRICT", False), mock.patch.object(
+            scanner, "_command", stop_short
+        ):
+            self.assertEqual(flagged("a.sh", "x='a\n# b'\n  # c\n"), [2, 3])
+
+    def test_a_file_the_reader_fails_on_is_named_and_the_others_still_judged(self):
+        real = lint.findings
+
+        def boom(path, *args):
+            if path == "bad.sh":
+                raise RuntimeError("boom")
+            return real(path, *args)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp, "root")
+            root.mkdir()
+            (root / "bad.sh").write_text("y=1\n", encoding="utf-8")
+            (root / "ok.sh").write_text("x=1\n# note\n", encoding="utf-8")
+            ranges = Path(tmp, "ranges")
+            ranges.write_text("bad.sh\t1\t1\nok.sh\t1\t2\n", encoding="utf-8")
+            out, err = io.StringIO(), io.StringIO()
+            stdin = mock.Mock()
+            stdin.buffer.read.return_value = b"bad.sh\0ok.sh\0"
+            with mock.patch.object(lint, "findings", boom), mock.patch.object(
+                sys, "stdin", stdin
+            ), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                rc = lint.main(
+                    ["--posture", "necessary", "--root", str(root), "--ranges", str(ranges)]
+                )
+        self.assertEqual(rc, 5)
+        self.assertEqual(out.getvalue(), "ok.sh:2: " + MESSAGE.format("necessary") + "\n")
+        self.assertIn("comment-lint: bad.sh: not judged, the comment reader failed: boom", err.getvalue())
 
 
 if __name__ == "__main__":

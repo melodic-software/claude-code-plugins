@@ -3,6 +3,36 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.0] - 2026-11-17
+
+### Added
+
+- `/app-control:map refresh` fixes a stale Ready: when Ready fails and the source wave shows the
+  hub's `## Ready` names a moved or removed port, route, command or check, an attended pass writes
+  the corrected text after the person agrees and retries Ready once; an unattended pass writes
+  nothing and reports the fix, blocked.
+- Refresh drives features that need the same app state against one launch when the hub's launch
+  model has no `Session:` line and a per-run `Data:` directory; otherwise each feature keeps its
+  own launch and cleanup.
+- Refresh spot-checks cited drift before the live pass and sweeps the changed files for
+  user-facing surfaces no feature lists, each reported with its source path.
+
+### Changed
+
+- `/app-control:drive`'s `blocked` entries carry the unmet prerequisite and the command or route
+  the step tried; refresh reports a feature it cannot reach the same way, and treats a
+  `not driven:` or `blocked:` whose prerequisite the feature file names nowhere as doc drift.
+- On a reused instance, `/app-control:drive` performs the feature's `## Reset` before its steps
+  and keeps the reused launch record in its `report.json`, so cleanup still finds the instance. A
+  `## Reset` that restarts the app stops the recorded instance, relaunches it and replaces its
+  launch record entry, so the restarted process is the one cleanup stops.
+
+## [0.27.4] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker honors an entry's optional `when` (`config_any`: file names, or a file and a pattern its text must match): the SessionStart probe stays silent about the entry unless one of those configs sits in the project directory or above it, and `check` reports it INFO there.
+
 ## [0.27.3] - 2026-11-16
 
 ### Changed

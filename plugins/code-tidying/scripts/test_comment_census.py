@@ -132,6 +132,32 @@ class PygmentsLayer(unittest.TestCase):
         self.assertEqual(sh["comment_lines"], 2, sh)
         self.assertGreater(sh["comment_bytes"], 0)
 
+    def test_heredoc_naming_its_delimiter_in_the_body_keeps_later_quotes_data(self):
+        (self.tmp / "b.sh").write_text(
+            "cat >stub <<'STUB'\necho \"$STUB_LOG\" \"it's\"\nSTUB\n"
+            "printf '#!/bin/bash\\n' >a.sh\nx=1 # the one comment\n"
+        )
+        sh = next(r for r in self.report()["files"] if r["path"].endswith("b.sh"))
+        self.assertEqual(sh["comment_lines"], 1, sh)
+
+    def test_a_file_the_shell_reader_fails_on_is_named_and_left_unlexed(self):
+        import contextlib
+        import importlib.util
+        import io
+        from unittest import mock
+
+        spec = importlib.util.spec_from_file_location("comment_census", SCRIPT)
+        census = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(census)
+        path = self.tmp / "a.sh"
+        err = io.StringIO()
+        with mock.patch.object(
+            census._ShellComments, "tokens", side_effect=RuntimeError("boom")
+        ), contextlib.redirect_stderr(err):
+            got = census.pygments_counts(path)
+        self.assertFalse(got["lexed"], got)
+        self.assertIn(f"{path}: not counted, the comment reader failed: boom", err.getvalue())
+
     def test_hash_comment_in_python_is_still_counted(self):
         rep = self.report()
         py = next(r for r in rep["files"] if r["path"].endswith("m.py"))

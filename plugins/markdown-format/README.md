@@ -1,16 +1,21 @@
 # markdown-format
 
-A Claude Code plugin that formats Markdown with
-[`markdownlint-cli2 --fix`](https://github.com/DavidAnson/markdownlint-cli2) in two
-places. In a session it rewrites the `.md` and `.mdc` files a batch of tool calls wrote,
-once per batch, and says nothing. At `git commit` a pre-commit entry rewrites the staged
-Markdown, re-stages it, and blocks the commit only on a finding the commit adds. The
-entry covers every author, people and other agents included, so findings reach whoever
-commits and no finding reaches Claude per edit.
+A Claude Code plugin that formats and lints Markdown with
+[`markdownlint-cli2`](https://github.com/DavidAnson/markdownlint-cli2), as two separate
+concerns. In a session it formats the `.md` and `.mdc` files a batch of tool calls wrote with
+`markdownlint-cli2 --fix`, once per batch, and says nothing. At `git commit` a `format` entry
+rewrites the staged Markdown and re-stages it, and a `lint` entry blocks the commit only on a
+finding the commit adds; it rewrites nothing. The entries cover every author, people and other
+agents included, so findings reach whoever commits and no finding reaches Claude per edit.
 
 It uses **your repository's own markdownlint configuration**. It ships none and imposes
 no rules of its own. A repository with no discoverable markdownlint config has chosen no
 Markdown style, so nothing runs there. Carrying a config **is** the opt-in.
+
+The hooks run only this plugin's markdownlint-cli2 adapter (`git-hooks/adapters.sh`). They
+never run a command from the repository's markdown record (`.claude/ecosystems/markdown.yaml`):
+`/toolchain:lint` and `/toolchain:check` run that on request, and `/markdown-format:setup check`
+says when one exists.
 
 ## Behavior
 
@@ -25,8 +30,8 @@ Markdown style, so nothing runs there. Carrying a config **is** the opt-in.
   repository root. A config the tool reads only when a flag points it there does not open
   the gate. Which file names it discovers, and how a nested config scopes, is
   [markdownlint-cli2: Configuration](https://github.com/DavidAnson/markdownlint-cli2#configuration)'s
-  to say. Both the batch row and the pre-commit entry read the same gates
-  (`git-hooks/markdown-gates.sh`).
+  to say. The batch row and both pre-commit entries read the same gates
+  (`git-hooks/markdown-gates.sh`) through the adapter.
 - **A config that can run code waits for your approval.** The plugin treats a `.cjs` or
   `.mjs` config, and a config naming `customRules`, `markdownItPlugins` or
   `outputFormatters`, as able to run code the repository supplies. How markdownlint-cli2
@@ -36,8 +41,8 @@ Markdown style, so nothing runs there. Carrying a config **is** the opt-in.
   [markdownlint-cli2: .markdownlint-cli2.jsonc](https://github.com/DavidAnson/markdownlint-cli2#markdownlint-cli2jsonc)'s
   to say (as of 2026-11-03; recheck when either section changes which config formats or keys
   load modules). Until you approve that config state,
-  the files it governs are neither rewritten nor checked: the pre-commit entry prints a
-  trust-gate line and the batch row stays silent. See [Trust model](#trust-model).
+  the files it governs are neither rewritten nor checked: the `lint` entry prints a
+  trust-gate line at commit, and the batch row and the `format` entry stay silent. See [Trust model](#trust-model).
 - **Gitignored paths are out of scope for the batch row.** A file git excludes, a scratch
   tier such as `.work/**`, build output, or a vendored tree, is not rewritten. The verdict
   comes from `git check-ignore`; which ignore sources it reads is
@@ -47,10 +52,10 @@ Markdown style, so nothing runs there. Carrying a config **is** the opt-in.
   own `ignores` and `gitignore` keys do then is
   [markdownlint-cli2: .markdownlint-cli2.jsonc](https://github.com/DavidAnson/markdownlint-cli2#markdownlint-cli2jsonc)'s
   to say. The pre-commit
-  entry only sees files git stages, so it needs no such rule.
+  entries only see files git stages, so they need no such rule.
 - **Write paths the batch row does not see.** It reads only `Write`, `Edit` and `MultiEdit`
   calls. A file written through `Bash`, `PowerShell` or an MCP tool is not rewritten in
-  the session; the pre-commit entry formats it at commit.
+  the session; the `format` entry formats it at commit.
 - **Files under `.githooks/` are never rewritten.** They are installed copies of check
   scripts.
 - **The batch row needs a git working tree.** The file must sit inside one (or inside
@@ -59,12 +64,16 @@ Markdown style, so nothing runs there. Carrying a config **is** the opt-in.
   skips: no markdownlint config, an unapproved code-capable config, a gitignored path. To tell the
   cases apart, check the file or run `/markdown-format:setup check`.
 - **No per-edit findings.** Claude learns of a rewrite at its next edit of the file, which
-  reports that the file changed on disk. Unfixable findings are reported at commit, as
-  `<path>:<line>: <message>` on stderr with exit 1, only for lines the commit adds.
+  reports that the file changed on disk. Findings `--fix` cannot resolve are reported at
+  commit by the `lint` entry, as `<path>:<line>: <message>` on stderr with exit 1, only for
+  lines the commit adds.
+- **File names are literal paths.** Each file reaches `markdownlint-cli2` with the `:` prefix
+  its `--help` gives for a literal path, as an argument and never as shell text, so a name
+  holding `[` or starting with `#` or `-` is checked as itself.
 
 ## Trust model
 
-Neither the batch row nor the pre-commit entry runs `markdownlint-cli2` under a
+Neither the batch row nor a pre-commit entry runs `markdownlint-cli2` under a
 code-capable config without an explicit approval of that exact content state. A person's
 commit gets a trust-gate line naming the config and the approval marker to create; an
 agent commit's line says the run was skipped and that approval is yours, without the
@@ -72,7 +81,7 @@ command that grants it. To approve, review the config and every module it refere
 with the trust you give your build and CI configuration, then create the marker directory
 with the exact `mkdir -p` command your notice carries. The marker lives under the
 repository's git common directory, in `markdown-format/trust-approvals`, so one approval
-covers the batch row, the end-of-turn row, an agent's commit and your own.
+covers the batch row, both entries, the end-of-turn row, an agent's commit and your own.
 
 The marker is content-addressed over the repository, every governing code-capable config,
 and every repository file those configs reference by a string literal or path-shaped
@@ -87,23 +96,31 @@ with an argument the scan cannot read; a `.cjs` or `.mjs` cli2 config that names
 resolves outside the repository. Use a declarative JSONC or YAML config, with custom rules
 named there, to stay covered.
 
-## Git pre-commit entry
+## Git pre-commit entries
 
-`git-hooks/markdown-check.sh` is the entry `markdown-check`. At commit it:
+Two entries, each resolved per file to the adapter where a markdownlint config governs it:
 
-1. refuses a partly staged Markdown file untouched, with
-   `<path>: partly staged; format it or stage it fully, then commit`;
-2. runs `markdownlint-cli2 --fix` over the staged `.md` and `.mdc` files a config governs,
-   then re-stages the files it rewrote;
-3. blocks the commit on a finding that sits on a line the commit adds.
+- **`format`** (`git-hooks/format.sh`) refuses a partly staged Markdown file untouched, with
+  `<path>: partly staged; format it or stage it fully, then commit`, then runs
+  `markdownlint-cli2 --fix` over the staged `.md` and `.mdc` files and re-stages the files it
+  rewrote. It reports no finding.
+- **`lint`** (`git-hooks/lint.sh`) runs `markdownlint-cli2` without `--fix` over a copy of the
+  staged content, beside links to the repository's markdownlint configs, so a config whose
+  `fix` property is true cannot make it rewrite your files, and a partly staged file is checked
+  as the commit holds it. It blocks the commit on a finding that sits on a line the commit adds.
+  A run that exits non-zero with no `<path>:<line>` finding fails the commit with the tool's
+  output.
 
-`/markdown-format:setup apply install-git-hooks [scope=local|shared]` registers it with
-lefthook, husky or plain git hooks, and `/markdown-format:setup check` reports drift. A
-missing `markdownlint-cli2` follows the check-placement contract: an agent commit fails
-with the install command, a person gets a notice, and `git -c
-checks.skipmissing=markdownlint-cli2 commit` skips it once.
+Both refuse a commit whose markdownlint config above a staged file differs between the index
+and the work tree. `/markdown-format:setup apply install-git-hooks [scope=local|shared]`
+registers them with lefthook, husky or plain git hooks, and `/markdown-format:setup check`
+reports drift. An install of the earlier single `markdown-check` entry is reported as
+superseded and retired by `apply install-git-hooks`; a decline of it carries to both entries. A
+missing `markdownlint-cli2` follows the check-placement contract: an agent commit fails with
+the install command, a person gets a notice, and `git -c checks.skipmissing=markdownlint-cli2
+commit` skips it once.
 
-A `Stop` row runs the same script with `--worktree`: when a turn ends it checks the
+A `Stop` row runs the `lint` entry with `--worktree`: when a turn ends it checks the
 uncommitted changes and rewrites nothing. The `markdown_format_end_of_turn` option picks what
 happens to the findings:
 
@@ -113,7 +130,8 @@ happens to the findings:
   per turn. The row exits 2.
 - **`false`:** the row runs no check.
 
-A missing `markdownlint-cli2` stays quiet here, since the `SessionStart` probe reports it.
+Missing-tool lines stay out of that report, since the `SessionStart` probe reports the tool;
+a finding printed beside one still comes through.
 
 ## Requirements
 
@@ -138,8 +156,9 @@ A missing `markdownlint-cli2` stays quiet here, since the `SessionStart` probe r
 With harness-ops enabled, a missing `markdownlint-cli2` or `jq` is reported once per session by
 this plugin's `lib/prerequisites.mjs probe`, which harness-ops' `SessionStart` runner starts and
 which also reports a missing, stale or edited git-hook entry. The runner skips it while
-`markdown_format_enabled` is false. The probe does not look for a markdownlint config, so it can
-report in a repository that has none.
+`markdown_format_enabled` is false. The probe reports `markdownlint-cli2` only where a
+markdownlint config sits in the project directory or above it (`when` in `prerequisites.json`), so
+a repository that never opted in hears nothing about it.
 
 ### Hook budget accounting
 
@@ -159,7 +178,10 @@ registers it, ten fires per case; spawns are from `scripts/hook-census.sh`:
 The ceiling for a per-batch formatter row is 1 s median per fire, so the row ships.
 `.performance/ratchets.json` holds the no-Markdown row at 1 spawn, and the `Stop` row with
 `markdown_format_end_of_turn` set to `false` at 1 spawn. The remaining time of the
-rewrite case is `markdownlint-cli2` itself, one Node process per root.
+rewrite case is `markdownlint-cli2` itself, one Node process per root. With the format and lint
+split, the census's rewrite path (one `Edit` of a `.md` file under a root config) measured 25
+spawns against 24 before it, on 2026-11-17 on WSL2 Ubuntu: the added exec is the `sh -c` that
+hands file names to the tool as arguments.
 
 With the option unset, its default, the `Stop` row starts bash and the check script on every
 turn end. On a clean tree that costs 20 spawns (11 creations, 9 execs) and 45.6 ms mean against
@@ -178,7 +200,7 @@ wall and the 1 s per-fire ceiling, and the spawn count is what any reduction wou
 Then verify the runtime prerequisites with `/markdown-format:setup check`;
 `/markdown-format:setup apply` resolves anything the check reports with
 guidance, and `/markdown-format:setup apply install-lint` additionally
-authorizes installing `markdownlint-cli2` as a dev dependency using the
+authorizes installing `markdownlint-cli2` as a dev dependency through the
 repository's own package manager.
 
 ## Configuration
@@ -187,8 +209,8 @@ The rules themselves are never configured here. The plugin's only rule source is
 the markdownlint config already in your repository, which it reads automatically.
 To change the rules, edit your repo's markdownlint config. To exempt a path that git
 tracks, use the `ignores` (or `gitignore`) key in a `.markdownlint-cli2.*` config; the
-plugin keeps no exemption list of its own. Both the
-batch row and the pre-commit entry pass each file as a literal path. Whether a key applies
+plugin keeps no exemption list of its own. The
+batch row and both pre-commit entries pass each file as a literal path. Whether a key applies
 to a literal path is
 [markdownlint-cli2: .markdownlint-cli2.jsonc](https://github.com/DavidAnson/markdownlint-cli2#markdownlint-cli2jsonc)'s
 to say.
@@ -199,7 +221,7 @@ Three `userConfig` options tune the hooks:
 |--------|------|---------|--------|
 | `markdown_format_enabled` | boolean | `true` | Kill switch for the hooks. Set `false` for a clean no-op. |
 | `markdown_format_lint_gitignored` | boolean | `false` | Bypass the batch row's git-ignore check. Off by default: an excluded path is not rewritten. It does not override markdownlint-cli2's own `ignores` / `gitignore` config. |
-| `markdown_format_end_of_turn` | boolean | unset | Run the pre-commit check over the uncommitted changes when a turn ends. Nothing is rewritten. Unset, a warning shows you the findings and the turn ends; `true` hands them back to Claude once per turn; `false` runs no check. |
+| `markdown_format_end_of_turn` | boolean | unset | Run the `lint` entry over the uncommitted changes when a turn ends. Nothing is rewritten. Unset, a warning shows you the findings and the turn ends; `true` hands them back to Claude once per turn; `false` runs no check. |
 
 Set them interactively with `/plugin configure markdown-format@<marketplace>`, or headless on
 the install command:
@@ -217,9 +239,9 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `markdown_format_enabled` | boolean | `true` | Rewrite the Markdown files a batch of tool calls wrote (runs only when the repo carries a markdownlint config) |
+| `markdown_format_enabled` | boolean | `true` | After each batch of tool calls, run markdownlint-cli2 --fix over the Markdown files it wrote (runs only where a markdownlint config governs the file) |
 | `markdown_format_lint_gitignored` | boolean | `false` | By default the hook leaves gitignored files alone: a scratch tier the repo excludes is not rewritten. Set true to bypass this hook's git check; markdownlint-cli2's own ignores and gitignore config still apply, so a path your markdownlint config excludes stays untouched. |
-| `markdown_format_end_of_turn` | boolean | *(none)* | When a turn ends, run the pre-commit check over the uncommitted changes; nothing is rewritten. Unset (the default) shows markdownlint findings to you in a warning and the turn ends. true hands them back to Claude, at most once per turn. false runs no check. |
+| `markdown_format_end_of_turn` | boolean | *(none)* | When a turn ends, run the pre-commit lint entry over the uncommitted changes; nothing is rewritten. Unset (the default) shows markdownlint findings to you in a warning and the turn ends. true hands them back to Claude, at most once per turn. false runs no check. |
 
 ### How to set these
 

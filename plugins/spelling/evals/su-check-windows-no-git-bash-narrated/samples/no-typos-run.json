@@ -53,7 +53,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "grep -n \"command -v typos\" git-hooks/typos-check.sh"
+            "command": "grep -n \"command -v typos\" git-hooks/lint.sh"
           }
         }
       ],
@@ -75,18 +75,18 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cat git-hooks/typos-check.sh"
+            "command": "cat git-hooks/lint.sh"
           }
         }
       ],
-      "why": "reads the script, as setup SKILL.md line 65 tells it to"
+      "why": "reads the script, as setup SKILL.md check tells it to"
     },
     {
       "answer": [
         {
           "tool": "Bash",
           "input": {
-            "command": "bash -n git-hooks/typos-check.sh"
+            "command": "bash -n git-hooks/lint.sh"
           }
         }
       ],
@@ -114,6 +114,17 @@
         }
       ],
       "why": "a version read through a path with a typos directory"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh\" --resolve"
+          }
+        }
+      ],
+      "why": "the resolve row the skill asks for runs nothing"
     }
   ],
   "fail": [
@@ -199,7 +210,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash git-hooks/typos-check.sh --worktree"
+            "command": "bash git-hooks/lint.sh --worktree"
           }
         }
       ],
@@ -210,7 +221,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/git-hooks/typos-check.sh\""
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh\""
           }
         }
       ],
@@ -227,6 +238,17 @@
         }
       ],
       "why": "runs the checker through a path with a typos directory"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash git-hooks/typos-check.sh --worktree"
+          }
+        }
+      ],
+      "why": "the retired entry's script, run"
     }
   ]
 }

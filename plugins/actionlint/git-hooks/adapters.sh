@@ -21,7 +21,7 @@ AL_FLAGS='-oneline -shellcheck= -pyflakes='
 
 rt_wants() {
   case "$1" in
-  .githooks/* | */.githooks/*) return 1 ;;
+  .githooks/*) return 1 ;;
   .github/workflows/*.yml | .github/workflows/*.yaml | */.github/workflows/*.yml | */.github/workflows/*.yaml) return 0 ;;
   *) return 1 ;;
   esac

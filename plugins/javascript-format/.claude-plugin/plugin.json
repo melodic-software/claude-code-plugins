@@ -1,11 +1,11 @@
 {
   "name": "javascript-format",
-  "description": "Rewrites JavaScript, TypeScript, JSX and JSON with Biome once per batch of tool calls and at git pre-commit, only when a biome.json governs the file, using the consuming repo's own Biome config.",
+  "description": "Formats JavaScript, TypeScript, JSX and JSON with Biome once per batch of tool calls and at git pre-commit, and reports Biome lint findings at commit, only where a biome.json governs the file; formatting and linting are separate, no lint fix runs, and hooks never run an ecosystem record's command.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "2.1.0",
+  "version": "3.0.0",
   "license": "MIT",
   "keywords": [
     "biome",
@@ -23,8 +23,8 @@
   "userConfig": {
     "javascript_format_enabled": {
       "type": "boolean",
-      "title": "Rewrite JS/TS/JSON after edits",
-      "description": "After each batch of tool calls, run Biome check --write over the JavaScript, TypeScript and JSON files it wrote",
+      "title": "Format JS/TS/JSON after edits",
+      "description": "After each batch of tool calls, run the resolved format command over the JavaScript, TypeScript and JSON files it wrote",
       "default": true
     },
     "javascript_format_lint_gitignored": {
@@ -36,7 +36,7 @@
     "javascript_format_end_of_turn": {
       "type": "boolean",
       "title": "Check JS/TS/JSON in uncommitted changes at turn end",
-      "description": "At the end of each turn, run the pre-commit Biome check over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default.",
+      "description": "At the end of each turn, run the pre-commit lint entry over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default.",
       "default": false
     }
   }

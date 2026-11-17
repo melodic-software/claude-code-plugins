@@ -3,6 +3,34 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-11-17
+
+### Fixed
+
+- The lint entry skips only the root `.githooks/` directory, where the installer puts its copies, again; a workflow under a nested `.githooks/` directory is linted.
+
+## [2.0.0] - 2026-11-17
+
+### Added
+
+- Carries the shared format and lint runner (`lib/git-hooks/resolve-tool.sh`), which picks the plugin's shipped adapter for a file its tool's own config opts in and runs it with file names as arguments; it never runs an ecosystem record's command. No hook of this plugin uses it yet.
+
+- The git-hook installer reads two new `entries.json` fields. `earlierEntries` (`[{"from": <old entry>, "to": [<entries>]}]`) reports what an install of a split or renamed entry left as superseded drift, and carries a decline of the old entry to every entry it became. `resolved: true` on an entry takes its tools from the entry script's `--resolve` rows, which run nothing, so a missing-tool decision names only an adapter tool the repository's own config opts in to. A top-level `ecosystems` list names the ecosystem records the plugin's setup reports.
+
+### Changed
+
+- The bundled prerequisites checker honors an entry's optional `when` (`config_any`: file names, or a file and a pattern its text must match): the SessionStart probe stays silent about the entry unless one of those configs sits in the project directory or above it, and `check` reports it INFO there.
+
+- Carries version 1.1.0 of the ecosystem resolution steps (`reference/ecosystem-resolution.md`): `/toolchain:setup apply <ecosystem>` is the one writer of an ecosystem record's `fix-cmd` and `lint-cmd`, and a format or lint plugin's setup drafts them for it.
+
+- The pre-commit entry and the opt-in end-of-turn check run through the shared format and lint runner. They lint every GitHub Actions workflow file a change touches, applying the repository's own actionlint config (`.github/actionlint.yaml` or `.github/actionlint.yml` at its root) when there is one and actionlint's defaults otherwise. They never run a command from the repository's github-actions record (`.claude/ecosystems/github-actions.yaml`); `/toolchain:lint` and `/toolchain:check` run it on request, and `setup check` says when a record exists.
+- `setup check` reports what lint resolves to from the entry's `--resolve` row: the adapter and the config it applies, or unresolved where the repository has no workflow files. File names reach actionlint as arguments, never as shell text.
+- A partly staged workflow is linted from the index with `-stdin-filename`, so the config's `paths:` rules apply to it. actionlint exiting non-zero without a `<path>:<line>` finding, such as on a config it cannot parse, fails the commit and shows its output.
+
+### Removed
+
+- The `actionlint-check` git-hook entry is retired for `lint`. Installed copies, lefthook jobs and the `checks.actionlint.actionlint-check.declined` key change; `setup check` reports an installed `actionlint-check` copy as superseded, `apply install-git-hooks` retires it, and a decline of `actionlint-check` carries to `lint`.
+
 ## [1.2.0] - 2026-11-16
 
 ### Added

@@ -1,5 +1,13 @@
 # Changelog: discovery plugin
 
+## [2.1.6] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker honors an entry's optional `when` (`config_any`: file names, or a file and a pattern its text must match): the SessionStart probe stays silent about the entry unless one of those configs sits in the project directory or above it, and `check` reports it INFO there.
+
+- The shared config cascade copy now exports its `fileState` and `escapes` path guards, so a script that reads other repository files can refuse a symlink or a path outside the checkout the same way. Nothing that already used the cascade changes.
+
 ## [2.1.5] - 2026-11-16
 
 ### Changed

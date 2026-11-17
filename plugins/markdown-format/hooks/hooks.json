@@ -1,5 +1,5 @@
 {
-  "description": "Rewrites Markdown with markdownlint-cli2 once per batch of tool calls, checks the uncommitted changes when a turn ends; harness-ops reports a missing markdownlint-cli2 or a drifted git-hook entry at session start, from this plugin's prerequisites.json.",
+  "description": "Formats Markdown with markdownlint-cli2 once per batch of tool calls, lints the uncommitted changes when a turn ends; harness-ops reports a missing markdownlint-cli2 or a drifted git-hook entry at session start, from this plugin's prerequisites.json.",
   "hooks": {
     "PostToolBatch": [
       {
