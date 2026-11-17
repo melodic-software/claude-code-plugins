@@ -37,6 +37,8 @@ For each affected ecosystem, in this order:
 
 Skip a step cleanly when the ecosystem has no such phase (see the per-command-key resolution in "Command-truth resolution" above). Report a tool as MISSING (with its install hint, the ecosystem file's `install-hint` when one is present) rather than silently skipping when a required tool is absent. A detected ecosystem with no default listed above (e.g. PowerShell) is not thereby phase-less: resolve its commands from the repo (rungs 1–2), and when that yields nothing, report the phase as UNVERIFIED for that ecosystem rather than skipping it.
 
+**Declared prerequisites.** When the resolved ecosystem file declares `requires` for a command (keyed by command key; a `gates[]` item may carry its own), run each entry's `probe` before that command, after its tool is found on `PATH`: one Bash call per probe with a 30-second timeout and `$REPO_ROOT` bound as for commands, from the repo root, or from each location the command runs from when the entry sets `run-from: ecosystem` (the command then still runs where every probe passed). Exit 0 means present; any other exit, a probe that cannot start and a timeout mean absent. With any entry absent, do not run the command: report that phase as `SKIP (prerequisite missing: <name>, <name>)`, naming each absent entry, with each entry's `hint`, never `FAIL` from a crashed command or `PASS` from the wrong build of a tool, and go on to the next phase. That SKIP line is the phase's whole report: it says the phase did not run, so add no separate UNVERIFIED line for it. Never install a declared prerequisite, never run its `hint`, and never install dependencies to make a command start. The full rule is "Command prerequisites" in [`docs/contracts/ecosystem-commands/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/ecosystem-commands/README.md).
+
 ## Turn budget
 
 The cap is `maxTurns: 30` and a change set touching many ecosystems can exhaust it before any report is returned. Stop gathering by turn 22 at the latest and spend the remaining turns writing the report. Work one ecosystem at a time, all its phases before the next. End the report by marking each phase you did not run, and each ecosystem you did not reach, as UNVERIFIED in its block.
@@ -51,6 +53,9 @@ Ecosystem: .NET
 
 Ecosystem: Bash
   ShellCheck: FAIL (2 files), see errors below
+
+Ecosystem: YAML
+  Lint:   SKIP (prerequisite missing: actionlint (the build CI pins)), hint: install the actionlint build named in .github/actionlint-version
 ```
 
 Report failures with the exact error output so the caller can act on them. Never mutate files. You verify, the caller fixes.

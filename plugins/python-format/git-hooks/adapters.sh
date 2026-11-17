@@ -23,7 +23,7 @@ PF_INSTALL='pip install ruff, or another method at https://docs.astral.sh/ruff/i
 
 rt_wants() {
   case "$1" in
-  .githooks/* | */.githooks/*) return 1 ;;
+  .githooks/*) return 1 ;;
   *.py | *.pyi) return 0 ;;
   *) return 1 ;;
   esac

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Stage 1: no check ran (bash: skip (prerequisite missing: zz-test-runtime)).\n\nVerdict: NOT VERIFIED",
+      "why": "plain verdict"
+    },
+    {
+      "answer": "**Verdict:** `NOT VERIFIED`: every check hit an environment skip.",
+      "why": "formatted verdict"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Verdict: CONFIRMED",
+      "why": "confirmed with nothing run"
+    },
+    {
+      "answer": "Verdict: NEEDS WORK",
+      "why": "a different verdict"
+    }
+  ]
+}

@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.9] - 2026-11-17
+
+### Changed
+
+- `/verification:confirm`'s direct path (Stage 1 without the `toolchain` plugin) honors an ecosystem record's `requires`: it runs each declared probe before the command, and with any entry absent it skips the command as `skip (prerequisite missing: <name>)`, an environment skip that holds the verdict below `CONFIRMED`. It never installs a declared prerequisite, and an unattended run (`--unattended`, `CLAUDE_CODE_REMOTE`, `claude -p`, an autonomous loop) installs no lockfile dependencies either: it reports `skip (dependencies missing: unattended run)`.
+
 ## [0.26.8] - 2026-11-17
 
 ### Changed

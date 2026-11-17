@@ -3,6 +3,12 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-11-17
+
+### Fixed
+
+- The lint entry skips only the root `.githooks/` directory, where the installer puts its copies, again; a workflow under a nested `.githooks/` directory is linted.
+
 ## [2.0.0] - 2026-11-17
 
 ### Added

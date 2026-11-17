@@ -1,12 +1,24 @@
 {
+  "earlierEntries": [{ "from": "markdown-check", "to": ["format", "lint"] }],
+  "ecosystems": ["markdown"],
   "entries": [
     {
-      "name": "markdown-check",
+      "name": "format",
       "event": "pre-commit",
-      "script": "markdown-check.sh",
+      "script": "format.sh",
       "tools": ["markdownlint-cli2"],
       "rewrites": true,
-      "assets": ["git-hooks/markdown-gates.sh"]
+      "resolved": true,
+      "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh", "git-hooks/markdown-gates.sh"]
+    },
+    {
+      "name": "lint",
+      "event": "pre-commit",
+      "script": "lint.sh",
+      "tools": ["markdownlint-cli2"],
+      "rewrites": false,
+      "resolved": true,
+      "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh", "git-hooks/markdown-gates.sh"]
     }
   ]
 }
