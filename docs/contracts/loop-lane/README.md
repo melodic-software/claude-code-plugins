@@ -1412,7 +1412,7 @@ hypothetical.
 
 This is a **gap**, not an invariant. Assuming one account per machine describes how the guard is
 built, not a rule, and it fails open in a contract that fails closed on every other unresolvable
-input. It would also bake a solo-operator posture into a contract whose sibling "assumes no
+input. It would also build a solo-operator assumption into a contract whose sibling "assumes no
 machine, org size, or budget"
 ([`routines.md`](../../../plugins/autonomy/reference/routines.md) §Hosting stance): a
 multi-account machine is an ordinary team and multi-tenant shape. Calling it a gap keeps anyone
