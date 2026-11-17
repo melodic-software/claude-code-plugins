@@ -205,7 +205,12 @@ format and lint plugin and beside each installed entry, with `yaml-subset.awk`):
   that reaches outside the repository always needs approval. A named file the default branch does
   not list counts as the user's own only when git lists it as untracked or ignored and no component
   of its path is a symlink; one inside a submodule, under a symlinked directory or otherwise
-  unclassified needs approval. The default branch is `refs/remotes/origin/HEAD`, read locally. The
+  unclassified needs approval. A command can also run code it does not name, such as a manifest's
+  script or a build target, so every tracked path under the directory the command runs from
+  (recursively) that the record's `globs` do not bind must match the default branch as well: an
+  edit, an addition, a deletion, a moved or dirty submodule and a changed symlink entry all count,
+  and the approval key covers those paths' bytes. Edits to the files the record's `globs` bind
+  never need approval. The default branch is `refs/remotes/origin/HEAD`, read locally. The
   record also runs when this clone holds an approval of exactly those bytes under `<git common dir>/claude-ecosystems/approved/`,
   written only by an attended setup (`resolve-tool.sh --approve <id>`). Approval is keyed per run
   directory, so `--approve` and setup's repository row cover every directory the record's globs and

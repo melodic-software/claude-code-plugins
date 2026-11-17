@@ -225,7 +225,37 @@ printf '#!/bin/sh\ntouch pwned\n' >"$REPO/pkg/tools/fmt.sh"
 git -C "$REPO" commit -qam evil --no-verify
 expect "a branch edit of the project-relative script makes the record unapproved" "unapproved" "$(resolve pkg/a.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
 expect "a branch edit of a <project-dir> reference makes the record unapproved" "unapproved" "$(resolve pkg/a.dm lint >/dev/null; printf '%s' "$RT_SOURCE")"
-expect "the root's own tools/fmt.sh, unchanged, still runs for a root file" "record:demo" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+expect "a root file's run directory holds the project directory's changed script, so it is unapproved too" "unapproved" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+
+# An indirect command runs code from files it does not name, so every tracked
+# file under the run directory that the record's globs do not bind must match
+# the default branch too.
+new_repo
+printf '{"scripts":{"fmt":"stubfmt"}}\n' >"$REPO/package.json"
+printf 'fmt:\n\tstubfmt\n' >"$REPO/Makefile"
+printf 'notes\n' >"$REPO/notes.txt"
+git -C "$REPO" add package.json Makefile notes.txt
+record 'globs: ["*.dm"]
+fix-cmd: "npm run fmt <files>"
+lint-cmd: "make fmt <files>"'
+publish
+expect "an indirect command whose run directory matches the default branch is accepted" "record:demo" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+printf 'changed source\n' >"$REPO/seed.dm"
+printf 'new source\n' >"$REPO/other.dm"
+git -C "$REPO" add seed.dm other.dm
+git -C "$REPO" commit -qm "source edits" --no-verify
+expect "editing only files the record's globs bind leaves it accepted" "record:demo|record:demo" "$(resolve seed.dm format >/dev/null; printf '%s|' "$RT_SOURCE"; resolve seed.dm lint >/dev/null; printf '%s' "$RT_SOURCE")"
+printf '{"scripts":{"fmt":"touch pwned"}}\n' >"$REPO/package.json"
+git -C "$REPO" commit -qam "edit the manifest" --no-verify
+expect "a package-manager command with its manifest edited on the branch is unapproved" "unapproved" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+bash "$RT" --approve demo "$REPO" >/dev/null
+expect "--approve accepts it" "record:demo" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+printf 'fmt:\n\ttouch pwned\n' >"$REPO/Makefile"
+expect "a make-target command with its Makefile edited is unapproved, the approval included" "unapproved|unapproved" "$(resolve seed.dm format >/dev/null; printf '%s|' "$RT_SOURCE"; resolve seed.dm lint >/dev/null; printf '%s' "$RT_SOURCE")"
+git -C "$REPO" checkout -q -- Makefile
+expect "with the Makefile restored the approval holds again" "record:demo" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+git -C "$REPO" rm -q notes.txt
+expect "deleting a file the record's globs do not bind unapproves it" "unapproved" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
 
 # --approve and the repository-level report key each run directory the
 # record's globs and project-discovery produce, as the hooks do.
@@ -248,9 +278,9 @@ expect "--approve covers the project directory's key" "record:demo" "$(resolve p
 expect "--approve covers the root's key" "record:demo" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
 rt_forget
 expect "the repository-level report reads approved for every run directory" "approved" "$(rt_print format "$REPO" | cut -f5)"
-printf '#!/bin/sh\ntouch pwned\n' >"$REPO/pkg/tools/fmt.sh"
+printf '#!/bin/sh\ntouch pwned\n' >"$REPO/tools/fmt.sh"
 rt_forget
-expect "one directory's change makes the report unapproved and names each directory" "unapproved	pkg: unapproved; .: approved" "$(rt_print format "$REPO" | cut -f5,7)"
+expect "a change outside the project directory makes the report unapproved and names each directory" "unapproved	pkg: approved; .: unapproved" "$(rt_print format "$REPO" | cut -f5,7)"
 
 # A referenced file counts as the user's own only when git lists it as
 # untracked or ignored and no part of its path is a symlink.

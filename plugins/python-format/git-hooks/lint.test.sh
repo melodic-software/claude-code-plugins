@@ -155,9 +155,9 @@ $HINT" "$(check "$REPO" --worktree)"
 
   # One group's missing tool skips that group only: Ruff's findings still block.
   new_repo
-  record 'globs: ["tools/*.py"]
-lint-cmd: "nosuchlinter <files>"'
-  publish
+    # A user-global record needs no approval, so only the missing tool decides.
+  mkdir -p "$HOME/.claude/ecosystems"
+  printf '%s\n' 'globs: ["tools/*.py"]' 'lint-cmd: "nosuchlinter <files>"' >"$HOME/.claude/ecosystems/python.yaml"
   mkdir -p "$REPO/tools"
   printf 'print(undefined_name)\n' >"$REPO/a.py"
   printf 'b = 1\n' >"$REPO/tools/b.py"
@@ -165,6 +165,7 @@ lint-cmd: "nosuchlinter <files>"'
   expect "a person's missing record tool skips its group, and the Ruff group's finding still blocks" "1||NOTICE: nosuchlinter missing, so this check did not run. Install: the command the python record names
 a.py:1: F821 Undefined name \`undefined_name\`
 python-format: fix the findings ruff reported above." "$(check "$REPO")"
+  rm -r "$HOME/.claude"
 fi
 
 # The record path.

@@ -56,9 +56,10 @@
 # Layers, key by key (ecosystem-commands "File layout and resolution"):
 # ~/.claude/ecosystems/<id>.yaml, then .claude/ecosystems/<id>.yaml, then
 # <id>.local.yaml. A key from the team file, or from a .local file git tracks,
-# is repository content: it runs only when that file, and every file its
-# command names that is not the user's own (untracked or ignored, through no
-# symlink), matches the default branch (refs/remotes/origin/HEAD, read
+# is repository content: it runs only when that file, every file its command
+# names that is not the user's own (untracked or ignored, through no symlink),
+# and every tracked file under the directory the command runs from that the
+# record's globs do not bind, matches the default branch (refs/remotes/origin/HEAD, read
 # locally), or when a per-clone approval of exactly those bytes sits under
 # <git common dir>/claude-ecosystems/approved/. Anything else is unapproved and
 # runs nothing; it never falls through to the adapter. A record key with no
@@ -298,9 +299,22 @@ rt__approval() {
   rt__refs "$cmd" "$root" "$dir"
   paths+=(${RT__REFS[@]+"${RT__REFS[@]}"})
   rt__common "$root"
+  # The run directory: a command can run code it does not name (a manifest's
+  # script, a build target), so every tracked path under the directory it runs
+  # from that differs from the default branch counts, unless the record's own
+  # globs bind it. One git diff lists edits, additions, deletions, a moved or
+  # dirty submodule and a changed symlink entry alike.
+  local ctx=() ctx_status=() ctx_live=() st q
+  if [[ -n "$RT__TIP" ]]; then
+    while IFS= read -r -d '' st && IFS= read -r -d '' q; do
+      rt__globs_match "$q" && continue
+      ctx+=("$q") ctx_status+=("$st")
+      [[ "$st" == D || -d "$root/$q" ]] || ctx_live+=("$q")
+    done < <(git -C "$root" diff -z --name-status --no-renames --ignore-submodules=none "$RT__TIP" -- "${dir:-.}" 2>/dev/null)
+  fi
   while IFS= read -r h; do
     hashes+=("$h")
-  done < <(git -C "$root" hash-object -- "${paths[@]}" ${RT__ESC[@]+"${RT__ESC[@]}"} 2>/dev/null)
+  done < <(git -C "$root" hash-object -- "${paths[@]}" ${RT__ESC[@]+"${RT__ESC[@]}"} ${ctx_live[@]+"${ctx_live[@]}"} 2>/dev/null)
   RT_APPROVAL=unapproved
   local i ok=1 tree=$'\n'
   if [[ -n "$RT__TIP" ]]; then
@@ -352,6 +366,17 @@ rt__approval() {
   # vouch for: it always needs this clone's approval of its bytes.
   for i in "${!RT__ESC[@]}"; do
     keep+=("${RT__ESC[i]}"$'\t'"${hashes[${#paths[@]} + i]:-}")
+    ok=0
+  done
+  local live=$((${#paths[@]} + ${#RT__ESC[@]}))
+  for i in "${!ctx[@]}"; do
+    h=deleted
+    [[ -d "$root/${ctx[i]}" ]] && h=directory
+    if [[ "${ctx_status[i]}" != D && "$h" == deleted ]]; then
+      h="${hashes[live]:-}"
+      live=$((live + 1))
+    fi
+    keep+=("run-dir"$'\t'"${ctx_status[i]}"$'\t'"${ctx[i]}"$'\t'"$h")
     ok=0
   done
   [[ -n "$RT__TIP" ]] || ok=0

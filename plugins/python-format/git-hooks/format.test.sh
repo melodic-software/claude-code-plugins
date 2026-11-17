@@ -306,9 +306,9 @@ expect "--resolve ran no record command" "no" "$([[ -e "$REPO/resolved-ran" ]] &
 # One group's missing tool skips that group only: the Ruff group's partly
 # staged refusal and its rewrite still happen.
 new_repo
-record 'globs: ["tools/*.py"]
-fix-cmd: "nosuchformatter <files>"'
-publish
+# A user-global record needs no approval, so only the missing tool decides.
+mkdir -p "$HOME/.claude/ecosystems"
+printf '%s\n' 'globs: ["tools/*.py"]' 'fix-cmd: "nosuchformatter <files>"' >"$HOME/.claude/ecosystems/python.yaml"
 mkdir -p "$REPO/tools"
 printf 'x=1\n' >"$REPO/a.py"
 printf 'y=2\n' >"$REPO/tools/b.py"
@@ -318,6 +318,7 @@ expect "a person's missing record tool skips its group; the Ruff group's partly 
 a.py: partly staged; format it or stage it fully, then commit" "$(check "$REPO")"
 git -C "$REPO" add a.py
 expect "with the refusal cleared, the Ruff group still formats" "0|a.py|NOTICE: nosuchformatter missing, so this check did not run. Install: the command the python record names" "$(check "$REPO")"
+rm -r "$HOME/.claude"
 
 # --resolve <path>: one row per file, the adapter naming the config that
 # governs it (the closest one walking up) and the binary it would run.

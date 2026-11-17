@@ -28,7 +28,9 @@ The plugin ships no rules and no tool choice of its own.
   - **Pointer**: when deciding what filters a `PostToolBatch` row, fetch
     [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch) live.
 - **A record runs only when it is the team's.** A record committed to the repository runs when it,
-  and every repository file its command names, match the default branch (`origin/HEAD`). One that
+  every repository file its command names, and every tracked file under the directory the command
+  runs from that the record's globs do not bind, match the default branch (`origin/HEAD`). Edits to
+  the Python files the record binds never count. One that
   differs, such as a record edited on a branch, runs nothing (not even the Ruff adapter) until it
   is merged or approved for your clone with `/python-format:setup apply approve-record`. Your own
   `~/.claude/ecosystems/python.yaml` and an untracked `python.local.yaml` need no approval. A
@@ -111,7 +113,7 @@ from `scripts/hook-census.sh`:
 
 The ceiling for a per-batch formatter row is 1 s median per fire. Fences:
 `.performance/ratchets.json` holds the no-Python row at 1 spawn, the record path (an approved
-python record formatting one file) at 27 spawns, and the Stop row with
+python record formatting one file) at 29 spawns, and the Stop row with
 `python_format_end_of_turn` off (its default) at 1 spawn. The Ruff adapter path measured 20 spawns
 before and after the resolver landed (2026-11-16, WSL2 Ubuntu, bash 5.3.9).
 

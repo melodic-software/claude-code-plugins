@@ -94,8 +94,9 @@ or `modified` entry): the entry runs at commit outside Claude Code and reads no 
    names that config. Report one line per concern from the rows, never from this text:
    - `record:python` with approval `accepted` (the record matches the default branch) or
      `approved` (this clone approved its current bytes), and found `yes`: PASS, naming the tool.
-   - `record:python` with approval `unapproved`: FAIL. The record, or a file its command names,
-     differs from the default branch, so the hooks run nothing for this concern, not even the
+   - `record:python` with approval `unapproved`: FAIL. The record, a file its command names, or a
+     tracked file under the directory it runs from that its globs do not bind, differs from the
+     default branch, so the hooks run nothing for this concern, not even the
      adapter. Remediation: merge it, or `apply approve-record` after the person reads it.
    - `adapter:<name>` with found `yes`: PASS, naming the adapter's tool and that its config opted in.
    - found `no`: FAIL; the remediation is the record's `install-hint`, or the adapter tool's
