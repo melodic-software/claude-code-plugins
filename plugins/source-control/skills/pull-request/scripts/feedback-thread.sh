@@ -123,6 +123,10 @@ cmd_list() {
   jq '.threads' "$threads_file"
 }
 
+cmd_comments() {
+  jq '.pr_comments // []' "$threads_file"
+}
+
 cmd_notes() {
   jq '.verify_notes // []' "$threads_file"
 }
@@ -221,6 +225,10 @@ cmd_record() {
     jq -e --arg id "$id" 'any(.verify_notes[]?; .id == $id)' "$threads_file" >/dev/null ||
       die 1 "$id is not a pr-verify note of this round"
     kinds='["VALID", "already-addressed"]'
+  elif [[ $id =~ ^PRC_[1-9][0-9]{0,19}$ ]]; then
+    jq -e --arg id "$id" 'any(.pr_comments[]?; .id == $id)' "$threads_file" >/dev/null ||
+      die 1 "$id is not a comment of this round"
+    kinds='["answered"]'
   else
     [[ $id =~ ^PRRT_[A-Za-z0-9_-]{1,100}$ ]] || die 1 "not a review thread id"
     jq -e --arg id "$id" 'any(.threads[]; .id == $id)' "$threads_file" >/dev/null ||
@@ -262,7 +270,7 @@ cmd_record() {
     | select(.note | test("<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|ghs_[0-9]+_|github_pat_") | not)
     | select((.fix_sha // "") == "")
     | {thread: $id, disposition, evidence: (.evidence // []), fix_sha: (.fix_sha // ""), note}' "$real") ||
-    die 1 "the disposition file does not match the template: disposition (VALID or already-addressed for a pr-verify note), evidence path:line list (one or more for VALID, INCORRECT and already-addressed), an empty fix_sha, note of 1-2000 characters with no control characters, HTML comments or tokens"
+    die 1 "the disposition file does not match the template: disposition (VALID or already-addressed for a pr-verify note, answered for a comment), evidence path:line list (one or more for VALID, INCORRECT and already-addressed), an empty fix_sha, note of 1-2000 characters with no control characters, HTML comments or tokens"
 
   local disposition ev
   disposition=$(jq -r .disposition <<<"$d")
@@ -299,11 +307,12 @@ cmd_record() {
 
 case ${1:-} in
   list) cmd_list ;;
+  comments) cmd_comments ;;
   notes) cmd_notes ;;
   issues) cmd_issues ;;
   check-paths) shift && cmd_check_paths "$@" ;;
   record) shift && cmd_record "$@" ;;
   sections) cmd_sections ;;
   record-body) shift && cmd_record_body "$@" ;;
-  *) die 2 "usage: feedback-thread.sh list | notes | issues | sections | check-paths <path>... | record <thread-id> <disposition-file> | record-body <body-file>" ;;
+  *) die 2 "usage: feedback-thread.sh list | comments | notes | issues | sections | check-paths <path>... | record <thread-id> <disposition-file> | record-body <body-file>" ;;
 esac

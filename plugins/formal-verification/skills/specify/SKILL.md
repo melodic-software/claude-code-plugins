@@ -1,17 +1,18 @@
 ---
-description: "Find, write and check formal-area skills: bare proposes the promise most worth proving and writes nothing; create PROMISE writes its model and formal-area skill and proves a seeded break is caught; check gates each one on the contract. Use when: 'what should we formally verify', 'model-check this race', 'prove this invariant', 'check our formal skills', or a race or state machine needs more than tests."
-argument-hint: "[create [<promise>] [--unattended]|check [<skill-dir> ...]]"
+description: "Write, check and refresh formal-area skills: bare proposes what to prove; create PROMISE writes the model and skill, proving a seeded break is caught; check gates the contract; refresh realigns checks with changed code. Use when: 'what should we formally verify', 'model-check this race', 'prove this invariant', 'check our formal skills', 'is the model still true', or a race or state machine needs more than tests."
+argument-hint: "[create [<promise>]|check [<dir> ...]|refresh [<dir> ...] [--convert <dir>]] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: verify
-  summary: Propose, create and check a repository's formal-area skills
+  summary: Propose, create, check and refresh a repository's formal-area skills
 ---
 
-**Arguments.** `[create [<promise>] [--unattended]|check [<skill-dir> ...]]`. Quote a promise of
+**Arguments.** `[create [<promise>]|check [<dir> ...]|refresh [<dir> ...] [--convert <dir>]] [--unattended]`.
+Each `<dir>` is a skill folder; `--unattended` applies to `create` and `refresh`. Quote a promise of
 more than one word.
 e.g. /formal-verification:specify, /formal-verification:specify create "a claimed item has one
-holder", /formal-verification:specify check
+holder", /formal-verification:specify check, /formal-verification:specify refresh
 
 # Specify
 
@@ -37,6 +38,8 @@ area's `formal-<area>` skill, under `## Tool and why`.
 | `create` with no promise | nothing until a yes | Shows the bare form's proposal and waits for a yes. |
 | `create --unattended` | nothing | A dry run: the plan, and the open questions a person must answer. |
 | `check [SKILL_DIR...]` | nothing | The contract gate. |
+| `refresh [SKILL_DIR...]` | the `formal-<area>` folder, in a commit of its own | Brings each check back in line with the code. |
+| `refresh --convert SKILL_DIR` | that skill, as a `formal-<area>` folder | Converts a verification skill outside the contract, attended only. |
 
 A run with no person present (a lane, CI, a model that invoked this skill with nobody to answer)
 is unattended, whatever its arguments.
@@ -81,6 +84,15 @@ cannot run. The findings it reports are listed in the contract's "The contract c
 lines as printed. A stale-coverage warning means the check needs another look, not that it fails:
 say which check and which files.
 
+### `refresh`
+
+Follow [`reference/refresh.md`](reference/refresh.md) from the top. It finds each check, runs it
+unchanged, reads every change to its covered code since the sync commit, updates the verification
+from the code in a throwaway git worktree, reruns it with a seeded break, and ends each check
+`in sync`, `updated`, `bug` or `blocked`. A property changes only on a person's yes. On a ticket
+branch it commits there; otherwise on its own upkeep branch, through one pull request. Unattended,
+it writes only for a check that ends `in sync` or `updated` with its seeded break caught.
+
 ## What makes it good
 
 - **True to the code.** Every part of the model or proof points to code that a reviewer can open.
@@ -107,13 +119,15 @@ say which check and which files.
   what this plugin declares, and only on a typed request.
 - Reaches other skills by their slash command only, each with the fallback its step names when that
   plugin is not installed.
-- Writes only inside the `formal-<area>` folder and the paths its `sync.yaml` lists under
-  `outside_model`. Product code changes only in the throwaway worktree, which is discarded.
+- Writes only inside the `formal-<area>` folder, the paths its `sync.yaml` lists under
+  `outside_model`, and a skill `refresh --convert` names. Product code changes only in the throwaway
+  worktree, which is discarded.
 
 ## Next
 
 - A `formal-<area>` skill written and its seeded break caught: /verification:confirm.
 - A counterexample that reproduces against the real code: /bugs:write.
+- Covered code changed since a sync commit: /formal-verification:specify refresh.
 - No verifier runs on the language: /testing:write.
 
 ## Gotchas

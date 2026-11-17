@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.20.0] - 2026-11-17
+
+### Added
+
+- `comments --ci` answers the top-level pull request comments a person on the base's trusted-actor list addressed to the pr-unblock lane (a line starting `PR-fix lane:`). The review-thread tool's new `comments` action prints them as data, and `record <PRC_id>` takes the one disposition `answered`, which the reply job posts as one top-level comment. The mode makes no edit for a comment.
+
 ## [11.19.2] - 2026-11-17
 
 ### Changed
