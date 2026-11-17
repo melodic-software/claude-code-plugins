@@ -13,7 +13,7 @@ MF_HELD=()
 
 rt_wants() {
   case "$1" in
-  .githooks/* | */.githooks/*) return 1 ;;
+  .githooks/*) return 1 ;;
   *.md | *.mdc) return 0 ;;
   *) return 1 ;;
   esac

@@ -223,6 +223,10 @@ mkdir -p "$REPO/.githooks/markdown-format"
 printf '# T\n\ntext' >"$REPO/.githooks/markdown-format/copy.md"
 git -C "$REPO" add -f .githooks/markdown-format/copy.md
 expect "an installed copy under .githooks/ is skipped" "0||" "$(check "$REPO")"
+mkdir -p "$REPO/docs/.githooks"
+printf '# T\n\ntext' >"$REPO/docs/.githooks/notes.md"
+git -C "$REPO" add docs/.githooks/notes.md
+expect "a .githooks directory below the root is formatted like any other" "0|docs/.githooks/notes.md|" "$(check "$REPO")"
 
 new_repo
 printf '# T\n\ntext' >"$REPO/a.md"

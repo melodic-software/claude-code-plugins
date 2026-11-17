@@ -291,6 +291,11 @@ mkdir -p "$REPO/.githooks/markdown-format"
 printf '# T\n\n<b>x</b>\n' >"$REPO/.githooks/markdown-format/copy.md"
 git -C "$REPO" add -f .githooks/markdown-format/copy.md
 expect "an installed copy under .githooks/ is skipped" "0||" "$(check "$REPO")"
+mkdir -p "$REPO/docs/.githooks"
+printf '# T\n\n<b>x</b>\n' >"$REPO/docs/.githooks/notes.md"
+git -C "$REPO" add docs/.githooks/notes.md
+expect "a .githooks directory below the root is linted like any other" "1||docs/.githooks/notes.md:3: MD033/no-inline-html Inline HTML [Element: b]
+$HINT" "$(check "$REPO")"
 
 new_repo
 printf '# T\n\n<b>x</b>\n' >"$REPO/a.md"
