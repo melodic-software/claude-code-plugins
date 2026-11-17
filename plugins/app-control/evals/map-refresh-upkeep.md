@@ -182,3 +182,15 @@ gets a 1 to 3 run smoke.
   - When the reply is correct and a grader missed it, that is a grader defect.
   - When the reply follows the skill text and is still wrong, that is a defect in the skill text. It
     is reported, and no grader is loosened to pass it.
+
+**Result.** Both smokes ran on the plugin at `73f59cccc4`. That is the registering commit
+`218c860e55` plus a regex respelling, `restore[sd]?|restoring`, which gives every sample the same
+verdict under node and bun. Each smoke used its case name as `--case`. Both files read
+`verdict: VALID`.
+
+- `map-refresh-attended-stale-ready-retries-once`: 1.00, 1.00, 1.00. Run 1 runs no further Ready,
+  reports blocked and puts `curl -fsS http://127.0.0.1:3000/healthz` back into `## Ready`, citing
+  refresh.md § 5.
+- `drive-blocked-entry-names-prerequisite-and-command`: 1.00, 1.00, 1.00. Run 1's `blocked` entry
+  carries `prerequisite` (the write grant) and `attempted` (`cli/shop export --env staging`).
+- No run failed, and neither case found a defect in the skill text.
