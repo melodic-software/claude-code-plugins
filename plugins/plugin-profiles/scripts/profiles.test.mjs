@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { PassThrough } from "node:stream";
 import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parseProfile } from "../lib/profile-files.mjs";
+import { pickProfile } from "./profiles.mjs";
 import { tempDir, writeTree } from "../tests/temp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -230,7 +232,7 @@ test("AC2: a one-session apply writes a --settings file naming the profile, says
   assert.equal(session.env.PLUGIN_PROFILES_SESSION, "build");
   assert.equal(session.env.SESSION_SETTINGS_FILE, sessionFile, "the prerequisite readers read the file as the session layer");
   assert.equal(session.enabledPlugins[`songwriting@${M}`], false);
-  assert.match(r.stdout, /A resumed session does not keep --settings/);
+  assert.match(r.stdout, /A resumed session does not keep --settings; resume it with: claude-profile --resume <session id>/);
   assert.deepEqual(snapshot(settingsFiles(w)), before);
   assert.deepEqual(w.records(), [], "a one-session apply records no folder profile");
 });
@@ -317,7 +319,7 @@ test("status in a session from a merged launch names the merged file it was star
   assert.equal(env.PLUGIN_PROFILES_SESSION_FILE, merged.file, "the file names itself");
   const r = w.run(["status"], env);
   assert.equal(r.status, 0, r.stderr);
-  assert.ok(r.stdout.includes(`pass --settings "${merged.file}" again with --resume`), r.stdout);
+  assert.ok(r.stdout.includes("resume it with: claude-profile --resume <session id>"), r.stdout);
 });
 
 test("launch from a VS Code or Desktop session still writes the file and prints a command, since it starts a CLI session", () => {
@@ -358,8 +360,8 @@ test("status prints the command that starts another session in the profile in fo
   const w = world();
   assert.doesNotMatch(w.run(["status"]).stdout, /Start another session/);
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
-  assert.match(w.run(["status"]).stdout, /Start another session here in this profile with: node \S*profiles\.mjs launch build --folder /);
-  assert.match(w.run(["status"], { PLUGIN_PROFILES_SESSION: "review" }).stdout, /launch review --folder /);
+  assert.match(w.run(["status"]).stdout, /Start another session here in this profile with: node \S*profiles\.mjs launch build --folder \S+, or claude-profile build/);
+  assert.match(w.run(["status"], { PLUGIN_PROFILES_SESSION: "review" }).stdout, /launch review --folder \S+, or claude-profile review/);
 });
 
 test("Q69: on VS Code a one-session apply is refused with the folder offer and writes nothing", () => {
@@ -486,7 +488,8 @@ test("a session started from a one-session file is named by status, with the fla
   const file = /claude --settings "(.+)"/.exec(w.run(["apply", "build", "--for", "session", "--yes"]).stdout)[1];
   const message = JSON.parse(sessionStart(w, { PLUGIN_PROFILES_SESSION: "build" })).systemMessage;
   assert.match(message, /This session runs in profile build from a one-session settings file/);
-  assert.ok(message.includes(`--settings "${file}"`), message);
+  assert.ok(existsSync(file), file);
+  assert.match(message, /resume it with: claude-profile --resume <session id>/);
 });
 
 /** Copies this plugin into the plugin-cache layout under the temp HOME, so its options come from that HOME's settings.json. */
@@ -1327,4 +1330,168 @@ test("#16893: a one-session file names every plugin and skill entry any folder p
       assert.deepEqual(missing, [], `${name} session file leaves ${key} to the folder file`);
     }
   }
+});
+
+const byIdDir = (w) => join(w.home, ".claude", "plugins", "data", "plugin-profiles-inline", "sessions", "by-id");
+const runWith = (w, args, input, extra = {}) => spawnSync(process.execPath, [CLI, ...args], { cwd: w.project, env: { ...w.env, ...extra }, input, encoding: "utf8" });
+const startJson = (w, args, extra = {}) => {
+  const r = w.run(["start", ...args, "--dry-run"], extra);
+  assert.equal(r.status, 0, r.stderr);
+  return { ...JSON.parse(r.stdout), stderr: r.stderr };
+};
+/** Runs the SessionStart hook as Claude Code does, with its JSON on stdin; returns the notice or "". */
+const hookStart = (w, input, extra = {}) => {
+  const r = runWith(w, ["status", "--session-start"], typeof input === "string" ? input : JSON.stringify(input), { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PROJECT_DIR: w.project, ...extra });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stderr, "");
+  return r.stdout ? JSON.parse(r.stdout).systemMessage : "";
+};
+/** A session launched in build here whose start hook recorded it under id. */
+const sessionInBuild = (w, id) => {
+  installOnDisk(w);
+  const file = launchJson(w, ["build"]).file;
+  hookStart(w, { session_id: id, source: "startup" }, JSON.parse(readFileSync(file, "utf8")).env);
+  return file;
+};
+
+test("#16893 start: a named profile runs claude with the session file and the person's arguments, without the inherited markers, and exits with claude's status", () => {
+  const w = world();
+  const envFile = join(w.root, "env.jsonl");
+  const r = w.run(["start", "build", "--model", "opus", "-p", "hi"], { PP_STUB_ENV: envFile, PP_STUB_EXIT: "7", PLUGIN_PROFILES_SESSION: "review", PLUGIN_PROFILES_SESSION_FILE: "/x", SESSION_SETTINGS_FILE: "/x" });
+  assert.equal(r.status, 7, r.stderr);
+  const started = readFileSync(envFile, "utf8").trim().split("\n").map((l) => JSON.parse(l)).find((c) => c.argv[0] === "--settings");
+  const file = started.argv[1];
+  assert.deepEqual(started.argv, ["--settings", file, "--model", "opus", "-p", "hi"]);
+  for (const key of ["PLUGIN_PROFILES_SESSION", "PLUGIN_PROFILES_SESSION_FILE", "SESSION_SETTINGS_FILE"]) assert.equal(key in started.env, false, key);
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).env.PLUGIN_PROFILES_SESSION, "build");
+  assert.ok(r.stderr.includes(`Starting claude in profile build (${file}).`), r.stderr);
+});
+
+test("#16893 start --dry-run prints the argv and the removed variables and starts nothing", () => {
+  const w = world();
+  const s = startJson(w, ["build", "--model", "opus"]);
+  assert.deepEqual(s.argv, ["claude", "--settings", s.file, "--model", "opus"]);
+  assert.deepEqual(s.env_removed, ["PLUGIN_PROFILES_SESSION", "PLUGIN_PROFILES_SESSION_FILE", "SESSION_SETTINGS_FILE"]);
+  assert.equal(s.profile, "build");
+  assert.equal(existsSync(s.file), false, "a dry run writes no session file");
+  assert.doesNotMatch(w.calls(), /--settings/);
+});
+
+test("#16893 start: an unknown first word is refused with the list; no profile with nobody to pick is refused too", () => {
+  const w = world();
+  const unknown = w.run(["start", "nosuch"]);
+  assert.equal(unknown.status, 2);
+  assert.match(unknown.stderr, /start: no profile named nosuch; run start with no profile to pick one/);
+  assert.match(unknown.stderr, /^build/m);
+  const none = w.run(["start", "--model", "opus"]);
+  assert.equal(none.status, 2);
+  assert.match(none.stderr, /start: name a profile; nobody is there to pick one/);
+  assert.match(none.stderr, /^review/m);
+  assert.doesNotMatch(w.calls(), /--model/, "claude never started");
+});
+
+test("#16893 start --unattended stops on a missing required prerequisite before starting claude", () => {
+  const w = world({ prerequisiteMissing: true });
+  const r = w.run(["start", "build", "--unattended"]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /not launched: profile build/);
+  assert.doesNotMatch(w.calls(), /--settings/);
+});
+
+test("#16893 the start picker numbers the profiles, marks the folder's, asks again on a bad answer, and gives up on an empty one", async () => {
+  const pick = async (text) => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    let shown = "";
+    output.on("data", (d) => (shown += d));
+    const answer = pickProfile([{ name: "build", description: "Build." }, { name: "review", description: "Review." }], "review", { input, output });
+    input.end(text);
+    return { answer: await answer, shown };
+  };
+  const first = await pick("9\nx\n2\n");
+  assert.equal(first.answer, "review");
+  assert.match(first.shown, /1\. build: Build\./);
+  assert.match(first.shown, /2\. review \(this folder's\): Review\./);
+  assert.match(first.shown, /0\. No profile: the folder's settings/);
+  assert.equal((await pick("0\n")).answer, null);
+  assert.equal((await pick("\n")).answer, undefined);
+  assert.equal((await pick("")).answer, undefined);
+});
+
+test("#16893 the session-start hook records the profile a session runs in by its id, and skips a bad id or bad input", () => {
+  const w = world();
+  const file = sessionInBuild(w, "abc-1");
+  const rec = JSON.parse(readFileSync(join(byIdDir(w), "abc-1.json"), "utf8"));
+  assert.deepEqual({ ...rec, at: undefined }, { sessionId: "abc-1", profile: "build", file, folder: w.project, at: undefined });
+  assert.ok(!Number.isNaN(Date.parse(rec.at)));
+  const env = JSON.parse(readFileSync(file, "utf8")).env;
+  hookStart(w, { session_id: "../evil", source: "startup" }, env);
+  hookStart(w, "not json", env);
+  hookStart(w, "", env);
+  assert.deepEqual(readdirSync(byIdDir(w)), ["abc-1.json"]);
+});
+
+test("#16893 a session resumed without its profile is told the command that resumes it there, even in a folder with no profile", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  const message = hookStart(w, { session_id: "abc-1", source: "resume" });
+  assert.match(message, /This session ran in profile build; it is now running without it\. Resume it in that profile with: claude-profile --resume abc-1/);
+  assert.equal(hookStart(w, { session_id: "abc-1", source: "startup" }), "", "a fresh start says nothing");
+  assert.equal(hookStart(w, { session_id: "other", source: "resume" }), "", "no record, nothing to say");
+});
+
+test("#16893 start --resume takes the recorded profile; a given profile wins; no record resumes with the folder's settings", () => {
+  const w = world();
+  const file = sessionInBuild(w, "abc-1");
+  const kept = startJson(w, ["--resume", "abc-1"]);
+  assert.equal(kept.profile, "build");
+  assert.deepEqual(kept.argv, ["claude", "--settings", file, "--resume", "abc-1"]);
+  assert.match(kept.stderr, /Resuming abc-1 in profile build\./);
+  assert.equal(startJson(w, ["-r", "abc-1"]).profile, "build");
+  assert.deepEqual(startJson(w, ["--resume=abc-1"]).argv, ["claude", "--settings", file, "--resume=abc-1"]);
+  const given = startJson(w, ["review", "--resume", "abc-1"]);
+  assert.equal(given.profile, "review");
+  assert.match(given.stderr, /Resuming abc-1 in profile review \(it ran in build\)\./);
+  const none = startJson(w, ["--resume", "zzz"]);
+  assert.equal(none.profile, null);
+  assert.deepEqual(none.argv, ["claude", "--resume", "zzz"]);
+  assert.match(none.stderr, /No profile is recorded for session zzz; resuming with this folder's settings\./);
+  const picker = startJson(w, ["--resume"]);
+  assert.deepEqual(picker.argv, ["claude", "--resume"]);
+  assert.match(picker.stderr, /Pick the session; if it ran in a profile, its start notice gives the command that resumes it there\./);
+});
+
+test("#16893 start --resume rewrites a missing session file through launch", () => {
+  const w = world();
+  const file = sessionInBuild(w, "abc-1");
+  rmSync(file);
+  const r = w.run(["start", "--resume", "abc-1"], { PP_STUB_EXIT: "0" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(file));
+});
+
+test("#16893 start -c resumes the latest session started here in a profile, else passes -c through", () => {
+  const w = world();
+  const none = startJson(w, ["-c"]);
+  assert.deepEqual(none.argv, ["claude", "-c"]);
+  assert.match(none.stderr, /No session started here in a profile was found; continuing with this folder's settings\./);
+  const file = sessionInBuild(w, "old-1");
+  hookStart(w, { session_id: "new-2", source: "startup" }, JSON.parse(readFileSync(file, "utf8")).env);
+  const elsewhere = join(byIdDir(w), "far-3.json");
+  writeFileSync(elsewhere, JSON.stringify({ sessionId: "far-3", profile: "review", file, folder: join(w.root, "other"), at: new Date(Date.now() + 60_000).toISOString() }));
+  const old = JSON.parse(readFileSync(join(byIdDir(w), "old-1.json"), "utf8"));
+  writeFileSync(join(byIdDir(w), "old-1.json"), JSON.stringify({ ...old, at: "2000-01-01T00:00:00.000Z" }));
+  const s = startJson(w, ["--continue", "--model", "opus"]);
+  assert.deepEqual(s.argv, ["claude", "--settings", file, "--resume", "new-2", "--model", "opus"]);
+  assert.match(s.stderr, /Continuing new-2, the latest session started here in profile build\./);
+});
+
+test("#16893 launch sweeps session records no session has written for 30 days", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  const stale = join(byIdDir(w), "abc-1.json");
+  const old = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+  utimesSync(stale, old, old);
+  launchJson(w, ["build"]);
+  assert.equal(existsSync(stale), false);
 });

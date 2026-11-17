@@ -45,6 +45,26 @@ installed plugin that ships hooks or a mod, whether it is always on or per profi
 profiles to save at user or repository level. When a profile names a plugin that is not
 installed, it offers to install it and installs only on your yes at that moment.
 
+## Start a session in a profile
+
+`claude-profile` is a shell function your dotfiles provide; it runs `profiles.mjs start`, which
+writes the one-session file and starts `claude` with it. Anything after the profile goes to
+`claude` unchanged.
+
+- `claude-profile build` starts a session in `build`.
+- `claude-profile` asks which profile, by number; `0` starts with the folder's settings.
+- `claude-profile --resume <id>` and `claude-profile -c` resume in the profile the session ran in.
+  A plain `claude --resume` of such a session starts without it, and its start notice prints the
+  `claude-profile --resume <id>` command that resumes it there.
+
+Without the function, run it directly:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" start build
+```
+
+`--dry-run` prints the `claude` command and starts nothing. Windows is untested.
+
 ## Apply a profile
 
 ```bash
@@ -60,7 +80,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" apply build --for folder
   changes. The file also sets `PLUGIN_PROFILES_SESSION` to the profile's name, and
   `SESSION_SETTINGS_FILE` to its own path, so plugin-diagnostics and harness-ops skip the
   prerequisite notices of plugins the profile turns off. A resumed session
-  does not keep `--settings`, so pass it again with `--resume`. The file names every plugin and
+  does not keep `--settings`, so resume it with `claude-profile --resume <id>`. The file names every plugin and
   every skill a profile can switch, so a folder switch in another terminal never reaches it.
 
 Where two levels set the same plugin, Claude Code's
@@ -130,7 +150,10 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" clear
 `status` names the profile recorded for the folder, each entry that differs from it, each
 plugin installed since, a one-session profile the session runs in, and the surface. At session
 start a hook prints the same notice, reading the installed plugins from disk without starting
-`claude`; in a folder with no applied profile it prints nothing. `clear` puts every entry back to what it was before the first apply and
+`claude`; in a folder with no applied profile it prints nothing, unless the session was resumed
+without the profile it ran in. The hook also records, under the plugin's data folder, the profile
+each one-session start runs in, for `start --resume`; the next `start` or `launch` removes a record no session start has written
+for 30 days. `clear` puts every entry back to what it was before the first apply and
 removes a settings file the tool created; like `apply`, it prints what it changes and writes on
 `--yes` or a yes at the prompt. The record of what apply wrote lives in the repository's `.git`
 folder (`.git/plugin-profiles/`, never committed) for a folder in git, in

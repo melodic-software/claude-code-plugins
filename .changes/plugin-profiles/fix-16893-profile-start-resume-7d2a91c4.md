@@ -2,6 +2,11 @@
 bump: minor
 ---
 
+### Added
+
+- `profiles.mjs start [<profile>] [claude arguments]` starts `claude` in a profile: it writes the one-session file, drops the inherited profile variables, passes your other arguments through, and exits with claude's status. With no profile it asks which, by number, and refuses when nobody is there to answer ([#16893](https://github.com/melodic-software/claude-code-plugins/issues/16893)).
+- A resumed session keeps its profile: the session-start hook records the profile each session runs in, `start --resume <id>` and `start -c` resume in it, and a session resumed with plain `claude --resume` is told the command that resumes it in its profile ([#16893](https://github.com/melodic-software/claude-code-plugins/issues/16893)).
+
 ### Changed
 
 - `--for folder` now writes the `.claude/settings.local.json` Claude Code reads: in a git repository, the one at the main checkout's root, for every worktree and subdirectory; on Windows, outside git, or where the repository root is your home folder or not yours, the folder's own file. `status` says when the file is read by every worktree, and a folder switch names the live sessions in every worktree of the repository ([#16893](https://github.com/melodic-software/claude-code-plugins/issues/16893)).
