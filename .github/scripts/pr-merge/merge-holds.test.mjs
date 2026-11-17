@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import * as holdsModule from "./merge-holds.mjs";
-import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, fromRest, laneChange, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, decisionGaps, evidenceHold, fromRest, holds, laneChange, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "owner/repo";
@@ -69,11 +69,15 @@ const history = (sha, answer) => {
   return { ...answer, commits, total_commits: commits.length };
 };
 
+// What a cost decision comment carries besides its first line: a row link
+// into the owner-decisions record and the owner's verbatim words.
+const ROW = "https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10";
+const PROOF = `\n\nRow: ${ROW}\nOwner, verbatim: "Approve it."`;
 const comment = (changes = {}) => ({
   issue_url: "https://api.github.com/repos/owner/repo/issues/40",
   user: { login: "owner-person", id: 5, type: "User" },
   performed_via_github_app: null,
-  body: "**Decision recorded.** Cost: approve the larger runner for #99.",
+  body: `**Decision recorded.** Cost: approve the larger runner for #99.${PROOF}`,
   node_id: "IC_7",
   created_at: "2026-10-22T12:00:00Z",
   ...changes,
@@ -216,7 +220,7 @@ test("an owner decision on the closing issue, linked from the body, clears the c
 
 test("one on the pull request itself clears with no check against the pull request's time and no #number", async () => {
   const own = "https://github.com/owner/repo/pull/99#issuecomment-7";
-  const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", created_at: "2026-10-21T09:00:00Z", body: "**Decision recorded.** Cost: approve it." });
+  const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", created_at: "2026-10-21T09:00:00Z", body: `**Decision recorded.** Cost: approve it.${PROOF}`});
   assert.equal((await decide(own, { row, closing: [], runs: [laneRun(HEAD, "2026-10-21T08:00:00Z", { created: "2026-10-21T07:50:00Z" })] })).link, own);
   // With no time it decides no head, so it carries to none.
   assert.equal((await decide(own, { row: { ...row, created_at: null }, closing: [] })).link, null);
@@ -224,17 +228,17 @@ test("one on the pull request itself clears with no check against the pull reque
 
 test("one on the linked issue clears only when its text names the pull request", async () => {
   for (const text of ["for #99.", "(#99)", "#99", "see #99, then"]) {
-    assert.equal((await decide(undefined, { row: comment({ body: `**Decision recorded.** Cost: approve ${text}` }) })).link, LINK, text);
+    assert.equal((await decide(undefined, { row: comment({ body: `**Decision recorded.** Cost: approve ${text}${PROOF}` }) })).link, LINK, text);
   }
   for (const text of ["for another change.", "for #98.", "for #990.", "for owner/repo#99.", "for x#99.", "for pull 99.", "for &#99;", "for ##99."]) {
-    assert.equal((await decide(undefined, { row: comment({ body: `**Decision recorded.** Cost: approve ${text}` }) })).link, null, text);
+    assert.equal((await decide(undefined, { row: comment({ body: `**Decision recorded.** Cost: approve ${text}${PROOF}` }) })).link, null, text);
   }
 });
 
 test("with no closing issue, one on the issue the Refs line names counts the same way", async () => {
   const refs = `Refs: #40\n\nCost decision: ${LINK}\n`;
   assert.equal((await decide(refs, { closing: [] })).link, LINK);
-  const unnamed = comment({ body: "**Decision recorded.** Cost: approve the larger runner." });
+  const unnamed = comment({ body: `**Decision recorded.** Cost: approve the larger runner.${PROOF}` });
   assert.equal((await decide(refs, { closing: [], row: unnamed })).link, null);
   for (const body of [`Refs: #41\n\n${LINK}`, `Refs: #40\nRefs: #41\n\n${LINK}`, `Refs: #40, #41\n\n${LINK}`, `\`\`\`\nRefs: #40\n\`\`\`\n\n${LINK}`, `<!-- Refs: #40 -->\n\n${LINK}`]) {
     assert.equal((await decide(body, { closing: [] })).link, null, body);
@@ -252,7 +256,7 @@ test("a Refs number that names a pull request, or cannot be read, consults no is
   assert.equal((await decide(refs, { closing: [], fail: "GET /repos/owner/repo/issues/40" })).link, null);
   // The pull request's own decision still counts, with no read of the Refs target.
   const own = "https://github.com/owner/repo/pull/99#issuecomment-7";
-  const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", body: "**Decision recorded.** Cost: approve it." });
+  const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", body: `**Decision recorded.** Cost: approve it.${PROOF}`});
   const mine = await decide(`Refs: #40\n\n${own}\n`, { closing: [], row, target: { number: 40, pull_request: {} } });
   assert.equal(mine.link, own);
   assert.ok(!mine.reads.includes("GET /repos/owner/repo/issues/40"));
@@ -301,7 +305,88 @@ test("each failing condition of the gate's rule clears nothing", async () => {
 });
 
 test("a decision line after leading blank lines still counts", async () => {
-  assert.equal((await decide(undefined, { row: comment({ body: "\n  **Decision recorded.**\tCost: yes for #99" }) })).link, LINK);
+  assert.equal((await decide(undefined, { row: comment({ body: `\n  **Decision recorded.**\tCost: yes for #99${PROOF}` }) })).link, LINK);
+});
+
+test("a cost decision clears only with a row link and a verbatim owner quote, and says which it lacks", async () => {
+  const lacks = async (body) => {
+    const missing = [];
+    const { github } = world({ row: comment({ body }) });
+    const link = await costDecision(github, REPO, 99, `Closes #40\n\n${LINK}`, HUMANS, HEAD, github, missing);
+    return { link, missing };
+  };
+  const line = "**Decision recorded.** Cost: approve it for #99.";
+  const quote = 'Owner, verbatim: "Approve it."';
+  const sha = "0123456789abcdef0123456789abcdef01234567";
+  for (const row of [ROW, `https://github.com/melodic-software/architecture/blob/${sha}/docs/owner-decisions.md#L12`, `${ROW}-L14`, ROW.replace(".md#", ".md?plain=1#")]) {
+    assert.deepEqual(await lacks(`${line}\n${row}\n${quote}`), { link: LINK, missing: [] }, row);
+  }
+  for (const text of ['Owner\'s answer, verbatim: "yes go w/ recommendations"', 'Owner, typed in a session, verbatim: "Go with recommendations."']) {
+    assert.equal((await lacks(`${line}\n${ROW}\n${text}`)).link, LINK, text);
+  }
+  const noRow = await lacks(`${line}\n${quote}`);
+  assert.equal(noRow.link, null);
+  assert.equal(noRow.missing.length, 1);
+  assert.match(noRow.missing[0], /owner-decisions record/);
+  const noQuote = await lacks(`${line}\n${ROW}`);
+  assert.equal(noQuote.link, null);
+  assert.equal(noQuote.missing.length, 1);
+  assert.match(noQuote.missing[0], /verbatim/);
+  assert.equal((await lacks(line)).missing.length, 2);
+  for (const row of [
+    ROW.replace("#L10", ""),
+    ROW.replace("#L10", "#L0"),
+    ROW.replace("/blob/main/", "/blob/feature/"),
+    ROW.replace("/blob/main/", "/blob/0123abc/"),
+    ROW.replace("melodic-software/architecture", "evil/architecture"),
+    ROW.replace("owner-decisions.md", "decisions.md"),
+    ROW.replace("https://github.com", "https://example.com"),
+    `<!-- ${ROW} -->`,
+    `<!--\n${ROW}`,
+  ]) {
+    assert.equal((await lacks(`${line}\n${row}\n${quote}`)).link, null, row);
+  }
+  for (const text of ['verbatim: ""', 'verbatim: "  "', "verbatim: yes", 'verbatim:\n"yes"', `<!-- ${quote} -->`, 'Owner, quoted: "yes"', 'The owner, verbatim as typed: "yes"']) {
+    assert.equal((await lacks(`${line}\n${ROW}\n${text}`)).link, null, text);
+  }
+  // A comment that fails an older condition names nothing it lacks: only a
+  // near miss does.
+  const missing = [];
+  const { github } = world({ row: comment({ body: line, performed_via_github_app: { slug: "x" } }) });
+  assert.equal(await costDecision(github, REPO, 99, `Closes #40\n\n${LINK}`, HUMANS, HEAD, github, missing), null);
+  assert.deepEqual(missing, []);
+});
+
+test("the row and quote only tighten: with both present, every older failing condition still holds", async () => {
+  // comment() carries both; each case below breaks one older condition.
+  for (const [name, options] of Object.entries({
+    "posted through an App": { row: comment({ performed_via_github_app: { slug: "cursor" } }) },
+    edited: { node: { lastEditedAt: "2026-10-22T13:00:00Z" } },
+    "a bot": { row: comment({ user: { login: "owner-person", id: 5, type: "Bot" } }) },
+    "someone not listed": { row: comment({ user: { login: "someone", id: 6, type: "User" } }) },
+    "no cost marker": { row: comment({ body: `**Decision recorded.** Option 2.${PROOF}` }) },
+  })) {
+    assert.match(comment(options.row ?? {}).body, /verbatim: "/, name);
+    assert.equal((await decide(undefined, options)).link, null, name);
+  }
+  // And each comment the new rule accepts, stripped of row and quote, the
+  // old rule accepted too: the new rule adds rejects only.
+  assert.equal((await decide()).link, LINK);
+  assert.equal((await decide(undefined, { row: comment({ body: "**Decision recorded.** Cost: approve the larger runner for #99." }) })).link, null);
+});
+
+test("decisionGaps reads outside HTML comments and names each gap once", () => {
+  assert.deepEqual(decisionGaps(`x\n${ROW}\nverbatim: "y"`), []);
+  assert.equal(decisionGaps(`<!-- ${ROW}\nverbatim: "y" -->`).length, 2);
+  assert.equal(decisionGaps(null).length, 2);
+});
+
+test("the cost hold's reason names what the linked decision comment lacks", () => {
+  const [reason] = holds("", [], ["infra/main.tf"], [], [], null, true, null, true, ["a row link"]);
+  assert.match(reason, /owner-decisions record and the owner's words quoted verbatim/);
+  assert.match(reason, /the linked decision comment lacks a row link$/);
+  assert.doesNotMatch(holds("", [], ["infra/main.tf"], [], [], null)[0], /lacks/);
+  assert.deepEqual(holds("", [], ["infra/main.tf"], [], [], LINK), []);
 });
 
 test("costHold holds a cost path, case-folded, until a decision", () => {
@@ -557,14 +642,14 @@ test("ci-status holds a cost path that an approval does not lift, and the owner'
 
 test("ci-status lifts a cost hold for the head the decision decided, and re-holds a later head with a change of its own", async () => {
   const own = "https://github.com/owner/repo/pull/99#issuecomment-7";
-  const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", body: "**Decision recorded.** Cost: approve it." });
+  const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", body: `**Decision recorded.** Cost: approve it.${PROOF}`});
   const body = `Closes #40\n\n${own}`;
   assert.equal((await ci(["infra/main.tf"], { body, options: { row } })).code, 0);
   const later = await ci(["infra/main.tf"], { body, options: { row, runs: [laneRun(OLD)], compares: { [OLD]: net(TF), [HEAD]: net(TF, { filename: "infra/b.tf", status: "added", patch: "@@ -0,0 +1 @@\n+c" }) } } });
   assert.equal(later.code, 1, later.out);
   assert.match(later.out, /a cost path/);
   // The same decision on the closing issue, which names no pull request, holds.
-  const unnamed = await ci(["infra/main.tf"], { body: `Closes #40\n\n${LINK}`, options: { row: comment({ body: "**Decision recorded.** Cost: approve it." }) } });
+  const unnamed = await ci(["infra/main.tf"], { body: `Closes #40\n\n${LINK}`, options: { row: comment({ body: `**Decision recorded.** Cost: approve it.${PROOF}`}) } });
   assert.equal(unnamed.code, 1);
   assert.match(unnamed.out, /on its linked issue naming this pull request/);
 });
@@ -639,7 +724,7 @@ test("at the decided head the decision carries with no net-change compare", asyn
 
 test("with no cost hold notice before the decision nothing carries, even at the same head", async () => {
   const own = "https://github.com/owner/repo/pull/99#issuecomment-7";
-  const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", body: "**Decision recorded.** Cost: approve it." });
+  const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", body: `**Decision recorded.** Cost: approve it.${PROOF}`});
   for (const options of [{ row, closing: [] }, {}]) {
     const { link, reads } = await decide(options.row ? own : undefined, { ...options, runs: [] });
     assert.equal(link, null);

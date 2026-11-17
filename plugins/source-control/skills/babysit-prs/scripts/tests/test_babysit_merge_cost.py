@@ -208,12 +208,18 @@ class Lanes:
         return self.runs[n - 1]["notes"]
 
 
+# What a cost decision carries besides its first line: a row link into the
+# owner-decisions record and the owner's verbatim words.
+ROW = "https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10"
+PROOF = f'\n\nRow: {ROW}\nOwner, verbatim: "Approve it."'
+
+
 def _comment(**changes: Any) -> dict[str, Any]:
     return {
         "issue_url": "https://api.github.com/repos/owner/repo/issues/40",
         "user": {"login": "owner-person", "type": "User"},
         "performed_via_github_app": None,
-        "body": "**Decision recorded.** Cost: approve the larger runner for #99.",
+        "body": f"**Decision recorded.** Cost: approve the larger runner for #99.{PROOF}",
         "node_id": "IC_7",
         "created_at": "2026-10-22T12:00:00Z",
     } | changes
@@ -298,7 +304,7 @@ class CostDecision(unittest.TestCase):
         link = "https://github.com/owner/repo/pull/99#issuecomment-7"
         comment = _comment(
             issue_url="https://api.github.com/repos/owner/repo/issues/99",
-            body="**Decision recorded.** Cost: approve it.",
+            body=f"**Decision recorded.** Cost: approve it.{PROOF}",
         )
         self.assertEqual(self.decide(body=link, comment=comment), link)
 
@@ -307,7 +313,7 @@ class CostDecision(unittest.TestCase):
     ) -> None:
         for text in ("for #99.", "(#99)", "#99", "see #99, then"):
             with self.subTest(text):
-                comment = _comment(body=f"**Decision recorded.** Cost: ok {text}")
+                comment = _comment(body=f"**Decision recorded.** Cost: ok {text}{PROOF}")
                 self.assertEqual(self.decide(comment=comment), LINK)
         for text in (
             "for another change.",
@@ -320,7 +326,7 @@ class CostDecision(unittest.TestCase):
             "for ##99.",
         ):
             with self.subTest(text):
-                comment = _comment(body=f"**Decision recorded.** Cost: ok {text}")
+                comment = _comment(body=f"**Decision recorded.** Cost: ok {text}{PROOF}")
                 self.assertIsNone(self.decide(comment=comment))
 
     def test_a_refs_issue_decision_naming_the_pull_request_clears(self) -> None:
@@ -391,6 +397,17 @@ class CostDecision(unittest.TestCase):
             ),
             "a link inside an HTML comment": dict(
                 body=f"Closes #40\n<!-- {LINK} -->\n"
+            ),
+            "no record row": dict(
+                comment=_comment(
+                    body='**Decision recorded.** Cost: ok #99.\nOwner, verbatim: "yes"'
+                )
+            ),
+            "no owner quote": dict(
+                comment=_comment(body=f"**Decision recorded.** Cost: ok #99.\n{ROW}")
+            ),
+            "neither row nor quote": dict(
+                comment=_comment(body="**Decision recorded.** Cost: ok #99.")
             ),
             "a link after an unclosed HTML comment": dict(
                 body=f"Closes #40\n<!--\n{LINK}\n"

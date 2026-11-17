@@ -259,6 +259,13 @@ test. It runs no state machine and changes nothing but that label and that statu
    - or a comment from such a user, never an App, whose first line is exactly
      `**Decision recorded.**` and which was never edited.
 
+   A cost decision, first line `**Decision recorded.** Cost:`, is also what the merge gate reads to
+   clear a cost hold, and it clears it only when the comment links the decision's row in the
+   owner-decisions record and quotes the owner after `verbatim:` in double quotes. Post one with
+   both, in the shape the
+   [pr-pipeline convention's cost hold](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-local-babysit-lane)
+   gives.
+
    A consequential item (cross-repo, shared infrastructure, or security) also needs a verified
    basis for the recommendation, the decision-defaulted exit's bar. When any part of the test may
    apply, the item keeps the label.

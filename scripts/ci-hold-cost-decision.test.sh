@@ -172,8 +172,15 @@ OLD_SEC_CHECK='pr-review-security / review-status'
 
 event() { jq -cn --arg e "$1" --argjson actor "$2" --arg at "$3" '{event: $e, actor: $actor, created_at: $at, label: {name: "needs-human"}}'; }
 comment() { jq -cn --argjson user "$1" --arg at "$2" --arg body "$3" '{user: $user, created_at: $at, updated_at: $at, body: $body}'; }
+# What a cost decision carries besides its first line: a row link into the
+# owner-decisions record and the owner's verbatim words. decision appends
+# PROOF to the body it is given.
+ROW='https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10'
+PROOF="
+Row: $ROW
+Owner, verbatim: \"Accepted.\""
 decision() {
-  jq -cn --arg url "https://api.github.com/repos/o/r/issues/$1" --argjson user "$2" --arg at "$3" --arg body "$4" \
+  jq -cn --arg url "https://api.github.com/repos/o/r/issues/$1" --argjson user "$2" --arg at "$3" --arg body "$4$PROOF" \
     '{issue_url: $url, user: $user, performed_via_github_app: null, created_at: $at, body: $body, node_id: "IC_1"}'
 }
 note() { jq -cn --arg m "$1" '{annotation_level: "notice", message: $m}'; }
@@ -391,6 +398,50 @@ expect "a decision posted through an App clears nothing" no no no
 reset
 export STUB_EDITED='{"data":{"node":{"lastEditedAt":"2026-10-23T13:30:00Z"}}}'
 expect "an edited decision clears nothing" no no no
+# The row link and the verbatim quote: both clear, either missing holds and
+# the message names what is missing.
+# body_is <body>: the decision comment's whole body, with no PROOF appended.
+body_is() {
+  STUB_DECISIONS="$(PROOF='' decision 9306 "$OWNER" 2026-10-23T13:14:57Z "$1" | jq -c '{"111": .}')"
+  export STUB_DECISIONS
+}
+LINE='**Decision recorded.** Cost: accepted for #6419.'
+QUOTE='Owner, verbatim: "Accepted."'
+reset
+body_is "$LINE
+$ROW
+$QUOTE"
+expect "a decision with a row link and a verbatim quote clears the hold" yes yes yes
+body_is "$LINE
+${ROW/main/0123456789abcdef0123456789abcdef01234567}-L12
+$QUOTE"
+expect "a row link at a commit, with a line range, clears the hold" yes yes yes
+body_is "$LINE
+$QUOTE"
+expect "a decision with no row link clears nothing and says so" no no no "lacks a link to its row in the owner-decisions record"
+body_is "$LINE
+$ROW"
+expect "a decision with no verbatim quote clears nothing and says so" no no no "lacks the owner's words quoted verbatim"
+body_is "$LINE"
+expect "a decision with neither names both" no no no "owner-decisions record (https://github.com/melodic-software/architecture/blob/<commit or main>/docs/owner-decisions.md#L<line>) and the owner's words quoted verbatim"
+for row in "${ROW%#L10}" "${ROW/main/feature}" "${ROW/architecture/x}" "<!-- $ROW -->"; do
+  body_is "$LINE
+$row
+$QUOTE"
+  expect "a decision whose row link reads '$row' clears nothing" no no no "lacks a link to its row"
+done
+for quote in 'Owner, verbatim: " "' 'Owner, verbatim: yes' 'Owner, xverbatim: "yes"' "<!-- $QUOTE -->"; do
+  body_is "$LINE
+$ROW
+$quote"
+  expect "a decision whose quote reads '$quote' clears nothing" no no no "lacks the owner's words"
+done
+# Both present still need every older condition.
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z "$LINE")" '{"111": ($c | .performed_via_github_app = {slug: "x"})}')"
+expect "a decision with both, posted through an App, clears nothing" no no no
+reset
+export STUB_EDITED='{"data":{"node":{"lastEditedAt":"2026-10-23T13:30:00Z"}}}'
+expect "a decision with both, edited, clears nothing" no no no
 reset
 export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":2,"nodes":[{"number":9306,"repository":{"nameWithOwner":"o/r"}},{"number":9307,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
 expect "a decision on one of two closing issues clears nothing" no no no

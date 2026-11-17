@@ -3603,6 +3603,26 @@ COST_DECISION_LINK = re.compile(
 # A cost decision's first line: the decision marker, then `Cost:`, so a
 # decision recorded for something else clears no cost hold.
 DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*[ \t]+Cost:")
+# What a cost decision must also carry, outside HTML comments, as
+# merge-holds.mjs DECISION_ROW and DECISION_QUOTE read it: a line link to a
+# row of the owner-decisions record, and the owner's words after `verbatim:`.
+# Shape only: the record is private, and sessions write it too.
+DECISION_ROW = re.compile(
+    r"https://github\.com/melodic-software/architecture/blob/(?:main|[0-9a-f]{40})"
+    r"/docs/owner-decisions\.md(?:\?plain=1)?#L[1-9][0-9]*(?:-L[1-9][0-9]*)?"
+)
+DECISION_QUOTE = re.compile(r"(?<![A-Za-z0-9_])verbatim:[ \t]*\"[^\"\n]*[^\" \t\r\n][^\"\n]*\"")
+
+
+def decision_gaps(body: Any) -> list[str]:
+    """What cost decision comment `body` lacks, outside HTML comments: `row`
+    and `quote`, in that order; empty when it carries both."""
+    text = HTML_COMMENT.sub("", str(body or ""))
+    return [
+        gap
+        for gap, pattern in (("row", DECISION_ROW), ("quote", DECISION_QUOTE))
+        if not pattern.search(text)
+    ]
 # An HTML comment in the body, or an unclosed one to the end: a link inside
 # one is hidden from a reader, so it cites nothing.
 HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
@@ -4532,8 +4552,9 @@ def cost_decision(
     pull request at its head, else None: a comment on the pull request itself
     or on `issue` (its linked issue, `_linked_issue`) in `repo`, by a User
     with admin permission who is not the agent identity, not posted through
-    an App, never edited, and whose first line starts `**Decision recorded.**
-    Cost:`. One on the pull request counts as it is; one on the issue counts
+    an App, never edited, whose first line starts `**Decision recorded.**
+    Cost:`, and that carries a row link and a verbatim owner quote
+    (`decision_gaps`), which makes it auditable, not provable. One on the pull request counts as it is; one on the issue counts
     only when its text names this pull request (`names_pull`) and it was
     created after the pull request was, so a decision recorded on the issue
     for another change does not cover a pull request that links the issue
@@ -4588,6 +4609,7 @@ def cost_decision(
             is_json_object(node)
             and "lastEditedAt" in node
             and node["lastEditedAt"] is None
+            and not decision_gaps(comment.get("body"))
         ):
             decisions.append((int(link[3]) == pr.get("number"), link[0], comment))
     for own in (True, False):

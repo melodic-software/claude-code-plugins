@@ -138,7 +138,7 @@ const COST_COMMENT = {
   issue_url: `https://api.github.com/repos/${REPO}/issues/1040`,
   user: { login: "kyle-sexton", id: 5, type: "User" },
   performed_via_github_app: null,
-  body: "**Decision recorded.** Cost: approve it for #40.",
+  body: '**Decision recorded.** Cost: approve it for #40.\nRow: https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10\nOwner, verbatim: "Approve it."',
   node_id: "IC_7",
   created_at: "2026-10-22T12:00:00Z",
 };

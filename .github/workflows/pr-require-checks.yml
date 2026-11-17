@@ -5683,7 +5683,13 @@ jobs:
       # - The pull request body, outside HTML comments, links a decision comment
       #   as babysit_merge_policy.py's cost_decision reads one: by a User on the
       #   trusted-actor list, not through an App, never edited, first line
-      #   `**Decision recorded.** Cost:`. One on the pull request itself counts
+      #   `**Decision recorded.** Cost:`, and carrying, outside HTML comments,
+      #   a line link to its row in the owner-decisions record and the
+      #   owner's words after `verbatim:` in double quotes (the base's
+      #   merge-holds.mjs decisionGaps). That is auditable, not provable:
+      #   sessions post as the owner and write the record. A comment that
+      #   misses only those names what it lacks in the step's message. One
+      #   on the pull request itself counts
       #   as it is; one on its linked issue counts only when written after the
       #   pull request and naming it as `#<number>` (merge-holds.mjs
       #   namesPull). Of those, the newest on the pull request, else the
@@ -5866,7 +5872,7 @@ jobs:
               "$RUNNER_TEMP/cost-hold-in-base.json")" = true ]
           }
           # Every decision that counts, as {own, at, link, id, comment}.
-          decisions='[]' refs_read=
+          decisions='[]' refs_read='' lacks=''
           while IFS=$'\t' read -r link owner name number id; do
             [ -n "$link" ] || continue
             [ "$(tr '[:upper:]' '[:lower:]' <<<"$owner/$name")" = "$(tr '[:upper:]' '[:lower:]' <<<"$repo")" ] || continue
@@ -5890,6 +5896,17 @@ jobs:
             # shellcheck disable=SC2016 # GraphQL variables, not shell
             edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$node") || continue
             jq -e '.data.node | objects | has("lastEditedAt") and .lastEditedAt == null' <<<"$edited" >/dev/null 2>&1 || continue
+            # The row link and the verbatim owner quote, outside HTML comments
+            # (the base's merge-holds.mjs decisionGaps); a near miss names
+            # what it lacks in the hold's message.
+            gaps=$(jq -r --arg row "a link to its row in the owner-decisions record (https://github.com/melodic-software/architecture/blob/<commit or main>/docs/owner-decisions.md#L<line>)" \
+              --arg quote "the owner's words quoted verbatim (verbatim: \"<his words>\")" '.body // "" | gsub("<!--[\\s\\S]*?(?:-->|\\z)"; "") as $b
+              | [if ($b | test("https://github\\.com/melodic-software/architecture/blob/(?:main|[0-9a-f]{40})/docs/owner-decisions\\.md(?:\\?plain=1)?#L[1-9][0-9]*")) then empty else $row end,
+                 if ($b | test("(?<![A-Za-z0-9_])verbatim:[ \\t]*\"[^\"\\n]*[^\" \\t\\r\\n][^\"\\n]*\"")) then empty else $quote end] | join(" and ")' <<<"$comment" 2>/dev/null) || continue
+            if [ -n "$gaps" ]; then
+              lacks=$gaps
+              continue
+            fi
             decisions=$(jq -c --argjson c "$comment" --arg link "$link" --arg id "$id" --arg own "$([ "$number" = "$PR_NUMBER" ] && echo 1)" \
               '. + [{own: ($own == "1"), at: ($c.created_at | fromdateiso8601? // -1), link: $link, id: $id, comment: $c}]' <<<"$decisions") || continue
           done <<<"$links"
@@ -5898,7 +5915,7 @@ jobs:
           # review lanes' hold step picks it; only it may carry.
           chosen=$(jq -c '([.[] | select(.own)] | if length > 0 then . else null end) // [.[] | select(.own | not)]
             | to_entries | sort_by([-.value.at, .key]) | .[0].value // empty' <<<"$decisions") || keep "the decisions do not parse"
-          [ -n "$chosen" ] || keep "the body cites no recorded owner cost decision covering this head"
+          [ -n "$chosen" ] || keep "the body cites no recorded owner cost decision covering this head${lacks:+; the linked decision comment lacks $lacks}"
           decided_at=$(jq -r '.at' <<<"$chosen") || keep "the decisions do not parse"
           # Every hold notice a review lane's status job recorded in a run
           # whose head is in this repository (a fork's same-named branch speaks
