@@ -224,7 +224,9 @@ class _ShellComments:
     rejects. It never hides the rest of the file: everything read from its start
     is dropped and reading starts again on the next line (a here-document's on
     its first body line), so the lines after it are read as code and a comment
-    there is still found.
+    there is still found. A reader that searches for a closing character does so
+    through _close, which loses the construct at the end of the text; tokens
+    raises when a scan stops anywhere but the end with nothing lost.
     """
 
     OPERATOR = frozenset(";&|<>()")
@@ -234,6 +236,7 @@ class _ShellComments:
     PRE_COMMAND = frozenset(("!", "{", "do", "elif", "else", "if", "then", "time", "until", "while"))
     WORD = re.compile(r"[^\s;&|<>()\"'`$\\]*")
     ASSIGNMENT = re.compile(r"[A-Za-z_]\w*\+?=")
+    DOUBLE_ESCAPE = re.compile(r'\\(["\\$`])')
     ANSI_ESCAPE = re.compile(r"\\(x[0-9A-Fa-f]{1,2}|[0-7]{1,3}|.)", re.DOTALL)
     ANSI_CHAR = {
         "a": "\a", "b": "\b", "e": "\x1b", "E": "\x1b", "f": "\f", "n": "\n",
@@ -258,6 +261,8 @@ class _ShellComments:
         while True:
             self.i, self.pending, self.lost = at, [], None
             self._command(None, at)
+            if self.lost is None and self.i != self.n:
+                raise RuntimeError(f"shell scanner stopped at {self.i} of {self.n} with nothing lost")
             if self.lost is None:
                 break
             start, resume = self.lost
@@ -285,6 +290,21 @@ class _ShellComments:
             self.lost = (start, resume)
         self.i = self.n
 
+    def _close(self, start: int, at: int, char: str, escapes: bool) -> int | None:
+        """The offset past the first `char` from `at` (a backslash escaping the next
+        character when `escapes`); at the end of the text, the construct opened at
+        `start` is lost and None comes back."""
+        while at < self.n:
+            c = self.s[at]
+            if c == char:
+                return at + 1
+            at += 2 if escapes and c == "\\" else 1
+        self._lose(start)
+        return None
+
+    def _skip_escape(self) -> None:
+        self.i = min(self.i + 2, self.n)
+
     def _command(self, close: str | None, start: int) -> None:
         s, in_word, at_command, cond, depth, cases = self.s, False, True, False, 0, 0
         while self.i < self.n:
@@ -308,7 +328,7 @@ class _ShellComments:
                 self.i = end
             elif c == "\\":
                 in_word = in_word or s[self.i + 1 : self.i + 2] != "\n"
-                self.i += 2
+                self._skip_escape()
             elif s.startswith("<<<", self.i):
                 self.i += 3
                 in_word = False
@@ -352,13 +372,11 @@ class _ShellComments:
             self._lose(start)
 
     def _word_part(self, quoted: bool) -> None:
-        s, c, start = self.s, self.s[self.i], self.i
+        c, start = self.s[self.i], self.i
         if c == "'" and not quoted:
-            end = s.find("'", self.i + 1)
-            if end < 0:
-                self._lose(start)
-            else:
-                self.i = end + 1
+            end = self._close(start, self.i + 1, "'", escapes=False)
+            if end is not None:
+                self.i = end
         elif c == '"':
             self.i += 1
             self._double(start)
@@ -368,7 +386,7 @@ class _ShellComments:
             self.i += 1
             self._command("`", start)
         elif c == "\\":
-            self.i += 2
+            self._skip_escape()
         else:
             self.i += 1
 
@@ -392,16 +410,11 @@ class _ShellComments:
             self.i += 2
             self._braces(start)
         elif s.startswith("$'", start) and not quoted:
-            self.i = self._ansi_end(start + 2)
-            if self.i > self.n:
-                self._lose(start)
+            end = self._close(start, start + 2, "'", escapes=True)
+            if end is not None:
+                self.i = end
         else:
             self.i += 1
-
-    def _ansi_end(self, at: int) -> int:
-        while at < self.n and self.s[at] != "'":
-            at += 2 if self.s[at] == "\\" else 1
-        return at + 1
 
     def _braces(self, start: int) -> None:
         while self.i < self.n:
@@ -428,7 +441,7 @@ class _ShellComments:
         self._lose(start)
 
     def _heredoc(self) -> None:
-        s = self.s
+        s, start = self.s, self.i
         self.i += 2
         strip = s.startswith("-", self.i)
         self.i += strip
@@ -437,28 +450,25 @@ class _ShellComments:
         word = []
         while self.i < self.n and s[self.i] not in self.KEYWORD_END:
             c = s[self.i]
-            if s.startswith("$'", self.i):
-                end = self._ansi_end(self.i + 2)
-                word.append(self._ansi(s[self.i + 2 : end - 1]))
+            if s.startswith('$"', self.i):
+                self.i += 1
+                continue
+            ansi = s.startswith("$'", self.i)
+            if ansi or c in "'\"":
+                opened = self.i + ansi + 1
+                end = self._close(start, opened, s[opened - 1], escapes=c != "'")
+                if end is None:
+                    return
+                body = s[opened : end - 1]
+                if ansi:
+                    body = self._ansi(body)
+                elif c == '"':
+                    body = self.DOUBLE_ESCAPE.sub(r"\1", body)
+                word.append(body)
                 self.i = end
-            elif s.startswith('$"', self.i):
-                self.i += 1
-            elif c == "'":
-                end = s.find("'", self.i + 1)
-                end = self.n if end < 0 else end
-                word.append(s[self.i + 1 : end])
-                self.i = end + 1
-            elif c == '"':
-                self.i += 1
-                while self.i < self.n and s[self.i] != '"':
-                    if s[self.i] == "\\" and s[self.i + 1 : self.i + 2] in ('"', "\\", "$", "`"):
-                        self.i += 1
-                    word.append(s[self.i : self.i + 1])
-                    self.i += 1
-                self.i += 1
             elif c == "\\":
                 word.append(s[self.i + 1 : self.i + 2])
-                self.i += 2
+                self._skip_escape()
             else:
                 word.append(c)
                 self.i += 1

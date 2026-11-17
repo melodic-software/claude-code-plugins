@@ -514,10 +514,55 @@ class ShellTokenRecognition(unittest.TestCase):
             ("y=${x\n# a\n", [2]),
             ("(( a ) )\n# a\n", [2]),
             ("cat <<EOF\n# body\nno delimiter\n", [2]),
+            ("cat <<'EOF\n# a\n", [2]),
+            ('cat <<"EOF\n# a\n', [2]),
+            ("cat <<$'EOF\n# a\n", [2]),
         )
         for text, want in cases:
             with self.subTest(text=text):
                 self.assertEqual(flagged("a.sh", text), want)
+
+
+SWEEP_SHELL = (
+    "#!/usr/bin/env bash\n"
+    + DESYNC
+    + "printf '#!/bin/bash\\necho m\\n' >a.sh # one\n"
+    + "y=\"b # no $(echo case) ${x#*/} ${#x} $#\"; z=$'c\\n# no'; w=$\"d\"\n"
+    + "cat <<'A' <<\"B\" <<$'C\\x44' <<-\\E <<$\"F\" <<G\n# a\nA\n# b\nB\n# c\nCD\n\t# e\n\tE\n# f\nF\n$g\nG\n"
+    + "x=$(case a in (a) echo ')';; b) :;; esac) `echo b # in ticks`\n"
+    + "(( 1 << 2 )) && q=$((16#ff)) && [[ $x =~ ((a)+)$ ]] && r=${x:-{\\}}\n"
+    + "done < <(((${#a[@]})) && printf '%s\\n' x) # two\n"
+    + "grep -q x <<<\"$1\" # three\nurl=$base#frag; echo \"${x}\"#tail \\\n  # four\n"
+)
+
+
+def _sweep_texts():
+    texts = [("composite", SWEEP_SHELL)]
+    for path in sorted((HERE / "fixtures").glob("*.sh.txt")):
+        texts.append((path.name, path.read_text(encoding="utf-8")))
+    return texts
+
+
+class ShellTruncationSweep(unittest.TestCase):
+    """Cut every shell text at every offset and add a comment: the comment is always found."""
+
+    def test_a_comment_after_any_prefix_is_found(self):
+        from pygments.lexers import get_lexer_by_name
+
+        lexer = get_lexer_by_name("bash", stripnl=False)
+        cuts = 0
+        for name, text in _sweep_texts():
+            for cut in range(len(text) + 1):
+                cuts += 1
+                probe = text[:cut] + "\n\n# z\n"
+                got = [
+                    value
+                    for tok, value in lint._CENSUS.tokens(probe, lexer)
+                    if lint._CENSUS.is_comment_token(tok)
+                ]
+                if "# z" not in got:
+                    self.fail(f"{name} cut at {cut}: '# z' not found in {probe!r}")
+        self.assertGreater(cuts, 1000)
 
 
 if __name__ == "__main__":
