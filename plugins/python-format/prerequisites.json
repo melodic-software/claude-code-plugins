@@ -18,7 +18,10 @@
           ".venv/bin/ruff"
         ]
       },
-      "degrade": "Without ruff, the hook cannot format or lint edited Python files.",
+      "when": {
+        "config_any": [".ruff.toml", "ruff.toml", { "file": "pyproject.toml", "pattern": "^\\s*\\[tool\\.ruff(\\]|\\.)" }]
+      },
+      "degrade": "Without ruff, the Ruff adapter cannot format or lint edited Python files.",
       "install": {
         "pip": "pip install ruff",
         "docs": "https://docs.astral.sh/ruff/installation/"

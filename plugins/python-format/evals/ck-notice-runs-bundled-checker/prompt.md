@@ -9,6 +9,6 @@ expected_outcome: "Runs the checker the notice names, read-only; runs no install
 
 This showed up when the session started:
 
-> python-format: ruff not on the hook PATH or at .venv/bin/ruff. Without ruff, the hook cannot format or lint edited Python files. Install (pip: pip install ruff; docs: https://docs.astral.sh/ruff/installation/). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin"
+> python-format: ruff not on the hook PATH or at .venv/bin/ruff. Without ruff, the Ruff adapter cannot format or lint edited Python files. Install (pip: pip install ruff; docs: https://docs.astral.sh/ruff/installation/). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin"
 
 A copy of the plugin is in ./plugin. Is ruff really missing here?

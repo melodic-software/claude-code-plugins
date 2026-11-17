@@ -47,7 +47,8 @@ import { fileURLToPath } from "node:url";
 
 export const KINDS = ["cli", "runtime", "system-lib", "python-pkg", "node-pkg", "env", "mcp"];
 export const NEEDS = ["required", "optional"];
-const ENTRY_KEYS = ["id", "kind", "need", "for", "detect", "degrade", "install", "check"];
+const ENTRY_KEYS = ["id", "kind", "need", "for", "detect", "degrade", "install", "check", "when"];
+const OPTIONAL_KEYS = ["check", "when"];
 const DETECT_KEYS = {
   cli: { required: ["any"], optional: ["local_bin", "version", "reject_store_alias"] },
   runtime: { required: ["any"], optional: ["local_bin", "version", "reject_store_alias"] },
@@ -164,7 +165,7 @@ function entryErrors(entry, where) {
   if (!isObject(entry)) return [`${where} must be an object`];
   const errors = keysErrors(entry, ENTRY_KEYS, where);
   for (const key of ENTRY_KEYS) {
-    if (!(key in entry) && key !== "check") errors.push(`${where}.${key} is required`);
+    if (!(key in entry) && !OPTIONAL_KEYS.includes(key)) errors.push(`${where}.${key} is required`);
   }
   if ("id" in entry && !matches(entry.id, ID_RE)) errors.push(`${where}.id must match ${ID_RE.source}`);
   if ("kind" in entry && !KINDS.includes(entry.kind)) errors.push(`${where}.kind must be one of ${KINDS.join(", ")}`);
@@ -197,8 +198,57 @@ function entryErrors(entry, where) {
     }
   }
   if ("check" in entry && !matches(entry.check, CHECK_RE)) errors.push(`${where}.check must name a skill, such as /<plugin>:check`);
+  if ("when" in entry) errors.push(...whenErrors(entry.when, `${where}.when`));
   return errors;
 }
+
+// when: { config_any: [<file name> | { file, pattern }] }, the configs that
+// make the entry needed: one of them found in the project directory or a
+// directory above it. A pattern is a regular expression the file's text must match.
+const CONFIG_NAME_RE = /^[A-Za-z0-9._-]+$/;
+function whenErrors(when, where) {
+  if (!isObject(when)) return [`${where} must be an object`];
+  const errors = keysErrors(when, ["config_any"], where);
+  const list = when.config_any;
+  if (!Array.isArray(list) || list.length === 0) return [...errors, `${where}.config_any must be a non-empty list`];
+  for (const item of list) {
+    const file = typeof item === "string" ? item : isObject(item) ? item.file : undefined;
+    if (!matches(file, CONFIG_NAME_RE)) errors.push(`${where}.config_any: each item is a file name, or { file, pattern }`);
+    if (isObject(item)) {
+      errors.push(...keysErrors(item, ["file", "pattern"], `${where}.config_any`));
+      if (!isText(item.pattern)) errors.push(`${where}.config_any: { file, pattern } needs a pattern`);
+      else if (patternErrors(item.pattern, `${where}.config_any pattern`, false).length) {
+        errors.push(`${where}.config_any: ${item.file}'s pattern is not a valid regular expression`);
+      }
+    }
+  }
+  return errors;
+}
+
+// whenMet(entry, ctx) -> true when the entry has no `when`, or one of its
+// configs sits in the project directory (CLAUDE_PROJECT_DIR, else cwd) or above it.
+function whenMet(entry, ctx) {
+  if (!entry.when) return true;
+  let dir = path.resolve(ctx.env.CLAUDE_PROJECT_DIR || ctx.cwd);
+  for (;;) {
+    for (const item of entry.when.config_any) {
+      const file = path.join(dir, typeof item === "string" ? item : item.file);
+      if (!existsSync(file)) continue;
+      if (typeof item === "string") return true;
+      try {
+        if (new RegExp(item.pattern, "m").test(readFileSync(file, "utf8"))) return true;
+      } catch {
+        // An unreadable file does not count.
+      }
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return false;
+    dir = parent;
+  }
+}
+
+const whenText = (entry) =>
+  entry.when.config_any.map((i) => (typeof i === "string" ? i : `${i.file} matching /${i.pattern}/`)).join(" or ");
 
 // validateManifest(value) -> list of schema errors; empty means valid.
 export function validateManifest(manifest) {
@@ -597,8 +647,12 @@ function cmdCheck(opts, ctx, out) {
   const local = { ...ctx, root, dataDir: opts.dataDir };
   const counts = { failed: 0, warned: 0, passed: 0 };
   for (const entry of manifest.requires.filter((e) => inScope(e, opts.scope))) {
-    const { status, detail } = detectEntry(entry, local);
     const label = `${entry.id} (${entry.kind}, ${entry.need})`;
+    if (!whenMet(entry, local)) {
+      out.stdout(`INFO  ${label}: not needed here: no ${whenText(entry)} at or above ${path.resolve(local.env.CLAUDE_PROJECT_DIR || local.cwd)}`);
+      continue;
+    }
+    const { status, detail } = detectEntry(entry, local);
     if (status === "present") {
       counts.passed++;
       out.stdout(`PASS  ${label}: ${detail}`);
@@ -666,6 +720,7 @@ function cmdProbe(opts, ctx, out) {
   const session = readHookInput(ctx.stdin);
   const notices = [];
   for (const entry of manifest.requires.filter((e) => e.for.some((s) => s.startsWith("hook:")))) {
+    if (!whenMet(entry, ctx)) continue;
     const { status, detail } = detectEntry(entry, { ...ctx, root });
     if (!isFailure(status) || !firstNoticeThisSession(plugin, entry.id, session, ctx.env)) continue;
     notices.push(userNotice(plugin, { ...entry, root }, status, detail));

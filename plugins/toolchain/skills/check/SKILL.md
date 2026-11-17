@@ -84,7 +84,7 @@ If neither path yields changes and no `$ARGUMENTS`: report "No changes found (wo
 
 ### 1.5 Resolve each ecosystem's command surface
 
-Resolve `globs`, `build-cmd`, `test-cmd`, `check-cmd`, `fix-cmd`, `code-fix-cmd`, `anchor`, `project-discovery`, `install-hint`, `requires`, `gates` and `notes` per the ladder:
+Resolve `globs`, `build-cmd`, `test-cmd`, `check-cmd`, `lint-cmd`, `fix-cmd`, `code-fix-cmd`, `anchor`, `project-discovery`, `install-hint`, `requires`, `gates` and `notes` per the ladder:
 
 1. Consumer `.claude/ecosystems/<ecosystem>.yaml` (+ `.local.yaml` personal override, `~/.claude/ecosystems/` user-global, additive per key) → authoritative.
 2. Absent → infer from the repo's build files, name the inferred id and its globs in the report, and offer to persist via `/toolchain:setup`.
@@ -95,7 +95,7 @@ A malformed consumer file warns and degrades to rung 2, never a hard stop.
 
 ### 2. Run checks
 
-For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-cmd`, in that order; skip a null command. Substitute `<solution-or-project-file>` (per `anchor`), `<project-dir>` (each root `project-discovery` finds) and `<files>` (that ecosystem's changed files). Stop an ecosystem at its first failure and continue with the next. A skipped command is not a failure: the ecosystem's next command still runs.
+For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-cmd`, in that order; skip a null command. Where the record holds a non-null `lint-cmd`, run it in place of `check-cmd`: it is the repository's report-only lint command, and no hook runs it. Substitute `<solution-or-project-file>` (per `anchor`), `<project-dir>` (each root `project-discovery` finds) and `<files>` (that ecosystem's changed files). Stop an ecosystem at its first failure and continue with the next. A skipped command is not a failure: the ecosystem's next command still runs.
 
 **What counts as a check.** A cell reads `pass` only when its command started, exercised the project, and exited 0. Two outcomes look green and are not:
 
