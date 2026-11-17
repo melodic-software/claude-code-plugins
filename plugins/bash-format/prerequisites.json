@@ -35,9 +35,6 @@
           "shellcheck"
         ]
       },
-      "when": {
-        "config_any": [".shellcheckrc", "shellcheckrc"]
-      },
       "degrade": "Without shellcheck, the ShellCheck adapter cannot lint staged shell scripts.",
       "install": {
         "docs": "https://github.com/koalaman/shellcheck#installing"

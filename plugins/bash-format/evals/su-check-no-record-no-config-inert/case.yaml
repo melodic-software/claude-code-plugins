@@ -3,17 +3,17 @@ name: su-check-no-record-no-config-inert
 context:
   scaffold_script: scaffold.sh
 graders:
-  - name: 'both-unresolved-info'
+  - name: 'format-unresolved-lint-runs'
     type: 'llm'
-    criteria: 'The reply reports both formatting and linting as unresolved (or INFO): no .editorconfig section names shell files and no .shellcheckrc or shellcheckrc exists, so the hooks run nothing.'
+    criteria: 'The reply reports formatting as unresolved (or INFO), because no .editorconfig section names shell files, and says linting still resolves to ShellCheck, which runs on its own defaults with no .shellcheckrc.'
     focus: 'last_message'
   - name: 'not-broken'
     type: 'llm'
-    criteria: 'The reply says the plugin is not broken: resolving to nothing is the opt-out by design.'
+    criteria: 'The reply says the plugin is not broken: formatting resolving to nothing is the opt-out by design.'
     focus: 'last_message'
   - name: 'routes-to-record'
     type: 'llm'
-    criteria: 'The reply names at least one way forward without writing anything: an .editorconfig shell section or a .shellcheckrc opts the hooks in, or a bash record written by /toolchain:setup apply bash, which /toolchain:lint and /toolchain:check run on request (the hooks never run a record).'
+    criteria: 'The reply names at least one way forward without writing anything: an .editorconfig section naming shell files opts the format hooks in, or a bash record written by /toolchain:setup apply bash, which /toolchain:lint and /toolchain:check run on request (the hooks never run a record).'
     focus: 'last_message'
   - name: 'no-file-1'
     type: 'file_exists'

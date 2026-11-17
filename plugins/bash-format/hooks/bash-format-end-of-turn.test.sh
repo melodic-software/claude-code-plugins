@@ -47,7 +47,6 @@ git init -q -b main "$R"
 git -C "$R" config user.name t
 git -C "$R" config user.email t@example.invalid
 printf '[*.sh]\nindent_style = space\nindent_size = 2\n' >"$R/.editorconfig"
-printf '# the repository opts in to ShellCheck\n' >"$R/.shellcheckrc"
 printf '#!/usr/bin/env bash\necho seed\n' >"$R/a.sh"
 git -C "$R" add -A
 git -C "$R" commit -q -m seed
@@ -88,12 +87,6 @@ done
 ln -s "$(node -e 'process.stdout.write(process.execPath)')" "$NOTOOL/node"
 expect "on: a missing shellcheck passes silently" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_BASH_FORMAT_END_OF_TURN=true PATH="$NOTOOL")"
-git -C "$R" rm -q --cached .shellcheckrc
-mv "$R/.shellcheckrc" "$WORK/rc"
-expect "on: with no .shellcheckrc the lint adapter does not run, so nothing blocks" "0|" \
-  "$(stop false CLAUDE_PLUGIN_OPTION_BASH_FORMAT_END_OF_TURN=true)"
-mv "$WORK/rc" "$R/.shellcheckrc"
-git -C "$R" add .shellcheckrc
 git -C "$R" checkout -q a.sh
 expect "on: a clean work tree passes" "0|" "$(stop false CLAUDE_PLUGIN_OPTION_BASH_FORMAT_END_OF_TURN=true)"
 

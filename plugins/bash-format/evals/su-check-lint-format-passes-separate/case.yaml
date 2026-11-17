@@ -29,7 +29,7 @@ graders:
     focus: 'last_message'
   - name: 'shellcheckrc-info'
     type: 'llm'
-    criteria: 'The reply says a missing .shellcheckrc (or shellcheckrc) is INFO, not FAIL: with none, the lint concern is unresolved and the hooks run no ShellCheck, the opt-out by design.'
+    criteria: 'The reply says a missing .shellcheckrc is INFO, not FAIL, because ShellCheck still runs and applies its own defaults when it discovers none.'
     focus: 'last_message'
   - name: 'effective-options'
     type: 'llm'

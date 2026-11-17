@@ -7,10 +7,10 @@ runs [ShellCheck](https://www.shellcheck.net/) at pre-commit and reports on the 
 adds. No finding reaches Claude on each edit, and nothing fixes a lint finding for you.
 
 The hooks run only the plugin's two shipped adapters: the **shfmt adapter**, where an `.editorconfig`
-section names shell files, and the **ShellCheck adapter**, where a `.shellcheckrc` or `shellcheckrc`
-sits in the script's directory or above it, up to the repository root. A repository without the
-config for a concern gets nothing for it, and `/bash-format:setup check` reports that concern
-unresolved.
+section names shell files, and the **ShellCheck adapter**, for every staged `.sh` and `.bash`
+file, with your `.shellcheckrc` when you have one and ShellCheck's own defaults when you do not. A
+repository with no shell section gets no formatting, and `/bash-format:setup check` reports that
+concern unresolved.
 
 The hooks never run a command from your bash record (`.claude/ecosystems/bash.yaml`, the
 ecosystem-commands contract in the marketplace repository). That record names any formatter and
@@ -63,9 +63,7 @@ The plugin ships no rules of its own.
 - **Config from the consumer.** Both tools read their configuration from your repository:
   `.shellcheckrc` for ShellCheck and `.editorconfig` for shfmt. For how each file is found, see
   [ShellCheck manual: RC FILES](https://github.com/koalaman/shellcheck/blob/master/shellcheck.1.md#rc-files)
-  and the shfmt manual page linked above. The ShellCheck adapter's opt-in walk stops at the
-  repository root, so a `~/.shellcheckrc` or one above the repository does not opt a repository in.
-  Files under `.githooks/` (installed copies) are skipped.
+  and the shfmt manual page linked above. Files under `.githooks/` (installed copies) are skipped.
 - **Gitignored files are skipped by default in the session.** The batch row does not rewrite a file
   the repository gitignores, silently, since a rewrite of an ignored file has no git checkout to
   undo it. Set `bash_format_lint_gitignored` to `true` to act on them too. A tracked file that
@@ -91,8 +89,8 @@ The plugin ships two git-hook entries (`git-hooks/entries.json`):
 - `format` rewrites. At commit it refuses a partly staged shell script the shfmt adapter governs,
   untouched; runs shfmt over the staged `.sh` and `.bash` files it governs; and re-stages what
   changed.
-- `lint` reports. It runs ShellCheck (`warning` severity and above) over the staged shell files the
-  ShellCheck adapter governs and blocks the commit only on a finding on a line the commit adds,
+- `lint` reports. It runs ShellCheck (`warning` severity and above) over the staged shell files
+  and blocks the commit only on a finding on a line the commit adds,
   printed as `<path>:<line>: <message>`. A partly staged or deleted script is linted as staged, from
   the index. A ShellCheck that exits non-zero with no such line fails the commit and shows its
   output. Identical staged scripts are linted once when nothing path-dependent can differ.
@@ -126,14 +124,13 @@ at the end of a turn and hands findings back to Claude once per turn.
 - **jq** on `PATH`. Reads the file paths from the `PostToolBatch` payload and the syntax tree for
   the subscript guard. Absent: the batch row does nothing, the `format` entry skips its rewrite,
   and the SessionStart probe reports it. [Install jq](https://jqlang.org/download/).
-- **ShellCheck** on `PATH` for the `lint` entry (and a `.shellcheckrc` or `shellcheckrc` in your
-  repo to opt in). Without the opt-in, ShellCheck is never needed.
+- **ShellCheck** on `PATH` for the `lint` entry.
 - **shfmt** on `PATH` for formatting (and an `.editorconfig` section naming shell files in your
   repo to opt in). Without the opt-in, shfmt is never needed. The repo chose not to format.
 
 A SessionStart probe reports a missing `shfmt` or `shellcheck` once per session, from
-`prerequisites.json`, only where that tool's opt-in config sits in the project directory or above
-it, and a drifted git-hook entry. Run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`
+`prerequisites.json` (`shfmt` only where an `.editorconfig` shell section sits in the project
+directory or above it), and a drifted git-hook entry. Run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`
 to see which binaries resolve; it is read-only and installs nothing.
 
 ### Hook budget accounting

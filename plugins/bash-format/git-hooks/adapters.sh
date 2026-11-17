@@ -9,9 +9,6 @@
 # format: shfmt, where an .editorconfig section naming shell files governs the
 #   file (see shfmt-rewrite.sh). It runs in process through shfmt_rewrite, so
 #   its array-subscript guard and ignore-rule probe hold; RT_SCRIPT stays empty.
-# lint: ShellCheck, where a .shellcheckrc or shellcheckrc sits in the file's
-#   directory or above it, up to the repository root. It reports and fixes
-#   nothing: gcc output, warning severity and above.
 # Both tools come from PATH.
 
 # shellcheck disable=SC2034 # read by resolve-tool.sh
@@ -90,10 +87,11 @@ rt_adapter() { # <concern> <file> <root>
   if [[ "$1" == format ]]; then
     bf__walk "$BF_DIR" "$3" editorconfig_shell_section_here || return 1
     bf__rel "$BF_WALK_DIR" "$3" .editorconfig
-  else
-    bf__walk "$BF_DIR" "$3" bf__shellcheckrc_here || return 1
+  elif bf__walk "$BF_DIR" "$3" bf__shellcheckrc_here; then
     bf__rel "$BF_WALK_DIR" "$3" .shellcheckrc
     [[ -e "$BF_WALK_DIR/.shellcheckrc" ]] || bf__rel "$BF_WALK_DIR" "$3" shellcheckrc
+  else
+    BF_REL="none (ShellCheck defaults)"
   fi
   bf__set "$1" "$BF_REL" "$3"
 }
@@ -122,10 +120,7 @@ rt_adapter_in_repo() { # <concern> <root>
     else
       f="$(git -C "$2" ls-files -- ':(glob)**/.shellcheckrc' ':(glob)**/shellcheckrc' 2>/dev/null | head -n 1)"
     fi
-    if [[ -z "$f" ]]; then
-      RT_DETAIL="no .shellcheckrc or shellcheckrc"
-      return 1
-    fi
+    [[ -n "$f" ]] || f="none (ShellCheck defaults)"
   fi
   bf__set "$1" "$f" "$2"
 }

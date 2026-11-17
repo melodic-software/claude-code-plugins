@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "A missing `.shellcheckrc` is INFO, not FAIL: the lint concern is then unresolved, so the hooks run no ShellCheck, which is the opt-out by design."
+      "answer": "A missing `.shellcheckrc` is INFO: ShellCheck still runs and applies its own defaults."
     }
   ],
   "fail": [
@@ -10,8 +10,8 @@
       "why": "near miss: no grade, no reason"
     },
     {
-      "answer": "A missing `.shellcheckrc` is INFO: ShellCheck applies its own defaults.",
-      "why": "stale reason: without an rc the lint adapter does not run ShellCheck at all"
+      "answer": "A missing `.shellcheckrc` is INFO: without it the hooks run no ShellCheck.",
+      "why": "wrong reason: the lint adapter runs without an rc"
     },
     {
       "answer": "A missing `.shellcheckrc` is a FAIL: nothing gets linted without it.",

@@ -57,11 +57,6 @@ else
   fail "manifest check needs jq and $MANIFEST"
 fi
 
-# --- The probe's opt-in gates agree with the adapters' ------------------------
-# shfmt's `when` pattern (read by lib/prerequisites.mjs as a JavaScript RegExp)
-# must call the same .editorconfig section headers an opt-in as
-# section_applies_to_shell does; shellcheck's names the rc files the lint
-# adapter walks for.
 if command -v jq >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
   # shellcheck source=../git-hooks/shfmt-rewrite.sh
   source "$PLUGIN_ROOT/git-hooks/shfmt-rewrite.sh"
@@ -72,8 +67,8 @@ if command -v jq >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
     js_says="$(node -e 'process.stdout.write(new RegExp(process.argv[1], "m").test(process.argv[2]) ? "yes" : "no")' "$SHFMT_WHEN" "[$header]")"
     expect "probe gate and shfmt adapter agree on [$header]" "$bash_says" "$js_says"
   done
-  expect "shellcheck's probe gate names both rc spellings" '[".shellcheckrc","shellcheckrc"]' \
-    "$(jq -c '.requires[] | select(.id == "shellcheck") | .when.config_any' "$MANIFEST")"
+  expect "shellcheck has no probe gate: the lint adapter runs without a config" null \
+    "$(jq -c '.requires[] | select(.id == "shellcheck") | .when' "$MANIFEST")"
 fi
 
 # --- hooks.json: one PostToolBatch row, an opt-in Stop row, no PostToolUse ---

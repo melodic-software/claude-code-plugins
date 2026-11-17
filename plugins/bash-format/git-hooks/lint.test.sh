@@ -1,15 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/bash-format/.claude-plugin/plugin.json
-# Contract tests for the bash-format lint entry (git-hooks/lint.sh): ShellCheck
-# runs only for a staged shell script a .shellcheckrc or shellcheckrc in its
-# directory or above governs, a finding blocks only on a line the commit adds,
-# nothing is ever rewritten, a partly staged or deleted script is linted from
-# the index, --worktree reports the uncommitted changes, a merge leaves a
-# script it takes unchanged from the merged branch alone, a missing tool
-# follows the skip-key rule, a ShellCheck that exits 1 with no finding fails
-# closed, many staged paths reach ShellCheck in batches under Windows'
-# command-line cap, identical scripts are linted once unless their rc or
-# sourced files could differ, and --resolve names the adapter or why none ran.
 # Expected values are the tools' documented output: SC2154 is "<var> is
 # referenced but not assigned"; gcc format is
 # "<file>:<line>:<column>: <type>: <message> [SC####]" (shellcheck.1.md,
@@ -55,7 +45,7 @@ new_repo() { # [.shellcheckrc body; "NONE" for no .shellcheckrc]
   git -C "$REPO" config user.email t@example.invalid
   printf '%s\n' "$EC" >"$REPO/.editorconfig"
   if [[ "${1:-}" != NONE ]]; then
-    printf '%s\n' "${1:-# the repository opts in to ShellCheck}" >"$REPO/.shellcheckrc"
+    printf '%s\n' "${1:-# ShellCheck settings of the repository}" >"$REPO/.shellcheckrc"
   fi
   printf '#!/usr/bin/env bash\necho seed\n' >"$REPO/seed.sh"
   git -C "$REPO" add -A
@@ -181,14 +171,10 @@ $HINT" "$(sc_stub "$REPO")"
 expect "identical copies are linted once, differing content still each" "a-copy.sh
 d-other.sh" "$(grep -vx -- -- "$WORK/sc.log" | sort)"
 
-# The adapter's opt-in: no rc file at or above the script, no ShellCheck.
 new_repo NONE
 printf '#!/bin/bash\necho a\n' >"$REPO/a-finding.sh"
 git -C "$REPO" add a-finding.sh
-expect "no .shellcheckrc: ShellCheck is not run and the commit passes" "0|" "$(sc_stub "$REPO")"
-expect "no .shellcheckrc: no ShellCheck call" "" "$(cat "$WORK/sc.log")"
-printf '# no dot\n' >"$REPO/shellcheckrc"
-expect "a shellcheckrc without the dot opts in" "1|a-finding.sh:2: warning: stub finding [SC2154]
+expect "no .shellcheckrc: ShellCheck still runs and its finding blocks" "1|a-finding.sh:2: warning: stub finding [SC2154]
 $HINT" "$(sc_stub "$REPO")"
 new_repo NONE
 mkdir -p "$REPO/pkg" "$REPO/other"
@@ -196,20 +182,21 @@ printf '# pkg only\n' >"$REPO/pkg/.shellcheckrc"
 printf '#!/bin/bash\necho p\n' >"$REPO/pkg/p-finding.sh"
 printf '#!/bin/bash\necho o\n' >"$REPO/other/o-finding.sh"
 git -C "$REPO" add pkg other
-expect "a nested .shellcheckrc governs only the scripts under it" "1|pkg/p-finding.sh:2: warning: stub finding [SC2154]
+expect "scripts with and without an rc above them are both linted" "1|other/o-finding.sh:2: warning: stub finding [SC2154]
+pkg/p-finding.sh:2: warning: stub finding [SC2154]
 $HINT" "$(sc_stub "$REPO")"
 
 # --resolve: one row for the repository, or one per path; it runs nothing.
-expect "--resolve names the adapter and the governing rc" "bash-format	lint	adapter:shellcheck	shellcheck	yes	config pkg/.shellcheckrc; binary shellcheck on PATH" \
+expect "--resolve names the adapter and the first rc it finds" "bash-format	lint	adapter:shellcheck	shellcheck	yes	config pkg/.shellcheckrc; binary shellcheck on PATH" \
   "$(cd "$REPO" && PATH="$WORK/sc-stub:$PATH" bash "$CHECK" --resolve)"
-expect "--resolve <path>: one row per file, the governing rc or none" "bash-format	lint	adapter:shellcheck	shellcheck	yes	config pkg/.shellcheckrc; binary shellcheck on PATH
-bash-format	lint	none		n/a	" \
+expect "--resolve <path>: one row per file, the governing rc or ShellCheck's defaults" "bash-format	lint	adapter:shellcheck	shellcheck	yes	config pkg/.shellcheckrc; binary shellcheck on PATH
+bash-format	lint	adapter:shellcheck	shellcheck	yes	config none (ShellCheck defaults); binary shellcheck on PATH" \
   "$(cd "$REPO" && PATH="$WORK/sc-stub:$PATH" bash "$CHECK" --resolve pkg/p-finding.sh other/o-finding.sh)"
 new_repo NONE
 mkdir -p "$REPO/.claude/ecosystems"
 printf 'globs: ["*.sh"]\nlint-cmd: "stublint <files>"\n' >"$REPO/.claude/ecosystems/bash.yaml"
-expect "--resolve with no rc says so, and that hooks never run the bash record" "bash-format	lint	none		n/a	no .shellcheckrc or shellcheckrc; the bash record is not run by hooks; /toolchain:lint and /toolchain:check run it" \
-  "$(cd "$REPO" && bash "$CHECK" --resolve)"
+expect "--resolve with no rc resolves to ShellCheck's defaults, and says hooks never run the bash record" "bash-format	lint	adapter:shellcheck	shellcheck	yes	config none (ShellCheck defaults); binary shellcheck on PATH; the bash record is not run by hooks; /toolchain:lint and /toolchain:check run it" \
+  "$(cd "$REPO" && PATH="$WORK/sc-stub:$PATH" bash "$CHECK" --resolve)"
 
 for tool in shellcheck jq node; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -419,11 +406,6 @@ git -C "$REPO" config --unset checks.skipmissing
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shellcheck" bash "$CHECK" --worktree 2>&1)"
 expect "missing shellcheck, --worktree: an agent fails as at commit time" \
   "1|FAIL: shellcheck missing. Install: $SC_INSTALL" "$?|${out%%$'\n'*}"
-new_repo NONE
-printf '%s\n' "$TABBED" >"$REPO/a.sh"
-git -C "$REPO" add a.sh
-out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shellcheck" bash "$CHECK" 2>&1)"
-expect "missing shellcheck where no rc opts in: nothing needs it" "0|" "$?|$out"
 
 echo "lint: $PASS passed, $FAIL failed"
 ((FAIL == 0))

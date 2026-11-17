@@ -56,7 +56,6 @@ new_repo() { # [.editorconfig body; "NONE" for no .editorconfig]
   if [[ "${1:-}" != NONE ]]; then
     printf '%s\n' "${1:-$EC}" >"$REPO/.editorconfig"
   fi
-  printf '# the repository opts in to ShellCheck\n' >"$REPO/.shellcheckrc"
   printf '#!/usr/bin/env bash\necho seed\n' >"$REPO/seed.sh"
   git -C "$REPO" add -A
   git -C "$REPO" commit -q -m seed --no-verify

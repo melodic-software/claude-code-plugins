@@ -106,7 +106,8 @@ Code and read no toggle.
    - found `no`: FAIL; the remediation is the adapter tool's
      `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` install hints (Read that path).
    - `none`: INFO "unresolved": no shipped adapter's config governs the repository for that
-     concern, so the hooks run nothing for it. This is the opt-out by design, so a missing tool for
+     concern, so the hooks run nothing for it. Only format can resolve to `none`: the lint adapter
+     needs no config, and its detail says `none (ShellCheck defaults)` when no rc file exists. This is the opt-out by design, so a missing tool for
      an unresolved concern is INFO, not a defect. For format, shell files are then left as written
      rather than rewritten to shfmt's built-in defaults; a bare `[*]` section or a path-only one
      such as `[scripts/**]` does not opt in (`apply` below lists the sections that do).
@@ -233,10 +234,10 @@ skill installs nothing:
   `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` when the tool is missing too. For format, an
   `.editorconfig` section naming shell files (`[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]`, including
   path-prefixed forms like `[**/*.sh]`) opts the repo in; a bare `[*]` or a path-only section such as
-  `[scripts/**]` does not. For lint, a `.shellcheckrc` or `shellcheckrc` at or above the scripts, up
-  to the repository root, does. This skill writes neither file: both are the consumer's, and
-  `.editorconfig` governs every editor and tool in the repo, so the choice and the edit belong to
-  the consumer. For a tool the plugin ships no adapter for, `check` step 5's draft, for
+  `[scripts/**]` does not. Lint has no opt-in: ShellCheck runs on every shell file, with the
+  repository's `.shellcheckrc` when one exists and its own defaults otherwise. This skill writes
+  neither file: both are the consumer's, and `.editorconfig` governs every editor and tool in the
+  repo, so the choice and the edit belong to the consumer. For a tool the plugin ships no adapter for, `check` step 5's draft, for
   `/toolchain:setup apply bash`.
 - toggle off, gitignored files wanted, or the end-of-turn check wanted: set
   `bash_format_enabled`, `bash_format_lint_gitignored` or `bash_format_end_of_turn` to `true`
