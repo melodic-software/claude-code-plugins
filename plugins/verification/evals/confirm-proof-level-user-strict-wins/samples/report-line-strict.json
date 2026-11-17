@@ -5,6 +5,12 @@
     },
     {
       "answer": "proof_level: strict (user option; the repository file says path)"
+    },
+    {
+      "answer": "- **proof_level:** `strict` (user option)."
+    },
+    {
+      "answer": "| `proof_level` | **strict** | Your option (`strict`). origin/main's `docs/conventions/verification.yaml` says `path`. |"
     }
   ],
   "fail": [
@@ -16,6 +22,15 @@
     },
     {
       "answer": "- `proof_level: strict`\n  - The user option is `strict`. `origin/main`'s `docs/conventions/verification.yaml` says `path`."
+    },
+    {
+      "answer": "- **proof_level:** `strict`.\n  - The user option is `strict`."
+    },
+    {
+      "answer": "proof_level strict (user option)"
+    },
+    {
+      "answer": "| `proof_level` | `path` | strict (user option) was outranked |"
     }
   ]
 }
