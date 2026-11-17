@@ -148,14 +148,14 @@ one setting that widens what the skill may do, on Windows only, as described und
 
 ## Live agent scratchpads
 
-A Claude Code temp root (`%TEMP%\claude` on Windows, `$TMPDIR`-derived on POSIX, relocated by
-`CLAUDE_CODE_TMPDIR`) is a plausible target: it accumulates per-session scratchpads with no cleanup
-owner, and `machine-health`'s `claude-temp-root` check routes its findings here. Its hazard is not
-the session running the clean, which is identifiable by `CLAUDE_CODE_SESSION_ID`, but a
-*concurrently running other* session, whose scratchpad is an active working directory with no marker
-distinguishing it from an abandoned one. Directory age does not separate them: a long-running
-session's scratchpad is old and live at the same time, so no age tier can be trusted to mean
-"finished".
+A Claude Code temp root (where it sits and how `CLAUDE_CODE_TMPDIR` relocates it:
+[Environment variables: Variables](https://code.claude.com/docs/en/env-vars#variables)) is a
+plausible target: it accumulates per-session scratchpads with no cleanup owner, and
+`machine-health`'s `claude-temp-root` check routes its findings here. Its hazard is not the session
+running the clean, which is identifiable by `CLAUDE_CODE_SESSION_ID`, but a *concurrently running
+other* session, whose scratchpad is an active working directory with no marker distinguishing it
+from an abandoned one. Directory age does not separate them: a long-running session's scratchpad is
+old and live at the same time, so no age tier can be trusted to mean "finished".
 
 Nothing new is needed to hold that line; the existing non-overridable checks already do, and they do
 it structurally rather than by heuristic:
@@ -164,8 +164,7 @@ it structurally rather than by heuristic:
   authority, tooling, timeout, or unverifiable condition is `handle-state-unverified`, and both keep
   the entry. This is the primary defense and it fails closed.
 - **VCS markers re-discovered from live state.** Agent scratchpads routinely hold clones and
-  registered worktrees of real repositories, at paths such as
-  `<temp-root>/<project-key>/<session-id>/scratchpad/`, and their pack files can dominate the
+  registered worktrees of real repositories, and their pack files can dominate the
   tree's size. Repository markers are re-discovered and `git ls-files` re-queried at
   preview and at apply, since snapshot annotations are never trusted, so a repository checked out after
   the snapshot still refuses.
@@ -979,8 +978,7 @@ tells the reader to confirm the owner before acting. Re-fetch the basis before r
 - **`windows-electron-updater-cache`.**
   - Claim: an app built with electron-builder keeps updater downloads in
     `%LOCALAPPDATA%\<lowercased app name>-updater`, with the staged installer in its `pending`
-    subdirectory. An app built with electron-builder older than 20.34.0 falls back to the plain
-    app name, so the hint's `*-updater` pattern misses it.
+    subdirectory.
   - Basis: `electron-userland/electron-builder` on `master`: `packages/app-builder-lib/src/appInfo.ts`
     (`updaterCacheDirName` is `this.sanitizedName.toLowerCase() + "-updater"`),
     `packages/electron-updater/src/AppUpdater.ts` (`path.join(this.app.baseCachePath, dirName ||
