@@ -34,6 +34,7 @@ const { values: opts } = parseArgs({
   },
 });
 
+const STDIN_FD = 0;
 const readJson = (file) => JSON.parse(readFileSync(file, "utf8"));
 const schema = readJson(join(ROOT, "schemas/domain-driven-design.schema.json"));
 const KEYS = ["glossary_file", "glossary_map_file"];
@@ -66,7 +67,7 @@ function userConfig(file) {
   if (!file) return { value: undefined, errors: [], keys: [] };
   let value;
   try {
-    value = readJson(file);
+    value = readJson(file === "-" ? STDIN_FD : file);
   } catch (e) {
     return { value: undefined, errors: [`userConfig (${file}): unreadable or not JSON (${e.code ?? "parse error"})`], keys: [null] };
   }

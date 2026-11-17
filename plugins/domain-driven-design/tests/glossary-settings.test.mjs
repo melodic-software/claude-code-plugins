@@ -57,6 +57,18 @@ test("userConfig wins over the default, and an unrendered placeholder counts as 
   assert.deepEqual(out.provenance, { glossary_file: "userConfig", glossary_map_file: "default" });
 });
 
+test("--user-config - reads the userConfig JSON from stdin, so no settings file is written", () => {
+  const r = spawnSync(process.execPath, [SCRIPT, "--home", HOME, "--project", repo(), "--user-config", "-"], {
+    encoding: "utf8",
+    input: JSON.stringify({ glossary_file: "TERMS.md", glossary_map_file: "" }),
+  });
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.deepEqual(out.values, { glossary_file: "TERMS.md", glossary_map_file: "GLOSSARY-MAP.md" });
+  assert.deepEqual(out.provenance, { glossary_file: "userConfig", glossary_map_file: "default" });
+  assert.deepEqual(layer(out, "userConfig").errors, []);
+});
+
 test("the team file wins over userConfig, and the personal override over the team file", () => {
   const dir = repo({ [TEAM]: "glossary_file: TEAM.md\nglossary_map_file: TEAM-MAP.md\n", [LOCAL]: "glossary_map_file: MINE-MAP.md\n" });
   const out = settings(["--project", dir], { userConfig: { glossary_file: "USER.md", glossary_map_file: "USER-MAP.md" } });
