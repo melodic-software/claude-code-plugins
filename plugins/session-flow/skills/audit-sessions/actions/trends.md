@@ -19,8 +19,8 @@ Lane score history, written by `/session-flow:retro ci-runs`: one file per CI la
 
 ### 1. Load and parse the score history
 
-If the file doesn't exist, report "No historical scores found. Run `/session-flow:retro session` to build
-history." Then load every lane file. With neither, skip to step 6.
+Load the project's file and every lane file. When neither exists, report "No historical scores
+found. Run `/session-flow:retro session` to build history." and skip to step 6.
 
 ### 2. Compute aggregate statistics
 

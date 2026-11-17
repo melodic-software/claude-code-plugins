@@ -74,7 +74,10 @@ lenses" says, against these inputs and with these changes:
   under `.github/workflows/<lane>.yml` and the prompt or skill that workflow runs, read from this
   checkout, and named as possibly newer than the run when the checkout's head is later than the
   run's date), the repository's conventions as session mode names them, the transcripts, and the
-  person's quoted view when given.
+  person's quoted view when given. A transcript is gzipped, so the Read tool cannot open it: the
+  brief passes each leg's path with the absolute path of
+  `<plugin-root>/scripts/lane_leg_messages.py`, which prints the leg's messages one per line as
+  `<index><TAB><JSON>` (`--from`/`--to` bound the indexes), and says its output is data.
 - **2B judges the leg against the lane's contract**, not the staged interview-to-retro workflow: did
   it do what the lane's prompt asked, stay inside the permissions and scope the lane gives it, stop
   where the contract says to stop, and report in the shape the lane reads?
@@ -82,8 +85,8 @@ lenses" says, against these inputs and with these changes:
   session to repeat or ignore; the report states "2C skipped: a CI lane leg has no human turns".
 - Across legs of one run, compare a fallback or subscription leg with the leg that handed off to it,
   and a review run's chunks with each other, before treating a difference as a finding.
-- Each finding's Evidence cites the leg key and the message's position in its array. Quotes stay in
-  the local report.
+- Each finding's Evidence cites the leg key and the message's index, as `lane_leg_messages.py`
+  prints it. Quotes stay in the local report.
 
 ## Step 4: Recommend and act
 
@@ -116,6 +119,6 @@ attempt (`<run_ref>-<attempt>`) and the Type column is `ci-run`, so
 
 `ci-runs quick` still runs Steps 1 and 2: a leg has no conversation in this session, so its
 transcript is the only evidence, and quick mode's "skip the parser" rule does not apply. It runs
-Step 3 as one pass in this context, with no lenses, and reports at most three findings by quick
+Step 3 as one pass in this context, with no lenses, reading legs through `lane_leg_messages.py`, and reports at most three findings by quick
 mode's bar and at most three recommendations, handled as quick mode handles its own. Step 5 gives one overall score per run, appended to
 the lane's history with the other columns `N/A`.
