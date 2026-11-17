@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Overall: INCOMPLETE (0 of 2 ecosystems passed; markdown: skip (unresolved: markdown.check-cmd))"},
+    {"answer": "**Overall: INCOMPLETE** (bash: skip (unresolved: bash.test-cmd))"}
+  ],
+  "fail": [
+    {"answer": "Overall: PASS (2 of 2 ecosystems passed)"},
+    {"answer": "Overall: FAIL (1 of 2 ecosystems failed)"}
+  ]
+}

@@ -91,7 +91,8 @@ Each kind of task starts at the first stage of its row in the Task kinds table
 research and a PRD are detours it calls only when a question needs them, then the interview
 resumes; none runs before it. Conditional stages run only on their trigger (`context/steps.md`):
 Explore when a question turns on what the code does now, Research when it rests on an external
-claim, PRD when product intent is unsettled on a user-facing, business-driven change, and Decompose
+claim (what a live system holds now is no stage: the asking stage reads it through the system's
+CLI or MCP tool), PRD when product intent is unsettled on a user-facing, business-driven change, and Decompose
 when the plan holds more than one independently shippable ticket. Design runs for
 design-significant work and records a one-line early exit otherwise, so a bug fix passes through
 it in one step. The interview decides behavior (the Brief), design decides interfaces and

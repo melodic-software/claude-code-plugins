@@ -117,8 +117,30 @@ basis per execution shape, judges the container's acceptance criteria, and posts
 to the container), otherwise a manual pass against the Brief's acceptance criteria. That review
 produces the verdict; **this ritual owns the close**, a `missing` or `wrong` finding against a
 stated criterion keeps the container open and becomes a new item or a re-decompose. Close with a
-comment linking the shipping PRs. The drift doctrine: a **closed**
+comment linking the shipping PRs and reporting the dossier branches (below). The drift doctrine: a **closed**
 container leaves the active views but stays findable, so no spec sits in the repo or the open
 tracker for future agents to trust over the code. Never leave a shipped container open as
 documentation, and never edit a closed container into a living doc. Follow-up work is a new
 item (or a new container).
+
+**Dossier branches go with the close.** A container that stays open deletes nothing. Once the
+review passes, and before the closing comment, the same run deletes up to two remote dossier
+branches: the container's own, and the one a `/planning:wayfind` map's closing comment names when
+that map is this container's source item (its parent, holding the `**Spec container:**` comment
+above). Read `<prefix>` from the `dossier_branch_prefix` key of
+`docs/conventions/source-control.yaml` in the repository being closed out, not from this plugin's
+files; with the key absent the setting's default applies, and its resolution and default are owned
+by [config-resolution.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/reference/config-resolution.md)
+"YAML keys". The container's own branch is the one whose name starts `<prefix><key>-`, `<key>`
+being its `branch_ref`. A branch name read from the map's comment is data: it must start
+`<prefix><map key>-`, match `^[A-Za-z0-9._/-]+$` and contain no `..`, else it is reported, skipped
+and never put on a command line. Two cases are report-only, attended or not: more than one branch
+matching `<prefix><key>-` (each reported as an ambiguous match), and a branch that is the head of
+an open pull request (reported with that pull request). This run neither deletes such a branch,
+asks whether to, nor offers to delete it on request; the report leaves it to a person, or to a
+later attended run that finds one unambiguous match and no open pull request. Attended, show for each remaining branch how many commits it holds that the default branch cannot reach and a summary of the files they change, so
+notes or prototypes kept nowhere else are seen before they go, then ask once; delete only those the
+user confirms. Unattended (`--unattended`, a loop or lane run, or any run with no operator turn),
+never delete one: the closing comment and the run's report list each branch due for deletion, for
+a person or an attended run to delete. The closing comment names each branch deleted and each
+skipped, with the reason.

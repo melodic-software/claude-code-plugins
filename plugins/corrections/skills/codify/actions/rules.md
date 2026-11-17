@@ -38,16 +38,22 @@ decided. Every rule gets exactly one disposition:
 - **`delete`**: an agent can derive it from the code, the configuration or the history. Name what
   states it. `/docs-hygiene:audit-derivability` judges a whole file this way when it is available.
 - **`held`**: it cannot be settled in this run. Give the reason: a check whose proof did not hold
-  or could not run (no commit ever broke the rule, so there is no old ref), a `make-impossible`
-  redesign handed off, or a rule that conflicts with another.
+  or could not run (no commit ever broke the rule and no plant can express it), a
+  `make-impossible` redesign handed off, or a rule that conflicts with another.
 
 A rule that would take a checking rung but whose check is unproven is `held`, never `check`.
+
+A style rule (formatting, whitespace, ordering, naming style) is also labeled, whatever its
+disposition: `formatter` when the repository's recorded format command can enforce it (the
+ladder's `formatter` rung), `lint` when it needs a judgment-free check that no recorded format
+command makes.
 
 ## 4. Prove the checks
 
 Each `check` row gets its own proof by the hub's section 4: its old ref is the parent of a commit
-that fixed a violation of that rule, and `prove-check.sh` must exit 0. One file's rules may go
-through in one pass, but no proof covers two checks. A failed or skipped proof moves the row to
+that fixed a violation of that rule, and `prove-check.sh` must exit 0. A rule no commit ever broke
+is proved against a plant of one of its known cases before it can be `held`. One file's rules may
+go through in one pass, but no proof covers two checks. A failed or skipped proof moves the row to
 `held`.
 
 ## 5. Write and reconcile the ledger
@@ -57,8 +63,8 @@ The ledger is JSON with an `inputs` array (`file`, `rules`, and `reason` when `r
 
 | Disposition | Fields |
 |---|---|
-| all | `source` (`<file>:<line>`), `rule` (quoted from the file), `disposition` |
-| `check` | `rung`, `check`, `old_ref`, `proof_exit` (0), `covers` (the known cases), `prose`: `"flag-delete"` |
+| all | `source` (`<file>:<line>`), `rule` (quoted from the file), `disposition`; `style` (`formatter` or `lint`) on a style rule |
+| `check` | `rung`, `check`, `old_ref` or `plant` (the patch file), `proof_exit` (0), `covers` (the known cases), `prose`: `"flag-delete"` |
 | `prose`, `delete`, `held` | `reason` |
 
 A person's invocation writes it to `.work/codify/<branch-slug>/<UTC-timestamp>-rules-ledger.json`
@@ -83,4 +89,4 @@ deletion land together. This action edits no instruction file.
 
 Before the hub's report: the inputs, added ones marked; the script's tally line per file and its
 `ledger complete` line, or its problem lines; then one row per rule with source, disposition, rung,
-proof result and reason. Problems first: a non-zero ledger exit, then each `held` row.
+style label (formatter or lint) for a style rule, proof result (old ref or plant) and reason. Problems first: a non-zero ledger exit, then each `held` row.

@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "| typescript | skip (unresolved: typescript.build-cmd) | skip (unresolved: typescript.test-cmd) | skip (unresolved: typescript.check-cmd) | INCOMPLETE |"}
+  ],
+  "fail": [
+    {"answer": "| typescript | — | pass | — | PASS |", "why": "one candidate was picked and run"},
+    {"answer": "| typescript | — | FAIL | — | FAIL |", "why": "a candidate ran"}
+  ]
+}

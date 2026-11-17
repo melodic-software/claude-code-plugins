@@ -28,16 +28,16 @@ many merged pull requests `reviews` reads without `--pr`. Each is a plugin optio
 
 | Script | What it does |
 |---|---|
-| `scripts/prove-check.sh` | Runs a proposed check in temporary worktrees at two refs and exits 0 only when it fails at the old ref and passes at the new one |
+| `scripts/prove-check.sh` | Runs a proposed check in temporary worktrees at two refs, or at a planted violation and the new ref, and exits 0 only when it fails at the old side and passes at the new one |
 | `scripts/codify-settings.mjs` | Prints `recurrence.min_occurrences`, `ratchet_offer` and `review_mining_prs` and the layer that set each, resolved through the config cascade (schema `schemas/corrections.schema.json`) |
 | `scripts/group-findings.mjs [--by <field>[,<field>...]] [--since <UTC ISO-8601>] [--rows]` | Runs `buffer.sh read` and prints its rows grouped by the named top-level fields (default `producer`): the keys first, then each group with its row and occurrence counts (distinct `source_id`) and its members |
-| `scripts/rules-ledger.mjs <ledger.json>` | Reconciles a `rules` ledger from the repository root: every input file's declared rule count matches its rows, each rule's quoted text is at its `<file>:<line>`, and each row carries its disposition's fields (a `check` row a checking rung, a proof that exited 0, the known cases and its prose flagged for deletion); exits 1 naming each rule left unaccounted for |
+| `scripts/rules-ledger.mjs <ledger.json>` | Reconciles a `rules` ledger from the repository root: every input file's declared rule count matches its rows, each rule's quoted text is at its `<file>:<line>`, and each row carries its disposition's fields (a `check` row a checking rung, an old ref or a plant whose proof exited 0, a style rule its formatter or lint label, the known cases and its prose flagged for deletion); exits 1 naming each rule left unaccounted for |
 | `scripts/count-checks.mjs [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--bucket week\|month]` | Reads the `Codifies:` records and their reverts from the default branch's `git log` and prints one row per period and a window row, with the not-counted, reverted, promoted and alias lines listed after |
 
 ## prove-check
 
 ```shell
-plugins/corrections/scripts/prove-check.sh --check '<command>' --old <ref> [--new <ref>]
+plugins/corrections/scripts/prove-check.sh --check '<command>' (--old <ref> | --plant <patch>) [--new <ref>]
 ```
 
 Run it from inside the repository the refs belong to. It runs `<command>`
@@ -46,11 +46,17 @@ non-zero, and in one at `<new>` (default `HEAD`), which must exit 0. It prints
 both exit codes, sends the check's own output to stderr, and removes both
 worktrees on every exit path.
 
+`--plant` takes a unified diff in place of `<old>`, for a mistake no commit
+ever made. The script applies it to `<new>` in the old-side worktree and
+commits it there, with hooks and signing off, so the check sees a clean
+checkout. That commit is on no branch, tag or surviving reflog and is never
+pushed; git's garbage collection prunes it like any unreachable object.
+
 | Exit | Meaning |
 |---|---|
-| 0 | The proof holds: the check fails at `<old>` and passes at `<new>` |
-| 1 | The proof fails: the check passes at `<old>`, or fails at `<new>` |
-| 2 | Usage or environment error (bad argument, unknown ref, not a repository) |
+| 0 | The proof holds: the check fails at `<old>` or the plant and passes at `<new>` |
+| 1 | The proof fails: the check passes at `<old>` or the plant, or fails at `<new>` |
+| 2 | Usage or environment error (bad argument, unknown ref, not a repository, a plant that does not apply or changes nothing) |
 
 A check that exits 126 or 127 at `<old>` counts as failing, as any non-zero
 exit does, but the script warns on stderr: the command probably did not run.

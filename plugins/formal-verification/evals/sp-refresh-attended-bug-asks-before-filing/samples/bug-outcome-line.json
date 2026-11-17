@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Check one-holder (formal-lock): bug\n\nCommits read: 4d5e6f7.", "why": "bug alone"},
+    {"answer": "Check one-holder (formal-lock): updated, bug", "why": "updated and bug together"}
+  ],
+  "fail": [
+    {"answer": "Check one-holder (formal-lock): updated", "why": "the failure is a bug"},
+    {"answer": "one-holder found a bug in 4d5e6f7.", "why": "no fixed outcome line"}
+  ]
+}

@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [9.6.2] - 2026-11-17
+
+### Changed
+
+- The bundled enforcement ladder is 3.3.0: it adds the `formatter` rung, first after
+  `compiler-setting` on the static-analysis tier, for a style rule the repository's recorded
+  format command can enforce. No rung moves or is renamed.
+
 ## [9.6.1] - 2026-11-17
 
 ### Changed

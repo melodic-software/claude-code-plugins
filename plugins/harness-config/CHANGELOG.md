@@ -5,6 +5,15 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.2.4] - 2026-11-17
+
+### Changed
+
+- The bundled enforcement ladder is 3.3.0: it adds the `formatter` rung, first after
+  `compiler-setting` on the static-analysis tier, for a style rule the repository's recorded
+  format command can enforce. The rule inventory maps it to the static-analysis tier. No rung
+  moves or is renamed.
+
 ## [5.2.3] - 2026-11-17
 
 ### Changed

@@ -70,24 +70,25 @@ proceeds, so a target-agnostic run is not blocked.
 1. Record **what was measured**: plugin or component version (from the tree or worktree path the
    harness used), and whether a worktree override, `--plugin-dir`, or project-scope install path
    was in play.
-2. Record **what is deployed** where the user actually runs: read `installed_plugins.json` under
-   the plugins root (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins`, or `CLAUDE_CODE_PLUGIN_CACHE_DIR`
-   when set) and quote the `version` and `installPath` of the record for the plugin under test.
-   Choose the record whose `scope` the subject runs under; for a project-scope record also require
-   its `projectPath` to equal the subject project's root, since one plugin can hold project records
-   for several repositories, and fall back to the user-scope record when none matches. A plugin
-   loaded only through `--plugin-dir` has no record.
+2. Record **what is deployed** where the user actually runs: read the install record for the
+   plugin under test and quote its version and install path. Choose the record for the scope the
+   subject runs under; for a project-scope record also require its project path to equal the
+   subject project's root, both resolved to absolute paths, since one plugin can hold project
+   records for several repositories, and
+   fall back to the user-scope record when none matches. A plugin loaded only through
+   `--plugin-dir` has no record.
 3. **Set the disposition.** Versions agree: `Deployed: same as measured`. Versions differ:
    `Deployed: differs: <installed version/path>, re-measure after install`, plus an `Open
    follow-up:` line (install the measured build, then `/performance:snapshot post` and
    `/performance:verify` again). With an open follow-up the report says the change is measured,
    never that it is done, shipped, or live.
 
-- **Pointer**: for the install record's file, fields and cache-dir root, read
-  <https://code.claude.com/docs/en/plugins/loading> ("Check which stage a plugin reached" and "Find
-  plugins on disk"); the `projectPath` field and one record per scope are observed in a local
-  `installed_plugins.json`, not documented there. **As of**: 2026-09-29. **Recheck trigger**: that
-  page changes what the file records, or a Claude Code release changes its layout.
+- **Pointer**: when locating the install record, its fields and the plugins root, fetch
+  [Check which stage a plugin reached](https://code.claude.com/docs/en/plugins/loading#check-which-stage-a-plugin-reached)
+  and [Find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk)
+  live. The project-path match rests on a probe, not that page: the source-control plugin's
+  [project-scope reap probe](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/worktree/fixtures/README.md#project-scope-reap-probesh-what-plugin-uninstall--s-project-acts-on)
+  observed one project-scope record per plugin per directory, keyed by that directory's path.
 
 ## 4. Check the harness before believing the result
 

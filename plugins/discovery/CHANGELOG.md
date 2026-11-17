@@ -1,5 +1,18 @@
 # Changelog: discovery plugin
 
+## [2.2.0] - 2026-11-17
+
+### Changed
+
+- `/discovery:explore` no longer ships a per-ecosystem fallback table of test globs, build files, import tokens and version commands. It resolves each from the repository it explores through the plugin's new copy of the ecosystem resolution steps (`reference/ecosystem-resolution.md`, version 1.1.0), still composing `/toolchain:check` when that plugin is enabled. A fact that does not resolve becomes a gap in the artifact instead of a shipped default.
+- `/discovery:research` names no particular package registries in its source categories, and the `EXPLORE.md` sidecar header example uses placeholders in place of a stack-specific test command.
+
+## [2.1.9] - 2026-11-17
+
+### Fixed
+
+- `check-restatement-labels.py --sub-slice` now grades a fan-out whose sub-slices reuse a claim ID instead of exiting 2. Each sub-slice's IDs are namespaced by its directory name: a root line may cite `<sub-slice>/X2` for one sub-slice's claim, and a bare `X2` must carry the label of every claim declaring it. An ID declared twice in one sub-slice, a root claim that reuses a sub-slice ID, and two sub-slices sharing a directory name still exit 2. The research dispatch reference and the research verifier no longer describe the verifier fallback for a cross-sub-slice ID collision.
+
 ## [2.1.8] - 2026-11-17
 
 ### Changed

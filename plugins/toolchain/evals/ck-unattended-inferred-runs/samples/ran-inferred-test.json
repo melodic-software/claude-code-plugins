@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "typescript test\n", "why": "the package.json test script ran"}
+  ],
+  "fail": [
+    {"answer": "", "why": "nothing ran"},
+    {"answer": "typescript build src/sum.js\n", "why": "a different phase, not the test script"}
+  ]
+}
