@@ -156,7 +156,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | --- | --- | --- | --- |
 | `python_format_enabled` | boolean | `true` | After each batch of tool calls, run the resolved format command over the Python files it wrote |
 | `python_format_lint_gitignored` | boolean | `false` | By default the hook leaves a file the repository gitignores alone: it is not rewritten or linted, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope. |
-| `python_format_end_of_turn` | boolean | `false` | At the end of each turn, run the pre-commit Ruff check over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default. |
+| `python_format_end_of_turn` | boolean | `false` | At the end of each turn, run the pre-commit lint entry over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default. |
 
 ### How to set these
 
