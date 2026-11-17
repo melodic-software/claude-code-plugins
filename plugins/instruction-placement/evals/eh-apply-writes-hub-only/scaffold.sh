@@ -13,7 +13,11 @@ git commit -q -m "seed the hub"
 
 mkdir ledger-service
 git -C ledger-service init -q -b main
-printf '# Ledger service\n\nRun `make test` before every commit.\n' > ledger-service/AGENTS.md
+cat > ledger-service/AGENTS.md <<'MD'
+# Ledger service
+
+Run `make test` before every commit.
+MD
 git -C ledger-service add AGENTS.md
 git -C ledger-service -c user.name=eval -c user.email=eval@example.invalid -c commit.gpgsign=false commit -q -m "seed the ledger service"
 printf 'ledger-service/\n' >> .git/info/exclude
