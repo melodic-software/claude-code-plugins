@@ -1,6 +1,8 @@
 # Stop new comments with a lint on added lines and review, not a count
 
-- Status: accepted
+- Status: accepted; Decision 4's per-deletion approval and the ruling-out of a repository-wide
+  cleanup are superseded by
+  [ADR 0110](0110-remove-existing-comments-without-per-deletion-approval-and-block-new-ones.md)
 - Date: 2026-11-14
 - Refs: [#15647](https://github.com/melodic-software/claude-code-plugins/issues/15647); owner
   decisions of 2026-11-14 (the interview and design rounds recorded on that issue)
