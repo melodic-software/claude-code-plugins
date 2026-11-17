@@ -16,6 +16,10 @@ question first. For each question, check that it:
    opens its own issue in triage/intake.py), so the gap is visible.
 3. Gives each alternative what it would gain and what it would cost.
 
-FAIL if any question leaves the reader to ask what a term means, what upstream does, or what exists
-today before they can answer, if a question's needed context sits only in another question or in
-an earlier summary, or if the reply asks no question.
+Checks 2 and 3 apply only to a question that asks for a decision about the change. A question that
+only asks whether the reader agrees with the terms' definitions is held to check 1 alone.
+
+FAIL if any question leaves the reader to ask what a term means, if a decision question leaves the
+reader to ask what upstream does or what exists today before they can answer, if a question's
+needed context sits only in another question or in an earlier summary, or if the reply asks no
+question.
