@@ -77,26 +77,24 @@
     },
     {
       "id": 7,
-      "name": "typescript-repo-loads-typescript-reference",
+      "name": "typescript-repo-applies-type-rules",
       "prompt": "/planning:design module for a Billing module. The repository root has a tsconfig.json and package.json, and the code is .ts files. Threads are settled; move on to type modeling.",
-      "expected_output": "During Phase 3 the skill reads reference/type-discipline.md and, because a tsconfig.json exists, also reads reference/type-discipline/typescript.md, and the proposed types follow it: tagged unions for variant state, unknown for outside input parsed into named domain types, no unproven casts, and a never-typed default branch for exhaustiveness.",
+      "expected_output": "During Phase 3 the skill reads reference/type-discipline.md and applies its rows in the repository's own language, with no shipped per-language idioms file: a tagged union for variant state, outside input parsed into named domain types at the boundary, no unproven casts, and branching that fails to compile on an unhandled variant.",
       "files": [],
       "expectations": [
         "The run reads reference/type-discipline.md during Phase 3",
-        "The run reads reference/type-discipline/typescript.md during Phase 3 and names tsconfig.json or the .ts files as the reason",
         "Proposed TypeScript types model variant state as a union with a literal tag field rather than a record of optional fields",
-        "Outside input is typed unknown and parsed into a named domain type at the boundary, with no `as` cast that no check has proven"
+        "Outside input is parsed into a named domain type at the boundary, with no cast that no check has proven"
       ]
     },
     {
       "id": 8,
-      "name": "python-repo-skips-typescript-reference",
+      "name": "python-repo-applies-type-rules-in-python",
       "prompt": "/planning:design data for an ingestion service. The repository is Python only: pyproject.toml, .py files, no tsconfig.json and no TypeScript files. Move on to type modeling.",
-      "expected_output": "During Phase 3 the skill applies reference/type-discipline.md (sum types over optional-field records, parse at the boundary, exhaustive matching) in Python terms and does not read reference/type-discipline/typescript.md, because neither a tsconfig.json nor TypeScript files are present.",
+      "expected_output": "During Phase 3 the skill applies reference/type-discipline.md (sum types over optional-field records, parse at the boundary, exhaustive matching) in Python terms, the repository's own language.",
       "files": [],
       "expectations": [
         "The run reads reference/type-discipline.md during Phase 3",
-        "The run does NOT read reference/type-discipline/typescript.md",
         "Proposed types use Python constructs, with no TypeScript syntax such as satisfies or never-typed defaults",
         "Outside input is parsed into a domain type where it enters the service rather than checked again in inner code"
       ]
@@ -105,7 +103,7 @@
       "id": 9,
       "name": "declared-schema-library-is-reused",
       "prompt": "/planning:design integration for a webhook receiver. tsconfig.json exists and package.json already lists valibot under dependencies. Design how incoming webhook payloads become domain types.",
-      "expected_output": "The skill reads the TypeScript reference, finds the schema library the manifest declares, and designs each payload as a schema in that library with the TypeScript type taken from the library's inference helper (or, for a type written first, a schema typed against that type). It proposes no second schema library and no hand-written property-by-property guard.",
+      "expected_output": "The skill finds the schema library the manifest declares, and designs each payload as a schema in that library with the TypeScript type taken from the library's inference helper (or, for a type written first, a schema typed against that type). It proposes no second schema library and no hand-written property-by-property guard.",
       "files": [],
       "expectations": [
         "The design parses webhook payloads through the schema library package.json already declares",
@@ -118,7 +116,7 @@
       "id": 10,
       "name": "no-schema-library-hand-written-parse",
       "prompt": "/planning:design integration for a CSV import endpoint. tsconfig.json exists; package.json has no runtime schema or validation library. Design how the uploaded rows become domain types.",
-      "expected_output": "The skill reads the TypeScript reference, finds no schema library in the manifest, and designs a hand-written parse function that takes unknown and returns either the domain type or a failure naming the bad field. It adds no dependency; if a library seems worth having, it raises that as a separate design thread for the user rather than adding one.",
+      "expected_output": "The skill finds no schema library in the manifest, and designs a hand-written parse function that takes unknown and returns either the domain type or a failure naming the bad field. It adds no dependency; if a library seems worth having, it raises that as a separate design thread for the user rather than adding one.",
       "files": [],
       "expectations": [
         "The design uses a hand-written parse function from unknown to a named domain type, returning a failure that names the bad field",

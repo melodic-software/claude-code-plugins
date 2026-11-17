@@ -220,7 +220,7 @@ Each open item is one of:
 - **Resolvable:** the user can answer it now. Ask with recommended answer
 - **Blocked:** depends on another unresolved decision. Name the blocker
 - **Needs-an-artifact:** asking cannot settle it. The answer only arrives once the user reacts to something concrete (a look, a feel, a behavior), and another round of framing will not produce it. Not a deferral: route it to a throwaway prototype now, then answer it in one line. The detour and the skills that own it: [`composition.md`](composition.md) "Mid-interview composition"
-- **Defer-with-assumption:** the user can pick a working assumption, with a known recheck trigger. Capture the assumption and the trigger ("assume Postgres for now; revisit if write throughput exceeds X")
+- **Defer-with-assumption:** the user can pick a working assumption, with a known recheck trigger. Capture the assumption and the trigger
 - **Defer-fully:** out of scope for this task; record in **Deferred questions** so it doesn't silently become a hidden assumption later
 
 **In `me` mode**, "Defer-with-assumption" is NOT available for a *consequential* branch. Drive it to a decision (which may be an explicit "defer to post-V1", recorded as a surfaced decision, not a silent assumption). Defer-with-assumption stays valid only for genuinely non-consequential items.

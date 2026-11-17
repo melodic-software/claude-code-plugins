@@ -798,11 +798,12 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
 # A decision whose evidence leaves only one viable answer is named on the round header Settled by evidence line with its Basis and an answered-from-evidence register row the user can reopen by id, and a quoted prior owner ruling answers its question as an answered-from-decision fact; every decision with a live alternative is still asked, so the auto-guard still never folds a user choice, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
 # The self-answer source lists name prior owner decisions first, and an answer from a quoted prior owner ruling is an answered-from-decision register row, never an F-line fact, so a sweep decision item still always takes a register row and the procedure check still refuses an F-line for it; decisions with a live alternative and no ruling are still asked, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
 # Terminology only: the trigger a captured assumption carries is named with the glossary term "recheck trigger"; the STOP-on-gap halt, its offer of ask / capture-as-assumption / switch mode, and the no-fudge rule are unchanged.
+# The edit drops only the parenthetical example (assume Postgres for now; revisit if write throughput exceeds X) from the Defer-with-assumption category, an ecosystem example cut under ADR 0101 (R11 K7). The category, its capture of the assumption and its recheck trigger, the me-mode limit, the constraint ledger rows and the process-change definition are unchanged.
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "ba7727158e5262e9f1e1be8d07d049b3a909a06a086bb0ea19d5b5ed89184708"
+  "d91d5185a66e75854f16198128e991ce047bc6129c947a435078d12dca083df0"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
@@ -837,9 +838,11 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
 # The self-answer source lists name prior owner decisions first, and an answer from a quoted prior owner ruling is an answered-from-decision register row, never an F-line fact, so a sweep decision item still always takes a register row and the procedure check still refuses an F-line for it; decisions with a live alternative and no ruling are still asked, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
 # Only pointer as-of dates and recheck triggers were removed (upstream-drift 5.0.0); every defense sentence and pinned line is unchanged.
 # edits say where an inline terminal round ends, what the mechanism question cites as its basis, and that a coined definition is agreed in a withheld question (the sweep asks it withheld where it recommended it); the no-silent-resolve rule and the late-commitment next-free-id rule are byte-identical, and the tripwire trigger and outcomes and the sweep's scope and item shape are unchanged
+# The edit drops only the example quote package.json:14 bullmq from the Disposition fact-and-tenant bullet (an ecosystem example cut under ADR 0101, R11 K7). The sweep's scope, item shape, the self-answer-first order, the file:line-or-URL quote requirement, the no-pipe rule, the quote check and every disposition are unchanged.
+# Rewrap only: the same Disposition bullet's lines are reflowed to the file's wrap width after the example quote was dropped; no word changed.
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "81583265d5d11569cba088b707803a86ae54179337234efc8bc4bb2a1e1e11ec"
+  "6e5ada58b333cbf1ad50659a67499bd8008d04aa102cb3c15157b5941d0e7b79"
 # The coverage prompt's exemption from the register, the gate and the unattended ladder moved
 # here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
 # question still writes its row at ask-time and brings the gate into scope.

@@ -100,7 +100,6 @@ plugins/performance/skills/go-faster/reference/catalog/harness.md 6
 plugins/performance/skills/go-faster/reference/catalog/measurement.md 1
 plugins/performance/skills/verify/SKILL.md 1
 plugins/planning/skills/design/reference/design-defaults.md 1
-plugins/planning/skills/design/reference/type-discipline/typescript.md 2
 plugins/planning/skills/draft-goal-condition/reference/native-goal.md 2
 plugins/planning/skills/draft-goal-condition/reference/workflow-row.md 1
 plugins/planning/skills/interview/context/surface.md 1

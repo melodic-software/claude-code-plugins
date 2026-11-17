@@ -1,5 +1,12 @@
 # Changelog for the standards convention
 
+## 1.1.6 - 2026-11-17
+
+Wording only. The index example drops its `csharp` row, the Surface column no longer lists
+`csharp`, `python` and `markdown` as example surface ids, and the pointer-pattern bullet drops its
+C# directive, so the shipped text names no ecosystem (ADR 0101). The layers, the schema, the index
+shape, the resolution ladder and the migration rules are unchanged.
+
 ## 1.1.5 - 2026-11-13
 
 Resolution ladder. Planning and implementing skills also read the repository's review-criteria

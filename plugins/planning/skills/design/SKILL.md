@@ -213,12 +213,6 @@ and each type's shape is set by the operations its busiest paths run on it. Two 
 
 Apply [`reference/type-discipline.md`](reference/type-discipline.md): Phase 3 meets each of its
 situations while it fills `type-inventory.md`, so find the row that matches and make its decision.
-Idioms for one language sit in that language's own file under `reference/type-discipline/`; open
-one only after detecting the language:
-
-| Language | File | Loaded when |
-|---|---|---|
-| TypeScript | [`reference/type-discipline/typescript.md`](reference/type-discipline/typescript.md) | the repository has a `tsconfig.json`, or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files |
 
 The inventory covers:
 
@@ -345,10 +339,9 @@ value, and that layer is dropped, so a valid higher layer still wins and otherwi
 With `true`, add a `## Stub scaffold` section to `design-threads.md` (or to `design-resolution.md`
 on an early exit) listing every new file the design introduces, each with the signatures it will
 declare (types, function and method signatures, exported constants), from the resolved type
-inventory and contracts. Each stub body is the language's ordinary not-implemented form (for
-example `raise NotImplementedError` in Python or `todo!()` in Rust), with no per-language reference
-file. After the gate passes, the handoff output names those files and signatures so
-`/planning:plan` can place the stub phase. With `false`, write no such section and name no stubs.
+inventory and contracts. Each stub body is the language's ordinary not-implemented form, with no
+per-language reference file. After the gate passes, the handoff output names those files and
+signatures so `/planning:plan` can place the stub phase. With `false`, write no such section and name no stubs.
 
 ## Scope-specific artifacts
 
