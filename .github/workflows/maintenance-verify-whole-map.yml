@@ -1251,6 +1251,9 @@ jobs:
           if ! [ -f "$OUT/e2e-summary.json" ] || [ -L "$OUT/e2e-summary.json" ]; then
             blocked "the summary changed while it was copied"
           fi
+          if [ "$(jq -r '.capture.status // "" | strings' "$OUT/e2e-summary.json")" = blocked ]; then
+            echo "reason=the map skill reported the pass blocked; its reason is in the evidence artifact's e2e-summary.json" >>"$GITHUB_OUTPUT"
+          fi
           findings="$run_dir/findings.json"
           if jq -e '.publishable | arrays | index("findings.json") != null' "$OUT/e2e-summary.json" >/dev/null 2>&1 &&
             [ "$(realpath -e -- "$findings" 2>/dev/null)" = "$findings" ] && [ -f "$findings" ] &&
