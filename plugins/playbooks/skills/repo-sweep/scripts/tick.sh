@@ -19,8 +19,8 @@
 # code is a failed gh or jq); 2 usage.
 set -euo pipefail
 
-# A native jq.exe under Git Bash or Cygwin writes text-mode stdout, which would add a CR to
-# every line of the body and break the CRLF-preserving rewrite below; -b keeps the bytes.
+# Under Git Bash or Cygwin, run jq with -b: the CRLF-preserving rewrite below needs jq's output
+# bytes unchanged, with no CR added to any line of the body.
 # Pointer: https://jqlang.org/manual/#invoking-jq (--binary). REPO_SWEEP_OSTYPE is the test seam for the platform.
 case ${REPO_SWEEP_OSTYPE:-${OSTYPE-}} in
 msys* | cygwin*) type -P jq >/dev/null && jq() { command jq -b "$@"; } ;;
