@@ -128,6 +128,13 @@ class Shape5VersionPin(unittest.TestCase):
             flagged("w.yml", "steps:\n  - uses: actions/checkout@v4 # v4\n"), [2]
         )
 
+    def test_trailing_comment_on_sha_pinned_checkout_ref_passes(self):
+        text = f"with:\n  ref: {SHA} # v0.75.0\n"
+        self.assertEqual(flagged("w.yml", text), [])
+
+    def test_trailing_comment_on_branch_ref_fails(self):
+        self.assertEqual(flagged("w.yml", "with:\n  ref: main # v0.75.0\n"), [2])
+
     def test_full_line_comment_above_pinned_uses_fails(self):
         text = f"steps:\n  # v7.0.1\n  - uses: actions/checkout@{SHA}\n"
         self.assertEqual(flagged("w.yml", text), [2])
