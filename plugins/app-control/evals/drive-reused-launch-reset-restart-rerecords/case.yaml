@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: drive-reused-launch-reset-restart-rerecords
+description: A drive that reuses the instance in its run directory's launch record, for a feature whose Reset restarts the app, stops the recorded process, relaunches as the hub's Launch says and replaces the launch record entry with the new process, so cleanup and later drives find the process that is running. Source invented. A run needs --scaffold, which seeds the control skill and the run directory's report.json
+tags: [drive, launch, reset, unattended, invented, routine, no-network]
+expected_outcome: "The reply says the reviews Reset restarts the app, so drive stops the recorded pid 7311 as cleanup does, deletes ./data, launches with `npm start`, records the new process in place of 7311 in report.json's launch list, and runs Ready before the steps. Its last two lines read `Stops: 7311` and a `Launch record after:` line naming the new process, not 7311. It runs and writes nothing."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:drive shop reviews --out out/grp --unattended. There is no shell in this session, so run nothing and write nothing. out/grp/report.json is the launch record a cart drive left in this run directory a moment ago, and pid 7311 is still running and fit. Read the control skill and that report, then say what this drive does, in order, up to the first step of reviews' ## Drive. End your reply with two lines: `Stops: <pid, or none>` and `Launch record after: <the pid the record names, or new process>`, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 15
+  timeout_seconds: 500
+graders:
+  - name: stops-recorded
+    type: regex
+    flags: i
+    pattern: '(?:^|\n)[ \t*_>`-]*Stops:[^\n]*\b7311\b'
+    arm: both
+  - name: record-replaced
+    type: regex
+    flags: i
+    pattern: '(?:^|\n)[ \t*_>`-]*Launch record after:(?![^\n]*\b7311\b)[^\n]*\bnew\b'
+    arm: both
