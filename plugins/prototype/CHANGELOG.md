@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.0] - 2026-11-17
+
+### Changed
+
+- **The real-stack switcher keeps the chosen variant across in-app navigation.** When `/prototype:explore-directions` mounts the switcher in a layout shared across routes, it also keeps the current variant in session storage, so navigation that drops the query string no longer loses the choice. A `?variant=` in the URL still wins over the stored value.
+
 ## [0.34.4] - 2026-11-17
 
 ### Changed
