@@ -12,7 +12,9 @@ changed.
 
 - **Floor-drift exception list.** The in-file annotation comparison names `# lane-coverage-ok:`
   alone: `scripts/check-silent-skips.sh` reads its quiet-skip exemptions from
-  `scripts/silent-skip-exemptions.txt`.
+  `scripts/silent-skip-exemptions.txt`. The paragraph now states where `check-lane-coverage.sh`
+  reads that annotation: a trailing comment on the job key, or the contiguous comment block above
+  it.
 
 ## [19.9.0] - 2026-11-17
 

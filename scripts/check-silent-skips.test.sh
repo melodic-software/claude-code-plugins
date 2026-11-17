@@ -131,6 +131,22 @@ fi
 rm -rf "$f"
 
 new_fixture f
+hook_file "$f" alpha check.sh 'command -v jq >/dev/null 2>&1 || exit 0
+INPUT=$(cat)
+command -v jq >/dev/null 2>&1 || exit 0'
+exempt "$f" 'plugins/alpha/hooks/check.sh jq  output discarded by design'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "an entry must not exempt a second guard on its tool, got success: $out"
+else
+  if grep -q "SILENT SKIP: plugins/alpha/hooks/check.sh:3" <<<"$out" && ! grep -q "check.sh:1:" <<<"$out"; then
+    ok "an entry exempts one guard; a second guard on its tool fails"
+  else
+    fail "expected only check.sh:3 flagged, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+new_fixture f
 hook_file "$f" alpha check.sh 'if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi'

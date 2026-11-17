@@ -68,6 +68,7 @@ fi
 entries=()
 read_list::into entries "$EXEMPTIONS" --comments leading
 declare -A exempt_by_site=()
+declare -A exempt_hits=()
 for entry in ${entries[@]+"${entries[@]}"}; do
   path="${entry%%[[:space:]]*}"
   rest="${entry#"$path"}"
@@ -191,10 +192,12 @@ report_hits() {
   [[ -n "$1" ]] || return 0
   while IFS=$'\t' read -r file line key msg; do
     entry="${exempt_by_site["$file"$'\t'"$key"]:-}"
-    if [[ -n "$entry" ]]; then
+    if [[ -n "$entry" && -z "${exempt_hits["$entry"]:-}" ]]; then
+      exempt_hits["$entry"]=1
       read_list::mark_used "$entry"
       continue
     fi
+    [[ -n "$entry" ]] && msg="${msg} (its ${EXEMPTIONS} entry already covers an earlier guard on ${key} in this file)"
     echo "SILENT SKIP: ${file}:${line}: ${msg}" >&2
     errors=$((errors + 1))
   done <<<"$1"
