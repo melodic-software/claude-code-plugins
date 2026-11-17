@@ -182,7 +182,7 @@ rt__words() {
 # command names, repo-relative: a word naming a file after $REPO_ROOT/ and a
 # --opt= prefix are dropped.
 rt__refs() {
-  local w
+  local w placeholder='<files>'
   RT__REFS=()
   rt__words "$1"
   for w in ${RT__W[@]+"${RT__W[@]}"}; do
@@ -190,7 +190,7 @@ rt__refs() {
     w="${w#\$REPO_ROOT/}"
     [[ "$w" == --*=* ]] && w="${w#*=}"
     case "$w" in
-    "" | /* | *..* | *\<files\>*) continue ;;
+    "" | /* | *..* | *"$placeholder"*) continue ;;
     *) ;;
     esac
     [[ -f "$2/$w" ]] && RT__REFS+=("$w")
