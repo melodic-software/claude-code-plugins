@@ -4,7 +4,7 @@ bump: minor
 
 ### Changed
 
-- The `ecosystem-specialist` agent ships no build, test or lint commands of its own. A phase that neither the repository's `.claude/ecosystems/<ecosystem>.yaml` record nor its documented conventions resolve is reported `UNVERIFIED (unresolved)`, naming what the agent read. A changed file that no record's globs cover is placed by what the repository's own files imply for its path, or listed as unclassified. The plugin carries version 1.1.0 of the ecosystem resolution steps (`reference/ecosystem-resolution.md`), and the agent's report-format example uses placeholders.
+- The `ecosystem-specialist` agent ships no build, test or lint commands of its own. A phase that neither the repository's `.claude/ecosystems/<ecosystem>.yaml` record nor its documented conventions resolve is reported `UNVERIFIED (unresolved)`, naming what the agent read. A changed file that no record's globs cover is placed by what the repository's own files imply for its path, or listed as unclassified. The plugin carries version 1.1.0 of the ecosystem resolution steps (`reference/ecosystem-resolution.md`), and the agent's report-format example uses placeholders. The agent no longer copies a command out of a CI workflow file, which those steps' unattended limits forbid; it reads such a file only to see which tool is in use.
 
 ### Removed
 
