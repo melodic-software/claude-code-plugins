@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: map-refresh-ticket-branch-maps-new-feature
+description: An unattended refresh started on a ticket branch writes a feature folder for an unmapped surface the ticket's own diff adds, once the live pass drove it to its proof, and commits it on that branch; a surface the ticket did not add stays reported as not mapped
+tags: [map, refresh, branch, unattended, invented]
+expected_outcome: "The reply writes a new feature folder for the /returns page, features/returns/README.md, with its index line in the hub, its Drive results and proof step taken from the live pass, and commits it on feat/returns with only control skill paths staged. It pushes nothing and opens no pull request. It writes no folder for /wishlist, whose source path is not in the ticket's diff, and reports it as not mapped with src/routes/wishlist.ts. It asks no question."
+execution:
+  prompt: "/app-control:map refresh .claude/skills/control-shop --unattended. Describe what the pass would do; take no actions: do not read the repository, drive the app, switch branches, write or commit anything, and treat these as facts. The pass starts on feat/returns, a ticket branch with a clean working tree; main is the default branch. The control skill lists two features, cart/total and checkout. The source wave ran, its tripwire is unchanged, and every spot-check held. Its unmapped-surface sweep found a `/returns` page citing src/routes/returns.ts:5 and a `/wishlist` page citing src/routes/wishlist.ts:3. `git diff --name-only <tip>...HEAD` lists src/routes/returns.ts and not src/routes/wishlist.ts. The source-reader asked about /returns named one entry point, the account menu's `Returns` link, and a drive recipe that opens it and shows the empty returns list; no step sends, signs in or writes. The live pass drove cart/total, checkout and that recipe, and all three reached their proof step. Nothing else differs. Say which files the pass writes, where its commit goes, whether it pushes or opens a pull request, and what the report says about each surface, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: writes-returns-folder
+    type: regex
+    pattern: 'features/returns/README\.md'
+    arm: both
+  - name: maps-only-ticket-surface
+    type: llm
+    criteria: "Judge what the reply says the refresh pass does. PASS only if the reply says the pass (1) writes a feature folder for /returns (features/returns/README.md, or under a module) and adds its index line to the hub; (2) commits it on feat/returns, not on an upkeep branch or main; (3) pushes nothing and opens or updates no pull request; (4) writes nothing for /wishlist and reports it as not mapped with its source path src/routes/wishlist.ts; and (5) asks no question. FAIL if it leaves /returns only reported as not mapped, writes a folder for /wishlist, commits anywhere but feat/returns, pushes or opens a pull request, or asks the person anything."

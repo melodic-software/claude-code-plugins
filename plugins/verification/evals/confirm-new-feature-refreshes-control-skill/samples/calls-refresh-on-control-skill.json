@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "2. /app-control:map refresh .claude/skills/control-shop",
+      "why": "plain call"
+    },
+    {
+      "answer": "Skill(skill: \"app-control:map\", args: \"refresh .claude/skills/control-shop/\")",
+      "why": "Skill tool call shape with a trailing slash"
+    },
+    {
+      "answer": "| 1 | `app-control:map` | `refresh .claude/skills/control-shop` |",
+      "why": "table with skill and arguments in separate cells"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Then /app-control:map refresh cart/total.",
+      "why": "an untouched feature id"
+    },
+    {
+      "answer": "Skill: app-control:map\nargs: refresh\n",
+      "why": "no control skill named"
+    },
+    {
+      "answer": "/app-control:map refresh .claude/skills/control-shop/features/cart/total",
+      "why": "a feature folder path, not the control skill directory"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "*.log\n.work/\n", "why": "the line appended to the seeded file"},
+    {"answer": "*.log\n/.work\n", "why": "anchored, no trailing slash"},
+    {"answer": ".work/", "why": "the only line, no newline"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "*.log\n", "why": "the seeded file, unchanged"},
+    {"answer": "*.log\n.workspace/\n", "why": "near miss: a longer directory name"},
+    {"answer": "*.log\n.scratch/\n", "why": "a different scratch directory than the one the person named"}
+  ]
+}

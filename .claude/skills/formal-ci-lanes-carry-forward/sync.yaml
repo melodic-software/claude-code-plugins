@@ -1,0 +1,20 @@
+checks:
+  - id: carry-forward-yield
+    covers:
+      - .github/workflows/pr-require-checks.yml
+    commit: 2844a8f42c260bcb2eb53b4a6a2a3d256618df78
+    command: /formal-verification:chart .claude/skills/formal-ci-lanes-carry-forward/model/CarryForward.tla --config .claude/skills/formal-ci-lanes-carry-forward/model/Yield.cfg --view .claude/skills/formal-ci-lanes-carry-forward/model/view.mjs --rerun-states 6000000
+    seeded_break:
+      change: ci-status's Aggregate lane results step passes yield-to-full-run 'false', so a contract-only run reads ci-lanes once and never yields to a full run in flight (Yield = FALSE in the cfg); NoStaleCarry breaks after 5,056 distinct states
+      caught: true
+      commit: 2844a8f42c260bcb2eb53b4a6a2a3d256618df78
+  - id: carry-forward-yield-no-hold
+    covers:
+      - .github/workflows/pr-require-checks.yml
+    commit: 2844a8f42c260bcb2eb53b4a6a2a3d256618df78
+    command: /formal-verification:chart .claude/skills/formal-ci-lanes-carry-forward/model/CarryForward.tla --config .claude/skills/formal-ci-lanes-carry-forward/model/YieldNoHold.cfg --view .claude/skills/formal-ci-lanes-carry-forward/model/view.mjs --rerun-states 6000000
+    seeded_break:
+      change: ci-status's Aggregate lane results step passes yield-to-full-run 'false', so a contract-only run reads ci-lanes once and never yields to a full run in flight (Yield = FALSE in the cfg); NoStaleCarry breaks after 7,972 distinct states
+      caught: true
+      commit: 2844a8f42c260bcb2eb53b4a6a2a3d256618df78
+outside_model: []

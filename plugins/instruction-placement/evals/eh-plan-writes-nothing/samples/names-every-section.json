@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Hub plan, nothing written.\n1. Start here: present (AGENTS.md line 3).\n2. What belongs where: missing.\n3. Where work is filed: missing.\n4. The repositories: missing, map unresolved.\n5. Dispatching work: missing.\n6. Working material: drifted (.scratch/ is not ignored).\n7. Where cross-repository decisions live: missing.", "why": "all seven titles with verdicts"},
+    {"answer": "START HERE - present\nWHAT BELONGS WHERE - missing\nWHERE WORK IS FILED - missing\nTHE REPOSITORIES - missing\nDISPATCHING WORK - missing\nWORKING MATERIAL - drifted\nWHERE CROSS-REPOSITORY DECISIONS LIVE - missing", "why": "upper case; the flag is i"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Start here: present. What belongs where: missing. Where work is filed: missing. The repositories: missing. Working material: drifted. Where cross-repository decisions live: missing.", "why": "near miss: dispatching work is not named"},
+    {"answer": "The hub has an AGENTS.md and a CLAUDE.md shim. It looks fine overall.", "why": "an answer to a different question: no section named"}
+  ]
+}

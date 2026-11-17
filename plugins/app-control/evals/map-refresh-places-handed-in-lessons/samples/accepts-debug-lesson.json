@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The lesson from the debug report is accepted: the live pass confirmed it in all four features, so it goes once in the `## Gotchas` of the hub, .claude/skills/control-clockwork/SKILL.md, not in each feature file. It is doc drift, so the outcome is changed, and it ships as a commit on control-skill-upkeep/control-clockwork through one pull request.",
+      "why": "hub Gotchas once, changed outcome, one pull request"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Only a /verification:confirm report can hand in a lesson, so this one from a debug report is listed unwritten and the outcome is clean.",
+      "why": "rejects the lesson for its source"
+    },
+    {
+      "answer": "The wait goes in the `## Gotchas` of each of the four feature files. Outcome changed; it ships on control-skill-upkeep/control-clockwork in one pull request.",
+      "why": "copies an every-feature lesson into each feature"
+    }
+  ]
+}

@@ -4,6 +4,18 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.36.3] - 2026-11-17
+
+### Changed
+
+- The boris, skill-authoring, fable-5 and repo-sweep skills and the Opus 4.8 and Sonnet 5 model-adaptation chapters no longer restate upstream behavior next to the pointer that owns it: the workflow failure modes, the dynamic-versus-static argument, patterns and use cases, how `/goal` checks its condition and shows spend, when `PostToolBatch` fires, which terminals take Shift+Enter, the adoption thread's guardrails, what `/effort` sets, the Fable prompting guidance, the Managed Agents automation's checks and what `keep:"all"` keeps now resolve at their pointers. Where a procedure relies on the behavior, the passage is now this repository's own rule with its reason: granting every injected command, cruft is not length, comparing effort across models, counting thinking from the last history reset, and the repo-sweep scripts' `jq -b`.
+
+## [0.36.2] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [0.36.1] - 2026-11-17
 
 ### Changed

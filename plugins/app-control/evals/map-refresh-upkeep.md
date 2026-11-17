@@ -194,3 +194,34 @@ verdict under node and bun. Each smoke used its case name as `--case`. Both file
 - `drive-blocked-entry-names-prerequisite-and-command`: 1.00, 1.00, 1.00. Run 1's `blocked` entry
   carries `prerequisite` (the write grant) and `attempted` (`cli/shop export --env staging`).
 - No run failed, and neither case found a defect in the skill text.
+
+## Registration: smoke of the data-source and lesson cases
+
+This registration covers three new cases, one per new rule. It was written and committed before
+their smoke, under the owner's eval gate, where a new case gets a 1 to 3 run smoke.
+
+- **Cases.**
+  - `drive-ready-lists-missing-sources`: ready reports each environment's data sources and the
+    kinds it is missing, and reads none.
+  - `drive-report-lists-lessons`: a drive report lists its lessons as refresh lines and drive
+    writes no Gotchas.
+  - `map-refresh-places-handed-in-lessons`: refresh places a lesson handed in from a
+    `/debugging:debug` report.
+- **Side, runs, INVALID and a fail.** As the smoke above: the head's app-control plugin, sonnet, 3
+  runs per case, the same command once per case.
+
+**Result.** Each smoke ran on a copy of the plugin outside any git checkout, on Claude Code
+2.1.326.
+
+- `drive-report-lists-lessons`: 1.00, 1.00, 1.00, `verdict: VALID`.
+- `map-refresh-places-handed-in-lessons`: 1.00, 1.00, 1.00, `verdict: VALID`.
+- `drive-ready-lists-missing-sources`: 1.00, 1.00, 0.67, `verdict: INVALID` (2 denied Grep calls on
+  the plugin folder). Run 3's table showed local with no tracker source, yet its `Missing local:`
+  line named only `errors`. That reply missed a kind the text required, so the contract and drive
+  now say every one of the five kinds is checked, the tracker and the error reporter included.
+  The rerun on that text scored 1.00, 1.00, 1.00 and is `verdict: INVALID` again (4 denied Grep or
+  Glob calls on the plugin folder, where the runs read the contract). The denials are the case
+  sandbox refusing reads outside the run directory; every run still answered from the skill text.
+- `drive-reused-data-none-launches-fresh`, added with the owner's Reset rule (contract "Reset on a
+  reused instance") and run the same way: 1.00, 1.00, 1.00, `verdict: INVALID` (1 denied Glob on
+  `/tmp`, outside the run directory). Each run performed no Reset, stopped pid 7311 and launched fresh.

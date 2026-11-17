@@ -3,6 +3,14 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.2] - 2026-11-17
+
+### Changed
+
+- The SessionStart probe reports a missing `actionlint` only where git tracks a `.yml` or `.yaml` file under a `.github/workflows/` directory, at the repository root or below it, the files the lint entry checks.
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [2.0.1] - 2026-11-17
 
 ### Fixed

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Staging has staging-log (logs, attended) and issues (tracker, unattended).\nMissing local: tracker, errors\nMissing staging: telemetry, database, errors\nSources read: none",
+      "why": "names the three kinds staging lacks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Missing local: tracker, errors\nMissing staging: errors\nSources read: none",
+      "why": "misses telemetry and database"
+    },
+    {
+      "answer": "Missing staging: telemetry, database, tracker, errors",
+      "why": "lists the tracker staging has"
+    }
+  ]
+}

@@ -29,7 +29,6 @@ source "$HOOK_DIR/hook-utils.sh"
 if [[ "${1:-}" == --end-of-turn ]]; then
   hook::buffer_stdin_to INPUT || exit 0
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
-  # silent-skip-ok: the SessionStart probe already told the user typos is missing (prerequisites.json, hook:spelling.sh), and the bundled checker reports it; blocking every turn end on a host problem would not help the model.
   command -v typos >/dev/null 2>&1 || exit 0
   "${BASH:-bash}" "$HOOK_DIR/../git-hooks/lint.sh" --worktree >/dev/null || exit 2
 fi

@@ -3,6 +3,19 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.0] - 2026-11-17
+
+### Added
+
+- `/testing:diagnose` reads each environment's data sources through `/app-control:drive ready`
+  when the failing test drives a running app, each source only at its read level.
+
+## [5.4.3] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [5.4.2] - 2026-11-17
 
 ### Changed

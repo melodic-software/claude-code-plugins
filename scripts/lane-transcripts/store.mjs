@@ -30,12 +30,18 @@ export function laneOf(workflowPath) {
 
 const count = (value) => (Number.isInteger(value) && value >= 0 ? value : null);
 const asString = (value) => (typeof value === "string" ? value : null);
+export const OMITTED_REASONS = ["too-large", "credential"];
 
 // The metrics a transcript carries, from the CLI's messages: the init message's
 // model, and the last result message's subtype, models and usage. A result with
 // is_error true is an `error` outcome whatever its subtype says.
 export function transcriptMetrics(messages) {
-  if (!Array.isArray(messages)) return { model: null, models: [], outcome: "unreadable", subtype: null, is_error: null, api_error_status: null, num_turns: null, duration_ms: null, input_tokens: null, output_tokens: null };
+  const empty = { model: null, models: [], subtype: null, is_error: null, api_error_status: null, num_turns: null, duration_ms: null, input_tokens: null, output_tokens: null };
+  if (!Array.isArray(messages)) return { ...empty, outcome: "unreadable" };
+  const [marker] = messages;
+  if (messages.length === 1 && marker?.type === "system" && marker?.subtype === "transcript_omitted") {
+    return { ...empty, outcome: "omitted", omitted_reason: OMITTED_REASONS.includes(marker.reason) ? marker.reason : "unknown", omitted_bytes: count(marker.bytes) };
+  }
   const init = messages.find((m) => m?.type === "system" && m?.subtype === "init");
   const result = messages.findLast((m) => m?.type === "result") ?? null;
   const usage = result?.usage ?? {};

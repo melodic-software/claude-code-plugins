@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "# Ledger service\n\nRun `make test` before every commit.\n", "why": "the seeded file, byte for byte"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "# Ledger service\n\nRun `make test` before every commit.\n\nThe hub at the owner's forge starts sessions.\n", "why": "a pointer back to the hub appended"},
+    {"answer": "@AGENTS.md\n", "why": "the content replaced by a shim"}
+  ]
+}

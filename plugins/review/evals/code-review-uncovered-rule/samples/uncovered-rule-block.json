@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Findings: 0\n\nNo blocking findings.\n\n<details>\n<summary>Uncovered rules (1)</summary>\n\n- Uncovered rule: prices are formatted through src/money.js formatPrice; src/invoice.js:2 formats one by hand.\n\n</details>\n\nVerifier dropped 0 of 0 candidates.",
+      "why": "the rule line opens the collapsed Uncovered rules block a later codify run parses"
+    },
+    {
+      "answer": "Findings: 0\n\n<details>\n<summary>Uncovered rules (1)</summary>\n\nUncovered rule: prices go through formatPrice (src/invoice.js:2).\n\n</details>",
+      "why": "the line may carry no list bullet"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Findings: 1\n\n- src/invoice.js:2 (advisory, inline): formats the price by hand instead of calling formatPrice.",
+      "why": "reports the convention as a finding with no Uncovered rule line"
+    },
+    {
+      "answer": "Findings: 0\n\nUncovered rule: prices are formatted through src/money.js formatPrice; src/invoice.js:2 formats one by hand.",
+      "why": "the line is outside the collapsed block the parser reads"
+    },
+    {
+      "answer": "Findings: 0\n\n<details>\n<summary>Advisory and manifest lines (1)</summary>\n\n- Uncovered rule: prices go through formatPrice (src/invoice.js:2).\n\n</details>",
+      "why": "the line sits in the advisory block, not in a block of its own"
+    }
+  ]
+}

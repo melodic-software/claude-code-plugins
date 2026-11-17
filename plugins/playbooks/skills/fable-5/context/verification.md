@@ -64,10 +64,10 @@ The two rows carrying no harness artifact are the ones to read twice:
   - **Recheck trigger**: a release note adds a bundled skill that checks changes against a spec.
 - **Managed Agents rubrics belong to a different product.** Inside a session, build the equivalent yourself: a fresh-context subagent grades the artifact against the rubric and hands failures back. To start on that product, the bundled `/claude-api` skill has a Managed Agents onboarding subcommand.
   - **Pointer**: for that subcommand, see [Skills: Work on Claude API projects](https://code.claude.com/docs/en/skills#work-on-claude-api-projects).
-- **A worked Managed Agents automation checks its own output before reporting it.** It re-checks each item against its live source just before posting, and counts a post as sent only once delivery is confirmed.
+- **A worked Managed Agents automation checks its own output before reporting it.** For the two checks it makes, see the pointer's Agent and Destination sections.
   - **Pointer**: for the code, see [Building effective agent automations: Get the code](https://claude.dev/blog/building-effective-agent-automations/#get-the-code) (Lance Martin and CJ Avilla, 2026-10-08), which links the reference implementation, `anthropics/claude-quickstarts` [`managed-agents/daily-brief`](https://github.com/anthropics/claude-quickstarts/tree/main/managed-agents/daily-brief), and gives the `/claude-api managed-agents-onboard <post URL>` walkthrough command; for the two checks, see the same post's [Agent](https://claude.dev/blog/building-effective-agent-automations/#agent) and [Destination](https://claude.dev/blog/building-effective-agent-automations/#destination) sections.
   - **As of**: 2026-10-31
-  - **Recheck trigger**: "Get the code" moves the reference implementation or changes the onboarding command, or the Agent or Destination section drops its re-check or delivery check.
+  - **Recheck trigger**: "Get the code" moves the reference implementation or changes the onboarding command.
 
 **Provided never means automatic.** These surfaces are different kinds of thing: bundled skills, a hosted service, and a platform API. Before a project's verification story depends on one, check its plan availability, client version, and who may invoke it on the page that owns it.
 

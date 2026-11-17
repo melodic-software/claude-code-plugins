@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "# Harborline hub\n\n## Working material\n\n- Scratch files go in `.work/`.\n", "why": "no listing command"},
+    {"answer": ""}
+  ],
+  "fail": [
+    {"answer": "# Harborline hub\n\n## The repositories\n\nList them with `gh repo list harborline`.\n", "why": "a guessed forge listing command"},
+    {"answer": "# Harborline hub\n\nRun `gh api orgs/harborline/repos` for the estate.\n", "why": "a guessed forge API call"}
+  ]
+}

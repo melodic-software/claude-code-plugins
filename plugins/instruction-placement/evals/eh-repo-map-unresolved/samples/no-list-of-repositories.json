@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "# Harborline hub\n\n## Working material\n\n- Scratch files go in `.work/`.\n", "why": "no repository named"},
+    {"answer": ""}
+  ],
+  "fail": [
+    {"answer": "# Harborline hub\n\n## The repositories\n\n- ledger-service\n- portal-web\n", "why": "the siblings copied into a list"},
+    {"answer": "# Harborline hub\n\nClone `portal-web` to the checkout root.\n", "why": "one sibling named in a rule"}
+  ]
+}

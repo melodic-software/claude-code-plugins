@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: drive-reused-data-none-launches-fresh
+description: A drive that would reuse the instance in its run directory's launch record, on a hub whose `Data:` line is `none:`, performs no `## Reset` on that instance, since its data is not the run's own; it stops the recorded process and launches fresh. Source invented. A run needs --scaffold, which seeds the control skill and the run directory's report.json
+tags: [drive, launch, reset, unattended, invented, no-network]
+expected_outcome: "The reply says the hub's `Data:` line is `none:`, so drive does not perform reviews' Reset (it deletes nothing under ./data) on the reused instance; it stops the recorded pid 7311 as cleanup does, launches fresh with `npm start`, and runs Ready before the steps. Its last two lines read `Reset performed: no` and `Stops: 7311`. It runs and writes nothing."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:drive shop reviews --out out/grp --unattended. There is no shell in this session, so run nothing and write nothing. out/grp/report.json is the launch record a cart drive left in this run directory a moment ago, and pid 7311 is still running and fit. Read the control skill and that report, then say what this drive does, in order, up to the first step of reviews' ## Drive. End your reply with two lines: `Reset performed: <yes or no>` and `Stops: <pid, or none>`, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 15
+  timeout_seconds: 500
+graders:
+  - name: no-reset
+    type: regex
+    flags: i
+    pattern: '(?:^|\n)[ \t*_>`-]*Reset performed:[ \t*_`]*no\b'
+    arm: both
+  - name: stops-recorded
+    type: regex
+    flags: i
+    pattern: '(?:^|\n)[ \t*_>`-]*Stops:[^\n]*\b7311\b'
+    arm: both

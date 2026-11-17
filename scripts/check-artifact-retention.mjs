@@ -95,6 +95,7 @@ function scanOf(step) {
 
 // Every upload step: { file, line, job, name, retention, path, condition, scans }.
 const steps = [];
+const isolatedJobs = new Set();
 function collect(file, lineCounter, stepSeqs) {
   for (const [job, seq] of stepSeqs) {
     if (!yaml.isSeq(seq)) continue;
@@ -144,6 +145,16 @@ for (const { file, kind } of files) {
     const jobs = doc.get("jobs");
     if (yaml.isMap(jobs)) {
       collect(file, lineCounter, jobs.items.map((pair) => [String(pair.key?.value ?? pair.key), yaml.isMap(pair.value) ? pair.value.get("steps") : undefined]));
+      for (const pair of jobs.items) {
+        const job = yaml.isMap(pair.value) ? pair.value.toJSON() : null;
+        const permissions = job?.permissions;
+        const empty = permissions !== null && typeof permissions === "object" && !Array.isArray(permissions) && Object.keys(permissions).length === 0;
+        const checkout = (job?.steps ?? []).some((step) => /^actions\/checkout@/.test(String(step?.uses ?? "")));
+        const secret = job?.secrets !== undefined || (JSON.stringify(job).match(/\$\{\{[\s\S]*?\}\}/g) ?? []).some((expression) => /\bsecrets\b/.test(expression));
+        if (job && empty && !checkout && job.environment === undefined && !secret) {
+          isolatedJobs.add(`${file}#${String(pair.key?.value ?? pair.key)}`);
+        }
+      }
     }
   } else {
     collect(file, lineCounter, [["runs", doc.getIn(["runs", "steps"])]]);
@@ -152,6 +163,7 @@ for (const { file, kind } of files) {
 
 const computedJobs = new Set();
 const used = new Set();
+const sealedUpstream = new Set();
 for (const step of steps) {
   const at = `${step.file}:${step.line}: upload`;
   if (typeof step.name !== "string" || step.name === "") {
@@ -204,7 +216,11 @@ for (const step of steps) {
       );
     }
   } else if (row.scan === "plaintext" && step.scans.length === 0) {
-    findings.push(`${label} has no scan step before it; ${TABLE} family \`${key}\` says scan: plaintext`);
+    const job = `${step.file}#${step.job}`;
+    if ((row["sealed-upstream"] ?? []).includes(job)) {
+      sealedUpstream.add(`${key} ${job}`);
+      if (!isolatedJobs.has(job)) findings.push(`${label} is in a sealed-upstream job of family \`${key}\` that holds a checkout, a secret, an environment or permissions other than {}`);
+    } else findings.push(`${label} has no scan step before it; ${TABLE} family \`${key}\` says scan: plaintext`);
   }
   const want = row["retention-days"];
   const raw = step.retention;
@@ -229,6 +245,11 @@ for (const [key, row] of Object.entries(families)) {
   for (const job of row.uploads ?? []) {
     if (!computedJobs.has(job)) {
       findings.push(`${TABLE}: family \`${key}\` lists upload ${job}, which uploads no computed name`);
+    }
+  }
+  for (const job of row["sealed-upstream"] ?? []) {
+    if (!sealedUpstream.has(`${key} ${job}`)) {
+      findings.push(`${TABLE}: family \`${key}\` lists sealed-upstream ${job}, which holds no upload of it without a scan step`);
     }
   }
   if (!used.has(key)) {

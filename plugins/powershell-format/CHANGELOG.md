@@ -3,6 +3,14 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-11-17
+
+### Changed
+
+- The SessionStart probe reports a missing `pwsh` only where a `PSScriptAnalyzerSettings.psd1` sits in the project directory or above it, or is tracked anywhere in its repository, so a repository whose only settings file is in a subdirectory still gets the line and one with none hears nothing.
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [2.0.0] - 2026-11-17
 
 ### Changed

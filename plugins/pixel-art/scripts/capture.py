@@ -39,6 +39,11 @@ UNREVIEWED = (
 # runners a cold launch has passed 20 s and opening the page 10 s, and on one contended core a
 # 4 s recording has taken 30 s.
 BROWSER_WAIT_SECONDS = 60
+SCENE_RELOADS = 2
+SCENE_PROBE = (
+    "({ready: !!(window.__pixelScene && window.__pixelScene.seek),"
+    " href: location.href, state: document.readyState})"
+)
 BROWSERS = (
     "google-chrome",
     "google-chrome-stable",
@@ -387,18 +392,27 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
         devtools = DevTools(_ws_connect(target["webSocketDebuggerUrl"]))
         step = "waiting for the scene"
         deadline = time.time() + BROWSER_WAIT_SECONDS
-        ready = False
+        seen = {}
+        reloads = 0
         while time.time() < deadline:
-            probed = devtools.call(
-                "Runtime.evaluate",
-                {"expression": "!!(window.__pixelScene && window.__pixelScene.seek)", "returnByValue": True},
-            )
-            if probed.get("result", {}).get("value"):
-                ready = True
+            try:
+                probed = devtools.call("Runtime.evaluate", {"expression": SCENE_PROBE, "returnByValue": True})
+                seen = probed.get("result", {}).get("value") or {}
+            except RuntimeError as exc:
+                seen = {"error": str(exc)}
+            if seen.get("ready"):
                 break
+            if str(seen.get("href", "")).startswith("chrome-error:") and reloads < SCENE_RELOADS:
+                reloads += 1
+                devtools.call("Page.navigate", {"url": page})
+                time.sleep(1)
+                continue
             time.sleep(0.1)
-        if not ready:
-            raise RuntimeError("scene did not expose window.__pixelScene.seek")
+        else:
+            raise RuntimeError(
+                "scene did not expose window.__pixelScene.seek "
+                f"(last probe {json.dumps(seen)}, {reloads} reloads)"
+            )
         expression = (
             RECORD_JS.replace("__TIMES__", json.dumps(times))
             .replace("__RECORD__", json.dumps(record))
