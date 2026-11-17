@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Not mapped: the `/returns` page (src/routes/returns.ts:5).",
+      "why": "surface with its source path"
+    },
+    {
+      "answer": "| Not mapped | `/returns` | `src/routes/returns.ts` |",
+      "why": "table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Not mapped: a returns page.",
+      "why": "no route and no source path"
+    },
+    {
+      "answer": "Not mapped: `/returns`.",
+      "why": "no source path"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

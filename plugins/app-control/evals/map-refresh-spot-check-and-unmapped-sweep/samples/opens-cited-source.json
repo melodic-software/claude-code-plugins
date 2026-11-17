@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "src/cart.tsx"}}
+      ],
+      "why": "relative path"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/workspace/src/cart.tsx", "offset": 10, "limit": 8}}
+      ],
+      "why": "absolute path with a line range"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": ".claude/skills/control-shop/features/cart/README.md"}}
+      ],
+      "why": "read only the feature file"
+    },
+    {
+      "answer": [
+        {"tool": "Grep", "input": {"pattern": "Add to", "path": "src/cart.tsx"}}
+      ],
+      "why": "searched without opening"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}

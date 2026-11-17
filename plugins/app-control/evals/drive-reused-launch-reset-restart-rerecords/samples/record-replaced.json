@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Stops: 7311\nLaunch record after: new process",
+      "why": "the record names the relaunched process"
+    },
+    {
+      "answer": "**Launch record after:** the new process from `npm start`",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Stops: none\nLaunch record after: 7311",
+      "why": "the record still names the stopped pid"
+    },
+    {
+      "answer": "Launch record after: 7311, then the new process",
+      "why": "still names 7311"
+    },
+    {
+      "answer": "The record is replaced with the new process.",
+      "why": "no Launch record line"
+    }
+  ]
+}

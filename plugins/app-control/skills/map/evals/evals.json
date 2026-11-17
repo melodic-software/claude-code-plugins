@@ -391,6 +391,32 @@
         "Reports no finding for SKILL.md or features/billing/export/README.md",
         "Edits no file and gives no verdict word"
       ]
+    },
+    {
+      "id": 32,
+      "name": "refresh-unattended-stale-ready-reports-unwritten",
+      "prompt": "/app-control:map refresh .claude/skills/control-shop --unattended. upkeep-skip.sh check printed `run HEAD moved since the last clean pass`. The source wave's first subagent cited src/server.ts:12, where the app now listens on port 4100; the hub's ## Ready still checks port 3000. /app-control:drive ready exited 1: nothing answers on port 3000.",
+      "expected_output": "Ready failed because the hub's ## Ready is out of date, not the app. The pass is unattended, so it writes no change to the hub and does not run Ready again. The outcome is blocked, and the report holds the corrected Ready text (port 4100) with its src/server.ts:12 citation, unwritten.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not edit the hub's ## Ready",
+        "Does not run /app-control:drive ready a second time",
+        "Reports the outcome as blocked with the corrected Ready text and the src/server.ts:12 citation"
+      ]
+    },
+    {
+      "id": 33,
+      "name": "refresh-unreached-feature-names-prerequisite-and-command",
+      "prompt": "/app-control:map refresh .claude/skills/control-shop --unattended. The live pass drove features/billing/export: drive's report.json lists one blocked entry for its `cli/shop export --env staging` step, with prerequisite `write grant for staging` and attempted `cli/shop export --env staging`. The feature's entry point line reads `- Export from the billing page | not driven: pending`, and no Preconditions line or Gotchas entry names the staging write grant.",
+      "expected_output": "The report lists the export feature as not reached, with the unmet prerequisite (the staging write grant) and the command tried (cli/shop export --env staging), and never reports it as driven. The entry point's `not driven: pending` reason names no prerequisite, so it is doc drift: the correction names the staging write grant.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the export feature as not reached with the staging write grant as the unmet prerequisite and cli/shop export --env staging as the command tried",
+        "Does not report the export feature as driven",
+        "Classes the `not driven: pending` entry point as doc drift because its reason names no prerequisite"
+      ]
     }
   ]
 }
