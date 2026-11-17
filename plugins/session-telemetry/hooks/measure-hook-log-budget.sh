@@ -39,7 +39,8 @@ Usage:
 The capture's host line is this machine. Windows Git Bash figures are
 produced only when OSTYPE is msys or cygwin. --check-doc accepts a budget
 doc that still says `windows-git-bash: unmeasured`, or one that contains
-`host: windows-git-bash`. The probes need node on PATH.
+`host: windows-git-bash`. The probes need node on PATH. A probe job that
+exits non-zero stops the run with exit 3 and no capture.
 EOF
 }
 
@@ -196,20 +197,33 @@ bash_floor="$(median_ms "${launcher_bash:-bash}" -c :)"
 invoking_bash_floor="$(median_ms bash -c :)"
 kill_off="$(median_ms run_row "$PAYLOAD" false)"
 
+wait_pids() {
+  local p rc=0
+  for p in "$@"; do wait "$p" || rc=1; done
+  return "$rc"
+}
+
+probe_failed() {
+  echo "ERROR: a $1 probe job exited non-zero; its figure would time a failed run" >&2
+  exit 3
+}
+
 wall_ms() {
-  local value="$1" t0 t1 n
+  local value="$1" t0 t1 n pids=()
   t0=$EPOCHREALTIME
   for ((n = 0; n < 15; n++)); do
     run_row "$PAYLOAD" "$value" &
+    pids+=($!)
     run_row "$STOP_PAYLOAD" "$value" &
+    pids+=($!)
   done
-  wait
+  wait_pids "${pids[@]}" || return 1
   t1=$EPOCHREALTIME
   elapsed_ms "$t0" "$t1"
 }
 
-wall_off="$(wall_ms false)"
-wall_on="$(wall_ms true)"
+wall_off="$(wall_ms false)" || probe_failed "parallel wall (log off)"
+wall_on="$(wall_ms true)" || probe_failed "parallel wall (log on)"
 
 # The enabled row on a 60 KB tool_input payload that carries none of the
 # allowlisted metadata keys, minus the same row on a small payload, sample by
@@ -245,7 +259,7 @@ s_ms="$(us_to_ms "$(median_of "$s_file")")"
 append_probe() {
   local bytes="$1"
   local file="$WORK/append-$bytes"
-  local pad i
+  local pad i pids=()
   : >"$file"
   pad="$(head -c "$bytes" /dev/zero | tr '\0' 'a')"
   # Each append goes through slog_append, the hook's own write path.
@@ -255,8 +269,10 @@ append_probe() {
       source "$SCRIPT_DIR/session-log-lib.sh"
       slog_append "$file" "{\"i\":$i,\"pad\":\"$pad\"}"
     ) &
+    # shellcheck disable=SC2031
+    pids+=($!)
   done
-  wait
+  wait_pids "${pids[@]}" || return 1
   local lines=0 corrupt=0 line
   lines="$(wc -l <"$file" | tr -d ' ')"
   if command -v jq >/dev/null 2>&1; then
@@ -272,9 +288,12 @@ append_probe() {
   printf '%s %s' "$lines" "$corrupt"
 }
 
-read -r append4_lines append4_corrupt <<<"$(append_probe 4096)"
-read -r append16_lines append16_corrupt <<<"$(append_probe 16384)"
-read -r append64_lines append64_corrupt <<<"$(append_probe 65536)"
+append4="$(append_probe 4096)" || probe_failed "4 KB append"
+append16="$(append_probe 16384)" || probe_failed "16 KB append"
+append64="$(append_probe 65536)" || probe_failed "64 KB append"
+read -r append4_lines append4_corrupt <<<"$append4"
+read -r append16_lines append16_corrupt <<<"$append16"
+read -r append64_lines append64_corrupt <<<"$append64"
 
 LS_DIR="$WORK/lst"
 mkdir -p "$LS_DIR"

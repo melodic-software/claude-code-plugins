@@ -17,7 +17,7 @@ only, before any question. A row ends `found`, with the file or command that sho
 | Data | Tenancy, where the app keeps its data and how to point it at a new directory, its migrations and seed data, and the app's own supported reset path |
 | Harnesses | Existing end-to-end specs, test accounts, selector conventions |
 | Evidence | Logs, a log server, telemetry endpoints, and what each capture tier (browser, server) can record |
-| Data sources | Per environment, the logs, telemetry, databases, work-item tracker and error reporter an agent can reach, each with a read-only way to read it (the contract's "Data sources"); the read level is asked, never found |
+| Data sources | Per environment, the logs, telemetry, databases, work-item tracker and error reporter an agent can reach, each with a read-only way to read it and the name of the credential variable it is read with (the contract's "Data sources"); the read level, the `grants` command (or `full-user-access` for a source with no scope control) and the `data` category, readers and review are asked, never found |
 | Team vs personal | What is committed and team-wide, what is per user, and where per-user values live |
 | Related repositories | Systems whose pages a journey crosses but live elsewhere, each one's repository and control skill, and whether this machine has a checkout of it (the contract's `checkouts.<app>`) |
 

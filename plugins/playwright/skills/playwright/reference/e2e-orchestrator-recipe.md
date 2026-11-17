@@ -85,7 +85,7 @@ Never commit `.playwright-cli/` content. Add it to the project's `.gitignore`. R
 
 ## Cross-worktree notes
 
-Each git worktree has its own `.playwright-cli/` (gitignored, relative to CWD). Session state (`-s=<name>`) is keyed by daemon process, per-user, not per-worktree. Two worktrees running `-s=smoke` concurrently share the same browser. For concurrent isolation, use distinct session names per worktree:
+Each git worktree has its own `.playwright-cli/` (gitignored, relative to CWD). A session name (`-s=<name>`) is not scoped to the worktree: two worktrees running `-s=smoke` concurrently share the same browser. For concurrent isolation, use distinct session names per worktree:
 
 ```bash
 # In worktree A

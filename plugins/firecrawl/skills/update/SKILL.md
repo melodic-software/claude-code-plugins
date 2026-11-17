@@ -14,8 +14,8 @@ Last upstream sync: !`grep -m1 '^- Last sync:' "${CLAUDE_SKILL_DIR}/upstream.md"
 ## Purpose
 
 Keep the `/firecrawl:firecrawl` wrapper skill in sync with its two upstream dependencies: the
-`firecrawl-cli` npm package (ships new versions roughly weekly) and the upstream canonical skill at
-`https://www.firecrawl.dev/agent-onboarding/SKILL.md` (evolves alongside it). The wrapper skill
+`firecrawl-cli` npm package and the upstream canonical skill at
+`https://www.firecrawl.dev/agent-onboarding/SKILL.md`. The wrapper skill
 **owns** its content. Upstream is a *source*, not a parallel install.
 
 Maintainer-facing: run this in a working-tree checkout of this plugin (the marketplace clone, or a

@@ -3221,6 +3221,7 @@ const HANDOFF = {
 const PATCH_OUTPUTS_OF = (firstId) =>
   SCAN_ONLY.has(firstId) ? Object.fromEntries(Object.entries(PATCH_OUTPUTS).map(([input, output]) => [input, `scan-${output}`])) : PATCH_OUTPUTS;
 const WRITE_RUNNER = "./.github/workflows/pr-run-activity-write.yml";
+const RUN_JOB_MINUTES = { "fix-docs": 30 };
 
 for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LANES) {
   test(`${file}: ${subId} runs only after ${firstId} handed off, read ${HANDOFF[firstId] ? `by ${HANDOFF[firstId]}` : "from its credit stop or empty key alone"}`, () => {
@@ -3301,7 +3302,9 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
     for (const id of [firstId, subId, applyId]) {
       assert.deepEqual(jobs[id].concurrency, { group: first.concurrency.group, queue: "max" }, id);
     }
-    assert.equal(first.with["timeout-minutes"], 60, "the run job holds the 50-minute launcher step");
+    for (const id of [firstId, subId, `${firstId}-fallback`]) {
+      assert.equal(jobs[id].with["timeout-minutes"], RUN_JOB_MINUTES[firstId] ?? 60, `${id}: the run job holds its launcher step and leg`);
+    }
   });
 
   test(`${file}: ${applyId} takes the patch from whichever ${firstId} call ran the activity, under ${firstId}'s prepare-mode row`, () => {

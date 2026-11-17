@@ -337,7 +337,7 @@ test("every detector's signal is an incident signal or logged only, and an unkno
     laneVariableRuns: [{ id: 2, url: "u", name: "work-unblock", event: "schedule", annotations: [{ level: "failure", message: "lane-variables-changed: created X" }], failedSteps: [] }],
     mainRun: { id: 1, url: "u", sha: "a", event: "schedule", conclusion: "failure", failedJobs: [{ name: "j", annotations: [{ level: "failure", message: "m" }] }] },
     budgetReadings: [{ phase: "end", name: "lane", used: 99, limit: 100, remaining: 1 }],
-    mergeGroupFailures: [1, 2, 3].map((id) => ({ id, url: "u", workflow: "w", createdAt: "t" })),
+    mergeQueueRemovals: [1, 2, 3].map((pr) => ({ pr, at: "2026-10-19T16:00:00Z", enqueuedAt: null, labels: [] })),
     sweep: { url: "u", live: true, startedAt: "2026-10-19T16:30:00Z", candidates: 3, results: [{ pr: 1, updatedAt: "2026-10-17T00:00:00Z" }] },
     laneMerges: { lastMergedAt: null },
     audits: [{ workflow: "w", run: { id: 1, url: "u", conclusion: "failure", createdAt: "t" } }],

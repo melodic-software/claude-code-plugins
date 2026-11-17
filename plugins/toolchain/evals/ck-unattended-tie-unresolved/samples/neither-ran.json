@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "neither candidate ran, so tools/run.sh never wrote .calls.log"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [".calls.log"],
+      "why": "a tied candidate ran"
+    }
+  ]
+}

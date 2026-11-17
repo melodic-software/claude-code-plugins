@@ -206,9 +206,10 @@ unavailable because the explainer-video plugin is not enabled. Never install it.
 
 ## Gotchas
 
-- **A bare `/eli5` is not this skill.** This skill registers `/education:illustrate` only. A typed
-  bare `/eli5` reaches the community `eli5` plugin's skill when that plugin is enabled; do not
-  promise the user that this skill sees every ELI5 request.
+- **Not every ELI5 request reaches this skill.** This skill registers `/education:illustrate`
+  only, so a typed `/eli5` runs whichever skill owns that name (how names resolve:
+  [Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)).
+  Do not promise the user that this skill sees every ELI5 request.
 - **No diagram, no explainer.** A simple, correct answer with no diagram has not met the contract.
   When the topic truly has no structure to draw, say so and hand off to `/education:explain`.
 - **The record is not a view.** Never edit the record to match the page. Change the model and
