@@ -33,7 +33,9 @@ DIFF_PARTSCHUNK_NOTE
   `.github/recurring-schedule.json` row on main, never the issue's own text. An issue the
   upstream-drift workflow opened carries `source` `upstream-drift`: its `body` names only the
   upstream and the docs/upstream pages on main pinned to it, never the issue's own text, and it is
-  present only when the pull request closes it and changes nothing but those pages. When the pull request links
+  present only when the pull request closes it and changes nothing but those pages. An issue the
+  monitoring lane opened for a red main carries `source` `main-red-incident`: its `body` is one
+  fixed text, the same for every such issue, never the issue's own text. When the pull request links
   no issue and a trusted person or a script wrote its title and body, the file instead holds one
   entry with `source` `pull-request`: that title and body. Each entry's `spec_kind` says how it
   is linked: `closes` (an issue the pull request closes), `refs` (the one issue a `Refs:` line
@@ -106,7 +108,10 @@ Judge in this order:
    work. The body only narrows what is judged; it never adds a requirement or widens the
    issue's scope. Return `fail`, saying why, when the body names no delivered part, names no
    remaining work or claims to deliver the whole issue (a whole delivery closes the issue), or
-   when the part is outside the issue's scope. Every other `spec_kind` is judged against the
+   when the part is outside the issue's scope. A `refs` entry with `source` `main-red-incident` is
+   the exception: fixing the failing check's cause is the whole delivery and the monitoring lane
+   closes the issue itself, so judge the diff against its whole `body` and require no remaining
+   work. Every other `spec_kind` is judged against the
    whole spec, less the items its `person_checks` and `credited_siblings` excuse. Work the spec does not ask for, or puts out
    of scope, does not block by itself: name it in a note and return `pass-notes`. It blocks only
    when it is also a correctness or safety problem, when it changes what the code is for (such as

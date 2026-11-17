@@ -114,6 +114,14 @@ documented placeholders:
 autofixes belong in optional `code-fix-cmd` and are invoked only by `/toolchain:lint --code-fix`
 behind that skill's confirmation / `--yes` gate, never by bare `--fix`.
 
+`lint-cmd` is the **report-only lint** command, kept apart from formatting: it changes no file and
+checks no formatting. `check-cmd` keeps its meaning (a lint and format check) for existing records;
+where `lint-cmd` is set, `/toolchain:lint` and `/toolchain:check` run it in place of `check-cmd`.
+No hook runs a record's command: the format and lint plugins' batch rows and git-hook entries run
+only the adapter each plugin ships, and `fix-cmd` and `lint-cmd` run when a person asks
+`/toolchain:lint` or `/toolchain:check` (the
+[check-placement convention](../check-placement/README.md), "Hooks run the shipped adapter").
+
 Consumers are tolerant readers: unknown keys are inert, missing optional keys fall back to defaults.
 Consuming repos should validate their files against the schema in their own gates (a
 `check-jsonschema` hook or CI lane); plugins should fail soft: a malformed file degrades to rung 2
@@ -194,7 +202,7 @@ command string (an `npm ci` in `test-cmd`), keeps an unattended run from install
 
 ## Consumers
 
-Execution consumers of the verb keys (`build-cmd`, `test-cmd`, `check-cmd`, `fix-cmd`,
+Execution consumers of the verb keys (`build-cmd`, `test-cmd`, `check-cmd`, `lint-cmd`, `fix-cmd`,
 `code-fix-cmd`) live under "Why this contract exists" (`toolchain:check`, `toolchain:lint`, the
 `review` `ecosystem-specialist`). This table records plugins that read lane membership without
 running a verb:

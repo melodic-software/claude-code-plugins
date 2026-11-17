@@ -1,32 +1,23 @@
 #!/usr/bin/env bash
-# PostToolBatch hook: rewrite the Python files a batch of tool calls wrote.
+# PostToolBatch hook: format the Python files a batch of tool calls wrote.
 #
 #   python-format.sh                 the PostToolBatch row
 #   python-format.sh --end-of-turn   the opt-in Stop row (python_format_end_of_turn)
 #
-# Rewrites only: `ruff check --fix` (safe fixes) and `ruff format`, once per
-# batch over every .py and .pyi file a Write, Edit or MultiEdit in the batch
-# named. It prints nothing and always exits 0, so no finding ever reaches the
-# model per edit; findings are the pre-commit entry's job
-# (git-hooks/ruff-check.sh), which also rewrites for every author.
+# Formats only: once per batch, over every .py and .pyi file a Write, Edit or
+# MultiEdit in the batch named, the Ruff adapter runs where a Ruff config
+# governs the file (git-hooks/adapters.sh, through lib/git-hooks/resolve-tool.sh:
+# import sorting where the repository's config selects it, then `ruff format`).
+# A .claude/ecosystems/ record is never run here; /toolchain:lint runs it. No
+# lint autofix runs here; findings are the lint entry's job (git-hooks/lint.sh).
+# It prints nothing and always exits 0, so nothing reaches the model per edit.
 #
 # PostToolBatch has no matcher, so the row fires on every batch. The launcher
 # skips the script unless the payload mentions ".py", and the script then reads
 # tool_calls[].tool_input.file_path itself, so a batch with no Python edit costs
-# one node process. A file that Read named is never rewritten.
-#
-# Opt-in: a file is rewritten only when a Ruff configuration governs it (a
-# .ruff.toml, ruff.toml, or pyproject.toml with a [tool.ruff] section, found by
-# walking up from the file to the repo root, as Ruff itself discovers it). A repo
-# that has not adopted a Ruff config is left untouched. Ruff comes from the
-# repo's own .venv (walking up from the file) or PATH, never downloaded. Known
-# limitation: the bare `[tool]` header with `ruff = { ... }` inline table is not
-# recognized, so such a repo is skipped (a missed opt-in, never a wrong edit).
-#
-# --unfixable F401 protects an import that lands one edit before the code that
-# uses it; the pre-commit entry removes unused imports once the change is whole.
-# Files under .githooks/ are installed copies and are skipped, as are gitignored
-# files unless python_format_lint_gitignored is true. The batch payload carries no
+# one node process. A file that Read named is never rewritten. Files under
+# .githooks/ are installed copies and are skipped, as are gitignored files
+# unless python_format_lint_gitignored is true. The batch payload carries no
 # pre-edit bytes, so a file that already drifted from the config is rewritten
 # whole, as the pre-commit entry would.
 
@@ -44,10 +35,20 @@ IFS= read -r -d '' INPUT || :
 # quiet, so it blocks at most once per turn.
 if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
-  err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/ruff-check.sh" --worktree 2>&1 >/dev/null)" && exit 0
-  # silent-skip-ok: the SessionStart probe already reports a missing ruff (prerequisites.json) and the bundled checker does too; blocking every turn end on a host problem would not help the model.
-  [[ "$err" == "FAIL: "*" missing. Install: "* ]] && exit 0
-  printf '%s\n' "$err" >&2
+  err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/lint.sh" --worktree 2>&1 >/dev/null)" && exit 0
+  # A missing linter is a host problem: the SessionStart probe reports it, and
+  # blocking every turn end on it would not help the model. Only those lines
+  # are dropped; any finding printed beside them is still handed back.
+  report=""
+  while IFS= read -r line; do
+    case "$line" in
+    "FAIL: "*" missing. Install: "* | "To skip only while "*" is missing: "*) ;;
+    *) report+="$line"$'\n' ;;
+    esac
+  done <<<"$err"
+  # silent-skip-ok: only missing-tool lines remained, which the SessionStart probe reports.
+  [[ -n "${report//[[:space:]]/}" ]] || exit 0
+  printf '%s' "$report" >&2
   exit 2
 fi
 
@@ -58,31 +59,12 @@ PATHS=$(jq -r '.tool_calls[]? | select(.tool_name == "Write" or .tool_name == "E
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
+# shellcheck source=../lib/git-hooks/resolve-tool.sh
+source "$HOOK_DIR/../lib/git-hooks/resolve-tool.sh"
+# shellcheck source=../git-hooks/adapters.sh
+source "$HOOK_DIR/../git-hooks/adapters.sh"
 
-# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
-ruff_config_here() {
-  local dir="$1" name
-  for name in .ruff.toml ruff.toml; do
-    [[ -f "$dir/$name" ]] && return 0
-  done
-  [[ -f "$dir/pyproject.toml" ]] &&
-    grep -qE '^[[:space:]]*\[tool\.ruff(\]|[.])' "$dir/pyproject.toml" 2>/dev/null
-}
-
-# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
-ruff_venv_bin_here() {
-  local cand
-  # A .venv the repository commits is its code, not the user's install.
-  [[ -z "$(git -C "$1" ls-files -- ':(literal).venv' 2>/dev/null)" ]] || return 1
-  for cand in "$1/.venv/bin/ruff" "$1/.venv/Scripts/ruff.exe"; do
-    if [[ -x "$cand" ]]; then
-      RUFF_BIN="$cand"
-      return 0
-    fi
-  done
-  return 1
-}
-
+# Per repository root, the files to format, in batch order.
 ROOTS=()
 FILES=()
 seen=$'\n'
@@ -98,13 +80,12 @@ while IFS= read -r path; do
   hook::dirname_to dir "$file"
   hook::repo_root_to root "$dir" || :
   [[ -d "$root" ]] || continue
-  hook::walk_up_to config_dir "$dir" "$root" ruff_config_here || continue
   hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_PYTHON_FORMAT_LINT_GITIGNORED:-false}" "$file" && continue
   ROOTS+=("$root")
   FILES+=("$file")
 done <<<"$PATHS"
 
-# One check and one format run per repository root, over all its files.
+# One run per repository root and resolved command, over all its files.
 done_roots=$'\n'
 for i in "${!ROOTS[@]}"; do
   root="${ROOTS[i]}"
@@ -114,19 +95,11 @@ for i in "${!ROOTS[@]}"; do
   for j in "${!ROOTS[@]}"; do
     [[ "${ROOTS[j]}" == "$root" ]] && group+=("${FILES[j]}")
   done
-  RUFF_BIN=""
-  hook::dirname_to dir "${group[0]}"
-  hook::walk_up_to venv_dir "$dir" "$root" ruff_venv_bin_here || :
-  if [[ -z "$RUFF_BIN" ]]; then
-    command -v ruff >/dev/null 2>&1 || continue
-    RUFF_BIN=ruff
-  fi
-  # --force-exclude honors the config's excludes for explicit paths; --no-cache
-  # keeps a .ruff_cache out of the consumer's repo.
-  (
-    cd "$root" || exit
-    "$RUFF_BIN" check --fix --no-unsafe-fixes --unfixable F401 --force-exclude --no-cache --quiet -- "${group[@]}"
-    "$RUFF_BIN" format --force-exclude --no-cache --quiet -- "${group[@]}"
-  ) >/dev/null 2>&1 || :
+  rt_group format "$root" "${group[@]}"
+  for ((g = 0; g < RT_GN; g++)); do
+    rt_use "$g"
+    rt_found "$RT_BIN" || continue
+    rt_run "${RT_FILES[@]}" >/dev/null 2>&1 || :
+  done
 done
 exit 0

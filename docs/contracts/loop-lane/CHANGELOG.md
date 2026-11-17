@@ -5,6 +5,14 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [19.9.0] - 2026-11-17
+
+Minor: additive guidance. No topology, escalation-contract mechanism, capability-tier or §4
+invariant changed.
+
+- **Three-session topology table gains a brake-or-accelerator column.** The worker loop and the
+  babysit lane are accelerators; the attended queue is neither. The glossary defines both terms.
+
 ## [19.8.0] - 2026-11-16
 
 Minor: additive guidance. No topology, escalation-contract mechanism, capability-tier or §4

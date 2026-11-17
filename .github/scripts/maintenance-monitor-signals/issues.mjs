@@ -51,7 +51,7 @@ export const familyOf = (signal) =>
     .replace(/^\d+ /, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-");
-const incidentKey = (signal) => `${INCIDENT}${familyOf(signal)}`;
+export const incidentKey = (signal) => `${INCIDENT}${familyOf(signal)}`;
 
 export function readMarker(body) {
   const m = MARKER.exec(String(body ?? "").split("\n", 1)[0]);

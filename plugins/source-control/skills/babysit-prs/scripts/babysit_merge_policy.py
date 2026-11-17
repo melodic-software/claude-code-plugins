@@ -3603,6 +3603,30 @@ COST_DECISION_LINK = re.compile(
 # A cost decision's first line: the decision marker, then `Cost:`, so a
 # decision recorded for something else clears no cost hold.
 DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*[ \t]+Cost:")
+# What a cost decision must also carry, outside HTML comments, as
+# merge-holds.mjs DECISION_ROW and DECISION_QUOTE read it: a line link to a
+# row of the owner-decisions record, and the owner's words after `verbatim:`.
+# Shape only: the record is private, and sessions write it too.
+DECISION_ROW = re.compile(
+    r"https://github\.com/melodic-software/architecture/blob/(?:main|[0-9a-f]{40})"
+    r"/docs/owner-decisions\.md(?:\?plain=1)?#L[1-9][0-9]*(?:-L[1-9][0-9]*)?"
+)
+DECISION_QUOTE = re.compile(
+    r"(?<![A-Za-z0-9_])verbatim:[ \t]*\"[^\"\n]*[^\" \t\r\n][^\"\n]*\""
+)
+
+
+def decision_gaps(body: Any) -> list[str]:
+    """What cost decision comment `body` lacks, outside HTML comments: `row`
+    and `quote`, in that order; empty when it carries both."""
+    text = HTML_COMMENT.sub("", str(body or ""))
+    return [
+        gap
+        for gap, pattern in (("row", DECISION_ROW), ("quote", DECISION_QUOTE))
+        if not pattern.search(text)
+    ]
+
+
 # An HTML comment in the body, or an unclosed one to the end: a link inside
 # one is hidden from a reader, so it cites nothing.
 HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
@@ -4539,7 +4563,9 @@ def cost_decision(
     for another change does not cover a pull request that links the issue
     later (an author can forge commit dates, not these). Of those, the
     decision is the newest on the pull request, else the newest on the issue,
-    as the review lanes' hold step picks it; it covers the head it decided and
+    as the review lanes' hold step picks it. That decision must also carry a
+    row link and a verbatim owner quote (`decision_gaps`), else it clears
+    nothing, which makes a cleared hold auditable, not provable. It covers the head it decided and
     a later head only when every change since is a base merge (`_carries`,
     owner decisions Q17 c and Q18 d on #9436). A link inside an HTML comment,
     and a comment by a `self_logins` account, count for nothing. A read that
@@ -4597,6 +4623,8 @@ def cost_decision(
                 mine,
                 key=lambda d: parse_timestamp(d[2].get("created_at")) or _NEVER,
             )
+            if decision_gaps(comment.get("body")):
+                return None
             return link if _carries(repo, pr, comment) else None
     return None
 

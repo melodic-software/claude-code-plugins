@@ -1,5 +1,14 @@
 # Changelog for the ecosystem-commands convention
 
+## [1.5.0] - 2026-11-17
+
+Additive schema change: new optional `lint-cmd` key, the report-only lint command, separate from
+formatting. `check-cmd` keeps its meaning, so no existing record changes. `/toolchain:lint` and
+`/toolchain:check` run `lint-cmd` in place of `check-cmd` when it is set. No hook runs a record's
+command: the format and lint plugins' hooks run only the adapter each plugin ships (the
+check-placement convention's "Hooks run the shipped adapter"). Tolerant readers ignore the key
+until they upgrade.
+
 ## [1.4.0] - 2026-11-17
 
 Additive schema change: an optional top-level `requires` key, keyed by command key, and an
