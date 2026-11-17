@@ -145,18 +145,18 @@ run stops.
 Try the rows roughly in table order. A lower row usually costs more to build or tells you less, so
 prefer the first row that can reach the failing code.
 
-| Rank | Loop | Choose it when | In the running example |
-|---|---|---|---|
-| 1 | A failing test (unit, integration or end-to-end) | some test seam already reaches the failing code | an integration test that posts a 25 MB JPEG and asserts a 201 |
-| 2 | A scripted HTTP call | the failure shows at an endpoint of a dev server you can start | a script posts a 25 MB file to the upload endpoint and prints the status code |
-| 3 | A CLI run on a fixture file | the code has a command-line entry point | run the thumbnailer CLI on `large.jpg` and diff its output against a known-good copy |
-| 4 | Browser automation run headless, through a browser driver if one is available | only the UI shows the failure | drive the web uploader and assert on the DOM, console and network panel |
-| 5 | A recorded input played back | a real request body or event stream can be saved | save one failing multipart request to disk and send it to the upload handler alone |
-| 6 | A disposable harness | starting the full stack takes minutes, but the failing module can be imported on its own | a scratch script imports the thumbnail module, swaps object storage for an in-memory store, and passes it `large.jpg` |
-| 7 | A randomized-input loop (property or fuzz) | the output is wrong only for some inputs | generate a thousand images of random size and format and keep the ones that fail |
-| 8 | An automated bisect | the bug has a history: an older release, data snapshot or dependency version where the upload still works | `check.sh` builds the checkout and exits 0 on a 201 for the 25 MB upload, 1 otherwise; `git bisect run ./check.sh` walks v3.2 to v3.4 with it |
-| 9 | A side-by-side run | two builds or two configurations should agree | send the same file through last week's build and this week's, then diff the results |
-| 10 | A human-driven script | a person has to click | see below |
+| Rank | Loop | Choose it when |
+|---|---|---|
+| 1 | A failing test (unit, integration or end-to-end) | some test seam already reaches the failing code |
+| 2 | A scripted HTTP call | the failure shows at an endpoint of a dev server you can start |
+| 3 | A CLI run on a fixture file | the code has a command-line entry point |
+| 4 | Browser automation run headless, through a browser driver if one is available | only the UI shows the failure |
+| 5 | A recorded input played back | a real request body or event stream can be saved |
+| 6 | A disposable harness | starting the full stack takes minutes, but the failing module can be imported on its own |
+| 7 | A randomized-input loop (property or fuzz) | the output is wrong only for some inputs |
+| 8 | An automated bisect | the bug has a history: an older release, data snapshot or dependency version where the behavior still works |
+| 9 | A side-by-side run | two builds or two configurations should agree |
+| 10 | A human-driven script | a person has to click; see below |
 
 A human-driven loop is the fallback when nothing above works. Copy the bundled template at
 `${CLAUDE_PLUGIN_ROOT}/skills/debug/scripts/hitl-loop.template.sh`, replace its example prompts with

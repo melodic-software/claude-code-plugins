@@ -317,7 +317,7 @@ write a `values:` value to any file.
 ## Next
 
 - Evidence in hand, needs a judgment: /verification:confirm.
-- A trace, cpu, heap or threads artifact to read: /debugging:analyze-profile.
+- A trace, cpu or heap artifact to read: /debugging:analyze-profile.
 
 ## Gotchas
 

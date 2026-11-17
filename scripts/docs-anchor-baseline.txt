@@ -28,7 +28,6 @@ plugins/code-tidying/skills/tidy/reference/bundled-simplify.md 1
 plugins/context-budget/skills/audit/reference/native-explain-usage.md 1
 plugins/context7/skills/lookup/context/cli.md 1
 plugins/debugging/skills/analyze-profile/reference/formats/heapsnapshot.md 1
-plugins/debugging/skills/analyze-profile/reference/formats/other-formats.md 1
 plugins/developer-experience/skills/build-cli/reference/cli-contract.md 6
 plugins/discipline/skills/sweep-all/reference/batched-pass.md 1
 plugins/discovery/skills/research/context/artifact-shape.md 1
