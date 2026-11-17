@@ -56,8 +56,9 @@
 # Layers, key by key (ecosystem-commands "File layout and resolution"):
 # ~/.claude/ecosystems/<id>.yaml, then .claude/ecosystems/<id>.yaml, then
 # <id>.local.yaml. A key from the team file, or from a .local file git tracks,
-# is repository content: it runs only when that file, and every tracked file
-# its command names, matches the default branch (refs/remotes/origin/HEAD, read
+# is repository content: it runs only when that file, and every file its
+# command names that is not the user's own (untracked or ignored, through no
+# symlink), matches the default branch (refs/remotes/origin/HEAD, read
 # locally), or when a per-clone approval of exactly those bytes sits under
 # <git common dir>/claude-ecosystems/approved/. Anything else is unapproved and
 # runs nothing; it never falls through to the adapter. A record key with no
@@ -321,21 +322,30 @@ rt__approval() {
       missing+=("$i")
     fi
   done
-  # A named file the default branch lacks counts only when git tracks it: an
-  # untracked file is the user's own install, never content a clone brought.
+  # A named file the default branch does not list is the user's own install
+  # only when git lists it as untracked or ignored and no component of its
+  # path is a symlink. Anything else (tracked, inside a submodule, under a
+  # symlinked directory, or unclassifiable) is content this clone did not
+  # vouch for, so it needs approval.
   if ((${#missing[@]})); then
-    local tracked=$'\n' missing_paths=()
+    local others=$'\n' missing_paths=() own prefix
     for i in "${missing[@]}"; do
       missing_paths+=("${paths[i]}")
     done
-    while IFS= read -r p; do
-      tracked+="$p"$'\n'
-    done < <(git -C "$root" ls-files -z --full-name -- "${missing_paths[@]}" 2>/dev/null | tr '\0' '\n')
+    while IFS= read -r -d '' p; do
+      others+="$p"$'\n'
+    done < <(git -C "$root" ls-files -z --others --full-name -- "${missing_paths[@]}" 2>/dev/null)
     for i in "${missing[@]}"; do
-      if [[ "$tracked" == *$'\n'"${paths[i]}"$'\n'* ]]; then
-        keep+=("${paths[i]}"$'\t'"${hashes[i]:-}")
-        ok=0
-      fi
+      p="${paths[i]}" own=0
+      [[ "$others" == *$'\n'"$p"$'\n'* ]] && own=1
+      prefix="$p"
+      while ((own)) && [[ -n "$prefix" ]]; do
+        [[ -L "$root/$prefix" ]] && own=0
+        [[ "$prefix" == */* ]] && prefix="${prefix%/*}" || prefix=""
+      done
+      ((own)) && continue
+      keep+=("$p"$'\t'"${hashes[i]:-}")
+      ok=0
     done
   fi
   # A file the command reaches outside the repository is no content git can
@@ -673,7 +683,12 @@ rt_print() { # <concern> <root> [<file>...]
     found=no
     rt_found "$RT_BIN" && found=yes
     [[ "$RT_SOURCE" == unapproved ]] && RT_SOURCE="record:$id"
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$RT_PLUGIN" "$concern" "$RT_SOURCE" "$RT_TOOL" "$RT_APPROVAL" "$found" ""
+    RT__DIRDETAIL=""
+    case "$RT__L_CMD" in
+    team | tracked-local) [[ "$RT_SOURCE" == record:* ]] && rt__dir_approvals "$root" "$id" "$concern" ;;
+    *) ;;
+    esac
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$RT_PLUGIN" "$concern" "$RT_SOURCE" "$RT_TOOL" "$RT_APPROVAL" "$found" "$RT__DIRDETAIL"
     return 0
   done
   local detail="" ok=1
@@ -689,6 +704,49 @@ rt_print() { # <concern> <root> [<file>...]
   printf '%s\t%s\tnone\t\tn/a\tn/a\t%s\n' "$RT_PLUGIN" "$concern" "$detail"
 }
 
+# rt__run_dirs <root> <id>: sets RT__DIRS to the run directories (relative to
+# <root>, empty for the root) the record's globs and project-discovery give
+# the repository's files, tracked or untracked and not ignored, in file order;
+# the root alone when no file matches.
+rt__run_dirs() {
+  local root="$1" f dir seen=$'\n'
+  RT__DIRS=()
+  rt__load "$root" "$2" || return 1
+  while IFS= read -r -d '' f; do
+    rt__globs_match "$f" || continue
+    rt__project_dir "$f" "$root"
+    dir="${RT_DIR#"$root"}"
+    dir="${dir#/}"
+    [[ "$seen" == *$'\n'"$dir|"* ]] && continue
+    seen+="$dir|"$'\n'
+    RT__DIRS+=("$dir")
+  done < <(git -C "$root" ls-files -z -co --exclude-standard 2>/dev/null)
+  ((${#RT__DIRS[@]})) || RT__DIRS=("")
+}
+
+# rt__dir_approvals <root> <id> <concern>: sets RT_APPROVAL to the weakest
+# approval over the record's run directories (unapproved, then approved, then
+# accepted) and RT__DIRDETAIL to "<dir>: <approval>" per directory when they
+# differ.
+rt__dir_approvals() {
+  local root="$1" id="$2" concern="$3" d worst=accepted detail="" differ=0 first=""
+  rt__run_dirs "$root" "$id" || return 1
+  for d in "${RT__DIRS[@]}"; do
+    rt__approval "$root" "$id" "$concern" "$d"
+    [[ -n "$first" && "$RT_APPROVAL" != "$first" ]] && differ=1
+    first="${first:-$RT_APPROVAL}"
+    detail+="${detail:+; }${d:-.}: $RT_APPROVAL"
+    case "$RT_APPROVAL" in
+    unapproved) worst=unapproved ;;
+    approved) [[ "$worst" == accepted ]] && worst=approved ;;
+    *) ;;
+    esac
+  done
+  RT_APPROVAL="$worst" RT__DIRDETAIL=""
+  ((differ)) && RT__DIRDETAIL="$detail"
+  return 0
+}
+
 # rt_approve <root> <id>: record this clone's approval of the id's current
 # record, for each concern whose command comes from repository content.
 rt_approve() {
@@ -697,15 +755,19 @@ rt_approve() {
     printf 'resolve-tool: %s\n' "$RT__ERR" >&2
     return 1
   }
+  local d
   for concern in format lint; do
     rt__key "$concern"
     rt__get "$RT__KEY" || continue
     case "$RT__GL" in team | tracked-local) ;; *) continue ;; esac
-    rt__approval "$root" "$id" "$concern"
-    [[ "$RT_APPROVAL" == unapproved && -n "$RT__SIG" ]] || continue
-    mkdir -p "$RT__COMMON/claude-ecosystems/approved" &&
-      : >"$RT__COMMON/claude-ecosystems/approved/$RT__SIG" || return 1
-    n=$((n + 1))
+    rt__run_dirs "$root" "$id" || return 1
+    for d in "${RT__DIRS[@]}"; do
+      rt__approval "$root" "$id" "$concern" "$d"
+      [[ "$RT_APPROVAL" == unapproved && -n "$RT__SIG" ]] || continue
+      mkdir -p "$RT__COMMON/claude-ecosystems/approved" &&
+        : >"$RT__COMMON/claude-ecosystems/approved/$RT__SIG" || return 1
+      n=$((n + 1))
+    done
   done
   printf 'resolve-tool: approved %s command(s) of the %s record for this clone\n' "$n" "$id"
 }

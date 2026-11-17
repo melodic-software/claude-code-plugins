@@ -227,6 +227,74 @@ expect "a branch edit of the project-relative script makes the record unapproved
 expect "a branch edit of a <project-dir> reference makes the record unapproved" "unapproved" "$(resolve pkg/a.dm lint >/dev/null; printf '%s' "$RT_SOURCE")"
 expect "the root's own tools/fmt.sh, unchanged, still runs for a root file" "record:demo" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
 
+# --approve and the repository-level report key each run directory the
+# record's globs and project-discovery produce, as the hooks do.
+new_repo
+mkdir -p "$REPO/pkg/tools" "$REPO/tools"
+printf 'x\n' >"$REPO/pkg/proj.cfg"
+printf 'seed\n' >"$REPO/pkg/a.dm"
+printf '#!/bin/sh\nexec stubfmt "$@"\n' >"$REPO/pkg/tools/fmt.sh"
+printf '#!/bin/sh\nexec stubfmt "$@"\n' >"$REPO/tools/fmt.sh"
+chmod +x "$REPO/pkg/tools/fmt.sh" "$REPO/tools/fmt.sh"
+git -C "$REPO" add pkg tools
+record 'globs: ["*.dm"]
+project-discovery: ["proj.cfg"]
+fix-cmd: "tools/fmt.sh <files>"'
+expect "a branch record with project-discovery is unapproved in the project directory" "unapproved" "$(resolve pkg/a.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+rt_forget
+expect "the repository-level report says unapproved before approval" "unapproved" "$(rt_print format "$REPO" | cut -f5)"
+bash "$RT" --approve demo "$REPO" >/dev/null
+expect "--approve covers the project directory's key" "record:demo" "$(resolve pkg/a.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+expect "--approve covers the root's key" "record:demo" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+rt_forget
+expect "the repository-level report reads approved for every run directory" "approved" "$(rt_print format "$REPO" | cut -f5)"
+printf '#!/bin/sh\ntouch pwned\n' >"$REPO/pkg/tools/fmt.sh"
+rt_forget
+expect "one directory's change makes the report unapproved and names each directory" "unapproved	pkg: unapproved; .: approved" "$(rt_print format "$REPO" | cut -f5,7)"
+
+# A referenced file counts as the user's own only when git lists it as
+# untracked or ignored and no part of its path is a symlink.
+new_repo
+mkdir -p "$REPO/real"
+printf '#!/bin/sh\nexec stubfmt "$@"\n' >"$REPO/real/fmt.sh"
+chmod +x "$REPO/real/fmt.sh"
+ln -s real "$REPO/link"
+git -C "$REPO" add real link
+record 'globs: ["*.dm"]
+fix-cmd: "link/fmt.sh <files>"'
+publish
+expect "a script under a tracked symlinked directory needs approval" "unapproved" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+
+SUB="$WORK/subsrc$n"
+git init -q -b main "$SUB"
+printf '#!/bin/sh\nexec stubfmt "$@"\n' >"$SUB/fmt.sh"
+chmod +x "$SUB/fmt.sh"
+git -C "$SUB" add fmt.sh
+git -C "$SUB" -c user.name=t -c user.email=t@example.invalid commit -qm sub --no-verify
+new_repo
+git -C "$REPO" -c protocol.file.allow=always submodule add -q "$SUB" sub
+git -C "$REPO" commit -qm submodule --no-verify
+record 'globs: ["*.dm"]
+fix-cmd: "sub/fmt.sh <files>"'
+publish
+printf '#!/bin/sh\ntouch pwned\n' >"$REPO/sub/fmt.sh"
+git -C "$REPO/sub" -c user.name=t -c user.email=t@example.invalid commit -qam evil --no-verify
+git -C "$REPO" commit -qam "move the gitlink" --no-verify
+expect "a script inside a submodule whose gitlink moved on the branch needs approval" "unapproved" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+
+new_repo
+mkdir -p "$REPO/.tools"
+printf '.tools/\n' >"$REPO/.gitignore"
+git -C "$REPO" add .gitignore
+printf '#!/bin/sh\nexec stubfmt "$@"\n' >"$REPO/.tools/fmt.sh"
+printf '#!/bin/sh\nexit 0\n' >"$REPO/mine.sh"
+record 'globs: ["*.dm"]
+fix-cmd: ".tools/fmt.sh <files>"
+lint-cmd: "./mine.sh <files>"'
+publish
+expect "an ignored user install the command names is the user's own" "record:demo" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+expect "an untracked user file the command names is the user's own" "record:demo" "$(resolve seed.dm lint >/dev/null; printf '%s' "$RT_SOURCE")"
+
 new_repo
 printf '#!/bin/sh\nexit 0\n' >"$WORK/outside-$n.sh"
 record 'globs: ["*.dm"]

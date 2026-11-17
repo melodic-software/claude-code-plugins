@@ -202,9 +202,14 @@ format and lint plugin and beside each installed entry, with `yaml-subset.awk`):
   file and every tracked repository file its command names match the default branch. A named
   path is read after a `--opt=` prefix, from the root after `$REPO_ROOT/`, else from the directory
   the command runs in, and compared in git's canonical form (`./`, `//` and `..` resolved); a path
-  that reaches outside the repository always needs approval. The default branch is `refs/remotes/origin/HEAD`, read locally. The
+  that reaches outside the repository always needs approval. A named file the default branch does
+  not list counts as the user's own only when git lists it as untracked or ignored and no component
+  of its path is a symlink; one inside a submodule, under a symlinked directory or otherwise
+  unclassified needs approval. The default branch is `refs/remotes/origin/HEAD`, read locally. The
   record also runs when this clone holds an approval of exactly those bytes under `<git common dir>/claude-ecosystems/approved/`,
-  written only by an attended setup (`resolve-tool.sh --approve <id>`). Otherwise the record is
+  written only by an attended setup (`resolve-tool.sh --approve <id>`). Approval is keyed per run
+  directory, so `--approve` and setup's repository row cover every directory the record's globs and
+  `project-discovery` produce, and the row names each directory when their states differ. Otherwise the record is
   unapproved and runs nothing; it never falls through to the adapter. The user-global file and an
   untracked `.local` file are the user's own and need no approval. A plugin's code-config gates
   still apply on the record path.
