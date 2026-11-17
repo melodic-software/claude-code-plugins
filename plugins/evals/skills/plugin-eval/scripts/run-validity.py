@@ -329,6 +329,10 @@ DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
 # shell finding no such command (bash's "bash: line 1: <name>: command not
 # found", zsh's "zsh: command not found: <name>"). Each must open an output
 # line, as the program prints it, so a grep that quotes the text matches neither.
+# - Pointer: https://github.com/melodic-software/claude-code-plugins/issues/16110
+#   counts the shim text in PR 16069's traces.
+# - As of: 2026-11-13
+# - Recheck trigger: a mise upgrade, or a shell rewording either message.
 SHIM_ERROR = re.compile(
     r"^(?:\S*mise\S*\s+)?(?:\S*ERROR\S*\s+)?([^\s'\"`]+) is not a valid shim", re.M
 )
@@ -337,9 +341,6 @@ NOT_FOUND = re.compile(
     r"(?:([^\s:'\"`]+): command not found|command not found: ([^\s'\"`]+))",
     re.M,
 )
-# Interpreters a skill runs its code with: command not found for one of these
-# fails; for any other command it warns, as a case may run a missing command on
-# purpose.
 INTERPRETERS = frozenset(
     "node nodejs npx npm python python3 py uv uvx bun bunx deno ruby perl pwsh tsx".split()
 )
@@ -2625,7 +2626,8 @@ def start_failures(run):
 def check_programs(runs):
     """A run whose trace shows a shim error, or command not found for an
     interpreter, could not run the skill's code, so its score measures the
-    missing program: FAIL. Any other command not found warns."""
+    missing program: FAIL. Any other command not found warns, as a case may
+    run a missing command on purpose."""
     failed, warned = [], []
     for r in runs:
         found = start_failures(r)
