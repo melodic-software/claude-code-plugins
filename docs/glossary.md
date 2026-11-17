@@ -12,6 +12,9 @@ uniform.
 This marketplace is a single language context, so there is no context map: every entry below
 applies repository-wide.
 
+Naming rule: split a concept into its core responsibilities and name each piece so the pieces
+compose, as **approve** is the triage verdict followed by **admission**.
+
 ## Terms
 
 **AFK criterion**
@@ -185,6 +188,33 @@ A work item a lane handed to a person.
 
 A work item the operator set aside for a person.
 
+**approve**
+
+The step that decides a work item will be built, in two pieces: the triage verdict, a judgment of
+intent, security and cost that sets `status: ready`, then **admission**, which applies rules and
+capacity with no model.
+
+**admission**
+
+The check, with no model, that moves an issue from `status: ready` to `agent-ready`, or defers,
+refuses or parks it (`status: confirmed`, `attended`, `host-run`). It is the second piece of
+**approve**, at the point Kanban calls the commitment point
+([`admit.mjs`](../.github/scripts/intake-triage/admit.mjs)). The local `work-loop`'s admission gate
+is the same step in a local loop. The ADR admission test
+([`record-decision`](../plugins/architecture/skills/record-decision/SKILL.md#admission-test-advisory))
+is a separate sense.
+
+Distinct from the **queue**: the `agent-ready` issues admission let in, waiting for a build run.
+The queue's length can pause admission
+([`check-wip-cap`](../.github/actions/check-wip-cap/action.yml) `admission-open`).
+
+Avoid: approval, commitment point
+
+**deferred**
+
+The state of an issue admission has deferred. The `admission-deferred` label and the `deferred`
+Work status option both mean it; work-unblock's hourly sweep admits it once there is room.
+
 **work class**
 
 One of the classes (C1 to C5) a unit of work falls into, assigned by its blast radius,
@@ -204,11 +234,45 @@ Avoid: security-surface work class
 
 ### Lanes and pull requests
 
+**lane**
+
+One worker with a single authority, run as a CI workflow or a local loop, that serves one
+**stage** and never does another lane's job
+([pr-pipeline convention, Lanes](conventions/pr-pipeline/README.md#lanes)). Bare *lane* means this;
+the qualified forms below name a run mode.
+
+Avoid: task, factory workflow
+
+**stage**
+
+The step in the chain a lane serves. For CI lanes it is the `stage` field in
+[`lane-rules.json`](../.github/actions/resolve-config/lane-rules.json): `intake`, `work`, `refine`,
+`verify`, `merge`, `post-merge`, `unblock`, `maintenance` or `upstream`.
+
+**software factory**
+
+Every lane together, from intake through post-merge and maintenance.
+
+Also called: kitchen
+
+**lane leg**
+
+One Claude Code session inside one CI lane run: the key, subscription or fallback leg
+([`pull.mjs`](../scripts/lane-transcripts/pull.mjs) `LEGS`).
+
+**brake**
+
+A mechanism that slows or stops work on its way to merge: a hold, a cap, a gate.
+
+**accelerator**
+
+A mechanism that moves work forward with no person: an auto-admit, an auto-merge, a chained
+trigger.
+
 **loop lane**
 
-A long-running session that repeats one single-pass mechanic over a repository's backlog or
-pull-request queue, either standing or draining until the queue is empty. Always written qualified:
-bare *lane* has several senses here.
+A lane run as a local loop: a long-running session that repeats one single-pass mechanic over a
+repository's backlog or pull-request queue, either standing or draining until the queue is empty.
 
 **pipeline lane**
 
@@ -292,5 +356,8 @@ Each maps to the term or doctrine that owns the concept.
 | sediment | the `docs-hygiene` audit family's pruning doctrine; collides with the code-sense use in `playbooks:fable-5` |
 | sycophancy | nothing. It is a generic LLM-behavior term with no distinct project meaning. Free-prose use is unaffected; it is not project vocabulary |
 | slice *(the work-item sense)* | **vertical slice** above; bare "slice" means the topic folder |
-| software factory | the loop-lane convention ([`contracts/loop-lane/README.md`](contracts/loop-lane/README.md)) |
+| task *(for a lane)* | **lane** above; collides with the `Task` Issue Type admission reads ([`admission-rules.json`](../.github/actions/resolve-config/admission-rules.json)) |
+| factory workflow *(for a lane)* | **lane** above; not every workflow is a lane |
+| approval *(for admission)* | **admission** above; implies a judge, and admission runs no model |
+| commitment point | **admission** above; Kanban's name for the point, which collides with a git commit |
 | map / territory | the source author's metaphor, cited where it appears in [`finding-your-unknowns.md`](finding-your-unknowns.md) "The unknowns taxonomy"; never house vocabulary (metaphor-jargon risk) |

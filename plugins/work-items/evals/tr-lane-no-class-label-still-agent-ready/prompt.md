@@ -1,10 +1,10 @@
 ---
-description: 'Legacy triage 13. A work-loop intake sweep barred from class labels and opted into agent-ready applies status:ready and agent-ready and removes needs-triage in one edit for a verified, delegable member-filed bug, applies no class label, and proposes C3 in its cycle report. applies-agent-ready and proposes-c3 read the reply. Read-only tools, graded on the reply.'
+description: 'Legacy triage 13. A work-loop intake sweep barred from class labels and opted into agent-ready applies status: ready and agent-ready and removes needs-triage in one edit for a verified, delegable member-filed bug, applies no class label, and proposes C3 in its cycle report. applies-agent-ready and proposes-c3 read the reply. Read-only tools, graded on the reply.'
 tags: [triage, lane, class-label, agent-ready]
 max_turns: 15
 timeout_seconds: 420
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: 'The run posts the brief, then in one label edit applies status:ready and agent-ready and removes needs-triage. It applies no class label, applies no needs-human and posts no escalation marker for the missing class, and names C3 (scoped) as the proposed class in its cycle report.'
+expected_outcome: 'The run posts the brief, then in one label edit applies status: ready and agent-ready and removes needs-triage. It applies no class label, applies no needs-human and posts no escalation marker for the missing class, and names C3 (scoped) as the proposed class in its cycle report.'
 ---
 
 /work-items:triage 4399

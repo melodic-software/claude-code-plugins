@@ -385,7 +385,7 @@ class Degradation(unittest.TestCase):
     @unittest.skipUnless(pygments_present(), "pygments not installed")
     def test_tracked_subdirectory_target_lists_its_files(self):
         # `git ls-files -- <dir>` run from inside <dir> looks for <dir>/<dir> and
-        # matches nothing, so a directory target used to census zero files.
+        # matches nothing, so a directory target would census zero files.
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(rmtree_force, tmp)
         env = git_env()

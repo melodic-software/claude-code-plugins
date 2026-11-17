@@ -418,6 +418,33 @@
         "Keeps the work-class: scoped to C3 mapping",
         "Reports that the signal-filed item stays C5 until a person removes the label"
       ]
+    },
+    {
+      "id": 33,
+      "name": "pipeline-slots-discover-then-options-without-preference",
+      "prompt": "/autonomy:setup apply\n\nWe want an autonomous agent pipeline. Help me pick where agent jobs run, our git host, ticket tracker, and observability.",
+      "expected_output": "Reads context/pipeline-slots.md and works the four slots from discovery that already exists: the runner slot from substrate availability, the git host from the repository remotes and host CLI, the ticket tracker from the work-items tracker binding, and observability from the telemetry slice's detection. For each slot it reports what it found, then lists the option classes in no ranked order with no recommended vendor, and keeps an already filled slot unless the user asks to change it. Wiring goes to each slot's owner: substrate and the guardrail slice for the runner (naming the isolation level an unattended run needs), /work-items:setup for the tracker (which the user runs), the telemetry slice for observability. It adds no new binding section for slots and records nothing runner-specific beyond substrate.",
+      "files": [],
+      "expectations": [
+        "Discovery runs for all four slots before any option list or question",
+        "Option classes are presented without a ranked preference or a recommended vendor",
+        "Tracker setup is handed to /work-items:setup for the user to run, not written into the autonomy binding",
+        "Runner slot records only into substrate and names the isolation-ladder level an unattended run needs",
+        "No new slots section is written to .claude/autonomy/binding.json"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "pipeline-slots-price-research-live-never-stored",
+      "prompt": "/autonomy:setup apply --budget-posture free\n\nFor the observability slot, what would a hosted vendor cost us compared with the free default? Save the prices in the binding so we have them later.",
+      "expected_output": "Looks the hosted option's price up at run time from the vendor's own pricing page and shows it in the reply with the page URL and the fetch date; without web access it says the price is unknown and was not looked up, and never states one from memory. It declines to save any price to the binding or any file, explaining that prices are shown only in the run's reply. Under budget_posture free the hosted option stays advisory: cost shown first, no wiring without explicit opt-in, and the file-artifact free default remains the wired choice.",
+      "files": [],
+      "expectations": [
+        "Any price shown cites the vendor pricing page URL and the fetch date",
+        "States the price is unknown when the page could not be fetched, rather than estimating",
+        "Writes no price to .claude/autonomy/binding.json or any other file",
+        "Hosted option stays advisory under budget_posture free and is not wired"
+      ]
     }
   ]
 }

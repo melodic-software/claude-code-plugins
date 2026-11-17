@@ -1,5 +1,5 @@
 ---
-description: "Configure the autonomy plugin for this repository: discover the adopting org's state (role homes, substrate availability, budget posture), interview where discovery cannot infer, and write the schema-versioned binding under .claude/autonomy/. Use when: 'set up autonomy', 'autonomy setup', 'configure autonomy', 'bind the autonomy contracts', or another autonomy capability reports a missing binding. Re-runnable. Safe to invoke again to reconfigure."
+description: "Configure the autonomy plugin for this repository: discover the adopting org's state (role homes, substrate availability, budget posture, pipeline slots with live prices), interview where discovery cannot infer, and write the schema-versioned binding under .claude/autonomy/. Use when: 'set up autonomy', 'autonomy setup', 'configure autonomy', 'bind the autonomy contracts', 'set up an agent pipeline', or another autonomy capability reports a missing binding. Re-runnable. Safe to invoke again to reconfigure."
 argument-hint: "<check|apply> [--org-policy-home <locator>|none] [--budget-posture free|paid-opt-in]"
 user-invocable: true
 disable-model-invocation: true
@@ -26,7 +26,7 @@ it cannot infer, and every landed change is reviewable per
   warned as not-considered, never silently omitted. Also report whether `node` resolves on PATH
   (`command -v node` through the Bash tool, so the probe works without the hook launcher): every
   hook row runs through `node hooks/exec-bash.mjs`, so without it the hooks do not launch and
-  are not enforced. No writes.
+  are not enforced. Report each pipeline slot from the record that owns it. No writes.
 - **`apply`** (idempotent): run discovery, then write or update the project binding. Re-running
   reads the existing binding and proposes deltas; it never overwrites blind and never touches
   unrelated user content. All project paths anchor at the project root. Resolve
@@ -64,6 +64,13 @@ ask and offer to persist; otherwise → safe free-tier default).
    self-run infrastructure). Recorded as declared posture, not probed destructively.
 3. **Budget posture**: `free` unless the user explicitly opts into `paid-opt-in`; anything
    paid is advisory + explicit opt-in with cost surfaced first (wiring-vs-advisor).
+4. **Pipeline slots**: runner, git host, ticket tracker, observability. Each slot reads what steps
+   1 and 2, the telemetry slice, and the work-items tracker binding already found, lays out the
+   option classes with no preference, looks up the price of any option that can bill at run time,
+   and hands wiring to the slot's owner. No price is ever written to the binding or this skill.
+   Read [`context/pipeline-slots.md`](context/pipeline-slots.md) when `apply` reaches this step or
+   `check` reports slots: it owns the slot-to-owner table, the option classes, and the live
+   price-research step.
 
 ## Written binding
 
@@ -291,7 +298,9 @@ fails loud on internal failure, never a verdict-shaped fallback.
 
 The [runner design pack](${CLAUDE_PLUGIN_ROOT}/reference/runner.md) is bindable-when-born:
 until a build trigger fires and the runner-execution home is born, setup records nothing
-runner-specific. No probe, no wiring, no binding section for the unborn home. The single
+runner-specific. No probe, no wiring, no binding section for the unborn home. The runner
+pipeline slot is a different thing, the surface agent jobs run on today, and records only into
+`substrate`. The single
 exception is escalation notification routes, which already home on the security surface: the
 severity axis (`notice`/`attention`/`urgent`) and the personal-push tier are prepared as route
 options through the security binding's `escalation_severity`, `escalation_severity_routes`, and
@@ -327,5 +336,7 @@ scheduling surface recorded in two `surfaces` maps resolving as ambiguous, are c
   repository). Nor platform settings.
 - Assume the shape of any particular org or fleet, a run against an unknown repo asks or
   defaults; it never guesses silently.
-- Recommend or privilege any observability vendor. Sink classes only; the deployment picks
-  instances.
+- Recommend or privilege any observability vendor, or any option in another pipeline slot.
+  Classes only; the deployment picks instances.
+- State a price from memory or store one anywhere: prices are fetched live and shown, cited, in
+  the run's reply only.

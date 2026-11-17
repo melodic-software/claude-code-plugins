@@ -470,7 +470,7 @@ admission rule. The glossary mirrors the REJECT row.
 
 | Term | Verdict | Basis |
 |---|---|---|
-| software factory | **REJECT** (mapping recorded) | Maps to our loop lane (`docs/contracts/loop-lane/README.md`: `work-items:work-loop`, `source-control:babysit-loop`, CI intake triage). His dictionary [entry](https://www.aihero.dev/ai-coding-dictionary/software-factory) describes agent sessions that an event launches, with no person starting them; a second name for a concept the house already owns violates vocabulary parsimony. As-of 2026-10-10 |
+| software factory | **ADOPT** (meaning widened) | Adopted as the name for every lane together, intake through post-merge and maintenance (`docs/glossary.md`, **software factory**); one lane run as a local loop stays a loop lane (`docs/contracts/loop-lane/README.md`). His dictionary [entry](https://www.aihero.dev/ai-coding-dictionary/software-factory) describes agent sessions that an event launches, with no person starting them, across the whole pipeline. As-of 2026-11-17 |
 | dark factory | **RECORDED** (definition only) | His [entry](https://www.aihero.dev/ai-coding-dictionary/dark-factory): a software factory whose code no person ever reviews, gated only by automated checks and automated review. Recorded so the term can be matched when upstream material uses it; no project term adopted. As-of 2026-10-10 |
 
 ## Coverage index (the journey's completion gate)
