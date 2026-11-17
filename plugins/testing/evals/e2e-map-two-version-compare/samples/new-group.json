@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "baseline shop@1.0.0 -> this pass shop@1.1.0\nNEW: 1 (critical 0, high 1, medium 0, low 0)\n- 3f1a9c0e7b2d4851 | error | high | Pay button\nPRE-EXISTING: 1 (critical 0, high 0, medium 1, low 0)\n- c4a7e2d19b3f0a68 | result-not-met | medium | Cart page, Mini cart",
+      "why": "the checkout finding alone under its NEW summary line"
+    },
+    {
+      "answer": "**NEW**: 1 (critical 0, high 1, medium 0, low 0)\n\n- `3f1a9c0e7b2d4851` checkout, error, high, Pay button",
+      "why": "bold group name and a code-span id"
+    },
+    {
+      "answer": "**NEW:** 1 (critical 0, high 1, medium 0, low 0)\n- 3f1a9c0e7b2d4851 (checkout, error, high, Pay button)",
+      "why": "the colon inside the bold"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "NEW: 2 (critical 0, high 1, medium 1, low 0)\n- 3f1a9c0e7b2d4851 | error | high | Pay button\n- c4a7e2d19b3f0a68 | result-not-met | medium | Mini cart",
+      "why": "the cart finding counted NEW because it showed at a new entry point"
+    },
+    {
+      "answer": "NEW: 1 (critical 0, high 1, medium 0, low 0)\n- c4a7e2d19b3f0a68 | result-not-met | medium\n- 3f1a9c0e7b2d4851 | error | high",
+      "why": "another id listed in the NEW group"
+    }
+  ]
+}
