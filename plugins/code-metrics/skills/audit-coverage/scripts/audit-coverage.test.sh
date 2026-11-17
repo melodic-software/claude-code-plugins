@@ -17,6 +17,7 @@
 # committed (design T13). No test command is ever run: this skill reads
 # artifacts.
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/parsers/*.py plugins/code-metrics/scripts/fixtures/* plugins/code-metrics/scripts/yaml_subset.py
+# test-scope: .claude/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
