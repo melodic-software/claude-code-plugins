@@ -1,0 +1,1 @@
+{"pass": [{"answer": [{"tool": "Bash", "input": {"command": "sh \"plugin/git-hooks/lint.sh\" --resolve"}}], "why": "the resolve read"}, {"answer": [], "why": "no calls"}], "fail": [{"answer": [{"tool": "Write", "input": {"file_path": ".claude/ecosystems/bash.yaml", "content": "x"}}], "why": "writes the bash record"}]}

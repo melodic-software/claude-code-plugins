@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [
+        "scripts/run.sh"
+      ],
+      "why": "the scaffold's files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "scripts/run.sh",
+        ".claude/ecosystems/bash.yaml"
+      ],
+      "why": "wrote the bash record"
+    }
+  ]
+}

@@ -1,7 +1,8 @@
 """Shared helpers for the audit-sessions suite.
 
 The one place the suite puts `AS/scripts` and `plugins/session-flow/scripts` on `sys.path`, so
-tests import `transcript_reader`, `redact` and `census` plainly; no test file inserts paths itself.
+tests import `transcript_reader`, `redact`, `census` and `collect` plainly; no test file inserts
+paths itself.
 """
 
 from __future__ import annotations
@@ -24,9 +25,10 @@ for _path in (str(SCRIPTS), str(PLUGIN_SCRIPTS)):
 
 
 def run_cli(script: str, *args: str) -> subprocess.CompletedProcess[str]:
-    """Run an audit-sessions script by subprocess, as a consumer would."""
+    """Run an audit-sessions script, or a plugin-level one it uses, by subprocess, as a consumer would."""
+    path = SCRIPTS / script if (SCRIPTS / script).is_file() else PLUGIN_SCRIPTS / script
     return subprocess.run(
-        [sys.executable, str(SCRIPTS / script), *args],
+        [sys.executable, str(path), *args],
         capture_output=True,
         text=True,
         encoding="utf-8",

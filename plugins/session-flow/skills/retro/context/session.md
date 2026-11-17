@@ -17,61 +17,16 @@ location), the retro analyzes every chained session across
 `--chain-from` (newest handoff file → its `previous_handoff` pointer → repeat; breaks cleanly at
 the first entry lacking `session_id`).
 
-**Continuity gate first.** Use `--chain-from` only when the newest handoff belongs to the current
-work: this session resumed from it (the resume prompt loaded it), this session wrote it, or its
-`topic` frontmatter and stated goal clearly match the current task. A shared directory can hold
-save-points
-from completed or abandoned tasks, and chaining from an unrelated newest file would splice stale
-sessions into this retro's aggregate. When continuity is absent or unclear, fall back to the
-single-session form.
+Apply the continuity gate in `<plugin-root>/reference/transcript-parser.md` first.
 
 ### Phase 1.1: Parse the transcript(s)
 
-Resolve `SESSION_DATA_DIR` per SKILL.md "Paths", then:
-
-```bash
-PARSER="<plugin-root>/skills/retro/scripts/parse_transcript.py"
-
-# Pick an interpreter that is actually Python 3.10+ (a bare `python` may be older):
-PY=""
-for c in python3 python; do
-  if command -v "$c" >/dev/null 2>&1 \
-     && "$c" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
-    PY="$c"; break
-  fi
-done
-
-# Single-session form:
-"$PY" "$PARSER" --sessions "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
-
-# Multi-session form (handoff chain exists). Derive HANDOFF_DIR from the memory
-# root. Resolution: a working-docs convention you inferred from CLAUDE.md /
-# .claude/rules (pass it as DECLARED_MEMORY_DIR; prose is an inference source) ->
-# the plugin default .work. DECLARED_MEMORY_DIR is a memory-tier ROOT, never a
-# handoffs path directly — HANDOFF_DIR always appends /handoffs below, at every
-# rung, matching the handoff skill's "Where handoffs live".
-MEMORY_DIR="${DECLARED_MEMORY_DIR:-.work}"
-HANDOFF_DIR="$MEMORY_DIR/handoffs"
-NEWEST=$(ls -1 "$HANDOFF_DIR"/*-handoff-*.md 2>/dev/null | sort | tail -1)
-if [[ -z "$NEWEST" ]]; then
-  echo "No handoff files found under $HANDOFF_DIR — falling back to single-session form." >&2
-  "$PY" "$PARSER" --sessions "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
-else
-  "$PY" "$PARSER" --chain-from "$NEWEST" --current-session "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
-fi
-```
-
-If `PY` resolves empty (no Python 3.10+ available), skip metrics extraction and note why. The
-parser is stdlib-only.
-
-### Script contract
-
-JSON to stdout: `status` / `summary`, plus per-session `data` (session info, turns, tokens, tool
-usage + rejections, compactions, turn durations, stop reasons, files modified, subagents, errors)
-and, in multi-session form, an `aggregate` block and a `chain_coverage` block. Exit codes:
-0 = success, 1 = warning, 2 = error.
-
-`--sessions` accepts its ids space-separated or comma-joined; both spell the same list.
+Resolve `SESSION_DATA_DIR` per SKILL.md "Paths", then run the parser as
+`<plugin-root>/reference/transcript-parser.md` says: its interpreter check, then the chain form
+from the newest handoff when the continuity gate passes, else the one-session form with
+`${CLAUDE_CODE_SESSION_ID}`. The handoff directory sits under the memory root: a working-docs
+convention inferred from `CLAUDE.md` or `.claude/rules`, else the plugin default `.work`, with
+`/handoffs` always appended. That file also holds the output contract and exit codes.
 
 ### Check chain coverage before presenting
 

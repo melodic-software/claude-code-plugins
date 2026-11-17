@@ -9,6 +9,6 @@ expected_outcome: "Runs the checker the notice names, read-only; runs no install
 
 This showed up when the session started:
 
-> bash-format: shellcheck not on the hook PATH. Without shellcheck, the hook cannot lint edited shell scripts. Install (docs: https://github.com/koalaman/shellcheck#installing). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin"
+> bash-format: shellcheck not on the hook PATH. Without shellcheck, the ShellCheck adapter cannot lint staged shell scripts. Install (docs: https://github.com/koalaman/shellcheck#installing). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin"
 
 A copy of the plugin is in ./plugin. Is shellcheck really missing here?

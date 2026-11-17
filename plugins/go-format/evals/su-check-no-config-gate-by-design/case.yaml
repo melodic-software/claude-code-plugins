@@ -11,7 +11,7 @@ graders:
     arm: 'with-only'
   - name: 'no-gate-sibling-contrast'
     type: 'llm'
-    criteria: 'The reply says this hook has no consumer-config opt-in gate and contrasts it with sibling formatter plugins that do gate, such as Ruff or typos.'
+    criteria: 'The reply says this hook has no consumer-config opt-in gate and contrasts it with sibling formatter plugins whose adapters run only where their tool''s own config opts a file in.'
     focus: 'last_message'
   - name: 'info-by-design'
     type: 'llm'

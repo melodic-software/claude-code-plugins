@@ -5,7 +5,7 @@
 # rewritten; stop_hook_active keeps it from blocking twice in one turn; the
 # plugin kill switch wins. The spawn budget case fences the cost every user pays
 # per turn with the option off: the node launcher only.
-# test-scope: plugins/go-format/hooks/hooks.json plugins/go-format/git-hooks/goimports-format.sh plugins/go-format/.claude-plugin/plugin.json
+# test-scope: plugins/go-format/hooks/hooks.json plugins/go-format/git-hooks/format.sh plugins/go-format/git-hooks/adapters.sh plugins/go-format/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_GO_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED
 
@@ -78,8 +78,10 @@ expect "on: the plugin kill switch wins" "0|" \
 # already reports the missing tool.
 NOTOOL="$WORK/no-goimports"
 mkdir -p "$NOTOOL"
-for t in node git bash sed awk cat mktemp rm dirname grep tr jq; do
-  ln -s "$(command -v "$t")" "$NOTOOL/$t"
+for t in node git bash sh sed awk cat mktemp rm dirname grep tr jq; do
+  real="$(mise which "$t" 2>/dev/null)" || real=""
+  [[ -x "$real" ]] || real="$(command -v "$t")"
+  ln -s "$real" "$NOTOOL/$t"
 done
 expect "on: a missing goimports passes silently" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_GO_FORMAT_END_OF_TURN=true PATH="$NOTOOL")"
