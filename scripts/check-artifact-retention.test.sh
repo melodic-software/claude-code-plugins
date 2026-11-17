@@ -296,9 +296,36 @@ run_case "a plaintext family with no scan step before the seal fails" 1 \
   "subst $ACTION 'scan-upload/scan-upload.mjs' 'seal.mjs'" \
   "$ACTION:9: upload \`pack-\${{ github.run_id }}\` has no scan step before it; $TABLE family \`pack-*\` says scan: plaintext"
 
-run_case "a plaintext upload in a job its row lists as sealed-upstream needs no scan step of its own" 0 \
-  "subst $ACTION 'scan-upload/scan-upload.mjs' 'seal.mjs' && edit $TABLE 't.families[\"pack-*\"][\"sealed-upstream\"] = [\".github/actions/pack/action.yml#runs\"]'" \
-  "check-artifact-retention: 4 upload step(s) match"
+add_sealed_job() {
+  local perms=$1
+  shift
+  {
+    printf '%s\n' '  sealed:' '    runs-on: ubuntu-24.04' "    $perms" '    steps:'
+    printf '%s\n' "$@"
+    printf '%s\n' '      - uses: actions/upload-artifact@v7' '        with:' "          name: pack-\${{ github.run_attempt }}" '          path: pack.sealed' '          retention-days: 3'
+  } >>"$WORKFLOW"
+  edit "$TABLE" 't.families["pack-*"]["sealed-upstream"] = [".github/workflows/build.yml#sealed"]'
+}
+
+run_case "a plaintext upload in a listed sealed-upstream job with no checkout, secret or permissions needs no scan step" 0 \
+  "add_sealed_job 'permissions: {}'" \
+  "check-artifact-retention: 5 upload step(s) match"
+
+run_case "the same upload in a job the row does not list still needs its scan step" 1 \
+  "add_sealed_job 'permissions: {}' && edit $TABLE 'delete t.families[\"pack-*\"][\"sealed-upstream\"]'" \
+  "upload \`pack-\${{ github.run_attempt }}\` has no scan step before it; $TABLE family \`pack-*\` says scan: plaintext"
+
+run_case "a listed sealed-upstream job with a checkout fails" 1 \
+  "add_sealed_job 'permissions: {}' '      - uses: actions/checkout@v7'" \
+  "is in a sealed-upstream job of family \`pack-*\` that holds a checkout, a secret, an environment or permissions other than {}"
+
+run_case "a listed sealed-upstream job that reads a secret fails" 1 \
+  "add_sealed_job 'permissions: {}' '      - run: echo ok' '        env:' '          TOKEN: \${{ secrets.TOKEN }}'" \
+  "is in a sealed-upstream job of family \`pack-*\` that holds a checkout, a secret, an environment or permissions other than {}"
+
+run_case "a listed sealed-upstream job with a token permission fails" 1 \
+  "add_sealed_job 'permissions: { contents: read }'" \
+  "is in a sealed-upstream job of family \`pack-*\` that holds a checkout, a secret, an environment or permissions other than {}"
 
 run_case "a sealed-upstream job that holds no unscanned upload of the family fails" 1 \
   "edit $TABLE 't.families[\"pack-*\"][\"sealed-upstream\"] = [\".github/actions/pack/action.yml#runs\"]'" \

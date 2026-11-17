@@ -95,6 +95,7 @@ function scanOf(step) {
 
 // Every upload step: { file, line, job, name, retention, path, condition, scans }.
 const steps = [];
+const isolatedJobs = new Set();
 function collect(file, lineCounter, stepSeqs) {
   for (const [job, seq] of stepSeqs) {
     if (!yaml.isSeq(seq)) continue;
@@ -144,6 +145,15 @@ for (const { file, kind } of files) {
     const jobs = doc.get("jobs");
     if (yaml.isMap(jobs)) {
       collect(file, lineCounter, jobs.items.map((pair) => [String(pair.key?.value ?? pair.key), yaml.isMap(pair.value) ? pair.value.get("steps") : undefined]));
+      for (const pair of jobs.items) {
+        const job = yaml.isMap(pair.value) ? pair.value.toJSON() : null;
+        const permissions = job?.permissions;
+        const empty = permissions !== null && typeof permissions === "object" && !Array.isArray(permissions) && Object.keys(permissions).length === 0;
+        const checkout = (job?.steps ?? []).some((step) => /^actions\/checkout@/.test(String(step?.uses ?? "")));
+        if (job && empty && !checkout && job.environment === undefined && !/\bsecrets\./.test(JSON.stringify(job))) {
+          isolatedJobs.add(`${file}#${String(pair.key?.value ?? pair.key)}`);
+        }
+      }
     }
   } else {
     collect(file, lineCounter, [["runs", doc.getIn(["runs", "steps"])]]);
@@ -206,8 +216,10 @@ for (const step of steps) {
     }
   } else if (row.scan === "plaintext" && step.scans.length === 0) {
     const job = `${step.file}#${step.job}`;
-    if ((row["sealed-upstream"] ?? []).includes(job)) sealedUpstream.add(`${key} ${job}`);
-    else findings.push(`${label} has no scan step before it; ${TABLE} family \`${key}\` says scan: plaintext`);
+    if ((row["sealed-upstream"] ?? []).includes(job)) {
+      sealedUpstream.add(`${key} ${job}`);
+      if (!isolatedJobs.has(job)) findings.push(`${label} is in a sealed-upstream job of family \`${key}\` that holds a checkout, a secret, an environment or permissions other than {}`);
+    } else findings.push(`${label} has no scan step before it; ${TABLE} family \`${key}\` says scan: plaintext`);
   }
   const want = row["retention-days"];
   const raw = step.retention;

@@ -1510,6 +1510,8 @@ jobs:
             sum=$(sha256sum <"$SEAL_DIR/${pair#*:}")
             echo "${pair%%:*}-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
           done
+          sum=$(sha256sum <"$DEST/publish-gate.mjs")
+          echo "gate-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
 
       # The act-turns step's script, copied before the head checkout replaces
       # .base, with its SHA-256, which that step checks its copy against
@@ -2430,6 +2432,9 @@ jobs:
           CARRY_DIR: ${{ runner.temp }}/carry-transcript
           PATCH_GATE: ${{ runner.temp }}/read-patch/publish-gate.mjs
           CARRY_SEALED_LENGTH: ${{ steps.seal.outputs.sealed-length }}
+          GATE_SHA256: ${{ steps.seal-copy.outputs.gate-sha256 }}
+          ACTION_SHA256: ${{ steps.seal-copy.outputs.action-sha256 }}
+          SEAL_SHA256: ${{ steps.seal-copy.outputs.seal-sha256 }}
         run: |
           rm -rf "$CARRY_DIR"
           mkdir -p "$CARRY_DIR"
@@ -2450,7 +2455,16 @@ jobs:
             echo "::notice::the carry leaves this job's outputs no room for the leg's transcript, so none is carried"
             exit 0
           fi
-          printf '%s\n' "$PUBLIC_KEY" >"$CARRY_DIR/lane-transcript.pub"
+          base_copy_matches() {
+            local file=$1 want=$2 sum
+            [ -n "$want" ] && [ ! -L "$file" ] && [ -f "$file" ] || return 1
+            sum=$(sha256sum <"$file")
+            [ "${sum%% *}" = "$want" ]
+          }
+          if ! base_copy_matches "$PATCH_GATE" "$GATE_SHA256"; then
+            echo "::error::the credential scan's copy does not match the SHA-256 recorded from the base, so no transcript is carried"
+            exit 1
+          fi
           gz=$CARRY_DIR/transcript.json.gz
           marker() {
             jq -cn --arg reason "$1" --argjson bytes "$2" --argjson cap "$cap" \
@@ -2459,8 +2473,10 @@ jobs:
           gzip -9n -c -- "$EXECUTION_FILE" >"$gz"
           bytes=$(stat -c %s "$gz")
           if ! timeout 120 node --input-type=module -e '
+            import { createHash } from "node:crypto";
             import { readFileSync } from "node:fs";
             import { pathToFileURL } from "node:url";
+            if (createHash("sha256").update(readFileSync(process.env.PATCH_GATE)).digest("hex") !== process.env.GATE_SHA256) process.exit(1);
             const { scanLeak } = await import(pathToFileURL(process.env.PATCH_GATE).href);
             process.exit(scanLeak(readFileSync(process.argv[1])).block ? 1 : 0);
           ' "$EXECUTION_FILE"; then
@@ -2469,6 +2485,15 @@ jobs:
           elif [ "$bytes" -gt "$cap" ]; then
             echo "::warning::too-large: the leg's transcript is $bytes gzipped bytes, over its $cap-byte cap, so a marker is carried in its place"
             marker too-large "$bytes"
+          fi
+          printf '%s\n' "$PUBLIC_KEY" >"$CARRY_DIR/lane-transcript.pub"
+          if ! base_copy_matches "$GITHUB_WORKSPACE/.lane-seal/action.yml" "$ACTION_SHA256" || ! base_copy_matches "$GITHUB_WORKSPACE/.lane-seal/seal.mjs" "$SEAL_SHA256"; then
+            echo "::error::the sealer copy does not match the SHA-256 recorded from the base, so no transcript is carried"
+            exit 1
+          fi
+          if [ "$(cat "$CARRY_DIR/lane-transcript.pub")" != "$(printf '%s\n' "$PUBLIC_KEY")" ]; then
+            echo "::error::the transcript key file does not hold the LANE_TRANSCRIPT_PUBLIC_KEY variable, so no transcript is carried"
+            exit 1
           fi
           echo "staged=true" >>"$GITHUB_OUTPUT"
 
