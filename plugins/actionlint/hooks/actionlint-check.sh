@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Stop hook (opt-in, actionlint_end_of_turn): run the pre-commit entry over the
+# Stop hook (opt-in, actionlint_end_of_turn): run the lint entry over the
 # uncommitted workflow changes when a turn ends.
 #
 #   actionlint-check.sh --end-of-turn
 #
 # actionlint only reports, so nothing runs per edit or per batch. This row is the
-# one place a session sees its findings before commit: the entry
-# (git-hooks/actionlint-check.sh --worktree) reports what actionlint finds on the
-# lines changed since the last commit, and findings exit 2 so the model fixes
+# one place a session sees its findings before commit: the lint entry
+# (git-hooks/lint.sh --worktree) reports what actionlint finds on the lines
+# changed since the last commit, where the repository's own actionlint config
+# opts it in, and findings exit 2 so the model fixes
 # them before the turn ends. Once a Stop hook has continued the turn
 # (stop_hook_active) the row stays quiet, so it blocks at most once per turn.
 # The launcher's --require-true gate keeps the script from starting while the
@@ -22,7 +23,7 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 IFS= read -r -d '' INPUT || :
 [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
-err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/actionlint-check.sh" --worktree 2>&1 >/dev/null)" && exit 0
+err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/lint.sh" --worktree 2>&1 >/dev/null)" && exit 0
 # silent-skip-ok: the SessionStart probe already reports a missing actionlint (prerequisites.json) and the bundled checker does too; blocking every turn end on a host problem would not help the model.
 [[ "$err" == "FAIL: "*" missing. Install: "* ]] && exit 0
 printf '%s\n' "$err" >&2

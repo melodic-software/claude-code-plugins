@@ -1,5 +1,5 @@
 ---
-description: "Verify actionlint's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up actionlint', 'configure actionlint', 'is actionlint working', workflow lint silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply [install-git-hooks [scope=local|shared]]. Re-runnable and safe."
+description: "Verify actionlint's prerequisites and whether its hooks lint workflows here, and register its git pre-commit entry. Use when: 'set up actionlint', 'configure actionlint', 'is actionlint working', workflow lint silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply [install-git-hooks [scope=local|shared]]. Re-runnable and safe."
 argument-hint: "[check|apply] [inspect|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
@@ -12,6 +12,10 @@ allowed-tools:
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs inspect:*)"
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan:*)"
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs plan:*)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh\" --resolve)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh\" --resolve:*)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh --resolve)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh --resolve:*)"
 shell: bash
 ---
 
@@ -36,10 +40,13 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
-reports, `apply` resolves. The only consumer-project files this plugin owns are its git-hook
-entry copies, which `apply install-git-hooks` writes. actionlint auto-discovers its own optional
-config from the repository, and the tunables are the native `userConfig` options
-(`actionlint_enabled` and `actionlint_end_of_turn`). Every prerequisite is a `PATH` binary the
+reports, `apply` resolves. The plugin only lints. Its hooks run only the shipped actionlint adapter,
+where the repository's own actionlint config opts it in, and otherwise nothing; they never run a
+command from the repository's github-actions record (`.claude/ecosystems/github-actions.yaml`),
+which `/toolchain:lint` and `/toolchain:check` run on request. The only consumer-project files this
+plugin writes are its git-hook entry copies (`apply install-git-hooks`); it never writes the
+actionlint config or the record (`/toolchain:setup apply github-actions` writes the record). The
+tunables are the native `userConfig` options (`actionlint_enabled` and `actionlint_end_of_turn`). Every prerequisite is a `PATH` binary the
 plugin never bundles, and the plugin never installs system packages, so `apply` is
 guidance-and-verify with that one write path. It never modifies user settings or the plugin
 cache.
@@ -52,8 +59,9 @@ its section says to.
 
 ## `check` (read-only)
 
-The git-hook script (`${CLAUDE_PLUGIN_ROOT}/git-hooks/actionlint-check.sh`) is the single source
-of truth for what it requires and how it resolves things.
+The lint entry (`${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh`), its adapter
+(`${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh`) and the resolver they share are the single source of
+truth for what the plugin requires and how it resolves things; step 4 asks the resolver itself.
 
 **Read it first.** Probe what it actually does, don't recite this file. Then read the
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
@@ -74,25 +82,36 @@ entry): the entry runs at commit outside Claude Code and reads no toggle.
    hook row launches through `node hooks/exec-bash.mjs`, so the hooks do not launch and the
    session-start probe does not run. The hooks cannot report this themselves. Probed here
    through Bash, which works without the launcher.
-3. **`actionlint`.** The pre-computed `actionlint` row. FAIL if absent: the pre-commit entry then
-   fails the commit of an agent with the install command and gives a person a notice, and the
-   end-of-turn check does nothing.
-4. **actionlint config.** INFO: actionlint auto-discovers an optional
-   `.github/actionlint.yaml` from the repository when present. It is not required. actionlint
-   runs with its built-in defaults without one. Report whether one exists for the reader's
-   awareness; its absence is not a FAIL.
+3. **`actionlint`.** The pre-computed `actionlint` row. Where step 4 resolves the adapter, FAIL if
+   absent: the pre-commit entry then fails the commit of an agent with the install command and
+   gives a person a notice, and the end-of-turn check does nothing. Where step 4 resolves nothing,
+   INFO: no hook would run it here.
+4. **What lint resolves to.** From the repository root run
+   `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh" --resolve`. It prints one row: plugin, concern,
+   source, tool, found, detail, tab-separated. It reads the adapter's config and runs nothing.
+   Which config opts the repository in is the adapter's rule in `adapters.sh`: read it to explain
+   the row. Report from the row, never from this text:
+   - `adapter:actionlint` with found `yes`: PASS, naming the config that opted in.
+   - found `no`: FAIL, as step 3.
+   - `none`: INFO "unresolved": the repository's own actionlint config is absent, so the hooks run
+     nothing. This is the opt-out by design, not a fault. The repository opts in by committing its
+     own actionlint config; this skill never writes one.
+   A detail saying a github-actions record exists is INFO beside the row: the hooks never run it,
+   and `/toolchain:lint` or `/toolchain:check` runs it on request. When the person wants a linter
+   the plugin ships no adapter for, say the hooks will not run it, and hand it to
+   `/toolchain:setup apply github-actions`, the one writer of the record's `lint-cmd`.
 5. **Hook toggles.** Report the effective `actionlint_enabled` value:
    `${user_config.actionlint_enabled}` (unexpanded or empty means default `true`; any value
    other than `true` disables the Claude Code hooks). Also report `actionlint_end_of_turn`:
    `${user_config.actionlint_end_of_turn}` (unexpanded or empty means the shipped default
-   `false`), as INFO: on, the Stop row checks the uncommitted workflow changes once per turn; off,
-   only the git pre-commit entry lints.
+   `false`), as INFO: on, the Stop row runs the lint entry over the uncommitted workflow changes
+   once per turn; off, only the git pre-commit entry lints.
 6. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 7. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
-   from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
+   from the repository. It lists `lint`. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
    INFO (this clone said no; silent at session start), and `missing`, `stale`, `modified` or `superseded` is a
-   FAIL whose remediation is `apply install-git-hooks`; a `superseded` detail lists what an install under an earlier plugin name left, which that action removes on the user's yes. A `tool\t<tool>\tmissing` line means the
+   FAIL whose remediation is `apply install-git-hooks`; a `superseded` detail lists what an install under an earlier plugin or entry name left (the `actionlint-check` entry `lint` replaced), which that action removes on the user's yes. A `tool\t<tool>\tmissing` line means the
    installed entry cannot run here: list every such tool with its install method from the
    `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
    auto-mode session commits. Outside a git repository, report INFO and skip the step.
@@ -148,11 +167,12 @@ with your own edit tools.
    chose to leave remain.
 6. **Verify.** Run `verify` and report its lines as `check` step 7 does.
 
-The entry only reports: at commit it lints the staged workflow files and blocks the commit on a
-finding actionlint reports on a line the commit adds. It rewrites nothing.
+The entry only reports: at commit, where the repository's own actionlint config opts it in, it
+lints the staged workflow files and blocks the commit on a finding actionlint reports on a line the
+commit adds. It rewrites nothing.
 
 When the user does not want an entry in this clone, run
-`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry actionlint-check`; the
+`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry lint`; the
 session-start drift line then stays silent until `verify` runs by hand, and `--undo` reverses it.
 Add `--global` (with or without `--undo`) to decline the entry in every clone;
 `git config --global checks.git-hooks.declined true` declines every entry of every plugin, and an
@@ -163,8 +183,8 @@ path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/con
 
 Run `check`, then for each FAIL point at the resolution. This skill installs nothing:
 
-- missing `actionlint`: platform install guidance from the README Requirements section
-  (the [kjanat/actionlint install guide](https://github.com/kjanat/actionlint/blob/v1.17.0/docs/install.md)).
+- missing `actionlint`: the install method in `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read
+  that path); the plugin neither bundles nor installs it.
 - missing `node` / Bash: platform install instructions from the README Requirements section.
 - toggle off: set `actionlint_enabled` to `true` through Claude Code's native flow,
   interactively with `/plugin configure actionlint@<marketplace>` or by a headless route, as the
@@ -214,6 +234,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 - Run the linter. `git commit` exercises the installed pre-commit entry.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
+- Write an actionlint config or a `.claude/ecosystems/` record.
 - Install actionlint, node or Bash.
-- Download or execute tools during `check` beyond the read-only `command -v` presence probes and
-  the installer's read-only `verify`.
+- Download or execute tools during `check` beyond the read-only `command -v` presence probes, the
+  lint entry's `--resolve` row and the installer's read-only `verify`.

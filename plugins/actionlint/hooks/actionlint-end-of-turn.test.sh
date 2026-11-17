@@ -7,7 +7,7 @@
 # the option off: the node launcher only.
 # Expected values are actionlint's documented output (docs/checks.md): an
 # undefined property in an expression, reported on line 7 of the fixture.
-# test-scope: plugins/actionlint/hooks/hooks.json plugins/actionlint/hooks/actionlint-check.sh plugins/actionlint/git-hooks/actionlint-check.sh plugins/actionlint/.claude-plugin/plugin.json
+# test-scope: plugins/actionlint/hooks/hooks.json plugins/actionlint/hooks/actionlint-check.sh plugins/actionlint/git-hooks/lint.sh plugins/actionlint/git-hooks/adapters.sh plugins/actionlint/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED
 
@@ -48,6 +48,7 @@ git init -q -b main "$R"
 git -C "$R" config user.name t
 git -C "$R" config user.email t@example.invalid
 mkdir -p "$R/.github/workflows"
+printf 'self-hosted-runner:\n  labels: []\n' >"$R/.github/actionlint.yaml"
 CLEAN=$'name: ok\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n'
 # shellcheck disable=SC2016 # literal workflow YAML: ${{ }} must stay unexpanded
 BAD=$'name: bad\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo "${{ steps.missing.outputs.x }}"\n'
@@ -86,6 +87,10 @@ for t in node git bash sed awk cat mktemp rm dirname grep tr jq; do
 done
 expect "on: a missing actionlint passes silently" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN=true PATH="$NOTOOL")"
+mv "$R/.github/actionlint.yaml" "$WORK/actionlint.yaml"
+expect "on: without the repository's actionlint config the row runs nothing" "0|" \
+  "$(stop false CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN=true)"
+mv "$WORK/actionlint.yaml" "$R/.github/actionlint.yaml"
 git -C "$R" checkout -q .github/workflows/ci.yml
 expect "on: a clean work tree passes" "0|" "$(stop false CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN=true)"
 

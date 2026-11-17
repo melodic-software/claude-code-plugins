@@ -4,7 +4,7 @@
 # manifest registers no PostToolUse, PostToolBatch or SessionStart row and one
 # opt-in Stop row; harness-ops runs the prerequisites probe (session_probe). The
 # Stop row's behavior is tested in actionlint-end-of-turn.test.sh and the
-# pre-commit entry's in git-hooks/actionlint-check.test.sh.
+# lint entry's in git-hooks/lint.test.sh.
 # test-scope: plugins/actionlint/hooks/hooks.json plugins/actionlint/.claude-plugin/plugin.json plugins/actionlint/lib/prerequisites.mjs plugins/actionlint/prerequisites.json
 # test-scope: plugins/actionlint/lib/git-hooks/install.mjs
 set -uo pipefail

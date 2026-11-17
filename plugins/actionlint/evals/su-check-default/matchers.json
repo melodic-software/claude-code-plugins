@@ -53,7 +53,7 @@
     {
       "use": "table_verdict_cell",
       "with": {
-        "row": "(?:actionlint\\.ya?ml|\\b(?:Config|config)\\b)"
+        "row": "(?:actionlint\\.ya?ml|\\b(?:Config|config|Resolution|resolution|Resolves?|resolves?)\\b)"
       }
     },
     {

@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: su-check-no-config-inert
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'unresolved-info'
+    type: 'llm'
+    criteria: 'The reply reports the lint concern as unresolved (or INFO): with no .github/actionlint.yaml or .github/actionlint.yml at the repository root, the hooks run nothing, so the absent config is why workflow lint is not happening.'
+    focus: 'last_message'
+  - name: 'not-broken'
+    type: 'llm'
+    criteria: 'The reply says the plugin is not broken: resolving to nothing without the repository''s own actionlint config is the opt-out by design.'
+    focus: 'last_message'
+  - name: 'routes-forward'
+    type: 'llm'
+    criteria: 'The reply names at least one way forward without writing anything: the repository adding its own .github/actionlint.yaml (or .yml) opts the hooks in, or a github-actions record written by /toolchain:setup apply github-actions, which /toolchain:lint and /toolchain:check run on request (the hooks never run a record).'
+    focus: 'last_message'
+  - name: 'no-config-yaml'
+    type: 'file_exists'
+    path: '**/actionlint.yaml'
+    exists: false
+  - name: 'no-config-yml'
+    type: 'file_exists'
+    path: '**/actionlint.yml'
+    exists: false
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
