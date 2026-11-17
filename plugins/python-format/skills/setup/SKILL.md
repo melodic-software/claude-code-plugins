@@ -12,7 +12,13 @@ allowed-tools:
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan:*)"
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs plan:*)"
   - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh\" --resolve)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh\" --resolve:*)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh --resolve)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh --resolve:*)"
   - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh\" --resolve)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh\" --resolve:*)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh --resolve)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh --resolve:*)"
 shell: bash
 ---
 

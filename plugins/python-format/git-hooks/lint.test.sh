@@ -152,6 +152,19 @@ $HINT" "$(check "$REPO" --worktree)"
   printf 'print(undefined_name)\n' >"$REPO/a.py"
   git -C "$REPO" add a.py
   expect "no Ruff config and no record: nothing runs and the entry passes" "0||" "$(check "$REPO")"
+
+  # One group's missing tool skips that group only: Ruff's findings still block.
+  new_repo
+  record 'globs: ["tools/*.py"]
+lint-cmd: "nosuchlinter <files>"'
+  publish
+  mkdir -p "$REPO/tools"
+  printf 'print(undefined_name)\n' >"$REPO/a.py"
+  printf 'b = 1\n' >"$REPO/tools/b.py"
+  git -C "$REPO" add a.py tools/b.py
+  expect "a person's missing record tool skips its group, and the Ruff group's finding still blocks" "1||NOTICE: nosuchlinter missing, so this check did not run. Install: the command the python record names
+a.py:1: F821 Undefined name \`undefined_name\`
+python-format: fix the findings ruff reported above." "$(check "$REPO")"
 fi
 
 # The record path.

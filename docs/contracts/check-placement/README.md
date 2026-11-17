@@ -186,17 +186,24 @@ format and lint plugin and beside each installed entry, with `yaml-subset.awk`):
 
 1. the record bound to one of the plugin's `ecosystems` ids: `fix-cmd` for format, `lint-cmd` for
    lint ([ecosystem-commands](../ecosystem-commands/README.md)), read through the user-global, team
-   and `.local` layers key by key, and binding a file only when the record's `globs` match it;
+   and `.local` layers key by key, and binding a file only when the record's `globs` match it (`*`
+   and `?` within one directory, `**/` across any number; a pattern without `/` matches the base
+   name);
 2. the plugin's adapter for a tool whose config governs the file;
 3. nothing.
 
 - **Opt-in.** A hook runs a record command only when it holds `<files>`; a whole-tree command is
   not a hook opt-in, so that concern takes the adapter rung. Files reach the command as `"$@"` of
-  `sh -c`, never as command text, and a name starting with `-` gains `./`.
+  `sh -c`, never as command text, and a name starting with `-` gains `./`. The command runs from
+  its `project-discovery` directory, else the root; `<project-dir>` expands to that directory, and
+  a record using `<solution-or-project-file>`, which hooks do not expand, is refused like an
+  unreadable record. Leading `VAR=value` words are not the executable.
 - **Approval.** A key from the team file, or from a `.local` file git tracks, runs only when that
-  file and every tracked repository file its command names (after `$REPO_ROOT/` and a `--opt=`
-  prefix) match the default branch (`refs/remotes/origin/HEAD`, read locally), or when this clone
-  holds an approval of exactly those bytes under `<git common dir>/claude-ecosystems/approved/`,
+  file and every tracked repository file its command names match the default branch. A named
+  path is read after a `--opt=` prefix, from the root after `$REPO_ROOT/`, else from the directory
+  the command runs in, and compared in git's canonical form (`./`, `//` and `..` resolved); a path
+  that reaches outside the repository always needs approval. The default branch is `refs/remotes/origin/HEAD`, read locally. The
+  record also runs when this clone holds an approval of exactly those bytes under `<git common dir>/claude-ecosystems/approved/`,
   written only by an attended setup (`resolve-tool.sh --approve <id>`). Otherwise the record is
   unapproved and runs nothing; it never falls through to the adapter. The user-global file and an
   untracked `.local` file are the user's own and need no approval. A plugin's code-config gates

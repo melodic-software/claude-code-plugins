@@ -147,21 +147,49 @@ rt__get() {
   return 1
 }
 
+# rt__glob_re <glob>: sets RT__RE to an anchored ERE for the glob: * and ?
+# stay within one path segment, **/ matches any number of leading directories
+# (none included), and any other ** any run of characters.
+rt__glob_re() {
+  local p="$1" out="" c i n=${#1}
+  for ((i = 0; i < n; i++)); do
+    c="${p:i:1}"
+    case "$c" in
+    '*')
+      if [[ "${p:i+1:1}" == '*' && "${p:i+2:1}" == / ]]; then
+        out+='(.*/)?'
+        i=$((i + 2))
+      elif [[ "${p:i+1:1}" == '*' ]]; then
+        out+='.*'
+        i=$((i + 1))
+      else
+        out+='[^/]*'
+      fi
+      ;;
+    '?') out+='[^/]' ;;
+    '[')
+      out+='['
+      [[ "${p:i+1:1}" == '!' ]] && out+='^' && i=$((i + 1))
+      ;;
+    ']') out+=']' ;;
+    '.' | '+' | '(' | ')' | '|' | '^' | '$' | '{' | '}' | "\\") out+="\\$c" ;;
+    *) out+="$c" ;;
+    esac
+  done
+  RT__RE="^$out\$"
+}
+
 # rt__globs_match <rel>: 0 when a merged globs entry matches <rel>. A pattern
-# without / matches the base name; ** spans directories.
+# without / matches the base name.
 rt__globs_match() {
-  local i p base="${1##*/}"
+  local i p subject
   for i in "${!RT__K[@]}"; do
     [[ "${RT__K[i]}" == globs.* ]] || continue
     p="${RT__V[i]}"
-    p="${p//\*\*\//}"
-    if [[ "$p" == */* ]]; then
-      # shellcheck disable=SC2053 # the record's glob
-      [[ "$1" == $p ]] && return 0
-    else
-      # shellcheck disable=SC2053 # the record's glob
-      [[ "$base" == $p ]] && return 0
-    fi
+    subject="$1"
+    [[ "$p" == */* ]] || subject="${1##*/}"
+    rt__glob_re "$p"
+    [[ "$subject" =~ $RT__RE ]] && return 0
   done
   return 1
 }
@@ -178,22 +206,59 @@ rt__words() {
   set +f
 }
 
-# rt__refs <command> <root>: sets RT__REFS to the repository files the
-# command names, repo-relative: a word naming a file after $REPO_ROOT/ and a
-# --opt= prefix are dropped.
+# rt__canon <path> <root>: sets RT__C to <path>, relative to <root>, in git's
+# canonical form (no ., no empty segment, .. resolved); returns 1 when the
+# path climbs out of <root>.
+rt__canon() {
+  local seg out=() IFS=/
+  set -f
+  for seg in $1; do
+    case "$seg" in
+    "" | .) ;;
+    ..)
+      ((${#out[@]})) || {
+        set +f
+        return 1
+      }
+      unset 'out[${#out[@]}-1]'
+      ;;
+    *) out+=("$seg") ;;
+    esac
+  done
+  set +f
+  RT__C="${out[*]-}"
+  return 0
+}
+
+# rt__refs <command> <root> <dir>: sets RT__REFS to the repository files the
+# command names, canonical and repo-relative. A word is read after dropping a
+# --opt= prefix, as $REPO_ROOT/ (from the root), <project-dir>/ (from <dir>,
+# where the command runs, relative to <root>), an absolute path under <root>,
+# or a path relative to <dir>. RT__ESC lists, as absolute paths, the existing
+# files a word reaches outside the repository; their presence alone needs
+# approval.
 rt__refs() {
-  local w placeholder='<files>'
-  RT__REFS=()
+  local w base placeholder='<files>' seen=$'\n'
+  RT__REFS=() RT__ESC=()
   rt__words "$1"
   for w in ${RT__W[@]+"${RT__W[@]}"}; do
-    w="${w#\$\{REPO_ROOT\}/}"
-    w="${w#\$REPO_ROOT/}"
     [[ "$w" == --*=* ]] && w="${w#*=}"
+    base="$3"
     case "$w" in
-    "" | /* | *..* | *"$placeholder"*) continue ;;
+    "" | *"$placeholder"*) continue ;;
+    \$\{REPO_ROOT\}/* | \$REPO_ROOT/*) w="${w#*/}" base="" ;;
+    "<project-dir>"/*) w="${w#*/}" ;;
+    "$2"/*) w="${w#"$2"/}" base="" ;;
+    /*) continue ;;
     *) ;;
     esac
-    [[ -f "$2/$w" ]] && RT__REFS+=("$w")
+    if ! rt__canon "${base:+$base/}$w"; then
+      [[ -f "$2/${base:+$base/}$w" ]] && RT__ESC+=("$2/${base:+$base/}$w")
+      continue
+    fi
+    [[ -n "$RT__C" && -f "$2/$RT__C" && "$seen" != *$'\n'"$RT__C"$'\n'* ]] || continue
+    seen+="$RT__C"$'\n'
+    RT__REFS+=("$RT__C")
   done
 }
 
@@ -209,13 +274,15 @@ rt__common() {
   fi
 }
 
-# rt__approval <root> <id> <concern>: sets RT_APPROVAL (accepted | approved |
-# unapproved) for the repository layers behind the concern's merged command,
-# and RT__SIG, the approval key of their current bytes. Cached per concern.
+# rt__approval <root> <id> <concern> <dir>: sets RT_APPROVAL (accepted |
+# approved | unapproved) for the repository layers behind the concern's merged
+# command, run from <dir> (relative to <root>), and RT__SIG, the approval key
+# of their current bytes. Cached per concern and directory.
 rt__approval() {
-  local root="$1" id="$2" concern="$3" cache="RT__APPR_$3" cmd p h line type blob path
-  if [[ -n "${!cache}" ]]; then
-    RT_APPROVAL="${!cache%%|*}" RT__SIG="${!cache#*|}"
+  local root="$1" id="$2" concern="$3" dir="${4:-}" cache="RT__APPR_$3" cmd p h line type blob path rest
+  if [[ -n "${!cache}" && "${!cache%%|*}" == "$dir" ]]; then
+    rest="${!cache#*|}"
+    RT_APPROVAL="${rest%%|*}" RT__SIG="${rest#*|}"
     return
   fi
   rt__key "$concern"
@@ -227,19 +294,20 @@ rt__approval() {
     [[ "$p" == tracked-local ]] && paths+=(".claude/ecosystems/$id.local.yaml") && break
   done
   local nlayers=${#paths[@]}
-  rt__refs "$cmd" "$root"
+  rt__refs "$cmd" "$root" "$dir"
   paths+=(${RT__REFS[@]+"${RT__REFS[@]}"})
   rt__common "$root"
   while IFS= read -r h; do
     hashes+=("$h")
-  done < <(git -C "$root" hash-object -- "${paths[@]}" 2>/dev/null)
+  done < <(git -C "$root" hash-object -- "${paths[@]}" ${RT__ESC[@]+"${RT__ESC[@]}"} 2>/dev/null)
   RT_APPROVAL=unapproved
   local i ok=1 tree=$'\n'
   if [[ -n "$RT__TIP" ]]; then
-    while IFS=$'\t' read -r line path; do
-      read -r _ type blob <<<"$line"
+    while IFS= read -r -d '' line; do
+      path="${line#*$'\t'}"
+      read -r _ type blob <<<"${line%%$'\t'*}"
       [[ "$type" == blob ]] && tree+="$path"$'\t'"$blob"$'\n'
-    done < <(git -C "$root" ls-tree "$RT__TIP" -- "${paths[@]}" 2>/dev/null)
+    done < <(git -C "$root" ls-tree -z --full-name "$RT__TIP" -- "${paths[@]}" 2>/dev/null)
   fi
   for i in "${!paths[@]}"; do
     p="${paths[i]}" h="${hashes[i]:-}"
@@ -262,7 +330,7 @@ rt__approval() {
     done
     while IFS= read -r p; do
       tracked+="$p"$'\n'
-    done < <(git -C "$root" ls-files -- "${missing_paths[@]}" 2>/dev/null)
+    done < <(git -C "$root" ls-files -z --full-name -- "${missing_paths[@]}" 2>/dev/null | tr '\0' '\n')
     for i in "${missing[@]}"; do
       if [[ "$tracked" == *$'\n'"${paths[i]}"$'\n'* ]]; then
         keep+=("${paths[i]}"$'\t'"${hashes[i]:-}")
@@ -270,6 +338,12 @@ rt__approval() {
       fi
     done
   fi
+  # A file the command reaches outside the repository is no content git can
+  # vouch for: it always needs this clone's approval of its bytes.
+  for i in "${!RT__ESC[@]}"; do
+    keep+=("${RT__ESC[i]}"$'\t'"${hashes[${#paths[@]} + i]:-}")
+    ok=0
+  done
   [[ -n "$RT__TIP" ]] || ok=0
   RT__SIG=""
   if ((ok)); then
@@ -278,30 +352,48 @@ rt__approval() {
     RT__SIG="$(printf '%s\n' "$id" "${keep[@]}" | git hash-object --stdin 2>/dev/null)"
     [[ -n "$RT__SIG" && -e "$RT__COMMON/claude-ecosystems/approved/$RT__SIG" ]] && RT_APPROVAL=approved
   fi
-  printf -v "$cache" '%s|%s' "$RT_APPROVAL" "$RT__SIG"
+  printf -v "$cache" '%s|%s|%s' "$dir" "$RT_APPROVAL" "$RT__SIG"
 }
 
-# rt__record <id> <concern> <root>: the record's command for the concern, set
-# into RT_* (RT_SOURCE record:<id>, or unapproved).
+# rt__record <id> <concern> <root> [<rel>]: the record's command for the
+# concern, set into RT_* (RT_SOURCE record:<id>, unapproved, or parse-error for
+# a placeholder hooks cannot expand). RT_DIR is set first, from <rel>, since the
+# command's relative paths and its approval are read from there.
 rt__record() {
-  local id="$1" concern="$2" root="$3" i first
+  local id="$1" concern="$2" root="$3" rel="${4:-}" i first dir cmd="$RT__GV"
   RT_ID="$id"
+  rt__project_dir "$rel" "$root"
+  dir="${RT_DIR#"$root"}"
+  dir="${dir#/}"
+  if [[ "$RT__GV" == *"<solution-or-project-file>"* ]]; then
+    RT_SOURCE=parse-error
+    RT_REASON="the $id record's $RT__KEY uses <solution-or-project-file>, which hooks do not expand"
+    return
+  fi
   RT_SCRIPT="${RT__GV//<files>/\"\$@\"}"
+  RT_SCRIPT="${RT_SCRIPT//<project-dir>/\"\$RT_PROJECT_DIR\"}"
   RT_INSTALL=""
   rt__get install-hint && RT_INSTALL="$RT__GV"
   RT_TOOL=""
   for i in "${!RT__K[@]}"; do
     [[ "${RT__K[i]}" == tool-pin.* ]] && RT_TOOL="${RT__K[i]#tool-pin.}" && break
   done
-  rt__words "$RT_SCRIPT"
-  first="${RT__W[0]:-}"
+  rt__words "$cmd"
+  first=""
+  for i in "${!RT__W[@]}"; do
+    [[ "${RT__W[i]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && continue
+    first="${RT__W[i]}"
+    break
+  done
   RT_BIN="${first/#\$\{REPO_ROOT\}/$root}"
   RT_BIN="${RT_BIN/#\$REPO_ROOT/$root}"
+  RT_BIN="${RT_BIN/#<project-dir>/$RT_DIR}"
+  [[ "$RT_BIN" == */* && "$RT_BIN" != /* ]] && RT_BIN="$RT_DIR/$RT_BIN"
   [[ -n "$RT_TOOL" ]] || RT_TOOL="${first##*/}"
   RT_SOURCE="record:$id"
   case "$RT__L_CMD" in
   team | tracked-local)
-    rt__approval "$root" "$id" "$concern"
+    rt__approval "$root" "$id" "$concern" "$dir"
     [[ "$RT_APPROVAL" == unapproved ]] && RT_SOURCE=unapproved RT_SCRIPT="" \
       RT_REASON="the $id record differs from the default branch and has no approval for this clone"
     ;;
@@ -360,8 +452,7 @@ rt_resolve() { # <file> <concern> <root>
   if ((hits)); then
     rt__load "$root" "$hit_id"
     RT__GV="$hit_cmd" RT__L_CMD="$hit_layer"
-    rt__record "$hit_id" "$concern" "$root"
-    [[ "$RT_SOURCE" == unapproved ]] || rt__project_dir "$rel" "$root"
+    rt__record "$hit_id" "$concern" "$root" "$rel"
     return 0
   fi
   if declare -F rt_adapter >/dev/null && rt_adapter "$concern" "$file" "$root"; then
@@ -445,7 +536,7 @@ rt_run() { # <files...>
   for a in "${args[@]}" ""; do
     if [[ -z "$a" ]] || ((size + ${#a} + 1 > RT__ARGMAX && ${#chunk[@]})); then
       if ((${#chunk[@]})); then
-        (cd "$RT_DIR" && REPO_ROOT="$RT_ROOT" RT_BIN="$RT_BIN" sh -c "$RT_SCRIPT" sh "${chunk[@]}")
+        (cd "$RT_DIR" && REPO_ROOT="$RT_ROOT" RT_PROJECT_DIR="$RT_DIR" RT_BIN="$RT_BIN" sh -c "$RT_SCRIPT" sh "${chunk[@]}")
         rc=$?
         ((rc > status)) && status=$rc
       fi
@@ -520,21 +611,24 @@ rt_found() { # <bin>
 }
 
 # rt_require: a git-hook entry's missing-tool rule (check-lib.sh's
-# checks_require_tool) for the resolved command's first word, keyed by RT_TOOL.
+# checks_require_tool) for the resolved command's first word, keyed by RT_TOOL,
+# as a status so a missing tool stops only its own group: 0 the tool is
+# there; 1 skip this group (checks.skipmissing names it, or a person runs the
+# hook); 2 fail the entry (an agent runs it). The line is printed either way.
 rt_require() {
   local install="${RT_INSTALL:-the command the ${RT_ID:-} record names}"
   rt_found "$RT_BIN" && return 0
   if checks_skip_listed "$RT_TOOL"; then
     printf 'SKIPPED: %s (missing)\n' "$RT_TOOL" >&2
-    exit 0
+    return 1
   fi
   if checks_is_agent; then
     printf 'FAIL: %s missing. Install: %s\n' "$RT_TOOL" "$install" >&2
     printf 'To skip only while %s is missing: git -c checks.skipmissing=%s %s ...\n' "$RT_TOOL" "$RT_TOOL" "$(checks_git_verb)" >&2
-    exit 1
+    return 2
   fi
   printf 'NOTICE: %s missing, so this check did not run. Install: %s\n' "$RT_TOOL" "$install" >&2
-  exit 0
+  return 1
 }
 
 rt_print() { # <concern> <root> [<file>...]
@@ -563,6 +657,10 @@ rt_print() { # <concern> <root> [<file>...]
   for id in $RT_IDS; do
     if ! rt__load "$root" "$id"; then
       printf '%s\t%s\tparse-error\t\tn/a\tn/a\t%s\n' "$RT_PLUGIN" "$concern" "$RT__ERR"
+      return 0
+    fi
+    if rt__get enabled && [[ "$RT__GV" == false ]]; then
+      printf '%s\t%s\tnone\t\tn/a\tn/a\tdisabled:%s\n' "$RT_PLUGIN" "$concern" "$id"
       return 0
     fi
     rt__get "$key" || continue

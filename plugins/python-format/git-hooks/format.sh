@@ -71,10 +71,24 @@ if [[ -n "${RT_DRIFT_CONFIGS:-}" ]] && ((${#RT_GOTHER[@]})); then
 fi
 ((RT_GN)) || exit 0
 
-refused=0
+# Every group's tool first: a missing one skips its own group only, and an
+# agent's missing tool fails the entry once the other groups have run.
+runs=()
+tool_failed=0
 for ((i = 0; i < RT_GN; i++)); do
   rt_use "$i"
   rt_require
+  case $? in
+  0) runs[i]=1 ;;
+  2) runs[i]=0 tool_failed=1 ;;
+  *) runs[i]=0 ;;
+  esac
+done
+
+refused=0
+for ((i = 0; i < RT_GN; i++)); do
+  ((runs[i])) || continue
+  rt_use "$i"
   for f in "${RT_FILES[@]}"; do
     if [[ -f "$f" && ! -L "$f" ]] && checks_partly_staged "$f"; then
       printf '%s: partly staged; format it or stage it fully, then commit\n' "$f" >&2
@@ -86,6 +100,7 @@ done
 
 written=()
 for ((i = 0; i < RT_GN; i++)); do
+  ((runs[i])) || continue
   rt_use "$i"
   present=()
   for f in "${RT_FILES[@]}"; do
@@ -96,4 +111,4 @@ for ((i = 0; i < RT_GN; i++)); do
   written+=("${present[@]}")
 done
 ((${#written[@]})) && checks_restage "${written[@]}"
-exit 0
+exit "$tool_failed"

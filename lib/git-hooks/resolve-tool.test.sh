@@ -190,6 +190,95 @@ expect "an untracked file a command names is the user's own and does not unappro
 git -C "$REPO" add cfg/fmt.toml
 expect "a --opt=<file> operand git tracks but the default branch lacks unapproves" "unapproved" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
 
+# Every spelling of a referenced file is compared in git's canonical form,
+# resolved against the directory the command runs in.
+for spelling in './scripts/fmt.sh' 'scripts//fmt.sh' 'scripts/./fmt.sh'; do
+  new_repo
+  mkdir -p "$REPO/scripts"
+  printf '#!/bin/sh\nexec stubfmt "$@"\n' >"$REPO/scripts/fmt.sh"
+  chmod +x "$REPO/scripts/fmt.sh"
+  git -C "$REPO" add scripts/fmt.sh
+  record 'globs: ["*.dm"]
+fix-cmd: "'"$spelling"' <files>"'
+  publish
+  expect "$spelling: a record matching the default branch runs" "record:demo" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+  printf '#!/bin/sh\ntouch pwned\n' >"$REPO/scripts/fmt.sh"
+  git -C "$REPO" commit -qam evil --no-verify
+  expect "$spelling: a branch edit of the referenced script makes the record unapproved" "unapproved" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+done
+
+new_repo
+mkdir -p "$REPO/pkg/tools" "$REPO/tools"
+printf 'x\n' >"$REPO/pkg/proj.cfg"
+printf 'seed\n' >"$REPO/pkg/a.dm"
+printf '#!/bin/sh\nexec stubfmt "$@"\n' >"$REPO/pkg/tools/fmt.sh"
+printf '#!/bin/sh\nexec stubfmt "$@"\n' >"$REPO/tools/fmt.sh"
+chmod +x "$REPO/pkg/tools/fmt.sh" "$REPO/tools/fmt.sh"
+git -C "$REPO" add pkg tools
+record 'globs: ["*.dm"]
+project-discovery: ["proj.cfg"]
+fix-cmd: "tools/fmt.sh <files>"
+lint-cmd: "<project-dir>/tools/fmt.sh <files>"'
+publish
+expect "a command run from a project directory names files relative to it, accepted when they match" "record:demo" "$(resolve pkg/a.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+printf '#!/bin/sh\ntouch pwned\n' >"$REPO/pkg/tools/fmt.sh"
+git -C "$REPO" commit -qam evil --no-verify
+expect "a branch edit of the project-relative script makes the record unapproved" "unapproved" "$(resolve pkg/a.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+expect "a branch edit of a <project-dir> reference makes the record unapproved" "unapproved" "$(resolve pkg/a.dm lint >/dev/null; printf '%s' "$RT_SOURCE")"
+expect "the root's own tools/fmt.sh, unchanged, still runs for a root file" "record:demo" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+
+new_repo
+printf '#!/bin/sh\nexit 0\n' >"$WORK/outside-$n.sh"
+record 'globs: ["*.dm"]
+fix-cmd: "../outside-'"$n"'.sh <files>"'
+publish
+expect "a referenced path that escapes the repository needs approval, even on the default branch" "unapproved" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+
+# Globs: * stays within one directory and **/ spans any number of them.
+new_repo
+mkdir -p "$REPO/pkg/tests/unit" "$REPO/tests" "$REPO/src/n"
+record 'globs: ["**/tests/**/*.dm", "src/*.dm"]
+fix-cmd: "stubfmt <files>"'
+publish
+for f in pkg/tests/unit/x.dm tests/x.dm src/a.dm; do
+  expect "glob binds $f" "record:demo" "$(resolve "$f" format >/dev/null; printf '%s' "$RT_SOURCE")"
+done
+for f in pkg/x.dm src/n/a.dm; do
+  expect "glob does not bind $f" "none" "$(resolve "$f" format >/dev/null; printf '%s' "$RT_SOURCE")"
+done
+
+# Leading assignments are not the executable.
+new_repo
+record 'globs: ["*.dm"]
+fix-cmd: "FOO=1 BAR=x stubfmt <files>"'
+publish
+rt_forget
+rt_resolve seed.dm format "$REPO"
+expect "leading VAR=value words are skipped: the executable is the next word" "stubfmt|stubfmt" "$RT_BIN|$RT_TOOL"
+
+# <project-dir> expands to the directory the command runs in; a placeholder
+# the hooks cannot expand refuses the record rather than running it literally.
+new_repo
+mkdir -p "$REPO/pkg"
+printf 'x\n' >"$REPO/pkg/proj.cfg"
+printf 'seed\n' >"$REPO/pkg/a.dm"
+git -C "$REPO" add pkg
+record 'globs: ["*.dm"]
+project-discovery: ["proj.cfg"]
+fix-cmd: "stubfmt --dir=<project-dir> <files>"'
+publish
+rt_forget
+rt_resolve pkg/a.dm format "$REPO"
+: >"$WORK/stub.log"
+(cd "$REPO" && rt_run pkg/a.dm)
+expect "<project-dir> reaches the command as the project directory" "--dir=$REPO/pkg
+a.dm" "$(cat "$WORK/stub.log")"
+new_repo
+record 'globs: ["*.dm"]
+fix-cmd: "stubfmt <solution-or-project-file> <files>"'
+publish
+expect "<solution-or-project-file> refuses the record" "parse-error" "$(resolve seed.dm format >/dev/null; printf '%s' "$RT_SOURCE")"
+
 new_repo
 git -C "$REPO" update-ref -d refs/remotes/origin/HEAD
 git -C "$REPO" update-ref -d refs/remotes/origin/main
@@ -260,6 +349,15 @@ expect "rt_print reports the record and its approval" "demo	format	record:demo	t
 expect "rt_print ran no record command" "no" "$([[ -e "$WORK/print-marker" ]] && echo yes || echo no)"
 : >"$REPO/demo.cfg"
 expect "rt_print falls to the adapter for a concern the record leaves out" "demo	lint	adapter:demofmt	stubfmt	n/a	yes	" "$(rt_print lint "$REPO")"
+record 'enabled: false
+globs: ["*.dm"]
+fix-cmd: "stubfmt <files>"'
+publish
+rt_forget
+expect "rt_print reports a disabled record as none, not its tool" "demo	format	none		n/a	n/a	disabled:demo" "$(rt_print format "$REPO")"
+git -C "$REPO" rm -q .claude/ecosystems/demo.yaml
+git -C "$REPO" commit -qm unrecord --no-verify
+rt_forget
 rm "$REPO/demo.cfg"
 expect "rt_print says none when nothing resolves" "demo	lint	none		n/a	n/a	" "$(rt_print lint "$REPO")"
 

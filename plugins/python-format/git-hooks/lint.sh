@@ -74,10 +74,22 @@ fi
 contract="$CHECKS_TMP/contract"
 : >"$contract"
 failed=0
-tool_names=""
+# Every group's tool first: a missing one skips its own group only, and an
+# agent's missing tool fails the entry after the other groups have reported.
+runs=()
 for ((i = 0; i < RT_GN; i++)); do
   rt_use "$i"
   rt_require
+  case $? in
+  0) runs[i]=1 ;;
+  2) runs[i]=0 failed=1 ;;
+  *) runs[i]=0 ;;
+  esac
+done
+tool_names=""
+for ((i = 0; i < RT_GN; i++)); do
+  ((runs[i])) || continue
+  rt_use "$i"
   [[ ", $tool_names, " == *", $RT_TOOL, "* ]] || tool_names="${tool_names:+$tool_names, }$RT_TOOL"
   present=()
   gone=()
@@ -106,11 +118,13 @@ for ((i = 0; i < RT_GN; i++)); do
     fi
   done
 done
-((failed)) && exit 1
-
-checks_changed_lines
-checks_filter_findings <"$contract" >"$CHECKS_TMP/blocking"
-[[ -s "$CHECKS_TMP/blocking" ]] || exit 0
-cat "$CHECKS_TMP/blocking" >&2
-printf '%s: fix the findings %s reported above.\n' "$RT_PLUGIN" "$tool_names" >&2
-exit 1
+if [[ -s "$contract" ]]; then
+  checks_changed_lines
+  checks_filter_findings <"$contract" >"$CHECKS_TMP/blocking"
+  if [[ -s "$CHECKS_TMP/blocking" ]]; then
+    cat "$CHECKS_TMP/blocking" >&2
+    printf '%s: fix the findings %s reported above.\n' "$RT_PLUGIN" "$tool_names" >&2
+    failed=1
+  fi
+fi
+exit "$failed"
