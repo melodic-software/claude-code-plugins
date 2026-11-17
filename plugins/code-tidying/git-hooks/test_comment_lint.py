@@ -1,3 +1,4 @@
+# test-scope: plugins/code-tidying/git-hooks/fixtures/*.sh.txt
 from __future__ import annotations
 
 import contextlib
