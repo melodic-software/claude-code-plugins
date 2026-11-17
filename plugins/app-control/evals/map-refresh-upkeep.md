@@ -120,7 +120,8 @@ the app. It was written and committed before its run, under the owner's eval gat
   1.00 both runs) before this registration; the smoke is not a scoring input.
 - **Sides.**
   - BEFORE is the app-control plugin at `b30564372304`, with this case's folder copied in.
-  - AFTER is the plugin at `e0f2cc64b0`. Only `drive/SKILL.md` and `drive/reference/evidence.md`
+  - AFTER is the plugin at `4919ea4d2c`, which is `e0f2cc64b0` plus a shellcheck-only scaffold
+    change whose output is byte-identical. Only `drive/SKILL.md` and `drive/reference/evidence.md`
     differ from BEFORE.
 - **Runs.**
   - Sonnet, 3 runs a side.
