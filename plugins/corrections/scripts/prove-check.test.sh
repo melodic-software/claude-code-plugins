@@ -123,7 +123,7 @@ if ((RC == 0)) && [[ -n "$planted" && "$OUT" == *"exit 1"* && "$OUT" == *"exit 0
 else
   fail "planted proof should hold" "rc=$RC out=$OUT err=$ERR"
 fi
-if [[ -n "$planted" ]] && ! git -C "$REPO" rev-list --all --reflog | grep -q "$planted"; then
+if [[ -n "$planted" ]] && ! grep -q "$planted" < <(git -C "$REPO" rev-list --all --reflog); then
   pass "the plant commit is reachable from no ref or reflog"
 else
   fail "plant commit still reachable" "planted=$planted"
