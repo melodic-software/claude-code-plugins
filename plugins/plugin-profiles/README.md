@@ -96,9 +96,14 @@ before writing. When the switch would turn on a plugin that ships an MCP or lang
 question names it and says your next message re-reads the whole conversation.
 
 On Apply it writes the entries that switch plugins on and runs `/reload-plugins` once, when the
-next turn ends (or when you run `/reload-plugins` yourself first). Then it writes the entries that
-switch plugins off: those plugins stay loaded for this session and go at the next session start. A
-switch cut off between the two writes is named by `status` and finished by the next apply.
+next turn ends: send any message, or run `/reload-plugins` yourself. Then it writes the entries that
+switch plugins off: those plugins stay loaded in this session until a later `/reload-plugins` or
+the next session start. A switch cut off between the two writes is named by `status` and finished
+by the next apply.
+
+**No profile**, the picker's last choice, clears the folder's profile (as `clear` below does)
+behind the same preview and confirm, and reloads the same way, so the session then has the plugins
+your user and project settings name.
 
 It refuses the switch when `remember_folder_profile` is false or the session was started from a
 one-session file, and says how to start a session in that profile instead. A plugin it would switch

@@ -740,6 +740,17 @@ test("AC6, AC10: apply --dry-run --json previews an in-session switch as data, n
   assert.deepEqual(w.records(), []);
 });
 
+test("#16747: apply --dry-run --json counts the plugins left alone in its lines and lists them as data", () => {
+  const w = world();
+  const preview = JSON.parse(w.run(["apply", "build", "--for", "folder", "--defer-off", "--dry-run", "--json"]).stdout);
+  assert.deepEqual(preview.untouched, ["widget@vendor"]);
+  assert.ok(
+    preview.lines.includes("Left alone, from marketplaces this profile does not name (1); apply build --for folder --dry-run in a terminal names them."),
+    preview.lines.join("\n"),
+  );
+  assert.ok(!preview.lines.some((line) => line.includes("widget@vendor")), preview.lines.join("\n"));
+});
+
 test("apply --dry-run --json reads upToDate once the profile is applied", () => {
   const w = world();
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);

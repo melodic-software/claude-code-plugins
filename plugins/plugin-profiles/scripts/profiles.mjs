@@ -241,8 +241,11 @@ const changeCount = (p) => Object.keys(p.edits.enabledPlugins).length + Object.k
 const sameChange = (a, b) => JSON.stringify([a.final, a.pending, a.edits]) === JSON.stringify([b.final, b.pending, b.edits]);
 const list = (ids) => (ids.length ? ids.join(", ") : "none");
 
-/** The lines that say what an apply changes; the terminal prompt and the mod's preview both show them. */
-function previewLines(p, gate) {
+/**
+ * The lines that say what an apply changes; the terminal prompt and the mod's preview both show them.
+ * The mod's preview counts the plugins left alone instead of naming them all; the terminal names them.
+ */
+function previewLines(p, gate, { nameUntouched = true } = {}) {
   const r = p.plan;
   const on = r.enabled.map((id) => (r.repositoryOn.includes(id) ? `${id} (from a repository profile)` : id));
   const lines = [
@@ -258,7 +261,10 @@ function previewLines(p, gate) {
   if (r.mcpOrLspOn.length) lines.push(`Switches on plugins with an MCP or language server: ${list(r.mcpOrLspOn)}`);
   for (const pin of r.pinned) lines.push(`Pinned by ${pin.by} settings (${pin.value}), left alone: ${pin.id}`);
   for (const m of r.missing) lines.push(`Not installed${m.optional ? " (optional)" : ""}: ${m.id}. Install it with: ${m.install}`);
-  lines.push(`Left alone, from marketplaces this profile does not name (${r.untouched.length}): ${list(r.untouched)}`);
+  const leftAlone = `Left alone, from marketplaces this profile does not name (${r.untouched.length})`;
+  lines.push(nameUntouched || !r.untouched.length
+    ? `${leftAlone}: ${list(r.untouched)}`
+    : `${leftAlone}; apply ${r.profile} --for ${r.target} --dry-run in a terminal names them.`);
   for (const g of gate) {
     const tool = g.tool ? `${g.tool}: ${g.detail}.` : `${g.detail}.`;
     lines.push(`Missing required prerequisite of ${g.plugin}: ${tool}${g.degrade ? ` ${g.degrade}` : ""}${g.install.length ? ` Install (${g.install.join("; ")}).` : ""}`);
@@ -282,7 +288,8 @@ const previewJson = (p, gate, upToDate, others) => ({
   repositoryOn: p.plan.repositoryOn,
   repositorySkills: p.plan.repositorySkills,
   othersInFolder: others,
-  lines: previewLines(p, gate),
+  untouched: p.plan.untouched,
+  lines: previewLines(p, gate, { nameUntouched: false }),
 });
 
 async function ask(question) {
