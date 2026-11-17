@@ -160,3 +160,25 @@ the app. It was written and committed before its run, under the owner's eval gat
 - The case does not separate the two texts: BEFORE run 1 also stops pid 7311, relaunches and replaces
   the launch entry. The rule is now written in drive's text, but on sonnet the case measured no
   difference.
+
+## Registration: smoke of the attended stale Ready and drive blocked-entry cases
+
+This registration covers two new cases, each closing a review finding that a done-when half had no
+case. It was written and committed before their smoke, under the owner's eval gate, where a new case
+gets a 1 to 3 run smoke.
+
+- **Cases.**
+  - `map-refresh-attended-stale-ready-retries-once`: the attended half of the stale-Ready rule.
+  - `drive-blocked-entry-names-prerequisite-and-command`: drive's half of the blocked-entry rule.
+- **Side.** The head's app-control plugin, the commit that adds this registration. A smoke is not a
+  before-and-after compare.
+- **Runs.** Sonnet, 3 runs per case. The command: `claude plugin eval <copy> --case '<case name>'
+  --model sonnet --runs 3 --ablation none --scaffold --trust-plugin --keep-temp --judge-model opus
+  --threshold 0.8 --max-cost-usd 5 --no-publish`, once per case. `TMPDIR` is a directory of the
+  run's own.
+- **INVALID.** A file whose `run-validity.py --runs 3 --scaffolded` verdict is not VALID is no
+  result. It is rerun once with the same settings.
+- **A fail.** A run scoring below 1.00. Its trace is read:
+  - When the reply is correct and a grader missed it, that is a grader defect.
+  - When the reply follows the skill text and is still wrong, that is a defect in the skill text. It
+    is reported, and no grader is loosened to pass it.

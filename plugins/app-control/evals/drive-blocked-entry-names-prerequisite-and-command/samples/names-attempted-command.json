@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n[{\"reason\": \"blocked: no write grant\", \"prerequisite\": \"write grant for staging\", \"attempted\": \"cli/shop export --env staging\", \"grant\": \"unattendedWrites\"}]\n```",
+      "why": "exact command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n[{\"reason\": \"blocked: the step writes to staging and this run holds no write grant\", \"grant\": \"unattendedWrites for export in committed config\"}]\n```",
+      "why": "only reason and grant"
+    },
+    {
+      "answer": "```json\n[{\"reason\": \"blocked\", \"prerequisite\": \"write grant\", \"attempted\": \"the export step\", \"grant\": null}]\n```",
+      "why": "attempted names no command"
+    }
+  ]
+}
