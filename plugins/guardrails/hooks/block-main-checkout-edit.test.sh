@@ -27,7 +27,9 @@ printf 'x\n' >"$T/seed/build-keep.txt"
 printf '{}\n' >"$T/seed/nb.ipynb"
 mkdir -p "$T/seed/build"
 printf 'forced\n' >"$T/seed/build/forced.txt"
-g -C "$T/seed" add .gitignore a.txt build-keep.txt nb.ipynb
+mkdir -p "$T/seed/src"
+printf 'b\n' >"$T/seed/src/b.txt"
+g -C "$T/seed" add .gitignore a.txt build-keep.txt nb.ipynb src/b.txt
 g -C "$T/seed" add -f build/forced.txt
 g -C "$T/seed" commit -q -m init
 g -C "$T/seed" push -q "$T/origin.git" main
@@ -64,10 +66,43 @@ deny "an inherited GIT_DIR does not redirect the check" "$(edit_json "$T/main/a.
 g clone -q --separate-git-dir "$T/sep.git" "$T/origin.git" "$T/sep"
 deny "main checkout with a gitdir file" "$(edit_json "$T/sep/a.txt" b)"
 
+ln -s src "$T/main/alias"
+deny "tracked file through a symlinked directory" "$(edit_json "$T/main/alias/b.txt" b)"
+assert_contains "symlinked directory: the reason gives the real path" "$GUARD_ERR" "<worktree>/src/b.txt"
+deny "new file through a symlinked directory" "$(write_json "$T/main/alias/new.txt" n)"
+ln -s "$T/main" "$T/link-to-main"
+deny "the main checkout reached through a symlink" "$(edit_json "$T/link-to-main/a.txt" b)"
+
+g clone -q "$T/origin.git" "$T/fsm"
+printf '#!/bin/sh\ntouch "%s"\n' "$T/fsm-ran" >"$T/fsm.sh"
+chmod +x "$T/fsm.sh"
+printf '[core]\n\tfsmonitor = %s\n' "$T/fsm.sh" >"$T/fsm-include"
+g -C "$T/fsm" config core.fsmonitor "$T/fsm.sh"
+g -C "$T/fsm" config include.path "$T/fsm-include"
+deny "planted core.fsmonitor: still judged" "$(edit_json "$T/fsm/a.txt" b)"
+assert_file_absent "planted core.fsmonitor never runs" "$T/fsm-ran"
+git -C "$T/fsm" check-ignore -q -- a.txt >/dev/null 2>&1
+if [[ -e "$T/fsm-ran" ]]; then ok "fixture: plain git check-ignore runs the planted fsmonitor"; else bad "fixture: the planted fsmonitor never fires, so the check above proves nothing"; fi
+
+mkdir -p "$T/stub"
+printf '#!/bin/sh\ntouch "%s"\necho "fatal: boom" >&2\nexit 128\n' "$T/git-ran" >"$T/stub/git"
+chmod +x "$T/stub/git"
+allow "git dir owned by someone else: allowed" "$(edit_json "$T/main/a.txt" b)" \
+  -- "PATH=$T/stub:$PATH" "GUARDRAILS_TEST_UNOWNED_PATH=$T/main/.git"
+assert_file_absent "git dir owned by someone else: git never runs" "$T/git-ran"
+allow "work tree owned by someone else: allowed" "$(edit_json "$T/main/a.txt" b)" \
+  -- "PATH=$T/stub:$PATH" "GUARDRAILS_TEST_UNOWNED_PATH=$T/main"
+assert_file_absent "work tree owned by someone else: git never runs" "$T/git-ran"
+deny "a git error in an owned repository is denied, not exempted" "$(edit_json "$T/main/a.txt" b)" \
+  -- "PATH=$T/stub:$PATH"
+assert_contains "a git error names itself in the reason" "$GUARD_ERR" "could not judge this path (exit 128: fatal: boom)"
+
 allow "git-ignored file" "$(write_json "$T/main/ignored.txt" i)"
 allow "file under an ignored directory" "$(write_json "$T/main/build/out.txt" o)"
 mkdir -p "$T/outside"
 allow "path outside any repository" "$(write_json "$T/outside/x.txt" x)"
+ln -s "$T/outside" "$T/main/out"
+allow "a symlinked directory that leaves the repository" "$(write_json "$T/main/out/x.txt" x)"
 allow "path inside the .git directory" "$(edit_json "$T/main/.git/config" c)"
 allow "relative path" "$(edit_json "a.txt" b)"
 allow "a tool that is not a file edit" "$(other_tool_json Read "$T/main/a.txt")"
