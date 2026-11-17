@@ -95,7 +95,7 @@ A malformed consumer file warns and degrades to rung 2, never a hard stop.
 
 ### 2. Run checks
 
-For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-cmd`, in that order; skip a null command. Where the record holds a non-null `lint-cmd`, run it in place of `check-cmd`, so this skill and the format and lint plugins' git hooks run the same lint verb. Substitute `<solution-or-project-file>` (per `anchor`), `<project-dir>` (each root `project-discovery` finds) and `<files>` (that ecosystem's changed files). Stop an ecosystem at its first failure and continue with the next.
+For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-cmd`, in that order; skip a null command. Where the record holds a non-null `lint-cmd`, run it in place of `check-cmd`: it is the repository's report-only lint command, and no hook runs it. Substitute `<solution-or-project-file>` (per `anchor`), `<project-dir>` (each root `project-discovery` finds) and `<files>` (that ecosystem's changed files). Stop an ecosystem at its first failure and continue with the next.
 
 **What counts as a check.** A cell reads `pass` only when its command started, exercised the project, and exited 0. Two outcomes look green and are not:
 

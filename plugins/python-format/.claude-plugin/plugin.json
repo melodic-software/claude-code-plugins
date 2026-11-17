@@ -1,6 +1,6 @@
 {
   "name": "python-format",
-  "description": "Formats Python once per batch of tool calls and at git pre-commit, and reports lint findings at commit, with the tools the repository's python record names or, where a Ruff config governs the file, Ruff; formatting and linting resolve separately, and no lint autofix runs.",
+  "description": "Formats Python with Ruff once per batch of tool calls and at git pre-commit, and reports Ruff lint findings at commit, only where a Ruff config governs the file; formatting and linting are separate, no lint autofix runs, and hooks never run an ecosystem record's command.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"

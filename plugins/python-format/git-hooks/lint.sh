@@ -7,18 +7,17 @@
 #                       included (the opt-in end-of-turn Stop row)
 #   lint.sh --resolve [<path>...]  print the lint row, or one per path
 #                         (resolve-tool.sh rt_print); reads
-#                       the record, runs nothing
+#                       runs nothing
 #
-# The command resolves per file through lib/git-hooks/resolve-tool.sh: the
-# repository's approved python record (lint-cmd), else the Ruff adapter in
-# adapters.sh, else nothing. Its output becomes "<path>:<line>: <message>"
-# lines, repo-relative, and only those on added lines block (stderr, exit 1).
-# A linter that exits non-zero with no parseable finding fails closed. A
-# partly staged file is refused, since the linter reads the work tree. A staged
-# file gone from the work tree is linted from the index by the adapter and
-# fails closed on the record path. A missing tool follows the check-placement
-# contract: checks.skipmissing, else fail for an agent and a notice for a
-# person.
+# The command resolves per file through lib/git-hooks/resolve-tool.sh to the
+# Ruff adapter in adapters.sh where a Ruff config governs the file, else to
+# nothing; a .claude/ecosystems/ record is never run here. Its output becomes
+# "<path>:<line>: <message>" lines, repo-relative, and only those on added
+# lines block (stderr, exit 1). A linter that exits non-zero with no parseable
+# finding fails closed. A partly staged file is refused, since the linter reads
+# the work tree. A staged file gone from the work tree is linted from the index.
+# A missing tool follows the check-placement contract: checks.skipmissing,
+# else fail for an agent and a notice for a person.
 #
 # POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
@@ -61,13 +60,9 @@ done < <(checks_files)
 ((${#candidates[@]})) || exit 0
 
 rt_group lint "$PWD" "${candidates[@]}"
-if [[ -n "$RT_GFAIL" ]]; then
-  printf '%s: %s; fix the record, then %s\n' "$RT_PLUGIN" "${RT_GFAIL%$'\n'}" "$(checks_git_verb)" >&2
-  exit 1
-fi
-if [[ -n "${RT_DRIFT_CONFIGS:-}" ]] && ((${#RT_GOTHER[@]})); then
+if [[ -n "${RT_DRIFT_CONFIGS:-}" ]]; then
   # shellcheck disable=SC2086 # the config names split on spaces
-  checks_refuse_config_drift --if rt_config_counts $RT_DRIFT_CONFIGS -- "${RT_GOTHER[@]}" || exit 1
+  checks_refuse_config_drift --if rt_config_counts $RT_DRIFT_CONFIGS -- "${candidates[@]}" || exit 1
 fi
 ((RT_GN)) || exit 0
 
@@ -109,13 +104,8 @@ for ((i = 0; i < RT_GN; i++)); do
     rt_lint "${present[@]}" >>"$contract" || failed=1
   fi
   for f in ${gone[@]+"${gone[@]}"}; do
-    if [[ "$RT_SOURCE" == adapter:* ]] && declare -F rt_lint_index >/dev/null; then
-      rt_lint_index "$f" >"$CHECKS_TMP/index" 2>&1
-      rt_normalize "$CHECKS_TMP/index" "$?" >>"$contract" || failed=1
-    else
-      printf "%s: staged but not in the work tree, so the %s record's linter cannot check it; restore it or unstage it, then commit\n" "$f" "$RT_ID" >&2
-      failed=1
-    fi
+    rt_lint_index "$f" >"$CHECKS_TMP/index" 2>&1
+    rt_normalize "$CHECKS_TMP/index" "$?" >>"$contract" || failed=1
   done
 done
 if [[ -s "$contract" ]]; then

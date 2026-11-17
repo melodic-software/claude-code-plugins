@@ -756,20 +756,12 @@ lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh -> plugins/*/lib/git-hooks/check-lib.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/git-hooks/resolve-tool.sh, the format and lint plugins' command resolver.
+# lib/git-hooks/resolve-tool.sh, the format and lint plugins' shared adapter runner.
 lib/git-hooks/resolve-tool.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/git-hooks/resolve-tool.sh -> plugins/*/lib/git-hooks/resolve-tool.sh
-
-# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/yaml-subset.awk, the record reader resolve-tool.sh runs, copied beside it.
-lib/git-hooks/yaml-subset.awk
-
-# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
-# duplication audit: the root canonical and the copies.
-lib/yaml-subset.awk -> plugins/*/lib/git-hooks/yaml-subset.awk
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/one-way-doors.md, the one-way and two-way door definition, carried by

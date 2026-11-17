@@ -118,8 +118,8 @@ If neither detection path yields changes and no filter specified: report "No cha
 
 **Command selection by mode:**
 
-The record's `lint-cmd` is the report-only lint command the format and lint plugins' git hooks run; a
-check run takes it over `check-cmd` so the hook and this skill run the same verb.
+The record's `lint-cmd` is the repository's report-only lint command; a check run takes it over
+`check-cmd`. No hook runs a record's command, so this skill and `/toolchain:check` are where it runs.
 
 | Mode | Command key | Gate |
 |------|-------------|------|

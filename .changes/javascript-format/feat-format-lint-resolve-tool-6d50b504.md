@@ -4,4 +4,4 @@ bump: patch
 
 ### Added
 
-- Carries the shared format and lint resolver (`lib/git-hooks/resolve-tool.sh`) and its YAML reader, which resolve a command per file from the repository's ecosystem record, then a shipped adapter, then nothing. No hook of this plugin uses them yet.
+- Carries the shared format and lint runner (`lib/git-hooks/resolve-tool.sh`), which picks the plugin's shipped adapter for a file its tool's own config opts in and runs it with file names as arguments; it never runs an ecosystem record's command. No hook of this plugin uses it yet.

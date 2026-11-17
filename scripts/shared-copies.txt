@@ -674,14 +674,6 @@ lib/git-hooks/resolve-tool.sh plugins/javascript-format/lib/git-hooks/resolve-to
 lib/git-hooks/resolve-tool.sh plugins/markdown-format/lib/git-hooks/resolve-tool.sh
 lib/git-hooks/resolve-tool.sh plugins/powershell-format/lib/git-hooks/resolve-tool.sh
 lib/git-hooks/resolve-tool.sh plugins/actionlint/lib/git-hooks/resolve-tool.sh
-lib/yaml-subset.awk plugins/spelling/lib/git-hooks/yaml-subset.awk
-lib/yaml-subset.awk plugins/python-format/lib/git-hooks/yaml-subset.awk
-lib/yaml-subset.awk plugins/bash-format/lib/git-hooks/yaml-subset.awk
-lib/yaml-subset.awk plugins/go-format/lib/git-hooks/yaml-subset.awk
-lib/yaml-subset.awk plugins/javascript-format/lib/git-hooks/yaml-subset.awk
-lib/yaml-subset.awk plugins/markdown-format/lib/git-hooks/yaml-subset.awk
-lib/yaml-subset.awk plugins/powershell-format/lib/git-hooks/yaml-subset.awk
-lib/yaml-subset.awk plugins/actionlint/lib/git-hooks/yaml-subset.awk
 lib/git-hooks/git-hook-decisions.md plugins/spelling/skills/setup/reference/git-hook-decisions.md
 lib/git-hooks/git-hook-decisions.md plugins/python-format/skills/setup/reference/git-hook-decisions.md
 lib/git-hooks/git-hook-decisions.md plugins/bash-format/skills/setup/reference/git-hook-decisions.md

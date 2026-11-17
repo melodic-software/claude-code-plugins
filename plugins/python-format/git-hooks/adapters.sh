@@ -1,7 +1,8 @@
 #!/bin/sh
 # shellcheck shell=bash
-# python-format's side of lib/git-hooks/resolve-tool.sh: the ecosystem id it
-# binds, the files it acts on, and its Ruff adapter. Sourced by the batch hook
+# python-format's side of lib/git-hooks/resolve-tool.sh: the ecosystem id whose
+# record setup reports (hooks never run it), the files it acts on, and its
+# Ruff adapter. Sourced by the batch hook
 # and both git-hook entries.
 #
 # The adapter governs a file only when a Ruff configuration sits in its

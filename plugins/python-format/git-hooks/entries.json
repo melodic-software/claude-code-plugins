@@ -10,7 +10,7 @@
       "tools": ["ruff"],
       "rewrites": true,
       "resolved": true,
-      "assets": ["lib/git-hooks/resolve-tool.sh", "lib/git-hooks/yaml-subset.awk", "git-hooks/adapters.sh"]
+      "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh"]
     },
     {
       "name": "lint",
@@ -19,7 +19,7 @@
       "tools": ["ruff"],
       "rewrites": false,
       "resolved": true,
-      "assets": ["lib/git-hooks/resolve-tool.sh", "lib/git-hooks/yaml-subset.awk", "git-hooks/adapters.sh"]
+      "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh"]
     }
   ]
 }

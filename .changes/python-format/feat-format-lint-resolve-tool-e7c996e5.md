@@ -4,8 +4,9 @@ bump: major
 
 ### Changed
 
-- Formatting and linting are separate concerns, each resolved per repository: the repository's python record (`.claude/ecosystems/python.yaml`: `fix-cmd` formats, `lint-cmd` lints), else the Ruff adapter where a Ruff config governs the file, else nothing. A record can name any tool. A record committed to the repository runs only when it, and every repository file its command names, match the default branch, or after `/python-format:setup apply approve-record`; otherwise it runs nothing, not even the adapter. A command must hold `<files>` to run from a hook, and file names reach it as arguments, never as shell text.
-- `setup check` reports, per concern, the resolved tool, its source and its approval state, read from the resolver. `setup apply` drafts `fix-cmd` and `lint-cmd` for `/toolchain:setup apply python` and never writes the record. The SessionStart probe reports a missing `ruff` only where a Ruff config is present.
+- Formatting and linting are separate concerns, each with its own git-hook entry and its own row in `setup check`. The hooks run only the Ruff adapter, where a Ruff config governs the file, and otherwise nothing. They never run a command from the repository's python record (`.claude/ecosystems/python.yaml`); `/toolchain:lint` and `/toolchain:check` run it on request, and `setup check` says when a record exists. File names reach Ruff as arguments, never as shell text.
+- `setup check` reports, per concern, the adapter, its tool and whether it is found, read from the entries' `--resolve` rows (with paths, one row per file, naming the config that governs it). `setup apply` drafts `fix-cmd` and `lint-cmd` for `/toolchain:setup apply python` when the repository wants a tool the plugin ships no adapter for, and never writes the record.
+- The opt-in end-of-turn check drops only missing-tool lines from what it hands back, so a finding printed beside one still reaches Claude.
 
 ### Removed
 

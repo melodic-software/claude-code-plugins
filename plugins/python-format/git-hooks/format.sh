@@ -6,18 +6,17 @@
 #   format.sh --worktree  does nothing: formatting happens at commit
 #   format.sh --resolve [<path>...]  print the format row, or one per path
 #                         (resolve-tool.sh rt_print);
-#                         reads the record, runs nothing
+#                         runs nothing
 #
-# The command resolves per file through lib/git-hooks/resolve-tool.sh: the
-# repository's approved python record (fix-cmd), else the Ruff adapter in
-# adapters.sh, else nothing. An unapproved record runs nothing; a record the
-# reader cannot parse fails the commit. A partly staged file is refused before
-# anything is rewritten (re-staging a rewrite would stage its unstaged hunks
-# too), and so is a commit whose Ruff config above a file no record binds
-# differs between the index and the work tree. A staged file since deleted
-# from the work tree is never rewritten. A missing tool follows the
-# check-placement contract: checks.skipmissing, else fail for an agent and a
-# notice for a person.
+# The command resolves per file through lib/git-hooks/resolve-tool.sh to the
+# Ruff adapter in adapters.sh where a Ruff config governs the file, else to
+# nothing; a .claude/ecosystems/ record is never run here. A partly staged file
+# is refused before anything is rewritten (re-staging a rewrite would stage its
+# unstaged hunks too), and so is a commit whose Ruff config above a staged file
+# differs between the index and the work tree. A staged file since deleted from
+# the work tree is never rewritten. A missing tool follows the check-placement
+# contract: checks.skipmissing, else fail for an agent and a notice for a
+# person.
 #
 # POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
@@ -61,13 +60,9 @@ done < <(checks_files)
 ((${#candidates[@]})) || exit 0
 
 rt_group format "$PWD" "${candidates[@]}"
-if [[ -n "$RT_GFAIL" ]]; then
-  printf '%s: %s; fix the record, then commit\n' "$RT_PLUGIN" "${RT_GFAIL%$'\n'}" >&2
-  exit 1
-fi
-if [[ -n "${RT_DRIFT_CONFIGS:-}" ]] && ((${#RT_GOTHER[@]})); then
+if [[ -n "${RT_DRIFT_CONFIGS:-}" ]]; then
   # shellcheck disable=SC2086 # the config names split on spaces
-  checks_refuse_config_drift --if rt_config_counts $RT_DRIFT_CONFIGS -- "${RT_GOTHER[@]}" || exit 1
+  checks_refuse_config_drift --if rt_config_counts $RT_DRIFT_CONFIGS -- "${candidates[@]}" || exit 1
 fi
 ((RT_GN)) || exit 0
 

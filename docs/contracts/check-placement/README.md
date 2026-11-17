@@ -62,7 +62,7 @@ and what reaches the model.
 - A formatter too slow for the per-batch ceiling (the `dotnet format` class) runs at `pre-commit`
   only.
 - A format and lint plugin keeps the two concerns apart: a `format` entry that rewrites and a `lint`
-  entry that reports, each resolved on its own ([Record path](#record-path)). Formatting includes
+  entry that reports, each resolved on its own ([Hooks run the shipped adapter](#hooks-run-the-shipped-adapter)). Formatting includes
   import ordering; no lint autofix runs in the batch row or at `pre-commit`.
 
 Pointer: for `PostToolBatch` (no matcher, no `if`, one firing per batch of parallel tool calls),
@@ -164,11 +164,12 @@ on the first `to` entry, with a copy under the plugin's own name listed as a fil
 its directory. A decline of `from` counts for every `to` entry, and plan carries it to each entry's
 own key. Each rule is a migration line, like an earlier name.
 
-A plugin whose entries resolve their command per repository ([Record path](#record-path)) adds a
-top-level `ecosystems` array of the `.claude/ecosystems/<id>.yaml` ids it binds, and
+A plugin whose entries pick their adapter per repository
+([Hooks run the shipped adapter](#hooks-run-the-shipped-adapter)) adds a top-level `ecosystems`
+array of the `.claude/ecosystems/<id>.yaml` ids whose records its setup reports, and
 `"resolved": true` on each such entry. For a resolved entry the installer reads the tools from the
-entry script's `--resolve` rows, run under `sh`, which read records and run none; `tools` is the
-fallback when the script cannot answer.
+entry script's `--resolve` rows, run under `sh`, which run nothing; `tools` is the fallback when the
+script cannot answer.
 
 An entry may add an optional `assets` array: files the script reads at run time, such as a default
 config (`"assets": ["config/default-typos.toml"]`).
@@ -178,53 +179,26 @@ config (`"assets": ["config/default-typos.toml"]`).
 - `copy` writes each asset beside the installed script under its base name. At shared scope it
   stages the asset without the exec bit.
 
-### Record path
+### Hooks run the shipped adapter
 
-A format or lint plugin's batch row and both entries resolve, per file and concern, the command they
-run, through the vendored `lib/git-hooks/resolve-tool.sh` (canonical in `lib/`, copied into each
-format and lint plugin and beside each installed entry, with `yaml-subset.awk`):
+A format or lint plugin's batch row and its `format` and `lint` entries run only the adapter the
+plugin ships, for a file its tool's own config opts in, through the vendored
+`lib/git-hooks/resolve-tool.sh` (canonical in `lib/`, copied into each format and lint plugin and
+beside each installed entry). A file no adapter's config governs gets nothing.
 
-1. the record bound to one of the plugin's `ecosystems` ids: `fix-cmd` for format, `lint-cmd` for
-   lint ([ecosystem-commands](../ecosystem-commands/README.md)), read through the user-global, team
-   and `.local` layers key by key, and binding a file only when the record's `globs` match it (`*`
-   and `?` within one directory, `**/` across any number; a pattern without `/` matches the base
-   name);
-2. the plugin's adapter for a tool whose config governs the file;
-3. nothing.
-
-- **Opt-in.** A hook runs a record command only when it holds `<files>`; a whole-tree command is
-  not a hook opt-in, so that concern takes the adapter rung. Files reach the command as `"$@"` of
-  `sh -c`, never as command text, and a name starting with `-` gains `./`. The command runs from
-  its `project-discovery` directory, else the root; `<project-dir>` expands to that directory, and
-  a record using `<solution-or-project-file>`, which hooks do not expand, is refused like an
-  unreadable record. Leading `VAR=value` words are not the executable.
-- **Approval.** A key from the team file, or from a `.local` file git tracks, runs only when that
-  file and every tracked repository file its command names match the default branch. A named
-  path is read after a `--opt=` prefix, from the root after `$REPO_ROOT/`, else from the directory
-  the command runs in, and compared in git's canonical form (`./`, `//` and `..` resolved); a path
-  that reaches outside the repository always needs approval. A named file the default branch does
-  not list counts as the user's own only when git lists it as untracked or ignored and no component
-  of its path is a symlink; one inside a submodule, under a symlinked directory or otherwise
-  unclassified needs approval. A command can also run code it does not name, such as a manifest's
-  script or a build target, so every tracked path under the directory the command runs from
-  (recursively) that the record's `globs` do not bind must match the default branch as well: an
-  edit, an addition, a deletion, a moved or dirty submodule and a changed symlink entry all count,
-  and the approval key covers those paths' bytes. Edits to the files the record's `globs` bind
-  never need approval. The default branch is `refs/remotes/origin/HEAD`, read locally. The
-  record also runs when this clone holds an approval of exactly those bytes under `<git common dir>/claude-ecosystems/approved/`,
-  written only by an attended setup (`resolve-tool.sh --approve <id>`). Approval is keyed per run
-  directory, so `--approve` and setup's repository row cover every directory the record's globs and
-  `project-discovery` produce, and the row names each directory when their states differ. Otherwise the record is
-  unapproved and runs nothing; it never falls through to the adapter. The user-global file and an
-  untracked `.local` file are the user's own and need no approval. A plugin's code-config gates
-  still apply on the record path.
-- **Unreadable record.** A record outside the YAML subset is a parse error: the batch row runs
-  nothing, an entry fails naming the file and line, and setup check reports FAIL.
-- **Findings.** A lint command's output lines `<path>:<line>[:<col>]: <message>`, its paths relative
+- **Records never run from a hook.** A `.claude/ecosystems/<id>.yaml` record's `fix-cmd` and
+  `lint-cmd` ([ecosystem-commands](../ecosystem-commands/README.md)) run only when a person asks
+  `/toolchain:lint` or `/toolchain:check`. No check of a record's contents can bound what its
+  command executes, so a hook runs none, however the record matches the default branch. Setup
+  reports a record that exists and points to `/toolchain:lint` for it.
+- **Files are data.** Files reach the adapter's command as `"$@"` of `sh -c`, never as command text,
+  and a name starting with `-` gains `./`. Long file lists run in chunks under the Windows
+  command-line limit.
+- **Findings.** A lint adapter's output lines `<path>:<line>[:<col>]: <message>`, its paths relative
   to where it ran or absolute, become repo-relative contract lines filtered to the changed lines.
   A lint command that exits non-zero with no such line fails closed and shows its output.
-- **Missing tool.** The skip key is the record's first `tool-pin` key, else the base name of the
-  command's first word.
+- **Missing tool.** The skip key is the adapter's tool. A missing tool stops only the files that
+  tool would handle.
 
 ### Check-script runtime contract
 

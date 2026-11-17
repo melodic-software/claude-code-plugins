@@ -1,41 +1,31 @@
 # python-format
 
-A Claude Code plugin that formats and lints Python with whichever tools your repository uses, as two
-separate concerns. Formatting runs once per batch of tool calls in a Claude Code session and again
-at git pre-commit for every author; linting reports at pre-commit, on the lines the commit adds.
-No lint autofix runs in either place, and no finding reaches Claude on each edit.
+A Claude Code plugin that formats and lints Python with Ruff, as two separate concerns, wherever
+your repository has opted into Ruff. Formatting runs once per batch of tool calls in a Claude Code
+session and again at git pre-commit for every author; linting reports at pre-commit, on the lines
+the commit adds. No lint autofix runs in either place, and no finding reaches Claude on each edit.
 
-Each concern resolves per repository, in this order:
+The hooks run only the shipped **Ruff adapter**, when a `.ruff.toml`, `ruff.toml` or `pyproject.toml`
+with a `[tool.ruff]` section governs the file: import sorting where your lint config selects it,
+then `ruff format`; `ruff check` for lint. A repository without one is left untouched, and
+`/python-format:setup check` reports the concern unresolved.
 
-1. your **python record**, `.claude/ecosystems/python.yaml`: `fix-cmd` formats, `lint-cmd` lints
-   (the ecosystem-commands contract in the marketplace repository). Any tool can be named there.
-2. the shipped **Ruff adapter**, when a `.ruff.toml`, `ruff.toml` or `pyproject.toml` with a
-   `[tool.ruff]` section governs the file: import sorting where your lint config selects it, then
-   `ruff format`; `ruff check` for lint.
-3. **nothing**: a repository with neither is left untouched, and `/python-format:setup check`
-   reports the concern unresolved.
+The hooks never run a command from your python record (`.claude/ecosystems/python.yaml`, the
+ecosystem-commands contract in the marketplace repository). That record names any formatter and
+linter you use, and `/toolchain:lint` and `/toolchain:check` run it when you ask.
 
-The plugin ships no rules and no tool choice of its own.
+The plugin ships no rules of its own.
 
 ## Behavior
 
 - **One format per batch, silent.** A `PostToolBatch` row runs after the tool calls of a turn
   step resolve. It takes the `.py` and `.pyi` files that `Write`, `Edit` or `MultiEdit` calls in
-  the batch named, and runs each file's resolved format command once over them. It prints nothing
+  the batch named, and runs the Ruff adapter once over those a Ruff config governs. It prints nothing
   and exits `0`. A file that `Read` named is never rewritten.
   - The row has no matcher or `if` (neither applies to `PostToolBatch`). Its launcher skips the
     script unless the payload mentions `.py`, so a batch without Python costs one `node` process.
   - **Pointer**: when deciding what filters a `PostToolBatch` row, fetch
     [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch) live.
-- **A record runs only when it is the team's.** A record committed to the repository runs when it,
-  every repository file its command names, and every tracked file under the directory the command
-  runs from that the record's globs do not bind, match the default branch (`origin/HEAD`). Edits to
-  the Python files the record binds never count. One that
-  differs, such as a record edited on a branch, runs nothing (not even the Ruff adapter) until it
-  is merged or approved for your clone with `/python-format:setup apply approve-record`. Your own
-  `~/.claude/ecosystems/python.yaml` and an untracked `python.local.yaml` need no approval. A
-  command must hold `<files>` to run from a hook; file names reach it as arguments, never as shell
-  text.
 - **Ruff adapter opt-in.** The adapter walks up from the file to the repository root for a Ruff
   config. **Known limitation:** a `pyproject.toml` that uses a bare `[tool]` header with an inline
   `ruff = { ... }` table is not recognized, so the adapter skips (a missed opt-in, never a wrong
@@ -83,14 +73,12 @@ at the end of a turn and hands findings back to Claude once per turn.
   finds Bash. A missing `node` is a hook launch error, not a skip notice.
 - **jq** on `PATH`. Reads the file paths from the `PostToolBatch` payload. Absent: the batch row
   does nothing, and the SessionStart probe reports it. [Install jq](https://jqlang.org/download/).
-- **The resolved tool** available to the repo. A record's tool is whatever its command names. The
-  Ruff adapter resolves Ruff from the repo's `.venv` (`.venv/bin/ruff`, or `.venv/Scripts/ruff.exe`
+- **Ruff** available to the repo. The Ruff adapter resolves it from the repo's `.venv` (`.venv/bin/ruff`, or `.venv/Scripts/ruff.exe`
   on Windows, walking up from the edited file) or `PATH`, and never downloads it; when it is absent
   the batch row skips the file. **Ruff 0.12+ is recommended** for the adapter (tested against
   0.17.4).
 - A SessionStart probe reports a missing `ruff` once per session, from `prerequisites.json`, only
-  where a Ruff config sits in the project directory or above it, and a drifted git-hook entry. A
-  record's tool is reported by `/python-format:setup check` and by the entry's missing-tool line.
+  where a Ruff config sits in the project directory or above it, and a drifted git-hook entry.
   Run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` to see what resolves; it
   is read-only and installs nothing.
 
@@ -112,8 +100,7 @@ from `scripts/hook-census.sh`:
 | One `Edit` of a `.py` file that needs a rewrite | 0.083 s | 0.073-0.107 s | 17 |
 
 The ceiling for a per-batch formatter row is 1 s median per fire. Fences:
-`.performance/ratchets.json` holds the no-Python row at 1 spawn, the record path (an approved
-python record formatting one file) at 29 spawns, and the Stop row with
+`.performance/ratchets.json` holds the no-Python row at 1 spawn, and the Stop row with
 `python_format_end_of_turn` off (its default) at 1 spawn. The Ruff adapter path measured 20 spawns
 before and after the resolver landed (2026-11-16, WSL2 Ubuntu, bash 5.3.9).
 

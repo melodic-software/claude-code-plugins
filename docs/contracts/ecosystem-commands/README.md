@@ -117,10 +117,10 @@ behind that skill's confirmation / `--yes` gate, never by bare `--fix`.
 `lint-cmd` is the **report-only lint** command, kept apart from formatting: it changes no file and
 checks no formatting. `check-cmd` keeps its meaning (a lint and format check) for existing records;
 where `lint-cmd` is set, `/toolchain:lint` and `/toolchain:check` run it in place of `check-cmd`.
-The format and lint plugins' git hooks run `fix-cmd` (format) and `lint-cmd` (lint) only when the
-command holds `<files>`, read its output as `<path>:<line>` findings, and run a team record only
-when it matches the default branch or is approved for the clone (the
-[check-placement convention](../check-placement/README.md), "Record path").
+No hook runs a record's command: the format and lint plugins' batch rows and git-hook entries run
+only the adapter each plugin ships, and `fix-cmd` and `lint-cmd` run when a person asks
+`/toolchain:lint` or `/toolchain:check` (the
+[check-placement convention](../check-placement/README.md), "Hooks run the shipped adapter").
 
 Consumers are tolerant readers: unknown keys are inert, missing optional keys fall back to defaults.
 Consuming repos should validate their files against the schema in their own gates (a

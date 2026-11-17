@@ -116,9 +116,8 @@ optional keys that apply (`anchor`, `project-discovery`, `opt-in`, `install-hint
 
 This skill is the one writer of `fix-cmd` and `lint-cmd`. A format or lint plugin's setup drafts the
 values and sends the person here with them. Write `lint-cmd` only as a report-only command over
-`<files>`; the format and lint plugins' git hooks run `fix-cmd` and `lint-cmd` only when the command
-holds `<files>`, and only once the file matches the default branch or the person approves it for
-their clone through that plugin's setup.
+`<files>`. `/toolchain:lint` and `/toolchain:check` run these keys on request; no hook runs a
+record's command.
 
 Recommend the consumer validate these in their own gate, a `check-jsonschema` hook or CI lane against
 the contract schema catches typos the tolerant reader would otherwise ignore.

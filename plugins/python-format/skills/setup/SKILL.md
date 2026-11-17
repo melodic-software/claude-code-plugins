@@ -1,6 +1,6 @@
 ---
-description: "Verify python-format's prerequisites and which formatter and linter it resolves here, approve the repository's python record for this clone, and register its git pre-commit entries. Use when: 'set up python-format', 'configure python-format', 'is python-format working', 'which formatter does python-format run', formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply [install-ruff] | apply approve-record | apply install-git-hooks [scope=local|shared]. Re-runnable."
-argument-hint: "[check|apply] [inspect|install-ruff|approve-record|install-git-hooks [scope=local|shared]]"
+description: "Verify python-format's prerequisites and which formatter and linter its hooks run here, and register its git pre-commit entries. Use when: 'set up python-format', 'configure python-format', 'is python-format working', 'which formatter does python-format run', formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply [install-ruff] | apply install-git-hooks [scope=local|shared]. Re-runnable."
+argument-hint: "[check|apply] [inspect|install-ruff|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
@@ -42,21 +42,19 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
-reports, `apply` resolves. Python formatting and linting are two concerns, each resolved per
-repository: the repository's python record (`.claude/ecosystems/python.yaml`: `fix-cmd` formats,
-`lint-cmd` lints), else the plugin's shipped adapter where that tool's own config governs the file,
-else nothing. The plugin ships no tool choice of its own. The only consumer-project files this
-plugin writes are its git-hook entry copies (`apply install-git-hooks`) and this clone's approval of
-the record (`apply approve-record`); the record itself is written by `/toolchain:setup apply
-python`, never here. The tunables are the native `userConfig` options (the on/off toggle, the
+reports, `apply` resolves. Python formatting and linting are two concerns. The hooks run only the
+plugin's shipped adapter, where that tool's own config governs the file, and otherwise nothing; they
+never run a command from the repository's python record (`.claude/ecosystems/python.yaml`), which
+`/toolchain:lint` and `/toolchain:check` run on request. The only consumer-project files this plugin
+writes are its git-hook entry copies (`apply install-git-hooks`); the record is written by
+`/toolchain:setup apply python`, never here. The tunables are the native `userConfig` options (the on/off toggle, the
 gitignored-file switch and the end-of-turn check). `apply install-ruff` is the one other write
 path: the adapter's tool, installed into the repo's existing managed environment as described
 below.
 
 Action routing: no argument or `check` runs the check; `check inspect` runs only the
 `check inspect` section; `apply` runs the check first, then
-remediation; `apply install-ruff` and `apply approve-record` each additionally authorize the write
-their section describes. All are non-interactive except where a section says to ask. Never prompt
+remediation; `apply install-ruff` additionally authorizes the install its section describes. All are non-interactive except where a section says to ask. Never prompt
 when the action is given. `apply install-git-hooks` asks only where its section says to.
 
 ## `check` (read-only)
@@ -85,33 +83,27 @@ or `modified` entry): the entry runs at commit outside Claude Code and reads no 
 3. **What each concern resolves to.** From the repository root run
    `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh" --resolve` and
    `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh" --resolve`. Each prints one row: plugin, concern,
-   source, tool, approval, found, detail, tab-separated. It reads the record and the adapter's
-   config and runs nothing. Append repository paths (`--resolve src/a.py scripts/b.py`) for one
+   source, tool, found, detail, tab-separated. It reads the adapter's config and runs nothing. Append repository paths (`--resolve src/a.py scripts/b.py`) for one
    row per file when the answer can differ per file, as an adapter's config walk does; the detail
    column then names the config that governs that file and the binary that would run, or why
    nothing resolved. An adapter's own rules (which config opts a file in, where its binary comes
    from) are in `${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh`: read them to explain why a row
    names that config. Report one line per concern from the rows, never from this text:
-   - `record:python` with approval `accepted` (the record matches the default branch) or
-     `approved` (this clone approved its current bytes), and found `yes`: PASS, naming the tool.
-   - `record:python` with approval `unapproved`: FAIL. The record, a file its command names, or a
-     tracked file under the directory it runs from that its globs do not bind, differs from the
-     default branch, so the hooks run nothing for this concern, not even the
-     adapter. Remediation: merge it, or `apply approve-record` after the person reads it.
    - `adapter:<name>` with found `yes`: PASS, naming the adapter's tool and that its config opted in.
-   - found `no`: FAIL; the remediation is the record's `install-hint`, or the adapter tool's
+   - found `no`: FAIL; the remediation is the adapter tool's
      `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` install hints (Read that path).
-   - `parse-error`: FAIL, quoting the detail (file and line); the hooks run nothing and a commit fails.
-   - `none`: INFO "unresolved": no record names a command for this concern and no shipped
-     adapter's config governs the repository, so nothing runs. This is the opt-out by design.
-   A detail saying the record's key names no `<files>` is INFO beside the row: the hooks run only
-   a command over the changed files, so that key is for `/toolchain:lint` and `/toolchain:check`.
+   - `none`: INFO "unresolved": no shipped adapter's config governs the repository, so the hooks run
+     nothing. This is the opt-out by design.
+   A detail saying a python record exists is INFO beside the row: the hooks never run it, and
+   `/toolchain:lint` or `/toolchain:check` runs it on request.
 4. **Draft, never write, the record.** When a concern is unresolved, or the person names a tool the
-   plugin ships no adapter for, find the repository's own formatter and linter by the steps in
+   plugin ships no adapter for, say that the hooks will not run that tool: they run only the shipped
+   adapter. Find the repository's own formatter and linter by the steps in
    [reference/ecosystem-resolution.md](../../reference/ecosystem-resolution.md), and draft the
    `fix-cmd` and `lint-cmd` values: each holds `<files>`, `fix-cmd` only formats (import ordering
    included) and `lint-cmd` only reports, with findings as `<path>:<line>` lines. Hand the draft to
-   `/toolchain:setup apply python`, the one writer of those keys.
+   `/toolchain:setup apply python`, the one writer of those keys, so `/toolchain:lint` and
+   `/toolchain:check` can run them on request.
 5. **Hook toggle.** Report the effective `python_format_enabled` value:
    `${user_config.python_format_enabled}` (unexpanded or empty means default `true`). Also report
    `python_format_end_of_turn`: `${user_config.python_format_end_of_turn}` (unexpanded or empty means
@@ -191,21 +183,6 @@ Add `--global` (with or without `--undo`) to decline the entry in every clone;
 entry's own key set to `false` in a clone opts that entry back in. The [adoption
 path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md) explains to the user each scope and why a formatter's cleanup PR comes first.
 
-## `apply approve-record` (attended only)
-
-Approves, for this clone only, the python record as it stands, so the hooks run it while it differs
-from the default branch. An unattended run never approves: stop and report the record unapproved.
-
-1. Run `check` step 3 and show the person the record (`.claude/ecosystems/python.yaml`, and an
-   untracked `.claude/ecosystems/python.local.yaml` when present) and each repository file its
-   `fix-cmd` and `lint-cmd` name: the hooks will run exactly these on every batch and commit.
-2. Ask once whether to approve. Only on the person's yes, run
-   `bash "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/resolve-tool.sh" --approve python` from the
-   repository root, then rerun step 3 and report `approved`.
-
-Any later edit to the record or a file it names makes it unapproved again; approving is per clone
-and is never committed.
-
 ## `apply` (idempotent)
 
 Run `check`, then for each FAIL offer the resolution. Never install anything without the
@@ -270,8 +247,8 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## Next
 
-/toolchain:setup apply python, with the drafted `fix-cmd` and `lint-cmd`, when a concern is
-unresolved or the repository wants a tool the plugin ships no adapter for.
+/toolchain:setup apply python, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a
+tool the plugin ships no adapter for; /toolchain:lint then runs it on request.
 
 ## What this skill does not do
 

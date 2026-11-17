@@ -8,8 +8,8 @@
 # disclosure reaches the model) and exits 0; a Ruff config must govern the file
 # (present -> run, absent -> leave bytes untouched; pyproject.toml counts only
 # with [tool.ruff]); only formatting and selected import sorting run, never a
-# lint autofix; an approved python record runs instead of Ruff and an
-# unapproved one runs nothing; a crafted file name never runs as shell; the
+# lint autofix; a python record never runs; a crafted file name never runs as
+# shell; the
 # config's excludes, .githooks/, gitignored files and the kill switch are
 # honored; a batch with no Python edit costs only the launcher.
 #
@@ -21,7 +21,7 @@
 # Requires a real Ruff binary: $RUFF_TEST_BIN if set, else `ruff` on PATH.
 # Without one the behavioral assertions cannot run, so the suite skips.
 # test-scope: plugins/python-format/.claude-plugin/plugin.json plugins/python-format/hooks/hooks.json plugins/python-format/prerequisites.json plugins/python-format/lib/prerequisites.mjs plugins/python-format/lib/git-hooks/install.mjs
-# test-scope: plugins/python-format/git-hooks/adapters.sh plugins/python-format/lib/git-hooks/resolve-tool.sh plugins/python-format/lib/git-hooks/yaml-subset.awk
+# test-scope: plugins/python-format/git-hooks/adapters.sh plugins/python-format/lib/git-hooks/resolve-tool.sh
 
 set -uo pipefail
 
@@ -345,9 +345,9 @@ else
   echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
 fi
 
-# --- The record path -----------------------------------------------------------
-# An approved python record names any formatter; an unapproved one runs nothing,
-# not even the Ruff adapter; a file name never reaches a shell as text.
+# --- A record never runs ---------------------------------------------------------
+# A python record names a formatter; the batch row runs the Ruff adapter, never
+# the record's command, and a file name never reaches a shell as text.
 STUB="$WORK/stub"
 mkdir -p "$STUB"
 # shellcheck disable=SC2016 # the stub's own shell text
@@ -359,21 +359,16 @@ mkdir -p "$REPO_REC/.claude/ecosystems"
 printf 'globs: ["*.py"]\nfix-cmd: "stubfmt <files>"\n' >"$REPO_REC/.claude/ecosystems/python.yaml"
 git -C "$REPO_REC" add .claude/ecosystems/python.yaml
 git -C "$REPO_REC" commit -q -m record --no-verify
-git -C "$REPO_REC" update-ref refs/remotes/origin/main HEAD
-git -C "$REPO_REC" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
 printf 'x=1\n' >"$REPO_REC/r.py"
 # shellcheck disable=SC2016 # a literal file name
 CRAFTED='$(touch pwned);c.py'
 printf 'x=1\n' >"$REPO_REC/$CRAFTED"
 : >"$WORK/stub.log"
 OUT=$(fire "$(payload Edit "$REPO_REC/r.py" "$REPO_REC/$CRAFTED")" PATH="$STUB:$PATH")
-expect "an approved record formats instead of Ruff, silently" "0|formatted" "$?|$OUT$(cat "$REPO_REC/r.py")"
-expect "a crafted file name reached the record tool as data" "formatted" "$(cat "$REPO_REC/$CRAFTED")"
+expect "with a record present, Ruff formats, silently" "0|x = 1" "$?|$OUT$(cat "$REPO_REC/r.py")"
+expect "the record's command never ran" "" "$(cat "$WORK/stub.log")"
+expect "a crafted file name reached Ruff as data" "x = 1" "$(cat "$REPO_REC/$CRAFTED")"
 expect "a crafted file name ran nothing" "no" "$([[ -e "$REPO_REC/pwned" || -e "$UNRELATED/pwned" ]] && echo yes || echo no)"
-printf 'globs: ["*.py"]\nfix-cmd: "stubfmt --changed <files>"\n' >"$REPO_REC/.claude/ecosystems/python.yaml"
-printf 'x=1\n' >"$REPO_REC/u.py"
-OUT=$(fire "$(payload Edit "$REPO_REC/u.py")" PATH="$STUB:$PATH")
-expect "a record edited away from the default branch runs nothing, not even Ruff" "0|x=1" "$?|$OUT$(cat "$REPO_REC/u.py")"
 
 # --- Spawn budget ----------------------------------------------------------------
 # PostToolBatch has no matcher, so the row fires on every batch of every session.

@@ -3,14 +3,14 @@
 # (git-hooks/format.sh): staged Python files are rewritten by the resolved
 # format command and re-staged, a partly staged one is refused untouched, only
 # import sorting and formatting run (no lint autofix), the Ruff adapter acts
-# only where a Ruff config governs the file, a record runs only when approved,
-# file names never reach a shell as text, and the vendored installer wires the
-# entries so `git commit` runs them.
+# only where a Ruff config governs the file, a .claude/ecosystems/ record never
+# runs, file names never reach a shell as text, and the vendored installer wires
+# the entries so `git commit` runs them.
 # Expected values are Ruff's documented behavior: `x=1` formats to `x = 1`, and
 # the I001 fix sorts `import sys` after `import os`.
 # test-scope: plugins/python-format/git-hooks/entries.json plugins/python-format/git-hooks/adapters.sh
 # test-scope: plugins/python-format/lib/git-hooks/check-lib.sh plugins/python-format/lib/git-hooks/install.mjs
-# test-scope: plugins/python-format/lib/git-hooks/resolve-tool.sh plugins/python-format/lib/git-hooks/yaml-subset.awk
+# test-scope: plugins/python-format/lib/git-hooks/resolve-tool.sh
 # shellcheck disable=SC2016 # record commands are literal text
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT
@@ -50,10 +50,6 @@ new_repo() { # [ruff.toml body; "NONE" for no config]
   git -C "$REPO" add -A
   git -C "$REPO" commit -q -m seed --no-verify
 }
-publish() {
-  git -C "$REPO" update-ref refs/remotes/origin/main HEAD
-  git -C "$REPO" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
-}
 record() { # <body>: commit .claude/ecosystems/python.yaml
   mkdir -p "$REPO/.claude/ecosystems"
   printf '%s\n' "$1" >"$REPO/.claude/ecosystems/python.yaml"
@@ -69,8 +65,8 @@ check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
   printf '%s|%s|%s' "$rc" "$out" "$(cat "$WORK/stderr")"
 }
 
-# A stand-in formatter for record commands: logs each argument and rewrites
-# each file it is handed to "formatted".
+# A stand-in a record could name: logs each argument and rewrites each file it
+# is handed to "formatted". No hook may call it.
 BIN="$WORK/bin"
 mkdir -p "$BIN"
 cat >"$BIN/stubfmt" <<EOF
@@ -261,64 +257,30 @@ git -C "$REPO" add a.py
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NORUFF" bash "$CHECK" 2>&1)"
 expect "ruff found in the repo's .venv when PATH has none" "0|a.py" "$?|$out"
 
-# The record path: an approved record runs any tool, an unapproved one nothing.
-new_repo NONE
+# A record never runs from the entry: the Ruff adapter does, and a file name
+# reaches Ruff as data.
+new_repo
 record 'globs: ["*.py"]
 fix-cmd: "stubfmt <files>"'
-publish
 printf 'x=1\n' >"$REPO/a.py"
 name='$(touch marker);b.py'
 printf 'x=1\n' >"$REPO/$name"
 git -C "$REPO" add -- a.py "$name"
 : >"$WORK/stub.log"
-expect "an approved record's formatter runs with no Ruff config, and its rewrites are staged" "0|$name
+expect "with a record and a Ruff config, Ruff formats and the record command never runs" "0|$name
 a.py|" "$(check "$REPO")"
-expect "the record command got each staged path" "$name
-a.py" "$(sort "$WORK/stub.log")"
-expect "a crafted file name reached the tool as data and ran nothing" "no" "$([[ -e "$REPO/marker" ]] && echo yes || echo no)"
-expect "the index holds the record formatter's bytes" "formatted" "$(git -C "$REPO" show :a.py)"
+expect "the record command was not called" "" "$(cat "$WORK/stub.log")"
+expect "the index holds Ruff's bytes" "x = 1" "$(git -C "$REPO" show :a.py)"
+expect "a crafted file name reached Ruff as data and ran nothing" "no" "$([[ -e "$REPO/marker" ]] && echo yes || echo no)"
 
-new_repo
+new_repo NONE
 record 'globs: ["*.py"]
 fix-cmd: "stubfmt <files>"'
 printf 'x=1\n' >"$REPO/a.py"
 git -C "$REPO" add a.py
-expect "a record changed on this branch and not approved runs nothing, not even the adapter" "0||" "$(check "$REPO")"
-expect "the unapproved record left the file as written" "x=1" "$(cat "$REPO/a.py")"
-
-new_repo
-mkdir -p "$REPO/.claude/ecosystems"
-printf '%s\n' 'globs: ["*.py"]' 'fix-cmd: |' '  stubfmt <files>' >"$REPO/.claude/ecosystems/python.yaml"
-printf 'x=1\n' >"$REPO/a.py"
-git -C "$REPO" add a.py
-out="$(check "$REPO")"
-expect "a record the reader cannot parse fails the commit, naming the line" "1" "${out%%|*}"
-expect "the parse failure names the record" "1" "$(grep -c 'python.yaml line 2' <<<"$out")"
-
-new_repo
-printf 'x=1\n' >"$REPO/a.py"
-record 'globs: ["*.py"]
-fix-cmd: "touch resolved-ran <files>"'
-publish
-expect "--resolve prints the format row and runs nothing" "python-format	format	record:python	touch	accepted	yes	" "$(cd "$REPO" && bash "$CHECK" --resolve)"
-expect "--resolve ran no record command" "no" "$([[ -e "$REPO/resolved-ran" ]] && echo yes || echo no)"
-
-# One group's missing tool skips that group only: the Ruff group's partly
-# staged refusal and its rewrite still happen.
-new_repo
-# A user-global record needs no approval, so only the missing tool decides.
-mkdir -p "$HOME/.claude/ecosystems"
-printf '%s\n' 'globs: ["tools/*.py"]' 'fix-cmd: "nosuchformatter <files>"' >"$HOME/.claude/ecosystems/python.yaml"
-mkdir -p "$REPO/tools"
-printf 'x=1\n' >"$REPO/a.py"
-printf 'y=2\n' >"$REPO/tools/b.py"
-git -C "$REPO" add a.py tools/b.py
-printf 'x=1\nz=3\n' >"$REPO/a.py"
-expect "a person's missing record tool skips its group; the Ruff group's partly staged refusal stands" "1||NOTICE: nosuchformatter missing, so this check did not run. Install: the command the python record names
-a.py: partly staged; format it or stage it fully, then commit" "$(check "$REPO")"
-git -C "$REPO" add a.py
-expect "with the refusal cleared, the Ruff group still formats" "0|a.py|NOTICE: nosuchformatter missing, so this check did not run. Install: the command the python record names" "$(check "$REPO")"
-rm -r "$HOME/.claude"
+expect "a record with no Ruff config runs nothing at commit" "0||" "$(check "$REPO")"
+expect "the file stays as written" "x=1" "$(cat "$REPO/a.py")"
+expect "--resolve says the record is not run by hooks and names what runs it" "python-format	format	none		n/a	no Ruff config; the python record is not run by hooks; /toolchain:lint and /toolchain:check run it" "$(cd "$REPO" && bash "$CHECK" --resolve)"
 
 # --resolve <path>: one row per file, the adapter naming the config that
 # governs it (the closest one walking up) and the binary it would run.
@@ -331,11 +293,11 @@ printf 'x = 1\n' >"$REPO/src/pkg/mod.py"
 printf 'print(1)\n' >"$REPO/scripts/run.py"
 printf '#!/bin/sh\nexit 0\n' >"$REPO/.venv/bin/ruff"
 chmod +x "$REPO/.venv/bin/ruff"
-expect "--resolve <path> names the closest governing config and the venv binary, per file" "python-format	format	adapter:ruff	ruff	n/a	yes	config src/ruff.toml; binary .venv/bin/ruff
-python-format	format	adapter:ruff	ruff	n/a	yes	config pyproject.toml; binary .venv/bin/ruff" "$(cd "$REPO" && bash "$CHECK" --resolve src/pkg/mod.py scripts/run.py)"
+expect "--resolve <path> names the closest governing config and the venv binary, per file" "python-format	format	adapter:ruff	ruff	yes	config src/ruff.toml; binary .venv/bin/ruff
+python-format	format	adapter:ruff	ruff	yes	config pyproject.toml; binary .venv/bin/ruff" "$(cd "$REPO" && bash "$CHECK" --resolve src/pkg/mod.py scripts/run.py)"
 new_repo NONE
 printf '[project]\nname = "t"\n' >"$REPO/pyproject.toml"
-expect "--resolve with nothing resolved says why the adapter did not opt in" "python-format	format	none		n/a	n/a	no Ruff config: pyproject.toml has no [tool.ruff] section" "$(cd "$REPO" && bash "$CHECK" --resolve)"
+expect "--resolve with nothing resolved says why the adapter did not opt in" "python-format	format	none		n/a	no Ruff config: pyproject.toml has no [tool.ruff] section" "$(cd "$REPO" && bash "$CHECK" --resolve)"
 
 # End to end through the plugin's vendored installer and real commits.
 new_repo

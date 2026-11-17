@@ -5,7 +5,7 @@ context:
 graders:
   - name: 'both-unresolved-info'
     type: 'llm'
-    criteria: 'The reply reports both formatting and linting as unresolved (or INFO): no python record names a command and no Ruff config governs the repository, so nothing runs.'
+    criteria: 'The reply reports both formatting and linting as unresolved (or INFO): no Ruff config governs the repository, so the hooks run nothing.'
     focus: 'last_message'
   - name: 'not-broken'
     type: 'llm'
@@ -13,7 +13,7 @@ graders:
     focus: 'last_message'
   - name: 'routes-to-record'
     type: 'llm'
-    criteria: 'The reply names at least one way to opt in, such as a python record written by /toolchain:setup apply python or a Ruff config, without writing either itself.'
+    criteria: 'The reply names at least one way forward without writing anything: a Ruff config opts the hooks in, or a python record written by /toolchain:setup apply python, which /toolchain:lint and /toolchain:check run on request (the hooks never run a record).'
     focus: 'last_message'
   - name: 'no-file-1'
     type: 'file_exists'

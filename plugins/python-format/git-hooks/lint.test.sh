@@ -3,11 +3,10 @@
 # resolved lint command reports, never rewrites; a finding blocks only on a
 # line the change adds; output becomes repo-relative "<path>:<line>:
 # <message>"; a linter that fails without a parseable finding fails closed;
-# --worktree checks uncommitted changes; a record runs only when approved.
+# --worktree checks uncommitted changes; a .claude/ecosystems/ record never runs.
 # Expected values are Ruff's documented output: F821 is "Undefined name".
 # test-scope: plugins/python-format/git-hooks/entries.json plugins/python-format/git-hooks/adapters.sh
 # test-scope: plugins/python-format/lib/git-hooks/check-lib.sh plugins/python-format/lib/git-hooks/resolve-tool.sh
-# test-scope: plugins/python-format/lib/git-hooks/yaml-subset.awk
 # shellcheck disable=SC2016 # record commands are literal text
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT
@@ -46,10 +45,6 @@ new_repo() { # [ruff.toml body; "NONE" for no config]
   git -C "$REPO" add -A
   git -C "$REPO" commit -q -m seed --no-verify
 }
-publish() {
-  git -C "$REPO" update-ref refs/remotes/origin/main HEAD
-  git -C "$REPO" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
-}
 record() { # <body>: commit .claude/ecosystems/python.yaml
   mkdir -p "$REPO/.claude/ecosystems"
   printf '%s\n' "$1" >"$REPO/.claude/ecosystems/python.yaml"
@@ -59,8 +54,7 @@ record() { # <body>: commit .claude/ecosystems/python.yaml
 
 BIN="$WORK/bin"
 mkdir -p "$BIN"
-# A stand-in linter for record commands: one finding per file, on line 2,
-# spelled as an absolute path with a column; --crash fails with no finding.
+# A stand-in a record could name: one finding per file. No hook may call it.
 cat >"$BIN/stublint" <<'EOF'
 #!/bin/sh
 if [ "$1" = --crash ]; then
@@ -153,71 +147,32 @@ $HINT" "$(check "$REPO" --worktree)"
   git -C "$REPO" add a.py
   expect "no Ruff config and no record: nothing runs and the entry passes" "0||" "$(check "$REPO")"
 
-  # One group's missing tool skips that group only: Ruff's findings still block.
-  new_repo
-    # A user-global record needs no approval, so only the missing tool decides.
-  mkdir -p "$HOME/.claude/ecosystems"
-  printf '%s\n' 'globs: ["tools/*.py"]' 'lint-cmd: "nosuchlinter <files>"' >"$HOME/.claude/ecosystems/python.yaml"
-  mkdir -p "$REPO/tools"
-  printf 'print(undefined_name)\n' >"$REPO/a.py"
-  printf 'b = 1\n' >"$REPO/tools/b.py"
-  git -C "$REPO" add a.py tools/b.py
-  expect "a person's missing record tool skips its group, and the Ruff group's finding still blocks" "1||NOTICE: nosuchlinter missing, so this check did not run. Install: the command the python record names
-a.py:1: F821 Undefined name \`undefined_name\`
-python-format: fix the findings ruff reported above." "$(check "$REPO")"
-  rm -r "$HOME/.claude"
 fi
 
-# The record path.
-new_repo NONE
+# A record never runs from the entry, and the lint-output contract holds on
+# the adapter path: a linter that fails with no finding fails closed.
+new_repo
 record 'globs: ["*.py"]
 lint-cmd: "stublint <files>"'
-publish
-mkdir -p "$REPO/pkg"
-printf 'a = 1\nb = 2\n' >"$REPO/pkg/a.py"
-git -C "$REPO" add pkg/a.py
-expect "an approved record's linter runs; its absolute path:line:col output becomes repo-relative" "1||pkg/a.py:2: X1 bad thing
-python-format: fix the findings stublint reported above." "$(check "$REPO")"
-printf 'a = 1\n' >"$REPO/pkg/b.py"
-git -C "$REPO" add pkg/b.py
-git -C "$REPO" rm -q --cached pkg/a.py
-expect "a finding on a line the file does not have does not block" "0||" "$(check "$REPO")"
-
-new_repo NONE
-record 'globs: ["*.py"]
-lint-cmd: "stublint --crash <files>"'
-publish
-printf 'a = 1\n' >"$REPO/a.py"
+printf 'a = 1\nb = 2\n' >"$REPO/a.py"
 git -C "$REPO" add a.py
-expect "a linter exiting non-zero with no parseable finding fails closed, showing its output" "1||python-format: stublint exited 2 and reported no <path>:<line> finding, so the change was not checked:
-stublint: config error" "$(check "$REPO")"
-
-new_repo NONE
-record 'globs: ["*.py"]
-lint-cmd: "stublint <files>"'
-publish
-printf 'a = 1\n' >"$REPO/gone.py"
-git -C "$REPO" add gone.py
-rm "$REPO/gone.py"
-expect "a record cannot lint a staged file gone from the work tree, so it fails closed" "1||gone.py: staged but not in the work tree, so the python record's linter cannot check it; restore it or unstage it, then commit" "$(check "$REPO")"
+if command -v ruff >/dev/null 2>&1; then
+  expect "with a record and a Ruff config, Ruff lints and the record's linter never runs" "0||" "$(check "$REPO")"
+fi
+CRASH="$WORK/crash"
+mkdir -p "$CRASH"
+printf '#!/bin/sh\necho "ruff: config error" >&2\nexit 2\n' >"$CRASH/ruff"
+chmod +x "$CRASH/ruff"
+out="$(cd "$REPO" && PATH="$CRASH:$PATH" bash "$CHECK" 2>&1)"
+expect "the adapter's linter exiting non-zero with no parseable finding fails closed, showing its output" "1|python-format: ruff exited 2 and reported no <path>:<line> finding, so the change was not checked:
+ruff: config error" "$?|$out"
 
 new_repo NONE
 record 'globs: ["*.py"]
 lint-cmd: "stublint <files>"'
 printf 'a = 1\nb = 2\n' >"$REPO/a.py"
 git -C "$REPO" add a.py
-expect "an unapproved record runs nothing" "0||" "$(check "$REPO")"
-
-new_repo NONE
-printf 'a = 1\n' >"$REPO/a.py"
-git -C "$REPO" add a.py
-record 'globs: ["*.py"]
-lint-cmd: "nosuchlinter <files>"'
-publish
-printf 'a = 2\n' >"$REPO/a.py"
-git -C "$REPO" add a.py
-out="$(cd "$REPO" && CLAUDECODE=1 PATH="$BIN:$PATH" bash "$CHECK" 2>&1)"
-expect "a record tool that is missing follows the skip-key rule, keyed by its name" "1|FAIL: nosuchlinter missing. Install: the command the python record names" "$?|${out%%$'\n'*}"
+expect "a record with no Ruff config runs nothing at commit" "0||" "$(check "$REPO")"
 
 echo "lint: $PASS passed, $FAIL failed"
 ((FAIL == 0))

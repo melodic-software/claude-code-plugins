@@ -5,14 +5,12 @@
 #   python-format.sh --end-of-turn   the opt-in Stop row (python_format_end_of_turn)
 #
 # Formats only: once per batch, over every .py and .pyi file a Write, Edit or
-# MultiEdit in the batch named, the format command each file resolves to
-# through lib/git-hooks/resolve-tool.sh runs: the repository's approved python
-# record (fix-cmd), else the Ruff adapter (git-hooks/adapters.sh: import
-# sorting where the repository's config selects it, then `ruff format`), else
-# nothing. No lint autofix runs here; findings are the lint entry's job
-# (git-hooks/lint.sh). It prints nothing and always exits 0, so nothing reaches
-# the model per edit. An unapproved or unreadable record runs nothing here;
-# setup check reports it.
+# MultiEdit in the batch named, the Ruff adapter runs where a Ruff config
+# governs the file (git-hooks/adapters.sh, through lib/git-hooks/resolve-tool.sh:
+# import sorting where the repository's config selects it, then `ruff format`).
+# A .claude/ecosystems/ record is never run here; /toolchain:lint runs it. No
+# lint autofix runs here; findings are the lint entry's job (git-hooks/lint.sh).
+# It prints nothing and always exits 0, so nothing reaches the model per edit.
 #
 # PostToolBatch has no matcher, so the row fires on every batch. The launcher
 # skips the script unless the payload mentions ".py", and the script then reads
@@ -38,9 +36,19 @@ IFS= read -r -d '' INPUT || :
 if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
   err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/lint.sh" --worktree 2>&1 >/dev/null)" && exit 0
-  # silent-skip-ok: a missing linter is reported by the SessionStart probe (an adapter tool) or setup check (a record tool); blocking every turn end on a host problem would not help the model.
-  [[ "$err" == "FAIL: "*" missing. Install: "* ]] && exit 0
-  printf '%s\n' "$err" >&2
+  # A missing linter is a host problem: the SessionStart probe reports it, and
+  # blocking every turn end on it would not help the model. Only those lines
+  # are dropped; any finding printed beside them is still handed back.
+  report=""
+  while IFS= read -r line; do
+    case "$line" in
+    "FAIL: "*" missing. Install: "* | "To skip only while "*" is missing: "*) ;;
+    *) report+="$line"$'\n' ;;
+    esac
+  done <<<"$err"
+  # silent-skip-ok: only missing-tool lines remained, which the SessionStart probe reports.
+  [[ -n "${report//[[:space:]]/}" ]] || exit 0
+  printf '%s' "$report" >&2
   exit 2
 fi
 
