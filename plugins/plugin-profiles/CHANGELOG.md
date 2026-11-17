@@ -3,6 +3,12 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1] - 2026-11-17
+
+### Fixed
+
+- A one-session file sets `SESSION_SETTINGS_FILE` to its own path, so plugin-diagnostics and harness-ops skip the prerequisite notices of plugins the profile turns off, and `launch` clears an inherited one ([#16673](https://github.com/melodic-software/claude-code-plugins/issues/16673)).
+
 ## [0.3.0] - 2026-11-16
 
 ### Added
