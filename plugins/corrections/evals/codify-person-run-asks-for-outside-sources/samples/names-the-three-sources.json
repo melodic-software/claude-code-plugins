@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Before I count: I can't read a team meeting's issue list, stand-up notes or ticket comments. Do you want to add any of those? Paste them or point me at them.",
+      "why": "names all three and asks"
+    },
+    {
+      "answer": "Sources outside this repository I cannot see: ticket comments, standup notes, and the issue list from your team meetings. Anything to add before I count?",
+      "why": "other order, standup spelled as one word"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Count: 1 occurrence (a1b2c3d fix: the create order log line printed the whole request body) against a threshold of 2. Below the threshold, so no proposal.",
+      "why": "asks nothing"
+    },
+    {
+      "answer": "Do you have stand-up notes or ticket comments to add?",
+      "why": "names two of the three"
+    }
+  ]
+}
