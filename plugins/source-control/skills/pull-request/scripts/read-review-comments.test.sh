@@ -47,6 +47,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
   'esac' \
   'for a in "$@"; do' \
   '  case "$a" in' \
+  '  repos/*/issues/*/comments) n="${a%/comments}"; key="issue-comments-${n##*/}" ;;' \
   '  repos/*/pulls/*/comments) n="${a%/comments}"; key="comments-${n##*/}" ;;' \
   '  repos/*/pulls/*/reviews) n="${a%/reviews}"; key="reviews-${n##*/}" ;;' \
   '  repos/*/pulls/*) key="one-${a##*/}" ;;' \
@@ -55,6 +56,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
   '  [[ "$key" == prs && "$prev" == --limit && -f "$FIX/prs-$a.json" ]] && key="prs-$a"' \
   '  prev="$a"' \
   'done' \
+  '[[ "$key" == issue-comments-* && ! -e "$FIX/fail-$key" && ! -f "$FIX/$key.json" ]] && { echo "[]"; exit 0; }' \
   '[[ -n "$key" && ! -e "$FIX/fail-$key" && -f "$FIX/$key.json" ]] || exit 1' \
   'cat "$FIX/$key.json"' >"$STUB_BIN/gh"
 chmod +x "$STUB_BIN/gh"
@@ -128,7 +130,7 @@ assert_eq "main: one human review body, labeled" '[{"pr":11,"source":"human","au
 assert_eq "main: the hostile body comes out as a JSON string" "$HOSTILE_BODY" \
   "$(printf '%s\n' "$OUT" | "$JQ_DIR/jq" -r 'select(.body | startswith("Rename")) | .body')"
 assert_eq "main: no file created from a body or path" "" "$(ls "$F/work")"
-assert_eq "main: issue-level comments never requested" 0 "$(grep -c 'issues/' "$F/calls.log")"
+assert_eq "main: PR comments read once per PR" 2 "$(grep -c 'issues/[0-9]*/comments' "$F/calls.log")"
 assert_eq "main: merged PRs listed, 3x the --prs limit, newest updated first" 1 "$(grep -c -- 'pr list --state merged --search sort:updated-desc --limit 6 ' "$F/calls.log")"
 
 BASH_COMPAT=51 run "$F" --prs 2
@@ -284,6 +286,49 @@ assert_eq "cap: exit 0" 0 "$RC"
 assert_eq "cap: last line is the truncation record" true "$(printf '%s\n' "$LAST" | "$JQ_DIR/jq" -r '.truncated')"
 if ((BODY_BYTES <= 65536 && BODY_BYTES > 60000)); then pass "cap: rows stop at 64 KB ($BODY_BYTES bytes)"; else fail "cap: rows stop at 64 KB" "$BODY_BYTES bytes"; fi
 assert_eq "cap: the second PR is never fetched" 0 "$(grep -c 'pulls/32' "$T/calls.log")"
+
+S="$TEST_TMPDIR/lane-summary"
+mkdir -p "$S"
+cp "$F/repo.json" "$S/"
+printf '%s\n' '{"number":81,"user":{"login":"ann"},"merged_at":"2026-09-01T00:00:00Z"}' >"$S/one-81.json"
+printf '[]\n' >"$S/comments-81.json"
+cp "$F/threads-12.json" "$S/threads-81.json"
+LANE_REVIEW='<summary>Uncovered rules (1)</summary>
+
+claude-lane: claude-review'
+NO_BLOCK='No blocking findings.
+
+claude-lane: claude-review'
+# shellcheck disable=SC2016 # backticks and jq variables are fixture data, not expansions
+LANE_COMMENT='<summary>Uncovered rules (1)</summary>
+
+`claude-lane: claude-security-review`
+'
+# shellcheck disable=SC2016 # backticks and jq variables are fixture data, not expansions
+"$JQ_DIR/jq" -n --arg lane "$LANE_REVIEW" --arg plain "$NO_BLOCK" '[
+  {user: {login: "github-actions[bot]", id: 41898282, type: "Bot"}, body: $lane},
+  {user: {login: "github-actions[bot]", id: 41898282, type: "Bot"}, body: $plain},
+  {user: {login: "github-actions[bot]", id: 41898282, type: "Bot"}, body: "<summary>Uncovered rules (1)</summary> with no footer"},
+  {user: {login: "other-ci[bot]", id: 5, type: "Bot"}, body: $lane},
+  {user: {login: "github-actions[bot]", id: 7, type: "Bot"}, body: $lane}
+]' >"$S/reviews-81.json"
+# shellcheck disable=SC2016 # backticks and jq variables are fixture data, not expansions
+"$JQ_DIR/jq" -n --arg lane "$LANE_COMMENT" --arg mid "<summary>Uncovered rules (1)</summary>
+claude-lane: claude-review
+then more text" '[
+  {user: {login: "github-actions[bot]", id: 41898282, type: "Bot"}, body: $lane},
+  {user: {login: "github-actions[bot]", id: 41898282, type: "Bot"}, body: $mid},
+  {user: {login: "carol", id: 9, type: "User"}, author_association: "MEMBER", body: $lane}
+]' >"$S/issue-comments-81.json"
+run "$S" --pr 81 --repo o/r
+assert_eq "lane summary: exit 0" 0 "$RC"
+# shellcheck disable=SC2016 # backticks and jq variables are fixture data, not expansions
+assert_eq "lane summary: only the lane bot's footed review body and PR comment that hold an Uncovered rules block" \
+  '[{"pr":81,"source":"lane-summary","author":"github-actions[bot]","kind":"review","path":null,"line":null,"body":"<summary>Uncovered rules (1)</summary>\n\nclaude-lane: claude-review"},{"pr":81,"source":"lane-summary","author":"github-actions[bot]","kind":"comment","path":null,"line":null,"body":"<summary>Uncovered rules (1)</summary>\n\n`claude-lane: claude-security-review`\n"}]' \
+  "$(q '.')"
+touch "$S/fail-issue-comments-81"
+run "$S" --pr 81 --repo o/r
+assert_eq "lane summary: a failed PR comments read exits 2 with empty stdout" "2:" "$RC:$OUT"
 
 if ((FAILED > 0)); then
   printf '%d of %d checks failed\n' "$FAILED" "$CASE_NUM" >&2
