@@ -178,8 +178,8 @@ it as step 9 does. The report names `affected.json`; the file's fields and its g
   It reports whether this session can extract a recording's frames (`## Capture` `frames`) and
   read them as images; either one missing is a capability gap naming the narrowest tool or grant.
 - **Ready lists the data sources.** For every environment in committed config, report each source
-  in its `sources` with its kind, where and read level, and list each kind it has no source for as
-  missing (contract "Data sources"). Ready reads none of them; a caller reads one only at its level.
+  in its `sources` with its kind, where and read level, then check all five kinds against it and
+  list as missing each kind none of its sources has (contract "Data sources"). Ready reads none of them; a caller reads one only at its level.
 - **Every run lists its lessons.** Under `lessons`, list what this run learned about driving the app
   (a wait a step needed, a handle that matched nothing, a precondition the data lacked), each as one
   `/app-control:map refresh "<lesson>"` line, or `none`. Write none into the control skill; map
