@@ -185,6 +185,8 @@ Before applying `--code-fix`:
 
 ### 3. Present results
 
+In check mode, settle the Overall line and record it (section 5) before writing this report, so the report is the reply's last text.
+
 ```text
 ## Lint Results
 
@@ -226,13 +228,13 @@ Neither line changes a Status or the Overall line, and no binary file is on eith
 
 ### 5. Record the result
 
-After a check-mode report, record its Overall line for the tree it ran on, in its own Bash call, with the line exactly as reported inside single quotes (write a `'` in it as `'\''`):
+In check mode, before writing the report, record the settled Overall line for the tree it ran on, in its own Bash call, with the line exactly as the report will print it inside single quotes (write a `'` in it as `'\''`):
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/record-result.mjs" --skill lint --dir "$REPO_ROOT" --overall '<the Overall line>'
 ```
 
-The plugin's Stop hook reads it at turn end the same way it reads `/toolchain:check`'s record. Record nothing for `--fix` or `--code-fix`: the fix changes the tree, so the check that would count is the next check-mode run. Skip it too when an ecosystem filter narrowed the run (`all` and a caller's changed-file list do not narrow it), and when the run stopped at "No changes found" or with no ecosystem to run. A failed record (exit 2) changes nothing in the report; say it was not recorded.
+The plugin's Stop hook reads it at turn end the same way it reads `/toolchain:check`'s record. Record nothing for `--fix` or `--code-fix`: the fix changes the tree, so the check that would count is the next check-mode run. Skip it too when an ecosystem filter narrowed the run (`all` and a caller's changed-file list do not narrow it), and when the run stopped at "No changes found" or with no ecosystem to run. A failed record (exit 2, for example where a sandbox blocks the git calls that hash the tree, or exit 1 for a line it rejects) changes nothing in the report: put one `Not recorded: <the script's reason>` line above the table, and still end the reply with the full report, its table, the lines below it and the Overall line.
 
 ## Edge cases
 
