@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A git repository whose own config shows its spell-checker (a cspell.json), with no spelling
-# record and no typos config. apply drafts the lint-cmd for /toolchain:setup and writes no
-# record itself.
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2

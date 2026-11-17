@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for spelling's Claude Code hook rows after spell-check
-# findings moved to commit time: the hooks.json row set (no per-edit
-# PostToolUse row, no digest reset and no SessionStart row; the opt-in Stop row),
-# the prerequisites manifest and its session_probe gate, and spelling.sh's
-# remaining entry points. The Stop
-# row's behavior is spelling-end-of-turn.test.sh; the pre-commit check is
-# git-hooks/lint.test.sh.
 # test-scope: plugins/spelling/.claude-plugin/plugin.json plugins/spelling/hooks/hooks.json plugins/spelling/prerequisites.json
 
 set -uo pipefail
@@ -67,8 +60,6 @@ if jq -e '(.requires | map(.id)) == ["typos", "jq", "node"]' "$MANIFEST" >/dev/n
 else
   fail "manifest: expected tools typos, jq and node: $(cat "$MANIFEST" 2>/dev/null)"
 fi
-# typos runs with or without a repository typos config, so the probe reports a
-# missing typos everywhere: no `when`.
 if jq -e '.requires[] | select(.id == "typos") | has("when") | not' "$MANIFEST" >/dev/null; then
   ok "manifest: typos carries no when, since the lint entry runs without a typos config too"
 else

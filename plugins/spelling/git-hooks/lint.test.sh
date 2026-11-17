@@ -25,13 +25,11 @@ PLUGIN="$(cd "$HERE/.." && pwd)"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
-# HOME stays: a version-manager shim for typos (mise, asdf) reads its config
-# from it. The --resolve rows below assume no ~/.claude/ecosystems/spelling.yaml.
 export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -42,7 +40,7 @@ expect() { # <label> <want> <got>
 }
 
 n=0
-new_repo() { # [NONE]: a repository with a root _typos.toml, or none
+new_repo() {
   n=$((n + 1))
   REPO="$WORK/r$n"
   git init -q -b main "$REPO"
@@ -54,7 +52,7 @@ new_repo() { # [NONE]: a repository with a root _typos.toml, or none
   git -C "$REPO" commit -q -m seed --no-verify
 }
 
-check() { # <repo> [args...] -> "<rc>|<stderr>"
+check() {
   local repo="$1" err rc
   shift
   err="$(cd "$repo" && bash "$CHECK" "$@" 2>&1 >/dev/null </dev/null)"
@@ -62,9 +60,6 @@ check() { # <repo> [args...] -> "<rc>|<stderr>"
   printf '%s|%s' "$rc" "$err"
 }
 
-# A stand-in typos. Each call appends its arguments (%q-quoted, one line per
-# call) to $STUB_OUT/argv; with STUB_RC set it prints a config error and exits
-# that status, else it exits 0.
 STUB="$WORK/stub"
 export STUB_OUT="$WORK/stub-out"
 mkdir -p "$STUB"
@@ -80,13 +75,13 @@ exit 0
 EOF
 chmod +x "$STUB/typos"
 
-stub_check() { # <repo> [args...]: check with the stub typos first on PATH
+stub_check() {
   rm -rf "$STUB_OUT"
   mkdir -p "$STUB_OUT"
   : >"$STUB_OUT/argv"
   PATH="$STUB:$PATH" check "$@"
 }
-after_dashdash() { # the paths of the first stub call
+after_dashdash() {
   local line
   line="$(sed -n 1p "$STUB_OUT/argv")"
   printf '%s' "${line##* -- }"
@@ -118,8 +113,6 @@ else
   echo "SKIP: the filesystem refuses a name holding LF"
 fi
 
-# No config gate: typos runs with or without a repository typos config, and
-# --resolve names the config that governs, or says there is none.
 new_repo NONE
 printf 'an old teh line\nfresh teh line\n' >"$REPO/notes.md"
 git -C "$REPO" add notes.md
@@ -156,7 +149,6 @@ spelling	lint	adapter:typos	typos	yes	$NONE_DETAIL" "$(cd "$REPO" && PATH="$STUB
 expect "--resolve finds a nested config for the repository row" "spelling	lint	adapter:typos	typos	yes	config docs/typos.toml; binary typos on PATH" \
   "$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" --resolve)"
 
-# A record never runs from the entry.
 BIN="$WORK/bin"
 mkdir -p "$BIN"
 printf '#!/bin/sh\ntouch "%s/stublint-ran"\nexit 1\n' "$WORK" >"$BIN/stublint"
@@ -273,7 +265,6 @@ git -C "$REPO" add notes.md
 expect "real typos, no typos config: the typo on an added line still blocks" "1|notes.md:2: \`teh\` should be \`the\`
 $HINT" "$(check "$REPO")"
 
-# A PATH with git and the shell tools the script runs, but no typos.
 NOTYPOS="$WORK/notypos"
 mkdir -p "$NOTYPOS"
 for t in git bash sh sed awk cat mktemp rm dirname grep tr; do
@@ -296,7 +287,6 @@ git -C "$REPO" add notes.md
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOTYPOS" bash "$CHECK" 2>&1)"
 expect "missing typos with no typos config: an agent still fails" "1|FAIL: typos missing." "$?|$(printf '%s\n' "$out" | head -1 | cut -c1-20)"
 
-# End to end through the plugin's vendored installer and a real commit.
 new_repo
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 status="$(node "$INSTALL" copy --scope local --repo "$REPO")"
@@ -314,8 +304,6 @@ expect "the bundled config, resolver and adapter are installed beside the copy" 
     cmp -s "$PLUGIN/lib/git-hooks/resolve-tool.sh" "$REPO/.git/hooks/spelling/resolve-tool.sh" &&
     cmp -s "$PLUGIN/git-hooks/adapters.sh" "$REPO/.git/hooks/spelling/adapters.sh" && echo yes)"
 
-# The bundled config ignores SHA-shaped hex (its extend-ignore-re): typos
-# alone reads "1aded9f" as the misspelling "aded".
 printf 'an old teh line\nfixed in 1aded9f\n' >"$REPO/notes.md"
 git -C "$REPO" add notes.md
 expect "control: typos without the bundled config flags the SHA" 2 \
@@ -326,8 +314,6 @@ printf 'an old teh line\nfixed in 1aded9f\nagain 1aded9f\n' >"$REPO/notes.md"
 git -C "$REPO" add notes.md
 expect "plugin source: the script finds config/default-typos.toml too" "0|" "$(check "$REPO")"
 
-# An install made under the old entry name is superseded drift, and a decline
-# of the old entry carries over.
 new_repo
 mkdir -p "$REPO/.git/hooks/spelling"
 git -C "$REPO" config --local checks.spelling.typos-check.declined true
