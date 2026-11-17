@@ -3006,6 +3006,13 @@ jobs:
         if: steps.credential.outputs.present == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@70a7fd774bd210e8e158bc1fdd308c07e4711a07 # v0.74.1
 
+      - name: Warn that the fallback token reviews
+        if: steps.credential.outputs.present == 'true'
+        env:
+          LANE: ${{ matrix.lane }}
+          REASON: ${{ steps.credential.outputs.fallback-reason }}
+        run: echo "::warning title=pr-review-main fallback::lane=$LANE reviews on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN (reason=${REASON:-unread}); the subscription leg handed it on"
+
       - name: Isolate the runner
         if: steps.credential.outputs.present == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
