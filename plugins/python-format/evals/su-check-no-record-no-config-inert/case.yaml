@@ -13,7 +13,7 @@ graders:
     focus: 'last_message'
   - name: 'routes-to-record'
     type: 'llm'
-    criteria: 'The reply says how to opt in: a python record written by /toolchain:setup apply python, or a Ruff config, without writing either itself.'
+    criteria: 'The reply names at least one way to opt in, such as a python record written by /toolchain:setup apply python or a Ruff config, without writing either itself.'
     focus: 'last_message'
   - name: 'no-file-1'
     type: 'file_exists'

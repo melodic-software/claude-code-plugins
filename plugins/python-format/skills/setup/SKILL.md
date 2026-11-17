@@ -83,7 +83,9 @@ or `modified` entry): the entry runs at commit outside Claude Code and reads no 
    config and runs nothing. Append repository paths (`--resolve src/a.py scripts/b.py`) for one
    row per file when the answer can differ per file, as an adapter's config walk does; the detail
    column then names the config that governs that file and the binary that would run, or why
-   nothing resolved. Report one line per concern from the rows, never from this text:
+   nothing resolved. An adapter's own rules (which config opts a file in, where its binary comes
+   from) are in `${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh`: read them to explain why a row
+   names that config. Report one line per concern from the rows, never from this text:
    - `record:python` with approval `accepted` (the record matches the default branch) or
      `approved` (this clone approved its current bytes), and found `yes`: PASS, naming the tool.
    - `record:python` with approval `unapproved`: FAIL. The record, or a file its command names,

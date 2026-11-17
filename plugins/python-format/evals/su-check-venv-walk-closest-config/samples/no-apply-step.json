@@ -1,13 +1,87 @@
 {
   "pass": [
-    {"answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/python-format/lib/git-hooks/install.mjs\" verify"}}], "why": "the check step"},
-    {"answer": [{"tool": "Bash", "input": {"command": "grep -n 'install.mjs copy' SKILL.md"}}], "why": "the verb as a search term"},
-    {"answer": [], "why": "no calls"}
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/python-format/lib/git-hooks/install.mjs\" verify"
+          }
+        }
+      ],
+      "why": "the check step"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'install.mjs copy' SKILL.md"
+          }
+        }
+      ],
+      "why": "the verb as a search term"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sh \"/plugins/python-format/git-hooks/format.sh\" --resolve src/pkg/mod.py scripts/run.py"
+          }
+        }
+      ],
+      "why": "check step 3's resolver read runs no tool and installs nothing"
+    }
   ],
   "fail": [
-    {"answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/python-format/lib/git-hooks/install.mjs\" plan --scope local"}}], "why": "plan"},
-    {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/python-format/lib/git-hooks/install.mjs copy --scope local"}}], "why": "copy writes the entry"},
-    {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/python-format/lib/git-hooks/install.mjs decline --entry format"}}], "why": "decline writes git config"},
-    {"answer": [{"tool": "Bash", "input": {"command": "git status && node /plugins/python-format/lib/git-hooks/install.mjs config-hook"}}], "why": "after &&"}
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/python-format/lib/git-hooks/install.mjs\" plan --scope local"
+          }
+        }
+      ],
+      "why": "plan"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/python-format/lib/git-hooks/install.mjs copy --scope local"
+          }
+        }
+      ],
+      "why": "copy writes the entry"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/python-format/lib/git-hooks/install.mjs decline --entry format"
+          }
+        }
+      ],
+      "why": "decline writes git config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status && node /plugins/python-format/lib/git-hooks/install.mjs config-hook"
+          }
+        }
+      ],
+      "why": "after &&"
+    }
   ]
 }
