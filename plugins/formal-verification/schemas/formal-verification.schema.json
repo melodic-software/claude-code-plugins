@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/formal-verification/schemas/formal-verification.schema.json",
+  "title": "Formal-verification team config",
+  "description": "Schema for formal-verification.yaml in a repository's convention home (default docs/conventions): version pins and default bounds. Every key is optional; an absent key takes its value from the plugin's defaults.json. Download URLs and checksums are never set here: they come only from the plugin's releases.json, so a version chosen here must have an entry there. scripts/settings.mjs resolves the layers. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "model_checker": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The TLC model checker jar that /formal-verification:setup apply install-model-checker downloads and checks.",
+      "properties": {
+        "version": { "type": "string", "pattern": "^[0-9A-Za-z.+-]+$", "description": "Release of tla2tools.jar; it must have an entry in the plugin's releases.json." }
+      }
+    },
+    "java": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The Java that runs TLC. The plugin never installs Java.",
+      "properties": {
+        "min_version": { "type": "string", "pattern": "^[0-9]+$", "description": "Lowest Java major version setup accepts." },
+        "distribution": { "type": "string", "description": "The Java distribution setup names in its install hint." }
+      }
+    },
+    "renderer": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The image renderer, used only when an image of a chart is asked for.",
+      "properties": {
+        "package": { "type": "string", "pattern": "^(?:@[a-z0-9-~][a-z0-9-._~]*/)?[a-z0-9-~][a-z0-9-._~]*$", "description": "npm package name of the renderer; package@version must have an entry in the plugin's releases.json." },
+        "version": { "type": "string", "pattern": "^[0-9A-Za-z.+-]+$", "description": "Renderer version." },
+        "limit": { "type": "integer", "minimum": 1, "description": "The render call's limit option." },
+        "output_limit": { "type": "integer", "minimum": 1, "description": "The render call's outputLimit option." },
+        "max_edges": { "type": "integer", "minimum": 1, "description": "The render call's maxEdges option." }
+      }
+    },
+    "bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Default bounds and limits for /formal-verification:chart. A model's run command can pass its own.",
+      "properties": {
+        "chart_states": { "type": "integer", "minimum": 1, "description": "The chart budget in distinct states (--chart-states)." },
+        "rerun_states": { "type": "integer", "minimum": 1, "description": "After the first break, each TLC run stops at this many distinct states (--rerun-states)." },
+        "timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 2147483, "description": "Wall-clock limit on each Java run; the run's process group is killed past it (--timeout-seconds). At most 2147483, the longest a timer holds." },
+        "heap": { "type": "string", "pattern": "^[1-9][0-9]*[kKmMgG]?$", "description": "Java heap cap, the -Xmx value (--heap)." },
+        "output_bytes": { "type": "integer", "minimum": 1, "description": "Cap on the bytes one Java run may print; the run is killed past it (--output-bytes)." },
+        "interval_max": { "type": "integer", "minimum": 1, "description": "An interval with more members than this reaches the view as {lo, hi} instead of a list (--interval-max)." }
+      }
+    },
+    "allowed_modules": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Standard modules a spec may EXTEND or INSTANCE, besides its own (--modules). Modules such as Json read and write files on the machine. A repository's convention files can only remove modules from the plugin's shipped list: a module they add is dropped, and the toolchain says so."
+    }
+  }
+}

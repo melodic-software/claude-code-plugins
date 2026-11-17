@@ -1,0 +1,14 @@
+{
+  "model_checker": {
+    "1.7.4": {
+      "url": "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar",
+      "sha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
+    }
+  },
+  "renderer": {
+    "pele@1.9.0": {
+      "url": "https://registry.npmjs.org/pele/-/pele-1.9.0.tgz",
+      "integrity": "sha512-KUmBt7P5JduVKQaP6FKfXiRgH3LBVIKsmdgPJZU7jD3ye6F+Z8fbms+OjivE7rWY09Qx+5X65VKe/9ywKFJ9Sw=="
+    }
+  }
+}

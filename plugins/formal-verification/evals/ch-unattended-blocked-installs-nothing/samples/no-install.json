@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [], "why": "no calls"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/formal-verification/scripts/toolchain.mjs\" resolve --data-dir \"/data\" --project-dir \"/repo\""}}], "why": "the resolve step only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/formal-verification/scripts/toolchain.mjs\" install model-checker --data-dir \"/data\" --project-dir \"/repo\""}}], "why": "setup's install command, with the quoted script path"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/formal-verification/scripts/toolchain.mjs install renderer --data-dir /data"}}], "why": "unquoted install"},
+    {"answer": [{"tool": "Bash", "input": {"command": "brew install temurin"}}], "why": "installs Java itself"}
+  ]
+}

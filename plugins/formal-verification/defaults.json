@@ -1,0 +1,25 @@
+{
+  "model_checker": {
+    "version": "1.7.4"
+  },
+  "java": {
+    "min_version": "11",
+    "distribution": "temurin-25"
+  },
+  "renderer": {
+    "package": "pele",
+    "version": "1.9.0",
+    "limit": 1000000,
+    "output_limit": 8000000,
+    "max_edges": 10000
+  },
+  "bounds": {
+    "chart_states": 500,
+    "rerun_states": 100000,
+    "timeout_seconds": 1800,
+    "heap": "4g",
+    "output_bytes": 1073741824,
+    "interval_max": 10000
+  },
+  "allowed_modules": ["Naturals", "Integers", "Reals", "Sequences", "FiniteSets", "Bags", "TLC", "TLCExt"]
+}

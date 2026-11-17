@@ -1,0 +1,11 @@
+# Render a chart
+
+Render an image only when the user asks for one, or a chart is too large to read as text. Use the renderer the `renderer` settings name (`package` and `version`; the shipped values are in the plugin's `defaults.json`, and the consumer's `docs/conventions/formal-verification.yaml` can change them), and give the user the SVG. The renderer is installed once, into the plugin data directory, by `/formal-verification:setup apply install-renderer`, which the user types; when `setup check` shows it missing, say so, give the Mermaid text, and stop. Write each SVG next to its `.mmd` file, with the same name. The API is at https://pele.run/api. Pass the `renderer` settings `limit`, `output_limit` and `max_edges` as the `render` options `limit`, `outputLimit` and `maxEdges`: Pele's defaults are smaller than a chart at the chart budget can be. When Pele throws a `PeleError`, show the user the Mermaid text and the error.
+
+## Colors
+
+Pele ignores Mermaid `theme` and `themeVariables`. Set its `--pele-*` CSS variables on `.pele`. https://pele.run/theming lists them. The command gives each state the color class of its group, such as `class sN teal`. It marks each bad state with `class sN breaks` or `class sN mayBreak`, each state on the shortest path to a bug with `class sN bugPath`, and each state that a PROPERTY counterexample repeats forever with `class sN repeats`. Pele puts these classes on the state's node. Color the classes with CSS.
+
+The `.mmd` file has a `classDef` line for each class it uses: the group colors, `breaks`, `mayBreak`, `bugPath` and `repeats`, so that any Mermaid viewer shows the legend's meaning. Pele writes each `classDef` color as a `style` attribute on the node, and a `style` attribute wins over a normal CSS rule. So every rule below uses `!important`. Without it, a dark theme keeps the light mark colors. A bug mark sets the fill and the text, and `bugPath` and `repeats` set the border. Put the mark rules after the group colors, so that a mark shows over the group color.
+
+The colors in [`render-theme.css`](render-theme.css) are suggestions. Put them in a `<style>` element at the start of each SVG. Each SVG then follows the light or dark setting of the viewer.
