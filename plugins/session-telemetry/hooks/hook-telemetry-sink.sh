@@ -59,8 +59,6 @@ source "$HOOK_DIR/hook-utils.sh"
 source "$HOOK_DIR/session-log-lib.sh"
 INPUT=$(cat)
 [[ -n "$INPUT" ]] || exit 0
-# silent-skip-ok: fire-and-forget sink — the producer discards stdout+stderr,
-# so no notice channel exists; the producer side owns prerequisite visibility.
 command -v jq >/dev/null 2>&1 || exit 0
 
 # Single jq parse + required-key guard. Emit one mapped field per line (nothing

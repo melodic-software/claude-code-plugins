@@ -100,11 +100,11 @@ the toggle on while an entry is installed (step 8 reports it as a `tool` line be
    `/toolchain:lint` or `/toolchain:check` runs it on request.
 
    The `SessionStart` probe resolves the adapter's tool separately, and only where its `when`
-   config sits at or above the project directory: read `when` and `local_bin` in
-   `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` and `findLocalBin` in
+   config sits at or above the project directory or is tracked anywhere in its repository: read
+   `when` and `local_bin` in `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` and `findLocalBin` in
    `${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs`, and compare them with the adapter's walk instead
-   of assuming they match. A config only in a nested directory opts files in for the hooks, but
-   the probe stays silent there.
+   of assuming they match. An untracked config in a nested directory opts files in for the hooks,
+   but the probe stays silent there.
 4. **Draft, never write, the record.** When a concern is unresolved, or the person names a tool the
    plugin ships no adapter for, say that the hooks will not run that tool: they run only the shipped
    adapter. Find the repository's own formatter and linter by the steps in

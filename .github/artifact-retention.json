@@ -338,8 +338,9 @@
       "readers": [
         "scripts/lane-transcripts/pull.mjs the transcript puller, a daily task on the laptop that copies each sealed transcript to its sink"
       ],
-      "reason": "A recorded owner decision on the lane transcript store: CI keeps each encrypted transcript 7 days and a daily puller copies it to the sink, so a week of missed pulls loses nothing.",
-      "scan": "plaintext"
+      "reason": "A recorded owner decision on the lane transcript store: CI keeps each encrypted transcript 7 days and a daily puller copies it to the sink, so a week of missed pulls loses nothing. The read runner's transcript job uploads a record its run job scanned and sealed.",
+      "scan": "plaintext",
+      "sealed-upstream": [".github/workflows/pr-run-activity-read.yml#transcript"]
     },
     "skill-reply-*": {
       "retention-days": 3,

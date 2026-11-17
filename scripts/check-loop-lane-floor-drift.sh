@@ -65,19 +65,6 @@
 # exception list — not "provably equal" with an unbounded escape hatch hiding
 # in the phrasing, which is the shape this whole gate exists to refuse.
 #
-# DATA CARRIERS ARE LISTED HERE, NEVER SELF-DECLARED, and that is a deliberate
-# departure from the two annotation idioms this gate otherwise mirrors. An
-# in-file `<token>: <reason>` is unsafe for a FILE-scoped
-# exemption: `# lane-coverage-ok:` and `# silent-skip-ok:` anchor to a syntactic
-# site (a job key, a guard line) that bounds what the annotation can excuse,
-# while a file has no such site — so any file that carried the token anywhere,
-# in prose or in a fixture string, silently exempted its own floor copy from
-# comparison. A real lane body could then inline the floor, apply it, name the
-# token in a sentence, and drift unwatched. Moving the exemption into this file
-# removes self-exemption entirely: a new data carrier costs an edit to the gate,
-# which is exactly the review the exemption needs, and no file can quiet the
-# gate by writing something into itself.
-#
 # LIVENESS IS ASSERTED, NOT ASSUMED. The extractor keys on a marker line, and a
 # marker that stops matching would make every block empty and every comparison
 # trivially equal — a gate that passes forever over surfaces it no longer

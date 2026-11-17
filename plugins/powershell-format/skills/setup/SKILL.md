@@ -40,8 +40,9 @@ otherwise guidance-only. It never modifies user settings or the plugin cache.
 A machine without PowerShell or the PSScriptAnalyzer module, or a repo without a settings file,
 is INFO in `check` while no settings file opts the adapter in: the hooks then run nothing by
 design. Where a settings file does opt in, `check` step 3's rows decide. A machine without
-PowerShell still gets the `SessionStart` probe's notice once per session while the plugin is
-enabled, in every repository.
+PowerShell gets the `SessionStart` probe's notice once per session while the plugin is enabled,
+in a repository where a settings file sits at or above the project directory or is tracked
+anywhere in it.
 
 Action routing: no argument or `check` runs the check; `check inspect` runs only the
 `check inspect` section; `apply` runs the check first, then

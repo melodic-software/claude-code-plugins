@@ -129,8 +129,9 @@ at the end of a turn and hands findings back to Claude once per turn.
   repo to opt in). Without the opt-in, shfmt is never needed. The repo chose not to format.
 
 A SessionStart probe reports a missing `shfmt` or `shellcheck` once per session, from
-`prerequisites.json` (`shfmt` only where an `.editorconfig` shell section sits in the project
-directory or above it), and a drifted git-hook entry. Run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`
+`prerequisites.json` (`shfmt` only where an `.editorconfig` with a shell section sits in the
+project directory or above it or is tracked anywhere in its repository), and a drifted git-hook
+entry. Run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`
 to see which binaries resolve; it is read-only and installs nothing.
 
 ### Hook budget accounting

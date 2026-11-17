@@ -29,6 +29,13 @@ The current reader is the session-flow plugin's `scripts/lane_legs.py`.
   - **Pointer**: for the message fields, read
     [Agent SDK TypeScript reference](https://code.claude.com/docs/en/agent-sdk/typescript) or the
     `SDKMessage` union in the `@anthropic-ai/claude-agent-sdk` package's `sdk.d.ts`.
+- A leg whose transcript could not leave CI whole has a marker in its place: one `system` message
+  with subtype `transcript_omitted`, its `reason`, the gzipped `bytes` and the `cap`. The read
+  runner's run job (`pr-run-activity-read.yml`) carries each leg's transcript to its transcript job
+  as job outputs, which caps it at 286720 gzipped bytes, or less when the run's other outputs leave
+  less of GitHub's 1 MB per job (counted at two bytes a character); one over its cap, or one the
+  credential scan blocks, arrives as a marker, never cut short. When the other outputs leave no
+  room even for a marker, nothing is carried.
 - The file name under a lane's date directory is the writer's; readers take a transcript's path
   from its row, never by building it.
 
@@ -47,7 +54,8 @@ The current reader is the session-flow plugin's `scripts/lane_legs.py`.
 | `created_at`, `date` | When the leg's transcript was stored (ISO 8601), and its UTC day (`YYYY-MM-DD`) | the artifact's `created_at` |
 | `model` | The model the `init` message names, or null | yes |
 | `models` | Every model the `result` message's `modelUsage` names, sorted | yes |
-| `outcome` | `error` when `is_error` is true, else the result `subtype`, `no-result` with no result, `unreadable` when the transcript did not parse | yes |
+| `outcome` | `error` when `is_error` is true, else the result `subtype`, `no-result` with no result, `unreadable` when the transcript did not parse, `omitted` when the writer kept a marker in its place | yes |
+| `omitted_reason`, `omitted_bytes` | Set only on an `omitted` row: why (`too-large`, `credential`, else `unknown`) and the gzipped size the marker names | yes |
 | `subtype`, `is_error`, `api_error_status`, `num_turns`, `duration_ms`, `input_tokens`, `output_tokens` | From the last `result` message; null when absent | yes |
 | `transcript` | The transcript's path relative to the sink, or null once retention removed it | yes |
 | `pruned` | Why `transcript` is null (`age`, `cap`, `missing`), absent while it is set | yes |

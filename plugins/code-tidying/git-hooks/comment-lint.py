@@ -66,8 +66,8 @@ LICENSE = re.compile(
 TRACKED = re.compile(r"\b(?:TODO|FIXME)\((?:[\w.-]+/[\w.-]+)?#\d+\)")
 TODO = re.compile(r"\bTODO\((?:[\w.-]+/[\w.-]+)?#\d+\)")
 FIXME = re.compile(r"\bFIXME\((?:[\w.-]+/[\w.-]+)?#\d+\)")
-PINNED_USES = re.compile(
-    r"^\s*(?:-\s+)?uses:\s*[\"']?[^\s\"'#]+@[0-9a-fA-F]{40}[\"']?\s*$"
+PINNED_SHA = re.compile(
+    r"^\s*(?:-\s+)?(?:uses:\s*[\"']?[^\s\"'#]+@|ref:\s*[\"']?)[0-9a-fA-F]{40}[\"']?\s*$"
 )
 IGNORE = "remove-comments-ignore"
 DISSOLVE = "dissolve-comments-ignore"
@@ -239,7 +239,7 @@ def _passes(n, lines, run_of, block_of, source, posture, lexer_name) -> bool:
         return True
     if TRACKED.search(text) or (TRACKED.search(run_text[0]) and not ln.code):
         return True
-    if ln.code and PINNED_USES.match(_code_part(src, text)):
+    if ln.code and PINNED_SHA.match(_code_part(src, text)):
         return True
     if IGNORE in text or DISSOLVE in text:
         return True

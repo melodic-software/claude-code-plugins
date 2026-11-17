@@ -204,8 +204,13 @@ command string (an `npm ci` in `test-cmd`), keeps an unattended run from install
 
 Execution consumers of the verb keys (`build-cmd`, `test-cmd`, `check-cmd`, `lint-cmd`, `fix-cmd`,
 `code-fix-cmd`) live under "Why this contract exists" (`toolchain:check`, `toolchain:lint`, the
-`review` `ecosystem-specialist`). This table records plugins that read lane membership without
-running a verb:
+`review` `ecosystem-specialist`). `verification:confirm` is an execution consumer only when the
+`toolchain` plugin is not enabled: it then runs the project's build, test and lint commands itself,
+taken from the project's `CLAUDE.md` and rules rather than the verb keys, and before each command
+reads that command's `requires` (and a gate's own `requires`) from `.claude/ecosystems/`, applying
+the `opt-in`, `probe`, `run-from`, `name` and `hint` rules of "Command prerequisites"
+(`plugins/verification/skills/confirm/SKILL.md:140`, `:144`). This table records plugins that read
+lane membership without running a verb:
 
 | Plugin | Keys | Use |
 |---|---|---|

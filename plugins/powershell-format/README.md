@@ -103,8 +103,9 @@ run stays skipped. A settings file without
   ([install](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)). The
   plugin probes `pwsh` only; legacy Windows PowerShell 5.1 (`powershell.exe`) is not used. If absent,
   a SessionStart probe reports the missing `pwsh` once per session,
-  from `prerequisites.json`, naming the bundled checker. The probe runs wherever the plugin
-  is enabled and `powershell_format_enabled` is not false. `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`
+  from `prerequisites.json`, naming the bundled checker. The probe reports it only where a
+  `PSScriptAnalyzerSettings.psd1` sits in the project directory or above it or is tracked anywhere
+  in its repository, and only while `powershell_format_enabled` is not false. `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`
   is read-only and installs nothing.
 - The **PSScriptAnalyzer** module installed
   (`Install-Module PSScriptAnalyzer`). Neither the probe nor the checker sees a module;

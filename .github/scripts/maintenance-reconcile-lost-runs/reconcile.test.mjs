@@ -3282,3 +3282,63 @@ test("each rate guard still words its floor refusal as the reconciler matches it
   assert.ok(checks.includes(`'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")`));
   assert.ok(checks.includes(`'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3)`));
 });
+
+const POST_STEP = "Post a fail's notes, or find a pass's stale ones";
+const VERDICT_STEPS = ["Set up job", "Check the kill switch", VERDICT_STOP_STEP, "Download the verdict", POST_STEP, "Name the deferred verdict", "Complete job"];
+const floorVerdictJob = (id, failedStep, notes) => ({
+  id,
+  name: "Post Verify Notes",
+  status: "completed",
+  conclusion: "failure",
+  notes,
+  steps: VERDICT_STEPS.map((name, i) => ({
+    name,
+    number: i + 1,
+    status: "completed",
+    conclusion: name === failedStep ? "failure" : name === "Complete job" || (name !== VERDICT_STOP_STEP && i < VERDICT_STEPS.indexOf(failedStep)) ? "success" : "skipped",
+  })),
+});
+const floorVerdictRun = (id, job, opts = {}) =>
+  verdictRun(id, { jobs: [job, { id: job.id + 1, name: "Rerun CI Status", status: "completed", conclusion: "skipped", steps: [] }, { id: job.id + 2, name: "Dispatch", status: "completed", conclusion: "skipped", steps: [] }], ...opts });
+
+test("a verdict post that failed only at the rate-limit floor is re-run once, as a stopped verdict is", async () => {
+  const runs = [
+    floorVerdictRun(401, floorVerdictJob(4100, POST_STEP, FLOOR["post-verify-notes-134151757838"])),
+    floorVerdictRun(402, floorVerdictJob(4200, "Download the verdict", FLOOR["post-verify-notes-134152180441"])),
+  ];
+  const { code, failedJobReruns, reruns, outputs, calls } = await reconcile({ pulls: [], runs });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [401, 402]);
+  assert.deepEqual(reruns, []);
+  assert.equal(outputs.deferral, "true", "the re-run records its head for the dispatch tick, as a stopped verdict's does");
+  assert.ok(calls.includes(`GET /repos/${REPO}/check-runs/4100/annotations?per_page=100`));
+});
+
+test("a verdict post that failed for any reason but the floor is settled, not re-run", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const exit = failure("Process completed with exit code 1.");
+  const notName = failure("run 44115072049 uploaded a verdict whose name no reader takes");
+  const runs = [
+    floorVerdictRun(401, floorVerdictJob(4100, POST_STEP, [exit, failure("verify-notes: the pull request is not a lanes App PR")])),
+    floorVerdictRun(402, floorVerdictJob(4200, "Download the verdict", [...FLOOR["post-verify-notes-134152180441"], notName])),
+    floorVerdictRun(403, floorVerdictJob(4300, "Download the verdict", [exit, notName])),
+  ];
+  const { code, calls, settled } = await reconcile({ pulls: [], runs, carry: null });
+  assert.equal(code, 0);
+  assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+  assert.deepEqual(settled.runs.map((r) => r.id).sort(), [401, 402, 403]);
+});
+
+test("a floor-failed verdict post is not re-run at attempt 2, nor beside a second failed step or job", async () => {
+  const notes = FLOOR["post-verify-notes-134151757838"];
+  const twoSteps = floorVerdictJob(4200, POST_STEP, notes);
+  twoSteps.steps.find((s) => s.name === "Name the deferred verdict").conclusion = "failure";
+  const runs = [
+    floorVerdictRun(401, floorVerdictJob(4100, POST_STEP, notes), { attempt: 2 }),
+    floorVerdictRun(402, twoSteps),
+    verdictRun(403, { jobs: [floorVerdictJob(4300, POST_STEP, notes), { id: 4301, name: "Dispatch", status: "completed", conclusion: "failure", steps: [] }] }),
+  ];
+  const { code, calls } = await reconcile({ pulls: [], runs });
+  assert.equal(code, 0);
+  assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+});

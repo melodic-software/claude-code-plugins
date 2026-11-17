@@ -3,12 +3,12 @@
 
 Usage:
     lane_legs.py --sink DIR RUN [RUN ...]
-    lane_legs.py --sink DIR [--lane STEM] [--last N] [--since YYYY-MM-DD] [--until YYYY-MM-DD]
-                 [--outcome OUTCOME] [--model TEXT]
+    lane_legs.py --sink DIR [--lane STEM] [--branch NAME] [--last N] [--since YYYY-MM-DD]
+                 [--until YYYY-MM-DD] [--outcome OUTCOME] [--model TEXT]
 
 A RUN is a run URL or a bare run reference. A run reference selects every leg of that run; a URL
 that names an attempt (`.../runs/<id>/attempts/<n>`) narrows to it. The filters select legs: the
-lane (the workflow file's stem), the date window on the row's `date`, `--outcome` (`error` is every
+lane (the workflow file's stem), the row's `head_branch` exactly, the date window on the row's `date`, `--outcome` (`error` is every
 leg whose `is_error` is true, `success` a success that did not error, else the stored subtype or
 outcome), and `--model` (a substring of any model the leg used). `--last N` keeps the N newest runs
 left. Run references and filters do not mix.
@@ -96,6 +96,7 @@ def matches_filters(row: dict, ns: argparse.Namespace) -> bool:
     models = [row.get("model"), *(row.get("models") or [])]
     return (
         (ns.lane is None or row.get("lane") == ns.lane)
+        and (ns.branch is None or row.get("head_branch") == ns.branch)
         and (ns.model is None or any(isinstance(m, str) and ns.model in m for m in models))
         and (ns.outcome is None or has_outcome(row, ns.outcome))
         and (ns.since is None or str(row.get("date")) >= ns.since)
@@ -154,6 +155,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--sink", required=True, type=Path)
     parser.add_argument("runs", nargs="*")
     parser.add_argument("--lane")
+    parser.add_argument("--branch")
     parser.add_argument("--last", type=int)
     parser.add_argument("--since")
     parser.add_argument("--until")
@@ -161,11 +163,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--model")
     ns = parser.parse_args(argv)
 
-    filters = [ns.lane, ns.last, ns.since, ns.until, ns.outcome, ns.model]
+    filters = [ns.lane, ns.branch, ns.last, ns.since, ns.until, ns.outcome, ns.model]
     if ns.runs and any(f is not None for f in filters):
         fail("give either run references or filters, not both")
     if not ns.runs and all(f is None for f in filters):
-        fail("name runs, or select them with --lane, --since, --until, --outcome or --model")
+        fail("name runs, or select them with --lane, --branch, --since, --until, --outcome or --model")
     for date in (ns.since, ns.until):
         if date is not None and not DATE.match(date):
             fail("--since and --until take YYYY-MM-DD")

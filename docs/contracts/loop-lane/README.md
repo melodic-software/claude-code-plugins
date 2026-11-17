@@ -1390,9 +1390,10 @@ list. It is deliberately not phrased as an equality: an exception list exists, a
 "provably equal" would be exactly the unbacked assurance this section was rewritten to remove.
 
 **A file cannot excuse itself, and that is why the exception list is not an in-file annotation.**
-An annotation on the shape `# lane-coverage-ok:` and `# silent-skip-ok:` use anchors to a syntactic
-site, a job key or a guard line, which bounds what it can excuse; a file has no such site, so any
-file mentioning the token anywhere, in prose or in a fixture string, would exempt its own floor
+An annotation on the shape `# lane-coverage-ok:` uses anchors to a syntactic site, a job key,
+which bounds what it can excuse: `scripts/check-lane-coverage.sh` reads it only as a trailing
+comment on the key line or inside the contiguous 2-space comment block directly above the key, where
+a blank or any other line ends the block. A file has no such site, so any file mentioning the token anywhere, in prose or in a fixture string, would exempt its own floor
 copy and drift unwatched. With the exception list in the check, a new data carrier costs an edit to
 the gate, which is the review the exception needs.
 

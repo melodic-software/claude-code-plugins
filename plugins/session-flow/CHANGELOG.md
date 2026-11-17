@@ -1,5 +1,18 @@
 # Changelog: session-flow plugin
 
+## [9.6.1] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
+## [9.6.0] - 2026-11-17
+
+### Added
+
+- `/session-flow:audit-sessions pr` also lists the CI lane runs pulled for the pull request's head branch, with each leg's metrics, when the `lane_transcript_sink` option is set.
+- `lane_legs.py --branch <name>` keeps only the lane runs whose head branch is that name.
+
 ## [9.5.0] - 2026-11-17
 
 ### Added

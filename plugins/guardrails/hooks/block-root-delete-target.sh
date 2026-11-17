@@ -2485,12 +2485,6 @@ rdt_winmap_all() {
     todo+=("$p")
   done
   ((${#todo[@]})) || return 0
-  # silent-skip-ok: cygpath is part of the Git Bash, MSYS2 and Cygwin runtime
-  # this branch runs under, so its absence is not a real install. Without it
-  # every path keeps the spelling realpath gave it, which refuses more (a short
-  # or drive spelling no longer matches the tree); the one allow it can add is
-  # the scratchpad itself named through the /tmp mount, which then reads as a
-  # path strictly under /tmp.
   command -v cygpath >/dev/null 2>&1 || return 0
   # rdt_win_to answers most paths without cygpath; the rest go to it below.
   local -a slow=()

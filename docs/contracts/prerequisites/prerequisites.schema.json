@@ -65,20 +65,27 @@
           "type": "object",
           "additionalProperties": false,
           "required": ["config_any"],
-          "description": "The entry is needed only where one of these configs sits in the project directory or a directory above it: the SessionStart probe stays silent about it elsewhere, and check reports INFO.",
+          "description": "The entry is needed only where one of these configs is found: a file name in the project directory or a directory above it, or a name or path git tracks in the project directory's repository. The SessionStart probe stays silent about it elsewhere, and check reports INFO.",
           "properties": {
             "config_any": {
               "type": "array",
               "minItems": 1,
               "items": {
                 "oneOf": [
-                  { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+                  {
+                    "type": "string",
+                    "pattern": "^([A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*|[A-Za-z0-9._*?-]*[A-Za-z0-9_*?-][A-Za-z0-9._*?-]*(/[A-Za-z0-9._*?-]*[A-Za-z0-9_*?-][A-Za-z0-9._*?-]*)+)$",
+                    "description": "A file name (found at or above the project directory, or tracked anywhere in the repository), or a path from the repository root matched against tracked files, where * and ? match within a segment and a whole ** segment matches any depth. No segment is . or .., and a bare name has no wildcard."
+                  },
                   {
                     "type": "object",
                     "additionalProperties": false,
                     "required": ["file", "pattern"],
                     "properties": {
-                      "file": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+                      "file": {
+                        "type": "string",
+                        "pattern": "^([A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*|[A-Za-z0-9._*?-]*[A-Za-z0-9_*?-][A-Za-z0-9._*?-]*(/[A-Za-z0-9._*?-]*[A-Za-z0-9_*?-][A-Za-z0-9._*?-]*)+)$"
+                      },
                       "pattern": { "type": "string", "minLength": 1, "description": "A regular expression the file's text must match." }
                     }
                   }
