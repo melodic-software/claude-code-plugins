@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Outcome: blocked.** The retried Ready failed on port 4100 too.",
+      "why": "blocked outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Outcome: changed. The hub's Ready now checks 4100.",
+      "why": "wrong outcome"
+    },
+    {
+      "answer": "The pass is not blocked; I will run Ready again.",
+      "why": "negated, and a second retry"
+    }
+  ]
+}

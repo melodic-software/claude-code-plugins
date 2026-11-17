@@ -1,5 +1,5 @@
 {
-  "description": "Optionally checks the uncommitted PowerShell changes with PSScriptAnalyzer when a turn ends; harness-ops reports a missing pwsh or a drifted git-hook entry at session start, from this plugin's prerequisites.json.",
+  "description": "Optionally lints the uncommitted PowerShell changes with the pre-commit lint entry when a turn ends; harness-ops reports a missing pwsh or a drifted git-hook entry at session start, from this plugin's prerequisites.json.",
   "hooks": {
     "Stop": [
       {

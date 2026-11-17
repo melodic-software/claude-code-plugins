@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: map-refresh-attended-stale-ready-retries-once
+description: An attended refresh whose person agreed to the corrected Ready has written it and retried Ready once, and the retry failed. The pass runs Ready no further, ends blocked, and, since it started on a detached HEAD off the tip so no commit carries the fix, puts the recorded Ready text back in the hub. Source invented. A run needs --scaffold, which seeds the control skill with the corrected Ready already written and src/server.ts
+tags: [map, refresh, ready, attended, invented, routine, no-network]
+expected_outcome: "The reply runs Ready no further, since the one retry has been spent, reports the outcome blocked with the retry's failure, and says the hub's recorded `## Ready` text (`curl -fsS http://127.0.0.1:3000/healthz`) goes back into the hub, because the pass started on a detached HEAD off the tip and no commit carries the fix. It never leaves the corrected text in the hub."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:map refresh .claude/skills/control-shop. I am here and watching. There is no shell in this session, so run nothing and edit nothing: say what the pass does. The pass started on a detached HEAD whose commit is not the default branch's tip. The source wave cited src/server.ts:12 for the hub's stale Ready port. In the live pass, `/app-control:drive ready shop` exited 1 on port 3000. You showed me the corrected `## Ready` text and I agreed. Before the write you recorded the hub's `## Ready` as `curl -fsS http://127.0.0.1:3000/healthz`, and `git status --porcelain -- .claude/skills/control-shop/SKILL.md` printed nothing. You wrote the correction, so the hub now checks port 4100, and ran Ready once more: `/app-control:drive ready shop` exited 1 again, nothing answering on 4100. Carry the pass on from there and give me its report."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 15
+  timeout_seconds: 500
+graders:
+  - name: no-second-retry
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:app-control:)?drive"(?!\s*,\s*"args"\s*:\s*"\s*cleanup\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: reports-blocked
+    type: regex
+    flags: i
+    pattern: '(?<!not )(?<!n''t )(?<!never )\bblocked\b'
+    arm: both
+  - name: puts-recorded-text-back
+    type: regex
+    flags: i
+    pattern: '(?:^|\n)(?=[^\n]*(?:\b3000\b|recorded (?:`## Ready` )?text|recorded Ready|original Ready))[^\n]*\b(?:put(?:s|ting)? (?:it |the [^\n]{0,40})?back|goes back|go back|restore[sd]?|restoring|revert(?:s|ed|ing)?|written back|writ(?:e|es) (?:it |the [^\n]{0,40})?back)\b'
+    arm: both

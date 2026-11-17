@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "node is FAIL everywhere: every handler in hooks.json launches through `node hooks/exec-bash.mjs`, so without it the hooks never start. pwsh and the PSScriptAnalyzer module are FAIL here because the PSScriptAnalyzerSettings.psd1 opts the adapter in; in a repository with no settings file they would be INFO."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Only node is a FAIL-class prerequisite; everything else is INFO.",
+      "why": "grades pwsh INFO in a repository whose settings file opts in"
+    },
+    {
+      "answer": "node, pwsh and the module are all FAIL.",
+      "why": "near miss: no reason, and nothing on the repository without a settings file"
+    }
+  ]
+}

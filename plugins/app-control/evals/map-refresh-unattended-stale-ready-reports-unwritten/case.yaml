@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: map-refresh-unattended-stale-ready-reports-unwritten
+description: An unattended refresh whose Ready fails because the hub's Ready checks a port the source moved opens the cited line itself, writes no fix and runs no drive, and reports the outcome blocked with the corrected Ready text and its citation unwritten. Source invented, converted from map evals.json id 32. A run needs --scaffold, which seeds the control skill and src/server.ts
+tags: [map, refresh, ready, unattended, invented, routine, no-network]
+expected_outcome: "The reply treats the failed Ready as a stale control skill, not a broken app: it opens src/server.ts, whose line 12 listens on port 4100, while the hub's ## Ready still curls port 3000. The pass is unattended, so it writes and edits no file, runs Ready no further and drives nothing. The outcome is blocked, and the report carries the corrected ## Ready text (port 4100) with the src/server.ts:12 citation, unwritten."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:map refresh .claude/skills/control-shop --unattended. There is no shell in this session. The pass starts on main, and `git status --porcelain` prints nothing. upkeep-skip.sh check printed `run HEAD moved since the last clean pass`. The source wave has run: its first subagent answered that the hub's ## Ready checks port 3000 and that the source moved it, citing src/server.ts:12; every other answer reports no drift. In the live pass, `/app-control:drive ready shop` exited 1: nothing answers on port 3000. Carry the pass on from there and give me its report."
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: opens-cited-source
+    type: tool_used
+    tool: Read
+    input_match: '"file_path"\s*:\s*"[^"]*src/server\.ts"'
+    min: 1
+    arm: both
+  - name: reports-blocked-with-fix
+    type: regex
+    flags: i
+    pattern: '^(?=[\s\S]*(?<!not )(?<!n''t )(?<!never )\bblocked\b)(?=[\s\S]*\b4100\b)(?=[\s\S]*server\.ts(?::(?:\d+[-–])?|,?\s+lines?\s+(?:\d+\s*(?:[-–]|to)\s*)?|\s*\(lines?\s+(?:\d+\s*(?:[-–]|to)\s*)?)12(?!\d))'
+    arm: both
+  - name: drives-nothing
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:app-control:)?drive"(?!\s*,\s*"args"\s*:\s*"\s*cleanup\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: writes-nothing
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: edits-nothing
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both

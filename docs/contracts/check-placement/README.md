@@ -138,9 +138,9 @@ rewrites, so a file with unstaged changes fails with the Rewrites message below 
 {
   "entries": [
     {
-      "name": "typos-check",
+      "name": "lint",
       "event": "pre-commit",
-      "script": "typos-check.sh",
+      "script": "lint.sh",
       "tools": ["typos"],
       "rewrites": false
     }

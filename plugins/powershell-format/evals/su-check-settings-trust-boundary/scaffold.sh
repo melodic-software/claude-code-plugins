@@ -9,7 +9,8 @@ fi
 git init -q -b main .
 git config user.email eval@example.invalid
 git config user.name eval
-git config --local checks.powershell-format.powershell-check.declined true
+git config --local checks.powershell-format.format.declined true
+git config --local checks.powershell-format.lint.declined true
 printf 'function Get-Demo {\n    return 1\n}\n' >demo.ps1
 mkdir -p rules
 cat >PSScriptAnalyzerSettings.psd1 <<'EOF'

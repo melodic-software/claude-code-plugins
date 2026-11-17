@@ -55,7 +55,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node /plugins/spelling/lib/git-hooks/install.mjs decline --entry typos-check"
+            "command": "node /plugins/spelling/lib/git-hooks/install.mjs decline --entry lint"
           }
         }
       ],

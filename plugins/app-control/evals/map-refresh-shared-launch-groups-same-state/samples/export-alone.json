@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Launch 1: cart, wishlist --out /tmp/a\nLaunch 2: export --out /tmp/b",
+      "why": "export on its own launch"
+    },
+    {
+      "answer": "Launch 1: export --out /tmp/b\nLaunch 2: cart, wishlist --out /tmp/a",
+      "why": "export first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Launch 1: cart, wishlist, export --out /tmp/a",
+      "why": "must not share: export needs another state"
+    },
+    {
+      "answer": "Launch 1: cart, export --out /tmp/a\nLaunch 2: wishlist --out /tmp/b",
+      "why": "export grouped with cart"
+    },
+    {
+      "answer": "Export gets its own launch.",
+      "why": "no launch line"
+    }
+  ]
+}

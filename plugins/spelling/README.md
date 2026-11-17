@@ -7,17 +7,25 @@ line the commit adds, so they reach every author: Claude, other agents and peopl
 reported while Claude edits. An opt-in end-of-turn check hands findings in the uncommitted changes
 back to Claude before a turn ends.
 
-The check honors your repository's own typos configuration: typos discovers it from the checked
-path, and the plugin's bundled `config/default-typos.toml` (passed with `-c`, so that SHA-shaped
-hex is not read as a misspelling) merges with it through `extend-*` keys. Pointer: the Sources
-list in [typos' configuration reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md#sources).
+The check honors your repository's own typos configuration and runs with or without one: typos
+discovers it from the checked path, and the plugin's bundled `config/default-typos.toml` (passed
+with `-c`, so that SHA-shaped hex is not read as a misspelling) merges with it through `extend-*`
+keys. Pointer: the Sources list in [typos' configuration reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md#sources).
+
+The hooks run only this typos adapter (`git-hooks/adapters.sh`). They never run a command from a
+`.claude/ecosystems/spelling.yaml` record; `/toolchain:lint` and `/toolchain:check` run its
+`lint-cmd` on request, and `/spelling:setup check` says when one exists.
 
 ## Git pre-commit entry
 
-The plugin ships one git-hook entry, `typos-check` (`git-hooks/entries.json`): a pre-commit
+The plugin ships one git-hook entry, `lint` (`git-hooks/entries.json`): a pre-commit
 check that blocks a commit only on a typo in a line the commit adds, printed as
-`<path>:<line>: <message>`. A typo on a line the commit leaves alone never blocks, a partly
-staged file is checked as staged, and your config's excludes hold for every path. The entry
+`<path>:<line>: <message>`. It reports and never rewrites a file. A typo on a line the commit
+leaves alone never blocks, a partly staged file is checked as staged, and your config's excludes
+hold for every path. typos exiting with an error and no finding blocks the commit and shows its
+output. It replaces the earlier `typos-check` entry: `/spelling:setup check` reports an installed
+`typos-check` copy as superseded, `apply install-git-hooks` retires it, and a decline of
+`typos-check` carries to `lint`. The entry
 runs once `/spelling:setup apply install-git-hooks [scope=local|shared]` registers it with the
 repository's hook manager (lefthook, husky or plain git hooks). Local scope stays in this clone;
 shared scope commits the copy under `.githooks/spelling/`. The bundled
@@ -89,7 +97,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `spelling_enabled` | boolean | `true` | Kill switch for the plugin's Claude Code hooks: the SessionStart probe and drift line, and the opt-in end-of-turn check. On by default. The git pre-commit entry is installed separately and is not affected. |
-| `spelling_end_of_turn` | boolean | `false` | At the end of each turn, run the pre-commit typos check over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Off by default. |
+| `spelling_end_of_turn` | boolean | `false` | At the end of each turn, run the pre-commit lint entry over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Off by default. |
 
 ### How to set these
 

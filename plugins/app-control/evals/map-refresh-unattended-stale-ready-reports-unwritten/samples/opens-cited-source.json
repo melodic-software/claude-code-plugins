@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "src/server.ts"}}
+      ],
+      "why": "relative path"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": ".claude/skills/control-shop/SKILL.md"}},
+        {"tool": "Read", "input": {"file_path": "/workspace/src/server.ts", "offset": 10, "limit": 5}}
+      ],
+      "why": "absolute path with a line range, after the hub"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": ".claude/skills/control-shop/SKILL.md"}}
+      ],
+      "why": "read only the hub"
+    },
+    {
+      "answer": [
+        {"tool": "Grep", "input": {"pattern": "listen", "path": "src/server.ts"}}
+      ],
+      "why": "searched the file without opening it"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "src/server.tsx"}}
+      ],
+      "why": "another file"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}

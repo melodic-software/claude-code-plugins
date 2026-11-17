@@ -620,7 +620,7 @@ expect "pre-commit reader: a symlink in the index is not a regular file" no \
 lint_32() {
   grep -nE '^[^#]*(declare -A|local -A|mapfile|readarray|\$\{[A-Za-z_]+(,,|\^\^)|;;&|\|&|&>>|\[\[ -v |local -n|declare -n|coproc|wait -n|\$\{[A-Za-z_]+\[-1\]\})' "$1"
 }
-for f in "$LIB" "$HERE/../../plugins/spelling/git-hooks/typos-check.sh"; do
+for f in "$LIB" "$HERE/../../plugins/spelling/git-hooks/lint.sh" "$HERE/../../plugins/spelling/git-hooks/adapters.sh"; do
   [[ -f "$f" ]] || continue
   hits="$(lint_32 "$f")"
   expect "bash 3.2 syntax: $(basename "$f") uses nothing newer" "" "$hits"

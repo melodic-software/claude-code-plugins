@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: su-check-record-not-run-by-hooks
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'both-unresolved-info'
+    type: 'llm'
+    criteria: 'The reply reports both formatting and linting as unresolved (or INFO): no PSScriptAnalyzerSettings.psd1 governs the repository, so the hooks run nothing, by design.'
+    focus: 'last_message'
+  - name: 'hooks-never-run-record'
+    type: 'llm'
+    criteria: 'The reply says powershell-format''s hooks never run the commands in the powershell record: they run only the shipped PSScriptAnalyzer adapter, and only where a settings file opts it in.'
+    focus: 'last_message'
+  - name: 'routes-to-toolchain'
+    type: 'llm'
+    criteria: 'The reply says /toolchain:lint or /toolchain:check runs the record''s commands on request.'
+    focus: 'last_message'
+  - name: 'no-file-1'
+    type: 'file_exists'
+    path: '**/PSScriptAnalyzerSettings.psd1'
+    exists: false
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

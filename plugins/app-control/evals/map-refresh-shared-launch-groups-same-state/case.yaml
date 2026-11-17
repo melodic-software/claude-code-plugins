@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: map-refresh-shared-launch-groups-same-state
+description: An unattended refresh whose hub launch model has a per-run Data directory and no Session line plans its live pass so the two features whose recipes need the same app state share one launch, and the feature that needs another state gets its own. Source invented. A run needs --scaffold, which seeds the control skill
+tags: [map, refresh, launch, unattended, invented, routine, no-network]
+expected_outcome: "The reply plans one launch for cart and wishlist together, both needing a signed-in buyer with an empty basket, under one --out directory, and a separate launch for export, which needs an operator account. It drives nothing and writes nothing."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:map refresh .claude/skills/control-shop --unattended. There is no shell in this session. The pass starts on main and `git status --porcelain` prints nothing; treat the decide step as printing `run`. The source wave has run and found no drift. Its recipes: cart needs a signed-in buyer account with an empty basket; wishlist needs a signed-in buyer account with an empty basket; export needs a signed-in operator account. Read the control skill, then give the live pass's launch plan without driving anything: end your reply with one line per launch, in the form `Launch <n>: <feature ids, comma-separated> --out <dir>`, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 15
+  timeout_seconds: 500
+graders:
+  - name: shares-cart-and-wishlist
+    type: regex
+    flags: i
+    pattern: '(?:^|\n)[ \t*_>`-]*Launch \d+:(?=[^\n]*\bcart\b)[^\n]*\bwishlist\b'
+    arm: both
+  - name: export-alone
+    type: regex
+    flags: i
+    pattern: '(?:^|\n)[ \t*_>`-]*Launch \d+:(?![^\n]*\b(?:cart|wishlist)\b)[^\n]*\bexport\b'
+    arm: both
+  - name: drives-nothing
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:app-control:)?drive"'
+    min: 0
+    max: 0
+    arm: both
