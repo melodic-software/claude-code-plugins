@@ -173,13 +173,8 @@ RETIRED_ENTRY_SECTIONS = {
 }
 AMENDMENT_RE = re.compile(r"^(?:- )?\*\*Amended.*?:\*\*")
 TRAIL_TAG_RE = re.compile(r"^- \[(h\d+(?:-h?\d+)?)\]")
-# The hot file keeps the Direction changes lines tagged with one of the last
-# DIRECTION_HOPS_KEPT hops, this one included; `new` folds older carried lines
-# out behind one FOLD_PREFIX pointer line. A folded line was in the
-# predecessor's section, so it is already verbatim in the folding hop's file.
 DIRECTION_HOPS_KEPT = 3
 FOLD_PREFIX = "- Folded: "
-# A carried question or decision whose text changed names this hop's rewrite.
 REWRITE_MARK = "Rewritten"
 REWRITE_MARK_RE = re.compile(rf"\b{REWRITE_MARK} h(\d+): \S")
 RETIRED_PREFIX = "Retired:"

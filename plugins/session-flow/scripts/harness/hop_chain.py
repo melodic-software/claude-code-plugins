@@ -382,10 +382,11 @@ class FillerSize:
 
 def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
     """Replace every FILL slot in a freshly-created skeleton with deterministic
-    filler that satisfies validate_doc."""
+    filler that satisfies validate_doc.
+
+    Shape 3 ids its open questions and decisions: hop 1 writes them, and later
+    hops carry them off disk unchanged and add none through the `-new` slots."""
     lines = path.read_text(encoding="utf-8").split("\n")
-    # Shape 3 ids its open questions and decisions; hop 1 writes them and later
-    # hops carry them unchanged.
     ids = (
         {"open-questions": "Q", "decisions": "D"}
         if frontmatter_value(path, "handoff_shape") == "3"
@@ -459,7 +460,6 @@ def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
             out.append(f"- [h{hop}] {filler_line(slot, counter, size.width)}")
             continue
         if slot.removesuffix("-new") in ids:
-            # Shape 3 carries them off disk from hop 2 on; a generated hop adds none.
             if slot.endswith("-new"):
                 continue
             count, width = (

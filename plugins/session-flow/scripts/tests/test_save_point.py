@@ -3561,7 +3561,6 @@ def test_ids_an_id_less_question_or_decision_fails_on_a_first_hop(tmp_path):
     ("slot", "title", "prefix"),
     [
         ("open-questions", "Open questions", "Q"),
-        # Hop 1 holds [D1], so `new` carries the section and offers `decisions-new`.
         ("decisions-new", "Decisions in force", "D"),
     ],
 )
@@ -3855,15 +3854,6 @@ def test_retire_pointers_carry_forward_verbatim(tmp_path):
     dropped = strict(hop3)
     assert dropped.returncode == 1, out(dropped)
     assert "the predecessor's retire pointer is missing" in out(dropped), out(dropped)
-
-
-# --- shape 3: questions and decisions carried off disk, the trail fold -------------
-#
-# Expected values come from #16427's recorded decision: `new` copies Open questions
-# and Decisions in force like rules; a carried entry's text changes only through a
-# retire or a rewrite marked under its id; Direction changes lines 3 or more hops old
-# fold into the hop archive behind one pointer line, so the hot file keeps the last 3
-# hops' lines; the 24,600-byte cap stays.
 
 
 def test_carry_new_copies_questions_and_decisions_off_disk(tmp_path):
