@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "## Build Results\n\n| Ecosystem | Build | Test | Lint | Status |\n|---|---|---|---|---|\n| bash | — | pass | skip (prerequisite missing: zz-policy-runtime) | INCOMPLETE |\n\nOverall: INCOMPLETE (0 of 1 ecosystems passed; bash: skip (prerequisite missing: zz-policy-runtime))",
+      "why": "contract table"
+    },
+    {
+      "answer": "**Overall:** **INCOMPLETE**: the lint command did not run because zz-policy-runtime is absent.",
+      "why": "bold verdict"
+    },
+    {
+      "answer": "Overall: `INCOMPLETE`\nCause: bash: skip (prerequisite missing: zz-policy-runtime)",
+      "why": "backticked verdict"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| bash | — | pass | — | PASS |\n\nOverall: PASS (1 of 1 ecosystems passed)",
+      "why": "PASS verdict"
+    },
+    {
+      "answer": "| bash | — | pass | FAIL | FAIL |\n\nOverall: FAIL (1 of 1 ecosystems failed)",
+      "why": "FAIL verdict"
+    },
+    {
+      "answer": "The run is incomplete because zz-policy-runtime is missing.",
+      "why": "no Overall verdict line"
+    }
+  ]
+}

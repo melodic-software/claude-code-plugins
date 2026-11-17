@@ -1,5 +1,16 @@
 # Changelog for the ecosystem-commands convention
 
+## [1.4.0] - 2026-11-17
+
+Additive schema change: an optional top-level `requires` key, keyed by command key, and an
+optional `gates[].requires` list. Each entry names what a command needs beyond its tool on `PATH`
+(a runtime package, or a tool at the build the repo pins for CI) with a `name`, a read-only `probe`
+whose exit 0 means present, an optional `hint`, and an optional `run-from`. With any entry absent,
+the command does not run and reads `skip (prerequisite missing: <name>)`, an environment skip that
+makes the overall line `INCOMPLETE`. Resolvers never install a declared prerequisite. Before this,
+a record had no way to say a command cannot run on this host, so the command ran and read `FAIL`
+for the wrong reason, or `PASS` from the wrong build of a tool (melodic-software/claude-code-plugins#16646).
+
 ## [1.3.1] - 2026-09-29
 
 Docs-only, no schema shape change: the Consumers section records that `code-metrics` reads `globs`

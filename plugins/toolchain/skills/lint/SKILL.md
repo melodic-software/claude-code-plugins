@@ -138,7 +138,9 @@ Per-project walking (ecosystems with `project-discovery`):
 - typescript: walk each `package.json` directory and run check/fix from there
 - go: walk each `go.mod` directory and run check/fix from there (a root `./...` invocation stops at a nested module boundary. See `/toolchain:check`'s per-ecosystem context file)
 
-Tool presence: verify on `PATH` before each ecosystem the tool its commands are invoked through (python's `uv`, not the `ruff` and `pyright` behind it); report `skip (tool missing: <tool>)` with `install-hint` when missing, never `FAIL`. The probe is per ecosystem, not per sub-tool: a sub-tool bundled inside an opaque compound `check-cmd` is not probed, so its absence surfaces at execution time as a real non-zero exit and the ecosystem reports `FAIL`, not `skip`. Same rule `/toolchain:check` states, so both skills classify an identical environment identically.
+Tool presence: verify on `PATH` before each ecosystem the tool its commands are invoked through (python's `uv`, not the `ruff` and `pyright` behind it); report `skip (tool missing: <tool>)` with `install-hint` when missing, never `FAIL`. The probe is per ecosystem, not per sub-tool: a sub-tool bundled inside an opaque compound `check-cmd` is not probed, so its absence surfaces at execution time as a real non-zero exit and the ecosystem reports `FAIL`, not `skip`, unless the record declares it under `requires`. Same rule `/toolchain:check` states, so both skills classify an identical environment identically.
+
+Declared prerequisites: after the tool-presence check and a met single-condition `opt-in` (an unmet one skips without probing), run the probes the resolved `requires` lists for the command this mode runs (`check-cmd`, `fix-cmd` or `code-fix-cmd`), by `/toolchain:check`'s "Declared prerequisites" rules. With any entry absent, the command does not run: every column it fills reads `skip (prerequisite missing: <name>)`, with the entry's `hint` below the table, and the run goes on to the next ecosystem. A probe that errors, cannot start or passes 30 seconds reads the same skip, never `FAIL`. Never install a declared prerequisite and never run its `hint`. Under `--code-fix` no probe runs before the [confirmation gate](#code-fix-confirmation-gate) grants an apply: the plan lists each prerequisite `requires` declares for `code-fix-cmd` as `not probed yet`, so `--dry-run`, a non-interactive run without `--yes` and a declined confirmation run no probe at all. Once the gate grants the apply, the probes run, and an absent entry skips that ecosystem's `code-fix-cmd` with the same `skip (prerequisite missing: <name>)` report.
 
 Tool pins (`tool-pin` sub-key, e.g. zizmor): when the resolved config pins a tool version, warn if the installed version drifts from the pin (a pin typically mirrors the consumer's own CI pin). No pin, no check.
 
@@ -161,6 +163,7 @@ Code-fix plan — ecosystems: <list> (<N> files scoped)
 - python: uv run ruff check <files> --fix --no-unsafe-fixes --unfixable F401  (<n> files)
 - go: golangci-lint run --fix <files>  (<m> files)
 - typescript: (no code-fix-cmd) — skip
+- <ecosystem with requires>: <code-fix-cmd>  (<k> files; prerequisite <name>: not probed yet)
 ```
 
 Then gate on session context and flags. Every side-effect path is explicitly gated, the gate never self-downgrades unattended:
@@ -200,7 +203,7 @@ In check mode, settle the Overall line and record it (section 5) before writing 
 Overall: FAIL (1 of 4 ecosystems failed)
 ```
 
-Use `pass`, `FAIL`, a named skip, or `—` (not applicable). Every skip names its reason in `/toolchain:check`'s named classes, and its class decides whether it blocks a "done" claim exactly as `/toolchain:check`'s report table (its section 3) classifies it: `skip (tool missing: <tool>)` is an environment skip and blocks "done"; `skip (opt-in unmet: <condition>)` is the consumer's opt-in and does not. Lint installs nothing and runs no CI-parity gates, so it never emits the `dependencies missing` or `unsupported` classes.
+Use `pass`, `FAIL`, a named skip, or `—` (not applicable). Every skip names its reason in `/toolchain:check`'s named classes, and its class decides whether it blocks a "done" claim exactly as `/toolchain:check`'s report table (its section 3) classifies it: `skip (tool missing: <tool>)` and `skip (prerequisite missing: <name>)` are environment skips and block "done"; `skip (opt-in unmet: <condition>)` is the consumer's opt-in and does not. Lint installs nothing and runs no CI-parity gates, so it never emits the `dependencies missing` or `unsupported` classes.
 
 An ecosystem's Status and the Overall line read `FAIL` when any cell failed, `INCOMPLETE` when nothing failed but an environment skip remains, and `PASS` only when neither holds. `INCOMPLETE` names each cause with its reason (e.g. `Overall: INCOMPLETE (3 of 4 ecosystems passed; markdown: skip (tool missing: markdownlint-cli2))`), so a caller such as `/verification:confirm` holds its verdict on a lint-only environment gap. An opt-in-unmet skip or a `—` cell never makes a run `INCOMPLETE`.
 
@@ -239,7 +242,8 @@ The plugin's Stop hook reads it at turn end the same way it reads `/toolchain:ch
 ## Edge cases
 
 - **No git changes but `/toolchain:lint all`**: run all applicable ecosystems (useful after rebase or pull)
-- **Missing tools**: report as `skip (tool missing: <tool>)` with the install hint, not as failure, and never as done: the Overall line reads `INCOMPLETE`. Scoped to the tool the ecosystem's commands are invoked through, not every sub-tool a compound command reaches (an un-probed sub-tool's absence is a real non-zero exit, so `FAIL`; see `/toolchain:check`'s Gotchas)
+- **Missing tools**: report as `skip (tool missing: <tool>)` with the install hint, not as failure, and never as done: the Overall line reads `INCOMPLETE`. Scoped to the tool the ecosystem's commands are invoked through, not every sub-tool a compound command reaches (an un-probed sub-tool's absence is a real non-zero exit, so `FAIL`, unless the record declares it under `requires`; see `/toolchain:check`'s Gotchas)
+- **Declared prerequisite absent**: report as `skip (prerequisite missing: <name>)` with its hint, never `FAIL` from a crashed command or a `PASS` from the wrong build of a tool; the Overall line reads `INCOMPLETE`
 - **Opt-in unmet**: report as `skip (opt-in unmet: ...)` with the condition, not as failure and not a silent omission (e.g., dotnet with no C#-relevant `.editorconfig`)
 - **Multiple projects in same ecosystem**: run per-project (each `pyproject.toml`, each `package.json`)
 - **File outside any ecosystem**: a text file is named on one of the two unclaimed-file lines; a binary file (images, archives) outside every ecosystem gets no mention in the reply, not even to say it was skipped

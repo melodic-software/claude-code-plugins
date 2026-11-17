@@ -60,6 +60,12 @@
       "additionalProperties": { "type": "string", "minLength": 1 },
       "description": "Pinned tool versions keyed by tool name. When present, resolvers warn if the installed version drifts from the pin (a pin typically mirrors the repo's own CI pin). Inert when absent."
     },
+    "requires": {
+      "type": "object",
+      "propertyNames": { "enum": ["build-cmd", "test-cmd", "check-cmd", "fix-cmd", "code-fix-cmd"] },
+      "additionalProperties": { "$ref": "#/$defs/prerequisites" },
+      "description": "What a command needs beyond the tool it is invoked through being on PATH, keyed by command key: a runtime package that must be installed, or a tool at the build the repo pins for CI. Before a resolver runs a command it runs each entry's probe; when any entry is absent, the command does not run and its cell reads skip (prerequisite missing: <name>), an environment skip that keeps the run from reading PASS. One missing entry skips the whole command, every tool bundled in its string included. Resolvers never install a declared prerequisite."
+    },
     "gates": {
       "type": "array",
       "description": "Repo-specific CI-parity gates beyond plain build/test/lint (lockfile drift, generated-artifact freshness, schema regeneration).",
@@ -81,13 +87,51 @@
             "default": "ecosystem",
             "description": "Execution scope for this gate's cmd. 'ecosystem' (default) runs from the same location the ecosystem's own build/test/lint use — once per project-discovery root, the anchor's directory, or $REPO_ROOT when neither is defined; unchanged from pre-run-from behavior. 'repo-root' forces a single run from $REPO_ROOT regardless of the ecosystem's project-discovery or anchor, for a repo-wide check (e.g. protobuf generation, schema freshness) declared under a project-discovery ecosystem that would otherwise run redundantly, or fail, once per project root. Under 'repo-root', a cmd using the <files> placeholder gets the full ecosystem-scoped changed-files set, not one project's subset, and <project-dir> is undefined — a cmd using it under 'repo-root' is a configuration error a resolver reports as a failure rather than guessing an expansion."
           },
-          "remediation": { "type": "string", "description": "Pointer shown on failure." }
+          "remediation": { "type": "string", "description": "Pointer shown on failure." },
+          "requires": {
+            "$ref": "#/$defs/prerequisites",
+            "description": "What this gate's cmd needs beyond its tool on PATH, with the same meaning as a top-level requires entry: any absent entry reports the gate as skip (prerequisite missing: <name>) and its cmd does not run."
+          }
         }
       }
     },
     "notes": {
       "type": "string",
       "description": "Free-form caveats a resolver should surface (trap flags, ordering constraints). Rationale belongs in the repo's own rules, not here."
+    }
+  },
+  "$defs": {
+    "prerequisites": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/prerequisite" }
+    },
+    "prerequisite": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "probe"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What the command needs, as the skip cell names it: skip (prerequisite missing: <name>)."
+        },
+        "probe": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One read-only shell command (an opaque string; $REPO_ROOT is substituted) whose exit 0 means the prerequisite is present. Any other exit, a probe that cannot start, and one still running after 30 seconds all mean absent. Resolvers compare no version or checksum: a record that needs a specific build writes a probe that checks it, against the pin the repo already keeps for CI."
+        },
+        "hint": {
+          "type": "string",
+          "description": "How a person provides the prerequisite, shown beside the skip. Display text only: resolvers never run it."
+        },
+        "run-from": {
+          "type": "string",
+          "enum": ["repo-root", "ecosystem"],
+          "default": "repo-root",
+          "description": "Where the probe runs. 'repo-root' (default) runs it once from $REPO_ROOT. 'ecosystem' runs it from each location the command or gate cmd itself runs from, and the command is skipped only at the locations where the probe finds the prerequisite absent. This default differs from a gate's own run-from default: a probe inside a per-project gate still runs once from $REPO_ROOT unless the entry sets 'ecosystem'."
+        }
+      }
     }
   }
 }
