@@ -3,9 +3,6 @@
 //
 //   recordPath(dataDir, settingsFile) -> <dataDir>/records/<sha256 of the settings file's real path>.json
 //   readRecord(path) / saveRecord(path, record) / deleteRecord(path)
-//   findRecord(dataDir, settingsFile) -> {path, record}: the file's record; a linked git worktree with
-//     none takes a copy of its main worktree's record when the file still holds every entry it wrote;
-//     the copy is in memory, and only a command that writes (apply) saves it
 //   baseline(doc, record) -> {enabledPlugins, skillOverrides}: the file's entries with each
 //     recorded before-value put back, as if the earlier profile had been cleared
 //   nextRecord(previous, apply) -> the record after this apply; before-values come from the first write
@@ -36,9 +33,9 @@ export function realPath(path) {
   }
 }
 
-export function recordPath(dataDir, settingsFile) {
+export function recordPath(home, settingsFile) {
   const key = createHash("sha256").update(realPath(settingsFile)).digest("hex");
-  return join(dataDir, "records", `${key}.json`);
+  return join(home, "records", `${key}.json`);
 }
 
 export function readRecord(path) {
@@ -50,41 +47,14 @@ export function readRecord(path) {
   }
 }
 
-/** The main worktree of the linked git worktree at folder, read from the files git writes; else null. */
-function mainWorktree(folder) {
-  try {
-    const gitdir = /^gitdir:\s*(.+?)\s*$/m.exec(readFileSync(join(folder, ".git"), "utf8"));
-    if (!gitdir) return null;
-    const gitDir = resolve(folder, gitdir[1]);
-    const common = resolve(gitDir, readFileSync(join(gitDir, "commondir"), "utf8").trim());
-    return basename(common) === ".git" ? dirname(common) : null;
-  } catch {
-    return null;
+/** The record of settingsFile from the first home holding one; path is where the first home keeps it. */
+export function findRecord(homes, settingsFile) {
+  for (const home of homes) {
+    const found = recordPath(home, settingsFile);
+    const record = readRecord(found);
+    if (record) return { path: recordPath(homes[0], settingsFile), found, record };
   }
-}
-
-const holdsEveryEntry = (record, doc) =>
-  Object.entries(SECTIONS).every(([key, section]) =>
-    Object.entries(record[section] ?? {}).every(([name, { after }]) => record.pending?.[name] !== undefined || (doc[key]?.[name] ?? ABSENT) === after));
-
-/** A worktree's settings file copied from the main worktree carries its entries but not its record. */
-function adoptedRecord(dataDir, settingsFile) {
-  const claudeDir = dirname(settingsFile);
-  if (basename(claudeDir) !== ".claude") return null;
-  const main = mainWorktree(dirname(claudeDir));
-  if (!main || realPath(main) === realPath(dirname(claudeDir))) return null;
-  try {
-    const record = readRecord(recordPath(dataDir, join(main, ".claude", basename(settingsFile))));
-    const doc = JSON.parse(readFileSync(settingsFile, "utf8"));
-    return record && doc && typeof doc === "object" && holdsEveryEntry(record, doc) ? { ...record, settingsFile } : null;
-  } catch {
-    return null;
-  }
-}
-
-export function findRecord(dataDir, settingsFile) {
-  const path = recordPath(dataDir, settingsFile);
-  return { path, record: readRecord(path) ?? adoptedRecord(dataDir, settingsFile) };
+  return { path: recordPath(homes[0], settingsFile), found: null, record: null };
 }
 
 export const saveRecord = (path, record) => replaceFile(path, `${JSON.stringify(record, null, 2)}\n`);

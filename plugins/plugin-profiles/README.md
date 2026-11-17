@@ -54,7 +54,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" apply build --for folder
 
 `--for` picks where the entries go:
 
-- `folder`: this folder's `.claude/settings.local.json`.
+- `folder`: the repository's `.claude/settings.local.json`, at the main checkout's root, which Claude Code reads for every worktree and subdirectory of the repository. On Windows, outside git, or where the repository root is your home folder or not yours, it is the folder's own file. To give one terminal its own profile, start it in a one-session profile.
 - `initial`: your user `settings.json`, the profile new folders start from.
 - `session`: a generated file for `claude --settings <file>`, for one session; no settings file
   changes. The file also sets `PLUGIN_PROFILES_SESSION` to the profile's name, and
@@ -132,8 +132,14 @@ plugin installed since, a one-session profile the session runs in, and the surfa
 start a hook prints the same notice, reading the installed plugins from disk without starting
 `claude`; in a folder with no applied profile it prints nothing. `clear` puts every entry back to what it was before the first apply and
 removes a settings file the tool created; like `apply`, it prints what it changes and writes on
-`--yes` or a yes at the prompt. The record lives in the plugin's data folder; `status` and `clear`
-also find one another copy of the plugin wrote, such as a `--plugin-dir` copy's.
+`--yes` or a yes at the prompt. The record of what apply wrote lives in the repository's `.git`
+folder (`.git/plugin-profiles/`, never committed) for a folder in git, in
+`~/.claude/plugin-profiles-state/` for user settings, and otherwise in the plugin's data folder;
+`status` and `clear` also find a record in the data folder, including one another copy of the
+plugin wrote, such as a `--plugin-dir` copy's. With no record, `clear` changes nothing and says
+how many entries the file holds. A profile an earlier version applied to a worktree's or
+subdirectory's own `.claude/settings.local.json` is named by `status` as partly in force;
+`clear --for worktree` puts that file back.
 
 `inventory` lists the installed plugins, what they depend on, what each ships and its skills.
 `usage` lists how often each skill and plugin was used on this machine, most used first, from the

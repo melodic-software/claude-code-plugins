@@ -89,6 +89,7 @@ import { OptionsError, managedSettingsFiles, readOperatorOptions, resolveInstall
 import { missingRequired } from "../lib/prerequisite-gate.mjs";
 import { replaceFile } from "../lib/atomic-file.mjs";
 import { ALWAYS_ON, PLUGIN_ID, ProfileError, ignoredLine, parseProfile, profileLevels, profileText, readCatalog, readProfileFiles, resolveCatalog } from "../lib/profile-files.mjs";
+import { folderLevel } from "../lib/folder-file.mjs";
 import { ABSENT, baseline, deleteRecord, findRecord, nextRecord, realPath, restoreEdits, saveRecord } from "../lib/record.mjs";
 import {
   SettingsConflict,
@@ -116,7 +117,7 @@ const sessionProfile = (env) => env[SESSION_VAR] || null;
 const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
        profiles.mjs launch [<name>] [--folder <dir>] [--with <settings file or JSON>] [--unattended] [--dry-run] [--json]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
-       profiles.mjs clear [--for folder|initial] [--dry-run [--json]] [--yes]
+       profiles.mjs clear [--for folder|initial|worktree] [--dry-run [--json]] [--yes]
        profiles.mjs list [--json]
        profiles.mjs inventory [--json]
        profiles.mjs usage [--json]
@@ -154,12 +155,15 @@ function locate(env, cwd, folder = null) {
     : ownData || join(configDir, "plugins", "data", "plugin-profiles-inline");
   const projectDir = folder ? resolve(cwd, folder) : env.CLAUDE_PROJECT_DIR || cwd;
   const pluginVersion = JSON.parse(readFileSync(join(OWN_ROOT, ".claude-plugin", "plugin.json"), "utf8")).version;
+  const home = env.HOME || env.USERPROFILE || homedir();
   return {
     configDir,
     dataDir,
     projectDir,
     pluginVersion,
-    paths: settingsPaths({ configDir, projectDir }),
+    home,
+    folder: folderLevel(projectDir, { home }),
+    paths: settingsPaths({ configDir, projectDir, home }),
     surface: detectSurface(env),
     remembersFolder: () => remembersFolder(install),
   };
@@ -178,16 +182,15 @@ function otherDataDirs(where) {
   }
 }
 
-/** A settings file's record, read from whichever copy of this plugin applied it; this copy's path when none did. */
-function recordOf(where, file) {
-  const own = findRecord(where.dataDir, file);
-  if (own.record) return own;
-  for (const dir of otherDataDirs(where)) {
-    const found = findRecord(dir, file);
-    if (found.record) return found;
-  }
-  return own;
+/** Where a settings file's record lives first: the repository's git common folder, the config folder for user settings, else null. */
+function primaryHome(where, file) {
+  if (realPath(file) === realPath(where.paths.user)) return join(where.configDir, "plugin-profiles-state");
+  const level = folderLevel(dirname(dirname(file)), { home: where.home });
+  return level.shared ? join(level.commonDir, "plugin-profiles") : null;
 }
+
+/** A settings file's record: its primary home first, then this copy's data folder, then other copies'. */
+const recordOf = (where, file) => findRecord([primaryHome(where, file), where.dataDir, ...otherDataDirs(where)].filter(Boolean), file);
 
 function parseArgs(argv) {
   const [command, ...rest] = argv;
@@ -207,7 +210,7 @@ function parseArgs(argv) {
     else throw new UsageError(`unexpected argument ${arg}`);
   }
   if (NAMED.includes(command) && !opts.name) throw new UsageError(`${command} needs a ${command === "install" ? "plugin as name@marketplace" : "profile name"}`);
-  const targets = command === "apply" ? Object.keys(TARGET_LEVEL) : ["folder", "initial"];
+  const targets = command === "apply" ? Object.keys(TARGET_LEVEL) : command === "clear" ? Object.keys(TARGET_FILES) : ["folder", "initial"];
   if (["apply", "status", "clear"].includes(command) && !targets.includes(opts.target)) throw new UsageError(`--for takes ${targets.join(", ")}`);
   if (opts.deferOff && opts.target === "session") throw new UsageError("--defer-off applies to a folder or user settings, not a one-session file");
   if (["apply", "clear"].includes(command) && opts.json && !opts.dryRun) throw new UsageError(`${command} --json prints a preview and needs --dry-run`);
@@ -227,7 +230,8 @@ const sessionsDir = (where) => join(where.dataDir, "sessions");
 /** One file per folder and profile; a launcher's own settings add a key of the merged content. */
 const sessionFile = (where, name, content = null) =>
   join(sessionsDir(where), `${shortHash(realPath(where.projectDir))}-${name}${content ? `-${shortHash(content)}` : ""}.json`);
-const targetFile = (where, target, name) => (target === "folder" ? where.paths.local : target === "initial" ? where.paths.user : sessionFile(where, name));
+const TARGET_FILES = { folder: (where) => where.paths.local, initial: (where) => where.paths.user, worktree: (where) => join(where.projectDir, ".claude", "settings.local.json") };
+const targetFile = (where, target, name) => TARGET_FILES[target]?.(where) ?? sessionFile(where, name);
 
 function diff(now, final) {
   const out = {};
@@ -243,7 +247,7 @@ function prepare(opts, where, catalog, records) {
   const file = targetFile(where, opts.target, opts.name);
   const settings = readSettings(file);
   const session = opts.target === "session";
-  const { path: recPath, record: previous } = session ? { path: null, record: null } : recordOf(where, file);
+  const { path: recPath, found: recFound, record: previous } = session ? { path: null, found: null, record: null } : recordOf(where, file);
   const base = session ? { enabledPlugins: {}, skillOverrides: {} } : baseline(settings.doc, previous);
   const loaded = readLayers({ paths: where.paths, managedFiles: managedSettingsFiles() });
   const layers = { ...loaded, [TARGET_LEVEL[opts.target]]: base };
@@ -264,7 +268,7 @@ function prepare(opts, where, catalog, records) {
   }
   const edits = { enabledPlugins: diff(now, final.enabledPlugins), skillOverrides: diff(settings.doc.skillOverrides ?? {}, final.skillOverrides) };
   if (session) edits.env = { [SESSION_VAR]: opts.name, [SESSION_FILE_VAR]: file, [SESSION_SETTINGS_VAR]: file };
-  return { file, settings, recPath, previous, inv, plan: result, final, pending, edits, loaded };
+  return { file, settings, recPath, recFound, previous, inv, plan: result, final, pending, edits, loaded };
 }
 
 const changeCount = (p) => Object.keys(p.edits.enabledPlugins).length + Object.keys(p.edits.skillOverrides).length;
@@ -369,10 +373,11 @@ function commit(p, opts, where) {
   try {
     if (changeCount(p)) writeSettings(p.file, p.settings.hash, text);
   } catch (error) {
-    if (p.previous) saveRecord(p.recPath, p.previous);
+    if (p.previous && p.recFound === p.recPath) saveRecord(p.recPath, p.previous);
     else deleteRecord(p.recPath);
     throw error;
   }
+  if (p.recFound && p.recFound !== p.recPath) deleteRecord(p.recFound);
 }
 
 async function apply(opts, where, env, io) {
@@ -394,7 +399,7 @@ async function apply(opts, where, env, io) {
   const recorded = p.previous?.profile === opts.name && p.previous.phase === "applied";
   const upToDate = !changeCount(p) && !Object.keys(p.pending).length && opts.target !== "session" && recorded;
   if (opts.json) {
-    const others = opts.target === "folder" ? othersInFolder(where.projectDir, env.CLAUDE_CODE_SESSION_ID) : [];
+    const others = opts.target === "folder" ? othersInFolder(where.projectDir, env.CLAUDE_CODE_SESSION_ID, undefined, { home: where.home }) : [];
     io.out(JSON.stringify(previewJson(p, gate, upToDate, others), null, 2));
     return 0;
   }
@@ -528,6 +533,7 @@ function recordedStatus(target, where, records) {
     profile: rec.profile,
     target: rec.target,
     settingsFile: file,
+    repositoryWide: target === "folder" && where.folder.shared,
     phase: rec.phase,
     appliedAt: rec.appliedAt,
     differs,
@@ -552,9 +558,19 @@ function statusOf(opts, where, env, records) {
     base.leftover = recordOf(where, targetFile(where, "folder")).record?.profile ?? null;
     target = "initial";
   }
+  base.earlier = earlierProfile(where);
   const recorded = recordedStatus(target, where, records);
   const inForce = name ?? (base.rememberFolder || target === "initial" ? recorded.profile : null);
   return { ...base, ...recorded, launchCommand: inForce ? launchCommandOf(inForce, where) : null };
+}
+
+/** A profile an earlier version applied to the folder's own file, which Claude Code still reads below the folder file; else null. */
+function earlierProfile(where) {
+  const file = where.paths.earlier;
+  const profile = file ? recordOf(where, file).record?.profile : null;
+  if (!profile) return null;
+  const line = `An earlier profile, ${profile}, sits in ${file}; Claude Code reads it only for plugins ${where.paths.local} does not set, so it is partly in force. Run clear --for worktree to put that file back.`;
+  return { profile, file, line };
 }
 
 /** The command that starts another session here in a profile: launch writes its file and prints the claude line. */
@@ -570,18 +586,19 @@ function statusLines(s) {
     if (s.leftover) lines.push(`This folder still holds the entries of profile ${s.leftover}; run clear to remove them.`);
   }
   if (s.profile) {
-    lines.push(`Profile ${s.profile} (${s.target}) applied ${s.appliedAt} to ${s.settingsFile}.`);
+    lines.push(`Profile ${s.profile} (${s.target}) applied ${s.appliedAt} to ${s.settingsFile}${s.repositoryWide ? ", which every worktree of this repository reads" : ""}.`);
     if (s.pending.length) lines.push(`A switch is unfinished; these stay on until apply ${s.profile} --for ${s.target} runs again: ${list(s.pending)}`);
     for (const d of s.differs) lines.push(`Differs from the profile: ${d.name} is ${d.current}, the profile wrote ${d.recorded}`);
     if (s.installedSince.length) lines.push(`Installed since the profile was applied: ${list(s.installedSince)}`);
   } else if (s.rememberFolder) lines.push(`No profile is recorded for ${s.settingsFile}.`);
+  if (s.earlier) lines.push(s.earlier.line);
   if (s.launchCommand) lines.push(`Start another session here in this profile with: ${s.launchCommand}`);
   lines.push(surfaceLine(s.surface));
   return lines;
 }
 
-/** The session-start notice speaks only where a profile was applied: this folder's, a leftover one, or this session's. */
-const worthNotice = (s) => Boolean(s.session || s.leftover || (s.rememberFolder && s.profile));
+/** The session-start notice speaks only where a profile was applied: this folder's, a leftover or earlier one, or this session's. */
+const worthNotice = (s) => Boolean(s.session || s.leftover || s.earlier || (s.rememberFolder && s.profile));
 
 function status(opts, where, env, io) {
   if (opts.sessionStart) {
@@ -619,14 +636,18 @@ function overwrittenEdits(rec, doc) {
 async function clear(opts, where, env, io) {
   if (doesNotApply(where.surface)) throw new NotApplied(`not cleared: ${refusal(where.surface, opts.target)}`);
   const file = targetFile(where, opts.target);
-  const { path: recPath, record: rec } = recordOf(where, file);
+  const { found: recPath, record: rec } = recordOf(where, file);
   const keeps = keepsSessionProfile(env);
   const preview = (recorded, lines) => {
     if (opts.json) io.out(JSON.stringify({ recorded, sessionProfile: sessionProfile(env), lines: keeps ? [...lines, keeps] : lines }, null, 2));
     else for (const line of keeps ? [...lines, keeps] : lines) io.out(line);
   };
   if (!rec) {
-    preview(false, [`No profile is recorded for ${file}; nothing to clear.`]);
+    const doc = readSettings(file).doc;
+    const [plugins, skills] = ["enabledPlugins", "skillOverrides"].map((key) => Object.keys(doc[key] ?? {}).length);
+    preview(false, [plugins + skills
+      ? `No record of a profile apply was found for ${file}, so clear cannot tell which of its ${plugins} plugin entries and ${skills} skill entries a profile wrote; it changes nothing. To drop them all, remove the enabledPlugins and skillOverrides keys from ${file}.`
+      : `No profile is recorded for ${file}; nothing to clear.`]);
     return 0;
   }
   const settings = readSettings(file);

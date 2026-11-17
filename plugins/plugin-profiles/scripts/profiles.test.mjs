@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -981,48 +982,208 @@ test("usage lists skills and plugins most used first and leaves out unused ones"
   assert.deepEqual(u.plugins.map((p) => p.name), [`review@${M}`]);
 });
 
-/** A linked git worktree of w.project, laid out as git writes it, holding a copy of the main worktree's settings.local.json. */
-function linkedWorktree(w, local = w.read()) {
+/** Makes w.project a main checkout, with a .git folder as git lays it out. */
+const gitInit = (w) => writeTree(w.project, { ".git/HEAD": "ref: refs/heads/main\n" });
+
+/** A linked git worktree of w.project, laid out as git writes it, with an optional settings.local.json of its own. */
+function linkedWorktree(w, local = null) {
   const wt = join(w.root, "wt");
   writeTree(w.project, { ".git/worktrees/wt/commondir": "../..\n", ".git/worktrees/wt/gitdir": `${join(wt, ".git")}\n` });
-  writeTree(wt, { ".git": `gitdir: ${join(w.project, ".git", "worktrees", "wt")}\n`, ".claude/settings.local.json": local });
-  const run = (args, extra = {}) => spawnSync(process.execPath, [CLI, ...args], { cwd: wt, env: { ...w.env, ...extra }, encoding: "utf8" });
+  writeTree(wt, { ".git": `gitdir: ${join(w.project, ".git", "worktrees", "wt")}\n` });
+  if (local !== null) writeTree(wt, { ".claude/settings.local.json": local });
+  const run = (args, extra = {}) => runIn(w, wt, args, extra);
   return { wt, run, file: join(wt, ".claude", "settings.local.json") };
 }
 
-test("a linked worktree whose settings copy holds the main worktree's profile entries takes that profile: status, launch and clear work there", () => {
+const runIn = (w, cwd, args, extra = {}) => spawnSync(process.execPath, [CLI, ...args], { cwd, env: { ...w.env, ...extra }, encoding: "utf8" });
+const esc = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const gitRecords = (w) => {
+  const dir = join(w.project, ".git", "plugin-profiles", "records");
+  return existsSync(dir) ? readdirSync(dir) : [];
+};
+const dataRecordsDir = (w) => join(w.home, ".claude", "plugins", "data", "plugin-profiles-inline", "records");
+
+test("#16893: from a linked worktree and from a subdirectory, apply --for folder writes the main checkout's root file, and status there names it", () => {
   const w = world();
-  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
-  const main = w.read();
-  const before = w.records();
+  gitInit(w);
   const t = linkedWorktree(w);
-  assert.match(t.run(["status"]).stdout, new RegExp(`Profile build \\(folder\\) applied .* to ${t.file.replace(/[.\\]/g, "\\$&")}`));
-  assert.equal(t.run(["apply", "review", "--for", "folder", "--dry-run"]).status, 0);
-  assert.deepEqual(w.records(), before, "status and a dry run adopt the record in memory and write none");
-  const launched = t.run(["launch", "--json"]);
-  assert.equal(JSON.parse(launched.stdout).profile, "build");
-  assert.equal(t.run(["clear", "--yes"]).status, 0);
-  assert.equal(readFileSync(t.file, "utf8"), LOCAL_BEFORE);
-  assert.equal(w.read(), main, "the main worktree keeps its profile");
-  assert.match(w.run(["status"]).stdout, /Profile build \(folder\) applied/);
+  const rootFile = join(realpathSync(w.project), ".claude", "settings.local.json");
+  const r = t.run(["apply", "build", "--for", "folder", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(w.read()).enabledPlugins[`songwriting@${M}`], false);
+  assert.equal(existsSync(t.file), false, "the worktree gets no file of its own");
+  const sub = join(w.project, "src");
+  mkdirSync(sub);
+  const named = new RegExp(`Profile build \\(folder\\) applied \\S+ to ${esc(rootFile)}, which every worktree of this repository reads\\.`);
+  for (const run of [t.run, (args) => runIn(w, sub, args)]) assert.match(run(["status"]).stdout, named);
+  assert.equal(runIn(w, sub, ["clear", "--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
 });
 
-test("a linked worktree whose settings no longer hold the main worktree's profile entries takes no profile", () => {
+test("a folder outside git keeps today's status line, without the every-worktree words", () => {
   const w = world();
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
-  const doc = JSON.parse(w.read());
-  doc.enabledPlugins[`songwriting@${M}`] = true;
-  const t = linkedWorktree(w, `${JSON.stringify(doc, null, 2)}\n`);
-  assert.match(t.run(["status"]).stdout, /No profile is recorded for /);
-  assert.equal(w.records().length, 1);
+  assert.match(w.run(["status"]).stdout, new RegExp(`Profile build \\(folder\\) applied \\S+ to ${esc(w.localFile)}\\.\\n`));
 });
 
-test("a folder whose .git is a file without a commondir, such as a submodule, takes no profile", () => {
+test("a folder whose .git is a file without a commondir, such as a submodule, is its own root and takes no profile from the checkout around it", () => {
   const w = world();
+  gitInit(w);
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
   const t = linkedWorktree(w);
   rmSync(join(w.project, ".git", "worktrees", "wt", "commondir"));
-  assert.match(t.run(["status"]).stdout, /No profile is recorded for /);
+  assert.match(t.run(["status"]).stdout, new RegExp(`No profile is recorded for ${esc(join(realpathSync(t.wt), ".claude", "settings.local.json"))}\\.`));
+});
+
+/** An earlier version's apply in the worktree: its own settings.local.json and a data-folder record of the entries it wrote. */
+function earlierApply(w, t, entries) {
+  writeTree(t.wt, { ".claude/settings.local.json": { enabledPlugins: entries } });
+  const key = createHash("sha256").update(realpathSync(t.file)).digest("hex");
+  writeTree(dataRecordsDir(w), {
+    [`${key}.json`]: {
+      schema: 1, profile: "songs", target: "folder", settingsFile: t.file, appliedAt: "2026-01-01T00:00:00.000Z", pluginVersion: "0.1.0",
+      phase: "applied", pending: {}, createdFile: true, containers: { enabledPlugins: false, skillOverrides: false }, installed: [],
+      entries: Object.fromEntries(Object.entries(entries).map(([id, after]) => [id, { before: ABSENT_VALUE, after }])), skillOverrides: {},
+    },
+  });
+}
+const ABSENT_VALUE = "absent";
+
+test("#16893: an earlier worktree file with its own record is named as partly in force, the root's value wins in launch, and clear --for worktree puts it back", () => {
+  const w = world();
+  gitInit(w);
+  installOnDisk(w);
+  const t = linkedWorktree(w);
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins["widget@vendor"] = false;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  earlierApply(w, t, { "widget@vendor": true, "gadget@vendor": true });
+  const rootFile = join(realpathSync(w.project), ".claude", "settings.local.json");
+  const line = `An earlier profile, songs, sits in ${t.file}; Claude Code reads it only for plugins ${rootFile} does not set, so it is partly in force. Run clear --for worktree to put that file back.`;
+  assert.ok(t.run(["status"]).stdout.split("\n").includes(line), t.run(["status"]).stdout);
+  assert.deepEqual(JSON.parse(t.run(["status", "--json"]).stdout).earlier, { profile: "songs", file: t.file, line });
+  assert.ok(JSON.parse(sessionStart({ ...w, run: t.run })).systemMessage.includes(line));
+  const launched = JSON.parse(t.run(["launch", "build", "--json"]).stdout).enabledPlugins;
+  assert.equal(launched["widget@vendor"], false, "where both files set a plugin, the root's value applies");
+  assert.equal(launched["gadget@vendor"], true, "a plugin only the earlier file sets still counts");
+  const r = t.run(["clear", "--for", "worktree", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(existsSync(t.file), false, "the file the earlier apply created is removed");
+  assert.deepEqual(readdirSync(dataRecordsDir(w)), []);
+  assert.doesNotMatch(t.run(["status"]).stdout, /An earlier profile/);
+  assert.equal(JSON.parse(w.read()).enabledPlugins["widget@vendor"], false, "the root file is untouched");
+});
+
+test("#16893: clear --for worktree restores an earlier worktree file byte for byte", () => {
+  const w = world();
+  gitInit(w);
+  const t = linkedWorktree(w, LOCAL_BEFORE);
+  const key = createHash("sha256").update(realpathSync(t.file)).digest("hex");
+  const after = { ...JSON.parse(LOCAL_BEFORE), enabledPlugins: { [`songwriting@${M}`]: false, [`review@${M}`]: false } };
+  writeFileSync(t.file, `${JSON.stringify(after, null, 2)}\n`);
+  writeTree(dataRecordsDir(w), {
+    [`${key}.json`]: {
+      schema: 1, profile: "songs", target: "folder", settingsFile: t.file, appliedAt: "2026-01-01T00:00:00.000Z", pluginVersion: "0.1.0",
+      phase: "applied", pending: {}, createdFile: false, containers: { enabledPlugins: true, skillOverrides: false }, installed: [],
+      entries: { [`songwriting@${M}`]: { before: true, after: false } }, skillOverrides: {},
+    },
+  });
+  assert.equal(t.run(["clear", "--for", "worktree", "--yes"]).status, 0);
+  assert.equal(readFileSync(t.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#16893: the record of a folder in git lands under .git/plugin-profiles/records, and clear still restores after the data folder is deleted", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(gitRecords(w).length, 1);
+  assert.deepEqual(w.records(), [], "the data folder gets no copy");
+  rmSync(join(w.home, ".claude", "plugins", "data"), { recursive: true, force: true });
+  assert.match(w.run(["status"]).stdout, /Profile build \(folder\) applied /);
+  assert.equal(w.run(["clear", "--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual(gitRecords(w), []);
+});
+
+test("#16893: an apply from a linked worktree puts the record under the common git folder, never under the worktree's own gitdir", () => {
+  const w = world();
+  gitInit(w);
+  const t = linkedWorktree(w);
+  assert.equal(t.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(gitRecords(w).length, 1);
+  assert.equal(existsSync(join(w.project, ".git", "worktrees", "wt", "plugin-profiles")), false);
+  assert.deepEqual(w.records(), []);
+});
+
+test("#16893: with .git/plugin-profiles gone after an apply, as in a fresh clone, and no data-folder copy, clear says it has no record and changes nothing", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const applied = w.read();
+  rmSync(join(w.project, ".git", "plugin-profiles"), { recursive: true, force: true });
+  rmSync(join(w.home, ".claude", "plugins", "data"), { recursive: true, force: true });
+  const r = w.run(["clear", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  const n = Object.keys(JSON.parse(applied).enabledPlugins).length;
+  assert.match(r.stdout, new RegExp(`^No record of a profile apply was found for \\S+, so clear cannot tell which of its ${n} plugin entries and 0 skill entries a profile wrote; it changes nothing\\.`));
+  assert.equal(w.read(), applied);
+});
+
+test("#16893: the initial profile's record lands under the config folder's plugin-profiles-state, outside the data folder", () => {
+  const w = world({ local: null });
+  const userFile = join(w.home, ".claude", "settings.json");
+  const before = readFileSync(userFile, "utf8");
+  assert.equal(w.run(["apply", "build", "--for", "initial", "--yes"]).status, 0);
+  const dir = join(w.home, ".claude", "plugin-profiles-state", "records");
+  assert.equal(readdirSync(dir).length, 1);
+  rmSync(join(w.home, ".claude", "plugins", "data"), { recursive: true, force: true });
+  assert.equal(w.run(["clear", "--for", "initial", "--yes"]).status, 0);
+  assert.equal(readFileSync(userFile, "utf8"), before);
+  assert.deepEqual(readdirSync(dir), []);
+});
+
+test("#16893: a record an earlier version left in the data folder is still found and cleared, and the next apply moves it to the primary home", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const [name] = gitRecords(w);
+  mkdirSync(dataRecordsDir(w), { recursive: true });
+  renameSync(join(w.project, ".git", "plugin-profiles", "records", name), join(dataRecordsDir(w), name));
+  assert.match(w.run(["status"]).stdout, /Profile build \(folder\) applied /);
+  assert.equal(w.run(["apply", "review", "--for", "folder", "--yes"]).status, 0);
+  assert.deepEqual([gitRecords(w), w.records()], [[name], []]);
+  renameSync(join(w.project, ".git", "plugin-profiles", "records", name), join(dataRecordsDir(w), name));
+  assert.equal(w.run(["clear", "--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual([gitRecords(w), w.records()], [[], []]);
+});
+
+test("#16893: clear with no record but plugin entries in the file says it cannot tell which a profile wrote, and changes nothing", () => {
+  const w = world();
+  const line = `No record of a profile apply was found for ${w.localFile}, so clear cannot tell which of its 2 plugin entries and 0 skill entries a profile wrote; it changes nothing. To drop them all, remove the enabledPlugins and skillOverrides keys from ${w.localFile}.`;
+  const r = w.run(["clear", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), line);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  const dry = JSON.parse(w.run(["clear", "--dry-run", "--json"]).stdout);
+  assert.deepEqual([dry.recorded, dry.lines], [false, [line]]);
+  const empty = world({ local: null });
+  assert.equal(empty.run(["clear", "--yes"]).stdout.trim(), `No profile is recorded for ${empty.localFile}; nothing to clear.`);
+});
+
+test("#16893: a folder dry-run from a linked worktree names the live sessions in every worktree of the repository", () => {
+  const w = world();
+  gitInit(w);
+  const t = linkedWorktree(w);
+  const agents = join(w.root, "agents.json");
+  writeFileSync(agents, JSON.stringify([
+    { cwd: t.wt, sessionId: "me", name: "this one", kind: "interactive" },
+    { cwd: w.project, sessionId: "b", name: "main checkout", kind: "interactive" },
+    { cwd: w.root, sessionId: "c", name: "elsewhere", kind: "interactive" },
+  ]));
+  const r = t.run(["apply", "review", "--for", "folder", "--dry-run", "--json"], { PP_STUB_AGENTS: agents, CLAUDE_CODE_SESSION_ID: "me" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout).othersInFolder, [{ name: "main checkout", sessionId: "b", kind: "interactive" }]);
 });
 
 test("D22: a folder dry-run names the other live sessions in the folder, leaving out this one", () => {
