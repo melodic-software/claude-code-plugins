@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "src/users.ts", "content": "const DEFAULT_PAGE_SIZE = 50;\n"}}], "why": "a Write to the source file, not PLAN.md"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/page-size/PLAN.md", "content": "## Brief\n"}}], "why": "wrote a Brief for a one-constant change"}
+  ]
+}

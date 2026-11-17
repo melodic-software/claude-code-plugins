@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "typescript.test-cmd tied: `npm test` (package.json:6) and `make test` (Makefile:2); neither ran."},
+    {"answer": "Candidates for typescript.test-cmd: make test (Makefile), npm run test (package.json)."}
+  ],
+  "fail": [
+    {"answer": "typescript.test-cmd unresolved: no record and nothing stated.", "why": "no candidate named"},
+    {"answer": "Ran npm test (package.json:6).", "why": "only one candidate, and it ran"}
+  ]
+}

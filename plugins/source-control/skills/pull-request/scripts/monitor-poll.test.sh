@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for the Monitor watch's poll script (the "Poll checks over REST" block of the
-# GitHub monitor reference): the checks baseline a re-arm starts from. Black-box, with the block
-# extracted from the reference and run against a stubbed `gh` on PATH.
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,24 +25,12 @@ mkdir -p "$OUTSIDE"
 export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
 unset GH_REPO
 
-# The first fenced block under the heading, with the placeholders filled in: no sleep between
-# polls, the baseline file and <checkout> taken from the environment, the threads script stubbed.
-POLL="$TEST_TMPDIR/poll.sh"
-# shellcheck disable=SC2016 # the ${TEST_BASELINE:-}, ${TEST_SNAPSHOT:-} and ${TEST_CHECKOUT} expansions are meant for the generated script, not this one
-awk '/^## Poll checks over REST/ { on = 1 } on && /^```bash/ { f = 1; next } f && /^```/ { exit } f' "$REF" |
-  sed -e 's/^PR_NUMBER=<N>/PR_NUMBER=5/' \
-    -e 's/^INTERVAL=60.*/INTERVAL=0/' \
-    -e 's/^BASELINE_FILE=  #.*/BASELINE_FILE="${TEST_BASELINE:-}"/' \
-    -e 's/^SNAPSHOT_FILE=  #.*/SNAPSHOT_FILE="${TEST_SNAPSHOT:-}"/' \
-    -e "s#<scripts-dir>#$STUB_DIR#" \
-    -e "s#<skill-dir>#$SCRIPT_DIR/..#" \
-    -e 's#<checkout>#${TEST_CHECKOUT}#' >"$POLL"
-[[ -s "$POLL" ]] || {
-  echo "FAIL: no poll script found in $REF" >&2
-  exit 1
-}
-
-printf '#!/usr/bin/env bash\necho "THREADS_OK unresolved=0"\n' >"$STUB_DIR/source-control-review-threads"
+PLUGIN="$TEST_TMPDIR/plugin"
+mkdir -p "$PLUGIN/skills/pull-request/scripts" "$PLUGIN/scripts" "$PLUGIN/lib"
+cp -p "$SCRIPT_DIR/monitor-poll.sh" "$SCRIPT_DIR/target-repo.sh" "$PLUGIN/skills/pull-request/scripts/"
+cp -p "$SCRIPT_DIR/../../../lib/github-remote.sh" "$PLUGIN/lib/"
+printf '#!/usr/bin/env bash\necho "THREADS_OK unresolved=0"\n' >"$PLUGIN/scripts/source-control-review-threads"
+POLL="$PLUGIN/skills/pull-request/scripts/monitor-poll.sh"
 
 # The PR is open for the first read and merged for the second, so the watch runs one poll and
 # exits. The check a is finished, c is still running, and b is finished unless STUB_B names its
@@ -93,37 +77,42 @@ chmod +x "$STUB_DIR/gh"
 
 run_poll() {
   rm -f "$TEST_TMPDIR/count"
-  (cd "$OUTSIDE" && PATH="$STUB_DIR:$PATH" GH_STUB_COUNT="$TEST_TMPDIR/count" TEST_CHECKOUT="${TEST_CHECKOUT:-$CHECKOUT}" \
-    timeout 30 bash "$POLL" 2>&1)
+  (cd "$OUTSIDE" && PATH="$STUB_DIR:$PATH" GH_STUB_COUNT="$TEST_TMPDIR/count" \
+    timeout 30 bash "$POLL" --pr 5 --interval 0 --checkout "${TEST_CHECKOUT:-$CHECKOUT}" "$@" 2>&1)
 }
+
+out=$(cd "$OUTSIDE" && PATH="$STUB_DIR:$PATH" bash "$POLL" --checkout "$CHECKOUT" 2>&1)
+assert_exit "no --pr: a usage error" 3 "$?"
+out=$(cd "$OUTSIDE" && PATH="$STUB_DIR:$PATH" bash "$POLL" --pr 5 2>&1)
+assert_exit "neither --checkout nor --repo: a usage error" 3 "$?"
 
 out=$(TEST_CHECKOUT="$OUTSIDE" run_poll)
 assert_exit "<checkout> names no repository: the watch exits 1" 1 "$?"
 [[ -e "$TEST_TMPDIR/count" ]] && read_pr=yes || read_pr=no
 assert_eq "<checkout> names no repository: no PR read is made" "no" "$read_pr"
 
-out=$(TEST_BASELINE="" run_poll)
+out=$(run_poll)
 assert_exit "no baseline: the watch runs to the merge and exits 0" 0 "$?"
 assert_not_contains "no baseline: the first poll only records, a is not emitted" "$out" "a: pass"
 assert_not_contains "no baseline: the first poll only records, b is not emitted" "$out" "b: pass"
 assert_contains "no baseline: the watch completes" "$out" "PR #5 MERGED — watch complete"
 
 # The re-arm's snapshot comes from the poll script's own snapshot run, read while b still runs.
-out=$(STUB_B=in_progress TEST_SNAPSHOT="$TEST_TMPDIR/baseline" run_poll)
+out=$(STUB_B=in_progress run_poll --snapshot "$TEST_TMPDIR/baseline")
 assert_exit "snapshot run: exits 0 after writing the snapshot" 0 "$?"
 snap=$(cat "$TEST_TMPDIR/baseline" 2>/dev/null)
 assert_contains "snapshot run: the snapshot holds the finished check" "$snap" "a: pass"
 assert_not_contains "snapshot run: the snapshot leaves out the running check" "$snap" "b: "
 assert_not_contains "snapshot run: emits no check lines" "$out" "a: pass"
 
-out=$(TEST_BASELINE="$TEST_TMPDIR/baseline" run_poll)
+out=$(run_poll --baseline "$TEST_TMPDIR/baseline")
 assert_exit "baseline: the watch runs to the merge and exits 0" 0 "$?"
 assert_not_contains "baseline: a snapshot the script wrote is accepted" "$out" "BASELINE-UNREADABLE"
 assert_contains "baseline: a check finished in the live read but not the baseline is emitted" "$out" "b: pass"
 assert_not_contains "baseline: a check already in the baseline is not re-emitted" "$out" "a: pass"
 assert_not_contains "baseline: a running check is not emitted" "$out" "c: "
 
-out=$(TEST_BASELINE="$TEST_TMPDIR/missing" run_poll)
+out=$(run_poll --baseline "$TEST_TMPDIR/missing")
 assert_exit "an unreadable baseline: the watch runs to the merge and exits 0" 0 "$?"
 assert_contains "an unreadable baseline is reported, so the session runs a full scan" "$out" "BASELINE-UNREADABLE"
 assert_contains "an unreadable baseline: the watch completes" "$out" "PR #5 MERGED — watch complete"
@@ -134,28 +123,24 @@ assert_not_contains "an unreadable baseline file falls back to record-only (b)" 
 # lines with no snapshot marker. Either must fail closed to record-only plus a full scan, never
 # re-emit finished checks as new.
 printf 'a\tpass\t1m\thttps://x/1\nb\tpass\t1m\thttps://x/2\n' >"$TEST_TMPDIR/malformed"
-out=$(TEST_BASELINE="$TEST_TMPDIR/malformed" run_poll)
+out=$(run_poll --baseline "$TEST_TMPDIR/malformed")
 assert_exit "a malformed baseline: the watch runs to the merge and exits 0" 0 "$?"
 assert_contains "a malformed baseline is refused, so the session runs a full scan" "$out" "BASELINE-UNREADABLE"
 assert_not_contains "a malformed baseline: a is not re-emitted" "$out" "a: pass"
 assert_not_contains "a malformed baseline: b is not re-emitted" "$out" "b: pass"
 
 printf 'b: pass\n' >"$TEST_TMPDIR/handmade"
-out=$(TEST_BASELINE="$TEST_TMPDIR/handmade" run_poll)
+out=$(run_poll --baseline "$TEST_TMPDIR/handmade")
 assert_contains "a hand-written baseline without the marker is refused" "$out" "BASELINE-UNREADABLE"
 assert_not_contains "a hand-written baseline: a is not emitted" "$out" "a: pass"
 
 rm -f "$TEST_TMPDIR/failed-snap"
-out=$(STUB_FAIL_CHECKS=1 TEST_SNAPSHOT="$TEST_TMPDIR/failed-snap" run_poll)
+out=$(STUB_FAIL_CHECKS=1 run_poll --snapshot "$TEST_TMPDIR/failed-snap")
 assert_exit "snapshot run with a failed checks read exits non-zero" 1 "$?"
 assert_contains "snapshot run with a failed checks read says so" "$out" "SNAPSHOT-FAILED"
 [[ -e "$TEST_TMPDIR/failed-snap" ]] && snap_written=yes || snap_written=no
 assert_eq "snapshot run with a failed checks read writes no file" "no" "$snap_written"
 
-# A triangular flow: the checkout pushes to the fork me/app and its upstream is acme/app, where
-# the PR is open. target-repo.sh resolves the checkout to the fork, so the reference names the base
-# repository in its place and looks the PR up by its me:feature head; the watch built with that
-# line reads acme/app only.
 TRI="$TEST_TMPDIR/triangular"
 git init -q -b feature "$TRI"
 git -C "$TRI" remote add origin https://github.com/me/app.git
@@ -185,11 +170,7 @@ assert_not_contains "plain identity block on a triangular checkout: no identity 
 BASE_LINE=$(identity_block 2 | grep '^OWNER_REPO=')
 assert_eq "triangular flow: the reference names the base repository explicitly" \
   'OWNER_REPO="acme/app"   # the PR'"'"'s target, not the push destination' "$BASE_LINE"
-TRI_POLL="$TEST_TMPDIR/poll-triangular.sh"
-awk -v line="$BASE_LINE" '/^OWNER_REPO=\$\(/ { print line; next } { print }' "$POLL" >"$TRI_POLL"
-rm -f "$TEST_TMPDIR/count"
-out=$(cd "$OUTSIDE" && PATH="$STUB_DIR:$PATH" GH_STUB_COUNT="$TEST_TMPDIR/count" TEST_CHECKOUT="$TRI" \
-  timeout 30 bash "$TRI_POLL" 2>&1)
+out=$(TEST_CHECKOUT="$TRI" run_poll --repo acme/app)
 assert_exit "triangular flow with the base named: the watch runs to the merge and exits 0" 0 "$?"
 assert_contains "triangular flow with the base named: the watch completes" "$out" "PR #5 MERGED — watch complete"
 

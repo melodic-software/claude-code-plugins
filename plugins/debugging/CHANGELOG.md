@@ -3,6 +3,13 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.3] - 2026-11-17
+
+### Changed
+
+- `/debugging:debug` lists its lessons about driving the app in every report, the stop with no
+  loop included, and its surface pass reads an environment's data sources only at their read level.
+
 ## [2.1.2] - 2026-11-17
 
 ### Changed

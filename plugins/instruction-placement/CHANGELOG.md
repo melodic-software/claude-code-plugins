@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.5.0] - 2026-11-17
+
+### Added
+
+- `/instruction-placement:establish-hub` discovers an estate and writes the hub repository's own instruction files, each write behind a yes; `plan` reports each section and changes nothing.
+
 ## [1.4.1] - 2026-11-17
 
 ### Changed

@@ -22,7 +22,10 @@ restatement here.
 Command resolution follows the marketplace-wide ecosystem-commands convention
 (`docs/contracts/ecosystem-commands/README.md`; schema `ecosystem.schema.json`):
 your repo's tracked `.claude/ecosystems/<ecosystem>.yaml` files are authoritative
-when present, and the plugin's bundled portable defaults are the last resort.
+when present, and the plugin's bundled portable defaults are the last resort of
+an attended run. An unattended run (`--unattended`, a headless or lane run, or
+one that cannot tell whether a person is present) runs only a recorded, stated
+or inferred command and reports any other key as `skip (unresolved: ...)`.
 Testing structure and commit conventions still come from your own `CLAUDE.md` and
 rules. All command tables and per-ecosystem context ship inside the plugin via
 `${CLAUDE_PLUGIN_ROOT}`; state and artifacts go to your project's own tree.

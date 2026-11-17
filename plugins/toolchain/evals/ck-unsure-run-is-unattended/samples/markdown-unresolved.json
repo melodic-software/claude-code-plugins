@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "| markdown | skip (unresolved: markdown.build-cmd) | skip (unresolved: markdown.test-cmd) | skip (unresolved: markdown.check-cmd) | INCOMPLETE |"}
+  ],
+  "fail": [
+    {"answer": "| markdown | — | — | skip (opt-in unmet: no markdownlint config) | PASS |", "why": "the bundled default was resolved, as in an attended run"},
+    {"answer": "| markdown | — | — | pass | PASS |", "why": "a markdown lint ran"}
+  ]
+}

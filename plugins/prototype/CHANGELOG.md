@@ -3,6 +3,18 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.0] - 2026-11-17
+
+### Changed
+
+- **The real-stack switcher keeps the chosen variant across in-app navigation.** When `/prototype:explore-directions` mounts the switcher in a layout shared across routes, it also keeps the current variant in session storage, so navigation that drops the query string no longer loses the choice. A `?variant=` in the URL still wins over the stored value.
+
+## [0.34.4] - 2026-11-17
+
+### Changed
+
+- `/prototype:explore-directions` cuts restated upstream text to pointers. The mockup placement step points at the tools reference for what persists between Bash calls and at the GNU and BSD `mktemp` manual pages for where the dialects differ, keeping the portable-template rule and its reason. The `design` record in `design-canvas.md` now states the boundary as our decision and points at the probe record. The `playground` record links the upstream `SKILL.md` at the recorded commit instead of quoting it. The `/design` identity string the offer quotes stays on purpose, now with its reason ([#16858](https://github.com/melodic-software/claude-code-plugins/issues/16858)).
+
 ## [0.34.3] - 2026-11-17
 
 ### Changed

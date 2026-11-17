@@ -125,7 +125,8 @@ surfaced to the user, never merged.
    `${CLAUDE_PLUGIN_DATA}/workspace-root` (never a `pluginConfigs` write), a machine-local cache
    that also records the migration-offer outcome, and recommend making it durable via
    `/education:setup`. Read the pointer file with the Read tool in a call of its own, never
-   through Bash and never chained with `list-workspaces.sh` or another command. Non-interactive
+   through Bash and never chained with `list-workspaces.sh` or another command: the eval sandbox
+   denied that chained call in some runs of the `te-root-declared-substitution` eval. Non-interactive
    or headless sessions skip this rung silently; when plugin data is unavailable, fall through
    silently.
 4. **OS Documents default, `topic` mode only.** Run

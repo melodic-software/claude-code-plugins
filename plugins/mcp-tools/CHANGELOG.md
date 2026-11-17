@@ -3,6 +3,12 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-11-17
+
+### Added
+
+- audit: info-level criterion C21. A tool whose `destructiveHint` is true has a preview or dry-run counterpart, a separate tool or a mode, that runs the same checks and changes nothing. It points at the `--dry-run` trait in the app-control control-skill contract.
+
 ## [0.8.23] - 2026-11-17
 
 ### Changed

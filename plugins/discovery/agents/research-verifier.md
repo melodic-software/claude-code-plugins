@@ -129,9 +129,9 @@ rules the sentence out though its labels pass and it carries no sweep word. The 
 [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md),
 "Restatements cite; they do not restate". At a slice root the parent ran that check with
 `--sub-slice` over every sub-slice, so it covered the root's pointers to sub-slice claims as well,
-unless two sub-slices declare one ID: then the brief says so, and the label and sweep words of each
-pointer to a sub-slice claim are yours to check against the sub-slice sidecars. A slice-root
-synthesis that adds no claims of its own and cites by ID otherwise takes no verifier at all: that
+including an ID two sub-slices share: `<sub-slice>/X2` names one sub-slice's claim, and a bare `X2`
+carries the label of every claim declaring it. A slice-root
+synthesis that adds no claims of its own and cites by ID takes no verifier at all: that
 check is its whole row 12 grading, and the parent grades its row 14 by the rule above.
 
 Fetch each page once, and read each file once; the rule is stated once in
