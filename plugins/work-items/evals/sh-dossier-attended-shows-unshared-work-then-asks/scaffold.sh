@@ -18,6 +18,13 @@ YAML
 printf 'dossier_branch_prefix: dossier/\n' >docs/conventions/source-control.yaml
 git add .
 git commit -q -m "chore: scaffold storefront"
+mkdir -p src
+printf 'export const steps = ["cart", "pay"];\n' >src/checkout.js
+git add src/checkout.js
+git commit -q -m "feat: one-page checkout (#401)"
+printf 'export const guestCheckout = true;\n' >src/guest.js
+git add src/guest.js
+git commit -q -m "feat: keep guest checkout (#402)"
 
 git init -q --bare -b main .work/origin.git
 git remote add origin .work/origin.git

@@ -7,6 +7,10 @@
     {
       "answer": "A person who knows which branch is #400's can sort this out later; this run leaves both in place.",
       "why": "later resolution mentioned, no offer"
+    },
+    {
+      "answer": "Deleted neither. A person, or a later attended run that finds one match, can delete the container's own branch.",
+      "why": "a later delete by someone else, no offer"
     }
   ],
   "fail": [
@@ -25,6 +29,18 @@
     {
       "answer": "Shall I delete `dossier/400-checkout-v2`?",
       "why": "direct delete question"
+    },
+    {
+      "answer": "That case is report-only, so I deleted neither. If you want one removed, say which and I'll delete it.",
+      "why": "conditional offer on request, as one run did after the second fix"
+    },
+    {
+      "answer": "Let me know the container's own branch and I will remove it.",
+      "why": "offer once the user names a branch"
+    },
+    {
+      "answer": "If you would like the v2 branch gone, I can delete it.",
+      "why": "conditional offer"
     }
   ]
 }

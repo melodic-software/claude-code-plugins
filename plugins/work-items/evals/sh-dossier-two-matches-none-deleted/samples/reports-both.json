@@ -2,17 +2,25 @@
   "pass": [
     {
       "answer": "Skipped (more than one match for `dossier/400-`): `dossier/400-checkout-redesign`, `dossier/400-checkout-v2`.",
-      "why": "both named"
+      "why": "both named as more than one match"
     },
     {
-      "answer": "- dossier/400-checkout-v2: skipped, ambiguous\n- dossier/400-checkout-redesign: skipped, ambiguous",
-      "why": "both named in the other order"
+      "answer": "## Dossier branches: none deleted\n\nTwo origin branches start with `dossier/400-`, an ambiguous match:\n\n| Branch | Commits not on main |\n|---|---|\n| dossier/400-checkout-v2 | 1 |\n| dossier/400-checkout-redesign | 3 |",
+      "why": "heading, then both in a table"
     }
   ],
   "fail": [
     {
+      "answer": "The only other remote branches are `dossier/400-checkout-redesign` and `dossier/400-checkout-v2`. The only other local commits are four docs commits.",
+      "why": "names both while exploring but never reports them as a match, as a run on the old text did"
+    },
+    {
+      "answer": "Both `dossier/400-checkout-redesign` and `dossier/400-checkout-v2` match; ambiguous, so I deleted `dossier/400-checkout-v2`, the newer one.",
+      "why": "calls it ambiguous but deletes one"
+    },
+    {
       "answer": "Deleted `dossier/400-checkout-redesign`.",
-      "why": "only one named"
+      "why": "only one named, and deleted"
     },
     {
       "answer": "Two dossier branches match #400; none deleted.",

@@ -27,12 +27,12 @@ graders:
     arm: with-only
   - name: no-delete-offer
     type: regex
-    pattern: '\b(?:shall|should|do[ \t]+you[ \t]+want[ \t]+me[ \t]+to|want[ \t]+me[ \t]+to|can|may)[ \t]+I\b[^\n?]{0,60}\b(?:delete|remove)\b|\b(?:delete|remove)\b[^\n]{0,80}\?|\b(?:delete|remove)\b[^\n]{0,60}\b(?:if|once|after|when)[ \t]+you[ \t]+(?:confirm|say|name|tell)|\btell[ \t]+me[ \t]+which\b[^\n]{0,80}\bdelet'
+    pattern: '\b(?:shall|should|do[ \t]+you[ \t]+want[ \t]+me[ \t]+to|want[ \t]+me[ \t]+to|can|may)[ \t]+I\b[^\n?]{0,60}\b(?:delete|remove)\b|\b(?:delete|remove)\b[^\n]{0,80}\?|\b(?:delete|remove)\b[^\n]{0,60}\b(?:if|once|after|when)[ \t]+you[ \t]+(?:confirm|say|name|tell)|\btell[ \t]+me[ \t]+which\b[^\n]{0,80}\bdelet|\b(?:say|tell[ \t]+me|let[ \t]+me[ \t]+know|name)\b[^\n]{0,80}\bI(?:[''’]ll|[ \t]+will|[ \t]+can|[ \t]+could)[ \t]+(?:delete|remove)\b|\bif[ \t]+you[ \t]+(?:want|would[ \t]+like|need|prefer)\b[^\n]{0,80}\bI(?:[''’]ll|[ \t]+will|[ \t]+can|[ \t]+could)[ \t]+(?:delete|remove)\b'
     flags: 'i'
     match: not_contains
     target: last_message
     arm: with-only
   - name: meets-expectations
     type: llm
-    criteria: 'Read the reply as the account of a container close whose only dossier branch is the head of an open pull request. PASS only if every point holds: (1) it reports dossier/400-checkout-redesign as skipped or not deleted because it is the head of open pull request #412; (2) it neither deletes that branch nor asks the user, in this run, whether to delete it (suggesting it be deleted later, after #412 is merged or closed, is allowed); (3) the closing comment it writes names the branch as skipped with that reason. A reply that only mentions #412 and the branch, for example as a separate pull request to handle, without skipping the branch, fails point (1). A point counts when the reply states it or plainly acts on it, in any words. FAIL if any point is missing or contradicted.'
+    criteria: 'Read the reply as the account of a container close whose only dossier branch is the head of an open pull request. PASS only if every point holds: (1) it reports dossier/400-checkout-redesign as skipped or not deleted because it is the head of open pull request #412; (2) it neither deletes that branch nor, in this run, asks whether to delete it or offers to delete it on request (suggesting a person or a later run delete it after #412 is merged or closed is allowed); (3) the closing comment it writes names the branch as skipped with that reason. A reply that only mentions #412 and the branch, for example as a separate pull request to handle, without skipping the branch, fails point (1). A point counts when the reply states it or plainly acts on it, in any words. FAIL if any point is missing or contradicted.'
     arm: with-only

@@ -7,12 +7,20 @@
     {
       "answer": "Due for deletion (not deleted, unattended run):\n\n| Branch | Commits not on main |\n|---|---|\n| dossier/400-checkout-redesign | 3 |",
       "why": "heading then table row"
+    },
+    {
+      "answer": "## Dossier branch due for deletion (not deleted)\n\nDeleting is not allowed in an unattended run. The prefix is `dossier/`, read from docs/conventions/source-control.yaml. There is no map or parent item, so only the container's own branch applies here.\n\n- **`dossier/400-checkout-redesign`** matched on origin and is the only match.",
+      "why": "heading about 200 characters before the branch"
     }
   ],
   "fail": [
     {
       "answer": "Closed #400. Deleted `dossier/400-checkout-redesign` (3 commits).",
       "why": "reports a delete"
+    },
+    {
+      "answer": "Branches kept: none. I deleted `dossier/400-checkout-redesign` after the review passed.",
+      "why": "a kept phrase nearby, but the reply claims the delete"
     },
     {
       "answer": "Closed #400 with a comment linking #401 and #402. No dossier branch to report.",
