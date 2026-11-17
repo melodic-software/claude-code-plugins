@@ -1249,7 +1249,8 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
     person's; any other actor, a read that fails or the same linked issues
     keep it. It still counts toward the FAIL cap, and a merge-only head
     carries it forward unless it was superseded at its own head or by the
-    merge-only head's own pass under the same rule."""
+    merge-only head's own pass under the same rule, which there also needs a
+    trusted body edit."""
 
     @staticmethod
     def relinked(sha: str = HEAD) -> FakeGitHub:
@@ -1409,6 +1410,17 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
                     a for a in fake.artifacts if a["name"] != named(EARLIER, "pass")
                 ]
                 self.assertEqual(read(fake).refusal, refusal)
+
+    def test_a_connect_alone_keeps_a_fail_at_a_merge_only_head(self) -> None:
+        # The head's pass judged a relink but no body edit: issue #16367
+        # still requires a trusted body edit before a merge-only head's pass
+        # supersedes the FAIL, so a person's connect alone keeps it.
+        fake = self.merge_only(superseded=True)
+        fake.artifacts = [
+            a for a in fake.artifacts if a["name"] != named(EARLIER, "pass")
+        ]
+        fake.relink = relink_answer([], [(RELINK_AT, HUMAN)])
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
 
 class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):

@@ -4255,8 +4255,10 @@ class Reader:
         differ from each FAIL's (a relink), else at least one body edit from
         the last FAIL's creation (a body fix, resolve-pr.mjs `body-edited`).
         At another head than `sha` (a merge-only head) that edit or relink
-        also falls before the pass run's creation, so the pass judged it. A
-        superseded FAIL still counts toward `max_fails`. A record, time or
+        also falls before the pass run's creation, so the pass judged it, and
+        a relink there needs a trusted body edit too: a connect or disconnect
+        alone never supersedes a FAIL from a merge-only head (issue #16367).
+        A superseded FAIL still counts toward `max_fails`. A record, time or
         read that fails is False."""
         judged_at = judged_at or sha
         fails = fail_artifacts.get(sha, [])
@@ -4291,16 +4293,19 @@ class Reader:
                 return False
             first = min(c for c in created if c)
             last = max(c for c in created if c)
+            merge_only = judged_at != sha
             for (run_id, _, _), body in zip(passes, same, strict=True):
                 since = last if body else first
                 ends = [postmerge._time(self._updated.get(run_id))]
-                if judged_at != sha:
+                if merge_only:
                     begun = self._fresh_created(run_id)
                     if begun is None:
                         return False
                     ends.append(begun)
                 if not all(
-                    self._relinked_by_people(number, since, end, body_edit=body)
+                    self._relinked_by_people(
+                        number, since, end, body_edit=body or merge_only
+                    )
                     for end in ends
                 ):
                     return False
