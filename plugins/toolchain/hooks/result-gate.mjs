@@ -1,24 +1,3 @@
-// Stop hook: warn when a turn ends on a tree whose recorded /toolchain:check or /toolchain:lint
-// result is not a pass.
-//
-// It reads the Overall line those skills recorded for the current tree hash
-// (../lib/tree-result.mjs) and never runs a build, test or lint command. A clean work tree gives
-// no warning: nothing has changed for a check to cover. Neither does a turn that changed no file
-// and recorded no result: the hook keeps what it saw at the session's previous turn end and stays
-// quiet when the tree and its records are the same.
-//
-// Mode, the turn_end_result_gate userConfig option:
-//   off       print nothing
-//   advisory  (default) exit 0 with a systemMessage naming each result that is not PASS, or
-//             saying no result is recorded for this tree; never blocks
-//   enforce   as advisory, and a recorded FAIL also blocks the stop once (decision "block");
-//             INCOMPLETE, STOPPED, no record, an unreadable record or a missing tool never block
-//
-// The option is read from managed and user settings only (plugin-options.mjs), never from the
-// CLAUDE_PLUGIN_OPTION_* environment mirror, so a watched repository's settings env block cannot
-// turn the gate off. Any error reading it, the payload or the repository fails open: the stop goes
-// ahead with nothing printed.
-
 import { readFileSync, realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -65,8 +44,6 @@ function main() {
   } catch {
     return;
   }
-  // Same tree and same records as this session's previous turn end: the turn changed no file and
-  // recorded no result, so there is nothing new to say.
   const seen = [tree, ...found.map((entry) => `${entry.skill}=${entry.line}`)].join("\t");
   const session = typeof payload.session_id === "string" ? payload.session_id : "";
   if (lastSeen(repo, session) === seen) return;
