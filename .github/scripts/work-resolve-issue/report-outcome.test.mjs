@@ -47,6 +47,8 @@ import {
   refireStale,
   REFIRED,
   reusePlan,
+  requiredSections,
+  withRequiredSections,
   HOLD_LINE,
   HOLD_LABEL,
   linkageLines,
@@ -5938,4 +5940,39 @@ test("workStatusField's restart calls the writer's restart only while the state 
   assert.deepEqual(await run({}, { from: null }), { done: true, restarted: [77] }, "an unset field the App's removal left is restarted");
   assert.deepEqual(await run({}), { done: false, restarted: [] }, "an unset field is no agent-ready restart");
   assert.equal(workStatusField({ config: null }).id, null, "no config reads nothing");
+});
+
+test("the PR body gains a non-empty section for each required name it lacks, after its own", () => {
+  const { body } = decideDone();
+  assert.equal(withRequiredSections(body, ["Summary", "fix", "Verification", "Related"]), body, "today's four sections are already there, in any case");
+  const added = withRequiredSections(body, ["Summary", "Risk", "Rollback", "Risk"]);
+  assert.ok(added.startsWith(`${body}\n\n## Risk\n\n`));
+  assert.match(added, /\n## Rollback\n\nThe work-resolve-issue lane has nothing for this section/);
+  assert.equal(added.match(/^## Risk$/gm).length, 1, "a repeated name adds one section");
+  assert.equal(withRequiredSections(body, []), body);
+});
+
+test("the required sections come from pr_body_required_sections, and nothing usable reads as none", () => {
+  const dir = join(dirname(fileURLToPath(import.meta.url)), ".tmp-required-sections");
+  mkdirSync(dir, { recursive: true });
+  try {
+    const file = join(dir, "source-control.yaml");
+    writeFileSync(file, "pr_body_required_sections:\n  - Summary\n  - ' Risk '\n  - 7\n  - \"## <!-- x -->\"\nother: 1\n");
+    const yq = spawnSync("yq", ["--version"]).status === 0;
+    if (yq) assert.deepEqual(requiredSections(file), ["Summary", "Risk"]);
+    // A stand-in yq: what it prints is the list, and a failure reads as none.
+    assert.deepEqual(requiredSections(file, () => '["Fix","",null]'), ["Fix"]);
+    assert.deepEqual(requiredSections(file, () => "{}"), []);
+    assert.deepEqual(
+      requiredSections(file, () => {
+        throw new Error("no yq");
+      }),
+      [],
+    );
+    assert.deepEqual(requiredSections(join(dir, "absent.yaml")), []);
+    writeFileSync(file, "dialect: posix-ere\n");
+    if (yq) assert.deepEqual(requiredSections(file), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

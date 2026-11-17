@@ -1,5 +1,10 @@
 name: Work Unblock
 
+# Lane: work-unblock
+# Does: labels agent-ready each issue a closed issue was blocking, and restarts stopped issue runs
+# Trigger: issues (closed, labeled, unlabeled), schedule, workflow_run (Work Resolve Issue), workflow_dispatch
+# Stage: work
+
 # What this does, in plain words:
 #
 # When an issue closes, each issue it was blocking may now be ready to work.

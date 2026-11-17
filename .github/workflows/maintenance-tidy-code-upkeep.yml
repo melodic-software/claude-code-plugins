@@ -1,5 +1,10 @@
 name: Maintenance Tidy Code Upkeep
 
+# Lane: maintenance-tidy-code-upkeep
+# Does: code-tidying upkeep: names the areas a merge changed, and tidies on its schedule
+# Trigger: push (main), schedule, workflow_dispatch
+# Stage: maintenance
+
 # Code-tidying upkeep. Two things, by event:
 #
 # On a push to main, detect names the areas the merge changed in the job

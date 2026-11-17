@@ -166,6 +166,16 @@ comment, and the lane's scope and posting mechanics stay as the wrapper set
 them. Glob matching:
 <https://code.claude.com/docs/en/memory#path-specific-rules>.
 
+**Loosened checks.** Read
+[`${CLAUDE_PLUGIN_ROOT}/skills/quality-gate/context/loosened-check.md`](../quality-gate/context/loosened-check.md)
+and apply it to every changed file, whatever its path, citing the criterion's title in each
+finding. It always applies: `REVIEW.md`, rule files and the PR text add findings beside it and
+never relax it. This lane runs no settings script, so take the verdict and patterns from the
+prompt's `loosened_check_verdict:` and `loosened_check_patterns:` lines when the wrapper writes
+them; otherwise use `fail` and no consumer entries, and say so in the summary. The only spec is
+the closing-issue text in the PR context file ("Closing issue" above); with none, no loosening has
+a reason. Report its `Loosened-check verdict:` line in the summary.
+
 **Plugin manifests.** When the diff changes a `.claude-plugin/plugin.json` or
 `.claude-plugin/marketplace.json`, compare the base and head manifests:
 
@@ -295,6 +305,24 @@ Follow the reporting mechanics the workflow wrapper appended to the prompt
 (inline MCP tool, `gh`, or the output schema it supplies). Keep the summary comment for overview and
 cross-file / whole-PR findings; use commit-blob permalinks with the supplied
 HEAD SHA for locations no changed line can carry.
+
+**Fold the detail lines.** Put every `Pre-existing (advisory):` line and every `manifest <field>:`
+line of the summary in one block at its end, after the overview and the blocking findings, so a
+reader sees what blocks first:
+
+```markdown
+<details>
+<summary>Advisory and manifest lines (N)</summary>
+
+- Pre-existing (advisory): ...
+- manifest <field>: pass
+
+</details>
+```
+
+`N` counts the lines inside. Keep the blank line after `</summary>` and before `</details>` so the
+list renders, and start each line with its marker as written above (after a list bullet at most).
+With no such line, post no block.
 
 **Hold for a person.** When the wrapper's output schema has a `hold` field, fill it only for the
 classes the wrapper's prompt defines, each named by its criterion, with a reason naming the files

@@ -18,7 +18,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { main } from "./reenter.mjs";
+import { main, runLink } from "./reenter.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { mirroredStatusOf, OPTION, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
@@ -899,6 +899,17 @@ test("a listed human clearing a field-only hold records it, sets the field to ne
   assert.deepEqual(order, ["POST comments", "POST issue-field-values", "POST dispatches"], "record, field, then dispatch");
   const body = w.comments().at(-1).body;
   assert.ok(!body.includes("**Decision recorded.**"), "the record is no decision");
+});
+
+test("the release's claim comment links its run when GitHub names it", async () => {
+  const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER)] });
+  assert.equal(await runField(w, "field_removed", OWNER), 0);
+  assert.ok(!w.comments().at(-1).body.includes("This run:"), "no run named, no link");
+  const linked = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER)] });
+  assert.equal(await run(linked, "", { EVENT_NAME: "issues", EVENT_ACTION: "field_removed", SENDER_ID: String(OWNER.id), COMMENT_ID: "", BASE_PATH: ROOT, GITHUB_RUN_ID: "123", GITHUB_SERVER_URL: "https://github.com" }), 0);
+  assert.ok(linked.comments().at(-1).body.endsWith(` This run: [intake-reenter run 123](https://github.com/${REPO}/actions/runs/123).`));
+  assert.equal(runLink({ GITHUB_RUN_ID: "123", GITHUB_SERVER_URL: "https://github.com) [x](https://evil" }, REPO), "", "a server value of another shape is left out");
+  assert.equal(runLink({ GITHUB_RUN_ID: "1 2", GITHUB_SERVER_URL: "https://github.com" }, REPO), "");
 });
 
 test("a person's hold set after a field release's record keeps the field, takes the record back, and dispatches nothing", async () => {

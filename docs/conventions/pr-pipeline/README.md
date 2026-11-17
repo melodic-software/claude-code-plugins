@@ -4434,6 +4434,34 @@ check and its owner; a line in the pull request body does not count. Evidence: m
 intake author gate as "unverified, fails closed", merged, and skipped every intake run here
 (melodic-software/ci-workflows#772).
 
+### Testing a lane change from its branch
+
+A workflow that declares `workflow_dispatch` can be run from the pull request's branch by an
+account on the trusted-actor list:
+
+```bash
+gh workflow run <workflow>.yml -R melodic-software/claude-code-plugins --ref <branch> -f <input>=<value>
+```
+
+GitHub runs the workflow file as it is on `<branch>`
+([Manually running a workflow](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)),
+and `gh run list -R melodic-software/claude-code-plugins --workflow <workflow>.yml --branch <branch>`
+finds the run. Read its result against three limits before counting it as evidence:
+
+- Only the workflow file comes from the branch. A lane checks out the default branch's tip at
+  `.base` and runs its local actions and scripts from there (for example `pr-verify.yml`, "Check
+  out the default branch tip"), so a change to `.github/actions/` or `.github/scripts/` does not
+  run; its tests are its evidence.
+- A lane that mints a lanes token is refused `workflow-modified` while its own workflow file or
+  `pr-run-activity-write.yml` differs from the default branch
+  ([request-lane-token](../../../.github/actions/request-lane-token/README.md#a-workflow-file-the-pr-changes)),
+  so for such a lane the run proves only the steps before the mint.
+- A run a dispatcher sends must name the default branch as its ref
+  ([check-trusted-trigger](../../../.github/actions/check-trusted-trigger/README.md#rules)), so a
+  branch run tests the dispatcher or the lane started by hand, never the pair.
+
+What a branch run cannot reach is the merged-run case in the paragraph above.
+
 The lanes token broker in azure-iac parses each caller's config with the resolve-config modules it
 loads from claude-code-plugins' `main`, whichever repository calls, so a change to `resolve.mjs` or
 a module it imports needs no azure-iac change. These still pair with an azure-iac deploy:
