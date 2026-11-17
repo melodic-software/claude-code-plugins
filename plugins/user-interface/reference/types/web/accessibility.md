@@ -49,9 +49,9 @@ Enter/Space activates it, Escape dismisses overlays, arrow keys move within menu
 Focus is never trapped except intentionally (modals), and never lost: after closing an overlay,
 focus returns to the trigger.
 
-Tab moves between components; arrow keys move inside a composite one (a menu, a listbox, a radio
-group, a tab list), which takes a single Tab stop. Use the key bindings the pattern for that
-component documents.
+Give a composite component (a menu, a listbox, a radio group, a tab list) one Tab stop and move
+inside it with the arrow keys, using the key bindings the pattern for that component documents, so
+a keyboard user crosses the page one component per Tab instead of one item per Tab.
 
 - **Pointer**: WAI-ARIA Authoring Practices Guide, Developing a Keyboard Interface, "Keyboard
   Navigation Inside Components",
@@ -156,8 +156,7 @@ ship check, so it goes on the human list with this concern named.
 The human list is the part of your reply or report that names what a person must do because the
 code change cannot: here, the focus trap to build or the primitive to adopt.
 
-- **Pointer**: MDN, `<dialog>`, "Accessibility" (`showModal()` makes the rest of the page inert,
-  focuses the first focusable element and closes on Esc),
+- **Pointer**: MDN, `<dialog>`, "Accessibility",
   <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/dialog#accessibility>;
   WAI-ARIA Authoring Practices Guide, Dialog (Modal) pattern, "Keyboard Interaction" (focus returns
   to the element that opened the dialog),
@@ -199,8 +198,8 @@ while it is open, so the attribute is present only when it should be.
 `display: none` also works when the panel doesn't animate. To keep an exit animation, delay the
 flip: `transition: visibility 0s 200ms` on close.
 
-`aria-hidden="true"` alone is not this fix: it hides the panel from screen readers and leaves its
-controls in the tab order.
+`aria-hidden="true"` alone is not this fix: it leaves the panel's controls in the tab order, which
+is what this check grades. What `inert` takes out of reach is in the pointer.
 
 - **Pointer**: HTML Living Standard, "The inert attribute",
   <https://html.spec.whatwg.org/multipage/interaction.html#the-inert-attribute>
@@ -330,12 +329,12 @@ result counts; form-level errors rendered after submit.
 <div role="alert">{error}</div>                          {/* errors that need attention now */}
 ```
 
-The live region must exist in the DOM *before* the message is put into it, or nothing is announced.
-The common toast primitives do this already; the finding is the hand-rolled one. Confirm it for the
-library in use: its live region renders once, empty, before the first toast.
+Render the live region once, empty, before its first message; the pointer says why a region
+mounted together with its message can stay silent. The common toast primitives do this already; the
+finding is the hand-rolled one. Confirm it for the library in use: its live region renders once,
+empty, before the first toast.
 
-- **Pointer**: MDN, ARIA live regions, "Live regions" (establish the region before updating it;
-  initial markup is the most reliable),
+- **Pointer**: MDN, ARIA live regions, "Live regions",
   <https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Guides/Live_regions#live_regions>
 
 **Audit: Important.** A toast, inline confirmation, result count or post-submit error that appears
@@ -364,7 +363,8 @@ another tab expires behind their back.
 
 The pause covers timers the page runs for the user's convenience: a toast, an undo window. An
 authentication or session-expiry timer is a security control, so it keeps counting while the tab is
-hidden; the page warns before it expires and offers a simple way to extend it.
+hidden. Instead of pausing it, warn before it expires and offer a simple way to extend it; the
+pointer is the WCAG option this follows, and its full terms.
 
 - **Pointer**: WCAG 2.2, Success Criterion 2.2.1 Timing Adjustable, the "Extend" option,
   <https://www.w3.org/TR/WCAG22/#timing-adjustable>
@@ -393,8 +393,7 @@ document.addEventListener('visibilitychange', () => {
 **Hunt for:** `setTimeout` driving user-visible countdowns with no `visibilitychange` listener;
 toasts that don't pause on hover or focus.
 
-- **Pointer**: MDN, `visibilitychange` event, "Usage notes" (fires as hidden on a tab switch,
-  minimize, or a switch to another app on mobile),
+- **Pointer**: MDN, `visibilitychange` event, "Usage notes",
   <https://developer.mozilla.org/en-US/docs/Web/API/Document/visibilitychange_event#usage_notes>
 
 **Audit: Important.** A toast countdown or undo window that keeps running while the tab is hidden,
@@ -413,8 +412,9 @@ const modKey = isMac ? 'Cmd' : 'Ctrl';
 // Display: "Save (Cmd+S)" on Mac, "Save (Ctrl+S)" on Windows
 ```
 
-`navigator.platform` is unreliable for browser detection, and MDN's own example uses it for exactly
-this choice of modifier label.
+Read `navigator.platform` only for this label, where a wrong guess shows the wrong hint and
+nothing more, since the binding listens for both keys. The pointer is MDN's example of this one
+use.
 
 - **Pointer**: MDN, `Navigator.platform`, "Determining the modifier key for the user's platform",
   <https://developer.mozilla.org/en-US/docs/Web/API/Navigator/platform#determining_the_modifier_key_for_the_users_platform>
@@ -446,8 +446,9 @@ item toward it.
 Disabled controls look disabled and are actually unfocusable-or-explained, not just visually grayed
 while still firing.
 
-A control that stays focusable while disabled, so keyboard users can find it (a menu item, a
-toolbar button), says why it is unavailable and does nothing when activated.
+A disabled control kept focusable so keyboard users can find it (the pointer says which ones a
+pattern keeps focusable) says why it is unavailable and does nothing when activated, so the keyboard
+user who lands on it learns why instead of pressing a dead control.
 
 - **Pointer**: WAI-ARIA Authoring Practices Guide, Developing a Keyboard Interface, "Focusability of
   disabled controls",
