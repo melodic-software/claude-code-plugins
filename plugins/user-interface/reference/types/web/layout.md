@@ -155,12 +155,14 @@ No arbitrary `z-index: 9999`. Define a scale and use only its steps:
 ```
 
 Tokens go wherever the project keeps its design tokens. Better: avoid z-index entirely where
-possible. `isolation: isolate` (or `position: relative` with a `z-index` other than `auto`) creates
-a local stacking context so children can't leak above unrelated UI. Where a component only needs
-its children contained, `isolation: isolate` beats a z-index.
+possible. Where a component only needs its children contained, so their z-index values cannot rise
+above unrelated UI, give it its own stacking context with `isolation: isolate` rather than a
+z-index: it contains the children without placing the component on the scale.
 
-- **Pointer**: MDN, Stacking context, Features creating stacking contexts,
+- **Pointer**: when a z-index escapes or is trapped and you need to know which ancestor formed the
+  stacking context, fetch MDN, Stacking context, "Features creating stacking contexts",
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Positioned_layout/Stacking_context#features_creating_stacking_contexts>
+  live.
 
 If the project has a scale, move the strays onto it. If it doesn't, don't invent one mid-sweep: fix
 the collisions that are provably wrong (toast under modal) and note the rest. That choice belongs

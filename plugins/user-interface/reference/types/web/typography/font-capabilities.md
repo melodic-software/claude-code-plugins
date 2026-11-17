@@ -20,8 +20,9 @@ same width at every weight (search token: uniwidth); in a face whose letters wid
 heavier, the text still grows and the layout still moves. Check the foundry's notes before relying
 on it. Whether weight may change on interaction at all is the `layout-stability` concern's rule.
 
-- **Pointer**: Recursive, a face that keeps glyph widths fixed across its axes,
-  <https://www.recursive.design/#a-sans-for-more-robust-layouts>
+- **Pointer**: when checking whether a face keeps its glyph widths across weights, read its foundry's
+  notes live; for an example of such notes, fetch Recursive, "A sans for more robust layouts",
+  <https://www.recursive.design/#a-sans-for-more-robust-layouts> live.
 
 ## Axes
 

@@ -244,8 +244,10 @@ menu's links in the tab order, focusable but unseen.
 The CSS that shows and hides it is `/user-interface:write-css` recipe
 `enter-and-exit-transitions-from-display-none`.
 
-- **Pointer**: MDN, HTML `hidden` global attribute, "Description",
+- **Pointer**: when checking what `hidden` does to the closed submenu, or how CSS can override it,
+  fetch MDN, HTML `hidden` global attribute, "Description",
   <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/hidden#description>
+  live.
 
 Hunt for: `{isOpen && <Submenu />}` in the marketing header; submenus opened by `onMouseEnter` only,
 with no click or focus path.
@@ -373,14 +375,17 @@ and an accessible name:
 ```
 
 A decorative one, which adds nothing the surrounding text does not say, is hidden from assistive
-tech instead, and holds no focusable element (`aria-hidden` hides every descendant):
+tech instead, and holds no focusable element, so a keyboard user never lands on something a screen
+reader does not announce:
 
 ```jsx
 <div aria-hidden="true" className="illustration" />
 ```
 
-- **Pointer**: MDN, `aria-hidden`, "Description",
+- **Pointer**: when hiding an illustration that has children, fetch MDN, `aria-hidden`,
+  "Description",
   <https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-hidden#description>
+  live.
 
 **Audit: Important.** A code-built illustration that carries information with no `role="img"` and
 accessible name, or a decorative one left exposed to assistive tech.
