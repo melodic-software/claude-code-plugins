@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The ecosystem-commands examples validate against ecosystem.schema.json, and an
-# example missing the required `globs` key does not.
+# example missing the required `globs` key does not. Well-formed `requires`
+# declarations validate; malformed ones do not.
 #
 #   bash docs/contracts/ecosystem-commands/examples.test.sh
 #
@@ -56,6 +57,31 @@ if "$validator" --schemafile "$SCHEMA" "$tmp/no-globs.yaml" >/dev/null 2>&1; the
 else
   ok "an example without globs is rejected"
 fi
+
+# requires: a well-formed declaration validates; an entry with no probe, or a
+# key that names no command, does not.
+write_requires() {
+  printf 'globs: ["*.yml"]\ncheck-cmd: "node tools/policy.mjs"\nrequires:\n  %s:\n    - name: ajv\n%b' "$1" "$2" >"$tmp/$3.yaml"
+}
+write_requires check-cmd '      probe: "test -d tools/node_modules/ajv"\n      hint: "npm ci in tools/"\n' requires-ok
+write_requires check-cmd '      hint: "npm ci in tools/"\n' requires-no-probe
+write_requires lint-cmd '      probe: "test -d tools/node_modules/ajv"\n' requires-bad-key
+write_requires check-cmd '      probe: "test -d tools/node_modules/ajv"\n      run-from: elsewhere\n' requires-bad-run-from
+printf 'globs: ["*.yml"]\ngates:\n  - name: policy\n    cmd: "node tools/policy.mjs"\n    requires:\n      - name: ajv\n        probe: "test -d tools/node_modules/ajv"\n        run-from: ecosystem\n' >"$tmp/requires-gate-ok.yaml"
+for good_case in requires-ok requires-gate-ok; do
+  if out="$("$validator" --schemafile "$SCHEMA" "$tmp/$good_case.yaml" 2>&1)"; then
+    ok "$good_case validates"
+  else
+    bad "$good_case does not validate: $out"
+  fi
+done
+for bad_case in requires-no-probe requires-bad-key requires-bad-run-from; do
+  if "$validator" --schemafile "$SCHEMA" "$tmp/$bad_case.yaml" >/dev/null 2>&1; then
+    bad "$bad_case validates"
+  else
+    ok "$bad_case is rejected"
+  fi
+done
 
 printf 'PASS=%d FAIL=%d\n' "$pass" "$fail"
 ((fail == 0))

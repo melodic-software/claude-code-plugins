@@ -84,7 +84,7 @@ If neither path yields changes and no `$ARGUMENTS`: report "No changes found (wo
 
 ### 1.5 Resolve each ecosystem's command surface
 
-Resolve `globs`, `build-cmd`, `test-cmd`, `check-cmd`, `fix-cmd`, `code-fix-cmd`, `anchor`, `project-discovery`, `install-hint`, `gates` and `notes` per the ladder:
+Resolve `globs`, `build-cmd`, `test-cmd`, `check-cmd`, `fix-cmd`, `code-fix-cmd`, `anchor`, `project-discovery`, `install-hint`, `requires`, `gates` and `notes` per the ladder:
 
 1. Consumer `.claude/ecosystems/<ecosystem>.yaml` (+ `.local.yaml` personal override, `~/.claude/ecosystems/` user-global, additive per key) → authoritative.
 2. Absent → infer from the repo's build files, name the inferred id and its globs in the report, and offer to persist via `/toolchain:setup`.
@@ -95,7 +95,7 @@ A malformed consumer file warns and degrades to rung 2, never a hard stop.
 
 ### 2. Run checks
 
-For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-cmd`, in that order; skip a null command. Substitute `<solution-or-project-file>` (per `anchor`), `<project-dir>` (each root `project-discovery` finds) and `<files>` (that ecosystem's changed files). Stop an ecosystem at its first failure and continue with the next.
+For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-cmd`, in that order; skip a null command. Substitute `<solution-or-project-file>` (per `anchor`), `<project-dir>` (each root `project-discovery` finds) and `<files>` (that ecosystem's changed files). Stop an ecosystem at its first failure and continue with the next. A skipped command is not a failure: the ecosystem's next command still runs.
 
 **What counts as a check.** A cell reads `pass` only when its command started, exercised the project, and exited 0. Two outcomes look green and are not:
 
@@ -111,12 +111,22 @@ For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-
 
 **Missing declared dependencies.** When the ecosystem's tool is on `PATH` but a command cannot start because the project's declared dependencies are not installed (a package or module not found, a project not restored), install them once and rerun that command, within these limits:
 
+- Install only in an attended run. An unattended run (`CLAUDE_CODE_REMOTE` set, `claude -p`, an autonomous loop: the signals `/toolchain:lint`'s code-fix gate reads) installs nothing: report `skip (dependencies missing: unattended run)`.
+- Never install a declared prerequisite (below), attended or not: its probe decides the cell before the command runs.
 - Install only from the committed lockfile, with install scripts disabled, and only with one of these commands: `npm ci --ignore-scripts`, `uv sync --frozen --no-build --no-install-local`, `dotnet restore --locked-mode`. Any other package manager installs nothing: report `skip (dependencies missing: no vetted install)`. With no lockfile, do not install; report `skip (dependencies missing: no lockfile)`. The uv command builds nothing at install time, so a third-party dependency that ships no wheel fails the install: report `skip (dependencies missing: no wheel for <package>)`. Pointer: for the flags, see <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-build> and <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-install-local>.
 - Stay within the session's permission mode. Never use `sudo` or any other elevation, and never retry a denied install another way: report `skip (dependencies missing: install denied)`.
 - Never install a tool. A runner missing from `PATH` stays `skip (tool missing: <tool>)`.
 - Capture `git status --porcelain` and a hash of `git diff HEAD --binary` before the install and again after it, so a file that was already modified and changes again is caught. If either differs, stop the whole run and report `Overall: STOPPED (dependency install changed: <paths>)`. Run no further check: the tree is no longer the one under test.
 
-**Tool presence.** Before each ecosystem runs, check that the tool its commands are invoked through is on `PATH` (python's `uv`, not the `ruff` and `pyright` behind it). Missing: report `skip (tool missing: <tool>)` with the ecosystem's `install-hint`, never `FAIL`. Do not probe the sub-tools inside a compound `check-cmd`: one that is absent fails at run time, and that real non-zero exit is reported as `FAIL`.
+**Tool presence.** Before each ecosystem runs, check that the tool its commands are invoked through is on `PATH` (python's `uv`, not the `ruff` and `pyright` behind it). Missing: report `skip (tool missing: <tool>)` with the ecosystem's `install-hint`, never `FAIL`. Do not probe the sub-tools inside a compound `check-cmd`: one that is absent fails at run time, and that real non-zero exit is reported as `FAIL`, unless the record declares it under `requires`.
+
+**Declared prerequisites.** The resolved `requires` lists, per command key, what that command needs beyond its tool on `PATH`: a runtime package, or a tool at the build the repo pins for CI. After the tool-presence check passes, and after a single-condition `opt-in` is met (an unmet one skips `check-cmd` without probing), run each of the command's entries' `probe` before the command: one Bash call per probe with the Bash tool's `timeout` set to 30000, from `$REPO_ROOT`, or from each location the command runs from when the entry sets `run-from: ecosystem`, with `$REPO_ROOT` substituted. Exit 0 means present. Any other exit, a probe that cannot start, and one that times out mean absent, never `FAIL`.
+
+- With any entry absent, do not run the command. Its cell reads `skip (prerequisite missing: <name>)`, naming each absent entry (`<name>, <name>`), with each entry's `hint` below the table.
+- Under `run-from: ecosystem` the command still runs at the locations where every probe passed. The cell reads `FAIL` when any of those runs failed, else the skip, with the skipped locations listed below the table, and `pass` only when it ran and passed everywhere.
+- One absent entry skips the whole command, every tool bundled in its string included.
+- Never install a declared prerequisite and never run its `hint`, in any run. Compare no version yourself: the probe is the whole test, and `tool-pin` stays a drift warning.
+- A `gates[]` item's own `requires` applies the same way to that gate's `cmd` ([context/gates.md](context/gates.md)).
 
 **Opt-in gate (lint phase only).** Before `check-cmd`, evaluate the resolved `opt-in` condition, if any; build and test always run. When `opt-in` is one condition for the whole `check-cmd` (e.g. dotnet, python, go; any ecosystem whose resolved `opt-in` has this shape), unmet means the Lint cell reads `skip (opt-in unmet: <condition, one short phrase>)` and `check-cmd` does not run; never omit it silently. When `opt-in` lists several per-tool conditions bundled in one command string (bash: shellcheck always, shfmt only with an `.editorconfig` shell style), run `check-cmd` whole and report its real output: a command string cannot be partly skipped. An opt-in skip counts toward the ecosystem total, never toward the FAIL count, and never blocks a "done" claim.
 
@@ -143,6 +153,7 @@ Use `pass`, `FAIL`, `syntax only`, a named skip, or `—` (not applicable: the c
 |------|-------|---------------|
 | `skip (tool missing: <tool>)` | environment | yes |
 | `skip (dependencies missing: <reason>)` | environment | yes |
+| `skip (prerequisite missing: <name>)` | environment: a `requires` probe found it absent | yes |
 | `skip (unsupported: <tool and capability>)` (gates only) | environment: the installed tool is below the gate's documented floor | yes |
 | `skip (opt-in unmet: <condition>)` | consumer opt-in | no |
 | `—` | not applicable | no |
@@ -181,6 +192,6 @@ The plugin's Stop hook reads it when the turn ends and warns when the line is no
 - **CWD drift**, the most common source of false failures. Always use absolute paths.
 - **A green exit that checked nothing.** A syntax-only command, or one that failed to start, is not a `pass`.
 - **A green exit a retry earned.** Report `pass (flaky: N)`, never a plain `pass`.
-- **Missing tool is never done.** `skip (tool missing: <tool>)` makes the Overall line `INCOMPLETE`, not `FAIL` and not `PASS`.
-- **Multi-tool `check-cmd` atomicity.** When a `check-cmd` bundles a gated sub-tool with an unconditional one (bash's `shellcheck ... && shfmt -d <files>`), the opt-in gate cannot suppress just the gated part: both run whenever the unconditional one applies. The same opacity reaches the missing-tool rule: a sub-tool the ecosystem's probe never covers (python's `pyright` behind `uv`) is absent only at run time, so the Lint cell reports `FAIL`, not `skip`. Report what the runner did, never a skip it did not perform. Each affected `context/<ecosystem>.md` states the consequence.
+- **Missing tool is never done.** `skip (tool missing: <tool>)` makes the Overall line `INCOMPLETE`, not `FAIL` and not `PASS`. So does `skip (prerequisite missing: <name>)`.
+- **Multi-tool `check-cmd` atomicity.** When a `check-cmd` bundles a gated sub-tool with an unconditional one (bash's `shellcheck ... && shfmt -d <files>`), the opt-in gate cannot suppress just the gated part: both run whenever the unconditional one applies. The same opacity reaches the missing-tool rule: a sub-tool the ecosystem's probe never covers (python's `pyright` behind `uv`) is absent only at run time, so the Lint cell reports `FAIL`, not `skip`, unless the record declares it under `requires`. Report what the runner did, never a skip it did not perform. Each affected `context/<ecosystem>.md` states the consequence.
 - **Multiple projects in one ecosystem.** Ecosystems with an `anchor` scope to it; ecosystems with `project-discovery` patterns walk each discovered project root.
