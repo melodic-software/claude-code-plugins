@@ -163,6 +163,30 @@ function locate(env, cwd, folder = null) {
   };
 }
 
+/** Data folders of other copies of this plugin, such as a --plugin-dir copy's plugin-profiles-inline. */
+function otherDataDirs(where) {
+  const root = join(where.configDir, "plugins", "data");
+  try {
+    return readdirSync(root, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && /^plugin-profiles(-|$)/.test(d.name))
+      .map((d) => join(root, d.name))
+      .filter((dir) => resolve(dir) !== resolve(where.dataDir));
+  } catch {
+    return [];
+  }
+}
+
+/** A settings file's record, read from whichever copy of this plugin applied it; this copy's path when none did. */
+function recordOf(where, file) {
+  const own = findRecord(where.dataDir, file);
+  if (own.record) return own;
+  for (const dir of otherDataDirs(where)) {
+    const found = findRecord(dir, file);
+    if (found.record) return found;
+  }
+  return own;
+}
+
 function parseArgs(argv) {
   const [command, ...rest] = argv;
   if (!["apply", "launch", "status", "clear", "list", "inventory", "usage", "install", "save", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
@@ -214,7 +238,7 @@ function prepare(opts, where, catalog, records) {
   const file = targetFile(where, opts.target, opts.name);
   const settings = readSettings(file);
   const session = opts.target === "session";
-  const { path: recPath, record: previous } = session ? { path: null, record: null } : findRecord(where.dataDir, file);
+  const { path: recPath, record: previous } = session ? { path: null, record: null } : recordOf(where, file);
   const base = session ? { enabledPlugins: {}, skillOverrides: {} } : baseline(settings.doc, previous);
   const loaded = readLayers({ paths: where.paths, managedFiles: managedSettingsFiles() });
   const layers = { ...loaded, [TARGET_LEVEL[opts.target]]: base };
@@ -254,7 +278,13 @@ function previewLines(p, gate, { nameUntouched = true } = {}) {
     `Switches on (${r.enabled.length}): ${list(on)}`,
     `Switches off (${r.disabled.length}): ${list(r.disabled)}`,
   ];
-  if (Object.keys(p.pending).length) lines.push(`Left on until the next apply (${Object.keys(p.pending).length}): ${list(Object.keys(p.pending))}`);
+  const left = Object.keys(p.pending);
+  if (left.length) {
+    const named = left.filter((id) => r.disabled.includes(id));
+    const rest = left.filter((id) => !r.disabled.includes(id));
+    const ofOff = named.length === r.disabled.length ? "every plugin it switches off" : `${named.length} of the plugins it switches off`;
+    lines.push(`Left on until the next apply (${left.length}): ${named.length ? ofOff : ""}${named.length && rest.length ? ", plus " : ""}${rest.length ? list(rest) : ""}`);
+  }
   lines.push(`Writes ${Object.keys(p.edits.enabledPlugins).length} plugin entries and ${Object.keys(p.edits.skillOverrides).length} skill entries.`);
   if (r.repositorySkills.length) lines.push(`Hides skills a repository profile names: ${list(r.repositorySkills)}`);
   if (r.hookPluginsOff.length) lines.push(`Switches off plugins that ship hooks or a mod: ${list(r.hookPluginsOff)}`);
@@ -394,7 +424,7 @@ async function apply(opts, where, env, io) {
 /** The profile a launch from this session defaults to: the session's own, else the folder's recorded one. */
 function ownProfile(where, env) {
   if (sessionProfile(env)) return sessionProfile(env);
-  return where.remembersFolder() ? findRecord(where.dataDir, where.paths.local).record?.profile ?? null : null;
+  return where.remembersFolder() ? recordOf(where, where.paths.local).record?.profile ?? null : null;
 }
 
 /** A launcher's own settings, given as claude --settings takes them: a JSON object or a file holding one. */
@@ -477,7 +507,7 @@ function launch(opts, where, env, io) {
 /** The record of one settings file compared with the file now. */
 function recordedStatus(target, where, records) {
   const file = targetFile(where, target);
-  const rec = findRecord(where.dataDir, file).record;
+  const rec = recordOf(where, file).record;
   if (!rec) return { profile: null, target, settingsFile: file };
   const doc = readSettings(file).doc;
   const differs = [];
@@ -513,7 +543,7 @@ function statusOf(opts, where, env, records) {
   let target = opts.target;
   if (target === "folder" && !where.remembersFolder()) {
     base.rememberFolder = false;
-    base.leftover = findRecord(where.dataDir, targetFile(where, "folder")).record?.profile ?? null;
+    base.leftover = recordOf(where, targetFile(where, "folder")).record?.profile ?? null;
     target = "initial";
   }
   const recorded = recordedStatus(target, where, records);
@@ -571,7 +601,7 @@ const keepsSessionProfile = (env) =>
 async function clear(opts, where, env, io) {
   if (doesNotApply(where.surface)) throw new NotApplied(`not cleared: ${refusal(where.surface, opts.target)}`);
   const file = targetFile(where, opts.target);
-  const { path: recPath, record: rec } = findRecord(where.dataDir, file);
+  const { path: recPath, record: rec } = recordOf(where, file);
   const keeps = keepsSessionProfile(env);
   const preview = (recorded, lines) => {
     if (opts.json) io.out(JSON.stringify({ recorded, sessionProfile: sessionProfile(env), lines: keeps ? [...lines, keeps] : lines }, null, 2));
@@ -639,7 +669,7 @@ function usage(opts, env, io) {
 /** The plugins the initial profile switches on: always-on, plus the profile recorded for user settings. */
 function initialMembers(where) {
   const catalog = catalogFor(where, "initial");
-  const rec = findRecord(where.dataDir, where.paths.user).record;
+  const rec = recordOf(where, where.paths.user).record;
   const chosen = rec ? catalog.profiles.get(rec.profile) : null;
   return new Set([catalog.alwaysOn, chosen].filter(Boolean).flatMap((p) => [...p.plugins, ...p.optional]));
 }
