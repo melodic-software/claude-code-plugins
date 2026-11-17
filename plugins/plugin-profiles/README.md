@@ -63,7 +63,9 @@ Without the function, run it directly:
 node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" start build
 ```
 
-`--dry-run` prints the `claude` command and starts nothing. Windows is untested.
+`--dry-run` prints the `claude` command and starts nothing. On Windows, `start` runs the native
+`claude.exe` it finds on `PATH`, never through a shell, and refuses a `claude.cmd`, which would
+split or interpret your arguments; this path is untested on a Windows machine.
 
 To add the function, put this in a file your bash or zsh startup sources:
 

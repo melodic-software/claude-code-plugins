@@ -41,4 +41,11 @@ else if (args[0] === "plugin" && args[1] === "install" && args.length === 5 && a
     mkdirSync(join(env.HOME, ".claude"), { recursive: true });
     writeFileSync(settings, `${JSON.stringify(doc, null, 2)}\n`);
   }
+} else if (env.PP_STUB_HANG) {
+  process.on("SIGTERM", () => {
+    appendFileSync(env.PP_STUB_HANG, "SIGTERM\n");
+    process.exit(143);
+  });
+  writeFileSync(env.PP_STUB_HANG, `${process.pid}\n`);
+  setInterval(() => {}, 1000);
 } else process.exitCode = Number(env.PP_STUB_EXIT ?? 1);

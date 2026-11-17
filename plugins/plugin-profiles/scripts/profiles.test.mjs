@@ -1498,3 +1498,63 @@ test("#16893 launch sweeps session records no session has written for 30 days", 
   launchJson(w, ["build"]);
   assert.equal(existsSync(stale), false);
 });
+
+test("#16914: start takes always-on by name and lists it in the picker", async () => {
+  const w = world();
+  const r = startJson(w, ["always-on"]);
+  assert.equal(r.profile, "always-on");
+  assert.match(r.argv.join(" "), /--settings .*-always-on\.json/);
+  const { PassThrough } = await import("node:stream");
+  const input = new PassThrough();
+  const output = new PassThrough();
+  let shown = "";
+  output.on("data", (c) => (shown += c));
+  const { pickProfile } = await import("./profiles.mjs");
+  const rows = [{ name: "always-on", description: "on" }, { name: "build", description: "b" }];
+  const picked = pickProfile(rows, null, { input, output });
+  input.end("1\n");
+  assert.equal(await picked, "always-on");
+  assert.match(shown, /^1\. always-on: on$/m);
+});
+
+test("#16914: start's refusal lists always-on among the profiles it can start", () => {
+  const w = world();
+  const r = w.run(["start", "nope"]);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /^always-on: /m);
+});
+
+test("#16914: a SIGTERM sent to start reaches claude, and start exits with claude's status", async () => {
+  const w = world();
+  const hang = join(w.root, "hang.txt");
+  const { spawn } = await import("node:child_process");
+  const child = spawn(process.execPath, [CLI, "start", "build"], { cwd: w.project, env: { ...w.env, PP_STUB_HANG: hang }, stdio: "ignore" });
+  const exited = new Promise((done) => child.on("exit", (code) => done(code)));
+  for (let i = 0; i < 200 && !(existsSync(hang) && readFileSync(hang, "utf8").trim()); i++) await new Promise((r) => setTimeout(r, 25));
+  const claudePid = Number(readFileSync(hang, "utf8").trim().split("\n")[0]);
+  assert.ok(claudePid > 0, "the stub claude started");
+  child.kill("SIGTERM");
+  assert.equal(await exited, 143);
+  assert.match(readFileSync(hang, "utf8"), /^SIGTERM$/m, "claude received the SIGTERM");
+  assert.throws(() => process.kill(claudePid, 0), /ESRCH/, "claude is no longer running");
+});
+
+test("#16914: an argument with a space and an ampersand reaches claude as one word", () => {
+  const w = world();
+  const envLog = join(w.root, "env.jsonl");
+  const r = w.run(["start", "build", "-p", "a b & c"], { PP_STUB_ENV: envLog, PP_STUB_EXIT: "0" });
+  assert.equal(r.status, 0, r.stderr);
+  const call = readFileSync(envLog, "utf8").trim().split("\n").map((l) => JSON.parse(l)).find((c) => c.argv.includes("-p"));
+  assert.deepEqual(call.argv.slice(-2), ["-p", "a b & c"]);
+});
+
+test("#16914: on Windows start spawns the claude.exe on PATH with no shell, and refuses a claude.cmd it would need a shell for", async () => {
+  const { claudeCommand } = await import("./profiles.mjs");
+  const files = new Set(["C:\\tools\\claude.exe", "D:\\npm\\claude.cmd"]);
+  assert.deepEqual(claudeCommand({ Path: "C:\\none;C:\\tools" }, "win32", (p) => files.has(p)), { file: "C:\\tools\\claude.exe" });
+  const cmdOnly = claudeCommand({ PATH: "D:\\npm" }, "win32", (p) => files.has(p));
+  assert.equal(cmdOnly.file, undefined);
+  assert.match(cmdOnly.refusal, /found D:\\npm\\claude\.cmd but no claude\.exe/);
+  assert.match(claudeCommand({ PATH: "E:\\x" }, "win32", () => false).refusal, /no claude\.exe on PATH/);
+  assert.deepEqual(claudeCommand({}, "linux"), { file: "claude" });
+});

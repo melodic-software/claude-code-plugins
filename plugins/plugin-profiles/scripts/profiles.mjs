@@ -78,7 +78,7 @@ import { spawn } from "node:child_process";
 import { existsSync, readdirSync, realpathSync, readFileSync, rmSync, statSync } from "node:fs";
 import { constants as osConstants, homedir } from "node:os";
 import { createHash } from "node:crypto";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve, win32 as win32Path } from "node:path";
 import process from "node:process";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
@@ -88,7 +88,7 @@ import { PlanError, TARGET_LEVEL, effective, excludedAlwaysOn, plan } from "../l
 import { OptionsError, managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { missingRequired } from "../lib/prerequisite-gate.mjs";
 import { replaceFile } from "../lib/atomic-file.mjs";
-import { ALWAYS_ON, PLUGIN_ID, ProfileError, ignoredLine, parseProfile, profileLevels, profileText, readCatalog, readProfileFiles, resolveCatalog } from "../lib/profile-files.mjs";
+import { ALWAYS_ON, PLUGIN_ID, ProfileError, everyProfile, ignoredLine, parseProfile, profileLevels, profileNamed, profileText, readCatalog, readProfileFiles, resolveCatalog } from "../lib/profile-files.mjs";
 import { folderLevel } from "../lib/folder-file.mjs";
 import { ABSENT, baseline, deleteRecord, findRecord, nextRecord, realPath, restoreEdits, saveRecord } from "../lib/record.mjs";
 import {
@@ -270,7 +270,7 @@ function diff(now, final) {
 }
 
 /** Every skill some profile hides; a one-session file names each, so a folder file's entry for one never reaches the session. */
-const hideableSkills = (catalog) => new Set([catalog.alwaysOn, ...catalog.profiles.values()].flatMap((p) => [...p.hideSkills]));
+const hideableSkills = (catalog) => new Set(everyProfile(catalog).flatMap((p) => [...p.hideSkills]));
 
 /** Reads every input, plans, and works out the exact entries the target file ends with. */
 function prepare(opts, where, catalog, records) {
@@ -628,20 +628,44 @@ export function pickProfile(rows, marked, { input = process.stdin, output = proc
 function runClaude(args, env, io) {
   const childEnv = { ...env };
   for (const name of CLEARED) delete childEnv[name];
+  const command = claudeCommand(env, process.platform);
+  if (command.refusal) {
+    io.err(`${command.refusal}\nRun it yourself: claude ${args.map(quoted).join(" ")}`);
+    return Promise.resolve(127);
+  }
+  let child = null;
   const ignore = () => {};
-  process.on("SIGINT", ignore);
-  process.on("SIGTERM", ignore);
+  const forward = (signal) => () => child?.kill(signal);
+  const handlers = { SIGINT: ignore, SIGTERM: forward("SIGTERM"), SIGHUP: forward("SIGHUP") };
+  for (const [signal, handler] of Object.entries(handlers)) process.on(signal, handler);
   return new Promise((done) => {
-    const child = spawn("claude", args, { stdio: "inherit", env: childEnv, shell: process.platform === "win32" });
+    child = spawn(command.file, args, { stdio: "inherit", env: childEnv });
     child.on("error", (error) => {
       io.err(`start: could not run claude: ${error.message}`);
       done(127);
     });
     child.on("exit", (code, signal) => done(code ?? 128 + (osConstants.signals[signal] ?? 0)));
   }).finally(() => {
-    process.off("SIGINT", ignore);
-    process.off("SIGTERM", ignore);
+    for (const [signal, handler] of Object.entries(handlers)) process.off(signal, handler);
   });
+}
+
+/**
+ * The claude executable to spawn without a shell: on Windows the claude.exe found on PATH, since a .cmd runs only
+ * through a shell, which would split or interpret the person's arguments (https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows).
+ */
+export function claudeCommand(env, platform, isFile = (path) => existsSync(path)) {
+  if (platform !== "win32") return { file: "claude" };
+  const pathVar = Object.keys(env).find((key) => key.toUpperCase() === "PATH");
+  const dirs = (pathVar ? env[pathVar] : "").split(";").filter(Boolean);
+  const exe = dirs.map((dir) => win32Path.join(dir, "claude.exe")).find(isFile);
+  if (exe) return { file: exe };
+  const script = dirs.flatMap((dir) => ["claude.cmd", "claude.bat"].map((name) => win32Path.join(dir, name))).find(isFile);
+  return {
+    refusal: script
+      ? `start: found ${script} but no claude.exe on PATH; a .cmd runs only through a shell, which would split or interpret your arguments, so start needs the native claude.exe.`
+      : "start: no claude.exe on PATH.",
+  };
 }
 
 /** What a start resumes and in which profile: the claude arguments to run, the profile, a session file to reuse, and the line to print. */
@@ -672,12 +696,12 @@ function resumePlan(args, given, where) {
 
 async function start(opts, where, env, io) {
   const catalog = catalogFor(where, "folder");
-  const rows = [...catalog.profiles.values()].map((p) => ({ name: p.name, description: p.description }));
+  const rows = everyProfile(catalog).map((p) => ({ name: p.name, description: p.description }));
   const listing = rows.map(profileLine).join("\n");
   const args = [...opts.claudeArgs];
   let given = null;
   if (args.length && !args[0].startsWith("-")) {
-    if (!catalog.profiles.has(args[0])) throw new StartRefused(`start: no profile named ${args[0]}; run start with no profile to pick one\n${listing}`);
+    if (!profileNamed(catalog, args[0])) throw new StartRefused(`start: no profile named ${args[0]}; run start with no profile to pick one\n${listing}`);
     given = args.shift();
   }
   const plan = resumePlan(args, given, where);
