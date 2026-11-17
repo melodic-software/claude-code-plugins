@@ -85,7 +85,7 @@ On each channel event, Monitor notification, or poll iteration, complete every a
 
 **If `CLAUDE_CODE_REMOTE=true` (cloud session):**
 
-Establish a baseline poll: the §3.0.1 REST read of the PR's checks (the CLI's checks list is for a one-off read only, per §3.1 "Polling CI from more than one worker") + the three comment-surface fetches (per-iteration checklist steps C1-C3) every 60-90s until all readiness gates pass. Run it in the background, never as a foreground `sleep` or `until` loop: arm the §3.0.1 Monitor watch at that interval, or, where the Monitor tool is unavailable, start the same poll script through the Bash tool with `run_in_background` and have it exit on the first line it would emit, which wakes the session; run the iteration, then start it again. Always pass `timeout: 7200000` with that `run_in_background` call. When the stop notice arrives in place of an emitted line, run one iteration and start the poll again with the same `timeout`.
+Establish a baseline poll: the §3.0.1 REST read of the PR's checks (the CLI's checks list is for a one-off read only, per §3.1 "Polling CI from more than one worker") + the three comment-surface fetches (per-iteration checklist steps C1-C3) every 60-90s until all readiness gates pass. Run it in the background, never as a foreground `sleep` or `until` loop: arm the §3.0.1 Monitor watch at that interval, or, where the Monitor tool is unavailable, start the same poll script through the Bash tool with `run_in_background` and `--once` added, so it exits after the first poll that emits a line, which wakes the session; run the iteration, then start it again. Always pass `timeout: 7200000` with that `run_in_background` call. When the stop notice arrives in place of an emitted line, run one iteration and start the poll again with the same `timeout`.
 
 We pass the background-command maximum on every fallback poll and treat the stop notice as a re-arm signal, so we never have to track which sessions carry the limit.
 
@@ -134,11 +134,11 @@ The poll keeps its 60-90s cadence: readiness needs every check terminal, the cur
    Monitor(
      description: "PR #<N> CI + comments",
      timeout_ms: 1800000,
-     command: <poll script below>
+     command: bash "<skill-dir>/scripts/monitor-poll.sh" --pr <N> --checkout "<checkout>"
    )
    ```
 
-   **Re-arm at the deadline.** On the deadline notice, if the PR is still `OPEN` and readiness has not passed (§3.0.5), first run the poll script once through Bash with `SNAPSHOT_FILE` set to a path in the scratch directory: it writes the checks there in the format the watch reads, then exits. Never write or edit the snapshot by hand; the watch refuses a file the script did not write. Then arm the watch with this same call, `BASELINE_FILE` set to that path (empty if the snapshot run exited non-zero), and finish the full iteration (step 5). Starting from that snapshot, the watch emits a check that finishes after the read exactly once, and does not re-report one already finished. The iteration covers anything else that landed between the deadline and the new watch: the new watch reports only comments posted after it starts, and its first poll records the review-thread count without emitting it. With no snapshot (the first arming), the first poll only records the checks.
+   **Re-arm at the deadline.** On the deadline notice, if the PR is still `OPEN` and readiness has not passed (§3.0.5), first run the poll script once through Bash with `--snapshot` set to a path in the scratch directory: it writes the checks there in the format the watch reads, then exits. Never write or edit the snapshot by hand; the watch refuses a file the script did not write. Then arm the watch with this same call, `--baseline` set to that path (left off if the snapshot run exited non-zero), and finish the full iteration (step 5). Starting from that snapshot, the watch emits a check that finishes after the read exactly once, and does not re-report one already finished. The iteration covers anything else that landed between the deadline and the new watch: the new watch reports only comments posted after it starts, and its first poll records the review-thread count without emitting it. With no snapshot (the first arming), the first poll only records the checks.
 
    We pass the Monitor deadline maximum on every arming call and re-arm on the deadline notice for as long as the PR needs watching.
 
@@ -162,15 +162,19 @@ The poll keeps its 60-90s cadence: readiness needs every check terminal, the cur
 
    - **Pointer**: when you need which models and sessions get `TaskList` and how to opt in, fetch [Task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability) live.
 
-   The poll script, passed inline in the `command` parameter, is the REST poll in the provider
-   reference ([GitHub](../../../reference/providers/github/pull-request/monitor.md#poll-checks-over-rest)).
-   Set `PR_NUMBER=<N>` at its top, and `INTERVAL` above its default 60 when other watchers run,
-   per the [API budget](../../../reference/providers/github/README.md#api-budget), and put
-   `<skill-dir>`, `<scripts-dir>` and `<checkout>` in place; it resolves `OWNER` and `REPO` itself
-   from `<checkout>` and exits 1 when that read refuses; on a triangular flow, name the PR's base
-   repository there instead, as the provider reference shows. Its contract:
+   The poll script is the bundled `<skill-dir>/scripts/monitor-poll.sh`, the REST poll the provider
+   reference describes ([GitHub](../../../reference/providers/github/pull-request/monitor.md#poll-checks-over-rest)).
+   The `command` runs it by path, with no script body inline:
+   `bash "<skill-dir>/scripts/monitor-poll.sh" --pr <N> --checkout "<checkout>"`, `<skill-dir>` and
+   `<checkout>` put in place; `<skill-dir>` is the pull-request skill's directory even when another
+   skill, such as babysit-prs, arms the watch. Add `--interval <seconds>` above its default 60 when other watchers
+   run, per the [API budget](../../../reference/providers/github/README.md#api-budget). It resolves
+   `OWNER` and `REPO` itself from `<checkout>` and exits 1 when that read refuses; on a triangular
+   flow, add `--repo <base-owner>/<repo>`, the PR's base repository, as the provider reference
+   shows. The re-arm's snapshot run adds `--snapshot <file>` and the re-armed watch
+   `--baseline <file>`. Its contract:
 
-   - Polls every `INTERVAL` seconds and exits 0 with `PR #<N> <state> — watch complete` once the PR is
+   - Polls every `--interval` seconds and exits 0 with `PR #<N> <state> — watch complete` once the PR is
      merged or closed.
    - Exits 2 with a `RATE-LIMITED` line on a rate-limit error. Re-arm only after the wait the
      [API budget](../../../reference/providers/github/README.md#api-budget) sets.
@@ -180,14 +184,14 @@ The poll keeps its 60-90s cadence: readiness needs every check terminal, the cur
    - Emits a `COMMENT`, `INLINE-COMMENT` or `REVIEW` line for each new item on all three review
      surfaces (issue-level comments, inline review comments, review bodies), and advances its
      watermark only when every fetch succeeded, so a transient failure never skips a comment.
-   - Every 4th poll (about 4 minutes) runs the Gate 7 thread read through
-     `<scripts-dir>/source-control-review-threads` and emits `REVIEW-THREADS unresolved=<n>` when
+   - Every 4th poll (about 4 minutes) runs the Gate 7 thread read through the plugin's
+     `scripts/source-control-review-threads` and emits `REVIEW-THREADS unresolved=<n>` when
      the unresolved count, or `THREADS_UNPROVEN`, changes. Resolving a thread moves no check and
      posts no comment, so the other reads never see it.
    - It records the thread count on its first poll, and the checks as the baseline on the first poll
-     whose check read succeeds, unless `BASELINE_FILE` names a snapshot the script's snapshot run wrote. With one, the
+     whose check read succeeds, unless `--baseline` names a snapshot the script's snapshot run wrote. With one, the
      snapshot is the baseline: the first successful checks read emits a check finished in the live
-     read but not in the snapshot, and nothing else. A `BASELINE_FILE` that is unreadable or lacks
+     read but not in the snapshot, and nothing else. A `--baseline` file that is unreadable or lacks
      the snapshot marker emits `BASELINE-UNREADABLE <path>` and records only; run a full checks scan when it wakes you. A poll
      whose check read fails (any call in the read errors) keeps the baseline and emits no check lines.
 
@@ -284,8 +288,9 @@ After each push, run this loop until convergence (**every** check in a terminal 
 
 When more than one worker polls CI under the same token (parallel PR monitors, babysit-prs workers,
 one session watching several PRs), read the PR and its checks over REST instead of the CLI's
-GraphQL-backed checks list (a blocking watch included) or PR view. The §3.0.1 poll script is that
-REST read: its state check and CI block (the `head_sha` read through `cur_checks`) run standalone
+GraphQL-backed checks list (a blocking watch included) or PR view. The §3.0.1 poll script,
+`monitor-poll.sh`, is that REST read: its state check and CI block (the `head_sha` read through
+`cur_checks`) run standalone
 with `OWNER`, `REPO`, and `PR_NUMBER` set
 ([GitHub](../../../reference/providers/github/pull-request/monitor.md#poll-checks-over-rest)).
 They emit one `name: bucket` line per check with the same rows and

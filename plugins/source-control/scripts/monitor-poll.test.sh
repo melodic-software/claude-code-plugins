@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Regression tests for the PR monitor's poll script (the fenced block under
-# "Poll checks over REST" in reference/providers/github/pull-request/monitor.md).
-# The block is extracted from the doc and run against a stub `gh`, so the test
-# drives exactly what the Monitor watch runs. No network.
+# Regression tests for the PR monitor's poll script,
+# skills/pull-request/scripts/monitor-poll.sh, the command the Monitor watch
+# runs. It runs from a copy of the plugin's layout against a stub `gh`. No
+# network.
 #
 # A failed check read must keep the baseline: the discriminating cases are a
 # failed FIRST read (the second good poll must only record) and a failed read
@@ -10,7 +10,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOC="$SCRIPT_DIR/../reference/providers/github/pull-request/monitor.md"
+SRC="$SCRIPT_DIR/../skills/pull-request/scripts/monitor-poll.sh"
 
 FAILED=0
 CASE_NUM=0
@@ -34,21 +34,13 @@ git init -q "$CHECKOUT"
 git -C "$CHECKOUT" remote add origin https://github.com/owner/repo.git
 unset GH_REPO
 
-# The poll script: first fenced bash block after the "Poll checks over REST"
-# heading, with its placeholders filled and the sleep removed.
-POLL="$TEST_TMPDIR/poll.sh"
-POLL_RAW="$TEST_TMPDIR/poll-raw.sh"
-awk '
-  /^## Poll checks over REST/ { in_sec = 1; next }
-  in_sec && /^```bash/ { in_blk = 1; next }
-  in_blk && /^```/ { exit }
-  in_blk { print }
-' "$DOC" >"$POLL_RAW"
-sed -e 's/<N>/7/' -e 's/^INTERVAL=60.*/INTERVAL=0/' \
-  -e "s#<scripts-dir>#$BIN#" \
-  -e "s#<skill-dir>#$SCRIPT_DIR/../skills/pull-request#" \
-  -e "s#<checkout>#$CHECKOUT#" "$POLL_RAW" >"$POLL"
-[[ -s "$POLL" ]] || { fail "extracted the poll script" "non-empty" "empty"; exit 1; }
+# The poll script in a copy of the plugin's layout: target-repo.sh and its
+# library are the real ones, the threads script is a stub (below).
+PLUGIN="$TEST_TMPDIR/plugin"
+mkdir -p "$PLUGIN/skills/pull-request/scripts" "$PLUGIN/scripts" "$PLUGIN/lib"
+cp -p "$SRC" "$SCRIPT_DIR/../skills/pull-request/scripts/target-repo.sh" "$PLUGIN/skills/pull-request/scripts/"
+cp -p "$SCRIPT_DIR/../lib/github-remote.sh" "$PLUGIN/lib/"
+POLL="$PLUGIN/skills/pull-request/scripts/monitor-poll.sh"
 
 cat >"$BIN/gh" <<'STUB'
 #!/usr/bin/env bash
@@ -80,14 +72,12 @@ case "$args" in
 esac
 exit 0
 STUB
-cat >"$BIN/sleep" <<'STUB'
-#!/usr/bin/env bash
-exit 0
-STUB
-cat >"$BIN/source-control-review-threads" <<'STUB'
+# The threads read is poll 1's last call; its marker tells a test poll 1 ran.
+cat >"$PLUGIN/scripts/source-control-review-threads" <<'STUB'
+touch "$FX/threads-read"
 echo "THREADS_OK unresolved=0"
 STUB
-chmod +x "$BIN/gh" "$BIN/sleep"
+chmod +x "$BIN/gh"
 
 # runs_json <name>... — a check-runs payload with each named check completed.
 runs_json() {
@@ -98,15 +88,15 @@ runs_json() {
   printf '{"check_runs":[%s]}' "$out"
 }
 
-# run_poll <fixture-dir> — runs the poll script against the stub; stdout only.
-# Any temp file it made would land in POLL_TMP, which must stay empty.
+# run_poll <fixture-dir> [arg...] — runs the poll script on PR 7 against the
+# stub, with no sleep between polls and any further arguments passed on;
+# stdout only. Any temp file it made would land in POLL_TMP, which must stay
+# empty.
 POLL_TMP="$TEST_TMPDIR/poll-tmp"
 mkdir -p "$POLL_TMP"
-# POLL_SH=zsh runs it under zsh -f, which reads no user startup file.
 run_poll() {
-  local sh="${POLL_SH:-bash}" sh_args=()
-  [[ "$sh" == zsh ]] && sh_args=(-f)
-  (cd "$TEST_TMPDIR" && FX="$1" TMPDIR="$POLL_TMP" PATH="$BIN:$PATH" timeout 60 "$sh" "${sh_args[@]}" "$POLL" 2>/dev/null)
+  (cd "$TEST_TMPDIR" && FX="$1" TMPDIR="$POLL_TMP" PATH="$BIN:$PATH" \
+    timeout 60 bash "$POLL" --pr 7 --interval 0 --checkout "$CHECKOUT" "${@:2}" 2>/dev/null)
 }
 
 # --- failed FIRST read: the second poll is the baseline, the third emits once.
@@ -142,6 +132,19 @@ echo 3 >"$FX3/merged_at"
 out3="$(run_poll "$FX3")"
 assert_not_contains "clean polls: baseline check a not emitted" "$out3" "a: pass"
 assert_eq "clean polls: b is emitted once" "1" "$(grep -c '^b: pass$' <<<"$out3")"
+
+# --- --once: the run ends after the first poll that prints a line, long
+# before the PR merges.
+FX7="$TEST_TMPDIR/fx7"
+mkdir -p "$FX7"
+runs_json a >"$FX7/checks.1"
+runs_json a b >"$FX7/checks.2"
+echo 9 >"$FX7/merged_at"
+out7="$(run_poll "$FX7" --once)"
+assert_exit "--once: exits 0 after the poll that printed" 0 "$?"
+assert_eq "--once: b is emitted once" "1" "$(grep -c '^b: pass$' <<<"$out7")"
+assert_not_contains "--once: the watch does not run on to the merge" "$out7" "watch complete"
+assert_eq "--once: it stopped after poll 2" "2" "$(cat "$FX7/poll")"
 
 # --- a fault in any single call of the read (actions/runs, status) keeps the
 # baseline too: poll 1 faults, poll 2 is the baseline, poll 3 adds c.
@@ -182,68 +185,36 @@ rc6=$?
 assert_eq "comment-read rate limit: exit status" "2" "$rc6"
 assert_contains "comment-read rate limit: names the error" "$out6" "RATE-LIMITED — watch stopped: API rate limit exceeded"
 
-# --- the inline Monitor command can run under zsh, so read_into's capture of
-# stdout, stderr and status is checked there too where zsh is installed.
-if command -v zsh >/dev/null 2>&1; then
-  rm -f "$FX1/poll" "$FX6/poll"
-  outz1="$(POLL_SH=zsh run_poll "$FX1")"
-  assert_not_contains "zsh: failed first read: check a not emitted" "$outz1" "a: pass"
-  assert_eq "zsh: failed first read: only c is emitted, once" "1" "$(grep -c '^c: pass$' <<<"$outz1")"
-  assert_contains "zsh: failed first read: watch completes" "$outz1" "PR #7 MERGED — watch complete"
-  outz6="$(POLL_SH=zsh run_poll "$FX6")"
-  rcz6=$?
-  assert_eq "zsh: comment-read rate limit: exit status" "2" "$rcz6"
-  assert_contains "zsh: comment-read rate limit: names the error" "$outz6" "RATE-LIMITED — watch stopped: API rate limit exceeded"
-fi
-
 # --- the script runs no rm and makes no temp file: an auto-mode session's
-# safety check denies an inline Monitor command that runs rm. The block is
-# read before its placeholders become this machine's paths.
-assert_eq "poll script runs no rm" "" "$(grep -nE '(^|[^[:alnum:]_-])rm([^[:alnum:]_-]|$)' "$POLL_RAW")"
-assert_eq "poll script makes no temp file" "" "$(grep -n 'mktemp' "$POLL_RAW")"
+# safety check denied a Monitor command that ran rm.
+assert_eq "poll script runs no rm" "" "$(grep -nE '(^|[^[:alnum:]_-])rm([^[:alnum:]_-]|$)' "$SRC")"
+assert_eq "poll script makes no temp file" "" "$(grep -n 'mktemp' "$SRC")"
 
 # --- a stopped watch exits. TaskStop sends TERM to the watch and its
-# children; the real sleep (no stub directory on PATH) holds the watch inside
-# its loop until then. The harness can run an inline Monitor command under
-# zsh, so zsh is checked too where it is installed.
+# children; the real sleep holds the watch inside its loop until then.
 FX5="$TEST_TMPDIR/fx5"
-mkdir -p "$FX5" "$TEST_TMPDIR/bin-nosleep"
+mkdir -p "$FX5"
 runs_json a >"$FX5/checks.1"
 echo 9 >"$FX5/merged_at"
-cp "$BIN/gh" "$TEST_TMPDIR/bin-nosleep/"
-# The threads read is poll 1's last call; its marker tells the test poll 1 ran.
-cat >"$TEST_TMPDIR/bin-nosleep/source-control-review-threads" <<'STUB'
-touch "$FX/threads-read"
-echo "THREADS_OK unresolved=0"
-STUB
-{ echo 'INTERVAL=30'; grep -v -e '^INTERVAL=' "$POLL"; } |
-  sed -e "s#$BIN/source-control-review-threads#$TEST_TMPDIR/bin-nosleep/source-control-review-threads#" >"$TEST_TMPDIR/poll-slow.sh"
-for sh5 in bash zsh; do
-  command -v "$sh5" >/dev/null 2>&1 || continue
-  rm -f "$FX5/poll" "$FX5/threads-read"
-  # zsh -f reads no user startup file, which could put the real gh first on PATH.
-  sh5_args=()
-  [[ "$sh5" == zsh ]] && sh5_args=(-f)
-  FX="$FX5" TMPDIR="$POLL_TMP" PATH="$TEST_TMPDIR/bin-nosleep:$PATH" "$sh5" "${sh5_args[@]}" "$TEST_TMPDIR/poll-slow.sh" >"$TEST_TMPDIR/out5.$sh5" 2>&1 &
-  pid5=$!
-  for _ in $(seq 100); do
-    [[ -e "$FX5/threads-read" ]] && break
-    sleep 0.1
-  done
-  sleep 0.5 # the rate-limit check ends poll 1, then its sleep starts
-  assert_eq "running $sh5 watch: poll 1 reached its threads read" "yes" "$([[ -e "$FX5/threads-read" ]] && echo yes || echo no)"
-  # target-repo.sh names the repository on stderr; any other line is an error.
-  assert_eq "running $sh5 watch: poll 1 ran clean" "" "$(grep -v '^target repository: ' "$TEST_TMPDIR/out5.$sh5")"
-  kill -TERM "$pid5" 2>/dev/null
-  pkill -TERM -P "$pid5" 2>/dev/null
-  for _ in $(seq 50); do
-    kill -0 "$pid5" 2>/dev/null || break
-    sleep 0.1
-  done
-  assert_eq "stopped $sh5 watch: it exits within 5s of TERM" "gone" "$(kill -0 "$pid5" 2>/dev/null && echo running || echo gone)"
-  kill -0 "$pid5" 2>/dev/null && kill -KILL "$pid5" 2>/dev/null
-  wait "$pid5" 2>/dev/null
+FX="$FX5" TMPDIR="$POLL_TMP" PATH="$BIN:$PATH" bash "$POLL" --pr 7 --interval 30 --checkout "$CHECKOUT" >"$TEST_TMPDIR/out5" 2>&1 &
+pid5=$!
+for _ in $(seq 100); do
+  [[ -e "$FX5/threads-read" ]] && break
+  sleep 0.1
 done
+sleep 0.5 # the rate-limit check ends poll 1, then its sleep starts
+assert_eq "running watch: poll 1 reached its threads read" "yes" "$([[ -e "$FX5/threads-read" ]] && echo yes || echo no)"
+# target-repo.sh names the repository on stderr; any other line is an error.
+assert_eq "running watch: poll 1 ran clean" "" "$(grep -v '^target repository: ' "$TEST_TMPDIR/out5")"
+kill -TERM "$pid5" 2>/dev/null
+pkill -TERM -P "$pid5" 2>/dev/null
+for _ in $(seq 50); do
+  kill -0 "$pid5" 2>/dev/null || break
+  sleep 0.1
+done
+assert_eq "stopped watch: it exits within 5s of TERM" "gone" "$(kill -0 "$pid5" 2>/dev/null && echo running || echo gone)"
+kill -0 "$pid5" 2>/dev/null && kill -KILL "$pid5" 2>/dev/null
+wait "$pid5" 2>/dev/null
 
 # Every run above ended (merged, rate-limited, stopped); none wrote a file.
 assert_eq "poll script leaves no temp file behind" "" "$(find "$POLL_TMP" -mindepth 1)"
