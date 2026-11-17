@@ -131,6 +131,7 @@ for (const [what, files, message] of [
   ["a generated operator name", { "Spec.tla": spec("Spec", "ChartBudget == 1") }, /uses the name ChartBudget/],
   ["a Json EXTENDS", { "Spec.tla": spec("Spec", "EXTENDS Json") }, /uses Json, which is not in the allowed modules.*read and write files/],
   ["an IOUtils INSTANCE", { "Spec.tla": spec("Spec", "I == INSTANCE IOUtils") }, /uses IOUtils/],
+  ["a file whose header names the module the spec uses", { "Spec.tla": spec("Spec", "EXTENDS IOUtils"), "Decoy.tla": spec("IOUtils", "") }, /uses IOUtils/],
 ] as [string, { [name: string]: string }, RegExp][]) {
   test(`stageSpec refuses a spec folder with ${what}`, (t) => {
     const dir = folder(t, files);

@@ -51,7 +51,7 @@ export function stageSpec(specFile: string, into: string, allowed: string[]) {
       throw new Error(
         `${entry.name} uses the name ${generated}, which the command generates. Rename it.`,
       );
-    own.set(name, text);
+    own.set(entry.name.slice(0, -4), text);
     fs.writeFileSync(path.join(into, entry.name), text, { flag: "wx" });
   }
   const spec = path.basename(specFile);
