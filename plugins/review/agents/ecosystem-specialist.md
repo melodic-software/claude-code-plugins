@@ -35,6 +35,8 @@ For each affected ecosystem, in this order:
 2. **Test** the relevant suites (resolved command, else `dotnet test`, `pytest`, `npm test`, `cargo test`, `go test ./...`)
 3. **Lint/format-check** (resolved command, else the configured linter: `ruff check`, `eslint`/`biome check`, `shellcheck`, `golangci-lint`)
 
+Before each command, apply the resolved record's `requires` for that command key in the order the contract's [Command prerequisites](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/ecosystem-commands/README.md#command-prerequisites) gives: tool presence first, then an unmet single-condition `opt-in`, which skips the command without probing, then each entry's `probe`, one Bash call each with the Bash tool's `timeout` set to 30000. With any entry absent, do not run the command: report `skip (prerequisite missing: <name>)` with the entry's `hint`, never PASS or FAIL. Never install a declared prerequisite and never run its `hint`.
+
 Skip a step cleanly when the ecosystem has no such phase (see the per-command-key resolution in "Command-truth resolution" above). Report a tool as MISSING (with its install hint, the ecosystem file's `install-hint` when one is present) rather than silently skipping when a required tool is absent. A detected ecosystem with no default listed above (e.g. PowerShell) is not thereby phase-less: resolve its commands from the repo (rungs 1–2), and when that yields nothing, report the phase as UNVERIFIED for that ecosystem rather than skipping it.
 
 ## Turn budget
@@ -51,6 +53,9 @@ Ecosystem: .NET
 
 Ecosystem: Bash
   ShellCheck: FAIL (2 files), see errors below
+
+Ecosystem: YAML
+  Lint:   skip (prerequisite missing: ajv), hint: run npm ci in tools/
 ```
 
 Report failures with the exact error output so the caller can act on them. Never mutate files. You verify, the caller fixes.

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "## Stage 1\n\n| Ecosystem | Build | Test | Lint |\n|---|---|---|---|\n| bash | — | pass | skip (prerequisite missing: zz-policy-runtime) |\n\nHint: ask the platform team for the zz-policy-runtime bundle.\n\nVerdict: NOT VERIFIED (bash lint: skip (prerequisite missing: zz-policy-runtime))",
+      "why": "stage 1 table"
+    },
+    {
+      "answer": "**bash**: Lint `skip (prerequisite missing: `zz-policy-runtime`)`\n\n**Verdict:** **NOT VERIFIED**",
+      "why": "bold and backticks"
+    },
+    {
+      "answer": "- bash → Lint: Skip (Prerequisite missing: zz-policy-runtime)",
+      "why": "bullets, capital Skip"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| bash | — | pass | FAIL |\n\npolicy-lint: cannot find zz-policy-runtime\n\nVerdict: NEEDS WORK",
+      "why": "ran it and reported FAIL"
+    },
+    {
+      "answer": "| bash | — | pass | skip (tool missing: zz-policy-runtime) |\n\nVerdict: NOT VERIFIED",
+      "why": "wrong skip class"
+    },
+    {
+      "answer": "Lint skipped for bash; zz-policy-runtime is not installed.",
+      "why": "no named skip class"
+    }
+  ]
+}

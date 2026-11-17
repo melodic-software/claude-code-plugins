@@ -108,7 +108,7 @@ Basis: LLM-written test oracles were measured to assert what the code does rathe
 
 - **CONFIRMED** if all plan items are COMPLETE, deviations are justified, no load-bearing or captured assumption is falsified, the stated problem is solved, and Stage 1 left no environment skip
 - **NEEDS WORK** if any plan items are MISSING or PARTIAL without justification, the change falsified a load-bearing or captured assumption, or it leaves the Brief's stated problem or the user's intent unmet ([intent.md](intent.md))
-- **NOT VERIFIED** if no gap was found but Stage 1 left an environment skip (a missing tool, including one too old for the check, or missing dependencies): name each skip and its reason, and what running it needs
+- **NOT VERIFIED** if no gap was found but Stage 1 left an environment skip (a missing tool, including one too old for the check, missing dependencies, or a missing declared prerequisite): name each skip and its reason, and what running it needs
 - **NOT VERIFIED: no intent source** when the intent ladder ([intent.md](intent.md)) found nothing and no one can be asked
 - **NOT VERIFIED** under `proof_level: strict` when a proof box is empty or its perf box has no baseline (see [Proof boxes](#proof-boxes))
 - Under any verdict, list an ecosystem whose only checks were syntax-only as "no real check ran"; it does not change the verdict by itself and never counts as a mechanical pass

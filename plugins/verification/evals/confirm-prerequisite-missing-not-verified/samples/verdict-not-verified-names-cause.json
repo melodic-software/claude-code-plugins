@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Verdict: NOT VERIFIED. Stage 1 left an environment skip: bash lint, skip (prerequisite missing: zz-policy-runtime). Running it needs the zz-policy-runtime bundle.",
+      "why": "verdict then cause"
+    },
+    {
+      "answer": "**Verdict:** **NOT VERIFIED**\n\n- bash lint: `skip (prerequisite missing: zz-policy-runtime)`",
+      "why": "bold verdict, cause in a bullet"
+    },
+    {
+      "answer": "## Verdict\n\nNOT  VERIFIED: every plan item is COMPLETE, but the lint did not run because zz-policy-runtime is absent.",
+      "why": "heading, double space"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Verdict: CONFIRMED. The test passes and AC1 is met.",
+      "why": "confirmed"
+    },
+    {
+      "answer": "Verdict: NOT VERIFIED: no intent source",
+      "why": "wrong cause, no prerequisite named"
+    },
+    {
+      "answer": "Verdict: NEEDS WORK. policy-lint: cannot find zz-policy-runtime",
+      "why": "ran it and treated it as a failure"
+    },
+    {
+      "answer": "zz-policy-runtime is absent, so the lint was skipped. Verdict: NOT VERIFIED",
+      "why": "cause named only before the verdict"
+    }
+  ]
+}

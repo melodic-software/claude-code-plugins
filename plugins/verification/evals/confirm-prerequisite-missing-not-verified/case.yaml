@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: confirm-prerequisite-missing-not-verified
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: lint-skip-prerequisite-missing
+    type: regex
+    pattern: 'skip\W{0,4}\(\s*prerequisite missing:\s*[`*]{0,2}zz-policy-runtime'
+    flags: i
+    target: last_message
+  - name: verdict-not-verified-names-cause
+    type: regex
+    pattern: 'NOT\s+VERIFIED\b[\s\S]{0,400}?zz-policy-runtime'
+    target: last_message
+  - name: never-confirmed
+    type: regex
+    pattern: '(?:Verdict\W{0,8}|^\W{0,4})CONFIRMED\b'
+    flags: m
+    match: not_contains
+    target: last_message
+  - name: ran-test
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:(?!-n\s)-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*tools/test\.sh'
+    arm: both
+  - name: never-ran-policy-lint
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:(?!-n\s)-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*policy-lint\.sh'
+    min: 0
+    max: 0
+    arm: both

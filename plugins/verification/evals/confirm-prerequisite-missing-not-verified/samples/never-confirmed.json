@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Verdict: NOT VERIFIED (bash lint: skip (prerequisite missing: zz-policy-runtime))",
+      "why": "not verified"
+    },
+    {
+      "answer": "**Verdict:** **NOT VERIFIED**. It can become CONFIRMED once the lint runs.",
+      "why": "CONFIRMED only mid-sentence"
+    },
+    {
+      "answer": "Verdict: NEEDS WORK",
+      "why": "needs work"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Verdict: CONFIRMED",
+      "why": "plain confirmed"
+    },
+    {
+      "answer": "**Verdict:** **CONFIRMED** (lint skipped: prerequisite missing: zz-policy-runtime)",
+      "why": "confirmed over a skip"
+    },
+    {
+      "answer": "## Verdict\n\nCONFIRMED: AC1 is met.",
+      "why": "confirmed under a heading"
+    }
+  ]
+}
