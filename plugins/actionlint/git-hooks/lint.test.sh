@@ -62,7 +62,7 @@ new_repo() { # [NONE: no actionlint config | yml: the config as actionlint.yml]
   git -C "$REPO" add -A
   git -C "$REPO" commit -q -m seed --no-verify
 }
-record() { # <body>: commit .claude/ecosystems/github-actions.yaml
+record() {
   mkdir -p "$REPO/.claude/ecosystems"
   printf '%s\n' "$1" >"$REPO/.claude/ecosystems/github-actions.yaml"
   git -C "$REPO" add .claude/ecosystems/github-actions.yaml
@@ -71,7 +71,6 @@ record() { # <body>: commit .claude/ecosystems/github-actions.yaml
 
 BIN="$WORK/bin"
 mkdir -p "$BIN"
-# A stand-in a record could name: it leaves a mark. No hook may call it.
 cat >"$BIN/stublint" <<EOF
 #!/bin/sh
 : >"$WORK/stublint-ran"
@@ -171,8 +170,6 @@ expect "it blocks again once the commit changes that line" "1||$WF/ci.yml:4: \"r
 $HINT" "$(check "$REPO")"
 
 new_repo
-# actionlint 1.17.0 names the line where the YAML parser stops: line 3 here,
-# where the unclosed flow sequence meets the next key.
 printf 'name: x\non: [push\njobs: {}\n' >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"
 expect "a YAML parse error is reported at its line" "1||$WF/ci.yml:3: could not parse as YAML: did not find expected ',' or ']' [syntax-check]
@@ -220,7 +217,6 @@ printf '%s' "$CLEAN" >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"
 printf '%s' "$BAD" >"$REPO/$WF/ci.yml"
 expect "a finding only in the unstaged edit does not block" "0||" "$(check "$REPO")"
-# The config's paths: rules hold for a file linted from the index.
 new_repo
 printf 'paths:\n  .github/workflows/ci.yml:\n    ignore: ["is not defined"]\n' >"$REPO/.github/actionlint.yaml"
 git -C "$REPO" add .github/actionlint.yaml
@@ -258,8 +254,6 @@ $HINT" "$(check "$REPO" --worktree)"
 rm "$REPO/$WF/new.yml"
 expect "--worktree: no uncommitted change passes" "0||" "$(check "$REPO" --worktree)"
 
-# actionlint exits 3 on a config it cannot parse, with no <path>:<line> finding:
-# the entry fails closed and shows the output.
 new_repo
 printf 'self-hosted-runner: [\n' >"$REPO/.github/actionlint.yaml"
 git -C "$REPO" add .github/actionlint.yaml
@@ -270,7 +264,6 @@ got="$(check "$REPO")"
 expect "an unparsable config fails closed, naming actionlint's exit" "1||actionlint: actionlint exited 3 and reported no <path>:<line> finding, so the change was not checked:" "${got%%$'\n'*}"
 expect "the fail-closed output carries actionlint's own message" yes "$([[ "$got" == *'could not parse config file'* ]] && echo yes)"
 
-# A record never runs from the entry, with or without the actionlint config.
 new_repo
 record 'globs: [".github/workflows/*.yml"]
 lint-cmd: "stublint <files>"'

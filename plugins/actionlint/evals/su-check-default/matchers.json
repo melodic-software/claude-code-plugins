@@ -21,7 +21,7 @@
     {
       "use": "command_position_multishell"
     },
-    "(?:(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?actionlint(?:\\.exe)?(?![\\w.\\-/])(?!(?:\\\\\\\"|')?\\s+-{1,2}version\\b)(?:\\\\\\\"|')?|(?:(?:bash|dash|zsh|sh)\\s+(?:-\\w+\\s+)*)?(?:\\\\\\\"|')?[^\\s\\\"\\\\;&|=']*(?:git-)?hooks/actionlint-check\\.sh)"
+    "(?:(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?actionlint(?:\\.exe)?(?![\\w.\\-/])(?!(?:\\\\\\\"|')?\\s+-{1,2}version\\b)(?:\\\\\\\"|')?|(?:(?:bash|dash|zsh|sh)\\s+(?:-\\w+\\s+)*)?(?:\\\\\\\"|')?[^\\s\\\"\\\\;&|=']*(?:git-)?hooks/actionlint-check\\.sh|(?:(?:bash|dash|zsh|sh)\\s+(?:-\\w+\\s+)*)?(?:\\\\\\\"|')?[^\\s\\\"\\\\;&|=']*git-hooks/(?:lint|adapters)\\.sh(?!(?:\\\\\\\"|')?\\s+--resolve\\b))"
   ],
   "status-table": [
     {

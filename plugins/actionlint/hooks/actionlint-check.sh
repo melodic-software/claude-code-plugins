@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Stop hook (opt-in, actionlint_end_of_turn): run the lint entry over the
-# uncommitted workflow changes when a turn ends.
-#
 #   actionlint-check.sh --end-of-turn
 
 set -uo pipefail

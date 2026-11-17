@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Registration and prerequisite tests for the actionlint plugin's Claude Code
-# hooks. actionlint only reports, so no hook runs per edit or per batch: the
-# manifest registers no PostToolUse, PostToolBatch or SessionStart row and one
-# opt-in Stop row; harness-ops runs the prerequisites probe (session_probe). The
-# Stop row's behavior is tested in actionlint-end-of-turn.test.sh and the
-# lint entry's in git-hooks/lint.test.sh.
 # test-scope: plugins/actionlint/hooks/hooks.json plugins/actionlint/.claude-plugin/plugin.json plugins/actionlint/lib/prerequisites.mjs plugins/actionlint/prerequisites.json
 # test-scope: plugins/actionlint/lib/git-hooks/install.mjs
 set -uo pipefail
