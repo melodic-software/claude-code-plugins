@@ -4,11 +4,13 @@
 #   bash-format.sh                 the PostToolBatch row
 #   bash-format.sh --end-of-turn   the opt-in Stop row (bash_format_end_of_turn)
 #
-# Rewrites only: shfmt, once per batch over every .sh and .bash file a Write,
-# Edit or MultiEdit in the batch named. It prints nothing and always exits 0, so
-# no finding ever reaches the model per edit; ShellCheck findings are the
-# pre-commit entry's job (git-hooks/shell-check.sh), which also formats for every
-# author.
+# Formats only: once per batch, over every .sh and .bash file a Write, Edit or
+# MultiEdit in the batch named, the shfmt adapter runs where it governs the
+# file (git-hooks/adapters.sh, through lib/git-hooks/resolve-tool.sh). A
+# .claude/ecosystems/ record is never run here; /toolchain:lint runs it. It
+# prints nothing and always exits 0, so no finding ever reaches the model per
+# edit; ShellCheck findings are the lint entry's job (git-hooks/lint.sh), and
+# the format entry (git-hooks/format.sh) formats for every author.
 #
 # PostToolBatch has no matcher, so the row fires on every batch. The launcher
 # skips the script unless the payload holds a string ending in "sh" (which both
@@ -16,8 +18,8 @@
 # itself, so a batch with no shell edit costs one node process. A file that Read
 # named is never rewritten.
 #
-# Opt-in: shfmt runs only for a file an .editorconfig section governs (see
-# git-hooks/shfmt-rewrite.sh); without that opt-in the file is left as written
+# Opt-in: the shfmt adapter governs only a file an .editorconfig section names
+# (see git-hooks/shfmt-rewrite.sh); without that opt-in the file is left as written
 # rather than rewritten to shfmt's built-in defaults. A file the repository
 # gitignores is skipped unless bash_format_lint_gitignored is true, and so is
 # anything under .githooks/ (installed copies). The batch payload carries no
@@ -38,10 +40,20 @@ IFS= read -r -d '' INPUT || :
 # quiet, so it blocks at most once per turn.
 if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
-  err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/shell-check.sh" --worktree 2>&1 >/dev/null)" && exit 0
-  # silent-skip-ok: the SessionStart probe already reports a missing shellcheck (prerequisites.json) and the bundled checker does too; blocking every turn end on a host problem would not help the model.
-  [[ "$err" == "FAIL: "*" missing. Install: "* ]] && exit 0
-  printf '%s\n' "$err" >&2
+  err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/lint.sh" --worktree 2>&1 >/dev/null)" && exit 0
+  # A missing linter is a host problem: the SessionStart probe reports it, and
+  # blocking every turn end on it would not help the model. Only those lines
+  # are dropped; any finding printed beside them is still handed back.
+  report=""
+  while IFS= read -r line; do
+    case "$line" in
+    "FAIL: "*" missing. Install: "* | "To skip only while "*" is missing: "*) ;;
+    *) report+="$line"$'\n' ;;
+    esac
+  done <<<"$err"
+  # silent-skip-ok: only missing-tool lines remained, which the SessionStart probe reports.
+  [[ -n "${report//[[:space:]]/}" ]] || exit 0
+  printf '%s' "$report" >&2
   exit 2
 fi
 
@@ -55,6 +67,10 @@ PATHS=$(jq -r '.tool_calls[]? | select(.tool_name == "Write" or .tool_name == "E
 source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=../git-hooks/shfmt-rewrite.sh
 source "$HOOK_DIR/../git-hooks/shfmt-rewrite.sh"
+# shellcheck source=../lib/git-hooks/resolve-tool.sh
+source "$HOOK_DIR/../lib/git-hooks/resolve-tool.sh"
+# shellcheck source=../git-hooks/adapters.sh
+source "$HOOK_DIR/../git-hooks/adapters.sh"
 
 # shfmt and jq read the file, so on Windows/MSYS hand them cygpath's mixed long
 # form of a POSIX mount path (`/c/...`); elsewhere the path is used unchanged.
@@ -89,7 +105,8 @@ while IFS= read -r path; do
   hook::dirname_to dir "$file"
   hook::repo_root_to root "$dir" || :
   [[ -d "$root" ]] || continue
-  hook::walk_up_to config_dir "$dir" "$root" editorconfig_shell_section_here || continue
+  rt_resolve "$file" format "$root"
+  [[ "$RT_SOURCE" == adapter:shfmt ]] || continue
   hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_BASH_FORMAT_LINT_GITIGNORED:-false}" "$file" && continue
   FILES+=("$file")
 done <<<"$PATHS"

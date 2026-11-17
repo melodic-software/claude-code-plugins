@@ -1,12 +1,24 @@
 {
+  "earlierEntries": [{ "from": "shell-check", "to": ["format", "lint"] }],
+  "ecosystems": ["bash"],
   "entries": [
     {
-      "name": "shell-check",
+      "name": "format",
       "event": "pre-commit",
-      "script": "shell-check.sh",
-      "tools": ["shfmt", "shellcheck", "jq"],
+      "script": "format.sh",
+      "tools": ["shfmt", "jq"],
       "rewrites": true,
-      "assets": ["git-hooks/shfmt-rewrite.sh"]
+      "resolved": true,
+      "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh", "git-hooks/shfmt-rewrite.sh"]
+    },
+    {
+      "name": "lint",
+      "event": "pre-commit",
+      "script": "lint.sh",
+      "tools": ["shellcheck"],
+      "rewrites": false,
+      "resolved": true,
+      "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh"]
     }
   ]
 }

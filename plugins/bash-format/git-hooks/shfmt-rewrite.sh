@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Shared by the pre-commit entry (shell-check.sh) and the PostToolBatch hook
+# Shared by the pre-commit format entry (format.sh) and the PostToolBatch hook
 # (hooks/bash-format.sh): which shell files the repository opted in to format,
 # and the rewrite itself. Sourced, never run. Stays within bash 3.2.
 #
@@ -183,6 +183,8 @@ shfmt_probe() {
 shfmt_rewrite() {
   local file="$1"
   [[ -f "$file" ]] || return 0
+  # A name starting with - would read as a flag.
+  [[ "$file" == -* ]] && file="./$file"
   shfmt_probe
   if [[ -n "$SHFMT_PROBE_ERR" ]]; then
     shfmt_note "bash-format: shfmt probe failed ($SHFMT_PROBE_ERR); ${file##*/} not formatted."

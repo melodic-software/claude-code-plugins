@@ -1,0 +1,131 @@
+#!/bin/sh
+# shellcheck shell=bash
+# bash-format's side of lib/git-hooks/resolve-tool.sh: the ecosystem id whose
+# record setup reports (hooks never run it), the files it acts on, and its two
+# adapters. Sourced by the batch hook and both git-hook entries; the format
+# adapter's opt-in test, editorconfig_shell_section_here, comes from
+# shfmt-rewrite.sh, which the caller sources first.
+#
+# format: shfmt, where an .editorconfig section naming shell files governs the
+#   file (see shfmt-rewrite.sh). It runs in process through shfmt_rewrite, so
+#   its array-subscript guard and ignore-rule probe hold; RT_SCRIPT stays empty.
+# lint: ShellCheck, where a .shellcheckrc or shellcheckrc sits in the file's
+#   directory or above it, up to the repository root. It reports and fixes
+#   nothing: gcc output, warning severity and above.
+# Both tools come from PATH.
+
+# shellcheck disable=SC2034 # read by resolve-tool.sh
+RT_PLUGIN=bash-format
+# shellcheck disable=SC2034 # read by resolve-tool.sh
+RT_IDS=bash
+BF_SHFMT_INSTALL='see https://github.com/mvdan/sh#shfmt'
+BF_SC_INSTALL='see https://github.com/koalaman/shellcheck#installing'
+
+rt_wants() {
+  case "$1" in
+  .githooks/* | */.githooks/*) return 1 ;;
+  *.sh | *.bash) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+bf__shellcheckrc_here() {
+  [[ -e "$1/.shellcheckrc" || -e "$1/shellcheckrc" ]]
+}
+
+# bf__walk <dir> <root> <predicate>: 0 when the predicate holds at <dir> or a
+# directory above it, up to <root>; BF_WALK_DIR is where it held. A predicate
+# status of 2 ends the walk with no hit (a root = true .editorconfig).
+bf__walk() {
+  local dir="$1" rc
+  while :; do
+    BF_WALK_DIR="$dir"
+    "$3" "$dir"
+    rc=$?
+    ((rc == 0)) && return 0
+    ((rc == 2)) && return 1
+    [[ "$dir" == "$2" || "$dir" != */* ]] && return 1
+    dir="${dir%/*}"
+    [[ -n "$dir" ]] || return 1
+  done
+}
+
+# bf__dir <file> <root>: sets BF_DIR to the file's directory, absolute.
+bf__dir() {
+  local f="$1"
+  [[ "$f" == /* || "$f" == [A-Za-z]:[\\/]* ]] || f="$2/$f"
+  [[ "$f" == */* ]] && f="${f%/*}"
+  BF_DIR="$f"
+}
+
+# bf__set <concern> <config path, repo-relative> <root>: the adapter's RT_*.
+# shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh and the entries
+bf__set() {
+  RT_DIR="$3"
+  case "$1" in
+  format)
+    RT_ADAPTER=shfmt RT_TOOL=shfmt RT_BIN=shfmt RT_INSTALL="$BF_SHFMT_INSTALL"
+    RT_CONFIGS=.editorconfig RT_SCRIPT=""
+    RT_DETAIL="config $2; binary shfmt on PATH"
+    ;;
+  *)
+    RT_ADAPTER=shellcheck RT_TOOL=shellcheck RT_BIN=shellcheck RT_INSTALL="$BF_SC_INSTALL"
+    RT_CONFIGS=".shellcheckrc shellcheckrc"
+    # shellcheck disable=SC2016 # the command text sh -c expands, with RT_BIN and the files
+    RT_SCRIPT='"$RT_BIN" -x -f gcc -S warning -- "$@"'
+    RT_DETAIL="config $2; binary shellcheck on PATH"
+    ;;
+  esac
+}
+
+# bf__rel <dir> <root> <name>: sets BF_REL to <dir>/<name>, repo-relative.
+bf__rel() {
+  local rel="${1#"$2"}"
+  rel="${rel#/}"
+  BF_REL="${rel:+$rel/}$3"
+}
+
+rt_adapter() { # <concern> <file> <root>
+  bf__dir "$2" "$3"
+  if [[ "$1" == format ]]; then
+    bf__walk "$BF_DIR" "$3" editorconfig_shell_section_here || return 1
+    bf__rel "$BF_WALK_DIR" "$3" .editorconfig
+  else
+    bf__walk "$BF_DIR" "$3" bf__shellcheckrc_here || return 1
+    bf__rel "$BF_WALK_DIR" "$3" .shellcheckrc
+    [[ -e "$BF_WALK_DIR/.shellcheckrc" ]] || bf__rel "$BF_WALK_DIR" "$3" shellcheckrc
+  fi
+  bf__set "$1" "$BF_REL" "$3"
+}
+
+# shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh
+rt_adapter_in_repo() { # <concern> <root>
+  local f=""
+  if [[ "$1" == format ]]; then
+    if editorconfig_shell_section_here "$2"; then
+      f=.editorconfig
+    else
+      while IFS= read -r f; do
+        [[ "$f" == */* ]] && editorconfig_shell_section_here "$2/${f%/*}" && break
+        f=""
+      done < <(git -C "$2" ls-files -- ':(glob)**/.editorconfig' 2>/dev/null)
+    fi
+    if [[ -z "$f" ]]; then
+      RT_DETAIL="no .editorconfig section names shell files"
+      return 1
+    fi
+  else
+    if [[ -e "$2/.shellcheckrc" ]]; then
+      f=.shellcheckrc
+    elif [[ -e "$2/shellcheckrc" ]]; then
+      f=shellcheckrc
+    else
+      f="$(git -C "$2" ls-files -- ':(glob)**/.shellcheckrc' ':(glob)**/shellcheckrc' 2>/dev/null | head -n 1)"
+    fi
+    if [[ -z "$f" ]]; then
+      RT_DETAIL="no .shellcheckrc or shellcheckrc"
+      return 1
+    fi
+  fi
+  bf__set "$1" "$f" "$2"
+}

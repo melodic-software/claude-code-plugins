@@ -1,28 +1,31 @@
 #!/usr/bin/env bash
 # test-scope: plugins/bash-format/.claude-plugin/plugin.json
-# Contract tests for the bash-format pre-commit entry (git-hooks/shell-check.sh):
-# staged shell scripts that an .editorconfig section governs are formatted and
-# re-staged, a partly staged one is refused untouched, a ShellCheck finding blocks
-# only on a line the commit adds, a script no section governs is never rewritten
-# but is still checked, an array-subscript rewrite shfmt would make is put back,
-# --worktree reports without rewriting, a merge leaves a script it takes
-# unchanged from the merged branch alone, a missing tool follows the skip-key rule,
-# many staged paths reach ShellCheck in batches under Windows' command-line cap,
-# identical scripts are linted once unless their rc or sourced files could differ,
-# and the plugin's own vendored installer wires the entry so `git commit` runs it.
-# Expected values are the tools' documented output: a tab-indented body formats to
-# the two spaces indent_size = 2 asks for; SC2154 is "<var> is referenced but not
-# assigned"; shfmt spaces the operator in an array subscript, [a-b] to [a - b].
-# test-scope: plugins/bash-format/git-hooks/entries.json plugins/bash-format/lib/git-hooks/check-lib.sh plugins/bash-format/lib/git-hooks/install.mjs
+# Contract tests for the bash-format lint entry (git-hooks/lint.sh): ShellCheck
+# runs only for a staged shell script a .shellcheckrc or shellcheckrc in its
+# directory or above governs, a finding blocks only on a line the commit adds,
+# nothing is ever rewritten, a partly staged or deleted script is linted from
+# the index, --worktree reports the uncommitted changes, a merge leaves a
+# script it takes unchanged from the merged branch alone, a missing tool
+# follows the skip-key rule, a ShellCheck that exits 1 with no finding fails
+# closed, many staged paths reach ShellCheck in batches under Windows'
+# command-line cap, identical scripts are linted once unless their rc or
+# sourced files could differ, and --resolve names the adapter or why none ran.
+# Expected values are the tools' documented output: SC2154 is "<var> is
+# referenced but not assigned"; gcc format is
+# "<file>:<line>:<column>: <type>: <message> [SC####]" (shellcheck.1.md,
+# "gcc"); exit 1 means "some issues" (shellcheck.1.md, "RETURN VALUES"); an rc
+# file is ".shellcheckrc" or "shellcheckrc" in the script's directory or a
+# parent (shellcheck.1.md, "RC FILES").
+# test-scope: plugins/bash-format/git-hooks/entries.json plugins/bash-format/git-hooks/adapters.sh
+# test-scope: plugins/bash-format/lib/git-hooks/check-lib.sh plugins/bash-format/lib/git-hooks/resolve-tool.sh
 # shellcheck disable=SC2016 # fixtures hold literal shell text, not expansions
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CHECK="$HERE/shell-check.sh"
-PLUGIN="$(cd "$HERE/.." && pwd)"
+CHECK="$HERE/lint.sh"
 if ! command -v git >/dev/null 2>&1; then
-  echo "SKIP: git not on PATH -- shell-check tests skipped"
+  echo "SKIP: git not on PATH -- lint tests skipped"
   exit 0
 fi
 
@@ -44,14 +47,15 @@ expect() { # <label> <want> <got>
 
 EC=$'[*.sh]\nindent_style = space\nindent_size = 2'
 n=0
-new_repo() { # [.editorconfig body; "NONE" for no .editorconfig]
+new_repo() { # [.shellcheckrc body; "NONE" for no .shellcheckrc]
   n=$((n + 1))
   REPO="$WORK/r$n"
   git init -q -b main "$REPO"
   git -C "$REPO" config user.name t
   git -C "$REPO" config user.email t@example.invalid
+  printf '%s\n' "$EC" >"$REPO/.editorconfig"
   if [[ "${1:-}" != NONE ]]; then
-    printf '%s\n' "${1:-$EC}" >"$REPO/.editorconfig"
+    printf '%s\n' "${1:-# the repository opts in to ShellCheck}" >"$REPO/.shellcheckrc"
   fi
   printf '#!/usr/bin/env bash\necho seed\n' >"$REPO/seed.sh"
   git -C "$REPO" add -A
@@ -76,8 +80,8 @@ HINT='bash-format: fix the findings above, or adjust the repository .shellcheckr
 # its place and need no real one: past the cap the stub fails to launch
 # with status 126, as Windows does; otherwise it logs "--" per call and each path
 # it gets, prints a finding for a *-finding.sh path or one holding "stub: finding",
-# and exits 2 for *-broken.sh. Identical scripts are linted once, so each fixture
-# here holds its own bytes.
+# exits 2 for *-broken.sh, and exits 1 with nothing parseable for *-mute.sh.
+# Identical scripts are linted once, so each fixture here holds its own bytes.
 mkdir -p "$WORK/sc-stub"
 cat >"$WORK/sc-stub/shellcheck" <<'STUB'
 #!/usr/bin/env bash
@@ -95,6 +99,10 @@ for f in "$@"; do
   printf '%s\n' "$f" >>"$SC_STUB_LOG"
   case "$f" in
   *-broken.sh) rc=2 ;;
+  *-mute.sh)
+    echo "stub: internal confusion"
+    ((rc < 1)) && rc=1
+    ;;
   *)
     if [[ "$f" == *-finding.sh ]] || grep -q 'stub: finding' "$f"; then
       printf '%s:2:1: warning: stub finding [SC2154]\n' "$f"
@@ -115,7 +123,7 @@ sc_stub() { # <repo> -> "<rc>|<stdout and stderr>"
 # 250 paths of about 150 characters: about 37,000 in all, past the cap, while
 # each path stays under Windows' 260-character MAX_PATH once a temp dir prefixes it.
 LONG="$(printf 'd%.0s' {1..60})/$(printf 'f%.0s' {1..80})"
-new_repo NONE
+new_repo
 mkdir -p "$REPO/${LONG%/*}"
 for i in {1..250}; do
   printf '#!/bin/bash\necho ok %s\n' "$i" >"$REPO/$LONG-$i.sh"
@@ -140,10 +148,25 @@ out="$(sc_stub "$REPO")"
 expect "a first batch's status above 1 still blocks after a later batch passes" \
   "1|bash-format: shellcheck failed:" "${out%%$'\n'*}"
 
+new_repo
+printf '#!/bin/bash\necho m\n' >"$REPO/a-mute.sh"
+git -C "$REPO" add a-mute.sh
+expect "exit 1 with no <path>:<line> finding fails closed and shows the output" \
+  "1|bash-format: shellcheck exited 1 and reported no <path>:<line> finding, so the change was not checked:
+stub: internal confusion" "$(sc_stub "$REPO")"
+
+# A name starting with - reaches ShellCheck as ./<name>, so it is never read as
+# an option; its finding still names it as staged.
+new_repo
+printf '#!/bin/bash\necho d\n' >"$REPO/-x-finding.sh"
+git -C "$REPO" add -- -x-finding.sh
+expect "a leading-dash name is passed as a path and its finding names it" "1|-x-finding.sh:2: warning: stub finding [SC2154]
+$HINT" "$(sc_stub "$REPO")"
+
 # Identical staged scripts in one directory are linted once; each copy gets the
 # findings under its own path, and its own added lines decide what blocks. b.sh
 # already held line 2, so its copy of the finding there does not block.
-new_repo NONE
+new_repo
 printf '#!/bin/bash\n# stub: finding\necho before\n' >"$REPO/b-copy.sh"
 git -C "$REPO" add b-copy.sh
 git -C "$REPO" commit -q -m b --no-verify
@@ -158,10 +181,40 @@ $HINT" "$(sc_stub "$REPO")"
 expect "identical copies are linted once, differing content still each" "a-copy.sh
 d-other.sh" "$(grep -vx -- -- "$WORK/sc.log" | sort)"
 
-for tool in shfmt shellcheck jq node; do
+# The adapter's opt-in: no rc file at or above the script, no ShellCheck.
+new_repo NONE
+printf '#!/bin/bash\necho a\n' >"$REPO/a-finding.sh"
+git -C "$REPO" add a-finding.sh
+expect "no .shellcheckrc: ShellCheck is not run and the commit passes" "0|" "$(sc_stub "$REPO")"
+expect "no .shellcheckrc: no ShellCheck call" "" "$(cat "$WORK/sc.log")"
+printf '# no dot\n' >"$REPO/shellcheckrc"
+expect "a shellcheckrc without the dot opts in" "1|a-finding.sh:2: warning: stub finding [SC2154]
+$HINT" "$(sc_stub "$REPO")"
+new_repo NONE
+mkdir -p "$REPO/pkg" "$REPO/other"
+printf '# pkg only\n' >"$REPO/pkg/.shellcheckrc"
+printf '#!/bin/bash\necho p\n' >"$REPO/pkg/p-finding.sh"
+printf '#!/bin/bash\necho o\n' >"$REPO/other/o-finding.sh"
+git -C "$REPO" add pkg other
+expect "a nested .shellcheckrc governs only the scripts under it" "1|pkg/p-finding.sh:2: warning: stub finding [SC2154]
+$HINT" "$(sc_stub "$REPO")"
+
+# --resolve: one row for the repository, or one per path; it runs nothing.
+expect "--resolve names the adapter and the governing rc" "bash-format	lint	adapter:shellcheck	shellcheck	yes	config pkg/.shellcheckrc; binary shellcheck on PATH" \
+  "$(cd "$REPO" && PATH="$WORK/sc-stub:$PATH" bash "$CHECK" --resolve)"
+expect "--resolve <path>: one row per file, the governing rc or none" "bash-format	lint	adapter:shellcheck	shellcheck	yes	config pkg/.shellcheckrc; binary shellcheck on PATH
+bash-format	lint	none		n/a	" \
+  "$(cd "$REPO" && PATH="$WORK/sc-stub:$PATH" bash "$CHECK" --resolve pkg/p-finding.sh other/o-finding.sh)"
+new_repo NONE
+mkdir -p "$REPO/.claude/ecosystems"
+printf 'globs: ["*.sh"]\nlint-cmd: "stublint <files>"\n' >"$REPO/.claude/ecosystems/bash.yaml"
+expect "--resolve with no rc says so, and that hooks never run the bash record" "bash-format	lint	none		n/a	no .shellcheckrc or shellcheckrc; the bash record is not run by hooks; /toolchain:lint and /toolchain:check run it" \
+  "$(cd "$REPO" && bash "$CHECK" --resolve)"
+
+for tool in shellcheck jq node; do
   if ! command -v "$tool" >/dev/null 2>&1; then
-    echo "SKIP: $tool not on PATH -- the remaining shell-check tests skipped"
-    echo "shell-check: $PASS passed, $FAIL failed"
+    echo "SKIP: $tool not on PATH -- the remaining lint tests skipped"
+    echo "lint: $PASS passed, $FAIL failed"
     exit $((FAIL > 0))
   fi
 done
@@ -169,47 +222,11 @@ done
 new_repo
 printf '%s\n' "$TABBED" >"$REPO/a.sh"
 git -C "$REPO" add a.sh
-expect "a staged unformatted script is rewritten, listed on stdout, and exits 0" "0|a.sh|" "$(check "$REPO")"
-expect "the rewrite is in the work tree" "$SPACED" "$(cat "$REPO/a.sh")"
-expect "the rewrite is re-staged: the index holds the formatted bytes" "$SPACED" "$(git -C "$REPO" show :a.sh)"
-expect "re-staged: no unstaged change remains" "" "$(git -C "$REPO" diff --name-only)"
+expect "a clean staged script passes and is never rewritten" "0||" "$(check "$REPO")"
+expect "lint leaves the bytes as written" "$TABBED" "$(cat "$REPO/a.sh")"
 
-new_repo
-printf '%s\necho other\n' "$SHEBANG" >"$REPO/other.sh"
-git -C "$REPO" add other.sh
-git -C "$REPO" commit -q -m other --no-verify
-printf '%s\necho other\necho unstaged\n' "$SHEBANG" >"$REPO/other.sh"
-printf '%s\n' "$TABBED" >"$REPO/*.sh"
-git -C "$REPO" add -- ':(literal)*.sh'
-expect "a staged name holding glob characters re-stages only itself" "0|*.sh|" "$(check "$REPO")"
-expect "glob name: an unstaged script it would match stays unstaged" "*.sh" "$(git -C "$REPO" diff --cached --name-only)"
-
-new_repo
-printf '%s\n' "$TABBED" >"$REPO/a.bash"
-git -C "$REPO" add a.bash
-expect "a .bash file is checked but [*.sh] does not govern it, so it is not rewritten" "0||" "$(check "$REPO")"
-new_repo $'[*.{sh,bash}]\nindent_style = space\nindent_size = 2'
-printf '%s\n' "$TABBED" >"$REPO/a.bash"
-git -C "$REPO" add a.bash
-expect "a .bash file is rewritten when a brace list governs it" "0|a.bash|" "$(check "$REPO")"
-
-new_repo
-printf '%s\n' "$TABBED" >"$REPO/a.sh"
-git -C "$REPO" add a.sh
-printf '%s\necho more\n' "$TABBED" >"$REPO/a.sh"
-expect "a partly staged governed script is refused with the contract line" "1||a.sh: partly staged; format it or stage it fully, then commit" "$(check "$REPO")"
-expect "a refused script is left byte for byte" "$TABBED"$'\necho more' "$(cat "$REPO/a.sh")"
-expect "a refused script's index entry is left byte for byte" "$TABBED" "$(git -C "$REPO" show :a.sh)"
-
-# shfmt and ShellCheck read their config from the work tree; the commit holds the index's.
+# ShellCheck reads its rc from the work tree; the commit holds the index's.
 DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
-new_repo
-printf '%s\n' "$TABBED" >"$REPO/a.sh"
-git -C "$REPO" add a.sh
-rm "$REPO/.editorconfig"
-expect "an .editorconfig deleted from the work tree refuses the commit, naming it" "1||.editorconfig: $DRIFT" "$(check "$REPO")"
-expect "the refused script is left as it was" "$TABBED" "$(cat "$REPO/a.sh")"
-
 new_repo
 mkdir -p "$REPO/pkg"
 printf 'disable=SC2154\n' >"$REPO/pkg/.shellcheckrc"
@@ -219,27 +236,14 @@ printf 'disable=SC2034\n' >"$REPO/pkg/.shellcheckrc"
 expect "a nested .shellcheckrc edited after staging refuses the commit" "1||pkg/.shellcheckrc: $DRIFT" "$(check "$REPO")"
 
 new_repo
-printf '%s\n' "$TABBED" >"$REPO/a.sh"
-printf 'notes\n' >"$REPO/notes.md"
-git -C "$REPO" add a.sh notes.md
-printf 'notes\nmore unstaged\n' >"$REPO/notes.md"
-expect "a partly staged file that is not shell does not refuse the commit" "0|a.sh|" "$(check "$REPO")"
-
-new_repo NONE
-printf '%s\n' "$TABBED" >"$REPO/a.sh"
-git -C "$REPO" add a.sh
-printf '%s\necho more\n' "$TABBED" >"$REPO/a.sh"
-expect "a partly staged script no section governs is not refused" "0||" "$(check "$REPO")"
-
-new_repo NONE
 printf '%s\necho staged\n' "$SHEBANG" >"$REPO/a.sh"
 git -C "$REPO" add a.sh
 printf '%s\necho staged\necho "$undefined_var"\n' "$SHEBANG" >"$REPO/a.sh"
-expect "partly staged, ungoverned: a finding only in the unstaged lines does not block" "0||" "$(check "$REPO")"
+expect "partly staged: a finding only in the unstaged lines does not block" "0||" "$(check "$REPO")"
 printf '%s\necho "$undefined_var"\n' "$SHEBANG" >"$REPO/a.sh"
 git -C "$REPO" add a.sh
 printf '%s\necho fixed\necho unstaged\n' "$SHEBANG" >"$REPO/a.sh"
-expect "partly staged, ungoverned: a staged finding blocks though the work tree fixed it" "1||a.sh:2: warning: undefined_var is referenced but not assigned. [SC2154]
+expect "partly staged: a staged finding blocks though the work tree fixed it" "1||a.sh:2: warning: undefined_var is referenced but not assigned. [SC2154]
 $HINT" "$(check "$REPO")"
 
 new_repo
@@ -253,10 +257,9 @@ mkdir -p "$REPO/bin"
 printf '%s\necho "$undefined_var"\n' "$TABBED" >"$REPO/bin/gone.sh"
 git -C "$REPO" add bin/gone.sh
 rm -r "${REPO:?}/bin"
-expect "staged then deleted from the work tree: the staged finding still blocks, nothing rewritten" "1||bin/gone.sh:5: warning: undefined_var is referenced but not assigned. [SC2154]
+expect "staged then deleted from the work tree: the staged finding still blocks" "1||bin/gone.sh:5: warning: undefined_var is referenced but not assigned. [SC2154]
 $HINT" "$(check "$REPO")"
 expect "staged then deleted: the script is not recreated" "no" "$([[ -e "$REPO/bin/gone.sh" ]] && echo yes || echo no)"
-expect "staged then deleted: the index keeps its unformatted bytes" "$TABBED"$'\necho "$undefined_var"' "$(git -C "$REPO" show :bin/gone.sh)"
 git -C "$REPO" rm -q --cached bin/gone.sh
 ln -s missing.sh "$REPO/link.sh"
 git -C "$REPO" add link.sh
@@ -276,36 +279,15 @@ printf '%s\nunused_variable=1\n' "$SHEBANG" >"$REPO/a.sh"
 git -C "$REPO" add a.sh
 expect "a warning-level finding (SC2034) blocks" "1||a.sh:2: warning: unused_variable appears unused. Verify use (or export if used externally). [SC2034]
 $HINT" "$(check "$REPO")"
-# A sed that crashes while it turns ShellCheck's output into findings leaves
-# none to block on, so it must fail the commit itself. The shim fails only the
-# call whose arguments hold the contract expression.
-mkdir -p "$WORK/fail-sed"
-printf '#!/bin/sh\ncase " $* " in\n*"\\1:\\2: \\3"*) echo "sed: fatal error: internal error" >&2; exit 2 ;;\nesac\nexec %s "$@"\n' \
-  "$(command -v sed)" >"$WORK/fail-sed/sed"
-chmod +x "$WORK/fail-sed/sed"
-out="$(cd "$REPO" && PATH="$WORK/fail-sed:$PATH" bash "$CHECK" 2>&1)"
-expect "a sed that fails while reading the ShellCheck findings fails the commit" \
-  "1|sed: fatal error: internal error
-shell-check.sh: sed exited 2 while reading the shellcheck findings, so this change was not fully checked; fix that failure, then commit again" "$?|$out"
 
 new_repo
 printf '%s\necho $1\n' "$SHEBANG" >"$REPO/a.sh"
 git -C "$REPO" add a.sh
 expect "an info-level finding (SC2086) does not block" "0||" "$(check "$REPO")"
 
-new_repo NONE
-printf '%s\n' "$TABBED" >"$REPO/a.sh"
-git -C "$REPO" add a.sh
-expect "no .editorconfig: the script is not touched and the check passes" "0||" "$(check "$REPO")"
-expect "no .editorconfig: bytes are as written" "$TABBED" "$(cat "$REPO/a.sh")"
-
-new_repo $'[*]\nend_of_line = lf\nindent_style = space'
-printf '%s\n' "$TABBED" >"$REPO/a.sh"
-git -C "$REPO" add a.sh
-expect "a bare [*] section does not opt in" "0||" "$(check "$REPO")"
-expect "a bare [*] section: bytes are as written" "$TABBED" "$(cat "$REPO/a.sh")"
-
-new_repo NONE
+new_repo
+rm "$REPO/.editorconfig"
+git -C "$REPO" commit -q -am 'no editorconfig' --no-verify
 printf '%s\necho "$undefined_var"\n' "$SHEBANG" >"$REPO/a.sh"
 git -C "$REPO" add a.sh
 expect "no .editorconfig: ShellCheck still reports" "1||a.sh:2: warning: undefined_var is referenced but not assigned. [SC2154]
@@ -329,7 +311,7 @@ linted() { # <path>: how many lint calls named it
 }
 UNDEF="$SHEBANG"$'\necho "$undefined_var"'
 
-new_repo NONE
+new_repo
 mkdir -p "$REPO/x" "$REPO/y"
 printf '%s\n' "$UNDEF" >"$REPO/x/a.sh"
 printf '%s\n' "$UNDEF" >"$REPO/y/a.sh"
@@ -339,7 +321,7 @@ y/a.sh:2: warning: undefined_var is referenced but not assigned. [SC2154]
 $HINT" "$(sc_count "$REPO")"
 expect "copies in two directories that source nothing: linted once" "1|0" "$(linted x/a.sh)|$(linted y/a.sh)"
 
-new_repo NONE
+new_repo
 mkdir -p "$REPO/pkg"
 printf 'disable=SC2154\n' >"$REPO/pkg/.shellcheckrc"
 printf '%s\n' "$UNDEF" >"$REPO/a.sh"
@@ -349,18 +331,17 @@ expect "a copy under its own .shellcheckrc is linted apart: its rc disables the 
 $HINT" "$(sc_count "$REPO")"
 expect "a copy under its own .shellcheckrc: both copies linted" "1|1" "$(linted a.sh)|$(linted pkg/a.sh)"
 
-new_repo NONE
-printf 'source-path=SCRIPTDIR\nexternal-sources=true\n' >"$REPO/.shellcheckrc"
+new_repo $'source-path=SCRIPTDIR\nexternal-sources=true'
 mkdir -p "$REPO/x" "$REPO/y"
 printf '%s\nsource helper.sh\necho "$v"\n' "$SHEBANG" >"$REPO/x/a.sh"
 printf '%s\nsource helper.sh\necho "$v"\n' "$SHEBANG" >"$REPO/y/a.sh"
 printf '# shellcheck shell=bash\nv=1\nexport v\n' >"$REPO/x/helper.sh"
 printf '# shellcheck shell=bash\n:\n' >"$REPO/y/helper.sh"
-git -C "$REPO" add .shellcheckrc x/a.sh y/a.sh
+git -C "$REPO" add x/a.sh y/a.sh
 expect "copies that source a file from their own directory are linted apart" "1|y/a.sh:3: warning: v is referenced but not assigned. [SC2154]
 $HINT" "$(sc_count "$REPO")"
 
-new_repo NONE
+new_repo
 mkdir -p "$REPO/x" "$REPO/y"
 printf '%s\n# shellcheck disable=SC1091\nif true; then\necho (\nsource helper.sh\n' "$SHEBANG" >"$REPO/x/a.sh"
 cp "$REPO/x/a.sh" "$REPO/y/a.sh"
@@ -368,46 +349,9 @@ git -C "$REPO" add x y
 sc_count "$REPO" >/dev/null
 expect "copies the probe cannot read (a parse error, a disabled SC1091) are linted apart" "1|1" "$(linted x/a.sh)|$(linted y/a.sh)"
 
-new_repo $'root = true\n\n[*.sh]\nindent_style = space\nindent_size = 2'
-mkdir -p "$REPO/pkg/sub"
-printf 'root = true\n\n[*.md]\nindent_size = 4\n' >"$REPO/pkg/.editorconfig"
-printf '%s\n' "$TABBED" >"$REPO/pkg/sub/b.sh"
-git -C "$REPO" add pkg/sub/b.sh
-expect "a nested root = true config with no shell section ends the walk" "0||" "$(check "$REPO")"
-
-new_repo $'[*.sh]\nindent_style = space\nindent_size = 2\n\n[gen/*.sh]\nignore = true'
-mkdir -p "$REPO/gen"
-printf '%s\n' "$TABBED" >"$REPO/gen/g.sh"
-git -C "$REPO" add gen/g.sh
-expect "a file an ignore = true section covers is left alone" "0||" "$(check "$REPO")"
-expect "an ignored file keeps its bytes" "$TABBED" "$(cat "$REPO/gen/g.sh")"
-
-new_repo
-printf '%s\ndeclare -A m\nm[a-b]=1\necho "${m[a-b]}"\n' "$SHEBANG" >"$REPO/a.sh"
-git -C "$REPO" add a.sh
-out="$(check "$REPO")"
-expect "an array-subscript rewrite is put back: the commit check passes, nothing listed" "0|" "${out%|*}"
-expect "the subscript rewrite leaves the bytes as written" "$SHEBANG"$'\ndeclare -A m\nm[a-b]=1\necho "${m[a-b]}"' "$(cat "$REPO/a.sh")"
-expect "the subscript guard says why on stderr" "bash-format: shfmt would rewrite the array subscripts \`[a-b]\` on line 3 as \`[a - b]\`, \`[a-b]\` on line 4 as \`[a - b]\`, each a different key if the array is associative, so a.sh was left as written. Quote the key ([\"a-b\"]) if the array is associative; if it is indexed, write it as shfmt prints it ([a - b])." "${out##*|}"
-
-# An unclassified shfmt probe failure leaves the file alone and says so; only a
-# confirmed unsupported-flag rejection may fall back to a plain format.
-mkdir -p "$WORK/flake"
-cat >"$WORK/flake/shfmt" <<'STUB'
-#!/usr/bin/env bash
-echo "shfmt-wrapper: transient startup failure" >&2
-exit 1
-STUB
-chmod +x "$WORK/flake/shfmt"
-new_repo
-printf '%s\n' "$TABBED" >"$REPO/a.sh"
-git -C "$REPO" add a.sh
-out="$(cd "$REPO" && PATH="$WORK/flake:$PATH" bash "$CHECK" 2>&1)"
-expect "an unclassified probe failure: exit 0, the file untouched, the skip said out loud" "0|bash-format: shfmt probe failed (shfmt-wrapper: transient startup failure); a.sh not formatted.|$TABBED" "$?|$out|$(cat "$REPO/a.sh")"
-
 new_repo
 mkdir -p "$REPO/.githooks/bash-format"
-printf '%s\n' "$TABBED" >"$REPO/.githooks/bash-format/copy.sh"
+printf '%s\necho "$undefined_var"\n' "$SHEBANG" >"$REPO/.githooks/bash-format/copy.sh"
 git -C "$REPO" add -f .githooks/bash-format/copy.sh
 expect "an installed copy under .githooks/ is skipped" "0||" "$(check "$REPO")"
 
@@ -423,8 +367,8 @@ rm "$REPO/a.sh"
 expect "--worktree: no uncommitted change passes" "0||" "$(check "$REPO" --worktree)"
 
 # A merge being committed: a script the merged branch brings in unchanged is
-# neither rewritten nor checked; one the resolution edits is rewritten whole.
-# main commits first so the merge cannot fast-forward.
+# not checked; one the resolution edits is. main commits first so the merge
+# cannot fast-forward.
 merge_repo() {
   new_repo
   git -C "$REPO" checkout -q -b side
@@ -439,39 +383,30 @@ merge_repo() {
 }
 merge_repo
 expect "merge: the merge is in progress" yes "$([[ -f "$REPO/.git/MERGE_HEAD" ]] && echo yes)"
-expect "merge: an inherited unformatted script with a finding is not rewritten and passes" "0||" "$(check "$REPO")"
-expect "merge: the inherited script's index entry is still side's" \
-  "$(git -C "$REPO" show side:x.sh)" "$(git -C "$REPO" show :x.sh)"
+expect "merge: an inherited script with a finding passes" "0||" "$(check "$REPO")"
 merge_repo
 printf 'cd /var\n' >>"$REPO/x.sh"
 git -C "$REPO" add x.sh
 out="$(check "$REPO")"
 rest="${out#*|}"
-expect "merge: a script the resolution edits is rewritten, listed, and blocks" "1|x.sh" "${out%%|*}|${rest%%|*}"
+expect "merge: a script the resolution edits blocks, nothing listed" "1|" "${out%%|*}|${rest%%|*}"
 expect "merge: the findings include the appended line" yes \
   "$(grep -q '^x\.sh:5: warning: .*\[SC2164\]$' <<<"${rest#*|}" && echo yes)"
 
-# A PATH without one of the tools the script runs.
-bin_without() { # <dir> <tool-to-omit>
-  mkdir -p "$1"
-  local t
-  for t in git bash sed awk cat mktemp rm dirname grep tr jq shfmt shellcheck; do
-    [[ "$t" == "$2" ]] || ln -s "$(command -v "$t")" "$1/$t"
-  done
-}
-bin_without "$WORK/no-shellcheck" shellcheck
-bin_without "$WORK/no-shfmt" shfmt
+# A PATH without shellcheck.
+mkdir -p "$WORK/no-shellcheck"
+for t in git bash sh sed awk cat mktemp rm dirname grep tr head jq; do
+  ln -s "$(command -v "$t")" "$WORK/no-shellcheck/$t"
+done
 
 SC_INSTALL='see https://github.com/koalaman/shellcheck#installing'
-SF_INSTALL='see https://github.com/mvdan/sh#shfmt'
 new_repo
 printf '%s\n' "$TABBED" >"$REPO/a.sh"
 git -C "$REPO" add a.sh
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shellcheck" bash "$CHECK" 2>&1)"
 expect "missing shellcheck: an agent fails with the install command" "1" "$?"
 expect "missing shellcheck: the message names the tool and the skip key" \
-  "a.sh
-FAIL: shellcheck missing. Install: $SC_INSTALL
+  "FAIL: shellcheck missing. Install: $SC_INSTALL
 To skip only while shellcheck is missing: git -c checks.skipmissing=shellcheck commit ..." "$out"
 out="$(cd "$REPO" && PATH="$WORK/no-shellcheck" bash "$CHECK" 2>&1)"
 expect "missing shellcheck: a person gets a notice and exit 0" "0|NOTICE: shellcheck missing, so this check did not run. Install: $SC_INSTALL" "$?|$out"
@@ -484,56 +419,11 @@ git -C "$REPO" config --unset checks.skipmissing
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shellcheck" bash "$CHECK" --worktree 2>&1)"
 expect "missing shellcheck, --worktree: an agent fails as at commit time" \
   "1|FAIL: shellcheck missing. Install: $SC_INSTALL" "$?|${out%%$'\n'*}"
-
-new_repo
-printf '%s\n' "$TABBED" >"$REPO/a.sh"
-git -C "$REPO" add a.sh
-out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shfmt" bash "$CHECK" 2>&1)"
-expect "missing shfmt where a section opts in: an agent fails with the install command" "1|FAIL: shfmt missing. Install: $SF_INSTALL
-To skip only while shfmt is missing: git -c checks.skipmissing=shfmt commit ..." "$?|$out"
-printf '%s\necho "$undefined_var"\n' "$SHEBANG" >"$REPO/a.sh"
-git -C "$REPO" add a.sh
-git -C "$REPO" config checks.skipmissing shfmt
-out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shfmt" bash "$CHECK" 2>&1)"
-expect "missing shfmt named in checks.skipmissing: the rewrite is skipped and ShellCheck still reports" "1|SKIPPED: shfmt (missing)
-a.sh:2: warning: undefined_var is referenced but not assigned. [SC2154]
-$HINT" "$?|$out"
-printf '%s\necho "$undefined_var"\necho unstaged\n' "$SHEBANG" >"$REPO/a.sh"
-out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shfmt" bash "$CHECK" 2>&1)"
-expect "missing shfmt skipped: a partly staged governed script is not refused, and is linted as staged" "1|SKIPPED: shfmt (missing)
-a.sh:2: warning: undefined_var is referenced but not assigned. [SC2154]
-$HINT" "$?|$out"
-git -C "$REPO" config --unset checks.skipmissing
-
 new_repo NONE
 printf '%s\n' "$TABBED" >"$REPO/a.sh"
 git -C "$REPO" add a.sh
-out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shfmt" bash "$CHECK" 2>&1)"
-expect "missing shfmt where no section opts in: nothing needs it" "0|" "$?|$out"
+out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shellcheck" bash "$CHECK" 2>&1)"
+expect "missing shellcheck where no rc opts in: nothing needs it" "0|" "$?|$out"
 
-# End to end through the plugin's vendored installer and real commits.
-new_repo
-INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
-status="$(node "$INSTALL" copy --scope local --repo "$REPO")"
-expect "the vendored installer installs the entry" '[{"entry":"shell-check","status":"installed"}]' "$status"
-expect "the installed copy carries the stamp on line 2" yes \
-  "$(grep -qE '^# bash-format shell-check sha256:[0-9a-f]{64}$' < <(sed -n 2p "$REPO/.git/hooks/bash-format/shell-check.sh") && echo yes)"
-expect "the shared rewrite helper is installed beside the script" yes \
-  "$([[ -f "$REPO/.git/hooks/bash-format/shfmt-rewrite.sh" ]] && echo yes)"
-printf '%s\n' "$TABBED" >"$REPO/a.sh"
-git -C "$REPO" add a.sh
-git -C "$REPO" commit -q -m format >/dev/null 2>&1
-expect "git commit runs the entry and succeeds" "0" "$?"
-expect "the commit holds the formatted bytes" "$SPACED" "$(git -C "$REPO" show HEAD:a.sh)"
-expect "the work tree matches the commit" "" "$(git -C "$REPO" status --porcelain)"
-printf '%s\necho "$undefined_var"\n' "$SPACED" >"$REPO/a.sh"
-git -C "$REPO" add a.sh
-err="$(git -C "$REPO" commit -q -m finding 2>&1)"
-expect "git commit fails on a finding on an added line" "1" "$?"
-expect "the commit failure names the line" "a.sh:5: warning: undefined_var is referenced but not assigned. [SC2154]" "$(printf '%s\n' "$err" | head -1)"
-expect "verify reports ok after the install" "ok	shell-check" "$(node "$INSTALL" verify --repo "$REPO")"
-printf '# edited\n' >>"$REPO/.git/hooks/bash-format/shfmt-rewrite.sh"
-expect "verify reports a locally edited helper as modified" "modified	shell-check" "$(node "$INSTALL" verify --repo "$REPO" | cut -f1,2)"
-
-echo "shell-check: $PASS passed, $FAIL failed"
+echo "lint: $PASS passed, $FAIL failed"
 ((FAIL == 0))

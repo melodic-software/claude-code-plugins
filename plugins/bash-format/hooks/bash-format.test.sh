@@ -57,6 +57,25 @@ else
   fail "manifest check needs jq and $MANIFEST"
 fi
 
+# --- The probe's opt-in gates agree with the adapters' ------------------------
+# shfmt's `when` pattern (read by lib/prerequisites.mjs as a JavaScript RegExp)
+# must call the same .editorconfig section headers an opt-in as
+# section_applies_to_shell does; shellcheck's names the rc files the lint
+# adapter walks for.
+if command -v jq >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+  # shellcheck source=../git-hooks/shfmt-rewrite.sh
+  source "$PLUGIN_ROOT/git-hooks/shfmt-rewrite.sh"
+  SHFMT_WHEN="$(jq -r '.requires[] | select(.id == "shfmt") | .when.config_any[0].pattern' "$MANIFEST")"
+  for header in '*.sh' '*.bash' '*.{sh,bash}' '**/*.sh' 'scripts/*.bash' '{*.sh,*.md}' '*' 'scripts/**' '*.shx' '*.md' '*.{py,sh}'; do
+    bash_says=no
+    section_applies_to_shell "$header" && bash_says=yes
+    js_says="$(node -e 'process.stdout.write(new RegExp(process.argv[1], "m").test(process.argv[2]) ? "yes" : "no")' "$SHFMT_WHEN" "[$header]")"
+    expect "probe gate and shfmt adapter agree on [$header]" "$bash_says" "$js_says"
+  done
+  expect "shellcheck's probe gate names both rc spellings" '[".shellcheckrc","shellcheckrc"]' \
+    "$(jq -c '.requires[] | select(.id == "shellcheck") | .when.config_any' "$MANIFEST")"
+fi
+
 # --- hooks.json: one PostToolBatch row, an opt-in Stop row, no PostToolUse ---
 # The batch row takes no matcher and no `if`: the hooks reference says neither
 # applies to the event, so its launcher flag is the only filter. The flag's text
@@ -257,6 +276,9 @@ printf '%s\n' "$TABBED" >"$REPO_NF/app.sh"
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink node; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
+  # node itself, not a version-manager shim, which would put every tool it
+  # manages, shfmt included, back on PATH.
+  [[ "$t" == node ]] && real_t="$(node -e 'process.stdout.write(process.execPath)')"
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
 done

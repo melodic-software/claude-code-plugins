@@ -1,6 +1,6 @@
 {
   "name": "bash-format",
-  "description": "Auto-format shell scripts with shfmt once per batch of tool calls and again at git pre-commit, and check them with ShellCheck at commit, using the consuming repo's own .editorconfig and .shellcheckrc.",
+  "description": "Format shell scripts with shfmt once per batch of tool calls and again at git pre-commit where the repo's .editorconfig opts in, and lint them with ShellCheck at commit where its .shellcheckrc opts in, as two separate git-hook entries.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -35,7 +35,7 @@
     "bash_format_end_of_turn": {
       "type": "boolean",
       "title": "Check shell scripts in uncommitted changes at turn end",
-      "description": "At the end of each turn, run the pre-commit ShellCheck pass over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default.",
+      "description": "At the end of each turn, run the pre-commit lint entry over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default.",
       "default": false
     }
   }
