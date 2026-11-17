@@ -70,6 +70,36 @@ else
   fail "manifest binding needs jq and $MANIFEST"
 fi
 
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then
+  echo "SKIP: the probe cases run git alone on PATH, which Git for Windows cannot"
+elif command -v git >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+  PROBE_DIR="$(mktemp -d)"
+  ln -s "$(command -v git)" "$PROBE_DIR/git"
+  PROBE_NODE="$(node -p process.execPath)"
+  probe_says() {
+    local r="$1" f
+    shift
+    git init -q "$r"
+    for f in "$@"; do mkdir -p "$(dirname "$r/$f")" && : >"$r/$f"; done
+    git -C "$r" add -- "$@"
+    (cd "$r" && printf '{"session_id":"t"}' | env -i PATH="$PROBE_DIR" HOME="$r" CLAUDE_PROJECT_DIR="$r" \
+      "$PROBE_NODE" "$PLUGIN_ROOT/lib/prerequisites.mjs" probe "$PLUGIN_ROOT") || echo "probe exited $?"
+  }
+  reports() {
+    local label="$1" want="$2" got=no out
+    shift 2
+    out="$(probe_says "$@")"
+    [[ "$out" == *"python-format: ruff not on the hook PATH"* ]] && got=yes
+    [[ "$out" == *"probe exited"* ]] && got="failed: $out"
+    expect "$label" "$want" "$got"
+  }
+  reports "probe: a config tracked only in a subdirectory reports a missing ruff" yes "$PROBE_DIR/nested" pkg/sub/ruff.toml
+  reports "probe: a repository with no config stays quiet about ruff" no "$PROBE_DIR/none" pkg/sub/main.py
+  rm -rf "$PROBE_DIR"
+else
+  fail "probe cases need git and node"
+fi
+
 # --- hooks.json: one PostToolBatch row, an opt-in Stop row, no PostToolUse ----
 # The batch row takes no matcher and no `if`: the hooks reference says neither
 # applies to the event, so its launcher flag is the only filter. The script reads

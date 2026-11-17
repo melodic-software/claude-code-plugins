@@ -66,7 +66,7 @@ plugin's control skill holds it, say refresh edits only the repository's. An arg
 existing directory that holds a `SKILL.md` is a path; any other is a feature id. When that control
 skill is due a conversion (below), the outcome is **blocked**: refresh its path first, from the
 default branch. Steps 4 and 5
-then cover that feature only, and a clean outcome skips the `record` command, since the other
+then cover that feature only, plus any new feature step 4 maps on a ticket branch, and a clean outcome skips the `record` command, since the other
 features went unchecked.
 
 Without an argument, take each `.claude/skills/control-*/` directory, each held to the same rules
@@ -231,9 +231,51 @@ claim in that answer. A claim its citation does not support is dropped from tria
 the report. A feature an answer reports unchanged is not checked again here: the live pass covers
 it. An unmapped surface with no source path is dropped too.
 
+**New features on a ticket branch.** A pass that follows § Ticket branch (started on a ticket
+branch with no legacy conversion) maps a feature the ticket adds, so the control skill gains it in
+the same commit as the ticket's other corrections. A
+surface the sweep found is new to this ticket when its source path is among
+`git diff --no-ext-diff --no-textconv --name-only <tip>...HEAD` (tip per § Return to the starting
+branch); any other unmapped surface stays in the report, as the Not mapped row says. Before writing,
+record and judge § Ticket branch step 1's status; when it blocks, write nothing and report each new surface
+unwritten. Otherwise, for each new surface:
+
+1. **Read it.** Dispatch one more `app-control:source-reader`, framed and fenced as above, with the
+   hub, the surface and its source path. Ask for the feature's name, its parts, its entry points,
+   the state its steps need, one drive recipe (one action per step, each with its exact handle,
+   route or command), the step that shows its end state, and whether any step sends, signs in or
+   writes to an environment or external system. Its tripwire compares `git status --porcelain`
+   from just before this dispatch with the status after it, so an earlier new feature's write is
+   in both. Spot-check one cited `file:line` as above; an
+   answer whose citation fails is dropped and the surface stays in the report.
+2. **Write it, uncommitted**, as Create step 4 writes a seeded feature, re-running the
+   [real-path checks](naming.md#real-paths) before each write: `features/<slug>/README.md` by the
+   [slug rule](naming.md#slug-rule) (under `features/<module>/` when the hub's index groups by
+   module and that module's `sources` globs match the source path, its `## Sub-features` line
+   added there), and its index line with `sources` globs covering the source path and a true
+   entry-point count. The `## Drive` ends in a provisional `**Proof.**` step, the step the
+   answer named as showing the end state, with its `Captures:` line, so step 5's drive takes the
+   proof. Each step's `Result:` is the source-reader's cited claim, marked provisional, and each
+   entry point is `not driven: not yet driven`; step 6.2 rewrites all three from what the drive
+   showed. A step that sends, signs in or writes, with no `cli/` command to
+   run it, is a driver gap: its entry point is `not driven: needs a cli/ command` and the step is
+   not written.
+3. **Ask only the residue.** An attended pass asks what the answer left open, as Create step 3
+   asks, one question at a time with a recommendation; a safety question left unanswered keeps the
+   safe floor. An unattended pass asks nothing: an open choice takes its safe or recommended
+   value, and the report lists each with that value.
+
+Step 5 then drives each new feature like any other. Its final `Result:` lines and proof step come
+from what that drive showed, never from the source; no provisional text ships. When the drive does not reach the proof step, or
+an attended person declines the feature at step 6, undo it: delete the folder and remove only the
+index line and `## Sub-features` line this step added for it, leaving every other line as it
+stands, and report the surface as not mapped with the unmet prerequisite and the command tried. A pass that stops before § Ticket branch step 3 undoes each new feature the
+same way.
+
 ## 5. Live pass
 
-Drive every feature once (or the one feature a feature id names), whatever the source wave found,
+Drive every feature once (or the one feature a feature id names), and each new feature step 4
+wrote, whatever the source wave found,
 through `/app-control:drive` invoked with the Skill tool, each launch in a new temporary `--out`
 directory outside the checkout, passing `--unattended` on every call when the pass is unattended. Drive runs
 the steps as written; the candidates inform step 6's triage only. Three invariants hold for the whole pass:
@@ -250,8 +292,9 @@ the steps as written; the candidates inform step 6's triage only. Three invarian
 **A stale Ready.** When Ready fails and the source wave cited a port, route, command or check the
 hub's `## Ready` names as moved or removed, open that citation yourself; when it shows the move,
 the control skill is out of date, not the app. An attended pass shows the corrected `## Ready` text
-with the citation and, once the person agrees, records the hub's current `## Ready` text and the
-output of `git status --porcelain -- "<dir>/SKILL.md"`, writes the correction in the hub and runs
+with the citation and, once the person agrees, records the hub's current `## Ready` text (on a
+ticket branch, also § Ticket branch step 1's status, unless § 4 already recorded it), writes the
+correction in the hub and runs
 Ready once more. When that retry passes, the live pass goes on
 and the fix ships as doc drift. When it fails, or the person declines, the outcome is **blocked**
 with the evidence and the corrected text in the report. An unattended pass writes nothing and runs
@@ -259,9 +302,8 @@ Ready no further: the outcome is **blocked**, with the corrected text in the rep
 fix to a `cli/` command Ready calls is a driver gap (§ 6), never this retry. Unless the step 6.3
 commit or § Ticket branch's commit carries the written fix, the recorded text goes back into the
 hub before the pass returns (§ Return to the starting branch), whatever ended it. § Ticket branch
-step 1 does not count this write as the caller's change only when that recorded status printed
-nothing: a hub that already held uncommitted changes before the write is the caller's work, and
-its commit would carry them.
+step 1 judges the caller's changes from its one recorded status, so this write never counts as
+the caller's.
 
 **One launch for features that share app state.** When the hub's launch model has no `Session:`
 line and a reused instance may run its Reset (the contract's "Reset on a reused instance"), one
@@ -299,7 +341,7 @@ Sort every difference between the control skill and the app:
 | Driver gap | The behavior works but the control skill cannot drive it: a `cli/` command that fails or is missing, a Ready that misses a wedged app | Attended: after the person agrees, a fix in `cli/` or the hub, documented in `cli/README.md`, then that feature driven again live; it ships only when that re-drive passes, else it goes in the report unwritten. Unattended: the fix goes in the report unwritten and nothing is driven again, since the `cli/` code enforces the safety floors and no one has reviewed the change. Never a floor loosened |
 | Missing data | A step failed because the data lacks a precondition the feature's `Preconditions:` line names, while the rest of the app works | The steps, their results, the proof step and the `Preconditions:` line stay as written (the contract's "Preconditions"): the reason goes in that feature's `## Gotchas`, which ships in the pull request, and the data fix (a seed, a test account, a change to `## Reset`) goes in the report |
 | Product regression | A behavior the files list is gone, or fails against a healthy app, a step's stated `Result:` included when the step no longer shows it and the source still claims it or nothing the source wave found explains the change | The entry stays as written: the control skill never records a lost behavior as current. Written up through `/bugs:write` when it is enabled, else in the report with drive's evidence. Kept out of the pull request |
-| Not mapped | A user-facing feature the control skill does not list, such as a surface step 4's sweep found, with the source path that adds it | The report, each with its source path |
+| Not mapped | A user-facing feature the control skill does not list, such as a surface step 4's sweep found, with the source path that adds it | The report, each with its source path. On a ticket branch, one the ticket's diff adds and step 5 drove to its proof is a new feature instead: its folder ships in § Ticket branch's commit (step 4, New features on a ticket branch) |
 
 Then the outcome:
 
@@ -341,13 +383,15 @@ its corrections ship with that code, in the ticket's pull request, never through
 request that could merge first or without it. A ticket branch is a starting branch (§ Return to the
 starting branch) other than the default branch and the control skill's upkeep branch.
 
-1. **Stay.** Switch nothing. When `git status --porcelain -- "<dir>"` prints a line not starting
-   `??` (tracked control skill files with uncommitted changes, the caller's own; this pass's
-   stale-Ready write in § 5 does not count, but only when the hub's status recorded before that
-   write printed nothing), the outcome is
+1. **Stay.** Switch nothing. Record `git status --porcelain -- "<dir>"` once, before this pass's
+   first write to the control skill: at § 4's new-feature check, else before § 5's stale-Ready
+   write, else here. When that recorded status prints a line not starting `??` (tracked control
+   skill files with uncommitted changes, the caller's own), the outcome is
    **blocked** with the edits in the report unwritten: the caller commits or stashes those first.
+   Every write this pass makes after the recording is its own and never counts here.
    Changes outside the directory are the caller's work and stay untouched.
-2. **Write**, as step 2 above.
+2. **Write**, as step 2 above, with each new feature's results, proof step and `driven` marks
+   from its drive.
 3. **Commit** on the ticket branch: stage each control skill path, new files included, with
    `git add -- <paths>`, then `git commit -- <paths>` with the same paths, so only they are
    committed and any work the caller already staged stays staged. Done when
@@ -431,6 +475,8 @@ legacy map's conversion is written before step 4 (see there); a flat one's at st
   went to, or that it is left for `/corrections:codify` or unwritten;
 - each data source entry added or moved, by environment, with its read level;
 - the features found but not mapped, each with its source path, or that the sweep did not run;
+- on a ticket branch, each new feature mapped, with its folder and source path, and each choice
+  an unattended pass took for it with the value; and each new surface left unwritten, with why;
 - each `feature-map-upkeep/*` branch found, local or remote, by name, and not adopted;
 - for a conversion, the old and new paths, whether a stopped pass undid the conversion, and the pointer and setting
   left to change;

@@ -78,7 +78,8 @@ at the end of a turn and hands findings back to Claude once per turn.
   the batch row skips the file. **Ruff 0.12+ is recommended** for the adapter (tested against
   0.17.4).
 - A SessionStart probe reports a missing `ruff` once per session, from `prerequisites.json`, only
-  where a Ruff config sits in the project directory or above it, and a drifted git-hook entry.
+  where a Ruff config sits in the project directory or above it or is tracked anywhere in its
+  repository, and a drifted git-hook entry.
   Run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` to see what resolves; it
   is read-only and installs nothing.
 

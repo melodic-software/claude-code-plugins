@@ -111,9 +111,9 @@ Report the probes informationally and note that re-enabling restores the FAIL se
    root config covers the tree; a `docs/` config covers only `docs/`). Where that walk finds
    nothing the hook exits silently: no `--fix`, no findings, and no notice, not even a missing
    prerequisite. The `SessionStart` probe reports a missing `markdownlint-cli2` only where a
-   config sits in the project directory or above it (`when` in
-   `${CLAUDE_PLUGIN_ROOT}/prerequisites.json`), so a repository whose only configs are nested
-   hears nothing from it at session start. Search the whole tree
+   config sits in the project directory or above it or is tracked anywhere in the repository
+   (`when` in `${CLAUDE_PLUGIN_ROOT}/prerequisites.json`), so an untracked nested config alone
+   gets no probe line. Search the whole tree
    (skip `node_modules`), report the root config the cascade discovers, list nested configs
    with their directory scope, and report as INFO, gated, every config the gates'
    `md_classify` flags (a `.cjs` or `.mjs` config, or one naming `customRules`,

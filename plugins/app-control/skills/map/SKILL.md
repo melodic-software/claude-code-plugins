@@ -225,7 +225,11 @@ conversion moves out of.
    uncommitted on the upkeep branch, so both passes read the control skill. The wave also sweeps
    the changed files for user-facing surfaces no feature lists, each with its source path, and the
    source for data sources an environment's `sources` misses or has moved, and you
-   spot-check at least one cited claim per answer that reports drift before the live pass.
+   spot-check at least one cited claim per answer that reports drift before the live pass. On a
+   ticket branch, a surface the ticket's own diff adds becomes a new feature folder, written
+   uncommitted from one more source-reader answer, with a provisional proof step, and driven in
+   step 5, which settles its results; an unattended pass asks
+   nothing and reports each choice it took (refresh.md § 4, New features on a ticket branch).
 5. **Live pass** of every feature (or the one a feature id names) through `/app-control:drive`:
    Ready before the first drive and after any failed one, cleanup after each launch, and every
    evidence path checked after cleanup. A Ready the source wave shows is stale is fixed in the hub
@@ -247,7 +251,9 @@ conversion moves out of.
    `bash "${CLAUDE_SKILL_DIR}/scripts/upkeep-skip.sh" record --repo . --map "<dir>" --state-dir "${CLAUDE_PLUGIN_DATA}"`.
    Otherwise commit on the upkeep branch; open or update one pull request. Started on a ticket
    branch, commit there instead, push nothing and open nothing: the caller's push carries the
-   commit into the ticket's pull request, so the corrections merge with the code they describe. A
+   commit into the ticket's pull request, so the corrections and each new feature the drive proved
+   merge with the code they describe. A new feature whose drive missed its proof step is undone
+   and reported not mapped. A
    legacy conversion still rides the upkeep branch, and a flat-to-folder one is blocked there
    (refresh.md § 1).
 7. **Return.** When each control skill's pass ends, at step 6 or blocked earlier, switch back to

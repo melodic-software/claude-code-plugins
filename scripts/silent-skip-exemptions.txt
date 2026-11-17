@@ -1,0 +1,27 @@
+# Quiet skips scripts/check-silent-skips.sh accepts, each with the reason no
+# notice is shown. Every other site that gate flags must make its skip visible.
+#
+# Format: one `<path> <guard>  <reason>` per line. <path> is repository-relative.
+# <guard> is the tool after `command -v` for a hook guard (same-line or block),
+# or the double-quoted message of an `ok "skip ..."` in a scripts/*.test.sh.
+# The reason is the rest of the line, and an entry with none fails. No line
+# number is recorded, so an entry survives the guard moving within its file.
+# Whole-line `#` comments and blanks are ignored; the file is parsed by
+# scripts/lib/read-list.sh in `leading` mode.
+#
+# Checked against the scan: an entry that matches no flagged quiet site (the
+# guard is gone, renamed, or now shows a notice) fails as stale, so the list
+# cannot outlive what it excuses.
+
+plugins/bash-format/hooks/bash-format.sh jq  the SessionStart prerequisites probe reports a missing jq; the batch row never speaks to the model
+plugins/bash-format/hooks/bash-format.sh shfmt  the SessionStart prerequisites probe reports a missing shfmt; pre-commit fails an agent commit on it
+plugins/desktop-notification/hooks/desktop-notification.sh jq  Claude Code discards a Notification hook's systemMessage (https://code.claude.com/docs/en/hooks#notification), so no notice can be read; lib/prerequisites.mjs check reports the missing jq
+plugins/eol-normalizer/hooks/eol-normalizer.sh jq  the SessionStart prerequisites probe reports a missing jq; this hook is silent by design
+plugins/go-format/hooks/go-format.sh jq  the SessionStart prerequisites probe reports a missing jq; the batch row never speaks to the model
+plugins/guardrails/hooks/block-root-delete-target.sh cygpath  cygpath is part of the Git Bash, MSYS2 and Cygwin runtime this branch runs under, so its absence is not a real install; without it every path keeps the spelling realpath gave it, which refuses more (a short or drive spelling no longer matches the tree), and the one allow it can add is the scratchpad itself named through the /tmp mount, which then reads as a path strictly under /tmp
+plugins/javascript-format/hooks/javascript-format.sh jq  the SessionStart prerequisites probe reports a missing jq; the batch row never speaks to the model
+plugins/markdown-format/hooks/markdown-format.sh jq  the SessionStart probe reports a missing jq (prerequisites.json)
+plugins/python-format/hooks/python-format.sh jq  the SessionStart prerequisites probe reports a missing jq; the batch row never speaks to the model
+plugins/session-flow/hooks/observer-arm.sh jq  opt-in arming hook: a missing prerequisite is a by-design no-op that preserves zero-config behavior; /session-flow:setup surfaces the absence on demand, and SessionStart output would fire this notice every start
+plugins/session-telemetry/hooks/hook-telemetry-sink.sh jq  fire-and-forget sink: the producer discards stdout and stderr, so no notice channel exists; the producer side owns prerequisite visibility
+plugins/spelling/hooks/spelling.sh typos  the SessionStart probe already told the user typos is missing (prerequisites.json, hook:spelling.sh), and the bundled checker reports it; blocking every turn end on a host problem would not help the model

@@ -67,7 +67,8 @@ marketplace repository.
   its [install guide](https://github.com/kjanat/actionlint/blob/v1.17.0/docs/install.md); the
   unqualified `actionlint` package in Homebrew core, Scoop and most registries installs upstream.
   A SessionStart probe reports a missing `actionlint` once per session, from
-  `prerequisites.json`, and a drifted git-hook entry. `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether
+  `prerequisites.json`, only where git tracks a workflow file under a `.github/workflows/`
+  directory, and a drifted git-hook entry. `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether
   the binary resolves and installs nothing.
 
 ### Hook budget accounting

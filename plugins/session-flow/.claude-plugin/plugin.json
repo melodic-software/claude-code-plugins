@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "9.5.0",
+  "version": "9.6.0",
   "license": "MIT",
   "keywords": [
     "workflow",
@@ -170,7 +170,7 @@
     "lane_transcript_sink": {
       "type": "directory",
       "title": "Lane transcript sink",
-      "description": "The private directory holding pulled CI lane transcripts and their metrics.jsonl, read by /session-flow:retro ci-runs. Unset means each ci-runs run needs --sink; there is no default location. A --sink given on the command line wins."
+      "description": "The private directory holding pulled CI lane transcripts and their metrics.jsonl, read by /session-flow:retro ci-runs and /session-flow:audit-sessions pr. Unset: ci-runs needs --sink and audit-sessions pr skips CI legs; there is no default location. A --sink given on the command line wins."
     },
     "cloud_route": {
       "type": "string",

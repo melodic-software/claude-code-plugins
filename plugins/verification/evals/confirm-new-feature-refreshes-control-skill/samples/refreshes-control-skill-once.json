@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "affected.json lists no touched feature, but src/routes/returns.ts is unmatched, the mode is outcome, the skill is a project one with no trusted root, and feat/returns is not main. So I call `/app-control:map refresh .claude/skills/control-shop` once through the Skill tool. On this ticket branch that pass can map the returns page as a new feature and commit it on feat/returns. I edit no control skill file myself.",
+      "why": "correct"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "affected.json lists no touched feature, so nothing is refreshed. ## Next: /app-control:map refresh .claude/skills/control-shop.",
+      "why": "only a suggestion for later"
+    },
+    {
+      "answer": "I call /app-control:map refresh cart/total and /app-control:map refresh checkout.",
+      "why": "refreshes by feature id"
+    },
+    {
+      "answer": "I write .claude/skills/control-shop/features/returns/README.md for the new page, then call /app-control:map check.",
+      "why": "edits the control skill itself"
+    }
+  ]
+}
