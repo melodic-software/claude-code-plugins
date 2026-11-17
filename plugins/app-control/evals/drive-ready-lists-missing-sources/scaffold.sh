@@ -80,6 +80,13 @@ cat >"$skill/config/defaults.json" <<'JSON'
         "staging-log": {"kind": "logs", "where": "`cli/shop logs --env staging`", "read": "attended"},
         "issues": {"kind": "tracker", "where": "https://tracker.example/shop", "read": "unattended"}
       }
+    },
+    "preview": {
+      "extends": "local",
+      "url": "http://127.0.0.1:4200",
+      "sources": {
+        "preview-issues": {"kind": "tracker", "where": "https://tracker.example/shop-preview", "read": "unattended"}
+      }
     }
   },
   "safety": {}

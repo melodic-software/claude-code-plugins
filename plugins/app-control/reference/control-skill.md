@@ -678,8 +678,8 @@ holds:
   only with a person present in this session; `unattended`, with no one present too. An entry with
   no `read` reads as `never`.
 
-Each of the five kinds with no entry in an environment is missing there, the tracker and the
-error reporter included. `/app-control:drive ready` reports each
+An environment's sources are those left once `extends` is resolved, inherited ones included. Each of
+the five kinds with no entry there is missing, the tracker and the error reporter included. `/app-control:drive ready` reports each
 environment's sources with their read levels and lists the missing kinds; it reads none of them.
 A caller reads a source only through its `where` and only at its level. `/app-control:map` create
 and refresh write the entries; `never` is the safe level, and only a person sets another.
