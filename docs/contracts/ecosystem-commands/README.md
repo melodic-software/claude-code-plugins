@@ -174,6 +174,8 @@ Each entry has a `name`, a `probe`, an optional `hint`, and an optional `run-fro
 command only where the probe fails. A resolver applies them in this order:
 
 1. The tool-presence check runs first; a missing tool reads `skip (tool missing: <tool>)` as before.
+   An unmet single-condition `opt-in` then skips the command as before
+   (`skip (opt-in unmet: <condition>)`), and its probes do not run.
 2. Before the command runs, each of its entries' probes runs: one read-only command, from
    `$REPO_ROOT` unless the entry sets `run-from: ecosystem`. Exit 0 means present. Any other exit, a
    probe that cannot start, and one still running after 30 seconds all mean absent, never a failure.
