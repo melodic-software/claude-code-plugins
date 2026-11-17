@@ -42,3 +42,31 @@ as a deviation in the record.
   non-inferior at margin 0.05`, and it prints no `case drop` line.
 - **Not met.** Any other outcome, `n too small to call` included. Graders are not changed after a
   run's numbers have been seen.
+
+## Amendment 1
+
+A deviation from the rule above, written and committed before the rerun it governs.
+
+- **Why.** The first compare under the rule was not met.
+  - Opus read `non-inferior at margin 0.05` (paired change +0.24, interval +0.02 to +0.46).
+  - Sonnet read `not shown non-inferior at margin 0.05` (paired change +0.21, interval -0.07 to
+    +0.48, over 4 cases).
+  - One sonnet miss was a grader false fail: `reports-blocked-with-fix` rejected the correct
+    citation `src/server.ts:11-12`. That grader was fixed in its own commit before this amendment;
+    a range that starts or ends at line 12 now passes.
+- **Selection.** Each side's plugin copy keeps only these four `map-refresh-*` case folders (any
+  other is removed from both copies the same way), and the run selects them with
+  `--case 'map-refresh-*'`. The CLI's `--case` glob has no bracket class, so the rule's
+  `'map-refresh-[su]*'` matched nothing.
+- **Runs.** Sonnet runs 12 per case per side; opus keeps 3. The basis: noise-report pairs the change
+  over cases with a normal interval, Z·sd/√cases
+  (`plugins/evals/skills/plugin-eval/scripts/noise-report.py`, `normal_interval`), and gives no
+  run-count guidance. More runs narrow that interval only by cutting the sampling noise in each
+  case's mean change. Doubling sonnet's runs halves that variance. Opus already read non-inferior
+  at 3 runs with the lower end above zero, so it keeps its count and is rerun fresh.
+- **No pooling.** Runs from the first compare are not reused or pooled.
+- **Unchanged.** The four cases, the versions rule, the flags other than `--case` and `--runs`, the
+  INVALID rule, margin 0.05 and the met rule.
+- **Last rerun.** This is the last rerun. A result that again reads not shown non-inferior is recorded
+  as not met, and the hold stays until the skill text changes. The eval does not change to reach
+  a verdict.
