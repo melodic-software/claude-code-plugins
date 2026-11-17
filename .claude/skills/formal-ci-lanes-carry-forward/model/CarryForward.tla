@@ -6,7 +6,7 @@
 \* Line numbers: WF is .github/workflows/pr-require-checks.yml in this
 \* repository; RUN is .github/actions/pr-require-checks/aggregate-results/run.sh
 \* and ACTION its action.yml, in melodic-software/ci-workflows at
-\* 70a7fd774bd210e8e158bc1fdd308c07e4711a07, the commit WF:7326 pins.
+\* 24067add42f5fa04743c587c6a22aa7d4059e7b8, the commit WF:7327 pins.
 
 EXTENDS Naturals, FiniteSets
 
@@ -14,8 +14,8 @@ CONSTANTS
     FullRuns,       \* the full runs that may start on the SHA
     MaxAttempts,    \* attempts per full run (a re-run is attempt 2)
     Rerunnable,     \* the full runs a person may re-run
-    Yield,          \* WF:7347 yield-to-full-run
-    Hold,           \* WF:7348 yield-wait-seconds above 0
+    Yield,          \* WF:7348 yield-to-full-run
+    Hold,           \* WF:7349 yield-wait-seconds above 0
     MarkMayFail     \* mark-lanes may fail after its three tries (WF:948-959)
 
 NoRun == "none"
@@ -105,7 +105,7 @@ Start(r) ==
     /\ UNCHANGED <<mark, gate, newest>> /\ UNCHANGED cvars
 
 \* mark-lanes POSTs ci-lanes=pending on the head (WF:948-954). It runs beside
-\* the lanes; ci-status needs it (WF:4238-4239), so it lands before the verdict.
+\* the lanes; ci-status needs it (WF:4239-4240), so it lands before the verdict.
 Mark(r) ==
     /\ Moving /\ live[r] /\ mark[r] = "todo"
     /\ Write("pending", r)
@@ -113,13 +113,13 @@ Mark(r) ==
     /\ UNCHANGED <<att, live, start, gate>> /\ UNCHANGED cvars
 
 \* Three failed POSTs fail the job (WF:956-959); ci-status still runs on
-\* !cancelled() (WF:4261) and aggregates that failure.
+\* !cancelled() (WF:4262) and aggregates that failure.
 MarkFails(r) ==
     /\ Moving /\ MarkMayFail /\ live[r] /\ mark[r] = "todo"
     /\ mark' = [mark EXCEPT ![r] = "failed"]
     /\ UNCHANGED <<att, live, start, gate, newest, clock>> /\ UNCHANGED cvars
 
-\* ci-status's Aggregate lane results step (WF:7321-7354) records the lanes
+\* ci-status's Aggregate lane results step (WF:7322-7355) records the lanes
 \* verdict (RUN:1561-1566, write_status at RUN:250-271). A failure exits 1
 \* (RUN:1568-1570); a success keeps the step running while it re-runs failed
 \* contract-only siblings (RUN:1710-1713).
@@ -144,7 +144,7 @@ Complete(r) ==
 
 \* A newer event on the pull request cancels it (WF:106-115), or a person
 \* does. A step that was running ends cancelled; ci-status never starts in a
-\* cancelled run (WF:4261).
+\* cancelled run (WF:4262).
 Cancel(r) ==
     /\ Moving /\ live[r]
     /\ live' = [live EXCEPT ![r] = FALSE]
@@ -280,14 +280,14 @@ CHoldEnds ==
     /\ UNCHANGED <<snap, entry, carried, wRunning, held, heldStarts, holdEntry,
                    timedOut, liveAtPass, listClock>> /\ UNCHANGED rvars
 
-\* yield-wait-seconds (600 at WF:7348) or the writer wait's 30 s passes.
+\* yield-wait-seconds (600 at WF:7349) or the writer wait's 30 s passes.
 CTimeout ==
     /\ Yield /\ cpc \in {"list", "read", "verify", "decide", "hold"} /\ ~timedOut
     /\ timedOut' = TRUE
     /\ UNCHANGED <<cpc, snap, entry, carried, wRunning, held, heldStarts,
                    waiting, holdEntry, liveAtPass, listClock>> /\ UNCHANGED rvars
 
-\* Single read (carry-forward-wait-seconds '0', WF:7350, without yield): read
+\* Single read (carry-forward-wait-seconds '0', WF:7351, without yield): read
 \* the status (RUN:1484-1490), then verify_carried_writer lists the runs
 \* (RUN:438-443) and reads the status again (RUN:450-454).
 SRead ==

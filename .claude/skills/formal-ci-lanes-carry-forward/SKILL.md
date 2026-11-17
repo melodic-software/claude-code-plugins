@@ -44,6 +44,9 @@ tries every order of a small model, and these races sit between a run listing, a
 status write that no test sequences. `formal-claim-protocol` records the same tool for a like
 question.
 
+An agent generated this skill by following the `specify` skill's files in this repository, not
+through an installed-plugin invocation of `/formal-verification:specify`.
+
 ## Bounds and assumptions
 
 - One head SHA; two full runs, `run1` and `run2`; `run1` may be re-run once (`MaxAttempts = 2`,
@@ -101,7 +104,7 @@ question.
 
 ## Run
 
-One command per cfg; `Yield.cfg` takes about three minutes, `YieldNoHold.cfg` about 30 seconds:
+One command per cfg; `Yield.cfg` takes about three minutes, `YieldNoHold.cfg` under a minute:
 
 ```text
 /formal-verification:chart .claude/skills/formal-ci-lanes-carry-forward/model/CarryForward.tla --config .claude/skills/formal-ci-lanes-carry-forward/model/Yield.cfg --view .claude/skills/formal-ci-lanes-carry-forward/model/view.mjs --rerun-states 6000000
@@ -129,13 +132,22 @@ that it is not. A path that reproduces is a bug: write it up with `/bugs:write`.
 Known results at the sync commit (a run that shows only these has found nothing new):
 
 - Both shipped cfgs hold every rule.
-- `NoStaleCarryAtPass` (no exemption) breaks in `Yield.cfg` in 10 steps: `run1` starts, marks,
-  records success and its step ends; the label-flip run lists the runs (`run1` in flight, the
-  writer); `run2` starts (a reopen, a ready flip or a base change on the same head); the label-flip
-  run reads `run1`'s success, verifies it and passes while `run2` is queued with no marker. The
-  code cannot see a run created between its listing and its status read; a run created before the
-  listing is held for. Whether that window breaks the promise is the owner's call; until then it
-  is reported here and not as a bug.
+- Known limit: a full run created between the contract-only run's last listing and its pass is not
+  seen. `NoStaleCarryAtPass` (the promise with no exemption) breaks in `Yield.cfg` in 10 steps:
+  1. `Start`: `run1` starts.
+  2. `Mark`: mark-lanes records `ci-lanes` pending.
+  3. `Aggregate`: `run1`'s CI Status records success.
+  4. `StepEnds`: that step finishes.
+  5. `CStart`: a label flip starts its CI Status.
+  6. `CList`: it lists the runs and sees only `run1`, the writer.
+  7. `Start`: `run2` starts on the same head (a reopen, a ready flip or a base change), with no
+     marker yet.
+  8. `CRead`: it reads `run1`'s success.
+  9. `CVerify`: it verifies `run1` as the writer.
+  10. `CDecide`: it passes while `run2` is queued.
+
+  A run created before the listing is held for; one created after it is invisible to the code. The
+  owner's decision on this window is recorded on issue 15773.
 - The seeded break (`yield-to-full-run: 'false'`, `Yield = FALSE` in a copy of either cfg) breaks
   `NoStaleCarry` in 11 steps: `run1` records success and its step ends, `run2` starts, the
   label-flip run reads `run1`'s success, lists the runs (`run2` queued, no marker yet), reads the
