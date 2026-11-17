@@ -3890,3 +3890,14 @@ test("a lane-addressed comment sends a lanes App PR with no unresolved thread, n
   assert.equal(owner.result, null);
   assert.match(owner.lines.join("\n"), /no unresolved review thread/);
 });
+
+test("a round that answered a capped batch lets the sweep send the comments it left", async (t) => {
+  const round = roundRun("address-feedback", "success", "Passed", "2026-10-17T20:30:00Z");
+  const answer = { id: 702, user: { id: APP_ID, type: "Bot" }, created_at: "2026-10-17T20:40:00Z", body: "<!-- pr-unblock:answered-comment 699 -->\n**answer**" };
+  const left = askApi({ asks: [ASK, answer], checks: [answeredRound, answeredReply, round] });
+  await requestMain(t, left);
+  assert.equal(left.calls.dispatch.length, 1, "an answer since the round shows it took a batch");
+  const stalled = askApi({ asks: [ASK], checks: [answeredRound, answeredReply, round] });
+  await requestMain(t, stalled);
+  assert.deepEqual(stalled.calls.dispatch, [], "a round that answered nothing is not resent");
+});

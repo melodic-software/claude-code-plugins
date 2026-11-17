@@ -188,7 +188,7 @@ import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { tokenRefusal } from "../pr-merge/refire-refused.mjs";
-import { anyListed, askedComments, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, laneReader, MARKER_AUTHOR_ID, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom, VERIFY_NOTE_MARKER, withLaneBinding } from "./address-feedback.mjs";
+import { answeredIds, anyListed, askedComments, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, laneReader, MARKER_AUTHOR_ID, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom, VERIFY_NOTE_MARKER, withLaneBinding } from "./address-feedback.mjs";
 
 // fix-ci-dispatch.mjs imports HOLD_LINE from here.
 export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
@@ -1170,8 +1170,13 @@ async function sweepAsked(context) {
   if (heldLabels(pull, settings).length > 0 || (pull.labels ?? []).some((label) => label.name === (rest.humanGatedLabel ?? "needs-human"))) {
     return null;
   }
-  const asked = askedComments(await api.listIssueComments(pull.number), { trustedHumans: rest.trustedHumans ?? new Set(), appId: appSenderId });
-  const times = asked.map((comment) => Date.parse(comment.created_at ?? "")).filter(Number.isFinite);
+  const comments = await api.listIssueComments(pull.number);
+  const asked = askedComments(comments, { trustedHumans: rest.trustedHumans ?? new Set(), appId: appSenderId });
+  if (asked.length === 0) {
+    return null;
+  }
+  const answers = comments.filter((comment) => answeredIds([comment], appSenderId).size > 0);
+  const times = [...asked, ...answers].map((comment) => Date.parse(comment.created_at ?? "")).filter(Number.isFinite);
   return times.length === 0 ? null : dispatchSince(context, Math.max(...times), "comment addressed to the lane");
 }
 
