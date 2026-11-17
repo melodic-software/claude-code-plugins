@@ -55,7 +55,7 @@ Never run `state-save` for a shared login, and never read, print, or copy the fi
 
 ## Secret fills
 
-`playwright-cli` prints the code each command ran, and a `fill` or `type` prints the text it typed. A command that carries a password, token or other secret therefore runs with its output discarded, and a failure is reported from its exit status, never from that output. Never put a secret inline in a command you run or print; read it from an environment variable the owner set. For `fill`, use the helper:
+A command that carries a password, token or other secret runs with its output discarded, so the secret never reaches context or a log. What the CLI prints for each command is in the pointer after the helper. Report a failure from its exit status, never from that output. Never put a secret inline in a command you run or print; read it from an environment variable the owner set. For `fill`, use the helper:
 
 ```bash
 bash "${CLAUDE_SKILL_DIR}/scripts/fill-secret.sh" <flow> e2 E2E_TEST_PASSWORD   # add --submit to press Enter
@@ -149,8 +149,8 @@ to expand it from. Basis: the plugins reference,
 ## Gotchas
 
 - **`fill` does not leave the field.** A form that validates on blur keeps its submit button disabled after `fill`, and the click times out. Press `Tab` (or click the next field) after the last `fill`. Agents hit this on the blur-validated form in most runs.
-- **A ref from before a re-render is refused** ("Ref eN not found ... capture new snapshot"). After filtering, sorting, or any partial update, take a fresh `snapshot` before acting.
-- **A page can look ready before its handlers attach.** A server-rendered button that is not yet hydrated takes the click and does nothing. Wait for a readiness signal the page gives (a status element, an enabled control, a network request finishing) before the first click; `click` waits for enabled, not for listeners.
+- **A ref from before a re-render is refused.** After filtering, sorting, or any partial update, take a fresh `snapshot` before acting.
+- **A page can look ready before its handlers attach.** A server-rendered button that is not yet hydrated takes the click and does nothing. Wait for a readiness signal the page gives (a status element, an enabled control, a network request finishing) before the first click. What `click` itself waits for is in Playwright's [actionability checks](https://playwright.dev/docs/actionability#introduction).
 - **Each command costs seconds of startup, so a short-lived toast can vanish before the next `snapshot`.** Start `video-start` before the action and read the message from the recording, or snapshot in the same breath as the action that triggers it.
 - **Uncaught page exceptions show in `console`.** Read `console` after an action that "does nothing"; a thrown `TypeError` there is usually the defect.
 - **On a Linux container the default `chrome` channel is often absent.** Point a config at `chromium` (and an `executablePath` when the bundled revision is missing) before the first `open`.
