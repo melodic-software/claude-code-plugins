@@ -33,7 +33,7 @@ import { pathToFileURL } from "node:url";
 
 import { budgetedFetch } from "../pr-unblock/request-budget.mjs";
 
-export const DEFAULTS = Object.freeze({ appearSeconds: 300, capSeconds: 2400, pollSeconds: 60 });
+export const DEFAULTS = Object.freeze({ appearSeconds: 300, capSeconds: 1800, pollSeconds: 60 });
 // A re-run or a later pull_request_target event adds a dispatcher run per
 // head; the record may sit on any of them.
 const DISPATCHER_RUNS = 5;

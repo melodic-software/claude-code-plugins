@@ -298,7 +298,6 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
-      # Its 2400 s cap plus at most two 60 s confirming sleeps (2520 s) end it inside 45 minutes.
       - name: Wait for this head's refine run
         id: wait
         continue-on-error: true
