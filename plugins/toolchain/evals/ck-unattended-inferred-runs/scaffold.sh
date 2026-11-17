@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A JavaScript package with no .claude/ecosystems record and no instructions file. Its package.json
-# test script (it logs `typescript test` to .calls.log through tools/run.sh) is the one command its
-# files imply; no build script, tsconfig or lint config exists. One .js file changed.
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../fixtures/eval-repo.sh"
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG

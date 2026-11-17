@@ -1,5 +1,6 @@
 schema_version: "1.1"
 name: ck-unsure-run-is-unattended
+description: 'The ck-unattended-stated-unresolved repository: CLAUDE.md states the shell lint command, nothing states or implies a markdown command, and no .claude/ecosystems record exists.'
 context:
   scaffold_script: scaffold.sh
 graders:

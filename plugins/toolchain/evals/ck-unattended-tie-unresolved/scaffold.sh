@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A JavaScript package with no .claude/ecosystems record and no instructions file, whose files imply
-# two test commands with nothing to choose between them: the package.json test script and a Makefile
-# test target (each logs to .calls.log through tools/run.sh). One .js file changed.
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../fixtures/eval-repo.sh"
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG

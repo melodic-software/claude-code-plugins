@@ -1,5 +1,6 @@
 schema_version: "1.1"
 name: ck-unattended-inferred-runs
+description: 'A JavaScript package with no .claude/ecosystems record and no instructions file. Its package.json test script (it logs `typescript test` to .calls.log through tools/run.sh) is the one command its files imply; no build script, tsconfig or lint config exists. One .js file changed.'
 context:
   scaffold_script: scaffold.sh
 graders:

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A repository with no .claude/ecosystems record. CLAUDE.md states one command, the shell lint
-# command (it logs to .calls.log through tools/run.sh); nothing states or implies a markdown command.
-# One .sh file and one .md file changed.
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../fixtures/eval-repo.sh"
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
