@@ -324,6 +324,28 @@ what blocks first, and before the `Verifier dropped N of M candidates.` line, wh
 list renders, and start each line with its marker as written above (after a list bullet at most).
 With no such line, post no block.
 
+**Uncovered rules.** When you wanted to cite a rule for a candidate and no criterion this lane
+reads states it (`CLAUDE.md`, `REVIEW.md`, a path-scoped rule, a paved-path entry, the closing
+issue), record the rule as one line starting with exactly `Uncovered rule:` (after a list bullet at
+most), then the rule in one sentence and the `file:line` that prompted it. A candidate whose only
+basis is that rule is not a finding: it posts no inline comment, adds nothing to the findings
+count and never sets `hold`. A candidate that meets the bar on its own stays a finding, and the
+line records only the missing rule. Put at most five such lines in one block of their own, after
+the advisory and manifest block and before the `Verifier dropped N of M candidates.` line:
+
+```markdown
+<details>
+<summary>Uncovered rules (N)</summary>
+
+- Uncovered rule: ...
+
+</details>
+```
+
+`N` counts the lines inside, the blank lines stay as in the advisory block, and with no uncovered
+rule post no block. The block appears in a blocking-only review too. `/corrections:codify reviews`
+reads these lines as candidate rules.
+
 **Hold for a person.** When the wrapper's output schema has a `hold` field, fill it only for the
 classes the wrapper's prompt defines, each named by its criterion, with a reason naming the files
 and what they change. A `critical-security` hold applies only where no security lane runs

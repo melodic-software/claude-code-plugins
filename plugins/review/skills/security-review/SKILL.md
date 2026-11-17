@@ -458,6 +458,17 @@ inside, a blank line, the lines (each starting with its marker, after a list bul
 blank line and `</details>`. With no such line, post no block. The `critical-findings: <n>` line
 stays outside the block.
 
+**Uncovered rules.** When you wanted to cite a rule for a candidate and no criterion this lane
+reads states it, record the rule as one line starting with exactly `Uncovered rule:` (after a list
+bullet at most), then the rule in one sentence and the `file:line` that prompted it. A candidate
+whose only basis is that rule is not a finding: it posts no inline comment, has no severity line,
+adds nothing to the findings count or `critical-findings: <n>`, and never sets `hold`. A candidate
+that meets the bar on its own stays a finding at its severity, and the line records only the
+missing rule. Put at most five such lines in one block after the manifest block, as `<details>`,
+then `<summary>Uncovered rules (N)</summary>` with `N` the lines inside, a blank line, the lines, a
+blank line and `</details>`. With no uncovered rule, post no block. The block appears in a
+blocking-only review too. `/corrections:codify reviews` reads these lines as candidate rules.
+
 **Hold for a person.** When the wrapper's output schema has a `hold` field, fill it only for the
 classes the wrapper's prompt defines, each named by its criterion, with a reason naming the
 findings or files. A `critical-security` hold (one or more CRITICAL findings, a CRITICAL
