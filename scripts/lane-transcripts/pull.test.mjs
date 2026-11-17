@@ -104,6 +104,18 @@ test("a pull opens each sealed transcript into the sink, gzipped, with a metrics
   assert.equal(statSync(sink).mode & 0o777, 0o700);
 });
 
+test("a pulled row carries the contract's provider-neutral fields beside the GitHub ones", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  const deps = fakeDeps([artifact(7, { attempt: 2, record: sealed(publicLine) })]);
+  assert.equal(run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps }).code, 0);
+  const [row] = readRows(sink);
+  assert.deepEqual(
+    { provider: row.provider, run_ref: row.run_ref, run_url: row.run_url, leg_key: row.leg_key },
+    { provider: "github", run_ref: "42", run_url: `https://github.com/${REPO}/actions/runs/42/attempts/2`, leg_key: "check-intent" },
+  );
+});
+
 test("a pull skips fork runs, records bound to another run, a wrong key, odd zips and artifacts it already holds", () => {
   const { publicLine, privateText } = generate();
   const other = generate();

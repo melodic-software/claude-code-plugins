@@ -56,8 +56,8 @@ Resolve at runtime, never hardcode machine-specific paths:
   consumer uses Claude Code auto-memory; degrade gracefully when absent
 - **Score history** (plugin state): `${CLAUDE_PLUGIN_DATA}/scores/<project-slug>.md`. Survives
   plugin updates, never lands in the consumer's repo
-- Parser: `${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse_transcript.py` (stdlib-only,
-  Python 3.10+)
+- Parser: `${CLAUDE_PLUGIN_ROOT}/scripts/parse_transcript.py`, run per
+  [`${CLAUDE_PLUGIN_ROOT}/reference/transcript-parser.md`](${CLAUDE_PLUGIN_ROOT}/reference/transcript-parser.md)
 
 ## Step 0: Detect mode
 
