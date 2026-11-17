@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A git repository with Markdown and no markdownlint config, where this clone declined the pre-commit
-# entries (setup SKILL.md check steps 3, 5 and 11).
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2

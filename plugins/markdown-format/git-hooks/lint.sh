@@ -1,28 +1,4 @@
 #!/bin/sh
-# markdown-format lint entry: report what the markdownlint-cli2 adapter finds on
-# the lines this change adds. It never rewrites a file.
-#
-#   lint.sh             the staged changes (git runs it as pre-commit)
-#   lint.sh --worktree  the uncommitted changes against HEAD, untracked files
-#                       included (the end-of-turn Stop row)
-#   lint.sh --resolve [<path>...]  print the lint row, or one per path
-#                       (resolve-tool.sh rt_print); runs nothing
-#
-# The command resolves per file through lib/git-hooks/resolve-tool.sh to the
-# adapter in adapters.sh where a markdownlint config governs the file, else to
-# nothing; a .claude/ecosystems/ record is never run here. The linter runs over
-# a copy under the check's temporary directory: the staged content at
-# pre-commit, the work tree's in --worktree mode, beside links to the rest of
-# the repository on the way down, so a config that turns fixing on rewrites
-# only the copy and a partly staged file is checked as the commit holds it. Its findings become "<path>:<line>: <message>" lines,
-# repo-relative, and only those on added lines block (stderr, exit 1). A run
-# that exits non-zero with no parseable finding fails closed, and exit 2 is a
-# tool failure. A config that can run repository code and is not approved is
-# skipped with a notice at commit (never the approval command to an agent).
-# Files under .githooks/ are installed copies and are skipped. A missing tool
-# follows the check-placement contract: checks.skipmissing, else fail for an
-# agent and a notice for a person.
-#
 # POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
 case "$0" in
@@ -59,9 +35,6 @@ if [[ " $CHECKS_ARGS " == *" --resolve "* ]]; then
   exit 0
 fi
 
-# trust_notice <configs> <verdict> <approval dir>: say why the files under a
-# held config set were skipped. Approval is the user's: an agent commit gets the
-# verdict, never the command that grants it.
 trust_notice() {
   local msg="markdown-format trust gate: markdownlint-cli2 skipped for files under $1;"
   case "$2" in
@@ -95,8 +68,6 @@ if [[ "$CHECKS_MODE" == pre-commit ]]; then
 fi
 ((RT_GN)) || exit 0
 
-# Every group's tool first: a missing one skips its own group only, and an
-# agent's missing tool fails the entry after the other groups have reported.
 failed=0
 runs=()
 for ((i = 0; i < RT_GN; i++)); do
@@ -109,13 +80,6 @@ for ((i = 0; i < RT_GN; i++)); do
   esac
 done
 
-# The mirror: every directory on the way down to a file under check is a real
-# directory under $mirror, every other entry in it a link to the real one, and
-# each file under check a copy of the content under check. markdownlint-cli2 run
-# there reads the repository's configs and everything they reference (an
-# extended config, a custom rule, node_modules) where it really lives, while a
-# config that turns fixing on can rewrite only the copies. Entries are kept in
-# \x1f-separated lists, so bash 3.2 needs no associative array.
 mirror="$CHECKS_TMP/mirror"
 US=$'\x1f'
 spine="$US.$US"
@@ -189,10 +153,6 @@ if ((rc > 1)); then
   exit 1
 fi
 
-# markdownlint-cli2's line is "<path>:<line>[:<col>] [<severity> ]MD<n>/<name> ...";
-# the contract line drops the column and the severity and keeps the path in git's
-# forward-slash spelling, without a leading "./". A path holding a colon cannot be
-# told from the line number, so it parses as no finding and fails closed below.
 contract="$CHECKS_TMP/contract"
 sed -n -E -e ':a' -e 's#^([^:]*)\\#\1/#' -e 'ta' -e 's#^\./##' \
   -e 's/^([^:]+):([0-9]+)(:[0-9]+)? ((error|warning) )?(MD[0-9]+\/.*)$/\1:\2: \6/p' <"$out" >"$contract"

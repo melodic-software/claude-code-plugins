@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for the markdown-format pre-commit format entry
-# (git-hooks/format.sh): staged Markdown files are rewritten by the
-# markdownlint-cli2 adapter's `--fix` and re-staged, a partly staged one is
-# refused untouched, the entry reports no finding, only a file a markdownlint
-# config governs is touched, a config that can run repository code is skipped
-# until the user approves its content state, file names reach the tool as
-# literal paths and never as a glob or shell text, a .claude/ecosystems/ record
-# never runs, and the vendored installer wires both entries so `git commit`
-# runs them.
-# Expected values are markdownlint's documented rules: a file must end with a
-# single newline (MD047) and an extra blank line goes (MD012), both fixable;
-# inline HTML is MD033/no-inline-html and has no fix. markdownlint-cli2 reads an
-# argument starting with ":" as a literal path and one starting with "#" as a
-# negated glob (its --help, v0.24.0).
 # test-scope: plugins/markdown-format/git-hooks/entries.json plugins/markdown-format/git-hooks/adapters.sh plugins/markdown-format/git-hooks/markdown-gates.sh
 # test-scope: plugins/markdown-format/lib/git-hooks/check-lib.sh plugins/markdown-format/lib/git-hooks/install.mjs plugins/markdown-format/lib/git-hooks/resolve-tool.sh
 # shellcheck disable=SC2016 # record commands are literal text
@@ -23,7 +9,6 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/format.sh"
 LINT="$HERE/lint.sh"
 PLUGIN="$(cd "$HERE/.." && pwd)"
-# The real binary: PATH, else the repository's own locked install.
 REAL_MD="$(command -v markdownlint-cli2 || true)"
 [[ -n "$REAL_MD" ]] || REAL_MD="$(cd "$PLUGIN/../.." && pwd)/node_modules/.bin/markdownlint-cli2"
 if [[ ! -x "$REAL_MD" ]] || ! command -v node >/dev/null 2>&1; then
@@ -39,7 +24,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -50,7 +35,7 @@ expect() { # <label> <want> <got>
 }
 
 n=0
-new_repo() { # ["NONE" for no config]
+new_repo() {
   n=$((n + 1))
   REPO="$WORK/r$n"
   git init -q -b main "$REPO"
@@ -64,7 +49,7 @@ new_repo() { # ["NONE" for no config]
   git -C "$REPO" commit -q -m seed --no-verify
 }
 
-check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
+check() {
   local repo="$1" out rc
   shift
   out="$(cd "$repo" && bash "$CHECK" "$@" 2>"$WORK/stderr")"
@@ -72,8 +57,6 @@ check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
   printf '%s|%s|%s' "$rc" "$out" "$(cat "$WORK/stderr")"
 }
 
-# Expected bytes carry a trailing "x" so command substitution cannot strip the
-# final newline MD047 adds.
 FIXED=$'# T\n\ntext\n'
 RAW="$(printf '# T\n\ntext')"
 
@@ -99,7 +82,6 @@ expect "a partly staged file is refused with the contract line" "1||a.md: partly
 expect "a refused file is left byte for byte" "$(printf '# T\n\ntext\n\nmore unstaged')" "$(cat "$REPO/a.md")"
 expect "a refused file's index entry is left byte for byte" "# T" "$(git -C "$REPO" show :a.md | sed -n 1p)"
 
-# markdownlint-cli2 reads its config from the work tree; the commit holds the index's.
 DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
 new_repo
 printf '# T\n\ntext' >"$REPO/a.md"
@@ -126,7 +108,6 @@ git -C "$REPO" add a.md notes.txt
 printf 'notes\nmore unstaged\n' >"$REPO/notes.txt"
 expect "a partly staged file that is not Markdown does not refuse the commit" "0|a.md|" "$(check "$REPO")"
 
-# Formatting only: a finding --fix cannot resolve is the lint entry's to report.
 new_repo
 printf '# T\n\n<b>x</b>\n' >"$REPO/a.md"
 git -C "$REPO" add a.md
@@ -174,8 +155,6 @@ rm "$REPO/gone.md"
 expect "staged then deleted from the work tree: nothing is rewritten and the entry passes" "0||" "$(check "$REPO")"
 expect "staged then deleted: the file is not recreated" "no" "$([[ -e "$REPO/gone.md" ]] && echo yes || echo no)"
 
-# File names are literal paths: a glob character or a leading "#" or "-" in a
-# name never widens, negates or turns into an option.
 new_repo
 printf '# T\n\ntext' >"$REPO/x.md"
 printf '# T\n\ntext' >"$REPO/[x].md"
@@ -187,7 +166,6 @@ expect "names holding [ ], a leading # and a leading - are each rewritten as the
 [x].md|" "$(check "$REPO")"
 expect "the unstaged x.md a [x] glob would match keeps its bytes" "$RAW" "$(cat "$REPO/x.md")"
 
-# A record never runs from the entry: the adapter does.
 new_repo
 mkdir -p "$REPO/.claude/ecosystems" "$WORK/bin$n"
 printf '#!/bin/sh\n: >"%s/record-ran"\n' "$WORK" >"$WORK/bin$n/stubfmt"
@@ -219,9 +197,6 @@ markdown-format	format	none		n/a	config tools/.markdownlint-cli2.jsonc can run r
 markdown-format	format	none		n/a	no markdownlint config" \
   "$(cd "$REPO" && sh "$CHECK" --resolve docs/a.md tools/b.md c.md)"
 
-# A config that can run repository code: skipped until the user approves its
-# exact content state. The format entry is silent about it; the lint entry
-# names the verdict once per commit.
 new_repo NONE
 printf 'module.exports = {};\n' >"$REPO/helper.cjs"
 printf 'const h = require("./helper.cjs");\nmodule.exports = { config: { default: true, MD013: false } };\n' >"$REPO/.markdownlint-cli2.cjs"
@@ -254,7 +229,6 @@ printf '# T\n\ntext' >"$REPO/a.md"
 expect "--worktree: the format entry rewrites nothing and passes" "0||" "$(check "$REPO" --worktree)"
 expect "--worktree: the file keeps its bytes" "$RAW" "$(cat "$REPO/a.md")"
 
-# A PATH with the tools the script runs and node, but no markdownlint-cli2.
 NOMD="$WORK/nomd"
 mkdir -p "$NOMD"
 for t in git bash sed awk cat mktemp rm dirname grep tr readlink env sh node; do
@@ -279,7 +253,6 @@ git -C "$REPO" reset -q
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOMD" bash "$CHECK" 2>&1)"
 expect "no Markdown staged: a missing markdownlint-cli2 does not fail the commit" "0|" "$?|$out"
 
-# markdownlint-cli2 only in the repo's own node_modules/.bin.
 new_repo
 mkdir -p "$REPO/node_modules/.bin"
 printf '#!/bin/sh\nexec "%s" "$@"\n' "$REAL_MD" >"$REPO/node_modules/.bin/markdownlint-cli2"
@@ -292,7 +265,6 @@ expect "--resolve names the repo-local binary" \
   "markdown-format	format	adapter:markdownlint-cli2	markdownlint-cli2	yes	config .markdownlint-cli2.jsonc; binary node_modules/.bin/markdownlint-cli2" \
   "$(cd "$REPO" && PATH="$NOMD" sh "$CHECK" --resolve)"
 
-# A shim whose symlink leaves the repository is not run.
 new_repo
 mkdir -p "$REPO/node_modules/.bin" "$WORK/outside$n"
 printf '#!/bin/sh\nexec "%s" "$@"\n' "$REAL_MD" >"$WORK/outside$n/markdownlint-cli2"
@@ -304,7 +276,6 @@ out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOMD" bash "$CHECK" 2>&1)"
 expect "a node_modules/.bin symlink that escapes the repository is treated as a missing tool" "1|FAIL: markdownlint-cli2 missing." "$?|${out%% Install:*}"
 expect "the escaping shim did not run" "$RAW" "$(cat "$REPO/a.md")"
 
-# End to end through the plugin's vendored installer and real commits.
 new_repo
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 status="$(node "$INSTALL" copy --scope local --repo "$REPO")"

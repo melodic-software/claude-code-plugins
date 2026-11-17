@@ -117,8 +117,6 @@ expect "true: a missing markdownlint-cli2 passes silently" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN=true CLAUDECODE=1 PATH="$NOTOOL")"
 report CLAUDECODE=1 PATH="$NOTOOL"
 expect "default: a missing markdownlint-cli2 passes silently" "0||" "$REPORT_RC|$REPORT_OUT|$REPORT_ERR"
-# Only the missing-tool lines drop: a finding from a file whose own
-# node_modules/.bin resolves still comes back beside them.
 mkdir -p "$R/sub/node_modules/.bin"
 printf '#!/bin/sh\nexec "%s" "$@"\n' "$REAL_MD" >"$R/sub/node_modules/.bin/markdownlint-cli2"
 chmod +x "$R/sub/node_modules/.bin/markdownlint-cli2"

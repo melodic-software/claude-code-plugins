@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for the markdown-format lint entry (git-hooks/lint.sh): the
-# markdownlint-cli2 adapter reports and never rewrites, not even under a config
-# that turns fixing on; it lints the staged content, so a partly staged file is
-# checked as the commit holds it; a finding blocks only on a line the change
-# adds; output becomes repo-relative "<path>:<line>: <message>"; a run that
-# exits non-zero with no parseable finding fails closed; a config that can run
-# repository code is skipped with a notice until the user approves it;
-# --worktree checks uncommitted changes; a .claude/ecosystems/ record never runs.
-# Expected values are markdownlint-cli2's documented behavior (README "Exit
-# Codes", its --help, v0.24.0): findings print on stderr as
-# "<path>:<line>[:<col>] <severity> MD<n>/<name> <message>", exit 1 means
-# findings and 2 a failure, a ":" prefix makes an argument a literal path, and a
-# config's "fix" property turns fixing on without --fix. MD033/no-inline-html
-# has no fix; MD047 (single trailing newline) and MD009 (trailing spaces) do.
 # test-scope: plugins/markdown-format/git-hooks/entries.json plugins/markdown-format/git-hooks/adapters.sh plugins/markdown-format/git-hooks/markdown-gates.sh
 # test-scope: plugins/markdown-format/lib/git-hooks/check-lib.sh plugins/markdown-format/lib/git-hooks/resolve-tool.sh
 set -uo pipefail
@@ -48,7 +34,7 @@ expect() { # <label> <want> <got>
 
 DEFAULT_CFG='{ "config": { "default": true, "MD013": false } }'
 n=0
-new_repo() { # [config body; "NONE" for no config]
+new_repo() {
   n=$((n + 1))
   REPO="$WORK/r$n"
   git init -q -b main "$REPO"
@@ -80,7 +66,6 @@ git -C "$REPO" add a.md
 expect "a finding on an added line blocks, naming that line" "1||$HTML
 $HINT" "$(check "$REPO")"
 
-# A finding with a column: the column and the severity drop out.
 new_repo
 printf '# T\n\ntrailing   \n' >"$REPO/a.md"
 git -C "$REPO" add a.md
@@ -90,8 +75,6 @@ expect "lint never rewrites the work tree" "$(printf '# T\n\ntrailing   ')" "$(c
 expect "lint never rewrites the index" "$(printf '# T\n\ntrailing   ')" "$(git -C "$REPO" show :a.md)"
 expect "lint prints nothing on stdout: no file is listed as rewritten" "" "$(cd "$REPO" && bash "$CHECK" 2>/dev/null)"
 
-# A config whose "fix" property is true would rewrite on a plain run; the
-# entry lints a copy, so the repository's files keep their bytes.
 new_repo '{ "fix": true, "config": { "default": true, "MD013": false } }'
 printf '# T\n\ntext' >"$REPO/a.md"
 git -C "$REPO" add a.md
@@ -101,8 +84,6 @@ expect "a config with fix: true does not make lint rewrite the index" "$RAW" "$(
 check "$REPO" --worktree >/dev/null
 expect "--worktree under fix: true leaves the file as written" "$RAW" "$(cat "$REPO/a.md")"
 
-# A sed that crashes while it turns markdownlint's output into findings leaves
-# none to block on, so it must fail the commit itself.
 new_repo
 printf '# T\n\n<b>x</b>\n' >"$REPO/a.md"
 git -C "$REPO" add a.md
@@ -124,8 +105,6 @@ printf '# T\n\n<b>x</b>\n\nmore\n' >"$REPO/a.md"
 git -C "$REPO" add a.md
 expect "a finding on a line the commit did not add does not block" "0||" "$(check "$REPO")"
 
-# The staged content is what is checked: an unstaged finding does not block,
-# and a partly staged file is not refused.
 new_repo
 printf '# T\n\ntext\n' >"$REPO/a.md"
 git -C "$REPO" add a.md
@@ -152,7 +131,6 @@ printf '{ "default": true, "MD013": false, "MD041": false }\n' >"$REPO/docs/.mar
 printf 'text\n\n<b>x</b>' >"$REPO/docs/deep/gone.md"
 git -C "$REPO" add gen/g.md docs/.markdownlint.json docs/deep/gone.md
 rm -r "$REPO/gen" "$REPO/docs/deep"
-# MD041 stays off, as the nested config says.
 expect "staged then deleted from the work tree: the staged findings block under the nested config, ignores hold, nothing rewritten" "1||docs/deep/gone.md:3: MD033/no-inline-html Inline HTML [Element: b]
 docs/deep/gone.md:3: MD047/single-trailing-newline Files should end with a single newline character
 $HINT" "$(check "$REPO")"
@@ -163,8 +141,6 @@ git -C "$REPO" add link.md
 rm "$REPO/link.md"
 expect "staged then deleted: a staged symlink is not checked" "0||" "$(check "$REPO")"
 
-# File names are literal paths, never globs: "[x].md" would match x.md as a
-# glob, and "#h.md" would be a negation that lints nothing.
 new_repo
 printf '# T\n\n<b>x</b>\n' >"$REPO/[x].md"
 printf '# T\n\n<b>x</b>\n' >"$REPO/#h.md"
@@ -176,7 +152,6 @@ expect "names holding [ ], a leading # and a leading - are each linted as themse
 #h.md:3: MD033/no-inline-html Inline HTML [Element: b]
 $HINT" "$(check "$REPO")"
 
-# Fail closed: a non-zero exit with no parseable finding is never a pass.
 new_repo
 mkdir -p "$REPO/node_modules/.bin" "$WORK/stub$n"
 printf '#!/bin/sh\necho "markdownlint-cli2 v0" >&2\necho "something odd happened" >&2\nexit 1\n' >"$WORK/stub$n/markdownlint-cli2"
@@ -192,7 +167,6 @@ expect "a run that exits 2 is a tool failure, its output shown" \
   "1||markdown-format: markdownlint-cli2 failed:
 Error: Unable to use configuration file" "$(PATH="$WORK/stub$n:$PATH" check "$REPO")"
 
-# A record never runs from the entry.
 new_repo
 mkdir -p "$REPO/.claude/ecosystems" "$WORK/bin$n"
 printf '#!/bin/sh\n: >"%s/record-ran"\n' "$WORK" >"$WORK/bin$n/stublint"
@@ -283,8 +257,6 @@ git -C "$REPO" add a.md
 expect "a symlinked code config is unpinnable: its requires resolve from the link target" \
   "0||$GATE_LEAD .markdownlint-cli2.cjs; it names code through an expression no approval can pin, so lint stays off." "$(check "$REPO")"
 
-# A config's own references (extends, an approved customRules module)
-# resolve from where the config really lives, so the copy still reads them.
 new_repo NONE
 printf '{ "default": false, "MD033": true }\n' >"$REPO/base.json"
 printf '{ "extends": "./base.json" }\n' >"$REPO/.markdownlint.json"

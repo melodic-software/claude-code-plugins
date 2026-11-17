@@ -61,8 +61,6 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
   else
     fail "manifest binding: the gates do not state the manifest's local_bin (needle='$MF_LOCAL')"
   fi
-  # The SessionStart probe reports markdownlint-cli2 only where a config the
-  # adapter honors sits: the same names the entries refuse to commit drifted.
   WANT_WHEN="$(sed -n 's/^RT_DRIFT_CONFIGS="\(.*\)"$/\1/p' "$PLUGIN_ROOT/git-hooks/adapters.sh")"
   expect "manifest: markdownlint-cli2 is needed only where one of the adapter's config names sits" "$WANT_WHEN" \
     "$(jq -r '.requires[0].when.config_any | join(" ")' "$MANIFEST")"
@@ -296,9 +294,6 @@ for cfg_case in "cjs" "customRules" "backslash"; do
   expect "code-capable config ($cfg_case): silent and the file untouched" "0|$NO_NL" "$?|$OUT$(cat "$REPO_CODE/a.md")"
 done
 
-# Once the user approves that config state, through the marker the lint
-# entry names to a person, the batch row rewrites under it: both read one store,
-# the git directory, whatever CLAUDE_PLUGIN_DATA names in either process.
 DATA="$WORK/plugin-data"
 OTHER="$WORK/other-plugin-data"
 REPO_OK="$WORK/code-approved"
@@ -408,8 +403,6 @@ if ln -s "$WORK/external.md" "$REPO_FS/link.md" 2>/dev/null; then
   expect "a symlinked .md pointing outside the repository is not rewritten" "$NO_NL" "$(cat "$WORK/external.md")"
 fi
 
-# File names are literal paths: a glob character or a leading "#" never widens
-# or negates what is rewritten.
 REPO_GL="$WORK/glob-names"
 new_md_repo "$REPO_GL"
 printf '%s' "$NO_NL" >"$REPO_GL/x.md"
@@ -426,7 +419,6 @@ expect "a name with a leading # is rewritten as itself" "${FIXED}x" "$(
 )"
 expect "the x.md a [x] glob would match keeps its bytes" "$NO_NL" "$(cat "$REPO_GL/x.md")"
 
-# A .claude/ecosystems/ record is never run from the batch row.
 REPO_RC="$WORK/record"
 new_md_repo "$REPO_RC"
 mkdir -p "$REPO_RC/.claude/ecosystems" "$WORK/record-bin"

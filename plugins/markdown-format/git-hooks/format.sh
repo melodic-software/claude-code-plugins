@@ -1,25 +1,4 @@
 #!/bin/sh
-# markdown-format pre-commit format entry: rewrite the staged Markdown files
-# with the markdownlint-cli2 adapter's `--fix`, then re-stage them. It reports
-# no finding; that is the lint entry's job.
-#
-#   format.sh             the staged changes (git runs it as pre-commit)
-#   format.sh --worktree  does nothing: formatting happens at commit
-#   format.sh --resolve [<path>...]  print the format row, or one per path
-#                         (resolve-tool.sh rt_print); runs nothing
-#
-# The command resolves per file through lib/git-hooks/resolve-tool.sh to the
-# adapter in adapters.sh where a markdownlint config governs the file (a config
-# that can run repository code only once the user approved its state; see
-# markdown-gates.sh), else to nothing; a .claude/ecosystems/ record is never
-# run here. A partly staged file is refused before anything is rewritten
-# (re-staging a rewrite would stage its unstaged hunks too), and so is a commit
-# whose markdownlint config above a staged file differs between the index and
-# the work tree. A staged file since deleted from the work tree is never
-# rewritten. Files under .githooks/ are installed copies and are skipped. A
-# missing tool follows the check-placement contract: checks.skipmissing, else
-# fail for an agent and a notice for a person.
-#
 # POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
 case "$0" in
@@ -68,8 +47,6 @@ checks_refuse_config_drift $RT_DRIFT_CONFIGS -- "${candidates[@]}" || exit 1
 rt_group format "$PWD" "${candidates[@]}"
 ((RT_GN)) || exit 0
 
-# Every group's tool first: a missing one skips its own group only, and an
-# agent's missing tool fails the entry once the other groups have run.
 runs=()
 tool_failed=0
 for ((i = 0; i < RT_GN; i++)); do
@@ -95,7 +72,6 @@ for ((i = 0; i < RT_GN; i++)); do
 done
 ((refused)) && exit 1
 
-# --fix exits 1 when a finding it cannot fix remains; that is lint's to report.
 written=()
 for ((i = 0; i < RT_GN; i++)); do
   ((runs[i])) || continue

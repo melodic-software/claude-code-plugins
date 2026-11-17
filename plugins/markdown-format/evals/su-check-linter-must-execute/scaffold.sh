@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A git repository opted in by a root config, with one gitignored Markdown file, where this clone
-# declined both pre-commit entries (setup SKILL.md check steps 4, 5, 8 and 11).
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2
