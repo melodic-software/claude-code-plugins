@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Writes .claude/skills/control-shop/features/returns/README.md and adds its index line to the hub.",
+      "why": "full path"
+    },
+    {
+      "answer": "New feature: `features/returns/README.md`, committed on `feat/returns`.",
+      "why": "backticked relative path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The /returns page is reported as not mapped, citing src/routes/returns.ts:5.",
+      "why": "only reported, no folder"
+    },
+    {
+      "answer": "Writes features/wishlist/README.md for the /wishlist page.",
+      "why": "the surface the ticket did not add"
+    }
+  ]
+}
