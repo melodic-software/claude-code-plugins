@@ -25,7 +25,11 @@
 # script (scripts/check-affected.sh sets it when it runs from a merge-base copy
 # of the tooling). The helpers then still run from this script's tree, and each
 # step that would run code from the checked tree prints `SKIP <step> (...)`
-# instead of running.
+# instead of running. CHECK_SKIP_CONTRACTS, read only then, is why this tree's
+# contract validator must not judge the checked one: check-affected.sh sets it
+# when the branch changes the validator, so the contract step prints
+# `SKIP contract-validator (<why>)` and CI, which runs the branch's copy,
+# judges it.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)" || exit 1
@@ -74,14 +78,18 @@ fi
 # asserts the shipping tree draws none, but the selection runs that suite only
 # when the change reaches it, so a warning a pull request introduces would
 # otherwise pass its own run and fail first in the merge queue (#6215).
-contracts=$(node "$SCRIPT_DIR/validate-plugin-contracts.mjs" 2>&1) || {
+if ((foreign)) && [[ -n "${CHECK_SKIP_CONTRACTS-}" ]]; then
+  echo "SKIP contract-validator ($CHECK_SKIP_CONTRACTS)"
+else
+  contracts=$(node "$SCRIPT_DIR/validate-plugin-contracts.mjs" 2>&1) || {
+    printf '%s\n' "$contracts"
+    exit 1
+  }
   printf '%s\n' "$contracts"
-  exit 1
-}
-printf '%s\n' "$contracts"
-if grep -q '^warning: ' <<<"$contracts"; then
-  echo "error: the plugin contract validator printed a warning; the tree must draw none" >&2
-  exit 1
+  if grep -q '^warning: ' <<<"$contracts"; then
+    echo "error: the plugin contract validator printed a warning; the tree must draw none" >&2
+    exit 1
+  fi
 fi
 bash "$SCRIPT_DIR/check-publisher-token-alignment.sh" || exit 1
 # Before the catalog, which groups by the category this generates.
