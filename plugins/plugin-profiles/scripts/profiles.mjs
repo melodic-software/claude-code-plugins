@@ -804,8 +804,32 @@ function statusLines(s) {
     if (s.installedSince.length) lines.push(`Installed since the profile was applied: ${list(s.installedSince)}`);
   } else if (s.rememberFolder) lines.push(`No profile is recorded for ${s.settingsFile}.`);
   if (s.earlier) lines.push(s.earlier.line);
-  if (s.launchCommand) lines.push(`Start another session here in this profile with: ${s.launchCommand}, or ${s.startCommand}`);
+  if (s.launchCommand) lines.push(`Start another session here in this profile with: ${s.startCommand} (or ${s.launchCommand})`);
   lines.push(surfaceLine(s.surface));
+  return lines;
+}
+
+/** The session-start notice, one short line each: what is in force and what needs the person, without status's commands; the surface only off the CLI. */
+function noticeLines(s, sessionId) {
+  if (doesNotApply(s.surface)) return [surfaceLine(s.surface)];
+  const lines = [];
+  if (s.session) {
+    lines.push(`This session runs in profile ${s.session.profile}.`);
+    lines.push(`Resume it in that profile with: claude-profile --resume ${validId(sessionId) ? sessionId : "<session id>"}`);
+  } else if (s.profile) {
+    lines.push(`Profile ${s.profile} applies here (${s.settingsFile}${s.repositoryWide ? ", which every worktree of this repository reads" : ""}).`);
+  }
+  if (!s.rememberFolder) {
+    lines.push(`Folder remembering is off: sessions start from the initial profile${s.profile ? ` ${s.profile}` : ""}.`);
+    if (s.leftover) lines.push(`This folder still holds the entries of profile ${s.leftover}; run clear to remove them.`);
+  }
+  if (s.profile && !s.session) {
+    if (s.pending.length) lines.push(`A switch is unfinished; these stay on until apply ${s.profile} --for ${s.target} runs again: ${list(s.pending)}`);
+    for (const d of s.differs) lines.push(`Differs from the profile: ${d.name} is ${d.current}, the profile wrote ${d.recorded}`);
+    if (s.installedSince.length) lines.push(`Installed since the profile was applied: ${list(s.installedSince)}`);
+  }
+  if (s.earlier) lines.push(s.earlier.line);
+  if (s.surface.id !== "cli") lines.push(surfaceLine(s.surface));
   return lines;
 }
 
@@ -829,9 +853,12 @@ function sessionStartRecord(where, env, input) {
   if (doesNotApply(where.surface) || !validId(input.session_id)) return null;
   const name = sessionProfile(env);
   if (name && env[SESSION_FILE_VAR]) {
+    const before = input.source === "resume" ? sessionRecord(where, input.session_id) : null;
     const rec = { sessionId: input.session_id, profile: name, file: env[SESSION_FILE_VAR], folder: where.projectDir, at: new Date().toISOString() };
     replaceFile(join(byIdDir(where.dataDir), `${input.session_id}.json`), `${JSON.stringify(rec, null, 2)}\n`);
-    return null;
+    return before && before.profile !== name
+      ? `This session ran in profile ${before.profile} and now runs in ${name}, so a later claude-profile --resume ${input.session_id} restores ${name}.`
+      : null;
   }
   const rec = !name && input.source === "resume" ? sessionRecord(where, input.session_id) : null;
   return rec ? `This session ran in profile ${rec.profile}; it is now running without it. Resume it in that profile with: claude-profile --resume ${input.session_id}` : null;
@@ -839,9 +866,10 @@ function sessionStartRecord(where, env, input) {
 
 function status(opts, where, env, io) {
   if (opts.sessionStart) {
+    const input = hookInput(io);
     const resumed = (() => {
       try {
-        return sessionStartRecord(where, env, hookInput(io));
+        return sessionStartRecord(where, env, input);
       } catch {
         return null;
       }
@@ -849,11 +877,11 @@ function status(opts, where, env, io) {
     const lines = resumed ? [resumed] : [];
     try {
       const s = statusOf(opts, where, env, () => recordsFromDisk(where.configDir));
-      if (worthNotice(s)) lines.push(...statusLines(s));
+      if (worthNotice(s)) lines.push(...noticeLines(s, input.session_id));
     } catch {
       // A session start never fails on a profile problem; status run by hand reports it.
     }
-    if (lines.length) io.out(JSON.stringify({ systemMessage: `plugin-profiles: ${lines.join(" ")}` }));
+    if (lines.length) io.out(JSON.stringify({ systemMessage: `plugin-profiles:\n${lines.join("\n")}` }));
     return 0;
   }
   const s = statusOf(opts, where, env, () => recordsFromCli());

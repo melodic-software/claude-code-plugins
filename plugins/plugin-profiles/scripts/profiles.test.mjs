@@ -360,8 +360,8 @@ test("status prints the command that starts another session in the profile in fo
   const w = world();
   assert.doesNotMatch(w.run(["status"]).stdout, /Start another session/);
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
-  assert.match(w.run(["status"]).stdout, /Start another session here in this profile with: node \S*profiles\.mjs launch build --folder \S+, or claude-profile build/);
-  assert.match(w.run(["status"], { PLUGIN_PROFILES_SESSION: "review" }).stdout, /launch review --folder \S+, or claude-profile review/);
+  assert.match(w.run(["status"]).stdout, /Start another session here in this profile with: claude-profile build \(or node \S*profiles\.mjs launch build --folder \S+\)/);
+  assert.match(w.run(["status"], { PLUGIN_PROFILES_SESSION: "review" }).stdout, /claude-profile review \(or node \S*profiles\.mjs launch review --folder \S+\)/);
 });
 
 test("Q69: on VS Code a one-session apply is refused with the folder offer and writes nothing", () => {
@@ -449,14 +449,14 @@ test("the session-start notice prints nothing in a folder with no applied profil
   installOnDisk(w);
   assert.equal(sessionStart(w), "");
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
-  assert.match(JSON.parse(sessionStart(w)).systemMessage, /Profile build \(folder\) applied/);
+  assert.match(JSON.parse(sessionStart(w)).systemMessage, /Profile build applies here/);
 });
 
 test("Q69: in cloud and Desktop WSL sessions the session-start notice prints nothing and writes nothing, even where a profile is applied", () => {
   const w = world();
   installOnDisk(w);
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
-  assert.match(JSON.parse(sessionStart(w)).systemMessage, /Profile build \(folder\) applied/, "on the CLI the notice speaks");
+  assert.match(JSON.parse(sessionStart(w)).systemMessage, /Profile build applies here/, "on the CLI the notice speaks");
   const before = snapshot(settingsFiles(w));
   const records = w.records();
   for (const env of [CLOUD, DESKTOP_WSL]) assert.equal(sessionStart(w, env), "", env.CLAUDE_CODE_ENTRYPOINT);
@@ -464,13 +464,14 @@ test("Q69: in cloud and Desktop WSL sessions the session-start notice prints not
   assert.deepEqual(w.records(), records);
 });
 
-test("B8: the session-start notice names the folder's profile and the surface", () => {
+test("B8: the session-start notice names the folder's profile on its own line, and on the CLI no surface or commands", () => {
   const w = world();
   installOnDisk(w);
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
   const message = JSON.parse(sessionStart(w)).systemMessage;
-  assert.match(message, /Profile build \(folder\)/);
-  assert.match(message, /Surface: the Claude Code CLI/);
+  assert.match(message, /^Profile build applies here \(.+settings\.local\.json\)\.$/m);
+  assert.doesNotMatch(message, /Surface:/);
+  assert.doesNotMatch(message, /Start another session/);
   assert.doesNotMatch(message, /Differs from the profile/);
 });
 
@@ -487,9 +488,11 @@ test("a session started from a one-session file is named by status, with the fla
   installOnDisk(w);
   const file = /claude --settings "(.+)"/.exec(w.run(["apply", "build", "--for", "session", "--yes"]).stdout)[1];
   const message = JSON.parse(sessionStart(w, { PLUGIN_PROFILES_SESSION: "build" })).systemMessage;
-  assert.match(message, /This session runs in profile build from a one-session settings file/);
+  assert.match(message, /^This session runs in profile build\.$/m);
   assert.ok(existsSync(file), file);
-  assert.match(message, /resume it with: claude-profile --resume <session id>/);
+  assert.match(message, /^Resume it in that profile with: claude-profile --resume <session id>$/m);
+  assert.doesNotMatch(message, /No profile is recorded/);
+  assert.doesNotMatch(message, /Surface:/);
 });
 
 /** Copies this plugin into the plugin-cache layout under the temp HOME, so its options come from that HOME's settings.json. */
@@ -1218,7 +1221,7 @@ test("an empty PLUGIN_PROFILES_SESSION counts as unset: status falls back to the
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
   const r = w.run(["status"], { PLUGIN_PROFILES_SESSION: "" });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /Start another session here in this profile with: node \S*profiles\.mjs launch build --folder /);
+  assert.match(r.stdout, /Start another session here in this profile with: claude-profile build \(or node \S*profiles\.mjs launch build --folder /);
   assert.doesNotMatch(r.stdout, /one-session settings file/);
 });
 
@@ -1568,4 +1571,22 @@ test("#16914: status says every worktree reads the folder file only once the rep
   assert.doesNotMatch(before, /every worktree/);
   writeTree(w.project, { ".git/worktrees/wt/commondir": "../..\n" });
   assert.match(w.run(["status"]).stdout, /, which every worktree of this repository reads\./);
+});
+
+test("#16914: a /resume inside a terminal in another profile says the session's record moves to that profile, and a later resume restores it", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  const review = launchJson(w, ["review"]).file;
+  const reviewEnv = JSON.parse(readFileSync(review, "utf8")).env;
+  const message = hookStart(w, { session_id: "abc-1", source: "resume" }, reviewEnv);
+  assert.match(message, /^This session ran in profile build and now runs in review, so a later claude-profile --resume abc-1 restores review\.$/m);
+  assert.equal(JSON.parse(readFileSync(join(byIdDir(w), "abc-1.json"), "utf8")).profile, "review");
+  assert.doesNotMatch(hookStart(w, { session_id: "abc-1", source: "resume" }, reviewEnv), /now runs in/, "the same profile again says nothing about a move");
+});
+
+test("#16914: the one-session start notice gives the session's own id in the resume command", () => {
+  const w = world();
+  const file = sessionInBuild(w, "abc-2");
+  const message = hookStart(w, { session_id: "abc-2", source: "clear" }, JSON.parse(readFileSync(file, "utf8")).env);
+  assert.match(message, /^Resume it in that profile with: claude-profile --resume abc-2$/m);
 });
