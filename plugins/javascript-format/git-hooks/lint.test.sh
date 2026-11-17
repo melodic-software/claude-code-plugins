@@ -78,7 +78,7 @@ UNUSED='lint/correctness/noUnusedVariables: This variable unusedVar is unused.'
 if [[ -z "$REAL_BIOME" ]]; then
   echo "SKIP: biome not on PATH and BIOME_TEST_BIN unset -- the Biome adapter tests skipped"
 else
-  printf '#!/bin/sh\nHOME="%s" exec "%s" "$@"\n' "$REAL_HOME" "$REAL_BIOME" >"$BIN/biome"
+  printf '#!/bin/sh\nHOME="%s" PATH="%s" exec "%s" "$@"\n' "$REAL_HOME" "$PATH" "$REAL_BIOME" >"$BIN/biome"
   chmod +x "$BIN/biome"
 
   new_repo

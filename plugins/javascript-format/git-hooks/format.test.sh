@@ -27,7 +27,7 @@ mkdir -p "$HOME"
 
 BIN="$WORK/bin"
 mkdir -p "$BIN"
-printf '#!/bin/sh\nHOME="%s" exec "%s" "$@"\n' "$REAL_HOME" "$REAL_BIOME" >"$BIN/biome"
+printf '#!/bin/sh\nHOME="%s" PATH="%s" exec "%s" "$@"\n' "$REAL_HOME" "$PATH" "$REAL_BIOME" >"$BIN/biome"
 chmod +x "$BIN/biome"
 cat >"$BIN/stubfmt" <<EOF
 #!/bin/sh
