@@ -55,9 +55,9 @@ Priority order, highest signal first:
 4. **Everything else tracked**, swept last, and only for strong normative signal.
 
 **Other agents' instruction formats** are swept as core-tier when present, because they carry the
-same content in a form Claude does not read: `.cursor/rules/**`, `.cursorrules`,
-`.github/copilot-instructions.md`, `.windsurfrules`, `.windsurf/rules/**`, `.clinerules`,
-`.devin/rules/**`. Treat these as **read-only sources** for the promote lane: propose a Claude
+same content in a form Claude does not read: the tracked rule and instruction files only another
+coding agent loads, usually a rules file at the root or a rules directory under that tool's own
+configuration directory. Treat these as **read-only sources** for the promote lane: propose a Claude
 destination, never edit or delete another tool's configuration. The consuming repo may still be
 using it.
 
