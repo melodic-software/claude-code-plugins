@@ -121,6 +121,7 @@ the scripts' own defaults differ (collect keeps records forever).
 - `EXCERPT_WORDS` ← `${user_config.audit_sessions_excerpt_words}` (default 60)
 - `MIN_COUNT` ← `${user_config.audit_sessions_drift_min_count}` (default 20)
 - `VERSIONS` ← `${user_config.audit_sessions_drift_versions}` (default 3)
+- `SINK` ← `${user_config.lane_transcript_sink}` (`pr` only; no default: unset skips the CI legs)
 
 ## Step 1: Collect
 
@@ -247,7 +248,7 @@ every key, which is text matched out of a stored title, branch or path.
 
 `pr` looks back over one pull request: every session that linked it or ran on its head branch in
 its repository, subagents included, measured, read in subagents sized to the transcripts, and its
-human review comments handed to `/corrections:codify reviews --pr`. Read [actions/pr.md](actions/pr.md) and follow
+human review comments handed to `/corrections:codify reviews --pr`, plus the CI lane legs pulled for its head branch. Read [actions/pr.md](actions/pr.md) and follow
 its process.
 
 ## Correction lens
