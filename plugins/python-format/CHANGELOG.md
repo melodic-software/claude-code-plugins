@@ -3,6 +3,12 @@
 All notable changes to the `python-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.1] - 2026-11-17
+
+### Fixed
+
+- The format and lint entries skip only the root `.githooks/` directory, where the installer puts its copies, again; a Python file under a nested `.githooks/` directory is formatted and linted.
+
 ## [3.0.0] - 2026-11-17
 
 ### Added
