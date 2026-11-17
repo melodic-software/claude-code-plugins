@@ -55,11 +55,21 @@ async page => {
       const o = [...document.documentElement.lastElementChild.children].find(e => e.style.outline.includes("dashed"));
       return o ? [o.style.left, o.style.top, o.style.width, o.style.height].map(parseFloat) : [];
     });
+    const settled = async (done = (a, b) => String(a) === String(b)) => {
+      let last = await box();
+      for (let i = 0; i < 50; i++) {
+        await page.waitForTimeout(100);
+        const now = await box();
+        if (done(last, now)) return now;
+        last = now;
+      }
+      return last;
+    };
     await page.focus("#region");
     await page.keyboard.press("r");
     ok("R turns region mode on", await page.getAttribute("#region", "aria-pressed") === "true");
     for (const k of ["ArrowRight", "ArrowRight", "ArrowDown"]) await page.keyboard.press(k);
-    const moved = await box();
+    const moved = await settled();
     await inFrame.locator('[data-data-control="seed:10"]').focus();
     await page.keyboard.press("ArrowDown");
     const inFrameMove = await box();
@@ -71,7 +81,7 @@ async page => {
     ok("a click without a drag keeps the region's box", String(clicked) === String(inFrameMove), `${inFrameMove} -> ${clicked}`);
     await page.focus("#region");
     for (const k of ["Shift+ArrowRight", "Shift+ArrowRight", "Shift+ArrowDown"]) await page.keyboard.press(k);
-    const sized = await box();
+    const sized = await settled((_, b) => b[2] === 180 && b[3] === 110);
     ok("Shift+arrows resize the region by 20 by 10 pixels", sized[2] === 180 && sized[3] === 110, sized);
     await page.keyboard.press("Enter");
     await page.waitForSelector("#composer:not([hidden])", { timeout: 5000 });
