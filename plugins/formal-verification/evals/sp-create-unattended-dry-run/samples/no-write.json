@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [], "why": "no calls"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/repo/.claude/skills/formal-claims/SKILL.md"}}], "why": "reads an existing formal skill"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/repo/.claude/skills/formal-item-holder/model/Holder.spec", "content": "model"}}], "why": "writes a model"}
+  ]
+}

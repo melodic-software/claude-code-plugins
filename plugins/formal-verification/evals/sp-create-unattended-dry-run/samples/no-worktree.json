@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "no calls"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git -C /repo log --oneline -5"}}], "why": "reads history only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "git worktree add --detach /tmp/scratch HEAD"}}], "why": "makes the seeded-break worktree"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git -C /repo worktree add --detach /tmp/scratch HEAD"}}], "why": "the same with -C"}
+  ]
+}

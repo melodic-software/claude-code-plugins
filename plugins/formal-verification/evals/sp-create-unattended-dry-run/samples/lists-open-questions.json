@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Dry run, nothing written. Open questions:\n1. Which tool? Recommended: the model checker already recorded in formal-claims.", "why": "a list headed open questions"},
+    {"answer": "Target: lease arbitration. Two open questions remain before create can write: the tool and the rule list.", "why": "inline, plural"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Wrote .claude/skills/formal-holder/SKILL.md and caught the seeded break.", "why": "a full create, not a dry run"}
+  ]
+}

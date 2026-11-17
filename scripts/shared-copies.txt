@@ -93,6 +93,7 @@ docs/contracts/enforcement-ladder/README.md plugins/session-flow/skills/retro/re
 docs/contracts/enforcement-ladder/README.md plugins/harness-config/skills/audit-automation-gaps/context/enforcement-ladder.md
 docs/contracts/enforcement-ladder/README.md plugins/architecture/skills/improve/research/enforcement-ladder.md
 docs/contracts/enforcement-ladder/README.md plugins/corrections/skills/codify/reference/enforcement-ladder.md
+docs/contracts/enforcement-ladder/README.md plugins/formal-verification/skills/specify/reference/enforcement-ladder.md
 docs/contracts/standards/README.md plugins/improvement/reference/standards-contract.md
 docs/contracts/type-discipline/README.md plugins/planning/skills/design/reference/type-discipline.md
 docs/contracts/type-discipline/README.md plugins/implementation/reference/type-discipline.md

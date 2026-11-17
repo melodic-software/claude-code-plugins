@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "1. **Promise:** a claimed item has one holder (claim.sh:120).\n**Harm:** two sessions push conflicting changes.\n**Tool:** a model checker, declared by setup.\n**Folder:** .claude/skills/formal-claim-holder/", "why": "the four labeled fields"},
+    {"answer": "Promise: retries never double-charge. Harm: a customer pays twice. Tool: a code-level verifier, missing here. Folder: formal-payment-retry", "why": "plain labels on one line"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Promise: one holder. Harm: conflicting pushes.", "why": "no tool and no folder"},
+    {"answer": "The repository has no tests for the parser.", "why": "a different answer"}
+  ]
+}

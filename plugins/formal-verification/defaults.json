@@ -21,5 +21,9 @@
     "output_bytes": 1073741824,
     "interval_max": 10000
   },
-  "allowed_modules": ["Naturals", "Integers", "Reals", "Sequences", "FiniteSets", "Bags", "TLC", "TLCExt"]
+  "allowed_modules": ["Naturals", "Integers", "Reals", "Sequences", "FiniteSets", "Bags", "TLC", "TLCExt"],
+  "skills_dir": ".claude/skills",
+  "check": {
+    "on_stale": "warn"
+  }
 }
