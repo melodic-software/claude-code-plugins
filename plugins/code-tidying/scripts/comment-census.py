@@ -12,9 +12,12 @@ was made:
             pass over 300+ languages. No byte counts.
   pygments  per-file comment BYTES and lines from the token stream, so the
             token estimate is real text, not a line-count multiplied by a
-            guess. Correct on heredocs, trailing comments, block comments, and
+            guess. Correct on trailing comments, block comments, and
             documentation strings (`String.Doc`, including Python docstrings).
-            Ordinary string literals are not comments.
+            Ordinary string literals are not comments. Shell scripts are read
+            by POSIX and Bash token rules (`tokens`) in place of pygments'
+            Bash lexer, so here-document bodies and a quoted or mid-word '#'
+            are not comments.
 
 Both present: lines and complexity from scc, bytes from pygments. Neither
 present: exit 3 naming what to install. A line-prefix grep is never used,
@@ -179,9 +182,234 @@ def is_comment_token(tok) -> bool:
     return tok in String.Doc
 
 
+def tokens(text: str, lexer) -> list:
+    """(token type, text) pairs for <text>: pygments' own, except for its Bash lexer.
+
+    pygments' BashLexer ends a here-document at the first place its delimiter
+    appears, inside a word included, misses a quoted delimiter (<<"EOF"), and
+    takes a '#' inside a word for a comment; each mistake can flip its quote
+    state for the rest of the file. Shell files are read by _ShellComments.
+    """
+    if lexer.name == "Bash":
+        return _ShellComments(text).tokens()
+    from pygments import lex
+
+    return list(lex(text, lexer))
+
+
+class _ShellComments:
+    """Comments and here-document bodies of a shell script, by the shell's own rules.
+
+    POSIX Shell Command Language, 2.3 Token Recognition and 2.7.4 Here-Document
+    (https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html):
+    "If the previous character was part of a word, the current character shall
+    be appended to that word"; only otherwise does "a '#'" start a comment that
+    runs "up to, but excluding, the next <newline>". Quotes, $'...', parameter
+    expansion, command substitution and arithmetic expansion belong to the word
+    they sit in. A here-document "begins after the next NEWLINE token and
+    continues until there is a line containing only the delimiter", the
+    delimiter being the word after quote removal, leading tabs stripped for
+    <<-, and several on one line are read in order. Bash additions, per the Bash
+    reference manual (https://www.gnu.org/software/bash/manual/bash.html): a
+    (( )) arithmetic command, whose << is a shift; [[ ]], where parentheses and
+    << belong to the expression; <( ) and >( ) process substitution; and $"...".
+    """
+
+    OPERATOR = frozenset(";&|<>()")
+    BLANK = frozenset(" \t")
+    KEYWORD_END = frozenset(" \t\n;&|<>()")
+
+    def __init__(self, text: str):
+        self.s = text
+        self.i = 0
+        self.n = len(text)
+        self.spans: list[tuple[str, int, int]] = []
+        self.pending: list[tuple[str, bool]] = []
+
+    def tokens(self) -> list:
+        from pygments.token import Comment, String, Text
+
+        if self.s.startswith("#!"):
+            self.i = self._line_end(0)
+            self.spans.append(("hashbang", 0, self.i))
+        self._command(None)
+        kinds = {"hashbang": Comment.Hashbang, "comment": Comment.Single, "heredoc": String}
+        out, at = [], 0
+        for kind, start, end in sorted(self.spans, key=lambda span: span[1]):
+            if start > at:
+                out.append((Text, self.s[at:start]))
+            out.append((kinds[kind], self.s[start:end]))
+            at = end
+        if at < self.n:
+            out.append((Text, self.s[at:]))
+        return out
+
+    def _line_end(self, at: int) -> int:
+        end = self.s.find("\n", at)
+        return self.n if end < 0 else end
+
+    def _keyword(self, word: str) -> bool:
+        end = self.i + len(word)
+        return self.s.startswith(word, self.i) and (end >= self.n or self.s[end] in self.KEYWORD_END)
+
+    def _command(self, close: str | None) -> None:
+        s, in_word, cond, depth, cases = self.s, False, False, 0, 0
+        while self.i < self.n:
+            c = s[self.i]
+            if c == close and (close == "`" or (depth == 0 and cases == 0)):
+                self.i += 1
+                return
+            if c == "\n":
+                self.i += 1
+                in_word = False
+                self._bodies()
+            elif c in self.BLANK:
+                self.i += 1
+                in_word = False
+            elif c == "#" and not in_word:
+                end = self._line_end(self.i)
+                if close == "`":
+                    tick = s.find("`", self.i, end)
+                    end = end if tick < 0 else tick
+                self.spans.append(("comment", self.i, end))
+                self.i = end
+            elif c == "\\":
+                in_word = in_word or s[self.i + 1 : self.i + 2] != "\n"
+                self.i += 2
+            elif s.startswith("<<<", self.i):
+                self.i += 3
+                in_word = False
+            elif s.startswith(("<(", ">("), self.i):
+                self.i += 2
+                self._command(")")
+                in_word = True
+            elif s.startswith("<<", self.i) and not cond:
+                self._heredoc()
+                in_word = False
+            elif s.startswith("((", self.i) and not in_word and not cond:
+                self.i += 2
+                self._arithmetic()
+            elif c in self.OPERATOR:
+                if c == "(":
+                    depth += 1
+                elif c == ")" and depth:
+                    depth -= 1
+                self.i += 1
+                in_word = False
+            else:
+                if not in_word:
+                    cond = (cond or self._keyword("[[")) and not self._keyword("]]")
+                if not in_word and close == ")":
+                    if self._keyword("case"):
+                        cases += 1
+                    elif cases and self._keyword("esac"):
+                        cases -= 1
+                self._word_part(quoted=False)
+                in_word = True
+
+    def _word_part(self, quoted: bool) -> None:
+        s, c = self.s, self.s[self.i]
+        if c == "'" and not quoted:
+            end = s.find("'", self.i + 1)
+            self.i = self.n if end < 0 else end + 1
+        elif c == '"':
+            self.i += 1
+            self._double()
+        elif c == "$":
+            self._dollar(quoted)
+        elif c == "`":
+            self.i += 1
+            self._command("`")
+        elif c == "\\":
+            self.i += 2
+        else:
+            self.i += 1
+
+    def _double(self) -> None:
+        while self.i < self.n:
+            if self.s[self.i] == '"':
+                self.i += 1
+                return
+            self._word_part(quoted=True)
+
+    def _dollar(self, quoted: bool) -> None:
+        s, i = self.s, self.i
+        if s.startswith("$((", i):
+            self.i += 3
+            self._arithmetic()
+        elif s.startswith("$(", i):
+            self.i += 2
+            self._command(")")
+        elif s.startswith("${", i):
+            self.i += 2
+            self._braces()
+        elif s.startswith("$'", i) and not quoted:
+            self.i += 2
+            while self.i < self.n and s[self.i] != "'":
+                self.i += 2 if s[self.i] == "\\" else 1
+            self.i += 1
+        else:
+            self.i += 1
+
+    def _braces(self) -> None:
+        while self.i < self.n:
+            if self.s[self.i] == "}":
+                self.i += 1
+                return
+            self._word_part(quoted=False)
+
+    def _arithmetic(self) -> None:
+        depth = 0
+        while self.i < self.n:
+            if self.s.startswith("))", self.i) and depth == 0:
+                self.i += 2
+                return
+            c = self.s[self.i]
+            if c in "()":
+                depth += 1 if c == "(" else -1
+                self.i += 1
+            else:
+                self._word_part(quoted=False)
+
+    def _heredoc(self) -> None:
+        s = self.s
+        self.i += 2
+        strip = s.startswith("-", self.i)
+        self.i += strip
+        while self.i < self.n and s[self.i] in self.BLANK:
+            self.i += 1
+        word = []
+        while self.i < self.n and s[self.i] not in self.KEYWORD_END:
+            c = s[self.i]
+            if c in "'\"":
+                end = s.find(c, self.i + 1)
+                end = self.n if end < 0 else end
+                word.append(s[self.i + 1 : end])
+                self.i = end + 1
+            elif c == "\\":
+                word.append(s[self.i + 1 : self.i + 2])
+                self.i += 2
+            else:
+                word.append(c)
+                self.i += 1
+        if word:
+            self.pending.append(("".join(word), strip))
+
+    def _bodies(self) -> None:
+        for delimiter, strip in self.pending:
+            start = self.i
+            while self.i < self.n:
+                end = self._line_end(self.i)
+                line = self.s[self.i : end]
+                self.i = min(end + 1, self.n)
+                if (line.lstrip("\t") if strip else line) == delimiter:
+                    break
+            self.spans.append(("heredoc", start, self.i))
+        self.pending = []
+
+
 def pygments_counts(path: Path) -> dict | None:
     try:
-        from pygments import lex
         from pygments.lexers import get_lexer_for_filename
         from pygments.util import ClassNotFound
     except ImportError:
@@ -200,7 +428,7 @@ def pygments_counts(path: Path) -> dict | None:
     line = 1
     comment_lines: set[int] = set()
     comment_bytes = 0
-    for tok, text in lex(src, lexer):
+    for tok, text in tokens(src, lexer):
         if is_comment_token(tok):
             body = text.strip("\n")
             if body.strip():

@@ -132,6 +132,14 @@ class PygmentsLayer(unittest.TestCase):
         self.assertEqual(sh["comment_lines"], 2, sh)
         self.assertGreater(sh["comment_bytes"], 0)
 
+    def test_heredoc_naming_its_delimiter_in_the_body_keeps_later_quotes_data(self):
+        (self.tmp / "b.sh").write_text(
+            "cat >stub <<'STUB'\necho \"$STUB_LOG\" \"it's\"\nSTUB\n"
+            "printf '#!/bin/bash\\n' >a.sh\nx=1 # the one comment\n"
+        )
+        sh = next(r for r in self.report()["files"] if r["path"].endswith("b.sh"))
+        self.assertEqual(sh["comment_lines"], 1, sh)
+
     def test_hash_comment_in_python_is_still_counted(self):
         rep = self.report()
         py = next(r for r in rep["files"] if r["path"].endswith("m.py"))

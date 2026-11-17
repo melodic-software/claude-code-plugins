@@ -191,8 +191,8 @@ def fan_in(paths: list[str]) -> dict[str, int]:
 
 
 @lru_cache(maxsize=None)
-def _census_is_comment_token():
-    """Load comment-census.is_comment_token once so drift lines match the census."""
+def _census():
+    """Load comment-census once so drift lines match the census."""
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("_comment_census", CENSUS)
@@ -200,17 +200,16 @@ def _census_is_comment_token():
         raise ImportError("comment-census.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return mod.is_comment_token
+    return mod
 
 
 def comment_line_numbers(path: str) -> set[int]:
     try:
-        from pygments import lex
         from pygments.lexers import get_lexer_for_filename
     except ImportError:
         return set()
     try:
-        is_comment = _census_is_comment_token()
+        census = _census()
     except Exception:  # noqa: BLE001 - census import failed; no comment lines to report
         return set()
     try:
@@ -219,8 +218,8 @@ def comment_line_numbers(path: str) -> set[int]:
         return set()
     src = Path(path).read_text(encoding="utf-8", errors="replace")
     line, out = 1, set()
-    for tok, text in lex(src, lexer):
-        if is_comment(tok) and text.strip():
+    for tok, text in census.tokens(src, lexer):
+        if census.is_comment_token(tok) and text.strip():
             out.update(range(line, line + text.count("\n") + 1))
         line += text.count("\n")
     return out

@@ -447,5 +447,59 @@ class RunsAndLexers(unittest.TestCase):
         self.assertEqual(flagged("n.ps1", "$x = 1 # a note\n"), [1])
 
 
+DESYNC = "cat >stub <<'STUB'\necho \"$STUB_LOG\" \"it's\"\nSTUB\n"
+
+
+class ShellTokenRecognition(unittest.TestCase):
+    """A '#' starts a shell comment only where POSIX token recognition says so."""
+
+    def test_hash_inside_quotes_after_a_heredoc_is_no_comment(self):
+        for line in (
+            "printf '#!/bin/bash\\necho m\\n' >a.sh",
+            "x='a\\n# stub: finding'",
+            'y="b # no"',
+            "z=$'c\\n# no'",
+        ):
+            with self.subTest(line=line):
+                self.assertEqual(flagged("a.sh", DESYNC + line + "\n"), [])
+
+    def test_heredoc_bodies_are_no_comments(self):
+        cases = (
+            'cat <<"EOF"\n# body\nEOF\n',
+            "cat <<\\EOF\n# body\nEOF\n",
+            "cat <<-'EOF'\n\t# body $EOF_X\n\tEOF\necho '# no'\n",
+            "cat <<A <<'B'\n# a\nA\n# b\nB\n",
+            "x=$(cat <<EOF\n# body\nEOF\n)\n",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged("a.sh", text), [])
+
+    def test_hash_inside_a_word_is_no_comment(self):
+        for line in ('url=$base#frag', 'echo "${x}"#tail', "echo 'a'#b", "echo $(id)#x"):
+            with self.subTest(line=line):
+                self.assertEqual(flagged("a.sh", line + "\n"), [])
+
+    def test_parameter_hash_forms_are_no_comments(self):
+        for line in ("n=$#", "m=${#x}", 'p="${x#*/}"', "q=$((16#ff))", "(( 1 << 2 ))"):
+            with self.subTest(line=line):
+                self.assertEqual(flagged("a.sh", DESYNC + line + "\necho '# no'\n"), [])
+
+    def test_real_comments_still_fail(self):
+        cases = (
+            (DESYNC + "echo done # trailing\n", [4]),
+            ("echo a;# after an operator\n", [1]),
+            ("x=$(echo a # inside a substitution\n)\n", [1]),
+            ("cat <<EOF\nbody\nEOF\n# after the body\n", [4]),
+            ("a=(1 # in an array\n2)\n", [1]),
+            ('grep -q x <<<"$1"\n# after a here-string\n', [2]),
+            ("[[ $x =~ ((a)+)$ ]] && y=${x:-{\\}}\n# after a regex\n", [2]),
+            ("done < <(((${#a[@]})) && printf '%s\\n' x)\n# after <(\n", [2]),
+        )
+        for text, want in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged("a.sh", text), want)
+
+
 if __name__ == "__main__":
     unittest.main()

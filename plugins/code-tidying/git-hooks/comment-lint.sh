@@ -26,7 +26,7 @@ runs nothing; auto and aggressive read as necessary.
 Judges the files whose extension code-extensions.txt lists, except one whose first 10
 lines match a generated-marker.ere line (sync-managed, @generated, or a whole-file
 "do not edit" notice; each skip is named on stderr), through the pygments lexer for
-the file's name. Findings print as <path>:<line>: <message> on stderr; block exits 1,
+the file's name, or POSIX and Bash token rules for a shell script. Findings print as <path>:<line>: <message> on stderr; block exits 1,
 report exits 0. A missing python3, or a python3 that cannot import pygments, follows
 checks.skipmissing (tool names python3 and pygments).
 EOF
