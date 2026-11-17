@@ -684,14 +684,17 @@ An entry read with a credential also holds:
   the secret;
 - `grants`: how the credential's read-only grants were shown: a read-only command the consumer
   supplies that lists what the credential may do in the store and exits 0 only when it may change
-  nothing.
+  nothing; or `full-user-access` for a source that offers no scope control, where the credential
+  carries everything its user may do and no read-only grant exists to show.
 
 An entry may also hold `data`: the data category the source exposes, who may read it, and a
 reference to the review that decided both (`category`, `readers`, `review`). The control skill
 records that review; it does not perform it.
 
-An entry with a `credential` and no `grants`, or whose `grants` command does not exit 0, is
-capped at `attended` whatever its `read` says. Basis: a read-only rule enforced only in the
+An entry with `grants: full-user-access`, with or without a `credential` (a signed-in session
+counts), or with a `credential` and no `grants` or a `grants` command that does not exit 0, is
+capped at `attended` whatever its `read` says, and ready names which of
+the three applies. Basis: a read-only rule enforced only in the
 agent's tool can be bypassed by the text the agent sends, so the guarantee rests on the store's
 own grants, the stance ADR 0086 in the marketplace repository takes for its read tier.
 

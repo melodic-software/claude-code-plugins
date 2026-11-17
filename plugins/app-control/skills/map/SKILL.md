@@ -72,7 +72,8 @@ Ask only the `open` rows and the choices only a person makes: which three to fiv
 the write policy per environment and per external system; the read level of each data source per
 environment, and before any level above `never`, the source's `data` category, readers and review
 reference, and for a source read with a credential, its variable name and the read-only `grants`
-command that shows its grants (the contract's "Data sources"); the test accounts, and which must never
+command that shows its grants, or `full-user-access` when the source offers no scope control (the
+contract's "Data sources"); the test accounts, and which must never
 be locked out; the recipient allowlist per side-effect channel, or never send; a flat map or one
 grouped by module; which journeys this repository owns and which belong to a related system's
 control skill, with that system's repository; which environment is production; the driver CLI's

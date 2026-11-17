@@ -181,9 +181,10 @@ it as step 9 does. The report names `affected.json`; the file's fields and its g
   first, then report each source it ends with, inherited ones included, with its kind, where and
   read level, its `credential` variable name and its `data` category, readers and review, then
   check all five kinds against it and list as missing each kind none of its sources has (contract
-  "Data sources"). For a source with a `credential`, run its `grants` command where its `read`
+  "Data sources"). For a source with a `credential` or a `grants` entry, run its `grants` command where its `read`
   level allows a read in this run and report the exit, or `not run` with the level; report the
-  source `capped at attended` when it has no `grants` or the command did not exit 0. Ready reads
+  source `capped at attended` with its reason: `no grants record`, `full user access` (its
+  `grants` is `full-user-access`) or `grants check failed`. Ready reads
   none of the sources; a caller reads one only at its level after the cap.
 - **Every run lists its lessons.** Under `lessons`, list what this run learned about driving the app
   (a wait a step needed, a handle that matched nothing, a precondition the data lacked), each as one
