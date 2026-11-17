@@ -45,7 +45,8 @@ async page => {
     await page.click("#pick");
     await frame.evaluate(() => window.focus());
     await page.keyboard.press("Escape");
-    ok("Esc in the frame ends pick mode", await page.getAttribute("#pick", "aria-pressed") === "false");
+    const pickOff = await page.waitForSelector('#pick[aria-pressed="false"]', { timeout: 5000 }).then(() => true, () => false);
+    ok("Esc in the frame ends pick mode", pickOff);
 
     // A test id on the variant itself: an element inside it with no closer test id is that test id's first match.
     await frame.evaluate(() => {
