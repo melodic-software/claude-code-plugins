@@ -22,12 +22,12 @@ your durable answer; the canvas may live on under the user's account, but nothin
 the repo references it. The surface facts and their verified-on record live in
 [bundled-design.md](bundled-design.md).
 
-**Verification record, `design`.** Claim: the bundled `design` skill registers as
-model-invocation-disabled, user-invocable, and gated, and settings can remove it
-(`disableBundledSkills`, or a `skillOverrides` entry naming `design`). Basis: a binary extraction
-of Claude Code 2.1.285 on 2026-09-29 (the `design` registration reads `model_invocable` false,
-`user_invocable` true, `gated` true); the `disableBundledSkills` and `skillOverrides` rows on
-<https://code.claude.com/docs/en/settings-reference>, fetched that day; the canvas gates per
-[bundled-design.md](bundled-design.md). As of 2026-09-29. Recheck when a
-release makes the `design` registration model-invocable, changes its description (the identity
-string the offer quotes), changes its gating, or splits or merges its registrations.
+**Boundary decision, `design`.** This skill offers `/design` to the person and never invokes it,
+because the probe found the bundled registration user-only, so the model can neither list nor run
+it. The probe is the prototype `design` record in `docs/native-surfaces/records.json`; the
+2.1.285 row of [bundled-design.md](bundled-design.md) carries its as-of date and recheck trigger,
+and that file's Artifacts pointer rows say where the canvas gates are read.
+
+- **Pointer**: when a person asks how to turn `/design` off, fetch
+  [`disableBundledSkills`](https://code.claude.com/docs/en/settings-reference#disablebundledskills)
+  and [`skillOverrides`](https://code.claude.com/docs/en/settings-reference#skilloverrides) live.
