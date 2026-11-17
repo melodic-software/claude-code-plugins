@@ -3,6 +3,14 @@
 All notable changes to the `speech` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.4] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker honors an entry's optional `when` (`config_any`: file names, or a file and a pattern its text must match): the SessionStart probe stays silent about the entry unless one of those configs sits in the project directory or above it, and `check` reports it INFO there.
+
+- The canonical copy of the shared `gitleaks-rules.json` moved within session-flow (to `plugins/session-flow/vendor/gitleaks/`); this plugin's copy is byte-identical and nothing else in it changed.
+
 ## [1.2.3] - 2026-11-16
 
 ### Changed
