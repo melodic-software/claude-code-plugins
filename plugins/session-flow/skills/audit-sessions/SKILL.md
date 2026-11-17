@@ -86,6 +86,8 @@ says. Exit 3 means no store exists under `D`: after the envelope, add one line t
   absolute path, in its Windows drive form when `pwd -W` gives one, with every character outside
   `[A-Za-z0-9]` replaced by `-`. When no score file exists at that slug, use the name of the
   `~/.claude/projects/` directory that holds the current session's JSONL as the slug.
+- **Lane score history** (read by `trends`): `D/scores/lanes/<lane>.md`, one file per CI lane,
+  that `/session-flow:retro ci-runs` appends to.
 - **Uninstall can delete the store.** Say so before the first collect on a machine: the store is the
   only lasting copy of these numbers, because Claude Code removes old transcripts on its own
   schedule and a deleted store cannot be rebuilt for sessions already removed. Which uninstall

@@ -17,8 +17,9 @@ A metrics line with no newline is an append cut short, not a row.
 
 The sink layout and every row field are in docs/contracts/lane-transcripts/README.md. A row written
 before the provider-neutral fields reads them from the GitHub ones (`run_id`, `job_id`), with no
-`run_url`. A leg's `kind` is `subscription` or `fallback` when its key names one, else `key`; a
-review leg's `chunk` is its trailing number, 1 when it has none, and null on any other leg.
+`run_url`. A leg's `kind` is the row's `leg_kind` when set, else `subscription` or `fallback` when
+its key names one, else `key`; its `chunk` is the row's `leg_chunk` when set, else on a review leg
+its trailing number, 1 when it has none, and null on any other leg.
 
 Output: JSON on stdout, `{sink, runs, unmatched, pruned_legs}`, runs newest first, each with its
 legs oldest first and each leg's transcript as an absolute path, null once pruned. Nothing here
@@ -107,8 +108,8 @@ def leg_out(row: dict, sink: Path) -> dict:
     stored = row.get("transcript")
     return {
         "leg_key": key,
-        "kind": leg_kind(key),
-        "chunk": leg_chunk(key),
+        "kind": row.get("leg_kind") or leg_kind(key),
+        "chunk": row["leg_chunk"] if "leg_chunk" in row else leg_chunk(key),
         "created_at": row.get("created_at"),
         "outcome": row.get("outcome"),
         "subtype": row.get("subtype"),

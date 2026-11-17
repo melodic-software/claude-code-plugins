@@ -11,12 +11,16 @@ SKILL.md "Paths" names, `<project-slug>.md`.
 
 Format: `| Date | Session | Type | Workflow | Technical | Alignment | Efficiency | Errors | Overall |`
 
+Lane score history, written by `/session-flow:retro ci-runs`: one file per CI lane under the
+`scores/lanes/` directory SKILL.md "Paths" names, `<lane>.md`, in the same format, one row per run
+(Type `ci-run`). It is machine-wide, not this project's.
+
 ## Process
 
 ### 1. Load and parse the score history
 
 If the file doesn't exist, report "No historical scores found. Run `/session-flow:retro session` to build
-history." and skip to step 6.
+history." Then load every lane file. With neither, skip to step 6.
 
 ### 2. Compute aggregate statistics
 
@@ -30,6 +34,10 @@ Compute them in code over the parsed rows (for example Python's `statistics` mod
 | Efficiency | | | | | |
 | Errors | | | | | |
 | **Overall** | | | | | |
+
+Give each lane file the same table under its own `Lane <lane>` heading, after the project's, and
+never merge lane rows into the project's statistics: a lane's runs are not this project's sessions.
+A dimension a quick run recorded as `N/A` is left out of that dimension's statistics.
 
 ### 3. Identify patterns
 

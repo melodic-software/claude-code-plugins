@@ -94,6 +94,15 @@ def test_review_legs_carry_their_kind_and_chunk(tmp_path):
     assert [(k, c) for _, _, k, c in legs_of(body)] == [("key", 1), ("key", 2), ("fallback", 3), ("subscription", 4)]
 
 
+def test_a_writer_that_records_kind_and_chunk_wins_over_the_key(tmp_path):
+    stored = {**row(9, "leg-a"), "leg_kind": "fallback", "leg_chunk": 2}
+    sink = sink_with(tmp_path, [stored])
+
+    _, body, _ = resolve("--sink", str(sink), "9")
+
+    assert legs_of(body) == [("9", "leg-a", "fallback", 2)]
+
+
 def test_lane_and_last_take_the_newest_runs_of_that_lane(tmp_path):
     rows = [row(n, "check-intent", hour=n) for n in (1, 2, 3)] + [row(4, "triage", lane="intake-triage", hour=20)]
     sink = sink_with(tmp_path, rows)

@@ -1,6 +1,6 @@
 ---
-description: "Structured session retrospective: transcript metrics, quality across five dimensions, feedback-memory regression check, and codified learnings. Use when: 'retro', 'what did we learn', or at end of session. Mid-session: /session-flow:running-retro."
-argument-hint: "[session [--pattern '<regex>']|quick] [--unattended]"
+description: "Structured retrospective of a session, or of chosen CI lane runs from their sealed transcripts: transcript metrics, quality across five dimensions, feedback-memory regression check, and codified learnings. Use when: 'retro', 'what did we learn', 'retro these CI runs', 'why did this lane run go wrong', or at end of session. Mid-session: /session-flow:running-retro."
+argument-hint: "[session [--pattern '<regex>']|quick|ci-runs <run>…] [--sink <dir>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Structured session retrospective with codified learnings
 ---
 
-**Arguments.** `[session [--pattern '<regex>']|quick] [--unattended]`. e.g., /retro, /retro session, /retro session --pattern 'PROJ-\d+', /retro quick, /retro quick --unattended
+**Arguments.** `[session [--pattern '<regex>']|quick|ci-runs <run>…] [--sink <dir>] [--unattended]`. Full `ci-runs` form: `ci-runs [quick] (<run url or id>… | --lane <workflow stem> --last <n> | [--lane <stem>] --since <day> [--until <day>] [--outcome <o>] [--model <m>]) [--sink <dir>] [--unattended] ["<your view of the result>"]`. e.g., /retro, /retro session, /retro session --pattern 'PROJ-\d+', /retro quick, /retro quick --unattended, /retro ci-runs https://github.com/acme/widgets/actions/runs/123, /retro ci-runs --lane pr-verify --last 3, /retro ci-runs quick --since 2026-11-01 --outcome error --sink /srv/lane-transcripts "it approved a change it should have stopped"
 
 ## Context. Gather first
 
@@ -58,6 +58,13 @@ Resolve at runtime, never hardcode machine-specific paths:
   plugin updates, never lands in the consumer's repo
 - Parser: `${CLAUDE_PLUGIN_ROOT}/scripts/parse_transcript.py`, run per
   [`${CLAUDE_PLUGIN_ROOT}/reference/transcript-parser.md`](${CLAUDE_PLUGIN_ROOT}/reference/transcript-parser.md)
+- **Lane transcript sink** (`ci-runs` only): `--sink <dir>`, else the `lane_transcript_sink`
+  option under "Session settings". Neither set: stop and ask for `--sink`. There is no default
+  location. Its layout is the lane-transcripts contract
+  (`docs/contracts/lane-transcripts/README.md` in this plugin's marketplace repository); the
+  resolver is `${CLAUDE_PLUGIN_ROOT}/scripts/lane_legs.py`
+- **Lane score history** (`ci-runs` only): `${CLAUDE_PLUGIN_DATA}/scores/lanes/<lane>.md`, one
+  file per lane
 
 ## Step 0: Detect mode
 
@@ -65,6 +72,7 @@ Resolve at runtime, never hardcode machine-specific paths:
 |--------|------|-------------|
 | End of session, bare `/session-flow:retro`, post-merge | **session** | [context/session.md](context/session.md), full 5-phase analysis |
 | "quick retro", short session, limited context | **quick** | [context/quick.md](context/quick.md), abbreviated pass |
+| `ci-runs`, or CI lane runs to look back on | **ci-runs** | [context/ci-runs.md](context/ci-runs.md), the session phases over sealed lane legs; `quick` after `ci-runs` is its depth, not quick mode |
 
 Score history across sessions names no retro mode. Before reading any mode, stop on a bare "how am
 I doing", a request for scores, or a `trends` argument, and name `/session-flow:audit-sessions trends`;
@@ -85,7 +93,10 @@ skill codifies one mistake or mines review comments, and stop.
 out first. It only gates the user-only built-ins (`/export`, `/insights`): an unattended run neither suggests nor runs them. The bare
 word `unattended` is neither this flag nor a mode: stop and name `--unattended`. A `--pattern '<regex>'` pair is taken out next and
 kept for session mode's ticket section; it selects `session` when no mode is named, and with
-another mode named, stop and say `--pattern` is session mode's only. Read the mode from the remainder. If it specifies a
+another mode named, stop and say `--pattern` is session mode's only. A first token of `ci-runs`
+selects ci-runs mode, which reads every remaining token itself ([context/ci-runs.md](context/ci-runs.md),
+"Arguments"); `--sink` and the run selectors outside it are not this skill's, so stop and name
+`ci-runs`. Read the mode from the remainder. If it specifies a
 mode, use it. Otherwise infer from context; when the session is long or
 degraded, or compaction has occurred, prefer `quick`; ambiguous → `session`. Read the mode's context
 file before proceeding.
@@ -103,9 +114,10 @@ checkpoints.
 
 ### Session settings
 
-The user option session mode reads, as rendered for this run (a literal, unexpanded placeholder
-means unset): `retro_lenses` = `${user_config.retro_lenses}`. [context/session.md](context/session.md) "Review lenses"
-resolves it against the repository's `docs/conventions/session-flow.yaml`, which wins.
+The user options session and ci-runs modes read, as rendered for this run (a literal, unexpanded
+placeholder, or an empty value, means unset): `retro_lenses` = `${user_config.retro_lenses}`;
+`lane_transcript_sink` = `${user_config.lane_transcript_sink}`. [context/session.md](context/session.md) "Review lenses"
+resolves `retro_lenses` against the repository's `docs/conventions/session-flow.yaml`, which wins.
 
 ## Step 2: Handoff
 
@@ -179,6 +191,8 @@ live from the records in [reference/native-insights.md](reference/native-insight
 ## What this skill does not do
 
 - **Does not run builds or tests**. That's the consuming repo's verify stage
+- **Does not fetch or open sealed lane transcripts.** CI only seals them; a puller with the private
+  key opens them into the sink on the person's machine, and `ci-runs` reads that sink there
 - **Does not review code quality**. That's its review stage
 - **Does not write scores or reports into the consumer's repo**. Plugin state stays in
   `${CLAUDE_PLUGIN_DATA}`; only user-approved codifications (rule edits, memory entries) land
@@ -190,8 +204,8 @@ live from the records in [reference/native-insights.md](reference/native-insight
 
 ## Spoke paths
 
-This skill's own [context/session.md](context/session.md) and [context/quick.md](context/quick.md),
-beside this SKILL.md, write the plugin's root directory as `<plugin-root>`, which is
+This skill's own [context/session.md](context/session.md), [context/quick.md](context/quick.md) and
+[context/ci-runs.md](context/ci-runs.md), beside this SKILL.md, write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
 writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsubstituted.
 
@@ -199,8 +213,8 @@ writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsub
 
 ## Next
 
-- /session-flow:audit-sessions trends: the score history session and quick modes write, across
-  sessions, with delivery metrics.
+- /session-flow:audit-sessions trends: the score history session, quick and ci-runs modes write,
+  across sessions and per lane, with delivery metrics.
 - /session-flow:audit-sessions sweep: checks whether what this retro found recurs across every
   session on the machine.
 - /session-flow:audit-sessions ticket --pattern '<regex>': every stored session for one work item.
