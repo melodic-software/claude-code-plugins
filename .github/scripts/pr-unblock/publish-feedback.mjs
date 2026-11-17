@@ -99,7 +99,10 @@ import { join } from "node:path";
 
 import { runAsScript } from "../lib/run-main.mjs";
 import {
+  answeredIds,
+  answeredLine,
   BAD_CHARS,
+  COMMENT_ITEM_ID,
   BODY_LIMITS,
   bodySections,
   countRounds,
@@ -148,6 +151,7 @@ const RESOLVING = new Set(["VALID", FOLLOW_UP]);
 // verify_notes) is fixed, or already addressed by the diff.
 export const ALREADY_ADDRESSED = "already-addressed";
 const NOTE_DISPOSITIONS = ["VALID", ALREADY_ADDRESSED];
+export const ANSWERED = "answered";
 const KEYS = ["disposition", "evidence", "fix_sha", "note", "thread"];
 const LABELS = {
   VALID: "VALID, fixed",
@@ -412,6 +416,16 @@ export function parseRun(text) {
         run.body_sections.every((section) => typeof section?.heading === "string" && /^[0-9a-f]{64}$/.test(String(section.sha256)))),
     "run.json holds a malformed body_sections list",
   );
+  check(
+    run.pr_comments === undefined ||
+      (Array.isArray(run.pr_comments) &&
+        run.pr_comments.length > 0 &&
+        run.verify_notes === undefined &&
+        run.stale_notes === undefined &&
+        new Set(run.pr_comments.map((item) => item?.id)).size === run.pr_comments.length &&
+        run.pr_comments.every((item) => COMMENT_ITEM_ID.test(String(item?.id)) && item.id === `PRC_${item.comment_id}` && Number.isSafeInteger(item.comment_id) && typeof item.updated_at === "string")),
+    "run.json holds a malformed pr_comments list",
+  );
   for (const thread of run.threads) {
     check(
       THREAD_ID.test(thread?.id ?? "") &&
@@ -433,6 +447,7 @@ export function parseReplies(text, run, fileExists) {
   check(Buffer.byteLength(text) <= LIMITS.bytes, "the replies are over the size limit");
   const kept = new Map(run.threads.map((thread) => [thread.id, thread]));
   const notes = new Set((run.verify_notes ?? []).map((note) => note.id));
+  const asks = new Set((run.pr_comments ?? []).map((item) => item.id));
   const seen = new Set();
   const replies = [];
   for (const line of text.split("\n").filter((row) => row !== "")) {
@@ -445,10 +460,12 @@ export function parseReplies(text, run, fileExists) {
     check(reply !== null && typeof reply === "object" && !Array.isArray(reply), "a reply is not an object");
     check(Object.keys(reply).sort().join() === KEYS.join(), "a reply's fields are not the template's");
     const { thread, disposition, evidence, fix_sha: fixSha, note } = reply;
-    check(typeof thread === "string" && (kept.has(thread) || notes.has(thread)), "a reply names a thread the runner did not keep");
+    check(typeof thread === "string" && (kept.has(thread) || notes.has(thread) || asks.has(thread)), "a reply names a thread the runner did not keep");
     check(!seen.has(thread), "two replies name one thread");
     seen.add(thread);
-    if (notes.has(thread)) {
+    if (asks.has(thread)) {
+      check(disposition === ANSWERED, "a comment's reply is not answered");
+    } else if (notes.has(thread)) {
       check(NOTE_DISPOSITIONS.includes(disposition), "a pr-verify note's reply is not VALID or already-addressed");
     } else {
       check(DISPOSITIONS.includes(disposition), "a reply's disposition is not one the template allows");
@@ -491,6 +508,56 @@ export function renderReply({ disposition, evidence, fixSha, note }) {
     note,
     fence,
   ].join("\n");
+}
+
+export function renderAnswer({ evidence, note }, commentId, link) {
+  const fence = "`".repeat(Math.max(3, ...[...note.matchAll(/`+/g)].map((run) => run[0].length + 1)));
+  const asked = /^https:\/\/github\.com\/[^\s()]+$/.test(String(link ?? "")) ? `[this comment](${link})` : `comment ${commentId}`;
+  return [
+    answeredLine(commentId),
+    `**pr-unblock / address-feedback: an answer to ${asked}**`,
+    "",
+    evidence.length > 0 ? `Evidence: ${evidence.map((ev) => `\`${ev}\``).join(", ")}` : "Evidence: none in the checkout",
+    "",
+    `${fence}text`,
+    note,
+    fence,
+  ].join("\n");
+}
+
+async function answerComments({ api, pr, appId, asks, answers, headMoved, log }) {
+  const posted = [];
+  if (answers.length === 0) {
+    return { posted, stopped: "" };
+  }
+  const comments = await api.listIssueComments(pr);
+  const byId = new Map(comments.map((comment) => [comment.id, comment]));
+  const answered = answeredIds(comments, appId);
+  for (const answer of answers) {
+    const { comment_id: commentId, updated_at: seenAt } = asks.get(answer.thread);
+    const asked = byId.get(commentId);
+    try {
+      if (answered.has(String(commentId))) {
+        log(`skipped ${answer.thread}: the lanes App already answered it`);
+        continue;
+      }
+      if (!asked || asked.updated_at !== seenAt) {
+        log(`skipped ${answer.thread}: it changed since the model job read it`);
+        continue;
+      }
+      if (await headMoved()) {
+        log(`stopped at ${answer.thread}: the PR head moved`);
+        return { posted, stopped: "feedback-partial" };
+      }
+      await api.createIssueComment(pr, renderAnswer(answer, commentId, asked.html_url));
+    } catch (error) {
+      log(`stopped at ${answer.thread}: ${String(error?.message ?? error).slice(0, 300)}`);
+      return { posted, stopped: "feedback-partial" };
+    }
+    posted.push({ thread: answer.thread, disposition: ANSWERED });
+    log(`answered ${answer.thread}`);
+  }
+  return { posted, stopped: "" };
 }
 
 const SKILL_FILE = /^((?:.*\/)?skills\/[^/]+\/)SKILL\.md$/;
@@ -814,7 +881,9 @@ export async function publish(args) {
     // With no model run named, the marker is always posted: counting a round
     // twice hands the PR to a person sooner; skipping one would not.
     const runLine = modelRun ? modelRunLine(modelRun) : null;
-    if (runLine && comments.some((comment) => isRoundMarker(comment, appId) && String(comment.body).split("\n").includes(runLine))) {
+    if (result?.commentsOnly && result.escalationReason === "") {
+      log("a round that only answered comments counts no review round");
+    } else if (runLine && comments.some((comment) => isRoundMarker(comment, appId) && String(comment.body).split("\n").includes(runLine))) {
       log(`the round of model run ${modelRun} is already recorded`);
     } else {
       const rounds = countRounds(comments, appId) + 1;
@@ -928,14 +997,20 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
     // round marker names each one left out, for the escalation.
     // What refreshBody needs once the round's outcome is known.
     const body = (fixed) => ({ record: bodyRecord, offered: run.body_sections, fixed });
+    const asks = new Map((run.pr_comments ?? []).map((item) => [item.id, item]));
+    const answers = replies.filter((reply) => asks.has(reply.thread));
+    replies = replies.filter((reply) => !asks.has(reply.thread));
     if (run.verify_notes) {
       const settledNotes = await settleNotes({ api, pr, run, headSha, replies, appId, log });
       return { ...settledNotes, body: body(settledNotes.escalationReason === "") };
     }
-    if (replies.length !== run.threads.length) {
-      const disposed = new Set(replies.map((reply) => reply.thread));
-      const undisposed = run.threads.filter((thread) => !disposed.has(thread.id)).map((thread) => ({ id: thread.id, comment: thread.comment_ids[0] }));
-      log(`no reply is posted: ${replies.length} of ${run.threads.length} kept threads have a disposition; none for ${undisposed.map((thread) => thread.id).join(", ")}`);
+    if (replies.length !== run.threads.length || answers.length !== asks.size) {
+      const disposed = new Set([...replies, ...answers].map((reply) => reply.thread));
+      const undisposed = [
+        ...run.threads.filter((thread) => !disposed.has(thread.id)).map((thread) => ({ id: thread.id, comment: thread.comment_ids[0] })),
+        ...[...asks.values()].filter((item) => !disposed.has(item.id)).map((item) => ({ id: item.id, comment: item.comment_id })),
+      ];
+      log(`no reply is posted: ${replies.length + answers.length} of ${run.threads.length + asks.size} kept threads and comments have a disposition; none for ${undisposed.map((thread) => thread.id).join(", ")}`);
       return { escalationReason: "feedback-incomplete", posted: [], undisposed };
     }
     // The threads are judged on the heads the select job kept them on: the
@@ -1058,7 +1133,14 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       escalationReason,
       log,
     });
-    return { ...settled, posted, body: body(landed.size > 0) };
+    const asked = settled.escalationReason === "" ? await answerComments({ api, pr, appId, asks, answers, headMoved, log }) : { posted: [], stopped: "" };
+    return {
+      ...settled,
+      escalationReason: settled.escalationReason || asked.stopped,
+      posted: [...posted, ...asked.posted],
+      commentsOnly: run.threads.length === 0 && asks.size > 0,
+      body: body(landed.size > 0),
+    };
   }
 }
 

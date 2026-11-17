@@ -574,17 +574,44 @@ export const isEscalationReply = (comment, appId) => comment?.user?.id === appId
 // starts with this phrase, in any case, outside a fenced code block. A quoted
 // line starts with `>`, so it never matches.
 export const FIX_REQUEST = /^pr-fix lane: please fix this finding(?=[\s.:;,!]|$)/i;
-export function isFixRequest(body) {
+function leadsLine(body, lead) {
   let fenced = false;
   for (const line of String(body ?? "").split("\n")) {
     if (/^ {0,3}(```|~~~)/.test(line)) {
       fenced = !fenced;
-    } else if (!fenced && FIX_REQUEST.test(line.replace(/\r$/, ""))) {
+    } else if (!fenced && lead.test(line.replace(/\r$/, ""))) {
       return true;
     }
   }
   return false;
 }
+export const isFixRequest = (body) => leadsLine(body, FIX_REQUEST);
+
+export const LANE_ASK = /^pr-fix lane:/i;
+export const ASKED_CAP = 10;
+export const COMMENT_ITEM_ID = /^PRC_[1-9][0-9]{0,19}$/;
+export const commentItemId = (commentId) => `PRC_${commentId}`;
+export const answeredLine = (commentId) => `<!-- pr-unblock:answered-comment ${commentId} -->`;
+const ANSWERED_LINE = /^<!-- pr-unblock:answered-comment ([1-9][0-9]{0,19}) -->$/;
+export const answeredIds = (issueComments, appId) =>
+  new Set(issueComments.filter((comment) => comment.user?.id === appId).map((comment) => ANSWERED_LINE.exec(firstLine(comment.body))?.[1]).filter(Boolean));
+
+export function askedComments(issueComments, { trustedHumans = new Set(), appId }) {
+  const answered = answeredIds(issueComments, appId);
+  return issueComments.filter(
+    (comment) => comment.user?.type === "User" && trustedHumans.has(comment.user.id) && !answered.has(String(comment.id)) && leadsLine(comment.body, LANE_ASK),
+  );
+}
+
+export const askedItems = (comments) =>
+  comments.slice(0, ASKED_CAP).map((comment) => ({
+    id: commentItemId(comment.id),
+    comment_id: comment.id,
+    author: comment.user.login,
+    created_at: comment.created_at,
+    updated_at: comment.updated_at,
+    body: comment.body,
+  }));
 
 // The file-shaped words of a fix request's body outside fenced code blocks and
 // quoted lines: each word with wrapping backticks, quotes, brackets or
@@ -1272,6 +1299,7 @@ export async function select({
       : gateSource({ timeline: await timeline(), label: humanGatedLabel, head: headSha, isLanesApp }).source !== "lane-escalation");
   const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
   const heads = reviewedHeads(issueComments);
+  const asked = gated || pull.user?.id !== appId ? [] : askedItems(askedComments(issueComments, { trustedHumans, appId }));
   const kept = keepThreads({
     threads,
     reviewComments,
@@ -1329,6 +1357,18 @@ export async function select({
     }
     if (earlierFailHeads.length > 0) {
       return { ...(await earlierFailRound({ api, pr, headSha, repository, appId, files, issueComments, heads, labeled, maxRounds, earlierFailHeads, readFailNotes, ci, log })), body: pull.body };
+    }
+    if (asked.length > 0) {
+      return {
+        decision: "proceed",
+        modelRung: retryRung(await api.listCheckRuns(headSha, REPLY_CHECK)),
+        humanGate: labeled ? "lane-escalation" : "",
+        threads: kept,
+        file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), copy_paths: copyPathsFor(files), threads: kept, pr_comments: asked },
+        reviewedHeads: [...heads].sort(),
+        ci: await ci({ headSha, files }),
+        body: pull.body,
+      };
     }
     return { decision: "skip", skipReason: "stop-resolved", resolved: true, threads: kept };
   }
@@ -1416,6 +1456,7 @@ export async function select({
       pr_paths: prPathsOf(files),
       copy_paths: copyPathsFor(files),
       threads: worked,
+      ...(asked.length > 0 ? { pr_comments: asked } : {}),
       ...(closing.length > 0 ? { closing_issues: closing } : {}),
       ...(retry ? { retry } : {}),
     },
@@ -1448,6 +1489,7 @@ export function runRecord(file, reviewedHeads, ci) {
     ...(file.stale_notes ? { stale_notes: file.stale_notes } : {}),
     ...(file.superseded_head ? { superseded_head: file.superseded_head } : {}),
     ...(file.verify_notes ? { verify_notes: file.verify_notes.map(({ id, head, path }) => ({ id, head, path })) } : {}),
+    ...(file.pr_comments ? { pr_comments: file.pr_comments.map(({ id, comment_id, updated_at }) => ({ id, comment_id, updated_at })) } : {}),
     ...(reviewedHeads ? { reviewed_heads: reviewedHeads } : {}),
     ...(ci ? { ci } : {}),
     ...(file.body_sections ? { body_sections: file.body_sections.map(({ heading, text }) => ({ heading, sha256: sha256(text) })) } : {}),

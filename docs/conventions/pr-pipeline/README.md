@@ -190,7 +190,7 @@ reader applies.
 | `pr-verify` | `workflow_run` on the completion of a successful, or hold-only, `pr-require-checks` run of a same-repository, non-draft PR ([Verifier verdict](#verifier-verdict)) |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
-| `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, a dispatch at the half-hourly tick for a fix request on such a thread, or a trusted human's dispatch |
+| `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, a dispatch at the half-hourly tick for a fix request on such a thread or a trusted person's top-level comment addressed to the lane, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
 | `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran; a sweep whose closed-issue listing fails holds green, and the next one reads back past it), which each finished `work-resolve-issue` run that ran a job also starts, so a freed slot admits the next deferred issue at once; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs (one a merged `Refs:` pull request names after its newest decision comment goes to triage instead) and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
@@ -480,7 +480,21 @@ The request must be newer than the head's newest `pr-unblock / address-feedback`
 runs that started before it stop counting for that dispatch, except a limit stop, which keeps its
 reset hold. Each request is sent once, a head with three rounds or releasing skips is not sent, and
 `dispatchFeedback` re-checks every other condition. This sweep does not take a fix request in a
-thread a trusted person opened or on an owner PR. To start a round at once, an account on the
+thread a trusted person opened or on an owner PR.
+
+A top-level comment on a lanes App PR is answered the same way, through the same tick and no new
+trigger, when a person on the trusted-actor list wrote it, a line of it starts `PR-fix lane:` in
+any letter case outside a fenced code block, and no lanes App comment whose first line is
+`<!-- pr-unblock:answered-comment <id> -->` answers it yet (`address-feedback.mjs`
+`askedComments`). The sweep takes such a comment after the fix requests, with the same newer-than,
+send-once and three-round bounds, and a review completion dispatches a head with one even with no
+unresolved thread. `address-feedback-select` lists up to ten, oldest first, in `threads.json`'s
+`pr_comments`, as data like a finding body, and none on a PR carrying the human-gated label or one a
+person opened. The model reads them with the review-thread tool's `comments`, makes no edit for
+them, and records each `answered`; `publish-feedback` posts one top-level comment per answer,
+starting with that marker line, after the thread replies and only when they escalate nothing,
+skipping a comment edited or answered since. A round that answered only comments posts no round
+marker, so it does not count toward the round cap. To start a round at once, an account on the
 trusted-actor list dispatches the lane directly:
 
 ```bash

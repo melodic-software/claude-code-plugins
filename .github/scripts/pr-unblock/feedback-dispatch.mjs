@@ -188,7 +188,7 @@ import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { tokenRefusal } from "../pr-merge/refire-refused.mjs";
-import { anyListed, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, laneReader, MARKER_AUTHOR_ID, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom, VERIFY_NOTE_MARKER, withLaneBinding } from "./address-feedback.mjs";
+import { anyListed, askedComments, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, laneReader, MARKER_AUTHOR_ID, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom, VERIFY_NOTE_MARKER, withLaneBinding } from "./address-feedback.mjs";
 
 // fix-ci-dispatch.mjs imports HOLD_LINE from here.
 export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
@@ -653,7 +653,8 @@ export async function dispatchFeedback({
     if (gated && !workable) {
       return skip(`#${number} is labeled ${humanGatedLabel} (${why}) and has no thread a trusted person with write access asked the lane to fix`);
     }
-    if (!workable && !threads.some((thread) => thread.isResolved === false)) {
+    const asked = !owner && askedComments(comments, { trustedHumans, appId: appSenderId }).length > 0;
+    if (!workable && !asked && !threads.some((thread) => thread.isResolved === false)) {
       // Only a PR with a fail note from another head can be refused
       // verify:earlier-fail with notes to work; the rest keep the free skip.
       if (owner || !earlierFailNoted(threads, head)) {
@@ -886,6 +887,7 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
   const passes = [
     [sweepRefused, listed, "sweep: no round the broker refused as workflow-modified or the gate stopped head-lag to send again"],
     [sweepFixRequest, pulls, "sweep: no head with a fix request newer than its last round"],
+    [sweepAsked, pulls, "sweep: no head with a comment addressed to the lane newer than its last round"],
     [sweepOne, pulls, "sweep: no head whose last round left it for another round to dispatch"],
     [sweepStale, pulls, "sweep: no head with a failing address-feedback stop and nothing left to fix"],
     [sweepUnsent, pulls, "sweep: no head with an unresolved thread that no round was sent for"],
@@ -1155,29 +1157,38 @@ async function sweepOne(context) {
 // round that ended before posting its check, so a request is sent once. A PR
 // with no such thread costs one read.
 async function sweepFixRequest(context) {
-  const { api, pull, appSenderId, log, settings, rest } = context;
-  const number = pull.number;
-  const head = pull.head.sha;
+  const { api, pull, appSenderId, rest, settings } = context;
   const trustedHumans = rest.trustedHumans ?? new Set();
-  const threads = await api.listReviewThreads(number);
+  const threads = await api.listReviewThreads(pull.number);
   const fixers = await threadFixers({ threads, trustedHumans, permission: api.getPermission });
   const requestSince = newestFixRequest(threads, { reviewerId: settings.reviewerId, reviewerIds: rest.reviewerIds, appId: appSenderId, trustedHumans, fixers });
-  if (requestSince === null) {
-    return null;
-  }
+  return requestSince === null ? null : dispatchSince(context, requestSince, "fix request");
+}
+
+async function sweepAsked(context) {
+  const { api, pull, appSenderId, rest } = context;
+  const asked = askedComments(await api.listIssueComments(pull.number), { trustedHumans: rest.trustedHumans ?? new Set(), appId: appSenderId });
+  const times = asked.map((comment) => Date.parse(comment.created_at ?? "")).filter(Number.isFinite);
+  return times.length === 0 ? null : dispatchSince(context, Math.max(...times), "comment addressed to the lane");
+}
+
+async function dispatchSince(context, requestSince, what) {
+  const { api, pull, log, settings } = context;
+  const number = pull.number;
+  const head = pull.head.sha;
   const rounds = await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId });
   // NaN compares false, so a run with no readable start still counts.
   if (rounds.some((run) => !(startOf(run) <= requestSince))) {
-    log(`skip: #${number}: head ${head} has a ${settings.checkName} check run since its newest fix request`);
+    log(`skip: #${number}: head ${head} has a ${settings.checkName} check run since its newest ${what}`);
     return null;
   }
   if (rounds.length >= SWEEP_HEAD_CAP || (await releaseState(context)).capped) {
-    log(`skip: #${number}: head ${head} reached the sweep's cap, so its fix request waits for a push`);
+    log(`skip: #${number}: head ${head} reached the sweep's cap, so its ${what} waits for a push`);
     return null;
   }
   const sent = await runSince(context, number, requestSince);
   if (sent) {
-    log(`skip: #${number}: ${settings.workflow} run ${sent.id} for ${settings.activity} started after its newest fix request`);
+    log(`skip: #${number}: ${settings.workflow} run ${sent.id} for ${settings.activity} started after its newest ${what}`);
     return null;
   }
   return dispatchAtHead(context, { requestSince });
