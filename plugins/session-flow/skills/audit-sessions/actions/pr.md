@@ -16,7 +16,7 @@ its human review comments. `--number` must be digits and `--repo` must match
 
    A session matches when its main or a subagent transcript links the PR, or ran on the head branch
    in this repository (a session whose repository is unknown still matches by branch); `matched_by`
-   says which, and automated sessions stay in. No match: say so and stop. Exit 2: report
+   says which, and automated sessions stay in. No match: say so, skip steps 3 and 4, and go on. Exit 2: report
    it and stop.
 3. **Measure them.** Run SKILL.md Step 2 with `--session` and the matched ids, as `now` does.
 4. **Read them.** Find each session's `<id>.jsonl` and `<id>/subagents/*.jsonl` under
