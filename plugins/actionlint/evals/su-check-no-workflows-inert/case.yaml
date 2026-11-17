@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: su-check-no-workflows-inert
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'unresolved-info'
+    type: 'llm'
+    criteria: 'The reply reports the lint concern as unresolved (or INFO) because the repository has no GitHub Actions workflow files, so the hooks have nothing to lint.'
+    focus: 'last_message'
+  - name: 'not-broken'
+    type: 'llm'
+    criteria: 'The reply says the plugin is not broken: with no workflow files there is nothing for actionlint to lint, and an actionlint config would not change that.'
+    focus: 'last_message'
+  - name: 'no-config-yaml'
+    type: 'file_exists'
+    path: '**/actionlint.yaml'
+    exists: false
+  - name: 'no-config-yml'
+    type: 'file_exists'
+    path: '**/actionlint.yml'
+    exists: false
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
