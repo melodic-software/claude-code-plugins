@@ -18,10 +18,10 @@ dark mode. Each is cheap to fix.
 
 ## 1. Derive nested radii, don't repeat them
 
-A rounded child inside a rounded parent gets its radius by subtraction: inner radius = outer radius
-minus the parent's border width minus the padding, floored at zero, so the gap between the two
-curves stays even around the corner. Copying the parent's radius onto the child makes
-the corner gap pinch, which reads as an unpolished UI. The rule loses force
+A rounded child inside a rounded parent gets its radius by subtraction, so the gap between the two
+curves stays even around the corner: inner radius = outer radius minus the parent's border width
+minus the padding, floored at zero. Copying the parent's radius onto the child makes the corner gap
+pinch, which reads as an unpolished UI. The rule loses force
 once the gap between layers (the border width plus the padding) passes
 `css.concentric_radius.max_gap_px`; at that distance the surfaces read as
 independent, so pick each radius on its own merits.
