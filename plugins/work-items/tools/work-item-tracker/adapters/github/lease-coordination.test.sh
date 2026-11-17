@@ -25,15 +25,15 @@
 #       remains, and a same-login loser leaves no assignee that outlives the leases.
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
-# In a CI job the adapter wraps its gh calls and records into the job's
-# RUNNER_TEMP; the stubs here answer the unwrapped calls.
-unset RUNNER_TEMP
+unset RUNNER_TEMP GITHUB_SERVER_URL
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../tests/lib.sh"
+# shellcheck source=../../lib/lease.sh
+source "$SCRIPT_DIR/../../lib/lease.sh"
 
 RENEW="$SCRIPT_DIR/renew-lease.sh"
 RECLAIM="$SCRIPT_DIR/reclaim.sh"
@@ -127,6 +127,10 @@ gh() {
     ;;
   # A workflow run's status read; no $d/run-status file is an unreadable status.
   *"/actions/runs/"*)
+    [[ "$args" != *"-f body="* ]] || {
+      stub_post_comment "$@"
+      return
+    }
     printf 'RUN_READ %s\n' "${args##*/actions/runs/}" >>"$d/calls.log"
     [[ -f "$d/run-status" ]] || return 1
     cat "$d/run-status"
@@ -163,26 +167,28 @@ gh() {
     printf 'API_USER\n' >>"$d/calls.log"
     cat "$d/login" 2>/dev/null || printf 'alice\n'
     ;;
-  *"-f body="*)
-    printf 'POST_COMMENT\n' >>"$d/calls.log"
-    if [[ -f "$d/stateful" ]]; then
-      cid="$(jq -r '(map(.id) | max // 0) + 1' "$d/lease-comments")"
-      body="$(stub_body_arg "$@")"
-      jq -c --argjson id "$cid" --arg b "$body" \
-        '. + [{id: $id, node_id: "MDEx", body: $b, created_at: "2020-01-01T00:00:00Z", author_association: "MEMBER"}]' \
-        "$d/lease-comments" >"$d/lease-comments.tmp" && mv "$d/lease-comments.tmp" "$d/lease-comments"
-      printf '%s\n' "$cid"
-    else
-      printf '1\n'
-    fi
-    ;;
+  *"-f body="*) stub_post_comment "$@" ;;
   *)
     printf 'gh-stub: unhandled: %s\n' "$args" >&2
     return 90
     ;;
   esac
 }
-export -f gh stub_body_arg stub_login_arg stub_hook
+stub_post_comment() {
+  local d="${GH_STUB_DIR:?}" cid body
+  printf 'POST_COMMENT\n' >>"$d/calls.log"
+  if [[ -f "$d/stateful" ]]; then
+    cid="$(jq -r '(map(.id) | max // 0) + 1' "$d/lease-comments")"
+    body="$(stub_body_arg "$@")"
+    jq -c --argjson id "$cid" --arg b "$body" \
+      '. + [{id: $id, node_id: "MDEx", body: $b, created_at: "2020-01-01T00:00:00Z", author_association: "MEMBER"}]' \
+      "$d/lease-comments" >"$d/lease-comments.tmp" && mv "$d/lease-comments.tmp" "$d/lease-comments"
+    printf '%s\n' "$cid"
+  else
+    printf '1\n'
+  fi
+}
+export -f gh stub_body_arg stub_login_arg stub_hook stub_post_comment
 
 # hook <name> <command…>: arm stub_hook <name> to run <command…>, writing its exit code to
 # hook-<name>.rc. next_read <list|assignees> <offset>: the hook name for the read <offset>
@@ -682,6 +688,23 @@ for sid in run-0 run-0123 xrun-100 run-100x; do
   run_lease_case "a $sid session's lease is refused with no run read" "$sid" completed 7 0
   cleanup_scenario
 done
+
+link_case() {
+  local label="$1" sid="$2" server="$3" want="$4" out
+  new_scenario
+  : >"$GH_STUB_DIR/stateful"
+  printf '[]\n' >"$GH_STUB_DIR/lease-comments"
+  out="$(GITHUB_SERVER_URL="$server" bash "$CLAIM" "$ID" --ttl-hours 2 --lease-only --holder "$LANE" --session-id "$sid" 2>/dev/null)"
+  assert_eq "$label: the claim holds" "$LANE" "$(jq -r '.holder' <<<"$out")"
+  local body
+  body="$(jq -r '.[0].body' "$GH_STUB_DIR/lease-comments")"
+  assert_eq "$label: the text after the marker" "$want" "${body#*-->}"
+  assert_eq "$label: the lease reads past it" "$sid" "$(wit_lease_json "$body" | jq -r '.session_id')"
+  cleanup_scenario
+}
+link_case "a run lease" run-200 https://github.com $'\n\nClaimed by [workflow run 200](https://github.com/acme/widgets/actions/runs/200).'
+link_case "a session lease" lane-3 https://github.com ""
+link_case "a run lease with no https server" run-200 'http://x) [y](https://z' ""
 
 # three_lease_case <label> <first session_id> <second session_id> <expected-rc>
 # <expected run reads>: two earlier live leases, then ours (id 3). Every run read

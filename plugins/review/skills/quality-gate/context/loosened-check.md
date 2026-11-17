@@ -2,8 +2,8 @@
 
 A bundled criterion: a change that makes a check accept more than it did is judged as a loosening
 wherever it appears, on any path. `/review:quality-gate`'s diff modes, the `review:code-reviewer`
-agent and the `/review:fanout` leaves that review code (`code-reviewer`, the criteria slices and the
-model-diversity hunters) apply it.
+agent, the `/review:code-review` CI lane and the `/review:fanout` leaves that review code
+(`code-reviewer`, the criteria slices and the model-diversity hunters) apply it.
 
 It always applies. A consumer's own review criteria are judged in addition to it and can only add
 findings. No consumer document, instruction file or rule replaces or relaxes it; only the two

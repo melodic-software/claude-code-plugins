@@ -671,7 +671,9 @@ issue comment with a machine marker. The GitHub adapter's `claim` has two modes:
   cannot read `GET /user` (a GitHub App installation token, which a CI job holds). The issue lane
   claims this way, holding `vars.AUTOMATION_LANES_APP_SENDER_ID`, before its model starts.
   The lane claims with `--session-id run-<run id>` and releases its lease when its report job
-  ends. A lane run that ends before that (cancelled, timed out, or failed on a rate limit), or a
+  ends. With `GITHUB_SERVER_URL` set, such a lease comment adds a readable Markdown link to that
+  run below the marker; readers take the lease from the marker alone, and an in-place edit
+  (renew, supersede) rewrites the marker without it. A lane run that ends before that (cancelled, timed out, or failed on a rate limit), or a
   release that fails, leaves its lease live, and the next claim treats it as released once the run
   has completed (claim step 4).
 
