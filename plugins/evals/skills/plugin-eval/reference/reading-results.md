@@ -16,6 +16,7 @@ see the `--json` row of
 - [Per-grader fields](#per-grader-fields)
 - [What a delta does and does not say](#what-a-delta-does-and-does-not-say)
 - [Noise report](#noise-report)
+- [Reading a compare at few cases](#reading-a-compare-at-few-cases)
 - [Detection control](#detection-control)
 
 ## Read order
@@ -328,6 +329,45 @@ Why score intervals stay normal while the pass count follows the setting:
 [local-decisions.md, Interval method](../../methodology/reference/local-decisions.md#interval-method).
 How many runs and cases to add when an interval is too wide:
 [local-decisions.md, Repeat count](../../methodology/reference/local-decisions.md#repeat-count).
+
+## Reading a compare at few cases
+
+In this marketplace, a skill-text change is compared at 3 runs a side on Sonnet, and Opus runs
+only to confirm a loss. A registered compare reads a LOSS by the
+[owner's decision](https://github.com/melodic-software/claude-code-plugins/issues/16672#issuecomment-6935228111):
+
+1. Below about 20 cases, a `compare verdict: not shown non-inferior` line is reported but is not
+   a LOSS reading. Only `case drop` lines can start step 2. Merge each version's per-case result
+   files first, since the noise report prints no `case drop` when fewer than 3 cases are scored in
+   both.
+2. A `case drop` line, or a `not shown non-inferior` verdict at about 20 cases or more, is a LOSS
+   reading. It starts two checks: a trace read of each dropped case and an Opus confirm, a run of
+   both versions on the same cases. Report the Opus compare beside the Sonnet one.
+3. A loss counts only when the trace ties it to the changed text. Report what each trace shows
+   beside the verdict.
+
+Register this reading with the compare before its first paid run, so the verdict is not chosen
+after the numbers arrive.
+
+Why the interval test is set aside at few cases: `noise-report.py`'s rule (non-inferior at margin
+0.05, no case dropping by a third or more) often fails a version that changed nothing. At 3 cases
+and 3 runs a side it fails one 4 times in 5, and over draws from 65 cases at 3 runs a side it
+passes one at most about half the time, less as cases are added. A worker's simulation that
+mirrors the rule, 4,000 trials over kept Sonnet results from
+[#16063](https://github.com/melodic-software/claude-code-plugins/issues/16063), gave these pass
+rates for a version that changed nothing. They were relayed in
+[#16672](https://github.com/melodic-software/claude-code-plugins/issues/16672) and have not been
+re-run:
+
+| Cases | Runs a side | Chance a no-change version passes |
+|---|---|---|
+| 3 | 3 | 0.20 |
+| 3 | 6 | 0.24 |
+| 3 | 20 | 0.39 |
+| 3 | 150 | 0.79 |
+| 3 | 200 | 0.85 |
+| drawn from 65 cases | 3 | 0.33 to 0.56, falling as cases are added |
+| about 20 | 6 | about 0.75 (the peak) |
 
 ## Detection control
 
