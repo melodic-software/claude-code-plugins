@@ -18,10 +18,14 @@ SCRIPT="$SELF_DIR/check-silent-skips.sh"
 # declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
-# --no-lib: this gate walks the fixture's own scripts/ tree for *.test.sh, so
-# staged shared libraries would be extra files under the surface being scanned.
 new_fixture() { # <out-var>
-  fixture_tree::build "$1" --sut "$SCRIPT" --plugins --no-lib
+  local -n _nf_out="$1"
+  fixture_tree::build "$1" --sut "$SCRIPT" --plugins
+  : >"$_nf_out/scripts/silent-skip-exemptions.txt"
+}
+
+exempt() {
+  printf '%s\n' "$2" >>"$1/scripts/silent-skip-exemptions.txt"
 }
 
 hook_file() {
@@ -64,53 +68,144 @@ else
 fi
 rm -rf "$f"
 
-# --- same-line skip with annotation on the line above passes ---------------
 new_fixture f
 hook_file "$f" alpha check.sh '# silent-skip-ok: output discarded by design
 command -v jq >/dev/null 2>&1 || exit 0'
 if out="$(run_check "$f" 2>&1)"; then
-  ok "annotated same-line skip passes"
+  fail "a silent-skip-ok comment above a guard must not exempt it, got success: $out"
 else
-  fail "annotated same-line skip should pass, got: $out"
+  if grep -q "SILENT SKIP: plugins/alpha/hooks/check.sh:2" <<<"$out"; then
+    ok "a silent-skip-ok comment above a guard does not exempt it"
+  else
+    fail "expected SILENT SKIP at check.sh:2, got: $out"
+  fi
 fi
 rm -rf "$f"
 
-# --- annotation at the top of a multi-line comment block passes ------------
 new_fixture f
 hook_file "$f" alpha check.sh '# silent-skip-ok: fire-and-forget sink — output discarded by the producer,
 # so no notice channel exists here.
 command -v jq >/dev/null 2>&1 || exit 0'
 if run_check "$f" >/dev/null 2>&1; then
-  ok "annotation anywhere in the comment block above the guard passes"
+  fail "a silent-skip-ok comment block must not exempt the guard below it"
 else
-  fail "multi-line comment-block annotation should pass"
+  ok "a silent-skip-ok comment block does not exempt the guard below it"
 fi
 rm -rf "$f"
 
-# --- an annotation does not leak past intervening code ---------------------
 new_fixture f
 hook_file "$f" alpha check.sh '# silent-skip-ok: covers only the next guard
 command -v jq >/dev/null 2>&1 || exit 0
 INPUT=$(cat)
 command -v gh >/dev/null 2>&1 || exit 0'
+exempt "$f" 'plugins/alpha/hooks/check.sh jq  output discarded by design'
 if out="$(run_check "$f" 2>&1)"; then
-  fail "annotation should not sanction a later guard, got success: $out"
+  fail "an entry for jq must not exempt the gh guard, got success: $out"
 else
-  if grep -q "check.sh:4" <<<"$out"; then
-    ok "annotation does not leak past intervening code"
+  if grep -q "check.sh:4" <<<"$out" && ! grep -q "check.sh:2" <<<"$out"; then
+    ok "an entry exempts only the guard on its own tool"
   else
     fail "expected only line 4 flagged, got: $out"
   fi
 fi
 rm -rf "$f"
 
-# --- same-line skip with annotation on the same line passes ----------------
 new_fixture f
 hook_file "$f" alpha check.sh 'command -v jq >/dev/null 2>&1 || exit 0 # silent-skip-ok: sink is fire-and-forget'
 if run_check "$f" >/dev/null 2>&1; then
-  ok "same-line annotation passes"
+  fail "a same-line silent-skip-ok comment must not exempt the guard"
 else
-  fail "same-line annotation should pass"
+  ok "a same-line silent-skip-ok comment does not exempt the guard"
+fi
+rm -rf "$f"
+
+new_fixture f
+hook_file "$f" alpha check.sh 'INPUT=$(cat)
+command -v jq >/dev/null 2>&1 || exit 0'
+exempt "$f" 'plugins/alpha/hooks/check.sh jq  output discarded by design'
+if out="$(run_check "$f" 2>&1)"; then
+  ok "a same-line guard listed in the exemption file passes"
+else
+  fail "a listed same-line guard should pass, got: $out"
+fi
+rm -rf "$f"
+
+new_fixture f
+hook_file "$f" alpha check.sh 'if ! command -v jq >/dev/null 2>&1; then
+  exit 0
+fi'
+exempt "$f" 'plugins/alpha/hooks/check.sh jq  not-applicable classification, CI is the gate'
+if out="$(run_check "$f" 2>&1)"; then
+  ok "a block guard listed in the exemption file passes"
+else
+  fail "a listed block guard should pass, got: $out"
+fi
+rm -rf "$f"
+
+new_fixture f
+hook_file "$f" alpha check.sh 'command -v jq >/dev/null 2>&1 || exit 0'
+hook_file "$f" beta check.sh 'command -v jq >/dev/null 2>&1 || exit 0'
+exempt "$f" 'plugins/alpha/hooks/check.sh jq  output discarded by design'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "an entry for one file must not exempt another, got success: $out"
+else
+  if grep -q "SILENT SKIP: plugins/beta/hooks/check.sh:1" <<<"$out" &&
+    ! grep -q "plugins/alpha" <<<"$out"; then
+    ok "an unlisted guard fails while the listed one passes"
+  else
+    fail "expected only beta flagged, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+new_fixture f
+hook_file "$f" alpha check.sh 'INPUT=$(cat)'
+exempt "$f" 'plugins/alpha/hooks/check.sh jq  output discarded by design'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a stale entry whose guard is gone should fail, got success: $out"
+else
+  if grep -q "STALE BASELINE: scripts/silent-skip-exemptions.txt: 'plugins/alpha/hooks/check.sh jq" <<<"$out"; then
+    ok "a stale entry whose guard is gone fails"
+  else
+    fail "expected STALE BASELINE for the entry, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+new_fixture f
+hook_file "$f" alpha check.sh 'command -v jq >/dev/null 2>&1 || { hook::emit_skip_notice PostToolUse "alpha: jq missing"; exit 0; }'
+exempt "$f" 'plugins/alpha/hooks/check.sh jq  output discarded by design'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "an entry for a guard that is now visible should fail as stale, got success: $out"
+else
+  if grep -q "STALE BASELINE" <<<"$out" && ! grep -q "SILENT SKIP" <<<"$out"; then
+    ok "an entry for a guard that is visible fails as stale"
+  else
+    fail "expected only STALE BASELINE, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+new_fixture f
+hook_file "$f" alpha check.sh 'command -v jq >/dev/null 2>&1 || exit 0'
+exempt "$f" 'plugins/alpha/hooks/check.sh jq'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "an entry with no reason should fail, got success: $out"
+else
+  if grep -q "no reason" <<<"$out"; then
+    ok "an entry with no reason fails"
+  else
+    fail "expected a no-reason diagnostic, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+new_fixture f
+rm -f "$f/scripts/silent-skip-exemptions.txt"
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a missing exemption file should fail closed, got success: $out"
+else
+  ok "a missing exemption file fails closed"
 fi
 rm -rf "$f"
 
@@ -162,16 +257,15 @@ else
 fi
 rm -rf "$f"
 
-# --- block skip with an in-block annotation passes -------------------------
 new_fixture f
 hook_file "$f" alpha check.sh 'if ! command -v jq >/dev/null 2>&1; then
   # silent-skip-ok: not-applicable classification, CI is the gate
   exit 0
 fi'
 if run_check "$f" >/dev/null 2>&1; then
-  ok "block skip with in-block annotation passes"
+  fail "an in-block silent-skip-ok comment must not exempt the block"
 else
-  fail "block skip with in-block annotation should pass"
+  ok "an in-block silent-skip-ok comment does not exempt the block"
 fi
 rm -rf "$f"
 
@@ -245,25 +339,49 @@ else
 fi
 rm -rf "$f"
 
-# --- scripts/*.test.sh: annotated ok "skip ..." passes ---------------------
 new_fixture f
 script_test_file "$f" demo.test.sh "$(printf '%s\n' \
   '# silent-skip-ok: shallow clone lacks the historical anchor' \
   'ok "skip historical proof (deadbeef not in this clone)"')"
-if out="$(run_check "$f" 2>&1)"; then
-  ok "annotated scripts/*.test.sh ok \"skip ...\" passes"
+if run_check "$f" >/dev/null 2>&1; then
+  fail "a silent-skip-ok comment must not exempt ok \"skip ...\""
 else
-  fail "annotated ok skip should pass, got: $out"
+  ok "a silent-skip-ok comment does not exempt scripts/*.test.sh ok \"skip ...\""
 fi
 rm -rf "$f"
 
-# --- scripts/*.test.sh: same-line annotation passes ------------------------
 new_fixture f
 script_test_file "$f" demo.test.sh 'ok "skip historical proof" # silent-skip-ok: declared soft path'
 if run_check "$f" >/dev/null 2>&1; then
-  ok "same-line silent-skip-ok on ok \"skip ...\" passes"
+  fail "a same-line silent-skip-ok comment must not exempt ok \"skip ...\""
 else
-  fail "same-line annotation on ok skip should pass"
+  ok "a same-line silent-skip-ok comment does not exempt ok \"skip ...\""
+fi
+rm -rf "$f"
+
+new_fixture f
+script_test_file "$f" demo.test.sh "$(printf '%s\n' \
+  'anchor_missing || return' \
+  'ok "skip historical proof (deadbeef not in this clone)"')"
+exempt "$f" 'scripts/demo.test.sh "skip historical proof (deadbeef not in this clone)"  shallow clone lacks the historical anchor'
+if out="$(run_check "$f" 2>&1)"; then
+  ok "a listed scripts/*.test.sh ok \"skip ...\" passes"
+else
+  fail "a listed ok skip should pass, got: $out"
+fi
+rm -rf "$f"
+
+new_fixture f
+script_test_file "$f" demo.test.sh 'ok "skip other proof"'
+exempt "$f" 'scripts/demo.test.sh "skip historical proof"  shallow clone lacks the historical anchor'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "an entry for another skip message must not exempt this one, got success: $out"
+else
+  if grep -q "SILENT SKIP: scripts/demo.test.sh:1" <<<"$out" && grep -q "STALE BASELINE" <<<"$out"; then
+    ok "an ok \"skip ...\" entry matches its message exactly, and an unmatched one is stale"
+  else
+    fail "expected SILENT SKIP and STALE BASELINE, got: $out"
+  fi
 fi
 rm -rf "$f"
 

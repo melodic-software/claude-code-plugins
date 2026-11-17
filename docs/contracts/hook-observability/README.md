@@ -147,15 +147,18 @@ stdout JSON carries one. Pointer: for where exit-0 stderr goes, see
 <https://code.claude.com/docs/en/hooks#exit-code-0>. As of: 2026-10-04. Recheck trigger: that
 section starts showing exit-0 stderr in the transcript or to the model. `scripts/check-silent-skips.sh`
 rejects a bare stderr write on the exit-0 skip shapes it inspects: a quiet skip there uses one of the
-sanctioned helper calls or an explicit `# silent-skip-ok: <reason>` annotation.
+sanctioned helper calls or an entry in `scripts/silent-skip-exemptions.txt`.
 
-**The annotation, precisely.** `# silent-skip-ok: <reason>` is a comment line placed directly
-above the quiet exit it sanctions (the `exit 0` behind a `command -v` gate, or the
-`|| exit 0` on a prerequisite test), with the reason stating why no notice channel exists or
-why silence is the correct outcome. `scripts/check-silent-skips.sh` reads the annotation: a
-gated skip it would otherwise reject passes when the line above it carries the marker, so the
-reason is reviewed once, in the diff, rather than re-litigated on every gate run. Two shapes
-use it today. A fire-and-forget process whose stdout and stderr the producer discards (the
+**The exemption list, precisely.** Each line of `scripts/silent-skip-exemptions.txt` is
+`<path> <guard>  <reason>`: the hook file, the tool its `command -v` guard tests (or the quoted
+message of an `ok "skip ..."` in a `scripts/*.test.sh`), and the reason no notice channel exists
+or why silence is the correct outcome. `scripts/check-silent-skips.sh` reads the list: a gated
+skip it would otherwise reject passes when an entry names its file and guard, so the reason is
+reviewed once, in the diff, rather than re-litigated on every gate run. An entry carries no line
+number, so it survives the guard moving; an entry that matches no flagged skip fails as stale,
+and an entry with no reason fails. A comment at the site exempts nothing. The list keeps the
+exemption out of the hook's own comments, which the comment lint judges. Two shapes use it
+today. A fire-and-forget process whose stdout and stderr the producer discards (the
 harness-ops telemetry sink: "the producer side owns prerequisite visibility"), and a hook that
 is off by design for the consumer who has not enabled it (the per-session event log's
 `session_event_log_enabled: false` default, where a notice would fire on every event of every
@@ -359,7 +362,7 @@ Fleet audits check, per wired producer hook:
 
 `scripts/check-silent-skips.sh` mechanically enforces the second point for the `command -v`-gated
 shapes it recognizes: a bare stderr write fails it, and a quiet skip needs a sanctioned helper call
-or an explicit `# silent-skip-ok:` annotation.
+or an entry in `scripts/silent-skip-exemptions.txt`.
 
 ### Recorded exception: the guard mods' lines and telemetry (owner-approved, 2026-10-03)
 

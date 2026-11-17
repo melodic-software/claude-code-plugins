@@ -4,6 +4,12 @@ Notable changes to the liveness-assertion contract (SemVer). Changing the core c
 row's conformance bar, or an enforceability verdict is a major bump; additive guidance or new
 instance rows is a minor bump; docs-only clarification is a patch.
 
+## [1.1.2] - 2026-11-17
+
+Patch, docs-only. The `silent-skip-gate` instance row names its exemption source,
+`scripts/silent-skip-exemptions.txt`. No core contract, taxonomy row or enforceability verdict
+changes.
+
 ## [1.1.1] - 2026-10-01
 
 Patch, docs-only. The Enforceability record names its routing-rule source as a pointer, per the

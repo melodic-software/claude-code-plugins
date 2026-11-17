@@ -1286,6 +1286,7 @@ jobs:
               scripts/check-hook-slow-shapes*
               scripts/check-hook-exec-form-frontmatter*
               scripts/check-silent-skips*
+              scripts/silent-skip-exemptions.txt
               scripts/check-discriminating-test-skips*
               scripts/check-fixture-git-isolation*
               scripts/fixture-git-isolation-baseline.txt

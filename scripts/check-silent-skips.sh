@@ -8,7 +8,7 @@
 #   scripts/check-silent-skips.sh          fail if any hook entry script
 #                                          silently skips on a missing CLI,
 #                                          or if a scripts/*.test.sh scores
-#                                          a skip as PASS without annotation
+#                                          an unlisted skip as PASS
 #
 # Two shapes are flagged in plugins/*/hooks/*.sh (entry scripts only —
 # hook-utils.sh lib copies have their own sync gate and review; *.test.sh
@@ -24,19 +24,20 @@
 #
 #   3. skip-scored-as-pass:  ok "skip ..." / ok 'skip ...'
 #      A test that cannot run its assertion must fail (or declare the soft
-#      path with `# silent-skip-ok: <reason>`), never report PASS for the skip.
+#      path in the exemption list), never report PASS for the skip.
 #
 # A flagged site passes when the skip is visible — the guard line or block
 # carries one of the sanctioned visibility calls (hook::emit_skip_notice,
 # hook::emit_system_message, hook::notice_once, hook::require jq) — or when
-# it is a documented quiet classification: an annotation comment
-# `# silent-skip-ok: <reason>` on the guard line, in the comment block
-# immediately above it, or inside the guard block. The annotation is the
-# recorded decision; a bare quiet skip is a defect.
+# scripts/silent-skip-exemptions.txt records it as a quiet classification.
+# An entry names the file and the guard (the tool after `command -v`, or the
+# quoted ok "skip ..." message) with its reason; its format is in that file's
+# header. An entry that matches no flagged site fails as stale.
 #
 # A bare stderr write (`>&2`) is not a sanctioned visibility call: every site
 # this gate inspects is, by construction, an exit-0 skip path, and per the
-# official Claude Code hooks reference (re-fetched 2026-08-10,
+# official Claude Code hooks reference
+# (https://code.claude.com/docs/en/hooks#exit-code-0, re-fetched 2026-08-10,
 # docs/contracts/hook-observability/) "Stderr from a hook that exits 0 goes
 # to the debug log only, never the transcript, and Claude never sees it" — so
 # it reaches neither the user nor the agent on any path this gate inspects.
@@ -54,37 +55,60 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+# shellcheck source=lib/read-list.sh
+. scripts/lib/read-list.sh
+
+EXEMPTIONS=scripts/silent-skip-exemptions.txt
 errors=0
 
-# Shared by both scanners: an annotation anywhere in the contiguous comment
-# block directly above a flagged line sanctions it; any code line ends the
-# pending block. track_annotation sets annotated_above for the current line.
-AWK_ANNOTATION_LIB='
-    function is_annotated(l) { return l ~ /#[[:space:]]*silent-skip-ok:/ }
-    function is_comment(l) { return l ~ /^[[:space:]]*#/ }
-    function track_annotation(l) {
-      annotated_above = pending_annot
-      if (is_comment(l)) {
-        if (is_annotated(l)) pending_annot = 1
-      } else {
-        pending_annot = 0
-      }
+entries=()
+read_list::into entries "$EXEMPTIONS" --comments leading || exit 2
+declare -A exempt_by_site=()
+for entry in ${entries[@]+"${entries[@]}"}; do
+  path="${entry%%[[:space:]]*}"
+  rest="${entry#"$path"}"
+  rest="${rest#"${rest%%[![:space:]]*}"}"
+  if [[ "$rest" == '"'*'"'* ]]; then
+    key="${rest#\"}"
+    key="${key%%\"*}"
+    reason="${rest#\""$key"\"}"
+  else
+    key="${rest%%[[:space:]]*}"
+    reason="${rest#"$key"}"
+  fi
+  reason="${reason#"${reason%%[![:space:]]*}"}"
+  if [[ -z "$key" || -z "$reason" ]]; then
+    echo "MALFORMED EXEMPTION: ${EXEMPTIONS}: '${entry}' has no reason; write '<path> <guard>  <reason>'" >&2
+    errors=$((errors + 1))
+    continue
+  fi
+  exempt_by_site["$path"$'\t'"$key"]="$entry"
+done
+
+AWK_SITE_LIB='
+    function emit(f, n, key, msg) { printf "%s\t%d\t%s\t%s\n", f, n, (key == "" ? "-" : key), msg }
+    function guarded_tool(l, tok) {
+      if (!match(l, /command -v[[:space:]]+[^[:space:];|&)]+/)) return ""
+      tok = substr(l, RSTART, RLENGTH)
+      sub(/^command -v[[:space:]]+/, "", tok)
+      gsub(/["\047]/, "", tok)
+      return tok
     }
 '
 
 scan_hook() {
-  awk "$AWK_ANNOTATION_LIB"'
+  awk "$AWK_SITE_LIB"'
     function is_visible(l) {
       return l ~ /hook::emit_skip_notice/ || l ~ /hook::emit_system_message/ ||
         l ~ /hook::notice_once/ || l ~ /hook::require(_jq_blocking| jq)/
     }
     function flag_open_block() {
-      if (in_block && block_skips && !block_visible && !block_annotated)
-        printf "%s:%d: silent block skip: unterminated `if ! command -v` block reaches exit/return 0 with no visible notice\n", file, block_start
+      if (in_block && block_skips && !block_visible)
+        emit(file, block_start, block_tool, "silent block skip: unterminated `if ! command -v` block reaches exit/return 0 with no visible notice")
     }
     function reset_file() {
-      in_block = 0; depth = 0; pending_annot = 0
-      block_visible = 0; block_annotated = 0; block_skips = 0; block_start = 0
+      in_block = 0; depth = 0
+      block_visible = 0; block_skips = 0; block_start = 0; block_tool = ""
     }
     FNR == 1 {
       if (NR > 1) flag_open_block()
@@ -100,22 +124,19 @@ scan_hook() {
         if (line ~ /^[[:space:]]*if[[:space:]]/) depth++
         if (line ~ /^[[:space:]]*fi([[:space:]]*(#.*)?)?$/) depth--
         if (is_visible(line)) block_visible = 1
-        if (is_annotated(line)) block_annotated = 1
         if (line ~ /(^|[[:space:]])(exit|return)[[:space:]]+0([[:space:]]|$|;)/) block_skips = 1
         if (depth == 0) {
-          if (block_skips && !block_visible && !block_annotated)
-            printf "%s:%d: silent block skip: `if ! command -v ...` reaches exit/return 0 with no visible notice\n", FILENAME, block_start
+          if (block_skips && !block_visible)
+            emit(FILENAME, block_start, block_tool, "silent block skip: `if ! command -v ...` reaches exit/return 0 with no visible notice")
           in_block = 0
         }
         next
       }
 
-      track_annotation(line)
-
       if (line ~ /^[[:space:]]*(el)?if[[:space:]]+!.*command -v/) {
         in_block = 1; depth = 1; block_start = FNR
         block_visible = is_visible(line)
-        block_annotated = is_annotated(line) || annotated_above
+        block_tool = guarded_tool(line)
         block_skips = 0
         next
       }
@@ -125,8 +146,8 @@ scan_hook() {
         (line ~ /\|\|[[:space:]]*exit[[:space:]]+0/ ||
           line ~ /\|\|[[:space:]]*return[[:space:]]+0/ ||
           line ~ /\|\|[[:space:]]*[A-Za-z_][A-Za-z0-9_:]*[Ss]kip/)) {
-        if (!is_visible(line) && !is_annotated(line) && !annotated_above)
-          printf "%s:%d: silent skip: `command -v ... ||` quiet skip with no visible notice\n", FILENAME, FNR
+        if (!is_visible(line))
+          emit(FILENAME, FNR, guarded_tool(line), "silent skip: `command -v ... ||` quiet skip with no visible notice")
       }
     }
     END {
@@ -139,27 +160,38 @@ scan_hook() {
 # "skip " / 'skip ' (space-delimited) so descriptions like
 # `ok "skip-named-helper ... fails"` are not flagged.
 scan_test_skip_pass() {
-  awk "$AWK_ANNOTATION_LIB"'
+  awk "$AWK_SITE_LIB"'
     function is_skip_ok(l) {
       # Match at a shell command boundary (not only line-start), so one-line
       # forms like `if x; then ok "skip ..."; fi` are caught too.
       return l ~ /(^|[^[:alnum:]_])ok[[:space:]]+["'\'']skip[[:space:]]/
     }
-    FNR == 1 { pending_annot = 0 }
+    function skip_message(l, q, rest, end) {
+      match(l, /(^|[^[:alnum:]_])ok[[:space:]]+["'\'']skip[[:space:]]/)
+      rest = substr(l, RSTART + RLENGTH - 6)
+      q = substr(rest, 1, 1)
+      rest = substr(rest, 2)
+      end = index(rest, q)
+      return end ? substr(rest, 1, end - 1) : rest
+    }
     {
       line = $0
-      track_annotation(line)
-      if (is_skip_ok(line) && !is_annotated(line) && !annotated_above)
-        printf "%s:%d: skip scored as PASS via ok \"skip ...\" — fail closed or annotate with # silent-skip-ok:\n", FILENAME, FNR
+      if (is_skip_ok(line))
+        emit(FILENAME, FNR, skip_message(line), "skip scored as PASS via ok \"skip ...\" — fail closed or list it in '"$EXEMPTIONS"'")
     }
   ' "$@"
 }
 
 report_hits() {
-  local v
+  local file line key msg entry
   [[ -n "$1" ]] || return 0
-  while IFS= read -r v; do
-    echo "SILENT SKIP: ${v}" >&2
+  while IFS=$'\t' read -r file line key msg; do
+    entry="${exempt_by_site["$file"$'\t'"$key"]:-}"
+    if [[ -n "$entry" ]]; then
+      read_list::mark_used "$entry"
+      continue
+    fi
+    echo "SILENT SKIP: ${file}:${line}: ${msg}" >&2
     errors=$((errors + 1))
   done <<<"$1"
 }
@@ -191,19 +223,22 @@ if ((${#test_files[@]} > 0)); then
   report_hits "$(scan_test_skip_pass "${test_files[@]}")"
 fi
 
+read_list::report_stale entries "$EXEMPTIONS" "matches no quiet skip this gate flags; delete the entry" ||
+  errors=$((errors + 1))
+
 if ((errors > 0)); then
   {
     echo
     echo "A missing-CLI skip must be visible (hook::emit_skip_notice /"
     echo "hook::emit_system_message / hook::notice_once / hook::require jq)"
-    echo "or carry a documented quiet classification:"
-    echo "'# silent-skip-ok: <reason>' at the site. A bare stderr write is"
-    echo "not sufficient — stderr on exit 0 is never shown to the user or"
-    echo "the agent (docs/contracts/hook-observability/)."
+    echo "or carry a documented quiet classification: an entry in"
+    echo "${EXEMPTIONS} naming the file, the guard and the reason."
+    echo "A bare stderr write is not sufficient — stderr on exit 0 is never"
+    echo "shown to the user or the agent (docs/contracts/hook-observability/)."
     echo
     echo "A scripts/*.test.sh that cannot run an assertion must fail closed"
-    echo "(or annotate with '# silent-skip-ok: <reason>'), never score the"
-    echo "skip as PASS via ok \"skip ...\"."
+    echo "(or be listed in ${EXEMPTIONS}), never score the skip as PASS"
+    echo "via ok \"skip ...\"."
   } >&2
   exit 1
 fi

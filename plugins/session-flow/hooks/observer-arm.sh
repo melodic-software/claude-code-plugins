@@ -35,9 +35,6 @@ set -uo pipefail
 [[ -z "${SESSION_FLOW_OBSERVER_ANALYSIS:-}" ]] || exit 0
 
 INPUT="$(cat)"
-# silent-skip-ok: opt-in arming hook — a missing prerequisite is a by-design
-# no-op that preserves zero-config behavior; /session-flow:setup surfaces the
-# absence on demand, and SessionStart output would fire this notice every start.
 command -v jq >/dev/null 2>&1 || exit 0
 
 input_field() { printf '%s' "$INPUT" | jq -r ".$1 // \"\"" 2>/dev/null; }
