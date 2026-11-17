@@ -69,10 +69,12 @@ non-source paths are not in the coverage total.
   healthy, so stdout genuinely cannot establish run health here.
 - **Exit codes:** the lane never reads knip's exit code; run health comes from stderr, as above.
   Pointer: [knip CLI `--no-exit-code`](https://knip.dev/reference/cli#--no-exit-code).
-- **Config evaluation is disclosed, not denied.** knip loads a repository-controlled
-  `knip.config.{ts,js,mjs,cjs}` through `jiti`; a planted side effect in one **fired**. Every run
-  that loads a config module says so in the report. The same experiment in Python did not fire:
+- **Config evaluation is disclosed, not denied.** Measured: a side effect planted in a
+  repository-controlled `knip.config.{ts,js,mjs,cjs}` **fired**, so knip runs that module as code. Every run that
+  loads a config module says so in the report. The same experiment in Python did not fire:
   vulture is genuinely pure.
+  - **Pointer**: when checking which config file names knip loads, fetch
+    [knip configuration: Location](https://knip.dev/overview/configuration#location) live.
 - **Class members are absent from knip 6.** `--include classMembers` returns
   `ERROR: Invalid issue type`. The lane does not claim them.
 - **Measured JSON shape** (6.32.2): `{"issues":[{"file":"…","files":[{"name":"…"}],"exports":
@@ -108,9 +110,10 @@ non-source paths are not in the coverage total.
 ### gopls: Go
 
 - **Invocation:** `gopls check -severity=hint`, run with cwd set to the module root, one root per
-  `go.mod`. Per the official docs gopls "does not run the actual compiler": it runs `go list` plus
-  its own front end, and Go has no `build.rs` equivalent, so there is no project code to execute.
-  That is why Go passes the no-build rule while Rust and a .NET build lane do not.
+  `go.mod`. Go passes the no-build rule while Rust and a .NET build lane do not: a gopls run
+  executes no project code, since Go has no `build.rs` equivalent.
+  - **Pointer**: when checking how gopls computes its diagnostics, fetch
+    [Gopls: Diagnostics](https://go.dev/gopls/features/diagnostics) live.
 - **Unexported symbols only.** That is the lane's **declared coverage**, not a defect. An exported
   symbol is reachable from outside the module and no in-module analysis can call it dead.
 - **Ownership, as in the knip lane.** A module is handed only the `.go` files it owns, paths under
@@ -125,9 +128,11 @@ non-source paths are not in the coverage total.
   on **stdout** and suppresses the hints; a workspace-load failure leaves **stdout empty** and puts
   the error on **stderr**. Either way the lane produces false **negatives**, the opposite of knip's
   false positives. The report must not describe the two with one shared phrase.
-- **Paths are absolute and cwd-independent.** `gopls check -h` exposes only `-severity`; no flag
-  relativizes them, so the script relativizes to the repo root itself. The column field is a
-  **range** (`17:6-17`) whenever the diagnostic spans one.
+- **Paths are absolute and cwd-independent.** The script relativizes them to the repo root
+  itself rather than relying on a gopls flag. The column field is a **range** (`17:6-17`) whenever
+  the diagnostic spans one.
+  - **Pointer**: when checking whether `gopls check` has gained a flag that relativizes paths, run
+    `gopls check -h`, or fetch [gopls command line](https://go.dev/gopls/command-line) live.
 - **Measured output shape:** `/abs/path/dead-and-dynamic.go:17:6-17: function "deadHandler" is
   unused`. Exit **0** while carrying that finding, with the used and exported functions correctly
   left un-hinted.
