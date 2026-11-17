@@ -3,16 +3,6 @@
 # uncommitted workflow changes when a turn ends.
 #
 #   actionlint-check.sh --end-of-turn
-#
-# actionlint only reports, so nothing runs per edit or per batch. This row is the
-# one place a session sees its findings before commit: the lint entry
-# (git-hooks/lint.sh --worktree) reports what actionlint finds on the lines
-# changed since the last commit, where the repository's own actionlint config
-# opts it in, and findings exit 2 so the model fixes
-# them before the turn ends. Once a Stop hook has continued the turn
-# (stop_hook_active) the row stays quiet, so it blocks at most once per turn.
-# The launcher's --require-true gate keeps the script from starting while the
-# option is off.
 
 set -uo pipefail
 

@@ -15,7 +15,7 @@
           "actionlint"
         ]
       },
-      "degrade": "Without actionlint, the git pre-commit lint entry and the end-of-turn check cannot lint GitHub Actions workflows in a repository whose actionlint config opts them in.",
+      "degrade": "Without actionlint, the git pre-commit lint entry and the end-of-turn check cannot lint GitHub Actions workflows.",
       "install": {
         "docs": "https://github.com/kjanat/actionlint/blob/v1.17.0/docs/install.md"
       }

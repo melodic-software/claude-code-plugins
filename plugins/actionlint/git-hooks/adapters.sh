@@ -4,10 +4,9 @@
 # record setup reports (hooks never run it), the files it acts on, and its
 # actionlint adapter. Sourced by the lint entry.
 #
-# The adapter governs a workflow file only when the repository's own actionlint
-# config sits at the repository root: .github/actionlint.yaml or
-# .github/actionlint.yml, the one place actionlint reads it from. Lint only:
-# actionlint never rewrites, so there is no format concern. The embedded
+# The adapter governs every GitHub Actions workflow file (rt_wants); the
+# actionlint config is optional and read from the root's .github only
+# (https://github.com/kjanat/actionlint/blob/v1.17.0/docs/config.md#configuration-file). Lint only: actionlint never rewrites, so there is no format concern. The embedded
 # ShellCheck and pyflakes integrations stay off (-shellcheck= -pyflakes=):
 # they spawn a process per run block.
 
@@ -28,10 +27,9 @@ rt_wants() {
   esac
 }
 
-# al__config <root>: 0 when the root carries an actionlint config; AL_CONFIG
-# names it, repo-relative.
 al__config() {
   local name
+  AL_CONFIG="none (actionlint defaults)"
   for name in actionlint.yaml actionlint.yml; do
     if [[ -f "$1/.github/$name" ]]; then
       AL_CONFIG=".github/$name"
@@ -51,7 +49,7 @@ al__set() { # <root>
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh and the entry
 rt_adapter() { # <concern> <file> <root>
   [[ "$1" == lint ]] || return 1
-  al__config "$3" || return 1
+  al__config "$3"
   al__set "$3"
   # shellcheck disable=SC2016 # the command text sh -c expands, with RT_BIN and the files
   RT_SCRIPT='"$RT_BIN" '"$AL_FLAGS"' -- "$@"'
@@ -63,10 +61,11 @@ rt_adapter_in_repo() { # <concern> <root>
     RT_DETAIL="actionlint only lints"
     return 1
   fi
-  if ! al__config "$2"; then
-    RT_DETAIL="no actionlint config: .github/actionlint.yaml or .github/actionlint.yml"
+  if [[ -z "$(git -C "$2" ls-files --cached --others --exclude-standard -- ':(glob).github/workflows/*.yml' ':(glob).github/workflows/*.yaml' ':(glob)**/.github/workflows/*.yml' ':(glob)**/.github/workflows/*.yaml' ':(exclude,glob).githooks/**' 2>/dev/null | head -n 1)" ]]; then
+    RT_DETAIL="no GitHub Actions workflow files"
     return 1
   fi
+  al__config "$2"
   al__set "$2"
 }
 

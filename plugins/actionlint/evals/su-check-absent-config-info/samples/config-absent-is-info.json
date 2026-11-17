@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No. The config is optional: actionlint runs with its built-in defaults without one, so check reports its absence as INFO, and it is not why lint isn't running."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes: without .github/actionlint.yaml actionlint has nothing to run with. FAIL.",
+      "why": "accepts the absent config as the cause"
+    },
+    {
+      "answer": "The config is missing (INFO).",
+      "why": "near miss: does not say it is optional or not the cause"
+    }
+  ]
+}

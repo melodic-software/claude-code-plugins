@@ -10,10 +10,11 @@ It ships no rules of its own and no binary. It runs the `actionlint` already on 
 
 ## Behavior
 
-- **Opt-in by the repository's own actionlint config.** The hooks run actionlint only where the
-  repository commits `.github/actionlint.yaml` or `.github/actionlint.yml` at its root, the config
-  actionlint itself reads. Without it they run nothing: no block at commit and no end-of-turn
-  finding. They never run a command from the repository's github-actions record
+- **Every workflow file, with or without a config.** The hooks lint each GitHub Actions workflow
+  file a change touches. When the repository commits `.github/actionlint.yaml` or
+  `.github/actionlint.yml` at its root, the config actionlint itself reads, actionlint applies it;
+  without one it runs on its built-in defaults. A repository with no workflow files gets nothing.
+  The hooks never run a command from the repository's github-actions record
   (`.claude/ecosystems/github-actions.yaml`); `/toolchain:lint` and `/toolchain:check` run that on
   request. `/actionlint:setup check` reports which applies.
 - **Report only.** The check never rewrites a file. A finding prints as
@@ -47,7 +48,7 @@ entry is missing, stale or edited. An installed copy of the earlier `actionlint-
 reported as superseded until `apply install-git-hooks` retires it, and a decline of
 `actionlint-check` carries over to `lint`.
 
-When `actionlint` is missing where the config opts the repository in, an agent's commit fails with the install command; a person's commit
+When `actionlint` is missing, an agent's commit fails with the install command; a person's commit
 gets a one-line notice and goes through. `git -c checks.skipmissing=actionlint commit ...` skips the
 check while actionlint is absent. The placement rules are the check-placement convention in the
 marketplace repository.
@@ -97,7 +98,7 @@ Then verify prerequisites with `/actionlint:setup check` and register the pre-co
 
 ## Configuration
 
-The repository's own actionlint configuration file opts the hooks in and tunes actionlint; see
+The repository's own actionlint configuration file, when present, tunes actionlint; see
 [actionlint configuration: Configuration file](https://github.com/kjanat/actionlint/blob/v1.17.0/docs/config.md#configuration-file).
 Two `userConfig` options tune the hooks themselves:
 

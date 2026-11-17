@@ -1,5 +1,5 @@
 {
-  "description": "Optionally lints the uncommitted GitHub Actions workflow changes with actionlint when a turn ends, where the repository's actionlint config opts in; harness-ops reports a missing actionlint or a drifted git-hook entry at session start, from this plugin's prerequisites.json.",
+  "description": "Optionally lints the uncommitted GitHub Actions workflow changes with actionlint when a turn ends; harness-ops reports a missing actionlint or a drifted git-hook entry at session start, from this plugin's prerequisites.json.",
   "hooks": {
     "Stop": [
       {

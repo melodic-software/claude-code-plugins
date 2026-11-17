@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Contract tests for the actionlint lint entry (git-hooks/lint.sh): the
-# actionlint adapter runs only where the repository's own actionlint config
-# (.github/actionlint.yaml or .yml at the repository root) opts it in; a
+# actionlint adapter lints every GitHub Actions workflow file, with the root's
+# optional actionlint config (https://github.com/kjanat/actionlint/blob/v1.17.0/docs/config.md#configuration-file); a
 # finding blocks only on a line the commit adds; a finding about a whole
 # workflow is attributed to the line actionlint names; a partly staged file is
 # checked as staged; nothing is ever rewritten; only workflow files are linted;
@@ -96,24 +96,23 @@ BAD=$'name: bad\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    step
 MSG='property "missing" is not defined in object type {} [expression]'
 WF=.github/workflows
 
-# Opt-in: the repository's own actionlint config, at the root's .github.
 new_repo NONE
+expect "--resolve reports no adapter in a repository with no workflow files" "actionlint	lint	none		n/a	no GitHub Actions workflow files" \
+  "$(cd "$REPO" && HOME="$WORK/home" bash "$CHECK" --resolve)"
 printf '%s' "$BAD" >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"
-expect "no actionlint config and no record: nothing runs and the entry passes" "0||" "$(check "$REPO")"
-mkdir -p "$REPO/sub/.github/workflows"
-printf '%s' "$CONFIG" >"$REPO/sub/.github/actionlint.yaml"
-printf '%s' "$BAD" >"$REPO/sub/.github/workflows/ci.yml"
-git -C "$REPO" add sub
-expect "a config under a nested .github opts nothing in: actionlint reads only the root's" "0||" "$(check "$REPO")"
-expect "--resolve reports no adapter without the root config" "actionlint	lint	none		n/a	no actionlint config: .github/actionlint.yaml or .github/actionlint.yml" \
+expect "workflows and no actionlint config: actionlint lints on its defaults" "1||$WF/ci.yml:7: $MSG
+$HINT" "$(check "$REPO")"
+expect "--resolve reports the adapter with no config" "actionlint	lint	adapter:actionlint	actionlint	yes	config none (actionlint defaults); binary actionlint on PATH" \
   "$(cd "$REPO" && HOME="$WORK/home" bash "$CHECK" --resolve)"
 
 new_repo yml
+printf 'paths:\n  .github/workflows/ci.yml:\n    ignore: ["is not defined"]\n' >"$REPO/.github/actionlint.yml"
+git -C "$REPO" add .github/actionlint.yml
+git -C "$REPO" commit -q -m config --no-verify
 printf '%s' "$BAD" >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"
-expect "an actionlint.yml config opts the repository in too" "1||$WF/ci.yml:7: $MSG
-$HINT" "$(check "$REPO")"
+expect "an actionlint.yml config is applied: its paths: ignore rule holds" "0||" "$(check "$REPO")"
 
 new_repo
 printf '%s' "$CLEAN" >"$REPO/$WF/ci.yml"
@@ -283,8 +282,8 @@ record 'globs: [".github/workflows/*.yml"]
 lint-cmd: "stublint <files>"'
 printf '%s' "$CLEAN" >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"
-expect "a record with no actionlint config runs nothing at commit" "0||" "$(check "$REPO")"
-expect "--resolve names the record and where it runs" "actionlint	lint	none		n/a	no actionlint config: .github/actionlint.yaml or .github/actionlint.yml; the github-actions record is not run by hooks; /toolchain:lint and /toolchain:check run it" \
+expect "with a record and no config, actionlint lints and the record's linter never runs" "0||" "$(check "$REPO")"
+expect "--resolve names the record and where it runs" "actionlint	lint	adapter:actionlint	actionlint	yes	config none (actionlint defaults); binary actionlint on PATH; the github-actions record is not run by hooks; /toolchain:lint and /toolchain:check run it" \
   "$(cd "$REPO" && HOME="$WORK/home" bash "$CHECK" --resolve)"
 expect "the record's linter never ran" no "$([[ -e "$WORK/stublint-ran" ]] && echo yes || echo no)"
 
@@ -315,10 +314,10 @@ out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOLINT" bash "$CHECK" --worktree 2>&1)"
 expect "missing actionlint, --worktree: an agent fails as at commit time" \
   "1|FAIL: actionlint missing. Install: $INSTALL_HINT" "$?|${out%%$'\n'*}"
 new_repo NONE
-printf '%s' "$BAD" >"$REPO/$WF/ci.yml"
-git -C "$REPO" add "$WF/ci.yml"
+printf 'x\n' >"$REPO/notes.txt"
+git -C "$REPO" add notes.txt
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOLINT" bash "$CHECK" 2>&1)"
-expect "missing actionlint without the config: nothing is asked of the host" "0|" "$?|$out"
+expect "missing actionlint and no workflow file staged: nothing is asked of the host" "0|" "$?|$out"
 
 # End to end through the plugin's vendored installer and real commits.
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"

@@ -88,8 +88,8 @@ done
 expect "on: a missing actionlint passes silently" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN=true PATH="$NOTOOL")"
 mv "$R/.github/actionlint.yaml" "$WORK/actionlint.yaml"
-expect "on: without the repository's actionlint config the row runs nothing" "0|" \
-  "$(stop false CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN=true)"
+expect "on: without an actionlint config the row still lints on actionlint's defaults" "2|$FINDING" \
+  "$(findings "$(stop false CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN=true)")"
 mv "$WORK/actionlint.yaml" "$R/.github/actionlint.yaml"
 git -C "$R" checkout -q .github/workflows/ci.yml
 expect "on: a clean work tree passes" "0|" "$(stop false CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN=true)"

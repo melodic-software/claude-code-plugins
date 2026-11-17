@@ -41,7 +41,8 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. The plugin only lints. Its hooks run only the shipped actionlint adapter,
-where the repository's own actionlint config opts it in, and otherwise nothing; they never run a
+over the repository's workflow files, applying the repository's own actionlint config when there is
+one; they never run a
 command from the repository's github-actions record (`.claude/ecosystems/github-actions.yaml`),
 which `/toolchain:lint` and `/toolchain:check` run on request. The only consumer-project files this
 plugin writes are its git-hook entry copies (`apply install-git-hooks`); it never writes the
@@ -89,13 +90,13 @@ entry): the entry runs at commit outside Claude Code and reads no toggle.
 4. **What lint resolves to.** From the repository root run
    `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh" --resolve`. It prints one row: plugin, concern,
    source, tool, found, detail, tab-separated. It reads the adapter's config and runs nothing.
-   Which config opts the repository in is the adapter's rule in `adapters.sh`: read it to explain
-   the row. Report from the row, never from this text:
-   - `adapter:actionlint` with found `yes`: PASS, naming the config that opted in.
+   Which files the adapter governs and which config it applies are its rules in `adapters.sh`: read
+   them to explain the row. Report from the row, never from this text:
+   - `adapter:actionlint` with found `yes`: PASS, naming the config the detail reports (or that
+     actionlint runs on its defaults); an absent config is not a fault.
    - found `no`: FAIL, as step 3.
-   - `none`: INFO "unresolved": the repository's own actionlint config is absent, so the hooks run
-     nothing. This is the opt-out by design, not a fault. The repository opts in by committing its
-     own actionlint config; this skill never writes one.
+   - `none`: INFO "unresolved": the repository has no workflow files, so the hooks have nothing
+     to lint. This is not a fault. This skill never writes a workflow or an actionlint config.
    A detail saying a github-actions record exists is INFO beside the row: the hooks never run it,
    and `/toolchain:lint` or `/toolchain:check` runs it on request. When the person wants a linter
    the plugin ships no adapter for, say the hooks will not run it, and hand it to
@@ -167,9 +168,8 @@ with your own edit tools.
    chose to leave remain.
 6. **Verify.** Run `verify` and report its lines as `check` step 7 does.
 
-The entry only reports: at commit, where the repository's own actionlint config opts it in, it
-lints the staged workflow files and blocks the commit on a finding actionlint reports on a line the
-commit adds. It rewrites nothing.
+The entry only reports: at commit it lints the staged workflow files and blocks the commit on a
+finding actionlint reports on a line the commit adds. It rewrites nothing.
 
 When the user does not want an entry in this clone, run
 `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry lint`; the
