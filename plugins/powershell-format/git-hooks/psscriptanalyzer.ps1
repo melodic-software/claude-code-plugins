@@ -1,24 +1,10 @@
-# powershell-format's PSScriptAnalyzer adapter: one run over the files one
-# settings file governs. Started by the git-hook entries (git-hooks/format.sh and
-# git-hooks/lint.sh) through lib/git-hooks/resolve-tool.sh, as
-#
-#   pwsh -File psscriptanalyzer.ps1 format|lint <file>...
-#
-# with each file relative to the working directory or absolute. Everything it
-# reports goes to stdout, one record per line, and the exit code says what
-# happened.
-#
-#   format  Invoke-Formatter rewrites each file in place; nothing is analyzed
-#   lint    Invoke-ScriptAnalyzer reports; nothing is rewritten
 #
 # Environment:
-#   PSSA_SETTINGS    the PSScriptAnalyzerSettings.psd1 that governs every file
 #   PSSA_STATE_BASE  the directory that holds trust approvals
 #   PSSA_REPO_ROOT   the root text that the trust signature is bound to
 #
 # Exit codes:
 #   0  clean
-#   1  findings, printed as "<file>:<line>: [<severity>] <rule>: <message>"
 #   3  the PSScriptAnalyzer module is not installed
 #   4  Invoke-Formatter or Invoke-ScriptAnalyzer threw ("PSSA_ERROR ..." lines)
 #   6  the settings declare CustomRulePath (or could not be verified code-free)

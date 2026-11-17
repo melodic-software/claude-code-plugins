@@ -1,26 +1,4 @@
 #!/bin/sh
-# powershell-format lint entry: report what the PSScriptAnalyzer adapter's
-# Invoke-ScriptAnalyzer finds on the lines this change adds. It never rewrites a
-# file.
-#
-#   lint.sh             the staged changes (git runs it as pre-commit)
-#   lint.sh --worktree  the uncommitted changes against HEAD, untracked files
-#                       included (the opt-in end-of-turn Stop row)
-#   lint.sh --resolve [<path>...]  print the lint row, or one per path
-#                       (resolve-tool.sh rt_print); runs nothing
-#
-# The command resolves per file through lib/git-hooks/resolve-tool.sh to the
-# adapter in adapters.sh where a PSScriptAnalyzerSettings.psd1 governs the file,
-# else to nothing; a .claude/ecosystems/ record is never run here. Findings print
-# as "<path>:<line>: [<severity>] <rule>: <message>", repo-relative, and only
-# those on added lines block (stderr, exit 1). A run that exits non-zero with no
-# parseable finding fails closed. A partly staged file is refused, since the
-# analyzer reads the work tree. A staged file gone from the work tree is
-# analyzed from the index. A settings state that declares CustomRulePath is
-# skipped until the user approves it (adapters.sh). A missing pwsh or
-# PSScriptAnalyzer module follows the check-placement contract:
-# checks.skipmissing, else fail for an agent and a notice for a person.
-#
 # POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
 case "$0" in
@@ -66,8 +44,6 @@ checks_refuse_config_drift "$PSF_SETTINGS" -- "${candidates[@]}" || exit 1
 ((RT_GN)) || exit 0
 
 failed=0
-# Every group's tool first: a missing one skips its own group only, and an
-# agent's missing tool fails the entry after the other groups have reported.
 runs=()
 for ((i = 0; i < RT_GN; i++)); do
   rt_use "$i"
@@ -79,8 +55,6 @@ for ((i = 0; i < RT_GN; i++)); do
   esac
 done
 
-# lint_run <run dir> <files...>: one adapter run for the current group, its
-# findings appended to the contract file; 1 stops the entry (a missing module).
 lint_run() {
   local rc
   psf_run "$@" >"$out" 2>&1
@@ -126,9 +100,6 @@ for ((i = 0; i < RT_GN; i++)); do
     lint_run "$RT_DIR" "${present[@]}" || break
   fi
   if ((${#gone[@]})); then
-    # The index copies, written under a mirror of the repository, run from the
-    # settings directory's mirror, so the findings name the same repo-relative
-    # paths; the settings file is still the work tree's.
     staged=()
     for f in "${gone[@]}"; do
       mkdir -p "$CHECKS_TMP/staged/$(dirname -- "$f")"

@@ -1,22 +1,5 @@
 #!/bin/sh
 # shellcheck shell=bash
-# powershell-format's side of lib/git-hooks/resolve-tool.sh: the ecosystem id
-# whose record setup reports (hooks never run it), the files it acts on, and its
-# PSScriptAnalyzer adapter. Sourced by both git-hook entries.
-#
-# The adapter governs a file only when a PSScriptAnalyzerSettings.psd1 sits in
-# its directory or above it, up to the repository root; the closest one supplies
-# the rules. The adapter runs from that settings file's directory, so the files
-# one settings file governs share one pwsh process (psscriptanalyzer.ps1). Format
-# runs Invoke-Formatter; lint runs Invoke-ScriptAnalyzer and fixes nothing.
-#
-# A settings file that declares CustomRulePath would make PSScriptAnalyzer run
-# repository-supplied rule modules, so psscriptanalyzer.ps1 skips that state
-# (exit 6) until the user approves its exact content: a marker directory under
-# powershell-format/ in the repository's git common directory, the one store
-# every commit and the Stop row read (CLAUDE_PLUGIN_DATA is not used, since an
-# agent's shell can carry another plugin's value). An agent is told the verdict
-# and never the command that grants the approval.
 
 # shellcheck disable=SC2034 # read by resolve-tool.sh
 RT_PLUGIN=powershell-format
@@ -38,8 +21,6 @@ rt_wants() {
   esac
 }
 
-# psf__walk <dir> <root>: 0 when a settings file sits at <dir> or above it, up
-# to <root>; PSF_DIR is where.
 psf__walk() {
   local dir="$1"
   while :; do
@@ -53,14 +34,14 @@ psf__walk() {
   done
 }
 
-psf__detail() { # <settings dir> <root>
+psf__detail() {
   local rel="${1#"$2"}"
   rel="${rel#/}"
   RT_DETAIL="config ${rel:+$rel/}$PSF_SETTINGS; binary pwsh on PATH"
 }
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh and the entries
-rt_adapter() { # <concern> <file> <root>
+rt_adapter() {
   local f="$2"
   [[ "$f" == /* || "$f" == [A-Za-z]:[\\/]* ]] || f="$3/$f"
   f="${f%/*}"
@@ -73,7 +54,7 @@ rt_adapter() { # <concern> <file> <root>
 }
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh
-rt_adapter_in_repo() { # <concern> <root>
+rt_adapter_in_repo() {
   local f dir="$2"
   if [[ ! -f "$2/$PSF_SETTINGS" ]]; then
     f="$(git -C "$2" ls-files -- ":(glob)**/$PSF_SETTINGS" 2>/dev/null | head -1)"
@@ -87,8 +68,6 @@ rt_adapter_in_repo() { # <concern> <root>
   psf__detail "$dir" "$2"
 }
 
-# psf_pwsh_path <path>: PowerShell on Windows does not understand MSYS mount
-# paths (/d/...), so a Windows bash with cygpath passes the drive-letter form.
 psf_pwsh_path() {
   case "${OSTYPE:-}" in
   msys* | cygwin* | win32) command -v cygpath >/dev/null 2>&1 && cygpath -m "$1" 2>/dev/null && return ;;
@@ -97,9 +76,6 @@ psf_pwsh_path() {
   printf '%s' "$1"
 }
 
-# psf_init <root>: the approval store and the paths every run passes to pwsh.
-# The trust signature binds PSSA_REPO_ROOT and PSSA_SETTINGS as text, so their
-# form must not change between releases, or every approval is revoked.
 psf_init() {
   local common
   PSF_ROOT="$1"
@@ -112,21 +88,16 @@ psf_init() {
   PSF_STATE_ARG=""
   [[ -z "$PSF_STATE" ]] || PSF_STATE_ARG="$(psf_pwsh_path "$PSF_STATE")"
   PSF_ROOT_ARG="$(psf_pwsh_path "$1")"
-  # rt_run starts pwsh from the settings directory, so the script path is absolute.
   [[ "$PSF_HERE" == /* || "$PSF_HERE" == [A-Za-z]:[\\/]* ]] || PSF_HERE="$PWD/$PSF_HERE"
   PSF_PS1_ARG="$(psf_pwsh_path "$PSF_HERE/psscriptanalyzer.ps1")"
 }
 
-# psf_settings_rel: the current group's settings file, repo-relative.
 psf_settings_rel() {
   local rel="${RT_DIR#"$PSF_ROOT"}"
   rel="${rel#/}"
   printf '%s' "${rel:+$rel/}$PSF_SETTINGS"
 }
 
-# psf_run <run dir> <files...>: rt_run for the current group from <run dir>
-# (the settings directory, or its mirror holding index copies), with the
-# environment psscriptanalyzer.ps1 reads; the settings file stays the group's.
 psf_run() {
   local dir="$RT_DIR" rc
   RT_DIR="$1"
@@ -138,8 +109,6 @@ psf_run() {
   return "$rc"
 }
 
-# psf_module_missing: the missing-tool rule for the PSScriptAnalyzer module
-# (exit 3 from psscriptanalyzer.ps1), as a status: 1 skip, 2 fail the entry.
 psf_module_missing() {
   if checks_skip_listed PSScriptAnalyzer; then
     printf 'SKIPPED: PSScriptAnalyzer (missing)\n' >&2
@@ -154,8 +123,6 @@ psf_module_missing() {
   return 1
 }
 
-# psf_trust_notice <pwsh output> <concern word>: say why the concern was
-# skipped for the current group's settings file (exit 6).
 psf_trust_notice() {
   local line verdict="" marker="" msg settings
   settings="$(psf_settings_rel)"
@@ -187,7 +154,6 @@ psf_trust_notice() {
   printf '%s\n' "$msg" >&2
 }
 
-# psf_broken <pwsh output> <cmdlet>: show why a run failed.
 psf_broken() {
   printf 'powershell-format: %s failed under %s:\n' "$2" "$(psf_settings_rel)" >&2
   sed -e 's/^PSSA_ERROR //' -e 's/\r$//' "$1" >&2

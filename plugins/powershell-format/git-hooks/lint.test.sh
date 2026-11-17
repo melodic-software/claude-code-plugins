@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for the powershell-format pre-commit lint entry
-# (git-hooks/lint.sh): the PSScriptAnalyzer adapter reports and never rewrites;
-# a finding blocks only on a line the change adds; a staged file gone from the
-# work tree is analyzed from the index; --worktree checks the uncommitted
-# changes; a missing pwsh or module follows the skip-key rule; a CustomRulePath
-# settings state is skipped until approved; a non-zero exit with no parsed
-# finding fails closed; file names reach pwsh as data; --resolve reports the
-# adapter. Expected values are PSScriptAnalyzer's documented behavior:
-# Invoke-ScriptAnalyzer reports PSAvoidGlobalVars for a `$global:` variable and
-# PSUseCorrectCasing for `get-childitem`, and rewrites neither.
 # test-scope: plugins/powershell-format/git-hooks/entries.json plugins/powershell-format/git-hooks/psscriptanalyzer.ps1 plugins/powershell-format/git-hooks/adapters.sh
 # test-scope: plugins/powershell-format/lib/git-hooks/check-lib.sh plugins/powershell-format/lib/git-hooks/resolve-tool.sh
 # shellcheck disable=SC2016  # literal PowerShell variable syntax: single quotes are intentional
@@ -28,7 +18,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -46,7 +36,7 @@ first_line() { printf '%s' "$1" | head -1 | sed 's/ Found global.*//'; }
 HINT='powershell-format: fix the findings pwsh reported above, or adjust the repository PSScriptAnalyzerSettings.psd1.'
 
 n=0
-new_repo() { # [NONE for no settings file]
+new_repo() {
   n=$((n + 1))
   REPO="$WORK/r$n"
   git init -q -b main "$REPO"
@@ -60,7 +50,7 @@ new_repo() { # [NONE for no settings file]
   git -C "$REPO" commit -q -m seed --no-verify
 }
 
-check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
+check() {
   local repo="$1" out rc
   shift
   out="$(cd "$repo" && bash "$CHECK" "$@" 2>"$WORK/stderr")"
@@ -126,8 +116,6 @@ git -C "$REPO" add src
 got="$(check "$REPO")"
 expect "a nested file's finding names its repo-relative path" "1||src/deep/b.psm1:2: [Warning] PSAvoidGlobalVars:" "$(first_line "$got")"
 
-# File names are data: a leading dash and a command substitution reach pwsh as
-# arguments, run nothing, and the finding names the file.
 new_repo
 printf 'Get-ChildItem .\n$global:foo = 1\n' >"$REPO/-lead.ps1"
 printf 'Get-ChildItem .\n$global:foo = 1\n' >"$REPO/\$(touch pwned).ps1"
@@ -145,7 +133,6 @@ expect "--worktree: the file keeps its bytes" "$(printf 'get-childitem .\n$globa
 rm "$REPO/a.ps1"
 expect "--worktree: no uncommitted change passes" "0||" "$(check "$REPO" --worktree)"
 
-# A PATH with the tools the script runs, git and no pwsh.
 NOPWSH="$WORK/nopwsh"
 mkdir -p "$NOPWSH"
 for t in git bash sh sed awk cat mktemp rm dirname grep tr; do
@@ -185,7 +172,6 @@ out="$(cd "$REPO" && CLAUDECODE=1 PATH="$STUB:$PATH" bash "$CHECK" 2>&1)"
 git -C "$REPO" config --unset checks.skipmissing
 expect "missing module named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: PSScriptAnalyzer (missing)" "$?|$out"
 
-# Fails closed: a linter that exits non-zero with no <path>:<line> finding.
 printf '#!/usr/bin/env bash\necho "something broke"\nexit 1\n' >"$STUB/pwsh"
 out="$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" 2>&1)"
 expect "a non-zero exit with no parsed finding fails closed and shows the output" \
@@ -196,7 +182,6 @@ out="$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" 2>&1)"
 expect "an analyzer error fails the entry and shows the error" "1|powershell-format: Invoke-ScriptAnalyzer failed under PSScriptAnalyzerSettings.psd1:
 a.ps1: boom" "$?|$out"
 
-# CustomRulePath: skipped until the exact content state is approved.
 new_repo NONE
 mkdir -p "$REPO/rules"
 cat >"$REPO/rules/CleanRules.psm1" <<'EOF'
@@ -236,7 +221,6 @@ mkdir -p "$marker"
 got="$(check "$REPO")"
 expect "an approved state is analyzed" "1||crp.ps1:1: [Warning] PSAvoidGlobalVars:" "$(first_line "$got")"
 
-# --resolve: the adapter row, read without running anything.
 new_repo
 expect "--resolve: the repository row names the adapter, its tool and the settings file" \
   "powershell-format	lint	adapter:psscriptanalyzer	pwsh	yes	config PSScriptAnalyzerSettings.psd1; binary pwsh on PATH" \

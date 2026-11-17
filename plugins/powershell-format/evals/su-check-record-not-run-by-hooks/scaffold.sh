@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# A git repository with a PowerShell script and a powershell record that holds fix-cmd and
-# lint-cmd, but no PSScriptAnalyzerSettings.psd1, so both concerns resolve to nothing: the hooks
-# run only the shipped adapter and never the record. Both entries are declined so verify prints
-# declined.
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2

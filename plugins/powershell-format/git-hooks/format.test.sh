@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for the powershell-format pre-commit format entry
-# (git-hooks/format.sh): staged PowerShell files are rewritten by the
-# PSScriptAnalyzer adapter and re-staged, a partly staged one is refused
-# untouched, only a file a PSScriptAnalyzerSettings.psd1 governs is touched, a
-# finding never blocks (linting is the lint entry's), --worktree does nothing,
-# file names reach pwsh as data, a missing pwsh or module follows the skip-key
-# rule, a CustomRulePath settings state is skipped until approved under the
-# same marker an earlier release minted, --resolve reports the adapter, and the
-# plugin's own vendored installer wires both entries so `git commit` runs them.
-# Expected values are PSScriptAnalyzer's documented behavior: Invoke-Formatter
-# applies PSUseCorrectCasing (`get-childitem` becomes `Get-ChildItem`), and
-# PSAvoidGlobalVars, which is not a formatting rule, reports a `$global:`
-# variable without rewriting it.
 # test-scope: plugins/powershell-format/git-hooks/entries.json plugins/powershell-format/git-hooks/psscriptanalyzer.ps1 plugins/powershell-format/git-hooks/adapters.sh
 # test-scope: plugins/powershell-format/lib/git-hooks/check-lib.sh plugins/powershell-format/lib/git-hooks/install.mjs plugins/powershell-format/lib/git-hooks/resolve-tool.sh
 # shellcheck disable=SC2016  # literal PowerShell variable syntax: single quotes are intentional
@@ -43,7 +30,6 @@ expect() { # <label> <want> <got>
 }
 
 # Settings that enable a formatter-applied rule (PSUseCorrectCasing) and a
-# lint-only rule (PSAvoidGlobalVars).
 SETTINGS_BODY="@{
     IncludeRules = @('PSUseCorrectCasing', 'PSAvoidGlobalVars')
     Rules = @{ PSUseCorrectCasing = @{ Enable = \$true } }
@@ -169,8 +155,6 @@ before="$(od -An -tx1 <"$REPO/ansi.ps1" | tr -d ' \n')"
 expect "a legacy ANSI file is skipped without a message" "0||" "$(check "$REPO")"
 expect "a legacy ANSI file keeps its bytes" "$before" "$(od -An -tx1 <"$REPO/ansi.ps1" | tr -d ' \n')"
 
-# File names are data: a leading dash, a space and a command substitution reach
-# pwsh as arguments and run nothing.
 new_repo
 for name in '-lead.ps1' 'a b.ps1' '$(touch pwned).ps1' 'x;touch pwned2.ps1'; do
   printf 'get-childitem .\n' >"$REPO/$name"
@@ -210,7 +194,6 @@ out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOPWSH" bash "$CHECK" 2>&1)"
 git -C "$REPO" config --unset checks.skipmissing
 expect "missing pwsh named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: pwsh (missing)" "$?|$out"
 
-# A pwsh that reports the module absent (exit 3 from the adapter script).
 STUB="$WORK/stub"
 mkdir -p "$STUB"
 printf '#!/usr/bin/env bash\nexit 3\n' >"$STUB/pwsh"
@@ -228,7 +211,6 @@ git -C "$REPO" config --unset checks.skipmissing
 expect "missing module named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: PSScriptAnalyzer (missing)" "$?|$out"
 expect "missing module: the file is untouched" "get-childitem ." "$(cat "$REPO/a.ps1")"
 
-# A pwsh whose formatter throws: the commit stops and shows why.
 printf '#!/usr/bin/env bash\necho "PSSA_ERROR a.ps1: boom"\nexit 4\n' >"$STUB/pwsh"
 out="$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" 2>&1)"
 expect "a formatter error fails the entry and shows the error" "1|powershell-format: Invoke-Formatter failed under PSScriptAnalyzerSettings.psd1:
@@ -269,9 +251,6 @@ expect "an agent is told the verdict and never the approval command" \
 out="$(cd "$REPO" && CLAUDE_PLUGIN_DATA="$DATA" bash "$CHECK" 2>&1)"
 marker="$(printf '%s' "$out" | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
 expect "the approval store is the git directory even when CLAUDE_PLUGIN_DATA names another" "yes" "$([[ -n "$marker" && "$marker" == "$REPO"/.git/powershell-format/trust-approvals/pssa-* ]] && echo yes)"
-# The marker is the one the earlier single entry minted: sha256 over the repo
-# root, then each pinned file's path and uppercase SHA256, one per line, so an
-# approval the user already gave still holds.
 hash() { sha256sum "$1" | cut -d' ' -f1 | tr a-f A-F; }
 sig="$(printf '%s\n%s\t%s\n%s\t%s\n' "$REPO" "$REPO/PSScriptAnalyzerSettings.psd1" "$(hash "$REPO/PSScriptAnalyzerSettings.psd1")" \
   "$REPO/rules/CleanRules.psm1" "$(hash "$REPO/rules/CleanRules.psm1")" | sha256sum | cut -d' ' -f1)"
@@ -285,7 +264,6 @@ git -C "$REPO" add crp2.ps1
 (cd "$REPO" && CLAUDECODE=1 bash "$CHECK" >/dev/null 2>&1)
 expect "a changed rule module revokes the approval" "get-childitem ." "$(cat "$REPO/crp2.ps1")"
 
-# --resolve: the adapter row, read without running anything.
 new_repo
 expect "--resolve: the repository row names the adapter, its tool and the settings file" \
   "powershell-format	format	adapter:psscriptanalyzer	pwsh	yes	config PSScriptAnalyzerSettings.psd1; binary pwsh on PATH" \
@@ -335,7 +313,6 @@ expect "the commit failure names the line" "a.ps1:2: [Warning] PSAvoidGlobalVars
 expect "verify reports both entries ok after the install" "ok	format
 ok	lint" "$(node "$INSTALL" verify --repo "$REPO")"
 
-# A decline of the earlier single entry carries to both entries.
 new_repo
 git -C "$REPO" config checks.powershell-format.powershell-check.declined true
 expect "a powershell-check decline carries to format and lint" "declined,declined" \
