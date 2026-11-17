@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for parse_transcript.py: delegates to the pytest suite under tests/.
-#
 # SKIPs (exit 0) when Python 3.10+ or pytest is unavailable, matching the
 # repo test-runner convention for optional toolchains.
 # test-scope: plugins/session-flow/scripts/parse_transcript.py

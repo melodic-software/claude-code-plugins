@@ -8,7 +8,7 @@ metadata:
   summary: Structured session retrospective with codified learnings
 ---
 
-**Arguments.** `[session [--pattern '<regex>']|quick|ci-runs <run>…] [--sink <dir>] [--unattended]`. Full `ci-runs` form: `ci-runs [quick] (<run url or id>… | --lane <workflow stem> --last <n> | [--lane <stem>] --since <day> [--until <day>] [--outcome <o>] [--model <m>]) [--sink <dir>] [--unattended] ["<your view of the result>"]`. e.g., /retro, /retro session, /retro session --pattern 'PROJ-\d+', /retro quick, /retro quick --unattended, /retro ci-runs https://github.com/acme/widgets/actions/runs/123, /retro ci-runs --lane pr-verify --last 3, /retro ci-runs quick --since 2026-11-01 --outcome error --sink /srv/lane-transcripts "it approved a change it should have stopped"
+**Arguments.** `[session [--pattern '<regex>']|quick|ci-runs <run>…] [--sink <dir>] [--unattended]`. Full `ci-runs` form: `ci-runs [quick] (<run url or id>… | --lane <workflow stem> --last <n> | [--lane <stem>] --since <day> [--until <day>] [--outcome <o>] [--model <m>]) [--sink <dir>] [--unattended] ["<your view of the result>"]`. e.g., /retro, /retro session, /retro session --pattern 'PROJ-\d+', /retro quick, /retro quick --unattended, /retro ci-runs `<run url>`, /retro ci-runs 4471, /retro ci-runs --lane pr-verify --last 3, /retro ci-runs quick --since 2026-11-01 --outcome error --sink /srv/lane-transcripts "it approved a change it should have stopped"
 
 ## Context. Gather first
 
