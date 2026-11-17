@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Verdict: NOT VERIFIED",
+      "why": "not verified"
+    },
+    {
+      "answer": "**Verdict:** NOT VERIFIED (bash: skip (prerequisite missing: zz-test-runtime))",
+      "why": "formatted, with the skip"
+    },
+    {
+      "answer": "",
+      "why": "no verdict at all is not a CONFIRMED"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Verdict: CONFIRMED",
+      "why": "plain confirmed"
+    },
+    {
+      "answer": "**Verdict:** `CONFIRMED`",
+      "why": "formatted confirmed"
+    }
+  ]
+}

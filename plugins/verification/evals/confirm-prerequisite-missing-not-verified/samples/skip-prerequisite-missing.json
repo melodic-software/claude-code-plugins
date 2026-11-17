@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "## Stage 1\n\n| Ecosystem | Build | Test | Lint |\n|---|---|---|---|\n| bash | — | skip (prerequisite missing: zz-test-runtime) | skip (prerequisite missing: zz-test-runtime) |\n\nHint: run bash tools/fetch-runtime.sh to download zz-test-runtime.",
+      "why": "contract table"
+    },
+    {
+      "answer": "- bash Test: `skip (prerequisite missing: `zz-test-runtime`)`",
+      "why": "backticks"
+    },
+    {
+      "answer": "bash → Skip (Prerequisite missing: **zz-test-runtime**)",
+      "why": "capital Skip, bold name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "| bash | — | skip (dependencies missing: unattended run) | — |",
+      "why": "wrong skip class"
+    },
+    {
+      "answer": "Tests skipped for bash; zz-test-runtime is not installed.",
+      "why": "no named skip class"
+    },
+    {
+      "answer": "| bash | — | FAIL | FAIL |\n\ntest: cannot find zz-test-runtime",
+      "why": "ran the commands and reported FAIL"
+    }
+  ]
+}

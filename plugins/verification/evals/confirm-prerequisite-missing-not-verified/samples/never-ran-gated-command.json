@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "cat tools/test.sh", "description": "run" } }],
+      "why": "only read the script"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "test -f tools/vendor/zz-test-runtime/package.json", "description": "run" } }
+      ],
+      "why": "ran only the probe"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "grep -n vendor tools/policy-lint.sh", "description": "run" } }],
+      "why": "searched the lint script"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "bash tools/test.sh", "description": "run" } }],
+      "why": "ran the test command"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "bash /tmp/ws/tools/policy-lint.sh /tmp/ws/app.sh", "description": "run" } }],
+      "why": "ran the lint command, absolute"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "cd tools && bash test.sh", "description": "run" } }],
+      "why": "ran it after cd"
+    }
+  ]
+}
