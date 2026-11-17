@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # A uv-managed git repository where every check step passes or is INFO: a [tool.ruff] section governs
 # it, ruff is already a recorded dev dependency, a gitignored executable .venv/bin/ruff stub is what
-# the hook resolves, and this clone has declined the git pre-commit entry, so verify reports
+# the adapter resolves, and this clone has declined both git pre-commit entries, so verify reports
 # declined (INFO) rather than missing (setup SKILL.md check step 8).
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
@@ -11,7 +11,8 @@ fi
 git init -q -b main .
 git config user.email eval@example.invalid
 git config user.name eval
-git config --local checks.python-format.ruff-check.declined true
+git config --local checks.python-format.format.declined true
+git config --local checks.python-format.lint.declined true
 mkdir -p src/demo .venv/bin
 cat >pyproject.toml <<'EOF'
 [project]

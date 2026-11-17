@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [
+        "pyproject.toml",
+        "src/app.py"
+      ],
+      "why": "the scaffold's files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "src/app.py",
+        ".claude/ecosystems/python.yaml"
+      ],
+      "why": "wrote the python record"
+    }
+  ]
+}

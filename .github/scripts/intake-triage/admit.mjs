@@ -1054,6 +1054,10 @@ const driftShape = (title, body) => {
   return id !== undefined && String(body ?? "").split("\n", 1)[0].replace(/\r$/, "") === driftLead(id) ? id : null;
 };
 const actionsBot = (actor) => actor?.__typename === "Bot" && actor.databaseId === ACTIONS_BOT_ID;
+// Whether github-actions[bot] wrote `item` (an issue as GraphQL answers it)
+// and nobody else last edited it: the author half of every rule that trusts
+// an issue a workflow filed. Pure.
+export const actionsBotOnly = (item) => actionsBot(item?.author) && (item.lastEditedAt == null || actionsBot(item.editor));
 
 // The trusted drift-issue rule, its one home (owner decision on #14215,
 // Q195 (a)): the upstream id of an issue the upstream-drift workflow filed,
@@ -1064,7 +1068,7 @@ const actionsBot = (actor) => actor?.__typename === "Bot" && actor.databaseId ==
 // the body is read, and a caller takes the spec from driftSpecText, so no
 // body text, whoever wrote it, becomes spec. Admission, the triage sweep, the
 // issue lane and pr-verify judge it here. Pure.
-export const driftIssueId = (item) => (actionsBot(item?.author) && (item.lastEditedAt == null || actionsBot(item.editor)) ? driftShape(item.title, item.body) : null);
+export const driftIssueId = (item) => (actionsBotOnly(item) ? driftShape(item.title, item.body) : null);
 
 // Whether a REST issue has the drift shape apart from its edit history, which
 // REST does not return: a caller confirms it with driftIssueId on a GraphQL
