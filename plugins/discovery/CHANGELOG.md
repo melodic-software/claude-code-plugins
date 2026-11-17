@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [2.2.1] - 2026-11-17
+
+### Fixed
+
+- Explore no longer probes MCP servers or other live systems, matching its description. The stage that needs a live system's current state reads it directly through the system's CLI or MCP tool.
+
 ## [2.2.0] - 2026-11-17
 
 ### Changed

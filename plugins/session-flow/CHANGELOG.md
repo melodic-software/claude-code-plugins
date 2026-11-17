@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [9.6.3] - 2026-11-17
+
+### Changed
+
+- The workflow's stage triggers say that what a live system holds now is no stage: the asking stage reads it through the system's CLI or MCP tool.
+
 ## [9.6.2] - 2026-11-17
 
 ### Changed
