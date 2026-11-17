@@ -185,9 +185,12 @@ useEffect(() => {
 The check runs in an effect, after mount, so server and client render the same markup and
 hydration has nothing to mismatch.
 
-Keep this gate on `pointer`. To ask about every pointer a hybrid device has (a touch laptop, a
-tablet with a mouse), use `any-pointer` and `any-hover`; to ask in script whether the device has
-touch hardware at all, read `navigator.maxTouchPoints`. The pointers say what `pointer` and
+Keep this gate on `pointer`, which reads only the device's primary pointer: autofocus is then
+skipped only when touch is the main input, and a touch laptop used with its trackpad still
+autofocuses. Gating on `any-pointer: coarse` would never autofocus on that laptop. To ask about
+every pointer a hybrid device has (a touch laptop, a tablet with a mouse), use `any-pointer` and
+`any-hover`; to ask in script whether the device has touch hardware at all, read
+`navigator.maxTouchPoints`. The pointers say what `pointer` and
 `maxTouchPoints` report. The `hover-styles-only-where-hover-exists` recipe gates hover styles on
 the `hover` and `pointer` media features.
 
