@@ -296,6 +296,14 @@ run_case "a plaintext family with no scan step before the seal fails" 1 \
   "subst $ACTION 'scan-upload/scan-upload.mjs' 'seal.mjs'" \
   "$ACTION:9: upload \`pack-\${{ github.run_id }}\` has no scan step before it; $TABLE family \`pack-*\` says scan: plaintext"
 
+run_case "a plaintext upload in a job its row lists as sealed-upstream needs no scan step of its own" 0 \
+  "subst $ACTION 'scan-upload/scan-upload.mjs' 'seal.mjs' && edit $TABLE 't.families[\"pack-*\"][\"sealed-upstream\"] = [\".github/actions/pack/action.yml#runs\"]'" \
+  "check-artifact-retention: 4 upload step(s) match"
+
+run_case "a sealed-upstream job that holds no unscanned upload of the family fails" 1 \
+  "edit $TABLE 't.families[\"pack-*\"][\"sealed-upstream\"] = [\".github/actions/pack/action.yml#runs\"]'" \
+  "$TABLE: family \`pack-*\` lists sealed-upstream .github/actions/pack/action.yml#runs, which holds no upload of it without a scan step"
+
 run_case "a row with no scan field fails the schema" 1 \
   "edit $TABLE 'delete t.families[\"build-report\"].scan'" \
   "$TABLE: schema:"

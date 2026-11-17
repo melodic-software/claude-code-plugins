@@ -57,6 +57,12 @@
           "type": "string",
           "minLength": 1
         },
+        "sealed-upstream": {
+          "description": "For a `plaintext` family: `<workflow path>#<job id>` of each job that uploads ciphertext an earlier job of the run scanned and sealed, so its upload has no scan step of its own; the reason names the job that scans.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "pattern": "^\\.github/\\S+#[A-Za-z0-9_-]+$" }
+        },
         "uploads": {
           "description": "For an upload whose name starts with an expression: `<workflow or action path>#<job id>` of each job uploading this family.",
           "type": "array",

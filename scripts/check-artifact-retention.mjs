@@ -152,6 +152,7 @@ for (const { file, kind } of files) {
 
 const computedJobs = new Set();
 const used = new Set();
+const sealedUpstream = new Set();
 for (const step of steps) {
   const at = `${step.file}:${step.line}: upload`;
   if (typeof step.name !== "string" || step.name === "") {
@@ -204,7 +205,9 @@ for (const step of steps) {
       );
     }
   } else if (row.scan === "plaintext" && step.scans.length === 0) {
-    findings.push(`${label} has no scan step before it; ${TABLE} family \`${key}\` says scan: plaintext`);
+    const job = `${step.file}#${step.job}`;
+    if ((row["sealed-upstream"] ?? []).includes(job)) sealedUpstream.add(`${key} ${job}`);
+    else findings.push(`${label} has no scan step before it; ${TABLE} family \`${key}\` says scan: plaintext`);
   }
   const want = row["retention-days"];
   const raw = step.retention;
@@ -229,6 +232,11 @@ for (const [key, row] of Object.entries(families)) {
   for (const job of row.uploads ?? []) {
     if (!computedJobs.has(job)) {
       findings.push(`${TABLE}: family \`${key}\` lists upload ${job}, which uploads no computed name`);
+    }
+  }
+  for (const job of row["sealed-upstream"] ?? []) {
+    if (!sealedUpstream.has(`${key} ${job}`)) {
+      findings.push(`${TABLE}: family \`${key}\` lists sealed-upstream ${job}, which holds no upload of it without a scan step`);
     }
   }
   if (!used.has(key)) {
