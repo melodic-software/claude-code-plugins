@@ -64,8 +64,11 @@ A deviation from the rule above, written and committed before the rerun it gover
   run-count guidance. More runs narrow that interval only by cutting the sampling noise in each
   case's mean change. Doubling sonnet's runs halves that variance. Opus already read non-inferior
   at 3 runs with the lower end above zero, so it keeps its count and is rerun fresh.
+- **Ceiling.** The sonnet invocations pass `--max-cost-usd 10`. At the first compare's
+  list-price cost of 0.13 USD a sonnet run, 48 runs is about 6.2 USD, and a ceiling of 5 would end
+  the pass partway. Opus keeps 5.
 - **No pooling.** Runs from the first compare are not reused or pooled.
-- **Unchanged.** The four cases, the versions rule, the flags other than `--case` and `--runs`, the
+- **Unchanged.** The four cases, the versions rule, the flags other than `--case`, `--runs` and the sonnet ceiling, the
   INVALID rule, margin 0.05 and the met rule.
 - **Last rerun.** This is the last rerun. A result that again reads not shown non-inferior is recorded
   as not met, and the hold stays until the skill text changes. The eval does not change to reach
