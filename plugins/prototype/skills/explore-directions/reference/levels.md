@@ -31,6 +31,8 @@ node "<plugin-root>/lib/prototype-settings.mjs" resolve --option '<option>' [--a
 
 It prints one JSON line, the report line (`level: <name> (<layer>)`), then one `notice:` line per
 value it ignored. Print the report line and every notice as they stand, just above the plan line.
+A run that shows no plan, or builds at once because the request says to build without asking,
+still prints them, before its first tool call that writes a file.
 Exit 2 is a usage error: say so in one line and run it again without the flag it names.
 
 When the resolver cannot run (`node` is missing or not runnable, or it fails another way), print

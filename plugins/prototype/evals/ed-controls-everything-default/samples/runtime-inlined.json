@@ -39,6 +39,10 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node -e 'const fs=require(\\\"fs\\\");fs.appendFileSync(\\\"/tmp/explore-directions-a1B2c3/explore-directions.html\\\", fs.readFileSync(\\\"/plugin/notes-bridge/controls.js\\\",\\\"utf8\\\"))'\",\"description\":\"x\"}}]}}",
       "why": "appended by a Node script and fs.appendFileSync"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"OUT=/tmp/explore-directions-a1B2c3/explore-directions.html\\n{ cat /tmp/explore-directions-a1B2c3/head.html; cat /plugin/notes-bridge/controls.js; cat /tmp/explore-directions-a1B2c3/tail.html; } > \\\"$OUT\\\"\",\"description\":\"x\"}}]}}",
+      "why": "the page written by a group redirected to a shell variable"
     }
   ],
   "fail": [
@@ -81,6 +85,10 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node -e 'const fs=require(\\\"fs\\\");console.log(fs.readFileSync(\\\"/plugin/notes-bridge/controls.js\\\",\\\"utf8\\\").length,fs.existsSync(\\\"explore-directions.html\\\"))'\",\"description\":\"x\"}}]}}",
       "why": "a Node script that reads both files and writes nothing"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"{ wc -l /plugin/notes-bridge/controls.js; } > \\\"$LOG\\\"\",\"description\":\"x\"}}]}}",
+      "why": "a redirect to a shell variable in a command that names no page"
     }
   ]
 }
