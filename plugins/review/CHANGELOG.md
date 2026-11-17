@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.1.1] - 2026-11-17
+
+### Changed
+
+- The `ecosystem-specialist` agent honors an ecosystem record's `requires`: it runs each declared probe before the command, and with any entry absent it reports the phase `SKIP (prerequisite missing: <name>)` with the entry's hint instead of running it, so a missing runtime package or the wrong build of a tool never reads `FAIL` or `PASS`. It never installs a declared prerequisite or dependencies.
+
 ## [10.1.0] - 2026-11-17
 
 ### Changed
