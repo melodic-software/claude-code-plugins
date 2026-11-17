@@ -52,7 +52,8 @@ export function colonsBeforeHash(s: string) {
   return hits.reverse();
 }
 
-export function stripComments(tla: string) {
+export function stripComments(text: string) {
+  const tla = text.slice(Math.max(0, text.search(/^-{4,}[ \t]*MODULE\b/m)));
   let out = "";
   let depth = 0;
   const literal = /"(?:\\.|[^"\\\n])*"?/y;

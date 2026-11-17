@@ -19,6 +19,12 @@ and names the file that holds the full path.
   reaches, and the report says so. When TLC warns that a SYMMETRY can make it miss a liveness
   violation, the report lists the properties it found no violation of under "Rules checked under
   SYMMETRY", not "Rules that hold": check them again without the SYMMETRY.
+- A VIEW changes what TLC checks for a PROPERTY, and TLC prints no warning: it can miss a liveness
+  violation, or report a path that the spec does not allow. Under a VIEW, the report lists each
+  property it found no violation of under "Rules checked under VIEW", and puts a line under each
+  property that breaks saying to check it again without the VIEW before treating it as a bug. A
+  property under both a VIEW and a SYMMETRY warning goes in one section, "Rules checked under VIEW
+  and SYMMETRY". Invariants and deadlock under a VIEW keep their plain verdicts.
 - TLC checks the rules in each state past a CONSTRAINT or an ACTION_CONSTRAINT, but it does not
   explore that state or check it for deadlock. When TLC's shortest path for a rule ends in such a
   state, the chart draws that state, and the report gives that path. The chart does not draw the

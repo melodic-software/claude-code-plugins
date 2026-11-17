@@ -133,7 +133,7 @@ export function agrees(module: string, files: { [name: string]: string[] }, cfg:
 
     const breaks = new Map<string, number>();
     const bounded = new Set<string>();
-    for (const [, rule, body] of report.matchAll(/^## (\S+) breaks\n(.*)$/gm)) {
+    for (const [, rule, body] of report.matchAll(/^## (\S+) breaks\n(?:The cfg has a VIEW\..*\n)?(.*)$/gm)) {
       const said = body.match(/has (\d+) steps?:/)?.[1];
       const file = body.match(/ is in (tlc-\S+\.out)\./)?.[1];
       if (!file) {

@@ -258,6 +258,35 @@ test("a property TLC passes under its SYMMETRY warning is not listed as holding"
   assert.match(report, /^## Rules checked under SYMMETRY\nSettles\nTLC found no violation, but/m);
 });
 
+const VIEW_SECTION = { key: "VIEW", line: 1, tokens: ["VIEW", "OnlyX"] };
+
+test("under a VIEW a property that passes is listed apart, and an invariant still holds", () => {
+  const result = twoStates([]);
+  result.spec.written = [VIEW_SECTION];
+  const { report } = compile(result, noView);
+  assert.match(report, /^## Rules that hold\nSmall$/m);
+  assert.match(
+    report,
+    /^## Rules checked under VIEW\nSettles\nTLC found no violation, but a VIEW can make it miss a violation of a liveness property\. Check these rules again without the VIEW\.$/m,
+  );
+  result.properties[0].symmetry = true;
+  assert.match(
+    compile(result, noView).report,
+    /^## Rules checked under VIEW and SYMMETRY\nSettles\nTLC found no violation, but it warns that SYMMETRY can make it miss a violation of a liveness property, and a VIEW can too\./m,
+  );
+});
+
+test("under a VIEW a property that breaks says the path may not be one the spec allows", () => {
+  const result = twoStates([small]);
+  result.spec.written = [VIEW_SECTION];
+  const { report } = compile(result, noView);
+  assert.match(report, /^## Small breaks\nThe shortest path has 1 step:$/m);
+  assert.match(
+    report,
+    /^## Settles breaks\nThe cfg has a VIEW\. A VIEW can make TLC report a liveness path that the spec does not allow, so check this rule again without the VIEW before you treat it as a bug\.\nTLC found a counterexample\. It is in tlc-Settles\.out\.$/m,
+  );
+});
+
 test("a cut invariant path names a file that holds its run's trace", () => {
   const result = twoStates([]);
   const steps = MAX_BUG_LINES + 5;

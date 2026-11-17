@@ -69,7 +69,9 @@ model, and the races live between comment, assignee and clock reads that no unit
   is `FALSE`: a renew that dies after its PATCH ends the session.
 - The cfg uses `VIEW View`, which drops script-local values a claimant never reads again. Under
   it TLC's distinct-state count depends on exploration order; the chart command runs one worker,
-  so its count is stable.
+  so its count is stable. The view does not decide the verdicts: without `VIEW` both
+  cfgs hold every rule at a548b3aaab8c (5,038,496 and 2,296,754 states, raw TLC, 20 workers).
+  Rerun without it after any change to `View` or to what a claimant reads.
 - The model is finite, so no bound limits the first pass; the run commands pass
   `--rerun-states` to cover it after a break.
 - The seeded break in `sync.yaml` was run against this model: with the winner taken as the latest

@@ -39,6 +39,17 @@ const forever = (loop: { state: string }[], stutters: boolean | undefined) => {
 
 const fenced = fence;
 
+const VIEW_BREAK =
+  "The cfg has a VIEW. A VIEW can make TLC report a liveness path that the spec does not allow, so check this rule again without the VIEW before you treat it as a bug.";
+
+const MISSES: { [why: string]: string } = {
+  VIEW: "a VIEW can make it miss a violation of a liveness property. Check these rules again without the VIEW.",
+  SYMMETRY:
+    "it warns that SYMMETRY can make it miss a violation of a liveness property. Check these rules again without SYMMETRY.",
+  "VIEW and SYMMETRY":
+    "it warns that SYMMETRY can make it miss a violation of a liveness property, and a VIEW can too. Check these rules again without the VIEW and SYMMETRY.",
+};
+
 const pathBlock = (path: { step?: string; state: string }[], full: string) => {
   const lines: string[] = [];
   for (const [i, p] of path.entries()) {
@@ -143,9 +154,12 @@ export function report(
     out.push(
       `With ${list(merged)}, TLC keeps one representative for each group of states that it counts as the same. An arrow can lead to the representative rather than to the state that the step reaches.`,
     );
+  const viewed = hasSection(spec, "VIEW");
+  const viewWarning = (rule: { kind: string }) =>
+    viewed && rule.kind === "property" ? [VIEW_BREAK] : [];
   for (const bug of found) {
     const steps = `${bug.path.length} step${bug.path.length === 1 ? "" : "s"}`;
-    out.push("", `## ${bug.rule.name} breaks`);
+    out.push("", `## ${bug.rule.name} breaks`, ...viewWarning(bug.rule));
     out.push(
       bug.rule.kind === "property"
         ? `TLC's counterexample is in tlc-${bug.rule.name}.out. It has ${steps}:`
@@ -159,26 +173,27 @@ export function report(
   for (const b of found) drawn.add(ruleKey(b.rule));
   const holds: string[] = [];
   const unchecked: string[] = [];
-  const symmetric: string[] = [];
+  const caveated = new Map<string, string[]>();
   for (const v of [...rules, ...properties]) {
     const { rule, outcome, messages } = v;
-    if (outcome === "holds") ("symmetry" in v && v.symmetry ? symmetric : holds).push(rule.name);
+    const why: string[] = [];
+    if (viewed && rule.kind === "property") why.push("VIEW");
+    if ("symmetry" in v && v.symmetry) why.push("SYMMETRY");
+    const key = list(why);
+    if (outcome === "holds" && key) caveated.set(key, [...(caveated.get(key) ?? []), rule.name]);
+    else if (outcome === "holds") holds.push(rule.name);
     else if (outcome === "not checked") unchecked.push(rule.name);
     else if (messages && !drawn.has(ruleKey(rule)))
       out.push(
         "",
         `## ${rule.name} breaks`,
+        ...viewWarning(rule),
         `TLC found a counterexample. It is in tlc-${rule.name}.out.`,
       );
   }
   if (holds.length) out.push("", "## Rules that hold", holds.join(", "));
-  if (symmetric.length)
-    out.push(
-      "",
-      "## Rules checked under SYMMETRY",
-      symmetric.join(", "),
-      "TLC found no violation, but it warns that SYMMETRY can make it miss a violation of a liveness property. Check these rules again without SYMMETRY.",
-    );
+  for (const [why, names] of caveated)
+    out.push("", `## Rules checked under ${why}`, names.join(", "), `TLC found no violation, but ${MISSES[why]}`);
   if (unchecked.length) out.push("", "## Rules not checked", unchecked.join(", "));
   if (unchecked.length && states.cut)
     out.push(

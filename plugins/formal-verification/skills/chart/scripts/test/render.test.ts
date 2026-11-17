@@ -12,10 +12,7 @@ for (const f of fs.readdirSync(path.join(here, "charts")))
   charts.push(path.join(here, "charts", f));
 for (const d of fs.readdirSync(path.join(here, "corpus")))
   charts.push(path.join(here, "corpus", d, "chart.mmd"));
-const guide = fs.readFileSync(path.join(here, "../../reference/render.md"), "utf8");
-const css = guide.match(/```css\n([\s\S]*?)```/);
-assert.ok(css, "reference/render.md has no css block");
-const theme = css[1];
+const theme = fs.readFileSync(path.join(here, "../../reference/render-theme.css"), "utf8");
 const deps = process.env.STATECHART_RENDER_DEPS;
 const skip =
   !deps &&
@@ -66,7 +63,7 @@ test("random labels and colors keep their text and the chart's shape in Mermaid 
   assert.ok(drawn > 400 && refused > 20, `${drawn} charts drawn, ${refused} refused`);
 });
 
-test("the theme in references/render.md colors each class that the charts use", () => {
+test("the theme in reference/render-theme.css colors each class that the charts use", () => {
   assert.ok(classes.size > 0);
   for (const name of classes) assert.match(theme, new RegExp(`\\.pele \\.${name} rect \\{`), name);
 });
