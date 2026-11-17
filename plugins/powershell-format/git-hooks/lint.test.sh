@@ -169,8 +169,9 @@ out="$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" 2>&1)"
 expect "missing module: a person gets a notice and exit 0" "0|NOTICE: PSScriptAnalyzer missing, so this check did not run. Install: $INSTALL_MOD" "$?|$out"
 git -C "$REPO" config checks.skipmissing PSScriptAnalyzer
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$STUB:$PATH" bash "$CHECK" 2>&1)"
+rc=$?
 git -C "$REPO" config --unset checks.skipmissing
-expect "missing module named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: PSScriptAnalyzer (missing)" "$?|$out"
+expect "missing module named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: PSScriptAnalyzer (missing)" "$rc|$out"
 
 printf '#!/usr/bin/env bash\necho "something broke"\nexit 1\n' >"$STUB/pwsh"
 out="$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" 2>&1)"

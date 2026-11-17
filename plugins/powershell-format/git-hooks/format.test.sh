@@ -195,8 +195,9 @@ out="$(cd "$REPO" && PATH="$NOPWSH" bash "$CHECK" 2>&1)"
 expect "missing pwsh: a person gets a notice and exit 0" "0|NOTICE: pwsh missing, so this check did not run. Install: $INSTALL_HINT" "$?|$out"
 git -C "$REPO" config checks.skipmissing pwsh
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOPWSH" bash "$CHECK" 2>&1)"
+rc=$?
 git -C "$REPO" config --unset checks.skipmissing
-expect "missing pwsh named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: pwsh (missing)" "$?|$out"
+expect "missing pwsh named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: pwsh (missing)" "$rc|$out"
 
 STUB="$WORK/stub"
 mkdir -p "$STUB"
@@ -211,8 +212,9 @@ out="$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" 2>&1)"
 expect "missing module: a person gets a notice and exit 0" "0|NOTICE: PSScriptAnalyzer missing, so this check did not run. Install: $INSTALL_MOD" "$?|$out"
 git -C "$REPO" config checks.skipmissing PSScriptAnalyzer
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$STUB:$PATH" bash "$CHECK" 2>&1)"
+rc=$?
 git -C "$REPO" config --unset checks.skipmissing
-expect "missing module named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: PSScriptAnalyzer (missing)" "$?|$out"
+expect "missing module named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: PSScriptAnalyzer (missing)" "$rc|$out"
 expect "missing module: the file is untouched" "get-childitem ." "$(cat "$REPO/a.ps1")"
 
 printf '#!/usr/bin/env bash\necho "PSSA_ERROR a.ps1: boom"\nexit 4\n' >"$STUB/pwsh"
