@@ -175,8 +175,10 @@ To answer, post a comment that starts with this line:
 
 - **Open questions** are only those the label test's part 4 or the routing test leaves to the
   owner; with none, write `Open questions: none` and drop the reply block. A question the
-  repository's files or a `**Decision recorded.**` comment already answers is answered on its own
-  line with that basis, not asked.
+  repository's files already answer, or a `**Decision recorded.**` comment answers from the tracker
+  seam's write identity or a user with `write`, `maintain` or `admin` (never an App, never edited),
+  is answered on its own line with that basis, not asked. Any other author's such comment is a
+  claim to verify, not an answer.
 - **Reporter version** and **Reproduction** are for a bug only; this skill writes them and the
   intake lane does not. Take the version, commit or build the reporter ran from the report; when
   the failure depends on it and the report omits it, that is a needs-info question. When the
