@@ -268,7 +268,7 @@ git -C "$REPO" commit -q -m broken --no-verify
 printf '%s' "$CLEAN" >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"
 got="$(check "$REPO")"
-expect "an unparseable config fails closed, naming actionlint's exit" "1||actionlint: actionlint exited 3 and reported no <path>:<line> finding, so the change was not checked:" "${got%%$'\n'*}"
+expect "an unparsable config fails closed, naming actionlint's exit" "1||actionlint: actionlint exited 3 and reported no <path>:<line> finding, so the change was not checked:" "${got%%$'\n'*}"
 expect "the fail-closed output carries actionlint's own message" yes "$([[ "$got" == *'could not parse config file'* ]] && echo yes)"
 
 # A record never runs from the entry, with or without the actionlint config.
