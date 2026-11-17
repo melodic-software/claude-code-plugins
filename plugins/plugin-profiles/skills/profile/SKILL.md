@@ -55,7 +55,9 @@ prompt. A `Not installed` line does not stop an apply: only a missing required p
   folder and profile and prints the `claude` command that starts a session in it; with no name it
   takes this session's profile. It writes no settings file, so it needs no preview. Every launcher
   (a handoff, a background session, a lane) starts sessions through it; see its usage for
-  `--with`, `--unattended` and `--json`.
+  `--with`, `--unattended` and `--json`. A person in a terminal starts one with
+  `claude-profile [<name>]` (their dotfiles' function, which runs `start`) and resumes it with
+  `claude-profile --resume <id>` or `claude-profile -c`; tell them that form.
 - **apply `<name>`**: `apply <name> --for folder|initial|session`. Ask where when the user has not
   said: `folder` for this folder, `initial` for every folder without its own profile, `session` for
   one session started with the `claude --settings` command the tool prints. Run `list` first when

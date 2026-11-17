@@ -65,6 +65,26 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" start build
 
 `--dry-run` prints the `claude` command and starts nothing. Windows is untested.
 
+To add the function, put this in a file your bash or zsh startup sources:
+
+```bash
+claude-profile() {
+  local root=""
+  if command -v node >/dev/null 2>&1; then
+    root="$(command claude plugin list --json 2>/dev/null | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{const p=JSON.parse(d).find(x=>String(x.id).startsWith("plugin-profiles@")&&x.enabled===true);if(p)process.stdout.write(p.installPath)}catch{}})')"
+  fi
+  if [ -z "$root" ] || [ ! -f "$root/scripts/profiles.mjs" ]; then
+    echo "claude-profile: plugin-profiles is not installed and enabled (or node is missing), so claude starts without a profile." >&2
+    command claude "$@"
+    return
+  fi
+  node "$root/scripts/profiles.mjs" start "$@"
+}
+```
+
+What each situation does to the profile, and how to get back to the state before any profile, is
+in [`reference/scenarios.md`](reference/scenarios.md).
+
 ## Apply a profile
 
 ```bash
