@@ -92,8 +92,6 @@ on:
 
 permissions: {}
 
-# The one place each eval model id is named: every leg's permission probe and
-# eval run read these.
 env:
   EVAL_MODEL: claude-sonnet-5-5
   EVAL_JUDGE_MODEL: claude-opus-5-5

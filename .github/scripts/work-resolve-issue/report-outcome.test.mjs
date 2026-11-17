@@ -5959,7 +5959,6 @@ test("the required sections come from pr_body_required_sections, and nothing usa
     writeFileSync(file, "pr_body_required_sections:\n  - Summary\n  - ' Risk '\n  - 7\n  - \"## <!-- x -->\"\nother: 1\n");
     const yq = spawnSync("yq", ["--version"]).status === 0;
     if (yq) assert.deepEqual(requiredSections(file), ["Summary", "Risk"]);
-    // A stand-in yq: what it prints is the list, and a failure reads as none.
     assert.deepEqual(requiredSections(file, () => '["Fix","",null]'), ["Fix"]);
     assert.deepEqual(requiredSections(file, () => "{}"), []);
     assert.deepEqual(

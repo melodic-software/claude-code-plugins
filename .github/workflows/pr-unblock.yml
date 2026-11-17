@@ -1,10 +1,5 @@
 name: PR Unblock
 
-# Lane: pr-unblock
-# Does: resolves conflicts, fixes CI and addresses review feedback on a pull request
-# Trigger: workflow_dispatch (from its dispatchers or a listed human)
-# Stage: unblock
-
 # Lane caller for pr-unblock: its file stem is the lane, so the lanes token
 # broker accepts its write activities. No App key; each run job's OIDC token is
 # exchanged at LANES_BROKER_URL for audience LANES_BROKER_AUDIENCE.

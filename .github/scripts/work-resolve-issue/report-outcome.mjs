@@ -1682,9 +1682,6 @@ export function decide({
   };
 }
 
-// The pr_body_required_sections list of the default branch's
-// source-control.yaml, read with yq as trackerBindingText reads the tracker;
-// [] when the file, the key or yq is missing, or an entry is not a short name.
 export function requiredSections(path, run = execFileSync) {
   let text;
   try {
@@ -1702,10 +1699,6 @@ export function requiredSections(path, run = execFileSync) {
 
 const SECTION_NAME = /^[A-Za-z0-9][A-Za-z0-9 ._/-]{0,59}$/;
 
-// The PR body with a non-empty `## <name>` section added at its end for each
-// required name it lacks (case-insensitively), in the list's order, so the
-// body contract's section check passes whatever sections the repository asks
-// for.
 export function withRequiredSections(body, names) {
   const have = new Set(body.split("\n").flatMap((line) => (line.startsWith("## ") ? [line.slice(3).trim().toLowerCase()] : [])));
   const missing = [...new Set(names)].filter((name) => !have.has(name.toLowerCase()));

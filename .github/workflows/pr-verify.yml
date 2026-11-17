@@ -1,10 +1,5 @@
 name: PR Verify
 
-# Lane: pr-verify
-# Does: a model that did not write the pull request judges its head against the linked issue
-# Trigger: workflow_run (PR Require Checks)
-# Stage: verify
-
 # The verifier: a model that did not write the pull request judges each head
 # that passes pr-require-checks, or fails it only on holds an approving review
 # of the head lifts (resolve-pr.mjs heldOnly, so the person approves a judged

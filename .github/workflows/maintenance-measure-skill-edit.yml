@@ -1,10 +1,5 @@
 name: Maintenance Measure Skill Edit
 
-# Lane: maintenance-measure-skill-edit
-# Does: measures one proposed skill edit and opens a draft pull request when it wins
-# Trigger: workflow_dispatch
-# Stage: maintenance
-
 # Measures one proposed edit to one skill against the skill as merged, on a
 # listed human's dispatch, and opens a draft pull request when it wins (#12035;
 # plan: the #6405 comment

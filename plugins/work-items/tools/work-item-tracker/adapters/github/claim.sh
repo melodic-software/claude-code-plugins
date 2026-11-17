@@ -127,8 +127,6 @@ lease="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg holder "$login" --arg now "
    + (if ($ttl_minutes | tonumber) > 0 then {ttl_minutes: ($ttl_minutes | tonumber)} else {} end)
    + (if $sid != "" then {session_id: $sid} else {} end)
    + (if $phase != "" then {phase: $phase} else {} end)')"
-# A workflow run's lease (session_id run-<id>) names its run as a readable link
-# after the marker, which wit_lease_json reads past.
 footer="" run_id="${session_id#run-}"
 if [[ "$session_id" == "run-$run_id" && "$run_id" =~ ^[1-9][0-9]{0,19}$ && "${GITHUB_SERVER_URL:-}" =~ ^https://[A-Za-z0-9.-]+$ ]]; then
   footer=$'\n\n'"Claimed by [workflow run $run_id](${GITHUB_SERVER_URL}/$owner/$repo/actions/runs/$run_id)."

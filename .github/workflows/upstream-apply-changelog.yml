@@ -1,10 +1,5 @@
 name: Upstream Apply Changelog
 
-# Lane: upstream-apply-changelog
-# Does: applies one Claude Code release's changelog, one pull request per owner plugin
-# Trigger: schedule, workflow_dispatch
-# Stage: upstream
-
 # The release intake lane (#7407): for one Claude Code release, the apply-changelog job
 # runs `/harness-ops:changelog apply --ci <release>`, which commits one local
 # branch per owner plugin and writes ci-plan.json

@@ -25,9 +25,6 @@
 #       remains, and a same-login loser leaves no assignee that outlives the leases.
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
-# In a CI job the adapter wraps its gh calls and records into the job's
-# RUNNER_TEMP; the stubs here answer the unwrapped calls. A run lease names its
-# run only when GITHUB_SERVER_URL is set; the run-link case below sets it.
 unset RUNNER_TEMP GITHUB_SERVER_URL
 
 TMP_ROOT="$(mktemp -d)"
@@ -692,8 +689,6 @@ for sid in run-0 run-0123 xrun-100 run-100x; do
   cleanup_scenario
 done
 
-# [run link] a workflow run's lease comment links its run after the marker, and the
-# lease still reads; any other session, or a server URL of another shape, adds nothing.
 link_case() {
   local label="$1" sid="$2" server="$3" want="$4" out
   new_scenario

@@ -3000,15 +3000,6 @@ jobs:
           credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           reason: ${{ matrix.reason }}
 
-      # The fallback token is the last leg: it still reviews the lane, and the
-      # run says so as a warning annotation so the spend is seen.
-      - name: Warn that the fallback token reviews
-        if: steps.credential.outputs.present == 'true'
-        env:
-          LANE: ${{ matrix.lane }}
-          REASON: ${{ steps.credential.outputs.fallback-reason }}
-        run: echo "::warning title=pr-review-main fallback::lane=$LANE reviews on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN (reason=${REASON:-unread}); the subscription leg handed it on"
-
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings

@@ -1,10 +1,5 @@
 name: PR Review Hosted
 
-# Lane: pr-review
-# Does: the AI code-review lane on a pull request's head
-# Trigger: pull_request
-# Stage: verify
-
 # Locally owned: the `claude-review-hosted-caller` component of
 # melodic-software/standards (components/claude-lanes-hosted/claude-review.yml)
 # is `locally-owned` for this repository in distribution/sync-manifest.yml, so

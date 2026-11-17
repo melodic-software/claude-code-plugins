@@ -1,10 +1,5 @@
 name: Intake Triage
 
-# Lane: intake-triage
-# Does: triages a new issue: a read-only model run proposes labels and a comment
-# Trigger: issues (opened, reopened), workflow_dispatch
-# Stage: intake
-
 # Triages each newly opened issue with the org intake-triage lane: a read-only
 # Claude run proposes labels and a comment, and a step with no model applies
 # only allowlisted labels that exist here, or `needs-human` when the run

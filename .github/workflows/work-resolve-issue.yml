@@ -1,10 +1,5 @@
 name: Work Resolve Issue
 
-# Lane: work-resolve-issue
-# Does: works one agent-ready issue in a model run and opens a pull request for it
-# Trigger: issues (field_added: the Work status set to agent-ready)
-# Stage: work
-
 # Lane caller for work-resolve-issue: setting an issue's Work status field to
 # agent-ready (`field_added`, field 48484079, option 84879220,
 # models.issue-status in docs/conventions/pr-pipeline.yaml) starts one agent

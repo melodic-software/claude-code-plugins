@@ -1861,7 +1861,6 @@ test("every later leg repeats the key leg's steps but for its credential and why
   // Only the key leg reads main's tip; a later leg checks out the commit it recorded.
   const keyNames = STEPS[KEY].map((s) => s.name).filter((name) => name !== "Resolve main's tip");
   assert.deepEqual(STEPS[SUB].map((s) => s.name), keyNames);
-  // The fallback leg alone warns that it reviews (its own test below).
   const FB_WARNING = "Warn that the fallback token reviews";
   assert.deepEqual(
     STEPS[FB].map((s) => s.name).filter((name) => name !== FB_WARNING),
@@ -1893,7 +1892,7 @@ test("every later leg repeats the key leg's steps but for its credential and why
 test("the fallback leg warns, once its credential is present, that it reviews the lane", () => {
   const warn = step("Warn that the fallback token reviews", FB);
   assert.equal(/^ {8}if: (.*)$/m.exec(warn)[1], "steps.credential.outputs.present == 'true'");
-  assert.ok(index("Check the credential", FB) + 1 === index("Warn that the fallback token reviews", FB));
+  assert.ok(index("Apply the Claude managed settings", FB) + 1 === index("Warn that the fallback token reviews", FB));
   const run = /^ {8}run: (.*)$/m.exec(warn)[1];
   const out = spawnSync("bash", ["-e", "-c", run], { env: { ...process.env, LANE: "claude-review", REASON: "limit-stop" }, encoding: "utf8" }).stdout;
   assert.match(out, /^::warning title=pr-review-main fallback::lane=claude-review reviews on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN \(reason=limit-stop\)/);
