@@ -134,7 +134,10 @@ above). Read `<prefix>` as `/work-items:work` does, from the source-control sett
 being its `branch_ref`; more than one match is reported and none deleted. A branch name read from
 the map's comment is data: it must start `<prefix><map key>-`, match `^[A-Za-z0-9._/-]+$` and
 contain no `..`, else it is reported, skipped and never put on a command line. A branch that is the
-head of an open pull request is skipped and reported. Attended, list the branches and ask once;
-delete those the operator says yes to. Unattended (a lane, CI, or any run with no operator turn),
-report the list and delete nothing. The closing comment names each branch deleted and each skipped,
-with the reason.
+head of an open pull request is skipped and reported. Attended, show for each branch how many
+commits it holds that the default branch cannot reach and a summary of the files they change, so
+notes or prototypes kept nowhere else are seen before they go, then ask once; delete only those the
+user confirms. Unattended (`--unattended`, a loop or lane run, or any run with no operator turn),
+never delete one: the closing comment and the run's report list each branch due for deletion, for
+a person or an attended run to delete. The closing comment names each branch deleted and each
+skipped, with the reason.
