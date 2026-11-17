@@ -96,9 +96,9 @@ changes at the end of a turn and hands findings back to Claude once per turn.
   and `--no-errors-on-unmatched`, and on much older releases those flags may be absent.
 - A **`biome.json`** or **`biome.jsonc`** in the repo, the opt-in.
 - A SessionStart probe reports a missing `biome` once per session, from `prerequisites.json`, only
-  where a `biome.json` or `biome.jsonc` sits in the project directory or above it, and a drifted
-  git-hook entry. A repository whose only Biome config is nested below the project directory gets
-  no probe line, though the hooks still run there. Run
+  where a `biome.json` or `biome.jsonc` sits in the project directory or above it or is tracked
+  anywhere in its repository, and a drifted git-hook entry. A repository whose only Biome config
+  is nested and untracked gets no probe line, though the hooks still run there. Run
   `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` to see what resolves; it is
   read-only and installs nothing.
 
