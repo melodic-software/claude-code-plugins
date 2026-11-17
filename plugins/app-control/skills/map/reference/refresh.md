@@ -248,9 +248,11 @@ unwritten. Otherwise, for each new surface:
    [slug rule](naming.md#slug-rule) (under `features/<module>/` when the hub's index groups by
    module and that module's `sources` globs match the source path, its `## Sub-features` line
    added there), and its index line with `sources` globs covering the source path and a true
-   entry-point count. Each
-   Drive step's `Result:`, the `**Proof.**` step and each entry point's `driven` mark wait for
-   step 6.2, as a conversion's do. A step that sends, signs in or writes, with no `cli/` command to
+   entry-point count. The `## Drive` ends in a provisional `**Proof.**` step, the step the
+   answer named as showing the end state, with its `Captures:` line, so step 5's drive takes the
+   proof. Each step's `Result:` is the source-reader's cited claim, marked provisional, and each
+   entry point is `not driven: not yet driven`; step 6.2 rewrites all three from what the drive
+   showed. A step that sends, signs in or writes, with no `cli/` command to
    run it, is a driver gap: its entry point is `not driven: needs a cli/ command` and the step is
    not written.
 3. **Ask only the residue.** An attended pass asks what the answer left open, as Create step 3
@@ -258,8 +260,8 @@ unwritten. Otherwise, for each new surface:
    safe floor. An unattended pass asks nothing: an open choice takes its safe or recommended
    value, and the report lists each with that value.
 
-Step 5 then drives each new feature like any other. Its `Result:` lines and proof step come from
-what that drive showed, never from the source. When the drive does not reach the proof step, or
+Step 5 then drives each new feature like any other. Its final `Result:` lines and proof step come
+from what that drive showed, never from the source; no provisional text ships. When the drive does not reach the proof step, or
 an attended person declines the feature at step 6, undo it: delete the folder and remove only the
 index line and `## Sub-features` line this step added for it, leaving every other line as it
 stands, and report the surface as not mapped with the unmet prerequisite and the command tried. A pass that stops before § Ticket branch step 3 undoes each new feature the

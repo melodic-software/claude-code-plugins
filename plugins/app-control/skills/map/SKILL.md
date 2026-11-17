@@ -224,7 +224,8 @@ conversion moves out of.
    the changed files for user-facing surfaces no feature lists, each with its source path, and you
    spot-check at least one cited claim per answer that reports drift before the live pass. On a
    ticket branch, a surface the ticket's own diff adds becomes a new feature folder, written
-   uncommitted from one more source-reader answer and driven in step 5; an unattended pass asks
+   uncommitted from one more source-reader answer, with a provisional proof step, and driven in
+   step 5, which settles its results; an unattended pass asks
    nothing and reports each choice it took (refresh.md § 4, New features on a ticket branch).
 5. **Live pass** of every feature (or the one a feature id names) through `/app-control:drive`:
    Ready before the first drive and after any failed one, cleanup after each launch, and every
