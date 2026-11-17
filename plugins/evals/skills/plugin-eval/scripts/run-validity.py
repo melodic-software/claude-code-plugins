@@ -70,6 +70,16 @@ one line per check, detail lines indented under it:
                       helper and is checked only in that case's runs. A
                       with-arm run with no trace, no init line or no
                       plugins list on it is a warning
+    programs started  no failed tool result, and no Bash result, shows a
+                      program failing to start: a mise shim error (`<name> is
+                      not a valid shim`) in any run is a FAIL, and so is
+                      `command not found` for an interpreter (node, npx,
+                      python3, uv, bun, deno, ruby, perl and the like), since
+                      the run could not execute the skill's code; any other
+                      `command not found` is a warning. Each text counts only
+                      where it opens an output line, as the shell or mise
+                      prints it, so output quoting it does not. Each detail
+                      names the run, the program and the first call that failed
     permission denials  no denied tool call in any trace; a denial is a warning
                       when that run scores the same as every denial-free run
                       of its case in the same arm (there must be one), since
@@ -314,6 +324,25 @@ MESSAGE, CONTENT, BLOCK_TYPE = "message", "content", "type"  # message.content[]
 TOOL_USE, USE_ID, USE_NAME, USE_INPUT = "tool_use", "id", "name", "input"
 TOOL_RESULT, RESULT_USE_ID, RESULT_ERROR = "tool_result", "tool_use_id", "is_error"
 DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
+# A tool result showing that a program the session ran could not start: a mise
+# shim with no tool behind it ("mise ERROR node is not a valid shim"), or the
+# shell finding no such command (bash's "bash: line 1: <name>: command not
+# found", zsh's "zsh: command not found: <name>"). Each must open an output
+# line, as the program prints it, so a grep that quotes the text matches neither.
+SHIM_ERROR = re.compile(
+    r"^(?:\S*mise\S*\s+)?(?:\S*ERROR\S*\s+)?([^\s'\"`]+) is not a valid shim", re.M
+)
+NOT_FOUND = re.compile(
+    r"^[^\s:]+(?::\d+)?: (?:line \d+: )?"
+    r"(?:([^\s:'\"`]+): command not found|command not found: ([^\s'\"`]+))",
+    re.M,
+)
+# Interpreters a skill runs its code with: command not found for one of these
+# fails; for any other command it warns, as a case may run a missing command on
+# purpose.
+INTERPRETERS = frozenset(
+    "node nodejs npx npm python python3 py uv uvx bun bunx deno ruby perl pwsh tsx".split()
+)
 # A Bash tool_result's sandbox report, is_error or not, and its network denial
 # lines. Upstream documents no format: observed in a with-arm trace of the x
 # plugin's suite on Claude Code 2.1.317, 2026-11-03; network-denied.jsonl in the
@@ -2565,6 +2594,69 @@ def probe_split(case, runs, found, root):
     )
 
 
+def start_failures(run):
+    """Each (program, failure, fatal, call) the run's trace shows, read from
+    every failed tool_result and every Bash result that is not a denial. A shim
+    error is fatal, and so is command not found for an interpreter; call is the
+    Bash command, or the name of another tool."""
+    calls, found = {}, []
+    for line in run.trace or []:
+        for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
+            if block.get(BLOCK_TYPE) == TOOL_USE:
+                calls[block.get(USE_ID)] = block
+                continue
+            if block.get(BLOCK_TYPE) != TOOL_RESULT or is_denial(block):
+                continue
+            use = as_dict(calls.get(block.get(RESULT_USE_ID)))
+            bash = use.get(USE_NAME) == BASH_TOOL
+            if not bash and block.get(RESULT_ERROR) is not True:
+                continue
+            call = as_dict(use.get(USE_INPUT)).get(BASH_COMMAND) if bash else use.get(USE_NAME)
+            call = " ".join(str(call).split())
+            text = result_text(block.get(CONTENT))
+            for m in SHIM_ERROR.finditer(text):
+                found.append((m.group(1), "is not a valid shim", True, call))
+            for m in NOT_FOUND.finditer(text):
+                program = m.group(1) or m.group(2)
+                found.append((program, "command not found", program in INTERPRETERS, call))
+    return found
+
+
+def check_programs(runs):
+    """A run whose trace shows a shim error, or command not found for an
+    interpreter, could not run the skill's code, so its score measures the
+    missing program: FAIL. Any other command not found warns."""
+    failed, warned = [], []
+    for r in runs:
+        found = start_failures(r)
+        if not found:
+            continue
+        fatal = [f for f in found if f[2]]
+        program, failure, _, call = (fatal or found)[0]
+        detail = "%s: %s %s, first in `%s` (%s)" % (
+            r.where, program, failure, call, r.trace_path
+        )
+        (failed if fatal else warned).append(detail)
+    if failed:
+        count = plural(len(failed), "run")
+        return (
+            FAIL,
+            "a program failed to start in %s" % count,
+            failed + warned,
+            "a program the skill runs failed to start in %s, so the score measures"
+            " the missing program, not the skill" % count,
+        )
+    if warned:
+        count = plural(len(warned), "run")
+        return (
+            WARN,
+            "a command was not found in %s" % count,
+            warned,
+            "command not found in %s" % count,
+        )
+    return PASS, "no trace shows a shim error or command not found", [], None
+
+
 def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=()):
     traced = [r for r in runs if r.trace is not None]
     every = {r: denials(r) for r in traced}
@@ -3156,6 +3248,7 @@ def main(argv=None):
         ("session started", check_started(runs)),
         ("skill loaded", check_loaded(runs, root, frozenset(args.measured_fire))),
         ("plugins loaded", check_plugins_loaded(runs, suite_plugins(suite, base), root)),
+        ("programs started", check_programs(runs)),
         (
             "permission denials",
             check_denials(
