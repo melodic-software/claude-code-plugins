@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: su-apply-attended-drafts-record
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'drafts-lint-cmd'
+    type: 'llm'
+    criteria: 'The reply drafts a lint-cmd that spell-checks with cspell and holds the <files> placeholder.'
+    focus: 'last_message'
+  - name: 'routes-to-toolchain'
+    type: 'llm'
+    criteria: 'The reply says /toolchain:setup apply spelling writes the record, and hands it the drafted value, rather than writing the record itself.'
+    focus: 'last_message'
+  - name: 'hooks-never-run-it'
+    type: 'llm'
+    criteria: 'The reply says spelling''s hooks will not run cspell: they run only the shipped typos adapter, and the drafted record runs only through /toolchain:lint and /toolchain:check, on request.'
+    focus: 'last_message'
+  - name: 'lint-report-only'
+    type: 'llm'
+    criteria: 'The drafted lint-cmd only reports: it carries no fix or rewrite flag.'
+    focus: 'last_message'
+  - name: 'no-file-1'
+    type: 'file_exists'
+    path: '**/.claude/ecosystems/spelling.yaml'
+    exists: false
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

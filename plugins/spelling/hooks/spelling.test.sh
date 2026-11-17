@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for spelling's Claude Code hook rows after spell-check
-# findings moved to commit time: the hooks.json row set (no per-edit
-# PostToolUse row, no digest reset and no SessionStart row; the opt-in Stop row),
-# the prerequisites manifest and its session_probe gate, and spelling.sh's
-# remaining entry points. The Stop
-# row's behavior is spelling-end-of-turn.test.sh; the pre-commit check is
-# git-hooks/typos-check.test.sh.
 # test-scope: plugins/spelling/.claude-plugin/plugin.json plugins/spelling/hooks/hooks.json plugins/spelling/prerequisites.json
 
 set -uo pipefail
@@ -66,6 +59,11 @@ if jq -e '(.requires | map(.id)) == ["typos", "jq", "node"]' "$MANIFEST" >/dev/n
   ok "manifest: declares exactly typos, jq and node"
 else
   fail "manifest: expected tools typos, jq and node: $(cat "$MANIFEST" 2>/dev/null)"
+fi
+if jq -e '.requires[] | select(.id == "typos") | has("when") | not' "$MANIFEST" >/dev/null; then
+  ok "manifest: typos carries no when, since the lint entry runs without a typos config too"
+else
+  fail "manifest: typos must not be gated by when: the lint entry runs without a typos config"
 fi
 # harness-ops' prerequisites-fleet.mjs runs the probe behind the kill switch; its own test covers the gate.
 if jq -e '.session_probe.run_if_unset_or_true == "SPELLING_ENABLED"' "$MANIFEST" >/dev/null; then
