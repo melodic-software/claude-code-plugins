@@ -1485,11 +1485,13 @@ jobs:
       # The collector writes the patch in patch mode and checks the tree is
       # clean otherwise; the mode check reads each launcher leg. The sealer and its public key go with it: the head
       # checkout replaces .base, and the head's own key file is the PR's.
-      # Head code can rewrite either copy, as it can the collector's; a
-      # forged sealer gains nothing the model job does not already hold. It
+      # Head code shares RUNNER_TEMP and can rewrite these copies, so each
+      # sealer file's SHA-256 is recorded here, and the seal-check step
+      # verifies the copy against it before the seal step runs it. It
       # runs after a failed earlier step too (a write-issue refusal), so the
       # carry step can still seal lane.json naming why the run never started.
       - name: Copy the patch collector and the output sealer from the base
+        id: seal-copy
         if: always() && steps.go.outputs.run == 'true'
         env:
           DEST: ${{ runner.temp }}/read-patch
@@ -1499,6 +1501,10 @@ jobs:
           cp .base/.github/scripts/read-patch/collect-patch.sh .base/.github/scripts/read-patch/check-permission-mode.sh .base/lib/publish-gate.mjs "$DEST/"
           cp .base/.github/actions/seal-lane-output/action.yml .base/.github/actions/seal-lane-output/seal.mjs \
             .base/.github/lane-keys/scan-carrier.pub "$SEAL_DIR/"
+          for pair in action:action.yml seal:seal.mjs key:scan-carrier.pub; do
+            sum=$(sha256sum <"$SEAL_DIR/${pair#*:}")
+            echo "${pair%%:*}-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
+          done
 
       # The act-turns step's script, copied before the head checkout replaces
       # .base, with its SHA-256, which that step checks its copy against
@@ -2294,7 +2300,8 @@ jobs:
       # for a block, a binary hunk or a scan that failed, holds. Head code may
       # forge clean, which only turns that hold into a retry; this step adds no
       # token. The seal step then seals the staged copies (the sealer
-      # copied from the base, placed where a uses: can reach it) into at
+      # copied from the base, placed where a uses: can reach it and checked
+      # against the base's SHA-256 by the seal-check step) into at
       # most five chunks of 98304 characters, each fitting one environment
       # variable, bound to this run and the run job. Every output here is
       # set after head code ran, so the scan job checks each.
@@ -2366,9 +2373,34 @@ jobs:
           rm -rf "${GITHUB_WORKSPACE:?}/.lane-seal"
           cp -R "$SEAL_DIR" "$GITHUB_WORKSPACE/.lane-seal"
 
+      # The sealer copy sat in RUNNER_TEMP while head code ran: each file must
+      # be a regular file matching the SHA-256 the copy step recorded from the
+      # base, or the seal step does not run.
+      - name: Check the sealer copy against the base
+        id: seal-check
+        if: always() && steps.carry.outcome == 'success'
+        env:
+          ACTION_SHA256: ${{ steps.seal-copy.outputs.action-sha256 }}
+          SEAL_SHA256: ${{ steps.seal-copy.outputs.seal-sha256 }}
+          KEY_SHA256: ${{ steps.seal-copy.outputs.key-sha256 }}
+        run: |
+          for pair in action.yml:ACTION_SHA256 seal.mjs:SEAL_SHA256 scan-carrier.pub:KEY_SHA256; do
+            name=${pair%%:*} want=${pair#*:}
+            file=$GITHUB_WORKSPACE/.lane-seal/$name
+            if [ -z "${!want}" ] || [ -L "$file" ] || [ ! -f "$file" ]; then
+              echo "::error::the sealer copy's $name is not a regular file or has no recorded SHA-256, so nothing is sealed"
+              exit 1
+            fi
+            sum=$(sha256sum <"$file")
+            if [ "${sum%% *}" != "${!want}" ]; then
+              echo "::error::the sealer copy's $name does not match the SHA-256 recorded when it was copied from the base, so nothing is sealed"
+              exit 1
+            fi
+          done
+
       - name: Seal the reply, run fields and patch for the scan job
         id: seal
-        if: always() && steps.carry.outcome == 'success'
+        if: always() && steps.carry.outcome == 'success' && steps.seal-check.outcome == 'success'
         uses: ./.lane-seal # zizmor: ignore[self-repository]
         with:
           public-key-file: .lane-seal/scan-carrier.pub
