@@ -43,7 +43,11 @@ as a deviation in the record.
 - **Not met.** Any other outcome, `n too small to call` included. Graders are not changed after a
   run's numbers have been seen.
 
-## Amendment 1
+## Amendment 1 (withdrawn)
+
+Withdrawn before any result was read; its runs were stopped and discarded. It raised sonnet's run
+count against the owner's eval gate (below), and it followed a grader change made after the first
+compare's numbers.
 
 A deviation from the rule above, written and committed before the rerun it governs.
 
@@ -73,3 +77,36 @@ A deviation from the rule above, written and committed before the rerun it gover
 - **Last rerun.** This is the last rerun. A result that again reads not shown non-inferior is recorded
   as not met, and the hold stays until the skill text changes. The eval does not change to reach
   a verdict.
+
+## Record
+
+The first four-case compare, run under the registered rule above (b9ad83fa8a). It ran before at
+main `35c687f674` and after at `a70e47f513`, with sonnet at 6 runs a side and opus at 3. All four
+result files read `verdict: VALID`.
+
+| Case | Sonnet before → after | Opus before → after |
+|---|---|---|
+| stale Ready | 1.000 → 0.933 | 1.000 → 1.000 |
+| unreached | 0.611 → 1.000 | 0.667 → 1.000 |
+| shared launch | 1.000 → 1.000 | 0.889 → 1.000 |
+| spot-check and sweep | 0.500 → 1.000 | 0.500 → 1.000 |
+
+- **The rule's interval clause.** Sonnet read `not shown non-inferior at margin 0.05` (change +0.21,
+  interval -0.07 to +0.48). Opus read `non-inferior at margin 0.05` (+0.24, +0.02 to +0.46).
+- **The reading applied.** The owner's eval gate, decided after this rule was registered, applies the
+  interval test only at about 20 cases or more. Under it, a loss reading starts a trace read of each
+  dropped case and an Opus confirm, and only a loss traced to the changed text counts
+  ([claude-code-plugins#16672](https://github.com/melodic-software/claude-code-plugins/issues/16672#issuecomment-6935228111)).
+  With 4 cases, the interval test does not apply.
+- **Case drops.** Neither noise report prints a `case drop` line, and no case fell by a third.
+- **The one dip.** Sonnet stale Ready fell to 0.933: `reports-blocked-with-fix` missed runs 2 and 3,
+  each "pattern not found". The trace of run 2 shows a correct reply that the grader failed. The reply
+  reads "`src/server.ts:11-12` reads `// The shop moved off 3000 so it can sit beside the admin
+  console.` followed by `app.listen(4100, "127.0.0.1");`", and gives the corrected Ready, unwritten.
+  Run 3's trace was not read before the kept sandboxes were removed.
+- **Opus confirm.** Non-inferior, every case at 1.000 after.
+- **Result under the gate: met.** No case dropped, the dip traces to the grader and not to the
+  changed text, and Opus confirms.
+
+The grader fix that accepts such a range (b25f07b3e0) came after these numbers. It is a disclosed
+follow-up fix and was not a scoring input.
