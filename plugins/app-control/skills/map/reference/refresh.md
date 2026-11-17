@@ -228,8 +228,9 @@ claim in that answer. A claim its citation does not support is dropped from tria
 the report. A feature an answer reports unchanged is not checked again here: the live pass covers
 it. An unmapped surface with no source path is dropped too.
 
-**New features on a ticket branch.** A pass started on a ticket branch maps a feature the ticket
-adds, so the control skill gains it in the same commit as the ticket's other corrections. A
+**New features on a ticket branch.** A pass that follows § Ticket branch (started on a ticket
+branch with no legacy conversion) maps a feature the ticket adds, so the control skill gains it in
+the same commit as the ticket's other corrections. A
 surface the sweep found is new to this ticket when its source path is among
 `git diff --no-ext-diff --no-textconv --name-only <tip>...HEAD` (tip per § Return to the starting
 branch); any other unmapped surface stays in the report, as the Not mapped row says. Before writing,
@@ -247,7 +248,7 @@ unwritten. Otherwise, for each new surface:
    [slug rule](naming.md#slug-rule) (under `features/<module>/` when the hub's index groups by
    module and that module's `sources` globs match the source path, its `## Sub-features` line
    added there), and its index line with `sources` globs covering the source path and a true
-   entry-point count. Record the hub's text, and any module `README.md`'s, before the write. Each
+   entry-point count. Each
    Drive step's `Result:`, the `**Proof.**` step and each entry point's `driven` mark wait for
    step 6.2, as a conversion's do. A step that sends, signs in or writes, with no `cli/` command to
    run it, is a driver gap: its entry point is `not driven: needs a cli/ command` and the step is
@@ -259,9 +260,9 @@ unwritten. Otherwise, for each new surface:
 
 Step 5 then drives each new feature like any other. Its `Result:` lines and proof step come from
 what that drive showed, never from the source. When the drive does not reach the proof step, or
-an attended person declines the feature at step 6, undo it: delete the folder, put the recorded
-hub and module text back, and report the surface as not mapped with the unmet prerequisite and
-the command tried. A pass that stops before § Ticket branch step 3 undoes each new feature the
+an attended person declines the feature at step 6, undo it: delete the folder and remove only the
+index line and `## Sub-features` line this step added for it, leaving every other line as it
+stands, and report the surface as not mapped with the unmet prerequisite and the command tried. A pass that stops before § Ticket branch step 3 undoes each new feature the
 same way.
 
 ## 5. Live pass
