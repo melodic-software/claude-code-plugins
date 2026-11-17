@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "@AGENTS.md\n", "why": "the seeded shim"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "@AGENTS.md", "why": "near miss: the newline dropped, so the file was rewritten"},
+    {"answer": "# Harborline hub\n\nSession start.\n", "why": "the shim replaced by content"}
+  ]
+}

@@ -25,8 +25,10 @@ before proposing it, and executes it behind a human gate.
 | `/instruction-placement:setup` | Verify prerequisites, report config | Confirms the index target is one Claude Code will actually read, and resolves every setting with its source |
 | `/instruction-placement:delta` | Read-only movement report | Re-runs the audit and reports only what changed since last time, above a noise budget, suppressing every finding the operator already declined |
 | `/instruction-placement:migrate` | Per-repository human-gated move | Plans and carries out a repository's move to `AGENTS.md` as the content home, with a `CLAUDE.md` shim while one is needed |
+| `/instruction-placement:establish-hub` | Per-change human-gated apply | Discovers the estate and writes the hub repository's own instruction files, asking only what discovery left open; `plan` reports each section and changes nothing |
 
-`realign` and `migrate` are the two mutating skills; both gate every change on the operator.
+`realign`, `migrate` and `establish-hub` are the mutating skills; each gates every change on the
+operator.
 
 Run `setup` first on a new repository. It catches the one failure the other gates cannot see, an
 index Claude Code never loads. Then `audit`. Nothing changes until you accept a specific finding in

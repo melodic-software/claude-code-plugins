@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "# Harborline hub\n\nThis repository is the hub: every session starts here.\n\n## What belongs where\n\n- A fact true of one repository lives in that repository.\n\n## Where work is filed\n\n- File an item in the hub's tracker only when no single repository owns it.\n\n## Dispatching work\n\n- Work in a target repository through a worktree of it.\n\n## Working material\n\n- Scratch files go in `.work/`, ignored, in the hub's main checkout only.\n", "why": "all five accepted sections"},
+    {"answer": "# HUB\n\nHub for cross-repository work.\nOne repository owns each fact about it. Tracker items: see filed items only here when nothing owns them. Use a git worktree, never the main checkout of a target. Scratch: .work/", "why": "terser wording, same five topics, mixed case"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "# Harborline hub\n\nThis repository is the hub.\n\n## What belongs where\n\n- A fact true of one repository lives in that repository.\n\n## Where work is filed\n\n- File in the tracker only when no repository owns it.\n\n## Working material\n\n- Scratch files go in `.work/`, in the main checkout only.\n", "why": "near miss: the dispatching section is missing, no worktree"},
+    {"answer": "# Notes\n\nRun the build before every commit.\n", "why": "an answer to a different question: build notes, no hub sections"}
+  ]
+}

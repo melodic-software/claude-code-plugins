@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": ["AGENTS.md"], "why": "the hub's instruction file"},
+    {"answer": ["AGENTS.md", "CLAUDE.md", ".gitignore"], "why": "all three accepted changes"}
+  ],
+  "fail": [
+    {"answer": []},
+    {"answer": ["CLAUDE.md"], "why": "the shim without the content it points at"},
+    {"answer": ["docs/AGENTS.md"], "why": "near miss: the file written outside the hub's root"}
+  ]
+}

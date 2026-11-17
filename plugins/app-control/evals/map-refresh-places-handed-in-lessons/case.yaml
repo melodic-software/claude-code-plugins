@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: map-refresh-places-handed-in-lessons
+description: Refresh accepts a lesson handed in from a /debugging:debug report's lessons list and, once the live pass confirms it for every feature, places it once in the hub's Gotchas. Source invented
+tags: [map, refresh, lessons, invented]
+expected_outcome: "The reply accepts the lesson although it came from a /debugging:debug report, places it once in the hub's `## Gotchas`, .claude/skills/control-clockwork/SKILL.md, because the live pass saw it in all four features, does not copy it into each feature file, treats it as doc drift so the outcome is changed, ships it on control-skill-upkeep/control-clockwork in one pull request, and writes nothing."
+execution:
+  prompt: "/app-control:map refresh .claude/skills/control-clockwork \"Ready answers before the database migrations finish, so a drive started then fails its first step; wait for `migrations: done` in the server log before the first step\". Do not read the repository, drive the app or write any file. The lesson came from the lessons list of a /debugging:debug report. Treat the source wave and the live pass as already run: the live pass saw the first step fail right after Ready in all four features (weekly-timesheet-export, start-a-timer, invoice-email, team-report), and each worked once the drive waited for `migrations: done`. Ready passed and nothing else differs. Name the file and section the lesson goes to, the outcome, and how it ships, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 6
+  timeout_seconds: 300
+graders:
+  - name: names-hub-gotchas
+    type: regex
+    flags: i
+    pattern: 'SKILL\.md[\s\S]{0,160}Gotchas|Gotchas[\s\S]{0,160}SKILL\.md|\bhub''?s?\s+`?(## )?Gotchas'
+    arm: both
+  - name: accepts-debug-lesson
+    type: llm
+    criteria: "PASS only if the reply (1) puts the migrations lesson once in the `## Gotchas` section of the hub, .claude/skills/control-clockwork/SKILL.md, and not in each feature file, (2) calls the outcome changed and says it ships as a commit on control-skill-upkeep/control-clockwork through one pull request, and (3) does not refuse or set the lesson aside because it came from a /debugging:debug report. FAIL if it copies the lesson into each feature file, calls the outcome clean, routes it to /corrections:codify, or rejects it for its source."

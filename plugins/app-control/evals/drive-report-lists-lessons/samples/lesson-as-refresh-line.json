@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "report.json's lessons holds one line.\nLessons: /app-control:map refresh \"weekly-timesheet-export: wait for [data-test=export] to enable, about two seconds after the week loads, before clicking it\"\nGotchas written by drive: no",
+      "why": "gives the wait as a refresh line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Lessons: none\nGotchas written by drive: no",
+      "why": "lists no lesson"
+    },
+    {
+      "answer": "Lessons: wait for the Export button to enable before clicking\nGotchas written by drive: no",
+      "why": "not in the refresh line form"
+    }
+  ]
+}

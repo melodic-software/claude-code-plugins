@@ -189,7 +189,10 @@ needs (environment, account and seed data). The first subagent also gets the hub
 which of its `## Gotchas` no longer apply, which port, route, command or check its `## Ready`
 names that the source has moved or removed, and which user-facing surfaces (routes, commands,
 screens, menu items, flags) the changed files add that no feature file lists, each with the source
-path that adds it. Every answer cites `file:line`. Features whose sources did not change still get
+path that adds it. It also gets `config/defaults.json` and is asked which logs, telemetry,
+databases, tracker or error reporter the source shows for an environment that the entry's
+`sources` does not list, or lists at a `where` the source has moved (the contract's "Data
+sources"). Every answer cites `file:line`. Features whose sources did not change still get
 a subagent: a rename can sit in a shared file. With no base commit, the first subagent skips the
 unmapped-surface question, and the report says the sweep did not run.
 
@@ -303,8 +306,8 @@ step 1 judges the caller's changes from its one recorded status, so this write n
 the caller's.
 
 **One launch for features that share app state.** When the hub's launch model has no `Session:`
-line and its `Data:` line names a per-run data directory, not `none:` (the contract's "The launch
-model"), one instance may serve several drives. Group the features whose source-wave recipes need
+line and a reused instance may run its Reset (the contract's "Reset on a reused instance"), one
+instance may serve several drives. Group the features whose source-wave recipes need
 the same app state, and drive each group in order against one launch: one `--out` directory per
 group, so drive reuses the instance in its launch record, with Ready before the group's first drive
 and cleanup after its last. Drive performs each later feature's `## Reset` before its steps. Each
@@ -334,7 +337,7 @@ Sort every difference between the control skill and the app:
 
 | Class | What the passes show | Where it goes |
 |---|---|---|
-| Doc drift | The app works and the files describe it wrongly: a renamed handle, a moved route, a missing or extra entry point, a stale gotcha, a changed step order, a state the steps need that the `Preconditions:` line does not name, a hub `## Launch` with no `Data:` or `Side by side:` line (the contract's "The launch model"), a hub `## Ready` corrected by § 5's stale-Ready retry, a `not driven:` entry point or a step drive reported `blocked:` whose unmet prerequisite the feature file names nowhere (the entry point's reason, `Preconditions:` or `## Gotchas`), or a lesson to place (SKILL.md Lessons). While the feature still reaches its end state, also: a Drive step with no `Result:`; a stated result that differs from what the step showed, only when the source wave cites the `file:line` that produces the shown result or finds the stated result was never produced (otherwise it is a product regression); and a missing `**Proof.**` step or one whose `Result:` or `Captures:` no longer matches what the live pass showed (a `## Drive` that hands off is judged by the steps it hands off to, its proof step in the feature's own steps file) | A correction to the feature file or hub, in the contract's shape, each corrected result written from what the live pass observed, with the index's entry-point counts and `sources` globs kept true, on the hub's lines and on a module `README.md`'s `## Sub-features` lines. An added, removed or changed entry point, its `driven` or `not driven` mark included, is written in the feature's own `README.md`, the copy a drive result is recorded in; the same edit rewrites the module `README.md`'s `## Entry points` from its features and the hub count with it. Ships in the pull request |
+| Doc drift | The app works and the files describe it wrongly: a renamed handle, a moved route, a missing or extra entry point, a stale gotcha, a changed step order, a state the steps need that the `Preconditions:` line does not name, a hub `## Launch` with no `Data:` or `Side by side:` line (the contract's "The launch model"), a hub `## Ready` corrected by § 5's stale-Ready retry, a `not driven:` entry point or a step drive reported `blocked:` whose unmet prerequisite the feature file names nowhere (the entry point's reason, `Preconditions:` or `## Gotchas`), a data source missing from an environment's `sources` or listed at a moved `where`, or a lesson to place (SKILL.md Lessons). While the feature still reaches its end state, also: a Drive step with no `Result:`; a stated result that differs from what the step showed, only when the source wave cites the `file:line` that produces the shown result or finds the stated result was never produced (otherwise it is a product regression); and a missing `**Proof.**` step or one whose `Result:` or `Captures:` no longer matches what the live pass showed (a `## Drive` that hands off is judged by the steps it hands off to, its proof step in the feature's own steps file) | A correction to the feature file or hub, in the contract's shape, each corrected result written from what the live pass observed, with the index's entry-point counts and `sources` globs kept true, on the hub's lines and on a module `README.md`'s `## Sub-features` lines. A source entry is written in `config/defaults.json` with its `kind` and `where`; an added one takes `read: never`, and a read level changes only when a person in an attended pass gives it. An added, removed or changed entry point, its `driven` or `not driven` mark included, is written in the feature's own `README.md`, the copy a drive result is recorded in; the same edit rewrites the module `README.md`'s `## Entry points` from its features and the hub count with it. Ships in the pull request |
 | Driver gap | The behavior works but the control skill cannot drive it: a `cli/` command that fails or is missing, a Ready that misses a wedged app | Attended: after the person agrees, a fix in `cli/` or the hub, documented in `cli/README.md`, then that feature driven again live; it ships only when that re-drive passes, else it goes in the report unwritten. Unattended: the fix goes in the report unwritten and nothing is driven again, since the `cli/` code enforces the safety floors and no one has reviewed the change. Never a floor loosened |
 | Missing data | A step failed because the data lacks a precondition the feature's `Preconditions:` line names, while the rest of the app works | The steps, their results, the proof step and the `Preconditions:` line stay as written (the contract's "Preconditions"): the reason goes in that feature's `## Gotchas`, which ships in the pull request, and the data fix (a seed, a test account, a change to `## Reset`) goes in the report |
 | Product regression | A behavior the files list is gone, or fails against a healthy app, a step's stated `Result:` included when the step no longer shows it and the source still claims it or nothing the source wave found explains the change | The entry stays as written: the control skill never records a lost behavior as current. Written up through `/bugs:write` when it is enabled, else in the report with drive's evidence. Kept out of the pull request |
@@ -468,7 +471,9 @@ legacy map's conversion is written before step 4 (see there); a flat one's at st
 - the driving tool and the hub line naming it;
 - each edit, by triage class, with the `file:line` or drive evidence behind it;
 - each regression and whether it went to `/bugs:write`;
-- each lesson and the Gotchas it went to, or that it is left for `/corrections:codify`;
+- each lesson, with the report it was handed in from when it came from one, and the Gotchas it
+  went to, or that it is left for `/corrections:codify` or unwritten;
+- each data source entry added or moved, by environment, with its read level;
 - the features found but not mapped, each with its source path, or that the sweep did not run;
 - on a ticket branch, each new feature mapped, with its folder and source path, and each choice
   an unattended pass took for it with the value; and each new surface left unwritten, with why;

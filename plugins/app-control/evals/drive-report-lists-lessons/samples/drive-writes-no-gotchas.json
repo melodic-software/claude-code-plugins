@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Drive leaves the control skill alone; map places the lesson.\nLessons: /app-control:map refresh \"wait for Export to enable\"\nGotchas written by drive: no",
+      "why": "drive writes no Gotchas"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Drive adds the wait to features/weekly-timesheet-export/README.md ## Gotchas.\nLessons: /app-control:map refresh \"wait for Export to enable\"\nGotchas written by drive: yes",
+      "why": "drive writes the Gotchas itself"
+    }
+  ]
+}

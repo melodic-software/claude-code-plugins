@@ -15,6 +15,7 @@ Skill tool; it reports one that carries more as a finding and runs none of it.
 - Writing the Capture section
 - The Mask section
 - Feature files
+- Lessons
 - Shared items
 - Size budget
 - Steps files
@@ -38,7 +39,7 @@ optional `## Gotchas`, and an index:
 | `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `animation`, `logs`) the tool that records it, or nothing when the project has none; one row per tier (such as `browser` and `server`) when the kind records differently on each; optionally a `frames` row, per [Writing the Capture section](#writing-the-capture-section) |
 | `## Cleanup` | How to stop what a run started and nothing else |
 | `## Mask` | What a `screenshot` or `video` capture hides, and the values drive looks for in it afterward, per [The Mask section](#the-mask-section). Required when `## Capture` records either kind |
-| `## Gotchas` (optional) | What has made a run lie or fail in every feature; a one-feature lesson goes in that feature's own `## Gotchas` |
+| `## Gotchas` (optional) | What has made a run lie or fail in every feature; a one-feature lesson goes in that feature's own `## Gotchas`, per [Lessons](#lessons) |
 | App (above the sections) | The app's name and the path it is built from. `/app-control:map` writes it for the person and for later drive work; drive does not read it |
 | Driving tool (above the sections) | The tool that drives the app, such as a browser driver or the project's CLI. Written and read as the App row is |
 | `Attended runs only.` (above the sections) | Present when that tool drives the person's own signed-in browser. A marker for the person and for later drive work, as the App row is |
@@ -323,12 +324,21 @@ in this order:
 | `## Parts` | The distinct behaviors inside the feature, one short line each. A line may start with a short id in bold, such as `**P1.**`, that steps and evidence can name |
 | `## Sub-features` | The states or branches inside this feature that have their own feature file, each a pointer to it, or `none` |
 | `## Entry points` | Where a user starts the feature, one line each. Each line ends `driven` or `not driven: <reason>`, the reason naming what would make it drivable, such as a test account, a seeded record or a `cli/` command. A drive through one entry point proves only that one and never marks another `driven` |
-| `## Reset` | How to return the app's own data to a known state |
+| `## Reset` | How to return the app's own data to a known state, run on a reused instance only per [Reset on a reused instance](#reset-on-a-reused-instance) |
 | `## Drive` | The steps a user takes, one action per step, each with the result a user should observe, ending in a proof step ([Drive steps](#drive-steps)). It may open with a `Preconditions:` line ([Preconditions](#preconditions)) |
-| `## Gotchas` | What has made a run lie or fail before |
+| `## Gotchas` | What has made a run lie or fail before, per [Lessons](#lessons) |
 
 Create writes the title and paragraph, and may give Parts ids. `/app-control:map check` requires
 neither: a feature file without them stays valid.
+
+### Reset on a reused instance
+
+A run performs a feature's `## Reset` on an instance it reuses only when the hub's `Data:` line
+names a per-run data directory ([The launch model](#the-launch-model)), so the data it resets is
+that run's own. With `Data: none: <reason>`, the data is not the run's own: the run does not
+perform the Reset on the reused instance. It stops that instance as cleanup does and launches
+fresh; where it cannot launch fresh (such as `Side by side: no` with another instance holding the
+port), it blocks with the reason.
 
 ### Drive steps
 
@@ -404,8 +414,8 @@ Write each state so a run can check it, never as a step. A feature with nothing 
 line out; `/app-control:map check` does not require it.
 
 A run never passes by weakening the journey. When the data lacks a precondition the journey needs,
-the step that needs it fails and is reported as failed, and the reason goes in that feature's
-`## Gotchas`; the steps, their results, the proof step and the `Preconditions:` line stay as
+the step that needs it fails and is reported as failed, and the reason is a lesson for that
+feature's `## Gotchas` ([Lessons](#lessons)); the steps, their results, the proof step and the `Preconditions:` line stay as
 written. Weakening is dropping, skipping or reordering a step (an absent optional step, per
 [Steps files](#steps-files), is not weakening), loosening a `Result:`, driving
 another entry point in its place, or reaching the state through a test-only endpoint or an internal
@@ -435,6 +445,16 @@ Basis: the seed-data and evidence rules of
 the `Preconditions:` line and per-action proof of
 <https://github.com/cursor/plugins/blob/main/pstack/skills/create-verification-skill/references/feature-map-example/README.md>
 (both read 2026-11-15).
+
+## Lessons
+
+A lesson is what a run learned about driving the app: a wait a step needs, a handle that lies, an
+order that matters, a precondition the data lacked. `/app-control:map` is the only writer of a
+control skill's `## Gotchas`, the hub's and each feature's. Every `/app-control:drive` run and
+every `/debugging:debug` run lists the lessons it learned in its report, each as one
+`/app-control:map refresh "<lesson>"` line, or says it learned none, and writes none into the
+control skill. Refresh accepts a lesson handed in from such a report and places it by scope. A
+lesson names a credential by its variable name, never its value.
 
 ## Shared items
 
@@ -627,7 +647,7 @@ An environment's targets come only from committed config: the `environments` fie
 `config/defaults.json` at HEAD, read the way Safety floors reads it. The local, environment and
 flag layers may select an environment by name through `environment`, never add or redefine one.
 `environments` and `pins` are committed-only fields: a local, environment or flag layer that sets
-either, or any field inside one (an entry's `writes` and `systems` included), makes the CLI do nothing and exit 4, printing the layer and the
+either, or any field inside one (an entry's `writes`, `systems` and `sources` included), makes the CLI do nothing and exit 4, printing the layer and the
 field, and `config` exits 4 the same way. Selecting a name that is not an entry at HEAD is an
 unknown environment id.
 
@@ -637,13 +657,32 @@ Each entry, keyed by the name the team gave it, may hold:
 |---|---|
 | `url` | Where the app answers in this environment |
 | `services` | Per dependency service a journey crosses: its `url` and an optional read-only `ready` command, or `app` and `environment` naming an integrated app's environment, whose `url` is the service's url and whose ready check is that app's `## Ready` filled with that url |
-| `extends` | Another entry in the same file whose fields this one starts from; its own fields replace them one by one, and `services` merge by name |
+| `extends` | Another entry in the same file whose fields this one starts from; its own fields replace them one by one, and `services` and `sources` merge by name |
 | `writes` | Per write, keyed by step id (or `cli/` command for a feature without a steps file), the key the caller passes as `--step` per the Write grants floor: `never`, `attended` or `unattended`. A write not listed has no grant |
 | `systems` | Per external system a step writes to in this environment, by name: a `writes` map of the same shape |
+| `sources` | Per data source an agent can reach in this environment, by name: its `kind`, `where` and `read` level, per [Data sources](#data-sources) |
 | `production` | `true` marks the environment production, per the Production floor |
 
 An `extends` naming no entry, or a chain that loops, is rejected before anything starts. An entry
 that extends a production entry is production too; it cannot clear the mark.
+
+### Data sources
+
+A data source is where an agent reads what the app did in an environment. Each `sources` entry
+holds:
+
+- `kind`: `logs`, `telemetry`, `database`, `tracker` (the work-item tracker that holds the app's
+  reported defects) or `errors` (the error reporter);
+- `where`: how to read it, as a path, a url or a read-only command;
+- `read`: when a run may read it, on the same three levels as a write grant: `never`; `attended`,
+  only with a person present in this session; `unattended`, with no one present too. An entry with
+  no `read` reads as `never`.
+
+An environment's sources are those left once `extends` is resolved, inherited ones included. Each of
+the five kinds with no entry there is missing, the tracker and the error reporter included. `/app-control:drive ready` reports each
+environment's sources with their read levels and lists the missing kinds; it reads none of them.
+A caller reads a source only through its `where` and only at its level. `/app-control:map` create
+and refresh write the entries; `never` is the safe level, and only a person sets another.
 
 A `## Launch` or `## Ready` command names these urls by placeholder: `<environment url>` for the
 selected entry's `url`, `<<service> service url>` for a dependency service's. The run splits the
