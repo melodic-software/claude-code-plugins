@@ -167,6 +167,29 @@ expect "names holding [ ], a leading # and a leading - are each rewritten as the
 expect "the unstaged x.md a [x] glob would match keeps its bytes" "$RAW" "$(cat "$REPO/x.md")"
 
 new_repo
+printf '{ "globs": ["b.md"], "config": { "default": true, "MD013": false } }\n' >"$REPO/.markdownlint-cli2.jsonc"
+git -C "$REPO" add .markdownlint-cli2.jsonc
+git -C "$REPO" commit -q -m cfg --no-verify
+printf '# T\n\ntext' >"$REPO/a.md"
+printf '# B\n\ntext' >"$REPO/b.md"
+git -C "$REPO" add a.md
+expect "a config with globs: only the staged file is rewritten" "0|a.md|" "$(check "$REPO")"
+expect "a config with globs: the unstaged file it names keeps its bytes" "$(printf '# B\n\ntextx')" "$(
+  cat "$REPO/b.md"
+  printf x
+)"
+
+new_repo
+mkdir -p "$WORK/stub$n"
+printf '#!/bin/sh\necho "Error: Unable to use configuration file" >&2\nexit 2\n' >"$WORK/stub$n/markdownlint-cli2"
+chmod +x "$WORK/stub$n/markdownlint-cli2"
+printf '# T\n\ntext' >"$REPO/a.md"
+git -C "$REPO" add a.md
+expect "a run that exits 2 fails the format entry, its output shown" \
+  "1||markdown-format: markdownlint-cli2 failed:
+Error: Unable to use configuration file" "$(PATH="$WORK/stub$n:$PATH" check "$REPO")"
+
+new_repo
 mkdir -p "$REPO/.claude/ecosystems" "$WORK/bin$n"
 printf '#!/bin/sh\n: >"%s/record-ran"\n' "$WORK" >"$WORK/bin$n/stubfmt"
 chmod +x "$WORK/bin$n/stubfmt"

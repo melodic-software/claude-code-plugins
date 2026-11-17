@@ -84,6 +84,23 @@ expect "a config with fix: true does not make lint rewrite the index" "$RAW" "$(
 check "$REPO" --worktree >/dev/null
 expect "--worktree under fix: true leaves the file as written" "$RAW" "$(cat "$REPO/a.md")"
 
+new_repo '{ "fix": true, "globs": ["b.md", "**/*.md"], "config": { "default": true, "MD013": false } }'
+printf '# T\n\n<b>x</b>\n' >"$REPO/a.md"
+printf '# B\n\ntext' >"$REPO/b.md"
+mkdir -p "$REPO/sub"
+printf '# C\n\ntext' >"$REPO/sub/c.md"
+git -C "$REPO" add a.md
+expect "a config with globs: only the staged file is reported" "1||$HTML
+$HINT" "$(check "$REPO")"
+expect "a config with fix: true and globs leaves an unstaged file it names as written" "$(printf '# B\n\ntextx')" "$(
+  cat "$REPO/b.md"
+  printf x
+)"
+expect "a config with fix: true and globs leaves an unstaged nested file as written" "$(printf '# C\n\ntextx')" "$(
+  cat "$REPO/sub/c.md"
+  printf x
+)"
+
 new_repo
 printf '# T\n\n<b>x</b>\n' >"$REPO/a.md"
 git -C "$REPO" add a.md
@@ -277,6 +294,31 @@ git -C "$REPO" add a.md
 marker="$(cd "$REPO" && bash "$CHECK" 2>&1 >/dev/null | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
 mkdir -p "$marker"
 expect "an approved config naming a relative customRules module lints" "1||$HTML
+$HINT" "$(check "$REPO")"
+
+new_repo NONE
+mkdir -p "$REPO/node_modules/noop-rule"
+printf 'module.exports = { names: ["no-op"], description: "no-op", tags: ["x"], parser: "none", function: () => {} };\n' >"$REPO/node_modules/noop-rule/index.js"
+printf 'node_modules/\n' >"$REPO/.gitignore"
+printf '{ "config": { "default": true, "MD013": false }, "customRules": ["noop-rule"] }\n' >"$REPO/.markdownlint-cli2.jsonc"
+git -C "$REPO" add -A
+git -C "$REPO" commit -q -m cfg --no-verify
+printf '# T\n\n<b>x</b>\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+marker="$(cd "$REPO" && bash "$CHECK" 2>&1 >/dev/null | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$marker"
+expect "an approved config naming an installed customRules package lints" "1||$HTML
+$HINT" "$(check "$REPO")"
+
+new_repo NONE
+mkdir -p "$REPO/docs"
+printf '{ "default": false, "MD033": true }\n' >"$REPO/base.json"
+printf '{ "extends": "../base.json" }\n' >"$REPO/docs/.markdownlint.json"
+git -C "$REPO" add -A
+git -C "$REPO" commit -q -m cfg --no-verify
+printf '# T\n\n<b>x</b>\n' >"$REPO/docs/a.md"
+git -C "$REPO" add docs/a.md
+expect "a nested config that extends a file above it lints under the extended rules" "1||docs/a.md:3: MD033/no-inline-html Inline HTML [Element: b]
 $HINT" "$(check "$REPO")"
 
 new_repo NONE

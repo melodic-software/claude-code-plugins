@@ -73,6 +73,9 @@ done
 ((refused)) && exit 1
 
 written=()
+out="$CHECKS_TMP/markdownlint"
+: >"$out"
+rc=0
 for ((i = 0; i < RT_GN; i++)); do
   ((runs[i])) || continue
   rt_use "$i"
@@ -81,8 +84,15 @@ for ((i = 0; i < RT_GN; i++)); do
     [[ -f "$f" && ! -L "$f" ]] && present+=("$f")
   done
   ((${#present[@]})) || continue
-  rt_run "${present[@]}" >/dev/null 2>&1 || :
+  rt_run "${present[@]}" >>"$out" 2>&1
+  one=$?
+  ((one > rc)) && rc=$one
   written+=("${present[@]}")
 done
 ((${#written[@]})) && checks_restage "${written[@]}"
+if ((rc > 1)); then
+  printf 'markdown-format: markdownlint-cli2 failed:\n' >&2
+  cat "$out" >&2
+  exit 1
+fi
 exit "$tool_failed"

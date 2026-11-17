@@ -104,8 +104,8 @@ rt_adapter() {
   RT_CONFIGS="$RT_DRIFT_CONFIGS"
   # shellcheck disable=SC2016 # the command text sh -c expands, with RT_BIN and the files
   case "$1" in
-  format) RT_SCRIPT='for f do set -- "$@" ":$f"; shift; done; exec "$RT_BIN" --fix "$@"' ;;
-  *) RT_SCRIPT='for f do set -- "$@" ":$f"; shift; done; exec "$RT_BIN" "$@"' ;;
+  format) RT_SCRIPT='for f do set -- "$@" ":$f"; shift; done; exec "$RT_BIN" --no-globs --fix "$@"' ;;
+  *) RT_SCRIPT='for f do set -- "$@" ":$f"; shift; done; exec "$RT_BIN" --no-globs "$@"' ;;
   esac
 }
 
