@@ -1,33 +1,28 @@
 #!/usr/bin/env bash
-# PostToolBatch hook: rewrite the JavaScript, TypeScript and JSON files a batch of
+# PostToolBatch hook: format the JavaScript, TypeScript and JSON files a batch of
 # tool calls wrote.
 #
 #   javascript-format.sh                 the PostToolBatch row
 #   javascript-format.sh --end-of-turn   the opt-in Stop row (javascript_format_end_of_turn)
 #
-# Rewrites only: `biome check --write` (safe fixes, formatting, import sorting),
-# once per Biome config directory over every .ts, .tsx, .js, .jsx, .mjs, .cjs,
-# .mts, .cts, .json and .jsonc file a Write, Edit or MultiEdit in the batch named.
-# It prints nothing and always exits 0, so no finding ever reaches the model per
-# edit; findings are the pre-commit entry's job (git-hooks/biome-check.sh), which
-# also rewrites for every author.
+# Formats only: once per batch, over every .ts, .tsx, .js, .jsx, .mjs, .cjs,
+# .mts, .cts, .json and .jsonc file a Write, Edit or MultiEdit in the batch
+# named, the Biome adapter runs where a biome.json or biome.jsonc governs the
+# file (git-hooks/adapters.sh, through lib/git-hooks/resolve-tool.sh: the
+# formatter and the assist actions the repository's config enables, import
+# sorting by default, with the linter off). A .claude/ecosystems/ record is
+# never run here; /toolchain:lint runs it. No lint fix runs here; findings are
+# the lint entry's job (git-hooks/lint.sh). It prints nothing and always exits
+# 0, so nothing reaches the model per edit.
 #
 # PostToolBatch has no matcher, so the row fires on every batch. The launcher
 # cannot prefilter on ten extensions (its flag takes one text), so this script
 # does it with a bash pattern before any other process starts, then reads
 # tool_calls[].tool_input.file_path itself. A file that Read named is never
-# rewritten.
-#
-# Opt-in: a file is rewritten only when a biome.json or biome.jsonc governs it,
-# found by walking up from the file to the repo root; the topmost one wins, and
-# Biome runs from that directory, as Biome itself discovers configuration. A repo
-# that has not adopted a Biome config is left untouched. Biome comes from the
-# repo's node_modules/.bin (walking up from the file) or PATH, never downloaded.
-# Only the canonical names count, not the hidden .biome.json variants, which
-# Biome loads from 2.4 on. Files under .githooks/ are installed copies and are
-# skipped, as are gitignored files unless javascript_format_lint_gitignored is true.
-# The batch payload carries no pre-edit bytes, so a file that already drifted from
-# the config is rewritten whole, as the pre-commit entry would.
+# rewritten. Files under .githooks/ are installed copies and are skipped, as are
+# gitignored files unless javascript_format_lint_gitignored is true. The batch
+# payload carries no pre-edit bytes, so a file that already drifted from the
+# config is rewritten whole, as the pre-commit entry would.
 
 set -uo pipefail
 
@@ -37,16 +32,26 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 IFS= read -r -d '' INPUT || :
 
-# The opt-in Stop row: the pre-commit entry run over the uncommitted changes,
-# without rewriting. Findings exit 2 so the model fixes them before the turn
-# ends; once a Stop hook has continued the turn (stop_hook_active) the row stays
-# quiet, so it blocks at most once per turn.
+# The opt-in Stop row: the lint entry run over the uncommitted changes, without
+# rewriting. Findings exit 2 so the model fixes them before the turn ends; once
+# a Stop hook has continued the turn (stop_hook_active) the row stays quiet, so
+# it blocks at most once per turn.
 if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
-  err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/biome-check.sh" --worktree 2>&1 >/dev/null)" && exit 0
-  # silent-skip-ok: the SessionStart probe already reports a missing biome (prerequisites.json) and the bundled checker does too; blocking every turn end on a host problem would not help the model.
-  [[ "$err" == "FAIL: "*" missing. Install: "* ]] && exit 0
-  printf '%s\n' "$err" >&2
+  err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/lint.sh" --worktree 2>&1 >/dev/null)" && exit 0
+  # A missing linter is a host problem: the SessionStart probe reports it, and
+  # blocking every turn end on it would not help the model. Only those lines
+  # are dropped; any finding printed beside them is still handed back.
+  report=""
+  while IFS= read -r line; do
+    case "$line" in
+    "FAIL: "*" missing. Install: "* | "To skip only while "*" is missing: "*) ;;
+    *) report+="$line"$'\n' ;;
+    esac
+  done <<<"$err"
+  # silent-skip-ok: only missing-tool lines remained, which the SessionStart probe reports.
+  [[ -n "${report//[[:space:]]/}" ]] || exit 0
+  printf '%s' "$report" >&2
   exit 2
 fi
 
@@ -57,21 +62,14 @@ PATHS=$(jq -r '.tool_calls[]? | select(.tool_name == "Write" or .tool_name == "E
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
+# shellcheck source=../lib/git-hooks/resolve-tool.sh
+source "$HOOK_DIR/../lib/git-hooks/resolve-tool.sh"
+# shellcheck source=../git-hooks/adapters.sh
+source "$HOOK_DIR/../git-hooks/adapters.sh"
 
-# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
-biome_config_here() {
-  [[ -f "$1/biome.json" || -f "$1/biome.jsonc" ]]
-}
-
-# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
-biome_local_bin_here() {
-  # A node_modules the repository commits is its code, not the user's install.
-  [[ -f "$1/node_modules/.bin/biome" && -z "$(git -C "$1" ls-files -- ':(literal)node_modules' 2>/dev/null)" ]]
-}
-
-CONFIGS=()
-FILES=()
+# Per repository root, the files to format, in batch order.
 ROOTS=()
+FILES=()
 seen=$'\n'
 while IFS= read -r path; do
   path="${path%$'\r'}"
@@ -85,35 +83,27 @@ while IFS= read -r path; do
   hook::dirname_to dir "$file"
   hook::repo_root_to root "$dir" || :
   [[ -d "$root" ]] || continue
-  hook::walk_up_to config_dir "$dir" "$root" biome_config_here topmost || continue
   hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_LINT_GITIGNORED:-false}" "$file" && continue
-  CONFIGS+=("$config_dir")
-  FILES+=("$file")
   ROOTS+=("$root")
+  FILES+=("$file")
 done <<<"$PATHS"
 
-# One run per Biome config directory, from that directory with the files named
-# relative to it, as Biome discovers configuration from the working directory.
-done_dirs=$'\n'
-bin_dir=""
-for i in "${!CONFIGS[@]}"; do
-  config_dir="${CONFIGS[i]}"
-  [[ "$done_dirs" != *$'\n'"$config_dir"$'\n'* ]] || continue
-  done_dirs+="$config_dir"$'\n'
+# One run per repository root and resolved command (one per Biome config
+# directory), over all its files.
+done_roots=$'\n'
+for i in "${!ROOTS[@]}"; do
+  root="${ROOTS[i]}"
+  [[ "$done_roots" != *$'\n'"$root"$'\n'* ]] || continue
+  done_roots+="$root"$'\n'
   group=()
-  for j in "${!CONFIGS[@]}"; do
-    [[ "${CONFIGS[j]}" == "$config_dir" ]] && group+=("${FILES[j]#"$config_dir"/}")
+  for j in "${!ROOTS[@]}"; do
+    [[ "${ROOTS[j]}" == "$root" ]] && group+=("${FILES[j]}")
   done
-  hook::dirname_to dir "${FILES[i]}"
-  if hook::walk_up_to bin_dir "$dir" "${ROOTS[i]}" biome_local_bin_here; then
-    BIOME_BIN="$bin_dir/node_modules/.bin/biome"
-  elif command -v biome >/dev/null 2>&1; then
-    BIOME_BIN=biome
-  else
-    continue
-  fi
-  # BIOME_CONFIG_PATH is unset: Biome reads it as a config-path override, which
-  # would make the rewrite follow another config than the one that opted in.
-  (cd "$config_dir" && env -u BIOME_CONFIG_PATH "$BIOME_BIN" check --write --no-errors-on-unmatched -- "${group[@]}") >/dev/null 2>&1 || :
+  rt_group format "$root" "${group[@]}"
+  for ((g = 0; g < RT_GN; g++)); do
+    rt_use "$g"
+    rt_found "$RT_BIN" || continue
+    rt_run "${RT_FILES[@]}" >/dev/null 2>&1 || :
+  done
 done
 exit 0

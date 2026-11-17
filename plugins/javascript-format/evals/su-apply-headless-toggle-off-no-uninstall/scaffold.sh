@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # A git repository with a root biome.json and a gitignored biome stub where this clone has declined
-# the pre-commit entry, so check's verify step prints declined and the only question is the toggle
+# both pre-commit entries, so check's verify step prints declined and the only question is the toggle
 # (setup SKILL.md check step 8 and apply).
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
@@ -10,7 +10,8 @@ fi
 git init -q -b main .
 git config user.email eval@example.invalid
 git config user.name eval
-git config --local checks.javascript-format.biome-check.declined true
+git config --local checks.javascript-format.format.declined true
+git config --local checks.javascript-format.lint.declined true
 printf '/node_modules/\n' >.gitignore
 printf '{\n  "name": "demo",\n  "version": "0.1.0"\n}\n' >package.json
 printf '{\n  "formatter": { "indentStyle": "space" }\n}\n' >biome.json

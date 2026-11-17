@@ -5,7 +5,7 @@
 # keeps it from blocking twice in one turn; the plugin kill switch wins. The
 # spawn budget case fences the cost every user pays per turn with the option
 # off: the node launcher only.
-# test-scope: plugins/javascript-format/hooks/hooks.json plugins/javascript-format/git-hooks/biome-check.sh plugins/javascript-format/.claude-plugin/plugin.json plugins/javascript-format/hooks/exec-bash.mjs
+# test-scope: plugins/javascript-format/hooks/hooks.json plugins/javascript-format/git-hooks/lint.sh plugins/javascript-format/.claude-plugin/plugin.json plugins/javascript-format/hooks/exec-bash.mjs
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE BIOME_CONFIG_PATH CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_ENABLED
 
@@ -84,6 +84,20 @@ expect "on: a missing biome passes silently" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_END_OF_TURN=true PATH="$NOTOOL")"
 git -C "$R" checkout -q a.ts
 expect "on: a clean work tree passes" "0|" "$(stop false CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_END_OF_TURN=true)"
+
+# A missing-tool line is a host problem the row stays quiet about, but it never
+# hides a finding printed beside it. A copy of the plugin with a stand-in lint
+# entry prints both.
+COPY="$WORK/plugin-copy"
+mkdir -p "$COPY/git-hooks"
+cp -R "$HOOK_DIR" "$COPY/hooks"
+# shellcheck disable=SC2016 # the stand-in's own shell text
+printf '#!/bin/sh\necho "FAIL: tool missing. Install: get it" >&2\necho "To skip only while tool is missing: git -c checks.skipmissing=tool commit ..." >&2\necho "a.ts:2: lint/x: bad" >&2\nexit 1\n' >"$COPY/git-hooks/lint.sh"
+out="$(printf '{"stop_hook_active":false}' | bash "$COPY/hooks/javascript-format.sh" --end-of-turn 2>&1)"
+expect "a finding beside a missing-tool line is handed back, without the host line" "2|a.ts:2: lint/x: bad" "$?|$out"
+printf '#!/bin/sh\necho "FAIL: tool missing. Install: get it" >&2\necho "To skip only while tool is missing: git -c checks.skipmissing=tool commit ..." >&2\nexit 1\n' >"$COPY/git-hooks/lint.sh"
+out="$(printf '{"stop_hook_active":false}' | bash "$COPY/hooks/javascript-format.sh" --end-of-turn 2>&1)"
+expect "missing-tool lines alone keep the row quiet" "0|" "$?|$out"
 
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
 # A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.

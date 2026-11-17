@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [
+        "package.json",
+        "src/app.ts"
+      ],
+      "why": "the scaffold's files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "src/app.ts",
+        ".claude/ecosystems/typescript.yaml"
+      ],
+      "why": "wrote the typescript record"
+    }
+  ]
+}
