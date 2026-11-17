@@ -10577,7 +10577,7 @@ test("the pinned select-model-credential action.yml holds expressions only where
   const [uses] = new Set(selectCalls().map(([, u]) => u));
   const [path, sha] = uses.replace("melodic-software/ci-workflows/", "").split("@");
   const url = `https://raw.githubusercontent.com/melodic-software/ci-workflows/${sha}/${path}/action.yml`;
-  const response = await retryFetch(fetch, { log: () => {} })(url, { signal: AbortSignal.timeout(15000) });
+  const response = await retryFetch((u, init) => fetch(u, { ...init, signal: AbortSignal.timeout(15000) }), { log: () => {} })(url);
   assert.ok(response.ok, `${url} answered ${response.status}`);
   assert.deepEqual(misplacedExpressions(await response.text()), [], url);
   // The shape e6e5227 shipped, which no run could load: an expression in an input's description.
