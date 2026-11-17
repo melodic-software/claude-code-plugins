@@ -92,33 +92,49 @@ re_pathlib='(Path\(__file__\)(\.resolve\(\))?|[A-Za-z_][A-Za-z0-9_]*)(\.parents\
 declare -a crossings=()
 declare -A crossing_keys=()
 
-declare -A traced=()
+declare -A assigned=() traced=()
 re_assign='^[[:space:]]*(local[[:space:]]+|readonly[[:space:]]+|declare[[:space:]]+(-[A-Za-z]+[[:space:]]+)?)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$'
 re_cd='\$\(cd([[:space:]]+-[-A-Za-z]*)*[[:space:]]+"?'
 re_self='^"?('"$re_cd"')?\$\(dirname[^)]*\)"?([[:space:]]*&&[[:space:]]*pwd[^)]*\))?"?$|^"?\$\{BASH_SOURCE(\[0\])?%/\*\}"?$'
 re_rhs='^"?('"$re_cd"')?\$\{?([A-Za-z_][A-Za-z0-9_]*)(%/\*)?\}?(/'"$path_chars"')?"?([[:space:]]*&&[[:space:]]*pwd[^)]*\))?"?$'
 
 trace() {
-  local file="$1" name rhs="${2#*=}" v="?" key
-  name="${2%%=*}"
+  local name="${2%%=*}"
   name="${name##*[[:space:]]}"
-  if [[ "$rhs" != *[/%]* && "$rhs" != *dirname* ]]; then
-    :
-  elif [[ "$rhs" =~ $re_self ]]; then
-    v="${file%/*}"
+  assigned["$1 $name"]+="${2#*=}"$'\n'
+}
+
+value_of() {
+  local file="$1" rhs="$2" up rel
+  REPLY="?"
+  if [[ "$rhs" =~ $re_self ]]; then
+    REPLY="${file%/*}"
   elif [[ "$rhs" =~ $re_rhs ]] && [[ -z "${BASH_REMATCH[1]}" || -n "${BASH_REMATCH[6]}" ]]; then
-    local up="${BASH_REMATCH[4]:+/..}" rel="${BASH_REMATCH[5]}"
+    up="${BASH_REMATCH[4]:+/..}" rel="${BASH_REMATCH[5]}"
     if base_of "$file" "${BASH_REMATCH[3]}"; then
       norm "$REPLY$up" "${rel:-.}"
-      v="${REPLY:-.}"
+      REPLY="${REPLY:-.}"
+    else
+      REPLY="?"
     fi
   fi
-  key="$file $name"
-  [[ -z "${traced[$key]+x}" || "${traced[$key]}" == "$v" ]] && traced[$key]="$v" || traced[$key]="?"
 }
 
 base_of() {
-  local t="${traced["$1 $2"]:-?}" own
+  local key="$1 $2" t own rhs v=""
+  if [[ -z "${traced[$key]+x}" && -n "${assigned[$key]+x}" ]]; then
+    traced[$key]="?"
+    while IFS= read -r rhs; do
+      value_of "$1" "$rhs"
+      if [[ -n "$v" && "$v" != "$REPLY" ]]; then
+        v="?"
+        break
+      fi
+      v="$REPLY"
+    done <<<"${assigned[$key]%$'\n'}"
+    traced[$key]="$v"
+  fi
+  t="${traced[$key]:-?}"
   if [[ "$t" != "?" ]]; then
     REPLY="$t"
   elif [[ "$2" == *PLUGIN_ROOT || "$2" == *PLUGIN_DIR ]]; then
@@ -221,12 +237,12 @@ pathspecs=()
 for ext in sh bash mjs js cjs jsx ts mts cts tsx py ps1 psm1; do
   pathspecs+=("plugins/*.$ext")
 done
-shellspecs=("plugins/*.sh" "plugins/*.bash")
+declare -A shebang=()
 while IFS= read -r p; do
   [[ "${p##*/}" != *.* && -f "$p" ]] || continue
   first=""
   IFS= read -r -n 2 first <"$p" || true
-  [[ "$first" == '#!' ]] && pathspecs+=(":(literal)$p") && shellspecs+=(":(literal)$p")
+  [[ "$first" == '#!' ]] && pathspecs+=(":(literal)$p") && shebang["$p"]=1
 done < <(git ls-files plugins)
 
 grep_hits() {
@@ -237,20 +253,31 @@ grep_hits() {
     exit 2
   fi
 }
-grep_hits -e "${re_assign%'(.*)$'}"'"?\$.*([/%]|dirname)' -- "${shellspecs[@]}"
-while IFS= read -r hit; do
-  [[ -n "$hit" ]] || continue
-  file="${hit%%:*}"
-  hit="${hit#*:}"
-  trace "$file" "${hit#*:}"
-done <<<"$hits"
 grep_hits -e '\.\.[/\\]' -e "[\"']\.\.[\"']" -e '\.parent' -e '/plugins/' -- "${pathspecs[@]}"
+uses="$hits"
+declare -A use_files=()
+while IFS= read -r hit; do
+  file="${hit%%:*}"
+  [[ "$hit" == *'$'* && -z "${use_files[$file]:-}" ]] || continue
+  [[ "$file" == *.sh || "$file" == *.bash || -n "${shebang[$file]:-}" ]] && use_files["$file"]=1
+done <<<"$uses"
+if ((${#use_files[@]})); then
+  shellspecs=()
+  for p in "${!use_files[@]}"; do shellspecs+=(":(literal)$p"); done
+  grep_hits -e "${re_assign%'(.*)$'}"'"?\$.*([/%]|dirname)' -- "${shellspecs[@]}"
+  while IFS= read -r hit; do
+    [[ -n "$hit" ]] || continue
+    file="${hit%%:*}"
+    hit="${hit#*:}"
+    trace "$file" "${hit#*:}"
+  done <<<"$hits"
+fi
 while IFS= read -r hit; do
   [[ -n "$hit" ]] || continue
   file="${hit%%:*}"
   hit="${hit#*:}"
   scan_line "$file" "${hit%%:*}" "${hit#*:}"
-done <<<"$hits"
+done <<<"$uses"
 
 errors=0
 declare -A listed=()
