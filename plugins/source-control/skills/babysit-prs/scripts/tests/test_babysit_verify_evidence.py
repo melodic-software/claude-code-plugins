@@ -1422,6 +1422,35 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
         fake.relink = relink_answer([], [(RELINK_AT, HUMAN)])
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
+    def test_a_connect_after_a_judged_edit_keeps_a_fail_at_a_merge_only_head(
+        self,
+    ) -> None:
+        # Two FAILs at the failed head with a person's body edit between
+        # them: the second FAIL judged that edit, so a person's connect after
+        # it, with no body edit since, keeps the FAIL at a merge-only head.
+        second_fail, connect_at = "2026-10-14T18:00:00Z", "2026-10-14T20:00:00Z"
+        for label, edits, refusal in (
+            (
+                "edit before the second FAIL",
+                [(RELINK_AT, HUMAN)],
+                "verify:earlier-fail",
+            ),
+            (
+                "edit after the second FAIL too",
+                [(connect_at, HUMAN), (RELINK_AT, HUMAN)],
+                None,
+            ),
+        ):
+            with self.subTest(label):
+                fake = self.merge_only(superseded=True)
+                fake.artifacts = [
+                    a for a in fake.artifacts if a["name"] != named(EARLIER, "pass")
+                ]
+                fake.artifacts.append(artifact(named(EARLIER, "fail"), 4))
+                fake.runs[4] = judged(4, second_fail)
+                fake.relink = relink_answer(edits, [(connect_at, HUMAN)])
+                self.assertEqual(read(fake).refusal, refusal)
+
 
 class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
     """A FAIL at a head stops refusing once a trusted person edited the pull
