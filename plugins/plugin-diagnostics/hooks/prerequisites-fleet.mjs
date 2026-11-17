@@ -130,7 +130,7 @@ export async function main({ env = process.env, input = "", ownRoot = OWN_ROOT, 
       return "";
     }
   }
-  const { roots } = rootsFromSettings(config, env.CLAUDE_PROJECT_DIR || "", managedFiles);
+  const { roots } = rootsFromSettings(config, env.CLAUDE_PROJECT_DIR || "", managedFiles, env);
   const plan = planProbes(roots, config, managedFiles, env);
   const results = await Promise.all(plan.map((probe) => runProbe(probe, input)));
   return results.flat().join("\n");

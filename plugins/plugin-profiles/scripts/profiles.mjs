@@ -32,11 +32,12 @@
 //          PLUGIN_PROFILES_SESSION names, else the folder's recorded one; with neither, the command
 //          carries no profile. --with adds a launcher's own settings (claude keeps only the last
 //          --settings), written to a file keyed by the folder, profile and merged content. The
-//          command always clears an inherited PLUGIN_PROFILES_SESSION and
-//          PLUGIN_PROFILES_SESSION_FILE; the file sets its own. A
+//          command always clears an inherited PLUGIN_PROFILES_SESSION,
+//          PLUGIN_PROFILES_SESSION_FILE and SESSION_SETTINGS_FILE; the file sets its own. A
 //          session file no launch has written for 30 days is removed by the next launch. The
 //          session it starts is a claude CLI process whatever surface runs launch, so no surface
-//          refuses it. The file sets PLUGIN_PROFILES_SESSION_FILE to its own path for status.
+//          refuses it. The file sets PLUGIN_PROFILES_SESSION_FILE to its own path for status, and
+//          SESSION_SETTINGS_FILE to the same path for the prerequisite readers.
 //          --unattended stops (exit 1) when the profile switches on a plugin missing a required
 //          prerequisite; otherwise that is printed and the launch goes ahead. --dry-run does every
 //          check and prints the same result but writes no file. --json prints the
@@ -107,6 +108,9 @@ const OWN_ROOT = dirname(dirname(realpathSync(fileURLToPath(import.meta.url))));
 const SESSION_VAR = "PLUGIN_PROFILES_SESSION";
 // Set by the file itself, so status names the file a session was launched with, merged or not.
 const SESSION_FILE_VAR = "PLUGIN_PROFILES_SESSION_FILE";
+// The variable the prerequisite readers in plugin-diagnostics and harness-ops define (their
+// lib/enabled-plugin-roots.mjs), so they read this file as the session layer.
+const SESSION_SETTINGS_VAR = "SESSION_SETTINGS_FILE";
 /** The profile this session was started in, or null; an empty marker counts as unset. */
 const sessionProfile = (env) => env[SESSION_VAR] || null;
 const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
@@ -229,7 +233,7 @@ function prepare(opts, where, catalog, records) {
     }
   }
   const edits = { enabledPlugins: diff(now, final.enabledPlugins), skillOverrides: diff(settings.doc.skillOverrides ?? {}, final.skillOverrides) };
-  if (session) edits.env = { [SESSION_VAR]: opts.name, [SESSION_FILE_VAR]: file };
+  if (session) edits.env = { [SESSION_VAR]: opts.name, [SESSION_FILE_VAR]: file, [SESSION_SETTINGS_VAR]: file };
   return { file, settings, recPath, previous, inv, plan: result, final, pending, edits, loaded };
 }
 
@@ -422,7 +426,7 @@ const quoted = (word) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `"${wor
 function launch(opts, where, env, io) {
   const own = launcherSettings(opts.with);
   const name = opts.name ?? ownProfile(where, env);
-  const argv = ["env", "-u", SESSION_VAR, "-u", SESSION_FILE_VAR, "claude"];
+  const argv = ["env", "-u", SESSION_VAR, "-u", SESSION_FILE_VAR, "-u", SESSION_SETTINGS_VAR, "claude"];
   const result = { profile: name, folder: where.projectDir, file: null, prerequisitesMissing: [], argv };
   if (name) {
     const p = prepare({ ...opts, name, target: "session" }, where, catalogFor(where, "session"), () => recordsFromCli());
@@ -441,6 +445,7 @@ function launch(opts, where, env, io) {
     doc.env = { ...own?.env, [SESSION_VAR]: name };
     result.file = sessionFile(where, name, own ? JSON.stringify(doc) : null);
     doc.env[SESSION_FILE_VAR] = result.file;
+    doc.env[SESSION_SETTINGS_VAR] = result.file;
     const layers = { ...p.loaded, session: doc };
     const ids = new Set(Object.values(layers).flatMap((layer) => Object.keys(layer?.enabledPlugins ?? {})));
     result.enabledPlugins = Object.fromEntries([...ids].sort().map((id) => [id, effective(layers, id)]));

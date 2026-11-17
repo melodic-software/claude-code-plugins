@@ -111,8 +111,11 @@ guessing. Offer any ecosystem the repo has that inference missed.
 Materialize one `$REPO_ROOT/.claude/ecosystems/<ecosystem>.yaml` per accepted ecosystem, conforming to
 the contract's `ecosystem.schema.json`. Each file carries a one-line header comment citing the
 contract, `globs` (required), the four command keys (`null` where a phase does not apply), and the
-optional keys that apply (`anchor`, `project-discovery`, `opt-in`, `install-hint`, `gates`, `notes`,
-`lint-cmd`). Confirm each file is tracked, not ignored.
+optional keys that apply (`anchor`, `project-discovery`, `opt-in`, `install-hint`, `requires`, `gates`, `notes`,
+`lint-cmd`).
+Write `requires` for a command that needs more than its tool on `PATH`, such as a runtime package
+it imports or the tool build CI pins, instead of an install step inside the command string.
+Confirm each file is tracked, not ignored.
 
 This skill is the one writer of `fix-cmd` and `lint-cmd`. A format or lint plugin's setup drafts the
 values and sends the person here with them. Write `lint-cmd` only as a report-only command over

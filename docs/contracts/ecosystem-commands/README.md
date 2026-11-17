@@ -155,6 +155,51 @@ repo-invariant fact about *this* gate's `cmd` that every execution surface must 
 per-surface wrapper choice, so it belongs in the ecosystem file alongside them, not in a consuming
 surface's own config.
 
+### Command prerequisites
+
+A resolver checks only that the tool a command is invoked through is on `PATH`. A command can need
+more: a runtime package its script imports, or a tool at the build the repo pins for CI when the
+host has another build under the same name. The optional `requires` key declares that, keyed by
+command key, and a `gates[]` item carries its own `requires` list:
+
+```yaml
+check-cmd: "node tools/runner-policy.mjs && actionlint"
+requires:
+  check-cmd:
+    - name: ajv
+      probe: "test -f $REPO_ROOT/tools/node_modules/ajv/package.json"
+      hint: "run npm ci in tools/"
+    - name: actionlint (the build CI pins)
+      probe: 'actionlint -version | head -n 1 | grep -qxF -f "$REPO_ROOT/.github/actionlint-version"'
+      hint: "install the actionlint build named in .github/actionlint-version"
+```
+
+The `actionlint` probe matches the whole first line of `-version` output against the pin file, so
+a missing or empty pin file reads absent rather than matching any build.
+
+Each entry has a `name`, a `probe`, an optional `hint`, and an optional `run-from`: `repo-root`
+(the default) or `ecosystem`, which probes from each location the command runs from and skips the
+command only where the probe fails. A resolver applies them in this order:
+
+1. The tool-presence check runs first; a missing tool reads `skip (tool missing: <tool>)` as before.
+   An unmet single-condition `opt-in` then skips the command as before
+   (`skip (opt-in unmet: <condition>)`), and its probes do not run.
+2. Before the command runs, each of its entries' probes runs: one read-only command, from
+   `$REPO_ROOT` unless the entry sets `run-from: ecosystem`. Exit 0 means present. Any other exit, a
+   probe that cannot start, and one still running after 30 seconds all mean absent, never a failure.
+3. With any entry absent, the command does not run. Its cell reads
+   `skip (prerequisite missing: <name>)` with the entry's `hint`, an environment skip: the run's
+   overall line reads `INCOMPLETE`, never `PASS`, and never `FAIL` for it. One absent entry skips
+   the whole command, every tool bundled in its string included, since an opaque string cannot be
+   partly run.
+4. The run goes on to the next command and the next ecosystem.
+
+A resolver compares no version or checksum: a record that needs one build of a tool writes a probe
+that tells that build apart, against the pin the repo already keeps for CI. `tool-pin` stays a
+drift warning. A resolver never installs a declared prerequisite, in any run; the `hint` is display
+text it shows and never runs. Declaring a runtime package here, rather than installing it inside a
+command string (an `npm ci` in `test-cmd`), keeps an unattended run from installing anything.
+
 ## Consumers
 
 Execution consumers of the verb keys (`build-cmd`, `test-cmd`, `check-cmd`, `lint-cmd`, `fix-cmd`,

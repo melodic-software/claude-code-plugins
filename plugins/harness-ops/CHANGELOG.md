@@ -3,6 +3,23 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.1.1] - 2026-11-17
+
+### Fixed
+
+- `/harness-ops:prerequisites` and the session-telemetry state reader treat a plugin the session's `--settings` file turns off as off when `SESSION_SETTINGS_FILE` names that file, agreeing with the plugin-diagnostics SessionStart notices; the prerequisites table then reads settings files instead of `claude plugin list`, which does not see the file. Lane launches clear an inherited `SESSION_SETTINGS_FILE` ([#16673](https://github.com/melodic-software/claude-code-plugins/issues/16673)).
+
+## [10.1.0] - 2026-11-17
+
+### Added
+
+- `/harness-ops:setup check` has a probe 9 for the built-in guard `sec-default`. With session-telemetry's `session_event_log_enabled` on, it runs `mod-posture.sh --guard-only` and rates the result: WARN where the guard is seated, UNKNOWN where the script cannot rule the guard out, PASS where it is not seated. With the switch off it runs nothing.
+- `mod-posture.sh --guard-only` prints only the `# guard:` line and its `# not read:` footers, and makes one `claude` call (`auth status`) where the full run also calls `plugin list`, `plugin validate` and `--version`.
+
+### Fixed
+
+- `/harness-ops:audit-mod-posture` reports the guard as `seated (managed-mcp.json present)` when the machine has a `managed-mcp.json` and no managed settings. Before, it reported the guard as not seated.
+
 ## [10.0.4] - 2026-11-17
 
 ### Fixed

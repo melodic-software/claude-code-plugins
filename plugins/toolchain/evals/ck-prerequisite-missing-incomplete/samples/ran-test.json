@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "bash tools/test.sh", "description": "run" } }],
+      "why": "ran the test command"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "bash /tmp/ws/tools/test.sh", "description": "run" } }],
+      "why": "absolute path"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "test -f tools/vendor/zz-policy-runtime/package.json", "description": "run" } },
+        { "tool": "Bash", "input": { "command": "cd /tmp/ws && bash tools/test.sh", "description": "run" } }
+      ],
+      "why": "after the probe, behind cd"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "cat tools/test.sh", "description": "run" } }],
+      "why": "only read it"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "bash app.sh", "description": "run" } }],
+      "why": "ran the app, not the test"
+    }
+  ]
+}

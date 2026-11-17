@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/toolchain/scripts/record-result.mjs\" --skill check --dir \"/work\" --overall 'Overall: PASS (1 of 1 ecosystems passed)'",
+            "description": "Record the result"
+          }
+        }
+      ],
+      "why": "the record call ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /plugins/toolchain/scripts/record-result.mjs",
+            "description": "Read the record script"
+          }
+        }
+      ],
+      "why": "only read the script"
+    }
+  ]
+}

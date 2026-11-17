@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| bash | — | pass | skip (prerequisite missing: zz-policy-runtime) | INCOMPLETE |\n\nOverall: INCOMPLETE (0 of 1 ecosystems passed; bash: skip (prerequisite missing: zz-policy-runtime))",
+      "why": "cause in parenthetical"
+    },
+    {
+      "answer": "**Overall:** **INCOMPLETE**: the bash lint command did not run because `zz-policy-runtime` is absent.",
+      "why": "cause after the verdict"
+    },
+    {
+      "answer": "Overall: `INCOMPLETE`\nCause: bash: skip (prerequisite missing: zz-policy-runtime)",
+      "why": "cause on the next line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| bash | — | pass | skip (tool missing: shellcheck) | INCOMPLETE |\n\nOverall: INCOMPLETE (bash: skip (tool missing: shellcheck))",
+      "why": "names a different cause"
+    },
+    {
+      "answer": "| bash | — | pass | pass | PASS |\n\nOverall: PASS (1 of 1 ecosystems passed)",
+      "why": "PASS"
+    },
+    {
+      "answer": "| bash | — | pass | skip (prerequisite missing: zz-policy-runtime) | INCOMPLETE |\n\nOverall: INCOMPLETE",
+      "why": "cause only before the Overall line, verdict names none"
+    }
+  ]
+}

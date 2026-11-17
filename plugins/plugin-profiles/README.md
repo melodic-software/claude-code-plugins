@@ -57,7 +57,9 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" apply build --for folder
 - `folder`: this folder's `.claude/settings.local.json`.
 - `initial`: your user `settings.json`, the profile new folders start from.
 - `session`: a generated file for `claude --settings <file>`, for one session; no settings file
-  changes. The file also sets `PLUGIN_PROFILES_SESSION` to the profile's name. A resumed session
+  changes. The file also sets `PLUGIN_PROFILES_SESSION` to the profile's name, and
+  `SESSION_SETTINGS_FILE` to its own path, so plugin-diagnostics and harness-ops skip the
+  prerequisite notices of plugins the profile turns off. A resumed session
   does not keep `--settings`, so pass it again with `--resume`.
 
 Where you run it matters. The CLI and `claude -p` take all three targets. VS Code and Claude

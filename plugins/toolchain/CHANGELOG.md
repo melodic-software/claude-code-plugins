@@ -3,6 +3,23 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.0] - 2026-11-17
+
+### Added
+
+- An ecosystem record can declare what a command needs beyond its tool on `PATH` under the new `requires` key (ecosystem-commands contract 1.4.0), keyed by command key, and a gate under its own `requires`. Each entry has a `name`, a read-only `probe` whose exit 0 means present, and an optional `hint`. With any entry absent, `/toolchain:check` and `/toolchain:lint` do not run the command: its cell reads `skip (prerequisite missing: <name>)` and the Overall line reads `INCOMPLETE`, never `FAIL` from a crashed command or `PASS` from the wrong build of a tool. A probe that errors, cannot start or passes 30 seconds reads the same skip.
+
+### Changed
+
+- `/toolchain:check` installs missing lockfile dependencies only in an attended run. An unattended run (`CLAUDE_CODE_REMOTE`, `claude -p`, an autonomous loop) installs nothing and reports `skip (dependencies missing: unattended run)`. Neither skill ever installs a declared prerequisite.
+
+## [1.5.1] - 2026-11-17
+
+### Fixed
+
+- `/toolchain:check` and `/toolchain:lint` record the Overall line before they write the report, so the report is always the reply's last text. When the record call fails (exit 2, as in a sandbox that blocks the git calls that hash the tree), a `Not recorded:` line goes above the table and the reply still ends with the full report and its Overall line. Before, some runs ended on a note about the failed record, with no table and no Overall line.
+- The `ck-detects-changed-ecosystems` eval's judge criteria list the `syntax only` status, and a new `ck-record-fails-report-stands` eval case covers a run whose record call fails.
+
 ## [1.5.0] - 2026-11-16
 
 ### Added
