@@ -1,26 +1,12 @@
 #!/bin/sh
 # shellcheck shell=bash
-# go-format's side of lib/git-hooks/resolve-tool.sh: the ecosystem id whose
-# record setup reports (hooks never run it), the files it acts on, and its
-# goimports adapter. Sourced by the batch hook and the format git-hook entry.
-#
-# The adapter has no config gate: goimports documents itself as a replacement
-# for an editor's gofmt-on-save, so it formats every Go file the hooks see,
-# except one whose leading comment block carries Go's `// Code generated ... DO
-# NOT EDIT.` marker. It runs with -format-only: gofmt formatting plus import
-# grouping and ordering, never adding or removing an import, which is a lint
-# fix. The -local grouping prefix is the module path of the module holding the
-# file (`go list -m`), so a repository's own imports keep their own group;
-# without go or a module the default grouping applies. goimports comes from
-# PATH. There is no lint adapter: /toolchain:lint runs a go record's lint-cmd.
+# goimports -format-only: https://github.com/golang/tools/blob/master/cmd/goimports/goimports.go
 
 # shellcheck disable=SC2034 # read by resolve-tool.sh
 RT_PLUGIN=go-format
 # shellcheck disable=SC2034 # read by resolve-tool.sh
 RT_IDS=go
 GF_INSTALL='go install golang.org/x/tools/cmd/goimports@latest (needs a Go toolchain: https://go.dev/dl/)'
-# GF_LIST=1 makes the format command list differing files instead of writing
-# them: the entry's --worktree mode parses without rewriting.
 GF_LIST="${GF_LIST:-}"
 GF_DETAIL='no config gate: formats every Go file'
 
@@ -32,11 +18,6 @@ rt_wants() {
   esac
 }
 
-# gf_generated <path>: 0 when the file's leading comment and blank-line run
-# holds the generated-code marker. The scan is a stand-in for go/ast.IsGenerated:
-# it tracks /* */ blocks, tolerates a BOM and CRLF, and stops at the first text
-# that is neither blank nor a comment, even when it follows a comment on the
-# same line, as `/* license */ package p` does.
 gf_generated() {
   local line rest in_block=0
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -62,10 +43,6 @@ gf_generated() {
   return 1
 }
 
-# gf__prefix <dir>: sets GF_LOCAL to the module path of the module holding
-# <dir>, or empty. Cached per directory. A path outside Go's module-path
-# characters (a go.work listing several modules, say) gives no prefix, so it is
-# safe to place inside single quotes in the command text.
 GF_PREFIX_DIRS=$'\n'
 GF_PREFIX_VALS=()
 gf__prefix() {
@@ -88,7 +65,7 @@ gf__prefix() {
 }
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh and the entry
-rt_adapter() { # <concern> <file> <root>
+rt_adapter() {
   [[ "$1" == format ]] || return 1
   local f="$2" dir
   [[ "$f" == /* || "$f" == [A-Za-z]:[\\/]* ]] || f="$3/$f"
@@ -108,7 +85,7 @@ rt_adapter() { # <concern> <file> <root>
 }
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh
-rt_adapter_in_repo() { # <concern> <root>
+rt_adapter_in_repo() {
   [[ "$1" == format ]] || {
     RT_DETAIL="no shipped lint adapter"
     return 1

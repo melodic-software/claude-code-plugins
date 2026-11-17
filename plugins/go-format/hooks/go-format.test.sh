@@ -2,15 +2,6 @@
 # Black-box contract test for the go-format PostToolBatch row, launched exactly
 # as hooks.json registers it (node exec-bash.mjs with the row's args).
 #
-# Proves WIRING: one PostToolBatch row and no PostToolUse row; the row formats
-# the .go files a Write, Edit or MultiEdit in the batch named, once per batch,
-# and never anything a Read named; it only formats and orders imports, never
-# adding or removing one (goimports -format-only); it prints nothing (no
-# finding, no disclosure reaches the model) and exits 0; no Go config is
-# needed; a go record is never run; a file with Go's generated-code marker, a
-# file under .githooks/, a gitignored file and a disabled plugin are left alone;
-# a batch with no Go edit costs only the launcher.
-#
 # Self-contained: builds throwaway git repos with runtime-generated fixtures.
 # The row is run from an UNRELATED cwd so any reliance on the caller's working
 # directory would surface.
@@ -141,14 +132,11 @@ printf '%s\n' "$FORMATTED" >"$REPO/clean.go"
 OUT=$(run_edit "$REPO/clean.go")
 expect "a clean file: silent exit 0 and unchanged" "0||$FORMATTED" "$?|$OUT|$(cat "$REPO/clean.go")"
 
-# Format only: goimports' import fixing is a lint fix, so it never runs.
 printf 'package main\n\nimport (\n\t"os"\n\t"fmt"\n)\n\nfunc main() {  fmt.Println(strings.ToUpper("hi")) }\n' >"$REPO/unused.go"
 run_edit "$REPO/unused.go" >/dev/null
 expect "format only: the unused import stays, the missing one is not added, and the file is formatted" \
   $'package main\n\nimport (\n\t"fmt"\n\t"os"\n)\n\nfunc main() { fmt.Println(strings.ToUpper("hi")) }' "$(cat "$REPO/unused.go")"
 
-# A go record is never run: goimports formats, and the record's command, which
-# would log its call, is never called.
 STUBBIN="$WORK/stubbin"
 mkdir -p "$STUBBIN" "$REPO/.claude/ecosystems"
 printf '#!/bin/sh\necho called >>"%s"\n' "$WORK/stub.log" >"$STUBBIN/stubfmt"

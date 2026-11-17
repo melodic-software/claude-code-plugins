@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# A git repository with Go files and a go record whose fix-cmd and lint-cmd name a repository
-# script. The format concern resolves to the goimports adapter; lint has no adapter, and the
-# record is never run by a hook. This clone has declined the git pre-commit entry, so verify
-# reports declined (INFO) rather than missing.
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2

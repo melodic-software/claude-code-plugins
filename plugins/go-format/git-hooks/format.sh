@@ -1,28 +1,4 @@
 #!/bin/sh
-# go-format pre-commit format entry: format the staged Go files with the
-# goimports adapter, then re-stage them.
-#
-#   format.sh             the staged changes (git runs it as pre-commit)
-#   format.sh --worktree  the uncommitted changes against HEAD, untracked files
-#                         included, parsed without rewriting (the opt-in
-#                         end-of-turn Stop row)
-#   format.sh --resolve [<path>...]  print the format row, or one per path
-#                         (resolve-tool.sh rt_print); runs nothing
-#
-# The command resolves per file through lib/git-hooks/resolve-tool.sh to the
-# goimports adapter in adapters.sh: every Go file but a generated one, with no
-# config gate, formatting and import ordering only. A .claude/ecosystems/
-# record is never run here; /toolchain:lint and /toolchain:check run it. The
-# entry fails only when goimports itself errors, which it does for a file it
-# cannot parse: each error prints as "<path>:<line>: <message>" on stderr, exit
-# 1, wherever the error sits, since a file that does not parse fails whole.
-# Pre-commit: a partly staged file is refused before anything is rewritten
-# (re-staging a rewrite would stage its unstaged hunks too); the rewritten
-# paths print on stdout and are re-staged. A staged file since deleted from the
-# work tree is parsed from the index and never rewritten. A missing tool
-# follows the check-placement contract: checks.skipmissing, else fail for an
-# agent and a notice for a person.
-#
 # POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
 case "$0" in
@@ -74,8 +50,6 @@ done < <(checks_files)
 rt_group format "$PWD" ${files[@]+"${files[@]}"} ${gone[@]+"${gone[@]}"}
 ((RT_GN)) || exit 0
 
-# Every group's tool first: a missing one skips its own group only, and an
-# agent's missing tool fails the entry once the other groups have run.
 runs=()
 tool_failed=0
 for ((i = 0; i < RT_GN; i++)); do
@@ -120,8 +94,6 @@ for ((i = 0; i < RT_GN; i++)); do
   present=()
   for f in "${RT_FILES[@]}"; do
     if is_gone "$f"; then
-      # goimports reads stdin when given no file and names it "<standard input>";
-      # -w cannot write stdin, so it is dropped and the result discarded.
       git show ":$f" 2>/dev/null |
         (cd "$RT_DIR" && RT_BIN="$RT_BIN" sh -c "${RT_SCRIPT/ -w / }" sh) 2>"$CHECKS_TMP/one" >/dev/null
       escaped="$(printf '%s' "$f" | sed 's/[#&\\]/\\&/g')"
@@ -139,8 +111,6 @@ if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#written[@]})); then
 fi
 
 if [[ -s "$errs" ]]; then
-  # goimports prints "<path>:<line>:<col>: <message>"; the contract line drops
-  # the column. Anything else it prints passes through.
   sed -e 's/^\(.*\.go\):\([0-9][0-9]*\):[0-9][0-9]*: /\1:\2: /' "$errs" >&2
   printf 'go-format: goimports could not process the files above.\n' >&2
   exit 1

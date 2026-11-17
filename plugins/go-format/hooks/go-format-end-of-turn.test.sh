@@ -78,8 +78,6 @@ expect "on: the plugin kill switch wins" "0|" \
 # already reports the missing tool.
 NOTOOL="$WORK/no-goimports"
 mkdir -p "$NOTOOL"
-# A version-manager shim can put its other tools (goimports among them) back on
-# PATH, so link the binary it resolves to.
 for t in node git bash sh sed awk cat mktemp rm dirname grep tr jq; do
   real="$(mise which "$t" 2>/dev/null)" || real=""
   [[ -x "$real" ]] || real="$(command -v "$t")"
