@@ -2234,11 +2234,13 @@ const ANSWER = [
   "```",
 ].join("\n");
 
-test("a round of only a comment posts one top-level answer naming the comment, and counts no review round", async () => {
+test("a round of only a comment posts one top-level answer naming the comment, then its round marker", async () => {
   const api = fakeApi({ issueComments: [askedComment()] });
   const result = await run(api, lines(answerLine()), commentRun());
   assert.equal(result.escalationReason, "");
-  assert.deepEqual(api.markers(), [["comment", 42, ANSWER]]);
+  assert.deepEqual(api.markers()[0], ["comment", 42, ANSWER]);
+  assert.equal(api.markers()[1][2].split("\n")[0], ROUND);
+  assert.equal(api.markers().length, 2);
   assert.deepEqual(api.posted(), []);
   assert.deepEqual(api.resolved(), []);
 });
@@ -2253,11 +2255,11 @@ test("a comment already answered, edited since the select read, or deleted gets 
     const api = fakeApi({ issueComments });
     const result = await run(api, lines(answerLine()), commentRun());
     assert.equal(result.escalationReason, "", label);
-    assert.deepEqual(api.markers(), [], label);
+    assert.deepEqual(api.markers().map((call) => call[2].split("\n")[0]), [ROUND], label);
   }
   const forged = fakeApi({ issueComments: [askedComment(), { ...answered, user: { id: HUMAN } }] });
   await run(forged, lines(answerLine()), commentRun());
-  assert.deepEqual(forged.markers(), [["comment", 42, ANSWER]], "a marker another author wrote answers nothing");
+  assert.deepEqual(forged.markers()[0], ["comment", 42, ANSWER], "a marker another author wrote answers nothing"); 
 });
 
 test("a comment with no answer is incomplete, and a comment's answer must be answered", async () => {

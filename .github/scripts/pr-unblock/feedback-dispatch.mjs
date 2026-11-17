@@ -1166,7 +1166,10 @@ async function sweepFixRequest(context) {
 }
 
 async function sweepAsked(context) {
-  const { api, pull, appSenderId, rest } = context;
+  const { api, pull, appSenderId, rest, settings } = context;
+  if (heldLabels(pull, settings).length > 0 || (pull.labels ?? []).some((label) => label.name === (rest.humanGatedLabel ?? "needs-human"))) {
+    return null;
+  }
   const asked = askedComments(await api.listIssueComments(pull.number), { trustedHumans: rest.trustedHumans ?? new Set(), appId: appSenderId });
   const times = asked.map((comment) => Date.parse(comment.created_at ?? "")).filter(Number.isFinite);
   return times.length === 0 ? null : dispatchSince(context, Math.max(...times), "comment addressed to the lane");

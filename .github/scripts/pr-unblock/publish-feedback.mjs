@@ -881,9 +881,7 @@ export async function publish(args) {
     // With no model run named, the marker is always posted: counting a round
     // twice hands the PR to a person sooner; skipping one would not.
     const runLine = modelRun ? modelRunLine(modelRun) : null;
-    if (result?.commentsOnly && result.escalationReason === "") {
-      log("a round that only answered comments counts no review round");
-    } else if (runLine && comments.some((comment) => isRoundMarker(comment, appId) && String(comment.body).split("\n").includes(runLine))) {
+    if (runLine && comments.some((comment) => isRoundMarker(comment, appId) && String(comment.body).split("\n").includes(runLine))) {
       log(`the round of model run ${modelRun} is already recorded`);
     } else {
       const rounds = countRounds(comments, appId) + 1;
@@ -1138,7 +1136,6 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       ...settled,
       escalationReason: settled.escalationReason || asked.stopped,
       posted: [...posted, ...asked.posted],
-      commentsOnly: run.threads.length === 0 && asks.size > 0,
       body: body(landed.size > 0),
     };
   }

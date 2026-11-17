@@ -1299,7 +1299,7 @@ export async function select({
       : gateSource({ timeline: await timeline(), label: humanGatedLabel, head: headSha, isLanesApp }).source !== "lane-escalation");
   const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
   const heads = reviewedHeads(issueComments);
-  const asked = gated || pull.user?.id !== appId ? [] : askedItems(askedComments(issueComments, { trustedHumans, appId }));
+  const asked = gated || pull.user?.id !== appId || touchesProtected(files) ? [] : askedItems(askedComments(issueComments, { trustedHumans, appId }));
   const kept = keepThreads({
     threads,
     reviewComments,

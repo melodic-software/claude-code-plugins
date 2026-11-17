@@ -3872,11 +3872,21 @@ test("the sweep sends no comment that is not an unanswered lane-addressed commen
     ["a comment the lanes App answered", { asks: [ASK, answer] }],
     ["a round since the comment", { checks: [answeredRound, answeredReply, roundRun("address-feedback", "success", "Passed", "2026-10-17T20:30:00Z")] }],
     ["a do-not-merge PR", { openPulls: pull({ labels: [{ name: "do-not-merge" }] }) }],
-    ["a PR a person opened", { openPulls: pull({ user: { id: KYLE.databaseId } }) }],
+    ["a needs-human PR", { openPulls: pull({ labels: [{ name: "needs-human" }] }) }],
   ]) {
     const api = askApi(options);
     const { output } = await requestMain(t, api);
     assert.deepEqual(api.calls.dispatch, [], label);
     assert.equal(output, "", label);
   }
+});
+
+test("a lane-addressed comment sends a lanes App PR with no unresolved thread, never an adopted owner PR", async () => {
+  const resolved = { isResolved: true, comments: { nodes: [], pageInfo: { hasNextPage: false } } };
+  const comments = [marker("claude-review"), marker("claude-security-review"), ASK];
+  assert.equal((await decide(fakeApi({ threads: [resolved], comments }))).result?.number, 42);
+  assert.equal((await decide(fakeApi({ threads: [resolved] }))).result, null, "no comment, no thread");
+  const owner = await decideOwner(ownerApi({ threads: [resolved], comments }));
+  assert.equal(owner.result, null);
+  assert.match(owner.lines.join("\n"), /no unresolved review thread/);
 });

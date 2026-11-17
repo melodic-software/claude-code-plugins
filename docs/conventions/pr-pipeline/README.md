@@ -489,12 +489,12 @@ any letter case outside a fenced code block, and no lanes App comment whose firs
 `askedComments`). The sweep takes such a comment after the fix requests, with the same newer-than,
 send-once and three-round bounds, and a review completion dispatches a head with one even with no
 unresolved thread. `address-feedback-select` lists up to ten, oldest first, in `threads.json`'s
-`pr_comments`, as data like a finding body, and none on a PR carrying the human-gated label or one a
-person opened. The model reads them with the review-thread tool's `comments`, makes no edit for
+`pr_comments`, as data like a finding body, and none on a PR carrying the human-gated label, one a person
+opened, or one that changes `.github/workflows/`. The model reads them with the review-thread tool's `comments`, makes no edit for
 them, and records each `answered`; `publish-feedback` posts one top-level comment per answer,
 starting with that marker line, after the thread replies and only when they escalate nothing,
-skipping a comment edited or answered since. A round that answered only comments posts no round
-marker, so it does not count toward the round cap. To start a round at once, an account on the
+skipping a comment edited or answered since. A round that answers only comments still counts
+toward the round cap. To start a round at once, an account on the
 trusted-actor list dispatches the lane directly:
 
 ```bash

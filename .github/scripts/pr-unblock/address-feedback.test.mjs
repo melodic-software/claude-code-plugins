@@ -2813,6 +2813,7 @@ test("only an unanswered lane-addressed comment by a trusted person on a lanes A
     ["a comment the lanes App already answered", { issueComments: [reviewMarker, asking(500), answer(500)] }],
     ["a PR carrying the human-gated label", { labels: ["needs-human"], issueComments: [reviewMarker, asking(500)] }],
     ["a PR a person opened", { opener: HUMAN, issueComments: [reviewMarker, asking(500)] }],
+    ["a PR that changes a workflow", { files: [{ filename: ".github/workflows/ci.yml" }], issueComments: [reviewMarker, asking(500)] }],
   ]) {
     const result = await run(fakeApi({ threads: [], ...options }));
     assert.notEqual(result.decision, "proceed", label);
@@ -2828,4 +2829,17 @@ test("a round takes at most ten comment items, oldest first", async () => {
   const many = Array.from({ length: 12 }, (_, i) => asking(500 + i));
   const result = await run(fakeApi({ threads: [], issueComments: [reviewMarker, ...many] }));
   assert.deepEqual(result.file.pr_comments.map((c) => c.comment_id), [500, 501, 502, 503, 504, 505, 506, 507, 508, 509]);
+});
+
+test("a gated PR's fix-request thread proceeds without the comment items", async () => {
+  const reviewComments = [comment(100, REVIEWER), comment(101, HUMAN, { body: "PR-fix lane: please fix this finding." })];
+  const result = await run(fakeApi({ labels: ["needs-human"], reviewComments, threads: [thread("PRRT_1", [100, 101])], issueComments: [reviewMarker, asking(500)] }));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.threads.map((t) => t.id), ["PRRT_1"]);
+  assert.equal(result.file.pr_comments, undefined);
+});
+
+test("an ungated PR's kept thread and a workflow change escalate as before, with the comment ignored", async () => {
+  const result = await run(fakeApi({ files: [{ filename: ".github/workflows/ci.yml" }, { filename: "src/a.js" }], issueComments: [reviewMarker, asking(500)] }));
+  assert.equal(result.escalationReason, "feedback-protected-path");
 });
