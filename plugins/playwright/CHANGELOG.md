@@ -3,6 +3,13 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.15] - 2026-11-17
+
+### Changed
+
+- `/playwright:playwright` checks state (presence, counts, text, enabled or checked) on the DOM
+  and uses a screenshot only for a visual change.
+
 ## [2.0.14] - 2026-11-17
 
 ### Fixed

@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.19.1] - 2026-11-17
+
+### Changed
+
+- `/source-control:pull-request evidence`: screenshots and recordings of a regulated product show
+  synthetic data only, since no step checks a capture's image content for real records.
+
 ## [11.19.0] - 2026-11-17
 
 ### Added
