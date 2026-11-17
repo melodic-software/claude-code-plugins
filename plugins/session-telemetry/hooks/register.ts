@@ -1,9 +1,9 @@
 import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
 // The per-session hook event log, off by default. Off, the module hooks nothing, so no event starts
-// a process. On, each observed classic event hands its payload to session-event-log.sh, which
-// writes the record the settings row wrote, and SessionEnd also runs session-retention.sh. A mod
-// cannot append to a file, so each write is one process.
+// a process. On, each observed classic event in an enabled category hands its payload to
+// session-event-log.sh, which writes the record the settings row wrote, and SessionEnd always runs
+// session-retention.sh. A mod cannot append to a file, so each write is one process.
 
 type ClassicEvent = Readonly<{ hook_event_name: string }>
 type Next = (e: never) => Promise<unknown>
@@ -24,6 +24,15 @@ export const scriptEnv = (options: PluginOptions, root: string): Record<string, 
   CLAUDE_EFFORT: '',
   TRACEPARENT: '',
 })
+
+// Parses session_event_log_categories exactly as slog_category_enabled (session-log-lib.sh) does,
+// which splits on bash's default IFS: space, tab and newline, never \r.
+export const categoryFilter = (value: unknown): ((category: string) => boolean) => {
+  const text = value === undefined ? '' : String(value)
+  if (text === '') return () => true
+  const listed = new Set(text.replaceAll(',', ' ').split(/[ \t\n]+/))
+  return category => listed.has(category)
+}
 
 const logOnce = ($: EngineInterface, key: string, text: string) => {
   if (logged.has(key)) return
@@ -57,7 +66,12 @@ async function record($: EngineInterface, e: ClassicEvent, next: Next) {
     $.clock.after(0, () => void run($, 'session-event-log.sh', payload))
     return next(e as never)
   }
-  const [result] = await Promise.all([next(e as never), run($, 'session-event-log.sh', payload), run($, 'session-retention.sh')])
+  const recorded = categoryFilter(config.session_event_log_categories)('session')
+  const [result] = await Promise.all([
+    next(e as never),
+    recorded && run($, 'session-event-log.sh', payload),
+    run($, 'session-retention.sh'),
+  ])
   return result
 }
 
@@ -68,36 +82,38 @@ function passThrough($: EngineInterface, e: ClassicEvent, next: Next) {
 export const register: Register = (on, options) => {
   if (options.session_event_log_enabled !== true) return
   config = options
-  // scripts/gen-hook-event-registry.sh writes the block below from hook-events.registry.json, one
-  // hook per event marked observe; Claude Code reads each event name from a string literal.
+  const wants = categoryFilter(options.session_event_log_categories)
+  // scripts/gen-hook-event-registry.sh writes the block below from hook-events.registry.json;
+  // Claude Code reads each event name from a string literal. SessionEnd is unguarded: it runs
+  // retention whatever the categories.
   // BEGIN GENERATED: observed events
-  on('classic.ConfigChange', record).catch(passThrough)
-  on('classic.CwdChanged', record).catch(passThrough)
-  on('classic.DirectoryAdded', record).catch(passThrough)
-  on('classic.Elicitation', record).catch(passThrough)
-  on('classic.ElicitationResult', record).catch(passThrough)
-  on('classic.InstructionsLoaded', record).catch(passThrough)
-  on('classic.Notification', record).catch(passThrough)
-  on('classic.PermissionDenied', record).catch(passThrough)
-  on('classic.PermissionRequest', record).catch(passThrough)
-  on('classic.PostCompact', record).catch(passThrough)
-  on('classic.PostModelSwitch', record).catch(passThrough)
-  on('classic.PostToolBatch', record).catch(passThrough)
-  on('classic.PostToolUseFailure', record).catch(passThrough)
-  on('classic.PreCompact', record).catch(passThrough)
-  on('classic.PreModelSwitch', record).catch(passThrough)
+  if (wants('config')) on('classic.ConfigChange', record).catch(passThrough)
+  if (wants('config')) on('classic.CwdChanged', record).catch(passThrough)
+  if (wants('config')) on('classic.DirectoryAdded', record).catch(passThrough)
+  if (wants('mcp')) on('classic.Elicitation', record).catch(passThrough)
+  if (wants('mcp')) on('classic.ElicitationResult', record).catch(passThrough)
+  if (wants('config')) on('classic.InstructionsLoaded', record).catch(passThrough)
+  if (wants('turn')) on('classic.Notification', record).catch(passThrough)
+  if (wants('permission')) on('classic.PermissionDenied', record).catch(passThrough)
+  if (wants('permission')) on('classic.PermissionRequest', record).catch(passThrough)
+  if (wants('compaction')) on('classic.PostCompact', record).catch(passThrough)
+  if (wants('model')) on('classic.PostModelSwitch', record).catch(passThrough)
+  if (wants('tool')) on('classic.PostToolBatch', record).catch(passThrough)
+  if (wants('tool')) on('classic.PostToolUseFailure', record).catch(passThrough)
+  if (wants('compaction')) on('classic.PreCompact', record).catch(passThrough)
+  if (wants('model')) on('classic.PreModelSwitch', record).catch(passThrough)
   on('classic.SessionEnd', record).catch(passThrough)
-  on('classic.SessionStart', record).catch(passThrough)
-  on('classic.Setup', record).catch(passThrough)
-  on('classic.Stop', record).catch(passThrough)
-  on('classic.StopFailure', record).catch(passThrough)
-  on('classic.SubagentStart', record).catch(passThrough)
-  on('classic.SubagentStop', record).catch(passThrough)
-  on('classic.TaskCompleted', record).catch(passThrough)
-  on('classic.TaskCreated', record).catch(passThrough)
-  on('classic.TeammateIdle', record).catch(passThrough)
-  on('classic.UserPromptExpansion', record).catch(passThrough)
-  on('classic.UserPromptSubmit', record).catch(passThrough)
-  on('classic.WorktreeRemove', record).catch(passThrough)
+  if (wants('session')) on('classic.SessionStart', record).catch(passThrough)
+  if (wants('session')) on('classic.Setup', record).catch(passThrough)
+  if (wants('turn')) on('classic.Stop', record).catch(passThrough)
+  if (wants('turn')) on('classic.StopFailure', record).catch(passThrough)
+  if (wants('agent')) on('classic.SubagentStart', record).catch(passThrough)
+  if (wants('agent')) on('classic.SubagentStop', record).catch(passThrough)
+  if (wants('task')) on('classic.TaskCompleted', record).catch(passThrough)
+  if (wants('task')) on('classic.TaskCreated', record).catch(passThrough)
+  if (wants('agent')) on('classic.TeammateIdle', record).catch(passThrough)
+  if (wants('prompt')) on('classic.UserPromptExpansion', record).catch(passThrough)
+  if (wants('prompt')) on('classic.UserPromptSubmit', record).catch(passThrough)
+  if (wants('worktree')) on('classic.WorktreeRemove', record).catch(passThrough)
   // END GENERATED: observed events
 }
