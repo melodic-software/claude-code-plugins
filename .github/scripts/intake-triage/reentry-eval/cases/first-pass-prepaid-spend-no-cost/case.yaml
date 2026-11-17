@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: first-pass-prepaid-spend-no-cost
+description: 'A first triage of work whose only spend is model runs on the prepaid keys and a cron line a diff shows: no cost flag, no Cost line, no needs-human label, needs_human false'
+tags: [intake, first-pass]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Filled by build-suite.mjs from the ci-workflows reusable."
+  allowed_tools: [Read, Grep, Glob]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: no-cost-flag
+    type: regex
+    pattern: '(?:^|\\n|\n)Flags: (?:[a-z]+,\s*)*cost\s*(?:,\s*[a-z]+\s*)*(?:\\n|\n|"|$)'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-cost-line
+    type: regex
+    pattern: '(?:^|\\n|\n)Cost: '
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-needs-human-label
+    type: regex
+    pattern: '"labels"\s*:\s*\[[^\]]*"needs-human"'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: keeps-needs-human-false
+    type: regex
+    pattern: '"needs_human"\s*:\s*false'
+    target: last_message
+    arm: both

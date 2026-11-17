@@ -9,6 +9,6 @@ expected_outcome: 'Works the rows one at a time. For each, after the claim, the 
 
 /work-items:attend-queue
 
-Two [escalated] issues carry needs-human and status:ready, each with an escalation comment authored by the tracker's write identity whose first line is <!-- work-items:escalation lane=work-loop kind=escalated -->. #4400 has no class label. #4401 carries a structural class label. This session's standing direction forbids writing class labels. For each, the operator's answer removes the human blocker.
+Two [escalated] issues carry needs-human and status: ready, each with an escalation comment authored by the tracker's write identity whose first line is <!-- work-items:escalation lane=work-loop kind=escalated -->. #4400 has no class label. #4401 carries a structural class label. This session's standing direction forbids writing class labels. For each, the operator's answer removes the human blocker.
 
 Treat the state above as what this run's reads return, and the operator's answers as given above. No tracker, forge or shell is reachable in this session, so make no such call: say what the run does, in order, and why.

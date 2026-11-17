@@ -196,6 +196,10 @@ function workspace(caseDir, out) {
     join(dir, "open-issues.json"),
     JSON.stringify(meta.open, null, 2),
   );
+  writeFileSync(
+    join(dir, "merged-pulls.json"),
+    JSON.stringify(meta.merged ?? [], null, 2),
+  );
   cpSync(join(REPO_ROOT, "AGENTS.md"), join(out, "AGENTS.md"));
   return meta.number;
 }
@@ -246,6 +250,8 @@ export async function build({
         ISSUE_FILE: `${WORKDIR}/issue.json`,
         OPEN_ISSUES_FILE: `${WORKDIR}/open-issues.json`,
         DUPLICATE_LIMIT: "200",
+        MERGED_PULLS_FILE: `${WORKDIR}/merged-pulls.json`,
+        MERGED_LIMIT: "100",
         INSTRUCTIONS: instructions ? inputs.instructions : "",
       });
       const full = `${prompt}\n${OUTPUT_LINE}\n\n${schema}\n`;

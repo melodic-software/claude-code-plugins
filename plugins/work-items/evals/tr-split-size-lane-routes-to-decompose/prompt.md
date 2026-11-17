@@ -1,10 +1,10 @@
 ---
-description: 'Legacy triage 31. In a lane, forty separate plugin changes fit no size''s base-turns, so the split size is set through set-dimensions.sh; the item is human-gated (status:ready, needs-human, raw marker cleared) with a comment naming /work-items:decompose, and the lane runs no decompose itself. split-size and names-decompose read the reply. Read-only tools, graded on the reply.'
+description: 'Legacy triage 31. In a lane, forty separate plugin changes fit no size''s base-turns, so the split size is set through set-dimensions.sh; the item is human-gated (status: ready, needs-human, raw marker cleared) with a comment naming /work-items:decompose, and the lane runs no decompose itself. split-size and names-decompose read the reply. Read-only tools, graded on the reply.'
 tags: [triage, dimensions, split, lane]
 max_turns: 15
 timeout_seconds: 420
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: 'The run sets size=huge with the other two dimensions through set-dimensions.sh, applies status:ready and needs-human and clears the raw marker, comments naming /work-items:decompose as the next step, applies no agent-ready, and neither runs decompose nor creates child items.'
+expected_outcome: 'The run sets size=huge with the other two dimensions through set-dimensions.sh, applies status: ready and needs-human and clears the raw marker, comments naming /work-items:decompose as the next step, applies no agent-ready, and neither runs decompose nor creates child items.'
 ---
 
 /work-items:triage 521

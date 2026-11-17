@@ -2483,14 +2483,11 @@ describe("the triage prompt", () => {
 
   // Work classes are retired. Run 41807993284: a model told of classes with
   // no meanings grepped outside the checkout, dontAsk denied it, and the clean
-  // triage deferred, so the line also says not to search.
-  test("the Work class line asks for none, names no class, and keeps untrusted provenance off it", () => {
-    const line = /- Work class: (.*?) - Size:/.exec(PROMPT)?.[1] ?? "";
-    assert.match(line, /^always none\./);
-    assert.match(line, /never search for their meanings/);
-    assert.match(line, /mark it with the untrusted flag \(Flags below\), never on the class line/);
+  // triage deferred, so the rubric names no work class at all.
+  test("the rubric names no work class", () => {
+    assert.doesNotMatch(PROMPT, /work class/i);
     for (const name of [...CLASSES, "work-class: read-only"]) {
-      assert.ok(!line.includes(`\`${name}\``), `the rubric offers ${name}`);
+      assert.ok(!PROMPT.includes(`\`${name}\``), `the rubric offers ${name}`);
     }
     assert.doesNotMatch(PROMPT, /work-class-labels\.md/);
   });

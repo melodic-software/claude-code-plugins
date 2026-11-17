@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "In one label edit: add status:ready and agent-ready, remove needs-triage.",
+      "answer": "In one label edit: add status: ready and agent-ready, remove needs-triage.",
       "why": "remove"
     },
     {
@@ -23,7 +23,7 @@
   ],
   "fail": [
     {
-      "answer": "Adds status:ready and agent-ready to #42.",
+      "answer": "Adds status: ready and agent-ready to #42.",
       "why": "stacks on the marker"
     },
     {
