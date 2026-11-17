@@ -157,12 +157,12 @@ skip it would otherwise reject passes when an entry names its file and guard, so
 reviewed once, in the diff, rather than re-litigated on every gate run. An entry carries no line
 number, so it survives the guard moving; an entry that matches no flagged skip fails as stale,
 and an entry with no reason fails. A comment at the site exempts nothing. The list keeps the
-exemption out of the hook's own comments, which the comment lint judges. Two shapes use it
-today. A fire-and-forget process whose stdout and stderr the producer discards (the
-harness-ops telemetry sink: "the producer side owns prerequisite visibility"), and a hook that
-is off by design for the consumer who has not enabled it (the per-session event log's
-`session_event_log_enabled: false` default, where a notice would fire on every event of every
-session that never asked for logging). A hook that could speak and simply does not is not a
+exemption out of the hook's own comments, which the comment lint judges. The reasons recorded
+there fall into three kinds: no channel can carry a notice (the session-telemetry sink, whose
+producer discards its output, and a Notification hook, whose `systemMessage` Claude Code
+discards); another surface already reports the absence (the SessionStart prerequisites probe,
+for a batch formatter row that never speaks to the model); and a hook that is off by design for
+a consumer who has not enabled it. A hook that could speak and simply does not is not a
 candidate; give it a helper call.
 
 ### Output caps stated by the reference
