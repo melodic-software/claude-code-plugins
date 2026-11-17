@@ -61,6 +61,9 @@ and what reaches the model.
   re-staging it would stage the author's unstaged hunks too.
 - A formatter too slow for the per-batch ceiling (the `dotnet format` class) runs at `pre-commit`
   only.
+- A format and lint plugin keeps the two concerns apart: a `format` entry that rewrites and a `lint`
+  entry that reports, each resolved on its own ([Hooks run the shipped adapter](#hooks-run-the-shipped-adapter)). Formatting includes
+  import ordering; no lint autofix runs in the batch row or at `pre-commit`.
 
 Pointer: for `PostToolBatch` (no matcher, no `if`, one firing per batch of parallel tool calls),
 see the [hooks reference](https://code.claude.com/docs/en/hooks). As of 2026-10-15, Claude Code
@@ -153,6 +156,21 @@ The installer looks for artifacts and decline keys under those names only, so an
 ships an entry of the same name is never touched. Each name is a migration line: the rename adds
 it, and it is removed once no consumer repository still holds artifacts under that name.
 
+A plugin that split or renamed an entry adds an optional top-level `earlierEntries` array
+(`"earlierEntries": [{"from": "ruff-check", "to": ["format", "lint"]}]`). `from` is the old entry
+name, never a current one; `to` names current entries. The installer reports what an install of
+`from` left (under the plugin's name and each `earlierNames` name) as superseded drift, listed once
+on the first `to` entry, with a copy under the plugin's own name listed as a file to remove and never
+its directory. A decline of `from` counts for every `to` entry, and plan carries it to each entry's
+own key. Each rule is a migration line, like an earlier name.
+
+A plugin whose entries pick their adapter per repository
+([Hooks run the shipped adapter](#hooks-run-the-shipped-adapter)) adds a top-level `ecosystems`
+array of the `.claude/ecosystems/<id>.yaml` ids whose records its setup reports, and
+`"resolved": true` on each such entry. For a resolved entry the installer reads the tools from the
+entry script's `--resolve` rows, run under `sh`, which run nothing; `tools` is the fallback when the
+script cannot answer.
+
 An entry may add an optional `assets` array: files the script reads at run time, such as a default
 config (`"assets": ["config/default-typos.toml"]`).
 
@@ -160,6 +178,27 @@ config (`"assets": ["config/default-typos.toml"]`).
 - Base names are distinct within the entry, and none is `check-lib.sh`.
 - `copy` writes each asset beside the installed script under its base name. At shared scope it
   stages the asset without the exec bit.
+
+### Hooks run the shipped adapter
+
+A format or lint plugin's batch row and its `format` and `lint` entries run only the adapter the
+plugin ships, for a file its tool's own config opts in, through the vendored
+`lib/git-hooks/resolve-tool.sh` (canonical in `lib/`, copied into each format and lint plugin and
+beside each installed entry). A file no adapter's config governs gets nothing.
+
+- **Records never run from a hook.** A `.claude/ecosystems/<id>.yaml` record's `fix-cmd` and
+  `lint-cmd` ([ecosystem-commands](../ecosystem-commands/README.md)) run only when a person asks
+  `/toolchain:lint` or `/toolchain:check`. No check of a record's contents can bound what its
+  command executes, so a hook runs none, however the record matches the default branch. Setup
+  reports a record that exists and points to `/toolchain:lint` for it.
+- **Files are data.** Files reach the adapter's command as `"$@"` of `sh -c`, never as command text,
+  and a name starting with `-` gains `./`. Long file lists run in chunks under the Windows
+  command-line limit.
+- **Findings.** A lint adapter's output lines `<path>:<line>[:<col>]: <message>`, its paths relative
+  to where it ran or absolute, become repo-relative contract lines filtered to the changed lines.
+  A lint command that exits non-zero with no such line fails closed and shows its output.
+- **Missing tool.** The skip key is the adapter's tool. A missing tool stops only the files that
+  tool would handle.
 
 ### Check-script runtime contract
 

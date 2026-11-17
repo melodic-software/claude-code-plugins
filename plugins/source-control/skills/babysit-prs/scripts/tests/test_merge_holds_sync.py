@@ -793,7 +793,10 @@ PR = {
 ISSUE = 5
 OWNER = {"login": "owner", "id": 1, "type": "User"}
 OTHER = {"login": "other", "id": 2, "type": "User"}
-DECISION = "**Decision recorded.** Cost: approved"
+ROW = "https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10"
+QUOTE = 'Owner, verbatim: "Approve it."'
+LINE = "**Decision recorded.** Cost: approved"
+DECISION = f"{LINE}\n{ROW}\n{QUOTE}"
 
 
 def _comment(target: int, **fields: Any) -> dict[str, Any]:
@@ -862,6 +865,49 @@ DECISIONS = {
     "edited": (_link(7), _comment(7, edited="2026-01-04T00:00:00Z")),
     "another decision": (_link(7), _comment(7, body="**Decision recorded.** Ship")),
     "indented": (_link(7), _comment(7, body=f"  {DECISION}")),
+    "no record row": (_link(7), _comment(7, body=f"{LINE}\n{QUOTE}")),
+    "no owner quote": (_link(7), _comment(7, body=f"{LINE}\n{ROW}")),
+    "neither row nor quote": (_link(7), _comment(7, body=LINE)),
+    "a row at a commit, a line range": (
+        _link(7),
+        _comment(
+            7,
+            body=f"{LINE}\n{ROW.replace('main', '0' * 40)}-L12\n{QUOTE}",
+        ),
+    ),
+    "a row with no line": (
+        _link(7),
+        _comment(7, body=f"{LINE}\n{ROW.replace('#L10', '')}\n{QUOTE}"),
+    ),
+    "a row on another branch": (
+        _link(7),
+        _comment(7, body=f"{LINE}\n{ROW.replace('main', 'feature')}\n{QUOTE}"),
+    ),
+    "a row in another repository": (
+        _link(7),
+        _comment(7, body=f"{LINE}\n{ROW.replace('architecture', 'x')}\n{QUOTE}"),
+    ),
+    "a row inside an HTML comment": (
+        _link(7),
+        _comment(7, body=f"{LINE}\n<!-- {ROW} -->\n{QUOTE}"),
+    ),
+    "a quote inside an HTML comment": (
+        _link(7),
+        _comment(7, body=f"{LINE}\n{ROW}\n<!-- {QUOTE} -->"),
+    ),
+    "an empty quote": (
+        _link(7),
+        _comment(7, body=f'{LINE}\n{ROW}\nOwner, verbatim: " "'),
+    ),
+    "a quote run into a word": (
+        _link(7),
+        _comment(7, body=f'{LINE}\n{ROW}\nOwner, xverbatim: "yes"'),
+    ),
+    "both, through an App": (
+        _link(7),
+        _comment(7, performed_via_github_app={"id": 1}),
+    ),
+    "both, edited": (_link(7), _comment(7, edited="2026-01-04T00:00:00Z")),
 }
 CHECKS = {
     "pr-review-hosted.yml": "PR Review / review-status",
@@ -1330,6 +1376,22 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
         self.assertIsNone(answers["on the closing issue, naming it only as an entity"])
         self.assertIsNone(answers["on the closing issue, naming it only after a #"])
         self.assertIsNone(answers["edited"])
+        self.assertIsNotNone(answers["a row at a commit, a line range"])
+        for case in (
+            "no record row",
+            "no owner quote",
+            "neither row nor quote",
+            "a row with no line",
+            "a row on another branch",
+            "a row in another repository",
+            "a row inside an HTML comment",
+            "a quote inside an HTML comment",
+            "an empty quote",
+            "a quote run into a word",
+            "both, through an App",
+            "both, edited",
+        ):
+            self.assertIsNone(answers[case], case)
 
     def test_both_carry_a_decision_to_the_same_heads(self) -> None:
         answers = {}

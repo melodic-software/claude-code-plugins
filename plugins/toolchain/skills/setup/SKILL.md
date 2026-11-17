@@ -42,7 +42,7 @@ first**, then report a PASS/FAIL/INFO table; modify nothing.
 
 1. **Configured ecosystems.** For each `$REPO_ROOT/.claude/ecosystems/<ecosystem>.yaml` present,
    report the ecosystem and its resolved command surface
-   (`build-cmd`/`test-cmd`/`check-cmd`/`fix-cmd`/`code-fix-cmd`). Validate each against the contract's
+   (`build-cmd`/`test-cmd`/`check-cmd`/`lint-cmd`/`fix-cmd`/`code-fix-cmd`). Validate each against the contract's
    `ecosystem.schema.json`. **FAIL** a schema-invalid file (with the validation error in the
    remediation line), an ecosystem file excluded by `.gitignore` (`git check-ignore -v` matches;
    teammates would never receive it. Report the matching rule), or an un-ignored but untracked file
@@ -111,10 +111,16 @@ guessing. Offer any ecosystem the repo has that inference missed.
 Materialize one `$REPO_ROOT/.claude/ecosystems/<ecosystem>.yaml` per accepted ecosystem, conforming to
 the contract's `ecosystem.schema.json`. Each file carries a one-line header comment citing the
 contract, `globs` (required), the four command keys (`null` where a phase does not apply), and the
-optional keys that apply (`anchor`, `project-discovery`, `opt-in`, `install-hint`, `requires`, `gates`, `notes`).
+optional keys that apply (`anchor`, `project-discovery`, `opt-in`, `install-hint`, `requires`, `gates`, `notes`,
+`lint-cmd`).
 Write `requires` for a command that needs more than its tool on `PATH`, such as a runtime package
 it imports or the tool build CI pins, instead of an install step inside the command string.
 Confirm each file is tracked, not ignored.
+
+This skill is the one writer of `fix-cmd` and `lint-cmd`. A format or lint plugin's setup drafts the
+values and sends the person here with them. Write `lint-cmd` only as a report-only command over
+`<files>`. `/toolchain:lint` and `/toolchain:check` run these keys on request; no hook runs a
+record's command.
 
 Recommend the consumer validate these in their own gate, a `check-jsonschema` hook or CI lane against
 the contract schema catches typos the tolerant reader would otherwise ignore.

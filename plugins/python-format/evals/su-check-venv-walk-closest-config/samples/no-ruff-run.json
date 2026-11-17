@@ -1,14 +1,98 @@
 {
   "pass": [
-    {"answer": [{"tool": "Bash", "input": {"command": ".venv/bin/ruff --version"}}], "why": "a version probe"},
-    {"answer": [{"tool": "Bash", "input": {"command": "command -v ruff"}}], "why": "a PATH probe"},
-    {"answer": [{"tool": "Bash", "input": {"command": "grep -n 'ruff check' hooks/python-format.sh"}}], "why": "the command as a search term"},
-    {"answer": [], "why": "no calls"}
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": ".venv/bin/ruff --version"
+          }
+        }
+      ],
+      "why": "a version probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v ruff"
+          }
+        }
+      ],
+      "why": "a PATH probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'ruff check' hooks/python-format.sh"
+          }
+        }
+      ],
+      "why": "the command as a search term"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sh \"/plugins/python-format/git-hooks/format.sh\" --resolve src/pkg/mod.py scripts/run.py"
+          }
+        }
+      ],
+      "why": "check step 3's resolver read runs no tool and installs nothing"
+    }
   ],
   "fail": [
-    {"answer": [{"tool": "Bash", "input": {"command": "ruff check ."}}], "why": "runs the linter"},
-    {"answer": [{"tool": "Bash", "input": {"command": ".venv/bin/ruff format src"}}], "why": "runs the formatter"},
-    {"answer": [{"tool": "Bash", "input": {"command": "ruff --quiet check --fix scripts/run.py"}}], "why": "flag before the verb"},
-    {"answer": [{"tool": "Bash", "input": {"command": "command -v ruff && ruff format --check ."}}], "why": "after &&"}
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ruff check ."
+          }
+        }
+      ],
+      "why": "runs the linter"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": ".venv/bin/ruff format src"
+          }
+        }
+      ],
+      "why": "runs the formatter"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ruff --quiet check --fix scripts/run.py"
+          }
+        }
+      ],
+      "why": "flag before the verb"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v ruff && ruff format --check ."
+          }
+        }
+      ],
+      "why": "after &&"
+    }
   ]
 }

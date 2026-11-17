@@ -1677,7 +1677,15 @@ the rules that only tighten in
   [The pr-merge lane](#the-pr-merge-lane) reads it) or on the pull request itself, in this repository,
   whose first line starts `**Decision recorded.** Cost:`, written by a User with admin permission
   who is not the agent identity or one of the gate's own logins, not posted through an App, and
-  never edited; one on the closing issue must also be created after the pull request was. A link
+  never edited; one on the closing issue must also be created after the pull request was. The
+  comment must also carry, outside HTML comments, a line link to the decision's row in the
+  owner-decisions record
+  (`https://github.com/melodic-software/architecture/blob/<commit or main>/docs/owner-decisions.md#L<line>`;
+  rows have no anchors and the record is append-only) and the owner's words after `verbatim:` in
+  double quotes (`Owner, verbatim: "<his words>"`). The gate cannot read that private record, so it
+  checks the shape only: a cleared hold is auditable, not provable, since sessions post as the
+  owner and write the record too. A comment that meets every other condition but lacks either
+  keeps the hold, and the gate's message names what it lacks. A link
   inside an HTML comment in the body counts for nothing. A push after the decision is an accepted
   residual: the decision is not bound to a head. The gate reads the linked comments only for a
   pull request the hold catches, and a failed read leaves the hold. A decision
@@ -2223,8 +2231,9 @@ Both also hold a pull request that changes one of the merge gate's cost paths
 (`babysit_risk.COST_PATHS`: Pulumi, Terraform, Bicep and ARM template files). An
 approval does not lift that hold. Only the owner's cost decision does, read as the gate's
 `cost_decision` reads it: an unedited comment by a person on the trusted-actor list whose first
-line opens `**Decision recorded.** Cost:`, on the pull request or on its one closing issue after
-the pull request opened, linked from the body. That body edit re-runs `ci-status`. The decision
+line opens `**Decision recorded.** Cost:` and that carries an owner-decisions row link and a
+verbatim owner quote (`decisionGaps`, the shape the cost hold above states), on the pull request
+or on its one closing issue after the pull request opened, linked from the body. That body edit re-runs `ci-status`. The decision
 carries to a later head by the same `baseMergeCarry` as the hold-path lift, on the whole net
 change rather than the hold paths alone. The module is read at the pull request's base commit, so a lanes App pull
 request whose base predates the module fails `ci-status` closed until it is updated with main.
@@ -2858,6 +2867,14 @@ still needs a listed human's issue. The same rule (`driftIssueId` in
 `.github/scripts/intake-triage/admit.mjs`) lets the triage sweep dispatch intake for such an issue
 and admission accept it as its author, and the same template (`driftSpecText`) is its done-when and
 the issue lane's `issue.json` body (owner decision on #14215, Q195 (a)).
+The monitoring lane's main-red incident is its own spec too: when github-actions[bot] wrote it and
+nobody else last edited it, its title is `Restore the failing required checks on main` (`issues.mjs`
+`FILING`) and its first body line is the marker for `incident:main-red`, it counts for a pull
+request that closes it or names it on a `Refs:` line, whatever files that pull request changes.
+Its spec text is one fixed text (resolve-pr.mjs `MAIN_RED_SPEC`), never the issue's body: fix the
+cause of the failing or flaky required check without weakening, skipping or deleting a check, and
+widen no further. The lane closes the incident itself once main stays green, so a `Refs:` pull
+request for it names no remaining work. Intake and admission do not trust it.
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:
@@ -2985,8 +3002,9 @@ head:
   whose body counts as its parent's text, or is the upstream-drift workflow's issue as above, its
   title, first body line, author and last editor read again, and the pull request's changed files
   from its base to the head (GET compare) only modifications of `docs/upstream` pages that pin its
-  upstream at the default branch's tip, read there (otherwise `verify:untrusted-spec`; a failed
-  read refuses `verify:unreadable`). That sub-issue counts
+  upstream at the default branch's tip, read there, or is the main-red incident as above, its
+  title, first body line, author and last editor read again (otherwise `verify:untrusted-spec`; a
+  failed read refuses `verify:unreadable`). That sub-issue counts
   when the lanes App wrote it, a listed human filed its native parent in this repository, its body
   opens with the split header for that parent, every line after the header is one of the parent's
   trusted task-list lines (a line of the parent's listed-human body or comments that starts with

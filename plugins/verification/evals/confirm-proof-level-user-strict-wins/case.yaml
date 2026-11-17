@@ -3,7 +3,7 @@ name: confirm-proof-level-user-strict-wins
 graders:
   - name: 'report-line-strict'
     type: 'regex'
-    pattern: 'proof_level[`*_]*\s*:\s*[`*_]*strict\b[^\n]*(?:userConfig|user option)'
+    pattern: 'proof_level[`*_]*\s*(?::|\|)[\s`*_]*strict\b[^\n]*(?:userConfig|user option|your option)'
     flags: 'i'
     target: 'last_message'
   - name: 'proof-box-table'
@@ -13,5 +13,5 @@ graders:
     target: 'last_message'
   - name: 'user-strict-boxes'
     type: 'llm'
-    criteria: 'The reply verifies a two-phase plan. It meets the legacy expectations: "Resolves proof_level to strict with userConfig as the supplying layer" "Does not let the repository''s path lower the user''s strict" "Fills unit, live and perf boxes for each of the two plan phases". A box filled with a reasoned not-applicable line, or NOT VERIFIED, counts as filled.'
+    criteria: 'The reply verifies a two-phase plan. It resolves proof_level to strict with userConfig (the user option) as the supplying layer, and does not let the repository''s path lower it. It shows unit, live and perf boxes for each of the two phases, and every one of the six boxes has an entry: evidence, a reasoned not-applicable line, or a marking that the box is open, in any words (such as open, empty, unproven, no evidence, not driven, NOT VERIFIED). An open box needs the reason it is open; one reason stated once for the table or the report, such as the run being told not to read or run anything, covers every box it names. A missing box or a blank cell fails.'
     focus: 'last_message'

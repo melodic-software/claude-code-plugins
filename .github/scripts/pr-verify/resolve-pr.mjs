@@ -72,8 +72,9 @@ import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { ACTIONS_BOT_ID, carriesSplit, DRIFT_TITLE, driftIssueId, driftSpecText, loadRules, personChecks, readSchedule, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { ACTIONS_BOT_ID, actionsBotOnly, carriesSplit, DRIFT_TITLE, driftIssueId, driftSpecText, loadRules, personChecks, readSchedule, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
+import { FILING, incidentKey, readMarker } from "../maintenance-monitor-signals/issues.mjs";
 
 export { refsIssue };
 
@@ -801,6 +802,34 @@ export function driftSpec(issue, pages, files) {
   return driftSpecText(id, own);
 }
 
+// The monitoring lane's main-red incident (maintenance-monitor-signals
+// issues.mjs): the title it files the signal under and its marker's key.
+const MAIN_RED = "1 main red";
+export const MAIN_RED_TITLE = FILING[MAIN_RED].title;
+const MAIN_RED_KEY = incidentKey(MAIN_RED);
+
+// The fixed spec of a main-red incident, the same for every one, so no text
+// of the issue, which carries run and job output, ever becomes spec. The lane
+// closes the incident itself once the checks stay green, so a fix that links
+// it with `Refs:` delivers all a pull request can.
+export const MAIN_RED_SPEC = [
+  `# ${MAIN_RED_TITLE}`,
+  "",
+  "A required check on main fails or flakes. Make main's required checks pass again by fixing the cause of that failure. Fixing the cause is the whole delivery: the monitoring lane closes this issue on its own once the signal stays clear, so a pull request that links it with `Refs:` names no remaining work.",
+  "",
+  "## Done when",
+  "",
+  "- [ ] The cause of the failing or flaky required check on main is fixed, without weakening, skipping or deleting that check or any other.",
+  "- [ ] The change does not widen beyond that fix.",
+].join("\n");
+
+// Whether `issue` (as GraphQL answers it) is a main-red incident the
+// monitoring lane filed: github-actions[bot] wrote it and nobody else last
+// edited it (admit.mjs actionsBotOnly), under the lane's exact title, with
+// its marker line for the main-red key first. Nothing else of the body is
+// read. Pure.
+export const mainRedIncident = (issue) => actionsBotOnly(issue) && issue.title === MAIN_RED_TITLE && readMarker(issue.body)?.key === MAIN_RED_KEY;
+
 // The files a pull request changes from `base` to `head` (GET compare, three
 // dots, as the pull request's diff). A failed read throws.
 async function compareFiles(github, repository, base, head) {
@@ -836,6 +865,8 @@ async function compareFiles(github, repository, base, head) {
 // default this checkout's docs/upstream pages), marked `source`
 // `upstream-drift`, only when `drift.changedFiles` reads the pull request's
 // changed files; a caller that passes none (the pr-unblock lanes) gets none.
+// A closing or `Refs:` issue the monitoring lane filed for a red main
+// (mainRedIncident) takes MAIN_RED_SPEC, marked `source` `main-red-incident`.
 // The merge gate cannot see the refinement: an edit, a hide (isMinimized)
 // or a newer one after a pass leaves that pass standing. An edit only takes
 // the refinement out of spec, so no one gains a spec by it; a person's
@@ -971,6 +1002,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
       const childBody = childBodies.get(issue.number);
       const recurring = written(issue) || childBody !== undefined ? null : recurringSpec(issue, schedule);
       const upstreamDrift = written(issue) || childBody !== undefined || recurring !== null ? null : (driftBodies.get(issue.number) ?? null);
+      const incident = written(issue) || childBody !== undefined || recurring !== null || upstreamDrift !== null || !mainRedIncident(issue) ? null : MAIN_RED_SPEC;
       // A trusted target-subset part's Scope line (admit.mjs splitScope):
       // its done-when lines apply only to these targets.
       const scope = !written(issue) && childBody !== undefined ? splitScope(childBody) : null;
@@ -979,7 +1011,8 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
         spec_kind: named !== null ? "refs" : "closes",
         ...(recurring !== null && { source: "recurring-schedule" }),
         ...(upstreamDrift !== null && { source: "upstream-drift" }),
-        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBody ?? recurring ?? upstreamDrift),
+        ...(incident !== null && { source: "main-red-incident" }),
+        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBody ?? recurring ?? upstreamDrift ?? incident),
         ...(scope !== null && { scope }),
         comments: issue.comments.nodes.filter((comment) => written(comment) || comment === counted).map((comment) => String(comment.body ?? "")),
         // The body's done-when items that refinement lists as checks a

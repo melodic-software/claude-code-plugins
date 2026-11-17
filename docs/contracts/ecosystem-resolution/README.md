@@ -18,7 +18,9 @@ when nothing resolves. It does not own the records it reads:
   per-ecosystem command file. That contract is not widened by this one. Its resolution list ends in
   the plugin's bundled portable defaults; once `toolchain`'s nine bundled files are deleted, in a
   later change under ADR 0101, a generic skill takes step 7 of the generic text (an unresolved
-  report) in that step's place.
+  report) in that step's place. A record's commands run only when a person asks a skill such as
+  `/toolchain:lint` or `/toolchain:check`; no hook runs them (the
+  [check-placement convention](../check-placement/README.md), "Hooks run the shipped adapter").
 - [`standards`](../standards/README.md) owns the standards index and its paved-path row. Where its
   resolution ladder ends in safe ecosystem defaults, a generic skill resolving a language,
   framework, tool or library choice takes step 7 instead.
@@ -72,7 +74,7 @@ Two guarantees hold across every step:
 
 | Choice | Record | Owner | Writer |
 |---|---|---|---|
-| A build, test, lint or format command for one ecosystem | `.claude/ecosystems/<ecosystem>.yaml` | [`ecosystem-commands`](../ecosystem-commands/README.md) | the owning plugin's re-runnable `setup`; a lane's record pull request, once merged |
+| A build, test, lint or format command for one ecosystem | `.claude/ecosystems/<ecosystem>.yaml` | [`ecosystem-commands`](../ecosystem-commands/README.md) | `/toolchain:setup apply <ecosystem>`, the one writer of `fix-cmd` and `lint-cmd` (a format or lint plugin's setup drafts them for it); a lane's record pull request, once merged |
 | A language, framework or library convention, or a review criterion | the standards index and the files its rows route to | [`standards`](../standards/README.md) | the standards setup, on acceptance |
 | The chosen way for a repeated task | the file the index's `paved-path` row routes to | [`standards`](../standards/README.md#paved-paths) | `/discipline:reuse-or-replace`, after a yes |
 | The order of enforcement mechanisms | the project instructions | [`enforcement-ladder`](../enforcement-ladder/README.md#reordering) | the person |

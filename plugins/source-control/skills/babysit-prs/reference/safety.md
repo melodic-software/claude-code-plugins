@@ -1157,6 +1157,7 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could start
    a real new charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body
    links an owner `**Decision recorded.** Cost:` comment on the closing issue or the pull request
+   that also links its owner-decisions row and quotes the owner after `verbatim:`
    (`cost_decision`); subscription or prepaid spend is the reported, non-holding MED `cost-finding`,
    and a new secrets reference or model leg holds as `secret-exposure-review` or
    `agent-surface-review`, a workflow token that gains a write scope as
