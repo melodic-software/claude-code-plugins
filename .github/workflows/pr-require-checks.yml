@@ -5562,8 +5562,13 @@ jobs:
       # fetches every commit and tree but only the blobs it checks out (a
       # blobless clone of this repository took 2 s and 45 MB on 2026-11-17),
       # and the script turns git's lazy fetch off. Until the script is on the
-      # default branch, both steps skip. Only a FAIL line fails the job; stale
-      # coverage is a WARN line unless the skill's sync.yaml says fail.
+      # default branch, both steps skip. With fetch-depth 0 the checkout fetches
+      # +refs/heads/*:refs/remotes/origin/* on either event (actions/checkout
+      # src/ref-helper.ts getRefSpecForAllHistory), so --default-ref names the
+      # default branch's remote ref: a sync or seeded-break commit that only a
+      # feature branch holds fails here, before a squash merge discards it.
+      # Only a FAIL line fails the job; stale coverage is a WARN line unless
+      # the skill's sync.yaml says fail.
       - name: Check out the event commit's formal-area skills
         id: formal_skills
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && hashFiles('.base/plugins/formal-verification/scripts/check.mjs') != '' }}
@@ -5579,7 +5584,9 @@ jobs:
       - name: Check the formal-area skills against their contract
         if: ${{ !cancelled() && steps.formal_skills.outcome == 'success' }}
         timeout-minutes: 2
-        run: node .base/plugins/formal-verification/scripts/check.mjs --project-dir "$GITHUB_WORKSPACE/formal-skills" --skills-dir .claude/skills
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: node .base/plugins/formal-verification/scripts/check.mjs --project-dir "$GITHUB_WORKSPACE/formal-skills" --skills-dir .claude/skills --default-ref "refs/remotes/origin/$DEFAULT_BRANCH"
       # THE HOLD STEPS READ THEIR CONFIG ONCE, FROM THE DEFAULT BRANCH'S TIP AT
       # RUN TIME, OR THE BASE COMMIT FOR ANOTHER BASE. The tracker config names
       # the human-gated label; the trusted-actor list names who may lift a hold

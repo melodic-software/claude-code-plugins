@@ -105,6 +105,15 @@ a change is intended. Put the coverage record and the sync commit in `sync.yaml`
 agent to move the sync commit forward only after it confirms that the verification describes the
 code at the new commit. Use this repo's real commands, paths, and nouns, and leave no placeholders.
 
+The sync commit, and the commit a seeded break is made against, are commits already on the
+repository's default branch, found from the repository itself (its remote's default branch) and
+never assumed by name: the merge base of the working branch and the default branch, or a later
+default-branch commit, at which the covered files are identical to the ones you confirmed. Never
+record a commit that only the working branch holds: a squash or rebase merge discards it, and
+`check` then fails on every later change. When this change also edits the covered code, record the
+merge base, expect the stale-coverage warning until the change lands, and say in `## Updating` that
+the sync commit moves in a follow-up change after it lands.
+
 Each `sync.yaml` entry's `command` is the same text `## Run` gives on a line of its own. Until the seeded break below
 is caught, `seeded_break.caught` is `false`.
 
@@ -114,7 +123,7 @@ Follow the generated skill once, as the next agent would, on a scratch change th
 property in the real code. It must catch the break.
 
 1. Make the scratch change in a throwaway git worktree, never the person's working tree:
-   `git worktree add --detach <scratch folder outside the repository> HEAD`, then copy the new
+   `git worktree add --detach <scratch folder outside the repository> <sync commit>`, then copy the new
    `formal-<area>` folder into it.
 2. Break the property there, such as a removed check or a reordered step. Where the check reads a
    model rather than the code, follow the skill's `## Updating` in the worktree to carry the break
@@ -124,7 +133,7 @@ property in the real code. It must catch the break.
 4. Remove the worktree (`git worktree remove --force <scratch folder>`). It is outside the unattended
    write boundary, and nothing from it is kept.
 5. Record the break in `sync.yaml`: `change` in the code's words, `caught: true`, and the commit it
-   was made against.
+   was made against: the sync commit from step 1.
 6. Run every check in `sync.yaml` again on the unbroken tree: each is back where it started,
    passing, or failing only on the findings you will report.
 

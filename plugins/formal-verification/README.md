@@ -52,8 +52,12 @@ changed after its sync commit; a `sync.yaml` entry's own `on_stale` wins over it
 [`reference/formal-skill.md`](reference/formal-skill.md) and edits nothing:
 
 ```shell
-node <plugin root>/scripts/check.mjs --project-dir . [--skills-dir DIR] [SKILL_DIR...]
+node <plugin root>/scripts/check.mjs --project-dir . [--skills-dir DIR] [--default-ref REF] [SKILL_DIR...]
 ```
+
+`--default-ref` names the default branch's ref; a sync or seeded-break commit not on it fails,
+because a squash or rebase merge discards a commit only a feature branch holds. A ref that does not
+resolve draws one warning and skips that check.
 
 `--skills-dir` wins over the `skills_dir` key; CI passes `.claude/skills` so the pull request's own
 convention file cannot move the check. It exits 0 with no failure, 1 with one, and 2 when it cannot

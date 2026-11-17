@@ -47,8 +47,8 @@ const skillBody = ({ name = "formal-lock", drop = [], run = RUN, head = true, de
   return `${fm}# Formal check: lock\n\n${parts.map(([s, b]) => `## ${s}\n\n${b}\n`).join("\n")}`;
 };
 
-const syncYaml = (commit, { covers = ["src/lock.js"], extra = "", command = RUN } = {}) =>
-  `checks:\n  - id: one-holder\n    covers:\n${covers.map((c) => `      - ${c}\n`).join("")}    commit: ${commit}\n    command: ${command}\n    seeded_break:\n      change: the held check removed\n      caught: true\n      commit: ${commit}\n${extra}outside_model: []\n`;
+const syncYaml = (commit, { covers = ["src/lock.js"], extra = "", command = RUN, seeded = commit } = {}) =>
+  `checks:\n  - id: one-holder\n    covers:\n${covers.map((c) => `      - ${c}\n`).join("")}    commit: ${commit}\n    command: ${command}\n    seeded_break:\n      change: the held check removed\n      caught: true\n      commit: ${seeded}\n${extra}outside_model: []\n`;
 
 const repo = ({ skill = {}, sync = {}, conventions } = {}) => {
   const root = mkdtempSync(join(tmpdir(), "fv-check-"));
@@ -148,6 +148,57 @@ test("a sync commit that is not an ancestor of HEAD fails", () => {
   const r = check(root);
   assert.equal(r.code, 1, r.out);
   assert.match(r.fails.join("\n"), /is not an ancestor of HEAD/);
+});
+
+const branchOnly = () => {
+  const made = repo();
+  git(made.root, "checkout", "-q", "-b", "feature");
+  write(made.root, "src/feature.js", "1\n");
+  git(made.root, "add", "-A");
+  git(made.root, "commit", "-q", "-m", "feature work");
+  return { ...made, feature: git(made.root, "rev-parse", "HEAD") };
+};
+
+test("with --default-ref, sync and seeded-break commits on the default branch pass", () => {
+  const r = check(branchOnly().root, "--default-ref", "main");
+  assert.equal(r.code, 0, r.out);
+  assert.deepEqual(r.fails, []);
+  assert.deepEqual(r.warns, []);
+});
+
+test("with --default-ref, a sync commit only on the feature branch fails", () => {
+  const { root, feature } = branchOnly();
+  write(root, ".claude/skills/formal-lock/sync.yaml", syncYaml(feature));
+  git(root, "commit", "-q", "-am", "sync at the feature commit");
+  const r = check(root, "--default-ref", "main");
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.fails.join("\n"), /sync commit [0-9a-f]{40} is not on the default branch "main"; a squash or rebase merge will discard it/);
+  assert.ok(!/is not an ancestor of HEAD/.test(r.out), r.out);
+});
+
+test("with --default-ref, a seeded-break commit only on the feature branch fails", () => {
+  const { root, commit, feature } = branchOnly();
+  write(root, ".claude/skills/formal-lock/sync.yaml", syncYaml(commit, { seeded: feature }));
+  git(root, "commit", "-q", "-am", "break at the feature commit");
+  const r = check(root, "--default-ref", "main");
+  assert.equal(r.code, 1, r.out);
+  assert.deepEqual(r.fails, [`FAIL "formal-lock": check "one-holder": seeded-break commit ${feature} is not on the default branch "main"; a squash or rebase merge will discard it`]);
+});
+
+test("without --default-ref, a feature-branch sync commit still passes", () => {
+  const { root, feature } = branchOnly();
+  write(root, ".claude/skills/formal-lock/sync.yaml", syncYaml(feature));
+  git(root, "commit", "-q", "-am", "sync at the feature commit");
+  assert.equal(check(root).code, 0);
+});
+
+test("a --default-ref that does not resolve warns once and skips the check", () => {
+  const { root, feature } = branchOnly();
+  write(root, ".claude/skills/formal-lock/sync.yaml", syncYaml(feature));
+  git(root, "commit", "-q", "-am", "sync at the feature commit");
+  const r = check(root, "--default-ref", "refs/remotes/origin/nope");
+  assert.equal(r.code, 0, r.out);
+  assert.deepEqual(r.warns, ['WARN "default-ref": "refs/remotes/origin/nope" does not resolve to a commit here; the default-branch check is skipped']);
 });
 
 test("a covered file missing at HEAD fails, and a glob that matches no file fails", () => {

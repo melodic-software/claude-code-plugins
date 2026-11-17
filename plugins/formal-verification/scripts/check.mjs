@@ -236,6 +236,11 @@ const checkSkill = (projectDir, dir, ctx, report) => {
     const known = git(projectDir, ["cat-file", "-e", `${entry.commit}^{commit}`]).ok;
     const ancestor = known && git(projectDir, ["merge-base", "--is-ancestor", entry.commit, "HEAD"]).ok;
     if (!ancestor) fail(`${at}: sync commit ${entry.commit} is not an ancestor of HEAD`);
+    if (ctx.defaultRef)
+      for (const [label, commit] of [["sync commit", entry.commit], ["seeded-break commit", entry.seeded_break.commit]]) {
+        const onDefault = git(projectDir, ["cat-file", "-e", `${commit}^{commit}`]).ok && git(projectDir, ["merge-base", "--is-ancestor", commit, ctx.defaultRef]).ok;
+        if (!onDefault) fail(`${at}: ${label} ${commit} is not on the default branch ${q(ctx.defaultLabel)}; a squash or rebase merge will discard it`);
+      }
     for (const pattern of entry.covers)
       if (!ctx.headFiles.some(matcher(pattern))) fail(`${at}: covered path ${q(pattern)} is missing at HEAD`);
     if (!ancestor) continue;
@@ -249,7 +254,7 @@ const checkSkill = (projectDir, dir, ctx, report) => {
   }
 };
 
-export const check = (projectDir, targets = [], { home, skillsDir: skillsOption } = {}) => {
+export const check = (projectDir, targets = [], { home, skillsDir: skillsOption, defaultRef } = {}) => {
   const out = [];
   const report = (level, name, msg) => out.push(`${level} ${q(name)}: ${msg}`);
   const top = git(projectDir, ["rev-parse", "--show-toplevel"]);
@@ -258,7 +263,12 @@ export const check = (projectDir, targets = [], { home, skillsDir: skillsOption 
   const settings = resolveSettings(projectDir, home);
   const skillsRel = skillsOption ?? settings.values.skills_dir;
   const skillsDir = resolvePath(projectDir, skillsRel);
-  const ctx = { onStale: settings.values.check.on_stale, headFiles: [] };
+  const ctx = { onStale: settings.values.check.on_stale, headFiles: [], defaultRef: null, defaultLabel: defaultRef };
+  if (defaultRef !== undefined) {
+    const resolved = !defaultRef.startsWith("-") && git(projectDir, ["rev-parse", "--verify", "-q", "--end-of-options", `${defaultRef}^{commit}`]);
+    if (resolved && resolved.ok) ctx.defaultRef = resolved.out.trim();
+    else report("WARN", "default-ref", `${q(defaultRef)} does not resolve to a commit here; the default-branch check is skipped`);
+  }
   const outside = (p) => {
     let at = p;
     while (kind(at) === null && dirname(at) !== at) at = dirname(at);
@@ -306,15 +316,16 @@ if (process.argv[1] && realPath(process.argv[1]) === realPath(fileURLToPath(impo
   try {
     parsed = parseArgs({
       allowPositionals: true,
-      options: { "project-dir": { type: "string" }, home: { type: "string" }, "skills-dir": { type: "string" } },
+      options: { "project-dir": { type: "string" }, home: { type: "string" }, "skills-dir": { type: "string" }, "default-ref": { type: "string" } },
     });
   } catch (error) {
-    console.error(`${error.message}\nusage: check.mjs [--project-dir DIR] [--home DIR] [--skills-dir DIR] [SKILL_DIR...]`);
+    console.error(`${error.message}\nusage: check.mjs [--project-dir DIR] [--home DIR] [--skills-dir DIR] [--default-ref REF] [SKILL_DIR...]`);
     process.exit(2);
   }
   const { code, out } = check(resolvePath(parsed.values["project-dir"] ?? process.cwd()), parsed.positionals, {
     home: parsed.values.home,
     skillsDir: parsed.values["skills-dir"],
+    defaultRef: parsed.values["default-ref"],
   });
   process.stdout.write(`${out.join("\n")}\n`);
   process.exit(code);

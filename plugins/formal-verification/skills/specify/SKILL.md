@@ -70,10 +70,12 @@ worktree, and hands off only after the check caught that break.
 Run the contract check. It reads each `formal-<area>` skill and its `sync.yaml`, and edits nothing:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/check.mjs" --project-dir "$PWD" [SKILL_DIR...]
+node "${CLAUDE_PLUGIN_ROOT}/scripts/check.mjs" --project-dir "$PWD" [--default-ref <ref>] [SKILL_DIR...]
 ```
 
-With no folder named it checks every `formal-*` folder under the `skills_dir` setting. It prints one
+With no folder named it checks every `formal-*` folder under the `skills_dir` setting. Pass
+`--default-ref` with the ref of the repository's default branch, read from its remote, so a sync
+commit that only the working branch holds fails now rather than after the merge. It prints one
 `FAIL` or `WARN` line per finding and a summary, and exits 0 with no failure, 1 with one, 2 when it
 cannot run. The findings it reports are listed in the contract's "The contract check". Report the
 lines as printed. A stale-coverage warning means the check needs another look, not that it fails:
