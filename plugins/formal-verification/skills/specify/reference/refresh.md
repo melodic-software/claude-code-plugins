@@ -179,9 +179,11 @@ stays staged. Done when `git show --name-only --format= HEAD` lists only those p
   with the edits in the report. Push nothing and open no pull request: the ticket's pull request
   carries the commit.
 - **A folder's own upkeep branch, checked out in the person's working tree:** for that folder,
-  merge the tip into it, never a rebase, then write and commit there under the ticket bullet's
-  guard, and push, which updates its pull request or opens one as the next bullet does. Every
-  other folder takes the next bullet.
+  read the ticket bullet's guard first, over the whole working tree (`git status --porcelain`),
+  and write nothing when it prints anything. Then merge the tip into the branch, never a rebase;
+  when git refuses the merge, run `git merge --abort` and leave the folder's checks `blocked`
+  with git's stderr line. Then write and commit there, and push, which updates its pull request
+  or opens one as the next bullet does. Every other folder takes the next bullet.
 - **Default branch or a detached HEAD at the tip:** write in a worktree outside the repository on
   the folder's upkeep branch, `formal-verification-upkeep/<folder>`, one per folder. Create it from
   the tip when it does not exist; when it does, merge the tip into it, never a rebase, and a merge
