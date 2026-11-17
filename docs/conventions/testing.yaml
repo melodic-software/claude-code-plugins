@@ -1,8 +1,13 @@
 # yaml-language-server: $schema=../../plugins/testing/schemas/testing.schema.json
 # Team layer for the testing plugin's settings.
-# Resolution: plugins/testing/scripts/resolve-config.sh (scan keys and its e2e mode).
+# Resolution: plugins/testing/scripts/resolve-config.sh (scan keys and its e2e and map modes).
 e2e_driver: auto
 reuse_running_instance: auto
+# A /testing:run-e2e map pass takes each feature part (here, mostly one skill) as an entry,
+# judges only its first entry point, reports the rest not checked, and files no findings.
+map_unit: part
+map_entry_points: first
+file_findings: none
 # The planning session tests' refused and refused_ops helpers assert the refusal code.
 extend:
   py-pytest:

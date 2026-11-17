@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FILE_ONLY_FIELDS, headerStop, isContentWrite, poolOf, RateLimitStop, serverErrorHold } from "./rate-guard.mjs";
+import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FALLBACK_NOTE, FILE_ONLY_FIELDS, headerStop, isContentWrite, poolOf, RateLimitStop, serverErrorHold } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
@@ -793,6 +793,30 @@ test("each stop's cause goes in the job's cause file, and a later latch words a 
     assert.deepEqual(lines, [`::error::GET ${URL_B} was not sent: GitHub's core API rate limit holds until 2026-10-23T10:33:20Z`]);
   }));
 
+// A refusal with no reset header stops for primaryFallbackSeconds. Its time is
+// named a fallback, held only by this job, wherever it is reported.
+test("a stop no header timed goes in the fallback file, not guessed, and its hit and refusals name it a fallback", async () =>
+  withDir(async (dir) => {
+    const stopFile = join(dir, "api-budget", "stop");
+    const lines = [];
+    const options = { now: () => NOW, log: (line) => lines.push(line), fail: () => {}, limits: () => ({}), stopFile };
+    const gh = fakeGitHub([[403, {}, { message: "API rate limit exceeded for installation ID 1." }]]);
+    const latch = createRateLimitLatch(options);
+    await latch.guard(gh.fetch)(URL_A);
+    const reset = VECTORS.vector_now + 3600;
+    const at = new Date(reset * 1000).toISOString().replace(".000Z", "Z");
+    assert.equal(readFileSync(join(dir, "api-budget", "fallback"), "utf8"), `* ${reset}\n`);
+    assert.deepEqual(readdirSync(join(dir, "api-budget")).sort(), ["cause", "fallback", "stop"]);
+    assert.deepEqual(lines, [`::error::GET ${URL_A} hit GitHub's API rate limit (status 403): no call to it before ${at} (${FALLBACK_NOTE}); this step fails`]);
+    const refused = `::error::GET ${URL_B} was not sent: GitHub's API rate limit holds until ${at} (${FALLBACK_NOTE})`;
+    for (const next of [latch, createRateLimitLatch(options)]) {
+      lines.length = 0;
+      await assert.rejects(next.guard(gh.fetch)(URL_B), RateLimitStop);
+      assert.deepEqual(lines, [refused]);
+    }
+    assert.equal(gh.sent.length, 1);
+  }));
+
 // As in api-budget.bash and babysit_gh.py, a cause goes in only beside a stop
 // the stop file took.
 test("a stop the stop file cannot take leaves the cause file unwritten", { skip: ROOT && "root writes past any file mode" }, async () =>
@@ -898,6 +922,7 @@ const UNGUARDED = {
   // Its API calls go through lib/github-rest.mjs, which imports the guard; the
   // one raw fetch is getStatus, reading www.githubstatus.com, not the API.
   ".github/scripts/maintenance-monitor-signals/monitor.mjs": "githubstatus.com reads; API calls via lib/github-rest.mjs",
+  ".github/scripts/lib/ci-workflows-at-pin.mjs": "raw.githubusercontent.com reads from tests; no API call",
 };
 
 test("every lane script that calls fetch goes through the rate guard, or is listed with its reason", () => {

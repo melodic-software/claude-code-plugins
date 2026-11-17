@@ -283,7 +283,8 @@ jobs:
             # call GitHub answered with a 2xx keeps its answer and gh's status, so no caller resends a write GitHub accepted, unless its stop
             # cannot be recorded, which ends the step first (below). Its stops are
             # lines `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header of
-            # the refused response gave it) goes in $RUNNER_TEMP/api-budget/guessed too. Readers take only lines
+            # the refused response gave it) goes in $RUNNER_TEMP/api-budget/guessed too, and one whose source is
+            # `fallback` (rate-guard.mjs writes these as well) in $RUNNER_TEMP/api-budget/fallback. Readers take only lines
             # shaped `^([a-z_]+|\*) [0-9]{1,12}$` and ended by a newline, as
             # rate-guard.mjs does, so a fragment a short write left spoils only the line
             # it runs into. A missing stop file holds no stop; one that exists but cannot
@@ -311,6 +312,9 @@ jobs:
             #                               the epoch second <pool> is stopped until, if
             #                               it is
             #   api_budget_guessed <epoch>  whether a stop until <epoch> is a guess
+            #   api_budget_fallback <pool> <epoch>
+            #                               whether <pool>'s stop until <epoch> has the
+            #                               fallback source, which its refusal names
             #   api_budget_server_status <pool> <epoch>
             #                               the 5xx when <pool>'s stop until <epoch> is a
             #                               server error hold (API_BUDGET_SERVER_ERROR), by
@@ -658,8 +662,15 @@ jobs:
               [[ -s $file ]] && awk -v t="$1" '/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && $2 == t { found = 1 } END { exit !found }' "$file"
             }
 
+            api_budget_fallback() {
+              local file=${RUNNER_TEMP:-/tmp}/api-budget/fallback
+              [[ -s $file ]] && awk -v pool="$1" -v t="$2" '/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && $2 == t && ($1 == pool || $1 == "*" || pool == "any") { found = 1 } END { exit !found }' "$file"
+            }
+
             api_budget_label() { [[ $1 == '*' || $1 == any ]] && echo API || echo "$1 API"; }
             api_budget_when() { jq -rn --argjson t "$1" '$t | todate'; }
+            # How a stop no header timed is named, as rate-guard.mjs's FALLBACK_NOTE.
+            API_BUDGET_FALLBACK_NOTE="fallback: GitHub's refusal carried no reset header, so this time is a guess that holds only this job; a re-run works once GitHub's real reset passes"
             # A rate limit's annotation: a notice when the caller holds (API_BUDGET_HOLD=1,
             # outage posture element 2), else an error. The call returns 1 either way, so
             # a gate that does not hold still fails on it.
@@ -693,6 +704,8 @@ jobs:
               [[ -z $until ]] && return 0
               if status=$(api_budget_server_status "$1" "$until"); then
                 echo "::$(api_budget_level) title=GitHub server error::'$2' was not sent: GitHub answered HTTP $status with a Retry-After; no call to it before $(api_budget_when "$until")" >&2
+              elif api_budget_fallback "$1" "$until"; then
+                echo "::$(api_budget_level)::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until") ($API_BUDGET_FALLBACK_NOTE)" >&2
               else
                 echo "::$(api_budget_level)::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")" >&2
               fi
@@ -702,7 +715,8 @@ jobs:
             # api_budget_stop <pool> <reset> <source> <what> [then] [5xx]: the 5xx is a
             # server error hold's status (api_budget_observe), worded and recorded as one.
             api_budget_stop() {
-              local dir=${RUNNER_TEMP:-/tmp}/api-budget lines cause=limit
+              local dir=${RUNNER_TEMP:-/tmp}/api-budget lines cause=limit fallback=
+              [[ $3 != fallback ]] || { fallback=1; set -- "$1" "$2" "$API_BUDGET_FALLBACK_NOTE" "${@:4}"; }
               if [[ ${6:-} =~ ^5[0-9][0-9]$ ]]; then
                 cause=server-$6
                 lines=("::$(api_budget_level) title=GitHub server error::'$4' got a GitHub server error, HTTP $6 with a Retry-After: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}")
@@ -714,6 +728,7 @@ jobs:
               if mkdir -p "$dir" 2>/dev/null && { printf '%s %s\n' "$1" "$2" >>"$dir/stop"; } 2>/dev/null &&
                 { [[ $3 == retry-after || $3 == x-ratelimit-reset ]] || { printf '%s %s\n' "$1" "$2" >>"$dir/guessed"; } 2>/dev/null; }; then
                 { printf '%s %s %s\n' "$1" "$2" "$cause" >>"$dir/cause"; } 2>/dev/null || :
+                [[ -z $fallback ]] || { printf '%s %s\n' "$1" "$2" >>"$dir/fallback"; } 2>/dev/null || :
                 printf '%s\n' "${lines[@]}" >&2
                 return 1
               fi
@@ -4340,7 +4355,8 @@ jobs:
         # call GitHub answered with a 2xx keeps its answer and gh's status, so no caller resends a write GitHub accepted, unless its stop
         # cannot be recorded, which ends the step first (below). Its stops are
         # lines `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header of
-        # the refused response gave it) goes in $RUNNER_TEMP/api-budget/guessed too. Readers take only lines
+        # the refused response gave it) goes in $RUNNER_TEMP/api-budget/guessed too, and one whose source is
+        # `fallback` (rate-guard.mjs writes these as well) in $RUNNER_TEMP/api-budget/fallback. Readers take only lines
         # shaped `^([a-z_]+|\*) [0-9]{1,12}$` and ended by a newline, as
         # rate-guard.mjs does, so a fragment a short write left spoils only the line
         # it runs into. A missing stop file holds no stop; one that exists but cannot
@@ -4368,6 +4384,9 @@ jobs:
         #                               the epoch second <pool> is stopped until, if
         #                               it is
         #   api_budget_guessed <epoch>  whether a stop until <epoch> is a guess
+        #   api_budget_fallback <pool> <epoch>
+        #                               whether <pool>'s stop until <epoch> has the
+        #                               fallback source, which its refusal names
         #   api_budget_server_status <pool> <epoch>
         #                               the 5xx when <pool>'s stop until <epoch> is a
         #                               server error hold (API_BUDGET_SERVER_ERROR), by
@@ -4715,8 +4734,15 @@ jobs:
           [[ -s $file ]] && awk -v t="$1" '/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && $2 == t { found = 1 } END { exit !found }' "$file"
         }
 
+        api_budget_fallback() {
+          local file=${RUNNER_TEMP:-/tmp}/api-budget/fallback
+          [[ -s $file ]] && awk -v pool="$1" -v t="$2" '/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && $2 == t && ($1 == pool || $1 == "*" || pool == "any") { found = 1 } END { exit !found }' "$file"
+        }
+
         api_budget_label() { [[ $1 == '*' || $1 == any ]] && echo API || echo "$1 API"; }
         api_budget_when() { jq -rn --argjson t "$1" '$t | todate'; }
+        # How a stop no header timed is named, as rate-guard.mjs's FALLBACK_NOTE.
+        API_BUDGET_FALLBACK_NOTE="fallback: GitHub's refusal carried no reset header, so this time is a guess that holds only this job; a re-run works once GitHub's real reset passes"
         # A rate limit's annotation: a notice when the caller holds (API_BUDGET_HOLD=1,
         # outage posture element 2), else an error. The call returns 1 either way, so
         # a gate that does not hold still fails on it.
@@ -4750,6 +4776,8 @@ jobs:
           [[ -z $until ]] && return 0
           if status=$(api_budget_server_status "$1" "$until"); then
             echo "::$(api_budget_level) title=GitHub server error::'$2' was not sent: GitHub answered HTTP $status with a Retry-After; no call to it before $(api_budget_when "$until")" >&2
+          elif api_budget_fallback "$1" "$until"; then
+            echo "::$(api_budget_level)::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until") ($API_BUDGET_FALLBACK_NOTE)" >&2
           else
             echo "::$(api_budget_level)::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")" >&2
           fi
@@ -4759,7 +4787,8 @@ jobs:
         # api_budget_stop <pool> <reset> <source> <what> [then] [5xx]: the 5xx is a
         # server error hold's status (api_budget_observe), worded and recorded as one.
         api_budget_stop() {
-          local dir=${RUNNER_TEMP:-/tmp}/api-budget lines cause=limit
+          local dir=${RUNNER_TEMP:-/tmp}/api-budget lines cause=limit fallback=
+          [[ $3 != fallback ]] || { fallback=1; set -- "$1" "$2" "$API_BUDGET_FALLBACK_NOTE" "${@:4}"; }
           if [[ ${6:-} =~ ^5[0-9][0-9]$ ]]; then
             cause=server-$6
             lines=("::$(api_budget_level) title=GitHub server error::'$4' got a GitHub server error, HTTP $6 with a Retry-After: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}")
@@ -4771,6 +4800,7 @@ jobs:
           if mkdir -p "$dir" 2>/dev/null && { printf '%s %s\n' "$1" "$2" >>"$dir/stop"; } 2>/dev/null &&
             { [[ $3 == retry-after || $3 == x-ratelimit-reset ]] || { printf '%s %s\n' "$1" "$2" >>"$dir/guessed"; } 2>/dev/null; }; then
             { printf '%s %s %s\n' "$1" "$2" "$cause" >>"$dir/cause"; } 2>/dev/null || :
+            [[ -z $fallback ]] || { printf '%s %s\n' "$1" "$2" >>"$dir/fallback"; } 2>/dev/null || :
             printf '%s\n' "${lines[@]}" >&2
             return 1
           fi
@@ -7376,7 +7406,7 @@ jobs:
           held_paths() {
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
             # BEGIN hold-floor hold_patterns: generated by scripts/sync-hold-floor.py
-            hold_patterns=('.github/standards/trusted-actors/*' 'CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_evidence_comment.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' 'docs/conventions/source-control.yaml' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/api-budget.bash' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/release-eval-hold.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/merge-risk-line.mjs' '.github/scripts/pr-merge-risk/input.mjs' '.github/scripts/pr-merge-risk/write-rating.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/lib/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/lib/lane-hold-marker.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/resolve-threads.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'docs/upstream/*' '.github/scripts/recurring-schedule/file-due.mjs' '.github/scripts/lib/github-rest.mjs' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/lib/run-main.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/earlier-fail-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/lib/lane-outcome.mjs' '.github/scripts/lib/lane-binding.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/work-resolve-issue/known-names.json' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/admission-record.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' 'docs/review/*' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-measure-skill-edit-pass.yml' '.github/workflows/maintenance-measure-skill-edit.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/maintenance-tidy-code-upkeep.yml' '.github/workflows/post-merge-file-demotion-issues.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-dispatch-feedback.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-rate-merge-risk.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-approved.yml' '.github/workflows/pr-review-comment-relay.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-run-plugin-evals.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify-capture.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-generate-dependabot-changelog-fragments.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/upstream-apply-changelog.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
+            hold_patterns=('.github/standards/trusted-actors/*' 'CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_evidence_comment.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' 'docs/conventions/source-control.yaml' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/api-budget.bash' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/release-eval-hold.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/merge-risk-line.mjs' '.github/scripts/pr-merge-risk/input.mjs' '.github/scripts/pr-merge-risk/write-rating.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/lib/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/lib/lane-hold-marker.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/resolve-threads.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'docs/upstream/*' '.github/scripts/recurring-schedule/file-due.mjs' '.github/scripts/lib/github-rest.mjs' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/lib/run-main.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/earlier-fail-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/lib/lane-outcome.mjs' '.github/scripts/lib/lane-binding.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/work-resolve-issue/known-names.json' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/admission-record.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' 'docs/review/*' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-measure-skill-edit-pass.yml' '.github/workflows/maintenance-measure-skill-edit.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/maintenance-repin-ci-workflows.yml' '.github/workflows/maintenance-tidy-code-upkeep.yml' '.github/workflows/post-merge-file-demotion-issues.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-dispatch-feedback.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-rate-merge-risk.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-approved.yml' '.github/workflows/pr-review-comment-relay.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-run-plugin-evals.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify-capture.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-generate-dependabot-changelog-fragments.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/upstream-apply-changelog.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
             # merge.diff-check.path-holds is false: only Dependabot stays held.
             [ "$AUTHOR_ID" = 49699333 ] || hold_patterns=()
             # END hold-floor hold_patterns
@@ -7654,6 +7684,31 @@ jobs:
               | if any($r[]; . == "" or startswith(" findings=")) then "review"
                 elif ($t | unique | length) == 1 then "through \($t[0])" else "none" end' <<<"$notes")
           }
+          # held_from <status job>: when the status job's notes ($notes, from
+          # record_at) say $lane held on $HEAD_SHA (pr-review-cli's notice
+          # `held: <lane> did not review <sha>: <reason>. ...`), sets verdict to
+          # held, reason to its reason, leg to the job whose notes say `this
+          # leg holds and runs no review` (a green job of the run whose `Claude
+          # review` step was skipped), and limit to that leg's rate-limit reset,
+          # `unknown` with no reset, empty when its notes name no rate limit. A
+          # leg read that fails names no leg.
+          held_from() {
+            local id name leg_notes
+            reason=$(jq -r --arg want "held: $lane did not review $HEAD_SHA: " 'first(.[]? | select(.annotation_level == "notice") | .message // ""
+              | select(startswith($want)) | ltrimstr($want) | rtrimstr(" A later run of this workflow reviews it.") | rtrimstr(".")) // empty' <<<"$notes")
+            [ -n "$reason" ] || return 0
+            verdict=held leg='' limit=''
+            while read -r id name; do
+              leg_notes=$(read_api "the annotations of job $id" "repos/$GITHUB_REPOSITORY/check-runs/$id/annotations?per_page=100" 2>/dev/null) || continue
+              jq -e 'any(.[]?; .message // "" | contains("this leg holds and runs no review"))' <<<"$leg_notes" >/dev/null 2>&1 || continue
+              leg=$name
+              limit=$(jq -r '[.[]? | .message // "" | select(test("rate limit|x-ratelimit-remaining[:=] *0\\b"; "i"))] as $m
+                | if $m == [] then "" else [$m[] | scan("(?i)x-ratelimit-reset[:=] *([0-9]{9,12})") | .[0] | tonumber] | max
+                  | if . == null then "unknown" else todate end end' <<<"$leg_notes") || limit=''
+              break
+            done < <(jq -r --argjson s "$1" '[.jobs[]? | select(.id != $s and .conclusion == "success"
+              and any(.steps[]?; .name == "Claude review" and .conclusion == "skipped")) | "\(.id) \(.name)"] | .[:3][]' <<<"$jobs")
+          }
           # carried <sha>: whether a counted review of $lane on this pull
           # request covers <sha>, following no-change skips (each a push that
           # changed no file of it, such as a clean base merge) up to 10 heads
@@ -7750,9 +7805,10 @@ jobs:
             # A status job whose hold step did not succeed, or is not listed,
             # counts on its review-complete record: a review when the step is
             # unlisted, or a no-change skip whose head carries a counted review.
+            # With neither, a leg's hold the status job recorded is named.
             if [[ $verdict =~ ^(unlisted|uncounted)\ ([1-9][0-9]*)$ ]]; then
-              kind=${BASH_REMATCH[1]}
-              record_at "${BASH_REMATCH[2]}" "$HEAD_SHA"
+              kind=${BASH_REMATCH[1]} status_job=${BASH_REMATCH[2]}
+              record_at "$status_job" "$HEAD_SHA"
               case $record in
               review) verdict=${kind/unlisted/pass-notice} ;;
               through\ *)
@@ -7760,7 +7816,10 @@ jobs:
                 if carried "$through"; then verdict=pass-skip; else verdict=skip-unproven; fi
                 url=$head_url
                 ;;
-              *) verdict=${kind/unlisted/unproven} ;;
+              *)
+                verdict=${kind/unlisted/unproven}
+                held_from "$status_job"
+                ;;
               esac
             fi
             case $verdict in
@@ -7793,6 +7852,17 @@ jobs:
               ;;
             uncounted)
               echo "::error::'$check' passed in $url, but its 'Apply the hold' step did not run: the lane ran in summary mode or without a hold label, so it is not a review that counts."
+              failed=1
+              ;;
+            held)
+              cause="review held ($reason)" after="the cause clears"
+              [ -z "$leg" ] || cause="'$leg' leg held ($reason)"
+              case $limit in
+              '') ;;
+              unknown) cause="$cause on a GitHub API rate limit" after="GitHub's rate limit resets" ;;
+              *) cause="$cause on a GitHub API rate limit" after="GitHub's rate limit resets at $limit" ;;
+              esac
+              echo "::error::'$check' did not review $HEAD_SHA ($url): its $cause, so it ran no review that counts. Once $after, a person on the trusted-actor list re-runs all jobs of $url; ci-status re-runs when it finishes."
               failed=1
               ;;
             red\ *)

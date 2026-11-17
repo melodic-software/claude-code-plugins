@@ -212,12 +212,14 @@ function Q([string]$a) { '"' + ($a -replace '(\\*)"', '$1$1\"' -replace '(\\+)$'
 $claude = "$env:USERPROFILE/.local/bin/claude.exe"; $s = Join-Path $env:TEMP 'relay-settings.json'; $p = Join-Path $PWD.Path 'relay-prompt-<name>.txt'
 Set-Content -Path $s -Value '{"crossSessionInbound":"accept"}' -Encoding ascii
 $root = ((& $claude plugin list --json | Out-String | ConvertFrom-Json) | Where-Object { "$($_.id)" -like 'plugin-profiles@*' -and $_.enabled -eq $true } | Select-Object -First 1).installPath
-$a = @('--settings', $s); $ok = $root -and (Get-Command node -ErrorAction SilentlyContinue)
+$a = @('--settings', $s); $stop = $null; $c = $null; $ok = $root -and (Get-Command node -ErrorAction SilentlyContinue)
 if (-not $ok) { 'profile <profile> not applied: plugin-profiles or node is missing on this lane' }
 if ($ok) { $r = & node (Join-Path $root 'scripts/profiles.mjs') launch <profile> --folder $PWD.Path --unattended --json --with $s }
-if ($ok -and $LASTEXITCODE) { "not started: profiles.mjs launch exited $LASTEXITCODE"; Remove-Item $p; exit 1 }
-if ($ok) { $argv = @(($r | Out-String | ConvertFrom-Json).argv); $i = 1; while ($argv[$i] -ceq '-u') { Remove-Item "Env:$($argv[$i + 1])" -ErrorAction Ignore; $i += 2 }; $a = @($argv[($i + 1)..($argv.Count - 1)]) }
-$c = Start-Process -FilePath $claude -ArgumentList ((@($a) + '-p', '-n', '<name>' | ForEach-Object { Q $_ }) -join ' ') -RedirectStandardInput $p -NoNewWindow -Wait -PassThru; Remove-Item $p; exit $c.ExitCode
+if ($ok -and $LASTEXITCODE) { $stop = "not started: profiles.mjs launch exited $LASTEXITCODE" }
+if ($ok -and -not $stop) { $stop = 'not started: profiles.mjs launch printed no claude command'; $argv = @(($r | Out-String | ConvertFrom-Json).argv); $i = 1; while ($argv[$i] -ceq '-u') { Remove-Item "Env:$($argv[$i + 1])" -ErrorAction Ignore; $i += 2 }; if ($argv[$i] -ceq 'claude') { $stop = $null; $a = @($argv[($i + 1)..($argv.Count - 1)]) } }
+if (-not $stop) { $c = Start-Process -FilePath $claude -ArgumentList ((@($a) + '-p', '-n', '<name>' | ForEach-Object { Q $_ }) -join ' ') -RedirectStandardInput $p -NoNewWindow -Wait -PassThru }
+Remove-Item $p -ErrorAction Ignore
+if ($stop) { $stop; exit 1 }; if (-not $c) { 'not started: claude.exe did not start'; exit 1 }; exit $c.ExitCode
 
 PS
 ```
@@ -236,17 +238,23 @@ followed by the same script lines.
   - **Pointer**: when the script stops part way or runs a statement twice, fetch
     [about_PowerShell_exe: -Command](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1#-command)
     live.
-- A launch refused for a missing required tool prints "not started" and exits 1: start nothing
-  else and report the reason launch printed on stderr. "not applied" means the session started
-  without the profile: say so with the result.
+- Every stop prints a line starting "not started" and exits 1: start nothing else and report it,
+  with the reason launch printed on stderr when it refused for a missing required tool. "not
+  applied" means the session started without the profile: say so with the result.
+- The prompt file is removed on every path the script itself takes: each stop is held in `$stop`
+  until the removal line, which runs whatever the lines before it did. Only a PowerShell that is
+  killed or loses its connection first leaves it; the next start with the same `<name>`
+  overwrites it, so it holds no more than the prompt this session already wrote.
 - `claude.exe` starts through `Start-Process` with every argument passed through `Q`, and a `-p`
   prompt arrives on stdin from the file.
   - **Pointer**: `Q` follows the Microsoft C runtime's argument rules; when an argument arrives
     split or changed, fetch [Parsing C command-line arguments](https://learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments)
     live (the rules open the page, before its first heading).
-- For a background session, which takes its prompt as an argument, replace the last line's
+- For a background session, which takes its prompt as an argument, replace the start line's
   `'-p', '-n', '<name>'` with `'--bg', '--name', '<name>', [IO.File]::ReadAllText($p)` and drop
-  `-RedirectStandardInput $p`.
+  `-RedirectStandardInput $p`. Put this line immediately before the start line, so a prompt that
+  `claude.exe` would read as an option never reaches it; begin such a prompt with a word instead:
+  `if (-not $stop -and [IO.File]::ReadAllText($p).StartsWith('-')) { $stop = 'not started: a background prompt must not begin with -' }`
 
 ## Mechanisms not used here
 
@@ -326,7 +334,7 @@ also rests on documented flag behavior.
 | Port 22 script hop | Not probed in this pass |
 | `notify_when_idle` from a `-p` sender | Message delivered; the notice never reached the sender, whose turn ended first |
 | `-p --remote-control` | Did not connect; Remote Control is interactive only |
-| [Start in the target's plugin profile](#start-in-the-targets-plugin-profile) | Untested on a live hop. On R1 (Windows PowerShell 5.1, Claude Code 2.1.325, 2026-11-16) the Windows script's parts ran: `-Command -` read the heredoc; `plugin list --json` parsed; the not-installed branch started `claude.exe --settings <file> --version`; a `--dry-run` launch through Windows `node` exited 0 and the `argv` walk left `claude --settings <session file>`; an inline JSON argument to `node` arrived as `{crossSessionInbound:accept}`; on Windows PowerShell 5.1.26100, a two-entry JSON array piped as `ConvertFrom-Json \| Where-Object` matched no entry, and `(… \| ConvertFrom-Json) \| Where-Object` matched the `plugin-profiles@` one; with `node` standing in for `claude.exe`, a 60-byte prompt file holding `'`, `’`, `"`, `" --version "`, a blank line and a line `PS` arrived with an unchanged SHA-256 on stdin through `Start-Process -RedirectStandardInput`, and as one argument through `Q` for the background form; the script's not-installed branch then started `claude.exe --settings <file> --version` from the file and removed it. No `-p` turn started in a profile. Recheck when the lane's PowerShell version changes |
+| [Start in the target's plugin profile](#start-in-the-targets-plugin-profile) | Untested on a live hop. On R1 (Windows PowerShell 5.1, Claude Code 2.1.325, 2026-11-16) the Windows script's parts ran: `-Command -` read the heredoc; `plugin list --json` parsed; the not-installed branch started `claude.exe --settings <file> --version`; a `--dry-run` launch through Windows `node` exited 0 and the `argv` walk left `claude --settings <session file>`; an inline JSON argument to `node` arrived as `{crossSessionInbound:accept}`; on Windows PowerShell 5.1.26100, a two-entry JSON array piped as `ConvertFrom-Json \| Where-Object` matched no entry, and `(… \| ConvertFrom-Json) \| Where-Object` matched the `plugin-profiles@` one; with `node` standing in for `claude.exe`, a 60-byte prompt file holding `'`, `’`, `"`, `" --version "`, a blank line and a line `PS` arrived with an unchanged SHA-256 on stdin through `Start-Process -RedirectStandardInput`, and as one argument through `Q` for the background form; the script's not-installed branch then started `claude.exe --settings <file> --version` from the file and removed it. The script's lines, with `--version` in place of `-p -n <name>` and a stub `profiles.mjs`, removed the prompt file on each exit path: not installed (exit 0), launch refused (exit 1), launch output not JSON (exit 1), profile applied (exit 0), `claude.exe` missing (exit 1), background prompt `--version` stopped by the `-` line (exit 1), and with launch also refused, the refusal's reason was the one reported (exit 1). Without that line, `Q '--version'` as the only argument printed the version. No `-p` turn started in a profile. Recheck when the lane's PowerShell version changes |
 | Cost | Most of each one-line `-p` turn's cost was SessionStart hooks and context loading; measure a turn per <https://code.claude.com/docs/en/costs#track-your-costs> |
 
 ## What the relay does not change
