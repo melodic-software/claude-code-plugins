@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": ".claude/skills/control-shop/SKILL.md"}}
+      ],
+      "why": "reads only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "app-control:drive", "args": "shop cart --unattended --out /tmp/a"}}
+      ],
+      "why": "drives a feature"
+    }
+  ]
+}

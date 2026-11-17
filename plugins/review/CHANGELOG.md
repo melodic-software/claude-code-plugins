@@ -3,6 +3,17 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.1.0] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker honors an entry's optional `when` (`config_any`: file names, or a file and a pattern its text must match): the SessionStart probe stays silent about the entry unless one of those configs sits in the project directory or above it, and `check` reports it INFO there.
+
+- `code-review` applies the loosened-check criterion to every changed file. It takes the verdict and patterns from the prompt's value lines when the wrapper writes them, else `fail` with no consumer entries, and treats the closing-issue text as the only spec.
+- `code-review` folds its `Pre-existing (advisory):` and `manifest <field>:` summary lines into one `<details>` block after the findings and before the verifier line; `security-review` folds its `manifest <field>:` lines the same way and keeps `critical-findings: <n>` outside the block.
+
+- The shared config cascade copy now exports its `fileState` and `escapes` path guards, so a script that reads other repository files can refuse a symlink or a path outside the checkout the same way. Nothing that already used the cascade changes.
+
 ## [10.0.1] - 2026-11-17
 
 ### Changed

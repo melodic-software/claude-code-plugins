@@ -3,6 +3,16 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.0] - 2026-11-17
+
+### Added
+
+- The git-hook installer reads two new `entries.json` fields. `earlierEntries` (`[{"from": <old entry>, "to": [<entries>]}]`) reports what an install of a split or renamed entry left as superseded drift, and carries a decline of the old entry to every entry it became. `resolved: true` on an entry takes its tools from the entry script's `--resolve` rows, which run nothing, so a missing-tool decision names only an adapter tool the repository's own config opts in to. A top-level `ecosystems` list names the ecosystem records the plugin's setup reports.
+
+### Changed
+
+- The bundled prerequisites checker honors an entry's optional `when` (`config_any`: file names, or a file and a pattern its text must match): the SessionStart probe stays silent about the entry unless one of those configs sits in the project directory or above it, and `check` reports it INFO there.
+
 ## [1.3.0] - 2026-11-16
 
 ### Added

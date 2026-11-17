@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "A missing pwsh is FAIL here, since the settings file opts the adapter in. The plugin probes pwsh only and never uses legacy powershell.exe."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A missing pwsh is INFO, never FAIL; the plugin never uses powershell.exe.",
+      "why": "grades it INFO where a settings file opts in"
+    },
+    {
+      "answer": "A missing pwsh is FAIL here.",
+      "why": "near miss: says nothing about powershell.exe"
+    },
+    {
+      "answer": "A missing pwsh is FAIL here, and it falls back to powershell.exe.",
+      "why": "claims a fallback"
+    }
+  ]
+}

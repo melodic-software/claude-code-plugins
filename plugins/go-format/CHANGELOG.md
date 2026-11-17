@@ -3,6 +3,29 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.0] - 2026-11-17
+
+### Added
+
+- Carries the shared format and lint runner (`lib/git-hooks/resolve-tool.sh`), which picks the plugin's shipped adapter for a file its tool's own config opts in and runs it with file names as arguments; it never runs an ecosystem record's command. No hook of this plugin uses it yet.
+
+- The git-hook installer reads two new `entries.json` fields. `earlierEntries` (`[{"from": <old entry>, "to": [<entries>]}]`) reports what an install of a split or renamed entry left as superseded drift, and carries a decline of the old entry to every entry it became. `resolved: true` on an entry takes its tools from the entry script's `--resolve` rows, which run nothing, so a missing-tool decision names only an adapter tool the repository's own config opts in to. A top-level `ecosystems` list names the ecosystem records the plugin's setup reports.
+
+### Changed
+
+- The bundled prerequisites checker honors an entry's optional `when` (`config_any`: file names, or a file and a pattern its text must match): the SessionStart probe stays silent about the entry unless one of those configs sits in the project directory or above it, and `check` reports it INFO there.
+
+- Carries version 1.1.0 of the ecosystem resolution steps (`reference/ecosystem-resolution.md`): `/toolchain:setup apply <ecosystem>` is the one writer of an ecosystem record's `fix-cmd` and `lint-cmd`, and a format or lint plugin's setup drafts them for it.
+
+- The batch hook and the git pre-commit entry run the goimports adapter through the shared resolver (`lib/git-hooks/resolve-tool.sh`), still with no consumer-config gate. They never run a command from the repository's go record (`.claude/ecosystems/go.yaml`); `/toolchain:lint` and `/toolchain:check` run it on request, and `setup check` says when a record exists. File names reach goimports as arguments, never as shell text. `go list -m` runs once per directory instead of once per file.
+- `setup check` reports what the format concern resolves to, read from the entry's `--resolve` rows (with paths, one row per file), and reports Go linting as INFO: the plugin ships no lint adapter, so the hooks run nothing for it. `setup apply` drafts a `lint-cmd` for `/toolchain:setup apply go` when the repository lints Go, and never writes the record.
+- The opt-in end-of-turn check drops only missing-tool lines from what it hands back, so a parse error printed beside one still reaches Claude.
+
+### Removed
+
+- goimports runs with `-format-only`, in session and at commit: it formats and groups and orders imports, and no longer adds a missing import or removes an unused one, which are lint fixes. A repository that relied on that applies it itself.
+- The `goimports-format` git-hook entry is renamed `format`. Installed copies, lefthook jobs and the `checks.go-format.goimports-format.declined` key change; `setup check` reports an installed `goimports-format` copy as superseded, `apply install-git-hooks` retires it, and a decline of `goimports-format` carries to `format`.
+
 ## [1.2.0] - 2026-11-16
 
 ### Added

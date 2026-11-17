@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [
+        "demo.ps1",
+        ".claude/ecosystems/powershell.yaml"
+      ],
+      "why": "the scaffold's files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "demo.ps1",
+        "PSScriptAnalyzerSettings.psd1"
+      ],
+      "why": "wrote a settings file"
+    },
+    {
+      "answer": [
+        "scripts/PSScriptAnalyzerSettings.psd1"
+      ],
+      "why": "wrote a nested settings file"
+    }
+  ]
+}

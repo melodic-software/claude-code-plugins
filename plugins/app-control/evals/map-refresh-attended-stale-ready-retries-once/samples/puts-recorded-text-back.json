@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Outcome: blocked. No commit carries the fix on a detached HEAD, so the recorded `## Ready` text (`curl -fsS http://127.0.0.1:3000/healthz`) goes back into the hub before the pass returns.",
+      "why": "recorded text goes back"
+    },
+    {
+      "answer": "- The hub's Ready is restored to port 3000; the corrected text is in the report, unwritten.",
+      "why": "restored to the recorded port"
+    },
+    {
+      "answer": "I put the recorded Ready text back in `.claude/skills/control-shop/SKILL.md`.",
+      "why": "puts the recorded text back"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Outcome: blocked. The corrected Ready (port 4100) stays in the hub for you to commit.",
+      "why": "leaves an uncommitted hub edit on a report-only pass"
+    },
+    {
+      "answer": "Outcome: blocked. Ready failed twice; the hub now checks 4100.",
+      "why": "says nothing about putting the recorded text back"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

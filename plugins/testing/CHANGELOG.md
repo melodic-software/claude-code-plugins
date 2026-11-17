@@ -3,6 +3,14 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.4.2] - 2026-11-17
+
+### Changed
+
+- Carries version 1.1.0 of the ecosystem resolution steps (`reference/ecosystem-resolution.md`): `/toolchain:setup apply <ecosystem>` is the one writer of an ecosystem record's `fix-cmd` and `lint-cmd`, and a format or lint plugin's setup drafts them for it.
+
+- The bundled prerequisites checker honors an entry's optional `when` (`config_any`: file names, or a file and a pattern its text must match): the SessionStart probe stays silent about the entry unless one of those configs sits in the project directory or above it, and `check` reports it INFO there.
+
 ## [5.4.1] - 2026-11-17
 
 ### Added

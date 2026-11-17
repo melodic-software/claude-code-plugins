@@ -3,6 +3,16 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.0] - 2026-11-17
+
+### Added
+
+- `/toolchain:lint` and `/toolchain:check` run an ecosystem record's `lint-cmd` (ecosystem-commands 1.5.0), the report-only lint command, in place of `check-cmd` when it is set. No hook runs a record's command; these skills run it on request. `/toolchain:setup` reports `lint-cmd` and is the one writer of `fix-cmd` and `lint-cmd`.
+
+### Changed
+
+- The bundled prerequisites checker honors an entry's optional `when` (`config_any`: file names, or a file and a pattern its text must match): the SessionStart probe stays silent about the entry unless one of those configs sits in the project directory or above it, and `check` reports it INFO there.
+
 ## [1.6.0] - 2026-11-17
 
 ### Added

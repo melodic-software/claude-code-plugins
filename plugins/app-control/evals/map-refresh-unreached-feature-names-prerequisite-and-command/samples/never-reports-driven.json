@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Not reached: export invoices (blocked: write grant for staging; tried `cli/shop export --env staging`). The entry point stays `not driven:`, with the reason corrected.",
+      "why": "keeps it not driven"
+    },
+    {
+      "answer": "I do not mark it as driven: its only step was blocked.",
+      "why": "negated mark"
+    },
+    {
+      "answer": "The pass doesn't report the feature as driven, and never records the entry point as driven.",
+      "why": "contracted and never negations"
+    },
+    {
+      "answer": "- `cli/shop export --env staging`: not driven: needs a write grant for staging",
+      "why": "the corrected entry point line"
+    },
+    {
+      "answer": "",
+      "why": "empty reply holds no driven claim"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- `cli/shop export --env staging`: driven",
+      "why": "entry point line marked driven"
+    },
+    {
+      "answer": "The live pass drove the export, so I mark the entry point as driven.",
+      "why": "marks it driven"
+    },
+    {
+      "answer": "Report: listed the feature as **driven**, step blocked.",
+      "why": "lists it driven"
+    }
+  ]
+}

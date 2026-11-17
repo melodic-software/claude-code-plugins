@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Stops: 7311\nLaunch record after: new process",
+      "why": "stops the recorded pid"
+    },
+    {
+      "answer": "- `Stops: pid 7311 (rechecked first)`\n- `Launch record after: new process`",
+      "why": "list markup with a note"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Stops: none\nLaunch record after: 7311",
+      "why": "keeps the reused instance across a restarting Reset"
+    },
+    {
+      "answer": "The Reset restarts the app, so pid 7311 is stopped.",
+      "why": "no Stops line"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

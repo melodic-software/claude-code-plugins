@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no further Ready"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": ".claude/skills/control-shop/SKILL.md"}}
+      ],
+      "why": "reads only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "app-control:drive", "args": "ready shop"}}
+      ],
+      "why": "retries twice: runs Ready again after the one retry"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "Not reached: export invoices. Unmet prerequisite: a write grant for staging. Command tried: `cli/shop export --env staging`.",
+      "why": "the report line in the refresh's words"
+    },
+    {
+      "answer": "| Feature | Status | Prerequisite | Attempted |\n|---|---|---|---|\n| billing/export | **blocked** | staging write grant | `cli/shop export --env staging` |",
+      "why": "table form"
+    },
+    {
+      "answer": "The export entry point stays not driven: drive stopped at `cli/shop export --env staging` because the run had no write grant on the staging environment.",
+      "why": "not driven with the grant after the command"
+    },
+    {
+      "answer": "Blocked — features/billing/export: needs staging's write grant; tried cli/shop export --env staging.",
+      "why": "possessive form"
+    },
+    {
+      "answer": "`cli/shop export --env staging` was not reached: the run lacks write access to staging.",
+      "why": "access in place of grant"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Driven: export invoices, `cli/shop export --env staging` exited 0.",
+      "why": "reports it driven, no prerequisite"
+    },
+    {
+      "answer": "Not reached: export invoices. Command tried: `cli/shop export --env staging`.",
+      "why": "no prerequisite"
+    },
+    {
+      "answer": "Not reached: export invoices, for want of a write grant for staging.",
+      "why": "no command"
+    },
+    {
+      "answer": "The export needs a staging write grant; `cli/shop export --env staging` is its command.",
+      "why": "no not-reached or blocked status"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Ready passed and the cart badge reads 1.",
+      "why": "answers a different question"
+    }
+  ]
+}

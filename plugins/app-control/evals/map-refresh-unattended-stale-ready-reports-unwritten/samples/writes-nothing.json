@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": ".claude/skills/control-shop/SKILL.md"}}
+      ],
+      "why": "read only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": ".claude/skills/control-shop/SKILL.md", "content": "## Ready\n\n`curl -fsS http://127.0.0.1:4100/healthz`\n"}}
+      ],
+      "why": "rewrote the hub"
+    }
+  ]
+}

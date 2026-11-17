@@ -5,7 +5,7 @@
 # exits 2 with the finding on stderr; stop_hook_active keeps it from blocking
 # twice in one turn; the plugin kill switch wins. The spawn budget case fences
 # the cost every user pays per turn with the option off: the node launcher only.
-# test-scope: plugins/spelling/hooks/hooks.json plugins/spelling/git-hooks/typos-check.sh plugins/spelling/.claude-plugin/plugin.json
+# test-scope: plugins/spelling/hooks/hooks.json plugins/spelling/git-hooks/lint.sh plugins/spelling/git-hooks/adapters.sh plugins/spelling/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDE_PLUGIN_OPTION_SPELLING_END_OF_TURN CLAUDE_PLUGIN_OPTION_SPELLING_ENABLED
 
@@ -45,8 +45,9 @@ R="$WORK/repo"
 git init -q -b main "$R"
 git -C "$R" config user.name t
 git -C "$R" config user.email t@example.invalid
+printf '[files]\n' >"$R/_typos.toml"
 printf 'an old teh line\n' >"$R/notes.md"
-git -C "$R" add notes.md
+git -C "$R" add notes.md _typos.toml
 git -C "$R" commit -q -m seed
 
 stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
@@ -72,6 +73,12 @@ expect "on: the plugin kill switch wins" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_SPELLING_END_OF_TURN=true CLAUDE_PLUGIN_OPTION_SPELLING_ENABLED=false)"
 git -C "$R" checkout -q notes.md
 expect "on: a clean work tree passes" "0|" "$(stop false CLAUDE_PLUGIN_OPTION_SPELLING_END_OF_TURN=true)"
+git -C "$R" rm -q _typos.toml
+git -C "$R" commit -q -m no-config
+printf 'an old teh line\nnew teh line\n' >"$R/notes.md"
+expect "on: with no typos config the check still runs, and an uncommitted typo blocks" \
+  "2|notes.md:2: \`teh\` should be \`the\`" \
+  "$(findings "$(stop false CLAUDE_PLUGIN_OPTION_SPELLING_END_OF_TURN=true)")"
 
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
 # A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
