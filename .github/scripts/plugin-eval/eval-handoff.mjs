@@ -142,9 +142,8 @@ export function loadLauncher(root) {
       copyFileSync(join(root, path), join(dir, path));
     }
     const require = createRequire(join(dir, CLASSIFIER_FILES[0]));
-    const { judgeLeg, linesToMessages } = require("./lane.cjs");
     const { isCreditStop } = require("../report-lane-outcome/classify.cjs");
-    return { judgeLeg, linesToMessages, isCreditStop };
+    return { ...require("./lane.cjs"), isCreditStop };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

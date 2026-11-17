@@ -108,6 +108,7 @@ validate_json zz-noid true './register.js hooks: tool.call'
 
 cat >"$FIX/bin/claude" <<'EOF'
 #!/usr/bin/env bash
+[[ -n "${STUB_ARGV_LOG:-}" ]] && printf '%s\n' "$*" >>"$STUB_ARGV_LOG"
 case "$1 ${2:-}" in
 "--version ") echo "2.1.302 (Claude Code)" ;;
 "plugin list") [[ -f "$STUB_LIST" ]] && cat "$STUB_LIST" || exit 1 ;;
@@ -304,6 +305,41 @@ mv "$FIX/auth.json" "$FIX/auth.off"
 run_mp --no-fetch
 assert_contains "unreadable auth status leaves the guard unknown" "$OUT" "# guard: unknown (managed settings absent; plan unread)"
 mv "$FIX/auth.off" "$FIX/auth.json"
+
+# managed-mcp.json sits beside the managed settings path; remove it before any later case, since
+# every run_mp shares $FIX/managed/.
+MCP="$FIX/managed/managed-mcp.json"
+printf '{"mcpServers":{}}\n' >"$MCP"
+run_mp --no-fetch
+assert_contains "managed-mcp.json alone seats the guard" "$OUT" "# guard: seated (managed-mcp.json present)"
+printf '{"prependPlugins":["acme-guard@acme"]}\n' >"$M"
+run_mp --no-fetch
+assert_contains "managed-mcp.json does not override managed prependPlugins omitting the guard" "$OUT" \
+  "# guard: not-seated (managed prependPlugins omits the guard)"
+rm -f -- "$M" "$MCP"
+
+# --- Guard only ----------------------------------------------------------------------------
+: >"$FIX/argv.log"
+STUB_ARGV_LOG="$FIX/argv.log" run_mp --guard-only
+assert_eq "--guard-only exits 0" 0 "$RC"
+assert_eq "--guard-only prints only the guard line here" "# guard: not-seated (no managed settings; plan none)" "$OUT"
+assert_eq "--guard-only makes one claude call: auth status" "auth status --json" "$(<"$FIX/argv.log")"
+: >"$FIX/argv.log"
+STUB_ARGV_LOG="$FIX/argv.log" run_mp --no-fetch
+assert_eq "the full run also calls plugin list, plugin validate and --version" "yes yes yes" \
+  "$(for c in 'plugin list' 'plugin validate' '--version'; do grep -qF -- "$c" "$FIX/argv.log" && printf 'yes ' || printf 'no '; done | sed 's/ $//')"
+printf '{}\n' >"$HOME/.claude/remote-settings.json"
+printf '{"mcpServers":{}}\n' >"$MCP"
+run_mp --guard-only --builtin-json "$FIX/inventory.json" --overview "$FIX/overview.md"
+assert_contains "--guard-only reads managed-mcp.json" "$OUT" "# guard: seated (managed-mcp.json present)"
+assert_contains "--guard-only keeps the guard's not-read footer" "$OUT" "# not read: guard: a server-managed settings cache exists"
+assert_eq "--guard-only prints no line but # guard: and # not read:" 0 \
+  "$(printf '%s\n' "$OUT" | grep -cvE '^# (guard|not read): ')"
+assert_not_contains "--guard-only prints no inventory header" "$OUT" "# mod-posture inventory"
+assert_not_contains "--guard-only prints no row, even with --builtin-json" "$OUT" $'\t'
+assert_not_contains "--guard-only prints no surface line" "$OUT" "# surface:"
+rm -f -- "$HOME/.claude/remote-settings.json" "$MCP"
+run_mp --no-fetch
 
 # --- Surface -------------------------------------------------------------------------------
 assert_contains "terminal footer names the Desktop copy" "$OUT" "# surface: terminal (2.1.302); the Desktop app bundles its own copy"

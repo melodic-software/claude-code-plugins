@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.0.4] - 2026-11-17
+
+### Fixed
+
+- `/harness-ops:setup`'s guidance on turning hook logging on now says the session event log starts a process only for events in the categories `session_event_log_categories` enables, plus `SessionEnd` retention.
+
 ## [10.0.3] - 2026-11-16
 
 ### Fixed

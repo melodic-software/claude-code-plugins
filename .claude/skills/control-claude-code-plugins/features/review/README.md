@@ -37,6 +37,12 @@ The action to drive for `fanout` is the default review with no person present, s
 `--unattended`: it reviews the checkout's change under the `reproduce_findings` value its
 `docs/conventions/review.yaml` sets.
 
+`finding_prover_agent_calls_count` is the number of `tool_use` blocks in the driven session's
+`logs` stream-json whose `name` is `Agent` and whose `input.subagent_type` is
+`review:finding-prover`; `0` when there are none.
+
+Budget: finding_prover_agent_calls_count | logs
+
 ## Gotchas
 
 - A skill marked `No slash command.` runs only from its plain-words entry point; one marked `No plain-words entry.` runs only from its slash command.

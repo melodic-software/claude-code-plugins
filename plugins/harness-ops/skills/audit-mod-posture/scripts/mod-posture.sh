@@ -15,9 +15,11 @@
 #
 # Usage: mod-posture.sh [--date YYYY-MM-DD] [--project <dir>] [--builtin-json <file>]
 #                       [--overview <file> | --no-fetch] [--managed-file <file>]
-#                       [--surface terminal|desktop]
+#                       [--surface terminal|desktop] [--guard-only]
+#   --guard-only  print only the `# guard:` line and its `# not read:` footers; skips both
+#                 tiers and the surface line, so the one claude call is `auth status`
 # Env (test seam): MOD_POSTURE_CLAUDE  claude executable (default: claude on PATH)
-# Exit: 0 inventory printed (rows may be partial; read the footers); 2 usage or jq missing.
+# Exit: 0 inventory or guard line printed (rows may be partial; read the footers); 2 usage or jq missing.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,6 +35,7 @@ OVERVIEW=""
 NO_FETCH=0
 MANAGED_FILE=""
 SURFACE=""
+GUARD_ONLY=0
 
 usage() { sed -n '/^# Usage:/,/^# Exit:/s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"; }
 die() {
@@ -49,6 +52,7 @@ while [[ $# -gt 0 ]]; do
   --no-fetch) NO_FETCH=1 && shift ;;
   --managed-file) need "$@" && MANAGED_FILE="$2" && shift 2 ;;
   --surface) need "$@" && SURFACE="$2" && shift 2 ;;
+  --guard-only) GUARD_ONLY=1 && shift ;;
   -h | --help) usage && exit 0 ;;
   *) die "unknown argument (see --help)" ;;
   esac
@@ -109,6 +113,93 @@ row() {
 # after_marker <marker>: lines on stdin -> the text after the first occurrence of the marker, so a
 # module path with spaces never hides the names after it.
 after_marker() { awk -v m="$1" '{ i = index($0, m); if (i) print substr($0, i + length(m)) }'; }
+
+# --- Guard -----------------------------------------------------------------------------
+# Seated when the machine has managed settings or a managed-mcp.json, or the account is on a
+# Team or Enterprise plan (mods admin page, "Know what happens by default"). managed-mcp.json
+# sits beside managed-settings.json on each OS (managed MCP page, "Deploy managed-mcp.json").
+managed="unknown"
+base="$(mscope::base_file "$MANAGED_FILE")"
+dropin="$(mscope::dropin_dir "$MANAGED_FILE")"
+prepend_omits=0 override=0
+# An OS policy store can set prependPlugins too, and this script reads none.
+note_os_store() {
+  [[ -z "$MANAGED_FILE" && -n "$(mscope::registry_keys)$(mscope::plist_domain)" ]] &&
+    NOT_READ+=("guard: prependPlugins and guard options are read from the managed files only, not an OS policy store")
+  return 0
+}
+if [[ -f "$base" ]] || compgen -G "$dropin/*.json" >/dev/null 2>&1; then
+  managed="present"
+  # Two keys decide whether the guard loads and what it holds (mods admin page, "Set options on
+  # the built-in guard"). Files combine in drop-in order: lists union, a scalar's last value wins.
+  files=()
+  [[ -f "$base" ]] && files+=("$base")
+  while IFS= read -r f; do [[ -n "$f" ]] && files+=("$f"); done < <(compgen -G "$dropin/[!.]*.json" | LC_ALL=C sort)
+  if guard_keys="$(jq -rs '
+      ([.[] | .prependPlugins? | arrays] | if length == 0 then "unset"
+       elif (add | any(. == "sec-default@builtin" or . == "cc-plugin-sec-default@builtin")) then "guard"
+       else "omits" end),
+      ([.[] | .pluginConfigs?["cc-plugin-sec-default@builtin"]?.options?.allowModsToOverrideDenyRules?
+        | booleans] | last // false)' "${files[@]}" 2>/dev/null)"; then
+    [[ "${guard_keys%%$'\n'*}" == "omits" ]] && prepend_omits=1
+    [[ "${guard_keys##*$'\n'}" == "true" ]] && override=1
+  else
+    managed="unreadable"
+  fi
+  note_os_store
+elif [[ -f "${base%managed-settings.json}managed-mcp.json" ]]; then
+  managed="mcp"
+  note_os_store
+else
+  managed="absent"
+  while IFS= read -r key; do
+    [[ -n "$key" ]] || continue
+    if command -v reg.exe >/dev/null 2>&1 || command -v reg >/dev/null 2>&1; then
+      if MSYS2_ARG_CONV_EXCL='*' reg query "$key" /v Settings >/dev/null 2>&1; then managed="present" && break; fi
+    else
+      managed="unknown"
+    fi
+  done < <([[ -z "$MANAGED_FILE" ]] && mscope::registry_keys)
+  if [[ "$managed" == "absent" && -z "$MANAGED_FILE" && -n "$(mscope::plist_domain)" ]]; then
+    managed="unknown"
+    NOT_READ+=("guard: the macOS managed preferences domain is not probed")
+  fi
+fi
+if [[ -z "$MANAGED_FILE" && -n "${WSL_DISTRO_NAME:-}" ]]; then
+  NOT_READ+=("guard: the Windows policy chain WSL can inherit (wslInheritsWindowsSettings) is not read")
+fi
+[[ -f "$(mscope::remote_cache_file "${CLAUDE_CONFIG_DIR:-$HOME/.claude}")" ]] &&
+  NOT_READ+=("guard: a server-managed settings cache exists; it is not counted as managed settings")
+
+plan=""
+if "$CLAUDE" auth status --json >"$TMP/auth.json" 2>/dev/null; then
+  plan="$(jq -r 'if (.subscriptionType | type) == "string" then .subscriptionType else "none" end' "$TMP/auth.json" 2>/dev/null)"
+fi
+rm -f -- "$TMP/auth.json"
+case "$plan" in team | enterprise | max | pro | none) ;; "") plan="unread" ;; *) plan="other" ;; esac
+
+if [[ "$managed" == "unreadable" ]]; then
+  guard="unknown (managed settings unreadable)"
+elif ((prepend_omits)); then
+  guard="not-seated (managed prependPlugins omits the guard)"
+elif [[ "$managed" == "present" ]]; then
+  guard="seated (managed settings present)"
+  ((override)) && guard="seated (managed settings present; mods can override deny rules: allowModsToOverrideDenyRules)"
+elif [[ "$managed" == "mcp" ]]; then
+  guard="seated (managed-mcp.json present)"
+elif [[ "$plan" == "team" || "$plan" == "enterprise" ]]; then
+  guard="seated (plan $plan)"
+elif [[ "$managed" == "absent" && "$plan" != "unread" && "$plan" != "other" ]]; then
+  guard="not-seated (no managed settings; plan $plan)"
+else
+  guard="unknown (managed settings $managed; plan $plan)"
+fi
+
+if ((GUARD_ONLY)); then
+  printf '# guard: %s\n' "$guard"
+  for reason in ${NOT_READ[@]+"${NOT_READ[@]}"}; do printf '# not read: %s\n' "$reason"; done
+  exit 0
+fi
 
 # --- Installed tier --------------------------------------------------------------------
 project_real="$(cd "$PROJECT" 2>/dev/null && pwd -P)" || project_real=""
@@ -228,77 +319,6 @@ else
          elif (.value.hook_events | length) == 0 then "-"
          else (.value.hook_events | join(",")) end) ]
     | @tsv' "$BUILTIN_JSON" 2>/dev/null)
-fi
-
-# --- Guard -----------------------------------------------------------------------------
-# Seated when the machine has managed settings or the account is on a Team or Enterprise plan
-# (mods admin page, "Know what happens by default").
-managed="unknown"
-base="$(mscope::base_file "$MANAGED_FILE")"
-dropin="$(mscope::dropin_dir "$MANAGED_FILE")"
-prepend_omits=0 override=0
-if [[ -f "$base" ]] || compgen -G "$dropin/*.json" >/dev/null 2>&1; then
-  managed="present"
-  # Two keys decide whether the guard loads and what it holds (mods admin page, "Set options on
-  # the built-in guard"). Files combine in drop-in order: lists union, a scalar's last value wins.
-  files=()
-  [[ -f "$base" ]] && files+=("$base")
-  while IFS= read -r f; do [[ -n "$f" ]] && files+=("$f"); done < <(compgen -G "$dropin/[!.]*.json" | LC_ALL=C sort)
-  if guard_keys="$(jq -rs '
-      ([.[] | .prependPlugins? | arrays] | if length == 0 then "unset"
-       elif (add | any(. == "sec-default@builtin" or . == "cc-plugin-sec-default@builtin")) then "guard"
-       else "omits" end),
-      ([.[] | .pluginConfigs?["cc-plugin-sec-default@builtin"]?.options?.allowModsToOverrideDenyRules?
-        | booleans] | last // false)' "${files[@]}" 2>/dev/null)"; then
-    [[ "${guard_keys%%$'\n'*}" == "omits" ]] && prepend_omits=1
-    [[ "${guard_keys##*$'\n'}" == "true" ]] && override=1
-  else
-    managed="unreadable"
-  fi
-  if [[ -z "$MANAGED_FILE" && -n "$(mscope::registry_keys)$(mscope::plist_domain)" ]]; then
-    NOT_READ+=("guard: prependPlugins and guard options are read from the managed files only, not an OS policy store")
-  fi
-else
-  managed="absent"
-  while IFS= read -r key; do
-    [[ -n "$key" ]] || continue
-    if command -v reg.exe >/dev/null 2>&1 || command -v reg >/dev/null 2>&1; then
-      if MSYS2_ARG_CONV_EXCL='*' reg query "$key" /v Settings >/dev/null 2>&1; then managed="present" && break; fi
-    else
-      managed="unknown"
-    fi
-  done < <([[ -z "$MANAGED_FILE" ]] && mscope::registry_keys)
-  if [[ "$managed" == "absent" && -z "$MANAGED_FILE" && -n "$(mscope::plist_domain)" ]]; then
-    managed="unknown"
-    NOT_READ+=("guard: the macOS managed preferences domain is not probed")
-  fi
-fi
-if [[ -z "$MANAGED_FILE" && -n "${WSL_DISTRO_NAME:-}" ]]; then
-  NOT_READ+=("guard: the Windows policy chain WSL can inherit (wslInheritsWindowsSettings) is not read")
-fi
-[[ -f "$(mscope::remote_cache_file "${CLAUDE_CONFIG_DIR:-$HOME/.claude}")" ]] &&
-  NOT_READ+=("guard: a server-managed settings cache exists; it is not counted as managed settings")
-
-plan=""
-if "$CLAUDE" auth status --json >"$TMP/auth.json" 2>/dev/null; then
-  plan="$(jq -r 'if (.subscriptionType | type) == "string" then .subscriptionType else "none" end' "$TMP/auth.json" 2>/dev/null)"
-fi
-rm -f -- "$TMP/auth.json"
-case "$plan" in team | enterprise | max | pro | none) ;; "") plan="unread" ;; *) plan="other" ;; esac
-
-if [[ "$managed" == "unreadable" ]]; then
-  guard="unknown (managed settings unreadable)"
-elif ((prepend_omits)); then
-  guard="not-seated (managed prependPlugins omits the guard)"
-elif [[ "$managed" == "present" ]]; then
-  guard="seated (managed settings present)"
-  ((override)) && guard="seated (managed settings present; mods can override deny rules: allowModsToOverrideDenyRules)"
-elif [[ "$plan" == "team" || "$plan" == "enterprise" ]]; then
-  guard="seated (plan $plan)"
-elif [[ "$managed" == "absent" && "$plan" != "unread" && "$plan" != "other" ]]; then
-  guard="not-seated (no managed settings; plan $plan)"
-else
-  guard="unknown (managed settings $managed; plan $plan)"
 fi
 
 # --- Surface ---------------------------------------------------------------------------

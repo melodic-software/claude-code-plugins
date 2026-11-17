@@ -3,6 +3,15 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.0.1] - 2026-11-17
+
+### Changed
+
+- The bundled enforcement ladder is 3.2.0: its Selection rules table gains the
+  `/architecture:enforce-boundaries` and `/session-flow:retro` rows, and it records that this
+  plugin's copy is read by the `architecture-guardian` agent for the "Where boundary rules live"
+  list only. No rung, id or criterion changes.
+
 ## [10.0.0] - 2026-11-16
 
 ### Added

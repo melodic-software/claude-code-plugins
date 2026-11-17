@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/formal-verification/scripts/toolchain.mjs\" resolve --data-dir \"/data\" --project-dir \"/repo\" --jar '' --java '' --runtime ''"}}], "why": "the skill's command, with the quoted script path"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/formal-verification/scripts/toolchain.mjs resolve --data-dir /data --project-dir /repo"}}], "why": "unquoted"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no calls"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/formal-verification/scripts/toolchain.mjs\" check --data-dir \"/data\" --project-dir \"/repo\""}}], "why": "check, not resolve"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat /plugins/formal-verification/scripts/toolchain.mjs"}}], "why": "reads the script"}
+  ]
+}

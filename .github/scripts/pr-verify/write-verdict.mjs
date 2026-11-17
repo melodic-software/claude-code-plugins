@@ -44,7 +44,7 @@ import { readCoverage } from "../pr-review-main/write-verdict.mjs";
 export const VERDICTS = Object.freeze(["pass", "pass-notes", "fail"]);
 const SUMMARY_MAX = 4000;
 const NOTE_MAX = 1000;
-const NOTES_MAX = 30;
+export const NOTES_MAX = 30;
 const SHA = /^[0-9a-f]{40}$/;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;

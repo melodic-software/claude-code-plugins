@@ -65,6 +65,35 @@ test('budget: with the log on a per-turn event starts one process, SessionEnd tw
   expect(w.runs.map(script).sort()).toEqual(['session-event-log.sh', 'session-retention.sh'])
 })
 
+test('budget: with categories set, only events in them and SessionEnd start a process', {
+  options: { session_event_log_enabled: true, session_event_log_categories: 'permission,tool' },
+}, async ($, on) => {
+  const every = Object.keys($.classic)
+  const w = world(on, { code: 0 }, {}, every)
+  const started: string[] = []
+  for (const event of every) {
+    const before = w.runs.length
+    await fire($, w, event, event === 'SessionEnd' ? { reason: 'clear' } : {})
+    if (w.runs.length > before) started.push(event)
+  }
+  expect(started.sort()).toEqual(['PermissionDenied', 'PermissionRequest', 'PostToolBatch', 'PostToolUseFailure', 'SessionEnd'])
+  expect(w.runs.length).toBe(5)
+})
+
+for (const [categories, scripts] of [
+  ['turn', ['session-retention.sh']],
+  ['session', ['session-event-log.sh', 'session-retention.sh']],
+  ['', ['session-event-log.sh', 'session-retention.sh']],
+] as const) {
+  test(`SessionEnd: with categories ${JSON.stringify(categories)} it runs ${scripts.join(' and ')}`, {
+    options: { session_event_log_enabled: true, session_event_log_categories: categories },
+  }, async ($, on) => {
+    const w = world(on)
+    await raise($, 'SessionEnd', { reason: 'clear' })
+    expect(w.runs.map(script).sort()).toEqual([...scripts])
+  })
+}
+
 test('on: a per-turn event resolves before its write starts; SessionEnd waits for both scripts', ON, async ($, on) => {
   const w = world(on, { code: 0 }, { block: 'keep going' })
   for (const event of PER_TURN) {

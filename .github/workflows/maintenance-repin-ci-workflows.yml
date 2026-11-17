@@ -1,0 +1,163 @@
+name: Maintenance Repin CI Workflows
+
+# Dependabot ignores melodic-software/ci-workflows/*, so this job moves the pin.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "47 14 * * *"
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  repin:
+    name: Repin
+    permissions:
+      contents: read
+    # The App key lives only in this environment, which admits main.
+    environment:
+      name: plugin-release
+      deployment: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # Before checkout, so a dispatch from another branch neither runs that
+      # branch's script nor retargets the pull request.
+      - name: Resolve the default branch
+        id: default-branch
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          set -euo pipefail
+          name="$(git -C "$RUNNER_TEMP" ls-remote --symref "https://github.com/${GITHUB_REPOSITORY}.git" HEAD |
+            awk '$1 == "ref:" && $3 == "HEAD" { sub("refs/heads/", "", $2); print $2 }')"
+          [[ -n "$name" ]] || { echo "::error::Could not resolve the default branch." >&2; exit 1; }
+          echo "name=${name}" >>"$GITHUB_OUTPUT"
+
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.default-branch.outputs.name }}
+          persist-credentials: false
+
+      - name: Resolve the newest ci-workflows release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/repin-ci-workflows.sh resolve
+
+      - name: Read the current pin
+        id: current
+        run: bash scripts/repin-ci-workflows.sh current
+
+      - name: Re-pin the ci-workflows actions
+        id: repin
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OLD_SHA: ${{ steps.current.outputs.sha }}
+          OLD_TAG: ${{ steps.current.outputs.tag }}
+          NEW_SHA: ${{ steps.release.outputs.sha }}
+          NEW_TAG: ${{ steps.release.outputs.tag }}
+        run: bash scripts/repin-ci-workflows.sh apply "$OLD_SHA" "$OLD_TAG" "$NEW_SHA" "$NEW_TAG"
+
+      - name: Mint the release App token
+        id: app-token
+        if: steps.repin.outputs.changed == 'true'
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.PLUGIN_RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PLUGIN_RELEASE_APP_PRIVATE_KEY }}
+          # With no owner and no repositories, the token covers this repository only.
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+
+      # createCommitOnBranch commits are GitHub-signed, which main's
+      # required_signatures rule needs.
+      - name: Commit the re-pin and open the pull request
+        if: steps.repin.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          BASE: ${{ steps.default-branch.outputs.name }}
+          OLD_TAG: ${{ steps.current.outputs.tag }}
+          NEW_TAG: ${{ steps.release.outputs.tag }}
+          NEW_SHA: ${{ steps.release.outputs.sha }}
+        run: |
+          set -euo pipefail
+          . .github/actions/log-api-budget/api-budget.bash
+          api_budget_wrap_gh release-app
+          branch=chore/repin-ci-workflows
+          title="chore(ci): re-pin ci-workflows actions to ${NEW_TAG}"
+          refs="repos/$GITHUB_REPOSITORY/git/refs"
+          base_sha="$(git rev-parse HEAD)"
+          number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --base "$BASE" --state open --json number,title,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0] // empty | "\(.number) \(.title)"')"
+          if [[ "${number#* }" == "$title" ]]; then
+            echo "Pull request #${number%% *} already re-pins to ${NEW_TAG}; leaving it alone."
+            exit 0
+          fi
+          number="${number%% *}"
+          echo "Moves the run-claude-cli link in pr-run-activity.md to ci-workflows ${NEW_TAG}; the contract does not change." |
+            bash scripts/new-changelog-fragment.sh --stdin pr-pipeline none
+          adds="$RUNNER_TEMP/additions.jsonl"
+          : >"$adds"
+          while IFS= read -r path; do
+            base64 -w0 "$path" | jq -Rsc --arg path "$path" '{path: $path, contents: .}' >>"$adds"
+          done < <(git ls-files --modified --others --exclude-standard)
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" --silent 2>/dev/null; then
+            gh api -X PATCH "$refs/heads/$branch" -f sha="$base_sha" -F force=true --silent
+          else
+            gh api -X POST "$refs" -f ref="refs/heads/$branch" -f sha="$base_sha" --silent
+          fi
+          jq -n \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg oid "$base_sha" \
+            --arg branch "$branch" \
+            --arg headline "$title" \
+            --slurpfile additions "$adds" \
+            '{
+              query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
+              variables: {input: {
+                branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                expectedHeadOid: $oid,
+                message: {headline: $headline},
+                fileChanges: {additions: $additions}
+              }}
+            }' | gh api graphql --input - | jq -er '.data.createCommitOnBranch.commit.oid'
+          body="$RUNNER_TEMP/body.md"
+          cat >"$body" <<EOF
+          No related issue: automated re-pin to the newest ci-workflows release
+
+          ## Summary
+
+          Moves every \`melodic-software/ci-workflows/.github/actions/...\` pin in \`.github/workflows/\`, the eval legs' ci-workflows checkout refs and the \`pr-run-activity.md\` link from ${OLD_TAG} to ${NEW_TAG} (\`${NEW_SHA}\`). \`pr-check-managed-files-hosted.yml\` is left to the standards sync. The doc edit carries a \`pr-pipeline\` changelog fragment with bump \`none\`.
+
+          ## Fix
+
+          Written by \`.github/workflows/maintenance-repin-ci-workflows.yml\` through \`scripts/repin-ci-workflows.sh\`, which refuses a release that does not contain the current pin.
+
+          ## Verification
+
+          - \`scripts/repin-ci-workflows.test.sh\` covers the rewrite.
+          - \`callers.test.mjs\`, \`parity.test.mjs\` and \`check-affected.test.sh\` check this repository against the actions at the new pin.
+
+          ## Related
+
+          - https://github.com/melodic-software/ci-workflows/releases/tag/${NEW_TAG}
+          EOF
+          if [[ -z "$number" ]]; then
+            number="$(gh pr create --repo "$GITHUB_REPOSITORY" --base "$BASE" --head "$branch" --title "$title" --body-file "$body" | grep -o '[0-9]*$')"
+          else
+            gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --title "$title" --body-file "$body"
+          fi
+          gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --auto --squash
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token release-app
