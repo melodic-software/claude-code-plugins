@@ -90,6 +90,48 @@ all five of these conditions hold (this marketplace records the decision as ADR 
 A lane that fails any one condition is held to `L2`. A self-operated runner, a local lane and
 every other surface keep `L2`, and `C5` work keeps `L3` on every surface.
 
+## Local lanes
+
+A lane on a local machine runs unattended, so the `L2` floor applies to it. No exemption like the
+[CI-lane one](#ci-lanes-on-provider-hosted-runners) exists for local lanes. Known gap: a local lane
+that runs unattended below `L2` is non-conforming until its substrate reaches `L2` or the owner
+decides an exemption with its own conditions.
+
+## WSL on a Windows host
+
+- **Default WSL adds no isolation level.** A WSL distribution with its default configuration
+  rates `L0`, the same as the Windows host it runs on: by default it mounts the host's fixed
+  drives, launches Windows processes, and puts Windows path elements on `$PATH`, so a run inside it
+  reads, writes and executes on the host. Its virtual machine is never ratified as `L3`.
+- **WSL2 with the per-command sandbox is `L1`.** The harness sandbox wraps shell commands only,
+  so it is the attended ergonomics tier, not an unattended one. The whole-process sandbox runtime
+  and a default-deny container stay `L2` candidates, each passing the guardrail slice's probe and
+  its interop launch check.
+- **`/etc/wsl.conf` narrows the host reach but does not raise a level.** Interop `enabled=false`
+  stops WSL launching Windows processes, `appendWindowsPath=false` keeps Windows path elements off
+  `$PATH`, and automount `enabled=false` stops fixed drives mounting under the automount `root`
+  (`/mnt/` by default); drives can still be mounted by hand or through `/etc/fstab` while
+  `mountFsTab` is on. The file lives inside the distribution, so a run with root there can change
+  it, and changes take effect only after the distribution restarts. Use it to shrink what a
+  boundary has to deny; the level comes from the boundary and its probe. Pointer: when stating
+  what a key does or its default, fetch Microsoft's
+  [Automount settings](https://learn.microsoft.com/en-us/windows/wsl/wsl-config#automount-settings)
+  and [Interop settings](https://learn.microsoft.com/en-us/windows/wsl/wsl-config#interop-settings)
+  live.
+
+The instance records a WSL2 binding depends on are in the guardrail slice's
+[Windows surfaces](../../skills/setup/context/windows-surfaces.md#wsl2-distribution) file.
+
+## Windows-only machines
+
+Guidance for a machine where policy allows only Windows, with no WSL. The harness sandbox does not
+run on native Windows, so attended use there is `L0`, and an unattended run needs an org-supplied
+boundary that passes the probe: in practice a VM or microVM on the host, created and removed per
+run, which can reach `L3`. Without one the surface stays human-gated under the fail-closed rule
+below. The instance facts and conditions for that path are in
+[Windows surfaces](../../skills/setup/context/windows-surfaces.md#l3-microvm-on-a-windows-host) and
+its [Fail-closed](../../skills/setup/context/windows-surfaces.md#fail-closed) section.
+
 ## Fail-closed where L2 is unavailable
 
 Where no `L2`-capable substrate exists on an execution surface, autonomous dispatch is
