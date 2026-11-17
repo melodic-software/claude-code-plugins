@@ -38,8 +38,11 @@ gate scans) reads them from the file, not from a copy of tool output.
   (2 to 200), newest merge first, or with `--pr` of that one PR, open PRs included: `pr`, `source`, `author`, `kind` (`review` body or `inline`),
   `path`, `line`, `body`. `source` is `human` (an owner, member or collaborator of the repository,
   on a comment that is not a reply and is not by the PR's author unless the author made it after
-  the merge, so never on an open PR; other accounts are dropped) or `accepted-bot` (a bot's inline comment, not a reply,
-  whose line changed later in the same PR). A final `{"truncated": true, ...}` line means the output
+  the merge, so never on an open PR; other accounts are dropped), `accepted-bot` (a bot's inline comment, not a reply,
+  whose line changed later in the same PR), or `lane-summary` (a review body, `kind` `review`, or
+  PR comment, `kind` `comment`, by the `github-actions[bot]` account whose last non-blank line is a
+  CI review lane's `claude-lane:` footer; every other bot's review bodies and PR comments are
+  dropped). A final `{"truncated": true, ...}` line means the output
   stopped at 64 KB. Its exit codes are its own: 0 read; 2 a bad argument, a missing prerequisite or
   a failed forge call, with nothing on stdout.
 - **Exit codes** of `view` and `list`. 0 read; 1 bad argument; 2 the forge call failed, which includes a branch with no
