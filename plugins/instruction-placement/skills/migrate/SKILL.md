@@ -474,8 +474,11 @@ in sync after the move.
   `AGENTS.md` into the one-line `@AGENTS.md` import, or drops the file where the session reads
   `AGENTS.md` natively; it never keeps the sentence beside the import. Pointer:
   [Remove an earlier AGENTS.md workaround](https://code.claude.com/docs/en/memory#remove-an-earlier-agents-md-workaround).
-- **A committed symlink is not portable.** On a Windows checkout it materializes as a plain text
-  file holding the link target, so the import is the form that works everywhere.
+- **A committed symlink is not portable.** Whether a checkout writes it as a link depends on that
+  checkout's git settings, so the import is the form that works everywhere.
+  Pointer: when deciding whether a checkout keeps a committed symlink, fetch
+  [git-config: core.symlinks](https://git-scm.com/docs/git-config#Documentation/git-config.txt-coresymlinks)
+  live.
 - **A `CLAUDE.local.md` one developer keeps silently turns `AGENTS.md` off for them.** It counts for
   the same check as `CLAUDE.md`, and no gate in the repository can see it. Offer the replacement
   and its caveat in `reference/shim-droppable.md`, condition A.

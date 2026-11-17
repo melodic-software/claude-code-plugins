@@ -5,8 +5,10 @@ review by eye, which is why they are written down rather than left to judgment.
 
 ## The saving that is not a saving
 
-- **"Move it to `.claude/rules/`" is not a saving on its own.** An unscoped rule loads at launch
-  with the same priority as `.claude/CLAUDE.md`. The reflex to propose a file move because a file
+- **"Move it to `.claude/rules/`" is not a saving on its own.** We price an unscoped rule as
+  always-loaded, the same as `.claude/CLAUDE.md`; its row in the
+  [surface table](../../../context/verified-mechanics.md#the-surface-table) says when it loads and
+  cites the docs record behind that. The reflex to propose a file move because a file
   is long produces a reorganization billed as a context win. Only `paths:` changes the cost.
 - **A rule whose body is just `@import` defeats its own scoping.** The import inlines at session
   start while the rule body defers, so the move reads as a saving and is not one. This is the
