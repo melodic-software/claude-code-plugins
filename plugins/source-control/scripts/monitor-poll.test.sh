@@ -216,6 +216,41 @@ assert_eq "stopped watch: it exits within 5s of TERM" "gone" "$(kill -0 "$pid5" 
 kill -0 "$pid5" 2>/dev/null && kill -KILL "$pid5" 2>/dev/null
 wait "$pid5" 2>/dev/null
 
+# --- the documented Monitor command. Both docs hand the script to bash by
+# path with no poll body inline, so the shell the Monitor tool runs (zsh on
+# some hosts) never parses the poll itself; and each command as written, its
+# placeholders filled in, runs a watch to completion against the stub. The
+# quotes are dropped before the split: the fixture paths hold no whitespace.
+SKILL_DOC="$SCRIPT_DIR/../skills/pull-request/reference/monitor.md"
+PROVIDER_DOC="$SCRIPT_DIR/../reference/providers/github/pull-request/monitor.md"
+skill_cmd=$(sed -n 's/^[[:space:]]*command: //p' "$SKILL_DOC")
+provider_cmd=$(awk '/^## Poll checks over REST$/ { s = 1; next } s && /^## / { exit } s && /^```bash$/ { f = 1; next } f && /^```$/ { exit } f { print }' "$PROVIDER_DOC")
+doc_prefix='bash "<skill-dir>/scripts/monitor-poll.sh" '
+for doc in skill provider; do
+  if [[ "$doc" == skill ]]; then
+    cmd=$skill_cmd docf=$SKILL_DOC
+  else
+    cmd=$provider_cmd docf=$PROVIDER_DOC
+  fi
+  assert_eq "$doc doc: one documented poll command" "1" "$(grep -c . <<<"$cmd")"
+  assert_eq "$doc doc: the command runs the script with bash, by path" "$doc_prefix" "${cmd:0:${#doc_prefix}}"
+  assert_eq "$doc doc: no inline poll body" "" "$(grep -nE 'read_into\(\)|while true; do' "$docf")"
+  [[ "${cmd:0:${#doc_prefix}}" == "$doc_prefix" ]] || continue
+  cmd=${cmd//<skill-dir>/$PLUGIN/skills/pull-request}
+  cmd=${cmd//<checkout>/$CHECKOUT}
+  cmd=${cmd//<N>/7}
+  read -ra argv <<<"${cmd//\"/}"
+  FXD="$TEST_TMPDIR/fx-doc-$doc"
+  mkdir -p "$FXD"
+  runs_json a >"$FXD/checks.1"
+  runs_json a b >"$FXD/checks.2"
+  echo 3 >"$FXD/merged_at"
+  outd="$(cd "$TEST_TMPDIR" && FX="$FXD" TMPDIR="$POLL_TMP" PATH="$BIN:$PATH" \
+    timeout 60 "${argv[@]}" --interval 0 2>/dev/null)"
+  assert_eq "$doc doc: the documented watch emits b once" "1" "$(grep -c '^b: pass$' <<<"$outd")"
+  assert_contains "$doc doc: the documented watch completes" "$outd" "PR #7 MERGED — watch complete"
+done
+
 # Every run above ended (merged, rate-limited, stopped); none wrote a file.
 assert_eq "poll script leaves no temp file behind" "" "$(find "$POLL_TMP" -mindepth 1)"
 

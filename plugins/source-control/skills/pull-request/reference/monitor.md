@@ -289,14 +289,13 @@ After each push, run this loop until convergence (**every** check in a terminal 
 When more than one worker polls CI under the same token (parallel PR monitors, babysit-prs workers,
 one session watching several PRs), read the PR and its checks over REST instead of the CLI's
 GraphQL-backed checks list (a blocking watch included) or PR view. The §3.0.1 poll script,
-`monitor-poll.sh`, is that REST read: its state check and CI block (the `head_sha` read through
-`cur_checks`) run standalone
-with `OWNER`, `REPO`, and `PR_NUMBER` set
+`monitor-poll.sh`, is that REST read, and the read lives only in the script. For a one-off read,
+run it once through Bash with `--snapshot <file>` set to a path in the scratch directory, then
+read the lines after the file's marker line
 ([GitHub](../../../reference/providers/github/pull-request/monitor.md#poll-checks-over-rest)).
-They emit one `name: bucket` line per check with the same rows and
-`pass|fail|pending|skipping|cancel` buckets the CLI's checks list reports, and they always read
-commit statuses, which the check-runs endpoint omits, so every bucket predicate above works
-unchanged. The Monitor watch always uses this read, since babysit-prs arms one watch per PR; a
+Each line is `name: bucket` for a finished check, with the same rows and
+`pass|fail|skipping|cancel` buckets the CLI's checks list reports; a pending check gets no line.
+The read always covers commit statuses, which the check-runs endpoint omits. The Monitor watch always uses this read, since babysit-prs arms one watch per PR; a
 one-off read in a single session may keep the CLI's checks list, but a wait never uses a blocking
 watch (see "Waiting on a pending check" below).
 

@@ -63,9 +63,9 @@ error exits 3.
 Keep the script free of `rm`: an auto-mode session's safety check denied the inline `command`
 while it ran `rm` on a stderr temp file (issue #16201). The reads' stderr collects in `errs`. The
 same check later refused the inline script with no `rm` in it (issue #16353), so the watch runs it
-from the file. Its state check and CI block (the `head_sha` read through `cur_checks`) also run standalone, with
-`OWNER`, `REPO`, and `PR_NUMBER` set and `read_into` defined, as the REST read of a PR's checks;
-`cur_checks` is valid only when `checks_ok` is 1. The bucket mapping and the
+from the file, and the REST read of a PR's checks lives only there. For a one-off read, run the
+script once with `--snapshot <file>` and read the lines after the file's marker line: one
+`name: bucket` line per finished check, none for a pending one. The bucket mapping and the
 latest-per-name/workflow/event dedupe follow gh's `pkg/cmd/pr/checks/aggregate.go`.
 
 ## Why polling uses REST
