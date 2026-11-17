@@ -12,7 +12,7 @@ GF_DETAIL='no config gate: formats every Go file'
 
 rt_wants() {
   case "$1" in
-  .githooks/* | */.githooks/*) return 1 ;;
+  .githooks/*) return 1 ;;
   *.go) return 0 ;;
   *) return 1 ;;
   esac

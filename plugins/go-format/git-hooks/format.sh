@@ -30,6 +30,7 @@ fi
 checks_init pre-commit "$@" || exit 0
 if [[ " $CHECKS_ARGS " == *" --resolve "* ]]; then
   rt_print format "$PWD" ${resolve[@]+"${resolve[@]}"}
+  ((${#resolve[@]})) || rt_print lint "$PWD"
   exit 0
 fi
 [[ "$CHECKS_MODE" == pre-commit ]] || GF_LIST=1

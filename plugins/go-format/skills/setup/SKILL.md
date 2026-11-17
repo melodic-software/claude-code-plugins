@@ -95,14 +95,14 @@ commit outside Claude Code and reads no toggle.
    when absent. The hook then skips the files, and the `SessionStart` probe reports the absence
    in every repository where the plugin is enabled, with or without `.go` files.
 5. **What each concern resolves to.** From the repository root run
-   `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh" --resolve`. It prints one row: plugin, concern,
-   source, tool, found, detail, tab-separated, and runs nothing. Append repository paths
-   (`--resolve cmd/a.go internal/b.go`) for one row per file; a generated file resolves to
-   nothing. The adapter's rules are in `${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh`: read them
+   `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh" --resolve`. It prints a format row and a lint row:
+   plugin, concern, source, tool, found, detail, tab-separated, and runs nothing. Append repository
+   paths (`--resolve cmd/a.go internal/b.go`) for one format row per file; a generated file
+   resolves to nothing. The adapter's rules are in `${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh`: read them
    to explain a row. Report from the rows, never from this text:
    - format, `adapter:goimports` with found `yes`: PASS, ungated by design. Found `no` is the
      step 4 FAIL.
-   - lint: INFO "no shipped adapter": the hooks run nothing for Go linting. When the person names a
+   - lint, `none` with detail `no shipped lint adapter`: INFO, the hooks run nothing for Go linting. When the person names a
      linter, find the repository's own linter by the steps in
      [reference/ecosystem-resolution.md](../../reference/ecosystem-resolution.md) and draft a
      `lint-cmd` holding `<files>` that only reports, with findings as `<path>:<line>` lines. Hand
