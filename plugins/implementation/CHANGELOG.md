@@ -3,6 +3,14 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.1] - 2026-11-17
+
+### Changed
+
+- Carries version 1.1.0 of the ecosystem resolution steps (`reference/ecosystem-resolution.md`): `/toolchain:setup apply <ecosystem>` is the one writer of an ecosystem record's `fix-cmd` and `lint-cmd`, and a format or lint plugin's setup drafts them for it.
+
+- `/implementation:implement` treats `language idioms: none declared for <language>` as a required output line when no idioms file resolves for a language. It prints the line at the first type decision in that language and repeats it in the final report, so a run that found no idioms file reads differently from one that never looked. The `type-decision-no-idioms-declared-proceeds-on-neutral-rules` eval case now runs on a fixture repository, `evals/fixtures/max-batch-repo/`, so its prompt no longer says that no idioms file exists. An expectation that maps to a regex grader checks the final reply for the line.
+
 ## [0.45.0] - 2026-11-16
 
 ### Added
