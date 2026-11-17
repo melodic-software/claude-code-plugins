@@ -13,7 +13,6 @@ const CLEAR = 'No profile'
 const PICKER = 'plugin-profile-picker'
 const APPLY = 'Apply'
 const CANCEL = 'Cancel'
-const NOTHING_TO_CLEAR = 'No profile is recorded'
 // $.ui.ask takes two to four labels: a page holds three profiles and MORE.
 const PAGE = 3
 const NEXT_STEP = `Send any message, or run /${RELOAD} now, to load the change into this session; a new session starts with it.`
@@ -27,6 +26,7 @@ type Preview = {
   othersInFolder?: { name: string }[]
   lines: string[]
 }
+type ClearPreview = { recorded: boolean; sessionProfile: string | null; lines: string[] }
 
 const pending = atom({ plugin: 'plugin-profiles', key: 'switch' } as const, null as Switch | null)
 
@@ -103,15 +103,18 @@ async function confirm($: EngineInterface, name: string, preview: Preview): Prom
 }
 
 async function clearProfile($: EngineInterface): Promise<string> {
-  const dry = await cli($, ['clear', '--for', 'folder', '--dry-run'])
+  const dry = await cli($, ['clear', '--for', 'folder', '--dry-run', '--json'])
   if (dry.exitCode !== 0) return failure(dry)
-  if (dry.stdout.startsWith(NOTHING_TO_CLEAR))
-    return `This folder has no profile to clear; its plugins come from your user and project settings. If this session still has an earlier profile's plugins loaded, run /${RELOAD} to load what the settings say now.`
-  show($, dry.stdout.split('\n'))
+  const preview = JSON.parse(dry.stdout) as ClearPreview
+  show($, preview.lines)
+  if (!preview.recorded)
+    return preview.sessionProfile
+      ? 'Nothing to clear.'
+      : `Nothing to clear; this folder's plugins come from your user and project settings. If this session still has an earlier profile's plugins loaded, run /${RELOAD} to load what the settings say now.`
   if (!(await confirmed($, 'Clear the profile from this folder?'))) return 'Not cleared; nothing changed.'
   const cleared = await cli($, ['clear', '--for', 'folder', '--yes'])
   if (cleared.exitCode !== 0) return failure(cleared)
-  await update($, pending, (): Switch => ({ profile: CLEAR, phase: 'armed', kind: 'clear' }))
+  await update($, pending, (): Switch => ({ profile: CLEAR, phase: 'armed', kind: 'clear', keeps: preview.sessionProfile ?? undefined }))
   return `Cleared this folder's profile. ${NEXT_STEP}`
 }
 
@@ -154,7 +157,11 @@ async function finish($: EngineInterface): Promise<void> {
   if (s?.phase !== 'reloading') return
   await update($, pending, () => null)
   if (s.kind === 'clear') {
-    $.ui.log('This folder has no profile now; this session loaded the plugins your user and project settings name.')
+    $.ui.log(
+      s.keeps
+        ? `This folder has no profile now; this session keeps its one-session profile ${s.keeps}.`
+        : 'This folder has no profile now; this session loaded the plugins your user and project settings name.',
+    )
     return
   }
   const r = await cli($, ['apply', s.profile, '--for', 'folder', '--yes'])

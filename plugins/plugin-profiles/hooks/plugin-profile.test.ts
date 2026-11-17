@@ -23,7 +23,15 @@ const preview = (p: Preview = {}): Out => ({
 
 // The world beneath the plugin: `cli` answers each run of profiles.mjs by its verb and flags, and
 // `answers` are the labels the person picks, in order.
-const CLEAR_PREVIEW = 'Clears profile review from /p/.claude/settings.local.json.\nPuts back 3 plugin entries and 0 skill entries to their values before the first apply.\n'
+const clearPreview = (p: { recorded?: boolean; sessionProfile?: string | null; lines?: string[] } = {}): Out => ({
+  exitCode: 0,
+  stdout: JSON.stringify({
+    recorded: true,
+    sessionProfile: null,
+    lines: ['Clears profile review from /p/.claude/settings.local.json.', 'Puts back 3 plugin entries and 0 skill entries to their values before the first apply.'],
+    ...p,
+  }),
+})
 const NEXT_STEP = 'Send any message, or run /reload-plugins now, to load the change into this session; a new session starts with it.'
 
 const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?: Out; clearDry?: Out; clear?: Out; reloadHangs?: boolean; noPane?: boolean } = {}) => {
@@ -43,7 +51,7 @@ const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?:
     const out =
       args[0] === 'clear'
         ? args.includes('--dry-run')
-          ? (cli.clearDry ?? { exitCode: 0, stdout: CLEAR_PREVIEW })
+          ? (cli.clearDry ?? clearPreview())
           : (cli.clear ?? { exitCode: 0, stdout: 'Cleared profile review from /p/.claude/settings.local.json.\n' })
         : args[0] === 'list'
         ? (cli.list ?? { exitCode: 0, stdout: JSON.stringify(PROFILES.map(name => ({ name, description: `${name} work` }))) })
@@ -134,7 +142,7 @@ test('#16747: on mobile, which may not draw a Select, the pane holds one Button 
   expect(w.runs[1]).toEqual(['apply', 'planning', '--for', 'folder', '--defer-off', '--dry-run', '--json'])
 })
 
-test('#16747: Cancel in the picker pane chooses nothing and writes nothing', async ($, on) => {
+test('#16747: Cancel in the picker pane closes it: nothing chosen, nothing written', async ($, on) => {
   const w = world(on, [])
   const answer = run($)
   await settle()
@@ -142,6 +150,7 @@ test('#16747: Cancel in the picker pane chooses nothing and writes nothing', asy
   await ui.press({ key: 'cancel' })
   await ui.unmount()
   expect((await answer).text).toBe('No profile chosen; nothing changed.')
+  expect(w.closed).toEqual(['plugin-profile-picker'])
   expect(w.runs).toEqual([['list', '--json']])
 })
 
@@ -330,7 +339,7 @@ test('#16747: the picker offers No profile, which previews the clear, asks, clea
   expect(w.logs).toContain('Puts back 3 plugin entries and 0 skill entries to their values before the first apply.')
   expect(w.asks).toEqual([{ question: 'Clear the profile from this folder?', options: ['Apply', 'Cancel'] }])
   expect(w.runs.slice(1)).toEqual([
-    ['clear', '--for', 'folder', '--dry-run'],
+    ['clear', '--for', 'folder', '--dry-run', '--json'],
     ['clear', '--for', 'folder', '--yes'],
   ])
   expect(text).toBe(`Cleared this folder's profile. ${NEXT_STEP}`)
@@ -348,11 +357,23 @@ test('#16747: Cancel at the clear confirm clears nothing', async ($, on) => {
 })
 
 test('#16747: a folder with no profile says what loads and how to drop an earlier profile still loaded', async ($, on) => {
-  const w = world(on, [], { clearDry: { exitCode: 0, stdout: 'No profile is recorded for /p/.claude/settings.local.json; nothing to clear.\n' } })
+  const w = world(on, [], { clearDry: clearPreview({ recorded: false, lines: ['A folder with no recorded profile, in words the tool owns.'] }) })
   const { text } = await runPicking($, 'No profile')
+  expect(w.logs).toContain('A folder with no recorded profile, in words the tool owns.')
   expect(text).toBe(
-    "This folder has no profile to clear; its plugins come from your user and project settings. If this session still has an earlier profile's plugins loaded, run /reload-plugins to load what the settings say now.",
+    "Nothing to clear; this folder's plugins come from your user and project settings. If this session still has an earlier profile's plugins loaded, run /reload-plugins to load what the settings say now.",
   )
   expect(w.asks).toEqual([])
   expect(w.runs.filter(r => r.includes('--yes'))).toEqual([])
+})
+
+test('#16747: in a session started in a one-session profile, a clear says the session keeps that profile', async ($, on) => {
+  const sessionLine = 'This session runs in profile review from a one-session settings file and keeps it after the clear.'
+  const w = world(on, ['Apply'], { clearDry: clearPreview({ sessionProfile: 'review', lines: ['Clears profile build from /p/.claude/settings.local.json.', sessionLine] }) })
+  await runPicking($, 'No profile')
+  expect(w.logs).toContain(sessionLine)
+  await turnEnd($)
+  await settle()
+  expect(w.logs).toContain('This folder has no profile now; this session keeps its one-session profile review.')
+  expect(w.logs).not.toContain('This folder has no profile now; this session loaded the plugins your user and project settings name.')
 })
