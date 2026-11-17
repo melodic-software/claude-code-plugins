@@ -444,8 +444,9 @@ the consumer surfaces such a row to a human rather than auto-applying it. The sp
   never hand-written: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/suppression-lint.sh" <record>` over the
   record the user accepted reports the derived id for any entry whose key is wrong. The user accepts each entry; this skill proposes and never writes suppressions
   unprompted, and writes only the **team** layer, a personal-layer entry would not suppress anything.
-  An **equivalent** mutant is never recorded here; the convention's record is not for a finding that
-  is simply wrong.
+  An **equivalent** mutant is never recorded in this suppression record, which is not for a finding
+  that is simply wrong; under `--persist-findings`, Phase 6 writes each equivalent call with its
+  demonstration to the findings file instead.
 
 ## Next
 

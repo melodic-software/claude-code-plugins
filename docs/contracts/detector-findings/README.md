@@ -573,12 +573,20 @@ failure to avoid:
   it, which is the same rule that keeps a reviewer's reasoning out of a `Finding` cell. Counts also
   keep the section short enough to stay one line per surface, and are the form a trend across runs
   can be read from at all.
+- **Where a decline's evidence may go.** A producer whose decline evidence is something a reader
+  must be able to re-check, such as a demonstration, may write it in a `## Declined candidates`
+  section after `## Surfaces`, one line per declined candidate:
+  `- <rule id>, <Location>: <the evidence its crosswalk row requires>`. The fix action does not
+  parse that section, so nothing in it is applied, and the `## Surfaces` count stays the trend.
+  The evidence is the artifact; the argument for it still goes in the human-facing report.
 - **No evidence, no decline.** A rule that may decline states in its crosswalk row what evidence a
   decline requires. A candidate declined without that evidence is not declined. It emits.
-- **No new field, and that is the decision.** A column or section for dispositions would push a
-  per-run judgment into the shape the fix action parses, where every consumer would have to learn to
-  ignore it; a separate file type would be structure with no reader. The disposition belongs to the
-  **rule**, so it is declared once in the crosswalk and only its count is per run.
+- **No new field in the parsed shape, and that is the decision.** A column or parsed section for
+  dispositions would push a per-run judgment into the shape the fix action parses, where every
+  consumer would have to learn to ignore it; a separate file type would be structure with no
+  reader. The disposition belongs to the **rule**, so it is declared once in the crosswalk and only
+  its count is per run. `## Declined candidates` sits outside the parsed shape, as
+  `## By dimension` does.
 
 ## Coexisting with other producers
 

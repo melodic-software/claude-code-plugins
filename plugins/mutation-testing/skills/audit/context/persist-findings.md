@@ -277,8 +277,9 @@ Two consequences the crosswalk states that a run must actually carry out:
 - **A demonstrated arid or equivalent verdict emits no row**, and only a demonstrated one. Arid's
   only remediation is a suppression entry this skill proposes and never writes unprompted, accepted
   by the user per "Remediation. Delegated"; Phase 5 still shows every arid survivor and its proposed
-  entry to the human, so nothing is lost. Equivalent is not a defect. Those two are reported as
-  declined-candidate counts, below; an undemonstrated one is not declined at all and emits under the
+  entry to the human, so nothing is lost. Equivalent is not a defect, and each equivalent call is
+  written with its demonstration in `## Declined candidates`, below. Those two are reported as
+  declined-candidate counts; an undemonstrated one is not declined at all and emits under the
   rule the next bullet names.
 - **An unevidenced withholding claim never reaches this phase as a withholding class.** Phase 4 owns
   that bar for both classes and reports a claim it cannot meet as *unclassified*, which maps to
@@ -338,6 +339,15 @@ argument per mutant. **Only a demonstrated verdict is counted here.** An undemon
 equivalence claim is a row, not a decline, so counting it would report a candidate as declined while
 it sits in the findings table. The rationale for each withholding judgment, of either kind, goes in
 the Phase 5 report to the human, which is where an argument belongs; the file carries the artifact.
+
+**Each demonstrated equivalent mutant is also written to `## Declined candidates`**, after
+`## Surfaces`, in the line form the contract's "A candidate that is not a finding" gives:
+`mutation-testing/audit/rule-survivor-equivalent`, the mutated node's `Location`, then the operator
+and the Phase 4 demonstration (what was run, what was identical, and under which inputs). An
+equivalence call left only in a chat report cannot be re-checked by the next run or a reviewer; the
+fix action does not parse this section, so the line is never applied. A demonstrated arid survivor
+gets no line here: its record is the proposed suppression entry. A run with no demonstrated
+equivalent mutant omits the section.
 
 Omit `tier:`, because a mutation run has no lifecycle-tier analogue and the consumer renders an
 absent one as unstated rather than guessing. Omit `## By dimension`, because there is one dimension.
