@@ -1251,10 +1251,6 @@ async function sweepRefused(context) {
 
 // This file's workflow, whose lost runs the tick recovers.
 export const DISPATCH_WORKFLOW = ".github/workflows/pr-dispatch-feedback.yml";
-// The file under its name before the rename: a run keeps the path it started
-// from, so the recovery reads take both while such a run can still be in reach.
-export const PREVIOUS_DISPATCH_WORKFLOW = ".github/workflows/pr-feedback-dispatch.yml";
-const isDispatchWorkflow = (path) => path === DISPATCH_WORKFLOW || path === PREVIOUS_DISPATCH_WORKFLOW;
 
 // The workflow's job that dispatches, by its display name, or by its id
 // (`dispatch`) on a run started before the rename; a loss of its other jobs
@@ -1285,13 +1281,6 @@ export async function lostDispatchRun({ api, runId, log, now = Date.now() }) {
   let runs;
   try {
     runs = await api.listRecentRuns(DISPATCH_WORKFLOW, isoSeconds(since));
-    // The earlier file has no runs to list once they age out or are deleted.
-    const earlier = await api.listRecentRuns(PREVIOUS_DISPATCH_WORKFLOW, isoSeconds(since)).catch((error) => {
-      if (!/ returned 404$/.test(error.message)) log(`::warning::${PREVIOUS_DISPATCH_WORKFLOW} run listing failed (${error.message}); runs under the earlier name are not recovered this tick`);
-      return [];
-    });
-    const seen = new Set(runs.map((run) => String(run.id)));
-    runs = runs.concat(earlier.filter((run) => !seen.has(String(run.id))));
   } catch (error) {
     log(`::warning::${DISPATCH_WORKFLOW} run listing failed (${error.message}); no lost run is recovered this tick`);
     return null;
@@ -1371,7 +1360,7 @@ const ACTIONS_BOT = "github-actions[bot]";
 // github-actions[bot] re-run of this workflow on main: any workflow can
 // upload that name to its own run.
 const deferringRun = (run, repository) =>
-  isDispatchWorkflow(run?.path) &&
+  run?.path === DISPATCH_WORKFLOW &&
   run.event === "workflow_run" &&
   run.head_branch === "main" &&
   run.repository?.full_name === repository &&
