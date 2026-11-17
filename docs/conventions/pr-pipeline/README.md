@@ -163,7 +163,7 @@ a `timeout-minutes`, its own or its reusable workflow's input.
 | A push to a branch | Work in progress. |
 | A non-draft PR | The author is done. |
 | A `refine-pass` notice per pass in `pr-refine`'s `record-passes` job: `pass=<name> files=<n> outcome=<pushed\|none\|superseded\|failed> seconds=<n>` | What each pass did, and how long since the plan started. A failed pass also logs a `refine-failed` warning, which [signal 13](#the-monitoring-lane) counts as a `pr-refine` hold. |
-| Refine complete | The signal review starts on. Each hosted review run's `wait-for-refine` job (`.github/scripts/pr-review/wait-refine.mjs`) waits up to 40 minutes for the `pr-refine` run that this head's `pr-unblock-dispatch.yml` `refine` job dispatched, inside the review's own `pull_request` run, since ci-status reads only those. A head that moved meanwhile, by Refine's push or another, is not reviewed: that push starts the new head's review. Any other outcome reviews: no dispatch, a Refine that failed or ran past the cap, or a read that failed. |
+| Refine complete | The signal review starts on. Each hosted review run's `wait-for-refine` job (`.github/scripts/pr-review/wait-refine.mjs`) waits up to 30 minutes for the `pr-refine` run that this head's `pr-unblock-dispatch.yml` `refine` job dispatched, inside the review's own `pull_request` run, since ci-status reads only those. A head that moved meanwhile, by Refine's push or another, is not reviewed: that push starts the new head's review. Any other outcome reviews: no dispatch, a Refine that failed or ran past the cap, or a read that failed. |
 
 ## Lanes
 

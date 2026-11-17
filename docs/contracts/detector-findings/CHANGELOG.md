@@ -4,6 +4,14 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.10.0] - 2026-11-17
+
+**Minor, additive.** "A candidate that is not a finding" lets a producer write the evidence for
+each declined candidate, such as a demonstration, in a `## Declined candidates` section after
+`## Surfaces`, one line per candidate. The fix action does not parse it, and the per-rule count in
+`## Surfaces` is unchanged. `mutation-testing:audit` writes each demonstrated equivalent mutant
+there. No producer-owned field's rule, coexistence obligation, or enforceability verdict moves.
+
 ## [3.9.1] - 2026-11-14
 
 **Patch, docs-only.** The shared-emitter decision's trigger and the

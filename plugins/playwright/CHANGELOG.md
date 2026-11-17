@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.14] - 2026-11-17
+
+### Fixed
+
+- The concurrent-sessions example in `reference/sessions.md` waits on each `open` by pid, so a failed open is reported instead of hidden by a bare `wait`.
+
 ## [2.0.13] - 2026-11-17
 
 ### Changed

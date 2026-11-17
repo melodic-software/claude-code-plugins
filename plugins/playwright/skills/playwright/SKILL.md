@@ -72,6 +72,7 @@ It reads the named variable, refuses an unset or empty one, discards `playwright
 - **`--headed` only when the user explicitly wants to observe.** On Windows, headed browsers spawn in the background and don't auto-focus. See [reference/windows-quirks.md](reference/windows-quirks.md)
 - **Artifacts land in `.playwright-cli/` relative to CWD at command time.** Add `.playwright-cli/` to the project's `.gitignore` if it isn't already. For meaningful artifacts (evidence for PRs, regression baselines), pass `--filename=<descriptive>.png`; let timestamp-named snapshots pile up as throwaway intermediate state
 - **Use element refs from snapshots** (`e15`, `e37`), not CSS selectors. Snapshots use accessibility roles, which survive cosmetic UI changes
+- **Check state on the DOM, pixels only for a visual change.** Whether an element is present, enabled or checked, how many there are and what text it holds come from the snapshot, never from a screenshot. A screenshot is the check only when the change itself is visual
 - **Judge visual questions from the screenshot itself.** The snapshot YAML carries roles and text, not layout or color. For "does the modal cover the button" or "does the chart match the table", Read the screenshot file and answer that one specific question from the image; share the file path as evidence rather than retyping what it shows
 
 ### Recover from stale sessions
