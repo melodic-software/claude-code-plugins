@@ -343,7 +343,8 @@ the advisory and manifest block and before the `Verifier dropped N of M candidat
 ```
 
 `N` counts the lines inside, the blank lines stay as in the advisory block, and with no uncovered
-rule post no block. The block appears in a blocking-only review too. `/corrections:codify reviews`
+rule post no block. The block appears in a blocking-only review too. When the summary would
+exceed the character cap the prompt states, drop this block first. `/corrections:codify reviews`
 reads these lines as candidate rules.
 
 **Hold for a person.** When the wrapper's output schema has a `hold` field, fill it only for the

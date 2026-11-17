@@ -467,7 +467,8 @@ that meets the bar on its own stays a finding at its severity, and the line reco
 missing rule. Put at most five such lines in one block after the manifest block, as `<details>`,
 then `<summary>Uncovered rules (N)</summary>` with `N` the lines inside, a blank line, the lines, a
 blank line and `</details>`. With no uncovered rule, post no block. The block appears in a
-blocking-only review too. `/corrections:codify reviews` reads these lines as candidate rules.
+blocking-only review too. When the summary would exceed the character cap the prompt states, drop
+this block first. `/corrections:codify reviews` reads these lines as candidate rules.
 
 **Hold for a person.** When the wrapper's output schema has a `hold` field, fill it only for the
 classes the wrapper's prompt defines, each named by its criterion, with a reason naming the
