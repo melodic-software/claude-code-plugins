@@ -81,6 +81,13 @@ for ((i = 0; i < RT_GN; i++)); do
 done
 
 mirror="$CHECKS_TMP/mirror"
+if [[ -d node_modules && ! -L node_modules && -z "$(git ls-files -- ':(literal)node_modules' 2>/dev/null)" ]] &&
+  git check-ignore -q node_modules/.cache 2>/dev/null &&
+  mkdir -p node_modules/.cache/markdown-format 2>/dev/null &&
+  in_repo="$(mktemp -d "$PWD/node_modules/.cache/markdown-format/lint.XXXXXX" 2>/dev/null)"; then
+  mirror="$in_repo" mf_status=0
+  trap 'mf_status=$?; rm -rf "${in_repo:?}"; checks_finish "$mf_status" || exit 1' EXIT
+fi
 US=$'\x1f'
 spine="$US.$US"
 checked="$US"
@@ -108,28 +115,6 @@ mf_link() {
   [[ "$r" == */* ]] && mkdir -p "$mirror/${r%/*}"
   ln -s "$PWD/$r" "$mirror/$r"
 }
-mf_link_packages() {
-  local s pkg dir
-  while IFS= read -r s; do
-    s="${s:1:${#s}-2}"
-    case "$s" in "" | .* | /* | *" "* | *\\*) continue ;; *) ;; esac
-    pkg="${s%%/*}"
-    if [[ "$s" == @*/* ]]; then
-      s="${s#*/}"
-      pkg="$pkg/${s%%/*}"
-    fi
-    dir="${1%/*}"
-    [[ "$dir" == "$1" ]] && dir=.
-    while :; do
-      if [[ -d "$dir/node_modules/$pkg" ]]; then
-        mf_link "$dir/node_modules/$pkg"
-        break
-      fi
-      [[ "$dir" == . ]] && break
-      if [[ "$dir" == */* ]]; then dir="${dir%/*}"; else dir=.; fi
-    done
-  done < <(grep -oE "\"[^\"]+\"|'[^']+'" "$1" 2>/dev/null)
-}
 if [[ "$checked" != "$US" ]]; then
   configs=()
   rest="${spine#"$US"}"
@@ -149,10 +134,6 @@ if [[ "$checked" != "$US" ]]; then
     md_collect_modules "$proot" "${configs[@]}" || :
     for m in ${MD_MODULES[@]+"${MD_MODULES[@]}"}; do
       mf_link "${m#"$proot"/}"
-      case "$m" in *.json | *.jsonc | *.yaml | *.yml) configs+=("${m#"$proot"/}") ;; *) ;; esac
-    done
-    for c in "${configs[@]}"; do
-      mf_link_packages "$c"
     done
   fi
   rest="${checked#"$US"}"

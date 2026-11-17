@@ -22,7 +22,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -48,7 +48,7 @@ new_repo() {
   git -C "$REPO" commit -q -m seed --no-verify
 }
 
-check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
+check() {
   local repo="$1" out rc
   shift
   out="$(cd "$repo" && bash "$CHECK" "$@" 2>"$WORK/stderr")"
@@ -200,8 +200,6 @@ expect "--resolve lint row names the adapter and the record note" \
   "markdown-format	lint	adapter:markdownlint-cli2	markdownlint-cli2	yes	config .markdownlint-cli2.jsonc; binary markdownlint-cli2 on PATH; the markdown record is not run by hooks; /toolchain:lint and /toolchain:check run it" \
   "$(cd "$REPO" && sh "$CHECK" --resolve)"
 
-# A config that can run repository code: skipped until the user approves its
-# exact content state, as powershell-format gates CustomRulePath.
 GATE_LEAD='markdown-format trust gate: markdownlint-cli2 skipped for files under'
 DATA="$WORK/plugin-data"
 new_repo NONE
@@ -309,6 +307,49 @@ marker="$(cd "$REPO" && bash "$CHECK" 2>&1 >/dev/null | sed -n "s/.*mkdir -p '\(
 mkdir -p "$marker"
 expect "an approved config naming an installed customRules package lints" "1||$HTML
 $HINT" "$(check "$REPO")"
+expect "the mirror under node_modules/.cache is removed after the run" "" "$(ls -A "$REPO/node_modules/.cache/markdown-format" 2>/dev/null)"
+
+new_repo NONE
+mkdir -p "$REPO/node_modules/noop-rule"
+printf 'module.exports = { names: ["no-op"], description: "no-op", tags: ["x"], parser: "none", function: () => {} };\n' >"$REPO/node_modules/noop-rule/index.js"
+printf 'node_modules/\n' >"$REPO/.gitignore"
+printf 'config:\n  default: true\n  MD013: false\ncustomRules:\n  - noop-rule\n' >"$REPO/.markdownlint-cli2.yaml"
+git -C "$REPO" add -A
+git -C "$REPO" commit -q -m cfg --no-verify
+printf '# T\n\n<b>x</b>\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+marker="$(cd "$REPO" && bash "$CHECK" 2>&1 >/dev/null | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$marker"
+expect "an approved YAML config naming a customRules package unquoted lints" "1||$HTML
+$HINT" "$(check "$REPO")"
+
+for style in 'my-style' '"my-style"' "'my-style'"; do
+  new_repo NONE
+  mkdir -p "$REPO/node_modules/my-style"
+  printf '{ "name": "my-style", "main": "style.json" }\n' >"$REPO/node_modules/my-style/package.json"
+  printf '{ "default": false, "MD033": true }\n' >"$REPO/node_modules/my-style/style.json"
+  printf 'node_modules/\n' >"$REPO/.gitignore"
+  printf 'extends: %s\n' "$style" >"$REPO/.markdownlint.yaml"
+  git -C "$REPO" add -A
+  git -C "$REPO" commit -q -m cfg --no-verify
+  printf '# T\n\n<b>x</b>\n' >"$REPO/a.md"
+  git -C "$REPO" add a.md
+  expect "a YAML config that extends an installed package written $style lints under it" "1||$HTML
+$HINT" "$(check "$REPO")"
+done
+
+new_repo
+mkdir -p "$REPO/node_modules"
+printf 'node_modules/\n' >"$REPO/.gitignore"
+git -C "$REPO" add .gitignore
+git -C "$REPO" commit -q -m ignore --no-verify
+mkdir -p "$WORK/stub$n"
+printf '#!/bin/sh\nexit 2\n' >"$WORK/stub$n/markdownlint-cli2"
+chmod +x "$WORK/stub$n/markdownlint-cli2"
+printf '# T\n\ntext\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+PATH="$WORK/stub$n:$PATH" check "$REPO" >/dev/null
+expect "the mirror under node_modules/.cache is removed after a failed run" "" "$(ls -A "$REPO/node_modules/.cache/markdown-format" 2>/dev/null)"
 
 new_repo NONE
 mkdir -p "$REPO/docs"
@@ -351,7 +392,6 @@ expect "--worktree: the file still has no final newline" "$RAW" "$(cat "$REPO/a.
 rm "$REPO/a.md"
 expect "--worktree: no uncommitted change passes" "0||" "$(check "$REPO" --worktree)"
 
-# A PATH with the tools the script runs and node, but no markdownlint-cli2.
 NOMD="$WORK/nomd"
 mkdir -p "$NOMD"
 for t in git bash sed awk cat mktemp rm dirname grep tr readlink env sh node ln mkdir; do
@@ -376,7 +416,6 @@ out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOMD" bash "$CHECK" --worktree 2>&1)"
 expect "missing markdownlint-cli2, --worktree: an agent fails as at commit time" \
   "1|FAIL: markdownlint-cli2 missing. Install: $MDHELP" "$?|${out%%$'\n'*}"
 
-# markdownlint-cli2 only in the repo's own node_modules/.bin.
 new_repo
 mkdir -p "$REPO/node_modules/.bin"
 printf '#!/bin/sh\nexec "%s" "$@"\n' "$REAL_MD" >"$REPO/node_modules/.bin/markdownlint-cli2"
