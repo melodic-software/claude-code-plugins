@@ -4,6 +4,14 @@ Notable changes to the enforcement ladder (SemVer). Renaming, removing or moving
 bump. Adding a rung, a reader's selection rule or a boundary-rule location is a minor bump.
 Wording-only clarification is a patch.
 
+## [3.3.0] - 2026-11-17
+
+- Added: the `formatter` rung, first after `compiler-setting` on the static-analysis tier, for a
+  style rule a formatter can enforce. It routes to the `fix-cmd` of the repository's ecosystem
+  record, or to the format setting that command reads; its check runs the command and fails when
+  the tree changed. A style rule no recorded format command can enforce keeps a linter rung. No
+  rung moves or is renamed.
+
 ## [3.2.0] - 2026-11-16
 
 - Added: the `/architecture:enforce-boundaries` and `/session-flow:retro` reader rows, the two
