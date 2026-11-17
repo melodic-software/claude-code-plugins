@@ -293,23 +293,28 @@ cp "$F/repo.json" "$S/"
 printf '%s\n' '{"number":81,"user":{"login":"ann"},"merged_at":"2026-09-01T00:00:00Z"}' >"$S/one-81.json"
 printf '[]\n' >"$S/comments-81.json"
 cp "$F/threads-12.json" "$S/threads-81.json"
-LANE_REVIEW='No blocking findings.
+LANE_REVIEW='<summary>Uncovered rules (1)</summary>
+
+claude-lane: claude-review'
+NO_BLOCK='No blocking findings.
 
 claude-lane: claude-review'
 # shellcheck disable=SC2016 # backticks and jq variables are fixture data, not expansions
-LANE_COMMENT='Summary
+LANE_COMMENT='<summary>Uncovered rules (1)</summary>
 
 `claude-lane: claude-security-review`
 '
 # shellcheck disable=SC2016 # backticks and jq variables are fixture data, not expansions
-"$JQ_DIR/jq" -n --arg lane "$LANE_REVIEW" '[
+"$JQ_DIR/jq" -n --arg lane "$LANE_REVIEW" --arg plain "$NO_BLOCK" '[
   {user: {login: "github-actions[bot]", id: 41898282, type: "Bot"}, body: $lane},
-  {user: {login: "github-actions[bot]", id: 41898282, type: "Bot"}, body: "No footer here"},
+  {user: {login: "github-actions[bot]", id: 41898282, type: "Bot"}, body: $plain},
+  {user: {login: "github-actions[bot]", id: 41898282, type: "Bot"}, body: "<summary>Uncovered rules (1)</summary> with no footer"},
   {user: {login: "other-ci[bot]", id: 5, type: "Bot"}, body: $lane},
   {user: {login: "github-actions[bot]", id: 7, type: "Bot"}, body: $lane}
 ]' >"$S/reviews-81.json"
 # shellcheck disable=SC2016 # backticks and jq variables are fixture data, not expansions
-"$JQ_DIR/jq" -n --arg lane "$LANE_COMMENT" --arg mid "claude-lane: claude-review
+"$JQ_DIR/jq" -n --arg lane "$LANE_COMMENT" --arg mid "<summary>Uncovered rules (1)</summary>
+claude-lane: claude-review
 then more text" '[
   {user: {login: "github-actions[bot]", id: 41898282, type: "Bot"}, body: $lane},
   {user: {login: "github-actions[bot]", id: 41898282, type: "Bot"}, body: $mid},
@@ -318,8 +323,8 @@ then more text" '[
 run "$S" --pr 81 --repo o/r
 assert_eq "lane summary: exit 0" 0 "$RC"
 # shellcheck disable=SC2016 # backticks and jq variables are fixture data, not expansions
-assert_eq "lane summary: the lane bot's footed review body and PR comment only" \
-  '[{"pr":81,"source":"lane-summary","author":"github-actions[bot]","kind":"review","path":null,"line":null,"body":"No blocking findings.\n\nclaude-lane: claude-review"},{"pr":81,"source":"lane-summary","author":"github-actions[bot]","kind":"comment","path":null,"line":null,"body":"Summary\n\n`claude-lane: claude-security-review`\n"}]' \
+assert_eq "lane summary: only the lane bot's footed review body and PR comment that hold an Uncovered rules block" \
+  '[{"pr":81,"source":"lane-summary","author":"github-actions[bot]","kind":"review","path":null,"line":null,"body":"<summary>Uncovered rules (1)</summary>\n\nclaude-lane: claude-review"},{"pr":81,"source":"lane-summary","author":"github-actions[bot]","kind":"comment","path":null,"line":null,"body":"<summary>Uncovered rules (1)</summary>\n\n`claude-lane: claude-security-review`\n"}]' \
   "$(q '.')"
 touch "$S/fail-issue-comments-81"
 run "$S" --pr 81 --repo o/r

@@ -11,21 +11,6 @@
 # merged. Without --repo, the repository of the current directory. The last <n>
 # merged PRs, by merge time, are picked from the merged PRs updated most
 # recently, read until no unread PR can be among them.
-# For each, newest first, it reads review bodies and inline review comments
-# (gh api --paginate) and the review threads (gh api graphql), and keeps:
-#
-#   source: human         a comment or non-empty review body by a human
-#                         account whose author_association is OWNER, MEMBER or
-#                         COLLABORATOR, that is not a reply (in_reply_to_id
-#                         set) and is not by the PR's author, unless the author
-#                         made it after the merge; anyone else's comment on a
-#                         public repository is dropped
-#   source: accepted-bot  an inline bot comment, not a reply, whose thread is
-#                         outdated: the line it commented on changed in a later
-#                         commit of the PR. A resolved thread does not count
-#                         (a lane may resolve a thread it disagreed with), and
-#                         neither does a reply, agreeing or rejecting.
-#
 # Read-only: nothing is written outside one temporary directory, removed on
 # exit. Exit 0 printed, 2 usage error, gh or jq missing, or a failed or
 # unauthenticated gh call (nothing on stdout).
@@ -132,6 +117,7 @@ select_rows='
   def login: .user.login? // null;
   def counted($at): login != $author or ($merged != "" and ($at // "") > $merged);
   def lane_post: (.user.id? == 41898282) and (login == "github-actions[bot]")
+    and ((.body // "") | test("<summary>\\s*Uncovered rules \\("))
     and ((.body // "") | [splits("\r?\n")] | map(select(test("\\S"))) | last // ""
       | test("^\\s*`?claude-lane: (claude-review|claude-security-review)`?\\s*$"));
   ([$threads[] | .data.repository.pullRequest.reviewThreads.nodes[]?

@@ -41,7 +41,7 @@ gate scans) reads them from the file, not from a copy of tool output.
   the merge, so never on an open PR; other accounts are dropped), `accepted-bot` (a bot's inline comment, not a reply,
   whose line changed later in the same PR), or `lane-summary` (a review body, `kind` `review`, or
   PR comment, `kind` `comment`, by the `github-actions[bot]` account whose last non-blank line is a
-  CI review lane's `claude-lane:` footer; every other bot's review bodies and PR comments are
+  CI review lane's `claude-lane:` footer and that holds an `Uncovered rules (N)` block; every other bot's review bodies and PR comments are
   dropped). A final `{"truncated": true, ...}` line means the output
   stopped at 64 KB. Its exit codes are its own: 0 read; 2 a bad argument, a missing prerequisite or
   a failed forge call, with nothing on stdout.
