@@ -148,13 +148,15 @@ def test_a_row_written_before_the_neutral_fields_reads_from_the_github_ones(tmp_
     assert run["legs"][0]["kind"] == "fallback"
 
 
-def test_a_pruned_leg_is_kept_with_no_transcript(tmp_path):
-    sink = sink_with(tmp_path, [row(7, "a", transcript=None)])
+def test_a_pruned_leg_is_kept_with_no_transcript_and_its_stored_tokens(tmp_path):
+    sink = sink_with(tmp_path, [{**row(7, "a", transcript=None), "input_tokens": 12, "output_tokens": 34}])
 
     code, body, _ = resolve("--sink", str(sink), "7")
 
+    leg = body["runs"][0]["legs"][0]
     assert code == 0
-    assert body["runs"][0]["legs"][0]["transcript"] is None
+    assert leg["transcript"] is None
+    assert (leg["input_tokens"], leg["output_tokens"]) == (12, 34)
     assert body["pruned_legs"] == 1
 
 

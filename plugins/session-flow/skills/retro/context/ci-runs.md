@@ -62,8 +62,10 @@ set), model, turns, duration, output tokens, tool rejections, compactions and su
 **Tool Distribution** table over the run. A leg's subagents arrive inline in its transcript and are
 counted apart from the main thread, with their own tools and rejections. `timing_source` says where
 timing came from: `result` means the messages carried no timestamps, so per-turn timing is
-unavailable, not zero; say so instead of reporting turn durations. The parser reads one record at a
-time and never prints transcript text.
+unavailable, not zero; say so instead of reporting turn durations. A leg whose transcript decodes to
+no message comes back with `transcript_present: false` and an `unreadable` error: report it as
+missing evidence beside its metrics row, never as a run of zero turns. The parser reads one record
+at a time and never prints transcript text.
 
 ## Step 3: Analyze
 

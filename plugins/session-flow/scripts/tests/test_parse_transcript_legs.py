@@ -100,6 +100,19 @@ def test_a_missing_leg_is_reported_and_the_rest_still_parse(tmp_path):
     assert out["legs"][1]["transcript_present"] is False
 
 
+def test_an_unreadable_leg_is_not_reported_as_a_zero_turn_run(tmp_path):
+    broken = tmp_path / "7-1-broken.json.gz"
+    broken.write_bytes(b"\x1f\x8b\x08\x00not-gzip")
+
+    code, out = parse(write_leg(tmp_path), broken)
+    only_code, only_out = parse(broken)
+
+    assert (code, out["status"]) == (0, "warning")
+    assert out["legs"][1]["transcript_present"] is False
+    assert "unreadable" in out["legs"][1]["error"]
+    assert (only_code, only_out["status"]) == (2, "error")
+
+
 def test_no_leg_found_is_an_error(tmp_path):
     code, out = parse(tmp_path / "gone.json.gz")
 

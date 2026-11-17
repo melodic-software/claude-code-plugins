@@ -384,6 +384,7 @@ def parse_main_transcript(filepath: Path, lane_leg: bool = False) -> dict[str, A
         metrics["assistant_timestamps"]
     )
     if lane_leg:
+        metrics["decoded_records"] = stats["records"]
         metrics["leg_result"] = leg_result
         metrics["inline_subagents"] = [
             {**sub, "tools": dict(sub["tools"].most_common())}
@@ -863,6 +864,8 @@ def parse_one_leg(path: Path) -> dict[str, Any]:
     metrics = parse_main_transcript(path, lane_leg=True)
     if metrics is None:
         return {"id": leg_id, "path": str(path), "transcript_present": False, "error": f"No leg transcript at {path}"}
+    if metrics["decoded_records"] == 0:
+        return {"id": leg_id, "path": str(path), "transcript_present": False, "error": f"unreadable leg transcript at {path}: no message decoded"}
     data = build_session_data(leg_id, metrics, metrics["inline_subagents"])
     result = metrics["leg_result"]
     data["result"] = result

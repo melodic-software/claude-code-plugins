@@ -119,6 +119,8 @@ def leg_out(row: dict, sink: Path) -> dict:
         "models": row.get("models") or [],
         "num_turns": row.get("num_turns"),
         "duration_ms": row.get("duration_ms"),
+        "input_tokens": row.get("input_tokens"),
+        "output_tokens": row.get("output_tokens"),
         "transcript": str(sink / stored) if isinstance(stored, str) and stored else None,
     }
 
