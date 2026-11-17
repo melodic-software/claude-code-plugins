@@ -21,9 +21,11 @@ is `missing` otherwise. Quote the line behind each verdict.
 
 ## 2. What belongs where
 
-- **Must state:** three scopes. A fact true of one repository lives in that repository. A fact
-  true of every repository on a machine lives in the person's machine-wide instructions (name
-  where, when the person keeps them). Work between repositories is the hub's.
+- **Must state:** three scopes. A fact true of one repository lives in that repository. A
+  personal or machine-level setting that holds for every repository on one person's machines
+  lives in that person's machine-wide instructions (name where, when the person keeps them); a
+  convention the team shares stays with the repository or shared source that owns it, never in
+  one person's machine-wide files. Work between repositories is the hub's.
 - **Filled from:** the question round's answer on machine-wide instructions; skip that clause
   when there are none.
 - **Why:** without the split, a hub fills up with each repository's exceptions and drifts from
