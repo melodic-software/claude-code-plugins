@@ -327,11 +327,12 @@ DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
 # A tool result showing that a program the session ran could not start: a mise
 # shim with no tool behind it ("mise ERROR node is not a valid shim"), or the
 # shell finding no such command (bash's "bash: line 1: <name>: command not
-# found", zsh's "zsh: command not found: <name>"). Each must open an output
+# found", zsh's "zsh:1: command not found: <name>"). Each must open an output
 # line, as the program prints it, so a grep that quotes the text matches neither.
 # - Pointer: https://github.com/melodic-software/claude-code-plugins/issues/16110
-#   counts the shim text in PR 16069's traces.
-# - As of: 2026-11-13
+#   counts the shim text in PR 16069's traces; both shell texts were observed on
+#   GNU bash 5.3.9 and zsh 5.9 (`bash -c` and `zsh -c` running a missing name).
+# - As of: 2026-11-17
 # - Recheck trigger: a mise upgrade, or a shell rewording either message.
 SHIM_ERROR = re.compile(
     r"^(?:\S*mise\S*\s+)?(?:\S*ERROR\S*\s+)?([^\s'\"`]+) is not a valid shim", re.M
