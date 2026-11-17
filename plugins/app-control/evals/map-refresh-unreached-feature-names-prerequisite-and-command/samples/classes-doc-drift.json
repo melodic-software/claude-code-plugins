@@ -35,6 +35,18 @@
       "why": "negated after is"
     },
     {
+      "answer": "## Triage\n- **Doc drift:** none. The refusal says nothing about the files being wrong.",
+      "why": "triage heading whose value is none"
+    },
+    {
+      "answer": "| Doc drift | none |",
+      "why": "table row whose value is none"
+    },
+    {
+      "answer": "There is no doc drift, driver gap or product regression.",
+      "why": "states there is no doc drift"
+    },
+    {
       "answer": "",
       "why": "empty"
     }

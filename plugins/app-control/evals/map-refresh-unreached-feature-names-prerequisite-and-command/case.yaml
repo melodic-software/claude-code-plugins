@@ -19,7 +19,7 @@ graders:
   - name: classes-doc-drift
     type: regex
     flags: i
-    pattern: '(?:\b(?:class(?:ification|(?: it| this)? as)?|triage(?:d)?(?: class)?|verdict|class(?:es|ed)(?: it| this| the (?:entry point|reason|line))?(?: as)?|classif(?:y|ies|ied)(?: it| this)?(?: as)?)\b[\s*_`:#>=|—–-]*(?:(?:is|as)\s+)?(?:(?:an?|the)\s+)?[*_`]*doc(?:umentation)?[ -]drift|\b(?:this|it|that)(?:''s|’s| is)\s+(?:an?\s+)?[*_`]*doc(?:umentation)?[ -]drift|\b(?:is|as)\s+(?:an?\s+)?[*_`]*doc(?:umentation)?[ -]drift|(?:^|\n)[ \t#>*_|-]*(?:\d+[.)][ \t]*)?[*_`]*doc(?:umentation)?[ -]drift)'
+    pattern: '(?:\b(?:class(?:ification|(?: it| this)? as)?|triage(?:d)?(?: class)?|verdict|class(?:es|ed)(?: it| this| the (?:entry point|reason|line))?(?: as)?|classif(?:y|ies|ied)(?: it| this)?(?: as)?)\b[\s*_`:#>=|—–-]*(?:(?:is|as)\s+)?(?:(?:an?|the)\s+)?[*_`]*doc(?:umentation)?[ -]drift|\b(?:this|it|that)(?:''s|’s| is)\s+(?:an?\s+)?[*_`]*doc(?:umentation)?[ -]drift|\b(?:is|as)\s+(?:an?\s+)?[*_`]*doc(?:umentation)?[ -]drift|(?:^|\n)[ \t#>*_|-]*(?:\d+[.)][ \t]*)?[*_`]*doc(?:umentation)?[ -]drift)(?![*_`\s:|—–-]*(?:none|no\b|nothing|n/a))'
     arm: both
   - name: never-reports-driven
     type: regex
