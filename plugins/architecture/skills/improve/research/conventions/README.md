@@ -49,7 +49,7 @@ byte for byte as they were.
 - Append one list item per accepted rule, below the section's existing items:
 
   ```markdown
-  - Billing.Reports must not reference Billing.Ledger directly. Evidence: src/Billing.Reports/Billing.Reports.csproj:12, src/Billing.Reports/Export.cs:8. Accepted 2026-10-30.
+  - <rule>. Evidence: <path:line>[, <path:line>...]. Accepted <YYYY-MM-DD>.
   ```
 
   The rule in the code's module names; the evidence the proposal showed; the date the user said

@@ -4,6 +4,11 @@ Notable changes to the enforcement ladder (SemVer). Renaming, removing or moving
 bump. Adding a rung, a reader's selection rule or a boundary-rule location is a minor bump.
 Wording-only clarification is a patch.
 
+## [3.3.1] - 2026-11-17
+
+- Changed: the seventh boundary-rule location, an existing architecture-test configuration, no
+  longer names example tools. The location and its place in the order are unchanged.
+
 ## [3.3.0] - 2026-11-17
 
 - Added: the `formatter` rung, first after `compiler-setting` on the static-analysis tier, for a
