@@ -15,6 +15,14 @@
     {
       "answer": "Report\n- outcome: blocked: Ready fails on port 3000\n- stale Ready: the app listens on 4100 (server.ts (line 12)); corrected text left unwritten",
       "why": "parenthesized line citation"
+    },
+    {
+      "answer": "**Outcome: blocked.** `src/server.ts:11-12` shows the move to port 4100. Corrected Ready, not written: `curl -fsS http://127.0.0.1:4100/healthz`.",
+      "why": "a cited range ending at line 12"
+    },
+    {
+      "answer": "Outcome: blocked. Per src/server.ts lines 11 to 12 the app listens on 4100; corrected Ready left unwritten.",
+      "why": "a worded line range"
     }
   ],
   "fail": [
@@ -37,6 +45,14 @@
     {
       "answer": "Outcome: blocked. src/server.ts:120 listens on port 4100.",
       "why": "a different line"
+    },
+    {
+      "answer": "Outcome: blocked. src/server.ts:13-14 listens on port 4100.",
+      "why": "a range that does not reach line 12"
+    },
+    {
+      "answer": "Outcome: blocked. src/server.ts:11-120 listens on port 4100.",
+      "why": "a range end that only starts with 12"
     },
     {
       "answer": "",

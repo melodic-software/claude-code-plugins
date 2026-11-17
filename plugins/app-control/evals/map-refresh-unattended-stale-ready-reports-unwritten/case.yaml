@@ -20,7 +20,7 @@ graders:
   - name: reports-blocked-with-fix
     type: regex
     flags: i
-    pattern: '^(?=[\s\S]*(?<!not )(?<!n''t )(?<!never )\bblocked\b)(?=[\s\S]*\b4100\b)(?=[\s\S]*server\.ts(?::|,?\s+line\s+|\s*\(line\s+)12(?!\d))'
+    pattern: '^(?=[\s\S]*(?<!not )(?<!n''t )(?<!never )\bblocked\b)(?=[\s\S]*\b4100\b)(?=[\s\S]*server\.ts(?::(?:\d+[-–])?|,?\s+lines?\s+(?:\d+\s*(?:[-–]|to)\s*)?|\s*\(lines?\s+(?:\d+\s*(?:[-–]|to)\s*)?)12(?!\d))'
     arm: both
   - name: drives-nothing
     type: tool_used
