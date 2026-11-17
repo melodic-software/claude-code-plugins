@@ -1471,11 +1471,14 @@ not stale, takes the live-collision branch (§4, instance-collision detection), 
 
 **Skip an issue (worker lane).** Apply the human-gated role label, resolved from the binding rather
 than typed as a literal (§2), and say why in a plain comment. Run it from a checkout of `$R`: the
-binding resolves from the same root the tracker seam uses.
+binding resolves from the same root the tracker seam uses. Resolve that root in its own Bash calls
+first (`printenv CLAUDE_PROJECT_DIR`, and when that prints nothing, `git rev-parse --show-toplevel`)
+and write the printed path in place of `<project root>`, so a worktree-isolated session can run the
+snippet as written
+([Project root](../../../plugins/work-items/reference/tracker-seam.md#project-root)).
 
 ```bash
-root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
-L=$(yq -o=json -e '.tracker' "$root/docs/conventions/work-items.yaml" 2>/dev/null |
+L=$(yq -o=json -e '.tracker' "<project root>/docs/conventions/work-items.yaml" 2>/dev/null |
   jq -r '.config.role_labels["human-gated"] // empty' 2>/dev/null)
 L=${L:-needs-human}
 gh issue edit <n> -R "$R" --add-label "$L"

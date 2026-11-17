@@ -372,17 +372,23 @@ With no argument in an interactive session, run the interview:
    to the consumer `.gitignore`, announce the edit, and stage that line with
    the team file.
 
-   For `layer=team`, run these as one Bash tool call so `REPO_ROOT` only needs resolving once:
+   Both snippets below start from `<project root>`: `$CLAUDE_PROJECT_DIR` when set, else the
+   repository root. Resolve it in its own Bash calls first, `printenv CLAUDE_PROJECT_DIR` and, when
+   that prints nothing, `git rev-parse --show-toplevel`, and write the printed path in place of
+   `<project root>`. Never embed `$(git rev-parse --show-toplevel)` in the snippet, so a
+   worktree-isolated session can run it as written.
+
+   For `layer=team`, run these as one Bash tool call so `REPO_ROOT` is set once for every command:
 
    ```bash
-   REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+   REPO_ROOT="<project root>"
    # `git check-ignore -v` exits 0 (and prints the matching rule) only when a .gitignore pattern
    # excludes the file; it exits non-zero with no output otherwise. Branch on the exit code — do
    # NOT fall through to add/diff on a match: `git add` would silently refuse the ignored path, and
    # `git diff --quiet` on an ignored untracked file exits 0 trivially, so the sequence would report
    # false success with nothing actually staged for teammates.
    TEAM_FILE="docs/conventions/source-control.yaml"
-   if IGNORE_MATCH="$(git check-ignore -v "$REPO_ROOT/$TEAM_FILE")"; then
+   if IGNORE_MATCH="$(git -C "$REPO_ROOT" check-ignore -v -- "$TEAM_FILE")"; then
      echo "STOP: $TEAM_FILE is excluded by .gitignore: $IGNORE_MATCH" >&2
      exit 1
    fi
@@ -402,7 +408,7 @@ With no argument in an interactive session, run the interview:
    For `layer=local`, run both probes and branch on the pair:
 
    ```bash
-   REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+   REPO_ROOT="<project root>"
    PERSONAL_OVERRIDE=".claude/source-control.local.md"
    # --no-index answers "does a matching ignore rule exist?" on its own terms. Without it, git
    # consults the index first and reports nothing for an already-tracked file, conflating a missing
