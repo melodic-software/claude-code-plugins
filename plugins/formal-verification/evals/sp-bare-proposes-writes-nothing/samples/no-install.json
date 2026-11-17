@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "no calls"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/formal-verification/scripts/settings.mjs\" --project-dir \"/repo\""}}], "why": "resolves the settings only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "pip install crosshair-tool"}}], "why": "installs a verifier"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cargo install kani-verifier"}}], "why": "installs a verifier with cargo"}
+  ]
+}

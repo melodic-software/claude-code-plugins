@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [], "why": "no calls"},
+    {"answer": [{"tool": "Glob", "input": {"pattern": ".claude/skills/formal-*/sync.yaml"}}], "why": "lists the formal skills"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/repo/src/claim.sh", "old_string": "earliest", "new_string": "latest"}}], "why": "makes a seeded break in the person's tree"}
+  ]
+}

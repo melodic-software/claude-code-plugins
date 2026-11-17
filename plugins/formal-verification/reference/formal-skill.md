@@ -11,6 +11,7 @@ be able to trust the result and act on it without learning the verification lang
 ## Contents
 
 - Layout
+- The contract check
 - Frontmatter
 - Sections
 - sync.yaml
@@ -27,7 +28,18 @@ be able to trust the result and act on it without learning the verification lang
 └── model/        spec, config, view file and any harness
 ```
 
-`<area>` names the promise in this repository's nouns, in lowercase words joined by `-`.
+`<area>` names the promise in this repository's nouns, in lowercase words joined by `-`. The
+folder holding these skills is the `skills_dir` key of `docs/conventions/formal-verification.yaml`,
+`.claude/skills` by default.
+
+## The contract check
+
+`/formal-verification:specify check` runs a script that passes or fails each `formal-<area>` skill
+against this file and edits nothing. It fails on missing or wrong frontmatter, a missing section, a
+missing or invalid `sync.yaml`, a sync commit that is not an ancestor of `HEAD`, a covered path
+missing at `HEAD`, and a check whose command `## Run` does not give. It warns on covered code changed
+since the sync commit (a failure under `on_stale: fail`) and on a skill folder that holds a
+`sync.yaml` or a `model/` but is not named `formal-<area>`.
 
 ## Frontmatter
 
@@ -66,7 +78,10 @@ One entry per check, under a top-level `checks:` list. Every key is required.
 
 Before the check has run against a seeded break, `seeded_break.caught` is `false`, and the skill
 says so under `## Bounds and assumptions`. An optional top-level `outside_model:` list names model
-files kept outside `model/`.
+files kept outside `model/`. An optional `on_stale` on an entry, `warn` or `fail`, says what the
+contract check reports when that check's covered code changed after its sync commit; without it the
+`check.on_stale` key of `docs/conventions/formal-verification.yaml` decides, and that key defaults
+to `warn`.
 
 ```yaml
 checks:
