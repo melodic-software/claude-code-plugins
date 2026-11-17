@@ -319,6 +319,7 @@ const GATES = {
   "maintenance-measure-skill-edit.yml": { "check-inputs": "start", "generate-edit": "switch", "push-branch": "switch", publish: "switch" },
   "maintenance-monitor-signals.yml": { monitor: "start" },
   "maintenance-reconcile-lost-runs.yml": { reconcile: "start" },
+  "maintenance-verify-whole-map.yml": { "verify-map": "start" },
   "maintenance-tidy-code-upkeep.yml": { "select-areas": "start", "sweep-areas": "switch", "sweep-areas-subscription": "switch", "sweep-areas-fallback": "switch", "push-branches": "switch", publish: "switch" },
   "post-merge-file-demotion-issues.yml": { "report-red-main": "switch" },
   "post-merge-test-mutation.yml": { "check-range": "start" },
@@ -492,8 +493,9 @@ function splitTop(text, separator) {
 // or a success or a non-empty output from a step that was skipped.
 function falseOnBudget(condition, skipped) {
   const falseAtom = (atom) => {
+    if (/^\(.*\)$/.test(atom)) return falseOnBudget(atom.slice(1, -1), skipped);
     if (/^steps\.kill\.outputs\.proceed == 'true'$|^steps\.kill\.outputs\.cause != 'budget'$/.test(atom)) return true;
-    const ref = /^steps\.([a-z0-9-]+)\.(?:(?:outcome|conclusion) == 'success'|outputs\.[a-z0-9-]+ == '[^']+')$/.exec(atom);
+    const ref = /^steps\.([a-z0-9-]+)\.(?:(?:outcome|conclusion) (?:== 'success'|!= 'skipped')|outputs\.[a-z0-9-]+ (?:== '[^']+'|!= ''))$/.exec(atom);
     return Boolean(ref && skipped.has(ref[1]));
   };
   const text = condition.replace(/^\$\{\{|\}\}$/g, "").replace(/\s+/g, " ").trim();
@@ -522,6 +524,10 @@ test("the budget-stop reading of a step condition", () => {
   assert.equal(falseOnBudget("steps.kill.outputs.cause != 'budget'", skipped), true);
   assert.equal(falseOnBudget("steps.broker.outcome == 'success' && inputs.x != ''", skipped), true, "a skipped step's success");
   assert.equal(falseOnBudget("steps.other.outcome == 'success'", skipped), false, "a step that ran");
+  assert.equal(falseOnBudget("always() && steps.broker.outputs.pid != ''", skipped), true, "a skipped step's output is empty");
+  assert.equal(falseOnBudget("always() && steps.other.outputs.pid != ''", skipped), false, "a step that ran may set it");
+  assert.equal(falseOnBudget("always() && steps.broker.outcome != 'skipped'", skipped), true, "a skipped step's outcome is skipped");
+  assert.equal(falseOnBudget("always() && (steps.broker.outcome == 'success' || steps.broker.outputs.done == 'true')", skipped), true, "a parenthesized disjunction of skipped steps");
   assert.equal(falseOnBudget("steps.kill.outputs.proceed != 'true'", skipped), false, "the stop report runs");
   assert.equal(falseOnBudget("always()", skipped), false);
   assert.equal(falseOnBudget("", skipped), false, "no condition runs");

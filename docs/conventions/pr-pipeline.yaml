@@ -1005,6 +1005,15 @@ models:
       effort: high
       subagent-model: opus
       max-turns: 40
+    # The whole-map pass's driver, at review's model and effort. An entry
+    # takes about three turns (two date calls and the dispatch, map.md
+    # Measures), so 300 covers the default 40 entries with room, and a pass
+    # near the 100-entry ceiling can run out; provisional until a measured
+    # pass (https://github.com/melodic-software/claude-code-plugins/issues/16564).
+    verify-map:
+      model: opus
+      effort: high
+      max-turns: 300
   default-profile: standard
   routes:
     # Resolves code conflicts, a fix on code like address-feedback's.
@@ -1016,6 +1025,7 @@ models:
     fix-ci: code-fix
     fix-docs: docs-fix
     verify-pr: review
+    verify-map: verify-map
     # pr-rate-merge-risk.yml's report-only rating (#13657): the rater, and
     # through subagent-model its blind checker's model; the checker's effort
     # stays its agent file's pin (owner decision Q1).
@@ -1952,6 +1962,8 @@ merge:
       - glob: ".github/workflows/maintenance-repin-ci-workflows.yml"
         class: gate
       - glob: ".github/workflows/maintenance-tidy-code-upkeep.yml"
+        class: gate
+      - glob: ".github/workflows/maintenance-verify-whole-map.yml"
         class: gate
       - glob: ".github/workflows/post-merge-file-demotion-issues.yml"
         class: gate
