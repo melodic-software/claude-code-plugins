@@ -37,7 +37,11 @@ Stop the pid recorded at launch.
 - Reviews | features/reviews/README.md | entry points: 1 | sources: src/reviews.ts
 MD
 for f in cart reviews; do
-  if [ "$f" = reviews ]; then reset='Delete `./data` and restart the app.'; else reset='Delete `./data/cart` rows and reload the page.'; fi
+  if [[ "$f" = reviews ]]; then
+    reset="Delete \`./data\` and restart the app."
+  else
+    reset="Delete \`./data/cart\` rows and reload the page."
+  fi
   cat >"$skill/features/$f/README.md" <<MD
 # $f
 
