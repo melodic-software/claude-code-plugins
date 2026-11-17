@@ -998,6 +998,10 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
     const asks = new Map((run.pr_comments ?? []).map((item) => [item.id, item]));
     const answers = replies.filter((reply) => asks.has(reply.thread));
     replies = replies.filter((reply) => !asks.has(reply.thread));
+    if (run.threads.length === 0 && asks.size > 0 && patchState === "written") {
+      log("no reply is posted: a round with only comments to answer wrote a patch");
+      return { escalationReason: "feedback-invalid", posted: [] };
+    }
     if (run.verify_notes) {
       const settledNotes = await settleNotes({ api, pr, run, headSha, replies, appId, log });
       return { ...settledNotes, body: body(settledNotes.escalationReason === "") };

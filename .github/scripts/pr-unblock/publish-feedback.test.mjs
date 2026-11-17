@@ -2262,6 +2262,13 @@ test("a comment already answered, edited since the select read, or deleted gets 
   assert.deepEqual(forged.markers()[0], ["comment", 42, ANSWER], "a marker another author wrote answers nothing"); 
 });
 
+test("a round with only comments to answer that wrote a patch posts no answer", async () => {
+  const api = fakeApi({ issueComments: [askedComment()] });
+  const result = await publish({ api, pr: 42, headSha: NOW, headRef: "feature", appId: APP, modelRun: "5000-1", reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), patchState: "written", readArtifact: () => ({ runText: commentRun(), repliesText: lines(answerLine()) }), fileExists: exists });
+  assert.equal(result.escalationReason, "feedback-invalid");
+  assert.deepEqual(api.markers().filter((call) => !call[2].startsWith(ROUND)), []);
+});
+
 test("a comment with no answer is incomplete, and a comment's answer must be answered", async () => {
   const missing = fakeApi({ issueComments: [askedComment()] });
   const incomplete = await run(missing, lines(reply({ disposition: "VALID", note: "Fixed." })), commentRun([RUN.threads[0]]));
