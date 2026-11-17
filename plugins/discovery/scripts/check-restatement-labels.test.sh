@@ -372,9 +372,40 @@ run 1 "a root holding claims: [] is checked against its sub-slices" \
   "$claims_free" --sub-slice "$sub_a"
 run 0 "without --sub-slice a claims: [] root finds no ID to look for" "$claims_free"
 expect_out "the unchecked root reports ids=0" 'status=pass ids=0 labeled=0 mentions=0 quoted=0'
-run 2 "one ID declared in two sub-slices is ambiguous" --err 'id M1 is already declared' \
-  "$(mkroot root-dup 'Settled.')" --sub-slice "$sub_a" \
-  --sub-slice "$(mkslice sub-dup "$(claim M1 MEDIUM)" 'Index.')"
+# Each researcher numbers its claims alone, so sub-slices may reuse an ID. A
+# sub-slice's IDs are namespaced by its directory name: <name>/X1 names one
+# claim, and a bare X1 names every claim declaring it.
+x1_a="$(mkslice x1-a "$(claim X1 MEDIUM)" 'Index.')"
+x1_b="$(mkslice x1-b "$(claim X1 LOW)" 'Index.')"
+x1_c="$(mkslice x1-c "$(claim X1 HIGH)" 'Index.')"
+run 0 "three sub-slices that each declare X1 are gradeable" \
+  "$(mkroot root-x1 'Settled: x1-c/X1; gap: x1-a/X1 (MEDIUM).')" \
+  --sub-slice "$x1_a" --sub-slice "$x1_b" --sub-slice "$x1_c"
+expect_out "each sub-slice's X1 is its own claim" 'status=pass ids=3 labeled=2 mentions=1 quoted=0'
+run 0 "a bare shared ID carrying each claim's label passes" \
+  "$(mkroot root-x1-bare 'Gaps: X1 (MEDIUM; LOW).')" \
+  --sub-slice "$x1_a" --sub-slice "$x1_b" --sub-slice "$x1_c"
+run 1 "a bare shared ID missing one claim's label fails" \
+  --err 'RESEARCH.md:6: x1-b/X1 (LOW) appears without its label' \
+  "$(mkroot root-x1-half 'Gap: X1 (MEDIUM).')" \
+  --sub-slice "$x1_a" --sub-slice "$x1_b" --sub-slice "$x1_c"
+run 0 "a qualified ID is graded against its one sub-slice's claim" \
+  "$(mkroot root-x1-qual 'Gap: x1-a/X1 (MEDIUM).')" --sub-slice "$x1_a" --sub-slice "$x1_b"
+run 1 "a qualified ID needs its own claim's label" \
+  --err 'RESEARCH.md:6: x1-b/X1 (LOW) appears without its label' \
+  "$(mkroot root-x1-wrong 'Gap: x1-b/X1 (MEDIUM).')" --sub-slice "$x1_a" --sub-slice "$x1_b"
+run 0 "a sweep word inside a sub-slice name is not a sweep word" \
+  "$(mkroot root-all 'Settled: all-x/X1 (MEDIUM).')" \
+  --sub-slice "$(mkslice all-x "$(claim X1 MEDIUM)" 'Index.')"
+run 2 "a root claim reusing a sub-slice ID is ambiguous" --err 'id X1 is already declared' \
+  "$(mkslice root-x1-own "$(claim X1 MEDIUM)" 'Index.')" --sub-slice "$x1_a"
+run 2 "one ID declared twice in one sub-slice is ambiguous" --err 'id X1 is already declared' \
+  "$(mkroot root-x1-dup 'Settled.')" \
+  --sub-slice "$(mkslice x1-dup "$(claim X1 MEDIUM)
+$(claim X1 LOW)" 'Index.')"
+run 2 "two sub-slices sharing a directory name are ambiguous" --err 'is empty or already used' \
+  "$(mkroot root-x1-name 'Settled.')" --sub-slice "$(mkslice one/same "$(claim X1 MEDIUM)" 'Index.')" \
+  --sub-slice "$(mkslice two/same "$(claim X2 MEDIUM)" 'Index.')"
 empty_sub="$WORK/sub-empty"
 mkdir -p "$empty_sub"
 run 2 "a sub-slice with no sidecar" --err 'no RESEARCH-*.md sidecar in sub-slice' \
