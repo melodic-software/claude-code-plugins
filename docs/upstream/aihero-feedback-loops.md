@@ -1,0 +1,154 @@
+# Upstream source: AI Hero Cohort 005, Workshop 6 "Feedback Loops" (Matt Pocock)
+
+This page records what this repository takes from, adapts, already has, or rejects in the
+**Feedback Loops** workshop of Matt Pocock's AI Hero cohort (Cohort 005): nine lessons on giving an
+agent ways to find out it is wrong. The workshop splits that feedback in two: deterministic checks
+that fail on bad code, and data sources that tell the agent what its environment is doing. It
+prunes a written standards file into checks, places and speeds up those checks, writes a custom
+lint rule, grades tests with mutation testing, and gives a diagnosis skill and a browser the data
+it needs. Our counterparts are [`/corrections:codify`](../../plugins/corrections/skills/codify/SKILL.md),
+[`/debugging:debug`](../../plugins/debugging/skills/debug/SKILL.md),
+[`/mutation-testing:audit`](../../plugins/mutation-testing/skills/audit/SKILL.md),
+[`/testing:test-value`](../../plugins/testing/skills/test-value/SKILL.md),
+[`/implementation:implement`](../../plugins/implementation/skills/implement/SKILL.md),
+[`/app-control:drive`](../../plugins/app-control/skills/drive/SKILL.md) and the check-placement
+rules in [ADR 0072](../adr/0072-place-each-check-by-coverage-cost-and-model-facing-output.md).
+Rows hold our decisions and our own descriptions of each idea, under the upstream-drift
+convention's [What a row may describe](../contracts/upstream-drift/README.md#what-a-row-may-describe).
+The course is paid and account-gated, so no lesson text is recorded or linked here; the skills it
+teaches are public and versioned in [mattpocock/skills](https://github.com/mattpocock/skills),
+whose record is [mattpocock-skills.md](mattpocock-skills.md). Earlier course units have their own
+records: [aihero-course.md](aihero-course.md), [aihero-shipping-course.md](aihero-shipping-course.md),
+[aihero-domain-language.md](aihero-domain-language.md), [aihero-wayfinder.md](aihero-wayfinder.md),
+[aihero-review.md](aihero-review.md) and [aihero-codebase-design.md](aihero-codebase-design.md).
+
+- **Pointer**: when a row needs the upstream mechanism, fetch the public skill it rests on live:
+  [`diagnosing-bugs`](https://github.com/mattpocock/skills/tree/4ae2317ddb22b046e26455e4f9c9b3aaaf62212d/skills/engineering/diagnosing-bugs).
+- **As of**: 2026-11-16
+- **Recheck trigger**: a mattpocock/skills changeset naming that unit, checked as
+  [mattpocock-skills.md](mattpocock-skills.md) describes. Course page updates are not observable
+  events; the skills-repo changeset stream is the proxy, as in
+  [aihero-shipping-course.md](aihero-shipping-course.md).
+
+**Landed** names the merged pull request that carries the row.
+
+## Attribution table
+
+Disposition is `take`, `adapt`, `already have`, `reject` or `no change`, with the reason. The
+upstream-problem cells are **Inference** throughout: the lesson pages that state them are paid and
+not linked.
+
+### Making bad code nearly impossible
+
+| Idea | What it does | Upstream problem | Our problem | Disposition | Landed |
+|---|---|---|---|---|---|
+| Two kinds of feedback: checks that fail, data sources that inform | Splits the agent's feedback loop into deterministic checks and runtime information | Inference: an agent that sees only files and tests cannot confirm its own work | Our enforcement ladder covered checks; no skill named data sources | **adapt**: checks stay with codify's [enforcement ladder](../../plugins/corrections/skills/codify/reference/enforcement-ladder.md); the data-source half lands in the debugging and control-skill rows under "Data sources" below | see those rows |
+| Checks sit under agent and human review | Places checks as the first layer of review | Inference: a person should not catch what a machine can | Same | **already have**: the three layers in [aihero-review.md](aihero-review.md) | none |
+
+### Pruning a coding-standards file
+
+| Idea | What it does | Upstream problem | Our problem | Disposition | Landed |
+|---|---|---|---|---|---|
+| Each written rule is deleted, kept for judgment, or turned into a check | Moves mechanical rules out of prose | Inference: a reviewer agent may miss a written rule that a check never misses | Our instruction auditors could keep, as prose, a rule a check already enforces | **adapt**: `/harness-config:audit-instructions` flags instruction prose that a deterministic check already enforces | [#16615](https://github.com/melodic-software/claude-code-plugins/pull/16615) |
+| Run the pruning pass over one standards file | Sorts a file's rules one by one | Inference: a standards file collects rules no one revisits | The pass needs an owner, and a retrospective reads sessions, not files | **adapt**: a `rules <file>...` action on `/corrections:codify` takes any instruction file (agent instructions, rules, review criteria), since choosing a rung per rule is codify's job | [#16633](https://github.com/melodic-software/claude-code-plugins/pull/16633) |
+| Confirm the pruning dropped nothing | Checks the result against the input by hand | Inference: a rewrite can lose a rule silently | Same | **take**: the `rules` action keeps a ledger with one row per input rule, and its reconciler fails when a rule is missing | [#16633](https://github.com/melodic-software/claude-code-plugins/pull/16633) |
+| Count today's violations for each proposed check | Shows what turning a check on costs | Inference: a check that fails everywhere at once is ignored | Same | **already have**: a codify proposal states the existing violations and offers a cleanup or a ratchet ([aihero-review.md](aihero-review.md), "Learning from review") | none |
+| Many checks from one audit | Proposes a batch of checks from one file | Inference: a standards file is a backlog of checks | Our rule was one check per observed failure, never in bulk | **adapt**: a file of rules is a record of past corrections, so a batch from one file is allowed; each rule still gets its own check and its own fail-old, pass-new proof | [#16633](https://github.com/melodic-software/claude-code-plugins/pull/16633) |
+| A skill used for its reference material, not its steps | Borrows a skill's checklist without running its procedure | Inference: useful guidance sits behind a procedure that does not fit | Reference files that assume the skill's steps cannot be reused | **take**: a skill's reference files must be usable without its steps; recorded in `/playbooks:skill-authoring` | [#16612](https://github.com/melodic-software/claude-code-plugins/pull/16612) |
+| Hand session output to a later session through a secret gist | Stores a hand-off outside the repository | Inference: a session's findings need a home the next session can read | A gist is tied to one user account, and GitHub documents that anyone with a secret gist's URL can see it ([Creating gists](https://docs.github.com/en/get-started/writing-on-github/editing-and-sharing-content-with-gists/creating-gists)) | **reject**: hand-offs stay in the gitignored `.work/` folder or the tracker | none |
+
+### First automated checks
+
+| Idea | What it does | Upstream problem | Our problem | Disposition | Landed |
+|---|---|---|---|---|---|
+| Run checks at commit time, not on every agent edit | Keeps per-edit hooks out of the loop | Inference: a check per edit is slow and noisy and fires on half-written files | Same | **already have**: ADR 0072 places each check by cost and keeps report-only findings away from the model per edit; an audit of every shipped hook against it found none to move | none |
+| A pre-commit hook on staged files only | Checks only what the commit holds | Inference: old violations should not block an unrelated commit | We could not see what each git hook stage runs, or how long it takes | **adapt**: the shared git-hooks installer gains a read-only `inspect` that lists every hook per stage, from plugins and elsewhere, with its measured duration | [#16627](https://github.com/melodic-software/claude-code-plugins/pull/16627) |
+| A time budget for the commit hook | Keeps the hook fast enough not to annoy | Inference: a slow hook gets skipped | ADR 0072 named a commit budget but had not measured one | **adapt**: the pre-commit budget is measured and set, and a per-check timing table is published; no figure is borrowed from the course | [#16645](https://github.com/melodic-software/claude-code-plugins/pull/16645) |
+| The check's failure text tells the agent what to do | Puts guidance in the error, not up front | Inference: guidance read at failure time is read when it matters | Same | **already have**: a codify proposal requires the check's message to name the fix | [#16603](https://github.com/melodic-software/claude-code-plugins/pull/16603) |
+| A file-size cap counted in estimated tokens | Fails a file that grows past a size | Inference: agents build files too large to navigate | No study found ties file size to agent outcomes, and a byte-based token estimate is not a token count | **no change**: no size check now, so no token calibration either | none |
+| Keep the prose rule beside the new check | Leaves the rule in the standards file too | Inference: the agent should know the rule before tripping it | A rule a check enforces, also written in prose, drifts from the check | **reject**: prose is for what no check can enforce | none |
+| Skip the hook once for a mass reformat | Bypasses the hook with the owner's consent | Inference: a first reformat touches every file | Every git hook can be bypassed, so CI is the hard stop | **already have**: `guardrails` blocks hook-skipping flags and hook-manager skips on commit and push | none |
+
+### Speeding up checks
+
+| Idea | What it does | Upstream problem | Our problem | Disposition | Landed |
+|---|---|---|---|---|---|
+| Check speed matters more than people expect | Treats slow checks as slow agent feedback | Inference: every wait on a check is a wait for the agent | We had no ranking of which checks cost the most per lane | **adapt**: `performance` ranks slow checks per lane and `toolchain:ratchet` holds their growth; one shell-lint check was made faster on the same evidence | [#16648](https://github.com/melodic-software/claude-code-plugins/pull/16648), [#16659](https://github.com/melodic-software/claude-code-plugins/pull/16659) |
+| Swap slow tools for faster native ones | Replaces a formatter and a type checker with faster builds | Inference: the tool, not the check, is slow | Naming a tool in a shipped skill ties every consumer to it | **no change**: skills ship no per-stack tool advice; stack specifics are researched at run time against the consumer's own setup, a rule recorded in the plugin philosophy and held by a ratchet on stack-specific code fences | [#16634](https://github.com/melodic-software/claude-code-plugins/pull/16634), [#16649](https://github.com/melodic-software/claude-code-plugins/pull/16649) |
+| A green check that inspected nothing | Reads what a check did, not its color | Inference: a check over zero inputs passes and means nothing | Three of our passes exited 0 with nothing to inspect | **adapt**: those three passes now fail when they check nothing | [#16645](https://github.com/melodic-software/claude-code-plugins/pull/16645) |
+| Run hook jobs in parallel | Runs several checks at once and reports each failure | Inference: serial checks waste the budget | Same | **already have**: the affected-checks runner takes a job count | none |
+| Tests out of git hooks and into CI; no pre-push hook | Keeps local hooks to fast checks | Inference: a growing suite slows every push | ADR 0072 allows pre-push work within its own budget, and every hook can be skipped | **adapt**: we keep a pre-push stage and add change-scoped tests and architecture tests to it within ADR 0072's pre-push budget; CI stays the hard stop | [#16645](https://github.com/melodic-software/claude-code-plugins/pull/16645) |
+
+### A custom lint rule
+
+| Idea | What it does | Upstream problem | Our problem | Disposition | Landed |
+|---|---|---|---|---|---|
+| A narrow rule beats banning an API | Forbids the unsafe use of a call, not the call | Inference: a ban blocks legitimate uses | Same | **already have**: codify's pattern-rule and custom-analyzer rungs | none |
+| An agent writes the rule | Has the agent author the lint rule | Inference: rules are cheap to write now | An untested rule may match too little; nothing says what it misses | **adapt**: a rule codify proposes ships with valid and invalid rule tests and states what it does not catch | [#16633](https://github.com/melodic-software/claude-code-plugins/pull/16633) |
+| Rules a team can live with | Surveys legitimate uses before scoping a rule | Inference: an over-strict rule gets its author blamed | Exclusions can hide a problem | **adapt**: a safe-team-rules reference in codify (survey the uses, scope the rule, justify every exclusion) | [#16633](https://github.com/melodic-software/claude-code-plugins/pull/16633) |
+| Format and lint plugins fixed to one tool | n/a (raised while absorbing) | n/a | Our format and lint plugins pick the tool, which may not fit a consumer and goes stale | **adapt**, in progress: format and lint plugins become tool-agnostic, with formatting and linting kept apart; no pull request is open yet | pending |
+
+### Mutation testing
+
+| Idea | What it does | Upstream problem | Our problem | Disposition | Landed |
+|---|---|---|---|---|---|
+| Mutation testing grades the tests, not the code | Reads a surviving mutant as a weak test | Inference: coverage says a line ran, not that a test checks it | Same | **already have**: [`/mutation-testing:principles`](../../plugins/mutation-testing/skills/principles/SKILL.md) | none |
+| Mutate only the changed lines | Keeps a mutation run fast | Inference: a whole-repository run takes hours | Same | **already have**: `/mutation-testing:audit` runs on the diff by default | none |
+| Run it before the change is reported done, and fix survivors | Puts mutation in the agent's own verification | Inference: survivors found after merge are rarely fixed | Ours ran only after merge | **adapt**: `/implementation:implement` ends with a diff-scoped mutation run, advisory, survivors persisted for a fix pass | [#16614](https://github.com/melodic-software/claude-code-plugins/pull/16614) |
+| A survivor as a test-quality signal | Uses mutation results to inform the agent, without failing a build | Inference: a score threshold invites gaming | `/testing:test-value` did not name mutation | **adapt**: test-value names a surviving mutant as one weak-test signal and points to `mutation-testing` | [#16610](https://github.com/melodic-software/claude-code-plugins/pull/16610) |
+| Plant specific defects to see if the tests catch them | n/a (carried over from the codebase-design workshop) | n/a | No skill planted realistic defects on purpose | **take**: a `seed-faults` action plants defects in a throwaway worktree and reports caught over planted, with each survivor's location; nothing it plants is committed | [#16632](https://github.com/melodic-software/claude-code-plugins/pull/16632) |
+| A mutation skill tied to one tool and one repository's scripts | Hard-codes the tool and report format | Inference: a skill written for one project | A shipped skill must fit any consumer | **reject** the hard-coding: `mutation-testing` takes the tool from repository config. The pattern behind it is recorded: a shipped skill generates a repository-specific skill only where config cannot express the difference | [#16612](https://github.com/melodic-software/claude-code-plugins/pull/16612) |
+
+### Data sources
+
+| Idea | What it does | Upstream problem | Our problem | Disposition | Landed |
+|---|---|---|---|---|---|
+| Open runtime data to the agent: logs, the front end, databases, the tracker, an error reporter | Lets the agent check its work against what the app does | Inference: without runtime data the agent verifies against the code it just wrote | `/debugging:debug` named no concrete sources and asked for access only when no loop could be built | **adapt**: Phase 1 of `/debugging:debug` opens with a surface pass, and each source it cannot reach becomes a request for scoped access, never for a secret | [#16617](https://github.com/melodic-software/claude-code-plugins/pull/16617) |
+| A record of which sources each environment exposes | n/a (raised while absorbing) | n/a | A control skill listed surfaces but not the data sources each environment offers | **adapt**, pending: a control skill's environments may name their data sources with a read level, and `drive ready` reports the missing ones; this waits on the open map-refresh change [#16481](https://github.com/melodic-software/claude-code-plugins/pull/16481) | pending |
+| Read-only access to a production database | Gives the agent production data it cannot change | Inference: production holds the failing data | Same | **already have**: the `sql-server` plugin's read-only guarantee rests on a read-only database principal, not on the tool ([ADR 0086](../adr/0086-bound-the-sql-server-read-tier-by-a-read-only-principal-and-fixed-registrations.md)) | none |
+
+### Diagnosing bugs
+
+| Idea | What it does | Upstream problem | Our problem | Disposition | Landed |
+|---|---|---|---|---|---|
+| Build a feedback loop before any hypothesis | Gates diagnosis on a fast pass-fail signal | Inference: theories formed without a signal are guesses | Same | **already have**: `/debugging:debug`, compared section by section in [mattpocock-skills.md](mattpocock-skills.md) (row `diagnosing-bugs`), which this change corrects | this record |
+| Read the domain glossary first | Grounds names before ranking causes | Inference: a hypothesis in the wrong terms points at the wrong module | Ours read decision records and instructions, not the glossary | **take**: Phase 3 reads the domain glossary where one exists | [#16617](https://github.com/melodic-software/claude-code-plugins/pull/16617) |
+| The person names the port and the console | The prompt names the places to read | Inference: the agent does not know the app's surfaces | A person should only describe the problem | **adapt**: the surface pass runs `/app-control:drive ready` when a control skill exists, reads the surfaces each app type has, and never assumes a port | [#16617](https://github.com/melodic-software/claude-code-plugins/pull/16617) |
+| Diagnosis as its own step | Finds the cause | Inference: some reports need the cause, not a fix | Ours always went on to fix | **adapt**: a `diagnose` action stops at the confirmed cause at file:line and changes no code | [#16617](https://github.com/melodic-software/claude-code-plugins/pull/16617) |
+| Correlate the failure with what shipped | n/a (raised while absorbing) | n/a | Phase 3 read recent commits but not what each environment runs | **adapt**: Phase 3 checks each environment's recent deployments, CI runs and tickets, as a lead to test, never as proof | [#16617](https://github.com/melodic-software/claude-code-plugins/pull/16617) |
+| Observability by default | n/a (raised while absorbing) | n/a | No reference told a builder how to leave an app diagnosable | **adapt**: an observability-by-default reference in `implementation` (structured, scoped logging; telemetry configured from the environment; local log levels kept out of version control), pointed to from `debugging` | [#16614](https://github.com/melodic-software/claude-code-plugins/pull/16614) |
+| Lock the fix with a check shown red on the old code | Guards against the bug's return | Inference: a fixed bug comes back | Same | **already have**: Phase 5's regression test at a correct seam, or the seam gap as the finding | none |
+
+### Verifying frontend apps
+
+| Idea | What it does | Upstream problem | Our problem | Disposition | Landed |
+|---|---|---|---|---|---|
+| Give the agent a browser it drives from the terminal | Lets the agent see what types and tests cannot | Inference: visual faults are invisible in code | Same | **already have**: [`/playwright:playwright`](../../plugins/playwright/skills/playwright/SKILL.md) and `/testing:run-e2e`; no switch of browser tool without a measured reason | none |
+| A repository doc for the browser tool where the agent records what it learns | Keeps project-specific driving knowledge in the repository | Inference: each session relearns the same gotchas | Lessons reached a control skill only when `map` ran | **adapt**: a `/debugging:debug` report lists its lessons about driving the app as `/app-control:map refresh` lines, `map` staying the one writer; refresh accepting them waits on [#16481](https://github.com/melodic-software/claude-code-plugins/pull/16481) | [#16617](https://github.com/melodic-software/claude-code-plugins/pull/16617) |
+| Before and after screenshots in the pull request | Shows the change working | Inference: proof in the body saves a checkout | One evidence layout fit neither a small change nor a large one | **adapt**: small changes show evidence inline before and after; large ones get one collapsed section per acceptance criterion; text and logs first, media as support, with an optional record block | [#16616](https://github.com/melodic-software/claude-code-plugins/pull/16616) |
+| Verification is worth a higher effort level | Spends more reasoning where evidence is made | Inference: evidence is the product of verification | Same | **already have**: the verifier role defaults to a higher effort; the role defaults were rechecked after two recheck triggers fired | [#16621](https://github.com/melodic-software/claude-code-plugins/pull/16621) |
+| A required verification section in the pull request template | Makes the agent state what it checked | Inference: unstated checks did not happen | Same | **no change**: our body contract's `Verification` section stays advisory | none |
+
+### Found while absorbing
+
+| Item | Disposition | Landed |
+|---|---|---|
+| The `diagnosing-bugs` row in [mattpocock-skills.md](mattpocock-skills.md) called the clean-copy diff, the minimize step and the Phase 1 exit check open gaps, though all three had landed | **take**: the row is rewritten against upstream HEAD and our current skill | this record |
+| `plugins/explainer-video/README.md` said GitHub's video player shows no soft captions; GitHub's [Attaching files](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files) page is silent on caption tracks | **take**: the unsourced clause is removed; captions stay burned in and kept as a soft track | this change |
+| Parallel test runs sharing a database, ports or temp directories | **adapt**: `/testing:write` adds parallel-run isolation beside its order rule | [#16610](https://github.com/melodic-software/claude-code-plugins/pull/16610) |
+
+### Handed elsewhere
+
+- Reviewing sensitive data sources before agents read them: outside this repository.
+- Tool-agnostic format and lint plugins: in progress, as the row under "A custom lint rule" says.
+
+## License notice
+
+The course is paid content under its provider's terms; no lesson text, caption, image or code is
+copied here. The public skills repository reads MIT on the host and in
+[mattpocock-skills.md](mattpocock-skills.md); no text or code from it is copied either.
+
+- **Pointer**: when a license question arises, read the skills repository's
+  [LICENSE](https://github.com/mattpocock/skills/blob/4ae2317ddb22b046e26455e4f9c9b3aaaf62212d/LICENSE).
+- **As of**: 2026-11-16
+- **Recheck trigger**: the skills repository's license file changes.

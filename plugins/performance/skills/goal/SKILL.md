@@ -133,7 +133,8 @@ can reach.
 
 Default: **p50 and p95 over at least 20 samples**, alongside the counter. The goal records its
 percentile list; `/performance:snapshot` passes that list to `ab.sh` as `--percentiles`, and the
-`1/(1-p)` floor below applies to every entry.
+`1/(1-p)` floor below applies to every entry. A goal for a check lane (a git hook stage or a CI
+job, from `/performance:target`) records `50,90` for each lane.
 
 State plainly that this is a **house convention, not field consensus**:
 

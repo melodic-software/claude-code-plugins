@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Row 1: semantic-invariant on custom-analyzer. The rule ships with RuleTester tests beside eslint-rules/no-default-export.test.js: invalid, logger.info(token) where token is Secret<string>; valid, logger.info(last4)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Row 1: semantic-invariant on custom-analyzer, built by /implementation:implement."
+    },
+    {
+      "answer": "Row 1: custom-analyzer. Add RuleTester tests for the rule."
+    },
+    {
+      "answer": "Row 1: custom-analyzer. Test it with valid and invalid cases in vitest."
+    }
+  ]
+}

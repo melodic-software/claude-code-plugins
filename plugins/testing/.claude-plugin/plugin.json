@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "5.3.0",
+  "version": "5.4.0",
   "license": "MIT",
   "keywords": ["testing", "tdd", "test-plan", "e2e", "diagnose", "coverage", "skill", "test"],
   "metadata": {
@@ -51,6 +51,34 @@
       "description": "Which entry points a /testing:run-e2e map pass checks per entry: all (default), or first, reporting the others not checked. testing.yaml wins.",
       "default": "all",
       "options": ["all", "first"]
+    },
+    "map_report_order": {
+      "type": "string",
+      "title": "Map pass report order",
+      "description": "The order of the NEW, PRE-EXISTING and GONE groups in a /testing:run-e2e map pass report: the three, lowercase, joined by commas. Default new,pre-existing,gone. testing.yaml wins.",
+      "default": "new,pre-existing,gone",
+      "options": [
+        "new,pre-existing,gone",
+        "new,gone,pre-existing",
+        "pre-existing,new,gone",
+        "pre-existing,gone,new",
+        "gone,new,pre-existing",
+        "gone,pre-existing,new"
+      ]
+    },
+    "file_findings": {
+      "type": "string",
+      "title": "Map pass filing",
+      "description": "Whether a /testing:run-e2e map pass hands findings to /bugs:write: none (default) hands none; new hands each NEW finding at or above file_findings_floor. It never closes a GONE one. testing.yaml wins.",
+      "default": "none",
+      "options": ["none", "new"]
+    },
+    "file_findings_floor": {
+      "type": "string",
+      "title": "Map pass filing floor",
+      "description": "The lowest severity a NEW finding needs to be handed to /bugs:write under file_findings: new: critical, high (default), medium or low. testing.yaml wins.",
+      "default": "high",
+      "options": ["critical", "high", "medium", "low"]
     },
     "pixel_tolerance": {
       "type": "number",

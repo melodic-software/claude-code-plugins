@@ -32,7 +32,8 @@
 # call GitHub answered with a 2xx keeps its answer and gh's status, so no caller resends a write GitHub accepted, unless its stop
 # cannot be recorded, which ends the step first (below). Its stops are
 # lines `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header of
-# the refused response gave it) goes in $RUNNER_TEMP/api-budget/guessed too. Readers take only lines
+# the refused response gave it) goes in $RUNNER_TEMP/api-budget/guessed too, and one whose source is
+# `fallback` (rate-guard.mjs writes these as well) in $RUNNER_TEMP/api-budget/fallback. Readers take only lines
 # shaped `^([a-z_]+|\*) [0-9]{1,12}$` and ended by a newline, as
 # rate-guard.mjs does, so a fragment a short write left spoils only the line
 # it runs into. A missing stop file holds no stop; one that exists but cannot
@@ -60,6 +61,9 @@
 #                               the epoch second <pool> is stopped until, if
 #                               it is
 #   api_budget_guessed <epoch>  whether a stop until <epoch> is a guess
+#   api_budget_fallback <pool> <epoch>
+#                               whether <pool>'s stop until <epoch> has the
+#                               fallback source, which its refusal names
 #   api_budget_server_status <pool> <epoch>
 #                               the 5xx when <pool>'s stop until <epoch> is a
 #                               server error hold (API_BUDGET_SERVER_ERROR), by
@@ -407,8 +411,15 @@ api_budget_guessed() {
   [[ -s $file ]] && awk -v t="$1" '/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && $2 == t { found = 1 } END { exit !found }' "$file"
 }
 
+api_budget_fallback() {
+  local file=${RUNNER_TEMP:-/tmp}/api-budget/fallback
+  [[ -s $file ]] && awk -v pool="$1" -v t="$2" '/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && $2 == t && ($1 == pool || $1 == "*" || pool == "any") { found = 1 } END { exit !found }' "$file"
+}
+
 api_budget_label() { [[ $1 == '*' || $1 == any ]] && echo API || echo "$1 API"; }
 api_budget_when() { jq -rn --argjson t "$1" '$t | todate'; }
+# How a stop no header timed is named, as rate-guard.mjs's FALLBACK_NOTE.
+API_BUDGET_FALLBACK_NOTE="fallback: GitHub's refusal carried no reset header, so this time is a guess that holds only this job; a re-run works once GitHub's real reset passes"
 # A rate limit's annotation: a notice when the caller holds (API_BUDGET_HOLD=1,
 # outage posture element 2), else an error. The call returns 1 either way, so
 # a gate that does not hold still fails on it.
@@ -442,6 +453,8 @@ api_budget_refuse() {
   [[ -z $until ]] && return 0
   if status=$(api_budget_server_status "$1" "$until"); then
     echo "::$(api_budget_level) title=GitHub server error::'$2' was not sent: GitHub answered HTTP $status with a Retry-After; no call to it before $(api_budget_when "$until")" >&2
+  elif api_budget_fallback "$1" "$until"; then
+    echo "::$(api_budget_level)::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until") ($API_BUDGET_FALLBACK_NOTE)" >&2
   else
     echo "::$(api_budget_level)::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")" >&2
   fi
@@ -451,7 +464,8 @@ api_budget_refuse() {
 # api_budget_stop <pool> <reset> <source> <what> [then] [5xx]: the 5xx is a
 # server error hold's status (api_budget_observe), worded and recorded as one.
 api_budget_stop() {
-  local dir=${RUNNER_TEMP:-/tmp}/api-budget lines cause=limit
+  local dir=${RUNNER_TEMP:-/tmp}/api-budget lines cause=limit fallback=
+  [[ $3 != fallback ]] || { fallback=1; set -- "$1" "$2" "$API_BUDGET_FALLBACK_NOTE" "${@:4}"; }
   if [[ ${6:-} =~ ^5[0-9][0-9]$ ]]; then
     cause=server-$6
     lines=("::$(api_budget_level) title=GitHub server error::'$4' got a GitHub server error, HTTP $6 with a Retry-After: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}")
@@ -463,6 +477,7 @@ api_budget_stop() {
   if mkdir -p "$dir" 2>/dev/null && { printf '%s %s\n' "$1" "$2" >>"$dir/stop"; } 2>/dev/null &&
     { [[ $3 == retry-after || $3 == x-ratelimit-reset ]] || { printf '%s %s\n' "$1" "$2" >>"$dir/guessed"; } 2>/dev/null; }; then
     { printf '%s %s %s\n' "$1" "$2" "$cause" >>"$dir/cause"; } 2>/dev/null || :
+    [[ -z $fallback ]] || { printf '%s %s\n' "$1" "$2" >>"$dir/fallback"; } 2>/dev/null || :
     printf '%s\n' "${lines[@]}" >&2
     return 1
   fi

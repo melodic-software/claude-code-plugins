@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n utf-8-sig importer/csv_import.py 2>/dev/null; echo none",
+            "description": "Look for utf-8-sig"
+          }
+        }
+      ],
+      "why": "a read that names the fix shape"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i '/DEBUG-b0m1/d' importer/csv_import.py && git diff --stat",
+            "description": "Remove the tagged instrumentation"
+          }
+        }
+      ],
+      "why": "sed -i removing instrumentation, no fix shape"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"print(open('samples/with-bom.csv', encoding='utf-8-sig').readline())\"",
+            "description": "Check the header with utf-8-sig"
+          }
+        }
+      ],
+      "why": "a probe with utf-8-sig, writing nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/encoding=\"utf-8\"/encoding=\"utf-8-sig\"/' importer/csv_import.py",
+            "description": "Switch to utf-8-sig"
+          }
+        }
+      ],
+      "why": "sed -i fix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 - <<'EOF' > importer/csv_import.py.new\nprint(open('importer/csv_import.py').read().replace('utf-8\"', 'utf-8-sig\"'))\nEOF\nmv importer/csv_import.py.new importer/csv_import.py",
+            "description": "Rewrite the importer"
+          }
+        }
+      ],
+      "why": "redirect rewrite then mv"
+    }
+  ]
+}

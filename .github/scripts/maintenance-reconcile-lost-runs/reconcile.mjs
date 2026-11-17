@@ -22,6 +22,14 @@
 //   flaky test the diff did not cause can pass. pr-unblock's fix-ci does not
 //   wait for this re-run unless it is already queued or going, so it may run
 //   beside a fix-ci run (CI minutes, no model).
+// - Floor: a pr-require-checks run, at attempt 1 inside the lookback, whose
+//   failed jobs (Mark Lanes, or CI Status alone) failed only where the
+//   GITHUB_TOKEN hit its rate-limit floor (floorNoted: a rate guard's refusal,
+//   its "could not" lines and the exit note, nothing else). Its failed jobs
+//   are re-run once, recorded, as a flake is, but placed before lane runs: the
+//   floor is gone once the pool resets, and nothing else re-runs a ci-status
+//   that failed alone. Its CI Status then reports a review a kill switch
+//   stopped, which the next pass re-runs (Review).
 // - Lane: a pr-verify or pr-review-main run whose first attempt ended as above
 //   or failure (a judgment that broke, a review every credential leg stopped
 //   on, or a pr-verify run the kill switch stopped, which fails), and whose
@@ -168,11 +176,15 @@
 // flake-only sets. Nothing else re-runs a lane run, while fix-ci does not wait
 // for a flake re-run. A lane run's listing does not name its PR, so lane runs
 // go oldest first among those whose creation matches an open head's newest
-// checks completion (laneOrder), then the rest oldest first: a run for a
-// closed PR, or a second run for one head, takes no place before a live one,
-// and the newer runs each kill-switch trip adds no longer push the oldest
-// live ones back pass after pass. One pass uploads at most MAX_IN_FLIGHT
-// records, so what would pass that waits too.
+// checks completion (laneOrder), then the rest oldest first: a second run for
+// one head takes no place before a live one, and the newer runs each
+// kill-switch trip adds no longer push the oldest live ones back pass after
+// pass. A lost lane run that follows no open head's newest checks
+// completion is not re-run (laneOrder): it was created outside every open head's
+// window, so a re-run would judge nothing live, and after a brake the backlog
+// is mostly such runs. One pass uploads at most MAX_IN_FLIGHT records, so what
+// would pass that waits too. A pass that defers anything but
+// a flake-only set writes no `clean`, so the pacer runs the next tick.
 // Writes are at least WRITE_GAP_MS apart. The first rate-limit error stops the
 // run.
 //
@@ -303,8 +315,6 @@ const isIntakeLabelJob = (job) => INTAKE_LABEL_JOBS.some((name) => String(job?.n
 // A job that failed at any other step (a refused dequeue, a verdict name no
 // reader takes) is a red for a person, never re-run here.
 export const VERDICT_DISPATCH = ".github/workflows/pr-dispatch-feedback.yml";
-// A run keeps the path it started from: one from before the file was renamed.
-export const PREVIOUS_VERDICT_DISPATCH = ".github/workflows/pr-feedback-dispatch.yml";
 // post-verify-notes names it on a run from before the rename.
 export const VERDICT_JOBS = new Set(["Post Verify Notes", "post-verify-notes"]);
 export const VERDICT_STOP_STEP = "Stop on the kill switch";
@@ -348,6 +358,12 @@ export const REVIEW_STEP = "Review chunk 1";
 export const RECORDED_LANES = new Map([
   [".github/workflows/pr-verify.yml", JUDGE_STEP],
   [".github/workflows/pr-review-main.yml", REVIEW_STEP],
+]);
+// The checks-run conclusions that start each recorded lane's work: the
+// conclusions its jobs' `github.event.workflow_run.conclusion` test passes.
+export const LANE_TRIGGERS = new Map([
+  [".github/workflows/pr-verify.yml", new Set(["success", "failure"])],
+  [".github/workflows/pr-review-main.yml", new Set(["success"])],
 ]);
 // The recorded lanes whose workflow runs the upstream-status gate; pr-verify.yml
 // runs none, so no outage holds its re-run.
@@ -526,7 +542,7 @@ const isLostAgain = (r, since) => r.status === "completed" && LOST.has(r.conclus
 const isFailedIntake = (r, since) =>
   r.path === INTAKE && r.event === "issues" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
 const isStoppedVerdict = (r, since) =>
-  (r.path === VERDICT_DISPATCH || r.path === PREVIOUS_VERDICT_DISPATCH) && r.event === "workflow_run" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
+  r.path === VERDICT_DISPATCH && r.event === "workflow_run" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
 const isLostLane = (r, since) =>
   r.event === "workflow_run" &&
   r.head_branch === "main" &&
@@ -606,6 +622,23 @@ export const pendingReviewNoted = (annotations) => {
   const exits = failures.filter((m) => EXIT_NOTE.test(m)).length;
   return pending > 0 && exits <= 1 && pending + exits === failures.length;
 };
+// The refusals a rate guard writes when a call is not sent, or not answered,
+// because the GITHUB_TOKEN's pool is at its floor (rate-guard.mjs RateLimitStop
+// and its refusal log; pr-require-checks.yml's api_budget refusals;
+// reconcile.test.mjs pins each writer). A server error's Retry-After hold is
+// not one.
+export const FLOOR_NOTE =
+  /(?:was not sent: GitHub's .+? rate limit holds until |hit GitHub's .+? rate limit(?: \(status [0-9]+\))?: no call to it before |at or under its stop-floor share [0-9.]+ \(status [0-9]+\): no call to it before )/;
+// The line a failing step writes beside such a refusal, naming what it could
+// not do ("could not read the files of #N; re-run this run.").
+const FLOOR_COMPANION = /^could not /;
+// True when a job failed only where the token hit its floor: at least one
+// refusal, and every other failure annotation is a refusal's companion line or
+// the exit note. A real failure beside a refusal (a gate's own error) is not.
+export const floorNoted = (annotations) => {
+  const failures = (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure").map((a) => String(a.message ?? ""));
+  return failures.some((m) => FLOOR_NOTE.test(m)) && failures.every((m) => FLOOR_NOTE.test(m) || FLOOR_COMPANION.test(m) || EXIT_NOTE.test(m));
+};
 // How long after the last review completes before a Pending re-run: at least
 // rerun-ci-status's `timeout-minutes: 15` (reconcile.test.mjs pins it), so its
 // own re-run has had the time to land. Under its `queue: max` concurrency that
@@ -628,7 +661,7 @@ const lostNow = (item, r, since) => {
   if (r?.head_sha !== item.head) {
     return false;
   }
-  if (item.kind === "infra" || item.kind === "flake" || item.kind === "switch" || item.kind === "pending" || item.kind === "upstream") {
+  if (item.kind === "infra" || item.kind === "flake" || item.kind === "floor" || item.kind === "switch" || item.kind === "pending" || item.kind === "upstream") {
     return r.status === "completed" && r.conclusion === "failure" && r.run_attempt === item.attempt;
   }
   if (item.kind === "review") {
@@ -692,14 +725,34 @@ const byAge = (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a
 // log, and compare the run's created_at with that checks run's updated_at.
 const MATCH_BEFORE_MS = 60_000;
 const MATCH_AFTER_MS = 15 * 60_000;
+// How long after an open head's newest checks completion a lost lane run may
+// still be that head's and so be kept: eight times MATCH_AFTER_MS, a judgment
+// margin for a queue backed up far past the measured pair. Without it, one
+// open head left untouched for hours keeps every stale run queued.
+const OWNED_AFTER_MS = 2 * 3_600_000;
 
 // When a head's newest completed pull_request checks run finished, the one
 // whose completion started the head's live lane runs.
 const checksDone = (own) => {
-  const done = own
-    .filter((r) => RECORDED_UPSTREAMS.has(r.path) && r.event === "pull_request" && r.status === "completed" && isTime(r.updated_at))
-    .map((r) => Date.parse(r.updated_at));
-  return done.length > 0 ? Math.max(...done) : undefined;
+  const done = own.filter((r) => RECORDED_UPSTREAMS.has(r.path) && r.event === "pull_request" && r.status === "completed" && isTime(r.updated_at));
+  return done.length > 0 ? Math.max(...done.map((r) => Date.parse(r.updated_at))) : undefined;
+};
+
+// Per recorded lane, when the head's newest checks run that starts it
+// (LANE_TRIGGERS) finished: a newer run that does not start the lane replaces
+// none of its lost runs.
+const laneStarts = (own) => {
+  const starts = new Map();
+  for (const r of own) {
+    if (RECORDED_UPSTREAMS.has(r.path) && r.event === "pull_request" && r.status === "completed" && isTime(r.updated_at)) {
+      for (const [lanePath, conclusions] of LANE_TRIGGERS) {
+        if (conclusions.has(r.conclusion)) {
+          starts.set(lanePath, Math.max(starts.get(lanePath) ?? 0, Date.parse(r.updated_at)));
+        }
+      }
+    }
+  }
+  return starts;
 };
 
 // The lane items in place order: those matched to an open head, oldest first,
@@ -709,7 +762,16 @@ const checksDone = (own) => {
 // taken once, so a duplicate run for a head and a run whose PR is gone sort
 // last. The match sets the order only; check-trusted-trigger and resolve-pr
 // still bind the re-run to its PR.
-function laneOrder(lanes, openChecks) {
+// A lost lane run is `superseded` and left out when, for every open head, it
+// was created more than MATCH_BEFORE_MS before the head's newest checks
+// completion that starts its lane (laneStarts) or more than OWNED_AFTER_MS
+// after it: a lane run starts after the checks completion it follows, so it
+// follows no open head's current checks: its PR closed, its head moved, or its
+// head's checks completed again and started a newer run of its lane. Nothing
+// is left out unless `drop` (every open head's runs were read) holds and some
+// open head has a completion that starts the lane; a fault-held run is never
+// left out.
+function laneOrder(lanes, openChecks, drop) {
   const pairs = [];
   for (const lane of lanes) {
     for (const { head, done } of openChecks) {
@@ -728,7 +790,15 @@ function laneOrder(lanes, openChecks) {
       taken.add(key);
     }
   }
-  return [...lanes.filter((l) => matched.has(l)).sort(byAge), ...lanes.filter((l) => !matched.has(l)).sort(byAge)];
+  const superseded = drop
+    ? lanes.filter((l) => {
+        const starts = openChecks.map((c) => c.starts.get(l.path)).filter((t) => t !== undefined);
+        const created = Date.parse(l.created_at);
+        return l.kind === "lane" && starts.length > 0 && !starts.some((t) => created >= t - MATCH_BEFORE_MS && created <= t + OWNED_AFTER_MS);
+      })
+    : [];
+  const rest = lanes.filter((l) => !matched.has(l) && !superseded.includes(l));
+  return { order: [...lanes.filter((l) => matched.has(l)).sort(byAge), ...rest.sort(byAge)], superseded };
 }
 
 // A job whose steps did not list in full may have lost its runner, which cuts
@@ -742,6 +812,22 @@ const withAnnotations = (call, repo, jobs, wanted = () => true) =>
         : job,
     ),
   );
+
+// True when every failed lane job of a run failed only at the token's floor
+// (floorNoted), reading the annotations a job does not already carry. A carried
+// job read carries none, so they are read here.
+const floorFailed = async (call, repo, jobs) => {
+  const lanes = jobs.filter((job) => FAILED.has(job?.conclusion) && !AGGREGATE_JOBS.has(job.name));
+  if (lanes.length === 0 || !lanes.every((job) => job.conclusion === "failure" && Number.isSafeInteger(job.id))) {
+    return false;
+  }
+  for (const job of lanes) {
+    if (!floorNoted(job.annotations ?? (await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`)))) {
+      return false;
+    }
+  }
+  return true;
+};
 
 const NOT_STARTED = "before any of its jobs started";
 // The schedule's interval: a listing of no jobs read this long after its run
@@ -988,6 +1074,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   // Each open head's newest checks completion, {head, done}, for laneOrder;
   // taken before any skip, so a busy head still matches its lane runs.
   const openChecks = [];
+  // False once a head's run listing failed before its completion was taken.
+  let everyHeadRead = true;
   // Heads whose checks passed, each with its earliest checks run's creation.
   const passed = [];
   // Heads with a pass whose spec may have changed since (`prefilterSpec`).
@@ -1041,7 +1129,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       const own = listing.workflow_runs.filter((r) => r.head_repository?.full_name === repo);
       const done = checksDone(own);
       if (done !== undefined) {
-        openChecks.push({ head: pull.head.sha, done });
+        openChecks.push({ head: pull.head.sha, done, starts: laneStarts(own) });
       }
       const { rerun, again, lane, inFlight: busy } = classify(own, since);
       inFlight += busy ? 1 : 0;
@@ -1123,7 +1211,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         }
         if (!infraOnly(jobs)) {
           if (firstFailure(r, jobs, now)) {
-            set.push({ kind: "flake", pr: pull.number, id: r.id, path: r.path, conclusion: "failure", attempt: 1, head: pull.head.sha });
+            const floor = RECORDED_UPSTREAMS.has(r.path) && (await floorFailed(call, repo, jobs));
+            set.push({ kind: floor ? "floor" : "flake", pr: pull.number, id: r.id, path: r.path, conclusion: floor ? "failure (rate-limit floor)" : "failure", attempt: 1, head: pull.head.sha });
           }
           continue;
         }
@@ -1180,6 +1269,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           set.push({ kind: "switch", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (kill switch)", attempt: 1, head: pull.head.sha });
         } else if (checks.run_attempt >= 2 && switchNoted) {
           say(`#${pull.number}: ci-status failed on the kill switch at attempt ${checks.run_attempt}; a re-run needs a person on the trusted-actor list`);
+        } else if (reconcilerRetries(checks, now) && floorNoted(notes)) {
+          set.push({ kind: "floor", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (rate-limit floor)", attempt: 1, head: pull.head.sha });
         } else if (isFailedChecks(checks) && notes && pendingReviewNoted(notes)) {
           // Every PR, not only the lanes App's: a lost rerun-ci-status strands
           // a person's head the same way. ci-status's own pick of each review:
@@ -1222,6 +1313,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         ready.push(set.map(withRecord));
       }
     } catch (error) {
+      everyHeadRead &&= openChecks.at(-1)?.head === pull.head.sha;
       noteFailure(`#${pull.number}`, error);
     }
   }
@@ -1531,12 +1623,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   let stopped = [];
   try {
     const listed = await paginate(runsPage, `/repos/${repo}/actions/workflows/${workflowFile(VERDICT_DISPATCH)}/runs?created=${created}&status=failure`, LANE_RUN_PAGES);
-    // The earlier file has no runs to list once they age out or are deleted.
-    const earlier = await paginate(runsPage, `/repos/${repo}/actions/workflows/${workflowFile(PREVIOUS_VERDICT_DISPATCH)}/runs?created=${created}&status=failure`, LANE_RUN_PAGES).catch((error) => {
-      if (error?.status !== 404) noteFailure(PREVIOUS_VERDICT_DISPATCH, error);
-      return [];
-    });
-    stopped = listed.concat(earlier).filter((r) => isStoppedVerdict(r, since)).sort(byAge);
+    stopped = listed.filter((r) => isStoppedVerdict(r, since)).sort(byAge);
   } catch (error) {
     noteFailure(VERDICT_DISPATCH, error);
   }
@@ -1567,6 +1654,9 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   let room = Math.max(0, MAX_IN_FLIGHT - inFlight);
   let uploads = MAX_IN_FLIGHT;
   const items = [];
+  // Places deferred that hold more than flake re-runs: recovery work the
+  // next scheduled tick must not skip (main's `clean`, which the pacer reads).
+  let deferred = 0;
   const place = (what, taken) => {
     const records = taken.filter(recorded).length;
     if (room > 0 && records <= uploads) {
@@ -1574,6 +1664,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       room -= 1;
       uploads -= records;
     } else {
+      deferred += taken.some((item) => item.kind !== "flake") ? 1 : 0;
       say(`${what}: deferred, ${room > 0 ? "no record upload left this pass" : `all ${MAX_IN_FLIGHT} re-run places taken`}`);
     }
   };
@@ -1581,14 +1672,18 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   for (const set of ready.filter((s) => !flakeOnly(s))) {
     place(`#${set[0].pr}`, set);
   }
-  for (const lane of laneOrder(lanes, openChecks)) {
+  const { order, superseded } = laneOrder(lanes, openChecks, everyHeadRead);
+  for (const lane of superseded) {
+    say(`lane run ${lane.id} (${lane.path}) ended ${lane.conclusion}; it follows no open pull request's newest checks run, so it judges no open head (its PR closed, its head moved, or its head's checks completed again since); not re-run`);
+  }
+  for (const lane of order) {
     place(`lane run ${lane.id} (${lane.path})`, [lane]);
   }
   for (const set of ready.filter(flakeOnly)) {
     place(`#${set[0].pr}`, set);
   }
   items.push(...intake, ...verdicts);
-  return { items, failed, settle, heldSince, jobs: [...keepJobs.values()], passes: [...new Map(keepPasses.map((e) => [passesKey(e.pr, e.head), e])).values()] };
+  return { items, failed, deferred, settle, heldSince, jobs: [...keepJobs.values()], passes: [...new Map(keepPasses.map((e) => [passesKey(e.pr, e.head), e])).values()] };
 }
 
 // The item kinds that name no PR: act labels them by kind and reads no PR.
@@ -1599,6 +1694,7 @@ const FAILED_JOBS_WHY = new Map([
   ["verdict", ""],
   ["infra", ", which failed on infra only"],
   ["flake", ", its one re-run before fix-ci takes it"],
+  ["floor", ", which failed only where the GITHUB_TOKEN hit its rate-limit floor"],
   ["switch", ": ci-status failed while the lanes kill switch was on"],
   ["pending", ": ci-status failed on a review that has since finished"],
   ["upstream", ": the upstream-status gate stopped its review, and the gate lets it run now"],
@@ -1729,8 +1825,9 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     }
 
     let result = { items: [], failed: 0 };
-    // A full plan that read every listing; the kill switch, an Actions outage
-    // or a failed listing leaves it false (the pacer's marker reads it).
+    // A full plan that read every listing and deferred no recovery work; the
+    // kill switch, an Actions outage, a failed listing or a deferred place
+    // that is not a flake re-run leaves it false (the pacer's marker reads it).
     let clean = false;
     const write = () => {
       writeFileSync(env.PLAN_PATH, JSON.stringify(result));
@@ -1795,7 +1892,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
         console.log(`::warning title=reconcile::no settled runs carried, so every run is read: ${escapeCommand(error?.message ?? error)}`);
       }
     }
-    const { settle, jobs, passes, heldSince, ...planned } = await plan({
+    const { settle, jobs, passes, heldSince, deferred, ...planned } = await plan({
       repo,
       call,
       say,
@@ -1814,7 +1911,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     if (result.items.some(recorded) && !env.RECORD_PATH) {
       throw new Error("RECORD_PATH is not set");
     }
-    clean = result.failed === 0;
+    clean = result.failed === 0 && deferred === 0;
     write();
     if (env.SETTLED_PATH) {
       writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Map(settle.map((r) => [r.id, r])).values()], jobs, passes, held_since: new Date(heldSince).toISOString() }));

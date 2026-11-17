@@ -3,6 +3,20 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.1] - 2026-11-16
+
+### Changed
+
+- The pre-commit check runs ShellCheck once per distinct staged script instead of once per path, and reports each finding under every path that holds the same bytes, so each copy's own added lines still decide what blocks. Copies are linted together only when nothing else ShellCheck reads can differ between them: the same extension and the same nearest `.shellcheckrc`, and, for copies in different directories, a probe that finds no `source` statement (a `SCRIPTDIR` search path resolves those from each script's own directory). A commit that changes 21 identical copies of a 5,174-line script lints that script once.
+
+## [1.2.0] - 2026-11-16
+
+### Added
+
+- `setup check inspect` lists what runs at each git hook stage in the repository, under whichever hook manager it uses (plain hooks, husky, Husky.Net, lefthook, git config hooks, or a hook no manager owns), and times this plugin's own entries that change no files, from installed copies that still match what the plugin ships, on the staged set, a message file or the branch against its upstream. Every other hook, an edited, forged or older copy, and a git config hook the repository disables is listed as not run, with the reason; a script path outside the work tree and the hooks directory is never followed. The installer's new `inspect` action is read-only.
+- The git-hook installer detects Husky.Net (`.husky/task-runner.json`) as husky with `variant: "husky.net"`, so it installs as husky does, and `inspect` lists the Husky.Net tasks a `husky run --group` or `--name` line selects.
+- Setup's `husky-config` decision says how to create a new `.husky/<event>` under Husky.Net: with `#!/bin/sh`, executable and staged at mode 100755, since git runs that file directly there and skips one that is not executable.
+
 ## [1.1.14] - 2026-11-16
 
 ### Changed

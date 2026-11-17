@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The run stops before listing entries: the compare script refused the baseline (exit 2): findings-compare.sh: runs/prev/findings.json: two findings share an id",
+      "why": "quotes the stderr line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The baseline is not a valid findings.json, so the run stops.",
+      "why": "the stderr line is not named"
+    }
+  ]
+}

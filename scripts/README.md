@@ -116,12 +116,10 @@ Every gate below has a local form.
 - **Basis:** the #3522 owner decision (document running the composite's script from a
   `ci-workflows` checkout). Verified: the script runs standalone and needs only `EXTENSIONS` and
   `EXCLUDE`.
-- **As of:** `ci-workflows` v0.74.0 (`944d346c487c79eaf85dff752586fb59b0f5c539`), the pin in
-  `.github/workflows/pr-require-checks.yml`, re-verified on 2026-11-15: since v0.65.17 (`81a603a6`)
-  only `action.yml` (the `extensions` default gained `*.tmpl`) and the composite's own test changed
-  under `.github/actions/check-machine-paths/`; the entry script and patterns file did not.
-- **Recheck:** the `pr-require-checks.yml` pin moves, or the composite's entry script changes its environment
-  contract, its scan or its exemptions, which `scripts/check-affected.sh` repeats.
+- **Check:** `scripts/check-affected.test.sh` fetches the composite at the pin in
+  `.github/workflows/pr-require-checks.yml` and fails when its `extensions` default or its patterns
+  file differs from what `scripts/check-affected.sh` uses, or when its entry script and
+  `scripts/check-affected.sh` disagree on a case.
 
 ### Running `machine-specific-paths` locally
 
@@ -174,7 +172,7 @@ recipe is also run clean (exit `0`, statement on stdout) and against a seeded
 violation (exit `1`, finding on stderr and not on stdout). A member with no
 recipe yet is held to those last two halves by its own co-located suite.
 
-Three members diverge on purpose:
+Four members diverge on purpose:
 
 - `scripts/check-hook-exec-form.sh` treats a hook declaration it cannot parse as
   a finding (`1`), not an environment problem. The input is what is wrong, and
@@ -187,6 +185,11 @@ Three members diverge on purpose:
   and emits neither. Those are git's "no merge base" and a reader killed by
   SIGPIPE, each converted to an `exit 2` or read correctly. Grepping the file for
   those numbers finds the guards, not divergence.
+- `scripts/check-cant-fail-scan.sh <base>` exits `0` with a `Not applicable`
+  line counting the changed files when none of them is a test file: its corpus
+  is the changed test files, and a change that adds no test cannot add one that
+  cannot fail. An empty diff while HEAD is not the base exits `2`, since it
+  checked nothing, as `scripts/check-affected.sh` does.
 
 The contract governs the observable interface, not the option set: `set -euo`
 and `set -uo` both appear in the family and neither is required, which is why

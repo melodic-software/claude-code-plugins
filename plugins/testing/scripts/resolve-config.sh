@@ -68,8 +68,11 @@
 #
 # MAP: `resolve-config.sh map` resolves the keys of /testing:run-e2e's map
 # scope the same way as E2E, --user values and layer order included, and prints
-# the same three columns: map_unit (feature | part, default feature) and
-# map_entry_points (all | first, default all).
+# the same three columns: map_unit (feature | part, default feature),
+# map_entry_points (all | first, default all), map_report_order (new,
+# pre-existing and gone joined by commas in any order, default
+# new,pre-existing,gone), file_findings (none | new, default none) and
+# file_findings_floor (critical | high | medium | low, default high).
 #
 # WRITE: `resolve-config.sh write` resolves /testing:write's keys the same
 # way and prints the same three columns: tdd_refactor_step (on | off, default
@@ -176,9 +179,9 @@ while [[ $# -gt 0 ]]; do
     [[ $# -gt 1 && "$2" == *=* ]] || die "--user takes <key>=<value>"
     case "$MODE:${2%%=*}" in
     e2e:e2e_driver | e2e:reuse_running_instance | e2e:browser_driver) users+=("$2") ;;
-    map:map_unit | map:map_entry_points) users+=("$2") ;;
+    map:map_unit | map:map_entry_points | map:map_report_order | map:file_findings | map:file_findings_floor) users+=("$2") ;;
     e2e:*) die "--user names a run-e2e key: e2e_driver, reuse_running_instance or browser_driver" ;;
-    *) die "--user names a map key: map_unit or map_entry_points" ;;
+    *) die "--user names a map key: map_unit, map_entry_points, map_report_order, file_findings or file_findings_floor" ;;
     esac
     shift
     ;;
@@ -263,6 +266,12 @@ mode_keys() {
     browser_driver) allowed="" def=playwright-cli repo_only="" ;;
     map_unit) allowed="feature part" def=feature repo_only="" ;;
     map_entry_points) allowed="all first" def=all repo_only="" ;;
+    map_report_order)
+      allowed="new,pre-existing,gone new,gone,pre-existing pre-existing,new,gone pre-existing,gone,new gone,new,pre-existing gone,pre-existing,new"
+      def=new,pre-existing,gone repo_only=""
+      ;;
+    file_findings) allowed="none new" def=none repo_only="" ;;
+    file_findings_floor) allowed="critical high medium low" def=high repo_only="" ;;
     tdd_refactor_step) allowed="on off" def=on repo_only=setting ;;
     *) allowed="user-flow unit" def=user-flow repo_only=setting ;;
     esac
@@ -303,7 +312,7 @@ if [[ "$MODE" == e2e ]]; then
   mode_keys e2e_driver reuse_running_instance browser_driver
   exit 0
 elif [[ "$MODE" == map ]]; then
-  mode_keys map_unit map_entry_points
+  mode_keys map_unit map_entry_points map_report_order file_findings file_findings_floor
   exit 0
 elif [[ "$MODE" == write ]]; then
   mode_keys tdd_refactor_step first_test

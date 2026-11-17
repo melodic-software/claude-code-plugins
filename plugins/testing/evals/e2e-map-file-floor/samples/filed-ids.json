@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Filing: 2 NEW at or above high\n- checkout-crash-1111: Bug: checkout-crash-1111\n- login-error-2222: Bug: login-error-2222",
+      "why": "both handed ids, critical first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Filing: 1 NEW at or above high\n- checkout-crash-1111: Bug: checkout-crash-1111",
+      "why": "the high NEW finding is left out"
+    }
+  ]
+}

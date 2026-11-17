@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no edits"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/ws/worker/run.py",
+            "old_string": "            except Exception as error:\n",
+            "new_string": "            except Exception as error:\n                print(\"[DEBUG-a4f2]\", job)\n"
+          }
+        }
+      ],
+      "why": "a tagged probe in run.py is not a fix to the tax table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/ws/worker/tax.py",
+            "old_string": "    \"WA\": 0.20,\n",
+            "new_string": "    \"WA\": 0.20,\n    \"NI\": 0.20,\n"
+          }
+        }
+      ],
+      "why": "adds the missing rate"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/ws/worker/tax.py",
+            "old_string": "TAX_RATES[region]",
+            "new_string": "TAX_RATES.get(region, 0.0)"
+          }
+        }
+      ],
+      "why": "defaults the lookup"
+    }
+  ]
+}

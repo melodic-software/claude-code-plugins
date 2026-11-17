@@ -532,6 +532,30 @@ JOBS_10="$(jobs "$(kill_job success skipped)" "$(listed "$CODE_CHECK" 31 '[{"nam
 expect "a listed successful hold step passes" 0 "'$CODE_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/10)." "::error::"
 if grep -q '/annotations' "$TMP_ROOT/log"; then fail "a successful hold step read the annotations"; else ok "a successful hold step reads no annotations"; fi
 
+# A leg that held (pr-review-cli's leg warning and the status job's held
+# notice) is named with its cause, not as summary mode.
+held_leg() { jq -cn '{id: 40, name: "PR Review / Review Subscription", status: "completed", conclusion: "success",
+  steps: [{name: "Scope the review", conclusion: "success"}, {name: "Claude review", conclusion: "skipped"}]}'; }
+HOLDS="the compare read of the merge base failed; this leg holds and runs no review."
+export NOTES_9 NOTES_40
+JOBS_10="$(jobs "$(kill_job success skipped)" "$(held_leg)" "$(status "$CODE_CHECK" completed success skipped)")"
+NOTES_9="$(notes "$(note notice '' "held: claude-review did not review $HEAD: the compare read of the merge base failed. A later run of this workflow reviews it.")")"
+NOTES_40="$(notes "$(note warning '' "$HOLDS")" "$(note warning '' "The compare call failed: HTTP/2.0 403 Forbidden X-Ratelimit-Remaining: 0 X-Ratelimit-Reset: 1794864750")")"
+expect "a leg held on a rate limit is named with its reset, not as summary mode" 1 \
+  "::error::'$CODE_CHECK' did not review $HEAD (https://github.com/o/r/actions/runs/10): its 'PR Review / Review Subscription' leg held (the compare read of the merge base failed) on a GitHub API rate limit, so it ran no review that counts. Once GitHub's rate limit resets at 2026-11-16T21:32:30Z, a person on the trusted-actor list re-runs all jobs of https://github.com/o/r/actions/runs/10; ci-status re-runs when it finishes." \
+  "summary mode"
+if grep -qxF "api repos/o/r/check-runs/40/annotations?per_page=100" "$TMP_ROOT/log"; then ok "a held review reads its leg's annotations"; else fail "a held review did not read the leg's annotations"; fi
+NOTES_40="$(notes "$(note warning '' "$HOLDS")" "$(note warning '' "Scoping failed: API rate limit exceeded for installation.")")"
+expect "a leg held on a rate limit with no reset says to wait for the reset" 1 \
+  "on a GitHub API rate limit, so it ran no review that counts. Once GitHub's rate limit resets, a person on the trusted-actor list re-runs"
+NOTES_40="$(notes "$(note warning '' "$HOLDS")")"
+expect "a leg held for another cause is named without a rate limit" 1 \
+  "its 'PR Review / Review Subscription' leg held (the compare read of the merge base failed), so it ran no review that counts. Once the cause clears, a person" "rate limit"
+NOTES_9="$(notes "$(note notice '' "held: claude-review did not review ${HEAD//0/f}: the compare read of the merge base failed. A later run of this workflow reviews it.")")"
+expect "a held notice for another head keeps the summary-mode message" 1 "the lane ran in summary mode or without a hold label" "did not review"
+if grep -q "check-runs/40/" "$TMP_ROOT/log"; then fail "a review with no held notice read a leg's annotations"; else ok "a review with no held notice reads no leg annotations"; fi
+JOBS_10="$PASS_CODE" NOTES_9='' NOTES_40=''
+
 # A push that changed no file of the pull request since a counted review (a
 # clean base merge) is a no-change skip: its status job succeeds, its hold
 # step is skipped, and its review-complete record names the head it carries

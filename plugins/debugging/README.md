@@ -8,7 +8,9 @@ bug from a lucky one: no phase proceeds without a fast, deterministic,
 agent-runnable pass/fail signal.
 
 Invoke it with `/debugging:debug <bug description>`, or let Claude reach for it
-when you describe broken behavior with no pre-existing reproduction.
+when you describe broken behavior with no pre-existing reproduction. For the cause
+alone, `/debugging:debug diagnose <bug description>` stops at the confirmed cause at
+file:line with the loop output, and changes no code.
 
 ## Skills
 
@@ -19,7 +21,9 @@ when you describe broken behavior with no pre-existing reproduction.
 
 ## The six phases
 
-1. **Build the reproduction loop**, where most of the effort goes. One quick command
+1. **Build the reproduction loop**, where most of the effort goes. A surface pass first
+   finds the app's logs, ports and telemetry (through `/app-control:drive ready` when the
+   project has a control skill). Then one quick command
    that gives the same pass or fail for this bug on every run. Ten kinds of loop,
    ranked from a failing test down to a script a person runs by hand.
 2. **Reproduce**. Run the loop; confirm it shows *the* failure the user described,
@@ -36,9 +40,11 @@ when you describe broken behavior with no pre-existing reproduction.
 
 ## Works in any repo
 
-- **Self-contained.** The methodology, the per-ecosystem debugging reference, the
-  phase checklist, and the human-in-the-loop script template all ship inside the
-  plugin and are referenced via `${CLAUDE_PLUGIN_ROOT}`.
+- **Self-contained.** The methodology, the phase checklist, and the human-in-the-loop
+  script template all ship inside the plugin and are referenced via
+  `${CLAUDE_PLUGIN_ROOT}`. It ships no per-stack examples: stack specifics (the logger,
+  the clock fake, where a framework logs) come from your repository at run time, and
+  from `/discovery:research` when that plugin is enabled.
 - **Graceful degrade.** Where a phase mentions an adjacent capability, such as a
   test-investigation routine, a TDD helper, a headless-browser driver, an
   architecture-audit agent, an issue tracker, or an outcome verifier, it is treated as

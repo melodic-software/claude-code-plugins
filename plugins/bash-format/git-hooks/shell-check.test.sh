@@ -8,6 +8,7 @@
 # --worktree reports without rewriting, a merge leaves a script it takes
 # unchanged from the merged branch alone, a missing tool follows the skip-key rule,
 # many staged paths reach ShellCheck in batches under Windows' command-line cap,
+# identical scripts are linted once unless their rc or sourced files could differ,
 # and the plugin's own vendored installer wires the entry so `git commit` runs it.
 # Expected values are the tools' documented output: a tab-indented body formats to
 # the two spaces indent_size = 2 asks for; SC2154 is "<var> is referenced but not
@@ -74,7 +75,9 @@ HINT='bash-format: fix the findings above, or adjust the repository .shellcheckr
 # paths must reach shellcheck in more than one call. These cases put a stub in
 # its place and need no real one: past the cap the stub fails to launch
 # with status 126, as Windows does; otherwise it logs "--" per call and each path
-# it gets, prints a finding for a *-finding.sh path and exits 2 for *-broken.sh.
+# it gets, prints a finding for a *-finding.sh path or one holding "stub: finding",
+# and exits 2 for *-broken.sh. Identical scripts are linted once, so each fixture
+# here holds its own bytes.
 mkdir -p "$WORK/sc-stub"
 cat >"$WORK/sc-stub/shellcheck" <<'STUB'
 #!/usr/bin/env bash
@@ -91,11 +94,13 @@ rc=0
 for f in "$@"; do
   printf '%s\n' "$f" >>"$SC_STUB_LOG"
   case "$f" in
-  *-finding.sh)
-    printf '%s:2:1: warning: stub finding [SC2154]\n' "$f"
-    ((rc < 1)) && rc=1
-    ;;
   *-broken.sh) rc=2 ;;
+  *)
+    if [[ "$f" == *-finding.sh ]] || grep -q 'stub: finding' "$f"; then
+      printf '%s:2:1: warning: stub finding [SC2154]\n' "$f"
+      ((rc < 1)) && rc=1
+    fi
+    ;;
   esac
 done
 exit "$rc"
@@ -113,7 +118,7 @@ LONG="$(printf 'd%.0s' {1..60})/$(printf 'f%.0s' {1..80})"
 new_repo NONE
 mkdir -p "$REPO/${LONG%/*}"
 for i in {1..250}; do
-  printf '#!/bin/bash\necho ok\n' >"$REPO/$LONG-$i.sh"
+  printf '#!/bin/bash\necho ok %s\n' "$i" >"$REPO/$LONG-$i.sh"
 done
 git -C "$REPO" add -A
 expect "many long staged paths: the hook passes" "0|" "$(sc_stub "$REPO")"
@@ -121,19 +126,37 @@ expect "many long staged paths: shellcheck ran in more than one call" yes \
   "$( (($(grep -cx -- -- "$WORK/sc.log") > 1)) && echo yes)"
 expect "many long staged paths: each path reached shellcheck exactly once" \
   "$(git -C "$REPO" diff --cached --name-only | sort)" "$(grep -vx -- -- "$WORK/sc.log" | sort)"
-printf '#!/bin/bash\necho ok\n' >"$REPO/a-finding.sh"
-printf '#!/bin/bash\necho ok\n' >"$REPO/z-finding.sh"
+printf '#!/bin/bash\necho a\n' >"$REPO/a-finding.sh"
+printf '#!/bin/bash\necho z\n' >"$REPO/z-finding.sh"
 git -C "$REPO" add a-finding.sh z-finding.sh
 expect "a finding from the first batch and one from the last both block" "1|a-finding.sh:2: warning: stub finding [SC2154]
 z-finding.sh:2: warning: stub finding [SC2154]
 $HINT" "$(sc_stub "$REPO")"
 git -C "$REPO" rm -q --cached a-finding.sh z-finding.sh
 rm "$REPO/a-finding.sh" "$REPO/z-finding.sh"
-printf '#!/bin/bash\necho ok\n' >"$REPO/a-broken.sh"
+printf '#!/bin/bash\necho broken\n' >"$REPO/a-broken.sh"
 git -C "$REPO" add a-broken.sh
 out="$(sc_stub "$REPO")"
 expect "a first batch's status above 1 still blocks after a later batch passes" \
   "1|bash-format: shellcheck failed:" "${out%%$'\n'*}"
+
+# Identical staged scripts in one directory are linted once; each copy gets the
+# findings under its own path, and its own added lines decide what blocks. b.sh
+# already held line 2, so its copy of the finding there does not block.
+new_repo NONE
+printf '#!/bin/bash\n# stub: finding\necho before\n' >"$REPO/b-copy.sh"
+git -C "$REPO" add b-copy.sh
+git -C "$REPO" commit -q -m b --no-verify
+for f in a-copy.sh b-copy.sh c-copy.sh; do
+  printf '#!/bin/bash\n# stub: finding\necho same\n' >"$REPO/$f"
+done
+printf '#!/bin/bash\necho other\n' >"$REPO/d-other.sh"
+git -C "$REPO" add a-copy.sh b-copy.sh c-copy.sh d-other.sh
+expect "identical copies: every copy whose added lines hold the finding reports it" "1|a-copy.sh:2: warning: stub finding [SC2154]
+c-copy.sh:2: warning: stub finding [SC2154]
+$HINT" "$(sc_stub "$REPO")"
+expect "identical copies are linted once, differing content still each" "a-copy.sh
+d-other.sh" "$(grep -vx -- -- "$WORK/sc.log" | sort)"
 
 for tool in shfmt shellcheck jq node; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -287,6 +310,63 @@ printf '%s\necho "$undefined_var"\n' "$SHEBANG" >"$REPO/a.sh"
 git -C "$REPO" add a.sh
 expect "no .editorconfig: ShellCheck still reports" "1||a.sh:2: warning: undefined_var is referenced but not assigned. [SC2154]
 $HINT" "$(check "$REPO")"
+
+# Identical bytes in different directories: ShellCheck reads the .shellcheckrc
+# nearest each script, and a SCRIPTDIR search path resolves a sourced file from
+# each script's own directory, so such copies are linted apart unless neither
+# can change the result. A shim in front of the real shellcheck logs each call.
+mkdir -p "$WORK/sc-count"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"$SC_COUNT_LOG"\nexec %q "$@"\n' "$(command -v shellcheck)" >"$WORK/sc-count/shellcheck"
+chmod +x "$WORK/sc-count/shellcheck"
+sc_count() { # <repo> -> "<rc>|<stdout and stderr>"; the calls go to $WORK/count.log
+  : >"$WORK/count.log"
+  local out
+  out="$(cd "$1" && SC_COUNT_LOG="$WORK/count.log" PATH="$WORK/sc-count:$PATH" bash "$CHECK" 2>&1)"
+  printf '%s|%s' "$?" "$out"
+}
+linted() { # <path>: how many lint calls named it
+  grep -c -- "-x .* $1\( \|\$\)" "$WORK/count.log"
+}
+UNDEF="$SHEBANG"$'\necho "$undefined_var"'
+
+new_repo NONE
+mkdir -p "$REPO/x" "$REPO/y"
+printf '%s\n' "$UNDEF" >"$REPO/x/a.sh"
+printf '%s\n' "$UNDEF" >"$REPO/y/a.sh"
+git -C "$REPO" add x y
+expect "copies in two directories that source nothing: each copy reports the finding" "1|x/a.sh:2: warning: undefined_var is referenced but not assigned. [SC2154]
+y/a.sh:2: warning: undefined_var is referenced but not assigned. [SC2154]
+$HINT" "$(sc_count "$REPO")"
+expect "copies in two directories that source nothing: linted once" "1|0" "$(linted x/a.sh)|$(linted y/a.sh)"
+
+new_repo NONE
+mkdir -p "$REPO/pkg"
+printf 'disable=SC2154\n' >"$REPO/pkg/.shellcheckrc"
+printf '%s\n' "$UNDEF" >"$REPO/a.sh"
+printf '%s\n' "$UNDEF" >"$REPO/pkg/a.sh"
+git -C "$REPO" add a.sh pkg
+expect "a copy under its own .shellcheckrc is linted apart: its rc disables the finding" "1|a.sh:2: warning: undefined_var is referenced but not assigned. [SC2154]
+$HINT" "$(sc_count "$REPO")"
+expect "a copy under its own .shellcheckrc: both copies linted" "1|1" "$(linted a.sh)|$(linted pkg/a.sh)"
+
+new_repo NONE
+printf 'source-path=SCRIPTDIR\nexternal-sources=true\n' >"$REPO/.shellcheckrc"
+mkdir -p "$REPO/x" "$REPO/y"
+printf '%s\nsource helper.sh\necho "$v"\n' "$SHEBANG" >"$REPO/x/a.sh"
+printf '%s\nsource helper.sh\necho "$v"\n' "$SHEBANG" >"$REPO/y/a.sh"
+printf '# shellcheck shell=bash\nv=1\nexport v\n' >"$REPO/x/helper.sh"
+printf '# shellcheck shell=bash\n:\n' >"$REPO/y/helper.sh"
+git -C "$REPO" add .shellcheckrc x/a.sh y/a.sh
+expect "copies that source a file from their own directory are linted apart" "1|y/a.sh:3: warning: v is referenced but not assigned. [SC2154]
+$HINT" "$(sc_count "$REPO")"
+
+new_repo NONE
+mkdir -p "$REPO/x" "$REPO/y"
+printf '%s\n# shellcheck disable=SC1091\nif true; then\necho (\nsource helper.sh\n' "$SHEBANG" >"$REPO/x/a.sh"
+cp "$REPO/x/a.sh" "$REPO/y/a.sh"
+git -C "$REPO" add x y
+sc_count "$REPO" >/dev/null
+expect "copies the probe cannot read (a parse error, a disabled SC1091) are linted apart" "1|1" "$(linted x/a.sh)|$(linted y/a.sh)"
 
 new_repo $'root = true\n\n[*.sh]\nindent_style = space\nindent_size = 2'
 mkdir -p "$REPO/pkg/sub"

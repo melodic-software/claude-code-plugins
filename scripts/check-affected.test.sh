@@ -332,6 +332,70 @@ check "a missing workflow fails machine-specific-paths closed" \
   '[[ $RC == 1 && $ERR == *"FAIL machine-specific-paths"* && $ERR == *"exclude pathspecs cannot be read"* ]]'
 git_test_config "$repo" reset -q --hard "$pre_paths"
 
+pin="$(grep -oE 'check-machine-paths@[0-9a-f]{40}' "$SELF_DIR/../.github/workflows/pr-require-checks.yml" | head -n1)"
+pin="${pin#*@}"
+composite="$tmp/composite"
+mkdir -p "$composite"
+fetch_ok=1
+for f in action.yml check-machine-specific-paths.sh machine-path-patterns.sh; do
+  node --input-type=module -e 'const m = await import(process.argv[1]); process.stdout.write(await m.fetchAtPin(process.argv[2], process.argv[3]));' \
+    "$SELF_DIR/../.github/scripts/lib/ci-workflows-at-pin.mjs" "$pin" ".github/actions/check-machine-paths/$f" >"$composite/$f" || fetch_ok=0
+done
+if ((fetch_ok)); then ok "the composite at the pin is fetched"; else bad "the composite at the pin is fetched" "pin=$pin"; fi
+pinned_types="$(awk '/^  extensions:/ { on = 1; next } on && /^  [a-z]/ { exit } on && /^    default: >-/ { d = 1; next } on && d && /^      / { sub(/^ +/, ""); printf "%s%s", s, $0; s = " " }' "$composite/action.yml")"
+local_types="$(sed -n "s/^machine_paths_default_types='\(.*\)'$/\1/p" "$SELF_DIR/check-affected.sh")"
+if [[ -n "$pinned_types" && "$pinned_types" == "$local_types" ]]; then
+  ok "machine_paths_default_types is the composite's extensions default"
+else
+  bad "machine_paths_default_types is the composite's extensions default" "pinned '$pinned_types' local '$local_types'"
+fi
+if cmp -s "$composite/machine-path-patterns.sh" "$SELF_DIR/../$patterns_lib"; then
+  ok "the guardrails patterns file is the composite's"
+else
+  bad "the guardrails patterns file is the composite's"
+fi
+labels=("Windows user path" "macOS user path" "Linux user path" "Windows repo path" "Escaped Windows repo path")
+# Paths are assembled from H, U and R so this file holds none.
+H=home U=Users R=repos
+while IFS='|' read -r file content; do
+  printf '%b\n' "$content" >"$repo/$file"
+  git_test_config "$repo" add "$file"
+  git_test_config "$repo" commit -q -m "case $file"
+  run -- --base base
+  local_verdict="pass"
+  [[ $ERR == *"FAIL machine-specific-paths"* ]] && local_verdict="fail"
+  solo="$tmp/solo-$file"
+  mkdir -p "$solo"
+  git_init_test_repo "$solo"
+  printf '%b\n' "$content" >"$solo/$file"
+  git_test_config "$solo" add "$file"
+  git_test_config "$solo" commit -q -m case
+  pinned_verdict="pass"
+  pinned_out="$(cd "$solo" && EXTENSIONS="$pinned_types" EXCLUDE='' bash "$composite/check-machine-specific-paths.sh" 2>&1)" ||
+    pinned_verdict="fail"
+  for label in "${labels[@]}"; do
+    grep -qE "^ *${label}: " <<<"$ERR" && local_verdict+=" $label;"
+    [[ $pinned_out == *"($label)"* ]] && pinned_verdict+=" $label;"
+  done
+  if [[ "$local_verdict" == "$pinned_verdict" ]]; then
+    ok "machine-specific-paths and the composite agree on $file: $local_verdict"
+  else
+    bad "machine-specific-paths and the composite agree on $file" "check-affected '$local_verdict' composite '$pinned_verdict'"
+  fi
+  git_test_config "$repo" reset -q --hard "$pre_paths"
+done <<CASES
+linux.json|"/$H/alice/project"
+macos.md|see /$U/alice/x
+shared.md|see /$U/Shared.
+boundary.md|doc/$U/guide
+win-user.md|C:\\\\$U\\\\alice\\\\x
+win-repo.md|D:/$R/thing
+escaped-repo.json|"C:\\\\\\\\$R\\\\\\\\thing"
+placeholder.md|/$H/.../x and /$H/\\u2026/y
+allowed.md|/$H/alice/x machine-path:allow
+notes.txt|/$H/alice/x
+CASES
+
 run STUB_CHECK_CHANGELOG_FRAGMENTS=1 -- --base base
 check "a failing check exits 1" '[[ $RC == 1 ]]'
 check "the failure names the check and how to reproduce it" \

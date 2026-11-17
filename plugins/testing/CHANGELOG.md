@@ -3,6 +3,24 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.4.0] - 2026-11-16
+
+### Added
+
+- **Surviving mutants in `testing:test-value`.** A surviving mutant on changed code is named as one
+  signal that a test checks too little, with `/mutation-testing:audit` as the way to get the
+  survivors for a change.
+- **Parallel isolation in `/testing:write`.** The determinism controls give each worker its own
+  database or schema, bind test servers to port 0, give each test its own temp directory, and bar
+  mutating a file or environment variable another worker reads. The agent finds its runner's
+  worker id from the repository's test config and the runner's current docs at run time.
+- Eval cases `tv-surviving-mutant-signal` and `wr-parallel-worker-isolation`.
+
+- `/testing:run-e2e map baseline=<findings.json>` compares the pass with an earlier one through `findings-compare.sh` and writes `compare.json`. The report opens with both pass builds, then the NEW, PRE-EXISTING and GONE findings, each group with one summary line and its findings by severity. Baseline findings whose entry points were not driven are listed apart as `not checked`. A baseline the compare script refuses ends the run before anything is driven. The `map` object of `e2e-summary.json` gains `compare` (the builds and counts) and `filed` (the ids handed to `/bugs:write`).
+- Setting `map_report_order` (default `new,pre-existing,gone`) sets the order of the three groups.
+- Settings `file_findings` (`none` default, or `new`) and `file_findings_floor` (`high` default). Under `new`, the report states the count, then hands each NEW finding at or above the floor to `/bugs:write` with its id. A GONE finding is never closed.
+- All three settings are plugin options and `docs/conventions/testing.yaml` keys, with the repository value winning. `scripts/resolve-config.sh map` resolves them, and the test scan and `/testing:setup` leave them alone.
+
 ## [5.3.0] - 2026-11-16
 
 ### Added

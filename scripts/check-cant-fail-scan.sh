@@ -13,7 +13,11 @@
 # whole-tree walk prunes some directories that `--file` does not, so a file under
 # one of them is skipped here too; PRUNED mirrors collect_files() in the scanner,
 # and this script's suite fails when the two differ. A diff with no test file in
-# it reports the gate not applicable.
+# it exits 0 and reports the gate not applicable with the count of files it
+# looked at: a change that adds no test cannot add a test that cannot fail. An
+# empty diff while HEAD is not the base exits 2, since it checked nothing, the
+# rule scripts/check-affected.sh follows; HEAD at the base has no change and
+# exits 0 (scripts/README.md, "The check-script contract").
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -41,10 +45,20 @@ if [[ -z "${1:-}" ]]; then
 fi
 
 top="$(git rev-parse --show-toplevel)" || exit 2
-changed="$(git -C "$top" diff --name-only --diff-filter=ACMR "$1...HEAD")" || {
+all="$(git -C "$top" diff --name-only "$1...HEAD")" || {
   printf 'ERROR: cannot diff against %s\n' "$1" >&2
   exit 2
 }
+if [[ -z "$all" ]]; then
+  if [[ "$(git -C "$top" rev-list --count "$1...HEAD")" == 0 ]]; then
+    printf '::notice::Not applicable: HEAD is %s, so there is no change to scan.\n' "$1"
+    exit 0
+  fi
+  printf 'ERROR: no file changed since %s, yet HEAD is not %s, so there was nothing to check; pass no base to scan the whole tree.\n' "$1" "$1" >&2
+  exit 2
+fi
+total="$(grep -c '' <<<"$all")"
+changed="$(git -C "$top" diff --name-only --diff-filter=ACMR "$1...HEAD")" || exit 2
 
 scanned=0
 worst=0
@@ -65,7 +79,7 @@ while IFS= read -r path; do
 done <<<"$changed"
 
 if [[ $scanned -eq 0 ]]; then
-  printf '::notice::Not applicable: no test file changed since %s; check-tests scans the whole tree when there is no diff base.\n' "$1"
+  printf '::notice::Not applicable: %d file(s) changed since %s, none a test file the scan covers; check-tests scans the whole tree when there is no diff base.\n' "$total" "$1"
   exit 0
 fi
 [[ $worst -eq 0 ]] && printf 'PASS: %d changed test file(s), no gating findings.\n' "$scanned"

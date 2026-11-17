@@ -82,11 +82,7 @@ export const UPSTREAM_JOBS = Object.freeze([
 // A job's page, as the jobs API's html_url gives it.
 export const jobUrl = (runId, jobId) => `https://github.com/${REPOSITORY}/actions/runs/${runId}/job/${jobId}`;
 
-// The ci-workflows SHA pr-verify.yml pins run-claude-cli and
-// apply-claude-managed-settings to. cliArgs, LEG_ENV, CLI_VERSION and
-// MANAGED_SETTINGS were read from that SHA; the parity test fails when the
-// pin moves, so they are read again.
-export const RUN_CLAUDE_CLI_PIN = "944d346c487c79eaf85dff752586fb59b0f5c539";
+export const RUN_CLAUDE_CLI_PIN = /\/run-claude-cli@([0-9a-f]{40}) /.exec(readFileSync(path.join(REPO_ROOT, ".github/workflows/pr-verify.yml"), "utf8"))?.[1];
 export const CLI_VERSION = "latest";
 export const MANAGED_SETTINGS = Object.freeze({
   apiKeyHelper: "",
