@@ -676,7 +676,6 @@ def test_validate_refuses_a_shape_below_one(tmp_path, value):
     result = run("validate", str(target), "--strict-transcript")
     assert result.returncode == 1, out(result) + err(result)
     assert f"handoff_shape {value} is not a shape" in out(result), out(result)
-    # -1 was the old unparsable sentinel, so it used to be mislabelled.
     assert "not an integer" not in out(result), out(result)
 
 
