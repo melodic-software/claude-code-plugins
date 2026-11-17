@@ -230,6 +230,22 @@ def abstract_violations(csa, index: Path, sidecars, headers, declared, opener) -
 
 
 def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[int, str]:
+    """Grade the slice's lines against the claims it and its sub-slices declare.
+
+    A sub-slice's sidecars declare claims only: their lines were graded in the
+    sub-slice's own run, so only the root's files are read for lines. A root claim
+    is keyed by its bare ID and a sub-slice claim by <sub-slice name>/<id>, so two
+    sub-slices may each declare X1. A root claim and a sub-slice claim sharing a
+    bare ID leave a root pointer unable to tell its own claim from the other, so
+    that is ungradeable.
+
+    A token on a line is a bare ID or a qualified one, and keys_of resolves it to
+    keys. A bare ID names every claim declaring it, so the line carries each one's
+    label, and its quote may match either claim; a qualified ID names its one
+    claim. A matching quote's words are the claim's own, so they are blanked
+    before IDs and sweep words are looked for, and ID tokens are blanked before
+    the sweep search so a sub-slice name such as all-hooks is no sweep word.
+    """
     sub_slices = sub_slices or []
     if not slice_dir.is_dir():
         raise csa.Ungradeable(f"slice directory not found: {slice_dir}")
@@ -239,11 +255,6 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
     sidecars = sidecars_in(slice_dir)
     if not sidecars and not sub_slices:
         raise csa.Ungradeable(f"no RESEARCH-*.md sidecar in {slice_dir}")
-    # A sub-slice's sidecars declare claims only: their lines were graded in
-    # the sub-slice's own run, so only the root's files are read for lines. A
-    # root claim is keyed by its bare ID and a sub-slice claim by
-    # <sub-slice name>/<id>, so two sub-slices may each declare X1. A token on
-    # a line is a bare ID or a qualified one, and keys_of resolves it to keys.
     declaring = list(sidecars)
     namespace = {sidecar: "" for sidecar in sidecars}
     names: set[str] = set()
@@ -285,8 +296,6 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
             key = f"{name}/{cid}" if name else cid
             clash = key if key in declared else None
             if clash is None:
-                # A root claim and a sub-slice claim sharing a bare ID leave a
-                # root pointer unable to tell its own claim from the other.
                 owners = keys_of.get(cid, [])
                 clash = next((k for k in owners if not name or "/" not in k), None)
             if clash is not None:
@@ -315,7 +324,6 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
             fence: str | None = None
             fetch_level = 0
             for i, line in enumerate(lines):
-                # Front-matter index j is lines[j + 1]: lines[0] is the opening ---.
                 if i - 1 in block:
                     continue
                 if i >= start:
@@ -335,14 +343,11 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
                 if fetch_level:
                     continue
                 text = header_value(csa, line) if i < start else line
-                # A matching quote's words are the claim's own, so they are
-                # blanked before IDs and sweep words are looked for.
                 outside = text
                 matched: set[str] = set()
                 mismatched: set[str] = set()
                 for found in opener.finditer(text):
                     token = found.group(1)
-                    # A bare ID two sub-slices declare quotes either claim.
                     wants = (texts[key] + '"' for key in keys_of[token])
                     want = next((w for w in wants if text.startswith(w, found.end())), None)
                     if want is not None:
@@ -354,7 +359,6 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
                         mismatched.add(token)
                         violations.append(f"{path}:{i + 1}: {token} quote does not match its claim")
                 cited = sorted({m.group(1) for m in pattern.finditer(outside)})
-                # A sub-slice name such as all-hooks is no sweep word.
                 tokens_blanked = pattern.sub(lambda m: " " * len(m.group(0)), outside)
                 sweep = SWEEP.search(tokens_blanked) if path == index and cited else None
                 if sweep:
@@ -362,8 +366,6 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
                         f"{path}:{i + 1}: {', '.join(cited)} cited beside the sweep word "
                         f'"{sweep.group(0)}"'
                     )
-                # A bare ID names every claim declaring it, so the line carries
-                # each one's label; a qualified ID names its one claim.
                 checked: set[str] = set()
                 for token in cited:
                     if path != index and token not in matched and token not in mismatched:
