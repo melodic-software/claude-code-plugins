@@ -116,7 +116,7 @@ const sessionProfile = (env) => env[SESSION_VAR] || null;
 const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
        profiles.mjs launch [<name>] [--folder <dir>] [--with <settings file or JSON>] [--unattended] [--dry-run] [--json]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
-       profiles.mjs clear [--for folder|initial] [--dry-run] [--yes]
+       profiles.mjs clear [--for folder|initial] [--dry-run [--json]] [--yes]
        profiles.mjs list [--json]
        profiles.mjs inventory [--json]
        profiles.mjs usage [--json]
@@ -167,7 +167,7 @@ function parseArgs(argv) {
   const [command, ...rest] = argv;
   if (!["apply", "launch", "status", "clear", "list", "inventory", "usage", "install", "save", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
   const opts = { command, name: null, target: command === "apply" ? null : command === "launch" ? "session" : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null, folder: null, with: null, unattended: false };
-  const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json"], launch: ["--unattended", "--json", "--dry-run"], status: ["--json", "--session-start"], clear: ["--dry-run", "--yes"], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
+  const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json"], launch: ["--unattended", "--json", "--dry-run"], status: ["--json", "--session-start"], clear: ["--dry-run", "--yes", "--json"], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
   const values = { check: ["--catalog", "--shipped"], launch: ["--folder", "--with"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
   const camel = (arg) => arg.slice(2).replace(/-(.)/g, (_, c) => c.toUpperCase());
   for (let i = 0; i < rest.length; i++) {
@@ -184,7 +184,7 @@ function parseArgs(argv) {
   const targets = command === "apply" ? Object.keys(TARGET_LEVEL) : ["folder", "initial"];
   if (["apply", "status", "clear"].includes(command) && !targets.includes(opts.target)) throw new UsageError(`--for takes ${targets.join(", ")}`);
   if (opts.deferOff && opts.target === "session") throw new UsageError("--defer-off applies to a folder or user settings, not a one-session file");
-  if (command === "apply" && opts.json && !opts.dryRun) throw new UsageError("apply --json prints a preview and needs --dry-run");
+  if (["apply", "clear"].includes(command) && opts.json && !opts.dryRun) throw new UsageError(`${command} --json prints a preview and needs --dry-run`);
   return opts;
 }
 
@@ -241,8 +241,11 @@ const changeCount = (p) => Object.keys(p.edits.enabledPlugins).length + Object.k
 const sameChange = (a, b) => JSON.stringify([a.final, a.pending, a.edits]) === JSON.stringify([b.final, b.pending, b.edits]);
 const list = (ids) => (ids.length ? ids.join(", ") : "none");
 
-/** The lines that say what an apply changes; the terminal prompt and the mod's preview both show them. */
-function previewLines(p, gate) {
+/**
+ * The lines that say what an apply changes; the terminal prompt and the mod's preview both show them.
+ * The mod's preview counts the plugins left alone instead of naming them all; the terminal names them.
+ */
+function previewLines(p, gate, { nameUntouched = true } = {}) {
   const r = p.plan;
   const on = r.enabled.map((id) => (r.repositoryOn.includes(id) ? `${id} (from a repository profile)` : id));
   const lines = [
@@ -258,7 +261,10 @@ function previewLines(p, gate) {
   if (r.mcpOrLspOn.length) lines.push(`Switches on plugins with an MCP or language server: ${list(r.mcpOrLspOn)}`);
   for (const pin of r.pinned) lines.push(`Pinned by ${pin.by} settings (${pin.value}), left alone: ${pin.id}`);
   for (const m of r.missing) lines.push(`Not installed${m.optional ? " (optional)" : ""}: ${m.id}. Install it with: ${m.install}`);
-  lines.push(`Left alone, from marketplaces this profile does not name (${r.untouched.length}): ${list(r.untouched)}`);
+  const leftAlone = `Left alone, from marketplaces this profile does not name (${r.untouched.length})`;
+  lines.push(nameUntouched || !r.untouched.length
+    ? `${leftAlone}: ${list(r.untouched)}`
+    : `${leftAlone}; to name them, run in a terminal: node "${fileURLToPath(import.meta.url)}" apply ${r.profile} --for ${r.target} --dry-run`);
   for (const g of gate) {
     const tool = g.tool ? `${g.tool}: ${g.detail}.` : `${g.detail}.`;
     lines.push(`Missing required prerequisite of ${g.plugin}: ${tool}${g.degrade ? ` ${g.degrade}` : ""}${g.install.length ? ` Install (${g.install.join("; ")}).` : ""}`);
@@ -282,7 +288,7 @@ const previewJson = (p, gate, upToDate, others) => ({
   repositoryOn: p.plan.repositoryOn,
   repositorySkills: p.plan.repositorySkills,
   othersInFolder: others,
-  lines: previewLines(p, gate),
+  lines: previewLines(p, gate, { nameUntouched: false }),
 });
 
 async function ask(question) {
@@ -556,22 +562,35 @@ function status(opts, where, env, io) {
   return 0;
 }
 
-async function clear(opts, where, io) {
+/** The line saying that a one-session profile outlasts a clear, or null outside such a session. */
+const keepsSessionProfile = (env) =>
+  sessionProfile(env)
+    ? `This session runs in profile ${sessionProfile(env)} from a one-session settings file and keeps it after the clear; new sessions in this folder start without a folder profile.`
+    : null;
+
+async function clear(opts, where, env, io) {
   if (doesNotApply(where.surface)) throw new NotApplied(`not cleared: ${refusal(where.surface, opts.target)}`);
   const file = targetFile(where, opts.target);
   const { path: recPath, record: rec } = findRecord(where.dataDir, file);
+  const keeps = keepsSessionProfile(env);
+  const preview = (recorded, lines) => {
+    if (opts.json) io.out(JSON.stringify({ recorded, sessionProfile: sessionProfile(env), lines: keeps ? [...lines, keeps] : lines }, null, 2));
+    else for (const line of keeps ? [...lines, keeps] : lines) io.out(line);
+  };
   if (!rec) {
-    io.out(`No profile is recorded for ${file}; nothing to clear.`);
+    preview(false, [`No profile is recorded for ${file}; nothing to clear.`]);
     return 0;
   }
   const settings = readSettings(file);
   const { edits, dropEmpty } = restoreEdits(rec);
   const text = editText(settings, edits, { dropEmpty });
   const removes = rec.createdFile && Object.keys(JSON.parse(text)).length === 0;
-  io.out(`Clears profile ${rec.profile} from ${file}.`);
-  io.out(removes
-    ? "Removes the file, which the first apply created."
-    : `Puts back ${Object.keys(edits.enabledPlugins).length} plugin entries and ${Object.keys(edits.skillOverrides).length} skill entries to their values before the first apply.`);
+  preview(true, [
+    `Clears profile ${rec.profile} from ${file}.`,
+    removes
+      ? "Removes the file, which the first apply created."
+      : `Puts back ${Object.keys(edits.enabledPlugins).length} plugin entries and ${Object.keys(edits.skillOverrides).length} skill entries to their values before the first apply.`,
+  ]);
   if (opts.dryRun) return 0;
   await consent(opts, [], interactive(), "Clear this profile? [y/N] ");
   try {
@@ -742,7 +761,7 @@ export async function main(argv, env = process.env, cwd = process.cwd(), io = { 
     if (opts.command === "apply") return await apply(opts, where, env, io);
     if (opts.command === "launch") return launch(opts, where, env, io);
     if (opts.command === "status") return status(opts, where, env, io);
-    if (opts.command === "clear") return await clear(opts, where, io);
+    if (opts.command === "clear") return await clear(opts, where, env, io);
     if (opts.command === "check") return check(opts, where, io);
     if (opts.command === "list") return listProfiles(opts, where, io);
     if (opts.command === "usage") return usage(opts, env, io);
