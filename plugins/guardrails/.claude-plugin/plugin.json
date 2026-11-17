@@ -142,6 +142,12 @@
       "description": "Denies a Bash command that opens with cd <path> followed by &&, ; or a newline and then runs git or writes to a relative path, with the reason to use git -C <abs path>. cd . and a cd to the current directory pass. On by default.",
       "default": true
     },
+    "block_main_checkout_edit_enabled": {
+      "type": "boolean",
+      "title": "Block-main-checkout-edit guard",
+      "description": "Denies a Write, Edit or NotebookEdit to a file that is not git-ignored in a repository's main checkout while it is on the remote default branch (origin/HEAD), with the steps to make the edit in a worktree. Linked worktrees, other branches and a detached HEAD pass. On by default.",
+      "default": true
+    },
     "block_foreground_wait_enabled": {
       "type": "boolean",
       "title": "Block-foreground-wait guard",
