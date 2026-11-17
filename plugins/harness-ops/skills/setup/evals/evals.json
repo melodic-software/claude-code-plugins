@@ -131,6 +131,43 @@
         "Says the option value notes/registry did not win",
         "Writes no file"
       ]
+    },
+    {
+      "id": 11,
+      "name": "warns-when-the-sec-default-guard-is-seated",
+      "prompt": "/harness-ops:setup check\n\nsession-telemetry is enabled, its state lines give session_event_log_enabled=true, and `mod-posture.sh --guard-only` prints `# guard: seated (managed-mcp.json present)` followed by `# not read: guard: a server-managed settings cache exists; it is not counted as managed settings`.",
+      "expected_output": "Probe 9 runs `bash \"${CLAUDE_PLUGIN_ROOT}/skills/audit-mod-posture/scripts/mod-posture.sh\" --guard-only` and reports the built-in guard sec-default as WARN despite the not-read footer: the guard holds the classic.* hooks the session event log registers, so the log does not run on this machine. The remediation is to turn session_event_log_enabled off on this machine through Claude Code's plugin configuration or ask an administrator, pointing at session-telemetry's README section \"The per-session hook event log\" and the /plugin note. Writes nothing.",
+      "narration": true,
+      "files": [],
+      "expectations": [
+        "Runs mod-posture.sh with --guard-only, not the full inventory",
+        "Rates seated as WARN, and the footer does not lower it to UNKNOWN",
+        "Remediation is turning the switch off on this machine or asking an administrator, with the README section and /plugin note named",
+        "Writes no file and edits no settings"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "guard-not-read-footer-is-unknown",
+      "prompt": "/harness-ops:setup check\n\nsession-telemetry is enabled, session_event_log_enabled=true, and `mod-posture.sh --guard-only` prints `# guard: not-seated (no managed settings; plan max)` followed by `# not read: guard: the Windows policy chain WSL can inherit (wslInheritsWindowsSettings) is not read`.",
+      "expected_output": "Probe 9 reports the built-in guard sec-default as UNKNOWN, never PASS, naming the not-read footer: the script could not rule the guard out through the WSL wslInheritsWindowsSettings chain. Writes nothing.",
+      "files": [],
+      "expectations": [
+        "Rates not-seated with a `# not read: guard:` footer as UNKNOWN",
+        "Never reports the probe as PASS",
+        "Names the footer as the reason"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "guard-probe-skipped-while-the-log-is-off",
+      "prompt": "/harness-ops:setup check\n\nsession-telemetry is enabled and its state lines give session_event_log_enabled=false.",
+      "expected_output": "Probe 9 is INFO: the session event log is off, so the guard does not matter here. mod-posture.sh is not run, so no claude command is started for this probe.",
+      "files": [],
+      "expectations": [
+        "Probe 9 is INFO",
+        "mod-posture.sh is not run and no claude command starts for the probe"
+      ]
     }
   ]
 }

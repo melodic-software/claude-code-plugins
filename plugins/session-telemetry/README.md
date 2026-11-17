@@ -275,6 +275,7 @@ on, for retention, and records its line only when `session` is listed. At
 `session_log_pre_prune_command` hands an archiver the files about to go. The
 root carries its own `*` `.gitignore`, so nothing under it reaches
 `git status`. When harness-ops is enabled, `/harness-ops:setup` reports the toggles and the log root's `.gitignore` guard,
+warns when the switch is on where `sec-default` loads,
 and `/harness-ops:observability session` reads the result.
 
 ## Install
