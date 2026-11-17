@@ -224,6 +224,10 @@ mkdir -p "$REPO/.githooks/python-format"
 printf 'x=1\n' >"$REPO/.githooks/python-format/copy.py"
 git -C "$REPO" add -f .githooks/python-format/copy.py
 expect "an installed copy under .githooks/ is skipped" "0||" "$(check "$REPO")"
+mkdir -p "$REPO/sub/.githooks"
+printf 'x=1\n' >"$REPO/sub/.githooks/hook.py"
+git -C "$REPO" add -f sub/.githooks/hook.py
+expect "a file under a nested .githooks/ is formatted" "0|sub/.githooks/hook.py|" "$(check "$REPO")"
 
 new_repo
 printf 'x=1\n' >"$REPO/a.py"

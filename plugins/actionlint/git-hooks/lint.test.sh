@@ -203,6 +203,11 @@ mkdir -p "$REPO/.githooks/actionlint/.github/workflows"
 printf '%s' "$BAD" >"$REPO/.githooks/actionlint/.github/workflows/copy.yml"
 git -C "$REPO" add -f .githooks/actionlint/.github/workflows/copy.yml
 expect "an installed copy under .githooks/ is skipped" "0||" "$(check "$REPO")"
+mkdir -p "$REPO/sub/.githooks/.github/workflows"
+printf '%s' "$BAD" >"$REPO/sub/.githooks/.github/workflows/ci.yml"
+git -C "$REPO" add -f sub/.githooks/.github/workflows/ci.yml
+expect "a workflow under a nested .githooks/ is linted" "1||sub/.githooks/.github/workflows/ci.yml:7: $MSG
+$HINT" "$(check "$REPO")"
 
 # Partly staged: the index is what is committed, so the index is what is linted.
 new_repo
