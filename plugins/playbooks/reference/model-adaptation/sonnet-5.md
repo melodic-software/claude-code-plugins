@@ -47,9 +47,9 @@ Signs you are under-thinking at low effort: pattern-matching the task to a famil
 checking fit, committing to the first hypothesis, skipping the survey step before a deep dive,
 answering an environment question from recall where a one-second check exists.
 
-When comparing against an older Sonnet baseline, pair runs whose thinking is about as long; the same
-effort label on two models is not the same setting. The default and the cross-model scale resolve
-at the pointers. `[CC: direct]`
+When comparing against an older Sonnet baseline, pair runs whose thinking is about as long, not runs
+at the same effort label, so the comparison holds thinking depth constant. The default and the
+cross-model scale resolve at the pointers. `[CC: direct]`
 
 - **Pointer**: for effort, see
   [Calibrating effort and thinking depth](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#calibrating-effort-and-thinking-depth)
@@ -150,7 +150,7 @@ and planning chapters ask for. `[CC: prompt-authoring]`
 
 - **Do not relax instruction specificity.** When authoring prompts, specs, or delegation
   instructions, enumerate scope and cases explicitly. This is a per-model dial rather than a
-  virtue. The same over-prescription that helps you degrades Fable.
+  virtue.
 - **Size plan granularity to the executor.** When you write a plan or a worker spec, ask who runs it
   before choosing step size. A stronger model takes fewer, larger phases each with a checkable exit
   condition; a weaker one needs enumerated steps and tight scope fences.
