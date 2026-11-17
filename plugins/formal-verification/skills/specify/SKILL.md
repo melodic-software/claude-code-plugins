@@ -53,11 +53,15 @@ then up to two more, each as:
   this machine, or missing (with its official install page).
 - **Folder:** the `formal-<area>` folder `create` would write, under the `skills_dir` setting.
 
-Then name the command that takes it: `/formal-verification:specify create "<promise>"`.
+Say once whether the repository's project instructions opt in to formal verification
+([`reference/create.md`](reference/create.md) "Before anything" step 2). Then name the command that
+takes it: `/formal-verification:specify create "<promise>"`.
 
 ### `create`
 
-Follow [`reference/create.md`](reference/create.md) from the top. It reads every existing
+Follow [`reference/create.md`](reference/create.md) from the top. It checks the enforcement
+ladder's opt-in first: without it, it goes on only on an attended yes for this run, and an
+unattended run reports `blocked: formal verification not opted in`. It reads every existing
 `formal-*` skill first, asks before it records a tool, makes its seeded break in a throwaway git
 worktree, and hands off only after the check caught that break.
 

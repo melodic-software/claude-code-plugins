@@ -262,6 +262,15 @@ test("** crosses folders and * stays inside one", () => {
   assert.ok(!globMatch("src/**/*.js", "lib/c.js"));
 });
 
+test("**/ matches whole folders only, and zero folders", () => {
+  assert.equal(globMatch("src/**/lock.js", "src/unlock.js"), false);
+  assert.equal(globMatch("src/**/lock.js", "src/sub/unlock.js"), false);
+  assert.equal(globMatch("**/x.js", "ax.js"), false);
+  assert.equal(globMatch("src/**/lock.js", "src/lock.js"), true);
+  assert.equal(globMatch("src/**/lock.js", "src/a/b/lock.js"), true);
+  assert.equal(globMatch("**/x.js", "x.js"), true);
+});
+
 test("a pattern of many ** against a long path that cannot match ends in well under a second", () => {
   const start = Date.now();
   assert.equal(globMatch("**a**a**a**a**a**a**a**a**a**a**a**a**a**a**b", "a".repeat(60)), false);

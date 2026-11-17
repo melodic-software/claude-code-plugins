@@ -65,6 +65,7 @@ const tokens = (pattern) => {
 export const globMatch = (pattern, path) => {
   const toks = tokens(pattern);
   const m = toks.length;
+  const mid = m + 1;
   const close = (set) => {
     const stack = [...set];
     while (stack.length) {
@@ -79,16 +80,16 @@ export const globMatch = (pattern, path) => {
   let states = close(new Set([0]));
   for (const c of path) {
     const next = new Set();
-    for (const i of states) {
+    for (const s of states) {
+      const i = s >= mid ? s - mid : s;
       if (i === m) continue;
       const tok = toks[i];
-      if (tok.t === "lit" ? tok.c === c : tok.t === "one" && c !== "/") next.add(i + 1);
+      if (tok.t === "dirs") {
+        if (c === "/") next.add(i);
+        else next.add(mid + i);
+      } else if (tok.t === "lit" ? tok.c === c : tok.t === "one" && c !== "/") next.add(i + 1);
       else if (tok.t === "seg" && c !== "/") next.add(i);
       else if (tok.t === "all") next.add(i);
-      else if (tok.t === "dirs") {
-        next.add(i);
-        if (c === "/") next.add(i + 1);
-      }
     }
     if (next.size === 0) return false;
     states = close(next);

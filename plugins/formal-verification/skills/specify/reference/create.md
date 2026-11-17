@@ -19,14 +19,29 @@ language.
 
 ## Before anything
 
-1. Resolve the settings: `node "<plugin-root>/scripts/settings.mjs" --project-dir "$PWD"`, with
+1. Decide the mode. Unattended (`--unattended`, or no person present, as when another skill chained
+   here) is a dry run: carry out the reading and the choosing below, write nothing, and end with the
+   plan and its open questions.
+2. Check the opt-in. Read [the enforcement ladder](enforcement-ladder.md), "Tier 3: Verification":
+   its `formal-verification` rung is opt-in, and a check written here is a rule on that rung. Read
+   the repository's project instructions (`CLAUDE.md`, `AGENTS.md` and the files they import) for a
+   line that opts in to formal verification.
+   - **Opted in:** go on.
+   - **Not opted in, attended:** say the repository has not opted in, show the kind of line that
+     opts in (for example "This repository opts in to formal verification: `/corrections:codify`
+     may place a rule on the enforcement ladder's `formal-verification` rung."), and go on only on
+     the person's yes for this run. Never write the line into their instructions.
+   - **Not opted in, unattended:** report `blocked: formal verification not opted in` and stop: the
+     dry run ends there, with that line as its first open question.
+
+   The bare form still proposes either way, and says whether the repository has opted in.
+3. Resolve the settings: `node "<plugin-root>/scripts/settings.mjs" --project-dir "$PWD"`, with
    `<plugin-root>` as the skill renders it.
    `skills_dir` is where `formal-<area>` folders live.
-2. Read every existing `formal-*` skill under `skills_dir`: its `## Property`, `## Tool and why`
+4. Read every existing `formal-*` skill under `skills_dir`: its `## Property`, `## Tool and why`
    and `sync.yaml`. A promise one of them already verifies is not a new target: say which skill
-   covers it. A tool one of them records is the first candidate for a like question.
-3. Decide the mode. Unattended (`--unattended`, or no person present) is a dry run: carry out the
-   reading and the choosing below, write nothing, and end with the plan and its open questions.
+   covers it. A tool one of them records is the first candidate for a like question. Find what
+   checks the repository already runs (its build, test and CI tooling) before choosing anything new.
 
 ## Choose the target from the code
 
