@@ -3,7 +3,7 @@ r"""Vendor gitleaks' default rules into the regex file audit-sessions redaction 
 
 Reads gitleaks `config/gitleaks.toml` from a path or an https URL, rewrites the Go RE2 syntax that
 Python `re` reads differently, compiles every rule with warnings as errors, and writes
-`plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json`: `rules` (id, regex,
+`plugins/session-flow/vendor/gitleaks/gitleaks-rules.json`: `rules` (id, regex,
 keywords), `excluded` (id, reason), `source`, `source_version` and the `vendored` date.
 
 Rewrites:
@@ -45,7 +45,7 @@ from pathlib import Path
 MIN_PYTHON = (3, 11)
 DEFAULT_OUTPUT = (
     Path(__file__).resolve().parents[1]
-    / "plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json"
+    / "plugins/session-flow/vendor/gitleaks/gitleaks-rules.json"
 )
 POSIX_CLASSES = {
     "alnum": "0-9A-Za-z",

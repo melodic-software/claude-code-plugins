@@ -46,10 +46,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
-COLLECTOR = SKILL_DIR.parent / "audit-sessions" / "scripts"
+COLLECTOR = SKILL_DIR.parents[1] / "scripts"
 sys.path.insert(0, str(COLLECTOR))
 
-import census  # noqa: E402  (the audit-sessions store helpers)
+import census  # noqa: E402  (the plugin's session store helpers)
 import collect  # noqa: E402  (the machine store's projects root)
 
 MINE_SCHEMA = "audit-friction.mine/v1"

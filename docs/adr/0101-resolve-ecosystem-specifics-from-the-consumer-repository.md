@@ -1,7 +1,8 @@
 # Resolve ecosystem specifics from the consumer repository
 
 - Status: accepted; amended 2026-11-16 (source citations exclude one ecosystem's tool documentation
-  and examples, see the amendment below)
+  and examples, see the amendment below); amended 2026-11-17 (two kept classes: operating a kept
+  adapter's tool, and a measured fact; see the second amendment)
 - Date: 2026-11-13
 - Refs: [#15703](https://github.com/melodic-software/claude-code-plugins/issues/15703) (spec),
   [#15706](https://github.com/melodic-software/claude-code-plugins/issues/15706); owner decision of
@@ -45,9 +46,11 @@ a rule for what may stay shipped, and an end to the bundled fallback.
    | Executed adapter | code a script runs that parses or drives a named tool | kept; it names each file or value it cannot read, and accepts a value it has no adapter for, reporting that no shipped adapter covers it |
    | Security or safety floor | a check that holds whatever the consumer chose, such as a secret pattern or a guard on a destructive command | kept; removing or narrowing one is the owner's decision each time |
    | Declared-ecosystem surface | a plugin or skill whose purpose is one ecosystem, declaring that narrower scope at the coupling site | kept, as [ADR 0060](0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md) keeps declared-provider surfaces |
+   | Kept-adapter operation | text a model reads on how to install, run or read the output of a tool that a kept executed adapter drives, placed once in the skill's own reference page | kept; it names no tool the adapter does not drive |
+   | Measured fact | a recorded measurement or probe of an outside tool that contradicts what a model would otherwise do, or that pairs a rule id of ours with an outside diagnostic, kept only while a targeted eval case fails without it | kept as one stamped row marked `portability-ok: measured <case-id>`; moved into the consumer's record when a record key can hold it; cut when its case no longer fails without it |
    | Source citation | a documentation URL or name cited for a reader to consult, not a choice the skill makes; not a link to one ecosystem's tool documentation, nor an example written for one stack | kept |
 
-   The named exceptions are the last four classes. A model-read specific in a generic skill outside
+   The named exceptions are the last six classes. A model-read specific in a generic skill outside
    them is a review finding: [`docs/review/skills-and-agents.md`](../review/skills-and-agents.md).
 
 5. **Cuts follow the existing evidence rule.** A cut to an existing skill ships with eval evidence
@@ -94,7 +97,7 @@ a rule for what may stay shipped, and an end to the bundled fallback.
 
 - A consumer reports that an unresolved skip blocks work a shipped default used to do, and no
   record, statement or inference could have resolved it.
-- A class of shipped content that fits none of the five classes above.
+- A class of shipped content that fits none of the seven classes above.
 
 ## Amendment (2026-11-16): source citations exclude ecosystem-specific links and examples
 
@@ -114,3 +117,14 @@ adapters and declared-ecosystem surfaces keep what they hold. The `skill-stack-f
 `.performance/ratchets.json` (`scripts/skill-stack-fences.py`) holds the count of stack-tagged
 code fences in skill and agent bodies to its value on 2026-11-16, per file, so a new one fails CI
 unless its pull request raises that file's ceiling and says why.
+
+## Amendment (2026-11-17): kept-adapter operation and measured fact
+
+The owner decided on 2026-11-16 that two more classes of model-read content stay. A kept-adapter
+operation stays because the model operates an adapter's tool from the skill page: it does not read
+the script, so how to install, run or read that tool's output must be on the page, once. A
+measured fact stays because it changes what the model runs where a model would otherwise do the
+wrong thing, and only while a targeted eval case shows the loss without it. Neither class keeps a
+default: no bundled default survives decision 2. A record of this marketplace's own files, keys,
+rule ids, scripts or behavior, and the upstream source of a kept script's patterns, is not a
+choice made for the consumer and is outside these classes.

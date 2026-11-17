@@ -53,8 +53,9 @@ Apply this policy unless the person states another, and say once that it is in f
   `D/audit-friction/runs/<UTC stamp>/` (`R` below); baselines under `D/audit-friction/baselines/`.
   Nothing is written into a repository.
 - `F` is `python3 "${CLAUDE_SKILL_DIR}/scripts/friction.py"`; `C` is
-  `python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-sessions/scripts/collect.py"`. Use a Python 3.10+
-  interpreter; with none, stop and say so.
+  `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/collect.py"`, the plugin's session collector, which
+  `/session-flow:audit-sessions` also runs. Use a Python 3.10+ interpreter; with none, stop and say
+  so.
 - Read before step 2: [reference/outputs.md](reference/outputs.md) (each output file, and the brief
   and script templates) and [reference/classes.md](reference/classes.md) (the classes and routes).
 
