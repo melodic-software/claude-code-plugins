@@ -178,7 +178,12 @@ To answer, post a comment that starts with this line:
   repository's files or a `**Decision recorded.**` comment already answers is answered on its own
   line with that basis, not asked.
 - **Reporter version** and **Reproduction** are for a bug only; this skill writes them and the
-  intake lane does not. The reproduction line names the evidence step 3 recorded.
+  intake lane does not. Take the version, commit or build the reporter ran from the report; when
+  the failure depends on it and the report omits it, that is a needs-info question. When the
+  failure shows in the running app and the repository has a control skill, step 3 runs each repro
+  through `/app-control:drive` via the Skill tool (if the `app-control` plugin is enabled;
+  otherwise it follows the steps by hand and says once that a control skill would record the
+  evidence), and the reproduction line cites the evidence it recorded.
 - A wrong native type (step 2) goes on its own `Type:` line.
 
 ## Objection window comment

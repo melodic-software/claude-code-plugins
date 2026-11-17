@@ -502,11 +502,10 @@ jobs:
         </example>
 
         <example>
-        Issue: "Lane runs should keep a history of their token use. Either append to a JSON file in
-        the repository or write rows to a new hosted database; I have not picked one." Done when:
-        each lane run's token use is kept and can be listed.
+        Issue: "The status report script is slow. Make it fast enough." Done when: the report is
+        fast enough.
         labels: priority: medium, needs-owner-decision
-        type: Feature
+        type: Task
         needs_human: false
         comment:
         Size: Medium
@@ -514,11 +513,11 @@ jobs:
         Uncertainty: Knowable
         Flags: intent
         Blocked by: none
-        Blast radius: every lane workflow that would write the record, and whoever reads it later.
-        Reversible: partly; the writer can be removed, but a new store keeps its data until deleted.
+        Blast radius: the status report script and whoever runs it.
+        Reversible: yes; each speed-up is a code change that can be reverted.
         Open questions:
-        1. Where is the history kept: a JSON file in the repository, or a new hosted database?
-           RECOMMENDED: a JSON file in the repository. Basis: judgment; it adds no service or account.
+        1. What run time counts as fast enough, measured how?
+           RECOMMENDED: under 30 seconds, the median of three runs. Basis: judgment; the issue names no target.
         To answer, post a comment that starts with this line:
         ```
         **Decision recorded.** <answer>

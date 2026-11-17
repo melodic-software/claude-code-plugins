@@ -446,12 +446,7 @@ Never interview anyone about the fix for a claim nobody has confirmed. Verificat
   "Triage settings") each show it, every run starting clean (a fresh process, no state left by the
   run before). Record each run: the steps or command, the commit it ran on, and what it printed.
   When runs disagree, the bug is not confirmed: park it at `needs-reporter-info` with every run in
-  the settled list. Note the version, commit or build the reporter ran, from the report, for the
-  triage comment's `Reporter version` line; when the failure depends on it and the report omits
-  it, that is a needs-info question. When the failure shows in the running app and the repository
-  has a control skill, run each repro through `/app-control:drive` via the Skill tool (if the
-  `app-control` plugin is enabled; otherwise follow the steps by hand and say once that a control
-  skill would record the evidence), and cite the evidence it records.
+  the settled list. Reporter version and app-driven runs: "Triage comment" in [context/apply-outcome.md](context/apply-outcome.md).
 - **Enhancement**: check that the request is coherent and not already met (step 1's redundancy
   check). The bar is a bug's; a request is confirmed once it is judged valid.
 - **PR**: fetch the branch locally and run the tests or commands that cover the change, to show it behaves as the description says
