@@ -3,6 +3,15 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.1] - 2026-11-17
+
+### Changed
+
+- The bundled enforcement ladder is 3.2.0: its Selection rules table gains the
+  `/architecture:enforce-boundaries` and `/session-flow:retro` rows, and it states that a skill
+  that applies no selection rule of its own has no row and hands the choice of rung to `/corrections:codify` when that skill is available. No
+  rung, id or criterion changes.
+
 ## [1.4.0] - 2026-11-16
 
 ### Added

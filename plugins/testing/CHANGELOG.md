@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.4.1] - 2026-11-17
+
+### Added
+
+- The `e2e-map-two-version-compare` eval case runs a second `run-e2e map` pass on a two-version fixture app, given the first pass's `findings.json`. It checks that the report lists exactly the planted `NEW`, `PRE-EXISTING` and `GONE` findings, and that a finding whose entry was blocked in the second pass is reported as `not checked`, never as `GONE`.
+
 ## [5.4.0] - 2026-11-16
 
 ### Added

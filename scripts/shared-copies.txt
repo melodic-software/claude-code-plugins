@@ -952,6 +952,11 @@ plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json p
 lib/media-render/media_encode.py plugins/playwright/skills/demo-video/scripts/media_encode.py
 lib/media-render/media_encode.py plugins/pixel-art/scripts/media_encode.py
 lib/media-render/media_encode.py plugins/animation/scripts/media_encode.py
+lib/prerequisites.mjs plugins/formal-verification/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/formal-verification/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/formal-verification/lib/prerequisites.ps1
+lib/config-cascade.mjs plugins/formal-verification/lib/config-cascade.mjs
+lib/yaml-subset.mjs plugins/formal-verification/lib/yaml-subset.mjs
 # The session-telemetry recorder owns the hook event record and the skill-usage store paths;
 # harness-ops' readers resolve the same paths through these copies.
 plugins/session-telemetry/hooks/session-log-lib.sh plugins/harness-ops/hooks/session-log-lib.sh

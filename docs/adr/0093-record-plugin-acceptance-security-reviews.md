@@ -536,3 +536,71 @@ upstream. **Conditions shipped, and this ACCEPT depends on all of them:** the hu
 the agent-never-executes instruction, the TTY-only fail-closed library, https-only `open_url`,
 and the hardened `.env`/gh write path. Removing or weakening any of them re-opens this review,
 as does any move to have the agent execute a generated wizard.
+
+### Review record: `formal-verification` (ACCEPT, 2026-11-15)
+
+Reviewed at `0.0.0`; a version bump adding a new trust surface re-triggers this review. The
+`chart` scripts are copied from cursor/plugins `pstack/skills/statechart` at
+`ec569379616a4826b98f0f0a205dd3411b573611` (MIT); provenance is `docs/upstream/cursor-pstack.md`.
+Four fresh-context reviewers read every line of the copied scripts at `43fba2c9189`, one per
+group (core, backends, frontends, passes and tests); their 16 findings are below.
+
+- **Code execution (1).** No hooks, no `bin/`. `/formal-verification:chart` runs the copied
+  TypeScript, which runs TLC (Java) on the spec, and runs the consumer's view file as JavaScript in a
+  worker. The command stages only regular `.tla` files into a fresh folder, refuses `.class` and
+  `.jar` files beside the spec, standard-module shadowing, generated names, and EXTENDS or INSTANCE
+  of modules outside the `allowed_modules` setting (such as Json, which reads and writes files),
+  all before any JVM starts. TLC and the worker get an environment allowlist (PATH, LANG, LC_ALL,
+  a temp HOME and TMPDIR, and the `STATECHART_*` variables only the test harness reads), a heap cap,
+  a timeout and an output cap. `/formal-verification:setup` is `disable-model-invocation: true`.
+- **MCP servers (2).** None.
+- **Consumer config (3).** Three `userConfig` file paths (`model_checker_jar`, `java`,
+  `script_runtime`), none sensitive. Version pins, bounds and limits are keys in the consumer's
+  `docs/conventions/formal-verification.yaml`; a convention file that sets a download URL or a
+  checksum is refused, and versions and package names are pattern-checked.
+- **Cache isolation (4).** Installs land only under `${CLAUDE_PLUGIN_DATA}`, each target asserted
+  inside it. The chart writes only to a new or empty `--out` folder and refuses one reached through
+  a symbolic link.
+- **Data egress (5).** Only `setup apply install-model-checker` and `apply install-renderer`,
+  typed by the user, fetch the URLs in the shipped `releases.json` (the TLC jar from the tlaplus
+  GitHub release, Pele from the npm registry), over https with a size cap and a timeout, kept only
+  on a SHA-256 or integrity match. An unattended run installs nothing and reports
+  `blocked: toolchain missing`. No telemetry; the chart makes no network call.
+- **Provenance & third-party trust (6).** First-party plugin over an MIT upstream whose copied
+  scripts diverge as ours and are re-taken only through the pstack record's drift re-audit. The
+  third-party binaries are pinned by checksum.
+- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
+
+**Review history.** Each finding was fixed on the pull request branch:
+
+| # | Finding | Commit |
+|---|---|---|
+| 1 | TLC loaded Java from the spec folder | `146c03d13c2` |
+| 2 | Whole environment forwarded to the JVM and the worker | `146c03d13c2` |
+| 3 | No timeout, heap or output cap; unbounded collection; open descriptors | `146c03d13c2`, `d6a259c21af` |
+| 4 | Modules that touch the machine | `146c03d13c2` |
+| 5 | View file runs as JavaScript | `93f6a07ac30` |
+| 6 | Repository could set the download URL and checksums; path traversal | `d6a259c21af` |
+| 7 | Output folder through a symlink | `146c03d13c2` |
+| 8 | Unescaped spec text and fixed fences in the report | `b369b064acb`, `93f6a07ac30` |
+| 9 | Test could SIGKILL pid 0 | `d851e211f22` |
+| 10 | Interval expansion | `146c03d13c2` |
+| 11 | Default labels containing `undefined`/`NaN` refused | `86427e41b1c` |
+| 12 | Region condition dropped after a bracketed label | `86427e41b1c` |
+| 13 | Spec extension and list separator | `146c03d13c2` |
+| 14 | Legend classes undefined; quadratic colon scan | `b369b064acb` |
+| 15 | Generated module and operator name collisions | `146c03d13c2` |
+| 16 | Fixture rewrite in the test run; temp folders; fast-check; lockfile | `db59e0fff71` |
+
+**Residual: specs from untrusted pull requests.** A view file is JavaScript the command runs, and
+TLC is a large Java program run on the spec, so the controls above do not make an attacker-written
+spec safe outside a sandbox. Decision (owner, 2026-11-15): this is not a threat in this estate,
+whose only actors are the owner, his bots, agents and GitHub Apps, and no sandbox work is done. No
+lane or CI job runs the model checker.
+
+**Verdict: ACCEPT.** Surfaces 2/7 absent; 1 bounded by staging, module refusal, a scrubbed
+environment and resource caps; 3 non-sensitive paths with download sources fixed in the plugin; 4
+confined to the plugin data directory and a fresh output folder; 5 two typed, checksummed
+downloads; 6 an MIT upstream taken at a pin. **Recheck trigger:** a lane or CI job that runs the
+model checker, a new actor class that can open pull requests here, or a release that adds a
+download source.

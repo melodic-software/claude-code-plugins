@@ -210,8 +210,9 @@ Independently of any sink, `session_event_log_enabled=true` turns on the log.
 It is a mod: the hooks module `hooks/register.ts` hooks one `classic.<Event>`
 per observable hook event (28 events; the generated
 `hooks/hook-events.registry.json` says which, and why `WorktreeCreate`,
-`MessageDisplay` and `FileChanged` are left out), and only while the switch is
-on. `PreToolUse` and `PostToolUse` are left out too: they fire on every tool
+`MessageDisplay` and `FileChanged` are left out), only while the switch is on,
+and only for the categories `session_event_log_categories` enables (see below).
+`PreToolUse` and `PostToolUse` are left out too: they fire on every tool
 call, so an enabled log would cost a process creation per call. Tool activity
 is still recorded through `PostToolUseFailure` and `PostToolBatch`. A batch is
 one line, not a per-call record: it carries the first `tool_name` and
@@ -223,11 +224,12 @@ category, the tool and a repo-relative file path when present.
 Process cost: with the switch off (the default) the module hooks nothing, so no
 event starts a process (k = 0; `hooks/session-event-log.test.ts` counts the
 processes for every event). On, a mod cannot append to a file, so each event
-starts one process: the module hands the event's payload to
+in an enabled category starts one process: the module hands the event's payload to
 `hooks/session-event-log.sh` through `node hooks/exec-bash.mjs`, the same script
-and launcher the settings rows ran, and `SessionEnd` starts a second for
-retention. No event waits on the write, which runs on a timer after the event
-goes on; `SessionEnd` waits for both, inside its teardown budget. Enabled, a 2 KB payload costs about 5 ms and a 512 KB one 36 ms of
+and launcher the settings rows ran. `SessionEnd` also starts one for retention,
+and records its own line only when `session` is enabled. No event waits on the
+write, which runs on a timer after the event goes on; `SessionEnd` waits for its
+scripts, inside its teardown budget. Enabled, a 2 KB payload costs about 5 ms and a 512 KB one 36 ms of
 script time on the Linux CI host. The parallel wall, the 4 KB and 16 KB appends,
 `ls -t`, and the late-EOF stall are measured by
 [`hooks/measure-hook-log-budget.sh`](hooks/measure-hook-log-budget.sh) and
@@ -237,25 +239,43 @@ Bash (2026-09-30), thirty parallel events take 466 ms wall on, and the 4 KB and
 16 KB appends leave 0 corrupt lines out of 33. `ls -t` ties at one-second
 resolution there, so no ordering is claimed. The switch stays off by default.
 
-The module needs Claude Code 2.1.287 or later with mods on, and was tested with
-`claude plugin test` on Claude Code 2.1.289; no live session type was run. Where
+The module needs Claude Code 2.1.287 or later with mods on. Its registration
+by category was tested with `claude plugin test` on Claude Code 2.1.326, and no
+older build is claimed for it; no live session type was run. Where
 mods are off (below 2.1.287, under `disableAllHooks`, with `--bare`, or when
 mods are switched off), the log does not run: no session file is written and
-retention does not prune. On a machine with managed settings, or for a user
-signed in with a Team or Enterprise plan, the built-in guard `sec-default`
-holds every `classic.*` event, so the log does not run there either. Mods start
+retention does not prune.
+
+The built-in guard `sec-default` loads on a machine with managed settings or a
+`managed-mcp.json`, and for a session on a Team or Enterprise `/login`. There
+it holds each `classic.*` hook the module registers, so the log does not run.
+Claude Code reports the held hooks in a `/plugin` note and, from 2.1.304, in a
+line per skipped event. Registering only the chosen categories limits the
+per-event lines to the events you chose; no change to the `/plugin` note is
+claimed. No user setting or mod signal turns the guard
+off. The log runs there only after an administrator installs session-telemetry
+as one of the organization's mods, or leaves `sec-default@builtin` out of
+managed `prependPlugins`, which removes the whole guard: see
+[Install your organization's mods](https://code.claude.com/docs/en/plugins/mods/admin#install-your-organizations-mods)
+and
+[Know which hooks of a user's mod don't run](https://code.claude.com/docs/en/plugins/mods/admin#hooks-the-guard-passes-over).
+Otherwise leave the switch off on that machine. Mods start
 processes in the CLI only; where `$.process.run` cannot run, the module writes
 nothing and logs that once to the debug log. A row's `traceparent` key is not
 written, since a mod receives no per-hook `TRACEPARENT`. These differences from
 the settings rows the log replaced are recorded in
 [ADR 0065](../../docs/adr/0065-move-the-harness-ops-session-event-log-into-a-mod.md).
 
-`session_event_log_categories` narrows the set. At `SessionEnd` the retention
-script, gated by the same switch, keeps the newest
+`session_event_log_categories` narrows the set, and registration follows it:
+an event in an unlisted category is not hooked and starts no process. A changed
+list applies at the next start. `SessionEnd` is hooked whenever the switch is
+on, for retention, and records its line only when `session` is listed. At
+`SessionEnd` the retention script, gated by the same switch, keeps the newest
 `session_log_keep_sessions` or the last `session_log_keep_days` days, and
 `session_log_pre_prune_command` hands an archiver the files about to go. The
 root carries its own `*` `.gitignore`, so nothing under it reaches
-`git status`. When harness-ops is enabled, `/harness-ops:setup` reports the toggles and the guard,
+`git status`. When harness-ops is enabled, `/harness-ops:setup` reports the toggles and the log root's `.gitignore` guard,
+warns when the switch is on where `sec-default` loads,
 and `/harness-ops:observability session` reads the result.
 
 ## Install
@@ -322,7 +342,8 @@ the skill-usage store:
 ### Option details
 
 **`session_event_log_enabled`.** Off, the hooks module hooks no event, so the log starts no process.
-On, each recorded event starts one process. The log runs only where mods load.
+On, each event in an enabled category starts one process, and `SessionEnd` always starts retention.
+The log runs only where mods load.
 
 **`session_event_log_dir`.** Inside a checkout the directory carries a self-ignoring `.gitignore`,
 created on the first write. In a linked worktree the path is relative to the main checkout, not the
@@ -360,9 +381,9 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `permission_denied_audit_enabled` | boolean | `true` | Emits telemetry on permission denials. On by default. |
 | `pre_compact_audit_enabled` | boolean | `true` | Emits telemetry on context-compaction events. On by default. |
 | `tool_failure_audit_enabled` | boolean | `true` | Emits telemetry on Write, Edit, and Bash tool failures. On by default. |
-| `session_event_log_enabled` | boolean | `false` | Appends one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every event the generated registry marks observable. Runs in the hooks module, so it needs mods on. Off (the default), no event starts a process; on, each starts one. It also gates SessionEnd retention. |
+| `session_event_log_enabled` | boolean | `false` | Appends a JSON line to <session_event_log_dir>/sessions/<session_id>.jsonl per observable event in an enabled category. Runs in the hooks module, so it needs mods on. Off (the default), no event starts a process; on, each logged event starts one. It also gates SessionEnd retention. |
 | `session_event_log_dir` | string | `".observability/claude"` | Project-relative directory holding the per-session hook event log (sessions/) and the telemetry sink's hook-events.jsonl. Default .observability/claude. Absolute, drive, UNC, traversal and escaping paths are invalid, and the project root itself is refused. |
-| `session_event_log_categories` | string | *(none)* | Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty, the default, records every category the registry marks observable. |
+| `session_event_log_categories` | string | *(none)* | Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty, the default, records every observable category. An unlisted category starts no process; SessionEnd retention runs regardless. |
 | `session_event_log_content` | boolean | `false` | Also records each event's top-level content strings (prompt, last_assistant_message, message, task text, error and the like) in the session event log; content the 64 KB read cap cuts is marked truncated. Off by default; has no effect while session_event_log_enabled is off. |
 | `session_log_keep_sessions` | number<br>*min 1* | `30` | At SessionEnd, keeps the newest N session files regardless of age; default 30. A file is kept when it is among the newest N OR younger than session_log_keep_days. |
 | `session_log_keep_days` | number<br>*min 1* | `14` | At SessionEnd, keeps every session file younger than N days regardless of count; default 14. A file is kept when it is younger than N days OR among the newest session_log_keep_sessions. |

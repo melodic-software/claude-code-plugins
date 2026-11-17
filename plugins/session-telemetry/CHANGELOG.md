@@ -3,6 +3,12 @@
 All notable changes to the `session-telemetry` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1] - 2026-11-17
+
+### Fixed
+
+- With `session_event_log_categories` set, the session event log's hooks module registers only the events in those categories, plus `SessionEnd` for retention, so an event outside them starts no process. Where the built-in guard `sec-default` holds `classic.*` events, it now holds only the events you chose. `SessionEnd` writes its record only when `session` is listed. The README says where the guard loads and which administrator actions let the log run there.
+
 ## [0.1.0] - 2026-11-16
 
 ### Added

@@ -45,8 +45,8 @@ default. Below, `<key>` means that value, and the documented default when no lin
 
 When it says session-telemetry is not enabled, say so first, print the install and enable lines it
 gives as they are, and carry on: probes 1, 4 and 6 run as written; probes 2, 3 and 5 report the
-destinations the earlier sessions' records use; probes 7 and 8 are INFO, since no session-telemetry
-hook runs in this session.
+destinations the earlier sessions' records use; probes 7, 8 and 9 are INFO, since no
+session-telemetry hook runs in this session.
 
 ## `check` (read-only)
 
@@ -146,6 +146,23 @@ modify anything.
    Resolves: PASS. Does not resolve: FAIL, hooks that parse their payload with jq skip their work;
    the remediation is the person installing jq (this skill installs nothing) and starting a fresh
    session.
+9. **The built-in guard `sec-default`** (Claude Code's mod guard, not probe 5's `.gitignore`
+   guard). When `<session_event_log_enabled>` is not `true` (off, not named, or unexpanded), or
+   session-telemetry is not enabled: INFO, the log is off, and run nothing. Otherwise run
+   `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-mod-posture/scripts/mod-posture.sh" --guard-only`
+   and rate its `# guard:` line, first match wins:
+   - `seated (...)`: WARN, whatever footers follow: the log does not run where the guard loads.
+     Remediation: turn `session_event_log_enabled` off on this machine through the
+     reconfiguration guidance below, or ask an administrator; point at session-telemetry's README
+     section "The per-session hook event log" and at the held-hooks note in Claude Code's
+     `/plugin`
+     ([Know which hooks of a user's mod don't run](https://code.claude.com/docs/en/plugins/mods/admin#hooks-the-guard-passes-over)).
+   - the script exits non-zero (for example, no jq): UNKNOWN, with probe 8's remediation, never
+     green.
+   - no `# guard:` line, `unknown (...)`, or any `# not read: guard:` footer: UNKNOWN, never PASS;
+     name the footer. The script cannot rule the guard out there (an OS policy store, the WSL
+     `wslInheritsWindowsSettings` chain, a server-managed settings cache).
+   - `not-seated (...)` with no `# not read: guard:` footer: PASS.
 
 ## `apply`
 
@@ -192,7 +209,8 @@ The options live in Claude Code's native plugin configuration, which setup must 
 - **Turning hook logging on:** session-telemetry must be enabled (the state lines above give the
   commands). Its `session_event_log_enabled` is off by default, and while off its hooks module hooks
   no event, so the log starts no process. Turning it on makes the module
-  start one process per observable hook event plus `SessionEnd` retention, and only where mods load;
+  start one process per observable hook event in the categories `session_event_log_categories`
+  enables, plus `SessionEnd` retention, and only where mods load;
   session-telemetry's README carries the measured cost and where it does not run.
 - **Reconfiguring a personal option**: `registry_dir` is this plugin's, the skill-usage and
   hook-logging options are session-telemetry's. Through Claude Code's native flow, interactively with

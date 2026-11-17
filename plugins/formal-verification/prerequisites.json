@@ -1,0 +1,52 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": ["skill:chart", "skill:setup"],
+      "detect": {
+        "any": ["node"],
+        "version": { "args": ["--version"], "pattern": "v([0-9.]+)", "min": "22.18.0" }
+      },
+      "degrade": "Without node, setup's toolchain check cannot run, and the chart launcher needs Bun or Deno in its place (or the script_runtime option naming one).",
+      "install": { "docs": "https://nodejs.org/en/download", "brew": "node", "winget": "OpenJS.NodeJS.LTS", "apt": "nodejs" },
+      "check": "/formal-verification:setup"
+    },
+    {
+      "id": "java",
+      "kind": "runtime",
+      "need": "required",
+      "for": ["skill:chart"],
+      "detect": {
+        "any": ["java"],
+        "version": { "args": ["-version"], "pattern": "version \"([0-9.]+)", "min": "11" }
+      },
+      "degrade": "Without Java at the java.min_version setting or later, TLC cannot run, so /formal-verification:chart stops before it checks a spec. The java option can name a binary off PATH. The plugin never installs Java.",
+      "install": { "docs": "https://adoptium.net/temurin/releases/", "brew": "temurin", "winget": "EclipseAdoptium.Temurin.25.JDK", "apt": "default-jre-headless" },
+      "check": "/formal-verification:setup"
+    },
+    {
+      "id": "tla2tools",
+      "kind": "system-lib",
+      "need": "optional",
+      "for": ["skill:chart"],
+      "detect": {
+        "probe": { "args": ["java", "-cp", "tla2tools.jar", "tlc2.TLC", "-help"], "pattern": "TLC2 Version" }
+      },
+      "degrade": "Without the TLC jar, /formal-verification:chart stops before it checks a spec. This row cannot see the jar that setup installs in the plugin data directory or the one the model_checker_jar option names, so it warns even when the jar is present; the model-checker row of /formal-verification:setup check decides.",
+      "install": { "setup": "/formal-verification:setup apply install-model-checker", "docs": "https://github.com/tlaplus/tlaplus/releases" },
+      "check": "/formal-verification:setup check"
+    },
+    {
+      "id": "pele",
+      "kind": "node-pkg",
+      "need": "optional",
+      "for": ["skill:chart"],
+      "detect": { "module": "pele", "paths": ["${CLAUDE_PLUGIN_DATA}/renderer/pele-1.9.0/node_modules"] },
+      "degrade": "Without the renderer, /formal-verification:chart still writes chart.mmd and the report; it cannot write an SVG image of the chart.",
+      "install": { "docs": "https://pele.run" },
+      "check": "/formal-verification:setup"
+    }
+  ]
+}

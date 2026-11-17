@@ -1,0 +1,39 @@
+{
+  "name": "formal-verification",
+  "description": "Formal verification for the part of a codebase where a bug costs most. /formal-verification:chart model-checks a TLA+ spec with TLC and draws its states as a Mermaid chart, with the shortest path to each broken rule for a person to judge. /formal-verification:setup checks the toolchain and installs the pinned, checksummed model checker only on a typed yes. A consumer's formal-<area> skill follows reference/formal-skill.md.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "version": "0.0.0",
+  "license": "MIT",
+  "keywords": [
+    "formal-verification",
+    "tla-plus",
+    "tlc",
+    "model-checking",
+    "statechart",
+    "mermaid",
+    "skill"
+  ],
+  "metadata": {
+    "category": "testing"
+  },
+  "userConfig": {
+    "model_checker_jar": {
+      "type": "file",
+      "title": "Model checker jar",
+      "description": "Path to tla2tools.jar, the TLC model checker. Unset uses the jar that setup installs under the plugin data directory."
+    },
+    "java": {
+      "type": "file",
+      "title": "Java binary",
+      "description": "Path to the java binary that runs TLC. Unset uses java on PATH. The plugin never installs Java."
+    },
+    "script_runtime": {
+      "type": "file",
+      "title": "Script runtime",
+      "description": "Path to the Node, Bun or Deno binary that runs the chart scripts. Unset lets the launcher pick the first supported one on PATH."
+    }
+  }
+}

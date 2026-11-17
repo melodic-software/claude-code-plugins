@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: su-check-bare-read-only
+graders:
+  - name: runs-toolchain-check
+    type: tool_used
+    tool: Bash
+    input_match: 'toolchain\.mjs(?:\\?"|'')?\s+check\b'
+    arm: with-only
+  - name: reports-rows
+    type: regex
+    pattern: '(?=[\s\S]*\bmodel-checker\b)(?=[\s\S]*\b(?:PASS|FAIL)\b)'
+    target: last_message
+    arm: both
+  - name: no-install
+    type: tool_used
+    tool: Bash
+    input_match: 'toolchain\.mjs(?:\\?"|'')?\s+install\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both

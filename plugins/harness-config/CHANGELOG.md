@@ -5,6 +5,15 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.2.1] - 2026-11-17
+
+### Changed
+
+- The bundled enforcement ladder is 3.2.0: its Selection rules table gains the
+  `/architecture:enforce-boundaries` and `/session-flow:retro` rows. No rung, id or criterion
+  changes, so `rule-inventory.sh` counts the same rungs and tiers; only its printed ladder version
+  changes.
+
 ## [5.2.0] - 2026-11-16
 
 ### Changed

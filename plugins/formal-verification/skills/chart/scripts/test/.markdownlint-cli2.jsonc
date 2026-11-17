@@ -1,0 +1,7 @@
+{
+  // Each corpus/*/report.md is the chart command's expected output, compared
+  // byte for byte by the corpus tests, not authored prose. The file sits here,
+  // not in corpus/, because the tests read every corpus entry as a case folder.
+  // The synced root config is never edited for this.
+  "ignores": ["**"]
+}
