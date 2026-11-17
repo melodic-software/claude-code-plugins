@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Gates shared by the PostToolBatch rewrite (hooks/markdown-format.sh) and the
-# pre-commit entry (git-hooks/markdown-check.sh), so both decide the same way
-# which files markdownlint-cli2 may touch and which binary runs. Sourced, never
-# run; the installer copies it beside the entry script.
+# Gates the markdownlint-cli2 adapter (git-hooks/adapters.sh) applies for the
+# PostToolBatch rewrite and both pre-commit entries, so every path decides the
+# same way which files markdownlint-cli2 may touch and which binary runs.
+# Sourced, never run; the installer copies it beside the entry scripts.
 #
 #   md_config_state <file> <root>   set MD_STATE for the file: "none" when no
 #                                   markdownlint config governs it, "plain" when
 #                                   one does, "code" when a governing config can
 #                                   run repository code (MD_CODE_CONFIGS lists
-#                                   those configs)
+#                                   those configs); MD_NEAREST is the config
+#                                   found closest to the file
 #   md_trust <root>                 after a "code" state, set MD_TRUST to
 #                                   approved, gate, nostore, unverifiable or
 #                                   unpinnable, and MD_TRUST_DIR to the approval
@@ -80,6 +81,7 @@ md_scan_family() {
 }
 
 md_note_config() {
+  [[ -n "$MD_NEAREST" ]] || MD_NEAREST="$1"
   if md_classify "$1"; then
     MD_STATE=code
   elif [[ "$MD_STATE" != code ]]; then
@@ -95,6 +97,7 @@ md_config_state() {
   local dir="${1%/*}" root="$2"
   [[ "$dir" == "$1" ]] && dir=.
   MD_STATE=none
+  MD_NEAREST=""
   MD_CODE_CONFIGS=()
   MD_TRUST_BLOCK=""
   if [[ "$root" != . ]]; then

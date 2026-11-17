@@ -28,7 +28,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 ## Development
 
-- [`markdown-format`](../plugins/markdown-format): Rewrites Markdown with markdownlint-cli2 once per batch of tool calls and at git pre-commit, only in repos that carry their own markdownlint config; findings are reported at commit and, unless markdown_format_end_of_turn is false, at each turn end for the uncommitted changes.
+- [`markdown-format`](../plugins/markdown-format): Formats Markdown with markdownlint-cli2 once per batch of tool calls and at git pre-commit, and reports its lint findings at commit and, unless markdown_format_end_of_turn is false, at each turn end, only where a markdownlint config governs the file; formatting and linting are separate, and hooks never run an ecosystem record's command.
 - [`bash-format`](../plugins/bash-format): Auto-format shell scripts with shfmt once per batch of tool calls and again at git pre-commit, and check them with ShellCheck at commit, using the consuming repo's own .editorconfig and .shellcheckrc.
 - [`javascript-format`](../plugins/javascript-format): Rewrites JavaScript, TypeScript, JSX and JSON with Biome once per batch of tool calls and at git pre-commit, only when a biome.json governs the file, using the consuming repo's own Biome config.
 - [`python-format`](../plugins/python-format): Formats Python with Ruff once per batch of tool calls and at git pre-commit, and reports Ruff lint findings at commit, only where a Ruff config governs the file; formatting and linting are separate, no lint autofix runs, and hooks never run an ecosystem record's command.

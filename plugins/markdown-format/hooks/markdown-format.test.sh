@@ -17,6 +17,7 @@
 # Requires a real markdownlint-cli2: on PATH, else the repository's locked install.
 # Without one the behavioral assertions cannot run, so the suite skips.
 # test-scope: plugins/markdown-format/.claude-plugin/plugin.json plugins/markdown-format/hooks/hooks.json plugins/markdown-format/prerequisites.json plugins/markdown-format/git-hooks/markdown-gates.sh
+# test-scope: plugins/markdown-format/git-hooks/adapters.sh plugins/markdown-format/lib/git-hooks/resolve-tool.sh
 
 set -uo pipefail
 
@@ -60,6 +61,11 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
   else
     fail "manifest binding: the gates do not state the manifest's local_bin (needle='$MF_LOCAL')"
   fi
+  # The SessionStart probe reports markdownlint-cli2 only where a config the
+  # adapter honors sits: the same names the entries refuse to commit drifted.
+  WANT_WHEN="$(sed -n 's/^RT_DRIFT_CONFIGS="\(.*\)"$/\1/p' "$PLUGIN_ROOT/git-hooks/adapters.sh")"
+  expect "manifest: markdownlint-cli2 is needed only where one of the adapter's config names sits" "$WANT_WHEN" \
+    "$(jq -r '.requires[0].when.config_any | join(" ")' "$MANIFEST")"
 else
   fail "manifest binding needs jq and $MANIFEST"
 fi
@@ -290,7 +296,7 @@ for cfg_case in "cjs" "customRules" "backslash"; do
   expect "code-capable config ($cfg_case): silent and the file untouched" "0|$NO_NL" "$?|$OUT$(cat "$REPO_CODE/a.md")"
 done
 
-# Once the user approves that config state, through the marker the pre-commit
+# Once the user approves that config state, through the marker the lint
 # entry names to a person, the batch row rewrites under it: both read one store,
 # the git directory, whatever CLAUDE_PLUGIN_DATA names in either process.
 DATA="$WORK/plugin-data"
@@ -300,9 +306,9 @@ new_md_repo "$REPO_OK" NO_CONFIG
 printf 'module.exports = { config: { default: true, MD013: false } };\n' >"$REPO_OK/.markdownlint-cli2.cjs"
 printf '%s' "$NO_NL" >"$REPO_OK/a.md"
 git -C "$REPO_OK" add a.md
-MARKER="$(cd "$REPO_OK" && env -u CLAUDECODE -u AI_AGENT CLAUDE_PLUGIN_DATA="$DATA" bash "$PLUGIN_ROOT/git-hooks/markdown-check.sh" 2>&1 >/dev/null |
+MARKER="$(cd "$REPO_OK" && env -u CLAUDECODE -u AI_AGENT CLAUDE_PLUGIN_DATA="$DATA" bash "$PLUGIN_ROOT/git-hooks/lint.sh" 2>&1 >/dev/null |
   sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
-expect "the pre-commit entry names an approval marker in the git directory" yes \
+expect "the lint entry names an approval marker in the git directory" yes \
   "$([[ "$MARKER" == "$(cd "$REPO_OK" && pwd -P)"/.git/markdown-format/trust-approvals/md-* ]] && echo yes)"
 OUT=$(fire "$(payload Edit "$REPO_OK/a.md")" CLAUDE_PLUGIN_DATA="$OTHER")
 expect "unapproved: silent and the file untouched" "0|$NO_NL" "$?|$OUT$(cat "$REPO_OK/a.md")"
@@ -401,6 +407,39 @@ if ln -s "$WORK/external.md" "$REPO_FS/link.md" 2>/dev/null; then
   run_edit "$REPO_FS/link.md" >/dev/null
   expect "a symlinked .md pointing outside the repository is not rewritten" "$NO_NL" "$(cat "$WORK/external.md")"
 fi
+
+# File names are literal paths: a glob character or a leading "#" never widens
+# or negates what is rewritten.
+REPO_GL="$WORK/glob-names"
+new_md_repo "$REPO_GL"
+printf '%s' "$NO_NL" >"$REPO_GL/x.md"
+printf '%s' "$NO_NL" >"$REPO_GL/[x].md"
+printf '%s' "$NO_NL" >"$REPO_GL/#h.md"
+fire "$(payload Edit "$REPO_GL/[x].md" "$REPO_GL/#h.md")" >/dev/null
+expect "a name holding [ ] is rewritten as itself" "${FIXED}x" "$(
+  cat "$REPO_GL/[x].md"
+  printf x
+)"
+expect "a name with a leading # is rewritten as itself" "${FIXED}x" "$(
+  cat "$REPO_GL/#h.md"
+  printf x
+)"
+expect "the x.md a [x] glob would match keeps its bytes" "$NO_NL" "$(cat "$REPO_GL/x.md")"
+
+# A .claude/ecosystems/ record is never run from the batch row.
+REPO_RC="$WORK/record"
+new_md_repo "$REPO_RC"
+mkdir -p "$REPO_RC/.claude/ecosystems" "$WORK/record-bin"
+printf '#!/bin/sh\n: >"%s/record-ran"\n' "$WORK" >"$WORK/record-bin/stubfmt"
+chmod +x "$WORK/record-bin/stubfmt"
+printf 'globs: ["*.md"]\nfix-cmd: "stubfmt <files>"\n' >"$REPO_RC/.claude/ecosystems/markdown.yaml"
+printf '%s' "$NO_NL" >"$REPO_RC/a.md"
+fire "$(payload Edit "$REPO_RC/a.md")" PATH="$WORK/record-bin:$PATH" >/dev/null
+expect "with a record, the adapter formats the file" "${FIXED}x" "$(
+  cat "$REPO_RC/a.md"
+  printf x
+)"
+expect "the record command was not called" "no" "$([[ -e "$WORK/record-ran" ]] && echo yes || echo no)"
 
 # --- Spawn budget ----------------------------------------------------------------
 # PostToolBatch has no matcher, so the row fires on every batch of every session.

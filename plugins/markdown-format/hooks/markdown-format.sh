@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# PostToolBatch hook: rewrite the Markdown files a batch of tool calls wrote.
+# PostToolBatch hook: format the Markdown files a batch of tool calls wrote.
 #
 #   markdown-format.sh                 the PostToolBatch row
 #   markdown-format.sh --end-of-turn   the Stop row (markdown_format_end_of_turn)
 #
-# Rewrites only: `markdownlint-cli2 --fix`, once per batch over every .md and
-# .mdc file a Write, Edit or MultiEdit in the batch named. It prints nothing and
-# always exits 0, so no finding ever reaches the model per edit; findings are the
-# pre-commit entry's job (git-hooks/markdown-check.sh), which also rewrites for
-# every author.
+# Formats only: once per batch, over every .md and .mdc file a Write, Edit or
+# MultiEdit in the batch named, the markdownlint-cli2 adapter runs `--fix`
+# where a markdownlint config governs the file (git-hooks/adapters.sh, through
+# lib/git-hooks/resolve-tool.sh). A .claude/ecosystems/ record is never run
+# here; /toolchain:lint runs it. It prints nothing and always exits 0, so no
+# finding ever reaches the model per edit; findings are the lint entry's job
+# (git-hooks/lint.sh).
 #
 # PostToolBatch has no matcher, so the row fires on every batch. The launcher
 # skips the script unless the payload mentions ".md", and the script then reads
@@ -17,15 +19,14 @@
 #
 # Opt-in: a file is rewritten only when a markdownlint config governs it and the
 # config either cannot run repository code or runs it in a state the user
-# approved (git-hooks/markdown-gates.sh holds both tests, shared with the
-# pre-commit entry; an unapproved state is skipped silently here, and the
-# pre-commit entry reports it). A repository without a config has
-# chosen no Markdown style, so it is left untouched. markdownlint-cli2 comes from
-# PATH or the repo's own node_modules/.bin, never downloaded. Files under
+# approved (git-hooks/markdown-gates.sh; an unapproved state is skipped silently
+# here, and the lint entry reports it at commit). A repository without a config
+# has chosen no Markdown style, so it is left untouched. markdownlint-cli2 comes
+# from PATH or the repo's own node_modules/.bin, never downloaded. Files under
 # .githooks/ are installed copies and are skipped, as are gitignored files
 # unless markdown_format_lint_gitignored is true. The batch payload carries no
 # pre-edit bytes, so a file that already drifted from the config is rewritten
-# whole, as the pre-commit entry would.
+# whole, as the pre-commit format entry would.
 
 set -uo pipefail
 
@@ -35,16 +36,27 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 IFS= read -r -d '' INPUT || :
 
-# The Stop row: the pre-commit entry run over the uncommitted changes, without
-# rewriting. With markdown_format_end_of_turn unset the findings go to the user
+# The Stop row: the lint entry run over the uncommitted changes, which rewrites
+# nothing. With markdown_format_end_of_turn unset the findings go to the user
 # as a systemMessage on exit 0, so the turn ends; set to true they exit 2, so
 # the model fixes them before the turn ends. Once a Stop hook has continued the
 # turn (stop_hook_active) the row stays quiet, so it blocks at most once per turn.
 if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
-  err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/markdown-check.sh" --worktree 2>&1 >/dev/null)" && exit 0
-  # silent-skip-ok: the SessionStart probe already reports a missing markdownlint-cli2 (prerequisites.json) and the bundled checker does too; reporting it again at every turn end would not help.
-  [[ "$err" == "FAIL: "*" missing. Install: "* ]] && exit 0
+  err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/lint.sh" --worktree 2>&1 >/dev/null)" && exit 0
+  # A missing linter is a host problem: the SessionStart probe reports it, and
+  # reporting it at every turn end would not help. Only those lines are
+  # dropped; any finding printed beside them is still reported.
+  report=""
+  while IFS= read -r line; do
+    case "$line" in
+    "FAIL: "*" missing. Install: "* | "To skip only while "*" is missing: "*) ;;
+    *) report+="$line"$'\n' ;;
+    esac
+  done <<<"$err"
+  # silent-skip-ok: only missing-tool lines remained, which the SessionStart probe reports.
+  [[ -n "${report//[[:space:]]/}" ]] || exit 0
+  err="${report%$'\n'}"
   if [[ "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN:-}" == true ]]; then
     printf '%s\n' "$err" >&2
     exit 2
@@ -63,9 +75,14 @@ PATHS=$(jq -r '.tool_calls[]? | select(.tool_name == "Write" or .tool_name == "E
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
+# shellcheck source=../lib/git-hooks/resolve-tool.sh
+source "$HOOK_DIR/../lib/git-hooks/resolve-tool.sh"
 # shellcheck source=../git-hooks/markdown-gates.sh
 source "$HOOK_DIR/../git-hooks/markdown-gates.sh"
+# shellcheck source=../git-hooks/adapters.sh
+source "$HOOK_DIR/../git-hooks/adapters.sh"
 
+# Per repository root, the files to format, in batch order.
 ROOTS=()
 FILES=()
 seen=$'\n'
@@ -80,26 +97,15 @@ while IFS= read -r path; do
   [[ "$file" == */.githooks/* ]] && continue
   hook::dirname_to dir "$file"
   hook::repo_root_to root "$dir" || :
-  # Both sides physical, so a symlinked directory or checkout compares equal.
-  pdir="$(cd "$dir" 2>/dev/null && pwd -P)" || continue
-  proot="$(cd "$root" 2>/dev/null && pwd -P)" || continue
-  md_config_state "$pdir/${file##*/}" "$proot"
-  case "$MD_STATE" in
-    plain) ;;
-    code)
-      md_trust "$proot"
-      [[ "$MD_TRUST" == approved ]] || continue
-      ;;
-    *) continue ;;
-  esac
+  [[ -d "$root" ]] || continue
   hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED:-false}" "$file" && continue
-  ROOTS+=("$proot")
-  FILES+=(":$file")
+  ROOTS+=("$root")
+  FILES+=("$file")
 done <<<"$PATHS"
 
-# One run per repository root, over all its files. The root is the working
-# directory so markdownlint-cli2's config discovery stops there whatever the
-# session's cwd; the leading colon makes each argument a literal path, not a glob.
+# One run per repository root and resolved command, over all its files. The
+# root is the working directory, so markdownlint-cli2's config discovery stops
+# there whatever the session's cwd.
 done_roots=$'\n'
 for i in "${!ROOTS[@]}"; do
   root="${ROOTS[i]}"
@@ -109,11 +115,11 @@ for i in "${!ROOTS[@]}"; do
   for j in "${!ROOTS[@]}"; do
     [[ "${ROOTS[j]}" == "$root" ]] && group+=("${FILES[j]}")
   done
-  bin=markdownlint-cli2
-  if ! command -v "$bin" >/dev/null 2>&1; then
-    first="${group[0]#:}"
-    bin="$(md_local_bin "${first%/*}" "$root")" || continue
-  fi
-  (cd "$root" && "$bin" --fix "${group[@]}") >/dev/null 2>&1 || :
+  rt_group format "$root" "${group[@]}"
+  for ((g = 0; g < RT_GN; g++)); do
+    rt_use "$g"
+    rt_found "$RT_BIN" || continue
+    rt_run "${RT_FILES[@]}" >/dev/null 2>&1 || :
+  done
 done
 exit 0

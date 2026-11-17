@@ -6,7 +6,7 @@
 # from blocking twice in one turn; false and the plugin kill switch run no
 # check. The spawn budget case fences the cost of a Stop with the option false:
 # the node launcher only.
-# test-scope: plugins/markdown-format/hooks/hooks.json plugins/markdown-format/git-hooks/markdown-check.sh plugins/markdown-format/.claude-plugin/plugin.json
+# test-scope: plugins/markdown-format/hooks/hooks.json plugins/markdown-format/git-hooks/lint.sh plugins/markdown-format/.claude-plugin/plugin.json
 # test-scope: plugins/markdown-format/hooks/exec-bash.mjs
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED
@@ -110,13 +110,23 @@ expect "true: the plugin kill switch wins" "0|" \
 # so these cases reach that failure rather than a person's notice.
 NOTOOL="$WORK/no-markdownlint"
 mkdir -p "$NOTOOL"
-for t in node git bash sed awk cat mktemp rm dirname grep tr jq; do
+for t in node git bash sed awk cat mktemp rm dirname grep tr jq mkdir ln sh; do
   ln -s "$(command -v "$t")" "$NOTOOL/$t"
 done
 expect "true: a missing markdownlint-cli2 passes silently" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN=true CLAUDECODE=1 PATH="$NOTOOL")"
 report CLAUDECODE=1 PATH="$NOTOOL"
 expect "default: a missing markdownlint-cli2 passes silently" "0||" "$REPORT_RC|$REPORT_OUT|$REPORT_ERR"
+# Only the missing-tool lines drop: a finding from a file whose own
+# node_modules/.bin resolves still comes back beside them.
+mkdir -p "$R/sub/node_modules/.bin"
+printf '#!/bin/sh\nexec "%s" "$@"\n' "$REAL_MD" >"$R/sub/node_modules/.bin/markdownlint-cli2"
+chmod +x "$R/sub/node_modules/.bin/markdownlint-cli2"
+printf 'node_modules/\n' >"$R/.gitignore"
+printf '# Sub\n\n<b>x</b>\n' >"$R/sub/s.md"
+expect "true: a finding beside a missing-tool line still comes back" "2|sub/s.md:3: MD033/no-inline-html Inline HTML [Element: b]" \
+  "$(findings "$(stop false CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN=true CLAUDECODE=1 PATH="$NOTOOL")")"
+rm -r "$R/sub" "$R/.gitignore"
 git -C "$R" checkout -q a.md
 report
 expect "default: a clean work tree prints nothing" "0||" "$REPORT_RC|$REPORT_OUT|$REPORT_ERR"
