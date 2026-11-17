@@ -14,6 +14,10 @@ bump: minor
 
 ### Changed
 
+- `/app-control:drive` performs a feature's `## Reset` on a reused instance only when the hub's
+  `Data:` line names a per-run data directory; with `Data: none:` it stops that instance and
+  launches fresh, or blocks with the reason where it cannot.
+
 - `/app-control:map` is the only writer of a control skill's Gotchas, and refresh accepts lessons
   handed in from `/app-control:drive` and `/debugging:debug` reports as well as
   `/verification:confirm`.

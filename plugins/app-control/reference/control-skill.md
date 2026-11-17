@@ -324,12 +324,21 @@ in this order:
 | `## Parts` | The distinct behaviors inside the feature, one short line each. A line may start with a short id in bold, such as `**P1.**`, that steps and evidence can name |
 | `## Sub-features` | The states or branches inside this feature that have their own feature file, each a pointer to it, or `none` |
 | `## Entry points` | Where a user starts the feature, one line each. Each line ends `driven` or `not driven: <reason>`, the reason naming what would make it drivable, such as a test account, a seeded record or a `cli/` command. A drive through one entry point proves only that one and never marks another `driven` |
-| `## Reset` | How to return the app's own data to a known state |
+| `## Reset` | How to return the app's own data to a known state, run on a reused instance only per [Reset on a reused instance](#reset-on-a-reused-instance) |
 | `## Drive` | The steps a user takes, one action per step, each with the result a user should observe, ending in a proof step ([Drive steps](#drive-steps)). It may open with a `Preconditions:` line ([Preconditions](#preconditions)) |
 | `## Gotchas` | What has made a run lie or fail before, per [Lessons](#lessons) |
 
 Create writes the title and paragraph, and may give Parts ids. `/app-control:map check` requires
 neither: a feature file without them stays valid.
+
+### Reset on a reused instance
+
+A run performs a feature's `## Reset` on an instance it reuses only when the hub's `Data:` line
+names a per-run data directory ([The launch model](#the-launch-model)), so the data it resets is
+that run's own. With `Data: none: <reason>`, the data is not the run's own: the run does not
+perform the Reset on the reused instance. It stops that instance as cleanup does and launches
+fresh; where it cannot launch fresh (such as `Side by side: no` with another instance holding the
+port), it blocks with the reason.
 
 ### Drive steps
 

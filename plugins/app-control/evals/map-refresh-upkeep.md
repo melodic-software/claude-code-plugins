@@ -222,3 +222,6 @@ their smoke, under the owner's eval gate, where a new case gets a 1 to 3 run smo
   The rerun on that text scored 1.00, 1.00, 1.00 and is `verdict: INVALID` again (4 denied Grep or
   Glob calls on the plugin folder, where the runs read the contract). The denials are the case
   sandbox refusing reads outside the run directory; every run still answered from the skill text.
+- `drive-reused-data-none-launches-fresh`, added with the owner's Reset rule (contract "Reset on a
+  reused instance") and run the same way: 1.00, 1.00, 1.00, `verdict: INVALID` (1 denied Glob on
+  `/tmp`, outside the run directory). Each run performed no Reset, stopped pid 7311 and launched fresh.

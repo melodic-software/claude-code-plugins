@@ -264,8 +264,8 @@ nothing: a hub that already held uncommitted changes before the write is the cal
 its commit would carry them.
 
 **One launch for features that share app state.** When the hub's launch model has no `Session:`
-line and its `Data:` line names a per-run data directory, not `none:` (the contract's "The launch
-model"), one instance may serve several drives. Group the features whose source-wave recipes need
+line and a reused instance may run its Reset (the contract's "Reset on a reused instance"), one
+instance may serve several drives. Group the features whose source-wave recipes need
 the same app state, and drive each group in order against one launch: one `--out` directory per
 group, so drive reuses the instance in its launch record, with Ready before the group's first drive
 and cleanup after its last. Drive performs each later feature's `## Reset` before its steps. Each
