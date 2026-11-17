@@ -122,7 +122,13 @@ not linked.
   corrections: the lanes workshops.
 - A scan of the source authors' skills for names and paths a consumer cannot configure, and one map
   of which skill and action to use when: a cross-repository task.
-- Agents logging their own friction during a session: under research.
+- Agents logging their own friction during a session: **already have** in part, and no always-on
+  rule is shipped. The [`/session-flow:orchestrate`](../../plugins/session-flow/skills/orchestrate/SKILL.md)
+  coordinator records one environment-improvement note per friction it sees (a missing tool, a
+  recurring mistake, a step that costs more than it should) through `/corrections:codify note`, or
+  in its next report with a change when that plugin is not enabled. An outside reader stays the
+  check: [`/session-flow:audit-sessions`](../../plugins/session-flow/skills/audit-sessions/SKILL.md),
+  then [`/corrections:codify`](../../plugins/corrections/skills/codify/SKILL.md).
 
 ## License notice
 
