@@ -39,8 +39,8 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. Spelling is one concern, lint: it reports and never rewrites. The hooks
-run only the plugin's shipped typos adapter, where the repository's own typos config governs the
-file, and otherwise nothing; they never run a command from the repository's spelling record
+run only the plugin's shipped typos adapter, with or without a repository typos config; they never
+run a command from the repository's spelling record
 (`.claude/ecosystems/spelling.yaml`), which `/toolchain:lint` and `/toolchain:check` run on
 request. The only consumer-project files this plugin writes are its git-hook entry copies
 (`apply install-git-hooks`); the record is written by `/toolchain:setup apply spelling`, never
@@ -80,31 +80,29 @@ PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 Read each option value from this text; never put a `${user_config.*}` string in a shell command.
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
-A missing typos where step 3 resolves the adapter stays a FAIL even when `spelling_enabled` is
+typos stays a FAIL even when `spelling_enabled` is
 off, because the installed git entry runs without Claude Code. Node.js (step 6) is a FAIL either
 way too.
 
 1. **Bash version.** Check against the README Requirements floor (3.2 or newer).
 2. **typos binary.** The pre-computed `typos` row (PATH only, with no per-repo convention).
-   Report the resolved path and `typos --version` output when found. Grade it with step 3: FAIL
-   when absent and step 3 resolves the adapter (an agent's commit then fails with the install
-   command, and a person's commit passes with a notice); INFO when step 3 resolves nothing, since
-   no hook runs typos there.
+   Report the resolved path and `typos --version` output when found. FAIL when absent: an agent's
+   commit then fails with the install command, and a person's commit passes with a notice.
 3. **What the lint concern resolves to.** From the repository root run
    `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh" --resolve`. It prints one row: plugin, concern,
    source, tool, found, detail, tab-separated. It reads the adapter's config and runs nothing.
    Append repository paths (`--resolve docs/a.md src/b.md`) for one row per file when the answer
    can differ per file; the detail column then names the typos config that governs that file, or
-   is empty when none does. Which configs opt a file in is in
-   `${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh`: read it to explain a row. The adapter also passes
-   the bundled `${CLAUDE_PLUGIN_ROOT}/config/default-typos.toml` with `typos -c`; its `extend-*`
-   keys merge with the repository's. Report one line from the rows, never from this text:
-   - `adapter:typos` with found `yes`: PASS, naming the config that opted in.
-   - found `no`: FAIL; the remediation is the `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` install
-     hints (Read that path).
-   - `none`: INFO "unresolved": no typos config governs the repository, so the hooks run nothing.
-     This is the opt-out by design, not a defect. A typos config opts the repository in; do not
-     offer to create one.
+   says no typos config does. The adapter governs every file with or without a config: typos
+   resolves its own governing config from each checked path, and the adapter adds the bundled
+   `${CLAUDE_PLUGIN_ROOT}/config/default-typos.toml` with `typos -c`, whose `extend-*` keys merge
+   with the repository's. Which config files typos reads is in
+   `${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh`: read it to explain a row. Report from the rows,
+   never from this text:
+   - `adapter:typos` with found `yes`: PASS. found `no`: FAIL; the remediation is the
+     `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` install hints (Read that path).
+   - The governing config, as INFO: named, or absent. An absent config does not make the check
+     inert; the user can add one to tune the rules. Do not offer to create one.
    A detail saying a spelling record exists is INFO beside the row: the hooks never run it, and
    `/toolchain:lint` or `/toolchain:check` runs it on request.
 4. **Draft, never write, the record.** When the person names a spell-checker the plugin ships no
@@ -175,8 +173,7 @@ with your own edit tools.
    chose to leave remain.
 6. **Verify.** Run `verify` and report its lines as `check` step 7 does.
 
-The `lint` entry only reports typos on the lines the commit adds, and only where a typos config
-opts the file in. A decline of the earlier `typos-check` entry carries to it.
+The `lint` entry only reports typos on the lines the commit adds. A decline of the earlier `typos-check` entry carries to it.
 
 When the user does not want an entry in this clone, run
 `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry lint`; the
@@ -221,8 +218,7 @@ Never claim resolved without re-verifying. For everything else `apply` only poin
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-- no typos config: the hooks run nothing until one exists, by design. Offer to create a minimal
-  `_typos.toml` in the repository root only when explicitly asked. The plugin imposes no rules of
+- no typos config: offer to create a minimal `_typos.toml` in the repository root only when explicitly asked. The plugin imposes no rules of
   its own.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".

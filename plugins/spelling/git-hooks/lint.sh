@@ -9,8 +9,8 @@
 #                       (resolve-tool.sh rt_print); runs nothing
 #
 # The command resolves per file through lib/git-hooks/resolve-tool.sh to the
-# typos adapter in adapters.sh where a typos config governs the file, else to
-# nothing; a .claude/ecosystems/ record is never run here. Its findings become
+# typos adapter in adapters.sh, which governs every file, with or without a
+# repository typos config; a .claude/ecosystems/ record is never run here. Its findings become
 # "<path>:<line>: <message>" lines, repo-relative, and only those on added
 # lines block (stderr, exit 1). typos exiting non-zero with no parseable
 # finding fails closed. A partly staged file, or a staged one since deleted

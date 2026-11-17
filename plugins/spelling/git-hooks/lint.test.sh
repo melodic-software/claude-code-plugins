@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # spellchecker:off
 # Contract tests for the spelling lint entry (git-hooks/lint.sh): the typos
-# adapter runs only where the repository's own typos config governs a file, a
+# adapter runs with or without a repository typos config, a
 # typo on an added line blocks with "<path>:<line>: <message>", one on an
 # unchanged line does not, a partly staged file is judged as staged, the
 # repository's typos config (excludes, allow-list) governs, typos failing with
 # no finding fails closed, --worktree covers uncommitted and untracked files, a
 # .claude/ecosystems/ record never runs, a missing typos follows the skip-key
 # rule, and the plugin's own vendored installer wires the entry so `git commit`
-# runs it. The stub cases, which need no real typos, pin the gate and the path
+# runs it. The stub cases, which need no real typos, pin the resolve rows and the path
 # transport: paths reach typos as arguments after --.
 # "teh" -> "the" is typos' own built-in correction, the fixture every case uses;
 # typos --format brief prints "<path>:<line>:<col>: error: <message>" and exits
@@ -118,31 +118,30 @@ else
   echo "SKIP: the filesystem refuses a name holding LF"
 fi
 
-# The gate: the repository's own typos config opts a file in.
+# No config gate: typos runs with or without a repository typos config, and
+# --resolve names the config that governs, or says there is none.
 new_repo NONE
 printf 'an old teh line\nfresh teh line\n' >"$REPO/notes.md"
 git -C "$REPO" add notes.md
-expect "no typos config: nothing runs and the entry passes" "0|" "$(stub_check "$REPO")"
-expect "no typos config: typos is never called" "" "$(cat "$STUB_OUT/argv")"
-expect "no typos config: --resolve says unresolved and why" "spelling	lint	none		n/a	no typos config" \
-  "$(cd "$REPO" && bash "$CHECK" --resolve)"
+stub_check "$REPO" >/dev/null
+expect "no typos config: typos still runs on the staged files" "notes.md" "$(after_dashdash)"
+NONE_DETAIL='no typos config: typos defaults plus the bundled config; binary typos on PATH'
+expect "no typos config: --resolve resolves the adapter and says no config governs" "spelling	lint	adapter:typos	typos	yes	$NONE_DETAIL" \
+  "$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" --resolve)"
 printf '[project]\nname = "x"\n' >"$REPO/pyproject.toml"
 git -C "$REPO" add pyproject.toml
-expect "a pyproject.toml with no [tool.typos] section opts nothing in" "0|" "$(stub_check "$REPO")"
-expect "a pyproject.toml with no [tool.typos] section: typos is never called" "" "$(cat "$STUB_OUT/argv")"
+expect "a pyproject.toml with no [tool.typos] section is not named as the config" "spelling	lint	adapter:typos	typos	yes	$NONE_DETAIL" \
+  "$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" --resolve)"
 printf '[project]\nname = "x"\n\n[tool.typos.default.extend-words]\nfoo = "foo"\n' >"$REPO/pyproject.toml"
 git -C "$REPO" add pyproject.toml
-stub_check "$REPO" >/dev/null
-expect "a pyproject.toml [tool.typos] section opts the repository in" "notes.md pyproject.toml" "$(after_dashdash)"
-expect "--resolve names the config that opted in" "spelling	lint	adapter:typos	typos	yes	config pyproject.toml; binary typos on PATH" \
+expect "--resolve names a pyproject.toml [tool.typos] section" "spelling	lint	adapter:typos	typos	yes	config pyproject.toml; binary typos on PATH" \
   "$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" --resolve)"
 
 new_repo NONE
 printf '[package]\nname = "x"\n\n[package.metadata.typos]\n' >"$REPO/Cargo.toml"
-printf 'clean\n' >"$REPO/a.md"
 git -C "$REPO" add -A
-stub_check "$REPO" >/dev/null
-expect "a Cargo.toml [package.metadata.typos] section opts the repository in" "Cargo.toml a.md" "$(after_dashdash)"
+expect "--resolve names a Cargo.toml [package.metadata.typos] section" "spelling	lint	adapter:typos	typos	yes	config Cargo.toml; binary typos on PATH" \
+  "$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" --resolve)"
 
 new_repo NONE
 mkdir -p "$REPO/docs" "$REPO/src"
@@ -151,9 +150,9 @@ printf 'clean\n' >"$REPO/docs/a.md"
 printf 'clean\n' >"$REPO/src/b.md"
 git -C "$REPO" add -A
 stub_check "$REPO" >/dev/null
-expect "a nested typos config opts in only the files under it" "docs/a.md docs/typos.toml" "$(after_dashdash)"
+expect "a nested typos config does not narrow what runs" "docs/a.md docs/typos.toml src/b.md" "$(after_dashdash)"
 expect "--resolve per path names the governing config, or none" "spelling	lint	adapter:typos	typos	yes	config docs/typos.toml; binary typos on PATH
-spelling	lint	none		n/a	" "$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" --resolve docs/a.md src/b.md)"
+spelling	lint	adapter:typos	typos	yes	$NONE_DETAIL" "$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" --resolve docs/a.md src/b.md)"
 expect "--resolve finds a nested config for the repository row" "spelling	lint	adapter:typos	typos	yes	config docs/typos.toml; binary typos on PATH" \
   "$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" --resolve)"
 
@@ -172,8 +171,8 @@ for cfg in yes NONE; do
   PATH="$BIN:$PATH" stub_check "$REPO" >/dev/null
   expect "a spelling record's lint-cmd never runs (typos config: $cfg)" no "$([[ -e "$WORK/stublint-ran" ]] && echo yes || echo no)"
 done
-expect "--resolve says the record is not run by hooks" "spelling	lint	none		n/a	no typos config; the spelling record is not run by hooks; /toolchain:lint and /toolchain:check run it" \
-  "$(cd "$REPO" && bash "$CHECK" --resolve)"
+expect "--resolve says the record is not run by hooks" "spelling	lint	adapter:typos	typos	yes	$NONE_DETAIL; the spelling record is not run by hooks; /toolchain:lint and /toolchain:check run it" \
+  "$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" --resolve)"
 
 if ! command -v typos >/dev/null 2>&1; then
   echo "SKIP: typos not on PATH -- the real-typos cases skipped"
@@ -271,7 +270,8 @@ expect "--worktree: no uncommitted change passes" "0|" "$(check "$REPO" --worktr
 new_repo NONE
 printf 'an old teh line\nfresh teh line\n' >"$REPO/notes.md"
 git -C "$REPO" add notes.md
-expect "real typos, no typos config: the typo does not block" "0|" "$(check "$REPO")"
+expect "real typos, no typos config: the typo on an added line still blocks" "1|notes.md:2: \`teh\` should be \`the\`
+$HINT" "$(check "$REPO")"
 
 # A PATH with git and the shell tools the script runs, but no typos.
 NOTYPOS="$WORK/notypos"
@@ -294,7 +294,7 @@ new_repo NONE
 printf 'an old teh line\nfresh teh\n' >"$REPO/notes.md"
 git -C "$REPO" add notes.md
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOTYPOS" bash "$CHECK" 2>&1)"
-expect "missing typos with no typos config: nothing to run, so no failure" "0|" "$?|$out"
+expect "missing typos with no typos config: an agent still fails" "1|FAIL: typos missing." "$?|$(printf '%s\n' "$out" | head -1 | cut -c1-20)"
 
 # End to end through the plugin's vendored installer and a real commit.
 new_repo

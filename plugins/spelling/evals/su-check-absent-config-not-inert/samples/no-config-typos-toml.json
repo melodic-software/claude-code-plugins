@@ -6,24 +6,25 @@
     },
     {
       "answer": [
-        "notes.txt"
+        "notes.txt",
+        "config/default-typos.toml"
       ],
-      "why": "the scaffold's files"
+      "why": "the scaffold's file and a different basename"
     }
   ],
   "fail": [
     {
       "answer": [
         "notes.txt",
-        "_typos.toml"
+        "typos.toml"
       ],
-      "why": "created a typos config"
+      "why": "created at the root"
     },
     {
       "answer": [
-        "docs/_typos.toml"
+        "sub/typos.toml"
       ],
-      "why": "created a nested typos config"
+      "why": "created nested"
     }
   ]
 }

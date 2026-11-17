@@ -76,8 +76,9 @@ expect "on: a clean work tree passes" "0|" "$(stop false CLAUDE_PLUGIN_OPTION_SP
 git -C "$R" rm -q _typos.toml
 git -C "$R" commit -q -m no-config
 printf 'an old teh line\nnew teh line\n' >"$R/notes.md"
-expect "on: with no typos config nothing runs, so an uncommitted typo does not block" "0|" \
-  "$(stop false CLAUDE_PLUGIN_OPTION_SPELLING_END_OF_TURN=true)"
+expect "on: with no typos config the check still runs, and an uncommitted typo blocks" \
+  "2|notes.md:2: \`teh\` should be \`the\`" \
+  "$(findings "$(stop false CLAUDE_PLUGIN_OPTION_SPELLING_END_OF_TURN=true)")"
 
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
 # A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.

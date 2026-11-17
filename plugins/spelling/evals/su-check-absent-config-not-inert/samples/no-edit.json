@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v typos"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": ".git/config",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [
+        "notes.txt",
+        "config/default-typos.toml"
+      ],
+      "why": "the scaffold's file and a different basename"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "notes.txt",
+        "_typos.toml"
+      ],
+      "why": "created at the root"
+    },
+    {
+      "answer": [
+        "sub/_typos.toml"
+      ],
+      "why": "created nested"
+    }
+  ]
+}

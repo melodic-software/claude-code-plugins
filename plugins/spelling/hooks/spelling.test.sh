@@ -67,10 +67,12 @@ if jq -e '(.requires | map(.id)) == ["typos", "jq", "node"]' "$MANIFEST" >/dev/n
 else
   fail "manifest: expected tools typos, jq and node: $(cat "$MANIFEST" 2>/dev/null)"
 fi
-if jq -e '(.requires[] | select(.id == "typos") | .when.config_any | map(if type == "string" then . else .file end)) == ["typos.toml", "_typos.toml", ".typos.toml", "pyproject.toml", "Cargo.toml"]' "$MANIFEST" >/dev/null; then
-  ok "manifest: typos is needed only where a typos config is (when.config_any), so the probe stays quiet elsewhere"
+# typos runs with or without a repository typos config, so the probe reports a
+# missing typos everywhere: no `when`.
+if jq -e '.requires[] | select(.id == "typos") | has("when") | not' "$MANIFEST" >/dev/null; then
+  ok "manifest: typos carries no when, since the lint entry runs without a typos config too"
 else
-  fail "manifest: want typos gated on the typos config files by when.config_any"
+  fail "manifest: typos must not be gated by when: the lint entry runs without a typos config"
 fi
 # harness-ops' prerequisites-fleet.mjs runs the probe behind the kill switch; its own test covers the gate.
 if jq -e '.session_probe.run_if_unset_or_true == "SPELLING_ENABLED"' "$MANIFEST" >/dev/null; then

@@ -7,13 +7,10 @@ line the commit adds, so they reach every author: Claude, other agents and peopl
 reported while Claude edits. An opt-in end-of-turn check hands findings in the uncommitted changes
 back to Claude before a turn ends.
 
-The check runs only where your repository's own typos configuration opts a file in: a
-`typos.toml`, `_typos.toml` or `.typos.toml`, a `pyproject.toml` with a `[tool.typos]` section, or a
-`Cargo.toml` with a `[workspace.metadata.typos]` or `[package.metadata.typos]` section, in the
-file's directory or above it. With none, nothing runs and nothing is reported. typos discovers that
-config from the checked path, and the plugin's bundled `config/default-typos.toml` (passed with
-`-c`, so that SHA-shaped hex is not read as a misspelling) merges with it through `extend-*` keys.
-Pointer: the Sources list in [typos' configuration reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md#sources).
+The check honors your repository's own typos configuration and runs with or without one: typos
+discovers it from the checked path, and the plugin's bundled `config/default-typos.toml` (passed
+with `-c`, so that SHA-shaped hex is not read as a misspelling) merges with it through `extend-*`
+keys. Pointer: the Sources list in [typos' configuration reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md#sources).
 
 The hooks run only this typos adapter (`git-hooks/adapters.sh`). They never run a command from a
 `.claude/ecosystems/spelling.yaml` record; `/toolchain:lint` and `/toolchain:check` run its
@@ -35,7 +32,7 @@ shared scope commits the copy under `.githooks/spelling/`. The bundled
 `config/default-typos.toml` is copied beside it. `/spelling:setup check` reports drift, and the
 SessionStart probe prints one line when the entry is missing, stale or edited.
 
-When a typos config opts files in and typos is missing, an agent's commit fails with the install command; a person's commit gets a
+When typos is missing, an agent's commit fails with the install command; a person's commit gets a
 one-line notice and goes through. `git -c checks.skipmissing=typos commit ...` skips the check
 while typos is absent. The placement rules are the check-placement convention in the
 marketplace repository.
@@ -54,8 +51,7 @@ same host.
 
 - **typos** on `PATH`, installed at the machine level by the machine's owner
   ([install typos](https://github.com/crate-ci/typos#install)). It is never downloaded on the fly. The
-  SessionStart probe reports a missing `typos` once per session from `prerequisites.json`, and
-  only where a typos config sits in the project directory or above it.
+  SessionStart probe reports a missing `typos` once per session from `prerequisites.json`.
 - **Bash** runs the check (3.2 or newer, so macOS's own bash works). On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows).
 - **Node.js** on `PATH` for the Claude Code rows, which launch through `node hooks/exec-bash.mjs`,
@@ -73,8 +69,9 @@ Then verify prerequisites with `/spelling:setup check`.
 ## Configuration
 
 The rules themselves are never configured here. They come from the typos
-config in your repository, which also opts the repository in. To change the
-rules (allowlist a false positive, ignore a pattern), edit that file.
+config already in your repository, which the plugin reads automatically. To
+change the rules (allowlist a false positive, ignore a pattern), edit that
+file.
 
 Two `userConfig` options tune the Claude Code hooks; the git pre-commit entry has none:
 

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "I looked for typos.toml, _typos.toml, .typos.toml, a Cargo.toml with [workspace.metadata.typos] or [package.metadata.typos], and a pyproject.toml with [tool.typos]."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I looked for _typos.toml and found none.",
+      "why": "near miss: one filename"
+    },
+    {
+      "answer": "I looked for _typos.toml, .typos.toml, a Cargo.toml with [package.metadata.typos], and a pyproject.toml with [tool.typos].",
+      "why": "near miss: no plain typos.toml"
+    },
+    {
+      "answer": "I looked for typos.toml, _typos.toml, .typos.toml, Cargo.toml and pyproject.toml.",
+      "why": "near miss: no tables"
+    }
+  ]
+}

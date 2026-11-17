@@ -1,6 +1,6 @@
 {
   "name": "spelling",
-  "description": "Spell-check at commit time via typos-cli, only where the consuming repo's own typos config governs the file: a git pre-commit lint entry that blocks only on typos in the lines a commit adds, with an opt-in end-of-turn check; hooks never run an ecosystem record's command.",
+  "description": "Spell-check at commit time via typos-cli: a git pre-commit lint entry that blocks only on typos in the lines a commit adds, with an opt-in end-of-turn check, honoring the consuming repo's own typos configuration; hooks never run an ecosystem record's command.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"

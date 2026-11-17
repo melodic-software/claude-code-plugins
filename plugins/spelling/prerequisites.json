@@ -22,16 +22,7 @@
           "min": "1.16.19"
         }
       },
-      "when": {
-        "config_any": [
-          "typos.toml",
-          "_typos.toml",
-          ".typos.toml",
-          { "file": "pyproject.toml", "pattern": "^\\s*\\[tool\\.typos(\\]|\\.)" },
-          { "file": "Cargo.toml", "pattern": "^\\s*\\[(workspace|package)\\.metadata\\.typos(\\]|\\.)" }
-        ]
-      },
-      "degrade": "Without typos, the typos adapter cannot check commits or the end-of-turn changes for typos where a typos config opts files in, and an agent's commit fails until typos is installed.",
+      "degrade": "Without typos, commits and the end-of-turn check go unchecked for typos, and an agent's commit fails until typos is installed.",
       "install": {
         "cargo": "cargo install typos-cli",
         "docs": "https://github.com/crate-ci/typos#install"

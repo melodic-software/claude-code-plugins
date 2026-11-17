@@ -4,11 +4,12 @@
 # record setup reports (hooks never run it), the files it acts on, and its
 # typos adapter. Sourced by the lint git-hook entry.
 #
-# The adapter governs a file only when a typos config sits in its directory or
-# above it, up to the repository root: typos.toml, _typos.toml, .typos.toml, a
-# pyproject.toml with a [tool.typos] section, or a Cargo.toml with a
-# [workspace.metadata.typos] or [package.metadata.typos] section, the files
-# typos itself reads. typos comes from PATH. Lint reports and writes nothing.
+# The adapter governs every file, with or without a repository typos config:
+# typos finds the config that governs each path itself. The detail names that
+# config (typos.toml, _typos.toml, .typos.toml, a pyproject.toml with a
+# [tool.typos] section, or a Cargo.toml with a [workspace.metadata.typos] or
+# [package.metadata.typos] section, in the file's directory or above it).
+# typos comes from PATH. Lint reports and writes nothing.
 
 # shellcheck disable=SC2034 # read by resolve-tool.sh
 RT_PLUGIN=spelling
@@ -76,12 +77,18 @@ sp__detail() { # <config dir> <root>
   rel="${rel#/}"
   RT_DETAIL="config ${rel:+$rel/}$SP_NAME; binary typos on PATH"
 }
+sp__detail_none() {
+  RT_DETAIL="no typos config: typos defaults plus the bundled config; binary typos on PATH"
+}
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh and the entry
 rt_adapter() { # <concern> <file> <root>
   [[ "$1" == lint ]] || return 1
-  sp__walk "$(sp__dir "$2" "$3")" "$3" || return 1
-  sp__detail "$SP_WALK_DIR" "$3"
+  if sp__walk "$(sp__dir "$2" "$3")" "$3"; then
+    sp__detail "$SP_WALK_DIR" "$3"
+  else
+    sp__detail_none
+  fi
   RT_ADAPTER=typos RT_TOOL=typos RT_BIN=typos RT_DIR="$3" RT_INSTALL="$SP_INSTALL"
   RT_CONFIGS="typos.toml _typos.toml .typos.toml Cargo.toml pyproject.toml"
   # shellcheck disable=SC2016 # the command text sh -c expands, with RT_BIN, SP_CONFIG and the files
@@ -90,26 +97,26 @@ rt_adapter() { # <concern> <file> <root>
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh
 rt_adapter_in_repo() { # <concern> <root>
-  local f config_dir="$2"
+  local f found=1 config_dir="$2"
   if [[ "$1" != lint ]]; then
     RT_DETAIL="spelling ships no $1 adapter"
     return 1
   fi
   if ! sp__config_name "$2"; then
+    found=0
     while IFS= read -r f; do
       config_dir="$2/${f%/*}"
       [[ "$f" == */* ]] || config_dir="$2"
-      sp__config_name "$config_dir" && break
-      f=""
+      sp__config_name "$config_dir" && found=1 && break
     done < <(git -C "$2" ls-files -- ':(glob)**/typos.toml' ':(glob)**/_typos.toml' ':(glob)**/.typos.toml' \
       ':(glob)**/Cargo.toml' ':(glob)**/pyproject.toml' 2>/dev/null)
-    if [[ -z "${f:-}" ]]; then
-      RT_DETAIL="no typos config"
-      return 1
-    fi
   fi
   RT_ADAPTER=typos RT_TOOL=typos RT_BIN=typos
-  sp__detail "$config_dir" "$2"
+  if ((found)); then
+    sp__detail "$config_dir" "$2"
+  else
+    sp__detail_none
+  fi
 }
 
 # sp_mirror <path>: a scratch tree holding the index copy of <path> at its own
