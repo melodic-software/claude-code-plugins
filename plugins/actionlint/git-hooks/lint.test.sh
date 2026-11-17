@@ -30,9 +30,7 @@ fi
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
-REAL_HOME="$HOME"
-export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1 HOME="$WORK/home"
-mkdir -p "$HOME"
+export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
@@ -109,7 +107,7 @@ printf '%s' "$BAD" >"$REPO/sub/.github/workflows/ci.yml"
 git -C "$REPO" add sub
 expect "a config under a nested .github opts nothing in: actionlint reads only the root's" "0||" "$(check "$REPO")"
 expect "--resolve reports no adapter without the root config" "actionlint	lint	none		n/a	no actionlint config: .github/actionlint.yaml or .github/actionlint.yml" \
-  "$(cd "$REPO" && bash "$CHECK" --resolve)"
+  "$(cd "$REPO" && HOME="$WORK/home" bash "$CHECK" --resolve)"
 
 new_repo yml
 printf '%s' "$BAD" >"$REPO/$WF/ci.yml"
@@ -122,7 +120,7 @@ printf '%s' "$CLEAN" >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"
 expect "a clean staged workflow passes with no output" "0||" "$(check "$REPO")"
 expect "--resolve reports the adapter, its config and that actionlint is found" "actionlint	lint	adapter:actionlint	actionlint	yes	config .github/actionlint.yaml; binary actionlint on PATH" \
-  "$(cd "$REPO" && bash "$CHECK" --resolve)"
+  "$(cd "$REPO" && HOME="$WORK/home" bash "$CHECK" --resolve)"
 
 # actionlint reads its config from the work tree; the commit holds the index's.
 DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
@@ -287,7 +285,7 @@ printf '%s' "$CLEAN" >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"
 expect "a record with no actionlint config runs nothing at commit" "0||" "$(check "$REPO")"
 expect "--resolve names the record and where it runs" "actionlint	lint	none		n/a	no actionlint config: .github/actionlint.yaml or .github/actionlint.yml; the github-actions record is not run by hooks; /toolchain:lint and /toolchain:check run it" \
-  "$(cd "$REPO" && bash "$CHECK" --resolve)"
+  "$(cd "$REPO" && HOME="$WORK/home" bash "$CHECK" --resolve)"
 expect "the record's linter never ran" no "$([[ -e "$WORK/stublint-ran" ]] && echo yes || echo no)"
 
 # A PATH with the tools the script runs, git and no actionlint.
@@ -324,14 +322,11 @@ expect "missing actionlint without the config: nothing is asked of the host" "0|
 
 # End to end through the plugin's vendored installer and real commits.
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
-# node runs with the real HOME: a version manager shim would otherwise install
-# node again under the scratch one.
-inst() { HOME="$REAL_HOME" node "$INSTALL" "$@"; }
 new_repo
 git -C "$REPO" config checks.actionlint.actionlint-check.declined true
-expect "a decline of the old actionlint-check entry carries over to lint" "declined	lint" "$(inst verify --repo "$REPO" | cut -f1,2)"
+expect "a decline of the old actionlint-check entry carries over to lint" "declined	lint" "$(node "$INSTALL" verify --repo "$REPO" | cut -f1,2)"
 git -C "$REPO" config --unset checks.actionlint.actionlint-check.declined
-status="$(inst copy --scope local --repo "$REPO")"
+status="$(node "$INSTALL" copy --scope local --repo "$REPO")"
 expect "the vendored installer installs the lint entry" '[{"entry":"lint","status":"installed"}]' "$status"
 expect "the installed copy carries the stamp on line 2" yes \
   "$(grep -qE '^# actionlint lint sha256:[0-9a-f]{64}$' < <(sed -n 2p "$REPO/.git/hooks/actionlint/lint.sh") && echo yes)"
@@ -344,7 +339,7 @@ printf '%s' "$CLEAN" >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"
 git -C "$REPO" commit -q -m fixed >/dev/null 2>&1
 expect "git commit succeeds once the workflow is clean" "0" "$?"
-expect "verify reports ok after the install" "ok	lint" "$(inst verify --repo "$REPO" | cut -f1,2)"
+expect "verify reports ok after the install" "ok	lint" "$(node "$INSTALL" verify --repo "$REPO" | cut -f1,2)"
 
 echo "lint: $PASS passed, $FAIL failed"
 ((FAIL == 0))
