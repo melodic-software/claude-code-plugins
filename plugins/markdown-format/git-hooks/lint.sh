@@ -80,17 +80,39 @@ for ((i = 0; i < RT_GN; i++)); do
   esac
 done
 
-mirror="$CHECKS_TMP/mirror"
-if [[ -d node_modules && ! -L node_modules && -z "$(git ls-files -- ':(literal)node_modules' 2>/dev/null)" ]] &&
-  git check-ignore -q node_modules/.cache 2>/dev/null &&
-  mkdir -p node_modules/.cache/markdown-format 2>/dev/null &&
-  in_repo="$(mktemp -d "$PWD/node_modules/.cache/markdown-format/lint.XXXXXX" 2>/dev/null)"; then
-  mirror="$in_repo" mf_status=0
-  trap 'mf_status=$?; rm -rf "${in_repo:?}"; checks_finish "$mf_status" || exit 1' EXIT
-fi
 US=$'\x1f'
-spine="$US.$US"
-checked="$US"
+RS=$'\x1e'
+mf_yes="$US" mf_no="$US"
+mf_nm_ok() {
+  local nm=node_modules
+  [[ "$1" == . ]] || nm="$1/node_modules"
+  [[ "$mf_yes" == *"$US$1$US"* ]] && return 0
+  [[ "$mf_no" == *"$US$1$US"* ]] && return 1
+  if [[ -d "$nm" && ! -L "$nm" && -z "$(git ls-files -- ":(literal)$nm" 2>/dev/null)" ]] &&
+    git check-ignore -q "$nm/.cache" 2>/dev/null; then
+    mf_yes+="$1$US"
+    return 0
+  fi
+  mf_no+="$1$US"
+  return 1
+}
+mf_base() {
+  local d
+  md_config_state "$1" .
+  d="${MD_NEAREST%/*}"
+  [[ "$d" == "$MD_NEAREST" ]] && d=.
+  d="${d#./}"
+  while :; do
+    MF_BASE="$d"
+    mf_nm_ok "$d" && return 0
+    [[ "$d" == . ]] && break
+    if [[ "$d" == */* ]]; then d="${d%/*}"; else d=.; fi
+  done
+  MF_BASE=""
+}
+proot="$(pwd -P)"
+mf_bases=() spines=() checks=() mirrors=() made=() mf_status=0
+trap 'mf_status=$?; for m in ${made[@]+"${made[@]}"}; do rm -rf -- "${m:?}"; done; checks_finish "$mf_status" || exit 1' EXIT
 gcopies=()
 for ((i = 0; i < RT_GN; i++)); do
   gcopies[i]=""
@@ -99,12 +121,25 @@ for ((i = 0; i < RT_GN; i++)); do
   for f in "${RT_FILES[@]}"; do
     [[ -L "$f" ]] && continue
     [[ -f "$f" ]] || checks_staged_gone "$f" || continue
-    checked+="$f$US"
-    gcopies[i]+="$f$US"
+    mf_base "$f"
+    for ((k = 0; k < ${#mf_bases[@]}; k++)); do
+      [[ "${mf_bases[k]}" == "$MF_BASE" ]] && break
+    done
+    if ((k == ${#mf_bases[@]})); then
+      mf_bases[k]="$MF_BASE" spines[k]="$US.$US" checks[k]="$US"
+      mirrors[k]="$CHECKS_TMP/mirror$k"
+      if [[ -n "$MF_BASE" ]] && cache="$MF_BASE/node_modules/.cache/markdown-format" && cache="${cache#./}" &&
+        mkdir -p "$cache" 2>/dev/null && m="$(mktemp -d "$PWD/$cache/lint.XXXXXX" 2>/dev/null)"; then
+        made+=("$m")
+        mirrors[k]="$m"
+      fi
+    fi
+    checks[k]+="$f$US"
+    gcopies[i]+="$k$RS$f$US"
     d="$f"
     while [[ "$d" == */* ]]; do
       d="${d%/*}"
-      [[ "$spine" == *"$US$d$US"* ]] || spine+="$d$US"
+      [[ "${spines[k]}" == *"$US$d$US"* ]] || spines[k]+="$d$US"
     done
   done
 done
@@ -112,10 +147,12 @@ mf_link() {
   local r="${1#./}"
   [[ -e "$mirror/$r" || -L "$mirror/$r" || "$checked" == *"$US$r$US"* ]] && return 0
   case "$r" in *.md | *.mdc | *.markdown) return 0 ;; *) ;; esac
+  case "/$r" in */node_modules/*) return 0 ;; *) ;; esac
   [[ "$r" == */* ]] && mkdir -p "$mirror/${r%/*}"
   ln -s "$PWD/$r" "$mirror/$r"
 }
-if [[ "$checked" != "$US" ]]; then
+for ((k = 0; k < ${#mf_bases[@]}; k++)); do
+  mirror="${mirrors[k]}" spine="${spines[k]}" checked="${checks[k]}"
   configs=()
   rest="${spine#"$US"}"
   while [[ -n "$rest" ]]; do
@@ -129,7 +166,6 @@ if [[ "$checked" != "$US" ]]; then
     done
   done
   if ((${#configs[@]})); then
-    proot="$(pwd -P)"
     MD_MODULES=() MD_TRUST_BLOCK=""
     md_collect_modules "$proot" "${configs[@]}" || :
     for m in ${MD_MODULES[@]+"${MD_MODULES[@]}"}; do
@@ -146,24 +182,27 @@ if [[ "$checked" != "$US" ]]; then
       cat -- "$f" >"$mirror/$f"
     fi
   done
-fi
+done
 
 out="$CHECKS_TMP/markdownlint"
 : >"$out"
 rc=0
-for ((i = 0; i < RT_GN; i++)); do
-  [[ -n "${gcopies[i]:-}" ]] || continue
-  rt_use "$i"
-  copies=()
-  rest="${gcopies[i]}"
-  while [[ -n "$rest" ]]; do
-    copies+=("$mirror/${rest%%"$US"*}")
-    rest="${rest#*"$US"}"
+for ((k = 0; k < ${#mf_bases[@]}; k++)); do
+  for ((i = 0; i < RT_GN; i++)); do
+    copies=()
+    rest="${gcopies[i]:-}"
+    while [[ -n "$rest" ]]; do
+      e="${rest%%"$US"*}"
+      rest="${rest#*"$US"}"
+      [[ "${e%%"$RS"*}" == "$k" ]] && copies+=("${mirrors[k]}/${e#*"$RS"}")
+    done
+    ((${#copies[@]})) || continue
+    rt_use "$i"
+    RT_DIR="${mirrors[k]}"
+    rt_run "${copies[@]}" >>"$out" 2>&1
+    one=$?
+    ((one > rc)) && rc=$one
   done
-  RT_DIR="$mirror"
-  rt_run "${copies[@]}" >>"$out" 2>&1
-  one=$?
-  ((one > rc)) && rc=$one
 done
 
 if ((rc > 1)); then

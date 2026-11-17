@@ -60,6 +60,10 @@ HINT='markdown-format: fix the findings markdownlint-cli2 reported above, or adj
 HTML='a.md:3: MD033/no-inline-html Inline HTML [Element: b]'
 RAW="$(printf '# T\n\ntext')"
 
+left_mirrors() {
+  find "$1" -path '*/node_modules/.cache/markdown-format/lint.*' -prune -print 2>/dev/null
+}
+
 new_repo
 printf '# T\n\n<b>x</b>\n' >"$REPO/a.md"
 git -C "$REPO" add a.md
@@ -307,7 +311,7 @@ marker="$(cd "$REPO" && bash "$CHECK" 2>&1 >/dev/null | sed -n "s/.*mkdir -p '\(
 mkdir -p "$marker"
 expect "an approved config naming an installed customRules package lints" "1||$HTML
 $HINT" "$(check "$REPO")"
-expect "the mirror under node_modules/.cache is removed after the run" "" "$(ls -A "$REPO/node_modules/.cache/markdown-format" 2>/dev/null)"
+expect "every mirror is removed after the run" "" "$(left_mirrors "$REPO")"
 
 new_repo NONE
 mkdir -p "$REPO/node_modules/noop-rule"
@@ -339,27 +343,115 @@ $HINT" "$(check "$REPO")"
 done
 
 new_repo
-mkdir -p "$REPO/node_modules"
+mkdir -p "$REPO/node_modules" "$REPO/sub/node_modules"
 printf 'node_modules/\n' >"$REPO/.gitignore"
-git -C "$REPO" add .gitignore
+printf '{ "default": true }\n' >"$REPO/sub/.markdownlint.json"
+git -C "$REPO" add .gitignore sub
 git -C "$REPO" commit -q -m ignore --no-verify
 mkdir -p "$WORK/stub$n"
-printf '#!/bin/sh\nexit 2\n' >"$WORK/stub$n/markdownlint-cli2"
+printf '#!/bin/sh\npwd -P >>"%s/stub-dirs"\nexit 2\n' "$WORK" >"$WORK/stub$n/markdownlint-cli2"
 chmod +x "$WORK/stub$n/markdownlint-cli2"
 printf '# T\n\ntext\n' >"$REPO/a.md"
-git -C "$REPO" add a.md
+printf '# T\n\ntext\n' >"$REPO/sub/a.md"
+git -C "$REPO" add a.md sub/a.md
 PATH="$WORK/stub$n:$PATH" check "$REPO" >/dev/null
-expect "the mirror under node_modules/.cache is removed after a failed run" "" "$(ls -A "$REPO/node_modules/.cache/markdown-format" 2>/dev/null)"
+P="$(cd "$REPO" && pwd -P)"
+expect "each file runs in a mirror under the node_modules nearest its config" "$P/node_modules/.cache/markdown-format/lint.
+$P/sub/node_modules/.cache/markdown-format/lint." "$(sed 's/lint\..*/lint./' "$WORK/stub-dirs" 2>/dev/null | sort)"
+expect "every mirror is removed after a failed run" "" "$(left_mirrors "$REPO")"
+
+style_pkg() {
+  mkdir -p "$1/my-style"
+  printf '{ "name": "my-style", "main": "style.json" }\n' >"$1/my-style/package.json"
+  printf '{ "default": false, "MD033": %s }\n' "$2" >"$1/my-style/style.json"
+}
+noop_pkg() {
+  mkdir -p "$1/noop-rule"
+  printf 'module.exports = { names: ["no-op"], description: "no-op", tags: ["x"], parser: "none", function: () => {} };\n' >"$1/noop-rule/index.js"
+}
+SUB_HTML='sub/a.md:3: MD033/no-inline-html Inline HTML [Element: b]'
+
+for root_nm in empty none; do
+  new_repo NONE
+  [[ "$root_nm" == none ]] || mkdir -p "$REPO/node_modules"
+  style_pkg "$REPO/sub/node_modules" true
+  printf 'node_modules/\n' >"$REPO/.gitignore"
+  printf 'extends: my-style\n' >"$REPO/sub/.markdownlint.yaml"
+  git -C "$REPO" add -A
+  git -C "$REPO" commit -q -m cfg --no-verify
+  printf '# T\n\n<b>x</b>\n' >"$REPO/sub/a.md"
+  git -C "$REPO" add sub/a.md
+  expect "a nested config extending a package only its own node_modules holds lints under it, root node_modules $root_nm" "1||$SUB_HTML
+$HINT" "$(check "$REPO")"
+
+  new_repo NONE
+  [[ "$root_nm" == none ]] || mkdir -p "$REPO/node_modules"
+  noop_pkg "$REPO/sub/node_modules"
+  printf 'node_modules/\n' >"$REPO/.gitignore"
+  printf 'config:\n  default: true\n  MD013: false\ncustomRules:\n  - noop-rule\n' >"$REPO/sub/.markdownlint-cli2.yaml"
+  git -C "$REPO" add -A
+  git -C "$REPO" commit -q -m cfg --no-verify
+  printf '# T\n\n<b>x</b>\n' >"$REPO/sub/a.md"
+  git -C "$REPO" add sub/a.md
+  marker="$(cd "$REPO" && bash "$CHECK" 2>&1 >/dev/null | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+  mkdir -p "$marker"
+  expect "an approved nested config naming a customRules package only its own node_modules holds lints, root node_modules $root_nm" "1||$SUB_HTML
+$HINT" "$(check "$REPO")"
+  expect "every mirror is removed after a nested run, root node_modules $root_nm" "" "$(left_mirrors "$REPO")"
+  [[ "$root_nm" == none ]] && expect "no node_modules is created at the root" "no" "$([[ -e "$REPO/node_modules" ]] && echo yes || echo no)"
+done
 
 new_repo NONE
-mkdir -p "$REPO/docs"
-printf '{ "default": false, "MD033": true }\n' >"$REPO/base.json"
-printf '{ "extends": "../base.json" }\n' >"$REPO/docs/.markdownlint.json"
+style_pkg "$REPO/node_modules" false
+style_pkg "$REPO/sub/node_modules" true
+printf 'node_modules/\n' >"$REPO/.gitignore"
+printf 'extends: my-style\n' >"$REPO/sub/.markdownlint.yaml"
 git -C "$REPO" add -A
 git -C "$REPO" commit -q -m cfg --no-verify
-printf '# T\n\n<b>x</b>\n' >"$REPO/docs/a.md"
-git -C "$REPO" add docs/a.md
-expect "a nested config that extends a file above it lints under the extended rules" "1||docs/a.md:3: MD033/no-inline-html Inline HTML [Element: b]
+printf '# T\n\n<b>x</b>\n' >"$REPO/sub/a.md"
+git -C "$REPO" add sub/a.md
+expect "a nested config resolves its own node_modules copy before the root one" "1||$SUB_HTML
+$HINT" "$(check "$REPO")"
+
+new_repo NONE
+style_pkg "$REPO/on/node_modules" true
+style_pkg "$REPO/off/node_modules" false
+printf 'node_modules/\n' >"$REPO/.gitignore"
+printf 'extends: my-style\n' >"$REPO/on/.markdownlint.yaml"
+printf 'extends: my-style\n' >"$REPO/off/.markdownlint.yaml"
+git -C "$REPO" add -A
+git -C "$REPO" commit -q -m cfg --no-verify
+printf '# T\n\n<b>x</b>\n' >"$REPO/on/a.md"
+printf '# T\n\n<b>x</b>\n' >"$REPO/off/a.md"
+git -C "$REPO" add on/a.md off/a.md
+expect "sibling configs in one run each resolve their own node_modules copy" "1||on/a.md:3: MD033/no-inline-html Inline HTML [Element: b]
+$HINT" "$(check "$REPO")"
+
+for docs_nm in no yes; do
+  new_repo NONE
+  mkdir -p "$REPO/docs"
+  [[ "$docs_nm" == no ]] || mkdir -p "$REPO/docs/node_modules"
+  printf 'node_modules/\n' >"$REPO/.gitignore"
+  printf '{ "default": false, "MD033": true }\n' >"$REPO/base.json"
+  printf '{ "extends": "../base.json" }\n' >"$REPO/docs/.markdownlint.json"
+  git -C "$REPO" add -A
+  git -C "$REPO" commit -q -m cfg --no-verify
+  printf '# T\n\n<b>x</b>\n' >"$REPO/docs/a.md"
+  git -C "$REPO" add docs/a.md
+  expect "a nested config that extends a file above it lints under the extended rules, docs node_modules $docs_nm" "1||docs/a.md:3: MD033/no-inline-html Inline HTML [Element: b]
+$HINT" "$(check "$REPO")"
+done
+
+new_repo NONE
+style_pkg "$REPO/sub/node_modules" false
+printf 'node_modules/\n' >"$REPO/.gitignore"
+printf '{ "noInlineConfig": true }\n' >"$REPO/.markdownlint-cli2.jsonc"
+printf 'extends: my-style\nMD047: true\n' >"$REPO/sub/.markdownlint.yaml"
+git -C "$REPO" add -A
+git -C "$REPO" commit -q -m cfg --no-verify
+printf '<!-- markdownlint-disable MD047 -->\n# T\n\ntext' >"$REPO/sub/a.md"
+git -C "$REPO" add sub/a.md
+expect "a root cli2 config still applies to files mirrored under a nested node_modules" "1||sub/a.md:4: MD047/single-trailing-newline Files should end with a single newline character
 $HINT" "$(check "$REPO")"
 
 new_repo NONE
