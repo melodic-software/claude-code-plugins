@@ -66,8 +66,8 @@ exist and are not the version cited. **HIGH for the content of version 1.7.**
   little use above the method level". Proposes a measure that abandons the graph model, increments
   on structures that interrupt linear reading, and penalizes nesting. On `switch`, verbatim: "A
   switch and all its cases combined incurs a single structural increment."
-- **Does not claim.** Any threshold. The default of 15 belongs to SonarSource's rule `S3776`, a
-  product decision by the same vendor, and citing the paper for that number misattributes it.
+- **Does not claim.** Any threshold. The default of SonarSource's rule `S3776` is a product
+  decision by the same vendor, and citing the paper for that default misattributes it.
   Independent implementations (gocognit, PMD's CognitiveComplexity rule) follow the same increment
   rules and cite the paper.
 
