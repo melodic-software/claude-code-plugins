@@ -51,8 +51,8 @@ An action file that names `<plugin-root>` means `${CLAUDE_PLUGIN_ROOT}`.
 
 ## 1. Count
 
-Search for earlier occurrences of the described mistake in two places, then report each one counted
-with its commit hash and subject or its session message:
+Search for earlier occurrences of the described mistake in the places below, then report each one
+counted with its commit hash and subject or its session message:
 
 - Recent commits: `git log` over the subjects, bodies and changed paths.
 - The current session: the messages where the mistake was made or corrected.

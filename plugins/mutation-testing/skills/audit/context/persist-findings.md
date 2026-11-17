@@ -309,7 +309,7 @@ found anything:
 - **Rows to emit** → write.
 - **At least one mutant examined, no rows to emit**: no survivors, or every survivor was arid or
   equivalent → **write anyway**, with the `## Findings` header row and no data rows. The payload is
-  `## Surfaces`. A surface that ran and returned nothing is coverage information, and the consumer
+  `## Surfaces`, plus `## Declined candidates` when a survivor was demonstrated equivalent. A surface that ran and returned nothing is coverage information, and the consumer
   unions `## Surfaces` across producers precisely so that information is not lost; a merged report
   saying only "the reviewers found three things" reads differently from one that also says the
   mutation surface ran over these files and found nothing, and the second is the true one. An empty
