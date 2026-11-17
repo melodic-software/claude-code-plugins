@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.19.3] - 2026-11-17
+
+### Fixed
+
+- `run-validity.py` has a new `programs started` check that reads failed tool results and Bash output in each trace. A mise shim error (`is not a valid shim`), or `command not found` for an interpreter such as `node` or `python3`, makes the file `INVALID`. Any other `command not found` is a warning. Each detail names the run, the program and the first call that failed.
+
 ## [0.19.2] - 2026-11-17
 
 ### Changed
