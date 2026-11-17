@@ -2,13 +2,13 @@
 description: "Lint and format checks across changed ecosystems without a full build, honoring each tool's config-file opt-in; --fix formats only, --code-fix applies semantic lint autofixes behind a confirmation gate. Use when: 'lint this', 'run the linter', 'format check', 'fix the formatting', 'is this formatted right', 'run prettier/ruff/eslint', or for quick lint/format feedback during development. Build and test: /toolchain:check."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[ecosystem] [--fix|--code-fix] [--yes] [--dry-run] [--all-files]"
+argument-hint: "[ecosystem] [--fix|--code-fix] [--yes] [--dry-run] [--all-files] [--unattended]"
 metadata:
   workflow-stage: verify
   summary: Polyglot lint and format checks without a full build
 ---
 
-**Arguments.** `[ecosystem] [--fix|--code-fix] [--yes] [--dry-run] [--all-files]`. e.g., /toolchain:lint, /toolchain:lint dotnet, /toolchain:lint --fix, /toolchain:lint --code-fix --yes, /toolchain:lint all
+**Arguments.** `[ecosystem] [--fix|--code-fix] [--yes] [--dry-run] [--all-files] [--unattended]`. e.g., /toolchain:lint, /toolchain:lint dotnet, /toolchain:lint --fix, /toolchain:lint --code-fix --yes, /toolchain:lint all, /toolchain:lint --unattended
 
 ## Repository context. Gather first
 
@@ -39,7 +39,7 @@ Run lint and format checks across affected ecosystems in one command. Fills the 
 
 Use `/toolchain:lint` for quick feedback during development. Use `/verification:confirm` before committing.
 
-**The command surface is resolved, not hardcoded.** `/toolchain:lint` resolves each ecosystem's `lint-cmd`/`check-cmd`/`fix-cmd`/`code-fix-cmd` through the shared four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md). Shared with `/toolchain:check`: the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` is authoritative when present; the plugin's bundled portable defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the rung-4 fallback. The consumer's file always wins.
+**The command surface is resolved, not hardcoded.** `/toolchain:lint` resolves each ecosystem's `lint-cmd`/`check-cmd`/`fix-cmd`/`code-fix-cmd` through the shared four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md). Shared with `/toolchain:check`: the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` is authoritative when present; the plugin's bundled portable defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the rung-4 fallback of an attended run only. The consumer's file always wins.
 
 **Two mutators, two gates.** Format-only and code-changing autofixes are separate keys and separate flags. Bare `--fix` must never run semantic lint autofixes (ruff `check --fix`, golangci-lint `--fix`, biome `check --write`, …).
 
@@ -61,6 +61,7 @@ Use `/toolchain:lint` for quick feedback during development. Use `/verification:
 | `--yes` / `-y` | Skip the interactive confirmation prompt for `--code-fix`. Required for non-interactive / headless `--code-fix` applies. Inert for check mode and for `--fix`. |
 | `--dry-run` | With `--code-fix`: emit the plan (commands + scoped files) and **stop**. Mutate nothing. Implies the plan half of the confirmation gate. |
 | `--all-files` | With `--code-fix`: allow applying when the scoped file count exceeds the [file-cap](#code-fix-scope-fence) (default 40). Without it, over-cap runs stop after the plan. |
+| `--unattended` | Marks the run unattended. A run without it is still unattended when the ladder's "Run kind" says so, including one that cannot tell whether a person is present. An unattended run resolves commands by the ladder's "Unattended runs": only a recorded, stated or inferred command runs, each logged `assumed:` with its source; nothing is asked or installed, and no `.claude/ecosystems/` record is written; a key nothing resolved, or a tie, reads `skip (unresolved: <ecosystem>.<key>)`. It is non-interactive for the [confirmation gate](#code-fix-confirmation-gate). |
 
 **Combinable:** `/toolchain:lint dotnet --fix`, `/toolchain:lint --fix`, `/toolchain:lint --code-fix`, `/toolchain:lint --code-fix --yes`, `/toolchain:lint all`, `/toolchain:lint md`
 
@@ -77,6 +78,7 @@ Parse `$ARGUMENTS` for:
 - **Ecosystem filter**: extract any ecosystem name. Default: auto-detect
 - **Fix mode**: detect `--fix` / `fix` (format-only) vs `--code-fix` (code-changing). Default: check mode
 - **Consent / scope flags**: `--yes` / `-y`, `--dry-run`, `--all-files` (only meaningful with `--code-fix`)
+- **Run kind**: `--unattended`, else the ladder's "Run kind" detector
 
 ### 1. Detect ecosystems
 
@@ -107,7 +109,7 @@ The loop probes candidate remotes in priority order, the remote the current bran
 
 Auto-detection algorithm:
 
-1. With the inferred ecosystems already added (above), resolve each covered ecosystem's config per [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) (consumer `.claude/ecosystems/<ecosystem>.yaml` when present, else what the repo's build files infer, named with its globs in the report, else the bundled default; a malformed consumer file warns and degrades to inference, never a hard stop). Skip any ecosystem whose resolved `enabled` is `false` (a consumer opt-out). Excluded even under `all`
+1. With the inferred ecosystems already added (above), resolve each covered ecosystem's config per [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) (consumer `.claude/ecosystems/<ecosystem>.yaml` when present, else what the repo's build files infer, named with its globs in the report, else the bundled default; a malformed consumer file warns and degrades to inference, never a hard stop). An unattended run (the ladder's "Run kind") resolves commands by the ladder's "Unattended runs" instead: recorded, stated, then inferred, never the bundled default's commands, and a key none resolves reads `skip (unresolved: <ecosystem>.<key>)`. Skip any ecosystem whose resolved `enabled` is `false` (a consumer opt-out). Excluded even under `all`
 2. For each ecosystem, match its `globs` against the changed-files list
 3. Run every ecosystem with ≥1 glob match whose `opt-in` condition holds, plus cross-cutting when any text file changed. This binary run/skip treatment applies cleanly when `opt-in` describes a single condition for the whole `check-cmd` (dotnet, python): unmet → excluded from the run but still reported (see sections 2 and 3 below, `skip (opt-in unmet: ...)`; never silently omitted). When `opt-in` instead describes multiple independent per-tool conditions bundled into one opaque command string (bash's shellcheck-always/shfmt-conditional split; cross-cutting's per-tool config-file list), this rule does not apply. `check-cmd`/`fix-cmd`/`code-fix-cmd` is a single opaque string with no way to run one sub-tool's portion without the other, so run it whole and report its real output. The known atomicity limitation this leaves open is in `/toolchain:check`'s Gotchas.
 4. A changed file is unclaimed when no resolved ecosystem's `globs` match it, cross-cutting's `**` aside: that glob is never a claim by itself, whether cross-cutting runs or is disabled. A match by any other ecosystem counts, even one that is disabled or skipped for an unmet opt-in: that row already reports the consumer's choice. Collect each unclaimed text file for the report's two fixed lines (section 3). Under `all` the changed files still come from the detection paths above; an ecosystem filter skips this step. A deleted file is not named. A binary file stays quiet. Decide binary with `git ls-files --eol -c -o -- <file>`: the file is binary when Git identifies its working-tree content as not text ([`--eol`](https://git-scm.com/docs/git-ls-files#Documentation/git-ls-files.txt---eol)). A path with no working-tree content is deleted or not a regular file, never binary. One command serves a working-tree change, the branch diff and a caller-supplied changed-file list.
@@ -176,7 +178,7 @@ Then gate on session context and flags. Every side-effect path is explicitly gat
 | Interactive | `--code-fix` only | Confirm with the user before applying. Honor scope narrowing ("only python"). |
 | Interactive | `--code-fix --yes` | Skip the confirmation prompt and apply (still honor the file-cap unless `--all-files`). |
 | Interactive or any | `--code-fix --dry-run` | Emit the plan and stop. Mutate nothing. |
-| Non-interactive (`CLAUDE_CODE_REMOTE`, `claude -p`, an autonomous loop) | `--code-fix` without `--yes` | Stop after the plan. Mutate nothing. The plan is the report. Re-run with `--yes` to apply. |
+| Non-interactive (`--unattended`, `CLAUDE_CODE_REMOTE`, `claude -p`, an autonomous loop, or a run that cannot tell) | `--code-fix` without `--yes` | Stop after the plan. Mutate nothing. The plan is the report. Re-run with `--yes` to apply. |
 | Non-interactive | `--code-fix --yes` | Apply (still honor the file-cap unless `--all-files`). |
 
 `--code-fix` opts into code-changing fix mode; `--yes` is the separate, explicit consent to mutate a tree with no human watching. A non-interactive session with no `--yes` is never consent. Bare `--fix` does not enter this gate.
@@ -206,7 +208,7 @@ In check mode, settle the Overall line and record it (section 5) before writing 
 Overall: FAIL (1 of 4 ecosystems failed)
 ```
 
-Use `pass`, `FAIL`, a named skip, or `—` (not applicable). Every skip names its reason in `/toolchain:check`'s named classes, and its class decides whether it blocks a "done" claim exactly as `/toolchain:check`'s report table (its section 3) classifies it: `skip (tool missing: <tool>)` and `skip (prerequisite missing: <name>)` are environment skips and block "done"; `skip (opt-in unmet: <condition>)` is the consumer's opt-in and does not. Lint installs nothing and runs no CI-parity gates, so it never emits the `dependencies missing` or `unsupported` classes.
+Use `pass`, `FAIL`, a named skip, or `—` (not applicable). Every skip names its reason in `/toolchain:check`'s named classes, and its class decides whether it blocks a "done" claim exactly as `/toolchain:check`'s report table (its section 3) classifies it: `skip (tool missing: <tool>)`, `skip (prerequisite missing: <name>)` and an unattended run's `skip (unresolved: <ecosystem>.<key>)` are environment skips and block "done"; `skip (opt-in unmet: <condition>)` is the consumer's opt-in and does not. Lint installs nothing and runs no CI-parity gates, so it never emits the `dependencies missing` or `unsupported` classes.
 
 An ecosystem's Status and the Overall line read `FAIL` when any cell failed, `INCOMPLETE` when nothing failed but an environment skip remains, and `PASS` only when neither holds. `INCOMPLETE` names each cause with its reason (e.g. `Overall: INCOMPLETE (3 of 4 ecosystems passed; markdown: skip (tool missing: markdownlint-cli2))`), so a caller such as `/verification:confirm` holds its verdict on a lint-only environment gap. An opt-in-unmet skip or a `—` cell never makes a run `INCOMPLETE`.
 
@@ -216,7 +218,7 @@ If `--fix` was used, note which ecosystems were format-fixed vs which have no `f
 
 If `--code-fix` was used (and applied), note which ecosystems ran `code-fix-cmd` vs which have none, and show `git diff --stat` for blast radius.
 
-Show failing output below the table. Truncated to key error lines, not the full dump.
+Show failing output below the table. Truncated to key error lines, not the full dump. An unattended run also prints each `assumed:` line, and for each unresolved key what it read and any tied candidates (ladder "Unattended runs").
 
 Below the table, name every unclaimed changed text file (section 1, step 4) on one of two fixed lines, printed word for word even when a note elsewhere in the reply says the same thing:
 
