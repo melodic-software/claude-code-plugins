@@ -100,24 +100,20 @@ decides an exemption with its own conditions.
 ## WSL on a Windows host
 
 - **Default WSL adds no isolation level.** A WSL distribution with its default configuration
-  rates `L0`, the same as the Windows host it runs on: by default it mounts the host's fixed
-  drives, launches Windows processes, and puts Windows path elements on `$PATH`, so a run inside it
-  reads, writes and executes on the host. Its virtual machine is never ratified as `L3`.
+  rates `L0`, the same as the Windows host it runs on: by default a run inside it can read,
+  write and execute on the host (Microsoft's sections linked below). Its virtual machine is never
+  ratified as `L3`.
 - **WSL2 with the per-command sandbox is `L1`.** The harness sandbox wraps shell commands only,
   so it is the attended ergonomics tier, not an unattended one. The whole-process sandbox runtime
   and a default-deny container stay `L2` candidates, each passing the guardrail slice's probe and
   its interop launch check.
-- **`/etc/wsl.conf` narrows the host reach but does not raise a level.** Interop `enabled=false`
-  stops WSL launching Windows processes, `appendWindowsPath=false` keeps Windows path elements off
-  `$PATH`, and automount `enabled=false` stops fixed drives mounting under the automount `root`
-  (`/mnt/` by default); drives can still be mounted by hand or through `/etc/fstab` while
-  `mountFsTab` is on. The file lives inside the distribution, so a run with root there can change
-  it, and changes take effect only after the distribution restarts. Use it to shrink what a
-  boundary has to deny; the level comes from the boundary and its probe. Pointer: when stating
-  what a key does or its default, fetch Microsoft's
+- **`/etc/wsl.conf` narrows the host reach but does not raise a level.** Its interop and automount
+  settings can shrink what WSL reaches on the host, so use them to shrink what a boundary has to
+  deny; the level still comes from the boundary and its probe. The file lives inside the
+  distribution, so a run with root there can change it. What each key does, its default and when a
+  change takes effect: Microsoft's
   [Automount settings](https://learn.microsoft.com/en-us/windows/wsl/wsl-config#automount-settings)
-  and [Interop settings](https://learn.microsoft.com/en-us/windows/wsl/wsl-config#interop-settings)
-  live.
+  and [Interop settings](https://learn.microsoft.com/en-us/windows/wsl/wsl-config#interop-settings).
 
 The instance records a WSL2 binding depends on are in the guardrail slice's
 [Windows surfaces](../../skills/setup/context/windows-surfaces.md#wsl2-distribution) file.

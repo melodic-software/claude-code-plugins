@@ -49,8 +49,8 @@ class that cannot reach `L2` for an unattended lane).
 Prices are looked up at run time and never stored. For each option the user is weighing that can
 bill (a hosted plan, metered minutes or storage, a seat, a paid tier):
 
-1. Fetch the vendor's own pricing page during the run (WebFetch, or `/discovery:research` for a
-   comparison across vendors).
+1. Fetch each vendor's own pricing page during the run with WebFetch, one fetch per vendor for a
+   comparison too. Not `/discovery:research`: it writes its findings to disk.
 2. Show what it says in the reply, with the page URL and the fetch date, beside the option.
 3. With no web access or an unreadable page, say the price is unknown and was not looked up.
    Never state a price from memory or from an earlier run.
