@@ -1,5 +1,12 @@
 # Changelog: discovery plugin
 
+## [2.2.0] - 2026-11-17
+
+### Changed
+
+- `/discovery:explore` no longer ships a per-ecosystem fallback table of test globs, build files, import tokens and version commands. It resolves each from the repository it explores through the plugin's new copy of the ecosystem resolution steps (`reference/ecosystem-resolution.md`, version 1.1.0), still composing `/toolchain:check` when that plugin is enabled. A fact that does not resolve becomes a gap in the artifact instead of a shipped default.
+- `/discovery:research` names no particular package registries in its source categories, and the `EXPLORE.md` sidecar header example uses placeholders in place of a stack-specific test command.
+
 ## [2.1.9] - 2026-11-17
 
 ### Fixed
