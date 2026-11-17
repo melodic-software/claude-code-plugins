@@ -19,8 +19,9 @@ runtime gate; this body calls them.
 ## Resolving paths (do this first)
 
 Resolve each option to a literal value before composing any command. A command line carries the
-resolved path, never a `${user_config.*}` token: an unset option leaves the token in place, and
-Bash then fails with `bad substitution` before pwsh starts.
+resolved path, never a `${user_config.*}` token, so it never depends on how an unset option
+renders. When checking where such a token is substituted, read
+[manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value).
 
 | Option | Resolution | Passed as |
 |---|---|---|
