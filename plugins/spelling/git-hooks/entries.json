@@ -1,13 +1,16 @@
 {
   "earlierNames": ["typos-format"],
+  "earlierEntries": [{ "from": "typos-check", "to": ["lint"] }],
+  "ecosystems": ["spelling"],
   "entries": [
     {
-      "name": "typos-check",
+      "name": "lint",
       "event": "pre-commit",
-      "script": "typos-check.sh",
+      "script": "lint.sh",
       "tools": ["typos"],
       "rewrites": false,
-      "assets": ["config/default-typos.toml"]
+      "resolved": true,
+      "assets": ["config/default-typos.toml", "lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh"]
     }
   ]
 }

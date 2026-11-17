@@ -5,7 +5,7 @@
 # the prerequisites manifest and its session_probe gate, and spelling.sh's
 # remaining entry points. The Stop
 # row's behavior is spelling-end-of-turn.test.sh; the pre-commit check is
-# git-hooks/typos-check.test.sh.
+# git-hooks/lint.test.sh.
 # test-scope: plugins/spelling/.claude-plugin/plugin.json plugins/spelling/hooks/hooks.json plugins/spelling/prerequisites.json
 
 set -uo pipefail
@@ -66,6 +66,11 @@ if jq -e '(.requires | map(.id)) == ["typos", "jq", "node"]' "$MANIFEST" >/dev/n
   ok "manifest: declares exactly typos, jq and node"
 else
   fail "manifest: expected tools typos, jq and node: $(cat "$MANIFEST" 2>/dev/null)"
+fi
+if jq -e '(.requires[] | select(.id == "typos") | .when.config_any | map(if type == "string" then . else .file end)) == ["typos.toml", "_typos.toml", ".typos.toml", "pyproject.toml", "Cargo.toml"]' "$MANIFEST" >/dev/null; then
+  ok "manifest: typos is needed only where a typos config is (when.config_any), so the probe stays quiet elsewhere"
+else
+  fail "manifest: want typos gated on the typos config files by when.config_any"
 fi
 # harness-ops' prerequisites-fleet.mjs runs the probe behind the kill switch; its own test covers the gate.
 if jq -e '.session_probe.run_if_unset_or_true == "SPELLING_ENABLED"' "$MANIFEST" >/dev/null; then

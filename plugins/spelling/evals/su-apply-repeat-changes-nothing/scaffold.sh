@@ -9,7 +9,7 @@ fi
 git init -q -b main .
 git config user.email eval@example.invalid
 git config user.name eval
-git config --local checks.spelling.typos-check.declined true
+git config --local checks.spelling.lint.declined true
 printf '[files]\nextend-exclude = []\n' >_typos.toml
 printf 'A short note with no spelling mistakes.\n' >notes.txt
 git add .

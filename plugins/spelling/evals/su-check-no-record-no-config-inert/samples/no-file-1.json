@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [
+        "notes.txt"
+      ],
+      "why": "the scaffold's files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "notes.txt",
+        ".claude/ecosystems/spelling.yaml"
+      ],
+      "why": "wrote the spelling record"
+    }
+  ]
+}
