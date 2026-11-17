@@ -152,8 +152,8 @@ control skill (the skill standard's "Config before a generated skill"). Three th
 
 - a tool name the skill's own behavior depends on detecting, such as a manifest, lockfile or
   config file it looks for;
-- the executed adapters, security and safety floors, and declared-ecosystem surfaces
-  [ADR 0101](adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md) keeps;
+- the executed adapters, security and safety floors, declared-ecosystem surfaces, kept-adapter
+  operations and measured facts [ADR 0101](adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md) keeps;
 - links to the platform a skill runs on or the provider behind its adapter, which
   [skill bodies state current rules](../.claude/rules/skill-bodies-state-current-rules.md) requires.
 
@@ -443,7 +443,8 @@ as defaults. This governs every plugin and every convention, not one class. Two 
 builds on one of the consumer's languages, frameworks, tools, libraries or commands. It takes no
 lane-1 default, however safe one looks: when the consumer's choice does not resolve, the skill
 reports it unresolved and skips the step. The named exceptions (executed adapters, security and
-safety floors, declared-ecosystem surfaces, source citations) are in
+safety floors, declared-ecosystem surfaces, kept-adapter operations, measured facts, source
+citations) are in
 [ADR 0101](adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md); source citations
 exclude one ecosystem's tool documentation, per
 [Hardcoded consumer specifics](#hardcoded-consumer-specifics).
