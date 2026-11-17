@@ -90,6 +90,25 @@ expect_crossing "a path after a plugin-root variable fails" "$A/deep/a.sh:1" plu
 tree "$A/deep/a.sh" 'LIB="$PLUGIN_ROOT/../alpha/lib/x.sh"'
 expect_pass "a plugin-root variable that stays in the plugin passes"
 
+here=$'HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\nROOT="$(cd "$HERE/.." && pwd)"\nREPO="$(cd "$ROOT/../.." && pwd)"'
+tree "$A/a.sh" "$here"$'\nsource "$ROOT/../beta/lib/x.sh"'
+expect_crossing "a climb after a variable assigned the plugin root by another name fails" "$A/a.sh:4" plugins/beta/lib/x.sh
+
+tree "$A/a.sh" $'HOOKS="${BASH_SOURCE%/*}"\nTOP="${HOOKS%/*}"\n. "$TOP/../beta/lib/x.sh"'
+expect_crossing "a climb after a variable assigned by stripping path segments fails" "$A/a.sh:3" plugins/beta/lib/x.sh
+
+tree "$A/a.sh" "$here"$'\nsource "$REPO/plugins/beta/lib/x.sh"'
+expect_crossing "a path from a variable assigned the repository root fails" "$A/a.sh:4" plugins/beta/lib/x.sh
+
+tree "$A/a.sh" "$here"$'\nsource "$ROOT/../alpha/lib/x.sh"\nsource "$REPO/plugins/alpha/lib/x.sh"'
+expect_pass "traced root variables that stay in the plugin pass"
+
+tree "$A/a.sh" $'R="$(mktemp -d)"\nmkdir -p "$R/plugins/beta/lib"'
+expect_pass "a fixture root from mktemp holding plugins/beta passes"
+
+tree "$A/a.sh" "$here"$'\nREPO="$TMP/repo"\nmkdir -p "$REPO/plugins/beta/lib"'
+expect_pass "a variable also assigned a path the check cannot resolve is not traced"
+
 tree "$A/a.tsx" 'import { x } from "../../beta/lib/x.ts";'
 expect_crossing "a TSX from specifier fails" "$A/a.tsx:1" plugins/beta/lib/x.ts
 
