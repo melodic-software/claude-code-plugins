@@ -735,7 +735,7 @@ check "a copy run elsewhere skips the contract step when the branch changes the 
   '[[ $RC == 0 && $ERR == *"SKIP validate-plugins: contract-validator (the branch changes the validator"* ]]'
 git_test_config "$repo" reset -q --hard "$pre_contracts"
 rm -f "$tools/scripts/validate-plugins.sh"
-check"the contract validator imports no local module, so check-affected's list of its files is whole" \
+check "the contract validator imports no local module, so check-affected's list of its files is whole" \
   '[[ -f $SELF_DIR/validate-plugin-contracts.mjs ]] && ! grep -qE "(from|import|import\(|require\() *[\"'"'"']\.\.?/" "$SELF_DIR/validate-plugin-contracts.mjs"'
 
 # machine-specific-paths loads the merge-base's patterns file, never the
