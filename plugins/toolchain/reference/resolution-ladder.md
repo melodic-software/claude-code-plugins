@@ -78,8 +78,9 @@ per-key.)
 
 **Malformed consumer file → warn and degrade to rung 2**, never a hard stop: surface the parse/schema
 error, then infer as if the file were absent. (Consuming repos should validate their own files against
-the schema in a gate; plugins fail soft.) Unknown keys are inert; missing optional keys fall back to
-defaults.
+the schema in a gate; plugins fail soft.) Unknown keys are inert. In an attended run, missing
+optional keys fall back to defaults. An unattended run never falls back to a bundled default for a
+key the record leaves out: see "Unattended runs" below.
 
 ## Run kind
 
@@ -101,7 +102,11 @@ An unattended run resolves each command it would run (`build-cmd`, `test-cmd`, `
 `lint-cmd`, `fix-cmd`, `code-fix-cmd`, and each `gates[]` item's `cmd`) from these sources only,
 in this order, stopping at the first that yields it:
 
-1. **Recorded.** Rung 1's layered record. A recorded `null` is resolved: the cell reads as not applicable.
+1. **Recorded.** Rung 1's layered record. A recorded `null` is resolved: the cell reads as not
+   applicable. A key the record leaves out is not recorded, even when the record exists for that
+   ecosystem: it goes to the next sources like a key with no record at all, and no source here
+   reads it as not applicable. To resolve it unattended, the record spells it out (`null` where
+   nothing applies).
 2. **Stated.** The repository's own instructions (`CLAUDE.md`, an `AGENTS.md`, a `.claude/rules/`
    file, `CONTRIBUTING.md`) name the command for that ecosystem and key.
 3. **Inferred.** The repository's files imply exactly one command, and only of these shapes, run
