@@ -15,6 +15,12 @@
         {"tool": "Skill", "input": {"skill": "app-control:drive-helper"}}
       ],
       "why": "a longer name"
+    },
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "app-control:drive", "args": "cleanup shop --unattended"}}
+      ],
+      "why": "cleanup stops what the run started and drives no feature"
     }
   ],
   "fail": [

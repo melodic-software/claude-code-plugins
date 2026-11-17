@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "app-control:drive", "args": "ready shop --unattended"}}
+      ],
+      "why": "starts the live pass"
+    }
+  ]
+}
