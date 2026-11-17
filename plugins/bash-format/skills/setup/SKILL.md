@@ -1,5 +1,5 @@
 ---
-description: "Verify bash-format's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up bash-format', 'configure bash-format', 'is bash-format working', shell lint or formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only verification, default) | check inspect (read-only) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
+description: "Verify bash-format's prerequisites and which formatter and linter its hooks run here, and register its git pre-commit entries. Use when: 'set up bash-format', 'configure bash-format', 'is bash-format working', 'which linter does bash-format run', shell lint or formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only verification, default) | check inspect (read-only) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
 argument-hint: "[check|apply] [inspect|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
@@ -14,6 +14,14 @@ allowed-tools:
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs inspect:*)"
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan:*)"
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs plan:*)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh\" --resolve)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh\" --resolve:*)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh --resolve)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh --resolve:*)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh\" --resolve)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh\" --resolve:*)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh --resolve)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh --resolve:*)"
 shell: bash
 ---
 
@@ -40,10 +48,13 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
-reports, `apply` resolves. The only consumer-project files this plugin owns are its git-hook
-entry copies, which `apply install-git-hooks` writes. Linting rules come from the repository's
-own `.shellcheckrc`, formatting from its `.editorconfig`, and the tunables are the native
-`userConfig` options (the on/off toggle, the gitignored-file switch and the end-of-turn check).
+reports, `apply` resolves. Shell formatting and linting are two concerns. The hooks run only the
+plugin's shipped adapter for each, where that tool's own config governs the file, and otherwise
+nothing; they never run a command from the repository's bash record (`.claude/ecosystems/bash.yaml`),
+which `/toolchain:lint` and `/toolchain:check` run on request. The only consumer-project files this
+plugin writes are its git-hook entry copies (`apply install-git-hooks`); the record is written by
+`/toolchain:setup apply bash`, never here. The tunables are the native `userConfig` options (the
+on/off toggle, the gitignored-file switch and the end-of-turn check).
 Every prerequisite is a `PATH` binary the plugin never bundles, and the plugin never installs
 system packages, so the rest of `apply` is guidance-only. It never modifies user settings or the
 plugin cache.
@@ -55,10 +66,9 @@ offers remediation guidance. Both are non-interactive. Never prompt when the act
 
 ## `check` (read-only)
 
-The batch hook (`${CLAUDE_PLUGIN_ROOT}/hooks/bash-format.sh`), the pre-commit check
-(`${CLAUDE_PLUGIN_ROOT}/git-hooks/shell-check.sh`) and the shared rewrite helper
-(`${CLAUDE_PLUGIN_ROOT}/git-hooks/shfmt-rewrite.sh`) are the single source of truth for what
-they require and how they resolve things.
+The batch hook (`${CLAUDE_PLUGIN_ROOT}/hooks/bash-format.sh`), the entries and the resolver they
+share are the single source of truth for what the plugin requires and how it resolves things;
+step 4 asks the resolver itself.
 
 **Read it first.** Probe what it actually does, don't recite this file. Then read the
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
@@ -66,57 +76,61 @@ table with one remediation line per FAIL. Do not modify anything.
 Read each option value from this text; never put a `${user_config.*}` string in a shell command.
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
-The format pass (the batch row and the pre-commit rewrite) and the lint pass (the pre-commit
-ShellCheck findings) are independent; report each separately.
-
 When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
 FAIL to INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
 disabled plugin is not broken. Report the probes informationally and note that re-enabling
 restores the FAIL semantics. A missing `node` stays FAIL in either state: every hook row launches
-`node`, and the gate runs inside `hooks/exec-bash.mjs`. A tool the git pre-commit entry needs keeps
-the grade it gets with the toggle on while that entry is installed (step 12 reports it as a `tool`
-line beside an `ok`, `stale` or `modified` entry): the entry runs at commit outside Claude Code
-and reads no toggle.
+`node`, and the gate runs inside `hooks/exec-bash.mjs`. A tool the git pre-commit entries need keeps
+the grade it gets with the toggle on while those entries are installed (step 10 reports it as a
+`tool` line beside an `ok`, `stale` or `modified` entry): the entries run at commit outside Claude
+Code and read no toggle.
 
 1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 2. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row launches through
    `node hooks/exec-bash.mjs`, so without `node` the hook does not launch and no shell edit is
    formatted in the session (`${CLAUDE_PLUGIN_ROOT}/README.md` Requirements).
 3. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch row does nothing, since it
-   reads the file paths with `jq`, and the pre-commit rewrite is skipped.
-4. **`shellcheck`** (lint pass). The pre-computed `shellcheck` row. FAIL if absent: the pre-commit
-   entry reports no findings.
-5. **`shfmt`** (format pass). The pre-computed `shfmt` row. Its FAIL/INFO status depends on the
-   `.editorconfig` opt-in below, because the format pass runs **only when the repo has opted
-   in**:
-   - opted in and `shfmt` absent → FAIL: neither the batch row nor the pre-commit entry formats.
-   - not opted in → INFO regardless of `shfmt`: the format pass stays quiet by design (the
-     repo chose not to format), so a missing `shfmt` is not a defect here.
-6. **`.editorconfig` shell opt-in.** Mirror the hook's opt-in logic
-   (`shfmt_governed` / `section_applies_to_shell` in `${CLAUDE_PLUGIN_ROOT}/git-hooks/shfmt-rewrite.sh`), not merely "does an
-   `.editorconfig` exist". The opt-in is an EditorConfig **section that names shell files**:
-   a shell glob such as `[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]` (including path-prefixed
-   forms like `[**/*.sh]`), discovered by walking up from the file's directory to the repo
-   root and stopping at a `root = true` config. A bare `[*]` catch-all does not count (most
-   repos only set line-ending / charset properties there). Path-only sections like
-   `[scripts/**]` do not count either. Report as INFO: whether a governing shell section
-   exists and therefore whether the format pass is active. If none exists, INFO-note the
-   consequence per the hook's logic: shell files are left unformatted rather than rewritten
-   to shfmt's built-in defaults.
-7. **`.shellcheckrc`.** INFO: ShellCheck auto-discovers `.shellcheckrc` by walking up from
-   the file's directory. Report whether one exists; its absence is not a FAIL (ShellCheck
-   applies its own defaults).
-8. **Hook options.** Report the effective values. `${user_config.bash_format_enabled}`
+   reads the file paths with `jq`, and the `format` entry cannot run its subscript guard.
+4. **What each concern resolves to.** From the repository root run
+   `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh" --resolve` and
+   `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh" --resolve`. Each prints one row: plugin, concern,
+   source, tool, found, detail, tab-separated. It reads the adapters' configs and runs nothing.
+   Append repository paths (`--resolve scripts/a.sh lib/b.bash`) for one row per file, since each
+   adapter's config walk can answer differently per file; the detail column then names the config
+   that governs that file and the binary that would run, or why nothing resolved. Each adapter's
+   own rules (which config opts a file in, where its binary comes from) are in
+   `${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh`, and the format opt-in test is in
+   `${CLAUDE_PLUGIN_ROOT}/git-hooks/shfmt-rewrite.sh`: read them to explain why a row names that
+   config. Report one line per concern from the rows, never from this text:
+   - `adapter:<name>` with found `yes`: PASS, naming the adapter's tool and that its config opted in.
+   - found `no`: FAIL; the remediation is the adapter tool's
+     `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` install hints (Read that path).
+   - `none`: INFO "unresolved": no shipped adapter's config governs the repository for that
+     concern, so the hooks run nothing for it. Only format can resolve to `none`: the lint adapter
+     needs no config, and its detail says `none (ShellCheck defaults)` when no rc file exists. This is the opt-out by design, so a missing tool for
+     an unresolved concern is INFO, not a defect. For format, shell files are then left as written
+     rather than rewritten to shfmt's built-in defaults; a bare `[*]` section or a path-only one
+     such as `[scripts/**]` does not opt in (`apply` below lists the sections that do).
+   A detail saying a bash record exists is INFO beside the row: the hooks never run it, and
+   `/toolchain:lint` or `/toolchain:check` runs it on request.
+5. **Draft, never write, the record.** When a concern is unresolved, or the person names a tool the
+   plugin ships no adapter for, say that the hooks will not run that tool: they run only the shipped
+   adapters. Find the repository's own formatter and linter by the steps in
+   [reference/ecosystem-resolution.md](../../reference/ecosystem-resolution.md), and draft the
+   `fix-cmd` and `lint-cmd` values: each holds `<files>`, `fix-cmd` only formats and `lint-cmd` only
+   reports, with findings as `<path>:<line>` lines. Hand the draft to `/toolchain:setup apply bash`,
+   the one writer of those keys, so `/toolchain:lint` and `/toolchain:check` can run them on request.
+6. **Hook options.** Report the effective values. `${user_config.bash_format_enabled}`
    (unexpanded or empty means the manifest default `true`; any value other than `true`
    disables the hook). `${user_config.bash_format_lint_gitignored}` (unexpanded or empty means
    the manifest default `false`): unless it is `true`, the batch row silently skips an edit to a
    file the repository gitignores, so a user asking why `.work/scratch.sh` was not formatted
    gets this answer. `${user_config.bash_format_end_of_turn}` (unexpanded or empty means the
-   shipped default `false`), as INFO: on, the Stop row checks the uncommitted changes once per
-   turn; off, only the batch format and the git pre-commit entry run.
-9. **Hook registration.** INFO: confirm the plugin is enabled for this project
+   shipped default `false`), as INFO: on, the Stop row runs the `lint` entry over the uncommitted
+   changes once per turn; off, only the batch format and the git pre-commit entries run.
+7. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
-10. **Project scope.** INFO: when `CLAUDE_PROJECT_DIR` is set, the batch row acts only
+8. **Project scope.** INFO: when `CLAUDE_PROJECT_DIR` is set, the batch row acts only
    on shell files inside it (symlink-resolved membership guard in the shared hook
    library, aware of Windows 8.3 short-name spellings of in-project paths, a
    per-volume property; only volumes with 8.3 generation enabled produce them);
@@ -127,21 +141,25 @@ and reads no toggle.
    `CLAUDE_PROJECT_DIR` is **unset** (e.g. some headless `-p` sessions) the guard
    is skipped and any existing edited file is processed. Report this so a green
    `check` is not read as "every shell edit anywhere is covered".
-11. **Gitignored files.** INFO: unless `bash_format_lint_gitignored` is `true`, a file the
-    repository gitignores (`git check-ignore`) is silently skipped: no lint, no format, no
-    notice. A tracked file that matches an ignore pattern stays in scope, and when git cannot
-    decide (git absent, no repository, an error) the hook acts as before
-    (`hook::gitignored_out_of_scope` in `${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`). Report the item 8 value
-    beside this.
-12. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
-    from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
-    INFO (this clone said no; silent at session start), and `missing`, `stale`, `modified` or `superseded` is a
-    FAIL whose remediation is `apply install-git-hooks`; a `superseded` detail lists what an install under an earlier plugin name left, which that action removes on the user's yes. A `tool\t<tool>\tmissing` line means the
-    installed entry cannot run here: list every such tool with its install method from the
-    `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
-    auto-mode session commits. Outside a git repository, report INFO and skip the step.
+9. **Gitignored files.** INFO: unless `bash_format_lint_gitignored` is `true`, a file the
+   repository gitignores (`git check-ignore`) is silently skipped: no lint, no format, no
+   notice. A tracked file that matches an ignore pattern stays in scope, and when git cannot
+   decide (git absent, no repository, an error) the hook acts as before
+   (`hook::gitignored_out_of_scope` in `${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`). Report the item 6
+   value beside this.
+10. **Git pre-commit entries.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
+    from the repository. It lists `format` and `lint`. Each line is `<state>\t<entry>[\t<detail>]`:
+    `ok` is PASS, `declined` is INFO (this clone said no; silent at session start), and `missing`,
+    `stale`, `modified` or `superseded` is a FAIL whose remediation is `apply install-git-hooks`; a
+    `superseded` detail lists what an install under an earlier plugin or entry name left (the single
+    entry these two replaced), which that action removes on the user's yes. A
+    `tool\t<tool>\tmissing` line means the installed entry cannot run here: list every such tool (the
+    entry's resolved tool) with its install method from the
+    `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can
+    provision it before an auto-mode session commits. Outside a git repository, report INFO and skip
+    the step.
 
-When every probe passes, report the result **with the scope caveats** (items 10 and 11).
+When every probe passes, report the result **with the scope caveats** (items 8 and 9).
 Never an unqualified "fully operational", which would imply out-of-project shell
 edits are covered when they are deliberately skipped.
 
@@ -187,14 +205,15 @@ with your own edit tools.
 5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
    what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
    chose to leave remain.
-6. **Verify.** Run `verify` and report its lines as `check` step 12 does.
+6. **Verify.** Run `verify` and report its lines as `check` step 10 does.
 
-The entry rewrites: at commit it formats the staged shell scripts an `.editorconfig` section
+The `format` entry rewrites: at commit it formats the staged shell scripts the shfmt adapter
 governs and stages the result, so tell the user that a commit can change the files it contains,
-and that a partly staged governed script is refused untouched.
+and that a partly staged governed script is refused untouched. The `lint` entry only reports
+findings on the lines the commit adds. A decline of the earlier single entry carries to both.
 
 When the user does not want an entry in this clone, run
-`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry shell-check`; the
+`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry format` (or `lint`); the
 session-start drift line then stays silent until `verify` runs by hand, and `--undo` reverses it.
 Add `--global` (with or without `--undo`) to decline the entry in every clone;
 `git config --global checks.git-hooks.declined true` declines every entry of every plugin, and an
@@ -203,20 +222,23 @@ path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/con
 
 ## `apply` (idempotent)
 
-Run `check`, then for each FAIL point at the resolution. Apart from the git-hook entry above, this
+Run `check`, then for each FAIL point at the resolution. Apart from the git-hook entries above, this
 skill installs nothing:
 
-- missing `shellcheck`: install guidance from the README Requirements section
-  (the [ShellCheck install guide](https://github.com/koalaman/shellcheck#installing)); this
-  skill never installs system packages.
-- missing `shfmt` while the repo opts in: install guidance
-  ([shfmt](https://github.com/mvdan/sh#shfmt)); this skill never installs system packages.
+- a resolved adapter's tool missing: the install hints for that tool in
+  `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path); this skill never installs system
+  packages.
 - missing `node` / `jq` / Bash: platform install instructions from the README Requirements section.
-- no shell `.editorconfig` opt-in (and formatting is wanted): explain that adding a governing
-  shell section (`[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]`) to an `.editorconfig` opts the
-  repo in. A bare `[*]` is not enough, but this skill does not write it. `.editorconfig` is
-  cross-cutting (it governs every editor and tool in the repo), so the choice and the edit
-  belong to the consumer.
+- a concern unresolved and wanted: say what opts the shipped adapter in
+  (`${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh`), with the install hints for its tool from
+  `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` when the tool is missing too. For format, an
+  `.editorconfig` section naming shell files (`[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]`, including
+  path-prefixed forms like `[**/*.sh]`) opts the repo in; a bare `[*]` or a path-only section such as
+  `[scripts/**]` does not. Lint has no opt-in: ShellCheck runs on every shell file, with the
+  repository's `.shellcheckrc` when one exists and its own defaults otherwise. This skill writes
+  neither file: both are the consumer's, and `.editorconfig` governs every editor and tool in the
+  repo, so the choice and the edit belong to the consumer. For a tool the plugin ships no adapter for, `check` step 5's draft, for
+  `/toolchain:setup apply bash`.
 - toggle off, gitignored files wanted, or the end-of-turn check wanted: set
   `bash_format_enabled`, `bash_format_lint_gitignored` or `bash_format_end_of_turn` to `true`
   through Claude Code's native flow, interactively with
@@ -244,10 +266,16 @@ the reader's report that they installed something.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
+## Next
+
+/toolchain:setup apply bash, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a
+tool the plugin ships no adapter for; /toolchain:lint then runs it on request.
+
 ## What this skill does not do
 
 - Run the linter or formatter. Editing any `.sh` or `.bash` file exercises the batch row end to
-  end; `git commit` exercises the installed pre-commit entry.
+  end; `git commit` exercises the installed pre-commit entries.
+- Write the bash record: `/toolchain:setup apply bash` does.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor the repository,
   beyond the git-hook entry copies, including `.editorconfig` / `.shellcheckrc`. Every
   prerequisite is a `PATH` binary or the native toggle, so remediation is guidance only.
@@ -261,9 +289,10 @@ Re-running `apply` after everything passes changes nothing and reports "already 
   `ENAMETOOLONG` on some hosts. Read the file directly rather than passing the full
   cache path on the command line.
 - **`check` PASS ≠ every shell edit is covered.** When `CLAUDE_PROJECT_DIR` is set
-  the hook is project-scoped (probe 10): shell files written outside it are silently
+  the hook is project-scoped (probe 8): shell files written outside it are silently
   skipped, so a fully green `check` still does not cover out-of-project edits. (When
-  `CLAUDE_PROJECT_DIR` is unset the scoping does not apply. See probe 10.)
-- **`shfmt` FAIL is opt-in-conditional.** A missing `shfmt` is only a FAIL when an
-  `.editorconfig` section governs shell files; without that opt-in it is INFO, not
-  a defect. Resolve the `.editorconfig` opt-in state before calling `shfmt` a failure.
+  `CLAUDE_PROJECT_DIR` is unset the scoping does not apply. See probe 8.)
+- **A missing tool is FAIL only for a resolved concern.** A missing `shfmt` or
+  `shellcheck` is a FAIL only when step 4 resolves that concern to its adapter; for an
+  unresolved concern it is INFO, not a defect. Read the `--resolve` rows before calling a
+  missing tool a failure.
