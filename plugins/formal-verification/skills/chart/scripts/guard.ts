@@ -53,7 +53,7 @@ export function colonsBeforeHash(s: string) {
 }
 
 export function stripComments(text: string) {
-  const tla = text.slice(Math.max(0, text.search(/^-{4,}[ \t]*MODULE\b/m)));
+  const tla = text.slice(Math.max(0, text.search(/-{4,}[ \t]*MODULE\b/)));
   let out = "";
   let depth = 0;
   const literal = /"(?:\\.|[^"\\\n])*"?/y;

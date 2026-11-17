@@ -83,6 +83,11 @@ test("referencedModules ignores a comment opened before the module starts", () =
   const text = `Notes (* draft\n${spec("M", "EXTENDS Naturals, Json")}`;
   assert.deepEqual(referencedModules(text).sort(), ["Json", "Naturals"]);
   assert.equal(moduleName(text), "M");
+  const midLine = `(* ${spec("M", "EXTENDS Naturals, Json")}`;
+  assert.deepEqual(referencedModules(midLine).sort(), ["Json", "Naturals"]);
+  const decoy = `x ${spec("M", "EXTENDS Json")}${spec("Decoy", "")}`;
+  assert.deepEqual(referencedModules(decoy), ["Json"]);
+  assert.equal(moduleName(decoy), "M");
 });
 
 test("referencedModules reads a module name right after a comment", () => {
