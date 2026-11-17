@@ -68,7 +68,7 @@ else
   fail "manifest binding needs jq and $MANIFEST"
 fi
 expect "manifest: markdownlint-cli2 is needed only where a config the gates scan is" \
-  "$(sed -n 's/^ *md_scan_family "\$1" //p' "$PLUGIN_ROOT/git-hooks/markdown-gates.sh" | tr ' ' '\n' | jq -R . | jq -sc .)" \
+  "$(sed -n 's/^ *md_scan_family [^ ]* //p' "$PLUGIN_ROOT/git-hooks/markdown-gates.sh" | tr ' ' '\n' | jq -R . | jq -sc .)" \
   "$(jq -c '.requires[0].when.config_any' "$MANIFEST")"
 
 if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then
