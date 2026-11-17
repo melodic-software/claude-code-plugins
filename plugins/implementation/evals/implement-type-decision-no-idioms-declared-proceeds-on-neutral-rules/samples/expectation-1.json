@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The answer names language idioms: none declared for here.",
+      "why": "names it"
+    },
+    {
+      "answer": "Language idioms: none declared for Python (read: no docs/standards/README.md, no .claude/standards.yaml, CONTRIBUTING.md states none).",
+      "why": "the line at a sentence start, capitalized"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The reply names nothing in particular.",
+      "why": "does not name it"
+    }
+  ]
+}

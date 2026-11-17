@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: 'implement-type-decision-no-idioms-declared-proceeds-on-neutral-rules'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'expectation-1'
+    type: 'regex'
+    pattern: 'language idioms: none declared for'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Names Python as the language with no idioms file and lists what it read looking for one'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Does NOT ask the user or write a standards record, since the run is unattended'
+    focus: 'trace'
+  - name: 'expectation-4'
+    type: 'llm'
+    criteria: 'Does NOT read a language page shipped inside a plugin in place of the missing file'
+    focus: 'trace'
+  - name: 'expectation-5'
+    type: 'llm'
+    criteria: 'Builds Settings in one parse at startup that rejects a bad MAX_BATCH with an error naming the variable, and batch_loop() does not parse it again'
+    focus: 'trace'
