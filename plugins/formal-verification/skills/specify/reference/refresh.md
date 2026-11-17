@@ -122,7 +122,7 @@ a check that ends `in sync` or `updated` with its seeded break caught. A propose
    - **Pass:** the check can now pass on a description that has lost the ability to fail. Break the
      new code the way the property guards against, such as removing a new check or reordering a new
      step, and confirm that the check catches it. First commit the refreshed verification in the
-     throwaway worktree (`git -C <scratch> add -A`, then `git -C <scratch> commit -m refreshed`),
+     throwaway worktree (`git -C <scratch> add -A`, then `git -C <scratch> commit --allow-empty -m refreshed`),
      so the break can be undone without losing step 4's edits. Make the break there, by
      [`create.md`](create.md) "Prove it before you hand off" steps 2 and 3. Then drop the break,
      in the code and in any model copy that carried it (`git -C <scratch> restore -- .`). A break
@@ -174,10 +174,14 @@ conversion path, with `git add -- <paths>` then `git commit -- <paths>`, so work
 stays staged. Done when `git show --name-only --format= HEAD` lists only those paths.
 
 - **Ticket branch:** write and commit on that branch in the person's working tree. When
-  `git status --porcelain -- <paths>`, read before the first write, prints a line not starting
-  `??`, the caller has uncommitted changes there: write nothing, and that folder's checks are
-  `blocked` with the edits in the report. Push nothing and open no pull request: the ticket's pull
-  request carries the commit.
+  `git status --porcelain -- <paths>`, read before the first write, prints anything, the caller
+  has uncommitted or untracked work there: write nothing, and that folder's checks are `blocked`
+  with the edits in the report. Push nothing and open no pull request: the ticket's pull request
+  carries the commit.
+- **A folder's own upkeep branch, checked out in the person's working tree:** for that folder,
+  merge the tip into it, never a rebase, then write and commit there under the ticket bullet's
+  guard, and push, which updates its pull request or opens one as the next bullet does. Every
+  other folder takes the next bullet.
 - **Default branch or a detached HEAD at the tip:** write in a worktree outside the repository on
   the folder's upkeep branch, `formal-verification-upkeep/<folder>`, one per folder. Create it from
   the tip when it does not exist; when it does, merge the tip into it, never a rebase, and a merge
