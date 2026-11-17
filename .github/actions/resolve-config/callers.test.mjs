@@ -15,6 +15,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { gunzipSync } from "node:zlib";
 
 import Ajv2020 from "ajv/dist/2020.js";
 import { parse } from "yaml";
@@ -28,6 +29,8 @@ import { laneAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
 import { levelSettings } from "../../scripts/lib/lane-level-value.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
+import { openRecord, parsePrivateKey } from "../open-lane-output/open.mjs";
+import { transcriptMetrics } from "../../../scripts/lane-transcripts/store.mjs";
 import { decide } from "../report-check-run/decide.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -4844,6 +4847,7 @@ test("pr-run-activity-read.yml: the seal step runs only on a sealer copy that ma
     "action-sha256": sha(readFileSync(new URL(files["action.yml"], ACTIONS))),
     "seal-sha256": sha(readFileSync(new URL(files["seal.mjs"], ACTIONS))),
     "key-sha256": sha(readFileSync(new URL(files["scan-carrier.pub"], ACTIONS))),
+    "gate-sha256": sha(""),
   });
   // Each hash the check step reads is one the copy step writes.
   const env = {};
@@ -4879,6 +4883,266 @@ test("pr-run-activity-read.yml: the seal step runs only on a sealer copy that ma
     assert.equal(failed.status, 1, `${name} empty`);
     assert.match(failed.stdout, /^::error::/m);
   }
+});
+
+const TRANSCRIPT_CAP = 286720;
+const TRANSCRIPT_KEY = (() => {
+  const { publicLine, privateText } = generateCarrierKey();
+  return { publicLine, privateText, keyId: publicLine.split(" ")[1] };
+})();
+const LEG_MESSAGES = [
+  { type: "system", subtype: "init", model: "claude-opus-5-5" },
+  { type: "assistant", message: { id: "m1", content: [{ type: "text", text: "patched the parser" }] } },
+  { type: "result", subtype: "success", is_error: false, num_turns: 3 },
+];
+const expand = (text, context) => String(text).replace(/\$\{\{ ([^}]+) \}\}/g, (_, expression) => String(evaluate(`\${{ ${expression} }}`, context)));
+const NEEDS_RUN_OUTPUT = /^\$\{\{ needs\.run\.outputs\.([\w-]+) \}\}$/;
+
+const baseSha256 = (url) => createHash("sha256").update(readFileSync(url)).digest("hex");
+
+function carryTranscript(t, execution, { inputs = {}, publicLine = TRANSCRIPT_KEY.publicLine, carryLength = "", tamper = () => {}, status = 0 } = {}) {
+  const root = tempDir("transcript-carry-");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const temp = join(root, "temp");
+  const workspace = join(root, "workspace");
+  mkdirSync(join(workspace, ".lane-seal"), { recursive: true });
+  mkdirSync(join(temp, "read-patch"), { recursive: true });
+  for (const file of ["action.yml", "seal.mjs"]) writeFileSync(join(workspace, ".lane-seal", file), readFileSync(new URL(`seal-lane-output/${file}`, ACTIONS)));
+  writeFileSync(join(temp, "read-patch", "publish-gate.mjs"), read("../../../lib/publish-gate.mjs"));
+  const executionFile = join(temp, "execution.json");
+  if (execution !== null) writeFileSync(executionFile, execution);
+  tamper({ gate: join(temp, "read-patch", "publish-gate.mjs"), laneSeal: join(workspace, ".lane-seal") });
+  const context = { "runner.temp": temp, "inputs.activity": "resolve-issue", "inputs.fallback": "", "inputs.model-rung": "", ...inputs };
+  const steps = runSteps();
+  const stageOutput = join(root, "stage-output");
+  writeFileSync(stageOutput, "");
+  const staged = runStep(steps.find((s) => s.id === "transcript-carry"), workspace, {
+    EXECUTION_FILE: execution === null ? "" : executionFile,
+    PUBLIC_KEY: publicLine,
+    CARRY_DIR: join(temp, "carry-transcript"),
+    PATCH_GATE: join(temp, "read-patch", "publish-gate.mjs"),
+    CARRY_SEALED_LENGTH: carryLength,
+    GATE_SHA256: baseSha256(new URL("../../../lib/publish-gate.mjs", import.meta.url)),
+    ACTION_SHA256: baseSha256(new URL("seal-lane-output/action.yml", ACTIONS)),
+    SEAL_SHA256: baseSha256(new URL("seal-lane-output/seal.mjs", ACTIONS)),
+    GITHUB_WORKSPACE: workspace,
+    GITHUB_OUTPUT: stageOutput,
+  });
+  assert.equal(staged.status, status, staged.stdout + staged.stderr);
+  const result = { log: staged.stdout, staged: outputLines(stageOutput).staged === "true", runOutputs: {}, context };
+  if (!result.staged) return result;
+  const seal = steps.find((s) => s.id === "transcript-seal");
+  const inputValues = Object.fromEntries(Object.entries(seal.with).map(([name, value]) => [name, expand(value, context)]));
+  result.jobId = inputValues["job-id"];
+  const sealOutput = join(root, "seal-output");
+  writeFileSync(sealOutput, "");
+  const sealed = spawnSync(process.execPath, [join(workspace, ".lane-seal", "seal.mjs")], {
+    cwd: workspace,
+    env: { PATH: process.env.PATH, GITHUB_WORKSPACE: workspace, GITHUB_RUN_ID: CARRY_RUN_ID, GITHUB_OUTPUT: sealOutput, ...compositeEnv("seal-lane-output", inputValues) },
+    encoding: "utf8",
+  });
+  assert.equal(sealed.status, 0, sealed.stdout + sealed.stderr);
+  const sealOutputs = outputLines(sealOutput);
+  for (const [name, expression] of Object.entries(workflow("pr-run-activity-read.yml").jobs.run.outputs)) {
+    const output = /^\$\{\{ steps\.transcript-seal\.outputs\.([\w-]+) \}\}$/.exec(expression)?.[1];
+    if (output) result.runOutputs[name] = sealOutputs[output] ?? "";
+  }
+  return result;
+}
+
+function transcriptRecord(t, runOutputs) {
+  const temp = tempDir("transcript-record-");
+  t.after(() => rmSync(temp, { recursive: true, force: true }));
+  const step = workflow("pr-run-activity-read.yml").jobs.transcript.steps.find((s) => s.id === "record");
+  const env = {};
+  for (const [name, expression] of Object.entries(step.env)) {
+    const output = NEEDS_RUN_OUTPUT.exec(expression)?.[1];
+    env[name] = output ? (runOutputs[output] ?? "") : expand(expression, { "runner.temp": temp });
+  }
+  const outputFile = join(temp, "github-output");
+  writeFileSync(outputFile, "");
+  const result = runStep(step, temp, { ...env, GITHUB_OUTPUT: outputFile });
+  const outputs = outputLines(outputFile);
+  return { status: result.status, log: result.stdout + result.stderr, outputs, record: outputs.file ? readFileSync(outputs.file) : null };
+}
+
+const openTranscript = (record, jobId) =>
+  JSON.parse(gunzipSync(openRecord(parsePrivateKey(TRANSCRIPT_KEY.privateText), [TRANSCRIPT_KEY.keyId], "transcript.json.gz", record, CARRY_RUN_ID, jobId)).toString("utf8"));
+
+test("pr-run-activity-read.yml: the transcript job uploads the run job's leg transcript as the record the puller opens, under the job-id each leg seals it to", (t) => {
+  const execution = JSON.stringify(LEG_MESSAGES);
+  for (const [inputs, jobId] of [
+    [{}, "resolve-issue"],
+    [{ "inputs.fallback": "handoff" }, "resolve-issue-subscription"],
+    [{ "inputs.fallback": "credit-stop" }, "resolve-issue-subscription"],
+    [{ "inputs.fallback": "fallback" }, "resolve-issue-fallback"],
+    [{ "inputs.activity": "fix-ci", "inputs.model-rung": "1" }, "fix-ci-rung-up"],
+    [{ "inputs.activity": "fix-ci", "inputs.fallback": "fallback", "inputs.model-rung": "1" }, "fix-ci-fallback-rung-up"],
+  ]) {
+    const carried = carryTranscript(t, execution, { inputs });
+    assert.equal(carried.jobId, jobId);
+    const { status, log, record } = transcriptRecord(t, carried.runOutputs);
+    assert.equal(status, 0, log);
+    assert.deepEqual(openTranscript(record, jobId), LEG_MESSAGES, jobId);
+    const upload = workflow("pr-run-activity-read.yml").jobs.transcript.steps.find(isUpload);
+    assert.equal(expand(upload.with.name, { ...carried.context, "github.run_attempt": "2" }), `lane-transcript-${jobId}-2`, "the artifact name the puller lists for this job-id");
+    assert.throws(() => openTranscript(record, "resolve-conflicts"), undefined, "bound to its job-id");
+  }
+});
+
+test("pr-run-activity-read.yml: a transcript over its gzipped cap, or with a credential shape, is carried as a marker naming why, never cut", async (t) => {
+  const { randomBytes } = await import("node:crypto");
+  const big = JSON.stringify([...LEG_MESSAGES, { type: "user", message: { content: randomBytes(300000).toString("base64") } }]);
+  const over = carryTranscript(t, big);
+  assert.match(over.log, /^::warning::too-large: the leg's transcript is [0-9]+ gzipped bytes, over its 286720-byte cap/m);
+  const [marker, ...rest] = openTranscript(transcriptRecord(t, over.runOutputs).record, "resolve-issue");
+  assert.deepEqual(rest, []);
+  assert.deepEqual({ ...marker, bytes: marker.bytes > TRANSCRIPT_CAP }, { type: "system", subtype: "transcript_omitted", reason: "too-large", bytes: true, cap: TRANSCRIPT_CAP });
+  assert.equal(transcriptMetrics([marker]).outcome, "omitted");
+  const leaked = carryTranscript(t, JSON.stringify([...LEG_MESSAGES, { type: "user", message: { content: `printenv: ANTHROPIC_API_KEY=${KEY}` } }]));
+  assert.match(leaked.log, /^::warning::the leg's transcript holds a credential shape/m);
+  const opened = openTranscript(transcriptRecord(t, leaked.runOutputs).record, "resolve-issue");
+  assert.deepEqual(opened.map(({ subtype, reason }) => [subtype, reason]), [["transcript_omitted", "credential"]]);
+  assert.ok(!JSON.stringify(opened).includes(KEY));
+});
+
+test("pr-run-activity-read.yml: a gzipped transcript at its cap seals within the four chunks the run job maps", async (t) => {
+  const { randomBytes } = await import("node:crypto");
+  const root = tempDir("transcript-cap-");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const seal = runSteps().find((s) => s.id === "transcript-seal");
+  writeFileSync(join(root, "lane-transcript.pub"), TRANSCRIPT_KEY.publicLine);
+  for (const [bytes, status] of [[TRANSCRIPT_CAP, 0], [4 * 98304, 1]]) {
+    writeFileSync(join(root, "transcript.json.gz"), randomBytes(bytes));
+    const output = join(root, `output-${bytes}`);
+    writeFileSync(output, "");
+    const inputs = { ...Object.fromEntries(Object.entries(seal.with).map(([name, value]) => [name, String(value).replaceAll("${{ runner.temp }}/carry-transcript", root)])), "job-id": "resolve-issue" };
+    const sealed = spawnSync(process.execPath, [fileURLToPath(new URL("seal-lane-output/seal.mjs", ACTIONS))], {
+      env: { PATH: process.env.PATH, GITHUB_WORKSPACE: root, GITHUB_RUN_ID: CARRY_RUN_ID, GITHUB_OUTPUT: output, ...compositeEnv("seal-lane-output", inputs) },
+      encoding: "utf8",
+    });
+    assert.equal(sealed.status, status, `${bytes} bytes: ${sealed.stdout}`);
+    if (status === 0) assert.ok(Number(outputLines(output)["sealed-length"]) <= 4 * 98304);
+  }
+});
+
+test("pr-run-activity-read.yml: the transcript takes only the job-output room the carry leaves, counting two bytes a character, so the carry never overflows GitHub's 1 MB per job", async (t) => {
+  const { randomBytes } = await import("node:crypto");
+  const steps = runSteps();
+  assert.deepEqual(["seal", "transcript-seal"].map((id) => Number(steps.find((s) => s.id === id).with["max-chunks"])), [5, 4]);
+  const outputs = workflow("pr-run-activity-read.yml").jobs.run.outputs;
+  for (let n = 1; n <= 4; n++) assert.equal(outputs[`transcript-sealed-${n}`], `\${{ steps.transcript-seal.outputs.sealed-${n} }}`);
+  assert.equal(outputs["transcript-sealed-5"], undefined);
+  assert.equal(steps.find((s) => s.id === "transcript-carry").env.CARRY_SEALED_LENGTH, "${{ steps.seal.outputs.sealed-length }}");
+  assert.match(steps.find((s) => s.id === "api-failures").run, /head -c 65536 /);
+  const utf16Bytes = (carry, transcript) => 2 * (carry + transcript + 65600 + 8192);
+  const big = JSON.stringify([...LEG_MESSAGES, { type: "user", message: { content: randomBytes(300000).toString("base64") } }]);
+  const mid = JSON.stringify([...LEG_MESSAGES, { type: "user", message: { content: randomBytes(100000).toString("base64") } }]);
+  const small = JSON.stringify(LEG_MESSAGES);
+  for (const [carry, execution, expect] of [
+    [0, big, { reason: "too-large", cap: TRANSCRIPT_CAP }],
+    [0, small, "transcript"],
+    [300000, small, "transcript"],
+    [300000, mid, { reason: "too-large", cap: 94564 }],
+    [5 * 98304, small, "none"],
+  ]) {
+    const carried = carryTranscript(t, execution, { carryLength: String(carry) });
+    const label = `carry ${carry}`;
+    if (expect === "none") {
+      assert.equal(carried.staged, false, label);
+      assert.match(carried.log, /^::notice::the carry leaves this job's outputs no room for the leg's transcript/m, label);
+      continue;
+    }
+    const length = Number(carried.runOutputs["transcript-sealed-length"]);
+    assert.ok(utf16Bytes(carry, length) <= 1_000_000, `${label}: ${utf16Bytes(carry, length)} bytes; "Outputs can be a maximum of 1 MB per job" (docs.github.com workflow syntax), counted at two bytes a character as the runner's TemplateMemory counts strings`);
+    const opened = openTranscript(transcriptRecord(t, carried.runOutputs).record, "resolve-issue");
+    if (expect === "transcript") assert.deepEqual(opened, LEG_MESSAGES, label);
+    else assert.deepEqual(opened.map(({ reason, cap }) => ({ reason, cap })), [expect], label);
+  }
+});
+
+test("pr-run-activity-read.yml: the transcript is scanned and sealed only by base copies its step checks, to the key the variable names, so head code planting a gate, a sealer or a key carries nothing", (t) => {
+  const steps = runSteps();
+  const at = (id) => steps.findIndex((s) => s.id === id);
+  const stage = steps[at("transcript-carry")];
+  assert.ok(at("seal-copy") < steps.findIndex((s) => s.name === "Check out the PR head"), "the hashes are recorded from the base before head code");
+  assert.equal(at("transcript-seal"), at("transcript-carry") + 1, "checked immediately before the seal");
+  for (const [name, output] of [["GATE_SHA256", "gate-sha256"], ["ACTION_SHA256", "action-sha256"], ["SEAL_SHA256", "seal-sha256"]]) {
+    assert.equal(stage.env[name], `\${{ steps.seal-copy.outputs.${output} }}`, name);
+  }
+  assert.equal(stage.env.PUBLIC_KEY, "${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}");
+  const seal = steps[at("transcript-seal")];
+  assert.equal(seal.uses.split(" ")[0], "./.lane-seal");
+  assert.equal(seal.with["public-key-file"], "${{ runner.temp }}/carry-transcript/lane-transcript.pub", "the key file the checked step wrote");
+  const planted = "export const scanLeak = () => ({ block: null });\n";
+  for (const [what, tamper, error] of [
+    ["a planted gate", ({ gate }) => writeFileSync(gate, planted), /^::error::the credential scan's copy does not match/m],
+    ["a gate replaced by a link", ({ gate }) => { rmSync(gate); symlinkSync(fileURLToPath(new URL("../../../lib/publish-gate.mjs", import.meta.url)), gate); }, /^::error::the credential scan's copy does not match/m],
+    ["a planted sealer", ({ laneSeal }) => writeFileSync(join(laneSeal, "seal.mjs"), "process.exit(0);\n"), /^::error::the sealer copy does not match/m],
+  ]) {
+    const carried = carryTranscript(t, JSON.stringify(LEG_MESSAGES), { tamper, status: 1 });
+    assert.equal(carried.staged, false, what);
+    assert.match(carried.log, error, what);
+  }
+  const clean = carryTranscript(t, JSON.stringify(LEG_MESSAGES));
+  assert.deepEqual(openTranscript(transcriptRecord(t, clean.runOutputs).record, "resolve-issue"), LEG_MESSAGES, "sealed to the variable's key");
+});
+
+test("pr-run-activity-read.yml: a record step refuses a carried bundle that is not one transcript.json.gz record", (t) => {
+  const carried = carryTranscript(t, JSON.stringify(LEG_MESSAGES));
+  const bundle = Buffer.from(carried.runOutputs["transcript-sealed-1"], "base64");
+  const as = (bytes) => ({ "transcript-sealed-length": String(bytes.toString("base64").length), "transcript-sealed-1": bytes.toString("base64") });
+  const renamed = Buffer.from(bundle);
+  renamed.write("transcript.json.gy", 1, "latin1");
+  for (const [what, runOutputs] of [
+    ["a length that does not match", { ...carried.runOutputs, "transcript-sealed-length": "4" }],
+    ["another payload name", as(renamed)],
+    ["trailing bytes", as(Buffer.concat([bundle, Buffer.from([0])]))],
+    ["a cut record", as(bundle.subarray(0, 40))],
+    ["text that is not base64", { "transcript-sealed-length": "8", "transcript-sealed-1": "not b64!" }],
+  ]) {
+    const refused = transcriptRecord(t, runOutputs);
+    assert.equal(refused.status, 1, what);
+    assert.match(refused.log, /^::error::the run job carried no sealed transcript record: /m, what);
+    assert.equal(refused.record, null, what);
+  }
+});
+
+test("pr-run-activity-read.yml: the run job uploads nothing, and the transcript job that uploads its leg's transcript holds no checkout, secret, environment or token", () => {
+  const { jobs, on } = workflow("pr-run-activity-read.yml");
+  for (const step of jobs.run.steps) {
+    assert.ok(!isUpload(step) && !/\/upload-lane-transcript$/.test(String(step.uses ?? "")), `run: ${step.name} uploads`);
+  }
+  const steps = runSteps();
+  const at = (id) => steps.findIndex((s) => s.id === id);
+  assert.deepEqual([at("transcript-carry"), at("transcript-seal")], [at("seal") + 1, at("seal") + 2], "staged and sealed after the checked sealer seals the carry");
+  const stage = steps[at("transcript-carry")];
+  const seal = steps[at("transcript-seal")];
+  assert.equal(seal.uses.split(" ")[0], "./.lane-seal");
+  for (const step of [stage, seal]) assert.equal(step["continue-on-error"], true, step.name);
+  for (const checked of ["failure", "skipped"]) {
+    assert.equal(evaluate(stage.if, { "steps.seal-check.outcome": checked }), false, `no stage when the sealer check is ${checked}`);
+    assert.equal(evaluate(seal.if, { "steps.seal-check.outcome": checked, "steps.transcript-carry.outputs.staged": "true" }), false);
+  }
+  assert.equal(evaluate(seal.if, { "steps.seal-check.outcome": "success", "steps.transcript-carry.outputs.staged": "true" }), true);
+  assert.doesNotMatch(JSON.stringify(on.workflow_call.outputs), /transcript-/);
+  const job = jobs.transcript;
+  assert.deepEqual(job.needs, "run");
+  assert.deepEqual(job.permissions, {});
+  assert.equal(job.environment, undefined);
+  assert.deepEqual(stepSecrets(job), []);
+  assert.doesNotMatch(JSON.stringify(job), /id-token|ACTIONS_ID_TOKEN|github\.token|GITHUB_TOKEN/);
+  assert.equal(evaluate(job.if, { "needs.run.outputs.transcript-sealed-length": "" }), false);
+  assert.equal(evaluate(job.if, { "needs.run.outputs.transcript-sealed-length": "512" }), true, "a handoff leg too: no scan job result gates it");
+  for (const step of job.steps) {
+    assert.equal(step["continue-on-error"], true, step.name);
+    assert.ok(!String(step.uses ?? "").startsWith("./") && !String(step.uses ?? "").startsWith("actions/checkout@"), `${step.name}: no checkout and no action from one`);
+    assert.doesNotMatch(String(step.run ?? ""), /\$\{\{/, step.name);
+  }
+  const uploads = job.steps.filter(isUpload);
+  assert.equal(uploads.length, 1);
+  assert.equal(uploads[0].with.name, `lane-transcript-${seal.with["job-id"]}-\${{ github.run_attempt }}`, "the name carries the job-id the record is sealed to");
+  assert.deepEqual([uploads[0].with["retention-days"], uploads[0].with["compression-level"], uploads[0].with.overwrite], [7, 0, false]);
 });
 
 test("pr-run-activity-read.yml: the run fields keep at most four local-command stderr entries", async (t) => {

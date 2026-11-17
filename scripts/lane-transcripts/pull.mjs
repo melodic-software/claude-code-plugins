@@ -73,7 +73,11 @@ export const TRANSCRIPT_JOB_IDS = {
   "maintenance-tidy-code-upkeep.yml": [...legs("sweep-areas"), ...legs("model")],
   "post-merge-test-mutation.yml": [...legs("generate"), ...legs("triage")],
   "pr-review-main.yml": legs("review", REVIEW_CHUNKS),
-  "pr-run-activity-read.yml": legs("reuse-summary"),
+  "pr-run-activity-read.yml": [
+    ...legs("reuse-summary"),
+    ...["fix-docs", "resolve-issue", "resolve-conflicts", "review-dependency"].flatMap((activity) => legs(activity)),
+    ...["address-feedback", "fix-ci"].flatMap((activity) => legs(activity, ["", "-rung-up"])),
+  ],
   "pr-unblock.yml": ["0", "1", "2"].flatMap((n) => legs(`adjudicate-feedback-${n}`)),
   "pr-verify.yml": legs("check-intent", VERIFY_LEGS),
   "pr-verify-capture.yml": legs("capture", ["-probe", ""]),
