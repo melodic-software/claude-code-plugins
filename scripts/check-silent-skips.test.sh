@@ -173,7 +173,10 @@ fi
 rm -rf "$f"
 
 new_fixture f
-hook_file "$f" alpha check.sh 'command -v jq >/dev/null 2>&1 || { hook::emit_skip_notice PostToolUse "alpha: jq missing"; exit 0; }'
+hook_file "$f" alpha check.sh 'if ! command -v jq >/dev/null 2>&1; then
+  hook::emit_skip_notice PostToolUse "alpha: jq missing"
+  exit 0
+fi'
 exempt "$f" 'plugins/alpha/hooks/check.sh jq  output discarded by design'
 if out="$(run_check "$f" 2>&1)"; then
   fail "an entry for a guard that is now visible should fail as stale, got success: $out"
@@ -202,10 +205,12 @@ rm -rf "$f"
 
 new_fixture f
 rm -f "$f/scripts/silent-skip-exemptions.txt"
-if out="$(run_check "$f" 2>&1)"; then
-  fail "a missing exemption file should fail closed, got success: $out"
+out="$(run_check "$f" 2>&1)"
+rc=$?
+if ((rc == 2)); then
+  ok "a missing exemption file fails closed with exit 2"
 else
-  ok "a missing exemption file fails closed"
+  fail "a missing exemption file should exit 2, got $rc: $out"
 fi
 rm -rf "$f"
 

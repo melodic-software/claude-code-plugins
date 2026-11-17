@@ -61,8 +61,12 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 EXEMPTIONS=scripts/silent-skip-exemptions.txt
 errors=0
 
+if [[ ! -f "$EXEMPTIONS" || ! -r "$EXEMPTIONS" ]]; then
+  echo "check-silent-skips: exemption list not readable: ${EXEMPTIONS}" >&2
+  exit 2
+fi
 entries=()
-read_list::into entries "$EXEMPTIONS" --comments leading || exit 2
+read_list::into entries "$EXEMPTIONS" --comments leading
 declare -A exempt_by_site=()
 for entry in ${entries[@]+"${entries[@]}"}; do
   path="${entry%%[[:space:]]*}"
@@ -223,8 +227,12 @@ if ((${#test_files[@]} > 0)); then
   report_hits "$(scan_test_skip_pass "${test_files[@]}")"
 fi
 
-read_list::report_stale entries "$EXEMPTIONS" "matches no quiet skip this gate flags; delete the entry" ||
+stale=()
+read_list::stale_to stale entries
+for entry in ${stale[@]+"${stale[@]}"}; do
+  read_list::stale_line "$EXEMPTIONS" "$entry" "matches no quiet skip this gate flags; delete the entry"
   errors=$((errors + 1))
+done
 
 if ((errors > 0)); then
   {
