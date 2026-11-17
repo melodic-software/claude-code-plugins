@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1] - 2026-11-17
+
+### Fixed
+
+- The reach skill's Windows-lane profile start removes the prompt file on every path its script exits by, stops with "not started" when launch prints no `claude` command or `claude.exe` does not start, and refuses a background prompt that begins with `-`, which `claude.exe` would read as an option.
+
 ## [0.4.0] - 2026-11-16
 
 ### Added
