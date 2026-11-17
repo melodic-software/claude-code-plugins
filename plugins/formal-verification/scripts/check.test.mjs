@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { globRegex } from "./check.mjs";
+import { globMatch } from "./check.mjs";
 
 const script = join(fileURLToPath(new URL(".", import.meta.url)), "check.mjs");
 const temps = [];
@@ -27,8 +27,9 @@ const write = (root, rel, body) => {
 
 const RUN = "/formal-verification:chart .claude/skills/formal-lock/model/Lock.tla";
 
-const skillBody = ({ name = "formal-lock", drop = [], run = RUN, head = true } = {}) => {
-  const fm = head ? `---\nname: ${name}\ndescription: "Lock model. Use when src/lock.js changes."\n---\n\n` : "";
+const skillBody = ({ name = "formal-lock", drop = [], run = RUN, head = true, description = true, swap = null } = {}) => {
+  const desc = description ? 'description: "Lock model. Use when src/lock.js changes."\n' : "";
+  const fm = head ? `---\nname: ${name}\n${desc}---\n\n` : "";
   const parts = [
     ["Property", "Only one holder: `src/lock.js`: \"if (held) return false\"."],
     ["Harm", "Two writers corrupt the file."],
@@ -39,6 +40,10 @@ const skillBody = ({ name = "formal-lock", drop = [], run = RUN, head = true } =
     ["Reading a result", "Replay each step."],
     ["Updating", "Move the commit after confirming."],
   ].filter(([s]) => !drop.includes(s));
+  if (swap) {
+    const [a, b] = swap.map((s) => parts.findIndex(([n]) => n === s));
+    [parts[a], parts[b]] = [parts[b], parts[a]];
+  }
   return `${fm}# Formal check: lock\n\n${parts.map(([s, b]) => `## ${s}\n\n${b}\n`).join("\n")}`;
 };
 
@@ -63,10 +68,11 @@ const repo = ({ skill = {}, sync = {}, conventions } = {}) => {
   return { root, commit };
 };
 
-const check = (root, ...args) => {
-  const r = spawnSync(process.execPath, [script, "--project-dir", root, ...args], { encoding: "utf8" });
+const checkWith = (env, root, ...args) => {
+  const r = spawnSync(process.execPath, [script, "--project-dir", root, ...args], { encoding: "utf8", env: { ...process.env, ...env }, timeout: 20000 });
   return { code: r.status, out: r.stdout, fails: r.stdout.split("\n").filter((l) => l.startsWith("FAIL ")), warns: r.stdout.split("\n").filter((l) => l.startsWith("WARN ")) };
 };
+const check = (root, ...args) => checkWith({}, root, ...args);
 
 test("a formal-area skill that meets the contract passes with no failure and no warning", () => {
   const r = check(repo().root);
@@ -79,7 +85,7 @@ test("a formal-area skill that meets the contract passes with no failure and no 
 test("SKILL.md without frontmatter fails", () => {
   const r = check(repo({ skill: { head: false } }).root);
   assert.equal(r.code, 1, r.out);
-  assert.match(r.fails.join("\n"), /^FAIL formal-lock: frontmatter: missing/m);
+  assert.match(r.fails.join("\n"), /^FAIL "formal-lock": frontmatter: missing/m);
 });
 
 test("frontmatter whose name is not the folder's name fails", () => {
@@ -92,7 +98,7 @@ for (const section of ["Harm", "Not covered", "Reading a result"]) {
   test(`a missing ## ${section} section fails`, () => {
     const r = check(repo({ skill: { drop: [section] } }).root);
     assert.equal(r.code, 1, r.out);
-    assert.deepEqual(r.fails, [`FAIL formal-lock: section: ## ${section} missing`]);
+    assert.deepEqual(r.fails, [`FAIL "formal-lock": section: ## ${section} missing`]);
   });
 }
 
@@ -148,8 +154,8 @@ test("a covered file missing at HEAD fails, and a glob that matches no file fail
   const r = check(repo({ sync: { covers: ["src/lock.js", "src/gone.js", "lib/**/*.js"] } }).root);
   assert.equal(r.code, 1, r.out);
   assert.deepEqual(r.fails, [
-    'FAIL formal-lock: check "one-holder": covered path "src/gone.js" is missing at HEAD',
-    'FAIL formal-lock: check "one-holder": covered path "lib/**/*.js" is missing at HEAD',
+    'FAIL "formal-lock": check "one-holder": covered path "src/gone.js" is missing at HEAD',
+    'FAIL "formal-lock": check "one-holder": covered path "lib/**/*.js" is missing at HEAD',
   ]);
 });
 
@@ -172,7 +178,7 @@ test("covered code changed since the sync commit warns by default and still pass
   const r = check(staleRepo().root);
   assert.equal(r.code, 0, r.out);
   assert.equal(r.warns.length, 1, r.out);
-  assert.match(r.warns[0], /^WARN formal-lock: check "one-holder": covered code changed since sync commit [0-9a-f]{12}: src\/lock\.js$/);
+  assert.match(r.warns[0], /^WARN "formal-lock": check "one-holder": covered code changed since sync commit [0-9a-f]{12}: "src\/lock\.js"$/);
 });
 
 test("on_stale: fail on the entry makes stale coverage fail", () => {
@@ -205,20 +211,20 @@ test("a verification skill outside the contract warns and does not fail", () => 
   write(root, ".claude/skills/verify-cache/SKILL.md", "---\nname: verify-cache\n---\n");
   const r = check(root);
   assert.equal(r.code, 0, r.out);
-  assert.deepEqual(r.warns, ["WARN verify-cache: verification skill outside the contract: it holds a sync.yaml or model/ but is not named formal-<area>"]);
+  assert.deepEqual(r.warns, ['WARN "verify-cache": verification skill outside the contract: it holds a sync.yaml or model/ but is not named formal-<area>']);
 });
 
 test("the skills folder comes from the convention file's skills_dir", () => {
   const { root } = repo({ conventions: "skills_dir: verification\n" });
   const r = check(root);
   assert.equal(r.code, 0, r.out);
-  assert.match(r.out, /no formal-<area> skill under verification/);
+  assert.match(r.out, /no formal-<area> skill under "verification"/);
 });
 
 test("a repository with no formal-area skill passes", () => {
   const r = check(repo({ skill: null, sync: null }).root);
   assert.equal(r.code, 0, r.out);
-  assert.match(r.out, /no formal-<area> skill under \.claude\/skills, 0 failure\(s\)/);
+  assert.match(r.out, /no formal-<area> skill under "\.claude\/skills", 0 failure\(s\)/);
 });
 
 test("outside a git work tree the check exits 2", () => {
@@ -247,7 +253,144 @@ test("the check is deterministic and edits no file", () => {
 });
 
 test("** crosses folders and * stays inside one", () => {
-  assert.ok(globRegex("src/**/*.js").test("src/a/b/c.js"));
-  assert.ok(globRegex("src/**/*.js").test("src/c.js"));
-  assert.ok(!globRegex("src/*.js").test("src/a/c.js"));
+  assert.ok(globMatch("src/**/*.js", "src/a/b/c.js"));
+  assert.ok(globMatch("src/**/*.js", "src/c.js"));
+  assert.ok(globMatch("src/**", "src/a/b"));
+  assert.ok(globMatch("src/?.js", "src/c.js"));
+  assert.ok(!globMatch("src/*.js", "src/a/c.js"));
+  assert.ok(!globMatch("src/?.js", "src/ab.js"));
+  assert.ok(!globMatch("src/**/*.js", "lib/c.js"));
+});
+
+test("a pattern of many ** against a long path that cannot match ends in well under a second", () => {
+  const start = Date.now();
+  assert.equal(globMatch("**a**a**a**a**a**a**a**a**a**a**a**a**a**a**b", "a".repeat(60)), false);
+  assert.ok(Date.now() - start < 1000, `took ${Date.now() - start} ms`);
+});
+
+test("a covers glob of many ** finishes the check within its time bound", () => {
+  const { root, commit } = repo();
+  write(root, "a".repeat(60), "1\n");
+  write(root, ".claude/skills/formal-lock/sync.yaml", syncYaml(commit, { covers: ["src/lock.js", '"**a**a**a**a**a**a**a**a**a**a**a**a**a**a**b"'] }));
+  git(root, "add", "-A");
+  git(root, "commit", "-q", "-m", "slow glob");
+  const start = Date.now();
+  const r = check(root);
+  assert.ok(Date.now() - start < 10000, `took ${Date.now() - start} ms`);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.fails.join("\n"), /is missing at HEAD/);
+});
+
+test("a formal-area folder that is a symlink fails and is not read", () => {
+  const { root } = repo();
+  renameSync(join(root, ".claude/skills/formal-lock"), join(root, "real-lock"));
+  symlinkSync(join(root, "real-lock"), join(root, ".claude/skills/formal-lock"));
+  const r = check(root);
+  assert.equal(r.code, 1, r.out);
+  assert.deepEqual(r.fails, ['FAIL "formal-lock": folder: is a symlink or not a folder; the check reads only real folders']);
+});
+
+for (const file of ["SKILL.md", "sync.yaml"]) {
+  test(`a ${file} that is a symlink fails and is not read`, () => {
+    const { root } = repo();
+    const target = join(root, ".claude/skills/formal-lock", file);
+    renameSync(target, join(root, `real-${file}`));
+    symlinkSync(join(root, `real-${file}`), target);
+    const r = check(root);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.fails.join("\n"), new RegExp(`${file.replace(".", "\\.")}: is a symlink`));
+  });
+}
+
+test("a folder named on the command line outside the repository fails", () => {
+  const { root } = repo();
+  const outside = mkdtempSync(join(tmpdir(), "fv-check-outside-"));
+  temps.push(outside);
+  const r = check(root, outside);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.fails.join("\n"), /is outside the repository/);
+});
+
+test("a skills folder outside the repository fails", () => {
+  const { root } = repo();
+  const outside = mkdtempSync(join(tmpdir(), "fv-check-outside-"));
+  temps.push(outside);
+  symlinkSync(outside, join(root, "elsewhere"));
+  const r = check(root, "--skills-dir", "elsewhere");
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.fails.join("\n"), /skills folder "elsewhere" is outside the repository/);
+});
+
+test("--skills-dir wins over the convention file's skills_dir", () => {
+  const { root } = repo({ conventions: "skills_dir: verification\n" });
+  const r = check(root, "--skills-dir", ".claude/skills");
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /1 formal-<area> skill\(s\)/);
+});
+
+test("a folder name holding a line break prints on one line", () => {
+  const { root } = repo();
+  write(root, ".claude/skills/formal-x\n::error title=forged::owned/SKILL.md", "no frontmatter\n");
+  const r = check(root);
+  assert.equal(r.code, 1, r.out);
+  assert.ok(!r.out.split("\n").some((l) => l.startsWith("::")), r.out);
+  assert.match(r.out, /^FAIL "formal-x\\n::error title=forged::owned": /m);
+});
+
+for (const bad of ["../escape.tla", "/abs/model.tla", "model/../../up.tla"]) {
+  test(`an outside_model entry ${bad} fails`, () => {
+    const { root, commit } = repo();
+    write(root, ".claude/skills/formal-lock/sync.yaml", syncYaml(commit).replace("outside_model: []", `outside_model:\n  - ${bad}`));
+    git(root, "commit", "-q", "-am", "outside model");
+    const r = check(root);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.fails.join("\n"), /outside_model: .* must be a repository-relative path/);
+  });
+}
+
+test("a repository-relative outside_model entry passes", () => {
+  const { root, commit } = repo();
+  write(root, ".claude/skills/formal-lock/sync.yaml", syncYaml(commit).replace("outside_model: []", "outside_model:\n  - src/harness.js"));
+  git(root, "commit", "-q", "-am", "outside model");
+  assert.equal(check(root).code, 0);
+});
+
+test("a ## Run that holds the command only inside a longer line fails", () => {
+  const r = check(repo({ skill: { run: `${RUN} --extra-flag` } }).root);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.fails.join("\n"), /no run command/);
+});
+
+test("a ## Run that gives the command as an inline code line passes", () => {
+  const { root } = repo();
+  const file = join(root, ".claude/skills/formal-lock/SKILL.md");
+  writeFileSync(file, readFileSync(file, "utf8").replace(`\`\`\`text\n${RUN}\n\`\`\``, `\`${RUN}\``));
+  git(root, "commit", "-q", "-am", "inline run");
+  assert.equal(check(root).code, 0);
+});
+
+test("sections out of the contract's order fail", () => {
+  const r = check(repo({ skill: { swap: ["Harm", "Run"] } }).root);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.fails.join("\n"), /section: out of order/);
+});
+
+test("frontmatter without a description fails", () => {
+  const r = check(repo({ skill: { description: false } }).root);
+  assert.equal(r.code, 1, r.out);
+  assert.deepEqual(r.fails, ['FAIL "formal-lock": frontmatter: description: missing']);
+});
+
+test("git runs with lazy fetching off", () => {
+  const { root } = repo();
+  const bin = mkdtempSync(join(tmpdir(), "fv-check-bin-"));
+  temps.push(bin);
+  const seen = join(bin, "seen");
+  const real = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+  writeFileSync(join(bin, "git"), `#!/bin/sh\nprintf '%s\\n' "\${GIT_NO_LAZY_FETCH:-unset}" >> "${seen}"\nexec "${real}" "$@"\n`);
+  chmodSync(join(bin, "git"), 0o755);
+  const r = checkWith({ PATH: `${bin}:${process.env.PATH}` }, root);
+  assert.equal(r.code, 0, r.out);
+  const values = readFileSync(seen, "utf8").trim().split("\n");
+  assert.ok(values.length > 0 && values.every((v) => v === "1"), values.join(","));
 });

@@ -4105,6 +4105,8 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/app-control/scripts/**",
     "plugins/formal-verification/scripts/**",
     "plugins/formal-verification/lib/**",
+    "plugins/formal-verification/defaults.json",
+    "plugins/formal-verification/schemas/**",
 )
 
 

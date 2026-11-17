@@ -52,10 +52,12 @@ changed after its sync commit; a `sync.yaml` entry's own `on_stale` wins over it
 [`reference/formal-skill.md`](reference/formal-skill.md) and edits nothing:
 
 ```shell
-node <plugin root>/scripts/check.mjs --project-dir . [SKILL_DIR...]
+node <plugin root>/scripts/check.mjs --project-dir . [--skills-dir DIR] [SKILL_DIR...]
 ```
 
-It exits 0 with no failure, 1 with one, and 2 when it cannot run. It reads git history, so a
+`--skills-dir` wins over the `skills_dir` key; CI passes `.claude/skills` so the pull request's own
+convention file cannot move the check. It exits 0 with no failure, 1 with one, and 2 when it cannot
+run. It reads git history, so a
 shallow clone fails the sync-commit check.
 
 ## Prerequisites

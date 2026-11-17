@@ -114,5 +114,5 @@ say which check and which files.
 
 - `check` reads git history: in a shallow clone the sync commit is not there, and it fails as not
   an ancestor of `HEAD`.
-- A `## Run` that words the command differently from its `sync.yaml` entry fails `check`: copy the
-  command exactly.
+- A `## Run` that words the command differently from its `sync.yaml` entry, or puts more on that
+  line, fails `check`: give the command exactly, on a line of its own.

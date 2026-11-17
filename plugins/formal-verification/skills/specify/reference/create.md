@@ -90,7 +90,7 @@ a change is intended. Put the coverage record and the sync commit in `sync.yaml`
 agent to move the sync commit forward only after it confirms that the verification describes the
 code at the new commit. Use this repo's real commands, paths, and nouns, and leave no placeholders.
 
-Each `sync.yaml` entry's `command` is the same text its `## Run` gives. Until the seeded break below
+Each `sync.yaml` entry's `command` is the same text `## Run` gives on a line of its own. Until the seeded break below
 is caught, `seeded_break.caught` is `false`.
 
 ## Prove it before you hand off

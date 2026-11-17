@@ -5553,29 +5553,33 @@ jobs:
           node-version-file: .base/.node-version
       # THE FORMAL-AREA SKILLS MEET THEIR CONTRACT. The default branch's copy of
       # the formal-verification check script, from the checkout above, reads
-      # the head's .claude/skills/formal-* folders and their sync.yaml as data:
-      # no pull request code runs and nothing is written. Its sync-commit and
-      # stale-coverage checks read history, so this checkout fetches every
-      # commit and tree but only the blobs it checks out (a blobless clone of
-      # this repository took 2 s and 45 MB on 2026-11-17). Until the script is
-      # on the default branch, both steps skip. Only a FAIL line fails the job;
-      # stale coverage is a WARN line unless the skill's on_stale says fail.
-      - name: Check out the head's formal-area skills
-        id: formal_head
+      # .claude/skills/formal-* and their sync.yaml as data from the event's
+      # commit (github.sha: a pull request's test merge commit, a merge
+      # group's head): no pull request code runs and nothing is written. The
+      # folder is passed on the command line and no convention file is checked
+      # out, so the pull request cannot choose what is checked or how. The
+      # sync-commit and stale-coverage checks read history, so this checkout
+      # fetches every commit and tree but only the blobs it checks out (a
+      # blobless clone of this repository took 2 s and 45 MB on 2026-11-17),
+      # and the script turns git's lazy fetch off. Until the script is on the
+      # default branch, both steps skip. Only a FAIL line fails the job; stale
+      # coverage is a WARN line unless the skill's sync.yaml says fail.
+      - name: Check out the event commit's formal-area skills
+        id: formal_skills
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && hashFiles('.base/plugins/formal-verification/scripts/check.mjs') != '' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          path: formal-head
+          path: formal-skills
           persist-credentials: false
           fetch-depth: 0
           filter: blob:none
           sparse-checkout: |
             /.claude/skills/
-            /docs/conventions/formal-verification.yaml
           sparse-checkout-cone-mode: false
       - name: Check the formal-area skills against their contract
-        if: ${{ !cancelled() && steps.formal_head.outcome == 'success' }}
-        run: node .base/plugins/formal-verification/scripts/check.mjs --project-dir "$GITHUB_WORKSPACE/formal-head"
+        if: ${{ !cancelled() && steps.formal_skills.outcome == 'success' }}
+        timeout-minutes: 2
+        run: node .base/plugins/formal-verification/scripts/check.mjs --project-dir "$GITHUB_WORKSPACE/formal-skills" --skills-dir .claude/skills
       # THE HOLD STEPS READ THEIR CONFIG ONCE, FROM THE DEFAULT BRANCH'S TIP AT
       # RUN TIME, OR THE BASE COMMIT FOR ANOTHER BASE. The tracker config names
       # the human-gated label; the trusted-actor list names who may lift a hold

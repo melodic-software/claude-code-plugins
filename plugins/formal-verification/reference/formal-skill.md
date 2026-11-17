@@ -35,9 +35,12 @@ folder holding these skills is the `skills_dir` key of `docs/conventions/formal-
 ## The contract check
 
 `/formal-verification:specify check` runs a script that passes or fails each `formal-<area>` skill
-against this file and edits nothing. It fails on missing or wrong frontmatter, a missing section, a
-missing or invalid `sync.yaml`, a sync commit that is not an ancestor of `HEAD`, a covered path
-missing at `HEAD`, and a check whose command `## Run` does not give. It warns on covered code changed
+against this file and edits nothing. It fails on missing or wrong frontmatter, a missing section or
+sections out of the order below, a missing or invalid `sync.yaml` (an `outside_model` entry that is
+absolute or holds a `..` segment included), a sync commit that is not an ancestor of `HEAD`, a
+covered path missing at `HEAD`, a check whose command `## Run` does not give on a line of its own,
+and a folder, `SKILL.md` or `sync.yaml` that is a symlink or lies outside the repository, which it
+never reads. It warns on covered code changed
 since the sync commit (a failure under `on_stale: fail`) and on a skill folder that holds a
 `sync.yaml` or a `model/` but is not named `formal-<area>`.
 
