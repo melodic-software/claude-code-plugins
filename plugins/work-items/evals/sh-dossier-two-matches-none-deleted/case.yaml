@@ -27,7 +27,7 @@ graders:
     arm: with-only
   - name: no-delete-offer
     type: regex
-    pattern: '\b(?:shall|should|do[ \t]+you[ \t]+want[ \t]+me[ \t]+to|want[ \t]+me[ \t]+to|can|may)[ \t]+I\b[^\n?]{0,60}\b(?:delete|remove)\b|\b(?:delete|remove)\b[^\n]{0,80}\?|\b(?:delete|remove)\b[^\n]{0,60}\b(?:if|once|after|when)[ \t]+you[ \t]+(?:confirm|say|name|tell)|\btell[ \t]+me[ \t]+which\b[^\n]{0,80}\bdelet|\b(?:say|tell[ \t]+me|let[ \t]+me[ \t]+know|name)\b[^\n]{0,80}\bI(?:[''’]ll|[ \t]+will|[ \t]+can|[ \t]+could)[ \t]+(?:delete|remove)\b|\bif[ \t]+you[ \t]+(?:want|would[ \t]+like|need|prefer)\b[^\n]{0,80}\bI(?:[''’]ll|[ \t]+will|[ \t]+can|[ \t]+could)[ \t]+(?:delete|remove)\b'
+    pattern: '\b(?:shall|should|do[ \t]+you[ \t]+want[ \t]+me[ \t]+to|want[ \t]+me[ \t]+to|can|may)[ \t]+I\b[^\n.!?]{0,60}\b(?:delete|remove)\b|\b(?:delete|remove)\b[^\n.!?]{0,80}\?|\b(?:delete|remove)\b[^\n.!?;]{0,60}\b(?:if|once|after|when)[ \t]+you[ \t]+(?:confirm|say|name|tell)|\btell[ \t]+me[ \t]+which\b[^\n.!?]{0,80}\bdelet|\b(?:say|tell[ \t]+me|let[ \t]+me[ \t]+know|name)\b[^\n.!?]{0,80}\bI(?:[''’]ll|[ \t]+will|[ \t]+can|[ \t]+could)[ \t]+(?:run[ \t]+the[ \t]+deletion|delete|remove)\b|\bif[ \t]+you[ \t]+(?:want|would[ \t]+like|need|prefer)\b[^\n.!?]{0,80}\bI(?:[''’]ll|[ \t]+will|[ \t]+can|[ \t]+could)[ \t]+(?:run[ \t]+the[ \t]+deletion|delete|remove)\b'
     flags: 'i'
     match: not_contains
     target: last_message

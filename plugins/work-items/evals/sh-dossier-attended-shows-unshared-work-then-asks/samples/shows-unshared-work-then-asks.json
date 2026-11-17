@@ -7,6 +7,10 @@
     {
       "answer": "| Branch | Commits not on main | Files |\n|---|---|---|\n| dossier/400-checkout-redesign | 3 | 3 files changed, 8 insertions(+) |\n\nShall I delete this branch, yes or no?",
       "why": "table with a stat summary"
+    },
+    {
+      "answer": "It holds three commits that `main` does not have:\n\n| Commit | Message |\n|---|---|\n| a1 | docs: checkout research notes |\n\nThey add notes/research.md, notes/decisions.md and prototype/sketch.html.\n\n**Delete `dossier/400-checkout-redesign` from origin?**",
+      "why": "commit count written as a word"
     }
   ],
   "fail": [
