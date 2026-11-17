@@ -66,6 +66,7 @@ if [[ "$1" == --version ]]; then
   printf 'ShellCheck - shell script analysis tool\nversion: %s\n' "${SC_STUB_VERSION:-0.11.0}"
   exit 0
 fi
+printf '%s\n' "$*" >>"$SC_STUB_LOG.argv"
 len=0
 dfa_off=""
 for a in "$0" "$@"; do
@@ -75,6 +76,13 @@ done
 if ((len > 32767)); then
   echo "shellcheck: Argument list too long" >&2
   exit 126
+fi
+if [[ "${!#}" == - ]]; then
+  stdin="$(cat)"
+  [[ -n "$dfa_off" ]] && printf -- '-:%s\n' "$(($(wc -l <<<"$stdin")))" >>"$SC_STUB_LOG.dfa-off"
+  [[ "$stdin" == *'stub: finding'* ]] || exit 0
+  echo '-:2:1: warning: stub finding [SC2154]'
+  exit 1
 fi
 while [[ $# -gt 0 && "$1" != -- ]]; do shift; done
 if [[ -n "$dfa_off" && $# -gt 0 ]]; then
@@ -105,6 +113,7 @@ chmod +x "$WORK/sc-stub/shellcheck"
 sc_stub() { # <repo> -> "<rc>|<stdout and stderr>"
   : >"$WORK/sc.log"
   : >"$WORK/sc.log.dfa-off"
+  : >"$WORK/sc.log.argv"
   local out
   out="$(cd "$1" && SC_STUB_LOG="$WORK/sc.log" PATH="$WORK/sc-stub:$PATH" bash "$CHECK" 2>&1)"
   printf '%s|%s' "$?" "$out"
@@ -167,6 +176,27 @@ edge.sh
 small.sh" "$(grep -vx -- -- "$WORK/sc.log" | sort)"
 expect "over 2,000 lines with a ShellCheck older than 0.10: full analysis, no flag it would reject" "0||" \
   "$(SC_STUB_VERSION=0.9.0 sc_stub "$REPO")|$(cat "$WORK/sc.log.dfa-off")"
+git -C "$REPO" commit -q -m big --no-verify
+printf 'echo staged\n' >>"$REPO/big.sh"
+git -C "$REPO" add big.sh
+printf 'echo unstaged\n' >>"$REPO/big.sh"
+expect "partly staged over 2,000 lines: linted from the index without dataflow analysis" "0||-:2002" \
+  "$(sc_stub "$REPO")|$(cat "$WORK/sc.log.dfa-off")"
+expect "partly staged over 2,000 lines: the index call carries the flag" "-x -f gcc -S warning --extended-analysis=false -" \
+  "$(grep -- ' -$' "$WORK/sc.log.argv")"
+
+new_repo
+mkdir -p "$REPO/x" "$REPO/y"
+{
+  printf '%s\n' "$SHEBANG"
+  for i in {1..2000}; do printf 'echo %s\n' "$i"; done
+} >"$REPO/x/big.sh"
+cp "$REPO/x/big.sh" "$REPO/y/big.sh"
+git -C "$REPO" add x/big.sh y/big.sh
+expect "copies over 2,000 lines in two directories: the source probe and the lint run without dataflow analysis" "0||-:2001
+x/big.sh" "$(sc_stub "$REPO")|$(cat "$WORK/sc.log.dfa-off")"
+expect "copies over 2,000 lines in two directories: the source probe carries the flag" \
+  "--norc --extended-analysis=false -s bash -f gcc -S info -" "$(grep -- '^--norc' "$WORK/sc.log.argv")"
 
 new_repo
 printf '%s\necho m\n' "$SHEBANG" >"$REPO/a-mute.sh"

@@ -496,6 +496,7 @@ copies of `hook-utils.sh`), 45 files (`5fdcd660b4`, 24 `.mjs`, 12 workflows); 28
 | `scripts/check-plugin-imports.sh` alone | pre-push | 1.24 s (1.21-1.30), 10 runs | whole tree | Linux, WSL2, 24 CPUs | 2026-11-16 |
 | guardrails `pre-push-content` | pre-push | 0.17 s (0.15-0.19), 5 runs | 28 files, one unpushed commit | Linux, WSL2, 24 CPUs | 2026-11-16 |
 | guardrails `reference-verify` | pre-push | 1.25 s (1.18-1.27), 5 runs | 28 files, one unpushed commit | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| bash-format `lint-full`, dataflow analysis on the pushed scripts over 2,000 lines | pre-push | 11.8 s (10.7-13.0), 5 runs, peak RSS 5.38 GB | 44 files (`83fb17c179` on its parent as one pushed range, work tree at the tip) | Linux, WSL2, 24 CPUs | 2026-11-17 |
 | `scripts/check-affected.sh --tests` | CI only | 4.5 s, 0 suites; 94.7 s (89.5-96.5), 10 suites; 164.3 s (159.4-165.8), 24 suites | 1 file (`151a7b0c0c`, data); 1 file (script edit); 28 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
 
 The `pre-push` set on the 28-file sample totals 20.0 s: 18.6 s, 0.17 s and 1.25 s. Change-scoped
@@ -510,4 +511,7 @@ them. Linting identical copies once brought it to 22.0 s, most of it ShellCheck'
 of two scripts: 12.5 s for the 6,383-line `lib/hook-utils.test.sh` and 11.3 s for
 `block-root-delete-target.sh`, 2.9 s each without it. The `lint` entry now runs ShellCheck in
 parallel lanes and turns dataflow analysis off above 2,000 lines, the size the ShellCheck manual
-names for it, which drops SC2218, SC2319, SC2320 and SC2324 on those scripts only; 3.0 s.
+names for it; 3.0 s. Those scripts' dataflow checks (SC2218, SC2319, SC2320 and SC2324) move to the
+`lint-full` pre-push entry, which lints each pushed script over 2,000 lines with full analysis in
+11.8 s on that sample. With `reference-verify`'s 10.6 s and `pre-push-content`, the shipped
+`pre-push` set stays inside the 60 s push budget.
