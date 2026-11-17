@@ -136,3 +136,13 @@ the app. It was written and committed before its run, under the owner's eval gat
   - an opus run of both sides at 3 runs a side.
   Only a loss traced to the changed drive text counts.
 - **Met.** Both files are VALID and there is no counted loss.
+
+**Result.**
+
+- Both files read `verdict: VALID`.
+- BEFORE scored 1.00, 1.00, 1.00, and AFTER scored 1.00, 1.00, 1.00. The noise report prints
+  `compare verdict: n too small to call (cases scored in both results: 1; 3 or more are needed)`.
+- No loss, so no opus confirm ran. The result is met.
+- The case does not separate the two texts: BEFORE run 1 also stops pid 7311, relaunches and replaces
+  the launch entry. The rule is now written in drive's text, but on sonnet the case measured no
+  difference.
