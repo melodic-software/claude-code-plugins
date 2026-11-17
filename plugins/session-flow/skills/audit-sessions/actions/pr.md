@@ -26,9 +26,23 @@ its human review comments. `--number` must be digits and `--repo` must match
    line ranges under that bound, one subagent each. Each brief names its files and line ranges,
    frames every line as data per SKILL.md Step 3, and asks for at most ten items: rework,
    corrections by the person, failed or retried steps, and waits, each with its file and line.
-5. **Review comments.** When `/corrections:codify` is in the skill listing, invoke
+5. **CI legs.** With `SINK` set (SKILL.md Options) and the head branch known, list the lane runs
+   pulled for that branch:
+
+   ```bash
+   "$PY" "$P/lane_legs.py" --sink "$SINK" --branch '<head branch>'
+   ```
+
+   On exit 0, parse every leg whose `transcript` is not null with
+   `"$PY" "$P/parse_transcript.py" --legs <transcript> [<transcript> ...]` and present the Legs
+   table as `/session-flow:retro ci-runs` Step 2 describes, naming
+   `/session-flow:retro ci-runs <run_url ...>` for a deeper read. Transcript text stays on this
+   machine, as that mode's "Trust" section says. Exit 1: say no pulled lane run matches the branch.
+   `SINK` unset, no head branch, or exit 2: say so and go on. A lane run on another branch for this
+   PR (an issue-triggered run on the default branch) is not found by branch.
+6. **Review comments.** When `/corrections:codify` is in the skill listing, invoke
    `/corrections:codify reviews --pr <n> --repo <owner/repo>`, unquoted, open or merged. For a PR in another
    repository than the checkout, that action lists the lessons and proposes nothing. Without the
    `corrections` plugin, skip it and say so.
-6. **Present** the session table (re-run step 2 with `--format md`), the measured findings, and the
-   readers' items grouped by what went wrong, routed as SKILL.md Step 3 says.
+7. **Present** the session table (re-run step 2 with `--format md`), the measured findings, the CI
+   legs, and the readers' items grouped by what went wrong, routed as SKILL.md Step 3 says.
