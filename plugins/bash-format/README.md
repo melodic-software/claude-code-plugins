@@ -1,13 +1,22 @@
 # bash-format
 
-A Claude Code plugin that formats shell scripts with [shfmt](https://github.com/mvdan/sh) and
-checks them with [ShellCheck](https://www.shellcheck.net/) in two places: shfmt once per batch of
-tool calls in a Claude Code session, and shfmt plus ShellCheck again at git pre-commit for every
-author. ShellCheck findings are reported by the pre-commit entry, on the lines the commit adds; they
-no longer reach Claude on each edit.
+A Claude Code plugin that formats and lints shell scripts as two separate concerns, each where your
+repository has opted into its tool. Formatting runs [shfmt](https://github.com/mvdan/sh) once per
+batch of tool calls in a Claude Code session and again at git pre-commit for every author; linting
+runs [ShellCheck](https://www.shellcheck.net/) at pre-commit and reports on the lines the commit
+adds. No finding reaches Claude on each edit, and nothing fixes a lint finding for you.
 
-It uses **your repository's own configuration**, `.shellcheckrc` for linting and `.editorconfig`
-for formatting. It ships no rules of its own.
+The hooks run only the plugin's two shipped adapters: the **shfmt adapter**, where an `.editorconfig`
+section names shell files, and the **ShellCheck adapter**, for every staged `.sh` and `.bash`
+file, with your `.shellcheckrc` when you have one and ShellCheck's own defaults when you do not. A
+repository with no shell section gets no formatting, and `/bash-format:setup check` reports that
+concern unresolved.
+
+The hooks never run a command from your bash record (`.claude/ecosystems/bash.yaml`, the
+ecosystem-commands contract in the marketplace repository). That record names any formatter and
+linter you use, and `/toolchain:lint` and `/toolchain:check` run it when you ask.
+
+The plugin ships no rules of its own.
 
 ## Behavior
 
@@ -73,28 +82,33 @@ for formatting. It ships no rules of its own.
   produce such paths. If `CLAUDE_PROJECT_DIR` is **unset** (e.g. some headless `-p` sessions), the
   membership check is skipped and any existing edited file is processed.
 
-## Git pre-commit entry
+## Git pre-commit entries
 
-The plugin ships one git-hook entry, `shell-check` (`git-hooks/entries.json`), which rewrites. At
-commit it refuses a partly staged shell script that an `.editorconfig` section governs, untouched;
-runs shfmt over the staged `.sh` and `.bash` files that section governs and re-stages what
-changed; then runs ShellCheck (`warning` severity and above) over the staged shell files and blocks
-the commit only on a finding on a line the commit adds, printed as `<path>:<line>: <message>`. A
-script no section governs is never rewritten but is still checked. It reaches every author, not only
-Claude, once `/bash-format:setup apply install-git-hooks [scope=local|shared]` registers it with
-the repository's hook manager (lefthook, husky or plain git hooks). Local scope stays in this
-clone; shared scope commits the copy under `.githooks/bash-format/`. `/bash-format:setup check`
-reports drift, and the SessionStart probe prints one line when the entry is missing, stale or
-edited.
+The plugin ships two git-hook entries (`git-hooks/entries.json`):
 
-When a tool is missing, an agent's commit fails with the install route; a person's commit gets a
-one-line notice and goes through. A skipped or missing tool drops only its own half (no shfmt: no
-rewrite; no ShellCheck: no findings). `git -c checks.skipmissing=shellcheck commit ...` skips the
-check while the tool is absent. The placement rules are the check-placement convention in the
+- `format` rewrites. At commit it refuses a partly staged shell script the shfmt adapter governs,
+  untouched; runs shfmt over the staged `.sh` and `.bash` files it governs; and re-stages what
+  changed.
+- `lint` reports. It runs ShellCheck (`warning` severity and above) over the staged shell files
+  and blocks the commit only on a finding on a line the commit adds,
+  printed as `<path>:<line>: <message>`. A partly staged or deleted script is linted as staged, from
+  the index. A ShellCheck that exits non-zero with no such line fails the commit and shows its
+  output. Identical staged scripts are linted once when nothing path-dependent can differ.
+
+They reach every author, not only Claude, once
+`/bash-format:setup apply install-git-hooks [scope=local|shared]` registers them with the
+repository's hook manager (lefthook, husky or plain git hooks). Local scope stays in this clone;
+shared scope commits the copies under `.githooks/bash-format/`. `/bash-format:setup check` reports
+drift, including a copy of the earlier single `shell-check` entry, which that action retires; a
+decline of `shell-check` carries to both.
+
+When an adapter's tool is missing, an agent's commit fails with the install route; a person's
+commit gets a one-line notice and goes through. `git -c checks.skipmissing=<tool> commit ...` skips
+the entry while the tool is absent. The placement rules are the check-placement convention in the
 marketplace repository.
 
-An opt-in Stop row (`bash_format_end_of_turn`) runs the ShellCheck half over the uncommitted changes
-at the end of a turn, without rewriting, and hands findings back to Claude once per turn.
+An opt-in Stop row (`bash_format_end_of_turn`) runs the `lint` entry over the uncommitted changes
+at the end of a turn and hands findings back to Claude once per turn.
 
 ## Requirements
 
@@ -108,14 +122,15 @@ at the end of a turn, without rewriting, and hands findings back to Claude once 
   [System requirements](https://code.claude.com/docs/en/setup#system-requirements) live. A missing `node` shows no notice from this plugin. Check it with
   `/bash-format:setup check`. [Install Node.js](https://nodejs.org/en/download).
 - **jq** on `PATH`. Reads the file paths from the `PostToolBatch` payload and the syntax tree for
-  the subscript guard. Absent: the batch row does nothing, the pre-commit entry skips its rewrite,
+  the subscript guard. Absent: the batch row does nothing, the `format` entry skips its rewrite,
   and the SessionStart probe reports it. [Install jq](https://jqlang.org/download/).
-- **ShellCheck** on `PATH` for the pre-commit findings.
+- **ShellCheck** on `PATH` for the `lint` entry.
 - **shfmt** on `PATH` for formatting (and an `.editorconfig` section naming shell files in your
   repo to opt in). Without the opt-in, shfmt is never needed. The repo chose not to format.
 
 A SessionStart probe reports a missing `shfmt` or `shellcheck` once per session, from
-`prerequisites.json`, and a drifted git-hook entry. Run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`
+`prerequisites.json` (`shfmt` only where an `.editorconfig` shell section sits in the project
+directory or above it), and a drifted git-hook entry. Run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`
 to see which binaries resolve; it is read-only and installs nothing.
 
 ### Hook budget accounting
@@ -135,7 +150,9 @@ spawns are from `scripts/hook-census.sh`:
 
 The ceiling for a per-batch formatter row is 1 s median per fire. Fences:
 `.performance/ratchets.json` holds the no-shell-file row at 1 spawn, and the Stop row with
-`bash_format_end_of_turn` off (its default) at 1 spawn.
+`bash_format_end_of_turn` off (its default) at 1 spawn. The shfmt adapter path (one `Edit` that
+needs a rewrite) measured 23 spawns before and after the resolver landed (2026-11-17, WSL2 Ubuntu,
+bash 5.3.9, shfmt v3.14.1).
 
 ## Install
 
@@ -158,7 +175,7 @@ Three `userConfig` options tune the hooks themselves:
 |--------|---------|--------|
 | `bash_format_enabled` | `true` | Kill switch. Set `false` for a clean no-op. |
 | `bash_format_lint_gitignored` | `false` | Set `true` to format files the repository gitignores; by default the batch row skips them. |
-| `bash_format_end_of_turn` | `false` | Set `true` to run the pre-commit ShellCheck pass over the uncommitted changes when a turn ends; findings go back to Claude once per turn so they are fixed before it stops. Nothing is rewritten. |
+| `bash_format_end_of_turn` | `false` | Set `true` to run the pre-commit `lint` entry over the uncommitted changes when a turn ends; findings go back to Claude once per turn so they are fixed before it stops. Nothing is rewritten. |
 
 Set them interactively with `/plugin configure bash-format@<marketplace>`, or headless on the
 install command:
@@ -178,7 +195,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | --- | --- | --- | --- |
 | `bash_format_enabled` | boolean | `true` | After each batch of tool calls, run shfmt over the shell scripts it wrote, where the repository's .editorconfig opts in |
 | `bash_format_lint_gitignored` | boolean | `false` | By default the hook leaves a file the repository gitignores alone: it is not rewritten or linted, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope. |
-| `bash_format_end_of_turn` | boolean | `false` | At the end of each turn, run the pre-commit ShellCheck pass over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default. |
+| `bash_format_end_of_turn` | boolean | `false` | At the end of each turn, run the pre-commit lint entry over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default. |
 
 ### How to set these
 

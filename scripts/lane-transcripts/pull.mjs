@@ -284,6 +284,10 @@ function store({ sink, repo, recipient, deps, artifact, named, runs, now }) {
   const run = runs.get(runId);
   const asString = (value) => (typeof value === "string" ? value : null);
   const row = {
+    provider: "github",
+    run_ref: runId,
+    run_url: `https://github.com/${repo}/actions/runs/${runId}/attempts/${named.attempt}`,
+    leg_key: named.jobId,
     artifact_id: artifact.id,
     run_id: Number(runId),
     run_attempt: named.attempt,

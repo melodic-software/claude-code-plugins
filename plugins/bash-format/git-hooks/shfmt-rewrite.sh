@@ -1,8 +1,4 @@
 # shellcheck shell=bash
-# Shared by the pre-commit entry (shell-check.sh) and the PostToolBatch hook
-# (hooks/bash-format.sh): which shell files the repository opted in to format,
-# and the rewrite itself. Sourced, never run. Stays within bash 3.2.
-#
 #   shfmt_governed <path>       0 when an .editorconfig section naming shell
 #                               files governs the repo-relative path (walk up
 #                               to the repository root)
@@ -183,6 +179,7 @@ shfmt_probe() {
 shfmt_rewrite() {
   local file="$1"
   [[ -f "$file" ]] || return 0
+  [[ "$file" == -* ]] && file="./$file"
   shfmt_probe
   if [[ -n "$SHFMT_PROBE_ERR" ]]; then
     shfmt_note "bash-format: shfmt probe failed ($SHFMT_PROBE_ERR); ${file##*/} not formatted."

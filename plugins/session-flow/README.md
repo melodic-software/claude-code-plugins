@@ -223,11 +223,15 @@ parser (multi-session-aware: it walks the handoff chain), assesses quality acros
 against the consuming repo's own conventions, checks Claude Code auto-memory for feedback
 regressions, and codifies user-approved learnings. Health scores persist across sessions, and
 `/session-flow:audit-sessions trends` analyzes them. With the `retro_lenses` option at `3`, the analysis runs as three parallel review
-passes merged before scoring.
+passes merged before scoring. The `ci-runs` target runs the same analysis over chosen CI lane runs,
+read locally from their sealed transcripts in a lane transcript sink (the
+[lane-transcripts contract](../../docs/contracts/lane-transcripts/README.md)), and keeps a score
+history per lane.
 
 ```shell
 /session-flow:retro            # full 5-phase analysis (default)
 /session-flow:retro quick      # abbreviated, for limited context
+/session-flow:retro ci-runs --lane pr-verify --last 3 --sink /path/to/sink
 ```
 
 Token totals count each assistant message once and human messages count only typed turns, so
@@ -498,7 +502,7 @@ The skills adapt to the consuming repo rather than imposing structure:
 (see `reference/observer.md` for full semantics); **audit-sessions** has five `audit_sessions_*`
 keys (store retention, excerpt length, the short-turn word limit, and the two drift-check bounds);
 `cloud_route` and `retro_offer` set whether the workflow's continuation advice offers a cloud
-session and whether its wrap-up offers a retro; eight more keys tune single skills, and
+session and whether its wrap-up offers a retro; nine more keys tune single skills, and
 "Option details" explains `worker_continuation`, `wip_commit`, `retro_lenses` and
 `transcript_scope`. Every key is in the options reference below. The observer keys:
 
@@ -619,6 +623,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `recall_report_kinds` | string | `"Bug"` | Comma-separated issue types or labels /session-flow:recall counts as an incident or a user report when it lists what is still reported; default Bug, which also matches a type: bug label. docs/conventions/session-flow.yaml wins. |
 | `recall_doc_paths` | string | `"*.md"` | Comma-separated git pathspecs /session-flow:recall searches for postmortems on the topic; default *.md, every tracked markdown file. docs/conventions/session-flow.yaml wins. |
 | `retro_lenses` | string | `"1"` | How many review passes /session-flow:retro session mode runs: 1 (default) one pass; 3 three parallel subagents (the calls made and why, the tools and steps used, the approaches not tried), merged before scoring. docs/conventions/session-flow.yaml wins. |
+| `lane_transcript_sink` | directory | *(none)* | The private directory holding pulled CI lane transcripts and their metrics.jsonl, read by /session-flow:retro ci-runs. Unset means each ci-runs run needs --sink; there is no default location. A --sink given on the command line wins. |
 | `cloud_route` | string | `"offer"` | Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask. |
 | `retro_offer` | string | `"offer"` | Whether /session-flow:workflow's end-of-session wrap-up offers a retrospective. offer (default) suggests /session-flow:retro for substantive sessions; off never offers one. Offer only: nothing runs a retro unless you ask. |
 | `recommend_skills_exclude` | string | `"none"` | Which skill states /session-flow:recommend-skills leaves out of its menu: none (default) names every skill, annotating disabled and not-installed ones; the others drop disabled skills, skills not installed, or both. The menu says which states it dropped. |

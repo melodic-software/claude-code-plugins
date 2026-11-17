@@ -10,6 +10,16 @@ Usage (multi-session, new):
     python parse_transcript.py --sessions <sid1> <sid2> ... --base <base_path>
     python parse_transcript.py --chain-from <handoff-file> --base <base_path>
 
+Usage (sealed CI lane legs):
+    python parse_transcript.py --legs <leg.json.gz> [<leg.json.gz> ...]
+
+    Each file is a gzipped JSON array of stream-json messages (lane_legs.py names them). Output:
+    {"status", "summary", "legs": [{"id", "path", "transcript_present", "data"}], "aggregate"}.
+    Each leg's `data` is the session `data` block, its subagents tallied from the inline messages
+    (`assistant_turns`, `tools`, `rejection_count`), plus `result` (the result message's subtype,
+    is_error, num_turns, duration_ms, api_error_status, models, permission_denials) and
+    `timing_source` (`timestamps`, `result` or `none`). Exit 0 when any leg parsed, else 2.
+
 Arguments:
     session_id    Single UUID session identifier (positional, backward compat)
     base_path     Base directory containing session JSONL files (positional)
@@ -80,11 +90,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, NoReturn, cast
 
-_PLUGIN_SCRIPTS = str(Path(__file__).resolve().parents[3] / "scripts")
+_PLUGIN_SCRIPTS = str(Path(__file__).resolve().parent)
 if _PLUGIN_SCRIPTS not in sys.path:
     sys.path.insert(0, _PLUGIN_SCRIPTS)
 
-import transcript_reader  # noqa: E402  (plugin-level scripts/transcript_reader.py)
+import transcript_reader  # noqa: E402  (beside this script)
 
 
 def parse_timestamp(ts_str: str) -> datetime | None:
@@ -163,10 +173,52 @@ def _count_tools_and_extract_paths(content: list[Any], metrics: dict[str, Any]) 
                 metrics["files_modified"].add(fp_candidate)
 
 
-def parse_main_transcript(filepath: Path) -> dict[str, Any] | None:
+def _new_inline_subagent(sub_id: str, spawn: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": sub_id,
+        "type": str(spawn.get("subagent_type") or "unknown"),
+        "description": str(spawn.get("description") or ""),
+        "assistant_turns": 0,
+        "tools": Counter(),
+        "rejection_count": 0,
+    }
+
+
+def _count_inline_subagent(event: dict[str, Any], subs: dict[str, dict[str, Any]], spawns: dict[str, dict[str, Any]]) -> None:
+    """Tally one lane-leg message a subagent wrote, keyed by the Agent call that started it."""
+    sub_id = str(event.get("parent_tool_use_id"))
+    sub = subs.setdefault(sub_id, _new_inline_subagent(sub_id, spawns.get(sub_id, {})))
+    content = _as_list(_as_dict(event.get("message")).get("content"))
+    if event.get("type") == "assistant":
+        sub["assistant_turns"] += 1
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "tool_use":
+                sub["tools"][str(item.get("name", "unknown"))] += 1
+    elif event.get("type") == "user":
+        sub["rejection_count"] += sum(1 for item in content if isinstance(item, dict) and item.get("type") == "tool_result" and item.get("is_error"))
+
+
+def _leg_result(event: dict[str, Any]) -> dict[str, Any]:
+    status = event.get("api_error_status")
+    denials = event.get("permission_denials")
+    return {
+        "subtype": event.get("subtype"),
+        "is_error": event.get("is_error"),
+        "num_turns": event.get("num_turns"),
+        "duration_ms": event.get("duration_ms"),
+        "api_error_status": status if isinstance(status, int) and not isinstance(status, bool) else None,
+        "models": sorted(_as_dict(event.get("modelUsage"))),
+        "permission_denials": len(denials) if isinstance(denials, list) else 0,
+    }
+
+
+def parse_main_transcript(filepath: Path, lane_leg: bool = False) -> dict[str, Any] | None:
     """Collect metrics from a main transcript read through the shared transcript reader.
 
-    Tokens count once per assistant message; `human_messages` counts typed turns only."""
+    Tokens count once per assistant message; `human_messages` counts typed turns only. With
+    `lane_leg`, the file is a sealed lane leg: its subagents' messages arrive inline, marked
+    `isSidechain`, so they are tallied apart from the main thread, and its last result message is
+    kept."""
     if not filepath.is_file():
         return None
 
@@ -196,8 +248,20 @@ def parse_main_transcript(filepath: Path) -> dict[str, Any] | None:
     stats: dict[str, int] = {}
     # Streaming writes one message as several records; the ledger counts its usage once.
     ledger = transcript_reader.UsageLedger()
+    inline_subagents: dict[str, dict[str, Any]] = {}
+    agent_spawns: dict[str, dict[str, Any]] = {}
+    leg_result: dict[str, Any] | None = None
 
     for event in transcript_reader.iter_records(filepath, stats):
+        if lane_leg:
+            if event.get("isSidechain"):
+                _count_inline_subagent(event, inline_subagents, agent_spawns)
+                continue
+            if event.get("type") == "result":
+                leg_result = _leg_result(event)
+            for item in _as_list(_as_dict(event.get("message")).get("content")):
+                if isinstance(item, dict) and item.get("type") == "tool_use" and item.get("name") in {"Agent", "Task"}:
+                    agent_spawns[str(item.get("id"))] = _as_dict(item.get("input"))
         timestamp = event.get("timestamp")
         if isinstance(timestamp, str) and timestamp:
             if metrics["first_timestamp"] is None:
@@ -319,6 +383,13 @@ def parse_main_transcript(filepath: Path) -> dict[str, Any] | None:
     metrics["turn_durations_ms"] = _compute_turn_deltas_ms(
         metrics["assistant_timestamps"]
     )
+    if lane_leg:
+        metrics["decoded_records"] = stats["records"]
+        metrics["leg_result"] = leg_result
+        metrics["inline_subagents"] = [
+            {**sub, "tools": dict(sub["tools"].most_common())}
+            for sub in inline_subagents.values()
+        ]
 
     return metrics
 
@@ -783,6 +854,56 @@ def build_multi_session_output(
     }
 
 
+def parse_one_leg(path: Path) -> dict[str, Any]:
+    """One sealed lane leg's `data` block, or an error stub when the file is missing.
+
+    A leg has no session id of its own here: its id is the file's name without `.json.gz`. Timing
+    comes from message timestamps when the messages carry them, else the session duration from the
+    result's `duration_ms` with no per-turn timing (`timing_source` says which)."""
+    leg_id = path.name.removesuffix(".gz").removesuffix(".json")
+    metrics = parse_main_transcript(path, lane_leg=True)
+    if metrics is None:
+        return {"id": leg_id, "path": str(path), "transcript_present": False, "error": f"No leg transcript at {path}"}
+    if metrics["decoded_records"] == 0:
+        return {"id": leg_id, "path": str(path), "transcript_present": False, "error": f"unreadable leg transcript at {path}: no message decoded"}
+    data = build_session_data(leg_id, metrics, metrics["inline_subagents"])
+    result = metrics["leg_result"]
+    data["result"] = result
+    data["timing_source"] = "timestamps" if metrics["first_timestamp"] else "none"
+    if not metrics["first_timestamp"] and result and isinstance(result.get("duration_ms"), int):
+        data["timing_source"] = "result"
+        data["session"]["duration_minutes"] = round(result["duration_ms"] / 60000, 1)
+    return {"id": leg_id, "path": str(path), "transcript_present": True, "data": data}
+
+
+def build_legs_output(paths: list[Path]) -> dict[str, Any]:
+    """Parse each sealed lane leg and aggregate, as the multi-session form does for sessions."""
+    legs = [parse_one_leg(p) for p in dict.fromkeys(paths)]
+    present = [leg for leg in legs if leg["transcript_present"]]
+    totals = dict.fromkeys(_AGGREGATE_TOTALS, 0)
+    tools: Counter[str] = Counter()
+    models: set[str] = set()
+    for leg in present:
+        data = leg["data"]
+        tools.update(data["tools"]["usage"])
+        models.update(data["session"]["models"])
+        models.update((data["result"] or {}).get("models", []))
+        for key, (section, field) in _AGGREGATE_TOTALS.items():
+            totals[key] += data[section][field]
+    status = "pass" if len(present) == len(legs) else "warning" if present else "error"
+    return {
+        "status": status,
+        "summary": (
+            f"Lane legs: {len(legs)} requested ({len(present)} found), "
+            f"{totals['total_assistant_turns']} assistant turns, "
+            f"{totals['total_tool_rejections']} tool rejection(s), "
+            f"{totals['total_compactions']} compaction(s)"
+        ),
+        "legs": legs,
+        "aggregate": {**totals, "all_tools": dict(tools.most_common()), "all_models": sorted(models)},
+    }
+
+
 def _parse_legacy_or_argparse(argv: list[str]) -> argparse.Namespace:
     """Support BOTH legacy positional 2-arg form AND new argparse-flag form.
 
@@ -797,6 +918,7 @@ def _parse_legacy_or_argparse(argv: list[str]) -> argparse.Namespace:
             base=Path(argv[1]),
             sessions=None,
             chain_from=None,
+            legs=None,
         )
 
     parser = argparse.ArgumentParser(
@@ -816,6 +938,12 @@ def _parse_legacy_or_argparse(argv: list[str]) -> argparse.Namespace:
         type=Path,
         dest="chain_from",
         help="Walk session chain via handoff frontmatter starting from the given log file",
+    )
+    parser.add_argument(
+        "--legs",
+        nargs="+",
+        type=Path,
+        help="Sealed lane leg transcripts (gzipped stream-json arrays) to parse + aggregate",
     )
     parser.add_argument(
         "--current-session",
@@ -850,6 +978,11 @@ def main() -> None:
         )
 
     ns = _parse_legacy_or_argparse(argv)
+
+    if ns.legs:
+        output = build_legs_output(ns.legs)
+        print(json.dumps(output, indent=2))
+        sys.exit(0 if output["status"] in {"pass", "warning"} else 2)
 
     if not ns.base or not ns.base.is_dir():
         _emit_and_exit(

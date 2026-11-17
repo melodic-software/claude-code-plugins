@@ -563,8 +563,10 @@ plugins/review/tests/standards-binding.test.sh 1
 plugins/session-flow/scripts/harness/hop_chain.test.sh 53
 plugins/session-flow/scripts/harness/resume_eval.test.sh 122
 plugins/session-flow/scripts/harness/test_resume_cases.py 71
+plugins/session-flow/scripts/parse-transcript.test.sh 4
 plugins/session-flow/scripts/save_point.test.sh 41
 plugins/session-flow/scripts/tests/test_hop_chain_load_transcript.py 1
+plugins/session-flow/scripts/tests/test_parse_transcript.py 2
 plugins/session-flow/scripts/tests/test_save_point.py 39
 plugins/session-flow/scripts/tests/test_tidy_work.py 5
 plugins/session-flow/scripts/tests/test_transcript_reader_first_cwd.py 1
@@ -580,8 +582,6 @@ plugins/session-flow/skills/audit-sessions/scripts/tests/test_sweep.py 4
 plugins/session-flow/skills/audit-sessions/scripts/tests/test_transcript_reader.py 1
 plugins/session-flow/skills/keep-going/scripts/check-usage-limit-reset.test.sh 1
 plugins/session-flow/skills/recall/scripts/test_recall_scan.py 1
-plugins/session-flow/skills/retro/scripts/parse-transcript.test.sh 4
-plugins/session-flow/skills/retro/scripts/test_parse_transcript.py 2
 plugins/session-flow/skills/running-retro/scripts/observer.test.sh 8
 plugins/session-flow/skills/running-retro/scripts/test_observer.py 9
 plugins/skill-quality/scripts/check-evals-quality.test.sh 1

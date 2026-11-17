@@ -5,8 +5,9 @@
 # repo test-runner convention for optional toolchains. -p no:cacheprovider keeps
 # a .pytest_cache/README.md out of the plugin-wide markdownlint glob.
 # test-scope: plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/*
-# test-scope: plugins/session-flow/skills/audit-sessions/scripts/*.py plugins/session-flow/skills/audit-sessions/reference/*.json plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json
-# test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/lib/state-key.sh plugins/session-flow/scripts/transcript_reader.py plugins/session-flow/skills/retro/scripts/parse_transcript.py
+# test-scope: plugins/session-flow/skills/audit-sessions/scripts/*.py plugins/session-flow/skills/audit-sessions/reference/*.json plugins/session-flow/vendor/gitleaks/gitleaks-rules.json
+# test-scope: plugins/session-flow/scripts/collect.py plugins/session-flow/scripts/census.py plugins/session-flow/scripts/friction_scan.py plugins/session-flow/scripts/redact.py plugins/session-flow/reference/canaries.json
+# test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/lib/state-key.sh plugins/session-flow/scripts/transcript_reader.py plugins/session-flow/scripts/parse_transcript.py
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1

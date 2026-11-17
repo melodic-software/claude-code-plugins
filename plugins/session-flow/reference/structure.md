@@ -354,8 +354,8 @@ the `Re-scan:` line of section 15 must say which. Silence on this point reads as
 is never a third option:
 
 - The re-scan read the lossless on-disk transcript instead of, or in addition to, the model-visible
-  conversation, which stays lossless across compaction (the same record `retro`'s parser reads:
-  `${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse_transcript.py`, paths resolved per retro's
+  conversation, which stays lossless across compaction (the same record the plugin's parser reads:
+  `${CLAUDE_PLUGIN_ROOT}/scripts/parse_transcript.py`, paths resolved per retro's
   "Paths"; `/session-flow:running-retro`'s "2. Resolve inputs for the subagent" is a worked example
   of reading it without flooding the current context with the raw record).
 - It did not, and the line states so explicitly: "Re-scan: visible conversation only; a

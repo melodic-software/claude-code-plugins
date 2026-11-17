@@ -41,7 +41,10 @@ machine or object storage, is any directory it mounts at; nothing else changes. 
 <sink>/state.json                                                          last success, last attempt, last error kind
 ```
 
-A metrics row holds the artifact, run, attempt and job ids, lane, workflow name, event, branch,
+The layout and every row field readers rely on are the
+[lane-transcripts contract](../../docs/contracts/lane-transcripts/README.md), which names the
+provider-neutral fields this puller fills (`provider`, `run_ref`, `run_url`, `leg_key`). A
+metrics row also holds the artifact, run, attempt and job ids, lane, workflow name, event, branch,
 the run's conclusion when pulled, `created_at` and `date`, the init message's `model`, the result
 message's `models` (its `modelUsage` keys), `outcome` (`error` when `is_error` is true, else the
 `subtype`), `subtype`, `is_error`, `api_error_status` (`null` when the result carries none),
