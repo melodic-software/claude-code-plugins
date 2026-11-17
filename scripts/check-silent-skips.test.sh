@@ -289,34 +289,4 @@ else
 fi
 rm -rf "$f"
 
-REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
-marker="$(bash "$SCRIPT" --marker)"
-allow="$(bash "$REPO_ROOT/plugins/code-tidying/scripts/comment-settings.sh" --list comment_lint_allow "$REPO_ROOT")"
-if grep -qxF -- "$marker" <<<"$allow"; then
-  ok "comment_lint_allow carries the gate's own annotation marker"
-else
-  fail "comment_lint_allow lacks the marker [$marker]; it holds: $allow"
-fi
-d="$(mktemp -d)"
-printf '%s\n' '#!/usr/bin/env bash' '# silent-skip-ok: jq is optional here' 'command -v jq >/dev/null 2>&1 || exit 0' >"$d/a.sh"
-printf 'a.sh\t1\t3\n' >"$d/ranges"
-printf '%s\n' "$allow" >"$d/allow"
-: >"$d/none"
-lint_with_allow() {
-  printf 'a.sh\0' | python3 "$REPO_ROOT/plugins/code-tidying/git-hooks/comment-lint.py" \
-    --posture necessary --root "$d" --ranges "$d/ranges" --allow "$1" 2>&1
-}
-if [[ "$(lint_with_allow "$d/none")" == a.sh:2:* ]]; then
-  ok "without the allow entry the comment lint flags the annotation"
-else
-  fail "expected the comment lint to flag the bare annotation, got: $(lint_with_allow "$d/none")"
-fi
-out="$(lint_with_allow "$d/allow")"
-if [[ -z "$out" ]]; then
-  ok "the repository's allow list lets the annotation through the comment lint"
-else
-  fail "the comment lint flagged the annotation under the repository's allow list: $out"
-fi
-rm -rf "$d"
-
 test_harness::report

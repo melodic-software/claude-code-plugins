@@ -11,4 +11,3 @@ comment_lint: block
 comment_lint_allow:
   - '^#[[:space:]]*test-scope:'
   - '^//[[:space:]]*test-scope:'
-  - '#[[:space:]]*silent-skip-ok:'

@@ -495,6 +495,25 @@ class ShellTokenRecognition(unittest.TestCase):
             ('grep -q x <<<"$1"\n# after a here-string\n', [2]),
             ("[[ $x =~ ((a)+)$ ]] && y=${x:-{\\}}\n# after a regex\n", [2]),
             ("done < <(((${#a[@]})) && printf '%s\\n' x)\n# after <(\n", [2]),
+            ('x="$(echo case)"\n# after an argument named case\n', [2]),
+            ("x=$(case a in a) echo;; esac)\n# after a case command\n", [2]),
+            ("x=$(if true; then case a in (a) :;; esac; fi)\n# after a nested case\n", [2]),
+            ("cat <<$'EOF'\nbody\nEOF\n# after an ANSI-C delimiter\n", [4]),
+            ("cat <<$'E\\x4fF'\n# body\nEOF\n# after an escaped delimiter\n", [4]),
+            ('cat <<$"EOF"\n# body\nEOF\n# after a locale delimiter\n', [4]),
+        )
+        for text, want in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged("a.sh", text), want)
+
+    def test_an_unparsed_construct_never_hides_later_comments(self):
+        cases = (
+            ("echo 'unterminated\n# a\necho b # c\n", [2, 3]),
+            ('echo "unterminated\n# a\n', [2]),
+            ("x=$(echo\n# a\n", [2]),
+            ("y=${x\n# a\n", [2]),
+            ("(( a ) )\n# a\n", [2]),
+            ("cat <<EOF\n# body\nno delimiter\n", [2]),
         )
         for text, want in cases:
             with self.subTest(text=text):

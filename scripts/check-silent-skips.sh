@@ -52,12 +52,6 @@
 # or a self-test quietly scoring an unrun proof as PASS.
 set -euo pipefail
 
-SILENT_SKIP_OK_ERE='#[[:space:]]*silent-skip-ok:'
-if [[ "${1:-}" == --marker ]]; then
-  printf '%s\n' "$SILENT_SKIP_OK_ERE"
-  exit 0
-fi
-
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 errors=0
@@ -66,7 +60,7 @@ errors=0
 # block directly above a flagged line sanctions it; any code line ends the
 # pending block. track_annotation sets annotated_above for the current line.
 AWK_ANNOTATION_LIB='
-    function is_annotated(l) { return l ~ marker }
+    function is_annotated(l) { return l ~ /#[[:space:]]*silent-skip-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
     function track_annotation(l) {
       annotated_above = pending_annot
@@ -79,7 +73,7 @@ AWK_ANNOTATION_LIB='
 '
 
 scan_hook() {
-  awk -v marker="$SILENT_SKIP_OK_ERE" "$AWK_ANNOTATION_LIB"'
+  awk "$AWK_ANNOTATION_LIB"'
     function is_visible(l) {
       return l ~ /hook::emit_skip_notice/ || l ~ /hook::emit_system_message/ ||
         l ~ /hook::notice_once/ || l ~ /hook::require(_jq_blocking| jq)/
@@ -145,7 +139,7 @@ scan_hook() {
 # "skip " / 'skip ' (space-delimited) so descriptions like
 # `ok "skip-named-helper ... fails"` are not flagged.
 scan_test_skip_pass() {
-  awk -v marker="$SILENT_SKIP_OK_ERE" "$AWK_ANNOTATION_LIB"'
+  awk "$AWK_ANNOTATION_LIB"'
     function is_skip_ok(l) {
       # Match at a shell command boundary (not only line-start), so one-line
       # forms like `if x; then ok "skip ..."; fi` are caught too.

@@ -45,6 +45,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -200,24 +201,44 @@ def tokens(text: str, lexer) -> list:
 class _ShellComments:
     """Comments and here-document bodies of a shell script, by the shell's own rules.
 
-    POSIX Shell Command Language, 2.3 Token Recognition and 2.7.4 Here-Document
+    POSIX Shell Command Language, 2.3 Token Recognition, 2.4 Reserved Words and
+    2.7.4 Here-Document
     (https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html):
     "If the previous character was part of a word, the current character shall
     be appended to that word"; only otherwise does "a '#'" start a comment that
     runs "up to, but excluding, the next <newline>". Quotes, $'...', parameter
     expansion, command substitution and arithmetic expansion belong to the word
-    they sit in. A here-document "begins after the next NEWLINE token and
-    continues until there is a line containing only the delimiter", the
-    delimiter being the word after quote removal, leading tabs stripped for
+    they sit in. A reserved word such as case, esac or [[ counts only as the
+    first word of a command. A here-document "begins after the next NEWLINE
+    token and continues until there is a line containing only the delimiter",
+    the delimiter being the word after quote removal, leading tabs stripped for
     <<-, and several on one line are read in order. Bash additions, per the Bash
     reference manual (https://www.gnu.org/software/bash/manual/bash.html): a
     (( )) arithmetic command, whose << is a shift; [[ ]], where parentheses and
-    << belong to the expression; <( ) and >( ) process substitution; and $"...".
+    << belong to the expression; <( ) and >( ) process substitution; $"...";
+    and an ANSI-C quoted $'...' delimiter, read after its escapes.
+
+    A construct left open at the end of the text (a quote, an expansion, a
+    substitution, a here-document with no delimiter line) or an arithmetic
+    expression with an unmatched ')' is one this reader got wrong or the shell
+    rejects. It never hides the rest of the file: everything read from its start
+    is dropped and reading starts again on the next line (a here-document's on
+    its first body line), so the lines after it are read as code and a comment
+    there is still found.
     """
 
     OPERATOR = frozenset(";&|<>()")
+    COMMAND_BREAK = frozenset(";&|()")
     BLANK = frozenset(" \t")
     KEYWORD_END = frozenset(" \t\n;&|<>()")
+    PRE_COMMAND = frozenset(("!", "{", "do", "elif", "else", "if", "then", "time", "until", "while"))
+    WORD = re.compile(r"[^\s;&|<>()\"'`$\\]*")
+    ASSIGNMENT = re.compile(r"[A-Za-z_]\w*\+?=")
+    ANSI_ESCAPE = re.compile(r"\\(x[0-9A-Fa-f]{1,2}|[0-7]{1,3}|.)", re.DOTALL)
+    ANSI_CHAR = {
+        "a": "\a", "b": "\b", "e": "\x1b", "E": "\x1b", "f": "\f", "n": "\n",
+        "r": "\r", "t": "\t", "v": "\v", "\\": "\\", "'": "'", '"': '"', "?": "?",
+    }
 
     def __init__(self, text: str):
         self.s = text
@@ -225,14 +246,23 @@ class _ShellComments:
         self.n = len(text)
         self.spans: list[tuple[str, int, int]] = []
         self.pending: list[tuple[str, bool]] = []
+        self.lost: tuple[int, int] | None = None
 
     def tokens(self) -> list:
         from pygments.token import Comment, String, Text
 
+        at = 0
         if self.s.startswith("#!"):
-            self.i = self._line_end(0)
-            self.spans.append(("hashbang", 0, self.i))
-        self._command(None)
+            at = self._line_end(0)
+            self.spans.append(("hashbang", 0, at))
+        while True:
+            self.i, self.pending, self.lost = at, [], None
+            self._command(None, at)
+            if self.lost is None:
+                break
+            start, resume = self.lost
+            self.spans = [span for span in self.spans if span[1] < start]
+            at = resume if resume > at else self._line_end(at) + 1
         kinds = {"hashbang": Comment.Hashbang, "comment": Comment.Single, "heredoc": String}
         out, at = [], 0
         for kind, start, end in sorted(self.spans, key=lambda span: span[1]):
@@ -248,12 +278,15 @@ class _ShellComments:
         end = self.s.find("\n", at)
         return self.n if end < 0 else end
 
-    def _keyword(self, word: str) -> bool:
-        end = self.i + len(word)
-        return self.s.startswith(word, self.i) and (end >= self.n or self.s[end] in self.KEYWORD_END)
+    def _lose(self, start: int, resume: int | None = None) -> None:
+        if resume is None:
+            resume = self._line_end(start) + 1
+        if self.lost is None or start < self.lost[0]:
+            self.lost = (start, resume)
+        self.i = self.n
 
-    def _command(self, close: str | None) -> None:
-        s, in_word, cond, depth, cases = self.s, False, False, 0, 0
+    def _command(self, close: str | None, start: int) -> None:
+        s, in_word, at_command, cond, depth, cases = self.s, False, True, False, 0, 0
         while self.i < self.n:
             c = s[self.i]
             if c == close and (close == "`" or (depth == 0 and cases == 0)):
@@ -261,7 +294,7 @@ class _ShellComments:
                 return
             if c == "\n":
                 self.i += 1
-                in_word = False
+                in_word, at_command = False, True
                 self._bodies()
             elif c in self.BLANK:
                 self.i += 1
@@ -281,14 +314,15 @@ class _ShellComments:
                 in_word = False
             elif s.startswith(("<(", ">("), self.i):
                 self.i += 2
-                self._command(")")
-                in_word = True
+                self._command(")", self.i - 2)
+                in_word, at_command = True, False
             elif s.startswith("<<", self.i) and not cond:
                 self._heredoc()
                 in_word = False
-            elif s.startswith("((", self.i) and not in_word and not cond:
+            elif s.startswith("((", self.i) and at_command and not in_word:
                 self.i += 2
-                self._arithmetic()
+                self._arithmetic(self.i - 2)
+                at_command = False
             elif c in self.OPERATOR:
                 if c == "(":
                     depth += 1
@@ -296,80 +330,102 @@ class _ShellComments:
                     depth -= 1
                 self.i += 1
                 in_word = False
+                at_command = at_command or c in self.COMMAND_BREAK
             else:
                 if not in_word:
-                    cond = (cond or self._keyword("[[")) and not self._keyword("]]")
-                if not in_word and close == ")":
-                    if self._keyword("case"):
+                    end = self.WORD.match(s, self.i).end()
+                    word = s[self.i : end] if end >= self.n or s[end] in self.KEYWORD_END else None
+                    if at_command and word == "[[":
+                        cond = True
+                    elif cond and word == "]]":
+                        cond = False
+                    elif at_command and close == ")" and word == "case":
                         cases += 1
-                    elif cases and self._keyword("esac"):
+                    elif at_command and cases and word == "esac":
                         cases -= 1
+                    at_command = at_command and (
+                        word in self.PRE_COMMAND or bool(self.ASSIGNMENT.match(s, self.i))
+                    )
                 self._word_part(quoted=False)
                 in_word = True
+        if close is not None:
+            self._lose(start)
 
     def _word_part(self, quoted: bool) -> None:
-        s, c = self.s, self.s[self.i]
+        s, c, start = self.s, self.s[self.i], self.i
         if c == "'" and not quoted:
             end = s.find("'", self.i + 1)
-            self.i = self.n if end < 0 else end + 1
+            if end < 0:
+                self._lose(start)
+            else:
+                self.i = end + 1
         elif c == '"':
             self.i += 1
-            self._double()
+            self._double(start)
         elif c == "$":
             self._dollar(quoted)
         elif c == "`":
             self.i += 1
-            self._command("`")
+            self._command("`", start)
         elif c == "\\":
             self.i += 2
         else:
             self.i += 1
 
-    def _double(self) -> None:
+    def _double(self, start: int) -> None:
         while self.i < self.n:
             if self.s[self.i] == '"':
                 self.i += 1
                 return
             self._word_part(quoted=True)
+        self._lose(start)
 
     def _dollar(self, quoted: bool) -> None:
-        s, i = self.s, self.i
-        if s.startswith("$((", i):
+        s, start = self.s, self.i
+        if s.startswith("$((", start):
             self.i += 3
-            self._arithmetic()
-        elif s.startswith("$(", i):
+            self._arithmetic(start)
+        elif s.startswith("$(", start):
             self.i += 2
-            self._command(")")
-        elif s.startswith("${", i):
+            self._command(")", start)
+        elif s.startswith("${", start):
             self.i += 2
-            self._braces()
-        elif s.startswith("$'", i) and not quoted:
-            self.i += 2
-            while self.i < self.n and s[self.i] != "'":
-                self.i += 2 if s[self.i] == "\\" else 1
-            self.i += 1
+            self._braces(start)
+        elif s.startswith("$'", start) and not quoted:
+            self.i = self._ansi_end(start + 2)
+            if self.i > self.n:
+                self._lose(start)
         else:
             self.i += 1
 
-    def _braces(self) -> None:
+    def _ansi_end(self, at: int) -> int:
+        while at < self.n and self.s[at] != "'":
+            at += 2 if self.s[at] == "\\" else 1
+        return at + 1
+
+    def _braces(self, start: int) -> None:
         while self.i < self.n:
             if self.s[self.i] == "}":
                 self.i += 1
                 return
             self._word_part(quoted=False)
+        self._lose(start)
 
-    def _arithmetic(self) -> None:
+    def _arithmetic(self, start: int) -> None:
         depth = 0
         while self.i < self.n:
             if self.s.startswith("))", self.i) and depth == 0:
                 self.i += 2
                 return
             c = self.s[self.i]
+            if c == ")" and depth == 0:
+                break
             if c in "()":
                 depth += 1 if c == "(" else -1
                 self.i += 1
             else:
                 self._word_part(quoted=False)
+        self._lose(start)
 
     def _heredoc(self) -> None:
         s = self.s
@@ -381,11 +437,25 @@ class _ShellComments:
         word = []
         while self.i < self.n and s[self.i] not in self.KEYWORD_END:
             c = s[self.i]
-            if c in "'\"":
-                end = s.find(c, self.i + 1)
+            if s.startswith("$'", self.i):
+                end = self._ansi_end(self.i + 2)
+                word.append(self._ansi(s[self.i + 2 : end - 1]))
+                self.i = end
+            elif s.startswith('$"', self.i):
+                self.i += 1
+            elif c == "'":
+                end = s.find("'", self.i + 1)
                 end = self.n if end < 0 else end
                 word.append(s[self.i + 1 : end])
                 self.i = end + 1
+            elif c == '"':
+                self.i += 1
+                while self.i < self.n and s[self.i] != '"':
+                    if s[self.i] == "\\" and s[self.i + 1 : self.i + 2] in ('"', "\\", "$", "`"):
+                        self.i += 1
+                    word.append(s[self.i : self.i + 1])
+                    self.i += 1
+                self.i += 1
             elif c == "\\":
                 word.append(s[self.i + 1 : self.i + 2])
                 self.i += 2
@@ -394,6 +464,17 @@ class _ShellComments:
                 self.i += 1
         if word:
             self.pending.append(("".join(word), strip))
+
+    def _ansi(self, body: str) -> str:
+        def one(match: re.Match) -> str:
+            code = match.group(1)
+            if code[0] == "x" and len(code) > 1:
+                return chr(int(code[1:], 16))
+            if code[0] in "01234567":
+                return chr(int(code, 8))
+            return self.ANSI_CHAR.get(code, "\\" + code)
+
+        return self.ANSI_ESCAPE.sub(one, body)
 
     def _bodies(self) -> None:
         for delimiter, strip in self.pending:
@@ -404,6 +485,10 @@ class _ShellComments:
                 self.i = min(end + 1, self.n)
                 if (line.lstrip("\t") if strip else line) == delimiter:
                     break
+            else:
+                self.pending = []
+                self._lose(start, start)
+                return
             self.spans.append(("heredoc", start, self.i))
         self.pending = []
 
