@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| bash | pass | pass | pass | PASS |\n\nOverall: PASS (1 of 1 ecosystems passed)",
+      "why": "plain"
+    },
+    {
+      "answer": "| bash | pass | FAIL | — | FAIL |\n\n**Overall:** **FAIL** (1 of 1 ecosystems failed)",
+      "why": "bold FAIL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The result was not recorded. The record script exited 2 because it couldn't write the store.",
+      "why": "only the record note"
+    },
+    {
+      "answer": "The run's overall PASS was not recorded.",
+      "why": "verdict only in prose, no Overall line"
+    },
+    {
+      "answer": "Overall PASS was not recorded.",
+      "why": "capitalized prose at line start, no colon"
+    }
+  ]
+}

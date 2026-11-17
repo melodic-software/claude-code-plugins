@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: ck-record-fails-report-stands
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-record
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?\brecord-result\.mjs\b(?:[^"\\]|\\.)*?--overall'
+    arm: both
+  - name: table-row
+    type: regex
+    pattern: '^\|[\s*_`]*bash[\s*_`]*\|'
+    flags: m
+    target: last_message
+  - name: overall-line
+    type: regex
+    pattern: '^\W{0,8}Overall\W{0,4}:\W{0,8}(?:PASS|FAIL|INCOMPLETE)\b'
+    flags: m
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run checks a repository where a .sh script changed and the record step cannot write its result (record-result.mjs exits 2). It passes when the final message is the full report: a results table with a bash row, any lines below the table, and an Overall line. Saying the result was not recorded is fine; a final message that only says the result was not recorded, with no table or no Overall line, fails.'

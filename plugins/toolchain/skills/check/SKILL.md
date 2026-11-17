@@ -124,6 +124,8 @@ For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-
 
 ### 3. Report results
 
+Settle the Overall line and record it (section 4) before writing this report, so the report is the reply's last text.
+
 ```text
 ## Build Results
 
@@ -157,13 +159,13 @@ When any gate fired, list each by name and outcome below the ecosystem table, wi
 
 ### 4. Record the result
 
-After the report, record its Overall line for the tree it ran on, in its own Bash call, with the line exactly as reported inside single quotes (write a `'` in it as `'\''`):
+Before writing the report, record the settled Overall line for the tree it ran on, in its own Bash call, with the line exactly as the report will print it inside single quotes (write a `'` in it as `'\''`):
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/record-result.mjs" --skill check --dir "$REPO_ROOT" --overall '<the Overall line>'
 ```
 
-The plugin's Stop hook reads it when the turn ends and warns when the line is not `PASS`, or when no result is recorded for the current tree. An edit after the run changes the tree, so the record no longer counts. A failed record (exit 2) changes nothing in the report; say it was not recorded. Skip this step when an ecosystem argument narrowed the run (a narrowed `PASS` does not cover the whole tree; `all` and a caller's changed-file list do), and when the run stopped at "No changes found" or with no ecosystem to run.
+The plugin's Stop hook reads it when the turn ends and warns when the line is not `PASS`, or when no result is recorded for the current tree. An edit after the run changes the tree, so the record no longer counts. A failed record (exit 2, for example where a sandbox blocks the git calls that hash the tree, or exit 1 for a line it rejects) changes nothing in the report: put one `Not recorded: <the script's reason>` line above the table, and still end the reply with the full report, its table, the lines below it and the Overall line. Skip this step when an ecosystem argument narrowed the run (a narrowed `PASS` does not cover the whole tree; `all` and a caller's changed-file list do), and when the run stopped at "No changes found" or with no ecosystem to run.
 
 ## For other skills referencing /toolchain:check
 
