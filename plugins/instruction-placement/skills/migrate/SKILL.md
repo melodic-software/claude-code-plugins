@@ -203,12 +203,12 @@ between steps must leave content duplicated rather than deleted:
    `check` reports `NO-BLOCK` and the `index-check` pre-commit entry stays quiet, because a repository that never
    adopted an index is not drifting from one. With nothing to index at all, `write` says
    `NO-INDEX-NEEDED` and writes nothing; do not hand-write a block in either case.
-7. **Run the repository's own markdown lint**, if it has one: check for a `lint:md` script in
-   `package.json`, a `lefthook.yml` markdown hook, or a `.markdownlint*` config, and run what you
-   find. A regenerated block or a moved heading can trip MD022 (blanks around headings), MD024
-   (duplicate headings, likely when a section lands beside a similar one) or MD047 (single trailing
-   newline). **A fresh worktree may need the repository's own install step first** (`npm ci`,
-   `uv sync`, `dotnet restore`, whatever its README names). A wall of failures on a markdown-only
+7. **Run the repository's own markdown lint**, if it has one: look where the repository declares
+   its checks (its package scripts, hook config or lint config), and run what you find. A
+   regenerated block or a moved heading can trip a rule on blank lines around headings, on
+   duplicate headings (likely when a section lands beside a similar one) or on the trailing
+   newline. **A fresh worktree may need the repository's own install step first**, whatever its
+   README names. A wall of failures on a markdown-only
    diff is unprovisioned tooling until something shows otherwise: check that before reading it as
    the migration's doing, and never "fix" source you did not touch to make a linter start.
 8. **Re-run the plan** and confirm the states moved the way the operator accepted.
