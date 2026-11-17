@@ -129,7 +129,7 @@ not linked.
 | Read the DOM for a yes or no, not only screenshots | Counts elements on the page to settle a state question | Inference: a screenshot is a weak way to read a count or a state | The playwright skill said when to judge from a screenshot, not when to check the DOM | **adapt**: the playwright skill checks state (presence, counts, text, enabled or checked) on the DOM and uses pixels only for a visual change | this change |
 | A repository doc for the browser tool where the agent records what it learns | Keeps project-specific driving knowledge in the repository | Inference: each session relearns the same gotchas | Lessons reached a control skill only when `map` ran | **adapt**: every `/app-control:drive` and `/debugging:debug` run lists its lessons about driving the app as `/app-control:map refresh "<lesson>"` lines, and `map refresh` places them, staying the one writer of a control skill's gotchas | [#16617](https://github.com/melodic-software/claude-code-plugins/pull/16617), [#16733](https://github.com/melodic-software/claude-code-plugins/pull/16733) |
 | Before and after screenshots in the pull request | Shows the change working | Inference: proof in the body saves a checkout | One evidence layout fit neither a small change nor a large one | **adapt**: small changes show evidence inline before and after; large ones get one collapsed section per acceptance criterion; text and logs first, media as support, with an optional record block | [#16616](https://github.com/melodic-software/claude-code-plugins/pull/16616) |
-| Screenshots of a regulated product in a pull request | n/a (raised while absorbing) | n/a | A capture can show real records, and nothing checks a capture's image content for them | **adapt**: screenshots and recordings of a regulated product show synthetic data only; scanning the images themselves is filed as its own issue | this change |
+| Screenshots of a regulated product in a pull request | n/a (raised while absorbing) | n/a | A capture can show real records, and nothing checks a capture's image content for them | **adapt**: screenshots and recordings of a regulated product show synthetic data only; scanning the images themselves is [#16908](https://github.com/melodic-software/claude-code-plugins/issues/16908) | this change |
 | Verification is worth a higher effort level | Spends more reasoning where evidence is made | Inference: evidence is the product of verification | Same | **already have**: the verifier role defaults to a higher effort; the role defaults were rechecked after two recheck triggers fired | [#16621](https://github.com/melodic-software/claude-code-plugins/pull/16621) |
 | A required verification section in the pull request template | Makes the agent state what it checked | Inference: unstated checks did not happen | Same | **no change**: our body contract's `Verification` section stays advisory | none |
 
@@ -145,7 +145,8 @@ not linked.
 
 ### Handed elsewhere
 
-- Scanning the images in pull request evidence for leaked data: filed as its own issue.
+- Scanning the images in pull request evidence for leaked data:
+  [#16908](https://github.com/melodic-software/claude-code-plugins/issues/16908).
 - Reviewing a sensitive data source before agents read it, and reading a database through a
   read-only tool, are cases these skills must handle generically, not follow-ups tracked here.
 
