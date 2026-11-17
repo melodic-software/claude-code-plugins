@@ -60,7 +60,13 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" apply build --for folder
   changes. The file also sets `PLUGIN_PROFILES_SESSION` to the profile's name, and
   `SESSION_SETTINGS_FILE` to its own path, so plugin-diagnostics and harness-ops skip the
   prerequisite notices of plugins the profile turns off. A resumed session
-  does not keep `--settings`, so pass it again with `--resume`.
+  does not keep `--settings`, so pass it again with `--resume`. The file names every plugin and
+  every skill a profile can switch, so a folder switch in another terminal never reaches it.
+
+Where two levels set the same plugin, Claude Code's
+[settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) decides:
+managed settings, then the one-session file, then the folder, then the repository's committed
+`.claude/settings.json`, then your user settings.
 
 Where you run it matters. The CLI and `claude -p` take all three targets. VS Code and Claude
 Desktop take `folder` and `initial`; a one-session apply there is refused with the folder level

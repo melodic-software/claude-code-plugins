@@ -1105,3 +1105,65 @@ test("#16893: a CLAUDE_PLUGIN_DATA another plugin set is ignored, so the record 
   const own = { CLAUDE_PLUGIN_DATA: join(w.home, ".claude", "plugins", "data", "plugin-profiles-dev") };
   assert.match(launchJson(w, ["build", "--dry-run"], own).file, /plugin-profiles-dev[\\/]sessions[\\/]/);
 });
+
+test("#16893: clear names each entry edited since the apply that it overwrites, and leaves an entry already back at its before-value unnamed", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`implementation@${M}`] = false;
+  doc.enabledPlugins[`songwriting@${M}`] = true;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  const dry = JSON.parse(w.run(["clear", "--dry-run", "--json"]).stdout);
+  const named = dry.lines.filter((line) => line.startsWith("Overwrites a change made since the apply"));
+  assert.deepEqual(named, [`Overwrites a change made since the apply: implementation@${M} is false, the profile wrote true; clear puts back absent.`]);
+  assert.equal(w.run(["clear", "--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#16893: a plugin uninstalled after the apply leaves clear able to restore the file byte for byte", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const list = JSON.parse(readFileSync(w.env.PP_STUB_LIST, "utf8"));
+  writeFileSync(w.env.PP_STUB_LIST, JSON.stringify(list.filter((p) => p.id !== `implementation@${M}`)));
+  assert.match(w.run(["status"]).stdout, /Profile build \(folder\) applied /);
+  const r = w.run(["clear", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#16893: a plugin's state follows Claude Code's order: --settings over local over project over user", () => {
+  const w = world();
+  const id = "widget@vendor";
+  const set = (file, value) => {
+    const doc = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
+    doc.enabledPlugins = { ...doc.enabledPlugins, [id]: value };
+    writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`);
+  };
+  set(join(w.home, ".claude", "settings.json"), true);
+  assert.equal(launchJson(w, ["build", "--dry-run"]).enabledPlugins[id], true, "user");
+  set(join(w.project, ".claude", "settings.json"), false);
+  assert.equal(launchJson(w, ["build", "--dry-run"]).enabledPlugins[id], false, "project over user");
+  set(w.localFile, true);
+  assert.equal(launchJson(w, ["build", "--dry-run"]).enabledPlugins[id], true, "local over project");
+  const own = JSON.stringify({ enabledPlugins: { [id]: false } });
+  assert.equal(launchJson(w, ["build", "--dry-run", "--with", own]).enabledPlugins[id], false, "--settings over local");
+});
+
+test("#16893: a one-session file names every plugin and skill entry any folder profile writes, so a folder switch elsewhere never reaches that session", () => {
+  const w = world();
+  writeTree(w.home, { ".claude/plugin-profiles/quiet.yaml": `description: Hides one skill.\nplugins: [songwriting@${M}]\nhide_skills: [some-standalone-skill]\n` });
+  const names = JSON.parse(w.run(["list", "--json"]).stdout).map((p) => p.name);
+  const folderKeys = { enabledPlugins: new Set(), skillOverrides: new Set() };
+  for (const name of names) {
+    assert.equal(w.run(["apply", name, "--for", "folder", "--yes"]).status, 0, name);
+    const doc = JSON.parse(w.read());
+    for (const key of Object.keys(folderKeys)) for (const k of Object.keys(doc[key] ?? {})) folderKeys[key].add(k);
+  }
+  for (const name of names) {
+    const doc = JSON.parse(readFileSync(launchJson(w, [name]).file, "utf8"));
+    for (const key of Object.keys(folderKeys)) {
+      const missing = [...folderKeys[key]].filter((k) => !(k in (doc[key] ?? {})));
+      assert.deepEqual(missing, [], `${name} session file leaves ${key} to the folder file`);
+    }
+  }
+});

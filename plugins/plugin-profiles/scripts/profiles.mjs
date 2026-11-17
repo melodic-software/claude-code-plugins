@@ -235,6 +235,9 @@ function diff(now, final) {
   return out;
 }
 
+/** Every skill some profile hides; a one-session file names each, so a folder file's entry for one never reaches the session. */
+const hideableSkills = (catalog) => new Set([catalog.alwaysOn, ...catalog.profiles.values()].flatMap((p) => [...p.hideSkills]));
+
 /** Reads every input, plans, and works out the exact entries the target file ends with. */
 function prepare(opts, where, catalog, records) {
   const file = targetFile(where, opts.target, opts.name);
@@ -248,6 +251,7 @@ function prepare(opts, where, catalog, records) {
   const result = plan({ catalog, profile: opts.name, inventory: inv, layers, current: loaded, target: opts.target });
   const now = settings.doc.enabledPlugins ?? {};
   const final = { enabledPlugins: { ...base.enabledPlugins, ...result.writes }, skillOverrides: { ...base.skillOverrides, ...result.skillWrites } };
+  if (session) for (const skill of hideableSkills(catalog)) final.skillOverrides[skill] ??= "on";
   const pending = {};
   if (opts.deferOff) {
     for (const id of new Set([...Object.keys(now), ...Object.keys(final.enabledPlugins)])) {
@@ -600,6 +604,18 @@ const keepsSessionProfile = (env) =>
     ? `This session runs in profile ${sessionProfile(env)} from a one-session settings file and keeps it after the clear; new sessions in this folder start without a folder profile.`
     : null;
 
+/** Recorded entries edited since the apply that clear would change again: neither the profile's value nor the one clear puts back. */
+function overwrittenEdits(rec, doc) {
+  const out = [];
+  for (const [key, section] of [["enabledPlugins", "entries"], ["skillOverrides", "skillOverrides"]]) {
+    for (const [name, { before, after }] of Object.entries(rec[section])) {
+      const current = doc[key]?.[name] ?? ABSENT;
+      if (current !== after && current !== before && rec.pending?.[name] === undefined) out.push({ name, current, after, before });
+    }
+  }
+  return out;
+}
+
 async function clear(opts, where, env, io) {
   if (doesNotApply(where.surface)) throw new NotApplied(`not cleared: ${refusal(where.surface, opts.target)}`);
   const file = targetFile(where, opts.target);
@@ -622,6 +638,9 @@ async function clear(opts, where, env, io) {
     removes
       ? "Removes the file, which the first apply created."
       : `Puts back ${Object.keys(edits.enabledPlugins).length} plugin entries and ${Object.keys(edits.skillOverrides).length} skill entries to their values before the first apply.`,
+    ...overwrittenEdits(rec, settings.doc).map(
+      (e) => `Overwrites a change made since the apply: ${e.name} is ${e.current}, the profile wrote ${e.after}; clear puts back ${e.before}.`,
+    ),
   ]);
   if (opts.dryRun) return 0;
   await consent(opts, [], interactive(), "Clear this profile? [y/N] ");
