@@ -1401,8 +1401,8 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
     def test_a_merge_only_heads_own_pass_supersedes_a_relinked_fail(
         self,
     ) -> None:
-        # No pass at the failed head: the head's pass, created after the
-        # people's relink, judged it, so it supersedes the FAIL there.
+        """No pass at the failed head: the head's pass, created after the
+        people's relink, judged it, so it supersedes the FAIL there."""
         for superseded, refusal in ((True, None), (False, "verify:earlier-fail")):
             with self.subTest(superseded=superseded):
                 fake = self.merge_only(superseded=superseded)
@@ -1412,9 +1412,9 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, refusal)
 
     def test_a_connect_alone_keeps_a_fail_at_a_merge_only_head(self) -> None:
-        # The head's pass judged a relink but no body edit: issue #16367
-        # still requires a trusted body edit before a merge-only head's pass
-        # supersedes the FAIL, so a person's connect alone keeps it.
+        """The head's pass judged a relink but no body edit: a merge-only
+        head's pass supersedes the FAIL only after a trusted body edit, so a
+        person's connect alone keeps it."""
         fake = self.merge_only(superseded=True)
         fake.artifacts = [
             a for a in fake.artifacts if a["name"] != named(EARLIER, "pass")
@@ -1425,9 +1425,9 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
     def test_a_connect_after_a_judged_edit_keeps_a_fail_at_a_merge_only_head(
         self,
     ) -> None:
-        # Two FAILs at the failed head with a person's body edit between
-        # them: the second FAIL judged that edit, so a person's connect after
-        # it, with no body edit since, keeps the FAIL at a merge-only head.
+        """Two FAILs at the failed head with a person's body edit between
+        them: the second FAIL judged that edit, so a person's connect after
+        it, with no body edit since, keeps the FAIL at a merge-only head."""
         second_fail, connect_at = "2026-10-14T18:00:00Z", "2026-10-14T20:00:00Z"
         for label, edits, refusal in (
             (
@@ -1622,8 +1622,8 @@ class AFixedBodyClearsABodyOnlyFailOnTheSameChange(unittest.TestCase):
     def test_a_note_on_a_file_beside_body_notes_gives_way_to_the_edit(
         self,
     ) -> None:
-        # Not body-fixed, which takes body notes alone, but the pass created
-        # after the person's body edit supersedes the FAIL at the head.
+        """Not body-fixed, which takes body notes alone, but the pass created
+        after the person's body edit supersedes the FAIL at the head."""
         for label, notes in (
             ("a note on a file", [BODY_NOTES_16602[0], NOTE_ON_A_FILE]),
             ("no notes", []),
@@ -1686,10 +1686,11 @@ class AFailAnsweredInTheBodyGivesWayAtAMergeOnlyHead(unittest.TestCase):
         self.assertIs(evidence.report()["supersededAtHead"], False)
 
     def test_the_edit_with_no_counted_pass_after_it_keeps_it(self) -> None:
-        # The pass's run was created before the edit: it judged the old body.
+        """The pass's run was created before the edit, so it judged the old
+        body; or the pass's run did not succeed, so no pass at the head
+        counts."""
         fake = self.answered(relink_answer([(PASS_RUNNING, HUMAN)]))
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
-        # The pass's run did not succeed, so no pass at the head counts.
         fake = self.answered()
         fake.runs[1] = run(1, updated_at=PASS_DONE, conclusion="failure")
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")

@@ -4260,6 +4260,9 @@ class Reader:
         creation: a connect or disconnect alone, or with only an edit an
         earlier FAIL already judged, never supersedes a FAIL from a
         merge-only head (issue #16367).
+        A relink at a merge-only head needs its body edit from the last
+        FAIL's creation, as a body fix does: a FAIL created after an edit
+        already judged that edit.
         A superseded FAIL still counts toward `max_fails`. A record, time or
         read that fails is False."""
         judged_at = judged_at or sha
@@ -4304,9 +4307,6 @@ class Reader:
                     if begun is None:
                         return False
                     ends.append(begun)
-                # A relink at a merge-only head needs its body edit from the
-                # last FAIL's creation, as a body fix does: a FAIL created
-                # after an edit already judged that edit.
                 if not all(
                     self._relinked_by_people(number, since, end, body_edit=body)
                     and (
