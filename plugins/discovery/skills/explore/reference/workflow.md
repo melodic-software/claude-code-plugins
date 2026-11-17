@@ -48,7 +48,7 @@ Code has context only git reveals, who changed it, when, why, and what else chan
 Understand how the pieces fit together before moving any of them.
 
 - **Directory layout**, if the project documents its repository structure, verify the doc matches reality; otherwise map the tree yourself
-- **Project references / imports**. Map the dependency graph by grepping the ecosystem's import/reference token across its build-config files (per-ecosystem tokens: [`ecosystem-discovery.md`](ecosystem-discovery.md). Compose `/toolchain:check`'s covered-ecosystem set when the `toolchain` plugin is enabled, retaining fallback ecosystems the seam does not cover; otherwise the reference's fallback table)
+- **Project references / imports**. Map the dependency graph by grepping the ecosystem's import/reference token across its source and project files (the dependency token, resolved from the repository per [`ecosystem-discovery.md`](ecosystem-discovery.md), which also composes `/toolchain:check`'s covered-ecosystem set when the `toolchain` plugin is enabled)
 - **Solution / workspace membership**. Check the repo's solution or workspace file at the root for what's included
 - **Layer boundaries**. Respect any dependency-direction rules the project declares
 - **Planned direction**. Cross-reference findings with any stated direction in the project's own `CLAUDE.md` or docs. Assess how changes must fit the repo's current state and planned direction
@@ -57,8 +57,8 @@ Understand how the pieces fit together before moving any of them.
 
 Tests are executable documentation. They reveal intended behavior, edge cases, and existing coverage.
 
-- **Find test projects**. Glob the per-ecosystem test patterns in [`ecosystem-discovery.md`](ecosystem-discovery.md) (`test-globs` / `test-content-grep` are explore-owned even when composing the toolchain seam)
-- **Co-located tests**. Check whether unit tests live next to their source (sibling test project, `__tests__/`, adjacent `_test.go`) or in a separate tree
+- **Find test projects**. Locate tests by the test locations resolved from the repository per [`ecosystem-discovery.md`](ecosystem-discovery.md)
+- **Co-located tests**. Check whether unit tests live next to their source (a sibling test project, a test directory, or test files beside the source) or in a separate tree
 - **Cross-cutting tests**, a repo-root `tests/` for architecture, dependency, or naming-rule tests that span multiple libraries
 - **Test patterns**. Read existing tests (start with 2-3, scale to the number of distinct patterns in play) to understand naming conventions, assertion style, and fixture patterns before writing new ones
 - **Coverage gaps**. Identify areas with no test coverage that the current task touches
@@ -67,7 +67,7 @@ Tests are executable documentation. They reveal intended behavior, edge cases, a
 
 Build configuration constrains what's possible. Understand it before fighting it.
 
-- **Build configs**. Read the ecosystem's build / package / config files per [`ecosystem-discovery.md`](ecosystem-discovery.md) (explore-owned `build-configs` even when composing the toolchain seam; resolved `project-discovery` / `anchor` locate roots)
+- **Build configs**. Read the ecosystem's build / package / config files as resolved from the repository per [`ecosystem-discovery.md`](ecosystem-discovery.md) (with the `toolchain` seam, resolved `project-discovery` / `anchor` locate roots)
 - **Analyzer / lint config**. `.editorconfig` for shared severity levels; ecosystem-specific analyzer/linter files
 - **Package versions**. Check the ecosystem's manifest (lockfile + central-version-management file if applicable)
 - **CI/CD**. `.github/workflows/` (or the project's CI equivalent) for what's validated on every PR
@@ -76,7 +76,7 @@ Build configuration constrains what's possible. Understand it before fighting it
 
 When the task involves tooling, MCP servers, or infrastructure:
 
-- **Installed versions**. Probe per [`ecosystem-discovery.md`](ecosystem-discovery.md) (explore-owned `runtime-version-cmd` even when composing the toolchain seam; `install-hint` is install prose, not a version probe)
+- **Installed versions**. Probe with the runtime version command resolved from the repository per [`ecosystem-discovery.md`](ecosystem-discovery.md); when none resolves, record the gap instead of guessing a command (`install-hint` is install prose, not a version probe)
 - **MCP server status**. Test with a read-only call before depending on it
 - **Worktree state**. `git worktree list`, current branch, uncommitted changes
 - **Local config**. Project-local settings for env vars and tokens (don't read secrets, just verify presence)
