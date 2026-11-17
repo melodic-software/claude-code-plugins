@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.3] - 2026-11-17
+
+### Changed
+
+- Three passages no longer restate upstream behavior ([#16825](https://github.com/melodic-software/claude-code-plugins/issues/16825)). The README's warmup bullet states the no-steady-state claim as this plugin's rule, with its reason. The stepped-frames technique has the rig record the `HeadlessExperimental` domain's status as `browser_protocol.json` gives it, instead of asserting that status. `/performance:climb` drops its note that removing a worktree holding only ignored files was checked by hand, since its finish step 1 already handles both a removal and a refusal.
+
 ## [0.15.2] - 2026-11-17
 
 ### Changed
