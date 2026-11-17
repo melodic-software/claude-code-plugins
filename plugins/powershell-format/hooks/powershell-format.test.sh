@@ -80,6 +80,7 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then
   echo "SKIP: the probe cases run git alone on PATH, which Git for Windows cannot"
 else
   PROBE_DIR="$(mktemp -d)"
+  trap 'rm -rf "${PROBE_DIR:?}"' EXIT
   ln -s "$(command -v git)" "$PROBE_DIR/git"
   PROBE_NODE="$(node -p process.execPath)"
   probe_says() {
@@ -100,7 +101,6 @@ else
   *"$NOTICE"* | *"probe exited"*) fail "probe: a repository with no settings file reported pwsh, or the probe failed" ;;
   *) ok "probe: a repository with no settings file stays quiet about pwsh" ;;
   esac
-  rm -rf "$PROBE_DIR"
 fi
 # harness-ops' prerequisites-fleet.mjs runs the probe behind the kill switch; its own test covers the gate.
 if jq -e '.session_probe.run_if_unset_or_true == "POWERSHELL_FORMAT_ENABLED"' "$MANIFEST" >/dev/null &&

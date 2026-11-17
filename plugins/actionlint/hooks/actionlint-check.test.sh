@@ -2,7 +2,7 @@
 # test-scope: plugins/actionlint/hooks/hooks.json plugins/actionlint/.claude-plugin/plugin.json plugins/actionlint/lib/prerequisites.mjs plugins/actionlint/prerequisites.json
 # test-scope: plugins/actionlint/lib/git-hooks/install.mjs
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="${HOOK_DIR%/*}"
@@ -55,6 +55,7 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then
   echo "SKIP: the probe cases run git alone on PATH, which Git for Windows cannot"
 else
   PROBE_DIR="$(mktemp -d)"
+  trap 'rm -rf "${PROBE_DIR:?}"' EXIT
   ln -s "$(command -v git)" "$PROBE_DIR/git"
   PROBE_NODE="$(node -p process.execPath)"
   probe_says() {
@@ -77,7 +78,6 @@ else
   reports "probe: a root workflow file reports a missing actionlint" yes "$PROBE_DIR/root" .github/workflows/ci.yml
   reports "probe: a nested workflow file reports a missing actionlint" yes "$PROBE_DIR/nested" svc/.github/workflows/ci.yaml
   reports "probe: a YAML file outside .github/workflows stays quiet" no "$PROBE_DIR/none" .github/dependabot.yml
-  rm -rf "$PROBE_DIR"
 fi
 
 echo "actionlint hooks: $PASS passed, $FAIL failed"

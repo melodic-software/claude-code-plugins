@@ -287,7 +287,7 @@ function whenChecker(entries, ctx) {
   return (entry) => {
     if (!entry.when) return true;
     const configs = entry.when.config_any.map(configOf);
-    const literal = configs.filter((c) => !/[*?]/.test(c.file));
+    const literal = configs.filter((c) => !/[*?/]/.test(c.file));
     if (dirs.some((dir) => literal.some((c) => configMatches(path.join(dir, c.file), c)))) return true;
     if (!top) return false;
     if (tracked === undefined) tracked = trackedConfigs(all, top, ctx);
