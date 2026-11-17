@@ -1329,13 +1329,13 @@ async function carries(github, actions, repo, comment, head, base, branch) {
 // or on its linked issue in `repo` (the one closing issue, else with none the
 // one refsIssue names, read to be an issue and not a pull request), newer
 // than the pull request and naming it (namesPull); by a User, not through an
-// App; never edited; its first line `**Decision recorded.** Cost:`; and
-// carrying a row link and a verbatim owner quote (decisionGaps). This makes a
-// cleared hold auditable, not provable: sessions post as the owner and write
-// the record too. A comment that meets every other condition but lacks
-// either adds what it lacks to `missing`, when given, for the hold message. Of
+// App; never edited; its first line `**Decision recorded.** Cost:`. Of
 // those, the decision is the newest on the pull request, else the newest on
-// the issue, as the review lanes' hold step picks it; it covers the head it
+// the issue, as the review lanes' hold step picks it. That decision must also
+// carry a row link and a verbatim owner quote (decisionGaps), else it clears
+// nothing and what it lacks goes to `missing`, when given; this makes a
+// cleared hold auditable, not provable, since sessions post as the owner and
+// write the record too. It covers the head it
 // decided and a later one only when every change since is a base merge
 // (carries, against the pull request's base branch). `github(method, path,
 // body)` reads; `actions`, the same shape, reads the lane runs, their jobs,
@@ -1397,11 +1397,9 @@ export async function costDecision(github, repo, number, body, humans, head, act
         continue;
       }
       const node = (await github("POST", "/graphql", { query: COMMENT_EDITED_QUERY, variables: { id: String(comment.node_id) } }))?.data?.node;
-      const gaps = unedited(node) ? decisionGaps(comment.body) : [];
-      if (unedited(node) && !gaps.length) {
+      if (unedited(node)) {
         decisions.push({ link: link[0], comment, own: target === number });
       }
-      missing?.push(...gaps.filter((gap) => !missing.includes(gap)));
     } catch {
       // An unreadable comment clears nothing.
     }
@@ -1413,7 +1411,11 @@ export async function costDecision(github, repo, number, body, humans, head, act
   // The newest; of two at one time, the first linked.
   const newest = (own) => decisions.filter((d) => d.own === own).reduce((best, d) => (best === undefined || at(d) > at(best) ? d : best), undefined);
   const decision = newest(true) ?? newest(false);
-  return decision && (await carries(github, actions, repo, decision.comment, head, pull?.baseRefName, pull?.headRefName)) ? decision.link : null;
+  // The chosen decision, not a fallback, must carry both: an older complete
+  // comment never stands in for a newer one that lacks either.
+  const gaps = decision ? decisionGaps(decision.comment.body) : [];
+  missing?.push(...gaps);
+  return decision && !gaps.length && (await carries(github, actions, repo, decision.comment, head, pull?.baseRefName, pull?.headRefName)) ? decision.link : null;
 }
 
 // A GitHub REST and GraphQL reader on fetch, for costDecision.

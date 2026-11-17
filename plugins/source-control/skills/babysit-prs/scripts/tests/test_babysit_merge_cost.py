@@ -313,7 +313,9 @@ class CostDecision(unittest.TestCase):
     ) -> None:
         for text in ("for #99.", "(#99)", "#99", "see #99, then"):
             with self.subTest(text):
-                comment = _comment(body=f"**Decision recorded.** Cost: ok {text}{PROOF}")
+                comment = _comment(
+                    body=f"**Decision recorded.** Cost: ok {text}{PROOF}"
+                )
                 self.assertEqual(self.decide(comment=comment), LINK)
         for text in (
             "for another change.",
@@ -326,7 +328,9 @@ class CostDecision(unittest.TestCase):
             "for ##99.",
         ):
             with self.subTest(text):
-                comment = _comment(body=f"**Decision recorded.** Cost: ok {text}{PROOF}")
+                comment = _comment(
+                    body=f"**Decision recorded.** Cost: ok {text}{PROOF}"
+                )
                 self.assertIsNone(self.decide(comment=comment))
 
     def test_a_refs_issue_decision_naming_the_pull_request_clears(self) -> None:
@@ -958,6 +962,16 @@ class CostDecision(unittest.TestCase):
             _run(OLD, "2026-10-22T11:15:00Z"),
         ]
         self.assertIsNone(pick(every, older_head))
+        self.assertEqual(pick(f"Closes #40\n{LINK}", [_run(HEAD)]), LINK)
+        # A newer decision on the pull request that lacks the row and quote is
+        # still the one judged: the complete one on the issue does not stand in.
+        rows["9"] = rows["9"] | {"body": "**Decision recorded.** Cost: approve it."}
+        self.assertIsNone(
+            pick(
+                f"Closes #40\n{LINK}\n{on_pull(9)}",
+                [_run(HEAD, "2026-10-22T11:15:00Z")],
+            )
+        )
         self.assertEqual(pick(f"Closes #40\n{LINK}", [_run(HEAD)]), LINK)
 
     def test_a_failed_permission_read_clears_nothing(self) -> None:

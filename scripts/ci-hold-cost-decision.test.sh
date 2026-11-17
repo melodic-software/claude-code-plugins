@@ -782,6 +782,18 @@ decided "$HEAD" 2026-10-23T12:00:00Z
 decided "$OLD" 2026-10-23T13:11:00Z
 nets "[$TF]" "[$TF,$MORE]"
 expect "only the chosen decision may carry, so an older one at this head does not" no no no "covering this head"
+# A newer decision on the pull request lacking the row and quote is still the
+# one judged: the complete one on the issue does not stand in for it.
+reset
+STUB_PR="$(jq -c --arg body "Closes #9306
+$LINK
+$PULL_LINK-113" '.body = $body' <<<"$STUB_PR")"
+STUB_DECISIONS="$(jq -cn --argjson a "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted for #6419.')" \
+  --argjson c "$(PROOF='' decision 6419 "$OWNER" 2026-10-23T13:12:00Z '**Decision recorded.** Cost: accepted.')" '{"111": $a, "113": $c}')"
+export STUB_DECISIONS
+nodecided
+decided "$HEAD" 2026-10-23T13:11:00Z
+expect "a newer decision lacking the row and quote holds over an older complete one" no no no "lacks a link to its row"
 
 reset
 lanes "[$(hold_note cost,trust-gate)]" '[]'

@@ -772,6 +772,18 @@ test("the decision is the newest on the pull request, else the newest on its lin
   // Its decided head is not this head, and the older one at this head is not consulted.
   assert.equal(await pick(all, [laneRun(HEAD, "2026-10-22T10:00:00Z", { created: "2026-10-22T09:50:00Z" }), laneRun(OLD, "2026-10-22T11:15:00Z")]), null);
   assert.equal(await pick(`Closes #40\n${LINK}`, [laneRun(HEAD)]), LINK);
+  // A newer decision on the pull request that lacks the row and quote is
+  // still the one judged: the complete one on the issue does not stand in.
+  rows[9] = { ...rows[9], body: "**Decision recorded.** Cost: approve it." };
+  const missing = [];
+  const { github: base } = world({ runs: [laneRun(HEAD, "2026-10-22T11:15:00Z")] });
+  const github = async (method, path, data) => {
+    const id = /\/issues\/comments\/([0-9]+)$/.exec(path)?.[1];
+    return id ? rows[id] : base(method, path, data);
+  };
+  assert.equal(await costDecision(github, REPO, 99, `Closes #40\n${LINK}\n${onPull(9)}`, HUMANS, HEAD, github, missing), null);
+  assert.equal(missing.length, 2);
+  assert.equal(await pick(`Closes #40\n${LINK}`, [laneRun(HEAD)]), LINK);
 });
 
 test("the decided head is the newest cost notice a lane's status job recorded before the decision", async () => {
