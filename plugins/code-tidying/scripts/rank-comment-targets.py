@@ -218,7 +218,11 @@ def comment_line_numbers(path: str) -> set[int]:
         return set()
     src = Path(path).read_text(encoding="utf-8", errors="replace")
     line, out = 1, set()
-    for tok, text in census.tokens(src, lexer):
+    try:
+        stream = census.tokens(src, lexer)
+    except Exception:  # noqa: BLE001 - an unreadable file has no comment lines to report
+        return set()
+    for tok, text in stream:
         if census.is_comment_token(tok) and text.strip():
             out.update(range(line, line + text.count("\n") + 1))
         line += text.count("\n")

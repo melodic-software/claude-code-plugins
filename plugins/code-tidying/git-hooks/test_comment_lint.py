@@ -1,18 +1,22 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "comment-lint.py"
 _spec = importlib.util.spec_from_file_location("comment_lint", SCRIPT)
 lint = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(lint)
+lint._CENSUS._ShellComments.STRICT = True
 
 MESSAGE = (
     "comment outside the {} posture: delete it, move the reason into the code or the commit "
@@ -522,6 +526,18 @@ class ShellTokenRecognition(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(flagged("a.sh", text), want)
 
+    def test_a_construct_lost_on_a_last_line_without_newline_ends_cleanly(self):
+        cases = (
+            ("# a\necho 'x", [1]),
+            ('# a\necho "x', [1]),
+            ("# a\ny=${x", [1]),
+            ("# a\necho $(a", [1]),
+            ("# a\n$(((a)) && b)", [1]),
+        )
+        for text, want in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged("a.sh", text), want)
+
 
 SWEEP_SHELL = (
     "#!/usr/bin/env bash\n"
@@ -544,9 +560,9 @@ def _sweep_texts():
 
 
 class ShellTruncationSweep(unittest.TestCase):
-    """Cut every shell text at every offset and add a comment: the comment is always found."""
+    """Cut every shell text at every offset: the scan always finishes, and a comment added after the cut is found."""
 
-    def test_a_comment_after_any_prefix_is_found(self):
+    def test_every_prefix_scans_and_a_comment_after_it_is_found(self):
         from pygments.lexers import get_lexer_by_name
 
         lexer = get_lexer_by_name("bash", stripnl=False)
@@ -554,7 +570,11 @@ class ShellTruncationSweep(unittest.TestCase):
         for name, text in _sweep_texts():
             for cut in range(len(text) + 1):
                 cuts += 1
-                probe = text[:cut] + "\n\n# z\n"
+                bare = text[:cut]
+                got = lint._CENSUS.tokens(bare, lexer)
+                if "".join(value for _, value in got) != bare:
+                    self.fail(f"{name} cut at {cut}: the tokens do not cover {bare!r}")
+                probe = bare + "\n\n# z\n"
                 got = [
                     value
                     for tok, value in lint._CENSUS.tokens(probe, lexer)
@@ -563,6 +583,52 @@ class ShellTruncationSweep(unittest.TestCase):
                 if "# z" not in got:
                     self.fail(f"{name} cut at {cut}: '# z' not found in {probe!r}")
         self.assertGreater(cuts, 1000)
+
+
+class ScannerFailure(unittest.TestCase):
+    def test_strict_scan_is_on_under_test(self):
+        self.assertTrue(lint._CENSUS._ShellComments.STRICT)
+
+    def test_a_scan_that_stops_short_falls_back_to_line_comments(self):
+        scanner = lint._CENSUS._ShellComments
+        real = scanner._command
+
+        def stop_short(self, close, start):
+            real(self, close, start)
+            self.i = start
+
+        with mock.patch.object(scanner, "STRICT", False), mock.patch.object(
+            scanner, "_command", stop_short
+        ):
+            self.assertEqual(flagged("a.sh", "x='a\n# b'\n  # c\n"), [2, 3])
+
+    def test_a_file_the_reader_fails_on_is_named_and_the_others_still_judged(self):
+        real = lint.findings
+
+        def boom(path, *args):
+            if path == "bad.sh":
+                raise RuntimeError("boom")
+            return real(path, *args)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp, "root")
+            root.mkdir()
+            (root / "bad.sh").write_text("y=1\n", encoding="utf-8")
+            (root / "ok.sh").write_text("x=1\n# note\n", encoding="utf-8")
+            ranges = Path(tmp, "ranges")
+            ranges.write_text("bad.sh\t1\t1\nok.sh\t1\t2\n", encoding="utf-8")
+            out, err = io.StringIO(), io.StringIO()
+            stdin = mock.Mock()
+            stdin.buffer.read.return_value = b"bad.sh\0ok.sh\0"
+            with mock.patch.object(lint, "findings", boom), mock.patch.object(
+                sys, "stdin", stdin
+            ), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                rc = lint.main(
+                    ["--posture", "necessary", "--root", str(root), "--ranges", str(ranges)]
+                )
+        self.assertEqual(rc, 5)
+        self.assertEqual(out.getvalue(), "ok.sh:2: " + MESSAGE.format("necessary") + "\n")
+        self.assertIn("comment-lint: bad.sh: not judged, the comment reader failed: boom", err.getvalue())
 
 
 if __name__ == "__main__":

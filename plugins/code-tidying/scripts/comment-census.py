@@ -225,9 +225,14 @@ class _ShellComments:
     is dropped and reading starts again on the next line (a here-document's on
     its first body line), so the lines after it are read as code and a comment
     there is still found. A reader that searches for a closing character does so
-    through _close, which loses the construct at the end of the text; tokens
-    raises when a scan stops anywhere but the end with nothing lost.
+    through _close, which loses the construct at the end of the text, and no
+    position passes the end. A scan that still stops short of the end with
+    nothing lost raises under STRICT (the tests); otherwise the rest of the text
+    from where that scan began is read as plain lines, a line whose first
+    non-blank character is '#' being a comment.
     """
+
+    STRICT = False
 
     OPERATOR = frozenset(";&|<>()")
     COMMAND_BREAK = frozenset(";&|()")
@@ -261,13 +266,15 @@ class _ShellComments:
         while True:
             self.i, self.pending, self.lost = at, [], None
             self._command(None, at)
-            if self.lost is None and self.i != self.n:
-                raise RuntimeError(f"shell scanner stopped at {self.i} of {self.n} with nothing lost")
             if self.lost is None:
+                if self.i != self.n:
+                    if self.STRICT:
+                        raise RuntimeError(f"shell scanner stopped at {self.i} of {self.n} with nothing lost")
+                    self._line_comments(at)
                 break
             start, resume = self.lost
             self.spans = [span for span in self.spans if span[1] < start]
-            at = resume if resume > at else self._line_end(at) + 1
+            at = resume if resume > at else min(self._line_end(at) + 1, self.n)
         kinds = {"hashbang": Comment.Hashbang, "comment": Comment.Single, "heredoc": String}
         out, at = [], 0
         for kind, start, end in sorted(self.spans, key=lambda span: span[1]):
@@ -283,9 +290,19 @@ class _ShellComments:
         end = self.s.find("\n", at)
         return self.n if end < 0 else end
 
+    def _line_comments(self, at: int) -> None:
+        self.spans = [span for span in self.spans if span[1] < at]
+        while at < self.n:
+            end = self._line_end(at)
+            line = self.s[at:end]
+            if line.lstrip(" \t").startswith("#"):
+                self.spans.append(("comment", end - len(line.lstrip(" \t")), end))
+            at = end + 1
+
     def _lose(self, start: int, resume: int | None = None) -> None:
         if resume is None:
             resume = self._line_end(start) + 1
+        resume = min(resume, self.n)
         if self.lost is None or start < self.lost[0]:
             self.lost = (start, resume)
         self.i = self.n
@@ -523,7 +540,12 @@ def pygments_counts(path: Path) -> dict | None:
     line = 1
     comment_lines: set[int] = set()
     comment_bytes = 0
-    for tok, text in tokens(src, lexer):
+    try:
+        stream = tokens(src, lexer)
+    except Exception as err:  # noqa: BLE001 - one unreadable file must not stop the census
+        print(f"comment-census: {path}: not counted, the comment reader failed: {err}", file=sys.stderr)
+        return {"language": lexer.name, "comment_lines": 0, "comment_bytes": 0, "lines": 0, "lexed": False}
+    for tok, text in stream:
         if is_comment_token(tok):
             body = text.strip("\n")
             if body.strip():
