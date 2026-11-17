@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [
+        "src/app.ts"
+      ],
+      "why": "the scaffold's files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "src/app.ts",
+        "biome.json"
+      ],
+      "why": "created a Biome config"
+    },
+    {
+      "answer": [
+        "src/biome.jsonc"
+      ],
+      "why": "created a nested Biome config"
+    }
+  ]
+}

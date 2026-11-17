@@ -18,7 +18,10 @@
           "node_modules/.bin/biome"
         ]
       },
-      "degrade": "Without biome, the hook cannot format or lint edited JavaScript, TypeScript, JSON and CSS files.",
+      "when": {
+        "config_any": ["biome.json", "biome.jsonc"]
+      },
+      "degrade": "Without biome, the Biome adapter cannot format or lint edited JavaScript, TypeScript and JSON files.",
       "install": {
         "npm": "npm i -D @biomejs/biome"
       }

@@ -1,43 +1,51 @@
 # javascript-format
 
-A Claude Code plugin that rewrites JavaScript, TypeScript, JSX, and JSON with
-[Biome](https://biomejs.dev/) in two places: once per batch of tool calls in a Claude Code session,
-and again at git pre-commit for every author. Both run `biome check --write` on `.ts`, `.tsx`,
-`.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts`, `.json`, and `.jsonc` files. Findings that remain
-are reported by the pre-commit entry, on the lines the commit adds; they do not reach Claude on
-each edit.
+A Claude Code plugin that formats and lints JavaScript, TypeScript, JSX and JSON with
+[Biome](https://biomejs.dev/), as two separate concerns, wherever your repository has opted into
+Biome. Formatting runs once per batch of tool calls in a Claude Code session and again at git
+pre-commit for every author; linting reports at pre-commit, on the lines the commit adds. No lint
+fix runs in either place, and no finding reaches Claude on each edit. Both cover `.ts`, `.tsx`,
+`.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts`, `.json` and `.jsonc` files.
 
-It uses **your repository's own `biome.json`**. It ships no rules of its own and
-runs only when your repo has opted into Biome.
+The hooks run only the shipped **Biome adapter**, when a `biome.json` or `biome.jsonc` governs the
+file: `biome check --write --linter-enabled=false` for format (the formatter and the assist actions
+your config enables, import sorting by default), `biome lint` for lint. A repository without one is
+left untouched, and `/javascript-format:setup check` reports the concern unresolved.
+
+The hooks never run a command from your typescript, javascript or json record
+(`.claude/ecosystems/<id>.yaml`, the ecosystem-commands contract in the marketplace repository).
+That record names any formatter and linter you use, and `/toolchain:lint` and `/toolchain:check`
+run it when you ask.
+
+The plugin ships no rules of its own.
 
 ## Behavior
 
-- **One rewrite per batch, silent.** A `PostToolBatch` row runs after the tool calls of a turn
+- **One format per batch, silent.** A `PostToolBatch` row runs after the tool calls of a turn
   step resolve. It takes the files that `Write`, `Edit` or `MultiEdit` calls in the batch named and
-  runs Biome once per config directory over all of them. It prints nothing and exits `0`: no
-  finding and no notice goes to Claude or the user. A file that `Read` named is never rewritten.
+  runs the Biome adapter once per config directory over all of them. It prints nothing and exits
+  `0`: no finding and no notice goes to Claude or the user. A file that `Read` named is never
+  rewritten.
   - The row has no matcher or `if` (neither applies to `PostToolBatch`), and the launcher's text
     filter takes one string, which cannot cover ten extensions. The script therefore decides in a
     pattern match before any other process starts, so a batch without a Biome file costs the `node`
     launcher and one `bash`.
   - **Pointer**: when deciding what filters a `PostToolBatch` row, fetch
     [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch) live.
-- **Opt-in on `biome.json`.** Biome runs **only when a `biome.json` or
-  `biome.jsonc` governs the edited file**, found by walking up from the file to
-  the repository root. A repo without a Biome config is left untouched rather
-  than rewritten to Biome's built-in defaults, so the plugin never imposes a
-  style you did not choose. (The hidden `.biome.json` / `.biome.jsonc` names are
-  intentionally not treated as the opt-in: Biome only loads them from 2.4
-  onward, so honoring them here would risk reformatting with built-in defaults on
-  an older Biome. Use a canonical `biome.json` / `biome.jsonc`.)
+- **Opt-in on `biome.json`.** The adapter runs **only when a `biome.json` or `biome.jsonc` governs
+  the edited file**, found by walking up from the file to the repository root. A repo without a
+  Biome config is left untouched rather than rewritten to Biome's built-in defaults. (The hidden
+  `.biome.json` / `.biome.jsonc` names are intentionally not treated as the opt-in: Biome only
+  loads them from 2.4 onward, so honoring them here would risk reformatting with built-in defaults
+  on an older Biome. Use a canonical `biome.json` / `biome.jsonc`.)
 - **Config discovery from your repo.** The topmost governing `biome.json` wins, and Biome runs
   from that config's directory with the files named relative to it, so a single repo-root (or
   subtree) config governs files in subdirectories beneath it and nested configs extend it.
   `BIOME_CONFIG_PATH` is unset for the run, so a stray export cannot swap the repo's config.
-- **No unsafe fixes.** Neither run passes `--unsafe`, so a finding `--write` leaves in place stays
-  until you fix it; the pre-commit entry reports it.
-  - **Pointer**: when deciding what `--write` applies, fetch
-    [CLI: --write, --fix](https://biomejs.dev/reference/cli/#--write---fix) live.
+- **Format only.** The linter is off for the format run, so no lint fix applies, safe or unsafe;
+  the `lint` entry reports what it finds. Assist actions your config turns off stay off.
+  - **Pointer**: when deciding what each flag applies, fetch
+    [CLI: biome check](https://biomejs.dev/reference/cli/#biome-check) live.
 - **Pre-existing drift is rewritten whole.** The batch payload carries no pre-edit bytes, so a
   file that already drifted from your config is formatted in full, as the pre-commit entry would.
 - **Respects your ignores.** Biome honors your config's `files.includes` ignore rules even for an
@@ -45,26 +53,32 @@ runs only when your repo has opted into Biome.
   untouched. Files under `.githooks/` (installed copies) and gitignored files (unless
   `javascript_format_lint_gitignored` is set) are skipped.
 
-## Git pre-commit entry
+## Git pre-commit entries
 
-The plugin ships one git-hook entry, `biome-check` (`git-hooks/entries.json`), which rewrites. At
-commit it refuses a partly staged Biome file untouched, runs `biome check --write` over the staged
-files, re-stages what changed, and blocks the commit only on a finding Biome still reports on a
-line the commit adds (errors, and warnings via `--error-on-warnings`), printed as
-`<path>:<line>: <message>`. It reaches every author, not only Claude, once
-`/javascript-format:setup apply install-git-hooks [scope=local|shared]` registers it with the
+The plugin ships two git-hook entries (`git-hooks/entries.json`):
+
+- `format` rewrites. At commit it refuses a partly staged Biome file untouched, runs the resolved
+  format command over the staged files, and re-stages what changed.
+- `lint` reports. It runs the resolved lint command and blocks the commit only on a finding on a
+  line the commit adds (errors, and warnings via `--error-on-warnings`), printed as
+  `<path>:<line>: <message>`. A linter that exits non-zero with no such line, such as Biome
+  refusing a config it cannot parse, fails the commit and shows its output.
+
+They reach every author, not only Claude, once
+`/javascript-format:setup apply install-git-hooks [scope=local|shared]` registers them with the
 repository's hook manager (lefthook, husky or plain git hooks). Local scope stays in this clone;
-shared scope commits the copy under `.githooks/javascript-format/`. `/javascript-format:setup check` reports
-drift, and the SessionStart probe prints one line when the entry is missing, stale or edited.
+shared scope commits the copies under `.githooks/javascript-format/`. `/javascript-format:setup
+check` reports drift, including a copy of the earlier single `biome-check` entry, which that action
+retires; a decline of `biome-check` carries to both.
 
-Biome comes from the governing config directory's `node_modules/.bin`, else the repo root's, else
-`PATH`. When it is missing, an agent's commit fails with the install command; a person's commit
+Biome comes from a `node_modules/.bin` the repository does not commit, walking up from the file,
+else `PATH`. When it is missing, an agent's commit fails with the install command; a person's commit
 gets a one-line notice and goes through. `git -c checks.skipmissing=biome commit ...` skips the
-check while biome is absent. The placement rules are the check-placement convention in the
+entry while biome is absent. The placement rules are the check-placement convention in the
 marketplace repository.
 
-An opt-in Stop row (`javascript_format_end_of_turn`) runs the same check over the uncommitted changes
-at the end of a turn, without rewriting, and hands findings back to Claude once per turn.
+An opt-in Stop row (`javascript_format_end_of_turn`) runs the `lint` entry over the uncommitted
+changes at the end of a turn and hands findings back to Claude once per turn.
 
 ## Requirements
 
@@ -75,21 +89,18 @@ at the end of a turn, without rewriting, and hands findings back to Claude once 
   finds Bash. A missing `node` is a hook launch error, not a skip notice.
 - **jq** on `PATH`. Reads the file paths from the `PostToolBatch` payload. Absent: the batch row
   does nothing, and the SessionStart probe reports it. [Install jq](https://jqlang.org/download/).
-- **Biome** available to the repo. Installed in the repo's `node_modules`
-  (the hook runs `node_modules/.bin/biome`) or on `PATH`. Biome is never
-  downloaded on the fly; if it is not present while a Biome config governs the
-  repo, the batch row skips the file.
-  **Biome 2.x is recommended** (tested against 2.5.15): the hooks pass `--write`,
-  `--error-on-warnings`, `--reporter=concise` and `--no-errors-on-unmatched`, and on much older
-  releases those flags may be absent.
+- **Biome** available to the repo, in its `node_modules` or on `PATH`. Biome is never downloaded on
+  the fly; if it is not present while a Biome config governs the repo, the batch row skips the
+  file. **Biome 2.x is recommended** (tested against 2.6.7): the adapter passes `--write`,
+  `--linter-enabled=false`, `--error-on-warnings`, `--reporter=concise`, `--max-diagnostics=none`
+  and `--no-errors-on-unmatched`, and on much older releases those flags may be absent.
 - A **`biome.json`** or **`biome.jsonc`** in the repo, the opt-in.
-
-A `SessionStart` probe reports a missing Biome binary before the first edit, and a drifted
-git-hook entry. It reads the tool's id, check and install hints from `prerequisites.json`,
-resolves `biome` on `PATH` or as `node_modules/.bin/biome` walking up at most eight directories
-from the session cwd, does not run when `javascript_format_enabled` is `false`, and installs nothing. It
-does not look for a `biome.json`, so it reports a missing Biome in every repository where the
-plugin is enabled, including one that never opted in.
+- A SessionStart probe reports a missing `biome` once per session, from `prerequisites.json`, only
+  where a `biome.json` or `biome.jsonc` sits in the project directory or above it, and a drifted
+  git-hook entry. A repository whose only Biome config is nested below the project directory gets
+  no probe line, though the hooks still run there. Run
+  `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` to see what resolves; it is
+  read-only and installs nothing.
 
 The hook scripts run on Bash 3.2+.
 
@@ -109,7 +120,9 @@ case; spawns are from `scripts/hook-census.sh`:
 
 The ceiling for a per-batch formatter row is 1 s median per fire. Fences:
 `.performance/ratchets.json` holds the no-Biome-file row at 3 spawns, and the Stop row with
-`javascript_format_end_of_turn` off (its default) at 1 spawn.
+`javascript_format_end_of_turn` off (its default) at 1 spawn. The Biome adapter path, one `Edit`
+of a `.ts` file under a `biome.json` with the native Biome binary on `PATH`, measured 16 spawns
+before and after the resolver landed (2026-11-17, WSL2 Ubuntu, bash 5.3.9).
 
 ## Install
 
@@ -132,7 +145,7 @@ Three `userConfig` options tune the hooks themselves:
 |--------|---------|--------|
 | `javascript_format_enabled` | `true` | Kill switch. Set `false` for a clean no-op. |
 | `javascript_format_lint_gitignored` | `false` | Set `true` to rewrite a file the repository gitignores. Off by default. |
-| `javascript_format_end_of_turn` | `false` | Set `true` to run the pre-commit check over the uncommitted changes when a turn ends; findings go back to Claude once per turn so they are fixed before it stops. Nothing is rewritten. |
+| `javascript_format_end_of_turn` | `false` | Set `true` to run the pre-commit `lint` entry over the uncommitted changes when a turn ends; findings go back to Claude once per turn so they are fixed before it stops. Nothing is rewritten. |
 
 Set them interactively with `/plugin configure javascript-format@<marketplace>`, or headless on the
 install command:
@@ -150,9 +163,9 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `javascript_format_enabled` | boolean | `true` | After each batch of tool calls, run Biome check --write over the JavaScript, TypeScript and JSON files it wrote |
+| `javascript_format_enabled` | boolean | `true` | After each batch of tool calls, run the resolved format command over the JavaScript, TypeScript and JSON files it wrote |
 | `javascript_format_lint_gitignored` | boolean | `false` | By default the hook leaves a file the repository gitignores alone: it is not rewritten or linted, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope. |
-| `javascript_format_end_of_turn` | boolean | `false` | At the end of each turn, run the pre-commit Biome check over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default. |
+| `javascript_format_end_of_turn` | boolean | `false` | At the end of each turn, run the pre-commit lint entry over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default. |
 
 ### How to set these
 

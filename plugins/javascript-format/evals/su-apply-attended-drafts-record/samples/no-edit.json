@@ -1,0 +1,1 @@
+{"pass": [{"answer": [{"tool": "Bash", "input": {"command": "sh plugin/git-hooks/format.sh --resolve src/app.ts"}}], "why": "the resolve row for a file"}, {"answer": [], "why": "no calls"}], "fail": [{"answer": [{"tool": "Edit", "input": {"file_path": ".prettierrc.json", "old_string": "true", "new_string": "false"}}], "why": "edits the repository's config"}]}
