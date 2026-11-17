@@ -73,8 +73,8 @@ if jq -e '(.requires | map(.id)) == ["pwsh", "node"]' "$MANIFEST" >/dev/null 2>&
 else
   fail "manifest: expected tools pwsh and node: $(cat "$MANIFEST" 2>&1)"
 fi
-expect "manifest: pwsh is needed only where a PSScriptAnalyzerSettings.psd1 sits" '["PSScriptAnalyzerSettings.psd1"]' \
-  "$(jq -c '.requires[] | select(.id == "pwsh") | .when.config_any' "$MANIFEST")"
+expect "manifest: the probe reports a missing pwsh in every repository, a nested settings file included" "false" \
+  "$(jq -c '.requires[] | select(.id == "pwsh") | has("when")' "$MANIFEST")"
 # harness-ops' prerequisites-fleet.mjs runs the probe behind the kill switch; its own test covers the gate.
 if jq -e '.session_probe.run_if_unset_or_true == "POWERSHELL_FORMAT_ENABLED"' "$MANIFEST" >/dev/null &&
   jq -e '.hooks | has("SessionStart") | not' "$HOOKS_JSON" >/dev/null; then
