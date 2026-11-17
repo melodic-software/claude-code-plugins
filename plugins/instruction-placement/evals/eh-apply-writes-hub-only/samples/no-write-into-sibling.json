@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": []},
+    {"answer": [{"tool": "Write", "input": {"file_path": "AGENTS.md", "content": "# Harborline hub\n"}}, {"tool": "Write", "input": {"file_path": "CLAUDE.md", "content": "@AGENTS.md\n"}}], "why": "writes inside the hub only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "ledger-service/CLAUDE.md", "content": "@AGENTS.md\n"}}], "why": "a shim in the sibling"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "AGENTS.md", "content": "x\n"}}, {"tool": "Write", "input": {"file_path": "ledger-service/AGENTS.md", "content": "x\n"}}], "why": "the hub's file, then the sibling's"}
+  ]
+}
