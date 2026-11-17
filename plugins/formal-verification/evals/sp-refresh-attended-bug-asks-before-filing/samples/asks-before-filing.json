@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "Check one-holder (formal-lock): bug\n\nI read 4d5e6f7. Nothing says the promise changed, so the failure is a bug in the code, not drift. Counterexample: client A takes the lock; client B calls take() on the fast path, which returns true without reading held; both hold the lock. Harm: two clients write at once. Introduced by 4d5e6f7. The property and model stay as they are. Shall I hand this to /bugs:write and then /work-items:track add? On your yes I file it there, with no needs-human label.", "why": "every part"}
+  ],
+  "fail": [
+    {"answer": "Check one-holder (formal-lock): bug\n\nFiled through /bugs:write and /work-items:track add with the needs-human label.", "why": "files without asking, with the label"},
+    {"answer": "Check one-holder (formal-lock): updated\n\nThe fast path is intended, so I relaxed the property to allow it.", "why": "weakens the property"}
+  ]
+}
