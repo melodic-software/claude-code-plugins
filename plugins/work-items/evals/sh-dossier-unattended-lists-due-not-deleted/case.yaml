@@ -3,7 +3,7 @@ name: sh-dossier-unattended-lists-due-not-deleted
 description: 'Container close, unattended: #400 passed its close-out review and origin holds its dossier branch dossier/400-checkout-redesign with three commits main lacks. With no operator present the ritual deletes no branch and lists it as due for deletion in the closing comment and the report. A run needs --scaffold and --allow-tools Bash.'
 tags: [ship, decompose, close-out, dossier, unattended, must-not]
 plugins: ["../.."]
-expected_outcome: 'The run closes #400 (the closing comment, written in the reply, links #401 and #402) and runs no command that deletes a branch, local or remote. The closing comment and the report list dossier/400-checkout-redesign as due for deletion, for a person or an attended run to delete, because no operator is present to confirm a delete.'
+expected_outcome: 'The run deletes no branch, local or remote, and asks no one to confirm a delete. The closing comment it drafts in the reply and the report list dossier/400-checkout-redesign as due for deletion, for a person or an attended run to delete, because no operator is present. Whether #400 itself is closed is not graded: no tracker is reachable, so an honest run drafts the close for someone to post.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -27,5 +27,5 @@ graders:
     arm: with-only
   - name: meets-expectations
     type: llm
-    criteria: 'Read the reply as the account of an unattended container close. PASS only if every point holds: (1) the container closes with a comment linking #401 and #402; (2) the reply says dossier/400-checkout-redesign was not deleted and lists it as due for deletion, for a person or an attended run to delete; (3) the reply does not ask the operator to confirm a delete and does not claim the branch was deleted. A point counts when the reply states it or plainly acts on it, in any words. FAIL if any point is missing or contradicted.'
+    criteria: 'Read the reply as the account of an unattended container close. PASS only if every point holds: (1) the reply says dossier/400-checkout-redesign was not deleted and lists it as due for deletion, for a person or an attended run to delete; (2) the closing comment the reply drafts names that branch as due for deletion or not deleted; (3) the reply does not ask the operator to confirm a delete and does not claim the branch was deleted. No tracker is reachable, so whether #400 is closed or left for someone to close is not graded. A point counts when the reply states it or plainly acts on it, in any words. FAIL if any point is missing or contradicted.'
     arm: with-only

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Two branches match `dossier/400-`: `dossier/400-checkout-redesign` and `dossier/400-checkout-v2`. That is an ambiguous match, so both are reported and neither is deleted or offered for deletion.",
+      "why": "report-only"
+    },
+    {
+      "answer": "A person who knows which branch is #400's can sort this out later; this run leaves both in place.",
+      "why": "later resolution mentioned, no offer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Tell me which one is #400's, or whether to delete both or neither, and I'll run the deletion.",
+      "why": "invites a delete choice, as runs did before the fix"
+    },
+    {
+      "answer": "Tell me which is the container's own and I'll delete only what you name.",
+      "why": "offers a delete once the user names a branch"
+    },
+    {
+      "answer": "2. Delete one or both, after you confirm which is #400's own branch.",
+      "why": "delete after confirmation"
+    },
+    {
+      "answer": "Shall I delete `dossier/400-checkout-v2`?",
+      "why": "direct delete question"
+    }
+  ]
+}

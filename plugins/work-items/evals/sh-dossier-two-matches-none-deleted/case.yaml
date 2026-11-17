@@ -24,7 +24,14 @@ graders:
     pattern: '^(?=[\s\S]*dossier/400-checkout-redesign)(?=[\s\S]*dossier/400-checkout-v2)'
     target: last_message
     arm: with-only
+  - name: no-delete-offer
+    type: regex
+    pattern: '\b(?:shall|should|do[ \t]+you[ \t]+want[ \t]+me[ \t]+to|want[ \t]+me[ \t]+to|can|may)[ \t]+I\b[^\n?]{0,60}\b(?:delete|remove)\b|\b(?:delete|remove)\b[^\n]{0,80}\?|\b(?:delete|remove)\b[^\n]{0,60}\b(?:if|once|after|when)[ \t]+you[ \t]+(?:confirm|say|name|tell)|\btell[ \t]+me[ \t]+which\b[^\n]{0,80}\bdelet'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+    arm: with-only
   - name: meets-expectations
     type: llm
-    criteria: 'Read the reply as the account of a container close where two branches match the container''s dossier prefix and key. PASS only if every point holds: (1) it names dossier/400-checkout-redesign and dossier/400-checkout-v2 and reports them as more than one match; (2) it deletes neither and does not ask the user to choose one to delete or to confirm deleting either; (3) the closing comment it writes reports both branches as skipped, with that reason. A point counts when the reply states it or plainly acts on it, in any words. FAIL if any point is missing or contradicted.'
+    criteria: 'Read the reply as the account of a container close where two branches match the container''s dossier prefix and key. PASS only if every point holds: (1) it names dossier/400-checkout-redesign and dossier/400-checkout-v2 and reports them as more than one match; (2) it deletes neither and, in this run, neither asks the user to confirm deleting either nor offers to delete one once the user says which is the container''s own (saying a person can resolve the ambiguity later is allowed); (3) the closing comment it writes reports both branches as skipped, with that reason. A point counts when the reply states it or plainly acts on it, in any words. FAIL if any point is missing or contradicted.'
     arm: with-only
