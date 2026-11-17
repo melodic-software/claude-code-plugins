@@ -106,8 +106,7 @@
 # and checks that run the branch's own code skip: --tests, changed-skills, and the
 # validate-plugins steps that report `SKIP` themselves. plugin-options-docs
 # skips when the branch changes its generator, whose output the copy's older
-# generator would reject, and validate-plugins' contract-validator step when the
-# branch changes the validator, whose data the copy's older rules would reject.
+# generator would reject.
 #
 # CI is still the gate that decides: this covers the diff-scoped LINT tier and
 # the plugin and skill contract checks above, not CI's whole-repo scanners, and
@@ -740,11 +739,6 @@ elif ((${#plugins[@]} == 0)); then
 elif ! command -v claude >/dev/null 2>&1; then
   skip validate-plugins "claude CLI not installed"
 else
-  # The contract validator, its suite and each local module it imports (none
-  # today; check-affected.test.sh fails when it gains one, so this list is
-  # revisited). A branch that changes a rule can carry data only the new rule
-  # allows, which the copy's older validator would reject; a snapshot of this
-  # tree's own work tree runs the branch's validator, so it needs no skip.
   contracts_skip=
   if ((foreign && !snapshot)) && grep -qxE 'scripts/validate-plugin-contracts\.(mjs|test\.sh)' <<<"$all_raw"; then
     contracts_skip="the branch changes the validator; CI runs the branch's copy"

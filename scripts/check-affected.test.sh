@@ -698,9 +698,6 @@ check "the branch's own run still checks options-docs when it changes the genera
   '[[ $RC == 1 && $ERR == *"FAIL plugin-options-docs"* ]]'
 git_test_config "$repo" reset -q --hard "$pre_docs"
 
-# A branch can change a contract rule and the data only the new rule allows.
-# The copy's validate-plugins stand-in plays its older validator, which rejects
-# that data, unless check-affected tells it to skip the contract step.
 cat >"$tools/scripts/validate-plugins.sh" <<'STUB'
 #!/usr/bin/env bash
 if [[ -n "${CHECK_SKIP_CONTRACTS-}" ]]; then
@@ -738,8 +735,7 @@ check "a copy run elsewhere skips the contract step when the branch changes the 
   '[[ $RC == 0 && $ERR == *"SKIP validate-plugins: contract-validator (the branch changes the validator"* ]]'
 git_test_config "$repo" reset -q --hard "$pre_contracts"
 rm -f "$tools/scripts/validate-plugins.sh"
-# check-affected names the validator's files itself, a local import among them.
-check "the contract validator imports no local module, so check-affected's list of its files is whole" \
+check"the contract validator imports no local module, so check-affected's list of its files is whole" \
   '[[ -f $SELF_DIR/validate-plugin-contracts.mjs ]] && ! grep -qE "(from|import|import\(|require\() *[\"'"'"']\.\.?/" "$SELF_DIR/validate-plugin-contracts.mjs"'
 
 # machine-specific-paths loads the merge-base's patterns file, never the

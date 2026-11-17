@@ -25,11 +25,7 @@
 # script (scripts/check-affected.sh sets it when it runs from a merge-base copy
 # of the tooling). The helpers then still run from this script's tree, and each
 # step that would run code from the checked tree prints `SKIP <step> (...)`
-# instead of running. CHECK_SKIP_CONTRACTS, read only then, is why this tree's
-# contract validator must not judge the checked one: check-affected.sh sets it
-# when the branch changes the validator, so the contract step prints
-# `SKIP contract-validator (<why>)` and CI, which runs the branch's copy,
-# judges it.
+# instead of running.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)" || exit 1

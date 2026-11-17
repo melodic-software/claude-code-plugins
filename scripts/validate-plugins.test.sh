@@ -42,9 +42,6 @@ else
   fail "a contract warning should fail the run with the warning shown, got rc=$rc: $out"
 fi
 
-# CHECK_SKIP_CONTRACTS skips the contract step only for a checked tree that is
-# not this script's (check-affected.sh's merge-base copy); CI's own run of the
-# tree's script always runs its validator. A stand-in `node` logs each call.
 printf '#!/usr/bin/env bash\necho "node ran: $*"\nexit 1\n' >"$TMP_ROOT/node"
 mkdir -p "$TMP_ROOT/checked"
 rc=0
