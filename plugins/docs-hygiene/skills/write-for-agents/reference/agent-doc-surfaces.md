@@ -137,7 +137,8 @@ AGENTS.md conditions, use the AGENTS.md row and its pointer in the Claude Code s
 
 - **Pointer**: when a write depends on how a vendor loads its files (whether it auto-reads them,
   activation modes, precedence, which file wins), fetch its page live: AGENTS.md
-  <https://agents.md/>; Agent Skills <https://agentskills.io/specification>; Cursor
+  <https://agents.md/#faq>; Agent Skills
+  <https://agentskills.io/specification#progressive-disclosure>; Cursor
   <https://cursor.com/docs/context/rules>; GitHub Copilot
   <https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions#creating-repository-wide-custom-instructions>
   and
@@ -148,4 +149,6 @@ AGENTS.md conditions, use the AGENTS.md row and its pointer in the Claude Code s
   <https://roocodeinc.github.io/Roo-Code/features/custom-instructions#workspace-level-instructions>;
   Aider <https://aider.chat/docs/usage/conventions.html#always-load-conventions>; Junie
   <https://junie.jetbrains.com/docs/guidelines-and-memory.html>; Amazon Q
-  <https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/context-project-rules.html>.
+  <https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/context-project-rules.html>. The
+  Cursor, Cline, Junie and Amazon Q links point at the whole page because no section anchor on
+  those pages was confirmed for this topic; read the page for its loading section.
