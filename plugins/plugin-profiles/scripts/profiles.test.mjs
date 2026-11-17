@@ -1317,12 +1317,15 @@ test("#16893: a one-session file names every plugin and skill entry any folder p
   const w = world();
   writeTree(w.home, { ".claude/plugin-profiles/quiet.yaml": `description: Hides one skill.\nplugins: [songwriting@${M}]\nhide_skills: [some-standalone-skill]\n` });
   const names = JSON.parse(w.run(["list", "--json"]).stdout).map((p) => p.name);
+  assert.ok(names.length > 1 && names.includes("build") && names.includes("quiet"), names.join(", "));
   const folderKeys = { enabledPlugins: new Set(), skillOverrides: new Set() };
   for (const name of names) {
     assert.equal(w.run(["apply", name, "--for", "folder", "--yes"]).status, 0, name);
     const doc = JSON.parse(w.read());
     for (const key of Object.keys(folderKeys)) for (const k of Object.keys(doc[key] ?? {})) folderKeys[key].add(k);
   }
+  assert.ok(folderKeys.enabledPlugins.has(`songwriting@${M}`), "the folder applies wrote plugin entries");
+  assert.ok(folderKeys.skillOverrides.has("some-standalone-skill"), "the folder applies wrote the hidden skill");
   for (const name of names) {
     const doc = JSON.parse(readFileSync(launchJson(w, [name]).file, "utf8"));
     for (const key of Object.keys(folderKeys)) {
