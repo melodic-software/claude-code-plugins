@@ -1,8 +1,8 @@
 # Transcript parser
 
 `<plugin-root>/scripts/parse_transcript.py` turns session transcripts, or sealed CI lane legs, into
-metrics JSON. `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}`, resolved by the skill that reads this
-file before any command below reaches the Bash tool. It is stdlib-only and reads every transcript
+metrics JSON. `<plugin-root>` is the plugin's root directory, which the skill that reads this
+file resolves before any command below reaches the Bash tool. It is stdlib-only and reads every transcript
 through the plugin's shared reader, `<plugin-root>/scripts/transcript_reader.py`.
 
 ## Interpreter

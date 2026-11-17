@@ -5,7 +5,7 @@ opened them into a local sink. It runs session mode's phases over each run's leg
 invocations inside the run: the key, subscription and fallback legs, and a review run's chunks).
 It runs on the person's machine, where the sink is; CI only seals the transcripts.
 
-`<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}`, resolved per SKILL.md "Spoke paths".
+`<plugin-root>` is the plugin's root directory, resolved per SKILL.md "Spoke paths".
 
 ## Trust
 
