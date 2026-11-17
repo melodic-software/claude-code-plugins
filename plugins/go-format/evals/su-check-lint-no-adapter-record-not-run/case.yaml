@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: su-check-lint-no-adapter-record-not-run
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'resolve-ran'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'git-hooks/format\.sh(?:\\")?\s+--resolve\b'
+    min: 1
+    arm: 'with-only'
+  - name: 'format-goimports'
+    type: 'llm'
+    criteria: 'The reply says the hooks format Go files with goimports, the plugin''s shipped adapter, with no repository config needed.'
+    focus: 'last_message'
+  - name: 'lint-nothing-runs'
+    type: 'llm'
+    criteria: 'The reply says the hooks run nothing for Go linting: the plugin ships no lint adapter (and no lint git-hook entry), so the linter in the record does not run after edits or at commit.'
+    focus: 'last_message'
+  - name: 'record-on-request'
+    type: 'llm'
+    criteria: 'The reply says the go record''s command is run on request by /toolchain:lint or /toolchain:check, never by a hook.'
+    focus: 'last_message'
+  - name: 'no-record-run'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:\./)?scripts/lint-go\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

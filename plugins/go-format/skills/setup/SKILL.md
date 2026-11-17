@@ -1,5 +1,5 @@
 ---
-description: "Verify go-format's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up go-format', 'configure go-format', 'is go-format working', Go import/formatting fixes silently aren't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
+description: "Verify go-format's prerequisites and what its hooks run here, and register its git pre-commit entry. Use when: 'set up go-format', 'configure go-format', 'is go-format working', 'does go-format lint Go', Go formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
 argument-hint: "[check|apply] [inspect|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
@@ -13,6 +13,10 @@ allowed-tools:
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs inspect:*)"
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan:*)"
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs plan:*)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh\" --resolve)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh\" --resolve:*)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh --resolve)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh --resolve:*)"
 shell: bash
 ---
 
@@ -38,15 +42,18 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
-reports, `apply` resolves. The only consumer-project files this plugin owns are its git-hook
-entry copies, which `apply install-git-hooks` writes. It has no consumer-config opt-in gate
-(unlike sibling formatter plugins Ruff/typos), so the tunables are the native `userConfig`
-options: `go_format_enabled`, `go_format_lint_gitignored` and `go_format_end_of_turn`. Like
-`spelling`, `goimports` has no per-repo dependency-manager install path in the way Ruff's
-`.venv` does. It is conventionally `go install`ed to the machine-global `$GOPATH/bin`, never as
-a project dependency. `apply` is therefore guidance-only for tools: it never installs anything,
-matching the hook's own PATH-only resolution and the plugin philosophy's never-download-silently
-rule.
+reports, `apply` resolves. Go formatting and linting are two concerns. The hooks run only the
+plugin's shipped format adapter (goimports, formatting and import ordering only) and never run a
+command from the repository's go record (`.claude/ecosystems/go.yaml`), which `/toolchain:lint`
+and `/toolchain:check` run on request. The plugin ships no lint adapter, so the hooks run nothing
+for Go linting. The only consumer-project files this plugin owns are its git-hook entry copies,
+which `apply install-git-hooks` writes; the record is written by `/toolchain:setup apply go`,
+never here. Unlike its sibling formatter plugins, whose adapters run only where their tool's own
+config opts a file in, the format adapter has no consumer-config opt-in gate, so the tunables
+are the native `userConfig` options: `go_format_enabled`, `go_format_lint_gitignored` and
+`go_format_end_of_turn`. The adapter resolves `goimports` on `PATH` only, never a project
+dependency, so `apply` is guidance-only for tools: it never installs anything, matching the
+plugin philosophy's never-download-silently rule.
 
 Action routing: no argument or `check` runs the check; `check inspect` runs only the
 `check inspect` section; `apply` runs the check first, then
@@ -55,8 +62,9 @@ action is given. `apply install-git-hooks` asks only where its section says to.
 
 ## `check` (read-only)
 
-The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/go-format.sh`) is the single source of truth for
-what it requires and how it resolves things.
+The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/go-format.sh`), the entry and the resolver they
+share are the single source of truth for what the plugin requires and how it resolves things;
+step 5 asks the resolver itself.
 
 **Read it first.** Probe what it actually does, don't recite this file. Then read the
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
@@ -70,7 +78,7 @@ disabled plugin is not broken. Report those probes informationally and note that
 restores the FAIL semantics. A missing `node` stays FAIL in either state: Claude Code launches
 `node` before the launcher can read the toggle, so both hook rows fail to start. A tool the git
 pre-commit entry needs keeps the grade it gets with the toggle on while that entry is installed
-(step 9 reports it as a `tool` line beside an `ok`, `stale` or `modified` entry): the entry runs at
+(step 10 reports it as a `tool` line beside an `ok`, `stale` or `modified` entry): the entry runs at
 commit outside Claude Code and reads no toggle.
 
 1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
@@ -86,28 +94,44 @@ commit outside Claude Code and reads no toggle.
    when found (goimports has no `--version` flag; the help header is the closest signal). FAIL
    when absent. The hook then skips the files, and the `SessionStart` probe reports the absence
    in every repository where the plugin is enabled, with or without `.go` files.
-5. **Hook toggle.** Report the effective `go_format_enabled` value:
+5. **What each concern resolves to.** From the repository root run
+   `sh "${CLAUDE_PLUGIN_ROOT}/git-hooks/format.sh" --resolve`. It prints one row: plugin, concern,
+   source, tool, found, detail, tab-separated, and runs nothing. Append repository paths
+   (`--resolve cmd/a.go internal/b.go`) for one row per file; a generated file resolves to
+   nothing. The adapter's rules are in `${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh`: read them
+   to explain a row. Report from the rows, never from this text:
+   - format, `adapter:goimports` with found `yes`: PASS, ungated by design. Found `no` is the
+     step 4 FAIL.
+   - lint: INFO "no shipped adapter": the hooks run nothing for Go linting. When the person names a
+     linter, find the repository's own linter by the steps in
+     [reference/ecosystem-resolution.md](../../reference/ecosystem-resolution.md) and draft a
+     `lint-cmd` holding `<files>` that only reports, with findings as `<path>:<line>` lines. Hand
+     the draft to `/toolchain:setup apply go`, the one writer of that key, so `/toolchain:lint` and
+     `/toolchain:check` can run it on request.
+   A detail saying a go record exists is INFO beside the row: the hooks never run it, and
+   `/toolchain:lint` or `/toolchain:check` runs it on request.
+6. **Hook toggle.** Report the effective `go_format_enabled` value:
    `${user_config.go_format_enabled}` (unexpanded or empty means default `true`).
-6. **Gitignored files.** Report the effective `go_format_lint_gitignored` value:
+7. **Gitignored files.** Report the effective `go_format_lint_gitignored` value:
    `${user_config.go_format_lint_gitignored}` (unexpanded or empty means default `false`). At
    `false` the hook skips files the repository gitignores; a tracked file matching an ignore
    pattern stays in scope.
-7. **End-of-turn check.** Report the effective `go_format_end_of_turn` value:
+8. **End-of-turn check.** Report the effective `go_format_end_of_turn` value:
    `${user_config.go_format_end_of_turn}` (unexpanded or empty means the shipped default `false`),
    as INFO: on, the Stop row parses the uncommitted Go files once per turn; off, only the batch
    rewrite and the git pre-commit entry run.
-8. **Hook registration.** INFO: confirm the plugin is enabled for this project
+9. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
-9. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
-   from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
-   INFO (this clone said no; silent at session start), and `missing`, `stale`, `modified` or `superseded` is a
-   FAIL whose remediation is `apply install-git-hooks`; a `superseded` detail lists what an install under an earlier plugin name left, which that action removes on the user's yes. A `tool\t<tool>\tmissing` line means the
-   installed entry cannot run here: list every such tool with its install method from the
-   `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
-   auto-mode session commits. Outside a git repository, report INFO and skip the step.
+10. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
+    from the repository. It lists `format`. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
+    INFO (this clone said no; silent at session start), and `missing`, `stale`, `modified` or `superseded` is a
+    FAIL whose remediation is `apply install-git-hooks`; a `superseded` detail lists what an install under an earlier plugin or entry name left (the `goimports-format` entry `format` replaced), which that action removes on the user's yes. A `tool\t<tool>\tmissing` line means the
+    installed entry cannot run here: list every such tool with its install method from the
+    `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
+    auto-mode session commits. Outside a git repository, report INFO and skip the step.
 
-There is no consumer-config probe (unlike `spelling`'s config-walk check). This hook has
-no consumer-config gate by design; report that plainly as INFO, not as a gap.
+There is no consumer-config probe. The format adapter has no consumer-config gate by design;
+report that plainly as INFO, not as a gap.
 
 ## `check inspect` (read-only)
 
@@ -151,14 +175,15 @@ with your own edit tools.
 5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
    what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
    chose to leave remain.
-6. **Verify.** Run `verify` and report its lines as `check` step 9 does.
+6. **Verify.** Run `verify` and report its lines as `check` step 10 does.
 
-The entry rewrites: at commit it runs goimports over the staged Go files and stages the result,
-so tell the user that a commit can change the files it contains, and that a partly staged Go file
-is refused untouched. It fails a commit only for a file goimports cannot parse.
+The `format` entry rewrites: at commit it formats the staged Go files and stages the result, so
+tell the user that a commit can change the files it contains, and that a partly staged Go file is
+refused untouched. It fails a commit only for a file goimports cannot parse. There is no `lint`
+entry. A decline of the earlier `goimports-format` entry carries to `format`.
 
-When the user does not want an entry in this clone, run
-`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry goimports-format`; the
+When the user does not want the entry in this clone, run
+`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry format`; the
 session-start drift line then stays silent until `verify` runs by hand, and `--undo` reverses it.
 Add `--global` (with or without `--undo`) to decline the entry in every clone;
 `git config --global checks.git-hooks.declined true` declines every entry of every plugin, and an
@@ -170,16 +195,16 @@ path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/con
 Run `check`, then for each FAIL print remediation guidance. Never install anything. There is
 no `apply install-goimports` write path. This skill follows the refusal template in
 [docs/plugin-philosophy.md](../../../../docs/plugin-philosophy.md) `### Install subactions and refusal`
-and prints the consumer-run command instead. Reason 1 applies: the hook resolves `goimports` on `PATH` only, so the install it can use,
-`go install golang.org/x/tools/cmd/goimports@latest`, writes to the machine-global `$GOPATH/bin`;
-a `go.mod` tool line is not one the hook finds.
+and prints the consumer-run command instead. Reason 1 applies: the adapter resolves `goimports`
+on `PATH` only, so the install it can use is a machine-level one, and a `go.mod` tool line is not
+one the adapter finds.
 
 After the consumer installs `goimports` themselves, re-run `check` with live Bash probes (the
 pre-computed rows predate the install) and report its actual result. Never claim resolved without
 re-verifying. For everything else `apply` only points:
 
-- missing `goimports`: `go install golang.org/x/tools/cmd/goimports@latest` (requires a Go
-  toolchain: https://go.dev/dl/).
+- missing `goimports`: the install hint in `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that
+  path), for the consumer to run; it needs a Go toolchain.
 - missing `node` / `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
 - toggle off: set `go_format_enabled` to `false` (and `go_format_lint_gitignored` the same way)
@@ -200,13 +225,21 @@ re-verifying. For everything else `apply` only points:
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
+- Go linting: `check` step 5's draft, for `/toolchain:setup apply go`. The plugin ships no lint
+  adapter and adds no linter of its own.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
+## Next
+
+/toolchain:setup apply go, with the drafted `lint-cmd`, when the repository lints Go;
+/toolchain:lint then runs it on request.
+
 ## What this skill does not do
 
-- Run the formatter. Editing any `.go` file exercises the hook end-to-end; `git commit`
+- Run the formatter or a linter. Editing any `.go` file exercises the hook end-to-end; `git commit`
   exercises the installed pre-commit entry.
+- Write the go record: `/toolchain:setup apply go` does.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Install `goimports`. Installation is always the consumer's own choice and command, at the
   machine level, never a project dependency this skill records.

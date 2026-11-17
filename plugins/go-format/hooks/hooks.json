@@ -1,5 +1,5 @@
 {
-  "description": "Formats Go source and its imports with goimports once per batch of tool calls, optionally checks the uncommitted changes when a turn ends; harness-ops reports a missing goimports or a drifted git-hook entry at session start, from this plugin's prerequisites.json.",
+  "description": "Formats Go with goimports once per batch of tool calls (formatting and import ordering only), optionally checks the uncommitted changes parse when a turn ends; harness-ops reports a missing goimports or a drifted git-hook entry at session start, from this plugin's prerequisites.json.",
   "hooks": {
     "PostToolBatch": [
       {

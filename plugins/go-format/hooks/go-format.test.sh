@@ -2,12 +2,14 @@
 # Black-box contract test for the go-format PostToolBatch row, launched exactly
 # as hooks.json registers it (node exec-bash.mjs with the row's args).
 #
-# Proves WIRING: one PostToolBatch row and no PostToolUse row; the row rewrites
+# Proves WIRING: one PostToolBatch row and no PostToolUse row; the row formats
 # the .go files a Write, Edit or MultiEdit in the batch named, once per batch,
-# and never anything a Read named; it prints nothing (no finding, no disclosure
-# reaches the model) and exits 0; no Go config is needed; a file with Go's
-# generated-code marker, a file under .githooks/, a gitignored file and a
-# disabled plugin are left alone; a batch with no Go edit costs only the launcher.
+# and never anything a Read named; it only formats and orders imports, never
+# adding or removing one (goimports -format-only); it prints nothing (no
+# finding, no disclosure reaches the model) and exits 0; no Go config is
+# needed; a go record is never run; a file with Go's generated-code marker, a
+# file under .githooks/, a gitignored file and a disabled plugin are left alone;
+# a batch with no Go edit costs only the launcher.
 #
 # Self-contained: builds throwaway git repos with runtime-generated fixtures.
 # The row is run from an UNRELATED cwd so any reliance on the caller's working
@@ -17,6 +19,7 @@
 # on PATH. Without one the behavioral assertions cannot run, so the suite skips.
 # test-scope: plugins/go-format/.claude-plugin/plugin.json plugins/go-format/hooks/hooks.json plugins/go-format/prerequisites.json
 # test-scope: plugins/go-format/git-hooks/entries.json plugins/go-format/lib/git-hooks/install.mjs plugins/go-format/lib/prerequisites.mjs
+# test-scope: plugins/go-format/git-hooks/adapters.sh plugins/go-format/lib/git-hooks/resolve-tool.sh
 
 set -uo pipefail
 
@@ -120,29 +123,43 @@ fire() {
 # run_edit <file>: Edit one file in a batch; prints the row's whole output.
 run_edit() { fire "$(payload Edit "$1")"; }
 
-NEEDS_IMPORT=$'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}'
-WITH_IMPORT=$'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("hi")\n}'
+UNFORMATTED=$'package main\n\nimport (\n\t"os"\n\t"fmt"\n)\n\nfunc main() {  fmt.Println("hi", os.Args) }'
+FORMATTED=$'package main\n\nimport (\n\t"fmt"\n\t"os"\n)\n\nfunc main() { fmt.Println("hi", os.Args) }'
 
 REPO="$WORK/consumer"
 new_go_repo "$REPO"
 mkdir -p "$REPO/src"
 
 # --- No Go config anywhere: the file is still rewritten, and nothing prints ----
-printf '%s\n' "$NEEDS_IMPORT" >"$REPO/src/fix.go"
+printf '%s\n' "$UNFORMATTED" >"$REPO/src/fix.go"
 OUT=$(run_edit "$REPO/src/fix.go")
 RC=$?
-expect "Edit of a subdirectory file: the missing import is added" "$WITH_IMPORT" "$(cat "$REPO/src/fix.go")"
+expect "Edit of a subdirectory file: imports sorted and spacing gofmt'd" "$FORMATTED" "$(cat "$REPO/src/fix.go")"
 expect "a rewrite prints nothing to the model or the user, exit 0" "0|" "$RC|$OUT"
 
-printf '%s\n' "$WITH_IMPORT" >"$REPO/clean.go"
+printf '%s\n' "$FORMATTED" >"$REPO/clean.go"
 OUT=$(run_edit "$REPO/clean.go")
-expect "a clean file: silent exit 0 and unchanged" "0||$WITH_IMPORT" "$?|$OUT|$(cat "$REPO/clean.go")"
+expect "a clean file: silent exit 0 and unchanged" "0||$FORMATTED" "$?|$OUT|$(cat "$REPO/clean.go")"
 
-printf 'package main\n\nimport (\n\t"fmt"\n\t"os"\n)\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/unused.go"
+# Format only: goimports' import fixing is a lint fix, so it never runs.
+printf 'package main\n\nimport (\n\t"os"\n\t"fmt"\n)\n\nfunc main() {  fmt.Println(strings.ToUpper("hi")) }\n' >"$REPO/unused.go"
 run_edit "$REPO/unused.go" >/dev/null
-unused_src="$(cat "$REPO/unused.go")"
-expect "an unused import is removed and the used one stays" "no yes" \
-  "$([[ "$unused_src" == *'"os"'* ]] && echo yes || echo no) $([[ "$unused_src" == *'"fmt"'* ]] && echo yes || echo no)"
+expect "format only: the unused import stays, the missing one is not added, and the file is formatted" \
+  $'package main\n\nimport (\n\t"fmt"\n\t"os"\n)\n\nfunc main() { fmt.Println(strings.ToUpper("hi")) }' "$(cat "$REPO/unused.go")"
+
+# A go record is never run: goimports formats, and the record's command, which
+# would log its call, is never called.
+STUBBIN="$WORK/stubbin"
+mkdir -p "$STUBBIN" "$REPO/.claude/ecosystems"
+printf '#!/bin/sh\necho called >>"%s"\n' "$WORK/stub.log" >"$STUBBIN/stubfmt"
+chmod +x "$STUBBIN/stubfmt"
+: >"$WORK/stub.log"
+printf 'globs: ["**/*.go"]\nfix-cmd: "stubfmt <files>"\n' >"$REPO/.claude/ecosystems/go.yaml"
+printf '%s\n' "$UNFORMATTED" >"$REPO/record.go"
+fire "$(payload Edit "$REPO/record.go")" PATH="$STUBBIN:$GOIMPORTS_PATH" >/dev/null
+expect "with a go record, goimports formats the file" "$FORMATTED" "$(cat "$REPO/record.go")"
+expect "with a go record, the record command is never called" "" "$(cat "$WORK/stub.log")"
+rm -r "$REPO/.claude"
 
 # A syntax error is left alone and nothing about it reaches the model.
 BROKEN=$'package main\n\nfunc main() {\n\tfmt.Println("hi"\n}'
@@ -169,7 +186,7 @@ fi
 # --- The batch -----------------------------------------------------------------
 # One call, several files, all rewritten; a Read, a non-Go file and a duplicate
 # are not.
-for f in b1 b2 b3; do printf '%s\n' "$NEEDS_IMPORT" >"$REPO/$f.go"; done
+for f in b1 b2 b3; do printf '%s\n' "$UNFORMATTED" >"$REPO/$f.go"; done
 printf 'q=1\n' >"$REPO/notes.txt"
 BATCH="$(jq -n --arg d "$REPO" '{session_id: "s", hook_event_name: "PostToolBatch", tool_calls: [
   {tool_name: "Write", tool_input: {file_path: "\($d)/b1.go"}, tool_use_id: "1", tool_response: "ok"},
@@ -180,29 +197,29 @@ BATCH="$(jq -n --arg d "$REPO" '{session_id: "s", hook_event_name: "PostToolBatc
   {tool_name: "Bash", tool_input: {command: "ls b3.go"}, tool_use_id: "6", tool_response: "b3.go"}]}')"
 OUT=$(fire "$BATCH")
 expect "a mixed batch prints nothing" "0|" "$?|$OUT"
-expect "batch: a Write'd .go is rewritten" "$WITH_IMPORT" "$(cat "$REPO/b1.go")"
-expect "batch: an Edit'd .go is rewritten" "$WITH_IMPORT" "$(cat "$REPO/b2.go")"
-expect "batch: a Read'd .go is never rewritten" "$NEEDS_IMPORT" "$(cat "$REPO/b3.go")"
+expect "batch: a Write'd .go is rewritten" "$FORMATTED" "$(cat "$REPO/b1.go")"
+expect "batch: an Edit'd .go is rewritten" "$FORMATTED" "$(cat "$REPO/b2.go")"
+expect "batch: a Read'd .go is never rewritten" "$UNFORMATTED" "$(cat "$REPO/b3.go")"
 expect "batch: a non-Go file is untouched" "q=1" "$(cat "$REPO/notes.txt")"
 
 # A file that does not parse does not stop its neighbors from being rewritten.
 printf '%s\n' "$BROKEN" >"$REPO/bad.go"
-printf '%s\n' "$NEEDS_IMPORT" >"$REPO/good.go"
+printf '%s\n' "$UNFORMATTED" >"$REPO/good.go"
 fire "$(payload Edit "$REPO/bad.go" "$REPO/good.go")" >/dev/null
-expect "a file that does not parse does not stop another file in the batch" "$WITH_IMPORT" "$(cat "$REPO/good.go")"
+expect "a file that does not parse does not stop another file in the batch" "$FORMATTED" "$(cat "$REPO/good.go")"
 
-printf '%s\n' "$NEEDS_IMPORT" >"$REPO/multi.go"
+printf '%s\n' "$UNFORMATTED" >"$REPO/multi.go"
 fire "$(payload MultiEdit "$REPO/multi.go")" >/dev/null
-expect "a MultiEdit'd file is rewritten" "$WITH_IMPORT" "$(cat "$REPO/multi.go")"
+expect "a MultiEdit'd file is rewritten" "$FORMATTED" "$(cat "$REPO/multi.go")"
 
 # --- Skips ----------------------------------------------------------------------
 # Go's generated-code marker, behind a license header, a block comment, a BOM, CRLF.
-GEN_BODY=$'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n'
+GEN_BODY=$'package main\n\nfunc main() {  fmt.Println("hi") }\n'
 printf '// Code generated by protoc-gen-go. DO NOT EDIT.\n%s' "$GEN_BODY" >"$REPO/gen1.go"
 printf '// Copyright 2026 Example Corp.\n\n// Code generated by "stringer -type Op"; DO NOT EDIT.\n%s' "$GEN_BODY" >"$REPO/gen2.go"
 printf '/*\nCopyright.\n*/\n\n// Code generated by protoc-gen-go. DO NOT EDIT.\n%s' "$GEN_BODY" >"$REPO/gen3.go"
 printf '  /*\n  Copyright.\n  */\n\t\n// Code generated by protoc-gen-go. DO NOT EDIT.\n%s' "$GEN_BODY" >"$REPO/gen4.go"
-printf '// Code generated by protoc-gen-go. DO NOT EDIT.\r\npackage main\r\n\r\nfunc main() {\r\n\tfmt.Println("hi")\r\n}\r\n' >"$REPO/gen5.go"
+printf '// Code generated by protoc-gen-go. DO NOT EDIT.\r\npackage main\r\n\r\nfunc main() {  fmt.Println("hi") }\r\n' >"$REPO/gen5.go"
 printf '\xEF\xBB\xBF// Code generated by protoc-gen-go. DO NOT EDIT.\n%s' "$GEN_BODY" >"$REPO/gen6.go"
 for g in gen1 gen2 gen3 gen4 gen5 gen6; do cp "$REPO/$g.go" "$WORK/$g.before"; done
 fire "$(payload Edit "$REPO/gen1.go" "$REPO/gen2.go" "$REPO/gen3.go" "$REPO/gen4.go" "$REPO/gen5.go" "$REPO/gen6.go")" >/dev/null
@@ -211,32 +228,32 @@ for g in gen1 gen2 gen3 gen4 gen5 gen6; do
 done
 
 # The marker after the package clause is not a generated file.
-printf 'package main\n\n// Code generated by protoc-gen-go. DO NOT EDIT.\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/late.go"
+printf 'package main\n\n// Code generated by protoc-gen-go. DO NOT EDIT.\nfunc main() {  fmt.Println("hi") }\n' >"$REPO/late.go"
 run_edit "$REPO/late.go" >/dev/null
 late_src="$(cat "$REPO/late.go")"
-expect "the marker after the leading block does not make a file generated" yes "$([[ "$late_src" == *'import "fmt"'* ]] && echo yes)"
+expect "the marker after the leading block does not make a file generated" yes "$([[ "$late_src" == *'func main() { fmt'* ]] && echo yes)"
 
 # Code after a block comment on the same line ends the leading block too.
-printf '/* License. */ package main\n\n// Code generated by protoc-gen-go. DO NOT EDIT.\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/inline.go"
+printf '/* License. */ package main\n\n// Code generated by protoc-gen-go. DO NOT EDIT.\nfunc main() {  fmt.Println("hi") }\n' >"$REPO/inline.go"
 run_edit "$REPO/inline.go" >/dev/null
 inline_src="$(cat "$REPO/inline.go")"
-expect "a package clause after a block comment on its line ends the header scan" yes "$([[ "$inline_src" == *'import "fmt"'* ]] && echo yes)"
+expect "a package clause after a block comment on its line ends the header scan" yes "$([[ "$inline_src" == *'func main() { fmt'* ]] && echo yes)"
 
 # .githooks/ holds installed copies of check scripts, never rewritten here.
 mkdir -p "$REPO/.githooks/go-format"
-printf '%s\n' "$NEEDS_IMPORT" >"$REPO/.githooks/go-format/copy.go"
+printf '%s\n' "$UNFORMATTED" >"$REPO/.githooks/go-format/copy.go"
 fire "$(payload Write "$REPO/.githooks/go-format/copy.go")" >/dev/null
-expect "a file under .githooks/ is skipped" "$NEEDS_IMPORT" "$(cat "$REPO/.githooks/go-format/copy.go")"
+expect "a file under .githooks/ is skipped" "$UNFORMATTED" "$(cat "$REPO/.githooks/go-format/copy.go")"
 
 # The kill switch.
-printf '%s\n' "$NEEDS_IMPORT" >"$REPO/kill.go"
+printf '%s\n' "$UNFORMATTED" >"$REPO/kill.go"
 OUT=$(fire "$(payload Edit "$REPO/kill.go")" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=false)
-expect "kill switch off: silent and the file untouched" "0|$NEEDS_IMPORT" "$?|$OUT$(cat "$REPO/kill.go")"
+expect "kill switch off: silent and the file untouched" "0|$UNFORMATTED" "$?|$OUT$(cat "$REPO/kill.go")"
 
 # goimports absent: the file is skipped silently; the SessionStart probe reports the gap.
 REPO_NG="$WORK/no-goimports"
 new_go_repo "$REPO_NG"
-printf '%s\n' "$NEEDS_IMPORT" >"$REPO_NG/app.go"
+printf '%s\n' "$UNFORMATTED" >"$REPO_NG/app.go"
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink rm node; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
@@ -244,7 +261,7 @@ for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk gr
   chmod +x "$FAKEBIN/$t"
 done
 OUT=$(fire "$(payload Edit "$REPO_NG/app.go")" PATH="$FAKEBIN")
-expect "goimports absent: silent exit 0 and the file untouched" "0|$NEEDS_IMPORT" "$?|$OUT$(cat "$REPO_NG/app.go")"
+expect "goimports absent: silent exit 0 and the file untouched" "0|$UNFORMATTED" "$?|$OUT$(cat "$REPO_NG/app.go")"
 
 # Gitignored path: neither rewritten by default, unless go_format_lint_gitignored is set.
 REPO_IGN="$WORK/gitignored"
@@ -252,20 +269,20 @@ new_go_repo "$REPO_IGN"
 git -C "$REPO_IGN" config core.excludesFile /dev/null
 printf '.work/\n' >"$REPO_IGN/.gitignore"
 mkdir -p "$REPO_IGN/.work"
-printf '%s\n' "$NEEDS_IMPORT" >"$REPO_IGN/.work/scratch.go"
+printf '%s\n' "$UNFORMATTED" >"$REPO_IGN/.work/scratch.go"
 OUT=$(run_edit "$REPO_IGN/.work/scratch.go")
-expect "gitignored: silent and the file not rewritten" "0|$NEEDS_IMPORT" "$?|$OUT$(cat "$REPO_IGN/.work/scratch.go")"
+expect "gitignored: silent and the file not rewritten" "0|$UNFORMATTED" "$?|$OUT$(cat "$REPO_IGN/.work/scratch.go")"
 fire "$(payload Edit "$REPO_IGN/.work/scratch.go")" CLAUDE_PLUGIN_OPTION_GO_FORMAT_LINT_GITIGNORED=true >/dev/null
-expect "gitignored + go_format_lint_gitignored=true: import added" "$WITH_IMPORT" "$(cat "$REPO_IGN/.work/scratch.go")"
+expect "gitignored + go_format_lint_gitignored=true: formatted" "$FORMATTED" "$(cat "$REPO_IGN/.work/scratch.go")"
 
 # Symlinked repo root: the file reached through a symlinked directory is still rewritten.
 if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
   REPO_SL="$WORK/symlink-real"
   new_go_repo "$REPO_SL"
   mkdir -p "$REPO_SL/pkg"
-  printf '%s\n' "$NEEDS_IMPORT" >"$REPO_SL/pkg/mod.go"
+  printf '%s\n' "$UNFORMATTED" >"$REPO_SL/pkg/mod.go"
   run_edit "$WORK/symlink-link/pkg/mod.go" >/dev/null
-  expect "symlinked root: the file is rewritten" "$WITH_IMPORT" "$(cat "$REPO_SL/pkg/mod.go")"
+  expect "symlinked root: the file is rewritten" "$FORMATTED" "$(cat "$REPO_SL/pkg/mod.go")"
 else
   echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
 fi

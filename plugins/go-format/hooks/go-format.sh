@@ -1,28 +1,27 @@
 #!/usr/bin/env bash
-# PostToolBatch hook: rewrite the Go files a batch of tool calls wrote.
+# PostToolBatch hook: format the Go files a batch of tool calls wrote.
 #
 #   go-format.sh                 the PostToolBatch row
 #   go-format.sh --end-of-turn   the opt-in Stop row (go_format_end_of_turn)
 #
-# Rewrites only: `goimports -w`, once per batch over every .go file a Write, Edit
-# or MultiEdit in the batch named. It prints nothing and always exits 0, so no
-# finding or disclosure ever reaches the model per edit; a file goimports cannot
-# parse is left as it is and the pre-commit entry (git-hooks/goimports-format.sh)
-# reports it for every author.
+# Formats only: once per batch, over every .go file a Write, Edit or MultiEdit
+# in the batch named, the goimports adapter runs (git-hooks/adapters.sh,
+# through lib/git-hooks/resolve-tool.sh): gofmt formatting and import ordering,
+# never adding or removing an import. A .claude/ecosystems/ record is never run
+# here; /toolchain:lint runs it. It prints nothing and always exits 0, so no
+# finding or disclosure ever reaches the model per edit; a file goimports
+# cannot parse is left as it is and the pre-commit format entry
+# (git-hooks/format.sh) reports it for every author.
 #
 # PostToolBatch has no matcher, so the row fires on every batch. The launcher
 # skips the script unless the payload mentions ".go", and the script then reads
 # tool_calls[].tool_input.file_path itself, so a batch with no Go edit costs one
 # node process. A file that Read named is never rewritten.
 #
-# No consumer-config opt-in gate: goimports documents itself as a replacement for
-# an editor's gofmt-on-save. A file whose leading comment block carries Go's
-# `// Code generated ... DO NOT EDIT.` marker is skipped, as are files under
-# .githooks/ (installed copies) and gitignored files unless
-# go_format_lint_gitignored is true. goimports comes from PATH, never downloaded.
-# The -local grouping prefix is the file's own module path (`go list -m`), so a
-# repo's internal imports keep their own group; without go or a module the plain
-# default grouping applies.
+# No consumer-config opt-in gate, by design (the adapter's header says why). A
+# generated file is skipped, as are files under .githooks/ (installed copies)
+# and gitignored files unless go_format_lint_gitignored is true. goimports
+# comes from PATH, never downloaded.
 
 set -uo pipefail
 
@@ -38,55 +37,38 @@ IFS= read -r -d '' INPUT || :
 # the row stays quiet, so it blocks at most once per turn.
 if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
-  err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/goimports-format.sh" --worktree 2>&1 >/dev/null)" && exit 0
-  # silent-skip-ok: the SessionStart probe already reports a missing goimports (prerequisites.json) and the bundled checker does too; blocking every turn end on a host problem would not help the model.
-  [[ "$err" == "FAIL: "*" missing. Install: "* ]] && exit 0
-  printf '%s\n' "$err" >&2
+  err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/format.sh" --worktree 2>&1 >/dev/null)" && exit 0
+  # A missing goimports is a host problem: the SessionStart probe reports it, and
+  # blocking every turn end on it would not help the model. Only those lines
+  # are dropped; any error printed beside them is still handed back.
+  report=""
+  while IFS= read -r line; do
+    case "$line" in
+    "FAIL: "*" missing. Install: "* | "To skip only while "*" is missing: "*) ;;
+    *) report+="$line"$'\n' ;;
+    esac
+  done <<<"$err"
+  # silent-skip-ok: only missing-tool lines remained, which the SessionStart probe reports.
+  [[ -n "${report//[[:space:]]/}" ]] || exit 0
+  printf '%s' "$report" >&2
   exit 2
 fi
 
 [[ "$INPUT" == *.go* ]] || exit 0
 command -v jq >/dev/null 2>&1 || exit 0  # silent-skip-ok: the SessionStart prerequisites probe reports a missing jq; the batch row never speaks to the model
-command -v goimports >/dev/null 2>&1 || exit 0  # silent-skip-ok: the SessionStart prerequisites probe reports a missing goimports; pre-commit fails an agent commit on it
 PATHS=$(jq -r '.tool_calls[]? | select(.tool_name == "Write" or .tool_name == "Edit" or .tool_name == "MultiEdit") | .tool_input.file_path? | strings | select(test("\\.go$"))' <<<"$INPUT" 2>/dev/null) || exit 0
 [[ -n "$PATHS" ]] || exit 0
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
+# shellcheck source=../lib/git-hooks/resolve-tool.sh
+source "$HOOK_DIR/../lib/git-hooks/resolve-tool.sh"
+# shellcheck source=../git-hooks/adapters.sh
+source "$HOOK_DIR/../git-hooks/adapters.sh"
 
-# generated <path>: 0 when the file's leading comment and blank-line run holds
-# the generated-code marker. The scan is a stand-in for go/ast.IsGenerated: it
-# tracks /* */ blocks, tolerates a BOM and CRLF, and stops at the first text
-# that is neither blank nor a comment, even when it follows a comment on the
-# same line, as `/* license */ package p` does.
-generated() {
-  local line rest in_block=0
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%$'\r'}"
-    rest="${line#$'\xEF\xBB\xBF'}"
-    while :; do
-      if ((in_block)); then
-        [[ "$rest" == *'*/'* ]] || continue 2
-        rest="${rest#*\*/}"
-        in_block=0
-      fi
-      rest="${rest#"${rest%%[![:space:]]*}"}"
-      [[ -n "$rest" ]] || continue 2
-      if [[ "$rest" == //* ]]; then
-        [[ "$rest" =~ ^//\ Code\ generated\ .*\ DO\ NOT\ EDIT\.$ ]] && return 0
-        continue 2
-      fi
-      [[ "$rest" == /\** ]] || return 1
-      rest="${rest#/\*}"
-      in_block=1
-    done
-  done <"$1"
-  return 1
-}
-
+# Per repository root, the files to format, in batch order.
 ROOTS=()
 FILES=()
-PREFIXES=()
 seen=$'\n'
 while IFS= read -r path; do
   path="${path%$'\r'}"
@@ -101,29 +83,26 @@ while IFS= read -r path; do
   hook::repo_root_to root "$dir" || :
   [[ -d "$root" ]] || continue
   hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_GO_FORMAT_LINT_GITIGNORED:-false}" "$file" && continue
-  generated "$file" && continue
-  prefix=""
-  if command -v go >/dev/null 2>&1; then
-    prefix="$(cd "$dir" 2>/dev/null && go list -m 2>/dev/null)" || prefix=""
-    [[ "$prefix" == "command-line-arguments" ]] && prefix=""
-  fi
   ROOTS+=("$root")
   FILES+=("$file")
-  PREFIXES+=("$prefix")
 done <<<"$PATHS"
 
-# One goimports run per repository root and -local prefix, over all its files.
-done_keys=$'\n'
-for i in "${!FILES[@]}"; do
-  key="${ROOTS[i]}"$'\t'"${PREFIXES[i]}"
-  [[ "$done_keys" != *$'\n'"$key"$'\n'* ]] || continue
-  done_keys+="$key"$'\n'
+# One goimports run per repository root and resolved command (its -local
+# prefix), over all its files.
+done_roots=$'\n'
+for i in "${!ROOTS[@]}"; do
+  root="${ROOTS[i]}"
+  [[ "$done_roots" != *$'\n'"$root"$'\n'* ]] || continue
+  done_roots+="$root"$'\n'
   group=()
-  for j in "${!FILES[@]}"; do
-    [[ "${ROOTS[j]}"$'\t'"${PREFIXES[j]}" == "$key" ]] && group+=("${FILES[j]}")
+  for j in "${!ROOTS[@]}"; do
+    [[ "${ROOTS[j]}" == "$root" ]] && group+=("${FILES[j]}")
   done
-  args=(-w)
-  [[ -n "${PREFIXES[i]}" ]] && args+=(-local "${PREFIXES[i]}")
-  (cd "${ROOTS[i]}" && goimports "${args[@]}" -- "${group[@]}") >/dev/null 2>&1 || :
+  rt_group format "$root" "${group[@]}"
+  for ((g = 0; g < RT_GN; g++)); do
+    rt_use "$g"
+    rt_found "$RT_BIN" || continue  # silent-skip-ok: the SessionStart prerequisites probe reports a missing goimports; pre-commit fails an agent commit on it
+    rt_run "${RT_FILES[@]}" >/dev/null 2>&1 || :
+  done
 done
 exit 0
