@@ -72,12 +72,12 @@ Build configuration constrains what's possible. Understand it before fighting it
 - **Package versions**. Check the ecosystem's manifest (lockfile + central-version-management file if applicable)
 - **CI/CD**. `.github/workflows/` (or the project's CI equivalent) for what's validated on every PR
 
-### 6. Environment and machine state
+### 6. Toolchain and worktree state
 
-When the task involves tooling, MCP servers, or infrastructure:
+When the task depends on the repository's toolchain or worktree:
 
 - **Installed versions**. Probe with the runtime version command resolved from the repository per [`ecosystem-discovery.md`](ecosystem-discovery.md); when none resolves, record the gap instead of guessing a command (`install-hint` is install prose, not a version probe)
-- **MCP server status**. Test with a read-only call before depending on it
+- **Live systems are not explored here**. What an MCP server, a database or a service holds now is read directly through its CLI or MCP tool by the stage that needs the fact; other machine state is `/discovery:research`'s
 - **Worktree state**. `git worktree list`, current branch, uncommitted changes
 - **Local config**. Project-local settings for env vars and tokens (don't read secrets, just verify presence)
 
