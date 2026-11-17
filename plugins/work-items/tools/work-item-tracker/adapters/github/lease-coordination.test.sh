@@ -130,6 +130,10 @@ gh() {
     ;;
   # A workflow run's status read; no $d/run-status file is an unreadable status.
   *"/actions/runs/"*)
+    [[ "$args" != *"-f body="* ]] || {
+      stub_post_comment "$@"
+      return
+    }
     printf 'RUN_READ %s\n' "${args##*/actions/runs/}" >>"$d/calls.log"
     [[ -f "$d/run-status" ]] || return 1
     cat "$d/run-status"
@@ -166,26 +170,28 @@ gh() {
     printf 'API_USER\n' >>"$d/calls.log"
     cat "$d/login" 2>/dev/null || printf 'alice\n'
     ;;
-  *"-f body="*)
-    printf 'POST_COMMENT\n' >>"$d/calls.log"
-    if [[ -f "$d/stateful" ]]; then
-      cid="$(jq -r '(map(.id) | max // 0) + 1' "$d/lease-comments")"
-      body="$(stub_body_arg "$@")"
-      jq -c --argjson id "$cid" --arg b "$body" \
-        '. + [{id: $id, node_id: "MDEx", body: $b, created_at: "2020-01-01T00:00:00Z", author_association: "MEMBER"}]' \
-        "$d/lease-comments" >"$d/lease-comments.tmp" && mv "$d/lease-comments.tmp" "$d/lease-comments"
-      printf '%s\n' "$cid"
-    else
-      printf '1\n'
-    fi
-    ;;
+  *"-f body="*) stub_post_comment "$@" ;;
   *)
     printf 'gh-stub: unhandled: %s\n' "$args" >&2
     return 90
     ;;
   esac
 }
-export -f gh stub_body_arg stub_login_arg stub_hook
+stub_post_comment() {
+  local d="${GH_STUB_DIR:?}" cid body
+  printf 'POST_COMMENT\n' >>"$d/calls.log"
+  if [[ -f "$d/stateful" ]]; then
+    cid="$(jq -r '(map(.id) | max // 0) + 1' "$d/lease-comments")"
+    body="$(stub_body_arg "$@")"
+    jq -c --argjson id "$cid" --arg b "$body" \
+      '. + [{id: $id, node_id: "MDEx", body: $b, created_at: "2020-01-01T00:00:00Z", author_association: "MEMBER"}]' \
+      "$d/lease-comments" >"$d/lease-comments.tmp" && mv "$d/lease-comments.tmp" "$d/lease-comments"
+    printf '%s\n' "$cid"
+  else
+    printf '1\n'
+  fi
+}
+export -f gh stub_body_arg stub_login_arg stub_hook stub_post_comment
 
 # hook <name> <command…>: arm stub_hook <name> to run <command…>, writing its exit code to
 # hook-<name>.rc. next_read <list|assignees> <offset>: the hook name for the read <offset>
