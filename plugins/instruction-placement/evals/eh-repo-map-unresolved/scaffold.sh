@@ -4,6 +4,7 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
+git config commit.gpgsign false
 git remote add origin https://forge.example.invalid/harborline/hub.git
 
 printf '# Harborline hub\n' > README.md

@@ -85,7 +85,7 @@ it:
 
 | Step | Owner | When the owner is not enabled |
 |---|---|---|
-| `AGENTS.md` as the content home, `CLAUDE.md` as exactly `@AGENTS.md` | `/instruction-placement:migrate` (same plugin, always present) | n/a |
+| `AGENTS.md` as the content home, `CLAUDE.md` as exactly `@AGENTS.md` | `/instruction-placement:migrate` (same plugin, always present) when the hub already tracks a `CLAUDE.md` or `AGENTS.md`; this skill writes the one-line shim itself when it tracks neither | n/a |
 | Wording of new agent-loaded text | invoke `/docs-hygiene:write-for-agents` when it is among the available skills (enabled) | write from the catalog's own guidance and say once the write-side doctrine was not available |
 | The hub's decision record | invoke `/architecture:record-decision` when it is among the available skills (enabled) | put the record's text under "Proposed, not written" and say once that the architecture plugin would write it in the estate's convention |
 | The scratch directory's `.gitignore` line | this skill: a one-line append when absent | n/a |
@@ -96,8 +96,11 @@ right home for what no check can decide: where things are and how to reach them.
 check could decide is written as prose too, so the hub reads whole, and is also listed in the
 report for a stronger mechanism. This skill picks no rung and builds no check.
 
-Migrate owns the instruction-file layout: run it for the shim and the content split rather than
-writing either by hand. Record-decision owns the decision-record convention and asks for a shape
+Migrate owns the instruction-file layout of a hub that already tracks instruction files: run it
+for the shim and the content split rather than writing either by hand. Migrate plans only from
+files git tracks, so on a new hub, where neither file is tracked yet, it has nothing to act on:
+there this skill writes `CLAUDE.md` as the single line `@AGENTS.md` itself, as one of the changes
+it shows. Record-decision owns the decision-record convention and asks for a shape
 when none exists; write the hub's record only when that convention resolves inside the hub. When it
 lives in another repository, or none resolves and the person does not choose the hub, the record's
 text goes under "Proposed, not written".
@@ -105,7 +108,8 @@ text goes under "Proposed, not written".
 ## Writes and never-touches
 
 Writes, each behind its own yes, in the hub repository only: `AGENTS.md` (the catalog's sections),
-`CLAUDE.md` (exactly `@AGENTS.md`, through migrate), one `.gitignore` line, and the decision record
+`CLAUDE.md` (exactly `@AGENTS.md`; through migrate on a hub that tracks instruction files), one
+`.gitignore` line, and the decision record
 when the convention resolves inside the hub.
 
 Never touches: any sibling repository, user-scope instructions or settings, permission rules,

@@ -1,11 +1,13 @@
 {
   "pass": [
     {"answer": "Wrote AGENTS.md, the CLAUDE.md shim and the .gitignore line.\n\nFound: the repository map is unresolved. No listing command answers for this owner, so the section's pointer is left out and no list was written.", "why": "states the map unresolved"},
-    {"answer": "THE REPOSITORIES: UNRESOLVED (no listing command). Every other section was written.", "why": "upper case; the flag is i"}
+    {"answer": "THE REPOSITORIES: UNRESOLVED (no listing command). Every other section was written.", "why": "upper case; the flag is i"},
+    {"answer": "Section 4 is missing with the reason unresolved: no listing command answers here.", "why": "unresolved before the listing, on one line"}
   ],
   "fail": [
     {"answer": ""},
     {"answer": "Wrote AGENTS.md with a section listing the repositories: ledger-service and portal-web.", "why": "near miss: names repositories but never says the map is unresolved"},
+    {"answer": "Wrote AGENTS.md, the CLAUDE.md shim and the .gitignore line. The cross-repository decision convention is unresolved, so that section was left out.", "why": "near miss: unresolved is said of the decision convention, not the map"},
     {"answer": "The hub is set up. AGENTS.md, CLAUDE.md and .gitignore are in place.", "why": "an answer to a different question: the map is not mentioned"}
   ]
 }
