@@ -1,0 +1,40 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "app-control:map", "args": "refresh .claude/skills/control-shop --unattended"}}
+      ],
+      "why": "the map skill itself"
+    },
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "app-control:drive-helper"}}
+      ],
+      "why": "a longer name"
+    },
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "app-control:drive", "args": "cleanup shop --unattended"}}
+      ],
+      "why": "cleanup stops what the run started and drives no feature"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "app-control:drive", "args": "ready shop --unattended"}}
+      ],
+      "why": "runs Ready again"
+    },
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "drive", "args": "shop cart --unattended"}}
+      ],
+      "why": "bare name, drives a feature"
+    }
+  ]
+}

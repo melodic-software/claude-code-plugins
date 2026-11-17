@@ -9,7 +9,7 @@ fi
 git init -q -b main .
 git config user.email eval@example.invalid
 git config user.name eval
-git config --local checks.go-format.goimports-format.declined true
+git config --local checks.go-format.format.declined true
 printf 'module example.invalid/demo\n\ngo 1.22\n' >go.mod
 printf 'package main\n\nfunc main() {}\n' >main.go
 git add .

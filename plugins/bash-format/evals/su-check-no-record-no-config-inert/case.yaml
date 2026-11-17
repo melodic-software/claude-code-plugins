@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: su-check-no-record-no-config-inert
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'format-unresolved-lint-runs'
+    type: 'llm'
+    criteria: 'The reply reports formatting as unresolved (or INFO), because no .editorconfig section names shell files, and says linting still resolves to ShellCheck, which runs on its own defaults with no .shellcheckrc.'
+    focus: 'last_message'
+  - name: 'not-broken'
+    type: 'llm'
+    criteria: 'The reply says the plugin is not broken: formatting resolving to nothing is the opt-out by design.'
+    focus: 'last_message'
+  - name: 'routes-to-record'
+    type: 'llm'
+    criteria: 'The reply names at least one way forward without writing anything: an .editorconfig section naming shell files opts the format hooks in, or a bash record written by /toolchain:setup apply bash, which /toolchain:lint and /toolchain:check run on request (the hooks never run a record).'
+    focus: 'last_message'
+  - name: 'no-file-1'
+    type: 'file_exists'
+    path: '**/.claude/ecosystems/bash.yaml'
+    exists: false
+  - name: 'no-file-2'
+    type: 'file_exists'
+    path: '**/.shellcheckrc'
+    exists: false
+  - name: 'no-file-3'
+    type: 'file_exists'
+    path: '**/.editorconfig'
+    exists: false
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

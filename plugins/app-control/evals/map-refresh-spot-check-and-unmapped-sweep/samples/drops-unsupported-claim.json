@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Spot-check: src/cart.tsx:14 still reads `Add to cart`, so the claim that the button was renamed `Add to basket` is dropped from triage.",
+      "why": "names the line and drops the claim"
+    },
+    {
+      "answer": "- Dropped: `Add to basket` rename (src/cart.tsx:14 does not support it).",
+      "why": "dropped list entry"
+    },
+    {
+      "answer": "The rename claim fails the spot-check: the button text is unchanged.",
+      "why": "fails the spot-check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Doc drift: rename `Add to cart` to `Add to basket` in features/cart/README.md (src/cart.tsx:14); the drive step fails otherwise.",
+      "why": "accepts the claim as drift"
+    },
+    {
+      "answer": "The cart button was renamed to Add to basket.\nSpot-check passed.",
+      "why": "confirms the unsupported claim"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

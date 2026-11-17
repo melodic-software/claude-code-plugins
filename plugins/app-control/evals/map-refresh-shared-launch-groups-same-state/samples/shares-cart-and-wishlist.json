@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Launch 1: cart, wishlist --out /tmp/refresh-shop-1\nLaunch 2: export --out /tmp/refresh-shop-2",
+      "why": "same-state features grouped"
+    },
+    {
+      "answer": "- `Launch 1: wishlist, cart --out /tmp/a`\n- `Launch 2: export --out /tmp/b`",
+      "why": "other order, list markup"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Launch 1: cart --out /tmp/a\nLaunch 2: wishlist --out /tmp/b\nLaunch 3: export --out /tmp/c",
+      "why": "one launch per feature"
+    },
+    {
+      "answer": "Cart and wishlist could share a launch.\nLaunch 1: cart --out /tmp/a\nLaunch 2: wishlist --out /tmp/b",
+      "why": "says it in prose but plans separate launches"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

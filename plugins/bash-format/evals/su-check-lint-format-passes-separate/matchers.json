@@ -30,18 +30,6 @@
     {
       "use": "table_verdict_cell",
       "with": {
-        "row": "editorconfig"
-      }
-    },
-    {
-      "use": "table_verdict_cell",
-      "with": {
-        "row": "\\.shellcheckrc"
-      }
-    },
-    {
-      "use": "table_verdict_cell",
-      "with": {
         "row": "(?:bash_format_\\w+|\\b(?:Hook options?|hook options?|Options?|options?|Toggles?|toggles?)\\b)"
       }
     },
