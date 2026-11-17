@@ -15,7 +15,7 @@
           "pwsh"
         ]
       },
-      "degrade": "Without pwsh, the pre-commit entry cannot format or lint staged PowerShell scripts, and the end-of-turn check stays quiet.",
+      "degrade": "Without pwsh, the PSScriptAnalyzer adapter cannot format or lint staged PowerShell scripts, and the end-of-turn check stays quiet.",
       "install": {
         "docs": "https://learn.microsoft.com/powershell/scripting/install/installing-powershell"
       }

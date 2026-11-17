@@ -43,7 +43,7 @@ The per-edit notice rules above apply only to hooks outside this table.
 | `bash-format` | `hooks/bash-format.sh` / `git-hooks/format.sh`, `git-hooks/lint.sh` (the shfmt and ShellCheck adapters in `git-hooks/adapters.sh`; hooks never run an ecosystem record) | `command -v shfmt`, `command -v shellcheck` | host package / release binary (no npm form) | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
 | `spelling` | none / `git-hooks/typos-check.sh` | `command -v typos` | cargo / release binary | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
 | `go-format` | `hooks/go-format.sh` / `git-hooks/format.sh` | `command -v goimports`, `command -v go` | `go install …/goimports@latest` | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
-| `powershell-format` | none / `git-hooks/powershell-check.sh` | `command -v pwsh`, then the PSScriptAnalyzer module | host PowerShell install | pre-commit contract (pwsh and PSScriptAnalyzer) | `lib/prerequisites.mjs check`; SessionStart probe |
+| `powershell-format` | none / `git-hooks/format.sh`, `git-hooks/lint.sh` (the PSScriptAnalyzer adapter in `git-hooks/adapters.sh`; hooks never run an ecosystem record) | `command -v pwsh`, then the PSScriptAnalyzer module | host PowerShell install | pre-commit contract (pwsh and PSScriptAnalyzer) | `lib/prerequisites.mjs check`; SessionStart probe |
 | `actionlint` | none / `git-hooks/lint.sh` | `command -v actionlint` | release binary / `go install` | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
 | `eol-normalizer` | `hooks/normalize-eol.sh` | `command -v perl` (optional fast path) | pure-shell fallback when perl missing | n/a (degrades, does not skip) | n/a |
 
