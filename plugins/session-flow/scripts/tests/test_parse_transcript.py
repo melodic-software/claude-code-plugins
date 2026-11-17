@@ -11,7 +11,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPT = Path(__file__).parent / "parse_transcript.py"
+SCRIPT = Path(__file__).parents[1] / "parse_transcript.py"
 SESSION_ID = "test-session"
 
 

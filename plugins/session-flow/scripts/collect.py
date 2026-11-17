@@ -44,7 +44,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
-PLUGIN_ROOT = Path(__file__).resolve().parents[3]
+PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 _PLUGIN_SCRIPTS = str(PLUGIN_ROOT / "scripts")
 if _PLUGIN_SCRIPTS not in sys.path:
     sys.path.insert(0, _PLUGIN_SCRIPTS)
@@ -52,7 +52,7 @@ if _PLUGIN_SCRIPTS not in sys.path:
 import census  # noqa: E402  (beside this script)
 import friction_scan  # noqa: E402  (beside this script)
 import redact  # noqa: E402  (beside this script)
-import transcript_reader  # noqa: E402  (plugin-level scripts/transcript_reader.py)
+import transcript_reader  # noqa: E402  (beside this script)
 
 SCHEMA = "audit-sessions.collect/v1"
 CENSUS_SCHEMA = "audit-sessions.census/v1"
@@ -62,12 +62,12 @@ STATE_KEY = PLUGIN_ROOT / "lib" / "state-key.sh"
 # Every file that shapes a stored record, relative to PLUGIN_ROOT: a change to any of them
 # re-ingests every session, and a change elsewhere in the plugin (its version) does not.
 COLLECTOR_INPUTS = (
-    "skills/audit-sessions/scripts/collect.py",
-    "skills/audit-sessions/scripts/census.py",
-    "skills/audit-sessions/scripts/friction_scan.py",
-    "skills/audit-sessions/scripts/redact.py",
+    "scripts/collect.py",
+    "scripts/census.py",
+    "scripts/friction_scan.py",
+    "scripts/redact.py",
     "scripts/transcript_reader.py",
-    "skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json",
+    "vendor/gitleaks/gitleaks-rules.json",
     "lib/state-key.sh",
 )
 HEAD_BYTES = 4096

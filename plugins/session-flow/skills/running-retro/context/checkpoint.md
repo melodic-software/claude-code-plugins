@@ -7,11 +7,11 @@ none of this conversation).
 
 ## Method the subagent follows
 
-1. **Metrics first (cheap, structured).** Run retro's parser against the session data dir. Read the
-   invocation form and the Python-3.10+ interpreter-detection snippet from retro's
-   `context/session.md` Phase 1.1 (given as an absolute path); do not re-implement either. Prefer the
-   `--chain-from` form when a handoff chain was passed and the continuity gate (same Phase 1.0)
-   holds; otherwise the single-session `--sessions` form. If no Python 3.10+ is available or the
+1. **Metrics first (cheap, structured).** Run the plugin's transcript parser against the session
+   data dir. Read the invocation form and the Python-3.10+ interpreter-detection snippet from
+   `reference/transcript-parser.md` (given as an absolute path); do not re-implement either. Prefer
+   the `--chain-from` form when a handoff chain was passed and that file's continuity gate holds;
+   otherwise the single-session `--sessions` form. If no Python 3.10+ is available or the
    parser errors, note it and continue with a transcript-only read. When the Transcript input reads
    `transcript: unreadable`, run neither and do not look for the file or the subagents dir: work
    from the User's account input and the subjective-state note, and say the findings rest on them.
@@ -166,8 +166,8 @@ Inputs (all absolute/concrete):
   conversation say happened: corrections, skills invoked or bypassed>, or "n/a"
 - Subagents dir: <SESSION_DATA_DIR>/<session-id>/subagents/, or "not available" when the
   transcript is unreadable (then neither read nor list it)
-- Parser (absolute): <resolved .../skills/retro/scripts/parse_transcript.py>
-- Parser invocation + interpreter detection: read <resolved .../skills/retro/context/session.md> Phase 1.1
+- Parser (absolute): <resolved .../scripts/parse_transcript.py>
+- Parser invocation + interpreter detection + continuity gate: read <resolved .../reference/transcript-parser.md>
 - Handoff chain (if any) + continuity: <chain pointers, or "none, single session">
 - Prior running-retro ledger to carry forward: <absolute path of this chain's previous_running_retro,
   or "none, first checkpoint of the chain"> (walk its own previous_running_retro pointers backward)
