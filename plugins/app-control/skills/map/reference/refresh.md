@@ -234,14 +234,16 @@ the same commit as the ticket's other corrections. A
 surface the sweep found is new to this ticket when its source path is among
 `git diff --no-ext-diff --no-textconv --name-only <tip>...HEAD` (tip per § Return to the starting
 branch); any other unmapped surface stays in the report, as the Not mapped row says. Before writing,
-run § Ticket branch step 1's check; when it blocks, write nothing and report each new surface
+record and judge § Ticket branch step 1's status; when it blocks, write nothing and report each new surface
 unwritten. Otherwise, for each new surface:
 
 1. **Read it.** Dispatch one more `app-control:source-reader`, framed and fenced as above, with the
    hub, the surface and its source path. Ask for the feature's name, its parts, its entry points,
    the state its steps need, one drive recipe (one action per step, each with its exact handle,
    route or command), the step that shows its end state, and whether any step sends, signs in or
-   writes to an environment or external system. Spot-check one cited `file:line` as above; an
+   writes to an environment or external system. Its tripwire compares `git status --porcelain`
+   from just before this dispatch with the status after it, so an earlier new feature's write is
+   in both. Spot-check one cited `file:line` as above; an
    answer whose citation fails is dropped and the surface stays in the report.
 2. **Write it, uncommitted**, as Create step 4 writes a seeded feature, re-running the
    [real-path checks](naming.md#real-paths) before each write: `features/<slug>/README.md` by the
@@ -287,8 +289,9 @@ the steps as written; the candidates inform step 6's triage only. Three invarian
 **A stale Ready.** When Ready fails and the source wave cited a port, route, command or check the
 hub's `## Ready` names as moved or removed, open that citation yourself; when it shows the move,
 the control skill is out of date, not the app. An attended pass shows the corrected `## Ready` text
-with the citation and, once the person agrees, records the hub's current `## Ready` text and the
-output of `git status --porcelain -- "<dir>/SKILL.md"`, writes the correction in the hub and runs
+with the citation and, once the person agrees, records the hub's current `## Ready` text (on a
+ticket branch, also § Ticket branch step 1's status, unless § 4 already recorded it), writes the
+correction in the hub and runs
 Ready once more. When that retry passes, the live pass goes on
 and the fix ships as doc drift. When it fails, or the person declines, the outcome is **blocked**
 with the evidence and the corrected text in the report. An unattended pass writes nothing and runs
@@ -296,9 +299,8 @@ Ready no further: the outcome is **blocked**, with the corrected text in the rep
 fix to a `cli/` command Ready calls is a driver gap (§ 6), never this retry. Unless the step 6.3
 commit or § Ticket branch's commit carries the written fix, the recorded text goes back into the
 hub before the pass returns (§ Return to the starting branch), whatever ended it. § Ticket branch
-step 1 does not count this write as the caller's change only when that recorded status printed
-nothing: a hub that already held uncommitted changes before the write is the caller's work, and
-its commit would carry them.
+step 1 judges the caller's changes from its one recorded status, so this write never counts as
+the caller's.
 
 **One launch for features that share app state.** When the hub's launch model has no `Session:`
 line and its `Data:` line names a per-run data directory, not `none:` (the contract's "The launch
@@ -378,11 +380,12 @@ its corrections ship with that code, in the ticket's pull request, never through
 request that could merge first or without it. A ticket branch is a starting branch (§ Return to the
 starting branch) other than the default branch and the control skill's upkeep branch.
 
-1. **Stay.** Switch nothing. When `git status --porcelain -- "<dir>"` prints a line not starting
-   `??` (tracked control skill files with uncommitted changes, the caller's own; this pass's
-   stale-Ready write in § 5 and its new-feature writes in § 4 do not count, but only when the
-   hub's status recorded before that write printed nothing), the outcome is
+1. **Stay.** Switch nothing. Record `git status --porcelain -- "<dir>"` once, before this pass's
+   first write to the control skill: at § 4's new-feature check, else before § 5's stale-Ready
+   write, else here. When that recorded status prints a line not starting `??` (tracked control
+   skill files with uncommitted changes, the caller's own), the outcome is
    **blocked** with the edits in the report unwritten: the caller commits or stashes those first.
+   Every write this pass makes after the recording is its own and never counts here.
    Changes outside the directory are the caller's work and stay untouched.
 2. **Write**, as step 2 above, with each new feature's results, proof step and `driven` marks
    from its drive.
