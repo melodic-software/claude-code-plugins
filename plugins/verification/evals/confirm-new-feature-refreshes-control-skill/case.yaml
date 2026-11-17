@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: confirm-new-feature-refreshes-control-skill
+description: When affected.json names no touched feature but lists unmatched changed files on a ticket branch in outcome mode, confirm calls /app-control:map refresh once on the control skill directory so the refresh can map the feature the change adds, and edits no control skill file itself
+tags: [confirm, app-control, refresh, invented]
+expected_outcome: The reply calls /app-control:map refresh .claude/skills/control-shop once, as a call this run makes, with no per-feature refresh for cart/total or checkout. It edits no control skill file itself.
+execution:
+  prompt: "/verification:confirm outcome. Do not read the repository, launch, install or run anything; treat these as facts. Stage 1 already passed this conversation. The testing plugin is not installed, so /testing:run-e2e did not run; the live drive of the new returns page through the bundled /run is done and showed the empty returns list, which is the PR's acceptance criterion. The app-control plugin is installed: /app-control:drive and /app-control:map resolve in this session. The checkout is on feat/returns; main is the default branch. The repository has the control skill .claude/skills/control-shop/ with two features, cart/total and checkout. This branch adds src/routes/returns.ts and nothing else; it is runtime code, so E2E applies. The /app-control:drive affected call has already run: its affected.json has `control_skill` `control-shop (project: .claude/skills/control-shop/SKILL.md)`, `source` `project`, `trusted_root` null, an empty `features` list, and `unmatched_files` [\"src/routes/returns.ts\"]. I am here. List every skill call you make from here on, with its exact arguments, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: calls-refresh-on-control-skill
+    type: regex
+    pattern: 'app-control:map[`"]?(?:[\s|,]|args:)*[`"]?refresh[ `"]+\.claude/skills/control-shop/?(?![\w/-])'
+    arm: both
+  - name: refreshes-control-skill-once
+    type: llm
+    criteria: "PASS only if the reply (1) calls /app-control:map refresh with the control skill directory .claude/skills/control-shop as a call this run makes, not only as a suggestion for later, (2) makes that call once, and (3) makes no refresh call for cart/total or checkout by feature id. FAIL if it skips the refresh, only names it under Next, refreshes by feature id, edits or writes a file under .claude/skills/control-shop/ itself, or says the change touched no feature so nothing is refreshed."

@@ -90,15 +90,22 @@ excludes them, and a plugin the repository sets to `false` stays off. Apply inst
 
 ## Switch in a running session
 
-`/plugin-profile` switches this folder's profile without a model turn: it lists the profiles (or
-takes one by name, `/plugin-profile review`), shows the same preview as `apply --dry-run`, and asks
-before writing. When the switch would turn on a plugin that ships an MCP or language server, the
+`/plugin-profile` switches this folder's profile without a model turn: it opens a pane with a row
+for every profile and **No profile** (where no pane can be placed, the question dialog a page at a
+time), or takes one by name, `/plugin-profile review`. A row's whole description shows under the
+pointer, and the focused row's under the list. The pick then shows the same preview as
+`apply --dry-run`, one line per row, and asks before writing. When the switch would turn on a plugin that ships an MCP or language server, the
 question names it and says your next message re-reads the whole conversation.
 
 On Apply it writes the entries that switch plugins on and runs `/reload-plugins` once, when the
-next turn ends (or when you run `/reload-plugins` yourself first). Then it writes the entries that
-switch plugins off: those plugins stay loaded for this session and go at the next session start. A
-switch cut off between the two writes is named by `status` and finished by the next apply.
+next turn ends: send any message, or run `/reload-plugins` yourself. Then it writes the entries that
+switch plugins off: those plugins stay loaded in this session until a later `/reload-plugins` or
+the next session start. A switch cut off between the two writes is named by `status` and finished
+by the next apply.
+
+**No profile**, the picker's last choice, clears the folder's profile (as `clear` below does)
+behind the same preview and confirm, and reloads the same way, so the session then has the plugins
+your user and project settings name.
 
 It refuses the switch when `remember_folder_profile` is false or the session was started from a
 one-session file, and says how to start a session in that profile instead. A plugin it would switch
@@ -119,7 +126,8 @@ plugin installed since, a one-session profile the session runs in, and the surfa
 start a hook prints the same notice, reading the installed plugins from disk without starting
 `claude`; in a folder with no applied profile it prints nothing. `clear` puts every entry back to what it was before the first apply and
 removes a settings file the tool created; like `apply`, it prints what it changes and writes on
-`--yes` or a yes at the prompt. The record lives in the plugin's data folder.
+`--yes` or a yes at the prompt. The record lives in the plugin's data folder; `status` and `clear`
+also find one another copy of the plugin wrote, such as a `--plugin-dir` copy's.
 
 `inventory` lists the installed plugins, what they depend on, what each ships and its skills.
 `usage` lists how often each skill and plugin was used on this machine, most used first, from the

@@ -122,6 +122,13 @@ only the adapter each plugin ships, and `fix-cmd` and `lint-cmd` run when a pers
 `/toolchain:lint` or `/toolchain:check` (the
 [check-placement convention](../check-placement/README.md), "Hooks run the shipped adapter").
 
+`test-changed-cmd` is the **change-scoped test** command over `<files>`: it runs the tests the
+changed files select, by the selection the repository's own test runner provides.
+`/toolchain:check` runs it for a change and runs the full `test-cmd` under `all`, and when
+`<files>` is empty. The repository's CI calls the same recorded command for a change-scoped run,
+so an agent and CI select the same tests; the binding (which file set, which trigger) stays in
+CI's own config. No bundled default sets it.
+
 Consumers are tolerant readers: unknown keys are inert, missing optional keys fall back to defaults.
 Consuming repos should validate their files against the schema in their own gates (a
 `check-jsonschema` hook or CI lane); plugins should fail soft: a malformed file degrades to rung 2
@@ -202,10 +209,15 @@ command string (an `npm ci` in `test-cmd`), keeps an unattended run from install
 
 ## Consumers
 
-Execution consumers of the verb keys (`build-cmd`, `test-cmd`, `check-cmd`, `lint-cmd`, `fix-cmd`,
+Execution consumers of the verb keys (`build-cmd`, `test-cmd`, `test-changed-cmd`, `check-cmd`, `lint-cmd`, `fix-cmd`,
 `code-fix-cmd`) live under "Why this contract exists" (`toolchain:check`, `toolchain:lint`, the
-`review` `ecosystem-specialist`). This table records plugins that read lane membership without
-running a verb:
+`review` `ecosystem-specialist`). `verification:confirm` is an execution consumer only when the
+`toolchain` plugin is not enabled: it then runs the project's build, test and lint commands itself,
+taken from the project's `CLAUDE.md` and rules rather than the verb keys, and before each command
+reads that command's `requires` (and a gate's own `requires`) from `.claude/ecosystems/`, applying
+the `opt-in`, `probe`, `run-from`, `name` and `hint` rules of "Command prerequisites"
+(`plugins/verification/skills/confirm/SKILL.md:140`, `:144`). This table records plugins that read
+lane membership without running a verb:
 
 | Plugin | Keys | Use |
 |---|---|---|

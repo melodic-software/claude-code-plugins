@@ -327,9 +327,10 @@ function call counts. Fails when: a timing is taken with coverage on. Used by:
 - **Pointer**: when you need what enabling precise coverage changes, fetch `Profiler.startPreciseCoverage` in [`js_protocol.json`][cdp-js] live.
 
 **Stepped frames through DevTools.** A browser rig that steps frames uses
-`HeadlessExperimental.beginFrame` and records that the domain is experimental. When: a browser rig
-must step frames. Counter: frames over budget. Fails when: the domain changes and the rig is not
-rechecked. Used by: `/performance:snapshot` step 2 (fixed-tick stepping).
+`HeadlessExperimental.beginFrame` and records the domain's status as `browser_protocol.json` gives
+it when the rig is built, so a later change to that status sends the rig back for a recheck. When: a
+browser rig must step frames. Counter: frames over budget. Fails when: the domain changes and the
+rig is not rechecked. Used by: `/performance:snapshot` step 2 (fixed-tick stepping).
 
 - **Pointer**: when building the rig, fetch `HeadlessExperimental.beginFrame` in [`browser_protocol.json`][cdp-browser] live.
 

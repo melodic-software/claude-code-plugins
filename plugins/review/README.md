@@ -112,6 +112,9 @@ Invoke via `@review:<agent>` or let Claude delegate.
 - **`/review:security-review`**. CI security-review lane command for a pull
   request (org-authored; built-in `/security-review` is unusable under Actions
   checkout).
+- Both lanes record a rule they wanted to cite and no criterion states as an `Uncovered rule:`
+  line in a collapsed `Uncovered rules (N)` block of the summary. It is never a finding, never
+  counted and never inline; `/corrections:codify reviews` reads it as a candidate rule.
 
 - **Prerequisite check**. `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether node
   resolves. Read-only.

@@ -36,7 +36,7 @@ const red = (message) => ({
   conclusion: "failure",
   failedJobs: [{ name: "lint", conclusion: "failure", annotations: [{ level: "failure", message }] }],
 });
-const ejection = (id) => ({ id, url: url(id), pr: id, workflow: "pr-require-checks", createdAt: "2026-10-19T15:00:00Z", failedSteps: ["lint / Run"] });
+const ejection = (pr) => ({ pr, at: `2026-10-19T15:0${pr}:00Z`, enqueuedAt: null, labels: [] });
 const incident = (status) => ({
   id: "8tzbpcnl75jp",
   name: "Degraded availability for GitHub Actions",
@@ -60,7 +60,7 @@ const CASES = [
     { failedRuns: [denied(1, "lane-token-denied: the broker answered 500 with reason unknown")] },
     { failedRuns: [denied(2, "lane-token-denied: the broker answered 500 with reason unknown")] },
   ],
-  ["4 merge-queue ejections", { mergeGroupFailures: [ejection(1), ejection(2), ejection(3)] }, { mergeGroupFailures: [ejection(1), ejection(2), ejection(3), ejection(4)] }],
+  ["4 merge-queue ejections", { mergeQueueRemovals: [ejection(1), ejection(2), ejection(3)] }, { mergeQueueRemovals: [ejection(1), ejection(2), ejection(3), ejection(4)] }],
   ["5 held PRs", { sweep: sweep([held(1)]) }, { sweep: sweep([held(1), held(2)]) }],
   [
     "6 report-only audit",
@@ -173,11 +173,11 @@ test("3 throttling: a new key rewrites the same issue's body with no comment", a
   assert.ok(!s.calls.some((c) => c.startsWith("DELETE")), "no label DELETE: the Work status field takes agent-ready off");
 });
 
-test("4 merge-queue ejections: the oldest group leaving the 24-hour window writes nothing", async () => {
+test("4 merge-queue ejections: the oldest removal leaving the 24-hour window writes nothing", async () => {
   const s = store();
-  await runOnce(s, { mergeGroupFailures: [ejection(1), ejection(2), ejection(3), ejection(4)] });
+  await runOnce(s, { mergeQueueRemovals: [ejection(1), ejection(2), ejection(3), ejection(4)] });
   const callsBefore = s.calls.length;
-  const aged = await runOnce(s, { mergeGroupFailures: [ejection(2), ejection(3), ejection(4)] });
+  const aged = await runOnce(s, { mergeQueueRemovals: [ejection(2), ejection(3), ejection(4)] });
   assert.deepEqual(aged, nothing);
   assert.equal(s.calls.length, callsBefore);
 });
@@ -334,7 +334,7 @@ test("every signal's state is in the job summary, its evidence fenced", () => {
 
 test("signal 11 prints one ::error line per run while it fires; other signals print none", () => {
   const reports = [4, 3, 2, 1].map((runId) => ({ runId, url: `https://github.com/o/r/actions/runs/${runId}`, code: "3", reason: "unreadable: x", createdAt: "2026-10-30T14:00:00Z" }));
-  const lines = errorLines(detect({ postMergeReports: reports, mergeGroupFailures: [1, 2, 3].map((id) => ({ id, url: "u", workflow: "w", createdAt: "t" })) }));
+  const lines = errorLines(detect({ postMergeReports: reports, mergeQueueRemovals: [1, 2, 3].map(ejection) }));
   assert.equal(lines.length, 1);
   assert.match(lines[0], /^::error::Post-merge check: unreadable in the last 4 pr-merge sweeps: .*unreadable: x$/);
   assert.deepEqual(errorLines(detect({ postMergeReports: reports.slice(0, 3) })), []);

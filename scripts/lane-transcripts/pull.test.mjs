@@ -282,12 +282,23 @@ function uploadJobIds() {
       if (/^jobs:/.test(line)) inJobs = true;
       const key = inJobs && /^ {2}([A-Za-z0-9_-]+):\s*(#.*)?$/.exec(line);
       if (key) job = key[1];
-      if (!/^\s+(- )?uses:\s*\S*\/\.github\/actions\/upload-lane-transcript\b/.test(line)) return;
+      const action = /^\s+(- )?uses:\s*\S*\/\.github\/actions\/upload-lane-transcript\b/.test(line);
+      const artifact = /^\s+(- )?uses:\s*actions\/upload-artifact@/.test(line);
+      if (!action && !artifact) return;
       const rest = lines.slice(i + 1);
       const end = rest.findIndex((l) => /^\s+- /.test(l));
-      const idLine = rest.slice(0, end === -1 ? undefined : end).find((l) => /^\s+job-id:/.test(l));
-      assert.ok(idLine, `${file}:${i + 1} passes no job-id`);
-      (found[file] ??= []).push(idLine.replace(/^\s+job-id:\s*/, "").trim().replaceAll("${{ github.job }}", job));
+      const block = rest.slice(0, end === -1 ? undefined : end);
+      let id;
+      if (action) {
+        const idLine = block.find((l) => /^\s+job-id:/.test(l));
+        assert.ok(idLine, `${file}:${i + 1} passes no job-id`);
+        id = idLine.replace(/^\s+job-id:\s*/, "").trim();
+      } else {
+        const name = block.map((l) => /^\s+name:\s*lane-transcript-(.+)-\$\{\{ github\.run_attempt \}\}\s*$/.exec(l)?.[1]).find(Boolean);
+        if (!name) return;
+        id = name;
+      }
+      (found[file] ??= []).push(id.replaceAll("${{ github.job }}", job));
     });
   }
   return found;
@@ -303,6 +314,28 @@ test("every workflow that uploads a lane transcript, and every job-id it passes,
       assert.ok(TRANSCRIPT_JOB_IDS[file].some((listed) => shape.test(listed)), `${file}: job-id ${id} has no name in TRANSCRIPT_JOB_IDS`);
     }
   }
+});
+
+test("every read runner call's activity, with each leg and fix-ci's rung up, is in the puller's list", () => {
+  const listed = new Set(TRANSCRIPT_JOB_IDS["pr-run-activity-read.yml"]);
+  let calls = 0;
+  for (const [file, lines] of workflowLines()) {
+    lines.forEach((line, i) => {
+      if (!/^\s+uses:\s*\.\/\.github\/workflows\/pr-run-activity-read\.yml\b/.test(line)) return;
+      const rest = lines.slice(i + 1);
+      const end = rest.findIndex((l) => /^ {2}\S/.test(l));
+      const block = rest.slice(0, end === -1 ? undefined : end);
+      const value = (key) => block.map((l) => new RegExp(`^\\s+${key}:\\s*(.+?)\\s*$`).exec(l)?.[1]).find(Boolean) ?? "";
+      const activity = value("activity");
+      const fallback = value("fallback");
+      assert.match(activity, /^[a-z][a-z0-9-]*$/, `${file}:${i + 1}`);
+      const legs = fallback === "fallback" ? ["-fallback"] : fallback === "" ? [""] : ["-subscription"];
+      const rungs = value("model-rung") === "" ? [""] : ["", "-rung-up"];
+      for (const leg of legs) for (const rung of rungs) assert.ok(listed.has(`${activity}${leg}${rung}`), `${file}:${i + 1}: ${activity}${leg}${rung}`);
+      calls += 1;
+    });
+  }
+  assert.equal(calls, 21, "the read runner's callers");
 });
 
 test("every ci-workflows reusable called with the transcript key, and the lane it is called with, is in the puller's list", () => {
@@ -537,6 +570,15 @@ test("a result with is_error true is stored as outcome error, with its subtype a
 test("an api_error_status that is not an integer is not stored", () => {
   const rows = transcriptMetrics([{ type: "result", subtype: "success", is_error: true, api_error_status: "Credit balance is too low" }]);
   assert.equal(rows.api_error_status, null);
+});
+
+test("a writer's one-message marker is an omitted row naming its reason and size; the same message inside a transcript is not", () => {
+  const marker = (reason) => ({ type: "system", subtype: "transcript_omitted", reason, bytes: 300000, cap: 286720 });
+  const shape = ({ outcome, omitted_reason: reason, omitted_bytes: bytes, num_turns: turns }) => ({ outcome, reason, bytes, turns });
+  assert.deepEqual(shape(transcriptMetrics([marker("too-large")])), { outcome: "omitted", reason: "too-large", bytes: 300000, turns: null });
+  assert.deepEqual(shape(transcriptMetrics([marker("credential")])), { outcome: "omitted", reason: "credential", bytes: 300000, turns: null });
+  assert.deepEqual(shape(transcriptMetrics([marker("anything else")])), { outcome: "omitted", reason: "unknown", bytes: 300000, turns: null });
+  assert.deepEqual(shape(transcriptMetrics([...MESSAGES, marker("too-large")])), { outcome: "success", reason: undefined, bytes: undefined, turns: 7 });
 });
 
 test("query --outcome reads is_error, so a row stored before the field existed queries correctly", () => {

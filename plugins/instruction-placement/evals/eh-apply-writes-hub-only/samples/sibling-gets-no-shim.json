@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": []},
+    {"answer": ["AGENTS.md", "CLAUDE.md", ".gitignore"], "why": "the hub's own files: the sibling's path is not among them"}
+  ],
+  "fail": [
+    {"answer": ["ledger-service/CLAUDE.md"], "why": "a shim written into the sibling"},
+    {"answer": ["AGENTS.md", "ledger-service/CLAUDE.md"], "why": "the hub's file plus the sibling's shim"}
+  ]
+}

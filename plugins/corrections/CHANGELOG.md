@@ -3,6 +3,26 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.5.1] - 2026-11-17
+
+### Changed
+
+- `/corrections:codify` names past sessions as a count source: a correction
+  `/session-flow:audit-sessions` finds in an earlier session reaches codify through that skill, and
+  the sessions it names count as occurrences.
+
+## [1.5.0] - 2026-11-17
+
+### Added
+
+- `/corrections:codify reviews` lists each `Uncovered rule:` line a CI review lane recorded in its summary as a candidate rule beside the mined lessons, read by a parser that keeps only lines inside the lane's `Uncovered rules (N)` block of a post by the lane bot ending in its `claude-lane:` footer, and returns their text as data. A candidate still goes through the threshold, the old-versus-new proof and a person's approval.
+
+## [1.4.3] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [1.4.2] - 2026-11-17
 
 ### Changed

@@ -34,12 +34,13 @@
 *.bat   text eol=crlf
 
 ###############################################################################
-# Lockfiles: tracked, but suppress noisy diffs (regenerate to resolve).
+# Lockfiles: tracked and diffed as text; GitHub collapses them in pull request
+# diffs (regenerate to resolve). `-diff` would make git report them as binary.
 ###############################################################################
 
-package-lock.json   -diff
-packages.lock.json  -diff
-*.lock              -diff
+package-lock.json   linguist-generated
+packages.lock.json  linguist-generated
+*.lock              linguist-generated
 
 ###############################################################################
 # Append-only lists: one entry per line, order carries no meaning, and each

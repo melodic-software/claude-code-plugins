@@ -3,6 +3,18 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.2.0] - 2026-11-17
+
+### Added
+
+- The CI code-review and security-review lanes record a rule they wanted to cite and no criterion states as an `Uncovered rule:` line in a collapsed `Uncovered rules (N)` block of their summary. The line is never a finding: it posts no inline comment, adds nothing to the findings count and never sets a hold. `/corrections:codify reviews` reads it as a candidate rule.
+
+## [10.1.2] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [10.1.1] - 2026-11-17
 
 ### Changed

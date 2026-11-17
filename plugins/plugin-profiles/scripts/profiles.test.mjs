@@ -734,10 +734,48 @@ test("AC6, AC10: apply --dry-run --json previews an in-session switch as data, n
   assert.equal(preview.upToDate, false);
   assert.deepEqual(preview.mcpOrLspOn, [`implementation@${M}`]);
   assert.deepEqual(preview.pending, [`songwriting@${M}`]);
-  assert.ok(preview.lines.includes(`Left on until the next apply (1): songwriting@${M}`), preview.lines.join("\n"));
+  assert.ok(preview.lines.includes(`Switches off (1): songwriting@${M}`), preview.lines.join("\n"));
+  assert.ok(preview.lines.includes("Left on until the next apply (1): every plugin it switches off"), preview.lines.join("\n"));
   assert.ok(preview.lines.includes(`Switches on plugins with an MCP or language server: implementation@${M}`), preview.lines.join("\n"));
   assert.equal(w.read(), LOCAL_BEFORE);
   assert.deepEqual(w.records(), []);
+});
+
+test("#16747: apply --dry-run --json counts the plugins left alone and gives a command that names them", () => {
+  const w = world();
+  const preview = JSON.parse(w.run(["apply", "build", "--for", "folder", "--defer-off", "--dry-run", "--json"]).stdout);
+  assert.equal(preview.untouched, undefined);
+  const hint = `Left alone, from marketplaces this profile does not name (1); to name them, run in a terminal: node "${CLI}" apply build --for folder --dry-run`;
+  assert.ok(preview.lines.includes(hint), preview.lines.join("\n"));
+  assert.ok(!preview.lines.some((line) => line.includes("widget@vendor")), preview.lines.join("\n"));
+  const named = w.run(["apply", "build", "--for", "folder", "--dry-run"]);
+  assert.match(named.stdout, /Left alone, from marketplaces this profile does not name \(1\): widget@vendor/);
+});
+
+test("#16747: clear --dry-run --json says whether a profile is recorded, as data and lines", () => {
+  const w = world();
+  const none = JSON.parse(w.run(["clear", "--dry-run", "--json"]).stdout);
+  assert.equal(none.recorded, false);
+  assert.equal(none.sessionProfile, null);
+  assert.equal(none.lines.length, 1);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const some = JSON.parse(w.run(["clear", "--dry-run", "--json"]).stdout);
+  assert.equal(some.recorded, true);
+  assert.match(some.lines[0], /^Clears profile build from /);
+  assert.equal(w.run(["clear", "--json"]).status, 2);
+});
+
+test("#16747: clear in a session started in a one-session profile says the session keeps it", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const env = { PLUGIN_PROFILES_SESSION: "review" };
+  const preview = JSON.parse(w.run(["clear", "--dry-run", "--json"], env).stdout);
+  assert.equal(preview.sessionProfile, "review");
+  assert.ok(
+    preview.lines.includes("This session runs in profile review from a one-session settings file and keeps it after the clear; new sessions in this folder start without a folder profile."),
+    preview.lines.join("\n"),
+  );
+  assert.match(w.run(["clear", "--yes"], env).stdout, /keeps it after the clear/);
 });
 
 test("apply --dry-run --json reads upToDate once the profile is applied", () => {
@@ -1039,4 +1077,19 @@ test("launch --dry-run checks and prints the command but writes no session file"
   const refused = w.run(["launch", "build", "--dry-run", "--unattended"]);
   assert.equal(refused.status, 1, "the unattended stop still applies");
   assert.equal(existsSync(sessions), false);
+});
+
+test("#16818: an installed copy clears a profile a --plugin-dir copy applied, whose record sits in plugin-profiles-inline", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(w.records().length, 1);
+  const installed = installedCopy(w, {});
+  assert.match(w.run(["status"], {}, installed).stdout, /Profile build \(folder\) applied /);
+  const dry = JSON.parse(w.run(["clear", "--for", "folder", "--dry-run", "--json"], {}, installed).stdout);
+  assert.equal(dry.recorded, true);
+  assert.ok(!dry.lines.some((line) => line.includes("nothing to clear")), dry.lines.join("\n"));
+  const r = w.run(["clear", "--for", "folder", "--yes"], {}, installed);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
 });

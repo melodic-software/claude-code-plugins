@@ -3,6 +3,18 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0] - 2026-11-17
+
+### Added
+
+- `/verification:confirm outcome` on a branch other than the default branch, for a change E2E applies to, calls `/app-control:map refresh <control skill dir>` once when `affected.json` names no touched feature but lists unmatched changed files, so a feature the change adds is mapped on the ticket branch instead of only reported as not mapped.
+
+## [0.26.10] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [0.26.9] - 2026-11-17
 
 ### Changed

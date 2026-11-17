@@ -47,7 +47,7 @@ provider-neutral fields this puller fills (`provider`, `run_ref`, `run_url`, `le
 metrics row also holds the artifact, run, attempt and job ids, lane, workflow name, event, branch,
 the run's conclusion when pulled, `created_at` and `date`, the init message's `model`, the result
 message's `models` (its `modelUsage` keys), `outcome` (`error` when `is_error` is true, else the
-`subtype`), `subtype`, `is_error`, `api_error_status` (`null` when the result carries none),
+`subtype`; `omitted`, with `omitted_reason` and `omitted_bytes`, for a writer's marker), `subtype`, `is_error`, `api_error_status` (`null` when the result carries none),
 `num_turns`, `duration_ms` and token counts, the transcript's size, and its path (`null` once
 pruned).
 
@@ -57,8 +57,10 @@ Artifacts are listed one name at a time, since the repository-wide artifact list
 for this repository. A name is `lane-transcript-<job-id>-<attempt>`: `TRANSCRIPT_JOB_IDS` in
 `pull.mjs` holds every job-id an upload step passes, by workflow, including the `ci-workflows`
 reusables this repository calls with the transcript key, and the pull lists each with attempts 1
-to 3. `pull.test.mjs` fails when a workflow that calls `upload-lane-transcript` or such a
-reusable is missing from that list, or a local job-id is (an expression in it matches any text),
+to 3. `pull.test.mjs` fails when a workflow that calls `upload-lane-transcript`, uploads a
+`lane-transcript-` artifact itself, or calls such a reusable is missing from that list, or a local
+job-id is (an expression in it matches any text; the read runner's activities are checked against
+its callers),
 so a new upload step adds its job-id there, and a job-id holds no value a fixed list cannot name,
 such as an issue number; a job-id that changes inside a reusable is not checked. Each name is
 listed newest first, back to the last successful pull less 6 hours (7 days on the first pull), by the artifact's own `created_at`, so a

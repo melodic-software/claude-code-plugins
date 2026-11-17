@@ -3,6 +3,31 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.16] - 2026-11-17
+
+### Changed
+
+- `/playwright:playwright` keeps its secret-fill, stale-ref, readiness-signal and distinct-session-name rules but no longer restates what the CLI prints, a quoted error string, what `click` waits for or how sessions are keyed; what `click` waits for now points at Playwright's actionability checks ([#16857](https://github.com/melodic-software/claude-code-plugins/issues/16857)).
+
+## [2.0.15] - 2026-11-17
+
+### Changed
+
+- `/playwright:playwright` checks state (presence, counts, text, enabled or checked) on the DOM
+  and uses a screenshot only for a visual change.
+
+## [2.0.14] - 2026-11-17
+
+### Fixed
+
+- The concurrent-sessions example in `reference/sessions.md` waits on each `open` by pid, so a failed open is reported instead of hidden by a bare `wait`.
+
+## [2.0.13] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [2.0.12] - 2026-11-17
 
 ### Changed

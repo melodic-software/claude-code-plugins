@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Ready lists local's server-log, shop-db and otel, each read unattended.\nMissing local: tracker, errors\nMissing staging: telemetry, database, errors\nSources read: none",
+      "why": "names both kinds local lacks and none it has"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Missing local: none\nMissing staging: telemetry, database, errors\nSources read: none",
+      "why": "misses the kinds local has no source for"
+    },
+    {
+      "answer": "Missing local: logs, tracker, errors\nSources read: none",
+      "why": "lists a kind local has a source for"
+    }
+  ]
+}

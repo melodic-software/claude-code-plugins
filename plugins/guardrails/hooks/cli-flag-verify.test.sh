@@ -564,13 +564,16 @@ FAKE
 chmod +x "$FAKE_BIN_DIR/fakebig"
 big_cache="$opt_dir/cache/guardrails/cli-flag-cache/fakebig.help"
 torn=0
+verify_failed=0
 for _round in 1 2 3 4 5 6; do
   rm -f "$big_cache"
+  pids=()
   for _w in 1 2 3; do
     PATH="$FAKE_BIN_DIR:$PATH" LOCALAPPDATA="$opt_dir/cache" \
       XDG_CACHE_HOME="$opt_dir/cache" \
       CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=fakebig \
       bash "$VERIFIER" --quiet fakebig --tail-sentinel >/dev/null 2>&1 &
+    pids+=($!)
   done
   while jobs -r %% >/dev/null 2>&1; do
     if [[ -s "$big_cache" ]] && ! grep -q -- '--tail-sentinel' < <(tail -c 40 "$big_cache" 2>/dev/null); then
@@ -578,9 +581,10 @@ for _round in 1 2 3 4 5 6; do
       break
     fi
   done
-  wait
+  for p in "${pids[@]}"; do wait "$p" || verify_failed=$((verify_failed + 1)); done
 done
 assert_eq "verifier: a concurrent reader never catches a torn cache entry" 0 "$torn"
+assert_eq "verifier: every concurrent verifier finds the flag" 0 "$verify_failed"
 
 # ============ DEFAULT BIN SET — npm excluded (global-flag FP) ===============
 # `npm ci --prefix ./vendor` was reported UNKNOWN: `--prefix` is one of npm's

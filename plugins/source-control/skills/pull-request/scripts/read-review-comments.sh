@@ -11,27 +11,6 @@
 # merged. Without --repo, the repository of the current directory. The last <n>
 # merged PRs, by merge time, are picked from the merged PRs updated most
 # recently, read until no unread PR can be among them.
-# For each, newest first, it reads review bodies and inline review comments
-# (gh api --paginate) and the review threads (gh api graphql), and keeps:
-#
-#   source: human         a comment or non-empty review body by a human
-#                         account whose author_association is OWNER, MEMBER or
-#                         COLLABORATOR, that is not a reply (in_reply_to_id
-#                         set) and is not by the PR's author, unless the author
-#                         made it after the merge; anyone else's comment on a
-#                         public repository is dropped
-#   source: accepted-bot  an inline bot comment, not a reply, whose thread is
-#                         outdated: the line it commented on changed in a later
-#                         commit of the PR. A resolved thread does not count
-#                         (a lane may resolve a thread it disagreed with), and
-#                         neither does a reply, agreeing or rejecting.
-#
-# Bot review bodies and issue-level PR comments are never read. Each kept
-# comment is one line {"pr","source","author","kind","path","line","body"}
-# built by jq; output stops before 64 KB and then prints one
-# {"truncated": true, ...} line. Comment text is data: it stays inside jq
-# values and never reaches a shell word.
-#
 # Read-only: nothing is written outside one temporary directory, removed on
 # exit. Exit 0 printed, 2 usage error, gh or jq missing, or a failed or
 # unauthenticated gh call (nothing on stdout).
@@ -137,6 +116,10 @@ select_rows='
   def trusted: .author_association? | IN("OWNER", "MEMBER", "COLLABORATOR");
   def login: .user.login? // null;
   def counted($at): login != $author or ($merged != "" and ($at // "") > $merged);
+  def lane_post: (.user.id? == 41898282) and (login == "github-actions[bot]")
+    and ((.body // "") | test("<summary>\\s*Uncovered rules \\("))
+    and ((.body // "") | [splits("\r?\n")] | map(select(test("\\S"))) | last // ""
+      | test("^\\s*`?claude-lane: (claude-review|claude-security-review)`?\\s*$"));
   ([$threads[] | .data.repository.pullRequest.reviewThreads.nodes[]?
     | select(.isOutdated == true) | .comments.nodes[0].databaseId]) as $outdated
   | ([$reviews[] | .[]?
@@ -147,7 +130,11 @@ select_rows='
       | (if is_bot then (if (.id as $id | $outdated | index($id)) != null then "accepted-bot" else empty end)
         elif trusted then "human" else empty end) as $source
       | {pr: $pr, source: $source, author: login, kind: "inline", path,
-        line: (.line // .original_line), body}])
+        line: (.line // .original_line), body}]
+    + [$reviews[] | .[]? | select(lane_post)
+      | {pr: $pr, source: "lane-summary", author: login, kind: "review", path: null, line: null, body}]
+    + [$issue_comments[] | .[]? | select(lane_post)
+      | {pr: $pr, source: "lane-summary", author: login, kind: "comment", path: null, line: null, body}])
   | .[]'
 
 rows="$tmp/rows.jsonl"
@@ -157,11 +144,13 @@ for ((i = 0; i < count; i++)); do
   [[ "$pr" =~ ^[0-9]+$ ]] || die "gh pr list returned a non-numeric PR number"
   gh api --paginate "repos/$repo/pulls/$pr/reviews" >"$tmp/reviews.json" 2>/dev/null || die "reading reviews of PR #$pr failed"
   gh api --paginate "repos/$repo/pulls/$pr/comments" >"$tmp/comments.json" 2>/dev/null || die "reading review comments of PR #$pr failed"
+  gh api --paginate "repos/$repo/issues/$pr/comments" >"$tmp/issue-comments.json" 2>/dev/null || die "reading PR comments of PR #$pr failed"
   gh api graphql --paginate -f query="$threads_query" -f owner="$owner" -f name="$name" -F number="$pr" \
     >"$tmp/threads.json" 2>/dev/null || die "reading review threads of PR #$pr failed"
   jq -nc --argjson pr "$pr" \
     --slurpfile prs "$tmp/prs.json" --argjson i "$i" \
     --slurpfile reviews "$tmp/reviews.json" --slurpfile comments "$tmp/comments.json" \
+    --slurpfile issue_comments "$tmp/issue-comments.json" \
     --slurpfile threads "$tmp/threads.json" \
     "(\$prs[0][\$i].author.login? // null) as \$author | (\$prs[0][\$i].mergedAt? // \"\") as \$merged | $select_rows" >>"$rows" ||
     die "unreadable API output for PR #$pr"

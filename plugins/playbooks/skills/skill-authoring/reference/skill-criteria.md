@@ -11,8 +11,8 @@ setting is named as one: a `/skill-quality:check` setting, or a choice of this p
 
 The deletion test governs every line, in the description, the body, a reference file or an agent:
 could the model already know this, or do the job without it? If so, cut it. Cruft is not length:
-never justify a deletion by character count alone, and never keep a line because it is short
-(per the `claude-api` skill's prompt audit). Explaining what the agent already knows doesn't just waste space, it
+the test asks whether the model needs a line, not how long it is, so never justify a deletion by
+character count alone, and never keep a line because it is short. Explaining what the agent already knows doesn't just waste space, it
 dilutes the lines that actually matter, because the agent's attention is spread across everything
 you wrote. The agent already knows how to write decent CSS or React; it doesn't know the nuances,
 like increasing the duration of an animation if the object is larger. Domain expertise is what

@@ -8,6 +8,8 @@
 // an issue.
 import { createHash } from "node:crypto";
 
+import { labelHolds } from "../pr-merge/merge-holds.mjs";
+
 export const CEILING = 0.9;
 export const ACTIONS_JOB_LIMIT = 60;
 export const EJECTIONS_PER_DAY = 2;
@@ -204,20 +206,38 @@ export function mainRedFindings({ mainRun = null }) {
   return out;
 }
 
-export function ejectionFindings({ mergeGroupFailures = [] }) {
-  if (mergeGroupFailures.length <= EJECTIONS_PER_DAY) return [];
+const isHoldLabel = (name) => labelHolds([name], null, 0).length > 0;
+const at = (iso) => Date.parse(iso);
+
+export function ejectionFindings({ mergeQueueRemovals = [], mergeGroupFailures = [] }) {
+  const judged = mergeQueueRemovals.map((r) => {
+    const runs = mergeGroupFailures
+      .filter((f) => f.pr === r.pr && at(f.createdAt) <= at(r.at) && (r.enqueuedAt === null || at(f.createdAt) >= at(r.enqueuedAt)))
+      .sort((a, b) => at(b.createdAt) - at(a.createdAt));
+    const label = (r.labels ?? []).find(isHoldLabel);
+    const held = label ? `'${label}' added while queued` : r.enqueuedAt !== null && runs.some((f) => f.killSwitch) ? "the lanes kill switch failed its group" : null;
+    return { ...r, run: runs[0] ?? null, held };
+  });
+  const counted = judged.filter((r) => !r.held).sort((a, b) => at(b.at) - at(a.at));
+  if (counted.length <= EJECTIONS_PER_DAY) return [];
+  const notCounted = judged.filter((r) => r.held);
+  const [newest] = counted;
   return [
     finding({
       key: "merge-queue-ejections",
       signal: "4 merge-queue ejections",
-      title: `Merge queue: ${mergeGroupFailures.length} ejections in the last 24 hours`,
+      title: `Merge queue: ${counted.length} ejections in the last 24 hours`,
       area: "Merge lane (pr-merge and the merge queue)",
-      summary: `${mergeGroupFailures.length} merge-group runs failed in the last 24 hours, over the ${EJECTIONS_PER_DAY} a day this lane allows.`,
-      facts: mergeGroupFailures.map(
-        (r) => `#${r.pr ?? "?"} ${r.workflow} ${r.createdAt}: ${(r.failedSteps ?? []).join("; ") || "no failed step listed"} ${r.url}`,
-      ),
-      // The newest group only: an old group leaving the 24-hour window is not new evidence.
-      evidence: ["merge-queue-ejections", Math.max(...mergeGroupFailures.map((r) => Number(r.id)))],
+      summary: `${counted.length} merge-queue removals for failed checks in the last 24 hours, over the ${EJECTIONS_PER_DAY} a day this lane allows. ${mergeGroupFailures.length} merge groups failed; ${notCounted.length} removals a hold applied while queued caused are not counted.`,
+      facts: [
+        ...counted.map(({ pr, at: removedAt, run }) =>
+          run
+            ? `#${pr} removed ${removedAt}: ${(run.failedSteps ?? []).join("; ") || "no failed step listed"} ${run.url}`
+            : `#${pr} removed ${removedAt}: no failed merge-group run read`,
+        ),
+        ...notCounted.map(({ pr, at: removedAt, held }) => `not counted: #${pr} removed ${removedAt}: ${held}`),
+      ],
+      evidence: ["merge-queue-ejections", newest.pr, newest.at],
     }),
   ];
 }

@@ -57,8 +57,9 @@ its own record; the others rely on this one:
 
 ### Grant every injected command
 
-We design every injected command for the default permission mode, where a command the permission
-check refuses aborts the skill load. We therefore:
+We design every injected command to pass the permission check in the default permission mode, so
+the skill loads for a consumer who has granted nothing beyond the skill itself. For what a refused
+command does to the load, see the pointer below. We therefore:
 
 - **Pre-approve every injected line in the skill's own `allowed-tools`**, with a rule narrow enough
   to name that command, covering every subcommand on the line, the fallback and any output cap

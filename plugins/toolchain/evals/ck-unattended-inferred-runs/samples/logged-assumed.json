@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "assumed: typescript.test-cmd=npm test (package.json:6)"},
+    {"answer": "- `assumed: typescript.test-cmd=npm run test (package.json:6)`"}
+  ],
+  "fail": [
+    {"answer": "assumed: typescript.test-cmd=npm test", "why": "no source named"},
+    {"answer": "assumed: typescript.test-cmd=npx vitest run (reference/ecosystems/typescript.yaml:13)", "why": "the bundled default, not the inferred script"},
+    {"answer": "Inferred typescript: globs *.js, package.json", "why": "no assumed: line"}
+  ]
+}

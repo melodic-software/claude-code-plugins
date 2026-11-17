@@ -62,7 +62,8 @@ prompt. A `Not installed` line does not stop an apply: only a missing required p
   the name is unknown. To switch inside this session, tell the user to run `/plugin-profile`; when
   an apply takes effect is in
   [plugin commands: /reload-plugins](https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins).
-- **clear**: `clear [--for folder|initial]` restores what the tool wrote.
+- **clear**: `clear [--for folder|initial]` restores what the tool wrote. Inside a session, tell
+  the user to run `/plugin-profile` and pick **No profile**, which also reloads the session.
 - **check**: `check` reports profile files that name plugins the catalog or machine lacks; relay
   each FAIL and Report line.
 - **setup**: the guided walk below.

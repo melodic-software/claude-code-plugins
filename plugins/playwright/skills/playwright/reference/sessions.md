@@ -92,13 +92,17 @@ Supported channels: `chrome`, `chrome-beta`, `chrome-dev`, `chrome-canary`, `mse
 
 ## Patterns
 
-**Concurrent scraping**: open N browsers in parallel, then collect:
+**Concurrent scraping**: open N browsers in parallel, wait on each pid (a bare `wait` returns 0
+even when an open failed), then collect:
 
 ```bash
-playwright-cli -s=site1 open https://site1.com &
-playwright-cli -s=site2 open https://site2.com &
-playwright-cli -s=site3 open https://site3.com &
-wait
+pids=() rc=0
+for site in site1 site2 site3; do
+  playwright-cli -s="$site" open "https://$site.com" &
+  pids+=($!)
+done
+for p in "${pids[@]}"; do wait "$p" || rc=1; done
+[[ $rc -eq 0 ]] || echo "a session failed to open" >&2
 playwright-cli -s=site1 snapshot
 playwright-cli -s=site2 snapshot
 playwright-cli -s=site3 snapshot

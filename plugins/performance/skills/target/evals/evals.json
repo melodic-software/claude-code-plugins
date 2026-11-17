@@ -57,12 +57,12 @@
       "id": 5,
       "name": "names-the-counter-and-labels-the-generalization",
       "prompt": "/performance:target the pre-tool hook chain: a census attributes 4 spawns per tool call to it. Give me the ranked table, and tell me why counting spawns beats timing them.",
-      "expected_output": "The ranked table names process spawns as the drift-immune counter that settles the candidate. Presents the counter as reproducible on a drifting host, never as more truthful than the duration, and labels counts-over-wall-clock for process spawns as this plugin's own generalization, and states that execution time stays the metric users perceive.",
+      "expected_output": "The ranked table names process spawns as the drift-immune counter that settles the candidate. Presents the counter as reproducible on a drifting host, never as more truthful than the duration, and labels counts-over-wall-clock for process spawns as this plugin's own generalization: the literature grounds it for instruction counts specifically, and the duration stays what a user feels.",
       "files": [],
       "expectations": [
         "Names process spawns as the drift-immune counter for the candidate",
         "Presents the counter as reproducible, never as more truthful than the duration",
-        "Labels counts-over-wall-clock for spawns as the plugin's own generalization",
+        "Labels counts-over-wall-clock for spawns as the plugin's own generalization, sourced only for instruction counts",
         "Acknowledges the counter-argument that execution time is what users perceive"
       ]
     },

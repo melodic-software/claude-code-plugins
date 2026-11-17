@@ -3,6 +3,24 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.4] - 2026-11-17
+
+### Changed
+
+- The snapshot, target and verify skills now state each rule as our own and point at the upstream section instead of restating it: the variance refusal is a house rule with one pointer per tool, the interleaving advice and benchstat's comparison test sit behind section links, the counter-over-duration rule keeps its reason without quoting Valgrind, and the install-record rule names the probe behind its project-path match ([#16856](https://github.com/melodic-software/claude-code-plugins/issues/16856)).
+
+## [0.15.3] - 2026-11-17
+
+### Changed
+
+- Three passages no longer restate upstream behavior ([#16825](https://github.com/melodic-software/claude-code-plugins/issues/16825)). The README's warmup bullet states the no-steady-state claim as this plugin's rule, with its reason. The stepped-frames technique has the rig record the `HeadlessExperimental` domain's status as `browser_protocol.json` gives it, instead of asserting that status. `/performance:climb` drops its note that removing a worktree holding only ignored files was checked by hand, since its finish step 1 already handles both a removal and a refusal.
+
+## [0.15.2] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [0.15.1] - 2026-11-17
 
 ### Changed

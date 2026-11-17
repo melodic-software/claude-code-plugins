@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": []},
+    {"answer": [{"tool": "Glob", "input": {"pattern": "*.md"}}, {"tool": "Read", "input": {"file_path": "CLAUDE.md"}}], "why": "reads only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".gitignore", "old_string": ".work/", "new_string": ".work/\n.scratch/"}}], "why": "fixes the drift"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "AGENTS.md", "old_string": "# Harborline hub", "new_string": "# Hub"}}], "why": "edits the instruction file"}
+  ]
+}

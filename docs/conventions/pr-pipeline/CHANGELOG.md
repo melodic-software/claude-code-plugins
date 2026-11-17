@@ -1,5 +1,25 @@
 # Changelog for the PR pipeline convention
 
+## [10.7.4] - 2026-11-17
+
+### Fixed
+
+- The `claude-code-plugins` example config passes `--unattended` to `toolchain:check` in `run-tests` and `check-default-branch`, since that skill now takes the flag and a lane run has nobody to answer an ask.
+
+## [10.7.3] - 2026-11-17
+
+### Fixed
+
+- The monitoring lane's signal 4 (`merge-queue-ejections`) counts the merge queue's removals of pull requests for failed checks, read from the timelines of the pull requests whose merge groups failed, not failed merge-group runs: a group the queue rebuilt behind an entry that left removed nothing. A removal a hold caused after the enqueue is not counted: a `do-not-merge`, human-gated, `pr-verify-failed` or `security: outside-actor` label added while queued, or a failed group whose queue-hold step names the lanes kill switch. The title and summary carry the removal count, and a listing past 100 failed runs or 50 pull requests, or a pull request timeline past 100 items, leaves the signal unread.
+
+## [10.7.2] - 2026-11-17
+
+### Changed
+
+- Each Refine fix-docs call (the first, the subscription and the fallback leg) runs its model leg
+  for at most 15 minutes, down from 45: its run job's timeout is 30 minutes, down from 60. A hosted
+  review's `wait-refine` job now waits up to 30 minutes for Refine, down from 40.
+
 ## [10.7.1] - 2026-11-17
 
 ### Changed

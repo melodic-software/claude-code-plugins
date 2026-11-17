@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The migrations lesson goes in the `## Gotchas` of .claude/skills/control-clockwork/SKILL.md, the hub, since all four features showed it. The double-click lesson is left unwritten. Outcome changed; it ships on control-skill-upkeep/control-clockwork.",
+      "why": "names the hub's Gotchas"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The migrations lesson goes in each feature's README.md under Drive as a new wait step.",
+      "why": "names no hub Gotchas"
+    }
+  ]
+}

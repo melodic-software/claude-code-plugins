@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "bash check scripts/app.sh\n", "why": "the stated lint command ran on the changed file"}
+  ],
+  "fail": [
+    {"answer": "", "why": "nothing ran"},
+    {"answer": "bash check scripts/app.sh docs/guide.md\n", "why": "a markdown file was passed to the shell lint"}
+  ]
+}

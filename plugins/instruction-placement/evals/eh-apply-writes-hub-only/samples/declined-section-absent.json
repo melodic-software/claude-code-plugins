@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "# Harborline hub\n\n## Where work is filed\n\n- File an item in the hub's tracker only when no single repository owns it.\n\n## Working material\n\n- Scratch files go in `.work/`.\n", "why": "the accepted sections only"},
+    {"answer": "", "why": "an empty file has no declined section"}
+  ],
+  "fail": [
+    {"answer": "# Harborline hub\n\n## Where cross-repository decisions live\n\nSee the architecture repository.\n", "why": "the declined section's own heading"},
+    {"answer": "# Harborline hub\n\n## Working material\n\n- Scratch files go in `.work/`.\n\nWe record each choice as an ADR in the architecture repository.\n", "why": "the declined content under another heading"},
+    {"answer": "# Harborline hub\n\nWrite a decision record for every change that spans repositories.\n", "why": "the declined content as a rule"}
+  ]
+}

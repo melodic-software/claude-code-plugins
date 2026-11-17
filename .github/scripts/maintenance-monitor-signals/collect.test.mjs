@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { collect, jobsCarryFile, JOBS_VERSION, LIMITS, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry, PUBLISH_LANE_LEVEL_JOB, restAnnotations, restJobs, VARIABLE_STEPS } from "./collect.mjs";
+import { switchHold } from "../pr-merge/merge-holds.mjs";
+import { collect, jobsCarryFile, JOBS_VERSION, KILL_SWITCH, LIMITS, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry, PUBLISH_LANE_LEVEL_JOB, QUEUE_HOLD_STEPS, restAnnotations, restJobs, VARIABLE_STEPS } from "./collect.mjs";
 import { partlyReadSignals, planIssues, SIGNALS, unreadSignals } from "./issues.mjs";
 import { ceilingFindings, detect, laneVariableFindings } from "./signals.mjs";
 
@@ -120,6 +121,10 @@ function fakeApi(routes, { nulls = new Set() } = {}) {
       return { data: { repository: { pullRequests: { totalCount: pulls.length, nodes } } } };
     }
     const repository = {};
+    for (const [, alias, number] of query.matchAll(/(a\d+): pullRequest\(number: (\d+)\) \{ timelineItems\(/g)) {
+      const items = resolve(`/queue-timeline/${number}`);
+      repository[alias] = { timelineItems: Array.isArray(items) ? { pageInfo: { hasPreviousPage: false }, nodes: items } : items };
+    }
     for (const [, alias, number, before] of query.matchAll(/(a\d+): pullRequest\(number: (\d+)\) \{ comments\(last: 100, before: "(\d+)"\)/g)) {
       repository[alias] = { comments: commentPage(comments(number), Number(before)) };
     }
@@ -184,6 +189,10 @@ const stallRoutes = () => [
   [/\/commits\/[0-9a-f]{40}\/check-runs/, { check_runs: [{ started_at: "2026-10-19T11:00:00Z" }] }],
 ];
 
+const enqueued = (createdAt, login = "kyle-sexton") => ({ __typename: "AddedToMergeQueueEvent", createdAt, actor: { login } });
+const removed = (createdAt, reason = "failed_checks", login = "github-merge-queue") => ({ __typename: "RemovedFromMergeQueueEvent", createdAt, reason, actor: { login } });
+const labeled = (createdAt, name) => ({ __typename: "LabeledEvent", createdAt, label: { name } });
+
 const routes = () => [
   ...stallRoutes(),
   [/workflows\/pr-merge\.yml\/runs/, { workflow_runs: [run(10)] }],
@@ -218,6 +227,8 @@ const routes = () => [
   ],
   [/runs\/50\/jobs/, { jobs: [{ id: 500, name: "Test Bash (1/4)", conclusion: "failure", steps: [{ name: "Run the suites", conclusion: "failure" }, { name: "Set up", conclusion: "success" }] }] }],
   [/runs\/52\/jobs/, { jobs: [{ id: 520, name: "lint", conclusion: "failure", steps: [] }] }],
+  [/\/queue-timeline\/8225$/, [enqueued("2026-10-19T14:58:00Z"), removed("2026-10-19T15:20:00Z")]],
+  [/\/queue-timeline\//, []],
   [
     /actions\/artifacts\?name=pr-merge-summary/,
     {
@@ -295,6 +306,7 @@ test("collect reads every source into the signals' data shape", async () => {
       [8031, ["lint"]],
     ],
   );
+  assert.deepEqual(data.mergeQueueRemovals, [{ pr: 8225, at: "2026-10-19T15:20:00Z", enqueuedAt: "2026-10-19T14:58:00Z", labels: [] }]);
   assert.equal(data.sweep.runId, 1001);
   assert.deepEqual(data.postMergeReports, [
     { runId: 10, url: "https://github.com/o/r/actions/runs/10", code: "0", reason: null, createdAt: "2026-10-19T16:01:00Z" },
@@ -324,6 +336,119 @@ test("collect reads every source into the signals' data shape", async () => {
       [902, "done", 7677],
     ],
   );
+});
+
+const QUEUE_HOLD_STEP = "Fail a queued pull request a hold stops, before the lanes";
+const removalRoutes = ({ killSwitch = false } = {}) => [
+  [
+    /event=merge_group/,
+    {
+      total_count: 3,
+      workflow_runs: [
+        run(80, { name: "PR Require Checks", head_branch: "gh-readonly-queue/main/pr-16725-aaaa", created_at: "2026-10-19T13:53:00Z" }),
+        run(81, { name: "PR Require Checks", head_branch: "gh-readonly-queue/main/pr-16363-bbbb", created_at: "2026-10-19T10:13:00Z" }),
+        run(82, { name: "PR Require Checks", head_branch: "gh-readonly-queue/main/pr-15193-cccc", created_at: "2026-10-19T08:55:00Z" }),
+      ],
+    },
+  ],
+  [/runs\/80\/jobs/, { jobs: [{ id: 800, name: "CI Status", conclusion: "failure", steps: [{ name: "Fail a queued pull request carrying a hold label", conclusion: "failure" }] }] }],
+  [/runs\/81\/jobs/, { jobs: [{ id: 810, name: "Select Tests", conclusion: "failure", steps: [{ name: QUEUE_HOLD_STEP, conclusion: "failure" }] }] }],
+  [/runs\/82\/jobs/, { jobs: [{ id: 820, name: "Test Bash (1/4)", conclusion: "failure", steps: [{ name: "Run the suites", conclusion: "failure" }] }] }],
+  [
+    /check-runs\/810\/annotations/,
+    [
+      {
+        annotation_level: "failure",
+        message: `${killSwitch ? switchHold({ number: 16363, user: { type: "Bot", id: 7 } }, { appId: "7", disabled: "true", repoDisabled: "false" }) : "#16363 carries the 'do-not-merge' label; the merge queue removes it."} The lanes do not run for this group.`,
+      },
+    ],
+  ],
+  [
+    /\/queue-timeline\/16725$/,
+    [
+      labeled("2026-10-19T08:11:20Z", "do-not-merge"),
+      enqueued("2026-10-19T13:52:52Z"),
+      labeled("2026-10-19T13:57:10Z", "do-not-merge"),
+      removed("2026-10-19T13:59:03Z"),
+      enqueued("2026-10-19T14:01:02Z"),
+      removed("2026-10-19T14:07:21Z", "merged"),
+      labeled("2026-10-19T14:09:13Z", "merge-path: owner-agent"),
+    ],
+  ],
+  [
+    /\/queue-timeline\/16363$/,
+    [
+      enqueued("2026-10-19T10:12:54Z", "melodic-automation-lanes"),
+      removed("2026-10-19T10:23:03Z"),
+      labeled("2026-10-19T10:29:51Z", "do-not-merge"),
+      enqueued("2026-10-19T11:07:01Z"),
+      removed("2026-10-19T11:10:03Z", "manual", "kyle-sexton"),
+    ],
+  ],
+  [/\/queue-timeline\/15193$/, [removed("2026-10-18T10:00:00Z"), removed("2026-10-19T09:00:00Z")]],
+];
+
+test("merge-queue removals: each failed-checks removal in 24 hours, with its enqueue and the labels added between", async () => {
+  const api = fakeApi([...removalRoutes(), ...routes()]);
+  const data = await collect(input(api));
+  assert.deepEqual(data.gaps, []);
+  assert.deepEqual(
+    [...data.mergeQueueRemovals].sort((a, b) => a.at.localeCompare(b.at)),
+    [
+      { pr: 15193, at: "2026-10-19T09:00:00Z", enqueuedAt: null, labels: [] },
+      { pr: 16363, at: "2026-10-19T10:23:03Z", enqueuedAt: "2026-10-19T10:12:54Z", labels: [] },
+      { pr: 16725, at: "2026-10-19T13:59:03Z", enqueuedAt: "2026-10-19T13:52:52Z", labels: ["do-not-merge"] },
+    ],
+  );
+  const timelines = api.queries.filter((q) => q.query.includes("timelineItems("));
+  assert.equal(timelines.length, 1);
+  assert.match(timelines[0].query, /since: "2026-10-18T10:41:00Z"/);
+  assert.deepEqual(data.mergeGroupFailures.map((r) => [r.pr, r.killSwitch]), [[16725, false], [16363, false], [15193, false]]);
+});
+
+test("merge-queue removals: a group the kill switch failed is marked, reading annotations only of a failed queue-hold step", async () => {
+  const api = fakeApi([...removalRoutes({ killSwitch: true }), ...routes()]);
+  const data = await collect(input(api));
+  assert.deepEqual(data.mergeGroupFailures.map((r) => [r.pr, r.killSwitch]), [[16725, false], [16363, true], [15193, false]]);
+  assert.deepEqual(api.calls.filter((c) => /check-runs\/8\d0\/annotations/.test(c)), ["/repos/o/r/check-runs/810/annotations?per_page=100"]);
+  const [found] = detect({ now, windowStart, mergeQueueRemovals: data.mergeQueueRemovals, mergeGroupFailures: data.mergeGroupFailures }).filter((f) => f.key === "merge-queue-ejections");
+  assert.equal(found, undefined, "1 removal counted: #16725's is a hold, #16363's the kill switch");
+});
+
+test("merge-queue removals: a cut listing or a failed timeline read is a gap, so signal 4 reads unread", async () => {
+  const cut = fakeApi([[/event=merge_group/, { total_count: 101, workflow_runs: [] }], ...routes()]);
+  const cutData = await collect(input(cut));
+  assert.deepEqual(cutData.gaps, ["merge-queue ejections: 101 failed merge-group runs in 24 hours, only the newest 100 listed"]);
+  assert.ok(unreadSignals(cutData.gaps).has("4 merge-queue ejections"));
+  const failing = fakeApi(routes());
+  const graphql = async (query, variables) => {
+    if (query.includes("timelineItems(")) throw new Error("POST /graphql: HTTP 502");
+    return failing.graphql(query, variables);
+  };
+  const data = await collect({ ...input(failing), graphql });
+  assert.deepEqual(data.gaps, ["merge-queue ejections: POST /graphql: HTTP 502"]);
+  assert.ok(unreadSignals(data.gaps).has("4 merge-queue ejections"));
+});
+
+test("merge-queue removals: a timeline cut at 100 items is a gap, so signal 4 neither clears nor counts a partial set", async () => {
+  const cut = { pageInfo: { hasPreviousPage: true }, nodes: [enqueued("2026-10-19T15:00:00Z"), removed("2026-10-19T15:20:00Z")] };
+  const api = fakeApi([[/\/queue-timeline\/8225$/, cut], ...routes()]);
+  const data = await collect(input(api));
+  assert.deepEqual(data.gaps, ["merge-queue ejections: #8225's merge-queue timeline holds more than 100 items in the window; the older ones were not read"]);
+  assert.ok(unreadSignals(data.gaps).has("4 merge-queue ejections"));
+  assert.equal(api.queries.filter((q) => q.query.includes("timelineItems(")).length, 1);
+  assert.match(api.queries.find((q) => q.query.includes("timelineItems(")).query, /pageInfo \{ hasPreviousPage \}/);
+});
+
+test("merge-queue removals: a timeline answer with no page info did not read", async () => {
+  const api = fakeApi([[/\/queue-timeline\/8225$/, { nodes: [] }], ...routes()]);
+  const data = await collect(input(api));
+  assert.deepEqual(data.gaps, ["merge-queue ejections: #8225's merge-queue timeline did not read"]);
+});
+
+test("merge-queue removals: the kill-switch match reads switchHold's own text", () => {
+  const text = switchHold({ number: 1, user: { type: "Bot", id: 7 } }, { appId: "7", disabled: "true", repoDisabled: "false" });
+  assert.match(text, KILL_SWITCH);
 });
 
 test("a replay (no own rate reading) skips the live-only Actions sample", async () => {
@@ -757,15 +882,18 @@ const openPulls = (pulls) => (path) => {
 };
 const idle = (number, day) => ({ number, head: { sha: sha("e") }, updated_at: `2026-10-${String(day).padStart(2, "0")}T00:00:00Z` });
 
+const stalledQueries = (api) => api.queries.filter((q) => !q.query.includes("timelineItems(") && !q.query.includes("nodes(ids: $ids)"));
+
 test("stalled stops: more open PRs than the read covers is a gap naming the true count, and the most recently updated are read", async () => {
   const many = Array.from({ length: 145 }, (_, i) => idle(9000 + i, 1 + (i % 17)));
   const api = fakeApi([[/\/pulls\?state=open/, openPulls(many)], [/\/issues\/9\d{3}\/comments/, []], ...routes()]);
   const data = await collect(input(api));
   assert.ok(data.gaps.some((g) => g === "stalled stops: 145 open pull requests, only the 40 most recently updated read"), data.gaps.join("\n"));
   // One query lists them, newest update first, with their comments.
-  assert.equal(api.calls.filter((p) => p === GRAPHQL).length, 1);
-  assert.match(api.queries[0].query, /pullRequests\(states: OPEN, baseRefName: "main", first: 40, orderBy: \{ field: UPDATED_AT, direction: DESC \}\)/);
-  assert.match(api.queries[0].query, /comments\(last: 100\)/);
+  const stalled = stalledQueries(api);
+  assert.equal(stalled.length, 1);
+  assert.match(stalled[0].query, /pullRequests\(states: OPEN, baseRefName: "main", first: 40, orderBy: \{ field: UPDATED_AT, direction: DESC \}\)/);
+  assert.match(stalled[0].query, /comments\(last: 100\)/);
   assert.ok(!api.calls.some((p) => /\/pulls\?state=open|\/issues\/\d+\/comments/.test(p)));
 });
 
@@ -782,7 +910,7 @@ test("stalled stops: the worst case spends at most 1 + 2 + 20 calls", async () =
     ...routes(),
   ]);
   const data = await collect(input(api));
-  const spent = api.calls.filter((p) => p === GRAPHQL || /\/pulls\?state=open|\/issues\/\d+\/comments|check-runs\?check_name/.test(p)).length;
+  const spent = stalledQueries(api).length + api.calls.filter((p) => /\/pulls\?state=open|\/issues\/\d+\/comments|check-runs\?check_name/.test(p)).length;
   assert.ok(spent <= 1 + 2 + 20, `${spent} calls`);
   assert.equal(data.stalledStops.length, 20);
 });
@@ -2001,4 +2129,9 @@ test("the job and step names signal 14 reads are the ones work-unblock.yml uses"
   const text = readFileSync(new URL("../../workflows/work-unblock.yml", import.meta.url), "utf8");
   assert.match(text, new RegExp(`^  ${PUBLISH_LANE_LEVEL_JOB}:$`, "m"));
   for (const name of VARIABLE_STEPS) assert.ok(text.includes(`- name: ${name}\n`), name);
+});
+
+test("the queue-hold step names signal 4 reads are the ones pr-require-checks.yml uses", () => {
+  const text = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
+  for (const name of QUEUE_HOLD_STEPS) assert.ok(text.includes(`- name: ${name}\n`), name);
 });

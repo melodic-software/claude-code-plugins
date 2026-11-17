@@ -53,5 +53,15 @@
     {"annotation_level":"failure","message":"could not read the files of #16633; re-run this run."},
     {"annotation_level":"failure","message":"'gh api repos/melodic-software/claude-code-plugins/pulls/16633/files?per_page=100 --paginate' hit GitHub's API rate limit: no call to it before 2026-11-16T21:32:01Z (fallback); the call returns 1"},
     {"annotation_level":"notice","message":"github-token=1 not-modified=0 graphql=1"}
+  ],
+  "post-verify-notes-134151757838": [
+    {"annotation_level":"notice","message":"github-token=3 not-modified=0 graphql=0 core-by-reset=1794930108:2 core-unread=1"},
+    {"annotation_level":"failure","message":"Process completed with exit code 1."},
+    {"annotation_level":"failure","message":"GET https://api.github.com/repos/melodic-software/claude-code-plugins/pulls/16805 left GitHub's core API 12 of 5000 requests, at or under its stop-floor share 0.02 (status 200): no call to it before 2026-11-17T15:41:48Z (x-ratelimit-reset); this step fails"}
+  ],
+  "post-verify-notes-134152180441": [
+    {"annotation_level":"notice","message":"github-token=1 not-modified=0 graphql=0 core-by-reset=1794930108:1 core-unread=0"},
+    {"annotation_level":"failure","message":"Process completed with exit code 1."},
+    {"annotation_level":"failure","message":"'gh api repos/melodic-software/claude-code-plugins/actions/runs/44115072049/artifacts?per_page=100' hit GitHub's core API rate limit: no call to it before 2026-11-17T15:41:48Z (x-ratelimit-reset); the call returns 1"}
   ]
 }

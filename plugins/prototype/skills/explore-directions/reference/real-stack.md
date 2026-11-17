@@ -17,7 +17,7 @@ The real-stack switcher is a small floating bar, fixed at the bottom center of t
 
 | Part | Requirement |
 |---|---|
-| URL | Each step rewrites `?variant=`, so a reload or a link shared with a teammate opens the same variant |
+| URL | Each step rewrites `?variant=`, so a reload or a link shared with a teammate opens the same variant; when the switcher is mounted in a layout shared across routes, it also keeps the current variant in session storage, so app navigation that drops the query keeps the choice, and a `?variant=` in the URL wins over the stored value |
 | Keyboard | Left and right arrow keys step through the variants, except while a text input or textarea has focus |
 | States | When the plan lists states, a second control and the up and down arrow keys (except while a field has focus) step through them, rewriting `?state=`, with the current state in the control's label |
 | Buttons | Previous and next; both ends wrap around, so after the last variant comes the first and before the first comes the last |
