@@ -51,9 +51,8 @@ that choice.
 
 - **Pointer**: when you need to say how a benchmarking tool handles an unstable run, fetch its own
   docs live: [pyperf check](https://pyperf.readthedocs.io/en/latest/cli.html#check-cmd),
-  [Criterion command-line output](https://bheisler.github.io/criterion.rs/book/user_guide/command_line_output.html),
-  [benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat) and
-  [JMH](https://github.com/openjdk/jmh).
+  [Criterion command-line output](https://bheisler.github.io/criterion.rs/book/user_guide/command_line_output.html)
+  and [benchstat: Tips](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat#hdr-Tips).
 
 ### 1b. Measuring-tool integrity (before timing)
 
