@@ -78,7 +78,7 @@
 import { readdirSync, realpathSync, readFileSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { createHash } from "node:crypto";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
@@ -133,6 +133,7 @@ const PROFILE_NAME = /^[a-z0-9][a-z0-9-]*$/;
 const SAVE_LISTS = { plugins: "plugins", optional: "optional", remove: "remove", exclude: "exclude", hideSkills: "hideSkills" };
 const NAMED = ["apply", "install", "save"];
 const SESSION_DAYS = 30;
+const OWN_DATA_NAME = /^plugin-profiles(-|$)/;
 
 const resumeLine = (file) => `A resumed session does not keep --settings: pass --settings "${file}" again with --resume.`;
 
@@ -147,9 +148,10 @@ function locate(env, cwd, folder = null) {
   const configDir = install.userSettings
     ? dirname(install.userSettings)
     : env.CLAUDE_CONFIG_DIR || join(env.HOME || env.USERPROFILE || homedir(), ".claude");
+  const ownData = env.CLAUDE_PLUGIN_DATA && OWN_DATA_NAME.test(basename(env.CLAUDE_PLUGIN_DATA)) ? env.CLAUDE_PLUGIN_DATA : null;
   const dataDir = install.pluginId
     ? join(configDir, "plugins", "data", dataDirName(install.pluginId))
-    : env.CLAUDE_PLUGIN_DATA || join(configDir, "plugins", "data", "plugin-profiles-inline");
+    : ownData || join(configDir, "plugins", "data", "plugin-profiles-inline");
   const projectDir = folder ? resolve(cwd, folder) : env.CLAUDE_PROJECT_DIR || cwd;
   const pluginVersion = JSON.parse(readFileSync(join(OWN_ROOT, ".claude-plugin", "plugin.json"), "utf8")).version;
   return {
@@ -168,7 +170,7 @@ function otherDataDirs(where) {
   const root = join(where.configDir, "plugins", "data");
   try {
     return readdirSync(root, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && /^plugin-profiles(-|$)/.test(d.name))
+      .filter((d) => d.isDirectory() && OWN_DATA_NAME.test(d.name))
       .map((d) => join(root, d.name))
       .filter((dir) => resolve(dir) !== resolve(where.dataDir));
   } catch {

@@ -1093,3 +1093,15 @@ test("#16818: an installed copy clears a profile a --plugin-dir copy applied, wh
   assert.equal(w.read(), LOCAL_BEFORE);
   assert.deepEqual(w.records(), []);
 });
+
+test("#16893: a CLAUDE_PLUGIN_DATA another plugin set is ignored, so the record and session file stay where every copy finds them", () => {
+  const w = world();
+  const foreign = { CLAUDE_PLUGIN_DATA: join(w.home, ".claude", "plugins", "data", "codex-openai-codex") };
+  assert.match(launchJson(w, ["build", "--dry-run"], foreign).file, /plugin-profiles-inline[\\/]sessions[\\/]/);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"], foreign).status, 0);
+  assert.equal(w.records().length, 1);
+  assert.equal(existsSync(foreign.CLAUDE_PLUGIN_DATA), false);
+  assert.match(w.run(["status"], {}, installedCopy(w, {})).stdout, /Profile build \(folder\) applied /);
+  const own = { CLAUDE_PLUGIN_DATA: join(w.home, ".claude", "plugins", "data", "plugin-profiles-dev") };
+  assert.match(launchJson(w, ["build", "--dry-run"], own).file, /plugin-profiles-dev[\\/]sessions[\\/]/);
+});
