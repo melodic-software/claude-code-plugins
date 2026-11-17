@@ -144,7 +144,7 @@ Bounded by design. Evidence catalogue: [context/adjudication.md](context/adjudic
   rust-analyzer` succeeds while invocation fails).
 - **knip executes a repo-controlled config module.** Disclose it on every run that loads one.
   It is narrower than a build, which is why the lane accepts it; vulture, measured, is pure. The
-  probe behind both is in [context/lanes.md](context/lanes.md) "knip: TS/JS".
+  observation behind both is in [context/lanes.md](context/lanes.md) "knip: TS/JS".
 - **`**/evals/fixtures/**` is never scanning input**, matching `ruff.toml`: a detector's
   planted-defect corpus is not the consumer's dead code.
 
