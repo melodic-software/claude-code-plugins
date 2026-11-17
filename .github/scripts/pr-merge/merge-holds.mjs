@@ -444,6 +444,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/recurring-schedule.json", "enforcement"],
   ["docs/upstream/**", "enforcement"],
   [".github/scripts/recurring-schedule/file-due.mjs", "enforcement"],
+  [".github/scripts/maintenance-monitor-signals/issues.mjs", "enforcement"],
   [".github/scripts/lib/github-rest.mjs", "enforcement"],
   ["plugins/work-items/scripts/charge-words.json", "enforcement"],
   [".github/scripts/pr-unblock/dependency-classify.mjs", "enforcement"],
