@@ -117,6 +117,24 @@ git -C "$REPO" config --unset checks.skipmissing
 out="$(cd "$REPO" && PATH="$NOPYG:$PATH" bash "$CHECK" 2>&1)"
 expect "python3 without pygments: a person gets a notice and exit 0" "0|yes" "$?|$(grep -q '^NOTICE: pygments missing' <<<"$out" && echo yes)"
 
+UNPARSED="$WORK/unparsed"
+mkdir -p "$UNPARSED"
+printf '#!/bin/sh\nprintf "%%s\\n" "%s"\necho "comment-lint: bad.sh: not judged, the comment reader failed: boom" >&2\nexit 5\n' \
+  "$(finding ok.sh 2 necessary)" >"$UNPARSED/python3"
+chmod +x "$UNPARSED/python3"
+for level in report block; do
+  new_repo "comment_lint: $level"
+  printf 'x=1\n# note\n' >"$REPO/ok.sh"
+  printf 'y=1\n' >"$REPO/bad.sh"
+  git -C "$REPO" add ok.sh bad.sh
+  out="$(cd "$REPO" && PATH="$UNPARSED:$PATH" bash "$CHECK" 2>&1 >/dev/null </dev/null)"
+  rc=$?
+  want=0
+  [[ "$level" == block ]] && want=1
+  expect "$level, one file unparsed: the other file's finding is still reported" "$want|yes|yes" \
+    "$rc|$(grep -qxF "$(finding ok.sh 2 necessary)" <<<"$out" && echo yes)|$(grep -qF 'bad.sh: not judged' <<<"$out" && echo yes)"
+done
+
 ln -s "$REAL_PY" "$PYDIR/python3"
 export PATH="$PYDIR:$PATH"
 

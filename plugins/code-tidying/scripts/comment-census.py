@@ -12,9 +12,12 @@ was made:
             pass over 300+ languages. No byte counts.
   pygments  per-file comment BYTES and lines from the token stream, so the
             token estimate is real text, not a line-count multiplied by a
-            guess. Correct on heredocs, trailing comments, block comments, and
+            guess. Correct on trailing comments, block comments, and
             documentation strings (`String.Doc`, including Python docstrings).
-            Ordinary string literals are not comments.
+            Ordinary string literals are not comments. Shell scripts are read
+            by POSIX and Bash token rules (`tokens`) in place of pygments'
+            Bash lexer, so here-document bodies and a quoted or mid-word '#'
+            are not comments.
 
 Both present: lines and complexity from scc, bytes from pygments. Neither
 present: exit 3 naming what to install. A line-prefix grep is never used,
@@ -42,6 +45,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -179,9 +183,345 @@ def is_comment_token(tok) -> bool:
     return tok in String.Doc
 
 
+def tokens(text: str, lexer) -> list:
+    """(token type, text) pairs for <text>: pygments' own, except for its Bash lexer.
+
+    pygments' BashLexer ends a here-document at the first place its delimiter
+    appears, inside a word included, misses a quoted delimiter (<<"EOF"), and
+    takes a '#' inside a word for a comment; each mistake can flip its quote
+    state for the rest of the file. Shell files are read by _ShellComments.
+    """
+    if lexer.name == "Bash":
+        return _ShellComments(text).tokens()
+    from pygments import lex
+
+    return list(lex(text, lexer))
+
+
+class _ShellComments:
+    """Comments and here-document bodies of a shell script, by the shell's own rules.
+
+    POSIX Shell Command Language, 2.3 Token Recognition, 2.4 Reserved Words and
+    2.7.4 Here-Document
+    (https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html):
+    "If the previous character was part of a word, the current character shall
+    be appended to that word"; only otherwise does "a '#'" start a comment that
+    runs "up to, but excluding, the next <newline>". Quotes, $'...', parameter
+    expansion, command substitution and arithmetic expansion belong to the word
+    they sit in. A reserved word such as case, esac or [[ counts only as the
+    first word of a command. A here-document "begins after the next NEWLINE
+    token and continues until there is a line containing only the delimiter",
+    the delimiter being the word after quote removal, leading tabs stripped for
+    <<-, and several on one line are read in order. Bash additions, per the Bash
+    reference manual (https://www.gnu.org/software/bash/manual/bash.html): a
+    (( )) arithmetic command, whose << is a shift; [[ ]], where parentheses and
+    << belong to the expression; <( ) and >( ) process substitution; $"...";
+    and an ANSI-C quoted $'...' delimiter, read after its escapes.
+
+    A construct left open at the end of the text (a quote, an expansion, a
+    substitution, a here-document with no delimiter line) or an arithmetic
+    expression with an unmatched ')' is one this reader got wrong or the shell
+    rejects. It never hides the rest of the file: everything read from its start
+    is dropped and reading starts again on the next line (a here-document's on
+    its first body line), so the lines after it are read as code and a comment
+    there is still found. A reader that searches for a closing character does so
+    through _close, which loses the construct at the end of the text, and no
+    position passes the end. A scan that still stops short of the end with
+    nothing lost raises under STRICT (the tests); otherwise the rest of the text
+    from where that scan began is read as plain lines, a line whose first
+    non-blank character is '#' being a comment.
+    """
+
+    STRICT = False
+
+    OPERATOR = frozenset(";&|<>()")
+    COMMAND_BREAK = frozenset(";&|()")
+    BLANK = frozenset(" \t")
+    KEYWORD_END = frozenset(" \t\n;&|<>()")
+    PRE_COMMAND = frozenset(("!", "{", "do", "elif", "else", "if", "then", "time", "until", "while"))
+    WORD = re.compile(r"[^\s;&|<>()\"'`$\\]*")
+    ASSIGNMENT = re.compile(r"[A-Za-z_]\w*\+?=")
+    DOUBLE_ESCAPE = re.compile(r'\\(["\\$`])')
+    ANSI_ESCAPE = re.compile(r"\\(x[0-9A-Fa-f]{1,2}|[0-7]{1,3}|.)", re.DOTALL)
+    ANSI_CHAR = {
+        "a": "\a", "b": "\b", "e": "\x1b", "E": "\x1b", "f": "\f", "n": "\n",
+        "r": "\r", "t": "\t", "v": "\v", "\\": "\\", "'": "'", '"': '"', "?": "?",
+    }
+
+    def __init__(self, text: str):
+        self.s = text
+        self.i = 0
+        self.n = len(text)
+        self.spans: list[tuple[str, int, int]] = []
+        self.pending: list[tuple[str, bool]] = []
+        self.lost: tuple[int, int] | None = None
+
+    def tokens(self) -> list:
+        from pygments.token import Comment, String, Text
+
+        at = 0
+        if self.s.startswith("#!"):
+            at = self._line_end(0)
+            self.spans.append(("hashbang", 0, at))
+        while True:
+            self.i, self.pending, self.lost = at, [], None
+            self._command(None, at)
+            if self.lost is None:
+                if self.i != self.n:
+                    if self.STRICT:
+                        raise RuntimeError(f"shell scanner stopped at {self.i} of {self.n} with nothing lost")
+                    self._line_comments(at)
+                break
+            start, resume = self.lost
+            self.spans = [span for span in self.spans if span[1] < start]
+            at = resume if resume > at else min(self._line_end(at) + 1, self.n)
+        kinds = {"hashbang": Comment.Hashbang, "comment": Comment.Single, "heredoc": String}
+        out, at = [], 0
+        for kind, start, end in sorted(self.spans, key=lambda span: span[1]):
+            if start > at:
+                out.append((Text, self.s[at:start]))
+            out.append((kinds[kind], self.s[start:end]))
+            at = end
+        if at < self.n:
+            out.append((Text, self.s[at:]))
+        return out
+
+    def _line_end(self, at: int) -> int:
+        end = self.s.find("\n", at)
+        return self.n if end < 0 else end
+
+    def _line_comments(self, at: int) -> None:
+        self.spans = [span for span in self.spans if span[1] < at]
+        while at < self.n:
+            end = self._line_end(at)
+            line = self.s[at:end]
+            if line.lstrip(" \t").startswith("#"):
+                self.spans.append(("comment", end - len(line.lstrip(" \t")), end))
+            at = end + 1
+
+    def _lose(self, start: int, resume: int | None = None) -> None:
+        if resume is None:
+            resume = self._line_end(start) + 1
+        resume = min(resume, self.n)
+        if self.lost is None or start < self.lost[0]:
+            self.lost = (start, resume)
+        self.i = self.n
+
+    def _close(self, start: int, at: int, char: str, escapes: bool) -> int | None:
+        """The offset past the first `char` from `at` (a backslash escaping the next
+        character when `escapes`); at the end of the text, the construct opened at
+        `start` is lost and None comes back."""
+        while at < self.n:
+            c = self.s[at]
+            if c == char:
+                return at + 1
+            at += 2 if escapes and c == "\\" else 1
+        self._lose(start)
+        return None
+
+    def _skip_escape(self) -> None:
+        self.i = min(self.i + 2, self.n)
+
+    def _command(self, close: str | None, start: int) -> None:
+        s, in_word, at_command, cond, depth, cases = self.s, False, True, False, 0, 0
+        while self.i < self.n:
+            c = s[self.i]
+            if c == close and (close == "`" or (depth == 0 and cases == 0)):
+                self.i += 1
+                return
+            if c == "\n":
+                self.i += 1
+                in_word, at_command = False, True
+                self._bodies()
+            elif c in self.BLANK:
+                self.i += 1
+                in_word = False
+            elif c == "#" and not in_word:
+                end = self._line_end(self.i)
+                if close == "`":
+                    tick = s.find("`", self.i, end)
+                    end = end if tick < 0 else tick
+                self.spans.append(("comment", self.i, end))
+                self.i = end
+            elif c == "\\":
+                in_word = in_word or s[self.i + 1 : self.i + 2] != "\n"
+                self._skip_escape()
+            elif s.startswith("<<<", self.i):
+                self.i += 3
+                in_word = False
+            elif s.startswith(("<(", ">("), self.i):
+                self.i += 2
+                self._command(")", self.i - 2)
+                in_word, at_command = True, False
+            elif s.startswith("<<", self.i) and not cond:
+                self._heredoc()
+                in_word = False
+            elif s.startswith("((", self.i) and at_command and not in_word:
+                self.i += 2
+                self._arithmetic(self.i - 2)
+                at_command = False
+            elif c in self.OPERATOR:
+                if c == "(":
+                    depth += 1
+                elif c == ")" and depth:
+                    depth -= 1
+                self.i += 1
+                in_word = False
+                at_command = at_command or c in self.COMMAND_BREAK
+            else:
+                if not in_word:
+                    end = self.WORD.match(s, self.i).end()
+                    word = s[self.i : end] if end >= self.n or s[end] in self.KEYWORD_END else None
+                    if at_command and word == "[[":
+                        cond = True
+                    elif cond and word == "]]":
+                        cond = False
+                    elif at_command and close == ")" and word == "case":
+                        cases += 1
+                    elif at_command and cases and word == "esac":
+                        cases -= 1
+                    at_command = at_command and (
+                        word in self.PRE_COMMAND or bool(self.ASSIGNMENT.match(s, self.i))
+                    )
+                self._word_part(quoted=False)
+                in_word = True
+        if close is not None:
+            self._lose(start)
+
+    def _word_part(self, quoted: bool) -> None:
+        c, start = self.s[self.i], self.i
+        if c == "'" and not quoted:
+            end = self._close(start, self.i + 1, "'", escapes=False)
+            if end is not None:
+                self.i = end
+        elif c == '"':
+            self.i += 1
+            self._double(start)
+        elif c == "$":
+            self._dollar(quoted)
+        elif c == "`":
+            self.i += 1
+            self._command("`", start)
+        elif c == "\\":
+            self._skip_escape()
+        else:
+            self.i += 1
+
+    def _double(self, start: int) -> None:
+        while self.i < self.n:
+            if self.s[self.i] == '"':
+                self.i += 1
+                return
+            self._word_part(quoted=True)
+        self._lose(start)
+
+    def _dollar(self, quoted: bool) -> None:
+        s, start = self.s, self.i
+        if s.startswith("$((", start):
+            self.i += 3
+            self._arithmetic(start)
+        elif s.startswith("$(", start):
+            self.i += 2
+            self._command(")", start)
+        elif s.startswith("${", start):
+            self.i += 2
+            self._braces(start)
+        elif s.startswith("$'", start) and not quoted:
+            end = self._close(start, start + 2, "'", escapes=True)
+            if end is not None:
+                self.i = end
+        else:
+            self.i += 1
+
+    def _braces(self, start: int) -> None:
+        while self.i < self.n:
+            if self.s[self.i] == "}":
+                self.i += 1
+                return
+            self._word_part(quoted=False)
+        self._lose(start)
+
+    def _arithmetic(self, start: int) -> None:
+        depth = 0
+        while self.i < self.n:
+            if self.s.startswith("))", self.i) and depth == 0:
+                self.i += 2
+                return
+            c = self.s[self.i]
+            if c == ")" and depth == 0:
+                break
+            if c in "()":
+                depth += 1 if c == "(" else -1
+                self.i += 1
+            else:
+                self._word_part(quoted=False)
+        self._lose(start)
+
+    def _heredoc(self) -> None:
+        s, start = self.s, self.i
+        self.i += 2
+        strip = s.startswith("-", self.i)
+        self.i += strip
+        while self.i < self.n and s[self.i] in self.BLANK:
+            self.i += 1
+        word = []
+        while self.i < self.n and s[self.i] not in self.KEYWORD_END:
+            c = s[self.i]
+            if s.startswith('$"', self.i):
+                self.i += 1
+                continue
+            ansi = s.startswith("$'", self.i)
+            if ansi or c in "'\"":
+                opened = self.i + ansi + 1
+                end = self._close(start, opened, s[opened - 1], escapes=c != "'")
+                if end is None:
+                    return
+                body = s[opened : end - 1]
+                if ansi:
+                    body = self._ansi(body)
+                elif c == '"':
+                    body = self.DOUBLE_ESCAPE.sub(r"\1", body)
+                word.append(body)
+                self.i = end
+            elif c == "\\":
+                word.append(s[self.i + 1 : self.i + 2])
+                self._skip_escape()
+            else:
+                word.append(c)
+                self.i += 1
+        if word:
+            self.pending.append(("".join(word), strip))
+
+    def _ansi(self, body: str) -> str:
+        def one(match: re.Match) -> str:
+            code = match.group(1)
+            if code[0] == "x" and len(code) > 1:
+                return chr(int(code[1:], 16))
+            if code[0] in "01234567":
+                return chr(int(code, 8))
+            return self.ANSI_CHAR.get(code, "\\" + code)
+
+        return self.ANSI_ESCAPE.sub(one, body)
+
+    def _bodies(self) -> None:
+        for delimiter, strip in self.pending:
+            start = self.i
+            while self.i < self.n:
+                end = self._line_end(self.i)
+                line = self.s[self.i : end]
+                self.i = min(end + 1, self.n)
+                if (line.lstrip("\t") if strip else line) == delimiter:
+                    break
+            else:
+                self.pending = []
+                self._lose(start, start)
+                return
+            self.spans.append(("heredoc", start, self.i))
+        self.pending = []
+
+
 def pygments_counts(path: Path) -> dict | None:
     try:
-        from pygments import lex
         from pygments.lexers import get_lexer_for_filename
         from pygments.util import ClassNotFound
     except ImportError:
@@ -200,7 +540,12 @@ def pygments_counts(path: Path) -> dict | None:
     line = 1
     comment_lines: set[int] = set()
     comment_bytes = 0
-    for tok, text in lex(src, lexer):
+    try:
+        stream = tokens(src, lexer)
+    except Exception as err:  # noqa: BLE001 - one unreadable file must not stop the census
+        print(f"comment-census: {path}: not counted, the comment reader failed: {err}", file=sys.stderr)
+        return {"language": lexer.name, "comment_lines": 0, "comment_bytes": 0, "lines": 0, "lexed": False}
+    for tok, text in stream:
         if is_comment_token(tok):
             body = text.strip("\n")
             if body.strip():

@@ -13,13 +13,17 @@ Judge the comments a change adds against a comment posture.
 
 Reads NUL-separated repository paths on stdin. Each path's text is <root>/<path>, and
 <ranges> holds the added lines as <path>TAB<first>TAB<last> rows. A comment token of
-the pygments lexer for the path's name, on an added line, passes when it is one of the
+the pygments lexer for the path's name (for a shell script, a comment by POSIX and Bash
+token rules, comment-census.py's tokens), on an added line, passes when it is one of the
 allowed shapes or an extended regular expression in <allow> (one per line, matched with
 grep -E) matches its text; every other one prints
   <path>:<line>: comment outside the <posture> posture: ...
 on stdout. A path with no lexer is skipped with one notice on stderr.
 
-Exit: 0 judged; 2 usage; 3 pygments is not importable; 4 grep -E rejected an allow pattern.
+A path the comment reader fails on is named on stderr and not judged; the others still are.
+
+Exit: 0 judged; 2 usage; 3 pygments is not importable; 4 grep -E rejected an allow pattern;
+5 every other path judged, findings printed, but at least one path not judged.
 """
 
 MESSAGE = (
@@ -117,7 +121,6 @@ def _is_comment(tok) -> bool:
 
 
 def _lex(path: str, text: str):
-    from pygments import lex
     from pygments.lexers import get_lexer_by_name, get_lexer_for_filename
     from pygments.util import ClassNotFound
 
@@ -127,7 +130,7 @@ def _lex(path: str, text: str):
         if not path.lower().endswith(TYPESCRIPT_SUFFIXES):
             return None, None
         lexer = get_lexer_by_name("typescript", stripnl=False)
-    return lexer, list(lex(text, lexer))
+    return lexer, _CENSUS.tokens(text, lexer)
 
 
 class _Line:
@@ -372,7 +375,7 @@ def main(argv: list[str]) -> int:
         for p in sys.stdin.buffer.read().decode("utf-8", "surrogateescape").split("\0")
         if p
     ]
-    out = []
+    out, unjudged = [], False
     for path in paths:
         text = (args.root / path).read_text(encoding="utf-8", errors="replace")
         try:
@@ -383,6 +386,13 @@ def main(argv: list[str]) -> int:
                 file=sys.stderr,
             )
             return 4
+        except Exception as err:  # noqa: BLE001 - one unreadable file must not drop the others' findings
+            print(
+                f"comment-lint: {path}: not judged, the comment reader failed: {err}",
+                file=sys.stderr,
+            )
+            unjudged = True
+            continue
         if got is None:
             print(
                 f"comment-lint: {path}: no pygments lexer for this name, skipped",
@@ -392,7 +402,7 @@ def main(argv: list[str]) -> int:
         out.extend(got)
     if out:
         sys.stdout.write("\n".join(out) + "\n")
-    return 0
+    return 5 if unjudged else 0
 
 
 if __name__ == "__main__":
