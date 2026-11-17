@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.19.0] - 2026-11-17
+
+### Added
+
+- `/source-control:pull-request review-comments` also returns `lane-summary` rows: a review body or PR comment by `github-actions[bot]` (user id 41898282) whose last non-blank line is a CI review lane's `claude-lane:` footer and that holds an `Uncovered rules (N)` block, so lane summaries without one take none of the 64 KB output cap. It now reads each PR's comments for these; every other bot's review bodies and PR comments stay excluded. `/corrections:codify reviews` reads the lanes' uncovered rules from these rows.
+
 ## [11.18.4] - 2026-11-17
 
 ### Changed
