@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": []},
+    {"answer": [{"tool": "Bash", "input": {"command": "git status --short 2>/dev/null"}}, {"tool": "Bash", "input": {"command": "git remote -v 2>&1"}}, {"tool": "Bash", "input": {"command": "cat .gitignore"}}], "why": "reads, with output redirected only to the null device or merged"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "printf '.scratch/\\n' >> .gitignore"}}], "why": "an append redirect"},
+    {"answer": [{"tool": "Bash", "input": {"command": "echo hi | tee notes.md"}}], "why": "tee"},
+    {"answer": [{"tool": "Bash", "input": {"command": "sed -i s/scratch/work/ AGENTS.md"}}], "why": "in-place sed"},
+    {"answer": [{"tool": "Bash", "input": {"command": "mkdir -p .work"}}], "why": "creates a directory"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git add AGENTS.md"}}], "why": "touches the index"}
+  ]
+}
