@@ -118,18 +118,34 @@ a flag combines with its own file form; read both before relying on either.
 
 ## Other-ecosystem analogues
 
-For repos whose docs serve several agent harnesses. Names and auto-read semantics only; verify a
-vendor's current behavior before relying on details.
+For repos whose docs serve several agent harnesses: names and paths only. For Claude Code's
+AGENTS.md conditions, use the AGENTS.md row and its pointer in the Claude Code section above.
 
-| Convention | File(s) | Auto-read |
-|---|---|---|
-| AGENTS.md open standard | `AGENTS.md` root + nested (nearest wins) | Native in Codex, Cursor, Copilot agent, Gemini CLI (config), Windsurf, Zed, Roo, and in Claude Code under the conditions the Claude Code table above gives |
-| Agent Skills standard (agentskills.io) | `<name>/SKILL.md` folders | Metadata-first progressive disclosure; discovery dirs per agent, where `.agents/skills/` + `~/.agents/skills/` is the shared cross-tool convention (Codex CLI, Cursor, Gemini CLI, VS Code Copilot, Zed); Claude Code uses its own `.claude/skills/` paths |
-| Cursor rules | `.cursor/rules/*.mdc`; legacy `.cursorrules` | Per-rule types: Always / Auto Attached (globs) / Agent Requested / Manual |
-| GitHub Copilot | `.github/copilot-instructions.md`; `.github/instructions/**.instructions.md` (`applyTo:` globs) | Auto-added to matching requests |
-| Gemini CLI | `GEMINI.md` hierarchy + `~/.gemini/GEMINI.md` | Concatenated into every prompt |
-| Windsurf | `.windsurf/rules/` (or `.devin/`); `global_rules.md` | Per-rule trigger modes |
-| Cline / Roo | `.clinerules` file-or-folder / `.roo/rules/` | Appended to system prompt; workspace wins |
-| Aider | `CONVENTIONS.md` | Not auto-read; explicit `/read` / config only |
-| JetBrains Junie | `.junie/guidelines.md` | Auto-read during generation |
-| Amazon Q | `.amazonq/rules/*.md` | Auto-loaded on first interaction |
+| Convention | File(s) |
+|---|---|
+| AGENTS.md open standard | `AGENTS.md` at the root, plus nested files |
+| Agent Skills standard | `<name>/SKILL.md` directories |
+| Cursor rules | `.cursor/rules/*.mdc` |
+| GitHub Copilot | `.github/copilot-instructions.md`; `.github/instructions/**/*.instructions.md` |
+| Gemini CLI | `GEMINI.md` hierarchy, `~/.gemini/GEMINI.md` |
+| Windsurf (Devin Desktop) | `.devin/rules/*.md`, `.devin/global_rules.md`; legacy `.windsurf/rules/*.md` |
+| Cline | `.clinerules/` or `.cline/rules/` |
+| Roo Code | `.roo/rules/`; fallback `.roorules` |
+| Aider | `CONVENTIONS.md` |
+| JetBrains Junie | `.junie/AGENTS.md`, root `AGENTS.md`; legacy `.junie/guidelines.md` |
+| Amazon Q Developer | `.amazonq/rules/*.md` |
+
+- **Pointer**: when a write depends on how a vendor loads its files (whether it auto-reads them,
+  activation modes, precedence, which file wins), fetch its page live: AGENTS.md
+  <https://agents.md/>; Agent Skills <https://agentskills.io/specification>; Cursor
+  <https://cursor.com/docs/context/rules>; GitHub Copilot
+  <https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions#creating-repository-wide-custom-instructions>
+  and
+  <https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions#creating-path-specific-custom-instructions>;
+  Gemini CLI <https://geminicli.com/docs/cli/gemini-md/#understand-the-context-hierarchy>; Windsurf
+  <https://docs.devin.ai/desktop/cascade/memories#rules>; Cline
+  <https://docs.cline.bot/features/cline-rules>; Roo Code
+  <https://roocodeinc.github.io/Roo-Code/features/custom-instructions#workspace-level-instructions>;
+  Aider <https://aider.chat/docs/usage/conventions.html#always-load-conventions>; Junie
+  <https://junie.jetbrains.com/docs/guidelines-and-memory.html>; Amazon Q
+  <https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/context-project-rules.html>.
