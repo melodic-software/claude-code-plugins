@@ -1,19 +1,24 @@
-# powershell-format: one PSScriptAnalyzer run over the files one settings file governs.
-# Run by git-hooks/powershell-check.sh (pre-commit and end of turn) and by
-# hooks/powershell-format.sh (the PostToolBatch row). Everything it reports goes
-# to stdout, one record per line, and the exit code says what happened.
+# powershell-format's PSScriptAnalyzer adapter: one run over the files one
+# settings file governs. Started by the git-hook entries (git-hooks/format.sh and
+# git-hooks/lint.sh) through lib/git-hooks/resolve-tool.sh, as
+#
+#   pwsh -File psscriptanalyzer.ps1 format|lint <file>...
+#
+# with each file relative to the working directory or absolute. Everything it
+# reports goes to stdout, one record per line, and the exit code says what
+# happened.
+#
+#   format  Invoke-Formatter rewrites each file in place; nothing is analyzed
+#   lint    Invoke-ScriptAnalyzer reports; nothing is rewritten
 #
 # Environment:
-#   PSSA_SETTINGS    the PSScriptAnalyzerSettings.psd1 that governs every listed file
-#   PSSA_ROOT        the repository root the listed paths are relative to
-#   PSSA_LIST        a UTF-8 file with one repo-relative path per line
-#   PSSA_MODE        analyze (findings only) or both (rewrite, then findings)
+#   PSSA_SETTINGS    the PSScriptAnalyzerSettings.psd1 that governs every file
 #   PSSA_STATE_BASE  the directory that holds trust approvals
 #   PSSA_REPO_ROOT   the root text that the trust signature is bound to
 #
 # Exit codes:
 #   0  clean
-#   1  findings, printed as "<path>:<line>: [<severity>] <rule>: <message>"
+#   1  findings, printed as "<file>:<line>: [<severity>] <rule>: <message>"
 #   3  the PSScriptAnalyzer module is not installed
 #   4  Invoke-Formatter or Invoke-ScriptAnalyzer threw ("PSSA_ERROR ..." lines)
 #   6  the settings declare CustomRulePath (or could not be verified code-free)
@@ -21,6 +26,10 @@
 #
 # A file that is neither BOM'd nor valid UTF-8 (legacy ANSI) is skipped whole:
 # its bytes cannot round-trip through a rewrite.
+
+$mode = $args[0]
+$targets = @($args | Select-Object -Skip 1)
+$runDir = (Get-Location).ProviderPath
 
 # Importing the module is both the presence probe and the load the formatter
 # needs; a -ListAvailable scan of every module path costs extra.
@@ -352,7 +361,6 @@ if ($sd.ContainsKey("CustomRulePath")) {
 }
 
 $settings = $env:PSSA_SETTINGS
-$mode = $env:PSSA_MODE
 $failed = $false
 $found = $false
 
@@ -361,9 +369,10 @@ $found = $false
 # resolve the way the repository intended.
 Set-Location -LiteralPath $settingsDir
 
-foreach ($rel in [System.IO.File]::ReadAllLines($env:PSSA_LIST)) {
+foreach ($rel in $targets) {
     if ([string]::IsNullOrWhiteSpace($rel)) { continue }
-    $file = Join-Path $env:PSSA_ROOT $rel
+    $file = $rel
+    if (-not [System.IO.Path]::IsPathRooted($file)) { $file = Join-Path $runDir $rel }
     try {
         # Read with BOM detection and remember the encoding so the write-back
         # keeps the original byte shape (UTF-8 with or without BOM, UTF-16).
@@ -382,7 +391,7 @@ foreach ($rel in [System.IO.File]::ReadAllLines($env:PSSA_LIST)) {
         }
         if ($null -eq $original) { $original = "" }
 
-        if ($mode -ne "analyze") {
+        if ($mode -eq "format") {
             $formatted = Invoke-Formatter -ScriptDefinition $original -Settings $settings
             # -cne (case-SENSITIVE) is load-bearing: -ne is case-insensitive, so
             # a casing-only reformat (get-childitem -> Get-ChildItem) would
@@ -393,6 +402,7 @@ foreach ($rel in [System.IO.File]::ReadAllLines($env:PSSA_LIST)) {
                 }
                 [System.IO.File]::WriteAllText($file, $formatted, $enc)
             }
+            continue
         }
 
         # Invoke-ScriptAnalyzer has no -LiteralPath; -Path treats wildcard

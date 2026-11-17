@@ -522,7 +522,6 @@ plugins/plugin-quality/scripts/packet-seal.test.sh 2
 plugins/plugin-quality/scripts/zones-inline-drift.test.sh 1
 plugins/plugin-quality/skills/audit/scripts/collect-categories.test.sh 1
 plugins/plugin-quality/skills/audit/scripts/collect-standards.test.sh 1
-plugins/powershell-format/git-hooks/powershell-check.test.sh 28
 plugins/powershell-format/hooks/powershell-format.test.sh 3
 plugins/prototype/scripts/allowed-tools-pairing.test.sh 1
 plugins/prototype/scripts/detect-ecosystems.test.sh 1

@@ -5,7 +5,7 @@
 # keeps it from blocking twice in one turn; the plugin kill switch wins. The
 # spawn budget case fences the cost every user pays per turn with the option
 # off: the node launcher only.
-# test-scope: plugins/powershell-format/hooks/hooks.json plugins/powershell-format/git-hooks/powershell-check.sh plugins/powershell-format/.claude-plugin/plugin.json
+# test-scope: plugins/powershell-format/hooks/hooks.json plugins/powershell-format/git-hooks/lint.sh plugins/powershell-format/.claude-plugin/plugin.json
 # shellcheck disable=SC2016  # literal PowerShell variable syntax: single quotes are intentional
 set -uo pipefail
 unset CLAUDECODE AI_AGENT GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED
@@ -83,7 +83,7 @@ expect "on: the plugin kill switch wins" "0|" \
 # silent pass, since the SessionStart probe and /powershell-format:setup check report it.
 NOTOOL="$WORK/no-pwsh"
 mkdir -p "$NOTOOL"
-for t in node git bash sed awk cat mktemp rm dirname grep tr jq; do
+for t in node git bash sh sed awk cat mktemp rm dirname grep tr jq; do
   ln -s "$(command -v "$t")" "$NOTOOL/$t"
 done
 expect "on: a missing pwsh passes silently" "0|" \

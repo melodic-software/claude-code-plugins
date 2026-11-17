@@ -3,9 +3,9 @@
 # git pre-commit (one Invoke-Formatter run costs more than the 1 s per-batch
 # ceiling), so there is no PostToolUse or PostToolBatch row; the opt-in Stop row
 # is gated on the end-of-turn option; the SessionStart probe honors the kill
-# switch and names the missing tool. The pre-commit entry and the Stop script are
-# tested in git-hooks/powershell-check.test.sh and powershell-format-end-of-turn.test.sh.
-# test-scope: plugins/powershell-format/.claude-plugin/plugin.json plugins/powershell-format/hooks/hooks.json plugins/powershell-format/prerequisites.json plugins/powershell-format/git-hooks/powershell-check.ps1
+# switch and names the missing tool. The pre-commit entries and the Stop script are
+# tested in git-hooks/format.test.sh, git-hooks/lint.test.sh and powershell-format-end-of-turn.test.sh.
+# test-scope: plugins/powershell-format/.claude-plugin/plugin.json plugins/powershell-format/hooks/hooks.json plugins/powershell-format/prerequisites.json plugins/powershell-format/git-hooks/psscriptanalyzer.ps1
 
 # shellcheck disable=SC2016  # literal PowerShell variable syntax: single quotes are intentional
 set -uo pipefail
@@ -75,6 +75,9 @@ if jq -e '(.requires | map(.id)) == ["pwsh", "node"]' "$MANIFEST" >/dev/null 2>&
 else
   fail "manifest: expected tools pwsh and node: $(cat "$MANIFEST" 2>&1)"
 fi
+# pwsh is needed only where a settings file opts the adapter in, so the probe stays quiet elsewhere.
+expect "manifest: pwsh is needed only where a PSScriptAnalyzerSettings.psd1 sits" '["PSScriptAnalyzerSettings.psd1"]' \
+  "$(jq -c '.requires[] | select(.id == "pwsh") | .when.config_any' "$MANIFEST")"
 # harness-ops' prerequisites-fleet.mjs runs the probe behind the kill switch; its own test covers the gate.
 if jq -e '.session_probe.run_if_unset_or_true == "POWERSHELL_FORMAT_ENABLED"' "$MANIFEST" >/dev/null &&
   jq -e '.hooks | has("SessionStart") | not' "$HOOKS_JSON" >/dev/null; then
