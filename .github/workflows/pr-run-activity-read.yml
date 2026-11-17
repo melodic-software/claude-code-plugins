@@ -2429,6 +2429,7 @@ jobs:
           PUBLIC_KEY: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           CARRY_DIR: ${{ runner.temp }}/carry-transcript
           PATCH_GATE: ${{ runner.temp }}/read-patch/publish-gate.mjs
+          CARRY_SEALED_LENGTH: ${{ steps.seal.outputs.sealed-length }}
         run: |
           rm -rf "$CARRY_DIR"
           mkdir -p "$CARRY_DIR"
@@ -2437,8 +2438,19 @@ jobs:
             exit 0
           fi
           if [ -z "$EXECUTION_FILE" ] || [ -L "$EXECUTION_FILE" ] || [ ! -f "$EXECUTION_FILE" ] || [ ! -s "$EXECUTION_FILE" ]; then exit 0; fi
+          [[ $CARRY_SEALED_LENGTH =~ ^[0-9]{1,7}$ ]] || CARRY_SEALED_LENGTH=0
+          output_chars=500000
+          api_failures_chars=65600
+          other_output_chars=8192
+          room=$((output_chars - api_failures_chars - other_output_chars - 10#$CARRY_SEALED_LENGTH))
+          base64_quads=$((room / 4))
+          cap=$((base64_quads * 3 - 92))
+          [ "$cap" -gt 286720 ] && cap=286720
+          if [ "$cap" -lt 1024 ]; then
+            echo "::notice::the carry leaves this job's outputs no room for the leg's transcript, so none is carried"
+            exit 0
+          fi
           printf '%s\n' "$PUBLIC_KEY" >"$CARRY_DIR/lane-transcript.pub"
-          cap=286720
           gz=$CARRY_DIR/transcript.json.gz
           marker() {
             jq -cn --arg reason "$1" --argjson bytes "$2" --argjson cap "$cap" \

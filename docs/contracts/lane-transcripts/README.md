@@ -32,8 +32,10 @@ The current reader is the session-flow plugin's `scripts/lane_legs.py`.
 - A leg whose transcript could not leave CI whole has a marker in its place: one `system` message
   with subtype `transcript_omitted`, its `reason`, the gzipped `bytes` and the `cap`. The read
   runner's run job (`pr-run-activity-read.yml`) carries each leg's transcript to its transcript job
-  as job outputs, which caps it at 286720 gzipped bytes; one over that cap, or one the credential
-  scan blocks, arrives as a marker, never cut short.
+  as job outputs, which caps it at 286720 gzipped bytes, or less when the run's other outputs leave
+  less of GitHub's 1 MB per job (counted at two bytes a character); one over its cap, or one the
+  credential scan blocks, arrives as a marker, never cut short. When the other outputs leave no
+  room even for a marker, nothing is carried.
 - The file name under a lane's date directory is the writer's; readers take a transcript's path
   from its row, never by building it.
 

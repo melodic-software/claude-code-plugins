@@ -4897,7 +4897,7 @@ const LEG_MESSAGES = [
 const expand = (text, context) => String(text).replace(/\$\{\{ ([^}]+) \}\}/g, (_, expression) => String(evaluate(`\${{ ${expression} }}`, context)));
 const NEEDS_RUN_OUTPUT = /^\$\{\{ needs\.run\.outputs\.([\w-]+) \}\}$/;
 
-function carryTranscript(t, execution, { inputs = {}, publicLine = TRANSCRIPT_KEY.publicLine } = {}) {
+function carryTranscript(t, execution, { inputs = {}, publicLine = TRANSCRIPT_KEY.publicLine, carryLength = "" } = {}) {
   const root = tempDir("transcript-carry-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const temp = join(root, "temp");
@@ -4917,6 +4917,7 @@ function carryTranscript(t, execution, { inputs = {}, publicLine = TRANSCRIPT_KE
     PUBLIC_KEY: publicLine,
     CARRY_DIR: join(temp, "carry-transcript"),
     PATCH_GATE: join(temp, "read-patch", "publish-gate.mjs"),
+    CARRY_SEALED_LENGTH: carryLength,
     GITHUB_OUTPUT: stageOutput,
   });
   assert.equal(staged.status, 0, staged.stdout + staged.stderr);
@@ -5017,18 +5018,39 @@ test("pr-run-activity-read.yml: a gzipped transcript at its cap seals within the
   }
 });
 
-test("pr-run-activity-read.yml: the run job's outputs, the five carry chunks and the four transcript chunks at their limits, fit GitHub's 1 MB per job", () => {
+test("pr-run-activity-read.yml: the transcript takes only the job-output room the carry leaves, counting two bytes a character, so the carry never overflows GitHub's 1 MB per job", async (t) => {
+  const { randomBytes } = await import("node:crypto");
   const steps = runSteps();
-  const chunks = ["seal", "transcript-seal"].map((id) => Number(steps.find((s) => s.id === id).with["max-chunks"]));
-  assert.deepEqual(chunks, [5, 4]);
+  assert.deepEqual(["seal", "transcript-seal"].map((id) => Number(steps.find((s) => s.id === id).with["max-chunks"])), [5, 4]);
   const outputs = workflow("pr-run-activity-read.yml").jobs.run.outputs;
   for (let n = 1; n <= 4; n++) assert.equal(outputs[`transcript-sealed-${n}`], `\${{ steps.transcript-seal.outputs.sealed-${n} }}`);
   assert.equal(outputs["transcript-sealed-5"], undefined);
-  const apiFailures = steps.find((s) => s.id === "api-failures");
-  assert.match(apiFailures.run, /head -c 65536 /);
-  const others = 16 * 1024;
-  const sealedChunks = (chunks[0] + chunks[1]) * 98304;
-  assert.ok(sealedChunks + 65536 + others <= 1_000_000, `${sealedChunks + 65536 + others}: "Outputs can be a maximum of 1 MB per job." (docs.github.com workflow syntax, jobs.<job_id>.outputs)`);
+  assert.equal(steps.find((s) => s.id === "transcript-carry").env.CARRY_SEALED_LENGTH, "${{ steps.seal.outputs.sealed-length }}");
+  assert.match(steps.find((s) => s.id === "api-failures").run, /head -c 65536 /);
+  const utf16Bytes = (carry, transcript) => 2 * (carry + transcript + 65600 + 8192);
+  const big = JSON.stringify([...LEG_MESSAGES, { type: "user", message: { content: randomBytes(300000).toString("base64") } }]);
+  const mid = JSON.stringify([...LEG_MESSAGES, { type: "user", message: { content: randomBytes(100000).toString("base64") } }]);
+  const small = JSON.stringify(LEG_MESSAGES);
+  for (const [carry, execution, expect] of [
+    [0, big, { reason: "too-large", cap: TRANSCRIPT_CAP }],
+    [0, small, "transcript"],
+    [300000, small, "transcript"],
+    [300000, mid, { reason: "too-large", cap: 94564 }],
+    [5 * 98304, small, "none"],
+  ]) {
+    const carried = carryTranscript(t, execution, { carryLength: String(carry) });
+    const label = `carry ${carry}`;
+    if (expect === "none") {
+      assert.equal(carried.staged, false, label);
+      assert.match(carried.log, /^::notice::the carry leaves this job's outputs no room for the leg's transcript/m, label);
+      continue;
+    }
+    const length = Number(carried.runOutputs["transcript-sealed-length"]);
+    assert.ok(utf16Bytes(carry, length) <= 1_000_000, `${label}: ${utf16Bytes(carry, length)} bytes; "Outputs can be a maximum of 1 MB per job" (docs.github.com workflow syntax), counted at two bytes a character as the runner's TemplateMemory counts strings`);
+    const opened = openTranscript(transcriptRecord(t, carried.runOutputs).record, "resolve-issue");
+    if (expect === "transcript") assert.deepEqual(opened, LEG_MESSAGES, label);
+    else assert.deepEqual(opened.map(({ reason, cap }) => ({ reason, cap })), [expect], label);
+  }
 });
 
 test("pr-run-activity-read.yml: a record step refuses a carried bundle that is not one transcript.json.gz record", (t) => {
