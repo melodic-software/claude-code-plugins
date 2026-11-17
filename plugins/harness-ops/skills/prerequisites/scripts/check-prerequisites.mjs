@@ -12,9 +12,9 @@
 // settings.json and settings.local.json in ~/.claude (or $CLAUDE_CONFIG_DIR) and
 // the project's .claude directory instead, skipping a whole file whose
 // enabledPlugins holds a non-Boolean value (Claude Code ignores that file's
-// keys), and pick install records by the same project and scope rule; that
-// fallback does not read the managed scope. A session started with a settings file
-// that SESSION_SETTINGS_FILE names (lib/enabled-plugin-roots.mjs) takes the settings
+// keys), then the managed settings files, which win, and pick install records by the
+// same project and scope rule. A session started with a settings file that
+// SESSION_SETTINGS_FILE names (lib/enabled-plugin-roots.mjs) takes the settings
 // route with that file read, since `claude plugin list` does not see it. Output that is not a
 // JSON list is an error (exit 2), never a fallback. Only when none of that state
 // exists and this repo has plugins/*/prerequisites.json, scan those.
@@ -31,6 +31,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { rootsFromListing, rootsFromSettings, sessionSettingsFile } from "../../../lib/enabled-plugin-roots.mjs";
+import { managedSettingsFiles } from "../../../lib/plugin-options.mjs";
 import { report, which } from "../../../lib/prerequisites.mjs";
 
 export { rootsFromListing, rootsFromSettings };
@@ -71,6 +72,15 @@ function claudeListing(env, platform) {
     shell: /\.(cmd|bat)$/i.test(claude),
   });
   return r.stdout ?? "";
+}
+
+// The managed settings files, or none on a platform with no documented managed path.
+function managedFiles() {
+  try {
+    return managedSettingsFiles();
+  } catch {
+    return [];
+  }
 }
 
 function parseArgs(argv) {
@@ -128,7 +138,7 @@ export function run(argv, ctx = {}, io = {}) {
       stateRead = true;
       roots = rootsFromListing(rows, project);
     } else {
-      const found = rootsFromSettings(config, project, [], env);
+      const found = rootsFromSettings(config, project, ctx.managed ?? managedFiles(), env);
       stateRead = found.read;
       roots = found.roots;
     }

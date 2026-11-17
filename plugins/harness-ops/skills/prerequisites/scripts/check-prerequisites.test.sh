@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The fleet table reports a declared dependency present or missing and never installs.
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG SESSION_SETTINGS_FILE
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/check-prerequisites.mjs"
@@ -174,6 +174,14 @@ out="$(cd "$PROJECT" && PATH="$STUB_PATH" STUB_LIST="$listing" SESSION_SETTINGS_
 expect_has "session: a plugin the session file turns off is not read" 'missing=0 present=0' "$out"
 out="$(cd "$PROJECT" && PATH="$STUB_PATH" STUB_LIST="$listing" SESSION_SETTINGS_FILE="$WORK/absent.json" CLAUDE_CONFIG_DIR="$CONFIG" CLAUDE_PROJECT_DIR="$PROJECT" "$NODE" "$SCRIPT")"
 expect_has "session: a missing session file adds nothing" $'plugin-b\tabsent-b\tcli\trequired\tmissing' "$out"
+# A managed settings file wins over the session file: managed off, session on, not read.
+printf '%s\n' '{"enabledPlugins":{"plugin-b@m":true}}' >"$WORK/session.json"
+printf '%s\n' '{"enabledPlugins":{"plugin-b@m":false}}' >"$WORK/managed.json"
+out="$(cd "$PROJECT" && PATH="$NOCLAUDE_PATH" SESSION_SETTINGS_FILE="$WORK/session.json" CLAUDE_CONFIG_DIR="$CONFIG" CLAUDE_PROJECT_DIR="$PROJECT" MANAGED="$WORK/managed.json" CHECKER="$SCRIPT" "$NODE" --input-type=module -e '
+const { run } = await import(process.env.CHECKER);
+process.exitCode = run([], { managed: [process.env.MANAGED] });
+')"
+expect_has "session: a managed file that turns the plugin off wins over the session file" 'missing=0 present=0' "$out"
 rm "$PROJECT/.claude/settings.local.json"
 
 # Unparsable claude output is an error, not a settings fallback.
