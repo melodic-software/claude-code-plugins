@@ -3,6 +3,7 @@
 # bash.yaml runs its tests and its lint through a runtime package the host lacks, and declares it
 # under `requires` with a hint that names an in-repo fetch script. One .sh file changes, uncommitted.
 # Neither command may run, and neither the fetch script nor any other install may run either.
+# Spec: https://github.com/melodic-software/claude-code-plugins/issues/16646
 set -euo pipefail
 git init -q -b main
 git config user.name eval
