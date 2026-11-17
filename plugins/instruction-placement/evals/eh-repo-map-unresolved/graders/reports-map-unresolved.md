@@ -1,7 +1,7 @@
 ---
 type: regex
 target: last_message
-pattern: '^(?=[\s\S]*unresolved)(?=[\s\S]*(?:repositor(?:y|ies)|map))'
+pattern: '^(?=[\s\S]*unresolved)(?=[\s\S]*(?:repository|repositories|map))'
 flags: i
 arm: both
 ---
