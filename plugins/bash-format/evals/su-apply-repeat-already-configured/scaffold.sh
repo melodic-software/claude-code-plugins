@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A git repository where every check step passes or is INFO on a host with node, jq, shellcheck and shfmt:
-# a section names shell files, a .shellcheckrc exists, and this clone declined the pre-commit entries, so
-# verify reports declined rather than missing (setup SKILL.md check steps 5, 6, 7 and 12).
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2

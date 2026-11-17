@@ -4,27 +4,11 @@
 #   bash-format.sh                 the PostToolBatch row
 #   bash-format.sh --end-of-turn   the opt-in Stop row (bash_format_end_of_turn)
 #
-# Formats only: once per batch, over every .sh and .bash file a Write, Edit or
-# MultiEdit in the batch named, the shfmt adapter runs where it governs the
-# file (git-hooks/adapters.sh, through lib/git-hooks/resolve-tool.sh). A
-# .claude/ecosystems/ record is never run here; /toolchain:lint runs it. It
-# prints nothing and always exits 0, so no finding ever reaches the model per
-# edit; ShellCheck findings are the lint entry's job (git-hooks/lint.sh), and
-# the format entry (git-hooks/format.sh) formats for every author.
-#
 # PostToolBatch has no matcher, so the row fires on every batch. The launcher
 # skips the script unless the payload holds a string ending in "sh" (which both
 # extensions do), and the script then reads tool_calls[].tool_input.file_path
 # itself, so a batch with no shell edit costs one node process. A file that Read
 # named is never rewritten.
-#
-# Opt-in: the shfmt adapter governs only a file an .editorconfig section names
-# (see git-hooks/shfmt-rewrite.sh); without that opt-in the file is left as written
-# rather than rewritten to shfmt's built-in defaults. A file the repository
-# gitignores is skipped unless bash_format_lint_gitignored is true, and so is
-# anything under .githooks/ (installed copies). The batch payload carries no
-# pre-edit bytes, so a file that already drifted from the repo's style is
-# formatted whole, as the pre-commit entry would.
 
 set -uo pipefail
 
@@ -41,9 +25,6 @@ IFS= read -r -d '' INPUT || :
 if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
   err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/lint.sh" --worktree 2>&1 >/dev/null)" && exit 0
-  # A missing linter is a host problem: the SessionStart probe reports it, and
-  # blocking every turn end on it would not help the model. Only those lines
-  # are dropped; any finding printed beside them is still handed back.
   report=""
   while IFS= read -r line; do
     case "$line" in
@@ -51,7 +32,6 @@ if [[ "${1:-}" == --end-of-turn ]]; then
     *) report+="$line"$'\n' ;;
     esac
   done <<<"$err"
-  # silent-skip-ok: only missing-tool lines remained, which the SessionStart probe reports.
   [[ -n "${report//[[:space:]]/}" ]] || exit 0
   printf '%s' "$report" >&2
   exit 2

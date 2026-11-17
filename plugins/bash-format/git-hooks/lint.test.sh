@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/bash-format/.claude-plugin/plugin.json
-# Expected values are the tools' documented output: SC2154 is "<var> is
-# referenced but not assigned"; gcc format is
-# "<file>:<line>:<column>: <type>: <message> [SC####]" (shellcheck.1.md,
-# "gcc"); exit 1 means "some issues" (shellcheck.1.md, "RETURN VALUES"); an rc
-# file is ".shellcheckrc" or "shellcheckrc" in the script's directory or a
-# parent (shellcheck.1.md, "RC FILES").
 # test-scope: plugins/bash-format/git-hooks/entries.json plugins/bash-format/git-hooks/adapters.sh
 # test-scope: plugins/bash-format/lib/git-hooks/check-lib.sh plugins/bash-format/lib/git-hooks/resolve-tool.sh
 # shellcheck disable=SC2016 # fixtures hold literal shell text, not expansions
@@ -25,7 +19,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -37,7 +31,7 @@ expect() { # <label> <want> <got>
 
 EC=$'[*.sh]\nindent_style = space\nindent_size = 2'
 n=0
-new_repo() { # [.shellcheckrc body; "NONE" for no .shellcheckrc]
+new_repo() {
   n=$((n + 1))
   REPO="$WORK/r$n"
   git init -q -b main "$REPO"
@@ -52,7 +46,7 @@ new_repo() { # [.shellcheckrc body; "NONE" for no .shellcheckrc]
   git -C "$REPO" commit -q -m seed --no-verify
 }
 
-check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
+check() {
   local repo="$1" out rc
   shift
   out="$(cd "$repo" && bash "$CHECK" "$@" 2>"$WORK/stderr")"
@@ -65,13 +59,6 @@ TABBED="$SHEBANG"$'\nif true; then\n\techo hi\nfi'
 SPACED="$SHEBANG"$'\nif true; then\n  echo hi\nfi'
 HINT='bash-format: fix the findings above, or adjust the repository .shellcheckrc.'
 
-# Windows caps a command line at 32,767 characters, so a commit with many shell
-# paths must reach shellcheck in more than one call. These cases put a stub in
-# its place and need no real one: past the cap the stub fails to launch
-# with status 126, as Windows does; otherwise it logs "--" per call and each path
-# it gets, prints a finding for a *-finding.sh path or one holding "stub: finding",
-# exits 2 for *-broken.sh, and exits 1 with nothing parseable for *-mute.sh.
-# Identical scripts are linted once, so each fixture here holds its own bytes.
 mkdir -p "$WORK/sc-stub"
 cat >"$WORK/sc-stub/shellcheck" <<'STUB'
 #!/usr/bin/env bash
@@ -124,31 +111,29 @@ expect "many long staged paths: shellcheck ran in more than one call" yes \
   "$( (($(grep -cx -- -- "$WORK/sc.log") > 1)) && echo yes)"
 expect "many long staged paths: each path reached shellcheck exactly once" \
   "$(git -C "$REPO" diff --cached --name-only | sort)" "$(grep -vx -- -- "$WORK/sc.log" | sort)"
-printf '#!/bin/bash\necho a\n' >"$REPO/a-finding.sh"
-printf '#!/bin/bash\necho z\n' >"$REPO/z-finding.sh"
+printf '%s\necho a\n' "$SHEBANG" >"$REPO/a-finding.sh"
+printf '%s\necho z\n' "$SHEBANG" >"$REPO/z-finding.sh"
 git -C "$REPO" add a-finding.sh z-finding.sh
 expect "a finding from the first batch and one from the last both block" "1|a-finding.sh:2: warning: stub finding [SC2154]
 z-finding.sh:2: warning: stub finding [SC2154]
 $HINT" "$(sc_stub "$REPO")"
 git -C "$REPO" rm -q --cached a-finding.sh z-finding.sh
 rm "$REPO/a-finding.sh" "$REPO/z-finding.sh"
-printf '#!/bin/bash\necho broken\n' >"$REPO/a-broken.sh"
+printf '%s\necho broken\n' "$SHEBANG" >"$REPO/a-broken.sh"
 git -C "$REPO" add a-broken.sh
 out="$(sc_stub "$REPO")"
 expect "a first batch's status above 1 still blocks after a later batch passes" \
   "1|bash-format: shellcheck failed:" "${out%%$'\n'*}"
 
 new_repo
-printf '#!/bin/bash\necho m\n' >"$REPO/a-mute.sh"
+printf '%s\necho m\n' "$SHEBANG" >"$REPO/a-mute.sh"
 git -C "$REPO" add a-mute.sh
 expect "exit 1 with no <path>:<line> finding fails closed and shows the output" \
   "1|bash-format: shellcheck exited 1 and reported no <path>:<line> finding, so the change was not checked:
 stub: internal confusion" "$(sc_stub "$REPO")"
 
-# A name starting with - reaches ShellCheck as ./<name>, so it is never read as
-# an option; its finding still names it as staged.
 new_repo
-printf '#!/bin/bash\necho d\n' >"$REPO/-x-finding.sh"
+printf '%s\necho d\n' "$SHEBANG" >"$REPO/-x-finding.sh"
 git -C "$REPO" add -- -x-finding.sh
 expect "a leading-dash name is passed as a path and its finding names it" "1|-x-finding.sh:2: warning: stub finding [SC2154]
 $HINT" "$(sc_stub "$REPO")"
@@ -157,13 +142,13 @@ $HINT" "$(sc_stub "$REPO")"
 # findings under its own path, and its own added lines decide what blocks. b.sh
 # already held line 2, so its copy of the finding there does not block.
 new_repo
-printf '#!/bin/bash\n# stub: finding\necho before\n' >"$REPO/b-copy.sh"
+printf '%s\n: stub: finding\necho before\n' "$SHEBANG" >"$REPO/b-copy.sh"
 git -C "$REPO" add b-copy.sh
 git -C "$REPO" commit -q -m b --no-verify
 for f in a-copy.sh b-copy.sh c-copy.sh; do
-  printf '#!/bin/bash\n# stub: finding\necho same\n' >"$REPO/$f"
+  printf '%s\n: stub: finding\necho same\n' "$SHEBANG" >"$REPO/$f"
 done
-printf '#!/bin/bash\necho other\n' >"$REPO/d-other.sh"
+printf '%s\necho other\n' "$SHEBANG" >"$REPO/d-other.sh"
 git -C "$REPO" add a-copy.sh b-copy.sh c-copy.sh d-other.sh
 expect "identical copies: every copy whose added lines hold the finding reports it" "1|a-copy.sh:2: warning: stub finding [SC2154]
 c-copy.sh:2: warning: stub finding [SC2154]
@@ -172,21 +157,20 @@ expect "identical copies are linted once, differing content still each" "a-copy.
 d-other.sh" "$(grep -vx -- -- "$WORK/sc.log" | sort)"
 
 new_repo NONE
-printf '#!/bin/bash\necho a\n' >"$REPO/a-finding.sh"
+printf '%s\necho a\n' "$SHEBANG" >"$REPO/a-finding.sh"
 git -C "$REPO" add a-finding.sh
 expect "no .shellcheckrc: ShellCheck still runs and its finding blocks" "1|a-finding.sh:2: warning: stub finding [SC2154]
 $HINT" "$(sc_stub "$REPO")"
 new_repo NONE
 mkdir -p "$REPO/pkg" "$REPO/other"
-printf '# pkg only\n' >"$REPO/pkg/.shellcheckrc"
-printf '#!/bin/bash\necho p\n' >"$REPO/pkg/p-finding.sh"
-printf '#!/bin/bash\necho o\n' >"$REPO/other/o-finding.sh"
+printf 'shell=bash\n' >"$REPO/pkg/.shellcheckrc"
+printf '%s\necho p\n' "$SHEBANG" >"$REPO/pkg/p-finding.sh"
+printf '%s\necho o\n' "$SHEBANG" >"$REPO/other/o-finding.sh"
 git -C "$REPO" add pkg other
 expect "scripts with and without an rc above them are both linted" "1|other/o-finding.sh:2: warning: stub finding [SC2154]
 pkg/p-finding.sh:2: warning: stub finding [SC2154]
 $HINT" "$(sc_stub "$REPO")"
 
-# --resolve: one row for the repository, or one per path; it runs nothing.
 expect "--resolve names the adapter and the first rc it finds" "bash-format	lint	adapter:shellcheck	shellcheck	yes	config pkg/.shellcheckrc; binary shellcheck on PATH" \
   "$(cd "$REPO" && PATH="$WORK/sc-stub:$PATH" bash "$CHECK" --resolve)"
 expect "--resolve <path>: one row per file, the governing rc or ShellCheck's defaults" "bash-format	lint	adapter:shellcheck	shellcheck	yes	config pkg/.shellcheckrc; binary shellcheck on PATH
@@ -212,7 +196,6 @@ git -C "$REPO" add a.sh
 expect "a clean staged script passes and is never rewritten" "0||" "$(check "$REPO")"
 expect "lint leaves the bytes as written" "$TABBED" "$(cat "$REPO/a.sh")"
 
-# ShellCheck reads its rc from the work tree; the commit holds the index's.
 DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
 new_repo
 mkdir -p "$REPO/pkg"
@@ -280,20 +263,16 @@ git -C "$REPO" add a.sh
 expect "no .editorconfig: ShellCheck still reports" "1||a.sh:2: warning: undefined_var is referenced but not assigned. [SC2154]
 $HINT" "$(check "$REPO")"
 
-# Identical bytes in different directories: ShellCheck reads the .shellcheckrc
-# nearest each script, and a SCRIPTDIR search path resolves a sourced file from
-# each script's own directory, so such copies are linted apart unless neither
-# can change the result. A shim in front of the real shellcheck logs each call.
 mkdir -p "$WORK/sc-count"
-printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"$SC_COUNT_LOG"\nexec %q "$@"\n' "$(command -v shellcheck)" >"$WORK/sc-count/shellcheck"
+printf '%s\nprintf "%%s\\n" "$*" >>"$SC_COUNT_LOG"\nexec %q "$@"\n' "$SHEBANG" "$(command -v shellcheck)" >"$WORK/sc-count/shellcheck"
 chmod +x "$WORK/sc-count/shellcheck"
-sc_count() { # <repo> -> "<rc>|<stdout and stderr>"; the calls go to $WORK/count.log
+sc_count() {
   : >"$WORK/count.log"
   local out
   out="$(cd "$1" && SC_COUNT_LOG="$WORK/count.log" PATH="$WORK/sc-count:$PATH" bash "$CHECK" 2>&1)"
   printf '%s|%s' "$?" "$out"
 }
-linted() { # <path>: how many lint calls named it
+linted() {
   grep -c -- "-x .* $1\( \|\$\)" "$WORK/count.log"
 }
 UNDEF="$SHEBANG"$'\necho "$undefined_var"'
@@ -353,9 +332,6 @@ $HINT" "$(check "$REPO" --worktree)"
 rm "$REPO/a.sh"
 expect "--worktree: no uncommitted change passes" "0||" "$(check "$REPO" --worktree)"
 
-# A merge being committed: a script the merged branch brings in unchanged is
-# not checked; one the resolution edits is. main commits first so the merge
-# cannot fast-forward.
 merge_repo() {
   new_repo
   git -C "$REPO" checkout -q -b side
@@ -380,7 +356,6 @@ expect "merge: a script the resolution edits blocks, nothing listed" "1|" "${out
 expect "merge: the findings include the appended line" yes \
   "$(grep -q '^x\.sh:5: warning: .*\[SC2164\]$' <<<"${rest#*|}" && echo yes)"
 
-# A PATH without shellcheck.
 mkdir -p "$WORK/no-shellcheck"
 for t in git bash sh sed awk cat mktemp rm dirname grep tr head jq; do
   ln -s "$(command -v "$t")" "$WORK/no-shellcheck/$t"

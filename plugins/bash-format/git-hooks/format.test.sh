@@ -1,18 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/bash-format/.claude-plugin/plugin.json
-# Contract tests for the bash-format format entry (git-hooks/format.sh): staged
-# shell scripts that an .editorconfig section governs are formatted and
-# re-staged, a partly staged one is refused untouched, a script no section
-# governs is never rewritten, an array-subscript rewrite shfmt would make is put
-# back, --worktree does nothing, a merge leaves a script it takes unchanged
-# from the merged branch alone, a missing tool follows the skip-key rule, the
-# entry reports nothing and blocks on no lint finding, --resolve names the
-# adapter or why none ran, and the plugin's own vendored installer wires both
-# entries so `git commit` runs them and retires the earlier single entry.
-# Expected values are the tools' documented output: a tab-indented body formats
-# to the two spaces indent_size = 2 asks for (shfmt.1, EditorConfig); shfmt
-# spaces the operator in an array subscript, [a-b] to [a - b]; SC2154 is
-# "<var> is referenced but not assigned".
 # test-scope: plugins/bash-format/git-hooks/entries.json plugins/bash-format/git-hooks/adapters.sh plugins/bash-format/git-hooks/shfmt-rewrite.sh
 # test-scope: plugins/bash-format/lib/git-hooks/check-lib.sh plugins/bash-format/lib/git-hooks/install.mjs plugins/bash-format/lib/git-hooks/resolve-tool.sh
 # shellcheck disable=SC2016 # fixtures hold literal shell text, not expansions
@@ -35,7 +22,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -47,7 +34,7 @@ expect() { # <label> <want> <got>
 
 EC=$'[*.sh]\nindent_style = space\nindent_size = 2'
 n=0
-new_repo() { # [.editorconfig body; "NONE" for no .editorconfig]
+new_repo() {
   n=$((n + 1))
   REPO="$WORK/r$n"
   git init -q -b main "$REPO"
@@ -61,7 +48,7 @@ new_repo() { # [.editorconfig body; "NONE" for no .editorconfig]
   git -C "$REPO" commit -q -m seed --no-verify
 }
 
-check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
+check() {
   local repo="$1" out rc
   shift
   out="$(cd "$repo" && bash "$CHECK" "$@" 2>"$WORK/stderr")"
@@ -118,7 +105,6 @@ expect "a partly staged governed script is refused with the contract line" "1||a
 expect "a refused script is left byte for byte" "$TABBED"$'\necho more' "$(cat "$REPO/a.sh")"
 expect "a refused script's index entry is left byte for byte" "$TABBED" "$(git -C "$REPO" show :a.sh)"
 
-# shfmt reads its config from the work tree; the commit holds the index's.
 DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
 new_repo
 printf '%s\n' "$TABBED" >"$REPO/a.sh"
@@ -183,8 +169,6 @@ expect "an array-subscript rewrite is put back: the commit check passes, nothing
 expect "the subscript rewrite leaves the bytes as written" "$SHEBANG"$'\ndeclare -A m\nm[a-b]=1\necho "${m[a-b]}"' "$(cat "$REPO/a.sh")"
 expect "the subscript guard says why on stderr" "bash-format: shfmt would rewrite the array subscripts \`[a-b]\` on line 3 as \`[a - b]\`, \`[a-b]\` on line 4 as \`[a - b]\`, each a different key if the array is associative, so a.sh was left as written. Quote the key ([\"a-b\"]) if the array is associative; if it is indexed, write it as shfmt prints it ([a - b])." "${out##*|}"
 
-# An unclassified shfmt probe failure leaves the file alone and says so; only a
-# confirmed unsupported-flag rejection may fall back to a plain format.
 mkdir -p "$WORK/flake"
 cat >"$WORK/flake/shfmt" <<'STUB'
 #!/usr/bin/env bash
@@ -209,9 +193,6 @@ printf '%s\n' "$TABBED" >"$REPO/a.sh"
 expect "--worktree: does nothing and passes" "0||" "$(check "$REPO" --worktree)"
 expect "--worktree: the file keeps its bytes" "$TABBED" "$(cat "$REPO/a.sh")"
 
-# A merge being committed: a script the merged branch brings in unchanged is
-# not rewritten; one the resolution edits is rewritten whole. main commits
-# first so the merge cannot fast-forward.
 merge_repo() {
   new_repo
   git -C "$REPO" checkout -q -b side
@@ -234,8 +215,7 @@ printf 'cd /var\n' >>"$REPO/x.sh"
 git -C "$REPO" add x.sh
 expect "merge: a script the resolution edits is rewritten and listed" "0|x.sh|" "$(check "$REPO")"
 
-# A PATH without one of the tools the script runs.
-bin_without() { # <dir> <tool-to-omit>
+bin_without() {
   mkdir -p "$1"
   local t
   for t in git bash sh sed awk cat mktemp rm dirname grep tr head jq shfmt; do
@@ -272,7 +252,6 @@ git -C "$REPO" add a.sh
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shfmt" bash "$CHECK" 2>&1)"
 expect "missing shfmt where no section opts in: nothing needs it" "0|" "$?|$out"
 
-# --resolve: one row for the repository, or one per path; it runs nothing.
 new_repo NONE
 mkdir -p "$REPO/pkg" "$REPO/other"
 printf '%s\n' "$EC" >"$REPO/pkg/.editorconfig"
@@ -294,7 +273,6 @@ git -C "$REPO" add a.sh .claude
 expect "a bash record with no adapter config runs nothing at commit" "0||" "$(check "$REPO")"
 expect "the record's file stays as written" "$TABBED" "$(cat "$REPO/a.sh")"
 
-# End to end through the plugin's vendored installer and real commits.
 new_repo
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 status="$(node "$INSTALL" copy --scope local --repo "$REPO")"
@@ -319,8 +297,6 @@ ok	lint" "$(node "$INSTALL" verify --repo "$REPO")"
 printf '# edited\n' >>"$REPO/.git/hooks/bash-format/shfmt-rewrite.sh"
 expect "verify reports a locally edited helper as modified" "modified	format" "$(node "$INSTALL" verify --repo "$REPO" | head -1 | cut -f1,2)"
 
-# An install of the earlier single entry is reported for retirement, and a
-# decline of it carries to both entries.
 new_repo
 mkdir -p "$REPO/.git/hooks/bash-format"
 printf '#!/bin/sh\n# bash-format shell-check sha256:%064d\n' 0 >"$REPO/.git/hooks/bash-format/shell-check.sh"

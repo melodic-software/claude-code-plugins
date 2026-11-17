@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A git repository where a section names shell files and .gitignore covers .work/, with an untracked
-# .work/scratch.sh, and this clone declined the pre-commit entries (setup SKILL.md check steps 6, 11 and 12).
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2

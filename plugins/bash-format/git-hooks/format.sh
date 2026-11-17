@@ -1,24 +1,4 @@
 #!/bin/sh
-# bash-format pre-commit format entry: rewrite the staged shell scripts with
-# shfmt where the repository opted in, then re-stage them.
-#
-#   format.sh             the staged changes (git runs it as pre-commit)
-#   format.sh --worktree  does nothing: formatting happens at commit
-#   format.sh --resolve [<path>...]  print the format row, or one per path
-#                         (resolve-tool.sh rt_print); runs nothing
-#
-# The command resolves per file through lib/git-hooks/resolve-tool.sh to the
-# shfmt adapter in adapters.sh, for a .sh or .bash file an .editorconfig
-# section naming shell files governs (see shfmt-rewrite.sh), else to nothing;
-# a .claude/ecosystems/ record is never run here. A partly staged governed
-# script is refused before anything is rewritten (re-staging a rewrite would
-# stage its unstaged hunks too), and so is a commit whose .editorconfig above
-# a staged script differs between the index and the work tree. The rewritten
-# paths print on stdout. A staged script since deleted from the work tree is
-# never rewritten, and files under .githooks/ are installed copies and are
-# skipped. A missing tool follows the check-placement contract:
-# checks.skipmissing, else fail for an agent and a notice for a person.
-#
 # POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
 case "$0" in
@@ -78,7 +58,6 @@ case $? in
 2) exit 1 ;;
 *) exit 0 ;;
 esac
-# The subscript guard reads shfmt's syntax tree with jq.
 (checks_require_tool jq "see https://jqlang.org/download/") || exit 1
 command -v jq >/dev/null 2>&1 || exit 0
 

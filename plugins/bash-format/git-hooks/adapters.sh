@@ -1,15 +1,5 @@
 #!/bin/sh
 # shellcheck shell=bash
-# bash-format's side of lib/git-hooks/resolve-tool.sh: the ecosystem id whose
-# record setup reports (hooks never run it), the files it acts on, and its two
-# adapters. Sourced by the batch hook and both git-hook entries; the format
-# adapter's opt-in test, editorconfig_shell_section_here, comes from
-# shfmt-rewrite.sh, which the caller sources first.
-#
-# format: shfmt, where an .editorconfig section naming shell files governs the
-#   file (see shfmt-rewrite.sh). It runs in process through shfmt_rewrite, so
-#   its array-subscript guard and ignore-rule probe hold; RT_SCRIPT stays empty.
-# Both tools come from PATH.
 
 # shellcheck disable=SC2034 # read by resolve-tool.sh
 RT_PLUGIN=bash-format
@@ -30,9 +20,6 @@ bf__shellcheckrc_here() {
   [[ -e "$1/.shellcheckrc" || -e "$1/shellcheckrc" ]]
 }
 
-# bf__walk <dir> <root> <predicate>: 0 when the predicate holds at <dir> or a
-# directory above it, up to <root>; BF_WALK_DIR is where it held. A predicate
-# status of 2 ends the walk with no hit (a root = true .editorconfig).
 bf__walk() {
   local dir="$1" rc
   while :; do
@@ -47,7 +34,6 @@ bf__walk() {
   done
 }
 
-# bf__dir <file> <root>: sets BF_DIR to the file's directory, absolute.
 bf__dir() {
   local f="$1"
   [[ "$f" == /* || "$f" == [A-Za-z]:[\\/]* ]] || f="$2/$f"
@@ -75,14 +61,13 @@ bf__set() {
   esac
 }
 
-# bf__rel <dir> <root> <name>: sets BF_REL to <dir>/<name>, repo-relative.
 bf__rel() {
   local rel="${1#"$2"}"
   rel="${rel#/}"
   BF_REL="${rel:+$rel/}$3"
 }
 
-rt_adapter() { # <concern> <file> <root>
+rt_adapter() {
   bf__dir "$2" "$3"
   if [[ "$1" == format ]]; then
     bf__walk "$BF_DIR" "$3" editorconfig_shell_section_here || return 1
@@ -97,7 +82,7 @@ rt_adapter() { # <concern> <file> <root>
 }
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh
-rt_adapter_in_repo() { # <concern> <root>
+rt_adapter_in_repo() {
   local f=""
   if [[ "$1" == format ]]; then
     if editorconfig_shell_section_here "$2"; then

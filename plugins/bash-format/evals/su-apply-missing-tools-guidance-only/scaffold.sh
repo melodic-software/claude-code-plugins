@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A git repository with a shell script, no .editorconfig and no .shellcheckrc, where this clone has
-# declined the pre-commit entries, so bare apply has nothing to do but guide (setup SKILL.md apply).
 set -euo pipefail
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   echo 'scaffold: refusing to run inside a repository that has commits' >&2

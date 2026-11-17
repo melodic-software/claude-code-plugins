@@ -82,8 +82,6 @@ mkdir -p "$NOTOOL"
 for t in git bash sh sed awk cat mktemp rm dirname grep tr jq; do
   ln -s "$(command -v "$t")" "$NOTOOL/$t"
 done
-# node itself, not a version-manager shim, which would put every tool it
-# manages, shellcheck included, back on PATH.
 ln -s "$(node -e 'process.stdout.write(process.execPath)')" "$NOTOOL/node"
 expect "on: a missing shellcheck passes silently" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_BASH_FORMAT_END_OF_TURN=true PATH="$NOTOOL")"

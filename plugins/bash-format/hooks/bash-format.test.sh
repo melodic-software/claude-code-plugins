@@ -271,8 +271,6 @@ printf '%s\n' "$TABBED" >"$REPO_NF/app.sh"
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink node; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
-  # node itself, not a version-manager shim, which would put every tool it
-  # manages, shfmt included, back on PATH.
   [[ "$t" == node ]] && real_t="$(node -e 'process.stdout.write(process.execPath)')"
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
