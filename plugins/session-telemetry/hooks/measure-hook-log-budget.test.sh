@@ -82,6 +82,29 @@ else
   fail "4 KB corrupt count is not an integer" "$corrupt"
 fi
 
+SHIM_DIR="$TEST_TMPDIR/shim"
+mkdir -p "$SHIM_DIR"
+cat >"$SHIM_DIR/node" <<EOF
+#!$BASH
+case " \$* " in *exec-bash.mjs*) exit 1 ;; esac
+exec "$(command -v node)" "\$@"
+EOF
+chmod +x "$SHIM_DIR/node"
+OUT="$(PATH="$SHIM_DIR:$PATH" bash "$SUT" --samples 1 2>&1)"
+assert_exit "a failed hook row exits 3" 3 "$?"
+assert_contains "the failure names the probe" "$OUT" "parallel wall (log off) probe job exited non-zero"
+
+APPEND_COPY="$TEST_TMPDIR/append-fail"
+cp -r "${SCRIPT_DIR%/*}" "$APPEND_COPY"
+mv "$APPEND_COPY/hooks/session-log-lib.sh" "$APPEND_COPY/hooks/session-log-lib.real.sh"
+cat >"$APPEND_COPY/hooks/session-log-lib.sh" <<'EOF'
+source "${BASH_SOURCE[0]%/*}/session-log-lib.real.sh"
+slog_append() { return 1; }
+EOF
+OUT="$(bash "$APPEND_COPY/hooks/measure-hook-log-budget.sh" --samples 1 2>&1)"
+assert_exit "a failed append job exits 3" 3 "$?"
+assert_contains "the failure names the append probe" "$OUT" "4 KB append probe job exited non-zero"
+
 # A trailing option with no value is a usage error, not an endless loop.
 for flag in --samples --record --check-doc; do
   timeout 10 bash "$SUT" "$flag" >/dev/null 2>&1

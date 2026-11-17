@@ -93,6 +93,10 @@ else
       "$PROBE_NODE" "$PLUGIN_ROOT/lib/prerequisites.mjs" probe "$PLUGIN_ROOT") || echo "probe exited $?"
   }
   NOTICE="powershell-format: pwsh not on the hook PATH"
+  case "$(probe_says "$PROBE_DIR/root" PSScriptAnalyzerSettings.psd1 build.ps1)" in
+  *"$NOTICE"*) ok "probe: a settings file at the repository root reports a missing pwsh" ;;
+  *) fail "probe: a root settings file did not report pwsh" ;;
+  esac
   case "$(probe_says "$PROBE_DIR/nested" mod/PSScriptAnalyzerSettings.psd1)" in
   *"$NOTICE"*) ok "probe: a settings file tracked only in a subdirectory reports a missing pwsh" ;;
   *) fail "probe: a nested settings file did not report pwsh" ;;

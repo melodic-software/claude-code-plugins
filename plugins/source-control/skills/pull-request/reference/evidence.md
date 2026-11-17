@@ -16,6 +16,9 @@ FDA's guidance "Computer Software Assurance for Production and Quality Managemen
 section (6) "Establishing the Appropriate Record"; the guidance is an analogy for such teams here,
 not a requirement this step meets.
 
+Screenshots and recordings of a regulated product show synthetic data only, never real records:
+no step here checks a capture's image content for real records.
+
 In CI the pr-merge lane posts the same marked comment, not this step: the pr-verify jobs hold read
 tokens only. The comment goes up after a passing verdict and before each merge path's merge, the
 `merge-pr` gate's enqueue and the `enable-auto-merge` arm, from the `/source-control:babysit-prs`
