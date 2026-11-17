@@ -1,12 +1,25 @@
 {
   "earlierNames": ["ruff-format"],
+  "earlierEntries": [{ "from": "ruff-check", "to": ["format", "lint"] }],
+  "ecosystems": ["python"],
   "entries": [
     {
-      "name": "ruff-check",
+      "name": "format",
       "event": "pre-commit",
-      "script": "ruff-check.sh",
+      "script": "format.sh",
       "tools": ["ruff"],
-      "rewrites": true
+      "rewrites": true,
+      "resolved": true,
+      "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh"]
+    },
+    {
+      "name": "lint",
+      "event": "pre-commit",
+      "script": "lint.sh",
+      "tools": ["ruff"],
+      "rewrites": false,
+      "resolved": true,
+      "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh"]
     }
   ]
 }

@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [
+        "src/app.py"
+      ],
+      "why": "the scaffold's files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "src/app.py",
+        "ruff.toml"
+      ],
+      "why": "created a Ruff config"
+    },
+    {
+      "answer": [
+        "src/ruff.toml"
+      ],
+      "why": "created a nested Ruff config"
+    }
+  ]
+}

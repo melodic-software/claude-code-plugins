@@ -63,7 +63,7 @@ file and every reader in the same change, and this document changes with it.
 }
 ```
 
-Every entry carries the first seven fields; `check` is optional:
+Every entry carries the first seven fields; `check` and `when` are optional:
 
 | Field | Meaning |
 | --- | --- |
@@ -75,6 +75,7 @@ Every entry carries the first seven fields; `check` is optional:
 | `degrade` | What stops working without it, and what still works. The checker prints it. |
 | `install` | Hints keyed by package manager or `docs`. The checker prints them and never runs them. Key order is not a preference. |
 | `check` | Optional. A skill a person runs to re-check, such as `/harness-ops:prerequisites`. `check` mode and `report` print it; hook notices never do ([Hook notices](#hook-notices)). |
+| `when` | Optional. `{ "config_any": [...] }`: the entry is needed only where one of these configs sits in the project directory (`CLAUDE_PROJECT_DIR`, else the working directory) or a directory above it. An item is a file name, or `{ "file", "pattern" }` where the file's text must match the regular expression. Where none is found, `probe` stays silent about the entry and `check` reports it `INFO`. A hook plugin sets it on a tool only one of its adapters runs, so a repository that never adopted that tool hears nothing about it. |
 
 `need` and `for` together give the absence class. `required` for `plugin` means the plugin cannot
 work without it; hook plugins use that for `node`. `required` for `skill:x` means skill `x` stops

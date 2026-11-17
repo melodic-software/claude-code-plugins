@@ -7,7 +7,7 @@
   "fail": [
     {"answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/python-format/lib/git-hooks/install.mjs\" plan --scope local"}}], "why": "plan"},
     {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/python-format/lib/git-hooks/install.mjs copy --scope local"}}], "why": "copy writes the entry"},
-    {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/python-format/lib/git-hooks/install.mjs decline --entry ruff-check"}}], "why": "decline writes git config"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/python-format/lib/git-hooks/install.mjs decline --entry format"}}], "why": "decline writes git config"},
     {"answer": [{"tool": "Bash", "input": {"command": "git status && node /plugins/python-format/lib/git-hooks/install.mjs config-hook"}}], "why": "after &&"}
   ]
 }
