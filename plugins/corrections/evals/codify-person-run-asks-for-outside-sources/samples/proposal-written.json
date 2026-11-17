@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [".work/codify/.gitignore", ".work/codify/main/20261117T181500Z-proposal.md"],
+      "why": "proposal under the branch slug"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "stopped before writing"
+    },
+    {
+      "answer": ["CLAUDE.md"],
+      "why": "wrote a rule file instead of a proposal"
+    }
+  ]
+}

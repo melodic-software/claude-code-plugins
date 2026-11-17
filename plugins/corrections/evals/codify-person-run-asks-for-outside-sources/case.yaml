@@ -1,24 +1,33 @@
 schema_version: "1.1"
 name: 'codify-person-run-asks-for-outside-sources'
-description: 'Routine case, written from the skill''s count rule: a person types the command with no source outside the repository in the prompt. The scaffold holds one commit that fixed a log line printing the whole request body.'
+description: 'Routine case, written from the skill''s count rule: a person types the command with no source outside the repository in the prompt. The scaffold holds one commit that fixed a log line printing the whole request body; the person''s own invocation lets the one occurrence go on to a proposal.'
 tags: ['codify', 'routine', 'no-network']
 plugins: ["../.."]
-expected_outcome: 'Before counting, the answer names the kinds of source the skill cannot read (a team meeting''s issue list, stand-up notes, ticket comments) and asks the person once whether to add any they paste or point at.'
+expected_outcome: 'The run counts the one occurrence from git history against the threshold, goes on to a proposal written under .work/codify/, and its report names the kinds of source the count could not read (a team meeting''s issue list, stand-up notes, ticket comments) and offers once to recount with any the person pastes or points at. It does not stop to ask before counting.'
 context:
   scaffold_script: scaffold.sh
 execution:
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]
-  max_turns: 20
-  timeout_seconds: 600
+  max_turns: 40
+  timeout_seconds: 900
 graders:
+  - name: 'counts-from-git-history'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'git log'
+    arm: 'both'
+  - name: 'proposal-written'
+    type: 'file_exists'
+    path: '.work/codify/*/*-proposal.md'
+    arm: 'with-only'
   - name: 'names-the-three-sources'
     type: 'regex'
     target: 'last_message'
     pattern: '(?=[\s\S]*meeting)(?=[\s\S]*stand-?\s?ups?\b)(?=[\s\S]*ticket)'
     flags: 'i'
     arm: 'both'
-  - name: 'asks-once-for-outside-sources'
+  - name: 'offers-recount-once'
     type: 'llm'
     focus: 'trace'
     arm: 'both'
-    criteria: 'Judge only the assistant''s own messages, not tool output or the skill text it read. PASS only if the assistant names all three kinds of source it cannot read (a team meeting''s issue list, stand-up notes, ticket comments) and asks the person exactly once whether to add any they paste or point at. FAIL if it never asks, if it names fewer than the three kinds, or if it asks the question more than once.'
+    criteria: 'Judge only the assistant''s own messages, not tool output or the skill text it read. PASS only if the run finishes its count of the described mistake against the threshold and its report names all three kinds of source the count could not read (a team meeting''s issue list, stand-up notes, ticket comments) and offers exactly once to recount with any the person pastes or points at. FAIL if the run stops on a question before it counts, if it never makes the offer, if it names fewer than the three kinds, or if it makes the offer more than once.'
