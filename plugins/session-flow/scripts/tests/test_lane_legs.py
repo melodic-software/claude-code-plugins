@@ -112,6 +112,16 @@ def test_lane_and_last_take_the_newest_runs_of_that_lane(tmp_path):
     assert [r["run_ref"] for r in body["runs"]] == ["3", "2"]
 
 
+def test_branch_keeps_only_runs_on_that_head_branch(tmp_path):
+    rows = [row(1, "check-intent"), {**row(2, "check-intent", hour=11), "head_branch": "feat/x-2"}, {**row(3, "triage", hour=12), "head_branch": None}]
+    sink = sink_with(tmp_path, rows)
+
+    code, body, _ = resolve("--sink", str(sink), "--branch", "feat/x")
+
+    assert code == 0
+    assert [r["run_ref"] for r in body["runs"]] == ["1"]
+
+
 def test_a_date_window_with_outcome_and_model_keeps_only_matching_legs(tmp_path):
     rows = [
         row(1, "a", date="2026-10-30"),

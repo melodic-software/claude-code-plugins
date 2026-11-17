@@ -7,12 +7,12 @@ checks:
       - plugins/work-items/tools/work-item-tracker/adapters/github/renew-lease.sh
       - plugins/work-items/tools/work-item-tracker/adapters/github/common.sh
       - plugins/work-items/tools/work-item-tracker/lib/lease.sh
-    commit: a548b3aaab8ca0923b387b7f020f4b5af1c59e99
+    commit: 1af476261a205131d4a8fe63451433fbf6b968d2
     command: /formal-verification:chart .claude/skills/formal-claim-protocol/model/ClaimProtocol.tla --config .claude/skills/formal-claim-protocol/model/LocalLane.cfg --view .claude/skills/formal-claim-protocol/model/view.mjs --rerun-states 2000000
     seeded_break:
       change: claim step 4 (lib/lease.sh wit_lease_winner) takes the latest live lease as the winner instead of the earliest; OneHolder breaks after 1,415 distinct states
       caught: true
-      commit: a548b3aaab8ca0923b387b7f020f4b5af1c59e99
+      commit: 1af476261a205131d4a8fe63451433fbf6b968d2
   - id: claim-local-triage
     covers:
       - plugins/work-items/tools/work-item-tracker/CONTRACT.md
@@ -21,10 +21,10 @@ checks:
       - plugins/work-items/tools/work-item-tracker/adapters/github/renew-lease.sh
       - plugins/work-items/tools/work-item-tracker/adapters/github/common.sh
       - plugins/work-items/tools/work-item-tracker/lib/lease.sh
-    commit: a548b3aaab8ca0923b387b7f020f4b5af1c59e99
+    commit: 1af476261a205131d4a8fe63451433fbf6b968d2
     command: /formal-verification:chart .claude/skills/formal-claim-protocol/model/ClaimProtocol.tla --config .claude/skills/formal-claim-protocol/model/LocalTriage.cfg --view .claude/skills/formal-claim-protocol/model/view.mjs --rerun-states 2000000
     seeded_break:
       change: claim step 4 (lib/lease.sh wit_lease_winner) takes the latest live lease as the winner instead of the earliest; OneHolder breaks after 1,888 distinct states
       caught: true
-      commit: a548b3aaab8ca0923b387b7f020f4b5af1c59e99
+      commit: 1af476261a205131d4a8fe63451433fbf6b968d2
 outside_model: []
