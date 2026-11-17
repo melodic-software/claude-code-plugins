@@ -343,7 +343,7 @@ The owner's rule, 2026-10-27, verbatim, with reason 3 as the owner reworded it o
 | Original intent or vision changes, or the item cannot answer an intent question | `needs-owner-decision`, `Flags: intent` | Intake triage ([`intake-triage.yml`](../../../.github/workflows/intake-triage.yml)) |
 | A finding during implementation alters intent, vision or the primary design | human-gated role label (`needs-human` by default) | The lane doing the work: `work-loop`, `work-resolve-issue`, or pr-verify once address-feedback's [round cap](../../conventions/pr-pipeline/README.md#loop-caps) is spent |
 | A HIGH or CRITICAL security issue, such as leaked tokens or secrets, an account compromise, or real money at risk (the repository is public) | human-gated role label for an existing weakness; `needs-owner-decision`, `Flags: security` for work whose result would carry one | Intake triage for issues; the security review lane for pull requests |
-| Anything that can bill the owner | human-gated role label, `Flags: cost` | Intake triage for issues; the pr-merge lane's cost hold for pull requests |
+| Anything that can bill the owner | human-gated role label, `Flags: cost` | Intake triage for issues; the pr-merge lane's cost hold for pull requests, which clears only on an owner cost decision comment that links its row in the owner-decisions record and quotes the owner verbatim ([the cost hold](../../conventions/pr-pipeline/README.md#the-local-babysit-lane)) |
 
 Before a security concern is raised as a question, a plan or a stop, it names the surface that runs
 today, or that the work would ship, and is exposed, and in what mode. With none, it is recorded in one line with the condition
@@ -1412,7 +1412,7 @@ hypothetical.
 
 This is a **gap**, not an invariant. Assuming one account per machine describes how the guard is
 built, not a rule, and it fails open in a contract that fails closed on every other unresolvable
-input. It would also bake a solo-operator posture into a contract whose sibling "assumes no
+input. It would also build a solo-operator assumption into a contract whose sibling "assumes no
 machine, org size, or budget"
 ([`routines.md`](../../../plugins/autonomy/reference/routines.md) §Hosting stance): a
 multi-account machine is an ordinary team and multi-tenant shape. Calling it a gap keeps anyone

@@ -70,7 +70,9 @@ quota); or that gains a runner value (head text against base text, and added
 inline `runs-on:` lines) that is not `_FREE_RUNNER` on a public repository,
 or any on another, counting the matrix values and input defaults and options
 a `runs-on` expression names. Only `RiskInput.cost_decision`, an owner
-decision the caller verified, clears it.
+decision the caller verified (`babysit_merge_policy.cost_decision`, which
+also requires an owner-decisions row link and a verbatim owner quote), clears
+it.
 
 Off a public repository, a raised timeout is a `timeout-minutes` or
 `leg-timeout-minutes`: on a workflow whose head text (`contents`) names a model leg or could not be
@@ -2175,8 +2177,11 @@ def _cost_reasons(
     reasons = []
     if charges and not inp.cost_decision:
         detail = "; ".join(charges) + (
-            "; cite the owner's `**Decision recorded.**` comment on the closing "
-            "issue or this pull request in the body to clear it"
+            "; cite the owner's `**Decision recorded.** Cost:` comment on the "
+            "closing issue or this pull request in the body to clear it; the "
+            "comment must link its row in the owner-decisions record "
+            "(architecture/blob/<commit or main>/docs/owner-decisions.md#L<line>) "
+            'and quote the owner as `verbatim: "<his words>"`'
         )
         reasons.append(Reason(COST_CODE, Risk.HIGH, detail))
     if spends:

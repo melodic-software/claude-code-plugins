@@ -1677,7 +1677,15 @@ the rules that only tighten in
   [The pr-merge lane](#the-pr-merge-lane) reads it) or on the pull request itself, in this repository,
   whose first line starts `**Decision recorded.** Cost:`, written by a User with admin permission
   who is not the agent identity or one of the gate's own logins, not posted through an App, and
-  never edited; one on the closing issue must also be created after the pull request was. A link
+  never edited; one on the closing issue must also be created after the pull request was. The
+  comment must also carry, outside HTML comments, a line link to the decision's row in the
+  owner-decisions record
+  (`https://github.com/melodic-software/architecture/blob/<commit or main>/docs/owner-decisions.md#L<line>`;
+  rows have no anchors and the record is append-only) and the owner's words after `verbatim:` in
+  double quotes (`Owner, verbatim: "<his words>"`). The gate cannot read that private record, so it
+  checks the shape only: a cleared hold is auditable, not provable, since sessions post as the
+  owner and write the record too. A comment that meets every other condition but lacks either
+  keeps the hold, and the gate's message names what it lacks. A link
   inside an HTML comment in the body counts for nothing. A push after the decision is an accepted
   residual: the decision is not bound to a head. The gate reads the linked comments only for a
   pull request the hold catches, and a failed read leaves the hold. A decision
@@ -2223,8 +2231,9 @@ Both also hold a pull request that changes one of the merge gate's cost paths
 (`babysit_risk.COST_PATHS`: Pulumi, Terraform, Bicep and ARM template files). An
 approval does not lift that hold. Only the owner's cost decision does, read as the gate's
 `cost_decision` reads it: an unedited comment by a person on the trusted-actor list whose first
-line opens `**Decision recorded.** Cost:`, on the pull request or on its one closing issue after
-the pull request opened, linked from the body. That body edit re-runs `ci-status`. The decision
+line opens `**Decision recorded.** Cost:` and that carries an owner-decisions row link and a
+verbatim owner quote (`decisionGaps`, the shape the cost hold above states), on the pull request
+or on its one closing issue after the pull request opened, linked from the body. That body edit re-runs `ci-status`. The decision
 carries to a later head by the same `baseMergeCarry` as the hold-path lift, on the whole net
 change rather than the hold paths alone. The module is read at the pull request's base commit, so a lanes App pull
 request whose base predates the module fails `ci-status` closed until it is updated with main.
