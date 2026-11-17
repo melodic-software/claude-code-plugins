@@ -110,3 +110,28 @@ result files read `verdict: VALID`.
 
 The grader fix that accepts such a range (b25f07b3e0) came after these numbers. It is a disclosed
 follow-up fix and was not a scoring input.
+
+## Registration: Reset that restarts the app on a reused instance
+
+This registration covers the drive change that re-records the launch after a `## Reset` that restarts
+the app. It was written and committed before its run, under the owner's eval gate.
+
+- **Case.** `drive-reused-launch-reset-restart-rerecords`. It passed a 2-run sonnet smoke (VALID,
+  1.00 both runs) before this registration; the smoke is not a scoring input.
+- **Sides.**
+  - BEFORE is the app-control plugin at `b30564372304`, with this case's folder copied in.
+  - AFTER is the plugin at `e0f2cc64b0`. Only `drive/SKILL.md` and `drive/reference/evidence.md`
+    differ from BEFORE.
+- **Runs.**
+  - Sonnet, 3 runs a side.
+  - The command: `claude plugin eval <copy> --case 'drive-reused-launch-reset-restart-rerecords'
+    --model sonnet --runs 3 --ablation none --scaffold --trust-plugin --keep-temp --judge-model opus
+    --threshold 0.8 --max-cost-usd 5 --no-publish`.
+  - `TMPDIR` is a directory of the run's own.
+- **INVALID.** A file whose `run-validity.py --runs 3 --scaffolded` verdict is not VALID is no result.
+  Its side is rerun once with the same settings.
+- **Loss.** The AFTER case mean is below the BEFORE case mean. A loss starts two checks:
+  - a trace read of each AFTER run that a grader failed;
+  - an opus run of both sides at 3 runs a side.
+  Only a loss traced to the changed drive text counts.
+- **Met.** Both files are VALID and there is no counted loss.
