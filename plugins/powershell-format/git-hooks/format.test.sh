@@ -141,6 +141,10 @@ mkdir -p "$REPO/.githooks/powershell-format"
 printf 'get-childitem .\n' >"$REPO/.githooks/powershell-format/copy.ps1"
 git -C "$REPO" add -f .githooks/powershell-format/copy.ps1
 expect "an installed copy under .githooks/ is skipped" "0||" "$(check "$REPO")"
+mkdir -p "$REPO/sub/.githooks"
+printf 'get-childitem .\n' >"$REPO/sub/.githooks/nested.ps1"
+git -C "$REPO" add -f sub/.githooks/nested.ps1
+expect "only the root .githooks/ is skipped: a nested one is formatted" "0|sub/.githooks/nested.ps1|" "$(check "$REPO")"
 
 new_repo
 printf '\xEF\xBB\xBFget-childitem .\n' >"$REPO/bom.ps1"

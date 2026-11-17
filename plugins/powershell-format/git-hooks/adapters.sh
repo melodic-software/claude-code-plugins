@@ -15,7 +15,7 @@ esac
 
 rt_wants() {
   case "$1" in
-  .githooks/* | */.githooks/* | *$'\n'*) return 1 ;;
+  .githooks/* | *$'\n'*) return 1 ;;
   *.ps1 | *.psm1 | *.psd1) return 0 ;;
   *) return 1 ;;
   esac
