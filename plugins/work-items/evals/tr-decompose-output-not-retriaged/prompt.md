@@ -9,6 +9,6 @@ expected_outcome: 'The reply says #53 is already triaged (decompose output is bo
 
 /work-items:triage 53
 
-Item #53 was created last week by /work-items:decompose from our approved PLAN.md. It carries status:ready and agent-ready and its brief, and no needs-triage.
+Item #53 was created last week by /work-items:decompose from our approved PLAN.md. It carries status: ready and agent-ready and its brief, and no needs-triage.
 
 Treat the state above as what this run's reads return. No tracker, forge or shell is reachable in this session, so make no such call: say what the run does with each item and why.

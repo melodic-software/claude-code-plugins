@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.5.3] - 2026-11-17
+
+### Fixed
+
+- Triage states that a cost decision comment (`**Decision recorded.** Cost:`) clears the merge gate's cost hold only when it links the decision's row in the owner-decisions record and quotes the owner verbatim.
+
 ## [15.5.2] - 2026-11-16
 
 ### Fixed

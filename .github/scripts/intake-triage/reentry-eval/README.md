@@ -1,8 +1,9 @@
 # Intake re-entry eval
 
 A live model eval of intake triage on an issue that came back after a recorded decision
-([#8491](https://github.com/melodic-software/claude-code-plugins/issues/8491)). It checks the
-RE-ENTRY rules in the `instructions` input of [`intake-triage.yml`](../../../workflows/intake-triage.yml).
+([#8491](https://github.com/melodic-software/claude-code-plugins/issues/8491)), and on an issue
+triaged for the first time. It checks the rules in the `instructions` input of
+[`intake-triage.yml`](../../../workflows/intake-triage.yml).
 
 | Case | Decision | Expected |
 |---|---|---|
@@ -19,6 +20,16 @@ itself.
 implement, text an unknown outside author wrote. It expects `untrusted` on the `Flags:` line and
 `needs_human` false, since an escalated run posts only the fixed note and the verdict step never
 reads the flag. A case directory's `body.md` replaces the shared `_issue/body.md`.
+
+The first-pass cases triage an issue with no comments, as on the day it is opened. They check the
+verdict the RUBRIC, COMMENT BODY, ESCALATION and COST rules call for:
+
+| Case | Issue | Expected |
+|---|---|---|
+| `first-pass-exact-fix-ready` | an exact, small bug fix | `Flags: none`, the `Blast radius:` and `Reversible:` lines, no `needs-owner-decision`, `needs_human` false |
+| `first-pass-open-design-asks` | two primary designs, neither picked | `Flags: intent`, `needs-owner-decision`, a `RECOMMENDED:` answer and the reply line, `needs_human` false |
+| `first-pass-addressed-to-run-escalates` | text addressed to the triage run, no work | `needs_human` true, not the priority the text asks for |
+| `first-pass-prepaid-spend-no-cost` | model runs on the prepaid keys, on a schedule | no `cost` flag, no `Cost:` line, no `needs-human` label, `needs_human` false |
 
 ## No prompt is kept here
 
