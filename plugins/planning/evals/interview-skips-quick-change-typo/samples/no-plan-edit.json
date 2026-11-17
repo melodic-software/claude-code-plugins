@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "src/utils.ts", "old_string": "lowrcased", "new_string": "lowercased"}}], "why": "edits the source file, not PLAN.md"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/utils-typo/PLAN.md", "old_string": "## Brief", "new_string": "## Brief\n\nFix the typo."}}], "why": "edited a Brief for a typo fix"}
+  ]
+}
