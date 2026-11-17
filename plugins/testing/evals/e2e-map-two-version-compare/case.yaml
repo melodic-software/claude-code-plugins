@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: e2e-map-two-version-compare
+description: 'run-e2e map scope, second pass of a two-version fixture app (tags v1 and v2) given the first pass''s findings.json. The scaffold plants one finding per label: checkout breaks in v2 (NEW), the cart total stays wrong at a new second entry point (PRE-EXISTING, same id), search is fixed (GONE), and the orders entry is blocked in the second pass (not checked, never GONE). ran-compare reads the Bash call; new-group, pre-existing-group and gone-group read the reply; meets-expectations (llm) checks the rest. Needs --scaffold --allow-tools Bash.'
+tags: [testing, run-e2e, scaffold, no-network]
+expected_outcome: 'Runs the compare command with --baseline runs/pass1/findings.json on runs/pass2/findings.json, opens the report with `baseline shop@1.0.0 -> this pass shop@1.1.0`, and lists exactly 3f1a9c0e7b2d4851 as NEW, c4a7e2d19b3f0a68 as PRE-EXISTING and 5e9b1c3a7d2f4e80 as GONE, with 9d0f6b2e8a1c3574 reported not checked after the groups.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/testing:run-e2e map --unattended app=shop baseline=runs/pass1/findings.json. This repository is the shop app; tag v1 is the build the first pass drove and tag v2 the build this pass drove. Do not launch, install or drive anything, and treat these as facts, each step already run with the result given: the compare command with runs/pass1/findings.json as its only path exited 0. The map resolve command printed map_unit=feature (default), map_entry_points=all (default), map_report_order=new,pre-existing,gone (default), file_findings=none (default) and file_findings_floor=high (default). /app-control:drive ready reported build shop@1.1.0 and control_skill control-shop. Every entry has been dispatched and judged, and this pass''s findings.json is written at runs/pass2/findings.json. Run the compare command on it now, then write the report header and the finding groups from its output, then stop.'
+  allowed_tools: [Read, Glob, Grep, Bash]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: ran-compare
+    type: tool_used
+    tool: Bash
+    input_match: 'findings-compare\.sh(?=[\s\S]*--baseline\s+\S*runs/pass1/findings\.json)(?=[\s\S]*runs/pass2/findings\.json)'
+  - name: new-group
+    type: regex
+    pattern: 'NEW\**:\**\s*\**1\**\s*\(critical 0, high 1, medium 0, low 0\)(?:(?!PRE-EXISTING|GONE|c4a7e2d19b3f0a68|5e9b1c3a7d2f4e80|9d0f6b2e8a1c3574)[\s\S])*?3f1a9c0e7b2d4851'
+    target: last_message
+  - name: pre-existing-group
+    type: regex
+    pattern: 'PRE-EXISTING\**:\**\s*\**1\**\s*\(critical 0, high 0, medium 1, low 0\)(?:(?!NEW\b|GONE|3f1a9c0e7b2d4851|5e9b1c3a7d2f4e80|9d0f6b2e8a1c3574)[\s\S])*?c4a7e2d19b3f0a68'
+    target: last_message
+  - name: gone-group
+    type: regex
+    pattern: 'GONE\**:\**\s*\**1\**\s*\(critical 0, high 0, medium 0, low 1\)(?:(?!NEW\b|PRE-EXISTING|3f1a9c0e7b2d4851|c4a7e2d19b3f0a68|9d0f6b2e8a1c3574)[\s\S])*?5e9b1c3a7d2f4e80'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e map with baseline=runs/pass1/findings.json on the second pass of a two-version app. PASS only if the reply: opens with a header naming both pass builds as `baseline shop@1.0.0 -> this pass shop@1.1.0`; lists NEW, then PRE-EXISTING, then GONE, each opening with its summary line `<group>: <n> (critical <n>, high <n>, medium <n>, low <n>)`; puts 3f1a9c0e7b2d4851 (checkout, error, high, Pay button) alone in NEW; puts c4a7e2d19b3f0a68 (cart, result-not-met, medium) alone in PRE-EXISTING with both entry points Cart page and Mini cart, never in NEW; puts 5e9b1c3a7d2f4e80 (search, garbled-output, low) alone in GONE; and reports 9d0f6b2e8a1c3574 (orders, crash, critical) after the three groups as not checked with the reason blocked: orders service unreachable, never as GONE. FAIL if any finding sits in the wrong group, a group holds a finding beyond the one named, or a point is missing or contradicted.'

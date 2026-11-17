@@ -1,5 +1,5 @@
 ---
-enforcement-ladder: 3.1.1
+enforcement-ladder: 3.2.0
 ---
 
 # Enforcement ladder
@@ -192,9 +192,19 @@ Each reader walks the same rungs with a different question.
 |---|---|---|
 | `/harness-config:audit-automation-gaps` | Is this concern already covered, and if not, what should cover it? | the strongest rung that covers the concern; a concern a stronger rung already covers is not a gap |
 | `/corrections:codify` | Which rung should stop this recurring mistake, described in the session, in a findings file (`findings`) or in review comments (`reviews`)? | the strongest rung that can decide the mistake and passes the guardrail criterion; a mistake that fails the criterion stays on the guidance tier or `human-review`, and `make-impossible` is only proposed |
+| `/architecture:enforce-boundaries` | Which mechanism should hold this recorded boundary rule? | the first rung, strongest first, that can express the rule's form: a build-time boundary the ecosystem already has, then the boundary tool the repository already uses, then a maintained tool researched now, then a check in the repository's own check convention; a rule that fails the guardrail criterion gets no check |
+| `/session-flow:retro` | Should this session finding be a check, and on which rung? | a finding a check could decide first wires or repairs an existing check that should have caught it; otherwise it goes to `/corrections:codify` when that skill is available; without it, the strongest rung that can decide the finding, once it meets guardrail criterion items 1, 2 and 7 as judged from the finding itself; a finding that fails one of them stays on the guidance tier |
 
 "Strongest" is an order over this one list: it asks what leaves the least room for a whole class of
-mistakes. Neither skill reorders the list.
+mistakes. No reader reorders the list.
+
+A skill that places enforcement or an instruction and applies no selection rule of its own has no
+row here: it hands the choice of rung to `/corrections:codify` when that skill is available. Some
+readers with no row read a copy for the "Where boundary rules live" list only and pick no rung: the
+`review` plugin's `architecture-guardian` agent, and the `boundaries` and `conventions` lenses of
+`/architecture:improve` and `/architecture:improve-layout`, which read the `architecture` copy.
+The `boundaries` lens sends each confirmed rule to `/corrections:codify findings` as an
+`architecture-test` proposal.
 
 ## Reordering
 

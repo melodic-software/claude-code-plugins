@@ -4,6 +4,16 @@ Notable changes to the enforcement ladder (SemVer). Renaming, removing or moving
 bump. Adding a rung, a reader's selection rule or a boundary-rule location is a minor bump.
 Wording-only clarification is a patch.
 
+## [3.2.0] - 2026-11-16
+
+- Added: the `/architecture:enforce-boundaries` and `/session-flow:retro` reader rows, the two
+  carriers that apply their own selection rule and had no row.
+- Added: a skill that places enforcement or an instruction and applies no selection rule of its
+  own has no reader row and hands the rung to `/corrections:codify` when that skill is available.
+  The readers that use a copy only for the "Where boundary rules live" list and pick no rung are
+  named: the `review` plugin's `architecture-guardian` agent, and `/architecture:improve` (the
+  `boundaries` and `conventions` lenses) and `/architecture:improve-layout`.
+
 ## [3.1.1] - 2026-11-15
 
 - Changed: the Rungs section names the sources of the order: Lauren Tan's talk and principle file

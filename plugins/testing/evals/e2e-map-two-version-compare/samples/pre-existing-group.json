@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "PRE-EXISTING: 1 (critical 0, high 0, medium 1, low 0)\n- c4a7e2d19b3f0a68 | result-not-met | medium | Cart page, Mini cart\nGONE: 1 (critical 0, high 0, medium 0, low 1)",
+      "why": "the cart finding alone under its PRE-EXISTING summary line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "PRE-EXISTING: 0 (critical 0, high 0, medium 0, low 0)",
+      "why": "the cart finding left out of PRE-EXISTING"
+    },
+    {
+      "answer": "PRE-EXISTING: 1 (critical 0, high 0, medium 1, low 0)\n- 9d0f6b2e8a1c3574 | crash | critical\n- c4a7e2d19b3f0a68 | result-not-met | medium",
+      "why": "the not-checked orders finding listed as PRE-EXISTING"
+    }
+  ]
+}
