@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.19.2] - 2026-11-17
+
+### Changed
+
+- `/source-control:pull-request monitor` arms its Monitor watch with `bash <skill-dir>/scripts/monitor-poll.sh --pr <N> --checkout <checkout>` instead of passing the REST poll script inline as the `command`. An auto-mode session's safety check refused the long inline script even though it held no `rm`. The script takes its settings as flags: `--interval`, `--baseline` and `--snapshot` for a re-arm, `--repo <owner>/<repo>` to name the base repository on a triangular flow, and `--once` to exit after the first poll that prints a line, for the background Bash run used where the Monitor tool is unavailable. Both monitor test suites run the file directly; they no longer extract the block from the reference.
+
 ## [11.19.1] - 2026-11-17
 
 ### Changed

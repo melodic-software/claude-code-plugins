@@ -3,6 +3,21 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.0] - 2026-11-17
+
+### Added
+
+- `/toolchain:check` runs an ecosystem record's optional `test-changed-cmd` (ecosystem-commands 1.6.0), a change-scoped test command over `<files>`, in place of `test-cmd` for a change, and runs `test-cmd` under `all` or with no changed files. `/toolchain:setup` drafts it from the repo's own test runner, or through `/discovery:research` when the repo has no selection of its own.
+
+### Changed
+
+- `/toolchain:check` and `/toolchain:lint` take an `--unattended` flag. A run is also unattended when `CLAUDE_CODE_REMOTE` is set, under `claude -p`, in a scheduled, loop or CI lane, in a subagent an unattended run dispatched, and when it cannot tell whether a person is present. An unattended run executes only a command the repository's `.claude/ecosystems/<ecosystem>.yaml` records, its instructions state, or its files imply (a manifest script, a task-runner target, or the build tool's own verb on a named entry point, with no flag added). Before each command runs, it prints an `assumed: <ecosystem>.<key>=<command> (<file>:<line>)` line naming the source. It asks nothing, installs nothing and writes no `.claude/ecosystems/` record.
+- A key an unattended run cannot resolve, or one whose files imply two commands with nothing to choose between them, no longer runs anything. Its cell reads `skip (unresolved: <ecosystem>.<key>)`, an environment skip that blocks "done" and makes the Overall line `INCOMPLETE`, and the report names the files read and any tied candidates.
+- Migration: unattended runs no longer fall back to the bundled defaults in `reference/ecosystems/`. A headless, CI or loop run, a subagent an unattended run dispatched, or a run that cannot tell whether a person is present, that relied on them now reports `skip (unresolved: <ecosystem>.<key>)` for each such key. This includes a repository that already has a `.claude/ecosystems/<ecosystem>.yaml` record: a command key the record leaves out (a `code-fix-cmd`, or a `build-cmd` or `test-cmd` it left to the bundled `null`) no longer reads as not applicable in an unattended run. Spell out every command key the ecosystem's runs need, with `null` where nothing applies.
+- To make a key resolve, record it in `.claude/ecosystems/<ecosystem>.yaml` with `/toolchain:setup apply <ecosystem>`, or merge a lane's record pull request. A recorded `null` resolves the key as not applicable.
+
+- `/toolchain:setup` drafts each command key from the repo's own task runner or wrapper scripts before the bundled default, in any ecosystem; the old one-ecosystem scripts rule is now one instance of it.
+
 ## [1.7.1] - 2026-11-17
 
 ### Changed

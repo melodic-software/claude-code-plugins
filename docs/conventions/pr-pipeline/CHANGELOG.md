@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [10.7.4] - 2026-11-17
+
+### Fixed
+
+- The `claude-code-plugins` example config passes `--unattended` to `toolchain:check` in `run-tests` and `check-default-branch`, since that skill now takes the flag and a lane run has nobody to answer an ask.
+
 ## [10.7.3] - 2026-11-17
 
 ### Fixed
