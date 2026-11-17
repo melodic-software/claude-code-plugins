@@ -106,8 +106,10 @@ for this bug, quickly, the same way each time, with no person needed to run it.
 
 Before building the loop, find where the app shows what it does. When the `app-control` plugin is
 enabled and the project has a control skill, run `/app-control:drive ready` (with `--unattended`
-when this run has it): it reports each surface's URL, port, logs and telemetry, and lists what the
-app does not expose. Otherwise, or when drive reports no control skill, read the surfaces from the
+when this run has it): it reports each surface's URL, port, logs and telemetry, lists what the
+app does not expose, and gives each environment's data sources with their read levels and the
+kinds it lacks. Read a source only through the way it names and only at its read level: `never`
+is never read, and `attended` only with the user present. Otherwise, or when drive reports no control skill, read the surfaces from the
 project's manifests and launch config. Stack specifics, such as where a framework writes its log or
 how it chooses a port, come from the repository's own config, rules and instructions; where those
 are silent, research them at run time with `/discovery:research` when the `discovery` plugin is
@@ -200,13 +202,14 @@ it, used in any combination:
 
 ### When no loop can be built
 
-This is a full stop: no Phase 2 and no guessing at causes. Report instead, in three parts:
+This is a full stop: no Phase 2 and no guessing at causes. Report instead, in four parts:
 
 1. **Tried.** Each loop kind from the table you attempted, and what blocked it.
 2. **Blocker.** What is missing: the environment, the data, or a way to observe the failure.
 3. **Request.** Ask the user for whichever of these would remove the blocker: permission to add
    short-lived production instrumentation, a redacted capture (a screen recording with timestamps,
    a core dump, a log dump, a HAR file), or access to an environment where the failure occurs.
+4. **Lessons.** The lessons about driving the app, as Phase 6 "Leave a record" gives them.
 
 When the artifact in hand is a CPU profile, heap snapshot or performance trace and nothing reproduces, hand it to `/debugging:analyze-profile`. It reads the recording down to a file:line cause without a loop; bring that cause back here for the fix and its regression test.
 
@@ -359,7 +362,9 @@ The run is not done until every line below holds. They fall into three groups.
   this area next starts from it.
 - If the loop revealed a recurring class of bug, record it in your project's known-issues / quirks notes
 - List the lessons learned about driving the app (a port that moved, a log that was not where the
-  docs said, a sign-in step the loop needed). This skill writes none of them into a control skill:
+  docs said, a sign-in step the loop needed), or say there were none. Every report this skill
+  gives carries this list: a fix, a diagnose stop, and a stop with no loop. This skill writes
+  none of them into a control skill:
   `/app-control:map` is the one writer of a control skill's Gotchas, so when the `app-control`
   plugin is enabled, give each lesson as a `/app-control:map refresh "<lesson>"` line for it to place.
 - Propose one cheap, always-on signal (a log line, a metric or an assertion) that would have shown

@@ -194,3 +194,18 @@ verdict under node and bun. Each smoke used its case name as `--case`. Both file
 - `drive-blocked-entry-names-prerequisite-and-command`: 1.00, 1.00, 1.00. Run 1's `blocked` entry
   carries `prerequisite` (the write grant) and `attempted` (`cli/shop export --env staging`).
 - No run failed, and neither case found a defect in the skill text.
+
+## Registration: smoke of the data-source and lesson cases
+
+This registration covers three new cases, one per new rule. It was written and committed before
+their smoke, under the owner's eval gate, where a new case gets a 1 to 3 run smoke.
+
+- **Cases.**
+  - `drive-ready-lists-missing-sources`: ready reports each environment's data sources and the
+    kinds it is missing, and reads none.
+  - `drive-report-lists-lessons`: a drive report lists its lessons as refresh lines and drive
+    writes no Gotchas.
+  - `map-refresh-places-handed-in-lessons`: refresh places a lesson handed in from a
+    `/debugging:debug` report.
+- **Side, runs, INVALID and a fail.** As the smoke above: the head's app-control plugin, sonnet, 3
+  runs per case, the same command once per case.

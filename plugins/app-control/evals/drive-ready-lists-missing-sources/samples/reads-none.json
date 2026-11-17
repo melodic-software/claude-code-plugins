@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Ready reports the sources from committed config and reads none of them.\nMissing local: tracker, errors\nMissing staging: telemetry, database, errors\nSources read: none",
+      "why": "reads no source"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Missing local: tracker, errors\nMissing staging: telemetry, database, errors\nSources read: server-log, shop-db",
+      "why": "reads sources during ready"
+    }
+  ]
+}

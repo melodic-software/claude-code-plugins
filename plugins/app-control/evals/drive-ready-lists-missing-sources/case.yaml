@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: drive-ready-lists-missing-sources
+description: Drive's ready reports each environment's data sources from committed config with their read levels, lists the kinds each environment has no source for, and reads none of them. Source invented. A run needs --scaffold, which seeds the control skill and its config
+tags: [drive, ready, environments, data-sources, unattended, invented, no-network]
+expected_outcome: "The reply lists local's sources (server-log logs, shop-db database, otel telemetry, each unattended) and staging's (staging-log logs attended, issues tracker unattended), says local is missing tracker and errors and staging is missing telemetry, database and errors, and reads none of the sources. Its last three lines read `Missing local: tracker, errors`, `Missing staging: telemetry, database, errors` and `Sources read: none`. It runs and writes nothing."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:drive ready shop --unattended. There is no shell in this session, so run nothing and write nothing. Read the control skill and its config, then say what ready reports about each environment's data sources. End your reply with three lines: `Missing local: <kinds, or none>`, `Missing staging: <kinds, or none>` and `Sources read: <the sources ready reads, or none>`, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 12
+  timeout_seconds: 400
+graders:
+  - name: local-missing
+    type: regex
+    flags: i
+    pattern: '(?:^|\n)[ \t*_>`-]*Missing local:(?![^\n]*\b(?:logs|database|telemetry)\b)(?=[^\n]*\btracker\b)[^\n]*\berrors\b'
+    arm: both
+  - name: staging-missing
+    type: regex
+    flags: i
+    pattern: '(?:^|\n)[ \t*_>`-]*Missing staging:(?![^\n]*\b(?:logs|tracker)\b)(?=[^\n]*\btelemetry\b)(?=[^\n]*\bdatabase\b)[^\n]*\berrors\b'
+    arm: both
+  - name: reads-none
+    type: regex
+    flags: i
+    pattern: '(?:^|\n)[ \t*_>`-]*Sources read:[ \t*_`]*none\b'
+    arm: both
