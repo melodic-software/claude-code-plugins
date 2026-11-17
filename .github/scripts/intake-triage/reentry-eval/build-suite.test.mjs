@@ -88,7 +88,7 @@ test("build fills every case with the composed prompt and writes the issue files
       instructions,
       callerText: CALLER,
     });
-    assert.equal(cases.length, 5);
+    assert.equal(cases.length, 9);
     for (const name of cases) {
       const dir = join(out, "evals", name);
       const prompt = JSON.parse(
