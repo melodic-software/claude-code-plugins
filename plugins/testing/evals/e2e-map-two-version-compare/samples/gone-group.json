@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "GONE: 1 (critical 0, high 0, medium 0, low 1)\n- 5e9b1c3a7d2f4e80 | garbled-output | low | Search box\nNot checked:\n- 9d0f6b2e8a1c3574 | Orders page: blocked: orders service unreachable",
+      "why": "search alone in GONE, orders after the groups as not checked"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "GONE: 2 (critical 1, high 0, medium 0, low 1)\n- 9d0f6b2e8a1c3574 | crash | critical | Orders page\n- 5e9b1c3a7d2f4e80 | garbled-output | low | Search box",
+      "why": "the blocked orders finding reported GONE"
+    },
+    {
+      "answer": "GONE: 1 (critical 0, high 0, medium 0, low 1)\n- search fixed",
+      "why": "the GONE finding's id is missing"
+    }
+  ]
+}
