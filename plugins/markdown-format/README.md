@@ -138,8 +138,8 @@ A missing `markdownlint-cli2` stays quiet here, since the `SessionStart` probe r
 With harness-ops enabled, a missing `markdownlint-cli2` or `jq` is reported once per session by
 this plugin's `lib/prerequisites.mjs probe`, which harness-ops' `SessionStart` runner starts and
 which also reports a missing, stale or edited git-hook entry. The runner skips it while
-`markdown_format_enabled` is false. The probe does not look for a markdownlint config, so it can
-report in a repository that has none.
+`markdown_format_enabled` is false. The probe reports `markdownlint-cli2` only where a markdownlint
+config sits in the project directory or above it or is tracked anywhere in its repository.
 
 ### Hook budget accounting
 

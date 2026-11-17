@@ -47,6 +47,34 @@ expect "manifest: declares exactly actionlint and node" "actionlint,node" "$(jq 
 # option is set to anything but true; that runner's own test covers the gate.
 expect "prerequisites.json: session_probe is gated on actionlint_enabled" "ACTIONLINT_ENABLED" \
   "$(jq -r '.session_probe.run_if_unset_or_true' "$PLUGIN_ROOT/prerequisites.json" | tr -d '\r')"
+expect "manifest: actionlint is needed only where a workflow file is" \
+  '["**/.github/workflows/*.yml","**/.github/workflows/*.yaml"]' \
+  "$(jq -c '.requires[] | select(.id == "actionlint") | .when.config_any' "$MANIFEST")"
+
+PROBE_DIR="$(mktemp -d)"
+ln -s "$(command -v git)" "$PROBE_DIR/git"
+PROBE_NODE="$(node -p process.execPath)"
+probe_says() {
+  local r="$1" f
+  shift
+  git init -q "$r"
+  for f in "$@"; do mkdir -p "$(dirname "$r/$f")" && : >"$r/$f"; done
+  git -C "$r" add -- "$@"
+  (cd "$r" && printf '{"session_id":"t"}' | env -i PATH="$PROBE_DIR" HOME="$r" CLAUDE_PROJECT_DIR="$r" \
+    "$PROBE_NODE" "$PLUGIN_ROOT/lib/prerequisites.mjs" probe "$PLUGIN_ROOT") || echo "probe exited $?"
+}
+reports() {
+  local label="$1" want="$2" got=no out
+  shift 2
+  out="$(probe_says "$@")"
+  [[ "$out" == *"actionlint: actionlint not on the hook PATH"* ]] && got=yes
+  [[ "$out" == *"probe exited"* ]] && got="failed: $out"
+  expect "$label" "$want" "$got"
+}
+reports "probe: a root workflow file reports a missing actionlint" yes "$PROBE_DIR/root" .github/workflows/ci.yml
+reports "probe: a nested workflow file reports a missing actionlint" yes "$PROBE_DIR/nested" svc/.github/workflows/ci.yaml
+reports "probe: a YAML file outside .github/workflows stays quiet" no "$PROBE_DIR/none" .github/dependabot.yml
+rm -rf "$PROBE_DIR"
 
 echo "actionlint hooks: $PASS passed, $FAIL failed"
 ((FAIL == 0))
