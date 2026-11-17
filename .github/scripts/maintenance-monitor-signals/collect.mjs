@@ -173,7 +173,7 @@ export const QUEUE_HOLD_STEPS = new Set(["Fail a queued pull request a hold stop
 export const KILL_SWITCH = /^#\d+: the lanes kill switch is on \(/;
 const QUEUE_ITEMS = 100;
 const QUEUE_FIELDS =
-  "nodes { __typename ... on AddedToMergeQueueEvent { createdAt } ... on RemovedFromMergeQueueEvent { createdAt reason } ... on LabeledEvent { createdAt label { name } } }";
+  "pageInfo { hasPreviousPage } nodes { __typename ... on AddedToMergeQueueEvent { createdAt } ... on RemovedFromMergeQueueEvent { createdAt reason } ... on LabeledEvent { createdAt label { name } } }";
 
 export function queueRemovals(pr, nodes, since) {
   const out = [];
@@ -609,8 +609,11 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       const batch = pulls.slice(i, i + NODES_BATCH);
       const answer = await queryRepo(graphql, repo, batchQuery(batch.map((n) => `pullRequest(number: ${n}) { timelineItems(since: "${from}", last: ${QUEUE_ITEMS}, itemTypes: [ADDED_TO_MERGE_QUEUE_EVENT, REMOVED_FROM_MERGE_QUEUE_EVENT, LABELED_EVENT]) { ${QUEUE_FIELDS} } }`)));
       batch.forEach((pr, j) => {
-        const nodes = answer[`a${j}`]?.timelineItems?.nodes;
-        if (!Array.isArray(nodes)) throw new Error(`#${pr}'s merge-queue timeline did not read`);
+        const items = answer[`a${j}`]?.timelineItems;
+        const nodes = items?.nodes;
+        const cut = items?.pageInfo?.hasPreviousPage;
+        if (!Array.isArray(nodes) || typeof cut !== "boolean") throw new Error(`#${pr}'s merge-queue timeline did not read`);
+        if (cut) gaps.push(`merge-queue ejections: #${pr}'s merge-queue timeline holds more than ${QUEUE_ITEMS} items in the window; the older ones were not read`);
         data.mergeQueueRemovals.push(...queueRemovals(pr, nodes, since));
       });
     }

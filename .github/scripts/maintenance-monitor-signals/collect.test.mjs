@@ -122,7 +122,8 @@ function fakeApi(routes, { nulls = new Set() } = {}) {
     }
     const repository = {};
     for (const [, alias, number] of query.matchAll(/(a\d+): pullRequest\(number: (\d+)\) \{ timelineItems\(/g)) {
-      repository[alias] = { timelineItems: { nodes: resolve(`/queue-timeline/${number}`) } };
+      const items = resolve(`/queue-timeline/${number}`);
+      repository[alias] = { timelineItems: Array.isArray(items) ? { pageInfo: { hasPreviousPage: false }, nodes: items } : items };
     }
     for (const [, alias, number, before] of query.matchAll(/(a\d+): pullRequest\(number: (\d+)\) \{ comments\(last: 100, before: "(\d+)"\)/g)) {
       repository[alias] = { comments: commentPage(comments(number), Number(before)) };
@@ -427,6 +428,22 @@ test("merge-queue removals: a cut listing or a failed timeline read is a gap, so
   const data = await collect({ ...input(failing), graphql });
   assert.deepEqual(data.gaps, ["merge-queue ejections: POST /graphql: HTTP 502"]);
   assert.ok(unreadSignals(data.gaps).has("4 merge-queue ejections"));
+});
+
+test("merge-queue removals: a timeline cut at 100 items is a gap, so signal 4 neither clears nor counts a partial set", async () => {
+  const cut = { pageInfo: { hasPreviousPage: true }, nodes: [enqueued("2026-10-19T15:00:00Z"), removed("2026-10-19T15:20:00Z")] };
+  const api = fakeApi([[/\/queue-timeline\/8225$/, cut], ...routes()]);
+  const data = await collect(input(api));
+  assert.deepEqual(data.gaps, ["merge-queue ejections: #8225's merge-queue timeline holds more than 100 items in the window; the older ones were not read"]);
+  assert.ok(unreadSignals(data.gaps).has("4 merge-queue ejections"));
+  assert.equal(api.queries.filter((q) => q.query.includes("timelineItems(")).length, 1);
+  assert.match(api.queries.find((q) => q.query.includes("timelineItems(")).query, /pageInfo \{ hasPreviousPage \}/);
+});
+
+test("merge-queue removals: a timeline answer with no page info did not read", async () => {
+  const api = fakeApi([[/\/queue-timeline\/8225$/, { nodes: [] }], ...routes()]);
+  const data = await collect(input(api));
+  assert.deepEqual(data.gaps, ["merge-queue ejections: #8225's merge-queue timeline did not read"]);
 });
 
 test("merge-queue removals: the kill-switch match reads switchHold's own text", () => {
