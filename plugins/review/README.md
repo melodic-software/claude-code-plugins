@@ -220,8 +220,8 @@ cases and reports a run. Run `list` and `build` from a clone with full history:
 - **Command truth from `.claude/ecosystems/`.** `ecosystem-specialist` resolves each
   ecosystem's build/test/lint command from the consumer's `.claude/ecosystems/<ecosystem>.yaml`
   files when present (the marketplace-wide ecosystem-commands contract,
-  `docs/contracts/ecosystem-commands/README.md`), falling back to your documented conventions,
-  then its own bundled generic defaults as a last resort.
+  `docs/contracts/ecosystem-commands/README.md`), falling back to your documented conventions.
+  A command neither source names is reported unresolved; the agent ships no default command.
 - **Graceful degrade.** Optional orchestrator plugins. `pr-review-toolkit` and `code-review` from
   the official marketplace, and `codex` from the OpenAI Codex marketplace. They add adversarial breadth
   when installed; every path works without them. Claude Code's bundled `/code-review` command and

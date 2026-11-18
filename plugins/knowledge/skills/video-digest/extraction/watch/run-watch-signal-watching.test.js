@@ -26,6 +26,10 @@ vi.mock("../adapters/registry.js", async (importOriginal) => {
   return { ...actual, acquireMedia: vi.fn() };
 });
 
+vi.mock("./temp-space-check.js", () => ({
+  checkTempSpace: vi.fn(async () => ({ state: "enough", message: "" })),
+}));
+
 vi.mock("../transcript/asr-transcribe.js", async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, detectAsrCapability: vi.fn(async () => ({ available: false })) };
