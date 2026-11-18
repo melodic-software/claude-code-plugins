@@ -186,6 +186,7 @@ export async function checkTempSpace(
 
   // An unclaimed URL (a playlist or channel page) is never probed: yt-dlp would walk every
   // entry, and acquisition refuses the URL next anyway.
+  // yt-dlp's playlist expansion: https://github.com/yt-dlp/yt-dlp#video-selection
   const claim = adapter.matchUrl(url);
   if (!claim) return { state: "enough", message: "" };
   const size = await probe(claim.canonicalUrl, adapter);
