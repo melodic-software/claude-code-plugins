@@ -12,6 +12,12 @@
       "default": "light",
       "description": "How much independent checking this plugin's skills run: off, light (the default: skip the verifier dispatch), standard (run it) or strict (also run the optional passes). Read from the default branch's committed copy only, so a branch cannot lower it. Levels: docs/contracts/verification-level/README.md."
     },
+    "board_dir": {
+      "type": "string",
+      "pattern": "^(?!~)(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$",
+      "default": "docs/event-storming",
+      "description": "Where /event-storming:simulation writes markdown boards, relative to the repository root: one folder per session, one file per board. The skill writes the files and never commits them. An absolute path, a leading ~ or a .. segment is invalid and the default applies."
+    },
     "verification_skills": {
       "type": "object",
       "additionalProperties": { "enum": ["off", "light", "standard", "strict"] },

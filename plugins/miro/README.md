@@ -124,9 +124,10 @@ old prefix.
   [MCP: Disable a server without removing it](https://code.claude.com/docs/en/mcp#disable-a-server-without-removing-it)
   (where `/mcp` records a disabled server, which is why the step repeats per project) live.
 
-`event-storming` 0.6.14 and later detect Miro under either prefix, so its live-board path keeps
-working with this override. Earlier versions probe only `mcp__plugin_miro_miro__*` and fall back
-to markdown while the override is active.
+`event-storming` detects Miro under either prefix, so its Miro board backend keeps working with
+this override. From 0.9.0 it uses Miro only when chosen: its `board_backend` option set to `miro`,
+a `--backend miro` argument, or a Miro board URL. Enabling this plugin alone leaves it on its
+markdown default.
 
 ## Tools
 

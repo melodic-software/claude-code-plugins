@@ -1,6 +1,8 @@
-# Miro Integration for Digital EventStorming
+# Miro board backend
 
-This reference covers how to use Miro as a digital canvas for EventStorming workshops, including agentic simulation. All Miro-specific details are isolated here, and the rest of the skill is tool-agnostic.
+The live-board backend. It maps each operation in [board-operations.md](../board-operations.md)
+to the first-party `miro` plugin's tools, and holds every Miro detail: tool names, colors, shapes
+and coordinates. Skill bodies name operations only.
 
 ---
 
@@ -26,10 +28,11 @@ plugin-provided server (the default) and the same server configured directly at 
 scope (as in the miro README's opt-in `vault-exec` override with the plugin's own server
 disabled).
 
-Every `miro_*` tool named in this skill and its
-reference docs denotes that tool under whichever prefix is live; the availability gate (SKILL.md
-"Miro availability & graceful degradation") accepts either by matching the Miro-specific tool name
-(`…__miro_list_boards`), not the server name.
+Every `miro_*` tool named here denotes that tool under whichever prefix is live.
+`check_available` matches the Miro-specific tool names, never a server that merely happens to be
+called `miro`: the backend is available when callable tools ending in `__miro_list_boards` and
+`__miro_create_board` exist under any prefix. Then run one read-only call (`miro_list_boards`); a
+failing call is unavailable too.
 
 - **Pointer**: when the prefix format needs re-deriving, fetch
   [Plugin-provided MCP servers](https://code.claude.com/docs/en/mcp#plugin-provided-mcp-servers) and
@@ -38,8 +41,8 @@ reference docs denotes that tool under whichever prefix is live; the availabilit
 
 ### Setup
 
-A fresh consumer has only `event-storming` installed, so the `miro` plugin must be **installed from the
-marketplace first, then enabled** (enabling alone does not install it).
+A fresh consumer has only `event-storming` installed, so the `miro` plugin must be **installed from an
+available marketplace first, then enabled** (enabling alone does not install it).
 
 1. **Find the plugin:** open `/plugin` and select the `miro` plugin from an available marketplace.
    Marketplace names are deployment details; this reusable plugin does not prescribe one.
@@ -56,6 +59,39 @@ marketplace first, then enabled** (enabling alone does not install it).
      (the `sensitive` option) live.
 4. **Verify:** in a session with the plugin enabled, the `miro_*` tools are callable.
    Test with "List my Miro boards".
+5. **Choose the backend:** set the event-storming `board_backend` option to `miro` through
+   `/plugin`, pass `--backend miro` for one run, or give the run a Miro board URL. Enabling the
+   `miro` plugin alone leaves the default, markdown.
+
+## Operations on this backend
+
+| Operation | How |
+|---|---|
+| `check_available` | The tool-name match and read-only call under "Tool namespace" |
+| `list_boards` | `miro_list_boards`; keep boards whose names carry "Big Picture", "Process Model", "Design-Level" or "EventStorming", newest first |
+| `create_board` | `miro_create_board` named `EventStorming <Format> v<N> — <Domain>`, then the legend frame (Legend frame positioning below); no other frame |
+| `read_board` | `miro_list_board_items` with `limit=1000` (Reading the whole board below) |
+| `add_stickies` | `miro_bulk_create_sticky_notes`, at most 20 per call (Bulk Creation Pattern); color and shape from the kind (Color Mapping), x and y from the placement (Placement to coordinates) |
+| `update_sticky` | `miro_update_sticky_note` with the new content; a kind change is a new color and shape |
+| `move_sticky` | `miro_update_sticky_note` with the new `x` and `y` |
+| `define_zones` | Assign each zone an x range (Zone x ranges) and place each zone's pivotal or milestone sticky above it; no frames |
+| `group` | `context`: one cyan `[BC] <name>` sticky per context on the BC Labels row; `aggregate`: stack the member stickies vertically and name the stack with a light-yellow sticky |
+| `set_exploration_map` | One cyan sticky on the Big Picture board, top left beside the legend, holding every entry; updated in place |
+| `update_legend` | Add one sticky per new kind inside the legend frame (Legend frame positioning) |
+| `check_board` | `miro_detect_overlaps`, then reposition every pair it reports, plus the content scan over the read items |
+| `snapshot` | A screenshot through a browser MCP when one is connected; otherwise skipped, said once |
+| `delete_board` | `miro_delete_board` after the person confirms the board by name |
+
+Sticky text on this backend is plain: the persona goes in the content as `[Persona] Text`, since
+Miro has no attribute for it, and a line break is never written (the tool renders `\n` literally;
+use ` — ` as a separator).
+
+### Reading the whole board
+
+`miro_list_board_items` returns at most `limit` items and does not page on a second call, so every
+read passes `limit=1000`. For its current limit and default, read the tool's own description in
+the miro plugin. Past 100 items, the facilitator also gives persona agents a summary ordered by
+zone.
 
 ---
 
@@ -70,24 +106,24 @@ gives each of them one EventStorming role. Correlate that list with Miro's own
 
 ### EventStorming → Miro Color + Shape Mapping (Every Color Assigned)
 
-| EventStorming Element | Book Color | Miro Color | Miro Shape | Match | Content Convention |
+| EventStorming Element (kind) | Book Color | Miro Color | Miro Shape | Match | Content Convention |
 |----------------------|------------|------------|------------|-------|-------------------|
-| **Domain Event** | Orange | `orange` | `square` | Exact | Past tense: `Order Placed` |
-| **Command** | Blue | `blue` | `square` | Exact | Imperative: `Place Order` |
-| **Policy** | Lilac/Purple | `violet` | `square` | Close | `Whenever X, do Y` |
-| **Actor / Person** | Small Yellow | `yellow` | `square` | Partial* | Role name: `Customer` |
-| **Read Model** | Large Yellow/Green | `light_green` | `rectangle` | Partial* | Info needed for decision |
-| **External System** | Large Pink | `light_pink` | `rectangle` | Close | System name: `Payment Gateway` |
-| **Hot Spot** | Magenta | `red` | `square` | Partial | Prefix with `!!!` |
-| **Opportunity / Value Created** | Green | `green` | `square` | Exact | Value description |
-| **Value Destroyed** | Red (implied) | `pink` | `square` | Close | Loss/cost description |
-| **Aggregate** | Pale Yellow | `light_yellow` | `square` | Exact | Responsibility name (Design-Level only) |
-| **Ubiquitous Language** | Special | `gray` | `square` | Workaround | `Term: definition` |
-| **Pivotal Event Marker** | Colored tape | `dark_blue` | `rectangle` | Workaround | `--- PIVOTAL: Name ---` |
-| **Temporal Milestone** | Varies | `dark_green` | `rectangle` | Workaround | `--- 6 MONTHS BEFORE ---` |
-| **Arrow Vote** | Small blue + arrow | `light_blue` | `square` | Partial* | `→ Problem being voted on` |
-| **Phase Name (Not-an-Event)** | Orange rotated 45° | `cyan` | `square` | Workaround | `[PHASE] Name` |
-| **Reserved / Custom** | Pick an unused color | `black` | `square` | N/A | Domain-specific extension |
+| **Domain Event** (`event`) | Orange | `orange` | `square` | Exact | Past tense: `Order Placed` |
+| **Command** (`command`) | Blue | `blue` | `square` | Exact | Imperative: `Place Order` |
+| **Policy** (`policy`) | Lilac/Purple | `violet` | `square` | Close | `Whenever X, do Y` |
+| **Actor / Person** (`person`) | Small Yellow | `yellow` | `square` | Partial* | Role name: `Customer` |
+| **Read Model** (`read-model`) | Large Yellow/Green | `light_green` | `rectangle` | Partial* | Info needed for decision |
+| **External System** (`external-system`) | Large Pink | `light_pink` | `rectangle` | Close | System name: `Payment Gateway` |
+| **Hot Spot** (`hot-spot`) | Magenta | `red` | `square` | Partial | Prefix with `!!!` |
+| **Opportunity / Value Created** (`opportunity`, `value-created`) | Green | `green` | `square` | Exact | Value description |
+| **Value Destroyed** (`value-destroyed`) | Red (implied) | `pink` | `square` | Close | Loss/cost description |
+| **Aggregate** (`aggregate`) | Pale Yellow | `light_yellow` | `square` | Exact | Responsibility name (Design-Level only) |
+| **Ubiquitous Language** (`term`) | Special | `gray` | `square` | Workaround | `Term: definition` |
+| **Pivotal Event Marker** (`pivotal`) | Colored tape | `dark_blue` | `rectangle` | Workaround | `--- PIVOTAL: Name ---` |
+| **Temporal Milestone** (`milestone`) | Varies | `dark_green` | `rectangle` | Workaround | `--- 6 MONTHS BEFORE ---` |
+| **Arrow Vote** (`vote`) | Small blue + arrow | `light_blue` | `square` | Partial* | `→ Problem being voted on` |
+| **Phase Name (Not-an-Event)** (`phase`) | Orange rotated 45° | `cyan` | `square` | Workaround | `[PHASE] Name` |
+| **Reserved / Custom** (`custom`) | Pick an unused color | `black` | `square` | N/A | Domain-specific extension |
 
 *\*Partial = color matches but size cannot be controlled via MCP, because the bundled server's sticky tools take no size. Shape (`rectangle` vs `square`) is the workaround for size differentiation.*
 
@@ -130,8 +166,8 @@ as a second board row. Confirm with `miro_detect_overlaps` rather than by eye.
 
 ### Big Picture Y-Coordinate Table
 
-**Single source of truth for Big Picture y-coordinates.** `agentic-simulation.md` and
-`simulation-evaluation.md` reference this table rather than restating values. Every gap between
+**Single source of truth for Big Picture y-coordinates.** Skill text names sections, zones and rows
+(`board-operations.md` "Placement"); only this file holds coordinates. Every gap between
 adjacent rows is ≥250px (the vertical-spacing minimum above); the header stack is anchored so
 Persona 1 sits at the `y=0` timeline baseline.
 
@@ -190,6 +226,37 @@ Persona 1 sits at the `y=0` timeline baseline.
 | What-if challenges | 1950 | Red hot spots |
 | BC Contracts (outbound) | 2250 | Published events |
 
+### Placement to coordinates
+
+The operations give a sticky's section, zone or row, parent, `by` and `phase`; this backend turns
+them into a row of the tables above and an x position:
+
+| Placement | Row |
+|---|---|
+| Timeline `event` placed in `chaotic-exploration` or `enforce-timeline` | The persona's row: Persona N is the Nth name in the board's persona list |
+| Timeline `event` placed in `walk-through` | Walk-through new events |
+| Timeline `event` placed in `reverse-narrative` | Reverse narrative events |
+| Timeline `pivotal` or `milestone` | Pivotal Events |
+| Timeline `hot-spot` starting `[DIVERGENCE]` | Divergence Markers |
+| Timeline `hot-spot` starting `[STUMBLE]` | [STUMBLE] markers |
+| People and systems `person` / `external-system` | People/Actors / External Systems |
+| `value-created` / `value-destroyed`, anywhere | Value Created / Value Destroyed |
+| Ubiquitous language | UL Terms |
+| Problems / Opportunities / Votes | Problems / Opportunities / Arrow Votes |
+| Bounded contexts group | BC Labels |
+| Process Modeling or Design-Level Flow `row=` | The row of that phase's table with the same name: `systems` External Systems, `read-models` Read Models, `actors` Actors, `main` Main Flow, `corrections` Pass 2 corrections, `exceptions` Exception flows, `alternatives` Secondary alternatives (Process Modeling) or Alternative outcomes (Design-Level), `hot-spots` Hot spots, `expectations` Unfulfilled expectations, `resolutions` Resolution paths, `contracts-in` and `contracts-out` the BC Contracts rows, `commands` Commands, `aggregates` Aggregates, `rules` Business Rules, `events` Domain Events, `policies` Policies, `what-if` What-if challenges |
+
+A nested sticky takes its parent's x on its own row. On the Process Modeling and Design-Level
+boards the facilitator orders a batch along the flow, and x follows that order.
+
+### Zone x ranges
+
+During Chaotic Exploration x spreads across the timeline width, roughly chronological but not
+sorted. `define_zones` gives each zone a 2000px x range with a 400px gap, in zone order (zone 1 at
+x=0 to 2000, zone 2 at 2400 to 4400, and so on); Enforce Timeline's `move_sticky` calls move each
+event into its zone's range and keep its persona row. Read all items first, assign each its zone,
+then move them in one batch.
+
 **Reading the layout:** every row's y comes from that phase's Y-Coordinate Table
 above. Negative is up, positive is down, and the bolded row is the baseline. The
 tables are the only place y values are written down; nothing below restates them.
@@ -213,7 +280,7 @@ Next Event       x=1600    row: Domain Events
 
 - Place at x=-800, y=-600 (top-left, out of the main flow)
 - **Frame size formula:** `width=500, height = (sticky_count * 200) + 200`, because each sticky is ~199px tall with ~50px gap, plus 200px padding top/bottom
-- Big Picture legend (up to 11 types by Problems & Opportunities, per `agentic-simulation.md` "Legend completeness requirements"; size it once for the final count, since the frame is never resized): `500w x 2400h`
+- Big Picture legend (up to 11 types by Problems & Opportunities, per the simulation skill's `reference/agentic-simulation.md` "Legend completeness requirements"; size it once for the final count, since the frame is never resized): `500w x 2400h`
 - Process Modeling legend (7 types): `500w x 1600h`
 - Design-Level legend (8+ types): `500w x 1800h`
 - Legend stickies inside: stack vertically with 200px spacing, starting at the frame's top y + 100px offset
@@ -236,25 +303,23 @@ Next Event       x=1600    row: Domain Events
 
 ## Agentic Integration
 
-When running simulated EventStorming sessions (see `agentic-simulation.md`), agents can place stickies directly on the Miro board.
+In a simulated session (the simulation skill's `reference/agentic-simulation.md`), persona agents
+read the board and return their stickies as data; the facilitator alone writes them here.
 
-### Workflow
-
-1. **Create board**, manually or via API
-2. **Share board URL**: provide the board ID to the skill
-3. **Agents create stickies**: each persona agent places events using the color mapping above
-4. **Attribution**: include persona name in the sticky content (e.g., "[DomainExpert] Order Placed")
-5. **Hot spots**: agents flag disagreements by creating red stickies with "!!!" prefix
-6. **Review**: human reviews the board, moves stickies, identifies bounded contexts
+1. **Board**: `create_board`, or a board URL the run was given
+2. **Attribution**: the persona name leads the sticky content (`[DomainExpert] Order Placed`)
+3. **Hot spots**: red stickies with a `!!!` prefix, which this backend adds to `hot-spot` text
+4. **Review**: a person can move stickies on the live board between rounds; the next `read_board`
+   picks the moves up
 
 ### Bulk Creation Pattern
 
 The `miro` plugin's server supports bulk creation (up to 20 items per batch) via `miro_bulk_create_sticky_notes`. For a simulated Chaotic Exploration phase:
 
-1. Ask each persona agent to generate their events as structured data
-2. Batch-create all stickies on the board
-3. Position them roughly along the timeline
-4. Review and reorganize (manually or via subsequent agent calls)
+1. Each persona agent returns its events as data
+2. The facilitator batch-creates them, 20 per call
+3. x spreads roughly along the timeline; y is the persona's row
+4. Later rounds reorganize them with `move_sticky`
 
 ---
 
