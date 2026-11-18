@@ -8558,5 +8558,51 @@ class EvidenceCommandTakesWhatTheQueueJobHolds(unittest.TestCase):
         live.assert_called_once_with(REPO, PR)
 
 
+class FilesAtTheTipFromTheCheckout(unittest.TestCase):
+    """The reader takes a file at a commit from a `CONFIG_CHECKOUT_ENV`
+    checkout whose HEAD is that commit, as ci-status's .base checkout of
+    main's tip is, and reads any other commit through the contents API."""
+
+    def setUp(self) -> None:
+        self.root = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        actors = {"version": 1, "actors": [MAINTAINER, LANES]}
+        (self.root / ve.TRUSTED_ACTORS_PATH).parent.mkdir(parents=True)
+        (self.root / ve.TRUSTED_ACTORS_PATH).write_text(json.dumps(actors))
+        (self.root / policy.CONFIG_PATH).parent.mkdir(parents=True)
+        (self.root / policy.CONFIG_PATH).write_text("merge:\n  rung: C2\n")
+        env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+        for args in (["init", "-q"], ["add", "-A"],
+                     ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+                      "commit", "-q", "-m", "tip"]):  # fmt: skip
+            subprocess.run(["git", "-C", str(self.root), *args], check=True, env=env)
+        self.sha = subprocess.run(
+            ["git", "-C", str(self.root), "rev-parse", "HEAD"],
+            check=True, capture_output=True, text=True, env=env,
+        ).stdout.strip()  # fmt: skip
+        self.enterContext(
+            mock.patch.dict(os.environ, {policy.CONFIG_CHECKOUT_ENV: str(self.root)})
+        )
+        self.reader = ve.Reader(REPO, "main", now=NOW)
+
+    def test_the_trusted_list_at_the_checkout_head_reads_no_api(self) -> None:
+        with mock.patch.object(ve, "_read", side_effect=AssertionError("API read")):
+            listing = self.reader._raw_file(ve.TRUSTED_ACTORS_PATH, self.sha, "list")
+        self.assertEqual(listing, {"version": 1, "actors": [MAINTAINER, LANES]})
+
+    def test_the_pipeline_config_at_the_checkout_head_reads_no_api(self) -> None:
+        with mock.patch.object(policy, "_file_at", side_effect=AssertionError("API read")):
+            text = self.reader._text_file(policy.CONFIG_PATH, self.sha, "config")
+        self.assertEqual(text, "merge:\n  rung: C2\n")
+
+    def test_another_commit_reads_the_contents_api(self) -> None:
+        with mock.patch.object(ve, "_read", return_value={"version": 1, "actors": []}) as read:
+            listing = self.reader._raw_file(ve.TRUSTED_ACTORS_PATH, MAIN_SHA, "list")
+        self.assertEqual(listing, {"version": 1, "actors": []})
+        self.assertIn(
+            f"repos/{REPO}/contents/{ve.TRUSTED_ACTORS_PATH}?ref={MAIN_SHA}",
+            read.call_args.args[0],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
