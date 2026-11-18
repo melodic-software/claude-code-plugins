@@ -5,6 +5,10 @@
 # test-scope: plugins/bash-format/git-hooks/adapters.sh plugins/javascript-format/git-hooks/adapters.sh
 # test-scope: plugins/markdown-format/git-hooks/adapters.sh plugins/markdown-format/git-hooks/markdown-gates.sh
 # test-scope: plugins/python-format/git-hooks/adapters.sh
+# test-scope: plugins/actionlint/hooks/actionlint-check.sh plugins/bash-format/hooks/bash-format.sh
+# test-scope: plugins/go-format/hooks/go-format.sh plugins/javascript-format/hooks/javascript-format.sh
+# test-scope: plugins/markdown-format/hooks/markdown-format.sh plugins/powershell-format/hooks/powershell-format.sh
+# test-scope: plugins/python-format/hooks/python-format.sh plugins/spelling/hooks/spelling.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES GIT_CONFIG CLAUDE_PROJECT_DIR
 
@@ -121,6 +125,52 @@ out=$(PATH="$T/bin:$PATH" bash "$PLUGINS/source-control/scripts/reap-project-plu
 rc=$?
 not_run "reap-project-plugin-records settings state"
 expect "reap-project-plugin-records: reaches the survivor check past the settings state (rc $rc: $out)" test "$rc" = 1
+
+E="$T/eot"
+mkdir -p "$E/.github/workflows"
+for f in a.sh a.go a.js a.md a.py a.ps1 a.txt .github/workflows/ci.yml; do printf 'x\n' >"$E/$f"; done
+g init -q "$E"
+g -C "$E" add .
+g -C "$E" commit -q -m init
+for f in a.sh a.go a.js a.md a.py a.ps1 a.txt .github/workflows/ci.yml; do printf 'y\n' >>"$E/$f"; done
+g -C "$E" config core.fsmonitor "$T/fsmonitor.sh"
+for tool in actionlint shfmt shellcheck gofmt biome markdownlint-cli2 ruff pwsh typos; do
+  printf '#!/bin/sh\nexit 0\n' >"$T/bin/$tool"
+  chmod +x "$T/bin/$tool"
+done
+mkdir -p "$T/gitbin"
+# shellcheck disable=SC2016 # expanded by the shim when git runs
+printf '#!/bin/sh\necho "$GIT_CONFIG_COUNT" >>"%s"\nexec "%s" "$@"\n' "$T/git-calls" "$(command -v git)" >"$T/gitbin/git"
+chmod +x "$T/gitbin/git"
+for hook in actionlint/hooks/actionlint-check.sh:lint bash-format/hooks/bash-format.sh:lint \
+  go-format/hooks/go-format.sh:format javascript-format/hooks/javascript-format.sh:lint \
+  markdown-format/hooks/markdown-format.sh:lint powershell-format/hooks/powershell-format.sh:lint \
+  python-format/hooks/python-format.sh:lint spelling/hooks/spelling.sh:lint; do
+  script="${hook%:*}" entry="${script%%/*}/git-hooks/${hook##*:}.sh"
+  rm -f "$MARK"
+  (cd "$E" && PATH="$T/bin:$PATH" bash "$PLUGINS/$entry" --worktree) </dev/null >/dev/null 2>&1
+  if [[ -e "$MARK" ]]; then
+    pass "fixture: $entry --worktree run on its own reads the index"
+  else
+    fail "fixture: $entry --worktree never runs the planted fsmonitor, so its hook case proves nothing"
+  fi
+  rm -f "$MARK" "$T/git-calls"
+  (cd "$E" && printf '{}' | PATH="$T/gitbin:$T/bin:$PATH" bash "$PLUGINS/$script" --end-of-turn) >/dev/null 2>&1
+  not_run "$script --end-of-turn"
+  expect "$script --end-of-turn: its entry ran git with GIT_CONFIG_COUNT=2" grep -qx 2 "$T/git-calls"
+done
+
+rm -f "$T/git-calls"
+(
+  export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=user.name GIT_CONFIG_VALUE_0=kept
+  # shellcheck source=hook-utils.sh
+  source "$LIB/hook-utils.sh"
+  hook::git_untrusted_env
+  git -C "$E" config --get user.name >"$T/git-calls"
+  git -C "$E" config --get core.hooksPath >>"$T/git-calls"
+)
+expect "hook::git_untrusted_env appends after a caller's own GIT_CONFIG_COUNT entries ($(tr '\n' ' ' <"$T/git-calls"))" \
+  test "$(tr '\n' ' ' <"$T/git-calls")" = "kept /dev/null "
 
 printf '\n%d passed, %d failed\n' "$PASSED" "$FAILED"
 ((FAILED == 0))
