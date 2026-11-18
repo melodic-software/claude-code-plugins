@@ -3,6 +3,14 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.6] - 2026-11-18
+
+### Changed
+
+- `audit-suppressions`: the skill body's correctness-rules section names no example rule ids and no longer shows a YAML block that sets them; the key, its empty default and where to set it are unchanged ([#16773](https://github.com/melodic-software/claude-code-plugins/issues/16773)).
+- `audit-coverage`: "Getting a first artifact" drops the per-lane producer command table and says the project's own test run writes the artifact. The no-artifact line the report ends with now points at the plugin README's table only ([#16773](https://github.com/melodic-software/claude-code-plugins/issues/16773)).
+- `principles`: the thresholds table no longer names vendor rule defaults (ESLint, ReSharper, CA1502, NDepend, SonarSource S3776), and the literature notes no longer name single-language implementations (radon, gocognit, PMD). Each claim keeps its source ([#16773](https://github.com/melodic-software/claude-code-plugins/issues/16773)).
+
 ## [1.3.5] - 2026-11-18
 
 ### Changed
