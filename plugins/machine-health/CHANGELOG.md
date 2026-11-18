@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.3] - 2026-11-18
+
+### Changed
+
+- The Windows check catalog's Claude Code temp root entry keeps its base order and the rule that every candidate ends in `claude`, and points at the `CLAUDE_CODE_TMPDIR` row of the environment variables reference instead of stating what Claude Code appends. The environment and PATH health entry's 2047 User Path `CRIT` threshold now names its source, with an as-of date and a recheck trigger. No behavior change.
+
 ## [0.27.2] - 2026-11-17
 
 ### Changed
