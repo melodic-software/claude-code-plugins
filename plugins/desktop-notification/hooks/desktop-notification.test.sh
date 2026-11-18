@@ -377,6 +377,34 @@ PROG="$(sed -n '/^PROG<</,/^>>PROG/p' "$OSA_LOG" 2>/dev/null)"
 if grep -q 'danger' <<<"$PROG"; then fail "sanitize/osascript: message text interpolated into program: $PROG"; else ok "sanitize/osascript: message text absent from program (argv-only)"; fi
 if grep -q 'display notification (item 2 of argv)' <<<"$PROG"; then ok "sanitize/osascript: program reads body from argv"; else fail "sanitize/osascript: program shape unexpected: $PROG"; fi
 
+if command -v notify-send >/dev/null 2>&1; then
+  ok "wsl/powershell: skipped, notify-send is on PATH here"
+else
+  PSHIM="$WORK/ps-shim"
+  mkdir -p "$PSHIM"
+  PS_LOG="$WORK/ps.log"
+  { printf '#!/usr/bin/env bash\necho Linux\n'; } >"$PSHIM/uname"
+  # shellcheck disable=SC2016
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" >%q\n' "$PS_LOG" >"$PSHIM/powershell.exe"
+  chmod +x "$PSHIM/uname" "$PSHIM/powershell.exe"
+  (cd "$UNRELATED" && printf '%s' "$IN_EVIL" |
+    env -u HOOK_TELEMETRY_SINK -u CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED \
+      -u CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED \
+      CLAUDE_PROJECT_DIR="$FAKE_REPO" CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=true \
+      CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED=true WSL_DISTRO_NAME=Test PATH="$PSHIM:$PATH" \
+      bash "$HOOK" >/dev/null 2>&1)
+  wait_for_sink "$PS_LOG"
+  if grep -qx -- '-EncodedCommand' "$PS_LOG" 2>/dev/null; then ok "wsl/powershell: program passed as -EncodedCommand"; else fail "wsl/powershell: args unexpected: $(cat "$PS_LOG" 2>/dev/null)"; fi
+  PS_PROG="$(tail -n1 "$PS_LOG" 2>/dev/null | base64 -d 2>/dev/null | iconv -f UTF-16LE -t UTF-8 2>/dev/null)"
+  if grep -q 'ToastText02' <<<"$PS_PROG"; then ok "wsl/powershell: program raises a toast"; else fail "wsl/powershell: program shape unexpected: $PS_PROG"; fi
+  if grep -q 'danger' <<<"$PS_PROG"; then fail "wsl/powershell: message text in program source: $PS_PROG"; else ok "wsl/powershell: message text absent from program source"; fi
+  mapfile -t PS_LITERALS < <(grep -o "(& \$d '[A-Za-z0-9+/=]*')" <<<"$PS_PROG" | sed "s/^(& \$d '//; s/')\$//")
+  PS_TITLE="$(base64 -d <<<"${PS_LITERALS[0]:-}" 2>/dev/null)"
+  PS_BODY="$(base64 -d <<<"${PS_LITERALS[1]:-}" 2>/dev/null)"
+  if [[ "$PS_TITLE" == "Permission Required" ]]; then ok "wsl/powershell: title decodes from its literal"; else fail "wsl/powershell: title decoded as [$PS_TITLE]"; fi
+  if [[ "$PS_BODY" == -danger* && "$(ctl_count "$PS_BODY" '\000-\037')" == "0" ]]; then ok "wsl/powershell: body decodes intact with no control bytes"; else fail "wsl/powershell: body decoded as [$PS_BODY]"; fi
+fi
+
 # --- jq-absent -> exit 0 and print nothing -----------------------------------
 # Without jq the hook can neither classify the notification nor emit its
 # terminalSequence. Claude Code discards a Notification hook's systemMessage, so

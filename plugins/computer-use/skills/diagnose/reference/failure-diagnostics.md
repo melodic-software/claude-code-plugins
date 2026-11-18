@@ -11,9 +11,7 @@ Diagnose, then either fix or hand it to the operator.
 **Recheck trigger:** re-verify the measurements below if Claude Desktop's computer-use tool ships
 a release that changes how synthesized input interacts with the OS idle timer, changes the
 allowed-applications focus gate's behavior, or changes capture behavior on a locked or
-screensaver-covered desktop; or if the [Cowork computer
-use](https://support.claude.com/en/articles/14128542-let-claude-use-your-computer-in-cowork)
-support article's requirement that the machine be awake changes.
+screensaver-covered desktop.
 
 ## The idle timer does not see Claude
 
@@ -45,8 +43,12 @@ Walk it in order; stop at the first hit.
 1. **Is a screensaver running?** The most likely cause and the easiest to miss, because a
    screensaver is *not* a lock and *not* display sleep. They are three separate settings.
 2. **Is the workstation locked?** The secure desktop blocks capture and input wholesale.
-3. **Is the display asleep / powered off?** Upstream is explicit that the machine must be awake
-   ([Cowork computer use](https://support.claude.com/en/articles/14128542-let-claude-use-your-computer-in-cowork)).
+3. **Is the display asleep / powered off?** If so, report it and let the operator wake the
+   machine; its power settings are system settings, as the screensaver's are, so do not change
+   them for the operator.
+   - **Pointer**: when checking whether computer use can run with the machine asleep, fetch
+     [Cowork computer use: Current limitations](https://support.claude.com/en/articles/14128542-let-claude-use-your-computer-in-cowork#h_3c13bd3b5b)
+     live.
 4. **Are you pinned to a monitor that is off?** An explicit `switch_display` persists until
    reset. Return to `auto` and retry before concluding anything.
 

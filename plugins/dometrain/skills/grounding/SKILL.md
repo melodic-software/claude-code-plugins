@@ -50,10 +50,10 @@ the principle it claims to serve, per the
 
 1. **Conceptual queries** → `search_dometrain(query, tech?, max_results?)` with a
    natural-language description of what you are implementing (e.g. "validate JWT tokens in
-   ASP.NET Core minimal APIs"). Phrase the query naturally rather than keyword-stuffing (how
-   results are ranked: the server README's [Tools](https://github.com/Dometrain/mcp#tools)
-   section). Results are ranked lesson excerpts; a note tells you when hits are partial-term or
-   semantically related rather than exact keyword matches.
+   ASP.NET Core minimal APIs"). Phrase the query naturally rather than keyword-stuffing. When a
+   result marks a hit as a partial or semantic-only match, weigh it below an exact one. How results are
+   ranked and what each hit carries: the server README's
+   [Tools](https://github.com/Dometrain/mcp#tools) section.
 2. **Code-shaped queries** → `search_code(query, language?, max_results?)` with an identifier,
    API name, or short code fragment (e.g. `AddAuthentication`, `IAsyncEnumerable`). Returns the
    on-screen code with a deep link to the exact moment it appears.

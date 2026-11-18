@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
+import { chmodSync, mkdirSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
@@ -12,7 +12,7 @@ const cleanEnv = { ...process.env, GIT_CEILING_DIRECTORIES: base };
 for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete cleanEnv[key];
 spawnSync("git", ["init", "-q", work], { env: cleanEnv });
 const script = `${dir}/board-md.mjs`;
-const { KINDS, parseBoard, renderBoard } = await import(pathToFileURL(script).href);
+const { KINDS, parseBoard, renderBoard, writeAtomic } = await import(pathToFileURL(script).href);
 
 let failed = 0;
 const check = (name, cond, detail) => {
@@ -336,5 +336,34 @@ result = runIn(work, {}, "apply", "--now", NOW, "inside-link.md", opsFile);
 check("apply through a symlink that stays inside the root keeps the link", result.status === 0 && readdirSync(work, { withFileTypes: true }).find((e) => e.name === "inside-link.md")?.isSymbolicLink() === true, result.stderr);
 check("check still reads a board outside the root", runIn(outside, {}, "check", `${outside}/board.md`).status === 0);
 check("parse still reads a board outside the root", JSON.parse(runIn(outside, {}, "parse", `${outside}/board.md`).stdout).meta.format === "big-picture");
+
+const tempFilesOf = (name) => readdirSync(work).filter((entry) => entry.startsWith(`${name}.tmp-`));
+mkdirSync(`${work}/dir-target.md`);
+let renameError = null;
+try {
+  writeAtomic(`${work}/dir-target.md`, "text\n");
+} catch (error) {
+  renameError = error;
+}
+check("a failed rename reports its error and leaves no temp file", renameError !== null && tempFilesOf("dir-target.md").length === 0, tempFilesOf("dir-target.md").join(", "));
+
+writeFileSync(`${work}/stale.md`, "before\n");
+writeFileSync(`${work}/stale.md.tmp-${process.pid}`, "left by a killed run\n");
+let staleError = null;
+try {
+  writeAtomic(`${work}/stale.md`, "after\n");
+} catch (error) {
+  staleError = error;
+}
+check("a temp file a killed run left under this pid does not block the write", staleError === null && readFileSync(`${work}/stale.md`, "utf8") === "after\n", staleError?.code);
+check("the write leaves another run's temp file alone", readFileSync(`${work}/stale.md.tmp-${process.pid}`, "utf8") === "left by a killed run\n");
+
+if (process.platform !== "win32") {
+  writeFileSync(`${work}/private.md`, "before\n");
+  chmodSync(`${work}/private.md`, 0o600);
+  writeAtomic(`${work}/private.md`, "after\n");
+  const mode = statSync(`${work}/private.md`).mode & 0o777;
+  check("a rewrite keeps the board's file mode", mode === 0o600, mode.toString(8));
+}
 
 if (failed > 0) process.exit(1);

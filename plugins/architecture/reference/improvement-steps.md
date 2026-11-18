@@ -27,9 +27,10 @@ Choose the area first, then scan it:
 - When the invocation arguments or the conversation already point somewhere (a pain point, a
   subsystem, a single module), that is the scope, and the history step below is skipped.
 - With no direction given, scan first the paths that change most often. Read them with one
-  read-only call, `git log --name-only --format='%h %an: %s' -100`, longer when no pattern shows,
-  and leave out every commit whose author name contains `[bot]` (release, dependency and automation
-  bots), and a project's other automation accounts the same way when it names them. When no path
+  read-only call, `git log --name-only --format='%h %an: %s' -<history_commits>`, longer when no
+  pattern shows, and leave out every commit whose author name contains an `exclude_authors` entry,
+  and a project's other automation accounts the same way when it names them. Both are improve
+  settings ([config.md](config.md), "Improve keys"). When no path
   changes noticeably more than the rest, history sets no priority and the scan covers the whole
   area.
 - When a spec or plan for upcoming work is given, scan the areas it will change.

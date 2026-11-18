@@ -88,10 +88,9 @@ You write the results, not the sub-agent, so register ids stay contiguous.
   included. An item it answers is stated with its source tag and basis, with no row (loop.md
   "Self-answer gate"); one an unconnected system would answer joins the offer to connect. An
   item no source answers falls through to the next line. The F-line's basis quotes the source
-  text that settles the item, with its file:line or URL: `package.json:14 "bullmq": "^5.1.0"`.
-  The quote holds no `|`. An earlier session claim, or a decision you remember, is not a source,
-  and an answer with no file:line or URL to quote (a connected tool's output) leaves the item to
-  the next line.
+  text that settles the item, with its file:line or URL. The quote holds no `|`. An earlier
+  session claim, or a decision you remember, is not a source, and an answer with no file:line or
+  URL to quote (a connected tool's output) leaves the item to the next line.
 - **Quote check:** before a fact-settled item counts as settled, dispatch a fresh-context
   (non-fork) sub-agent, as in "Dispatch" above, handing it only each such F-line's fact, quote and
   location. It re-reads each location and returns, per F-line, `confirmed` when the quoted text is

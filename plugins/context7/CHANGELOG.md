@@ -3,6 +3,12 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.15] - 2026-11-18
+
+### Changed
+
+- `/context7:lookup` no longer quotes the CLI's invalid-library-ID error text in its Git Bash gotcha. Its MCP reference drops the content-ratio and latency figures, which had no recorded probe. The skill body, the CLI and lookup references and the README stop saying MCP returns more content per call, and the CLI and lookup references stop pointing at the removed ratio. MCP stays the default route for conversational lookups: it returns clean markdown, needs no Windows path prefix and shows up in the tool list.
+
 ## [1.0.14] - 2026-11-17
 
 ### Changed

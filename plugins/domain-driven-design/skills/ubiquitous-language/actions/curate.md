@@ -83,5 +83,8 @@ and line, in these groups:
 Return the canonical term and definition, rejected synonyms and verbs, the bounded context when there is more
 than one, the file updated or created (or the proposed file and its setting layer when nothing was
 written), the entries removed or merged with the counts their question gave and, for each, where its
-meaning went (an `Avoid:` word on the covering term, moved to code or a doc, or dropped), the
+meaning went (an `Avoid:` word on the covering term, moved to code or a doc, or dropped), two
+counts of entries: accepted (the entries the person said yes to) and removed (the entries in the
+glossary file before the edit and absent after it, read from the file; a merge counts the entry it
+removed), naming any entry in one set and not the other, the
 surviving references to removed terms, the step 5 hits, and any unresolved ambiguity.

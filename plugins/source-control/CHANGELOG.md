@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.21.1] - 2026-11-18
+
+### Changed
+
+- `worktree-create.sh` runs `npm ci` once per distinct install into `<root>/.npm-seed/<key>`, makes the seed read-only, and hard-links that `node_modules` into each new worktree, so worktrees on one lockfile share one copy on disk. The key covers the lockfile, `package.json`, `.npmrc`, the Node ABI, `NODE_ENV` and `npm_config_*` variables. It runs `npm ci` in the worktree as before without `flock`, `node` or a working `cp -al`, for a package with workspaces, install lifecycle scripts or `file:`/`link:` dependencies, when the seed install fails, or with `WORKTREE_CREATE_NPM_SEED=0`. Seeds unused for `WORKTREE_CREATE_NPM_SEED_DAYS` (default 14) are removed.
+
+## [11.21.0] - 2026-11-18
+
+### Changed
+
+- **The babysit merge gate trusts the own-agent filings intake admission admits.** A pr-verify pass whose linked issue an identity on admission's `own-agents` list wrote now counts as a trusted spec when no other account edited the issue's body, the issue carries exactly one well-formed `source: <producer>` label, a listed human or the lanes App sized it small or medium, and no run's patch stopped over the scan job's size cap since a listed human last added `agent-ready`. The gate reads the list from the default branch and each condition live. Any other filing still reads `verify:untrusted-spec`, a failed read reads `verify:unreadable`, and github-actions[bot] never counts as an own-agent identity, even when the list names it.
+
 ## [11.20.3] - 2026-11-18
 
 ### Security

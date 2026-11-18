@@ -1157,7 +1157,7 @@ test('menu: a crossing read with the turn\'s final answer reaches the person bef
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   expect(w.toasts).toEqual([TOAST('light', 'moderate')])
   expect(w.logs).toEqual([MENU('light', 'moderate')])
-  expect(await notice($, 'desktop')).toBe(MENU('light', 'moderate'))
+  expect(await notice($, 'vscode')).toBe(MENU('light', 'moderate'))
   expect(own((await prompt($, 'sdk')).context)).toEqual([crossing('moderate')])
   expect(w.toasts).toHaveLength(1)
   expect(w.logs).toHaveLength(1)
@@ -1328,16 +1328,43 @@ test('menu: after a crossing a terminal mount returns only what the hooks beneat
   expect(texts).toEqual(['drawn beneath'])
 })
 
-test('menu: on desktop and vscode a crossing draws one notice row with one prefix, cleared at the next typed prompt', async ($, on) => {
+test('menu: on vscode a crossing draws one notice row with one prefix, cleared at the next typed prompt', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30, 60])
-  for (const surface of ['desktop', 'vscode'] as const) {
-    const row = await notice($, surface)
-    expect(row).toBe(MENU('light', 'moderate'))
-    expect(prefixes(row)).toBe(1)
-  }
+  const row = await notice($, 'vscode')
+  expect(row).toBe(MENU('light', 'moderate'))
+  expect(prefixes(row)).toBe(1)
   await prompt($, 'composer')
-  expect(await notice($, 'desktop')).toBeUndefined()
+  expect(await notice($, 'vscode')).toBeUndefined()
+})
+
+const desktopRow = async ($: any) => {
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  const texts = (await ui.findAll({ type: 'Text' })).map((t: { text: string }) => t.text)
+  const buttons = (await ui.findAll({ type: 'Button' })).map((b: { props: { label: string } }) => b.props.label)
+  return { ui, texts, buttons }
+}
+
+test('menu: on desktop a crossing draws the zone and four buttons instead of the menu line, and Dismiss clears it', async ($, on) => {
+  const { w } = world(on)
+  await walk($, w, [30, 60])
+  const { ui, texts, buttons } = await desktopRow($)
+  expect(texts.join(' ')).toContain('moderate')
+  expect(texts.join(' ')).toContain('was light')
+  expect(texts.some((t: string) => t.includes('/compact'))).toBe(false)
+  expect(buttons).toEqual(['Compact', 'Handoff', 'Details', 'Dismiss'])
+  await ui.press({ key: 'dismiss' })
+  await ui.unmount()
+  expect((await desktopRow($)).buttons).toEqual([])
+  expect(w.logs).toEqual([MENU('light', 'moderate')])
+})
+
+test('menu: on desktop the row clears at the next typed prompt, and the terminal still draws nothing', async ($, on) => {
+  const { w } = world(on)
+  await walk($, w, [30, 60])
+  expect((await desktopRow($)).buttons).toHaveLength(4)
+  await prompt($, 'composer')
+  expect((await desktopRow($)).buttons).toEqual([])
 })
 
 test('menu: the toast option off keeps the transcript line and drops only the toast', { options: { context_usage_toast: false } }, async ($, on) => {
