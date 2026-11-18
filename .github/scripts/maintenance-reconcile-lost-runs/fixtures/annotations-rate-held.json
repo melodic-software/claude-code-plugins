@@ -1,0 +1,12 @@
+[
+  { "annotation_level": "notice", "title": "api-budget", "message": "token=github-token workflow=.github/workflows/pr-review-hosted.yml job=review-subscription run=44114943906 attempt=1 limit=5000 remaining=0 used=5000 reset=1794930108 resource=core cost=0" },
+  { "annotation_level": "notice", "title": "api-budget", "message": "token=github-token workflow=.github/workflows/pr-review-hosted.yml job=review-subscription run=44114943906 attempt=1 limit=5000 remaining=4219 used=781 reset=1794930375 resource=graphql cost=na" },
+  { "annotation_level": "notice", "title": "api-budget", "message": "token=github-token workflow=.github/workflows/pr-review-hosted.yml job=review-subscription run=44114943906 attempt=1 limit=5000 remaining=0 used=5000 reset=1794930108 resource=core cost=na" },
+  { "annotation_level": "notice", "title": "api-routes", "message": "github-token other=2 graphql=1 repos/{repo}/issues/{n}/comments=1 rest=0" },
+  { "annotation_level": "notice", "title": "api-calls", "message": "github-token=4 not-modified=0 graphql=2" },
+  { "annotation_level": "failure", "title": "", "message": "Process completed with exit code 1." },
+  { "annotation_level": "warning", "title": "", "message": "the compare read of the merge base failed; this leg holds and runs no review." },
+  { "annotation_level": "warning", "title": "", "message": "The compare call failed: HTTP/2.0 403 Forbidden X-Ratelimit-Remaining: 0 X-Ratelimit-Reset: 1794930108" },
+  { "annotation_level": "warning", "title": "", "message": "Scoping failed, reviewing the whole pull request: API rate limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 22DE:239F54:1A4DB1:52B719:6AFC7387 and timestamp 2026-11-17 15:32:23 UTC. For more on scraping GitHub and how it may affect your rights, please review our Terms of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) - https://docs.github.com/en/rest/using-the-rest-api/getting-started-with-the-rest-api#rate-limiting" },
+  { "annotation_level": "warning", "title": "", "message": "GitHub API GET https://api.github.com/repos/melodic-software/claude-code-plugins/issues/16810/comments?per_page=100 failed with HTTP 403: x-ratelimit-remaining=0 x-ratelimit-reset=1794930108" }
+]

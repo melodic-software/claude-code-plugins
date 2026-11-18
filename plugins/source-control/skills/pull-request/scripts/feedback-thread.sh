@@ -183,6 +183,10 @@ append_reply() {
   printf '%s' "$note"
 }
 
+cmd_body() {
+  jq '.body_view // []' "$threads_file"
+}
+
 cmd_sections() {
   jq '.body_sections // []' "$threads_file"
 }
@@ -312,7 +316,8 @@ case ${1:-} in
   issues) cmd_issues ;;
   check-paths) shift && cmd_check_paths "$@" ;;
   record) shift && cmd_record "$@" ;;
+  body) cmd_body ;;
   sections) cmd_sections ;;
   record-body) shift && cmd_record_body "$@" ;;
-  *) die 2 "usage: feedback-thread.sh list | comments | notes | issues | sections | check-paths <path>... | record <thread-id> <disposition-file> | record-body <body-file>" ;;
+  *) die 2 "usage: feedback-thread.sh list | comments | notes | issues | body | sections | check-paths <path>... | record <thread-id> <disposition-file> | record-body <body-file>" ;;
 esac

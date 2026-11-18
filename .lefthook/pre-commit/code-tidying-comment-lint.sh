@@ -5,4 +5,4 @@ case "$src" in
 */info/lefthook-remotes/*) ;;
 *) exit 0 ;;
 esac
-exec sh "${src%/*}/../../plugins/code-tidying/git-hooks/comment-lint.sh" "$@"
+exec sh "${src%/*}/../remote-entry.sh" pre-commit code-tidying-remote-comment-lint "${src%/*}/../../plugins/code-tidying/git-hooks/comment-lint.sh" "$@"

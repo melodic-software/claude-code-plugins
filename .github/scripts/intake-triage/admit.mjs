@@ -35,10 +35,12 @@
 //   and last edited if ever, by a listed human; on an issue whose body a
 //   listed human wrote, refine.mjs's newest refinement comment while unedited
 //   (refinementSpec); the body of a sub-issue a size split filed, under
-//   the split-child trust rule (splitChildBody); and, on a trusted drift
-//   issue (driftIssueId), the fixed driftSpecText in place of its body.
-//   Nothing else the lanes App wrote counts,
-//   an App-filed issue included, and an issue with more comments than the
+//   the split-child trust rule (splitChildBody); on a trusted drift
+//   issue (driftIssueId), the fixed driftSpecText in place of its body; and
+//   on an own-agent filing, its body while no account but the identity that
+//   wrote it has edited it (ownAgentText). Nothing else the lanes App wrote
+//   counts, no comment by anyone but a listed human counts on an own-agent
+//   filing, and an issue with more comments than the
 //   100 pr-verify reads is refused, since pr-verify stops on it. On a triage
 //   verdict, when the criteria are all that is missing and intake's
 //   refinement of the body is due (refineDue), the issue waits at
@@ -56,10 +58,20 @@
 //   the issue: one GitHub says closes it, or whose body has the issue lane's
 //   `Refs: #<issue>` line (report-outcome.mjs). A passing mention is not one;
 // - 9: the author is a listed human, the lanes App on a trusted size-split
-//   sub-issue (splitChildBody), or github-actions[bot] on a trusted drift
-//   issue (driftIssueId; owner decision on #14215); any other issue the App
-//   filed holds for a listed human to file as their own (owner decision on
-//   #10735), and any other bot's for security;
+//   sub-issue (splitChildBody), github-actions[bot] on a trusted drift
+//   issue (driftIssueId; owner decision on #14215), or an own-agent identity
+//   (the rules' `own-agents.identities`, by default the lanes App alone;
+//   never github-actions[bot], whose filings can quote outside text). An
+//   own-agent filing is admitted only with its body unedited by anyone else,
+//   exactly one `source: <producer>` label, and Size small or medium: a
+//   missing label, another editor, Size large or a patch over the scan cap
+//   holds it for a listed human, with no automatic split, and it waits while
+//   `own-agents.source-cap` or more older open issues carry its label, in any
+//   status (ADR 0111,
+//   https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md,
+//   which supersedes the owner decision on #10735 for such filings). Any
+//   other issue the App filed holds for a listed human to file as their
+//   own, and any other bot's for security;
 // - no body line opens with `Hold:` (BODY_HOLD), a person's hold;
 // - a `recurring` item's body has a `<!-- recurring-schedule id=<id> -->`
 //   line naming a row of the default branch's .github/recurring-schedule.json,
@@ -258,8 +270,39 @@ export function loadRules(path) {
   if (typeof rules["task-list"] !== "string" || rules["task-list"] === "") {
     throw new Error(`${path}: \`task-list\` must be a string`);
   }
+  const own = { ...OWN_AGENT_DEFAULTS, ...(rules["own-agents"] ?? {}) };
+  if (!Array.isArray(own.identities) || !own.identities.every((id) => id === LANES_APP_IDENTITY || (Number.isSafeInteger(id) && id > 0))) {
+    throw new Error(`${path}: \`own-agents.identities\` must list \`${LANES_APP_IDENTITY}\` or account ids`);
+  }
+  if (!Number.isSafeInteger(own["source-cap"]) || own["source-cap"] < 1) {
+    throw new Error(`${path}: \`own-agents.source-cap\` must be a positive integer`);
+  }
+  rules["own-agents"] = own;
   return rules;
 }
+
+export const LANES_APP_IDENTITY = "lanes-app";
+export const OWN_AGENT_DEFAULTS = Object.freeze({ identities: Object.freeze([LANES_APP_IDENTITY]), "source-cap": 5 });
+export const OWN_AGENT_SIZES = Object.freeze(["small", "medium"]);
+export const SOURCE_LABEL = /^source: [^\s,][^,]*$/i;
+export const NO_SOURCE = "an own-agent filing needs exactly one `source: <producer>` label to be admitted unattended, so a listed human decides it";
+export const OWN_AGENT_EDITED = "its body was last edited by an account other than the own-agent identity that filed it, so it is no own-agent text and a listed human decides it";
+export const OWN_AGENT_PATCH_CAP = "its last run's patch was over the scan job's size cap (scan-refused-patch), and an own-agent filing is never split automatically, so a listed human decides it";
+export const SOURCE_UNREAD = "the open issues of its `source:` label were not read, so its producer's cap is unknown";
+export const ownAgentSize = (size) => `an own-agent filing is admitted only at Size small or medium, and it is Size ${size}, which is never split automatically, so a listed human decides it`;
+export const sourceCapWait = (label, older, cap) => `${older} older open issue(s) carry \`${label}\`, at or over that producer's cap of ${cap} (own-agents.source-cap)`;
+
+export function ownAgentIds(rules, appId) {
+  const { identities } = rules?.["own-agents"] ?? OWN_AGENT_DEFAULTS;
+  return new Set(identities.map((id) => (id === LANES_APP_IDENTITY ? appId : id)).filter((id) => Number.isSafeInteger(id)));
+}
+
+export const ownAgentText = (item, ids) =>
+  item?.author?.__typename === "Bot" &&
+  ids.has(item.author.databaseId) &&
+  (item.lastEditedAt == null || (item.editor?.__typename === "Bot" && item.editor.databaseId === item.author.databaseId));
+
+export const sourceLabels = (labels) => names(labels).filter((name) => /^source:/i.test(String(name ?? "")));
 
 // The recurring schedule as parsed, or null when it cannot be read or parsed.
 // By default it is the one beside this script, the default branch's checkout.
@@ -1296,7 +1339,7 @@ export function admissionSettled(labels, events, isMark, state) {
 // the Work status field decides them (read-status.mjs statusLabels), read in
 // place of the issue's own labels; `fieldState` (admissionFacts) is the
 // trusted Work status admissionSettled reads.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], finished = false, doneBy = [], events, comments = [], spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, charges = chargePattern(), chargeEdits = [], holdLabels, fieldState }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], finished = false, doneBy = [], events, comments = [], spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, charges = chargePattern(), chargeEdits = [], holdLabels, fieldState, sourceOpen }) {
   const labels = names(holdLabels ?? issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -1329,12 +1372,27 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (unsplit && !rules.sizes.includes("large")) {
     rules = { ...rules, sizes: [...rules.sizes, "large"] };
   }
-  if (!authorAdmitted(issue, humans, appId) && !drift) {
+  const ownIds = ownAgentIds(rules, appId);
+  const ownAgent = !splitChild && ownIds.has(issue.user?.id) && !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER);
+  let source;
+  if (!authorAdmitted(issue, humans, appId) && !drift && !ownAgent) {
     refuse.push("the author is neither a listed human nor the lanes App");
     holdFor("security");
-  } else if (isAppId(issue.user?.id, appId) && !splitChild) {
+  } else if (isAppId(issue.user?.id, appId) && !splitChild && !ownAgent) {
     refuse.push("the lanes App filed it and it is not a trusted size-split sub-issue (splitChildBody), so a listed human files it as their own");
     holdFor("security");
+  } else if (ownAgent) {
+    if (!ownAgentText(spec, ownIds) || spec.author.databaseId !== issue.user.id) {
+      refuse.push(OWN_AGENT_EDITED);
+      holdFor("security");
+    }
+    const sources = sourceLabels(issue.labels);
+    if (sources.length === 1 && SOURCE_LABEL.test(sources[0])) {
+      source = sources[0];
+    } else {
+      refuse.push(NO_SOURCE);
+      holdFor("security");
+    }
   }
   const type = issue.type?.name ?? "none";
   const underParent = rules["types-under-parent"].includes(type);
@@ -1369,7 +1427,13 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // Large does, at whatever admitted Size it was triaged (patchCapStopped).
   const size = verdict.dimensions?.size;
   const overCap = rules.sizes.includes(size) && patchCapStopped(comments, events, humans, appId);
-  if ((size === "large" || overCap) && !rules.sizes.includes("large")) {
+  if (ownAgent && (size === "large" || (rules.sizes.includes(size) && !OWN_AGENT_SIZES.includes(size)))) {
+    refuse.push(ownAgentSize(size));
+    holdFor("intent");
+  } else if (ownAgent && overCap) {
+    refuse.push(OWN_AGENT_PATCH_CAP);
+    holdFor("intent");
+  } else if ((size === "large" || overCap) && !rules.sizes.includes("large")) {
     // An issue with sub-issues is split already (by intake or by hand): while
     // one is open it waits on them below, and once all are closed it is
     // refused, so it never parks as split pending every sweep. A finished
@@ -1406,12 +1470,13 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // The body's checks a person runs (personChecks) leave the checks below.
   // personChecks counts a refinement only on a body a listed human wrote, so
   // that body is the first trusted text.
-  const texts = trustedSpecTexts(spec, humans, appId, taskList);
+  const ownSpec = ownAgent ? ownIds : undefined;
+  const texts = trustedSpecTexts(spec, humans, appId, taskList, ownSpec);
   const moved = personChecks(spec, humans, appId, taskList, webHosts);
   if (moved.length > 0) {
     texts[0] = withoutItems(texts[0], taskList, moved);
   }
-  if (!hasTrustedCriteria(spec, humans, taskList, appId)) {
+  if (!hasTrustedCriteria(spec, humans, taskList, appId, ownSpec)) {
     refuse.push(noTrustedSpec(taskList));
   }
   const criteria = unrunnableCriteria(texts.join("\n"), taskList, webHosts);
@@ -1520,6 +1585,15 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   for (const pull of pulls) {
     wait.push(`open pull request #${pull} is for it`);
+  }
+  if (source !== undefined) {
+    const cap = (rules["own-agents"] ?? OWN_AGENT_DEFAULTS)["source-cap"];
+    const older = Array.isArray(sourceOpen) ? sourceOpen.filter((n) => n < Number(issue.number)).length : null;
+    if (older === null) {
+      wait.push(SOURCE_UNREAD);
+    } else if (older >= cap) {
+      wait.push(sourceCapWait(source, older, cap));
+    }
   }
   // A split issue's work is its sub-issues' (owner Q93): while one is open the
   // parent waits, so a mechanical refusal or a pending split never loops it.
@@ -1945,7 +2019,10 @@ export const withoutItems = (body, taskList, moved) => {
 // (splitChildBody, which reads `taskList`, the rules' `task-list`). Pure.
 // A trusted drift issue's body is never spec: its first text is
 // driftSpecText, and comments count as on any issue.
-export function trustedSpecTexts(spec, humans, appId, taskList) {
+// With `ownIds`, a body an own-agent identity wrote and no one else edited
+// counts too (ownAgentText,
+// https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md).
+export function trustedSpecTexts(spec, humans, appId, taskList, ownIds) {
   const written = writtenBy(humans);
   if (!spec) {
     return [];
@@ -1955,7 +2032,8 @@ export function trustedSpecTexts(spec, humans, appId, taskList) {
     return [driftSpecText(drift), ...(spec.comments ?? []).filter(written).map((item) => String(item.body ?? ""))];
   }
   const refinement = countedRefinement(spec, humans, appId);
-  const own = (item) => written(item) || item === refinement || (item === spec && splitChildBody(spec, humans, taskList) !== null);
+  const own = (item) =>
+    written(item) || item === refinement || (item === spec && (splitChildBody(spec, humans, taskList) !== null || (ownIds !== undefined && ownAgentText(spec, ownIds))));
   return [spec, ...(spec.comments ?? [])].filter(own).map((item) => String(item.body ?? ""));
 }
 
@@ -1969,8 +2047,8 @@ const hasTaskLine = (text, taskList) => {
 
 // Whether that text holds a `taskList` line outside a code fence: criterion
 // 7. Pure.
-export const hasTrustedCriteria = (spec, humans, taskList, appId) =>
-  trustedSpecTexts(spec, humans, appId, taskList).some((text) => hasTaskLine(text, taskList));
+export const hasTrustedCriteria = (spec, humans, taskList, appId, ownIds) =>
+  trustedSpecTexts(spec, humans, appId, taskList, ownIds).some((text) => hasTaskLine(text, taskList));
 
 // The lines of `text` that start, past any indent, with `taskList`, as written.
 const taskLinesOf = (text, taskList) =>
@@ -2167,8 +2245,8 @@ export function splitRecord(body) {
 // The default branch's admission rules, beside this script like readSchedule's
 // file, read once.
 let baseRules;
-const baseTaskList = () =>
-  (baseRules ??= loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url))))["task-list"];
+export const baseAdmissionRules = () => (baseRules ??= loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url))));
+const baseTaskList = () => baseAdmissionRules()["task-list"];
 
 // The lanes App's split record in `comments` with its sub-issues filed, if
 // any, and `at`, when its comment was posted.
@@ -2450,7 +2528,13 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   // visibility it did not read (docs/conventions/pr-pipeline/README.md#outage-posture, element 4).
   const isPublic = (await github("GET", `/repos/${repository}`))?.visibility === "public";
   const subIssues = await openSubIssues(github, base, issue);
+  const sources = sourceLabels(issue.labels);
+  const counted = ownAgentIds(rules, appId).has(issue.user?.id) && sources.length === 1 && SOURCE_LABEL.test(sources[0]);
+  const sourceOpen = counted
+    ? (await paginate(github, `/repos/${repository}/issues?state=open&labels=${encodeURIComponent(sources[0])}`)).filter((item) => !item?.pull_request).map((item) => Number(item.number))
+    : undefined;
   return {
+    sourceOpen,
     issue,
     ...(statusOf && { holdLabels: await readyWhileDeferred(await writtenLabels({ statusOf, number: Number(number), names: names(issue.labels), wrote, sleep }), names(issue.labels)) }),
     // After holdLabels, so it reuses that field read.

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_01\",\"type\":\"tool_result\",\"content\":\"Error [ERR_PACKAGE_PATH_NOT_EXPORTED]: Package subpath './src/ledger.js' is not defined by \\\"exports\\\"\",\"is_error\":true}]}}\n",
+      "why": "the check's failing run in a tool result"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"The resolver would throw ERR_PACKAGE_PATH_NOT_EXPORTED.\"}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"ok 1 - summary counts unpaid entries only\"}]}}\n",
+      "why": "the error only claimed in the reply, never seen in a run"
+    }
+  ]
+}

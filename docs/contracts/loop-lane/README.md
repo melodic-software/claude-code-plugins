@@ -14,6 +14,7 @@
 - [7. Operator steering through GitHub state](#7-operator-steering-through-github-state)
 - [Confirm-then-record](#confirm-then-record)
 - [8. Scheduled reader](#8-scheduled-reader)
+- [9. Designing a new pipeline](#9-designing-a-new-pipeline)
 - [Versioning](#versioning)
 
 Owner doc for the concerns shared by every **loop lane**: a session that wraps a single-pass
@@ -1589,6 +1590,23 @@ a checklist of its own:
 
 Two related items sit outside the six rules: an external heartbeat for scheduled lanes (#7673) and
 the time zone a scheduled prompt names for dates (#7679).
+
+## 9. Designing a new pipeline
+
+Before a new lane, workflow or pipeline is built, its design answers seven questions, each in a line
+of its plan or PR body, naming the mechanism that answers it:
+
+| Question | What the answer names |
+|---|---|
+| What starts it? | The event that triggers a run; a schedule only where no event exists, with the reason (§4 "Self-pacing" for a session loop) |
+| What does a run change? | The forge state or files it leaves, written so a rerun converges (§4 "Forge writes converge on rerun") |
+| What starts the next run? | The event or wakeup that follows, and what stops the chain when there is nothing left (§4 "Stop shapes") |
+| Where does a person re-enter? | The hold, label or queue a stopped item lands in, and who reads it (§2 "When work stops for the owner", §7) |
+| What stops a duplicate run? | The `concurrency:` group or atomic claim, listed in [`posting-lanes.md`](posting-lanes.md) when the lane posts |
+| How does a person do what the agent does? | The manual way in beside each agent way in: a dispatch input, a label or a skill a person can run on the same item |
+| What does it look like drawn? | A diagram with one lane per place a step runs (person, tracker, runner, git host, orchestrator, token broker), each step in the lane where it happens, not where it was decided, and the person's way in drawn |
+
+A question the design cannot answer is a gap to close before the build, not after.
 
 ## Versioning
 

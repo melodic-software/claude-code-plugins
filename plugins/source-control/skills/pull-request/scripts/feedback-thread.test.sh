@@ -468,6 +468,10 @@ assert_exit "record-body is refused when the round offers no section" 1 "$?"
 jq '.body_sections = [{"heading":"Summary","text":"Old."},{"heading":"Verification","text":"Old run."}]' \
   "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
 assert_eq "sections prints the offered headings" "Summary Verification" "$(run sections | jq -r 'map(.heading) | join(" ")')"
+assert_eq "body prints [] when the thread file holds no view" "[]" "$(run body | jq -c .)"
+jq '.body_view = [{"heading":"Summary","text":"Old.","truncated":false},{"heading":"Verification","text":"Old run.","truncated":false},{"heading":"Related","text":"None.","truncated":false}]' \
+  "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
+assert_eq "body prints every section, the last one sections leaves out included" "Summary Verification Related" "$(run body | jq -r 'map(.heading) | join(" ")')"
 for bad in \
   '{"sections":[{"heading":"Related","text":"x"}]}' \
   '{"sections":[{"heading":"Verification","text":""}]}' \

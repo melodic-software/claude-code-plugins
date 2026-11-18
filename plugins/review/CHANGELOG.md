@@ -3,6 +3,23 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.3.1] - 2026-11-18
+
+### Changed
+
+- The `fanout` skill's sentence on what `--yes` does for the `fix` action is reworded for clarity; the behavior is unchanged.
+
+## [10.3.0] - 2026-11-18
+
+### Changed
+
+- The `ecosystem-specialist` agent ships no build, test or lint commands of its own. A phase that neither the repository's `.claude/ecosystems/<ecosystem>.yaml` record nor its documented conventions resolve is reported `UNVERIFIED (unresolved)`, naming what the agent read. A changed file that no record's globs cover is placed by what the repository's own files imply for its path, or listed as unclassified. The plugin carries version 1.1.0 of the ecosystem resolution steps (`reference/ecosystem-resolution.md`), and the agent's report-format example uses placeholders. The agent no longer copies a command out of a CI workflow file, which those steps' unattended limits forbid; it reads such a file only to see which tool is in use.
+
+### Removed
+
+- The agent's file-extension-to-ecosystem table and its fallback commands for each ecosystem.
+- Tool- and language-specific examples in model-read review text: the cast and debug-output examples in the `code-reviewer` agent's checklist, the named scanner in `quality-gate` security mode's after-review advice, and the probe command example in `quality-gate` downstream mode. The rules around them are unchanged.
+
 ## [10.2.1] - 2026-11-17
 
 ### Changed

@@ -381,7 +381,7 @@ RC=$?
 assert_exit "HOME unset, USERPROFILE elsewhere: real repo root keeps scope → exit 0" 0 "$RC"
 
 # With no home to compare against, a root cannot be shown not to contain it.
-OUT=$(env HOME="" USERPROFILE="" CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+OUT=$(cd "$TEST_TMPDIR" && env HOME="" USERPROFILE="" CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
 RC=$?
 assert_exit "empty HOME and USERPROFILE: outside write scanned → exit 2" 2 "$RC"
 
@@ -1201,7 +1201,7 @@ SPE_GI=CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_SKIP_GITIGNORED
 spe_rc() {
   local target="$1" rc=0 out
   shift
-  out=$(env HOME="$SPE/home" USERPROFILE= HOOK_TELEMETRY_SINK= "$@" bash "$HOOK" \
+  out=$(cd "$SPE" && env HOME="$SPE/home" USERPROFILE= HOOK_TELEMETRY_SINK= "$@" bash "$HOOK" \
     <<<"$(write_json "$target" "token = '$GH_PAT'")" 2>&1) || rc=$?
   [[ "$rc" == 0 && -n "$out" ]] && rc="0+output"
   printf '%s' "$rc"

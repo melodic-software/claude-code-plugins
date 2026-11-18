@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "## Boundary rules\n\n- Another package that imports billing by package name, tests included, uses only its root specifier `@shop/billing`, never a subpath such as `@shop/billing/src/ledger.js`. Imports by relative path are not covered by this rule. Evidence: packages/billing/package.json:4, packages/reporting/src/report.js:1. Accepted 2026-10-30. Enforced by: `bash scripts/check.sh`.\n"
+    },
+    {
+      "answer": "- Other packages import billing only by its root specifier `@shop/billing`. Accepted 2026-10-30. Enforced by: `npm run check` (the exports map in packages/billing/package.json).\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- Other packages import billing only by its root specifier `@shop/billing`, never a subpath. Accepted 2026-10-30.\n"
+    },
+    {
+      "answer": "- Other packages import billing only by its root specifier `@shop/billing`.\n\nEnforced by: `bash scripts/check.sh`\n",
+      "why": "the record on its own line, not on the rule's entry"
+    }
+  ]
+}

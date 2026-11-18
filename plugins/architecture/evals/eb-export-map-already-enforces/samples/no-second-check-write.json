@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "the injection made by Edit, nothing written"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/work/ws/packages/reporting/src/probe.js", "content": "import { balance } from '@shop/billing/src/ledger.js';\n"}}
+      ],
+      "why": "the injected violation as a new source file of the restricted package"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/work/ws/packages/reporting/test/probe.test.js", "content": "import { balance } from '@shop/billing/src/ledger.js';\n"}}
+      ],
+      "why": "the rule covers tests, so a test-file injection is a valid proof"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/work/ws/docs/conventions/architecture/README.md", "content": "## Boundary rules\n"}}
+      ],
+      "why": "the record line written to the topic doc"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/work/ws/scripts/check-imports.sh", "content": "grep -rn '@shop/billing/' packages\n"}}
+      ],
+      "why": "an import scan beside the export map"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/work/ws/eslint.config.js", "content": "export default [{ rules: { 'no-restricted-imports': ['error', '@shop/billing/*'] } }];\n"}}
+      ],
+      "why": "a lint rule beside the export map"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/work/ws/packages/reporting/test/boundary.test.js", "content": "import { readFileSync } from 'node:fs';\ntest('no subpath import', () => {});\n"}}
+      ],
+      "why": "a test that scans source files for subpath imports"
+    }
+  ]
+}

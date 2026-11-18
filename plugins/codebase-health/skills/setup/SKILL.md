@@ -62,8 +62,8 @@ looks unambiguous, the turn that drafts the config ends by presenting it and ask
 2. **Explore the repo to draft defaults.** Before asking anything, infer candidates:
    - **documentation** primary-sources: doc directories (`docs/`, `README.md`), agent-instruction
      files (`AGENTS.md`, `CLAUDE.md`), ADR directories, convention docs.
-   - **configuration** primary-sources: build config, lint config, CI workflows, git-hook config, detected from what actually exists (e.g. `Directory.Build.props`, `pyproject.toml`,
-     `package.json`, `.github/workflows/`, `lefthook.yml`, `.editorconfig`).
+   - **configuration** primary-sources: build config, lint config, CI workflows, git-hook config,
+     detected from what actually exists.
    - **code-quality** primary-sources: source roots; verification-sources: test roots **plus the
      same source roots**, a cross-file DRY/SOLID claim is validated by reading peer source files,
      which a discovery agent can only read when they are in `verification-sources` (the fence forbids

@@ -86,8 +86,9 @@ for operators: uninstalling the plugin from its last scope deletes this whole tr
 - Evidence sources probed: Tier 0 <which ran>; Tier 1 <present/absent>; Tier 2 <configured/none>
 - GitHub access path: <mcp | gh | none>
 - Windows used: <churn window; CI windows>
-- Filing: tracker <present/absent>; filed <n> (ids); cap in effect <n>; dedupe skips <n>;
-  dismissed suppressed <n>
+- Filing: tracker <present/absent>; source label <present/missing>; open source-labeled
+  <n> of open cap <n>; filed <n> (ids); cap in effect <n>; dedupe skips <n>; dismissed
+  suppressed <n>
 
 ## Ranked candidates
 
@@ -142,19 +143,46 @@ Applies in both modes, when `/code-metrics:audit-duplication` ran and its docume
 
 ## Filing flow (presence-gated, deduped, capped)
 
-1. **Tracker present?** `work-items:track` installed and bound → file; absent → report only,
+1. **Tracker present?** `work-items:track` enabled and bound → file; absent → report only,
    noted in the report's Filing line. Never file by improvising a `gh issue create` outside the
    tracker.
-2. **Consult dismissed memory first** (already done during candidate assembly, with the order
+2. **Source label present?** Run `/work-items:track labels "source: improvement-find"`. A
+   `MISSING:` line, or a tracker that cannot list labels → file nothing, and add a `gap:` line
+   naming the label and how to create it ("Source label" below).
+3. **Open cap (hard stop).** Count the open items carrying the source label, whatever their
+   triage or workflow status: `/work-items:track list --label "source: improvement-find"
+   --state open --limit <open cap + 1>`. At or above the open cap (`find_open_item_cap`, default
+   5, from the config cascade in `<plugin-root>/reference/config.md`) → file nothing, and say in
+   the run's final output and the report's Filing line that the open cap stopped filing, with
+   the count and the cap. Below it, the run files at most the room left (cap minus count), or
+   the adaptive cap when that is smaller. A count the tracker cannot return → file nothing, with
+   a `gap:` line. The invocation prompt cannot raise the open cap; only the config can.
+4. **Consult dismissed memory first** (already done during candidate assembly, with the order
    and rationale in ranking.md).
-3. **Top candidates, in rank order, up to the adaptive cap.** For each: search-before-create
+5. **Top candidates, in rank order, up to the cap in effect.** For each: search-before-create
    per the tracker convention. `work-items:track`'s add action carries the pre-flight
    (adapter "Search items", `--state all`); run it before spending a cap slot. Duplicate found
-   → skip, count it in the report, move to the next candidate.
-4. **Each filed item carries its evidence.** The citation, rung, size, and value-to-effort
-   rationale travel into the item body, so triage ranks over evidence, not anecdote.
-5. **Nothing else.** No prioritizing the queue, no assigning, no starting work, no closing or
+   → skip, count it in the report, move to the next candidate. This search is a pre-filter that
+   skips an obvious repeat; it never decides that an item is a duplicate. Intake triage owns
+   that decision: every filed item goes through intake, and triage marks a duplicate it finds.
+6. **Each filed item carries its evidence and the source label.** File with
+   `/work-items:track add --label "source: improvement-find" ...`. The citation, rung, size,
+   and value-to-effort rationale travel into the item body, so triage ranks over evidence, not
+   anecdote.
+7. **Nothing else.** No prioritizing the queue, no assigning, no starting work, no closing or
    demoting existing items. The run never self-disposes.
+
+### Source label
+
+Every item this skill files, in either mode, carries the label `source: improvement-find`, so
+its filings can be counted (the open cap above) and told apart in triage. The skill never creates
+the label: `work-items:track` validates labels against the live set and never creates one, and a
+missing label goes to whoever the repository names as its label owner. Create it once, in the
+repository's label-as-code source when it has one, otherwise in the bound tracker by that
+tracker's own means.
+
+Interactively, when the label is missing, say so and name the label and its owner before filing
+anything the user picked; file only once the label exists.
 
 ### Adaptive filing cap (soft default, prompt-overridable)
 
@@ -169,7 +197,8 @@ ceiling, adapted by observed outcomes, never a hard limit:
 - Read the previous run's report (same `<state-key>`, latest timestamp) for what was filed;
   check the tracker for its current state.
 - **The invocation prompt overrides all of it.** A cap, "report only", or "file everything
-  above medium-high confidence" in the routine prompt wins over the default.
+  above medium-high confidence" in the routine prompt wins over the default. The open cap in
+  the filing flow is not part of this ramp: it is a hard stop the prompt cannot raise.
 
 ### Dismissed-candidate memory
 
