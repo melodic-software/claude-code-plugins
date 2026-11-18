@@ -184,8 +184,11 @@ export async function checkTempSpace(
     message: `WARN: free space in ${tempDir} not checked (${reason}); continuing. A video needs about ${STAGING_SIZE_FACTOR}x its size free there. ${tmpdirAdvice(tempDir)}`,
   });
 
+  // An unclaimed URL (a playlist or channel page) is never probed: yt-dlp would walk every
+  // entry, and acquisition refuses the URL next anyway.
   const claim = adapter.matchUrl(url);
-  const size = await probe(claim?.canonicalUrl ?? url, adapter);
+  if (!claim) return { state: "enough", message: "" };
+  const size = await probe(claim.canonicalUrl, adapter);
   const neededBytes = estimateStagingBytes(size, timeRange);
   if (neededBytes === null) {
     return unknown(size.error ? `size probe failed: ${size.error}` : "yt-dlp reported no media size");

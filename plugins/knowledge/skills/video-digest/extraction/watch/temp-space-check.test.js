@@ -151,4 +151,16 @@ describe("checkTempSpace", () => {
     await checkTempSpace(options, { probe, freeBytes: async () => GIB });
     expect(probe).toHaveBeenCalledWith(URL, youtubeAdapter);
   });
+
+  it.each([
+    "https://www.youtube.com/playlist?list=PLabcdefghijklmnop",
+    "https://www.youtube.com/@somechannel",
+  ])("never probes a URL the adapter declines (%s), leaving the refusal to acquisition", async (url) => {
+    const probe = probeReturning({ bytes: GIB });
+    const freeBytes = vi.fn(async () => 0);
+    const result = await checkTempSpace({ ...options, url }, { probe, freeBytes });
+    expect(result).toEqual({ state: "enough", message: "" });
+    expect(probe).not.toHaveBeenCalled();
+    expect(freeBytes).not.toHaveBeenCalled();
+  });
 });
