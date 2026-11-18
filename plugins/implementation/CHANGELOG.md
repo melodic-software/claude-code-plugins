@@ -3,6 +3,14 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.0] - 2026-11-18
+
+### Added
+
+- `/implementation:implement`'s advisory mutation step suggests `/mutation-testing:seed-faults`,
+  when that plugin is enabled, for checking the new tests against realistic hand-written bugs; the
+  step does not run it.
+
 ## [0.45.2] - 2026-11-17
 
 ### Changed

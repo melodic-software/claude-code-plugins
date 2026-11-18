@@ -413,5 +413,6 @@ The queries run comfortably on a store of ordinary size, and the skill caps its 
 
 - Row schema: the one key set in "Setup" above, whose authority is `slog_event_record_to` in `hooks/session-log-lib.sh`. Every writer under the root emits through it (see `hooks/hook-events.registry.json` for which events the event log records). A consumer may point `HOOK_TELEMETRY_SINK` at a sink of their own, whose shared-file rows are whatever that sink writes: degrade gracefully when a field the queries use is absent
 - The old `.claude/observability/hook-events.jsonl` location is retired (`retirements.yaml` `harness-ops-r001`); `/harness-ops:setup` detects and migrates it. The skill-usage store and the OTEL store still live under `.claude/observability/`
+- CI lane legs (the lane transcript sink's `metrics.jsonl` and `outcomes.jsonl`) read through DuckDB, not jq: `lane_runs` and `lane_outcomes` in [../otel/lane-runs.sql](../otel/lane-runs.sql), routed in [read-routing.md](read-routing.md)
 - Privacy filter applied at output time: [privacy.md](privacy.md)
 - Output template: [output-format.md](output-format.md)

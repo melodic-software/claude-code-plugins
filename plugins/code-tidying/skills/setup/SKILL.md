@@ -188,14 +188,19 @@ about and apply with your own edit tools. The entry exits 0 while `comment_lint`
 so installing it changes no commit until the team file sets a level.
 
 1. **Scope.** Use the argument when given. Otherwise, when the user is present, ask: `local` (this
-   clone only, nothing committed) or `shared` (committed under `.githooks/code-tidying/`, so every
+   clone only, nothing committed) or `shared` (committed for the team, so every
    teammate and agent gets it). When nobody can answer, use `local`.
-2. **Plan.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" plan --scope <scope>` and
-   read the JSON: `manager`, `actions[]`, `decisions[]`.
+2. **Plan.** For `local`, run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" plan
+   --scope local`. For `shared`, run `plan --scope remote` first: with lefthook, or no hook manager
+   yet, the committed `lefthook.yml` gets one `remotes:` entry naming the marketplace's root
+   `lefthook-remote.yml`, which fetches every plugin's hooks from its main branch, so nothing is
+   copied and no refresh is ever committed. When it returns `remote-needs-lefthook` (husky or plain
+   hooks) or `remote-source-dir`, run `plan --scope shared` instead, which commits copies under
+   `.githooks/code-tidying/`. Read the JSON: `manager`, `actions[]`, `decisions[]`.
 3. **Manager conflict.** A `manager-conflict` decision lists the evidence. Show it and ask which
    manager should carry the entry; rerun `plan` with `--manager lefthook|husky|plain`. Without an
    answer, stop and report.
-4. **Actions.** When `actions[]` holds `copy` items, run
+4. **Actions.** A remote plan has none. When `actions[]` holds `copy` items, run
    `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (with the same
    `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused` or
    `blocked` per entry; `refused` is a locally edited copy (the `modified` decision) and `blocked`
@@ -205,9 +210,11 @@ so installing it changes no commit until the team file sets a level.
    leave remain.
 6. **Verify.** Run `verify` and report its lines as `check` step 8 does.
 
-A repository that runs its hooks from this marketplace's main branch through lefthook uses
-`plan --scope remote` instead, which returns the `remotes:` snippet for
-`git-hooks/lefthook-remote.yml`.
+A remote entry stays in the committed `lefthook.yml`, so stop it in one clone by skipping its job,
+`code-tidying-remote-<entry>`, in the clone's untracked `lefthook-local.yml`; a failing remote job prints
+that skip, and the [adoption
+path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md#when-a-remote-job-breaks)
+says when to use it and how to drop it.
 
 When the user does not want the entry in this clone, run
 `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry comment-lint`; the

@@ -3,6 +3,15 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.32] - 2026-11-18
+
+### Changed
+
+- The DLSS 5 and setup skills and the DLSS 5 anti-cheat and fork references point at the upstream
+  page for what they used to restate about option substitution, Steam's anti-cheat field, GitHub's
+  latest release and the forks' own notes. The AreWeAntiCheatYet record no longer carries an entry
+  count. The rules and gates are unchanged.
+
 ## [0.10.31] - 2026-11-17
 
 ### Changed

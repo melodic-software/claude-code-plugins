@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.6.3] - 2026-11-18
+
+### Fixed
+
+- `/work-items:work --ci` writes no new code comment unless the repository's rule for added comments allows it and the comment lint accepts its shape, so the `work-resolve-issue` lane stops opening pull requests that lint refuses.
+
+## [15.6.2] - 2026-11-18
+
+### Changed
+
+- The tracker's `wit_newer_live_lease` names its arguments like its sibling lease functions, with no behavior change.
+
 ## [15.6.1] - 2026-11-18
 
 ### Changed

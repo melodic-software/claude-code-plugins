@@ -3,6 +3,13 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.0] - 2026-11-18
+
+### Added
+
+- `diagram_target` gains `excalidraw-file`: `/visualization:visualize` writes a flow, flowchart, state diagram or swim lane (one labeled frame per lane) as `docs/diagrams/<name>.excalidraw` at the repository root, to open and edit in an Excalidraw editor. It needs no canvas server and no network, works in the Claude Code terminal, asks before replacing an existing file, never stages or commits the file, and reports its absolute path. A resolved `medium` does not override it; a medium argument, a form the person names, or a calling skill that needs the diagram inline does. Outside a repository it falls back to `auto`.
+- `lib/diagram-file-check.mjs` checks a drafted `.excalidraw` file's structure before it is written: the file marker, a numeric version, elements of the drawn types with ids, positions and sizes, references that resolve, and no link, image or embed.
+
 ## [1.2.13] - 2026-11-17
 
 ### Changed
