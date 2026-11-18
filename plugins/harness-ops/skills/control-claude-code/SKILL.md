@@ -139,7 +139,7 @@ changes `/status`, `/usage`, the startup banner or the usage-limit notice.
 - cost | (?<=Total cost:[ \t]+)[^ \t]+
 - token usage | (?<=Usage:[ \t]+)[0-9](?:.*[^ \t])?
 - status line session id | [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
-- status line cost | \$[ \t]*[0-9][0-9,]*(?:\.[0-9]+)?
+- status line cost | \$[ \t]*[0-9]+(?:,[0-9]+)*(?:\.[0-9]+)?
 - status line limit | (?<![A-Za-z0-9])(?:5h|7d|weekly|session)[^0-9%─-╿]{0,12}[0-9]+(?:\.[0-9]+)?%
 
 values: `cli/account.mjs`
