@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.55] - 2026-11-18
+
+### Changed
+
+- The README's `event-storming` note says that `event-storming` 0.9.0 and later use the Miro backend only when chosen, through its `board_backend` option, a `--backend miro` argument or a Miro board URL.
+
 ## [0.6.54] - 2026-11-17
 
 ### Changed

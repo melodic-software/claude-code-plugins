@@ -3,6 +3,14 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.21] - 2026-11-18
+
+### Changed
+
+- Cut restated upstream behavior from the component-library, principles, launch-scope, CSS
+  foundations and setup docs: each passage is now this plugin's own rule with its reason, and the
+  pointers it rewrote name when to fetch the upstream section live.
+
 ## [0.27.20] - 2026-11-18
 
 ### Changed
