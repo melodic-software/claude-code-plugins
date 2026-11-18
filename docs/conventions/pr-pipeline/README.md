@@ -1997,7 +1997,8 @@ request is toggled at most twice, counted from those lines and from the lane tok
 its timeline, which the lane token cannot delete as it can edit the comment; past that, or with the timeline
 unread, it waits for a person. A run toggles at most one
 pull request, and only while fewer than 35 jobs are running or queued and the lane token and the job token
-each have 30% of every rate-limit bucket's hourly limit left; an escalated comment is not toggled. Each toggle logs
+each have 30% of every rate-limit bucket's hourly limit left; a pull request refused on one of those limits leaves the
+run's toggle to the next candidate. An escalated comment is not toggled. Each toggle logs
 `::notice::pr-merge whole-review-toggle pr=<n> head=<sha>`. A draft a run left between the two
 writes is marked ready by the next run, only when the lane token made its newest conversion to draft within ten minutes after a record's time;
 a draft a person made stays one.
