@@ -192,7 +192,8 @@ context_of() {
 HOLD_REASONS=(feedback-round-cap-security feedback-uncertain-security feedback-disputed-security
   feedback-question-intent feedback-question-design feedback-question-security
   dependency-security-close dependency-escalate dependency-fix-refused
-  dependency-escalate-intent dependency-escalate-design dependency-escalate-security dependency-escalate-cost)
+  dependency-escalate-intent dependency-escalate-design dependency-escalate-security dependency-escalate-cost
+  superseded-by-main)
 # Each hold row's owner reason, the stop-reason code its comment carries: the
 # security rows and dependency-fix-refused (untrusted provenance, a trust hold
 # the owner keeps) are security; a feedback question is its own question.
@@ -200,7 +201,7 @@ declare -A OWNER_REASONS=([feedback-round-cap-security]=security [feedback-uncer
   [feedback-disputed-security]=security [feedback-question-intent]=intent [feedback-question-design]=design
   [feedback-question-security]=security [dependency-security-close]=security [dependency-fix-refused]=security [dependency-escalate]=intent
   [dependency-escalate-intent]=intent [dependency-escalate-design]=design
-  [dependency-escalate-security]=security [dependency-escalate-cost]=cost)
+  [dependency-escalate-security]=security [dependency-escalate-cost]=cost [superseded-by-main]=intent)
 SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
   feedback-protected-path ci-fix-protected-path ci-fix-weaken-required ci-fix-escalated
   dependency-round-cap dependency-fix-not-landed dependency-config-unreadable

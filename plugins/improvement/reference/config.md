@@ -2,8 +2,8 @@
 
 The single home for the `improvement` plugin's config-key contract. The surface is
 `.claude/improvement.md`, layered per the marketplace's config-cascade convention. It is read by
-`/improvement:find` for Tier 2 evidence-source resolution plus the hotspot recipe's churn window
-and exclusion patterns, and verified/written by `/improvement:setup`. All layers are optional:
+`/improvement:find` for Tier 2 evidence-source resolution, the hotspot recipe's churn window and
+exclusion patterns, and the unattended open cap, and verified/written by `/improvement:setup`. All layers are optional:
 **zero config is a fully working state**. Tier 0 repo-native evidence needs nothing declared, and
 an absent Tier 2 declaration is a recorded evidence gap in the finder's report, never an error.
 
@@ -28,7 +28,7 @@ effective config is surfaced to a human, report which layer supplied each value.
 Declared here per the cascade convention: **per-key override, with two declared list
 refinements.**
 
-- **Scalar keys** (`churn_window`, `churn_exclude_defaults`): a later layer replaces the value
+- **Scalar keys** (`churn_window`, `churn_exclude_defaults`, `find_open_item_cap`): a later layer replaces the value
   key by key; a key absent from a later layer keeps the earlier layer's value.
 - **`churn_exclude`**: entries **union** across layers, and with the bundled defaults unless
   `churn_exclude_defaults: false`. A later layer adds patterns; it never silently drops an
@@ -53,6 +53,7 @@ churn_exclude:
   - '(^|/)generated/'
   - '\.designer\.cs$'
 churn_exclude_defaults: true
+find_open_item_cap: 5
 evidence_sources:
   app-telemetry:
     mcp_server: my-observability-mcp
@@ -69,6 +70,7 @@ evidence_sources:
 | `churn_window` | string accepted by `git log --since` | `"90 days ago"` | The hotspot recipe's change-frequency window, its main tuning knob. The recipe's history-depth gate still applies: a window the history does not cover shrinks or downgrades to an evidence gap regardless of this value. |
 | `churn_exclude` | list of ERE patterns | `[]` | Extra patterns matched against paths from `git log --name-only` and excluded from churn counting. Unioned across layers and with the bundled defaults. |
 | `churn_exclude_defaults` | boolean (`true` \| `false`, since bare `on`/`off` is the YAML 1.1 coercion footgun and is not accepted) | `true` | `false` drops the bundled default exclusions (lockfiles, generated/minified artifacts, and vendored trees: the ERE in the hotspot recipe), leaving only declared patterns. |
+| `find_open_item_cap` | non-negative integer | `5` | Unattended `/improvement:find` files nothing while the open items carrying its `source: improvement-find` label number at or above this, and otherwise files no more than the room left under it. A hard stop the invocation prompt cannot raise; `0` stops all unattended filing. A value that is not a non-negative integer is malformed: that layer's value is ignored and reported. |
 | `evidence_sources` | mapping of named source declarations | `{}` | Tier 2 application-telemetry declarations, one entry per source (sub-keys below). Empty or absent means Tier 2 is an evidence gap. |
 
 ### `evidence_sources.<name>` sub-keys

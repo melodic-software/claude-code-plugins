@@ -403,6 +403,17 @@ test("pr-unblock starts each subscription call on a skipped key-leg run exactly 
   }
 });
 
+test("every leg turns the sandbox off for ci-context alone", () => {
+  assert.doesNotMatch(TEXT, /^ +sandbox: "false"$/m);
+  for (const id of Object.values(ACT)) {
+    const sandbox = wf.step("run", id).inputs.sandbox;
+    for (const prepare of ["ci-context", "review-threads", "dependency-review", "merge-base", ""]) {
+      const want = prepare === "ci-context" ? "false" : "true";
+      assert.equal(value(sandbox, { "steps.config.outputs.prepare": prepare }), want, `${id}, prepare "${prepare}"`);
+    }
+  }
+});
+
 test("pr-refine's fix-docs, which posts no decline, keeps its run job on a skipped key", () => {
   const REFINE = readFileSync(new URL("../../workflows/pr-refine.yml", import.meta.url), "utf8");
   const fixDocs = workflowText(REFINE.slice(REFINE.indexOf("\njobs:\n"))).job("fix-docs");

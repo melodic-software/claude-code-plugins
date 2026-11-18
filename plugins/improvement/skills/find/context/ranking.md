@@ -97,7 +97,8 @@ Two memories are consulted, in this order, and they answer different questions:
    `work-items:track`'s add action carries it (adapter "Search items", `--state all`). Run the
    search *before* spending a cap slot, so a duplicate never counts against the adaptive
    filing cap. A match means skip-and-note in the report (filing duplicates is a bug, not a
-   tuning knob), not silently drop.
+   tuning knob), not silently drop. The search only skips an obvious repeat; whether an item
+   that was filed duplicates another is intake triage's decision, never this skill's.
 
 The order matters: memory prunes the candidate set; tracker dedupe guards each individual
 filing. Reversing it wastes tracker queries on candidates the operator already said no to.
