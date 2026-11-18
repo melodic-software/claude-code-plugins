@@ -1,7 +1,5 @@
 pre-push:
   jobs:
-    # Keep double quotes out of `run`: on Windows lefthook wraps it in double quotes without
-    # escaping them, and sh gets a cut-off script. mktemp paths hold no spaces, so $tmp needs none.
     - name: check-affected
       run: |
         if ! mb=$(git merge-base HEAD refs/remotes/origin/main 2>/dev/null); then

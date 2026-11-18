@@ -1,4 +1,3 @@
-# Excludes govern traversal only: a directly-passed path needs `--force-exclude`.
 extend-exclude = ["**/evals/fixtures/**"]
 
 [lint]
