@@ -251,30 +251,111 @@ test('pane: a measurement refreshes only while the pane is open and only when th
   expect(w.usageCalls).toBe(opened + 1)
 })
 
-for (const surface of ['terminal', 'desktop'] as const) {
-  test(`band: a bordered band of header, bar and legend, five rows, above other plugins' rows (${surface})`, async ($, on) => {
-    world(on)
-    await run($, 'live band')
-    await measure($)
-    const ui = await mountBand($, { surface })
-    const boxes: Found[] = await ui.findAll({ type: 'Box' })
-    const found: Found[] = await ui.findAll({ type: 'Text' })
-    await ui.unmount()
-    const framed = boxes.filter(b => b.props.borderStyle !== undefined)
-    expect(framed).toHaveLength(1)
-    // Border top and bottom plus three rows inside: five rows.
-    expect(framed[0]?.children).toHaveLength(3)
-    const shown = found.map(t => t.text)
-    expect(shown).toContain(HEADER)
-    expect(shown).toContain('other plugin row')
-    const bar = segments(found)
-    expect(bar.map(s => s.props.color)).toEqual(['promptBorder', 'permission', 'warning', 'inactive'])
-    // 60 columns less the two border cells.
-    expect(bar.map(s => s.text).join('')).toHaveLength(58)
-    const legend = shown.find(t => t.startsWith('System prompt'))
-    expect(legend).toBe('System prompt 10k 1%  Messages 80k 8%  Autocompact buffer 45k 5%  Free space 865k 87%')
+test("band: a bordered band of header, bar and legend, five rows, above other plugins' rows", async ($, on) => {
+  world(on)
+  await run($, 'live band')
+  await measure($)
+  const ui = await mountBand($)
+  const boxes: Found[] = await ui.findAll({ type: 'Box' })
+  const found: Found[] = await ui.findAll({ type: 'Text' })
+  await ui.unmount()
+  const framed = boxes.filter(b => b.props.borderStyle !== undefined)
+  expect(framed).toHaveLength(1)
+  expect(framed[0]?.children).toHaveLength(3)
+  const shown = found.map(t => t.text)
+  expect(shown).toContain(HEADER)
+  expect(shown).toContain('other plugin row')
+  const bar = segments(found)
+  expect(bar.map(s => s.props.color)).toEqual(['promptBorder', 'permission', 'warning', 'inactive'])
+  expect(bar.map(s => s.text).join('')).toHaveLength(58)
+  const legend = shown.find(t => t.startsWith('System prompt'))
+  expect(legend).toBe('System prompt 10k 1%  Messages 80k 8%  Autocompact buffer 45k 5%  Free space 865k 87%')
+})
+
+const NOW = 1_791_050_400_000
+const published = (on: any, zone?: string, sessionId = 'sid1') => {
+  on('clock.now', () => ({ value: NOW + 60_000 }))
+  on('env.get', () => ({ value: '/srv/u' }))
+  on('session.id', () => ({ value: 'sid1' }))
+  on('fs.read', ($: unknown, e: { path: string }) => {
+    if (zone === undefined || e.path !== '/srv/u/.claude/context-usage/context/sid1.json') throw new Error(`ENOENT: ${e.path}`)
+    return { value: JSON.stringify({ session_id: sessionId, zone, captured_at: new Date(NOW).toISOString() }) }
   })
 }
+
+const desktopBand = async ($: any) => {
+  await run($, 'live band')
+  await measure($)
+  const ui = await mountBand($, { surface: 'desktop' })
+  const boxes: Found[] = await ui.findAll({ type: 'Box' })
+  const found: Found[] = await ui.findAll({ type: 'Text' })
+  const drawn = await ui.drawn()
+  await ui.unmount()
+  return { boxes, found, drawn, shown: found.map(t => t.text) }
+}
+
+const hovers = (node: unknown): [string, unknown][] => {
+  if (typeof node !== 'object' || node === null) return []
+  const { props, hover, children = [] } = node as { props?: { key?: unknown }; hover?: unknown; children?: unknown[] }
+  const own: [string, unknown][] = hover !== undefined && typeof props?.key === 'string' ? [[props.key, hover]] : []
+  return [...own, ...children.flatMap(hovers)]
+}
+
+const figures = (found: Found[]) => found.filter(t => t.text === '90k' || t.text === '9%').map(t => [t.text, t.props.color])
+
+test("band (desktop): one line of figures, a proportional bar and hover labels, above other plugins' rows", async ($, on) => {
+  world(on)
+  published(on)
+  const { boxes, drawn, shown } = await desktopBand($)
+  expect(boxes.filter(b => b.props.borderStyle !== undefined)).toHaveLength(0)
+  expect(shown.join(' | ')).toContain('Context 90k / 1M · 9%')
+  expect(shown.join(' | ')).toContain('Messages 80k · 8%')
+  expect(shown.at(-1)).toBe('other plugin row')
+  const names = ['System prompt', 'Messages', 'Autocompact buffer', 'Free space']
+  expect(hovers(drawn)).toEqual([
+    ['seg-System prompt', { scope: 'seg-System prompt', backgroundColor: 'inactive' }],
+    ['seg-Messages', { scope: 'seg-Messages', backgroundColor: 'inactive' }],
+    ['seg-Autocompact buffer', { scope: 'seg-Autocompact buffer', backgroundColor: 'inactive' }],
+    ['seg-Free space', { scope: 'seg-Free space', backgroundColor: 'subtle' }],
+    ...names.map((n): [string, unknown] => [`tip-${n}`, { scope: `seg-${n}`, display: 'flex' }]),
+  ])
+  const keyed = (prefix: string) => boxes.filter(b => String(b.props.key ?? '').startsWith(prefix))
+  const bar = keyed('seg-')
+  expect(bar.map(b => [b.props.key, b.props.backgroundColor, b.props.flexGrow])).toEqual([
+    ['seg-System prompt', 'promptBorder', 10],
+    ['seg-Messages', 'permission', 80],
+    ['seg-Autocompact buffer', 'warning', 45],
+    ['seg-Free space', undefined, 865],
+  ])
+  expect(keyed('tip-').map(b => [b.props.position, b.props.display])).toEqual(Array(4).fill(['absolute', 'none']))
+  expect(boxes.find(b => b.props.position === 'relative')?.props.width).toBe(30)
+})
+
+test('band (desktop): the used figure takes the color of the zone context-usage publishes', async ($, on) => {
+  world(on)
+  published(on, 'moderate')
+  expect(figures((await desktopBand($)).found)).toEqual([['90k', 'warning'], ['9%', 'warning']])
+})
+
+for (const [label, zone, sessionId] of [
+  ['no published zone', undefined, 'sid1'],
+  ['a zone published for another session', 'heavy', 'sid0'],
+  ['an unknown zone name', 'tight', 'sid1'],
+] as const) {
+  test(`band (desktop): with ${label} the figure is uncolored`, async ($, on) => {
+    world(on)
+    published(on, zone, sessionId)
+    expect(figures((await desktopBand($)).found)).toEqual([['90k', undefined], ['9%', undefined]])
+  })
+}
+
+test('band (desktop): a Skills row at 1% names itself in the warning color on hover', async ($, on) => {
+  world(on, 'skills-over')
+  published(on)
+  const { found } = await desktopBand($)
+  expect(found.find(t => t.text === 'Skills')?.props.color).toBe('warning')
+  expect(found.find(t => t.text === 'Messages')?.props.color).toBeUndefined()
+})
 
 test('band: a narrow band shrinks the bar to the body and truncates header and legend', async ($, on) => {
   world(on)

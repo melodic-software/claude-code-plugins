@@ -2,7 +2,9 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionContextUsage } from 'claude-code'
 
 import type { LiveMode, LiveState, LiveView } from '../types'
+import { DesktopBand } from './desktop-band'
 import { Band, PaneBody } from './parts'
+import { readZone } from './zone'
 
 const COMMAND = 'context-budget'
 const PANE = 'context-budget-live'
@@ -45,10 +47,12 @@ const refresh = async ($: EngineInterface) => {
   let state: LiveState
   try {
     const { context } = await $.session.usage({ breakdown: 'summary' })
+    const view = toView(context)
+    const zone = view === null ? undefined : await readZone($).catch(() => undefined)
     state =
       context.tokens === undefined
         ? { view: null, error: null }
-        : { view: toView(context), error: context.breakdown === undefined ? 'no breakdown in this session' : null }
+        : { view: view && zone ? { ...view, zone } : view, error: context.breakdown === undefined ? 'no breakdown in this session' : null }
   } catch (err) {
     // The breakdown failed: the plain figures still give the header, when they answer.
     const plain = await $.session.usage().catch(() => undefined)
@@ -141,7 +145,7 @@ export const register: Register = (on, options) => {
     const { Box } = draw
     return (
       <Box flexDirection="column">
-        {Band(draw, v, e.props.bodyColumns)}
+        {e.surface === 'desktop' ? DesktopBand(draw, v) : Band(draw, v, e.props.bodyColumns)}
         {theirs}
       </Box>
     )

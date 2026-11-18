@@ -53,7 +53,12 @@ The `live_display` option picks where it shows:
   shows. `/context-budget live` opens or closes the detail pane and leaves the band on;
   `/context-budget live off` hides the band. This multi-row band is an opt-in exception to
   the repository's one-row-per-mod display guidance
-  ([mods](../user-interface/reference/types/mods.md)).
+  ([mods](../user-interface/reference/types/mods.md)). In the Desktop app the band is one line:
+  `Context <used> / <window> · <percent>%`, a colored bar with one segment per category, and on
+  hover the segment darkens and its name, tokens and percent show at the right. The used figure
+  takes the color of the zone context-usage publishes
+  ([published zone](../context-usage/README.md#published-zone-for-status-lines)), and stays
+  uncolored when no fresh zone is published for this session.
 - `off`. Nothing shows and nothing is measured.
 
 `/context-budget live pane`, `live band` and `live off` set the mode for the session and survive a
