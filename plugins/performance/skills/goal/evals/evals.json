@@ -145,7 +145,7 @@
       "id": 12,
       "name": "requires-a-named-code-path-and-its-observable",
       "prompt": "/performance:goal the Stop hook. Metric: p50 wall-clock from the bundled harness. Baseline is 137 ms, floor is 30 ms, realistic target 80 ms. Lock it.",
-      "expected_output": "Does not lock the goal: it names no code path under test. Asks which path(s) the Stop hook takes (for example the common skip path versus the rare Python path) and the observable that identifies each (a marker, exit code, or spawned-process set), and records a Path line in the goal output. Explains that a stale marker can send every sample down the rare path.",
+      "expected_output": "Does not lock the goal: it names no code path under test. Asks which path(s) the Stop hook takes (for example the common skip path versus the rare interpreter path) and the observable that identifies each (a marker, exit code, or spawned-process set), and records a Path line in the goal output. Explains that a stale marker can send every sample down the rare path.",
       "files": [],
       "expectations": [
         "Does not lock the goal while no code path under test is named",

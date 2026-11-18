@@ -87,12 +87,12 @@ Fix: the framework's image component with `sizes`, or `srcset` by hand; WebP or 
 SVG for anything drawn. A raster image scaled *up* is the mirror-image finding: it ships blurry on
 every retina screen.
 
-- **Pointer**: MDN, `<img>`, attributes `srcset` and `sizes`,
-  <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/img#srcset> and
-  <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/img#sizes>; Next.js, Image
-  Component, `sizes` and `unoptimized`,
+- **Pointer**: when writing the `sizes` value or the `srcset` list, fetch MDN, `<img>`, attributes
+  `srcset` and `sizes`, <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/img#srcset>
+  and <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/img#sizes>, live; in a
+  Next.js project, fetch Next.js, Image Component, `sizes` and `unoptimized`,
   <https://nextjs.org/docs/app/api-reference/components/image#sizes> and
-  <https://nextjs.org/docs/app/api-reference/components/image#unoptimized>
+  <https://nextjs.org/docs/app/api-reference/components/image#unoptimized>, live.
 
 **Audit: Important.** An image decoded far larger than it is shown (an avatar or thumbnail served
 the original upload, a photo over `performance.image_max_kb`, `unoptimized` on `next/image`, a raw
@@ -201,8 +201,9 @@ out of view or in a background tab, with no `IntersectionObserver` or `visibilit
 
 ## 5. Autoplaying video plays inline
 
-Without `muted`, iOS refuses to autoplay. Without `playsinline`, it hijacks the screen with the
-fullscreen player the moment the video starts.
+An autoplaying video carries both `muted` and `playsinline`, so it starts on its own and plays in
+place in the page it was designed for. What each browser does with a video that lacks either is in
+the pages the pointer below names.
 
 ```html
 <video autoplay muted playsinline loop>
@@ -215,12 +216,13 @@ nothing; the IntersectionObserver pattern is in section 4.
 
 Whether a video autoplays at all under reduced motion is the `motion` concern's reduced-motion rule.
 
-- **Pointer**: MDN, `<video>`, attribute `playsinline`,
-  <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/video#playsinline>; MDN,
-  Autoplay guide, "Autoplay availability",
-  <https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay#autoplay_availability>;
-  WebKit blog, "New `<video>` Policies for iOS", section "WebKit's New policies for video", for the
-  iOS side, <https://webkit.org/blog/6784/new-video-policies-for-ios/>
+- **Pointer**: when checking how a browser treats an autoplaying video, fetch MDN, `<video>`,
+  attribute `playsinline`,
+  <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/video#playsinline>, and
+  MDN, Autoplay guide, "Autoplay availability",
+  <https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay#autoplay_availability>, live;
+  for the iOS side, correlate with WebKit blog, "New `<video>` Policies for iOS", section "WebKit's
+  New policies for video", <https://webkit.org/blog/6784/new-video-policies-for-ios/>
 
 **Audit: Important.** An autoplaying `<video>` (`autoplay` or `autoPlay`) missing `muted` or
 `playsinline`.
@@ -302,8 +304,8 @@ A request per keystroke hammers the server and creates race conditions where an 
 overwrites a newer one. Debounce at `performance.search_debounce_ms` and discard stale responses.
 
 Hunt for: `onChange` that calls `fetch` directly; `resize` / `scroll` listeners doing layout reads
-(`getBoundingClientRect`, `offsetHeight`) with no throttle; scroll listeners not marked `{ passive:
-true }`.
+(`getBoundingClientRect`, `offsetHeight`) with no throttle; `wheel`, `touchstart` or `touchmove`
+listeners not marked `{ passive: true }`.
 
 ```js
 useEffect(() => {
@@ -313,14 +315,14 @@ useEffect(() => {
 }, [query]);
 ```
 
-`passive` matters for the listeners that can cancel scrolling, `wheel`, `touchstart` and
-`touchmove`, not for the `scroll` event itself, which cannot be canceled; the pointer says which of
-them a browser already treats as passive. Read the scroll-listener half of the hunt as: a `wheel`,
-`touchstart` or `touchmove` listener that never calls `preventDefault()` and is not passive.
+Read that last half of the hunt as: a `wheel`, `touchstart` or `touchmove` listener that never
+calls `preventDefault()` and is not passive. A `scroll` listener is not this finding. The finding is
+a listener that could hold up scrolling and never needs to stop it.
 
-- **Pointer**: MDN, `EventTarget.addEventListener()`, "Using passive listeners" (which listeners
-  `passive` matters for, and which ones a browser already treats as passive),
+- **Pointer**: when deciding whether a listener needs `passive`, or whether the browser already
+  makes it passive, fetch MDN, `EventTarget.addEventListener()`, "Using passive listeners",
   <https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener#using_passive_listeners>
+  live.
 
 The debounce delays the request, never the input: the field shows every keystroke at once, and any
 filtering the page does locally stays immediate. Removing delays from the input path is the `motion`

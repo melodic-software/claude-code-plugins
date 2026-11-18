@@ -96,9 +96,9 @@ average. See [lab rigs](../../reference/techniques.md#c-lab-measurement-and-rigs
 ### 2b. Code path under test (before each arm)
 
 The goal names which **code path(s)** the metric is meant to exercise, and the observable that
-identifies each (for example skip with no interpreter versus Python run path, cold cache versus
-warm). A goal with no `Path:` line goes back to `/performance:goal`. Before **each** arm, either
-**reset** the state files that select the path (markers, sentinel files, cache keys) or **record**
+identifies each (for example skip with no interpreter versus interpreter run path, cold cache
+versus warm). A goal with no `Path:` line goes back to `/performance:goal`. Before **each** arm,
+either **reset** the state files that select the path (markers, sentinel files, cache keys) or **record**
 their values and carry them in the report; say which was done. After the arm, report which path
 actually ran, with evidence (a marker file, exit code, or the set of processes spawned). A path
 that cannot be observed is reported `unobserved`, never assumed. One line per arm, required in the

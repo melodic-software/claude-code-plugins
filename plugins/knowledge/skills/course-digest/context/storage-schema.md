@@ -10,11 +10,6 @@ Use platform's lowercase brand name: `dometrain`, `pluralsight`, `udemy`, `manni
 
 Derive slug from course title: lowercase, kebab-case, max 40 chars, include instructor surname for disambiguation.
 
-Examples:
-
-- "Test-Driven Development in C#" by Guilherme Ferreira → `dometrain/tdd-csharp-ferreira`
-- "From Zero to Hero: Dependency Injection in .NET" by Nick Chapsas → `dometrain/dependency-injection-dotnet-chapsas`
-
 ## Directory structure
 
 ```
@@ -65,11 +60,11 @@ courses/<platform>/<slug>/
 
 ```json
 {
-  "title": "Test-Driven Development in C#",
-  "slug": "tdd-csharp-ferreira",
+  "title": "Test-Driven Development Fundamentals",
+  "slug": "tdd-fundamentals-doe",
   "platform": "dometrain",
   "url": "https://dometrain.com/take/course/...",
-  "instructor": "Guilherme Ferreira",
+  "instructor": "Jane Doe",
   "duration": "5h 41m",
   "totalLessons": 67,
   "extractedAt": "2026-03-31T...",
@@ -132,11 +127,9 @@ phases are non-null to determine where to continue.
 
 ## Transcript
 
-[0:00] Hello, and welcome to the From Zero to Hero course on test-driven
-development in C#.
+[0:00] Hello, and welcome to this course on test-driven development.
 
-[0:07] My name is Guilherme Ferreira, also known as GI, and I'm a Microsoft
-MVP for developer technologies.
+[0:07] My name is Jane Doe, and I've written tests first for over a decade.
 
 [0:15] Not only that, but I'm addicted to test-driven development.
 ```

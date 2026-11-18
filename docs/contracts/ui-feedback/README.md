@@ -11,14 +11,16 @@ The canonical files live in `lib/ui-feedback/`:
 
 | Path | Holds |
 |---|---|
-| `lib/ui-feedback/host.html` | The host page: a checked-in page the notes bridge serves. It frames the model-written page in a sandbox, shows the notes panel, validates every message from the frame, and sends notes to the session |
+| `lib/ui-feedback/host.html` | The host page: a checked-in page the notes bridge serves. It frames the model-written page through `srcdoc` in a sandbox, shows the notes panel, validates every message from the frame, and sends notes to the session |
 | `lib/ui-feedback/proto-pin.js` | The frame helper, inlined into the framed page. It picks elements, text and regions, sets the controls through the controls runtime, holds the state-snapshot function, and talks to the host page only by `postMessage` |
 | `lib/ui-feedback/controls.js` | The controls runtime: the control-type registry. The framed page inlines it, and the host page loads the same file to render its Controls tab |
 | `lib/ui-feedback/note.schema.json` | The note contract |
+| `lib/ui-feedback/note-model.mjs` | The host page's validator of notes and controls manifests, which the relocation script also uses. It reads every limit from the schema it is handed; `notes_bridge.py` holds the bridge's validator over the same subset |
 | `lib/ui-feedback/controls.schema.json` | The controls manifest contract: what a page may declare as a control, and the `snapshot` of control values a note carries |
 | `lib/ui-feedback/fixtures/` | Valid and invalid notes and manifests |
 | `lib/ui-feedback/relocate-note.mjs` | The relocation script: finds a note's element again in a fresh page and shoots it (see [Re-locating a note](#re-locating-a-note)) |
 | `lib/ui-feedback/notes_bridge.py`, `notes-bridge.sh` | The notes bridge app on the session bridge's loopback adapter, shaped like the view app ([`lib/session-bridge/README.md`](../../../lib/session-bridge/README.md#the-view-app), "The view app") |
+| `lib/session-bridge/view_bridge.py` | The view app the notes bridge builds on: its hub, handler, token route, replies and idle expiry. Its copy sits beside each copy of `notes_bridge.py` |
 
 Each consumer takes generated copies through [`scripts/shared-copies.txt`](../../../scripts/shared-copies.txt)
 and `scripts/sync-shared-copies.sh`, whose `--check` and `--check-bump` modes are the sync gate
@@ -102,7 +104,9 @@ the host page reach the frame only by message.
 - **Notes leave through the host page.** The host page frames the page with `sandbox="allow-scripts"` and
   never `allow-same-origin`, in the pattern of the planning shared page
   ([`plugins/planning/shared/README.md`](../../../plugins/planning/shared/README.md#prototype-page),
-  "Sandbox"). It checks each message's source frame and shape, then posts the note on the session
+  "Sandbox"). The bridge sends `X-Frame-Options: DENY` on every response, so the host page fetches
+  the page as text from `/api/page`, with the mockup policy put first, and frames it through
+  `srcdoc`. It checks each message's source frame and shape, then posts the note on the session
   bridge, whose Host, Origin and token checks are in
   [The loopback adapter](../../../lib/session-bridge/README.md#the-loopback-adapter).
 - **From `file://`, copy-out only.** A page opened from `file://` has no host page and no bridge:

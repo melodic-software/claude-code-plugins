@@ -39,8 +39,8 @@ paper's words, "a switch and all its cases combined incurs a single structural i
 functions with equal cyclomatic complexity routinely carry different cognitive complexity, which is
 the point of the measure rather than a defect in either.
 
-The white paper prescribes no threshold. SonarSource's rule `S3776` ships a configurable default of
-15, and that is a product decision by the same vendor, not a claim the paper makes.
+The white paper prescribes no threshold. The configurable default in SonarSource's rule `S3776` is
+a product decision by the same vendor, not a claim the paper makes.
 
 ## Halstead difficulty
 

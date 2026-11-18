@@ -122,9 +122,12 @@ leads, and the review checklist below checks only what was built.
   as an enhancement, so the visible focus in `principles.md` still holds. Source:
   [post](https://x.com/gabriell_lab/status/2073030840787800415).
 
-`corner-shape` is experimental and not supported everywhere; read its status before relying on it.
+Add `corner-shape` only as that enhancement, over a `border-radius` that already looks right on its
+own, so a browser without it still shows rounded corners.
 
-- **Pointer**: <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/corner-shape>
+- **Pointer**: when adding `corner-shape`, fetch MDN, `corner-shape`, "Browser compatibility",
+  <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/corner-shape#browser_compatibility>
+  live.
 
 ## Review checklist
 

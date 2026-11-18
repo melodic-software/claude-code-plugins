@@ -15,9 +15,12 @@
 #   - literal arguments after an anchor in join, resolve or Join-Path:
 #     join(here, "..", "x"), os.path.join(HERE, "../x"), Join-Path $PSScriptRoot '..\x';
 #   - pathlib: Path(__file__).parents[2] / "x", HERE.parent / "x".
-# A variable named *PLUGIN_ROOT or *PLUGIN_DIR is taken to be the plugin's root, any
-# other variable anchor the file's directory. Comment lines, and path
-# strings with no anchor (globs, fixture data, schema text), are not crossings.
+# A shell variable assigned from this file's location, alone or plus a path, or from
+# another such variable holds the directory that names; otherwise one named
+# *PLUGIN_ROOT or *PLUGIN_DIR holds the plugin's root, and any other the file's
+# directory. One assignment the check cannot resolve leaves a variable untraced.
+# Comment lines and path strings with no anchor are not crossings. Accepted limits:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/architecture/README.md#boundary-rules
 #
 # scripts/plugin-imports-exceptions.txt lists accepted crossings, one line per
 # file and sibling plugin: `<path> <sibling> <YYYY-MM-DD> <reason>`. A crossing it
@@ -95,11 +98,86 @@ re_pathlib='(Path\(__file__\)(\.resolve\(\))?|[A-Za-z_][A-Za-z0-9_]*)(\.parents\
 declare -a crossings=()
 declare -A crossing_keys=()
 
+declare -A assigned=() traced=() deps=() verify_files=() verify_names=()
+declare -a pending=()
+verified=""
+re_assign='^[[:space:]]*(local[[:space:]]+|readonly[[:space:]]+|declare[[:space:]]+(-[A-Za-z]+[[:space:]]+)?)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$'
+re_cd='\$\(cd([[:space:]]+-[-A-Za-z]*)*[[:space:]]+"?'
+re_self='^"?('"$re_cd"')?\$\(dirname([[:space:]]+--)?[[:space:]]+"?\$\{?(0|BASH_SOURCE(\[0\])?)\}?"?\)(/'"$path_chars"')?"?([[:space:]]*&&[[:space:]]*pwd[^)]*\))?"?$|^"?\$\{BASH_SOURCE(\[0\])?%/\*\}"?$'
+re_rhs='^"?('"$re_cd"')?\$\{?([A-Za-z_][A-Za-z0-9_]*)(%/\*)?\}?(/'"$path_chars"')?"?([[:space:]]*&&[[:space:]]*pwd[^)]*\))?"?$'
+
+trace() {
+  local name="${2%%=*}"
+  name="${name##*[[:space:]]}"
+  assigned["$1 $name"]+="${2#*=}"$'\n'
+}
+
+value_of() {
+  local file="$1" rhs="$2" up rel
+  REPLY="?" DEPS=""
+  if [[ "$rhs" =~ $re_self ]]; then
+    norm "${file%/*}" "${BASH_REMATCH[6]:-.}"
+    REPLY="${REPLY:-.}"
+  elif [[ "$rhs" =~ $re_rhs ]] && [[ -z "${BASH_REMATCH[1]}" || -n "${BASH_REMATCH[6]}" ]]; then
+    up="${BASH_REMATCH[4]:+/..}" rel="${BASH_REMATCH[5]}"
+    if base_of "$file" "${BASH_REMATCH[3]}"; then
+      norm "$REPLY$up" "${rel:-.}"
+      REPLY="${REPLY:-.}"
+    else
+      REPLY="?"
+    fi
+  fi
+}
+
+base_of() {
+  local key="$1 $2" t own rhs v="" d=""
+  if [[ -z "${traced[$key]+x}" && -n "${assigned[$key]+x}" ]]; then
+    traced[$key]="?"
+    while IFS= read -r rhs; do
+      value_of "$1" "$rhs"
+      d+="$DEPS"
+      if [[ -n "$v" && "$v" != "$REPLY" ]]; then
+        v="?"
+        break
+      fi
+      v="$REPLY"
+    done <<<"${assigned[$key]%$'\n'}"
+    traced[$key]="$v"
+    deps[$key]="$2"$'\n'"$d"
+  fi
+  t="${traced[$key]:-?}"
+  DEPS=""
+  if [[ "$t" != "?" ]]; then
+    REPLY="$t"
+    DEPS="${deps[$key]}"
+  elif [[ "$2" == *PLUGIN_ROOT || "$2" == *PLUGIN_DIR ]]; then
+    own="${1#plugins/}"
+    REPLY="plugins/${own%%/*}"
+  else
+    return 1
+  fi
+}
+
+anchor() {
+  local d
+  if ! base_of "$1" "$4"; then
+    consider "$1" "$2" "$3"
+  elif [[ -z "$DEPS" || -n "$verified" || "$REPLY" == "${1%/*}" ]]; then
+    consider "$1" "$2" "$3" "$REPLY"
+  else
+    pending+=("$1	$2	$3	$4")
+    verify_files["$1"]=1
+    while IFS= read -r d; do
+      [[ -n "$d" ]] && verify_names["$d"]=1
+    done <<<"$DEPS"
+  fi
+}
+
 # consider <file> <line no> <rel> [<base>]: records a crossing when <rel>, resolved
 # against <base> (default <file>'s directory), lands in another plugin's directory.
 consider() {
   local file="$1" n="$2" rel="$3" own sib
-  [[ "$rel" == *..* ]] || return 0
+  [[ "$rel" == *..* || $# -gt 3 ]] || return 0
   own="${file#plugins/}"
   own="${own%%/*}"
   norm "${4:-${file%/*}}" "$rel"
@@ -122,7 +200,7 @@ literals() {
 }
 
 scan_line() {
-  local file="$1" n="$2" line="$3" ext="${1##*.}" s rest base ups own whole
+  local file="$1" n="$2" line="$3" ext="${1##*.}" s rest base ups whole rel name
   s="${line#"${line%%[![:space:]]*}"}"
   case "$ext" in
   mjs | js | cjs | jsx | ts | mts | cts | tsx)
@@ -138,14 +216,9 @@ scan_line() {
   # Each form is tried only on a line holding its keyword: a regex match costs far more.
   rest="$line"
   while [[ "$rest" == *'$'* || "$rest" == *__dirname* || "$rest" == *import.meta.dirname* ]] && [[ "$rest" =~ $re_anchor ]]; do
-    whole="${BASH_REMATCH[0]}"
-    case "${BASH_REMATCH[1]}" in
-    *PLUGIN_ROOT | *PLUGIN_ROOT\} | *PLUGIN_DIR | *PLUGIN_DIR\})
-      own="${file#plugins/}"
-      consider "$file" "$n" "${BASH_REMATCH[2]}" "plugins/${own%%/*}"
-      ;;
-    *) consider "$file" "$n" "${BASH_REMATCH[2]}" ;;
-    esac
+    whole="${BASH_REMATCH[0]}" rel="${BASH_REMATCH[2]}" name="${BASH_REMATCH[1]#\$}"
+    name="${name#\{}"
+    anchor "$file" "$n" "$rel" "${name%\}}"
     rest="${rest#*"$whole"}"
   done
 
@@ -188,24 +261,68 @@ pathspecs=()
 for ext in sh bash mjs js cjs jsx ts mts cts tsx py ps1 psm1; do
   pathspecs+=("plugins/*.$ext")
 done
+declare -A shebang=()
 while IFS= read -r p; do
   [[ "${p##*/}" != *.* && -f "$p" ]] || continue
   first=""
   IFS= read -r -n 2 first <"$p" || true
-  [[ "$first" == '#!' ]] && pathspecs+=(":(literal)$p")
+  [[ "$first" == '#!' ]] && pathspecs+=(":(literal)$p") && shebang["$p"]=1
 done < <(git ls-files plugins)
-grep_rc=0
-hits="$(git grep -n -I -E -e '\.\.[/\\]' -e "[\"']\.\.[\"']" -e '\.parent' -- "${pathspecs[@]}")" || grep_rc=$?
-if ((grep_rc > 1)); then
-  echo "check-plugin-imports: git grep failed (exit $grep_rc)" >&2
-  exit 2
+
+grep_hits() {
+  local rc=0
+  hits="$(git grep -n -I -E "$@")" || rc=$?
+  if ((rc > 1)); then
+    echo "check-plugin-imports: git grep failed (exit $rc)" >&2
+    exit 2
+  fi
+}
+grep_hits -e '\.\.[/\\]' -e "[\"']\.\.[\"']" -e '\.parent' -e '/plugins/' -- "${pathspecs[@]}"
+uses="$hits"
+declare -A use_files=()
+while IFS= read -r hit; do
+  file="${hit%%:*}"
+  [[ "$hit" == *'$'* && -z "${use_files[$file]:-}" ]] || continue
+  [[ "$file" == *.sh || "$file" == *.bash || -n "${shebang[$file]:-}" ]] && use_files["$file"]=1
+done <<<"$uses"
+if ((${#use_files[@]})); then
+  shellspecs=()
+  for p in "${!use_files[@]}"; do shellspecs+=(":(literal)$p"); done
+  grep_hits -e "${re_assign%'(.*)$'}"'"?\$.*([/%]|dirname)' -- "${shellspecs[@]}"
+  while IFS= read -r hit; do
+    [[ -n "$hit" ]] || continue
+    file="${hit%%:*}"
+    hit="${hit#*:}"
+    trace "$file" "${hit#*:}"
+  done <<<"$hits"
 fi
 while IFS= read -r hit; do
   [[ -n "$hit" ]] || continue
   file="${hit%%:*}"
   hit="${hit#*:}"
   scan_line "$file" "${hit%%:*}" "${hit#*:}"
-done <<<"$hits"
+done <<<"$uses"
+
+if ((${#pending[@]})); then
+  shellspecs=()
+  for p in "${!verify_files[@]}"; do shellspecs+=(":(literal)$p"); done
+  alt="${!verify_names[*]}"
+  grep_hits -e "${re_assign%%'([A-Za-z_]'*}(${alt// /|})=" -- "${shellspecs[@]}"
+  for key in "${!assigned[@]}"; do
+    [[ -n "${verify_files[${key% *}]:-}" && -n "${verify_names[${key##* }]:-}" ]] && unset 'assigned[$key]'
+  done
+  while IFS= read -r hit; do
+    [[ -n "$hit" ]] || continue
+    file="${hit%%:*}"
+    hit="${hit#*:}"
+    trace "$file" "${hit#*:}"
+  done <<<"$hits"
+  traced=() deps=() verified=1
+  for p in "${pending[@]}"; do
+    IFS=$'\t' read -r file n rel name <<<"$p"
+    anchor "$file" "$n" "$rel" "$name"
+  done
+fi
 
 errors=0
 declare -A listed=()

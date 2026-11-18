@@ -6,14 +6,14 @@ conventions win.
 
 ## File formats
 
-Serve `woff2` on the web, full stop. It wraps the font in Brotli compression; its browser support is
-in the pointer below. The older `woff` format compresses less efficiently and matters only if a
-project genuinely must reach very old browsers. `ttf` and `otf` are the raw desktop containers (no
-web-oriented compression, noticeably heavier over the wire), so finding one in a `public/fonts`
-directory is a bug to fix, not a preference to respect.
+Serve `woff2` on the web, full stop. Add `woff` only when a project must reach a browser the
+pointer below shows without `woff2` support. A `ttf` or `otf` file served from a `public/fonts`
+directory is a bug to fix, not a preference to respect: convert it to `woff2`, so every visitor
+downloads the format built for the web rather than a desktop file.
 
-- **Pointer**: MDN, `@font-face` `src` browser compatibility,
-  <https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/src#browser_compatibility>
+- **Pointer**: when deciding whether a project needs a fallback format, fetch MDN, `@font-face`
+  `src`, "Browser compatibility",
+  <https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/src#browser_compatibility> live.
 
 ## Load only what is used
 
@@ -39,7 +39,7 @@ Category communicates before any individual font does:
   tabular IDs.
 - **Display**: drawn to be seen big: posters, heroes, mastheads. Often too spindly or too quirky for
   paragraph duty.
-- **Script**: imitates handwriting. A garnish for rare decorative moments, never a workhorse.
+- **Script**: imitates handwriting. Use it for rare decorative moments, never for body text or interface labels.
 
 CSS's generic keywords cover these loosely; `cursive` maps to script faces and `fantasy` to
 decorative ones.
