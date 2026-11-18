@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: 'codify-person-run-asks-for-outside-sources'
-description: 'Routine case, written from the skill''s count rule: a person types the command with no source outside the repository in the prompt. The scaffold holds one commit that fixed a log line printing the whole request body; the person''s own invocation lets the one occurrence go on to a proposal.'
+description: 'Routine case, written from the skill''s count rule: a person types the command with no source outside the repository in the prompt. The scaffold holds one commit that fixed a log line printing the whole request body; the person says codify this, so the one occurrence goes on to a proposal.'
 tags: ['codify', 'routine', 'no-network']
 plugins: ["../.."]
 expected_outcome: 'The run counts the one occurrence from git history against the threshold, goes on to a proposal written under .work/codify/, and its report names the kinds of source the count could not read (a team meeting''s issue list, stand-up notes, ticket comments) and offers once to recount with any the person pastes or points at. It does not stop to ask before counting.'
@@ -23,7 +23,7 @@ graders:
   - name: 'names-the-three-sources'
     type: 'regex'
     target: 'last_message'
-    pattern: '(?=[\s\S]*meeting)(?=[\s\S]*stand-?\s?ups?\b)(?=[\s\S]*ticket)'
+    pattern: '(?=[\s\S]*(?:meeting|team\b[^.\n]{0,20}\bissue))(?=[\s\S]*stand-?\s?ups?\b)(?=[\s\S]*ticket)'
     flags: 'i'
     arm: 'both'
   - name: 'offers-recount-once'

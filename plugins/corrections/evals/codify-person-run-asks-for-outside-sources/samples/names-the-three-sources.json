@@ -7,6 +7,10 @@
     {
       "answer": "Proposal written. Not counted: ticket comments, standup notes, and the issue list from your team meetings. Send any of those and I'll recount.",
       "why": "other order, standup as one word"
+    },
+    {
+      "answer": "Count: 1 occurrence. I couldn't read team issue lists, stand-up notes, ticket comments or past sessions. If you paste or point me at any of those, I'll recount.",
+      "why": "paraphrase seen in a run: team issue lists"
     }
   ],
   "fail": [
@@ -20,6 +24,10 @@
     {
       "answer": "Count: 1. If you have stand-up notes or ticket comments, I can recount.",
       "why": "names two of the three"
+    },
+    {
+      "answer": "I can't read sources outside the repository, such as ticket comments, stand-up notes or incident write-ups. If you paste or point me at any, I'll recount with them.",
+      "why": "seen in a run: drops the meeting issue list"
     }
   ]
 }
