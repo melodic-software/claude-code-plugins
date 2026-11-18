@@ -453,8 +453,8 @@ babysit counts neutral as passing. A broker failure on pr-refine does not reach 
 
 work-unblock's element 3 script row is kept on evidence:
 
-- **Element 3.** The breaker records are not redundant state, and they are no breaker that gates
-  the probe: they are the lane's own comments, read from GitHub on every sweep, and no tick waits
+- **Element 3.** The breaker records are not redundant state, and they gate no probe.
+  They are the lane's own comments, read from GitHub on every sweep, and no tick waits
   on them. Replacing them with another count read each run (refused run logs, or the App's
   agent-ready re-adds) costs more calls or merges causes into one bound. The sweep counts them to back a
   kill-switch re-fire off past `limit-stops-per-issue`, which bounds re-fires that start a lane run
@@ -638,7 +638,7 @@ change's head, not `222d8023`.
   `API_BUDGET_HOLD` only once its script is shown to hold ([`.github/workflows/pr-merge.yml`:72-77](https://github.com/melodic-software/claude-code-plugins/blob/ab8218883b1d502048246060f60a44e72ae3ca6e/.github/workflows/pr-merge.yml#L72-L77)).
 - **pr-merge, element 2 and 6: the cover-read dispatch, kept.** A cover read that fails for a
   reason other than a rate limit dispatches with no cap ([`:420`](https://github.com/melodic-software/claude-code-plugins/blob/ab8218883b1d502048246060f60a44e72ae3ca6e/.github/workflows/pr-merge.yml#L420), [`:2991`](https://github.com/melodic-software/claude-code-plugins/blob/ab8218883b1d502048246060f60a44e72ae3ca6e/.github/workflows/pr-merge.yml#L2991)). That dispatch merges
-  nothing: it is the merge's verification run, and skipping it would leave a merge unverified, and
+  nothing. It is the merge's verification run, and skipping it would leave a merge unverified, and
   the lane arming nothing past `merge.max-in-flight`, until a run reads the cover again. The load is
   bounded: pr-require-checks holds main's dispatches in one group, one running and one waiting,
   and a newer dispatch replaces the waiting one before it starts ([`:2832-2835`](https://github.com/melodic-software/claude-code-plugins/blob/ab8218883b1d502048246060f60a44e72ae3ca6e/.github/workflows/pr-merge.yml#L2832-L2835)).
