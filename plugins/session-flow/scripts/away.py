@@ -812,6 +812,7 @@ def refresh(state: dict, paths: Paths) -> None:
         reason = f" [{entry['reason']}]" if entry.get("reason") else ""
         label = EVENT_LABELS.get(entry.get("event"), entry.get("event"))
         refused.append(f"- {entry['id']} {label}{reason}{where}, {entry.get('tool_name')}: {entry.get('detail')}")
+    write_blocks(state, {"refused": refused, "externals": _limited(externals, FILES_LIMIT)})
 
     clock = time.monotonic()
     watched = state.get("watched") or [str(Path.home())]
@@ -819,13 +820,16 @@ def refresh(state: dict, paths: Paths) -> None:
     seconds = time.monotonic() - clock
     file_lines = [f"Watched: {', '.join(watched)}; scanned in {seconds:.1f} s.", ""]
     file_lines += _limited([f"- {path}" for path in files], FILES_LIMIT) or ["None."]
+    write_blocks(state, {"files": file_lines})
 
+
+def write_blocks(state: Mapping, blocks: Mapping[str, list[str]]) -> None:
+    """Rewrite the named script-owned blocks; the slow file scan writes apart from the others."""
     report = Path(state["report_path"])
     report.parent.mkdir(parents=True, exist_ok=True)
     text = report.read_text(encoding="utf-8") if report.exists() else skeleton(state)
-    text = replace_block(text, "refused", render_block("refused", refused))
-    text = replace_block(text, "externals", render_block("externals", _limited(externals, FILES_LIMIT)))
-    text = replace_block(text, "files", render_block("files", file_lines))
+    for name, lines in blocks.items():
+        text = replace_block(text, name, render_block(name, lines))
     write_atomic(report, text)
 
 
@@ -839,7 +843,6 @@ def cmd_end(args: argparse.Namespace, paths: Paths) -> int:
     move(state, Status.ENDED)
     if status_of(state) is Status.ENDED:
         return 0
-    refresh(state, paths)
 
     def change(current: dict) -> None:
         move(current, Status.ENDED)
@@ -847,6 +850,7 @@ def cmd_end(args: argparse.Namespace, paths: Paths) -> int:
         current["ended"] = datetime.now().astimezone().isoformat()
 
     update_state(paths, change)
+    refresh(state, paths)
     report, beside = Path(state["report_path"]), paths.dir / "report.md"
     if report.exists() and os.path.realpath(report) != os.path.realpath(beside):
         shutil.copyfile(report, beside)

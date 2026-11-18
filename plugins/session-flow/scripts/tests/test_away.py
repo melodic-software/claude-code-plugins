@@ -448,12 +448,20 @@ def test_elicitation_declined(ctx):
 
 def test_parallel_refusals(ctx):
     ctx.start()
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        outputs = list(pool.map(lambda _: ctx.hook("PermissionRequest", "permission_request_bash"), range(8)))
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        outputs = list(pool.map(lambda _: ctx.hook("PermissionRequest", "permission_request_bash"), range(16)))
     ids = sorted((r["id"] for r in ctx.refused()), key=lambda rid: int(rid[1:]))
-    assert ids == [f"R{n}" for n in range(1, 9)], "eight parallel hooks get eight distinct ids, none lost"
+    assert ids == [f"R{n}" for n in range(1, 17)], "sixteen parallel hooks get sixteen distinct ids, none lost"
     named = sorted(json.loads(o)["hookSpecificOutput"]["decision"]["message"].split(":", 1)[0] for o in outputs)
     assert named == sorted(ids), "each deny message names the id its own entry got"
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with away.locked(away.session_paths(ctx.data, SESSION, SCRIPTS.parent).lock):
+            waiting = pool.submit(ctx.hook, "PermissionRequest", "permission_request_bash")
+            time.sleep(1.0)
+            assert len(ctx.refused()) == 16, "a hook does not append while another process holds the lock"
+        waiting.result(timeout=30)
+    assert len(ctx.refused()) == 17, "once the lock is free the waiting hook appends"
 
 
 def test_wrapper_relays_decision_and_fails_open(ctx):
@@ -665,6 +673,23 @@ def test_denials_from_transcript(ctx):
     assert "askme-main" not in refused, "a hook denial in the transcript is already listed by its hook"
     assert ctx.cli("refresh").returncode == 0
     assert [r["id"] for r in ctx.refused()] == ["R1"], "a second refresh adds no duplicate"
+
+
+def test_slow_file_scan_cut_short_keeps_refusals_and_end(ctx, monkeypatch):
+    ctx.start()
+    ctx.hook("PermissionRequest", "permission_request_bash")
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(ctx.data))
+
+    def interrupted(*_args):
+        raise KeyboardInterrupt("file scan cut short")
+
+    monkeypatch.setattr(away, "scan_files", interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        away.main(["end", "--session", SESSION])
+    assert ctx.state()["status"] == "ended", "the absence ends before the slow scan starts"
+    assert "- R1 " in block(ctx.report().read_text(encoding="utf-8"), "refused"), (
+        "the refused block is written before the file scan"
+    )
 
 
 def test_files_prune(ctx):
