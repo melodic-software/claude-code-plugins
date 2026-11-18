@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.16] - 2026-11-17
+
+### Changed
+
+- `/playwright:playwright` keeps its secret-fill, stale-ref, readiness-signal and distinct-session-name rules but no longer restates what the CLI prints, a quoted error string, what `click` waits for or how sessions are keyed; what `click` waits for now points at Playwright's actionability checks ([#16857](https://github.com/melodic-software/claude-code-plugins/issues/16857)).
+
 ## [2.0.15] - 2026-11-17
 
 ### Changed

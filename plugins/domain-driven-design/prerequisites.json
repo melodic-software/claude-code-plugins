@@ -1,0 +1,25 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:ubiquitous-language"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, /domain-driven-design:ubiquitous-language cannot resolve its glossary settings, so it uses the default file names GLOSSARY.md and GLOSSARY-MAP.md and says the settings were not resolved.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

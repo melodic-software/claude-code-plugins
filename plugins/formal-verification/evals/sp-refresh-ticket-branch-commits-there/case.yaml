@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: sp-refresh-ticket-branch-commits-there
+graders:
+  - name: updated-outcome-line
+    type: regex
+    pattern: 'Check one-holder \(formal-lock\): updated'
+    target: last_message
+    arm: with-only
+  - name: commits-on-ticket-branch
+    type: llm
+    criteria: "Judge what the reply says the refresh pass does. PASS only if the reply (1) treats the moved take() as covered code and updates the check to cover src/lock/acquire.js; (2) commits on feat/lock-timeout, staging only paths inside .claude/skills/formal-lock/, never src/timeout.js or other product code; (3) sets the sync commit to c0ffee1, the merge base, or another commit on main, never a feat/lock-timeout commit; and (4) pushes nothing, opens or updates no pull request, and creates or switches to no upkeep branch. Naming the upkeep branch or a pull request only to say it is not used is not a failure. FAIL if the commit goes on another branch, stages a path outside the formal-lock folder, records a ticket-branch commit as the sync commit, pushes, or opens a pull request."
+    arm: with-only

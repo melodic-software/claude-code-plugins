@@ -41,7 +41,8 @@ absolute or holds a `..` segment included), a sync commit that is not an ancesto
 covered path missing at `HEAD`, a check whose command `## Run` does not give on a line of its own,
 and a folder, `SKILL.md` or `sync.yaml` that is a symlink or lies outside the repository, which it
 never reads. It warns on covered code changed
-since the sync commit (a failure under `on_stale: fail`) and on a skill folder that holds a
+since the sync commit (a failure under `on_stale: fail`), naming the check and
+`/formal-verification:specify refresh`, and on a skill folder that holds a
 `sync.yaml` or a `model/` but is not named `formal-<area>`. Given the default branch's ref
 (`--default-ref`), it also fails a sync or seeded-break commit that is not on that branch, and
 warns once, skipping that check, when the ref does not resolve.

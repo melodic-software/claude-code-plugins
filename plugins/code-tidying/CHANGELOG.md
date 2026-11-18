@@ -3,6 +3,13 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.4] - 2026-11-17
+
+### Changed
+
+- **`audit-dead-code` states its knip and gopls decisions in its own words.** The knip config-evaluation note states our own measurement and points at knip's configuration docs instead of naming its loader; the gopls no-build reason and the path-relativizing note point at the gopls docs instead of quoting or restating them.
+- **`remove-comments` and `tidy` give their reasons.** The `TEMP`-first temp path names the CHANGELOG entry that records the Git Bash observation, and `tidy` says why it edits with the Edit tool and never `sed -i`.
+
 ## [0.51.3] - 2026-11-17
 
 ### Changed

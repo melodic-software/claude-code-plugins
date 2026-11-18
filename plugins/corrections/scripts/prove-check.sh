@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # Prove a proposed check fails on the old code and passes on the current code.
 #
-#   prove-check.sh --check '<command>' --old <ref> [--new <ref>]
-#
 # Runs <command> (through `bash -c`) in a temporary worktree at <old>, which
 # must exit non-zero, and in a temporary worktree at <new> (default HEAD),
 # which must exit 0. Run it from inside the repository the refs belong to.
@@ -17,7 +15,7 @@ set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG
 
 usage() {
-  printf 'usage: %s --check <command> --old <ref> [--new <ref>]\n' "${0##*/}" >&2
+  printf 'usage: %s --check <command> (--old <ref> | --plant <patch>) [--new <ref>]\n' "${0##*/}" >&2
 }
 die() {
   printf '%s: %s\n' "${0##*/}" "$1" >&2
@@ -31,18 +29,21 @@ usage_error() {
 
 check=""
 old=""
+plant=""
 new="HEAD"
 have_check=0
 have_old=0
+have_plant=0
 while (($# > 0)); do
   case "$1" in
-  --check | --old | --new)
+  --check | --old | --plant | --new)
     if (($# < 2)) || [[ -z "$2" ]]; then
       usage_error "$1 needs a value"
     fi
     case "$1" in
     --check) check="$2" have_check=1 ;;
     --old) old="$2" have_old=1 ;;
+    --plant) plant="$2" have_plant=1 ;;
     --new) new="$2" ;;
     *) ;;
     esac
@@ -57,15 +58,21 @@ while (($# > 0)); do
     ;;
   esac
 done
-if ((have_check == 0 || have_old == 0)); then
-  usage_error "--check and --old are required"
+if ((have_check == 0 || have_old + have_plant != 1)); then
+  usage_error "--check and exactly one of --old or --plant are required"
+fi
+if ((have_plant == 1)); then
+  [[ -f "$plant" && -r "$plant" ]] || die "--plant is not a readable file: $plant"
+  plant="$(cd "$(dirname "$plant")" && pwd)/$(basename "$plant")"
 fi
 
 command -v git >/dev/null 2>&1 || die "git is required"
 repo="$(git rev-parse --show-toplevel 2>/dev/null)" || die "not inside a git repository"
 
-old_sha="$(git -C "$repo" rev-parse --verify --quiet "$old^{commit}")" || die "--old is not a commit: $old"
 new_sha="$(git -C "$repo" rev-parse --verify --quiet "$new^{commit}")" || die "--new is not a commit: $new"
+if ((have_old == 1)); then
+  old_sha="$(git -C "$repo" rev-parse --verify --quiet "$old^{commit}")" || die "--old is not a commit: $old"
+fi
 
 work="$(mktemp -d)" || exit 2
 # shellcheck disable=SC2329  # invoked through the EXIT trap below
@@ -79,12 +86,23 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for side in old new; do
-  sha="$old_sha"
-  [[ "$side" == new ]] && sha="$new_sha"
-  git -C "$repo" worktree add --detach "$work/$side" "$sha" >/dev/null 2>&1 ||
-    die "could not create a worktree at $sha"
-done
+if ((have_plant == 1)); then
+  git -C "$repo" worktree add --detach "$work/old" "$new_sha" >/dev/null 2>&1 ||
+    die "could not create a worktree at $new_sha"
+  git -C "$work/old" apply --index --recount "$plant" >&2 ||
+    die "the plant does not apply to $new: $plant"
+  git -C "$work/old" -c core.hooksPath=/dev/null -c commit.gpgsign=false \
+    -c user.name=prove-check -c user.email=prove-check@invalid \
+    commit -q --no-verify -m "prove-check plant" >/dev/null 2>&1 ||
+    die "the plant changes nothing: $plant"
+  old_sha="$(git -C "$work/old" rev-parse HEAD)" || die "could not read the plant commit"
+  old="planted $old_sha"
+else
+  git -C "$repo" worktree add --detach "$work/old" "$old_sha" >/dev/null 2>&1 ||
+    die "could not create a worktree at $old_sha"
+fi
+git -C "$repo" worktree add --detach "$work/new" "$new_sha" >/dev/null 2>&1 ||
+  die "could not create a worktree at $new_sha"
 
 # run_check <dir>: run the command in <dir>. The git environment unset above
 # stays unset here, so a check that calls git sees the worktree.

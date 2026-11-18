@@ -3,6 +3,13 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.6.0] - 2026-11-17
+
+### Added
+
+- `/testing:write` keeps every test's writes, and the code under test's, in a temporary directory
+  removed on every exit path, and runs a test of a destructive command only in a throwaway sandbox.
+
 ## [5.5.0] - 2026-11-17
 
 ### Added

@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.20.1] - 2026-11-17
+
+### Fixed
+
+- The pr-merge verifier evidence gate clears a verifier FAIL at an earlier head of the same change, such as a head the branch later only merged main into, when a pass at the current head was created after a trusted person edited the pull request body, whether or not its linked issues also changed. Every other trust condition is the one a FAIL's own head already applies. A change to the linked issues with no body edit does not clear it. Before this fix, such a FAIL kept `verify:earlier-fail`, because the verifier never runs again at the FAILed head. A FAIL with no such edit, with an untrusted edit, or with no counted pass after the edit still reports `verify:earlier-fail` ([#16367](https://github.com/melodic-software/claude-code-plugins/issues/16367)).
+
+## [11.20.0] - 2026-11-17
+
+### Added
+
+- `comments --ci` answers the top-level pull request comments a person on the base's trusted-actor list addressed to the pr-unblock lane (a line starting `PR-fix lane:`). The review-thread tool's new `comments` action prints them as data, and `record <PRC_id>` takes the one disposition `answered`, which the reply job posts as one top-level comment. The mode makes no edit for a comment.
+
+## [11.19.2] - 2026-11-17
+
+### Changed
+
+- `/source-control:pull-request monitor` arms its Monitor watch with `bash <skill-dir>/scripts/monitor-poll.sh --pr <N> --checkout <checkout>` instead of passing the REST poll script inline as the `command`. An auto-mode session's safety check refused the long inline script even though it held no `rm`. The script takes its settings as flags: `--interval`, `--baseline` and `--snapshot` for a re-arm, `--repo <owner>/<repo>` to name the base repository on a triangular flow, and `--once` to exit after the first poll that prints a line, for the background Bash run used where the Monitor tool is unavailable. Both monitor test suites run the file directly; they no longer extract the block from the reference.
+
 ## [11.19.1] - 2026-11-17
 
 ### Changed

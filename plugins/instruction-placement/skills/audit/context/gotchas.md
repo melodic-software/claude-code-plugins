@@ -5,8 +5,10 @@ review by eye, which is why they are written down rather than left to judgment.
 
 ## The saving that is not a saving
 
-- **"Move it to `.claude/rules/`" is not a saving on its own.** An unscoped rule loads at launch
-  with the same priority as `.claude/CLAUDE.md`. The reflex to propose a file move because a file
+- **"Move it to `.claude/rules/`" is not a saving on its own.** We price an unscoped rule as
+  always-loaded, the same as `.claude/CLAUDE.md`; its row in the
+  [surface table](../../../context/verified-mechanics.md#the-surface-table) says when it loads and
+  cites the docs record behind that. The reflex to propose a file move because a file
   is long produces a reorganization billed as a context win. Only `paths:` changes the cost.
 - **A rule whose body is just `@import` defeats its own scoping.** The import inlines at session
   start while the rule body defers, so the move reads as a saving and is not one. This is the
@@ -15,14 +17,14 @@ review by eye, which is why they are written down rather than left to judgment.
 
 ## Globs
 
-- **A glob that looks obviously right can match zero files.** `**/*.ts` in a repo that vendors its
-  TypeScript, `src/**` in a repo whose source lives in `lib/`. Always run the validator; never
+- **A glob that looks obviously right can match zero files.** An extension glob in a repo that only
+  vendors files of that kind, `src/**` in a repo whose source lives in `lib/`. Always run the validator; never
   reason about match counts from the directory listing in your head.
 - **`over-broad` is not a validation failure, and `zero-match` is not a style nit.** They land in
   the same output column and mean opposite things: one is a judgment call the operator may
   legitimately overrule, the other is a rule that can never fire.
 - **A `HINT` is what the prose literally said, not what the scope is.** The detector reports tokens;
-  it does not know whether `.ts` is this candidate's real coverage. Derive, then validate.
+  it does not know whether an extension it names is this candidate's real coverage. Derive, then validate.
 
 ## Classification
 
