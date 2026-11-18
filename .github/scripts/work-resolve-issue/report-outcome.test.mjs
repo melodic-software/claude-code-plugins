@@ -4732,6 +4732,16 @@ test("a done run whose push a listed human's open pull request skipped waits on 
   assert.equal(stoppedPlan("intent-change: the issue asks for X", { humanPull: "31" }).action, "hand-back", "a run's own stop keeps its route");
 });
 
+test("a reuse run opens no PR from the resumed branch while a listed human's pull request is open, or when the check failed", () => {
+  const resumed = { branch: "", resumed: "work-resolve-issue/issue-77-100-1", checks: { tip: CHECKED_TIP, results: [{ check: FRAGMENTS, exit: 0 }] } };
+  assert.equal(decideDone(resumed).action, "open-pr");
+  const waited = decideDone({ ...resumed, humanPull: "31" });
+  assert.equal(waited.action, "wait");
+  assert.equal(waited.pr, "31");
+  assert.ok(waited.comment.includes("Partial work is on the branch `work-resolve-issue/issue-77-100-1`"), waited.comment);
+  assert.notEqual(decideDone({ ...resumed, escalation: "patch-apply-failed" }).action, "open-pr", "a failed pull request read keeps the PR closed");
+});
+
 // Work that must land after another issue names no owner reason: intake
 // triage writes the blocked-by edge the run names, so admission waits for it.
 test("route intake: a blocked-by-issue code sends the issue back through intake, naming the issue it waits on", () => {

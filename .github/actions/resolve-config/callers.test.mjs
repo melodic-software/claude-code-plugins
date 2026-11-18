@@ -1927,6 +1927,24 @@ test("work-resolve-issue.yml: apply-issue-patch commits the written patch from t
   assert.equal(step.run, "node .base/.github/scripts/work-resolve-issue/check-human-pull.mjs");
   assert.equal(step.env.TRUSTED_ACTORS_PATH, ".base/.github/standards/trusted-actors/trusted-actors.json");
   assert.equal(check.outputs.pull, "${{ steps.check.outputs.pull }}");
+  const checked = (started, state, reuse) =>
+    evaluate(check.if, {
+      "needs.resolve-issue-fallback.result": "skipped",
+      "needs.resolve-issue-fallback.outputs.scan-issue-run-started": "",
+      "needs.resolve-issue-fallback.outputs.scan-patch-state": "",
+      "needs.resolve-issue-fallback.outputs.scan-reuse-branch": "",
+      "needs.resolve-issue-subscription.result": "skipped",
+      "needs.resolve-issue-subscription.outputs.scan-issue-run-started": "",
+      "needs.resolve-issue-subscription.outputs.scan-patch-state": "",
+      "needs.resolve-issue-subscription.outputs.scan-reuse-branch": "",
+      "needs.resolve-issue.outputs.scan-issue-run-started": started,
+      "needs.resolve-issue.outputs.scan-patch-state": state,
+      "needs.resolve-issue.outputs.scan-reuse-branch": reuse,
+    });
+  assert.equal(checked("true", "written", ""), true);
+  assert.equal(checked("", "", "work-resolve-issue/issue-7-1-1"), true, "a reuse run checks before report-outcome opens its PR");
+  assert.equal(checked("true", "empty", ""), false, "an empty patch opens no PR to check for");
+  assert.equal(checked("", "", ""), false);
   for (const job of ["run-checks", "report-outcome"]) {
     assert.ok(jobs[job].needs.includes("apply-issue-patch"), `${job} waits for the branch`);
   }
