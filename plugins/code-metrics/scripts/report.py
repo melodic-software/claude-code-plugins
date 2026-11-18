@@ -919,11 +919,6 @@ def render(
     if document_path:
         lines.append(f"Full document: {document_path}")
     if any(NO_ARTIFACT in (row.get("reason") or "") for row in doc.get("run", [])):
-        # Every lane is unavailable for the same cause, and the cause has a
-        # documented remedy the skill will not apply on its own: the table of
-        # producers and command shapes, per lane, in the plugin README. It
-        # closes the report, after the document path, so the remedy is the
-        # last thing read.
         lines.append(
             "No coverage artifact was found, so no line was measured. The "
             '"Getting a first artifact" table in the code-metrics plugin README '
