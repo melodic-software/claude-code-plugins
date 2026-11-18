@@ -1,5 +1,5 @@
 ---
-standards-contract: 1.1.5
+standards-contract: 1.1.6
 ---
 
 <!-- GENERATED from docs/contracts/standards/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
@@ -60,7 +60,6 @@ standards-contract: 1.1.0
 
 | Surface | Applies when | File |
 |---|---|---|
-| csharp | **/*.cs; C# design or review tasks | csharp.md |
 | testing | test strategy, writing or reviewing tests | testing.md |
 | engineering-philosophy | any non-trivial design decision | docs/engineering-philosophy.md |
 ```
@@ -79,7 +78,7 @@ explicit confirmation before any conversion (see Setup and migration).
 
 | Column | Form | Notes |
 |---|---|---|
-| Surface | free-form kebab-case id | Recommended kinds (not mandatory): ecosystem surfaces (`csharp`, `python`, `markdown`, …); cross-cutting concerns (`security`, `testing`, `naming`, `commits`, `architecture`, …); `paved-path`, the one file of paved paths (see Paved paths). No stage axis: one SSOT serves plan-time and review-time |
+| Surface | free-form kebab-case id | Recommended kinds (not mandatory): ecosystem surfaces, one per language or framework the repository uses; cross-cutting concerns (`security`, `testing`, `naming`, `commits`, `architecture`, …); `paved-path`, the one file of paved paths (see Paved paths). No stage axis: one SSOT serves plan-time and review-time |
 | Applies when | free-form context clues | File globs and/or task keywords; the model matches task context against them |
 | File | forward-slash path | In-root rows: path relative to `<standards_dir>` (bare filename, or a subdirectory path). External rows: repo-relative path from the resolution root, allowed (adoption without reorg) and subject to the validation duty below. Always forward slashes, on every platform |
 
@@ -252,8 +251,7 @@ auto-rewrite in either direction.
 - **Standards = pull** (index-routed at plan/review stages): substantial
   criteria and prose.
 - **Pointer pattern:** a path-scoped rule may carry an imperative pointer
-  directive to a standards file ("Before editing C#, read
-  `docs/standards/csharp.md`"), which loads lazily on rule fire. Never `@import`
+  directive to a standards file, which loads lazily on rule fire. Never `@import`
   (imports expand at launch, defeating lazy load), never restated content.
 - Setup MAY offer generating pointer rules for indexed ecosystem surfaces
   (interactive only; the `.claude/` write-guard prompt is acceptable

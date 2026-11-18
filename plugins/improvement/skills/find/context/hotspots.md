@@ -52,7 +52,7 @@ Default window: 90 days, overridable through the config cascade Step 2 describes
 the main tuning knob.
 
 ```bash
-excludes='(^|/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|poetry\.lock|uv\.lock|Gemfile\.lock|composer\.lock|go\.sum|packages\.lock\.json|flake\.lock)$|(^|/)(vendor|third_party|node_modules|dist|build|out)/|\.min\.(js|css)$|\.snap$'
+excludes='<the ERE Step 2 builds>'
 git log --since="90 days ago" --pretty=format: --name-only |
   grep -v '^$' | grep -Ev "$excludes" | sort | uniq -c | sort -rn | head -50
 ```
@@ -62,16 +62,32 @@ Each output row is `<churn> <path>`: how many commits touched that path inside t
 Steps 1, 3 and 4 share `excludes`, `indent_of` and `raw`, so run everything from Step 1's
 `excludes` assignment through Step 4's `rm -f "$raw"` as one Bash call.
 
-## Step 2: exclusions (bundled defaults, cascade-overridable)
+## Step 2: exclusions (resolved from the repository, cascade-overridable)
 
 Raw churn is dominated by mechanical files that say nothing about improvement value: lockfiles,
-generated output, vendored trees. The `excludes` ERE above is the bundled default: lockfiles,
-generated/minified artifacts, and vendored/dependency directories.
+generated or minified output, snapshots, vendored trees. The plugin ships no list of them. Build
+Step 1's `excludes` as one ERE, alternatives joined with `|`, from two sources:
 
-The consuming repo overrides or extends these globs through the `.claude/improvement.md` config
-cascade (team file, `.claude/improvement.local.md` gitignored personal override, `~/.claude/improvement.md`
-user-global), along with the churn window. Key contract: `../../../reference/config.md`. All
-layers absent is a valid state. Use the bundled defaults above.
+1. **Declared patterns:** `churn_exclude`, unioned across the `.claude/improvement.md` config
+   cascade (team file, `.claude/improvement.local.md` gitignored personal override,
+   `~/.claude/improvement.md` user-global), which also sets the churn window. These are already
+   EREs: use them as written. Key contract: `../../../reference/config.md`.
+2. **The repository's own mechanical files**, unless `churn_exclude_defaults` is `false`: resolve
+   them through the plugin's copy of the ecosystem-resolution steps,
+   [`reference/ecosystem-resolution.md`](../../../reference/ecosystem-resolution.md). Read the
+   paths the target's `.gitattributes` marks as generated or vendored, then the lockfiles,
+   generated or minified output, snapshots and vendored trees its build and manifest files imply.
+   Turn each into an ERE: escape the characters of a literal file or directory name, convert a
+   glob's `**/` to `(.*/)?` and its `*` to `[^/]*`, and anchor with `(^|/)` in front and `$` (a
+   file) or `/` (a directory) behind. Name the file each pattern came from in the run's output.
+   The scan asks nothing and writes no record; `/improvement:setup apply` offers to persist them
+   as `churn_exclude` entries.
+
+All layers absent is a valid state. When item 2 resolves nothing while `churn_exclude_defaults` is
+on, record an evidence-gap line (format: unattended.md), e.g.
+`gap: churn exclusions — no mechanical files resolved from the repository — declare churn_exclude or run /improvement:setup apply`.
+With nothing declared either, set `excludes='^$'`, which matches no path, and count churn without
+exclusions.
 
 ## Step 3: indentation count as the complexity proxy (record LOC alongside)
 

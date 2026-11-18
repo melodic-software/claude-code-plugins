@@ -1,5 +1,12 @@
 # Changelog for the standards convention
 
+## 1.1.6 - 2026-11-18
+
+Wording only. The sample index drops its C# row, the Surface column describes ecosystem surfaces
+as one per language or framework the repository uses instead of naming languages, and the
+pointer-pattern bullet drops its C# example directive. The layers, the precedence rule, the
+schema, the index shape and the migration rules are unchanged.
+
 ## 1.1.5 - 2026-11-13
 
 Resolution ladder. Planning and implementing skills also read the repository's review-criteria
