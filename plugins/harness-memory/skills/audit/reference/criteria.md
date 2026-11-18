@@ -351,7 +351,7 @@ which are not repo-scoped.
 3. FAIL for a stated command that does not exist there, which is worse than an absent one: Claude runs it
    and the check fails for the wrong reason
 4. WARN if either command is absent, or if present only as prose naming the tool without the
-   invocation
+   invocation (naming a tool is not a command)
 5. Do not flag a repo that has no build or test step; flag only a missing statement of one that exists
 
 **Boundary with C7.** C7 owns *references*: file paths, version pins, counts. C9 owns *commands*.
