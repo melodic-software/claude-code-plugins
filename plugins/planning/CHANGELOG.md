@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.9.0] - 2026-11-18
+
+### Added
+
+- emit the drafted goal as a paste region without /goal
+
 ## [5.8.0] - 2026-11-18
 
 ### Changed
