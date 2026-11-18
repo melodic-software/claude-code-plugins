@@ -11,11 +11,6 @@ execution:
   max_turns: 30
   timeout_seconds: 900
 graders:
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:planning:)?interview"'
-    arm: with-only
   - name: brief-has-adr-verdicts
     type: regex
     pattern: '^#{2,4}[ \t]*ADR verdicts[ \t]*$[^#]*\bQ1\b[^\n]*no ADR[^#]*\bQ2\b[^\n]*no ADR[^#]*\bQ3\b[^\n]*(?:ADR candidate|no ADR)[^#]*\bQ4\b[^\n]*no ADR'

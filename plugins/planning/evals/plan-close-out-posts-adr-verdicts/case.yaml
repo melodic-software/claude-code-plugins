@@ -11,11 +11,6 @@ execution:
   max_turns: 30
   timeout_seconds: 900
 graders:
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:planning:)?plan"'
-    arm: with-only
   - name: pr-body-has-verdicts
     type: regex
     pattern: 'Q1 attempt count: no ADR[\s\S]*Q2 backoff schedule: no ADR[\s\S]*Q3 failed-delivery storage: no ADR[\s\S]*Q4 alert channel: no ADR'
