@@ -9,8 +9,9 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
-import { main, NATIVE_READS_PER_RUN, SESSION_CHECKS_PER_RUN } from "./clear-escalations.mjs";
-import { refusalBody } from "./enable-auto-merge.mjs";
+import { main, MENDED_OUTPUT, NATIVE_READS_PER_RUN, SESSION_CHECKS_PER_RUN } from "./clear-escalations.mjs";
+import { refusalBody, unblockHold } from "./enable-auto-merge.mjs";
+import { unblockStops } from "./merge-holds.mjs";
 import { escalationActivity, escalationRoute, ROUTES } from "../pr-unblock/escalation-routes.mjs";
 import { CREDENTIAL_HOLD, SIGNED_COMMITS_HOLD } from "../pr-unblock/gate-source.mjs";
 
@@ -42,7 +43,7 @@ const RED = [check("test-node", "failure")];
 // `evidence` is what the gate's reader (enable-auto-merge pythonVerify) answers.
 // `reviewThreads` is the GraphQL reviewThreads page answered for a cursor.
 const threadPage = (nodes, hasNextPage = false) => ({ nodes, pageInfo: { hasNextPage, endCursor: hasNextPage ? "next" : null } });
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"], sessionNumbers = [], statuses = [], keyStatuses = [] }) {
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"], sessionNumbers = [], statuses = [], keyStatuses = [], sessionThreads = [], edits = [] }) {
   const calls = [];
   const known = (number) => numbers.includes(number) || sessionNumbers.includes(number);
   const checks = async (method, path) => {
@@ -103,6 +104,14 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
       }
       const page = Number(/page=(\d+)$/.exec(path)[1]);
       return (kindOf === "comments" ? reviewComments : reviews).slice((page - 1) * 100, page * 100);
+    }
+    if (method === "POST" && path === "/graphql" && body.query.includes("userContentEdits")) {
+      assert.deepEqual(body.variables, { o: "melodic-software", r: "claude-code-plugins", n: 8 });
+      return { data: { repository: { pullRequest: { userContentEdits: { totalCount: edits.length, nodes: edits }, timelineItems: { filteredCount: 0, nodes: [] } } } } };
+    }
+    if (method === "POST" && path === "/graphql" && body.query.includes("root: comments")) {
+      assert.deepEqual({ ...body.variables, after: undefined }, { owner: "melodic-software", name: "claude-code-plugins", number: 8, after: undefined });
+      return { data: { repository: { pullRequest: { reviewThreads: threadPage(sessionThreads) } } } };
     }
     if (method === "POST" && path === "/graphql") {
       assert.deepEqual({ ...body.variables, after: undefined }, { owner: "melodic-software", name: "claude-code-plugins", number: 7, after: undefined });
@@ -1167,7 +1176,7 @@ test("labels past the read cap are read on a later run", async () => {
 // of 2026-10-26: a person is needed only for intent, design or a HIGH/CRITICAL
 // security finding, so a mechanical stop comes off once trusted evidence shows
 // its cause gone.
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -1880,4 +1889,123 @@ test("a needs-session stop whose head statuses do not read keeps the label witho
   assert.equal(code, 0);
   assert.deepEqual(w.writes(), []);
   assert.ok(logs.some((line) => /::warning title=clear-escalations::#8: HTTP 403/.test(line)), logs.join("\n"));
+});
+
+// Defect D1, PR 16950: pr-verify FAILed the head and opened fail-note
+// threads; kyle-sexton fixed the body and replied in the note thread; pr-verify
+// passed the head (pass-notes, superseding the FAIL); address-feedback could
+// not see the long Summary, answered UNCERTAIN, and stopped feedback-disputed
+// (needs-session). Once the note threads are resolved, the stop is settled at
+// the same head with no lane success status.
+const NOTE_ROOT = { databaseId: 41898282 };
+const gqlComment = (createdAt, __typename, login) => ({ createdAt, author: { __typename, login } });
+const noteThread = ({ resolved = true, commit = HEAD } = {}) => ({
+  isResolved: resolved,
+  root: { nodes: [{ author: NOTE_ROOT, body: "<!-- pr-verify:fail-note -->\nThe verifier's note.", createdAt: "2026-11-18T01:20:00Z", originalCommit: { oid: commit } }] },
+  comments: {
+    totalCount: 3,
+    nodes: [gqlComment("2026-11-18T01:20:00Z", "Bot", "github-actions"), gqlComment("2026-11-18T01:47:48Z", "User", "kyle-sexton"), gqlComment("2026-11-18T01:58:58Z", "Bot", "melodic-automation-lanes")],
+  },
+});
+const findingThread = ({ resolved = false, laneAt } = {}) => ({
+  isResolved: resolved,
+  root: { nodes: [{ author: { databaseId: 41898283 }, body: "A finding.", createdAt: "2026-11-18T01:10:00Z", originalCommit: { oid: HEAD } }] },
+  comments: { totalCount: 1, nodes: [gqlComment("2026-11-18T01:10:00Z", "Bot", "claude"), ...(laneAt ? [gqlComment(laneAt, "Bot", "melodic-automation-lanes")] : [])] },
+});
+const bodyEdit = (editor, editedAt = "2026-11-18T01:40:00Z") => ({ editedAt, editor });
+const KYLE_EDIT = bodyEdit({ __typename: "User", login: "kyle-sexton", databaseId: PERSON_ID });
+const PASSED = { head: HEAD, refusal: null, ineligible: null, reviews: null, atHead: ["fail", "pass-notes"], supersededAtHead: true };
+let outputs = 0;
+const outputFile = () => join(TRUSTED_DIR, `output-${(outputs += 1)}`);
+const settled = (reason = "feedback-disputed", options = {}) =>
+  sessionWorld({
+    timeline: [sessionLabeled(BOT, "2026-11-18T01:59:00Z"), commented(BOT, stopBody(reason), "2026-11-18T01:59:02Z")],
+    statuses: [status("failure", ACTIONS_BOT, "2026-11-18T01:59:01Z", "pr-unblock/address-feedback")],
+    sessionThreads: [noteThread()],
+    edits: [KYLE_EDIT],
+    evidence: () => PASSED,
+    ...options,
+  });
+
+test("a feedback stop pr-verify settled gets its status cleared first, and its label comes off once that success lands", async () => {
+  for (const reason of ["feedback-disputed", "feedback-untaken-threads", "feedback-uncertain"]) {
+    assert.equal(ROUTES[reason].label, "needs-session");
+    const failing = status("failure", ACTIONS_BOT, "2026-11-18T01:59:01Z", "pr-unblock/address-feedback");
+    const w = settled(reason);
+    const output = outputFile();
+    const { code, logs } = await run(w, { TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: output });
+    assert.equal(code, 0);
+    assert.equal(readFileSync(output, "utf8"), `${MENDED_OUTPUT}=${HEAD}\n`, "the head goes to report-escalation.sh clear");
+    assert.deepEqual(w.writes(), [], `${reason}: the label waits for the status clear\n${logs.join("\n")}`);
+    assert.ok(logs.some((line) => /#8 needs-session kept until its status clears: pr-verify passed .* after a trusted body edit superseded its FAIL/.test(line)), logs.join("\n"));
+    assert.deepEqual(
+      w.reads.map(({ pull }) => [pull.number, pull.headRefOid]),
+      [[8, HEAD]],
+      "one reader run, at the stop's head",
+    );
+    const success = status("success", ACTIONS_BOT, "2026-11-18T02:30:00Z", "pr-unblock/address-feedback");
+    assert.match(unblockHold(unblockStops([failing])), /pr-unblock\/address-feedback is failure/);
+    assert.equal(unblockHold(unblockStops([success, failing])), null, "enable-auto-merge no longer holds the head");
+    const next = settled(reason, { statuses: [success, failing] });
+    const nextOutput = outputFile();
+    await run(next, { TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: nextOutput });
+    assert.deepEqual(next.writes(), [{ method: "DELETE", path: `/repos/${REPO}/issues/8/labels/needs-session`, body: undefined }], `${reason}: the next run lifts the label`);
+    assert.equal(existsSync(nextOutput), false, "a cleared status is not cleared again");
+    assert.equal(next.reads.length, 0, "the same-head lift spends no reader run");
+  }
+});
+
+test("a status clear that failed is requested again on the next run, and never once a condition fails", async () => {
+  const failing = status("failure", ACTIONS_BOT, "2026-11-18T01:59:01Z", "pr-unblock/address-feedback");
+  for (let tick = 0; tick < 2; tick += 1) {
+    const w = settled("feedback-disputed", { statuses: [failing] });
+    const output = outputFile();
+    await run(w, { TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: output });
+    assert.equal(readFileSync(output, "utf8"), `${MENDED_OUTPUT}=${HEAD}\n`, `tick ${tick}: the head is handed to the clear again`);
+    assert.deepEqual(w.writes(), [], `tick ${tick}: the label stays`);
+  }
+  const lapsed = settled("feedback-disputed", { statuses: [failing], sessionThreads: [noteThread(), findingThread()] });
+  const output = outputFile();
+  await run(lapsed, { TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: output });
+  assert.equal(existsSync(output), false, "a new open thread stops the retry");
+  assert.deepEqual(lapsed.writes(), []);
+});
+
+test("a settled-looking feedback stop keeps needs-session when any one condition fails", async () => {
+  const BOT_EDIT = bodyEdit({ __typename: "Bot", login: "melodic-automation-lanes", databaseId: APP_ID });
+  for (const [name, options, env, kept] of [
+    ["an untrusted person edited the body", { edits: [KYLE_EDIT, bodyEdit({ __typename: "User", login: "someone", databaseId: 999 }, "2026-11-18T01:41:00Z")] }, {}, /no trusted person edited the body/],
+    ["only an untrusted person edited it", { edits: [bodyEdit({ __typename: "User", login: "someone", databaseId: 999 })] }, {}, /no trusted person edited the body/],
+    ["a bot edited the body", { edits: [BOT_EDIT] }, {}, /no trusted person edited the body/],
+    ["the only edit predates the FAIL", { edits: [bodyEdit(KYLE_EDIT.editor, "2026-11-18T01:00:00Z")] }, {}, /no trusted person edited the body/],
+    ["the pass is older than the FAIL", { evidence: () => ({ ...PASSED, refusal: "verify:fail", atHead: ["fail", "pass"], supersededAtHead: false }) }, {}, /no counted pass at .* supersedes its FAIL/],
+    ["a pass at the head did not supersede the FAIL there", { evidence: () => ({ ...PASSED, supersededAtHead: false }) }, {}, /no counted pass at .* supersedes its FAIL/],
+    ["the reader read another head", { evidence: () => ({ ...PASSED, head: KEY }) }, {}, /no counted pass/],
+    ["a non-verifier thread is open", { sessionThreads: [noteThread(), findingThread()] }, {}, /1 review thread\(s\) are unresolved/],
+    ["a fail-note thread is open", { sessionThreads: [noteThread({ resolved: false })] }, {}, /1 review thread\(s\) are unresolved/],
+    ["the lane answered a non-verifier thread before the stop", { sessionThreads: [noteThread(), findingThread({ resolved: true, laneAt: "2026-11-18T01:58:50Z" })] }, {}, /not a pr-verify fail note/],
+    ["no fail-note thread", { sessionThreads: [findingThread({ resolved: true })] }, {}, /no pr-verify fail-note thread/],
+    ["the trusted list does not read", {}, { TRUSTED_ACTORS_PATH: "/nonexistent/trusted-actors.json" }, /trusted-actor list did not read/],
+  ]) {
+    const w = settled("feedback-disputed", options);
+    const output = outputFile();
+    const { code, logs } = await run(w, { TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: output, ...env });
+    assert.equal(code, 0, name);
+    assert.deepEqual(w.writes(), [], name);
+    assert.equal(existsSync(output), false, `${name}: no head goes to the status clear`);
+    assert.ok(logs.some((line) => /#8 needs-session kept: feedback-disputed still fails/.test(line) && kept.test(line)), `${name}\n${logs.join("\n")}`);
+  }
+});
+
+test("only the three feedback stops are mended this way, and only at their own head", async () => {
+  const other = settled("ci-fix-escalated");
+  const output = outputFile();
+  const { logs } = await run(other, { TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: output });
+  assert.deepEqual(other.writes(), []);
+  assert.equal(existsSync(output), false, "no head goes to the status clear");
+  assert.equal(other.reads.length, 0, "no reader run for a stop pr-verify does not settle");
+  assert.ok(logs.some((line) => /#8 needs-session kept: ci-fix-escalated still fails .*not a stop pr-verify settles/.test(line)), logs.join("\n"));
+  const security = settled("feedback-disputed-security");
+  await run(security, { TRUSTED_ACTORS_PATH: TRUSTED });
+  assert.deepEqual(security.writes(), [], "a security stop routes to needs-human, never to this mend");
 });

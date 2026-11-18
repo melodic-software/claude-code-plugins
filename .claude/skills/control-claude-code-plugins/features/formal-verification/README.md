@@ -45,6 +45,13 @@ report redacts every observed text, so the terminal-session screenshot is what s
    summary line's skill, failure and warning counts and each `FAIL` or `WARN` line.
    Captures: screenshot
 
+The three counts are the numbers in the summary line of the print-mode `logs` capture, in the
+order it prints them; a count is `null` when the capture holds no summary line.
+
+Budget: formal_area_skills_count | logs
+Budget: check_failures_count | logs
+Budget: check_warnings_count | logs
+
 ## Gotchas
 
 - A skill marked `No slash command.` runs only from its plain-words entry point; one marked `No plain-words entry.` runs only from its slash command.

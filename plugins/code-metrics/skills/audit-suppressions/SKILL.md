@@ -93,15 +93,10 @@ fix pass surfaces the rows rather than applying them.
 
 ## Correctness rules
 
-`suppressions.correctness_rules` lists the rule ids whose suppression the team wants to see first,
-such as `no-floating-promises`, `SC2086` or `CA2000`. The plugin ships the list empty, because which
-rules guard correctness is the repository's call. Set it in `docs/conventions/code-metrics.yaml`
-(keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
-
-```yaml
-suppressions:
-  correctness_rules: [no-floating-promises, SC2086, CA2000]
-```
+`suppressions.correctness_rules` lists the rule ids whose suppression the team wants to see first.
+The plugin ships the list empty, because which rules guard correctness is the repository's call.
+Set it in `docs/conventions/code-metrics.yaml` as a list of the repository's own rule ids (keys in
+`${CLAUDE_PLUGIN_ROOT}/reference/config.md`).
 
 A row is marked when one of its rule ids is listed, compared case-insensitively. A suppression that
 names no rule is not matched; for a tool that can name one, it is already unjustified. An invalid

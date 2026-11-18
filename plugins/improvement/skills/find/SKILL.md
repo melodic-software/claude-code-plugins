@@ -182,7 +182,7 @@ reader knows what the ranking could not see.
    output, with the candidate's evidence citation attached. A pick that fits one small PR may
    instead go to `/improvement:improve`, invoked via the Skill tool with the candidate as its
    target.
-5. Offer the remainder: unpicked candidates can be filed via `/work-items:track` when enabled; the user decides which, if any.
+5. Offer the remainder: unpicked candidates can be filed via `/work-items:track` when enabled; the user decides which, if any. Each one filed carries the `source: improvement-find` label (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/unattended.md` "Source label", including what to do when the label is missing).
 
 Where a named pipeline skill is not enabled in the consuming project, summarize the equivalent
 handoff shape inline instead of blocking, but absence of a pipeline skill is never license to
@@ -204,8 +204,14 @@ declared-by-the-caller convention. In unattended mode:
   - *Dismissed-candidate memory, at candidate assembly*. Candidates an operator previously
     dismissed are suppressed before ranking, so they never consume a cap slot or a tracker query.
     A soft default the invocation prompt can override.
+  - *Source label*. Every filed item carries `source: improvement-find`. A missing label means
+    nothing is filed this run; the skill never creates it.
+  - *Open cap, a hard stop*. When the open items carrying the source label number at or above
+    `find_open_item_cap` (default 5, set in the config cascade), the run files nothing and says
+    so. The invocation prompt cannot raise it.
   - *Dedupe against open work items, at filing time*. Search before creating each item. Baseline
-    behavior, not a tuning knob; filing a duplicate is a bug.
+    behavior, not a tuning knob. The search is a pre-filter that skips an obvious repeat, never
+    the duplicate decision: intake triage owns that for every item filed.
   - *Adaptive filing cap*, a soft default bounding how many items one run files (following
     `work-items:work-loop`'s adaptive-cap precedent), overridable by the invocation prompt.
 

@@ -18,7 +18,7 @@ export HOME="$TEST_TMPDIR/home" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/nul
 mkdir -p "$HOME"
 g() { git -c user.name=t -c user.email=t@example.invalid -c init.defaultBranch=main "$@" >/dev/null 2>&1; }
 
-T="$TEST_TMPDIR"
+T="$(cd -P "$TEST_TMPDIR" && pwd)"
 g init -q --bare "$T/origin.git"
 g init -q "$T/seed"
 printf 'ignored.txt\nbuild/\n' >"$T/seed/.gitignore"
@@ -53,6 +53,12 @@ allow() {
   shift 2
   expect_both "$label" 0 --payload "$payload" "$@"
 }
+
+expect_both "unset option: off by default, an edit in a main checkout passes" 0 \
+  --payload "$(edit_json "$T/main/a.txt" b)" -- -u CLAUDE_PLUGIN_OPTION_BLOCK_MAIN_CHECKOUT_EDIT_ENABLED
+assert_eq "plugin.json default matches the script fallback" false \
+  "$(jq -r '.userConfig.block_main_checkout_edit_enabled.default' "$HOOK_DIR/../.claude-plugin/plugin.json")"
+export CLAUDE_PLUGIN_OPTION_BLOCK_MAIN_CHECKOUT_EDIT_ENABLED=true
 
 deny "Edit of a tracked file" "$(edit_json "$T/main/a.txt" b)"
 assert_contains "reason gives the path to repeat the edit at" "$GUARD_ERR" "<worktree>/a.txt"
@@ -137,7 +143,7 @@ expect_both "kill switch off: allowed" 0 --payload "$(edit_json "$T/main/a.txt" 
 
 row=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Write|Edit|NotebookEdit") | .hooks[].args | map(tostring) | join(" ")' "$HOOK_DIR/hooks.json")
 assert_contains "hooks.json runs the guard on the Write|Edit|NotebookEdit row" "$row" " block-main-checkout-edit.sh"
-assert_eq "plugin.json declares the kill switch, default on" "true" \
-  "$(jq -r '.userConfig.block_main_checkout_edit_enabled.default' "$HOOK_DIR/../.claude-plugin/plugin.json")"
+expect_both "an option value other than true: off" 0 --payload "$(edit_json "$T/main/a.txt" b)" \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_MAIN_CHECKOUT_EDIT_ENABLED=yes
 
 report

@@ -194,13 +194,16 @@ jobs:
       # true only for a conflicted merge; false on a skip, a clean merge or
       # an escalation; empty when the job stopped before deciding.
       proceed: >-
-        ${{ steps.prepare.outputs.merge-state == 'conflicted' && 'true'
-        || (steps.head.outputs.default-base == 'false' || steps.slot.outputs.applies == 'false' || steps.hold.outputs.held == 'true' || steps.behind.outputs.behind == 'false' || steps.prepare.outputs.merge-state != '') && 'false' || '' }}
+        ${{ steps.prepare.outputs.merge-state == 'conflicted' && steps.superseded.outputs.superseded == 'false' && 'true'
+        || (steps.head.outputs.default-base == 'false' || steps.slot.outputs.applies == 'false' || steps.hold.outputs.held == 'true' || steps.behind.outputs.behind == 'false'
+        || steps.prepare.outputs.merge-state == 'clean' || steps.prepare.outputs.merge-state == 'escalate' || steps.superseded.outputs.superseded == 'true') && 'false' || '' }}
       merge-state: ${{ steps.prepare.outputs.merge-state }}
       head-sha: ${{ steps.head.outputs.sha }}
       base-sha: ${{ steps.base-sha.outputs.sha }}
       conflict-tree: ${{ steps.prepare.outputs.conflict-tree }}
-      escalation-reason: ${{ steps.prepare.outputs.escalation-reason }}
+      escalation-reason: >-
+        ${{ steps.prepare.outputs.escalation-reason
+        || steps.superseded.outputs.superseded == 'true' && 'superseded-by-main' || '' }}
       skip-reason: >-
         ${{ steps.head.outputs.default-base == 'false' && 'not-applicable'
         || steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason
@@ -423,6 +426,15 @@ jobs:
           HEAD_SHA: ${{ steps.head.outputs.sha }}
           BASE_SHA: ${{ steps.base-sha.outputs.sha }}
         run: bash "$GITHUB_WORKSPACE/.base/.github/scripts/merge-base/run-prepare.sh"
+
+      - name: Check whether main supersedes the head
+        id: superseded
+        if: steps.prepare.outputs.merge-state == 'conflicted'
+        working-directory: head
+        env:
+          HEAD_SHA: ${{ steps.head.outputs.sha }}
+          BASE_SHA: ${{ steps.base-sha.outputs.sha }}
+        run: node "$GITHUB_WORKSPACE/.base/.github/scripts/pr-unblock/superseded-by-main.mjs"
 
       - name: Log the API budget at the end
         if: always()

@@ -42,10 +42,9 @@ NIST's own host. **HIGH.**
 
 Maurice H. Halstead, *Elements of Software Science*, Elsevier North-Holland, 1977, ISBN
 0-444-00205-7. No online full text exists and the book is not read here; the bibliographic data is
-confirmed through an authority record, and the formulas through independent reproductions that all
-attribute them to the book: NASA NTRS N90-14803, IBM Rational Asset Analyzer documentation, and the
-`radon` documentation, whose implementation computes the same difficulty as the formula on any
-input. **MEDIUM for the book as a primary; HIGH for the formulas by consensus of reproductions.**
+confirmed through an authority record, and the formulas through two independent reproductions that both
+attribute them to the book: NASA NTRS N90-14803 and the IBM Rational Asset Analyzer documentation.
+**MEDIUM for the book as a primary; HIGH for the formulas by agreement of both reproductions.**
 
 - **Claims.** A family of measures derived from counts of distinct and total operators and operands:
   vocabulary, length, volume, difficulty `D = (n1/2) * (N2/n2)`, effort `E = D * V`, and estimates of
@@ -68,8 +67,6 @@ exist and are not the version cited. **HIGH for the content of version 1.7.**
   switch and all its cases combined incurs a single structural increment."
 - **Does not claim.** Any threshold. The default of SonarSource's rule `S3776` is a product
   decision by the same vendor, and citing the paper for that default misattributes it.
-  Independent implementations (gocognit, PMD's CognitiveComplexity rule) follow the same increment
-  rules and cite the paper.
 
 ## Savoia and Evans 2007, CRAP
 

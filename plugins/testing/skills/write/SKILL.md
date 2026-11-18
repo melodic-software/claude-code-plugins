@@ -94,6 +94,7 @@ conventions for per-ecosystem naming, locations, and fixtures.
 - **Naming**. Use the project's documented naming pattern; when undocumented, mirror the consuming ecosystem's own idiom (never impose one language's convention on another). Illustrative forms (.NET/xUnit), with casing and separators adapted to the target ecosystem: unit `{Method}_Should{Behavior}_When{Condition}`, integration `{Subject}_{Behavior}`, architecture `{Subject}_Should{Constraint}`
 - When uncertain about a testing decision (mock or not, output vs state test), load `/tdd:principles` (when the `tdd` plugin is enabled) for authoritative Beck/Khorikov guidance
 - Where each expected value comes from and which tests earn their keep: `testing:test-value` (if enabled)
+- Whether the new tests catch realistic hand-written bugs, beyond the hollow-out run: `/mutation-testing:seed-faults` (if enabled)
 
 ## Handoff
 

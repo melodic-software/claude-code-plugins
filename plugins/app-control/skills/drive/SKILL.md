@@ -248,7 +248,9 @@ it as step 9 does. The report names `affected.json`; the file's fields and its g
 - **Cleanup touches only what this run started.** Stop each process in `launch`, one per app, after
   "Recheck before touching the pid" in
   [`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md). Detach from an
-  attached process; never stop it. Never close all sessions or kill all processes.
+  attached process; never stop it. Never close all sessions or kill all processes. When a
+  `## Mask` `values:` source reads from the running instance, resolve the values (evidence.md's
+  "Mask post-check", step 2) before stopping it.
 - **Never judge.** Write what was done and observed in plain words. Leave out any word that rates
   the outcome. Record a `Budget:` value beside its config threshold, never compared with it.
 - **Stated result beside observed, never compared.** Copy each step's stated result as written,
@@ -317,7 +319,7 @@ write a `values:` value to any file.
 ## Next
 
 - Evidence in hand, needs a judgment: /verification:confirm.
-- A trace, cpu, heap or threads artifact to read: /debugging:analyze-profile.
+- A trace, cpu or heap artifact to read: /debugging:analyze-profile.
 
 ## Gotchas
 

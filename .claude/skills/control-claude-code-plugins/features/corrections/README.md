@@ -41,6 +41,14 @@ shows it.
    headline's blocking and advisory counts and every record line the output lists.
    Captures: screenshot
 
+The four counts are the numbers in the headline line of the print-mode `logs` capture, in the
+order it prints them; a count is `null` when the capture holds no headline.
+
+Budget: blocking_checks_new_count | logs
+Budget: blocking_checks_cumulative_count | logs
+Budget: advisory_checks_new_count | logs
+Budget: advisory_checks_cumulative_count | logs
+
 ## Gotchas
 
 - A skill marked `No slash command.` runs only from its plain-words entry point; one marked `No plain-words entry.` runs only from its slash command.

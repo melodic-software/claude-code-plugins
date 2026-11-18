@@ -60,6 +60,56 @@ or pushing on a branch you do not trust, read its diff to `lefthook.yml`, `lefth
 `.lefthook/`, `.lefthook-local/`, `.husky/` and `.githooks/`
 ([details](README.md#where-installed-copies-live)).
 
+## Share it through the lefthook remote
+
+With lefthook, `scope=shared` prefers the remote: setup's `plan --scope remote` returns one
+`remotes:` entry for the committed `lefthook.yml`, naming this repository's root
+[`lefthook-remote.yml`](../../../lefthook-remote.yml). That file extends every plugin's
+`git-hooks/lefthook-remote.yml`, so one entry carries every plugin's hooks, a plugin that adds a
+remote config later reaches the repository with no change there, and nothing is copied or
+refreshed in it. Each clone still runs `lefthook install` once. A repository whose entry lists
+per-plugin configs replaces them with the root file.
+
+Because the root file turns on every plugin's jobs, whichever plugin's setup runs the plan, the
+plan's `aggregate.plugins` lists the plugins it enables, and its `missing-tool`, `declined` and
+`migrate` decisions cover all of their entries, each naming its `plugin` when it is not the
+plugin running the plan. `verify` adds a `tool\t<tool>\tmissing\t<plugin>-<entry>` line for each
+of their entries whose tool is absent. Both read the plugins from the fetched copy of the remote,
+else from the repository the running plugin sits in.
+
+Pointer: lefthook's [`remotes`](https://lefthook.dev/configuration/remotes/) and
+[`extends`](https://lefthook.dev/configuration/extends/) pages; lefthook resolves a remote config's
+`extends` against that config's directory
+([`loadRemotes`](https://github.com/evilmartians/lefthook/blob/v2.2.2/internal/config/loader.go)),
+which for a root file is the remote repository's root the remotes page names. As of 2026-11-17,
+lefthook 2.2.2. Recheck on a lefthook version bump; each plugin's `git-hooks/lefthook-remote.test.sh`
+checks the merged jobs under the pinned version.
+
+## When a remote job breaks
+
+Every repository runs the remote jobs from main, so a job broken there blocks commits or pushes in
+all of them, and `block-no-verify` keeps agents from `--no-verify` and hook-manager overrides.
+
+1. **Get past it in one clone.** A failing remote job prints the way out: an untracked
+   `lefthook-local.yml` (listed in `.git/info/exclude`) that sets `skip: true` on that job,
+   `<plugin>-remote-<entry>`. Lefthook merges `lefthook-local.yml` over the remotes and matches
+   jobs by name. Use it only when the job itself is broken, not when it reports your change.
+   Pointer: lefthook's [`lefthook-local`](https://lefthook.dev/examples/lefthook-local/) and
+   [`skip`](https://lefthook.dev/configuration/skip/). The guardrails content scans
+   (`guardrails-remote-pre-commit-content` and `guardrails-remote-pre-push-content`, the secret and
+   machine-path scans) have no per-clone skip and print none: when one is broken, the recovery is
+   the revert or fix on main in step 2.
+2. **Fix main.** Revert the change that broke the job, or fix it, in this repository.
+3. **Pick up the fix.** `lefthook install` fetches every remote at once, whatever
+   `refetch_frequency` says (`Install` in
+   [`install.go`](https://github.com/evilmartians/lefthook/blob/v2.2.2/internal/command/install.go));
+   `lefthook install --force` deletes the fetched copy and clones it again. Without that, a hook run
+   refetches only once `refetch_frequency` has passed since the last fetch
+   ([`refetch_frequency`](https://lefthook.dev/configuration/refetch_frequency/)). Then delete the
+   skip.
+
+As of 2026-11-17, lefthook 2.2.2. Recheck on a lefthook version bump.
+
 ## See what runs at each stage
 
 `/<plugin>:setup check inspect` lists every hook each stage runs, under whichever manager the

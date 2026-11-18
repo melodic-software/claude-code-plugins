@@ -88,8 +88,8 @@ rendered diagram. These facts and their sources are documented in the catalog.
 - **`diagram_target`** (`userConfig`, string, default `auto`; also the `diagram_target` key of a
   repository's `docs/conventions/visualization.yaml` and of the gitignored personal override
   `docs/conventions/visualization.local.yaml`). Where a diagram is drawn: `auto` (pick by where the session runs),
-  `terminal`, `local-page`, `excalidraw` or `tldraw`. A later layer wins: the personal override,
-  then the team file, then `userConfig`.
+  `terminal`, `local-page`, `excalidraw`, `tldraw` or `excalidraw-file`. A later layer wins: the
+  personal override, then the team file, then `userConfig`.
 
 Configure with `/plugin configure visualization@<marketplace>`, or headless with
 `claude plugin install visualization@<marketplace> -s <scope> --config
@@ -128,11 +128,21 @@ server, and a tool denied at any settings level cannot be allowed at another
 wins, and so does a person's own resolved `medium` setting; the skill names that override in one
 line. `terminal` draws an inline Mermaid or ASCII fence, `local-page` a local HTML file, and
 `excalidraw` or `tldraw` that canvas server, under the `hosted_canvas` rules above. A diagram that
-will be committed stays Mermaid source whatever the target. When the chosen target is unavailable
+will be committed inside a document stays Mermaid source whatever the target. When the chosen target is unavailable
 (no such server connected, a surface that does not render it, or `hosted_canvas` forbids it), the
 skill uses `auto` and says so in one line. Unlike `hosted_canvas`, the team file is read from the
 working tree only: the key is a preference, not a floor. An unrecognized value is reported and
 that layer is dropped.
+
+`excalidraw-file` writes the diagram as an Excalidraw file, `docs/diagrams/<name>.excalidraw` at
+the repository root, which you open and edit in an Excalidraw editor such as the VS Code extension
+the catalog names. It needs no canvas server and works in the Claude Code terminal; nothing leaves
+the machine, so `hosted_canvas` does not apply. It covers flows, flowcharts, state diagrams and
+swim lanes, drawn as one labeled frame per lane. The skill checks the file's structure before
+writing it, asks before replacing a file that already exists, never stages or commits it, and
+reports its absolute path. Your resolved `medium` does not override it; a medium named as the
+argument, a form you name, or a calling skill that needs the diagram inline in its own document
+does. Outside a repository it falls back to `auto`.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -146,7 +156,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `medium` | string | `"auto"` | Preferred delivery medium. auto (default) defers to the shared medium resolver, then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact or hosted prefers a published Artifact, else a file. |
 | `thin_context_prompt` | string | `"auto"` | What the skill does when code is pasted with little context and no form named. auto (default) asks one ranked question only when two or more code-shape forms fit about equally; always offers the ranked menu on any bare code paste; never renders the recommended form without asking. |
 | `hosted_canvas` | string | `"allow"` | Whether diagram content may go to a canvas server reached over the network (a remote MCP server). allow (default) permits it where the surface renders a canvas; deny keeps diagrams local or on a local server. deny from any layer wins. |
-| `diagram_target` | string | `"auto"` | Where a diagram is drawn. auto (default) picks by surface; terminal draws an inline Mermaid or ASCII fence; local-page writes a local HTML file; excalidraw or tldraw draws on that connected canvas server. A target that is unavailable, or that hosted_canvas forbids, falls back to auto. |
+| `diagram_target` | string | `"auto"` | Where a diagram is drawn. auto (default) picks by surface; terminal: inline Mermaid or ASCII; local-page: a local HTML file; excalidraw or tldraw: that connected canvas server; excalidraw-file: a docs/diagrams/ file, never committed. An unavailable target, or one hosted_canvas forbids, uses auto. |
 
 ### How to set these
 

@@ -72,7 +72,10 @@ dispatch, PR or babysit step. It works in place:
    cause you name is the one the fix addresses. When you cannot name a cause from what you read, do
    not implement a guess: stop with the reason. When the field names the cause, or the brief has no
    Root cause field, skip the gate. Make the change in the checkout, following the repository's own rules for the files
-   you touch and its release record for each plugin you change. Write an external fact (a
+   you touch and its release record for each plugin you change. Write no new code comment (a moved
+   or re-indented one counts as new) unless `docs/review/comments.md` in the marketplace repository
+   allows it and the comment lint it names accepts its shape, which an ADR pointer with no URL does
+   not; put any other reason in the code or in `summary`. Write an external fact (a
    documented default, limit or behavior) only after reading it in the source you cite during
    this run; the issue's quote of a page is not that source. Read a web source through a research
    skill, not a bare fetch: `/discovery:read-docs` for one docs page, `/discovery:research --unattended`

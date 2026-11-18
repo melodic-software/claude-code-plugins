@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Filing: nothing filed. The open cap stopped it: 5 open items carry source: improvement-find, and the cap is 5.", "why": "names the open cap" },
+    { "answer": "Filed 0; find_open_item_cap (5) is reached by #61 to #65.", "why": "names the setting" }
+  ],
+  "fail": [
+    { "answer": "Filing: filed 3 items under the cap of 3.", "why": "names only the adaptive cap" },
+    { "answer": "Nothing filed: every candidate duplicates an open item.", "why": "a different reason" }
+  ]
+}

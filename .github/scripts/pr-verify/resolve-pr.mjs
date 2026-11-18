@@ -72,7 +72,7 @@ import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { ACTIONS_BOT_ID, actionsBotOnly, carriesSplit, DRIFT_TITLE, driftIssueId, driftSpecText, loadRules, personChecks, readSchedule, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { ACTIONS_BOT_ID, actionsBotOnly, baseAdmissionRules, carriesSplit, DRIFT_TITLE, driftIssueId, driftSpecText, loadRules, ownAgentIds, ownAgentText, personChecks, readSchedule, refinementSpec, sourceLabels, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { FILING, incidentKey, readMarker } from "../maintenance-monitor-signals/issues.mjs";
 
@@ -113,7 +113,7 @@ const shortList = (message, count, cap) => (Number.isSafeInteger(count) && count
 
 const COMMENT_FIELDS = "totalCount pageInfo { hasNextPage endCursor } nodes { databaseId createdAt updatedAt body lastEditedAt author { ...actor } editor { ...actor } }";
 const ISSUE_FIELDS = `number repository { nameWithOwner } title body lastEditedAt
-          author { ...actor } editor { ...actor }
+          author { ...actor } editor { ...actor } labels(first: 50) { nodes { name } }
           comments(first: 100) { ${COMMENT_FIELDS} }`;
 const ACTOR = "fragment actor on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }";
 // The pages after the first of an issue's comments.
@@ -854,7 +854,11 @@ async function compareFiles(github, repository, base, head) {
 // left out. Other Bot and App text is left out even where
 // select-trusted-text keeps it, except the body of a sub-issue the lanes App
 // filed in a size split, under the split-child trust rule, `taskList` being
-// admission's `task-list` (admit.mjs splitChildBody, its one home). Given the
+// admission's `task-list` (admit.mjs splitChildBody, its one home), and the
+// body of an own-agent filing no other account edited that carries exactly
+// one `source:` label, as admission requires (admit.mjs ownAgentText, under
+// main's `own-agents`; ADR 0111,
+// https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md). Given the
 // `base` branch, a closing issue also carries the siblings that delivered part
 // of it (`credited_siblings`, creditedSiblings), so its diff is judged for the
 // rest. An issue the recurring filer opened takes its body from its row of
@@ -916,6 +920,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   }
   const trusted = (actor) => trustedHuman(actor, humans);
   const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
+  const ownIds = ownAgentIds(baseAdmissionRules(), laneAppId);
   let nodes = refs.nodes;
   const named = refs.totalCount === 0 ? refsIssue(data.data.repository.pullRequest.body) : null;
   if (named !== null) {
@@ -1000,7 +1005,8 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
       // no criteria (refine.mjs validateOutput), so nothing else goes with it.
       const counted = refinement !== undefined && (checks.length > 0 || !carriesSplit(refinement.body)) ? refinement : undefined;
       const childBody = childBodies.get(issue.number);
-      const recurring = written(issue) || childBody !== undefined ? null : recurringSpec(issue, schedule);
+      const ownBody = !written(issue) && childBody === undefined && !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER) && sourceLabels(issue.labels?.nodes).length === 1 && ownAgentText(issue, ownIds) ? String(issue.body ?? "") : null;
+      const recurring = written(issue) || childBody !== undefined || ownBody !== null ? null : recurringSpec(issue, schedule);
       const upstreamDrift = written(issue) || childBody !== undefined || recurring !== null ? null : (driftBodies.get(issue.number) ?? null);
       const incident = written(issue) || childBody !== undefined || recurring !== null || upstreamDrift !== null || !mainRedIncident(issue) ? null : MAIN_RED_SPEC;
       // A trusted target-subset part's Scope line (admit.mjs splitScope):
@@ -1012,7 +1018,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
         ...(recurring !== null && { source: "recurring-schedule" }),
         ...(upstreamDrift !== null && { source: "upstream-drift" }),
         ...(incident !== null && { source: "main-red-incident" }),
-        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBody ?? recurring ?? upstreamDrift ?? incident),
+        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBody ?? ownBody ?? recurring ?? upstreamDrift ?? incident),
         ...(scope !== null && { scope }),
         comments: issue.comments.nodes.filter((comment) => written(comment) || comment === counted).map((comment) => String(comment.body ?? "")),
         // The body's done-when items that refinement lists as checks a

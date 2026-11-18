@@ -1,0 +1,5 @@
+pre-commit:
+  jobs:
+    - name: actionlint-remote-lint
+      script: actionlint-lint.sh
+      runner: sh

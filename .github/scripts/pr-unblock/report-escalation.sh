@@ -191,7 +191,8 @@ if [[ ${1:-} == clear ]]; then
     echo "no failing $context on $HEAD_SHA to clear"
     exit 0
   fi
-  post_status "$context" success "The lane ran again on this head and did not stop"
+  cleared_by=${CLEAR_DESCRIPTION:-The lane ran again on this head and did not stop}
+  post_status "$context" success "${cleared_by//[$'\r\n']/ }"
   echo "cleared $context on $HEAD_SHA"
   exit 0
 fi

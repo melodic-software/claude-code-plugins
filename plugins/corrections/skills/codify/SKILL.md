@@ -1,6 +1,6 @@
 ---
-description: "Counts how often a described mistake recurs in recent commits and the session, picks the strongest enforcement-ladder rung that can catch it, places the lesson by scope, and proposes a check proven to fail on the old code and pass on the current code; `preferences` proposes user-scope lines for what a person keeps typing across sessions; also takes a review findings file, pull requests' review comments or closed bug issues as the source; `rules` turns the rules in instruction files into checks, with a ledger that accounts for every rule. Use when: 'codify this', 'this keeps happening', 'stop us making this mistake again', 'turn this correction into a check', 'what rung catches this', 'prove this check', 'can we stop re-finding this', 'mine our review comments', 'which bugs keep coming back', 'put what I keep repeating into my instructions', 'how many corrections became checks', 'turn our rules into checks'."
-argument-hint: "<<desc> [#PR]|findings <file>|rules <files>|reviews|issues|note|preferences|group|count-checks…>"
+description: "Counts how often a described mistake recurs in recent commits and the session, picks the strongest enforcement-ladder rung that can catch it, places the lesson by scope, and proposes a check proven to fail on the old code and pass on the current code; `preferences` proposes user-scope lines for what a person keeps typing across sessions; `taste` turns a session's design corrections into `DESIGN.md` rules; also takes a review findings file, pull requests' review comments or closed bug issues as the source; `rules` turns the rules in instruction files into checks, with a ledger that accounts for every rule. Use when: 'codify this', 'this keeps happening', 'stop us making this mistake again', 'turn this correction into a check', 'what rung catches this', 'prove this check', 'can we stop re-finding this', 'mine our review comments', 'which bugs keep coming back', 'put what I keep repeating into my instructions', 'learn my design taste', 'how many corrections became checks', 'turn our rules into checks'."
+argument-hint: "<<desc> [#PR]|findings <f>|rules <f>...|reviews|issues|note|preferences|taste|group|count-checks>"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/count-checks.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/count-checks.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/rules-ledger.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/rules-ledger.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/uncovered-rules.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/uncovered-rules.mjs\":*)", "Bash(git log:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git branch --show-current)", "Bash(git symbolic-ref:*)", "Write(.work/codify/**)"]
@@ -32,12 +32,13 @@ An optional `#PR` after it names the pull request whose pre-fix commit is the ol
 | `reviews [--pr <n> [--repo <owner/repo>]]` | Mines the review comments of recent merged pull requests, or of one chosen pull request, plus the review lanes' uncovered rules as candidate rules, and takes the lessons through sections 2-6 | [actions/reviews.md](actions/reviews.md) |
 | `issues [--label <name>] [--limit <n>]` | Needs the `work-items` plugin. Mines the tracker's closed bug items, groups the ones that share a cause, and takes the lessons through sections 2-6 | [actions/issues.md](actions/issues.md) |
 | `preferences [--scope machine\|project] [--since <day>]` | Needs the `session-flow` plugin. Counts preferences typed across sessions, by distinct session, and takes each one the person confirms through sections 3 and 6, for a user-scope file only | [actions/preferences.md](actions/preferences.md) |
+| `taste` | Sweeps the session and the branch's commits for design corrections (silent edits, nudge runs, reverts and variant picks, confirmed choices), keeps the class-level ones a fresh agent would repeat, takes each through sections 2-6, and writes the approved `instruction`-rung rules to the root `DESIGN.md` | [actions/taste.md](actions/taste.md) |
 | `note [--applied] "<observation>" [#PR \| <commit>]` | Appends one observation, or with `--applied` one change already made, to the findings buffer; never counts, codifies or fixes | [actions/note.md](actions/note.md) |
 | `group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` | Read-only: groups buffer rows by the named fields (default `producer`) and by mistake, naming the keys, with each mistake's count next to the threshold | [actions/group.md](actions/group.md) |
 | `count-checks [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--bucket week\|month]` | Read-only: counts the checks merged changes record with a `Codifies:` line, per period and cumulative, from default-branch git history only; blocking first, advisory in its own column, a column per rung | [actions/count-checks.md](actions/count-checks.md) |
 
 An action runs only when the first word of `$ARGUMENTS` is exactly `findings`, `rules`, `reviews`, `issues`,
-`preferences`, `note`, `group` or `count-checks`, unquoted. Anything else, including a quoted description that starts with one of those words,
+`preferences`, `taste`, `note`, `group` or `count-checks`, unquoted. Anything else, including a quoted description that starts with one of those words,
 is the default action. The action word, and `note`'s unquoted `--applied` right after it, are the
 only tokens read as a choice, with `reviews`' unquoted `--pr <n>` and `--repo <owner/repo>` right
 after it, whose values must match `^[1-9][0-9]*$` and `^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$` or the
@@ -230,6 +231,8 @@ current one. End with the question for any blocking install.
   guardrail class, and neither implies the other.
 - `rules` edits no instruction file: it flags prose for deletion in a proposal, and the deletion
   lands with the check.
+- `taste` writes what section 6 writes, plus the `instruction`-rung rules the person approved, in
+  the root `DESIGN.md`: the one place codify writes a rule itself. It never edits component code.
 - `note` appends one row and does nothing else.
 - `group` writes nothing (no file, no buffer row, no proposal) and runs no proof.
 - `count-checks` writes nothing, runs no proof and calls no forge: it reads default-branch git

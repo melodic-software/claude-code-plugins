@@ -63,7 +63,7 @@ each discovered file. Apply by entity type:
   (where the depth-1 `CLAUDE.md` *is* `~/.claude/CLAUDE.md`). Discovery emits such a file once with
   this tag. Report it once, and never compare it against itself in Step 3
 - **C7/R3 (currency)**: version pins and counts are checked against the repo's own pin files
-  (`global.json`, `.nvmrc`, `.python-version`, `.mcp.json`, or ecosystem equivalents). File-path-existence
+  and `.mcp.json`. File-path-existence
   currency is **agent judgment**: read each path reference in context, since instructional files cite
   non-existent paths on purpose (examples, counter-examples, future-deferred refs, regex patterns),
   so a blind existence check false-flags heavily. Judgment is the correct tool for that half
