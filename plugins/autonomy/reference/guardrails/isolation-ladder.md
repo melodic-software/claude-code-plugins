@@ -17,7 +17,8 @@ document names substrate classes as marked examples only, never an instance list
 - **`L2`: whole-process OS-enforced boundary with default-deny egress, credential
   protection, contained workspace host-writes, and policy nothing the run can install may
   widen.** The minimum for any unattended run, except on the
-  [CI-lane surface](#ci-lanes-on-provider-hosted-runners).
+  [CI-lane surface](#ci-lanes-on-provider-hosted-runners) and on a local path a dated
+  [owner exemption](#local-lanes) covers while it holds.
   Free-path substrate classes (marked examples, not an instance list): a whole-process
   OS-sandbox wrap; a container with a default-deny egress firewall.
 
@@ -66,7 +67,8 @@ trigger source cannot lower the required isolation level.
 ## Unattended floor
 
 `L2` is the uniform floor for any unattended run, regardless of work class, on every surface
-except the [CI-lane surface](#ci-lanes-on-provider-hosted-runners); the matrix's
+except the [CI-lane surface](#ci-lanes-on-provider-hosted-runners) and a local path a dated
+[owner exemption](#local-lanes) covers while it holds; the matrix's
 min-isolation column sets per-class floors at or above it. Per-command sandboxing (`L1`) is
 not sufficient for unattended runs. It is an attended ergonomics tier, and treating it as an
 autonomy tier is non-conforming.
@@ -88,7 +90,8 @@ all five of these conditions hold (this marketplace records the decision as ADR 
 5. **Fresh runner per job.** No state carries from one job to the next.
 
 A lane that fails any one condition is held to `L2`. A self-operated runner, a local lane and
-every other surface keep `L2`, and `C5` work keeps `L3` on every surface.
+every other surface keep `L2`, except a local path a dated [owner exemption](#local-lanes) covers
+while it holds, and `C5` work keeps `L3` on every surface.
 
 ## Local lanes
 
@@ -100,8 +103,10 @@ exemption covers it.
 An owner exemption is recorded where the adopting repository's lane convention lives, and names
 the paths it covers, the date the owner granted it, the condition that ends it, and what stays
 required while it holds. When it ends, the `L2` floor applies to those paths again. This
-marketplace records its exemption in the loop-lane convention's "Permission modes" section
-(`docs/contracts/loop-lane/README.md`).
+marketplace's exemption, granted by the owner on 2026-11-18, covers five local paths and ends when
+the repository has no open issues and no open pull requests; the loop-lane convention's
+"Permission modes" section (`docs/contracts/loop-lane/README.md`) names the paths and what stays
+required.
 
 ## WSL on a Windows host
 
