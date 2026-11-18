@@ -1,4 +1,4 @@
-"""The rate-limit guard in `babysit_gh._run_gh`.
+"""The GitHub API rate guard in `babysit_gh._run_gh`.
 
 Expected values come from two sources the code does not compute: the shared
 decision vectors (.github/actions/log-api-budget/rate-guard.vectors.json, run
