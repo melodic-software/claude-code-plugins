@@ -228,7 +228,15 @@ def child_env(parent: dict, *, tmpdir: str, stub_bin: str, gh_config: str) -> di
     `tmpdir` must be short: a long TMPDIR stops the plugin-eval sandbox from creating
     its sockets, and every Bash call then fails (probes.md P9).
     """
-    env = {key: value for key, value in parent.items() if key not in SCRUBBED_ENV}
+    env = {
+        key: value
+        for key, value in parent.items()
+        if key not in SCRUBBED_ENV and not key.startswith("GIT_CONFIG_")
+    }
+    for index, key in enumerate(("commit.gpgsign", "tag.gpgsign")):
+        env[f"GIT_CONFIG_KEY_{index}"] = key
+        env[f"GIT_CONFIG_VALUE_{index}"] = "false"
+    env["GIT_CONFIG_COUNT"] = "2"
     env["TMPDIR"] = tmpdir
     env["GH_CONFIG_DIR"] = gh_config
     env["PATH"] = f"{stub_bin}:{parent.get('PATH', '')}"

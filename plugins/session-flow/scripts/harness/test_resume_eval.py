@@ -74,6 +74,20 @@ def test_history_renders_a_tool_call_and_its_result_as_a_pair():
     assert [r["parentUuid"] for r in records[1:]] == [r["uuid"] for r in records[:-1]]
 
 
+def test_child_env_turns_off_commit_signing_for_throwaway_repos():
+    env = resume_eval.child_env(
+        {"PATH": "/usr/bin", "GIT_CONFIG_COUNT": "1"},
+        tmpdir="/e/t",
+        stub_bin="/e/bin",
+        gh_config="/e/gh",
+    )
+    pairs = {
+        env[f"GIT_CONFIG_KEY_{i}"]: env[f"GIT_CONFIG_VALUE_{i}"]
+        for i in range(int(env["GIT_CONFIG_COUNT"]))
+    }
+    assert pairs == {"commit.gpgsign": "false", "tag.gpgsign": "false"}
+
+
 def test_child_env_cuts_every_route_to_live_sessions_and_github():
     parent = {
         "PATH": "/usr/bin",
