@@ -30,8 +30,9 @@ convention/config files the plugin reads.
     live.
 - **Machine-readable format**: for data other tools must read, prefer flat-scalar YAML (shell-grep
   friendly) over frontmatter-in-markdown or a value trapped in a tool-specific language.
-- **Silent no-op keys (`settings.json`)**: flag any key in a plugin-root `settings.json` that the
-  sources below do not list as taking effect.
+- **Silent no-op keys (`settings.json`)**: flag any key in a plugin-root `settings.json` other
+  than `agent`, and flag `agent` itself as deprecated. Since 2.1.323 `subagentStatusLine` is
+  removed (a no-op, though the archive below still lists it) and a plugin's `agent` is deprecated.
   - **Pointer**: when checking which keys take effect, what happens to the rest, and which of the
     file and the manifest key wins, fetch
     [changelog 2.1.323](https://code.claude.com/docs/en/changelog#2-1-323) live, and read the
