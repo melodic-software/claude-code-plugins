@@ -1,6 +1,6 @@
 ---
 description: "Measure code for the changed files (the default), explicit paths, or the whole tree (`--all`), each number beside a configurable reference with its provenance. Reports; only size has an opt-in check mode (`--check` with `size.check` set) that fails a changed file crossing the reference. Actions: size (lines per file, every text file), complexity (per-function cyclomatic, cognitive and Halstead from collectors already installed), type-debt (typed-code percentage from type-coverage and mypy). Use when: 'how long are these files', 'lines per file', 'which files are too big', 'is this file over 1000 lines', 'how complex is this code', 'cyclomatic complexity', 'cognitive complexity', 'Halstead difficulty', 'how much of this is typed', 'type coverage', 'how many anys are in this', 'type debt'. Coverage and CRAP: /code-metrics:audit-coverage."
-argument-hint: "<size|complexity|type-debt> [--json] [--all] [--base <ref>] [--check] [<path>...]"
+argument-hint: "<size|complexity|type-debt> [--json] [--all] [--base <ref>] [--check] [<path>...] [--repo <repo>...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/audit-size.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/audit-complexity.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh:*)", "Bash(git branch --show-current:*)"]
@@ -18,7 +18,8 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 Arguments: `$ARGUMENTS`
 
-The first word names the action; the rest passes to its script unchanged.
+The first word names the action; the rest passes to its script unchanged, except the target
+forms, which the skill resolves and never passes to a script.
 
 ## Actions
 
@@ -43,6 +44,10 @@ action per invocation.
 - Run the action's bundled script; never count, estimate or grep the measure by hand.
 - Scope is the change by default (the merge-base diff plus uncommitted files); explicit paths or
   `--all` widen it, and `--json` prints the `code-metrics/v2` document instead of markdown.
+- A target form (`--repo <repo>` and the others) runs the action once per repository, as
+  `${CLAUDE_PLUGIN_ROOT}/reference/several-repositories.md` says; each repository gets its own
+  section. `size --check` is a gate for one repository's hook or CI step, so it takes no target
+  form.
 - Present the markdown report as printed. Keep the `--json` document when the numbers feed a
   comparison: `/verification:measure metrics` consumes it when the `verification` plugin is
   enabled (treat `status: empty` on either side as INCONCLUSIVE); otherwise keep it beside your

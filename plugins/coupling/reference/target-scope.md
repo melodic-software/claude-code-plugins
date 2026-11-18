@@ -111,6 +111,7 @@ at it, in their own pull requests.
 |---|---|
 | `/architecture:improve` (deepening and conventions lenses) | Through `improvement-steps.md` "Scope and fan-out" and its plugin-shipped copy |
 | `/coupling:reduce` | Points here through its plugin-shipped copy; measures cross-repository copies |
+| `/code-metrics:audit`, `audit-coverage`, `audit-duplication`, `audit-suppressions` | Through `reference/several-repositories.md` and the plugin-shipped copy; one report per repository, and only `--findings` writes |
 
 ## Plugin-shipped copies
 

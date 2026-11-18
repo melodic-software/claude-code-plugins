@@ -119,6 +119,7 @@ docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
 docs/contracts/target-scope/README.md plugins/architecture/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/coupling/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/code-metrics/reference/target-scope.md
 lib/resolve-convention-home.sh plugins/harness-config/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/plugin-quality/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/architecture/lib/resolve-convention-home.sh
