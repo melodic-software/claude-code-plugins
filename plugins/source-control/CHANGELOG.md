@@ -3,6 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.21.7] - 2026-11-18
+
+### Fixed
+
+- write a minor bump for a breaking change on a 0.x plugin
+
+  write-changelog-fragments.sh mapped a `!` subject or a BREAKING CHANGE
+  footer to `bump: major` whatever the plugin's version, so the release
+  script took a 0.x plugin straight to 1.0.0. A breaking change to a
+  plugin at 0.x now writes `bump: minor` with the entry led by
+  **Breaking:**; at 1.0 or above it stays major. `--level major` still
+  releases 1.0.0 deliberately.
+
+### Security
+
+- `reap-project-plugin-records.sh`, which the worktree-remove gate runs, sends its git calls through `hook::git_untrusted`, so reading and restoring the worktree's `.claude/settings.json` no longer starts a `core.fsmonitor` command or git hook named in that repository's config.
+
 ## [11.21.6] - 2026-11-18
 
 ### Fixed
