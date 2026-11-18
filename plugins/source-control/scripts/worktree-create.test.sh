@@ -1217,6 +1217,7 @@ printf '%s\n' "$*" >>"$FAKE_NPM_LOG"
 # A lifecycle script stands in as a child process; its pid goes to FAKE_NPM_CHILD_PID.
 [[ -n "${FAKE_NPM_CHILD_PID:-}" ]] && { sleep 60 & echo $! >"$FAKE_NPM_CHILD_PID"; }
 sleep "${FAKE_NPM_SLEEP:-0}"
+[[ -n "${FAKE_NPM_FAIL_IN_SEED:-}" && "$PWD" == *.tmp ]] && exit 9
 mkdir -p node_modules/.bin && : >node_modules/.bin/markdownlint-cli2
 exit "${FAKE_NPM_EXIT:-0}"
 EOF
@@ -1304,7 +1305,7 @@ fi
 
 probe="$TEST_TMPDIR/cp-al-probe"
 mkdir -p "$probe/a" && : >"$probe/a/f"
-if command -v flock >/dev/null 2>&1 && cp -al "$probe/a" "$probe/b" 2>/dev/null && [[ "$probe/a/f" -ef "$probe/b/f" ]]; then
+if command -v flock >/dev/null 2>&1 && command -v node >/dev/null 2>&1 && cp -al "$probe/a" "$probe/b" 2>/dev/null && [[ "$probe/a/f" -ef "$probe/b/f" ]]; then
   seed_root="$TEST_TMPDIR/wtroot-seed"
   npm_log="$TEST_TMPDIR/npm-seed.log"
   first=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" bash "$HELPER" --name feat/seed-one --base-ref head \
@@ -1340,13 +1341,68 @@ if command -v flock >/dev/null 2>&1 && cp -al "$probe/a" "$probe/b" 2>/dev/null 
   else
     pass "seed: a seed unused for 30 days is pruned"
   fi
+  seed_dir=$(sed -n 's/.*linked node_modules from the shared seed //p' "$TEST_TMPDIR/err-seed-two.txt" | head -n 1)
+  seed_file="$seed_dir/node_modules/.bin/markdownlint-cli2"
+  if ((EUID == 0)); then
+    skip_case "running as root, which writes read-only files"
+  elif [[ -n "$seed_file" && ! -w "$seed_file" ]]; then
+    pass "seed: the seed's files are read-only"
+  else
+    fail "seed: the seed's files are read-only" "not writable" "writable or missing"
+  fi
+
+  npm_log="$TEST_TMPDIR/npm-seed-env.log"
+  PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" NODE_ENV=production bash "$HELPER" --name feat/seed-env \
+    --base-ref head --root "$seed_root" --repo-dir "$deps_repo" >/dev/null 2>&1
+  assert_eq "seed: a different NODE_ENV builds its own seed" "ci --no-audit --no-fund" "$(cat "$npm_log" 2>/dev/null)"
+
+  flock "$seed_dir.lock" sleep 10 &
+  holder=$!
+  sleep 0.5
+  errfile="$TEST_TMPDIR/err-seed-wait.txt"
+  start=$SECONDS
+  PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$TEST_TMPDIR/npm-seed-wait.log" WORKTREE_CREATE_DEPS_CAP_SECONDS=2 \
+    bash "$HELPER" --name feat/seed-wait --base-ref head --root "$seed_root" --repo-dir "$deps_repo" >/dev/null 2>"$errfile"
+  elapsed=$((SECONDS - start))
+  kill "$holder" 2>/dev/null
+  wait "$holder" 2>/dev/null
+  if ((elapsed < 6)); then
+    pass "seed: the lock wait and the install share one cap"
+  else
+    fail "seed: the lock wait and the install share one cap" "<6s" "${elapsed}s"
+  fi
+  assert_contains "seed: a spent cap warns with the remedy" "$(cat "$errfile")" "did not finish within 2s"
+
+  npm_log="$TEST_TMPDIR/npm-seed-fallback.log"
+  errfile="$TEST_TMPDIR/err-seed-fallback.txt"
+  fb=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" FAKE_NPM_FAIL_IN_SEED=1 bash "$HELPER" --name feat/seed-fallback \
+    --base-ref head --root "$TEST_TMPDIR/wtroot-seed-fallback" --repo-dir "$deps_repo" 2>"$errfile")
+  assert_eq "seed fallback: a failed seed install retries in the worktree" "2" "$(wc -l <"$npm_log" | tr -d ' ')"
+  assert_file_exists "seed fallback: the worktree still gets node_modules" "$fb/node_modules/.bin/markdownlint-cli2"
+  assert_not_contains "seed fallback: the retry prints no warning" "$(cat "$errfile")" "warning"
+
+  script_repo=$(mkrepo)
+  printf '{"scripts":{"prepare":"node setup.js"}}\n' >"$script_repo/package.json"
+  git -C "$script_repo" add package.json
+  git -C "$script_repo" -c commit.gpgsign=false commit -qm package
+  commitfile "$script_repo" package-lock.json
+  npm_log="$TEST_TMPDIR/npm-seed-script.log"
+  PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" bash "$HELPER" --name feat/seed-script --base-ref head \
+    --root "$TEST_TMPDIR/wtroot-seed-script" --repo-dir "$script_repo" >/dev/null 2>&1
+  assert_eq "seed: a package with a lifecycle script installs in the worktree" "ci --no-audit --no-fund" "$(cat "$npm_log" 2>/dev/null)"
+  if compgen -G "$TEST_TMPDIR/wtroot-seed-script/.npm-seed/*/.complete" >/dev/null; then
+    fail "seed: no seed is built for a package with a lifecycle script" "no seed" "a seed exists"
+  else
+    pass "seed: no seed is built for a package with a lifecycle script"
+  fi
+
   if compgen -G "$seed_root/.npm-seed/*/node_modules/.bin/markdownlint-cli2" >/dev/null; then
     pass "seed: the seed in use is kept"
   else
     fail "seed: the seed in use is kept" "seed present" "no seed"
   fi
 else
-  skip_case "flock or a hard-linking cp -al is unavailable; the shared seed is not used here"
+  skip_case "flock, node or a hard-linking cp -al is unavailable; the shared seed is not used here"
 fi
 
 # npm missing from PATH: warn and keep exit 0. Drops every PATH entry that holds
