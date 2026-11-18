@@ -302,7 +302,10 @@ Only for a target that leaves the session. Emit the seven imperatives above betw
 `/clear`/paste instruction or any commentary sits above the top rail or below the bottom rail,
 never between (not a code fence, the user copies the text between the rails, not fence markers).
 
-Live shape: bare `─` rails, no fence. Shown inside a fence here for display only.
+Live shape: bare `─` rails, no fence. Shown inside a fence here for display only. On a markdown
+surface (`CLAUDE_CODE_ENTRYPOINT` is `claude-desktop`, or `CLAUDE_CODE_REMOTE` is `true`) the rails
+draw as plain lines with no copy control, so print the brief inside a fenced `text` block in place
+of the rails, every line unchanged: that fence draws a copy button that copies the brief alone.
 
 ```text
 ──────────────────────────────────────────────────────────
