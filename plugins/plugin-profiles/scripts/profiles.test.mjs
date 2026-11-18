@@ -1731,7 +1731,7 @@ test("#16914: an argument with a space and an ampersand reaches claude as one wo
 });
 
 test("#16914: on Windows start spawns the claude.exe on PATH with no shell, and refuses a claude.cmd it would need a shell for", async () => {
-  const { claudeCommand } = await import("./profiles.mjs");
+  const { claudeCommand } = await import("../lib/claude-command.mjs");
   const files = new Set(["C:\\tools\\claude.exe", "D:\\npm\\claude.cmd"]);
   assert.deepEqual(claudeCommand({ Path: "C:\\none;C:\\tools" }, "win32", (p) => files.has(p)), { file: "C:\\tools\\claude.exe" });
   const cmdOnly = claudeCommand({ PATH: "D:\\npm" }, "win32", (p) => files.has(p));
@@ -1739,6 +1739,13 @@ test("#16914: on Windows start spawns the claude.exe on PATH with no shell, and 
   assert.match(cmdOnly.refusal, /found D:\\npm\\claude\.cmd but no claude\.exe/);
   assert.match(claudeCommand({ PATH: "E:\\x" }, "win32", () => false).refusal, /no claude\.exe on PATH/);
   assert.deepEqual(claudeCommand({}, "linux"), { file: "claude" });
+});
+
+test("#17063: no spawn in the plugin runs through a shell, which prints DEP0190 on Windows", () => {
+  const root = join(HERE, "..");
+  const sources = readdirSync(root, { recursive: true }).filter((f) => f.endsWith(".mjs"));
+  const shelled = sources.filter((f) => /\bshell\s*:/.test(readFileSync(join(root, f), "utf8")));
+  assert.deepEqual(shelled, []);
 });
 
 test("#16914: status says every worktree reads the folder file only once the repository has a linked worktree", () => {

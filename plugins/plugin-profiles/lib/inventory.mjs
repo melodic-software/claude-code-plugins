@@ -21,6 +21,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { claudeCommand } from "./claude-command.mjs";
 
 export class InventoryError extends Error {}
 
@@ -28,11 +29,9 @@ const SCOPE_RANK = { local: 3, project: 2 };
 
 function claude(args) {
   const what = `claude ${args.slice(0, 2).join(" ")}`;
-  const result = spawnSync("claude", args, {
-    encoding: "utf8",
-    shell: process.platform === "win32",
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  const { file, refusal } = claudeCommand();
+  if (refusal) return new Error(`${what} could not start (${refusal})`);
+  const result = spawnSync(file, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   if (result.error) return new Error(`${what} could not start (${result.error.code ?? result.error.message})`);
   if (result.status !== 0) return new Error(`${what} exited ${result.status}: ${`${result.stderr}${result.stdout}`.trim()}`);
   return result.stdout;
