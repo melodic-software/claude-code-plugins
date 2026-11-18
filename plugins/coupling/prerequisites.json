@@ -21,7 +21,7 @@
           "min": "3.9"
         }
       },
-      "degrade": "Without Python 3.9 or later, /coupling:reduce cannot run its change-mode inventory (value-sites.py) or its second-list check (derivable-list.py), so those steps stop.",
+      "degrade": "Without Python 3.9 or later, /coupling:reduce cannot run its change-mode inventory (value-sites.py) its second-list check (derivable-list.py) or its cross-repository copy scan (cross-repo-dups.py), so those steps stop.",
       "install": {
         "docs": "https://www.python.org/downloads/",
         "brew": "python",

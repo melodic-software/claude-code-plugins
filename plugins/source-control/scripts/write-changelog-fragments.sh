@@ -15,10 +15,15 @@
 # (git diff <ref>...HEAD).
 #
 # Bump level, from the Conventional Commits subject unless --level names one:
-#   `!` before the colon, or a BREAKING CHANGE footer   major
+#   `!` before the colon, or a BREAKING CHANGE footer   major (minor at 0.x)
 #   feat                                                minor
 #   fix, perf                                           patch
 #   build, chore, ci, docs, refactor, style, test       none
+# A breaking change to a plugin at 0.x (its plugin.json version, or for a
+# convention its newest CHANGELOG.md version heading) is minor, and its entry
+# leads with **Breaking:** (item 4 of
+# https://semver.org/#semantic-versioning-specification-semver); release 1.0.0
+# deliberately with --level major.
 # When a listed plugin is touched, any other subject is refused (exit 2) until
 # --level names the level.
 #
@@ -119,14 +124,14 @@ done <<<"$paths"
 ((${#plugins[@]})) || exit 0
 
 subject="$(sed -n '/[^[:space:]]/{p;q;}' <<<"$message")"
-type="" desc="$subject"
+type="" desc="$subject" derived_breaking=""
 cc='^([a-z]+)(\([^)]*\))?(!)?:[[:space:]]+(.+)$'
 if [[ "$subject" =~ $cc ]]; then
   type="${BASH_REMATCH[1]}" desc="${BASH_REMATCH[4]}"
   breaking="${BASH_REMATCH[3]}"
   grep -Eq '^BREAKING[ -]CHANGE:' <<<"$message" && breaking="!"
   if [[ -z "$level" && -n "$breaking" ]]; then
-    level=major
+    level=major derived_breaking=1
   elif [[ -z "$level" ]]; then
     case "$type" in
     feat) level="minor" ;;
@@ -175,13 +180,33 @@ body="$(awk '
     for (i = 1; i <= nb; i++) print ((n >= s || i > 1) ? "\n" : "") "  **Breaking:** " brk[i]
   }' <<<"$message")"
 
-entry="- $desc"
-[[ -z "$body" ]] || entry+=$'\n\n'"$body"
-if [[ "$level" == none ]]; then
-  block="No release needed (${type:-no type}): $desc"
-else
-  block="### $section"$'\n\n'"$entry"
-fi
+derived_level="$level"
+set_change() {
+  local lead=""
+  level="$derived_level"
+  if [[ -n "$derived_breaking" && "$(version_of "$1")" == 0.* ]]; then
+    level=minor lead="**Breaking:** "
+  fi
+  entry="- $lead$desc"
+  [[ -z "$body" ]] || entry+=$'\n\n'"$body"
+  if [[ "$level" == none ]]; then
+    block="No release needed (${type:-no type}): $desc"
+  else
+    block="### $section"$'\n\n'"$entry"
+  fi
+}
+version_of() {
+  local f="plugins/$1/.claude-plugin/plugin.json"
+  if [[ -f "$f" ]]; then
+    awk 'match($0, /"version"[ \t]*:[ \t]*"[^"]*"/) { v = substr($0, RSTART, RLENGTH); sub(/^"version"[ \t]*:[ \t]*"/, "", v); sub(/"$/, "", v); print v; exit }' "$f"
+    return
+  fi
+  for f in "docs/contracts/$1/CHANGELOG.md" "docs/conventions/$1/CHANGELOG.md"; do
+    [[ -f "$f" ]] || continue
+    awk 'match($0, /^##[ \t]+\[?[0-9]+\.[0-9]+\.[0-9]+/) { v = substr($0, RSTART, RLENGTH); sub(/^##[ \t]+\[?/, "", v); print v; exit }' "$f"
+    return
+  done
+}
 
 # Fragments this branch added: committed since the merge base with --base, or
 # with the default branch, plus staged and untracked ones. A fragment main
@@ -246,6 +271,7 @@ has_entry() {
 [[ ! -e "$(git rev-parse --git-path MERGE_HEAD)" ]] || exit 0
 
 for plugin in "${plugins[@]}"; do
+  set_change "$plugin"
   own="$(grep -m1 -E "^\.changes/$plugin/[^/]+\.md$" <<<"$added")"
   [[ -z "$own" || -f "$own" ]] || own=""
   if [[ -z "$own" ]]; then

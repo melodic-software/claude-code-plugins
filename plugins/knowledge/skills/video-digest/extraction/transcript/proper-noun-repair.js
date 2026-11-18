@@ -90,8 +90,6 @@ export function buildRepairLexicon(description, harvestedLinks = [], title = "")
     if (!byKey.has(key)) byKey.set(key, term);
   };
 
-  // Each text is its own pass, so a capitalized run never spans the title and
-  // the description.
   for (const text of [title, description]) {
     const tokens = (text ?? "").split(/\s+/).map(stripEdgePunctuation).filter(Boolean);
 
@@ -234,8 +232,6 @@ function compileLexicon(lexicon) {
  * @returns {RepairResult}
  */
 function repairTextCompiled(text, entries, maxWordCount) {
-  // Split preserving whitespace so reconstruction is byte-faithful outside
-  // replaced spans.
   const parts = text.split(/(\s+)/);
   /** @type {number[]} */
   const wordIndexes = [];
@@ -276,8 +272,6 @@ function repairTextCompiled(text, entries, maxWordCount) {
       }
       const match = exact ?? (fuzzy.length === 1 ? fuzzy[0] : null);
       if (!match) continue;
-      // Text already in the author's spelling is consumed unrepaired, so an
-      // inner word is not re-judged against a shorter term.
       if (core !== match.term) {
         const prefixEnd = windowText.indexOf(core);
         const prefix = windowText.slice(0, prefixEnd);

@@ -122,8 +122,6 @@ if [[ ${#LANE_GLOBS[@]} -gt 0 ]]; then
   fi
 fi
 
-# Glob-driven lanes are decided first, one pathglob call per pattern, so a
-# consumer override wins over the extension map for its lane.
 declare -A GLOB_LANE_OF=()
 GLOB_HITS="$(mktemp)"
 FILE_LIST="$(mktemp)"
@@ -167,7 +165,6 @@ for file in "${FILES[@]}"; do
     fi
     lane_for_extension "$ext"
     lane="$LANE"
-    # A lane the consumer redefined by globs no longer claims files by extension.
     [[ -n "${LANE_GLOBS[$lane]:-}" ]] && lane=""
   fi
   [[ -n "$lane" ]] || continue

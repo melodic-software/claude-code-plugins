@@ -273,16 +273,16 @@ gates, not passed.
    whatever conjuncts 1 and 2 returned; the carve-out does not reopen a budget the consumer says is
    already overspent.
 
-Why the carve-out is scoped this narrowly: the hooks documentation states that hooks give
-"deterministic control: certain actions always happen rather than relying on the LLM to choose to
-run them", which supports duplicating a check so it runs deterministically for every author. It
-says nothing about whether a check belongs in CI or in a hook, so no latency or placement argument
-may be offered as an upstream one. The record for both facts:
+Why the carve-out is scoped this narrowly: the one reason we accept for duplicating a check into a
+hook is that the hook then runs it for every author, whatever the model would have chosen. No
+latency or placement argument may be offered as an upstream one, because no official page
+addresses whether a check belongs in CI or in a hook.
 
-| Claim | Basis | As of | Recheck trigger |
-|---|---|---|---|
-| Hooks exist to give deterministic control, so certain actions always happen rather than relying on the LLM to choose to run them | [Automate actions with hooks](https://code.claude.com/docs/en/hooks-guide), opening paragraph | 2026-09-13 | A re-fetch finds the opening statement of purpose no longer matching this row |
-| No official page addresses whether a check belongs in CI or in a hook | Absence record in [context/hook-timing.md](context/hook-timing.md), upstream-fact records | 2026-09-12 | That record's own trigger fires |
+- **Pointer**: when weighing what a hook guarantees that an instruction does not, fetch the opening
+  of [Automate actions with hooks](https://code.claude.com/docs/en/hooks-guide) live.
+- **Pointer**: when an argument for placing a check in a hook or in CI is offered as upstream
+  guidance, read the absence record in [context/hook-timing.md](context/hook-timing.md)
+  "Upstream-fact records".
 
 These gates answer *should* we mechanize. Whether a candidate *can* be, and how far up the hierarchy
 it climbs, is a separate enforceability question: the **Not scriptable** gate maps to concerns no

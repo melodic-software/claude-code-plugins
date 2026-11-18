@@ -27,9 +27,6 @@ SHORT_NAME_FIXTURE = (
     PLUGIN_ROOT / "scripts" / "fixtures" / "coverage" / "lcov-short-names.info"
 )
 
-# The suite drives the script at its command line; this import is only for the
-# few cases that pin a helper's signature directly, such as the default value
-# of an optional parameter that no command-line path can leave unset.
 _spec = importlib.util.spec_from_file_location("join_module", SCRIPT)
 assert _spec is not None and _spec.loader is not None
 join = importlib.util.module_from_spec(_spec)
@@ -187,7 +184,6 @@ class ArtifactMergeTests(unittest.TestCase):
         }
         self.assertEqual(rows["A.render"]["values"]["coverage_pct"], 100.0)
         self.assertEqual(rows["B.render"]["values"]["coverage_pct"], 0.0)
-        # The uncovered method keeps the CRAP its own coverage earns.
         self.assertGreater(
             rows["B.render"]["values"]["crap"], rows["A.render"]["values"]["crap"]
         )
@@ -510,15 +506,12 @@ class StatementWeightTests(unittest.TestCase):
             )
         row = next(r for r in document["measures"] if r["function"] is None)
         self.assertEqual(row["values"]["coverage_pct"], 28.57)
-        # The basis is in the row, so the reader sees which measure produced
-        # the number rather than a percentage that silently changed meaning.
         self.assertEqual(row["cov_source"], "statement-ratio")
         # The line counts came from a real line table, but 1 of 4 lines is not
         # 28.57 percent: printed beside a statement ratio they would read as
         # the counts behind it. The file row states one measure only.
         self.assertIsNone(row["values"]["lines_executable"])
         self.assertIsNone(row["values"]["lines_hit"])
-        # Both artifacts are still named as read, so nothing is invisible.
         collector = next(
             r["collector"] for r in document["run"] if r["measure"] == "coverage"
         )
@@ -540,9 +533,6 @@ class StatementWeightTests(unittest.TestCase):
         self.assertEqual(row["values"]["lines_executable"], 2)
 
     def test_a_parser_reporting_totals_only_still_reports_its_ratio(self) -> None:
-        # The aggregates stay in the parser's output, so a document produced
-        # without a block table still joins, folded by the most that shape
-        # supports: the larger total and the larger hit count.
         section = {"lines": {}, "functions": None, "statements": {"total": 5, "hit": 4}}
         with tempfile.TemporaryDirectory() as tmp:
             document = (
@@ -867,15 +857,12 @@ class PathNormalizationTests(unittest.TestCase):
             )
         file_row = next(r for r in document["measures"] if r["function"] is None)
         self.assertEqual(file_row["file"], "pkg/handler.go")
-        # Line-measured, because the two statement-weighted paths were refused.
         self.assertEqual(file_row["values"]["coverage_pct"], 50.0)
         self.assertEqual(file_row["values"]["lines_executable"], 2)
 
     def test_resolve_without_the_ambiguous_set_keeps_the_basename_fallback(
         self,
     ) -> None:
-        # The parameter is optional, and any caller that omits it gets the
-        # behavior the fallback had before the guard existed.
         self.assertEqual(
             join.resolve("example.com/mod/sample.go", ["pkg/sample.go"], "", []),
             "pkg/sample.go",
@@ -917,9 +904,6 @@ class RunRowTests(unittest.TestCase):
             ).join()
         rows = {r["measure"]: r for r in document["run"]}
         coverage, crap = rows["coverage"], rows["crap"]
-        # The count says how much of the lane went unmeasured; the paths say
-        # which files, so the JSON carries every one, sorted, and the markdown
-        # reason names the first five and counts the rest.
         self.assertEqual(
             coverage["missing"],
             [f"src/{n}.ts" for n in ("b", "c", "d", "e", "f", "g")],
@@ -930,8 +914,6 @@ class RunRowTests(unittest.TestCase):
             "+1 more in the JSON",
             coverage["reason"],
         )
-        # The crap row repeats the coverage reason when coverage is what it
-        # lacks, and leaves the list itself to the coverage row.
         self.assertEqual(crap["reason"], coverage["reason"])
         self.assertNotIn("missing", crap)
 
@@ -972,9 +954,6 @@ class RunRowTests(unittest.TestCase):
         )
 
     def test_the_other_lane_is_not_applicable_rather_than_unmatched(self) -> None:
-        # The dispatcher's scope listing names the lane per file; the catch-all
-        # lane holds text files no coverage format measures, so it is not a
-        # "0 of N present" gap and must not withhold complete from the run.
         with tempfile.TemporaryDirectory() as tmp:
             case = JoinCase(tmp).complexity(
                 [complexity_row("src/a.ts", "classify", 1, 3, "typescript", 2)]
@@ -1035,11 +1014,6 @@ class RunRowTests(unittest.TestCase):
     def test_a_failed_collector_is_named_on_the_crap_row_whatever_coverage_says(
         self,
     ) -> None:
-        # The complexity document carries no cyclomatic rows for the lane and a
-        # run row saying its collector ran and produced nothing parseable. The
-        # artifact covers one of the two scope files, so the coverage row is
-        # partial; the crap row must still name the collector, because that is
-        # the number CRAP is missing and the only trace of the exit 3.
         failed = {
             "lane": "typescript",
             "measure": "cyclomatic",
@@ -1077,8 +1051,6 @@ class RunRowTests(unittest.TestCase):
                     "collect failed (exit 3)",
                     rows["crap"]["reason"],
                 )
-                # Both inputs are missing, so the coverage row's own reason
-                # follows the collector's rather than being replaced by it.
                 self.assertIn(
                     f"; coverage {rows['coverage']['status']}: "
                     f"{rows['coverage']['reason']}",
@@ -1305,9 +1277,6 @@ class ShortNameJoinTests(unittest.TestCase):
         self.assertIsNone(rows["Alpha.run"]["hit"])
 
     def test_moving_the_record_moves_the_binding(self) -> None:
-        # The same two functions with the record at 3-6 instead. The binding
-        # follows the range rather than the order the functions were measured
-        # in, so this is the mirror of the case above and not a repeat of it.
         rows = self._rows(self._document(), "src/handler.py")
         self.assertEqual(rows["Alpha.run"]["values"]["coverage_pct"], 100.0)
         self.assertEqual(rows["Alpha.run"]["cov_source"], "artifact-region")
@@ -1317,9 +1286,6 @@ class ShortNameJoinTests(unittest.TestCase):
         self.assertIsNone(rows["Beta.run"]["hit"])
 
     def test_an_unplaceable_record_leaves_both_functions_unjoined(self) -> None:
-        # `FNDA:4,run` with no `FN` declaration names a function and places it
-        # at no line at all, so nothing separates the two `run` methods. Both
-        # rows are withheld rather than one of them taking the count.
         rows = self._rows(self._document(), "src/router.py")
         for name in ("Alpha.run", "Beta.run"):
             row = rows[name]
@@ -1355,9 +1321,6 @@ class ShortNameJoinTests(unittest.TestCase):
         self.assertEqual(rows["Beta.run"]["values"]["coverage_pct"], 0.0)
 
     def test_the_lane_run_row_reports_the_functions_it_left_unjoined(self) -> None:
-        # The refusal has to be visible without reading the JSON row by row:
-        # the lane says it measured only part of itself and names what it could
-        # not place, so the document cannot then settle as complete.
         document = self._document()
         row = next(
             entry
@@ -1365,8 +1328,6 @@ class ShortNameJoinTests(unittest.TestCase):
             if entry["lane"] == "python" and entry["measure"] == "coverage"
         )
         self.assertEqual(row["status"], "partial")
-        # Both refusals reach the row: the two unplaced records in
-        # `src/router.py` and the two in-range records in `src/relay.py`.
         self.assertIn("3 function(s) left unjoined", row["reason"])
         self.assertIn("Alpha.run", row["reason"])
         self.assertIn("Beta.run", row["reason"])
@@ -1374,10 +1335,6 @@ class ShortNameJoinTests(unittest.TestCase):
         self.assertIn("fall inside this function's line range", row["reason"])
 
     def test_a_lone_short_name_still_binds_where_nothing_contests_it(self) -> None:
-        # The single-candidate trailing-name match is unchanged: one record,
-        # one function that could own it, no tie to break. Its start line is
-        # nowhere near the measured range on purpose, which is what an artifact
-        # built from compiled output looks like.
         with tempfile.TemporaryDirectory() as tmp:
             document = (
                 JoinCase(tmp)

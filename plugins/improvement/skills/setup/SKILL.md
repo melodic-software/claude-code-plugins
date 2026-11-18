@@ -12,7 +12,7 @@ Verify and manage the consuming repo's tracked evidence-source config at
 tuning from a declared contract instead of having nothing to consult.
 
 The config is optional in every layer: with none, the finder runs fully on Tier 0 repo-native
-evidence with the bundled churn defaults, and Tier 2 is a recorded evidence gap, so total
+evidence with the default churn settings, and Tier 2 is a recorded evidence gap, so total
 absence is a reported INFO, never a FAIL. The key contract, layer paths, and merge semantics
 live in `${CLAUDE_PLUGIN_ROOT}/reference/config.md` (the single home. This skill implements
 that contract and does not restate it).
@@ -45,7 +45,7 @@ per FAIL. Modify nothing, and do not run a scan. That is `/improvement:find`.
    base) cannot be read, WARN it was not considered rather than presenting the readable layers
    as the whole effective config.
 2. **Effective configuration.** Report the merged result and which layer supplied each value:
-   the effective `churn_window`, whether bundled exclusion defaults are on, declared
+   the effective `churn_window`, whether exclusions resolved from the repository are on (`churn_exclude_defaults`), declared
    `churn_exclude` additions, the effective `find_open_item_cap` and unattended run controls (`find_run_item_cap`, its floor and ceiling, `find_size_band`, `find_scope`, `find_suppress_dismissed`), and every `evidence_sources` entry (name, `mcp_server`, `kind`,
    scope), including entries a later layer opted out, reported as removed, not broken. A
    malformed layer degrades soft: name it, resolve as if absent, report the parse error.
@@ -85,14 +85,20 @@ it in one reply and write nothing.
    what this machine resolves, and point at the owning layer. Nothing is dropped without the
    user confirming.
 2. **Draft defaults from the repo.** Before asking: propose `churn_exclude` additions from what
-   actually exists (generated/build output trees, snapshot or designer files not covered by the
-   bundled defaults, the `excludes` ERE in `${CLAUDE_PLUGIN_ROOT}/skills/find/context/hotspots.md`: one Read of that file, never Glob or Grep the plugin directory); keep `churn_window` at the bundled default unless the repo's history is
+   actually exists (lockfiles, generated or build output trees, snapshots, tool-generated source
+   files and vendored trees the repository holds, resolved as the hotspot recipe's Step 2 does in
+   `${CLAUDE_PLUGIN_ROOT}/skills/find/context/hotspots.md` (one Read of that file, never Glob or
+   Grep the plugin directory), each named with the file that shows it
+   is mechanical; the plugin ships no list of them, and a persisted entry is a declared pattern
+   that `churn_exclude_defaults: false` does not drop); keep `churn_window` at the bundled default unless the repo's history is
    young or the user says otherwise; keep `find_open_item_cap` and the other `find_*` keys at the bundled defaults unless the
    user names another; and draft `evidence_sources` candidates from the MCP
    servers the consumer has configured that plausibly carry telemetry, a candidate is a
    proposal for the user to confirm, never an assumption. No plausible source and none volunteered
-   is a fine outcome: write the churn keys only, and say Tier 2 stays a declared gap. Drafting
-   writes nothing; every drafted value waits for the interview.
+   is a fine outcome: write the churn keys only, and say Tier 2 stays a declared gap. Resolving
+   an exclusion from the repository only drafts it: every value this step drafts, a resolved
+   exclusion or a source the invocation names included, goes to step 3's interview, and nothing
+   is written before the user answers.
 3. **Interview, one decision at a time**: window, exclusions, then each telemetry source (name,
    `mcp_server`, `kind`, scope, hints) with a recommendation the user accepts, edits, or
    declines.

@@ -576,7 +576,8 @@ noticing, the more guardrails it gets. For a duplicated render (a static shell):
 
 When: an optimization keeps a copy or a fast path that can drift from its source. Counter: none;
 each guardrail is a test that passes or fails. Fails when: a brittle optimization ships with the
-same checks as a safe one. Used by: `/performance:protect` §5.
+same checks as a safe one. Used by: `/performance:protect` §5, which names what each case must keep
+true and hands the choice of mechanism to `/corrections:codify`.
 
 - **Pointer**: when choosing guardrails for a duplicated render, fetch the post's [Guardrails section][guard] live; no docs page covers guardrails for a static shell.
 

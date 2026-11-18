@@ -652,9 +652,6 @@ export async function acquireXMedia(url, context) {
       `${X_DEGRADED_ACQUISITION_PREFIX} (rate-limited syndication fallback is a partial response, retry later): ${JSON.stringify(degradation)}`,
     );
 
-  // allowedExtractors and ignoreNoFormatsError arrive via the adapter's own
-  // declarations (allow-list attribute + mediaOptional capability), so every
-  // consumer — probe, media, preflight — carries them identically.
   const source = {
     ...adapterSourceDeclarations(adapter),
     subLangs: X_SUB_LANGS,
@@ -679,8 +676,6 @@ export async function acquireXMedia(url, context) {
       return spawnYtDlpWithAuthFallback(spawn, buildArgs, { cwd: workDir, source });
     });
 
-  // Pass 1 — metadata + captions probe. Never media; the extractor allow-list
-  // rides on every pass, so a delegated foreign URL is refused unfetched.
   const probe = await runPass("transcript");
   const probeStderr = probe.stderr ?? "";
   if (!probe.success) {
@@ -786,8 +781,6 @@ export async function acquireXMedia(url, context) {
     if (!degradation) {
       return null;
     }
-    // Missing counts without the fallback warning on an otherwise empty shell
-    // is a removed or nonexistent post: permanent, not a retry-later case.
     if (
       !degradation.warningSeen &&
       post.countsAuthoritative &&
@@ -846,8 +839,6 @@ export async function acquireXMedia(url, context) {
     const cleanupPass = await runPass("captions-only", { convertSubs: "srt" });
     stderrLog += `\n${cleanupPass.stderr ?? ""}`;
     files = await listFiles(workDir);
-    // Only srt files belonging to the post's own media entries are eligible
-    // for conversion back to VTT — never any other file in the directory.
     const mediaIds = inspected.twitterVideos.map((video) => String(video.info.id));
     const srtPaths = files.filter(
       (entry) =>
@@ -885,9 +876,6 @@ export async function acquireXMedia(url, context) {
     inspected = gated.inspected;
   }
 
-  // Pass 2 — media, only in full mode and only when the post itself carries
-  // twitter-extracted video with a clean provenance record (structural gate;
-  // the foreign case has already hard-failed above).
   /** @type {number | null} */
   let mediaPassMs = null;
   if (mode === "full" && inspected.twitterVideos.length > 0 && inspected.foreign.length === 0) {
@@ -1004,7 +992,6 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
     const displayId = /** @type {Record<string, unknown>} */ (metadata)["source:displayId"];
     const fallback =
       typeof displayId === "string" && displayId ? displayId : metadata.id;
-    // Path-safe AND length-bounded — the key becomes an on-disk directory segment.
     return typeof fallback === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(fallback)
       ? fallback
       : null;
@@ -1026,9 +1013,6 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
     const blocked = /** @type {Record<string, unknown>} */ (metadata)["source:blockedDelegations"];
     for (const delegation of Array.isArray(blocked) ? blocked : []) {
       const delegationUrl = delegation?.url;
-      // Same invariant the text path enforces by its URL pattern: only
-      // parseable http(s) URLs enter the harvest (never javascript:, file:,
-      // or malformed strings from a stderr echo).
       if (typeof delegationUrl !== "string" || !parseHttpUrl(delegationUrl)) {
         continue;
       }

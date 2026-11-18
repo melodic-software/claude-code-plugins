@@ -81,9 +81,6 @@ if [[ -z "$CM_CONFIG" ]]; then
   cm_resolve_config "$CM_CONFIG" || exit 2
 fi
 
-# The scope mode, read the way the dispatcher reads it: --all or a path
-# widens to whole files; scope.default `all` applies only when the command
-# line named neither and no --base.
 MODE=change
 BASE=""
 BASE_SET=0
@@ -145,7 +142,6 @@ if [[ "$MODE" == change ]]; then
   SCAN_ARGS+=(--diff "$BASE_SHA")
 fi
 
-# The correctness list travels as a file, one rule id per line.
 "${PY[@]}" -I -c '
 import json, sys
 config = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -246,11 +242,6 @@ elif len(rows) > CAP:
 
 [[ "$FINDINGS" -eq 1 ]] || exit 0
 
-# The findings file, under docs/contracts/detector-findings/README.md: rule
-# ids, tiers and auto-applicability are that file's crosswalk rows, looked up
-# here, never chosen per finding. Every value read from a source file (path,
-# tool, rule ids, reason) is data: it is escaped into a table cell and never
-# reaches a shell.
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || die_usage "--findings: not inside a git repository"
 # shellcheck disable=SC2016 # the backticks are Markdown code spans in Python source, not substitutions
 "${PY[@]}" -I -c '

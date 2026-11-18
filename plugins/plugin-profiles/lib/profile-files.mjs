@@ -79,11 +79,14 @@ function readProfileFile(path) {
   return parseProfile(text, path);
 }
 
+/** A list in the order a profile file keeps it: sorted by code unit, the same on every machine. */
+export const alphabetical = (names) => [...names].sort();
+
 export function profileText(def) {
   const lines = def.description ? [`description: ${JSON.stringify(def.description)}`] : [];
   if (typeof def.alwaysOn === "boolean") lines.push(`always_on: ${def.alwaysOn}`);
   for (const [key, field] of Object.entries(LISTS)) {
-    if (def[field]?.length) lines.push(`${key}:`, ...def[field].map((v) => `  - ${JSON.stringify(v)}`));
+    if (def[field]?.length) lines.push(`${key}:`, ...alphabetical(def[field]).map((v) => `  - ${JSON.stringify(v)}`));
   }
   return `${lines.join("\n")}\n`;
 }

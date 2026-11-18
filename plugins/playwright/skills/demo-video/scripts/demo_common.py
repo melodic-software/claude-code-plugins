@@ -13,7 +13,6 @@ from PIL import Image, ImageFont
 HERE = Path(__file__).resolve().parent
 DEFAULTS = HERE / 'defaults.json'
 
-# Quintic smoothstep: peak velocity and acceleration per unit change over unit time.
 SMOOTH_PEAK_V = 1.875
 SMOOTH_PEAK_A = 10 / 3 ** 0.5
 # Fraction of an eased move between 10% and 90% of its change (s(u) = 0.1 at u ~ 0.2466).

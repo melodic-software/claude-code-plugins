@@ -70,6 +70,10 @@ PROG=${0##*/}
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# hook::git_untrusted: the worktree-remove-gate hook runs this script in a repository it did not create.
+# shellcheck source=../hooks/hook-utils.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../hooks/hook-utils.sh" || exit 2
+
 # Print the header block (everything after the shebang up to the first
 # non-comment line) with its comment markers stripped. Derived rather than a
 # hardcoded line range: such a range silently truncates or over-runs as the
@@ -183,7 +187,7 @@ refuse_main_tree() {
 # common dir (`git init --separate-git-dir`, a submodule). Skipped when git
 # cannot resolve the path, as for a husk whose gitdir is gone.
 if [[ -f "$arg_native/.git" ]] && have git; then
-  git_dirs="$(git -C "$arg_native" rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null)" || git_dirs=""
+  git_dirs="$(hook::git_untrusted -C "$arg_native" rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null)" || git_dirs=""
   if [[ -n "$git_dirs" && "${git_dirs%%$'\n'*}" == "${git_dirs#*$'\n'}" ]]; then
     refuse_main_tree "its git dir is its common dir"
   fi
@@ -288,17 +292,17 @@ settings_git_state() {
     printf 'nogit'
     return
   }
-  [[ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" == "true" ]] || {
+  [[ "$(hook::git_untrusted rev-parse --is-inside-work-tree 2>/dev/null)" == "true" ]] || {
     printf 'nogit'
     return
   }
-  git ls-files --error-unmatch -- "$SETTINGS_REL" >/dev/null 2>&1 || {
+  hook::git_untrusted ls-files --error-unmatch -- "$SETTINGS_REL" >/dev/null 2>&1 || {
     printf 'untracked'
     return
   }
   # assume-unchanged (lowercase tag) or skip-worktree (S) hides local edits from
   # both diffs below, so the file would read clean and the restore would drop them.
-  case "$(git ls-files -v -- "$SETTINGS_REL" 2>/dev/null)" in
+  case "$(hook::git_untrusted ls-files -v -- "$SETTINGS_REL" 2>/dev/null)" in
     [a-z]\ * | S\ *)
       printf 'flagged'
       return
@@ -307,8 +311,8 @@ settings_git_state() {
   esac
   # Both halves: `git diff HEAD` alone compares only the worktree to HEAD, so a
   # staged-only change would read clean and the restore's --staged would drop it.
-  if git diff --quiet -- "$SETTINGS_REL" 2>/dev/null &&
-    git diff --cached --quiet HEAD -- "$SETTINGS_REL" 2>/dev/null; then
+  if hook::git_untrusted diff --quiet -- "$SETTINGS_REL" 2>/dev/null &&
+    hook::git_untrusted diff --cached --quiet HEAD -- "$SETTINGS_REL" 2>/dev/null; then
     printf 'clean'
   else
     printf 'modified'
@@ -328,8 +332,8 @@ settle_settings() {
   local reason
   [[ "$(file_fingerprint "$SETTINGS_REL")" != "$settings_before_print" ]] || return 0
   if [[ "$settings_before_state" == "clean" ]]; then
-    if git restore --source=HEAD --staged --worktree -- "$SETTINGS_REL" >/dev/null 2>&1 &&
-      git diff --quiet HEAD -- "$SETTINGS_REL" 2>/dev/null; then
+    if hook::git_untrusted restore --source=HEAD --staged --worktree -- "$SETTINGS_REL" >/dev/null 2>&1 &&
+      hook::git_untrusted diff --quiet HEAD -- "$SETTINGS_REL" 2>/dev/null; then
       printf 'info: restored %s from git: the uninstall CLI rewrote it, and it was tracked and unmodified before the pass.\n' \
         "$SETTINGS_REL"
     else

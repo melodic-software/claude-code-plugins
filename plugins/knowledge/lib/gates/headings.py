@@ -14,7 +14,6 @@ from __future__ import annotations
 import re
 from typing import AnyStr, Match, Optional, Pattern, Union
 
-# Leading whitespace a fence opener may carry.
 INDENT_ANY = "any"  # any run of whitespace
 INDENT_SPACES_TABS = "spaces-tabs"  # any run of spaces and tabs
 INDENT_COMMONMARK = "commonmark"  # at most three spaces
@@ -25,7 +24,6 @@ _FENCE_INDENT = {
     INDENT_COMMONMARK: r" {0,3}",
 }
 
-# What may follow an ATX heading's text.
 TRAIL_BLANK = "blank"  # spaces and tabs
 TRAIL_CLOSING = "closing"  # spaces and tabs around an optional run of `#`
 TRAIL_WHITESPACE = "whitespace"  # any whitespace, a trailing \r included

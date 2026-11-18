@@ -104,20 +104,18 @@ fewest events. The model is a full ID on purpose, so it does not move when an al
 [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases). Rerun
 that pilot on a new model release.
 
-The run always passes `--effort`, even at the default, and also passes
-`--settings '{"env":{"CLAUDE_CODE_EFFORT_LEVEL":"<effort>"}}'`. That variable overrides `--effort`,
-and the child re-applies it from any settings file's `env` block, so the run both drops it from the
-child environment (an exported value) and pins it with `--settings` (a `--settings` `env` value
-outranks user, project and local settings). Whether an exported value outranks the pin is
-undocumented, hence both.
+The observer runs at the configured effort whatever the user's own settings set. So the run always
+passes `--effort`, even at the default, drops `CLAUDE_CODE_EFFORT_LEVEL` from the child
+environment, and pins it with `--settings '{"env":{"CLAUDE_CODE_EFFORT_LEVEL":"<effort>"}}'`, since
+an exported value or a settings file's `env` block could otherwise replace the flag. Whether an
+exported value outranks the pin is undocumented, hence both.
 Probed on Claude Code 2.1.296 with a project `env` of `max` and `--effort low`: output tokens rose
 about fourfold without the `--settings` pin and returned to the `low` range with it.
 
-**Record.** Claim: `CLAUDE_CODE_EFFORT_LEVEL` takes precedence over `--effort`; a settings file's
-`env` replaces the inherited value; `--settings` outranks user, project and local settings; the levels
-a model accepts depend on the model. Basis: <https://code.claude.com/docs/en/env-vars#precedence>,
-<https://code.claude.com/docs/en/settings#settings-precedence> and
-<https://code.claude.com/docs/en/model-config#adjust-effort-level>.
+- **Pointer**: when the order between `CLAUDE_CODE_EFFORT_LEVEL`, `--effort` and settings files
+  matters, fetch <https://code.claude.com/docs/en/env-vars#precedence> and
+  <https://code.claude.com/docs/en/settings#settings-precedence> live; for which levels a model
+  accepts, fetch <https://code.claude.com/docs/en/model-config#adjust-effort-level> live.
 
 ## When a run counts as failed
 

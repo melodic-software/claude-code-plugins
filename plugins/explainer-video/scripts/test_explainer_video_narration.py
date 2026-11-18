@@ -120,7 +120,6 @@ class Captions(unittest.TestCase):
     def test_a_sentence_end_inside_a_closing_quote_or_bracket_still_breaks_the_caption(self):
         script = '"Done." (Yes.) Next one'
         rec = record(script, [0.0], 2.0)
-        # no minimum, so the 0.25 s words are not joined and only the sentence breaks show
         cues = narration.captions(rec, narration.timing(script, rec)['beats'], min_seconds=0)
         self.assertEqual([c[2] for c in cues], ['"Done."', '(Yes.)', 'Next one'])
 
@@ -193,7 +192,6 @@ class Mux(unittest.TestCase):
             d = Path(tmp)
             subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=duration=6:size=320x240:rate=15',
                             '-pix_fmt', 'yuv420p', str(d / 'v.mp4')], check=True)
-            # a tone 22 dB under full scale, far under the narrated target
             subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=6',
                             '-af', 'volume=-22dB', '-ar', '24000', '-ac', '1', str(d / 'n.wav')], check=True)
             (d / 'c.srt').write_text(narration.srt([(0.0, 1.0, 'Take a right triangle.')]), encoding='utf-8')
@@ -249,7 +247,6 @@ class StillSpans(unittest.TestCase):
     def test_a_held_picture_is_reported_and_moving_picture_is_not(self):
         with tempfile.TemporaryDirectory() as tmp:
             v = Path(tmp) / 'v.mp4'
-            # 2 s of moving test pattern, then its last frame held 4 s
             subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=duration=2:size=320x240:rate=15',
                             '-vf', 'tpad=stop_mode=clone:stop_duration=4', '-pix_fmt', 'yuv420p', str(v)], check=True)
             (span,) = render.still_spans(v, 6.0, {'min_seconds': 3.0, 'noise': 0.003})

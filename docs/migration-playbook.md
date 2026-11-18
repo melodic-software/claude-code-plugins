@@ -462,6 +462,11 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
   for a plugin not yet in fragment mode, the `CHANGELOG.md` entry), and the release writes it into
   the plugin's own `CHANGELOG.md`, so a consumer updating deliberately sees what shifted. A change
   that adds a new trust surface additionally re-triggers the plugin-acceptance security review below.
+- **A breaking change bumps major at 1.0 or above, and minor at 0.x** with a `**Breaking:**` note
+  leading its entry, as item 4 of the
+  [Semantic Versioning specification](https://semver.org/#semantic-versioning-specification-semver)
+  allows. `write-changelog-fragments.sh` applies this; release 1.0.0 deliberately with its
+  `--level major` or `scripts/new-changelog-fragment.sh <plugin> major`.
 
 **The marketplace carries no `renames` map.** A plugin rename is a clean breaking change carried
 by a version bump and a changelog note. An install that still names an old id gets

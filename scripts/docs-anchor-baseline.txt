@@ -33,7 +33,6 @@ plugins/discovery/skills/research/context/artifact-shape.md 1
 plugins/discovery/skills/setup/SKILL.md 2
 plugins/disk-hygiene/skills/clean/reference/safety-model.md 5
 plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md 1
-plugins/evals/skills/design/SKILL.md 1
 plugins/evals/skills/methodology/SKILL.md 1
 plugins/evals/skills/methodology/reference/eval-design.md 1
 plugins/evals/skills/plugin-eval/SKILL.md 1
@@ -116,7 +115,6 @@ plugins/session-flow/skills/orchestrate/context/sources.md 1
 plugins/source-control/skills/babysit-loop/reference/promotion-evidence-bootstrap.md 2
 plugins/source-control/skills/babysit-loop/reference/telemetry-upsert.md 1
 plugins/source-control/skills/babysit-prs/reference/freshness.md 1
-plugins/source-control/skills/babysit-prs/reference/native-autofix-pr.md 1
 plugins/source-control/skills/babysit-prs/reference/safety.md 6
 plugins/source-control/skills/babysit-prs/reference/stuck-checks.md 1
 plugins/source-control/skills/pull-request/reference/create.md 1

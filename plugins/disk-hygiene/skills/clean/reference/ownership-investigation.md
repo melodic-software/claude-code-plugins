@@ -10,8 +10,8 @@ this machine. Every command is read-only; none kills, pauses or modifies anythin
 Check each source that applies to the platform. A source that does not apply or turns up nothing is
 recorded as checked with no result, not skipped.
 
-1. **Manifests and READMEs.** `package.json`, `pyproject.toml`, `Cargo.toml`, `*.csproj`, `README*`,
-   `LICENSE` and similar files in the entry or its nearest parent directories.
+1. **Manifests and READMEs.** A project or package manifest, `README*`, `LICENSE` and similar files
+   in the entry or its nearest parent directories.
 2. **Config file contents.** Open the entry's own config files and the owning tool's config
    (`~/.config/<tool>`, the tool's folder under `%APPDATA%`, `~/Library/Application Support/<tool>`). Look for the
    entry's path or name.

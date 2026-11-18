@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained regression tests for update.sh (no external test lib — ships
-# with the plugin; network-free: exercises help, arg handling, and the sourced
-# helper functions against local fixtures only).
 # test-scope: plugins/playwright/skills/playwright/SKILL.md
 set -uo pipefail
 
@@ -43,7 +40,6 @@ assert_not_contains() {
   esac
 }
 
-# --- 1. --help contract --------------------------------------------------------
 
 help_out=$(bash "$SCRIPT" --help 2>&1)
 help_exit=$?
@@ -58,17 +54,13 @@ short_exit=$?
 assert_exit "-h exits 0" 0 "$short_exit"
 assert_nonempty "-h emits non-empty stdout" "$help_out_short"
 
-# --- 2. Unknown flag handling ----------------------------------------------------
 
 unknown_out=$(bash "$SCRIPT" --bogus-flag 2>&1)
 unknown_exit=$?
 assert_exit "unknown flag exits 2" 2 "$unknown_exit"
 assert_contains "unknown flag mentions expected modes" "$unknown_out" "expected"
 
-# --- 3. Source-guard: helpers callable when sourced ------------------------------
 
-# Sourcing installs the script's own EXIT trap (cleanup of its TMPDIR_RUN); the
-# trap set after it replaces that one and removes both directories.
 # shellcheck source=update.sh
 source "$SCRIPT" 2>/dev/null
 SOURCED_TMPDIR="$TMPDIR_RUN"
@@ -79,7 +71,6 @@ else
   fail "source-guard: helpers exposed after source" "function defined" "undefined"
 fi
 
-# --- 4. Frontmatter parsing on fixture --------------------------------------------
 
 FIXTURE_SKILL="$TEST_TMPDIR/SKILL.md"
 cat >"$FIXTURE_SKILL" <<'EOF'
@@ -109,7 +100,6 @@ assert_eq "parses metadata.upstream-sha (nested)" "abc123def456" "$parsed_sha"
 parsed_synced=$(read_metadata_field "synced")
 assert_eq "parses metadata.synced (nested)" "2026-05-22" "$parsed_synced"
 
-# --- 5. Negative parse: missing metadata block -------------------------------------
 
 FIXTURE_BARE="$TEST_TMPDIR/SKILL-bare.md"
 cat >"$FIXTURE_BARE" <<'EOF'
@@ -125,7 +115,6 @@ FRONTMATTER_FILE="$FIXTURE_BARE"
 empty_ver=$(read_metadata_field "upstream-version")
 assert_eq "missing metadata block returns empty" "" "$empty_ver"
 
-# --- 6. Key-anchored parse: similar key names don't collide -------------------------
 
 FIXTURE_KEYS="$TEST_TMPDIR/SKILL-keys.md"
 cat >"$FIXTURE_KEYS" <<'EOF'
@@ -141,7 +130,6 @@ FRONTMATTER_FILE="$FIXTURE_KEYS"
 keyed_ver=$(read_metadata_field "upstream-version")
 assert_eq "upstream-version does not match upstream-sha row" "2.0.0" "$keyed_ver"
 
-# --- 7. replace_metadata_field mutates indented key ---------------------------------
 
 FIXTURE_MUT="$TEST_TMPDIR/SKILL-mut.md"
 cat >"$FIXTURE_MUT" <<'EOF'
@@ -168,7 +156,6 @@ assert_not_contains "old upstream-version removed" "$mutated" "1.0.0"
 assert_not_contains "old upstream-sha removed" "$mutated" "oldsha"
 assert_not_contains "old synced removed" "$mutated" "2025-01-01"
 
-# --- 8. Live SKILL.md parses (guards frontmatter/script contract drift) -------------
 
 FRONTMATTER_FILE="$(cd "$SCRIPT_DIR/.." && pwd)/SKILL.md"
 live_ver=$(read_metadata_field "upstream-version")
@@ -178,8 +165,6 @@ else
   fail "live SKILL.md exposes metadata.upstream-version" "non-empty" "empty"
 fi
 
-# --- 9. run_check exit-code contract (0 no drift, 1 drift, 2 unverifiable) ----------
-# The registry is stubbed; the frontmatter is the section 4 fixture (0.1.13).
 
 FRONTMATTER_FILE="$FIXTURE_SKILL"
 stub_latest="0.1.13"
@@ -232,7 +217,6 @@ assert_not_contains "apply preview: omits LICENSE" "$preview" "$VENDOR_DIR/LICEN
 assert_not_contains "apply preview: omits the lint override" "$preview" "$VENDOR_DIR/.markdownlint-cli2.jsonc"
 assert_eq "apply keeps LICENSE in vendor/" "300" "$(wc -l <"$VENDOR_DIR/LICENSE" | tr -d ' ')"
 
-# --- Final report ---------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

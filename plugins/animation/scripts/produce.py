@@ -417,7 +417,6 @@ def cmd_review(prod, frames):
     if len({shot['pack'] for shot in shots}) == 1:
         print(f'inkstats.py {film} --cuts {cuts} --pack {pack_arg(shots[0]["pack"])}')
         return 0
-    # Mixed packs: the check judges every frame it reads, so each shot is checked on its own span.
     for shot in shots:
         print(f'inkstats.py {film} --t {format(shot["t0"], "g")}-{format(shot["t1"], "g")} --pack {pack_arg(shot["pack"])}')
     return 0
