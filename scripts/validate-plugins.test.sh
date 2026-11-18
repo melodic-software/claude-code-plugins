@@ -42,4 +42,21 @@ else
   fail "a contract warning should fail the run with the warning shown, got rc=$rc: $out"
 fi
 
+printf '#!/usr/bin/env bash\necho "node ran: $*"\nexit 1\n' >"$TMP_ROOT/node"
+mkdir -p "$TMP_ROOT/checked"
+rc=0
+out="$(PATH="$TMP_ROOT:$PATH" CHECK_DATA_ROOT="$TMP_ROOT/checked" CHECK_SKIP_CONTRACTS="the branch changes the validator" bash "$SCRIPT" --only "" 2>&1)" || rc=$?
+if [[ "$out" == *"SKIP contract-validator (the branch changes the validator)"* && "$out" != *"validate-plugin-contracts.mjs"* ]]; then
+  ok "a foreign checked tree skips the contract step, naming why, when told to"
+else
+  fail "a foreign checked tree should skip the contract step with its reason, got rc=$rc: $out"
+fi
+rc=0
+out="$(PATH="$TMP_ROOT:$PATH" CHECK_SKIP_CONTRACTS="the branch changes the validator" bash "$SCRIPT" --only "" 2>&1)" || rc=$?
+if [[ "$rc" -eq 1 && "$out" == *"node ran: "*"/scripts/validate-plugin-contracts.mjs"* && "$out" != *"SKIP contract-validator"* ]]; then
+  ok "the script's own tree runs the contract validator whatever CHECK_SKIP_CONTRACTS says"
+else
+  fail "the script's own tree should run the contract validator, got rc=$rc: $out"
+fi
+
 test_harness::report

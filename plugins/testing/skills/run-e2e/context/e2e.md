@@ -146,14 +146,14 @@ order and report each one's result, or why it did not run:
    drop it. "No issues found" is never a pass: vision models miss many real visual changes (DiffSpot,
    pointer below).
 
-Evidence pointers:
-[Playwright accessibility testing](https://playwright.dev/docs/accessibility-testing) (automated
-scans cannot find every WCAG failure);
+Evidence pointers, fetched live when a step's basis is in question: for step 1,
+[Playwright accessibility testing](https://playwright.dev/docs/accessibility-testing#introduction)
+and the
 [GDS tool audit](https://accessibility.blog.gov.uk/2017/02/24/what-we-found-when-we-tested-tools-on-the-worlds-least-accessible-webpage/);
-[DiffSpot, arXiv 2605.29615](https://arxiv.org/abs/2605.29615);
-[Playwright visual comparisons](https://playwright.dev/docs/test-snapshots) (same-environment
-baselines). Recheck trigger: a benchmark measures current vision models on UI defects, or an
-injected-defect eval in this repository reports catch rates per check.
+for step 3, [Playwright visual comparisons](https://playwright.dev/docs/test-snapshots#introduction);
+for step 4, [DiffSpot, arXiv 2605.29615](https://arxiv.org/abs/2605.29615). Step 4's rule is
+re-derived when a benchmark measures current vision models on UI defects, or an injected-defect
+eval in this repository reports catch rates per check.
 
 No per-check catch rate is measured yet; measured browser evals are tracked in
 [#7137](https://github.com/melodic-software/claude-code-plugins/issues/7137). Any catch rate quoted

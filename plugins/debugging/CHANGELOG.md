@@ -3,6 +3,21 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.1] - 2026-11-18
+
+### Changed
+
+- `debug` gives its own reason for the user running the human-driven loop script, that only the person
+  can do each step and answer its questions, and no longer restates what the Bash tool lacks.
+
+## [2.2.0] - 2026-11-18
+
+### Removed
+
+- `/debugging:analyze-profile` no longer reads thread dumps or routes other capture formats to exporter tools: `reference/formats/thread-dump.md` and `reference/formats/other-formats.md` are gone, its format table lists only the Chrome trace, V8 CPU profile and heap snapshot its converter reads, and with no artifact in hand it names `--kind <trace|cpu|heap>` as the drive capture kinds.
+- `prerequisites.json` drops memray, jfr, dotnet-trace, dotnet-gcdump, go, perf and addr2line, which only the removed formats page used.
+- `/debugging:debug`'s loop table drops its running-example column, so it names no tool command or stack-specific example.
+
 ## [2.1.3] - 2026-11-17
 
 ### Changed

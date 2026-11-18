@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "To use a live board instead, rerun with --backend miro.", "why": "the argument"},
+    {"answer": "Set board_backend to change your default.", "why": "the option"},
+    {"answer": "Option 2: a Miro board, once the miro plugin is enabled.", "why": "names Miro"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "The board will be a markdown file; there is no other option.", "why": "no second backend"}
+  ]
+}

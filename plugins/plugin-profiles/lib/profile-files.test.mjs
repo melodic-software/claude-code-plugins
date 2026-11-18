@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";
 import { tempDir, writeTree } from "../tests/temp.mjs";
-import { ProfileError, readCatalog } from "./profile-files.mjs";
+import { ProfileError, parseProfile, profileText, readCatalog } from "./profile-files.mjs";
 
 const levels = (root) => [
   { level: "shipped", dir: join(root, "shipped") },
@@ -49,7 +49,27 @@ test("a profile only a user file defines is a profile of its own", () => {
   assert.deepEqual([...readCatalog(levels(root)).profiles.get("notes").plugins], ["writing@m"]);
 });
 
+test("#17038: always_on false holds at the level that sets it and above, and a repository file setting it is ignored and listed", () => {
+  const root = writeTree(tempDir(), {
+    "shipped/native.yaml": "always_on: false\nplugins: [switch@m]\n",
+    "user/native.yaml": "plugins: [mine@m]\n",
+    "repo/notes.yaml": "always_on: false\nplugins: [writing@m]\n",
+  });
+  const catalog = readCatalog(levels(root));
+  assert.equal(catalog.profiles.get("native").keepsAlwaysOn, false);
+  assert.equal(catalog.profiles.get("notes").keepsAlwaysOn, true);
+  assert.deepEqual(catalog.profiles.get("notes").ignored, [{ file: join(root, "repo", "notes.yaml"), key: "always_on", value: false }]);
+  assert.equal(catalog.alwaysOn.keepsAlwaysOn, true);
+});
+
+test("#17038: profileText writes always_on and parseProfile reads it back", () => {
+  const def = parseProfile("description: Bare.\nalways_on: false\nplugins: [switch@m]\n", "native.yaml");
+  assert.equal(def.alwaysOn, false);
+  assert.deepEqual(parseProfile(profileText(def), "native.yaml"), def);
+});
+
 for (const [why, text] of [
+  ["an always_on that is not true or false", "always_on: off\n"],
   ["a bare plugin name", "plugins: [impl]\n"],
   ["an unknown key", "plugin: [impl@m]\n"],
   ["a list that is not a list", "plugins: impl@m\n"],

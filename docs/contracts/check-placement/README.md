@@ -321,6 +321,14 @@ and the check lib into the repository instead of pointing at the plugin cache.
 | husky | none: setup offers shared only and says why | committed `.githooks/<plugin>/` plus `.husky/<event>` |
 | plain | a dispatcher per event in `$(git rev-parse --git-path hooks)`, running every entry in `<event>.d/` | committed `.githooks/` with the dispatcher, activated per clone (below) |
 
+**The lefthook remote copies nothing.** With lefthook, a shared install prefers `plan --scope
+remote`: the committed `lefthook.yml` carries one `remotes:` entry naming this repository's root
+`lefthook-remote.yml`, which extends every plugin's `git-hooks/lefthook-remote.yml`, and each clone
+runs the entries from lefthook's fetched copy of main. Each job is `<plugin>-remote-<entry>`, so it
+never merges with a shared-copy job, and `verify` counts an entry `ok` once that remote is fetched
+and the event's hook is installed. Adopting it, skipping one job in a clone, and recovering from a
+broken job: [adopting-git-hooks.md](adopting-git-hooks.md#share-it-through-the-lefthook-remote).
+
 Plain hooks: the dispatcher keeps a pre-existing hook as `<event>.pre-checks` and runs it first,
 then each entry whose first line is `#!/bin/sh` with `sh`, as the lefthook and husky run lines
 `plan` renders do. An entry an earlier release installed runs by its own first line until `copy`

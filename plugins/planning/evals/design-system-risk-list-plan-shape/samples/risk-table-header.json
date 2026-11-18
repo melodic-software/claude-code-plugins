@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Risks\n\n| Risk | Likelihood | Impact | Mitigation |\n|---|---|---|---|\n",
+      "why": "the plan's columns"
+    },
+    {
+      "answer": "| **Risk** | **Likelihood** | **Impact** | **Mitigation** |",
+      "why": "bold header cells"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty file"
+    },
+    {
+      "answer": "| Risk | Severity | Mitigation |\n|---|---|---|\n",
+      "why": "other columns"
+    },
+    {
+      "answer": "- Risk: Mailgun outage. Likelihood: Med. Impact: High. Mitigation: durable queue.",
+      "why": "prose list, not the table"
+    }
+  ]
+}

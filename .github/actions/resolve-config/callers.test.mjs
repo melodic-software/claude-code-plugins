@@ -125,60 +125,34 @@ const skipFallback = (values) => {
 const stepSecrets = (node) => [...new Set([...JSON.stringify(node).matchAll(/secrets\.([\w-]+)/g)].map((m) => m[1]))].sort();
 
 const SUBAGENT = '{"env":{"CLAUDE_CODE_SUBAGENT_MODEL":"haiku"}}';
-const ARGS = "--model sonnet --max-turns 75 --effort high";
 
-for (const [file, job, route, laneSwitch] of [
-  ["pr-review-hosted.yml", "pr-review", "review-code", "CLAUDE_REVIEW_DISABLED"],
-  ["pr-review-security-hosted.yml", "pr-review-security", "review-security", "CLAUDE_SECURITY_REVIEW_DISABLED"],
+for (const [file, job, lane, laneSwitch] of [
+  ["pr-review-hosted.yml", "pr-review", "code", "CLAUDE_REVIEW_DISABLED"],
+  ["pr-review-security-hosted.yml", "pr-review-security", "security", "CLAUDE_SECURITY_REVIEW_DISABLED"],
 ]) {
   const { jobs } = workflow(file);
-  const resolver = jobs["resolve-model"];
-  const steps = resolver?.steps ?? [];
-  const checkout = steps.find((step) => step.uses?.startsWith("actions/checkout@"));
-  const resolve = steps.find((step) => step.uses?.startsWith(RESOLVE));
-  const refusal = steps.find((step) => step.env?.SETTINGS_JSON !== undefined);
 
-  test(`${file}: resolve-model reads the default branch with a read-only token`, () => {
-    assert.deepEqual(resolver.permissions, { contents: "read" });
-    assertMainTip(steps, checkout);
-    assert.equal(checkout.with.path, ".base");
-    assert.equal(checkout.with["persist-credentials"], false);
-    assert.equal(resolve.with["model-route"], route);
-    assert.equal(resolver.outputs["claude-args"], `\${{ steps.${resolve.id}.outputs.claude-args }}`);
-    assertSparseHoldsResolver(checkout);
-  });
-
-  test(`${file}: resolve-model fails on a subagent model and passes without one`, () => {
-    assert.equal(refusal.env.SETTINGS_JSON, `\${{ steps.${resolve.id}.outputs.settings-json }}`);
-    assert.notEqual(runRefusal(refusal, SUBAGENT), 0);
-    assert.equal(runRefusal(refusal, ""), 0);
-  });
-
-  test(`${file}: the review runs after a failed resolve-model, on the reusable's defaults`, () => {
+  test(`${file}: the review passes the reusable no model, effort, turns or level, so it runs the default level`, () => {
     const review = jobs[job];
-    assert.deepEqual(review.needs, ["resolve-model", "check-kill-switch", "wait-for-refine"]);
-    for (const result of ["success", "failure", "skipped"]) {
-      const context = {
-        "github.event.pull_request.draft": false,
-        "needs.check-kill-switch.outputs.proceed": "true",
-        "needs.wait-for-refine.outputs.proceed": "true",
-        "needs.resolve-model.result": result,
-        "needs.resolve-model.outputs.claude-args": result === "success" ? ARGS : "",
-      };
-      assert.equal(evaluate(review.if, context), true, `a ready PR is reviewed when resolve-model is ${result}`);
-      assert.equal(
-        evaluate(review.if, { ...context, "github.event.pull_request.draft": true }),
-        false,
-        `a draft is not reviewed when resolve-model is ${result}`,
-      );
-      assert.equal(evaluate(review.with["model-args"], context), result === "success" ? ARGS : "");
+    assert.equal(review.uses, "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@main");
+    assert.equal(review.with.lane, lane);
+    assert.equal(jobs["resolve-model"], undefined, "no job resolves a model for the review");
+    for (const input of ["model-args", "model", "effort", "max-turns", "review-level", "kill-switch"]) {
+      assert.equal(Object.hasOwn(review.with, input), false, `the caller passes ${input}`);
     }
-    // A failed job's output, if GitHub kept it, never reaches the review.
-    const failed = {
-      "needs.resolve-model.result": "failure",
-      "needs.resolve-model.outputs.claude-args": ARGS,
+  });
+
+  test(`${file}: the review waits on the kill switch and Refine jobs and skips a draft`, () => {
+    const review = jobs[job];
+    assert.deepEqual(review.needs, ["check-kill-switch", "wait-for-refine"]);
+    for (const gate of review.needs) assert.equal(typeof jobs[gate]?.steps?.length, "number", `${gate} is a job with steps`);
+    const context = {
+      "github.event.pull_request.draft": false,
+      "needs.check-kill-switch.outputs.proceed": "true",
+      "needs.wait-for-refine.outputs.proceed": "true",
     };
-    assert.equal(evaluate(review.with["model-args"], failed), "");
+    assert.equal(evaluate(review.if, context), true, "a ready PR is reviewed");
+    assert.equal(evaluate(review.if, { ...context, "github.event.pull_request.draft": true }), false, "a draft is not reviewed");
   });
 
   test(`${file}: the review grants the reusable's status job its read scopes and one write`, () => {

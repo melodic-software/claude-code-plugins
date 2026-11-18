@@ -191,6 +191,41 @@ git -C "$REPO" add sub/.github/workflows/ci.yml
 expect "a workflow under a nested .github/workflows is linted under the root config" "1||sub/.github/workflows/ci.yml:7: $MSG
 $HINT" "$(check "$REPO")"
 
+ROOT_EDIT=$'self-hosted-runner:\n  labels: [x]\n'
+new_repo
+mkdir -p "$REPO/sub/.github/workflows"
+printf '%s' "$CLEAN" >"$REPO/sub/.github/workflows/ci.yml"
+git -C "$REPO" add sub/.github/workflows/ci.yml
+expect "a nested-only commit passes while the root config has not drifted" "0||" "$(check "$REPO")"
+printf '%s' "$ROOT_EDIT" >"$REPO/.github/actionlint.yaml"
+expect "a nested-only commit is refused while the root config is edited after staging" "1||.github/actionlint.yaml: $DRIFT" "$(check "$REPO")"
+git -C "$REPO" add .github/actionlint.yaml
+rm "$REPO/.github/actionlint.yaml"
+expect "a nested-only commit is refused while the root config is staged then deleted" "1||.github/actionlint.yaml: $DRIFT" "$(check "$REPO")"
+git -C "$REPO" checkout -q -- .github/actionlint.yaml
+expect "a nested-only commit passes once the root config is restored" "0||" "$(check "$REPO")"
+
+new_repo yml
+mkdir -p "$REPO/sub/.github/workflows"
+printf '%s' "$CLEAN" >"$REPO/sub/.github/workflows/ci.yml"
+git -C "$REPO" add sub/.github/workflows/ci.yml
+printf '%s' "$ROOT_EDIT" >"$REPO/.github/actionlint.yml"
+expect "a nested-only commit is refused while a root actionlint.yml has drifted" "1||.github/actionlint.yml: $DRIFT" "$(check "$REPO")"
+
+new_repo NONE
+mkdir -p "$REPO/sub/.github/workflows"
+printf '%s' "$CLEAN" >"$REPO/sub/.github/workflows/ci.yml"
+git -C "$REPO" add sub/.github/workflows/ci.yml
+printf '%s' "$CONFIG" >"$REPO/.github/actionlint.yaml"
+expect "a nested-only commit does not treat an untracked root config as drift" "0||" "$(check "$REPO")"
+
+new_repo
+mkdir -p "$REPO/.githooks/actionlint/.github/workflows"
+printf '%s' "$CLEAN" >"$REPO/.githooks/actionlint/.github/workflows/copy.yml"
+git -C "$REPO" add -f .githooks/actionlint/.github/workflows/copy.yml
+printf '%s' "$ROOT_EDIT" >"$REPO/.github/actionlint.yaml"
+expect "a staged .githooks/ copy alone is not refused on a drifted root config" "0||" "$(check "$REPO")"
+
 new_repo
 printf '%s' "$BAD" >"$REPO/other.yml"
 printf '%s' "$BAD" >"$REPO/.github/not-a-workflow.yml"

@@ -1,15 +1,5 @@
 root = true
 
-# Language/framework-agnostic base. Covers universal defaults plus per-type
-# sections for the file classes that appear across the platform: Markdown, shell,
-# PowerShell, config/serialization (JSON/YAML/TOML), JS/TS, Go, Windows batch, git
-# config, and lockfiles. A repository may add a deeper project-local
-# `.editorconfig` for narrower source sections; analyzer components do not
-# duplicate these universal text defaults.
-#
-# .gitattributes is the single authority for line endings (it transforms bytes
-# on checkout); end_of_line here is an editor hint only.
-
 [*]
 indent_style = space
 indent_size = 4
@@ -18,56 +8,34 @@ trim_trailing_whitespace = true
 insert_final_newline = true
 end_of_line = lf
 
-# Markdown: trailing whitespace is significant (two trailing spaces = a hard
-# line break); indentation is variable per CommonMark.
 [*.{md,markdown}]
 trim_trailing_whitespace = false
 indent_size = unset
 
-# Config / serialization / data
 [*.{json,jsonc,yml,yaml,toml}]
 indent_size = 2
 
-# JavaScript / TypeScript: 2-space, matching the shared Biome formatter policy
-# (the single owner of JS/TS formatting). IndentSize is disabled in the checker,
-# so this is an editor hint that keeps editors aligned with Biome.
 [*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}]
 indent_size = 2
 
-# Go: gofmt is the sole formatter and indents with tabs, so the space default
-# does not apply; indent enforcement is disabled here and deferred to gofmt
-# (mirrors the JS/TS deferral to Biome).
 [*.go]
 indent_style = unset
 indent_size = unset
 
-# Shell: shfmt reads this section, and its switch_case_indent default (false)
-# would move every indented `case` branch one level left on any edit.
 [*.{sh,bash}]
 indent_size = 2
 switch_case_indent = true
 
-# Extensionless shebang scripts (e.g. vault-exec): `[[shell]]` is a shfmt
-# extension, outside the EditorConfig spec, that matches any file shfmt detects
-# as shell (bash included). Editors that do not know it match nothing here.
 [[shell]]
 indent_size = 2
 switch_case_indent = true
 
-# Windows batch: cmd.exe requires CRLF.
 [*.{cmd,bat}]
 end_of_line = crlf
 
-# Git config: git writes (and idiomatically uses) tab indentation under each
-# section, so the space default does not apply. Covers the plain file, gitconfig
-# includes, and chezmoi-style source forms (dot_gitconfig, dot_gitconfig.tmpl).
 [{.gitconfig,*.gitconfig,dot_gitconfig*}]
 indent_style = tab
 
-# Lockfiles: generated; suppress formatting enforcement. packages.lock.json is
-# NuGet's lock file (written by restore with platform line endings and no final
-# newline, hence end_of_line is unset too; .gitattributes still normalizes the
-# committed bytes to LF).
 [{package-lock.json,packages.lock.json,*.lock}]
 end_of_line = unset
 indent_size = unset

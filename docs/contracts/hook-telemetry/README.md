@@ -57,11 +57,14 @@ before dispatch:
 
 A reserved value and a relative path are the portable, team-shared wiring forms: commit either in
 `settings.json`, so every clone and worktree wires the same sink with no per-machine absolute path.
-A reserved value also needs no copy of the sink in the repository. Settings `env` values reach the
-environment as written, with no shell expansion, so `${CLAUDE_PLUGIN_ROOT}` cannot name the
-installed sink there. To pass arguments, wrap the sink in a script: the producer runs the value as a
-single command.
+A reserved value also needs no copy of the sink in the repository. Name an installed sink with a
+reserved value, the form the producer resolves to the installed launcher, never with
+`${CLAUDE_PLUGIN_ROOT}` or another variable in the settings `env` value.
+To pass arguments, wrap the sink in a script: the producer runs the value as a single command.
 
+- **Pointer**: when checking how a settings `env` value reaches the environment, fetch
+  [environment variables: set variables in settings files](https://code.claude.com/docs/en/env-vars#in-settings-files)
+  live.
 - **Pointer**: for where plugin data directories live and that they survive updates, fetch
   [plugins reference § Environment variables](https://code.claude.com/docs/en/plugins-reference#environment-variables)
   and the `CLAUDE_CONFIG_DIR` row of [environment variables](https://code.claude.com/docs/en/env-vars) live.

@@ -3,6 +3,29 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.22] - 2026-11-18
+
+### Changed
+
+- `audit`'s first failure mode now states the rule (device emulation never counts as verifying a touch fix: verify on a device or report a device check) and points at the `touch` concern's "7. Verify on hardware" for why, instead of restating what emulation misses.
+- `write-css` gives the reason for its `text-rendering: optimizeLegibility` ban, with an MDN link, and names the selectors and properties that replace or hide the page scrollbar, matching the `touch` audit's hunt.
+
+## [0.27.21] - 2026-11-18
+
+### Changed
+
+- Cut restated upstream behavior from the component-library, principles, launch-scope, CSS
+  foundations and setup docs: each passage is now this plugin's own rule with its reason, and the
+  pointers it rewrote name when to fetch the upstream section live.
+
+## [0.27.20] - 2026-11-18
+
+### Changed
+
+- The web `accessibility` and `forms` references no longer restate what the upstream pages they cite say about Tab and arrow keys, `showModal()`, `inert`, live-region timing, WCAG 2.2.1's extend option, `visibilitychange`, `navigator.platform`, focusable disabled controls, `pointer` and `maxTouchPoints`, or built-in CSRF protection. Each passage is now this repository's own rule with its reason, or a pointer to the anchored page ([#16822](https://github.com/melodic-software/claude-code-plugins/issues/16822)).
+
+- The web reference files for layout stability, layout, marketing pages, performance, shape and depth, states, theming, font capabilities, typefaces and formats, component implementation, and the web type page no longer restate upstream behavior. Each passage is now a pointer that says when to fetch the section live, or this repository's own rule with its reason: the theme script's nonce or hash, `isolation: isolate` for contained children, a focus-free decorative illustration, `muted` and `playsinline` on autoplaying video, which listeners the passive hunt covers, the nested-radius subtraction, declaring only the designed color schemes, `woff2` in place of desktop font files, and `corner-shape` only over a working `border-radius` ([#16823](https://github.com/melodic-software/claude-code-plugins/issues/16823)).
+
 ## [0.27.19] - 2026-11-17
 
 ### Changed

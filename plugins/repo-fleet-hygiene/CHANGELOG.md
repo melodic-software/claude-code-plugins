@@ -3,6 +3,12 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.36] - 2026-11-18
+
+### Changed
+
+- The audit's `official-sources.md` no longer paraphrases each linked Claude Code, Git, GitHub and coreutils page. Each entry states what the collector does and points to the page section to read live, and the Git links now go to the exact option or section.
+
 ## [0.28.35] - 2026-11-17
 
 ### Changed

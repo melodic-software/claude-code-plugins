@@ -1,10 +1,10 @@
 schema_version: "1.1"
 name: simulation-default-domain
-description: "Legacy simulation no-domain-defaults-to-developer-conference. --simulate with no domain and, as in every run, no Miro tool. simulation SKILL.md line 22: 'Domain defaults to \"Developer Conference\" if not specified'; 'Miro availability & graceful degradation': when Miro is absent, 'do NOT fail', say so and offer structured-markdown mode or installing the miro plugin. Slash-invoked, so no Skill grader. names-developer-conference needs the default domain; names-miro-absent and offers-markdown (the patterns of simulation-miro-absent) need the preflight's absent branch; no-write fails any Write before the user picks a path, and no-agent-dispatch any Agent call. Needs --allow-tools Write so no-write can fail."
-tags: [event-storming, simulation, outcome, degradation, no-network]
-expected_outcome: "The reply names Developer Conference as the domain, says Miro is not available, offers the structured-markdown mode, and writes nothing and dispatches no agent before the user chooses."
+description: "Legacy simulation no-domain-defaults-to-developer-conference. --simulate with no domain and no backend named. simulation SKILL.md 'Argument Parsing': 'Domain defaults to \"Developer Conference\" if not specified'; 'Board backend': with no --backend, no board reference and no board_backend option the backend is markdown, and the first reply names it. The prompt asks the model to stop before any phase, so the case reads the setup reply. Slash-invoked, so no Skill grader. names-developer-conference needs the default domain; markdown-default (the pattern of simulation-default-markdown) needs markdown called the default; no-write fails any Write, and no-agent-dispatch any Agent call, before the go-ahead. Needs --allow-tools Write so no-write can fail."
+tags: [event-storming, simulation, outcome, backend, no-network]
+expected_outcome: "The reply names Developer Conference as the domain and markdown as the default backend, and writes nothing and dispatches no agent before the user says go."
 execution:
-  prompt: "/event-storming:simulation --simulate"
+  prompt: "/event-storming:simulation --simulate\n\nBefore any workshop phase runs, tell me the domain and where the board will go, then stop and wait for my go-ahead."
   allowed_tools: [Read, Glob, Grep, Skill, Write]
   max_turns: 10
   timeout_seconds: 300
@@ -14,14 +14,9 @@ graders:
     pattern: '\bdeveloper[- ]conference\b'
     flags: 'i'
     target: 'last_message'
-  - name: names-miro-absent
+  - name: markdown-default
     type: regex
-    pattern: '\bmiro\b[^\n]{0,80}\b(?:not|isn''t|is not|no|absent|unavailable|missing|disabled)\b|\b(?:no|not|without|absent|unavailable|missing)\b[^\n]{0,80}\bmiro\b'
-    flags: 'i'
-    target: 'last_message'
-  - name: offers-markdown
-    type: regex
-    pattern: '\bstructured[- ]markdown\b|\bmarkdown\b[^\n]{0,60}\b(?:mode|artifact|output|timeline|rendering|version)\b'
+    pattern: '\brecommend\w*\s+(?:the\s+|using\s+)?(?:structured[- ])?markdown\b|\bmarkdown\b(?:(?!\bmiro\b)[^\n.,;]){0,40}\b(?:default|recommended)\b|\b(?:default|recommended)\b[^\n.,;]{0,10}\b(?:structured[- ])?markdown\b'
     flags: 'i'
     target: 'last_message'
   - name: no-write

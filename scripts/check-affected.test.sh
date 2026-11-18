@@ -698,6 +698,46 @@ check "the branch's own run still checks options-docs when it changes the genera
   '[[ $RC == 1 && $ERR == *"FAIL plugin-options-docs"* ]]'
 git_test_config "$repo" reset -q --hard "$pre_docs"
 
+cat >"$tools/scripts/validate-plugins.sh" <<'STUB'
+#!/usr/bin/env bash
+if [[ -n "${CHECK_SKIP_CONTRACTS-}" ]]; then
+  echo "SKIP contract-validator ($CHECK_SKIP_CONTRACTS)"
+  exit 0
+fi
+echo "copy of validate-plugins ran the contract validator on $CHECK_DATA_ROOT" >&2
+exit 1
+STUB
+chmod +x "$tools/scripts/validate-plugins.sh"
+pre_contracts="$(git_test_config "$repo" rev-parse HEAD)"
+mkdir -p "$repo/plugins/demo/.claude-plugin"
+printf '{"name": "demo", "dependencies": ["new-member"]}\n' >"$repo/plugins/demo/.claude-plugin/plugin.json"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m data
+RC=0
+ERR="$(cd "$tmp" && COPY_STUB_RC=0 CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+check "a copy run elsewhere runs its own contract validator on a branch that changes only data" \
+  '[[ $RC == 1 && $ERR == *"copy of validate-plugins ran the contract validator on $repo"* && $ERR == *"FAIL validate-plugins"* && $ERR != *"SKIP validate-plugins: contract-validator"* ]]'
+printf '// new rule: dependencies may name new-member\n' >"$repo/scripts/validate-plugin-contracts.mjs"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m rule
+RC=0
+ERR="$(cd "$tmp" && COPY_STUB_RC=0 CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+check "a copy run elsewhere skips the contract step, naming why, when the branch changes a rule and its data" \
+  '[[ $RC == 0 && $ERR == *"SKIP validate-plugins: contract-validator (the branch changes the validator; CI runs the branch'"'"'s copy)"* && $ERR != *"copy of validate-plugins ran the contract validator"* && $ERR != *"FAIL validate-plugins"* ]]'
+git_test_config "$repo" reset -q --hard HEAD~1
+printf '#!/usr/bin/env bash\necho "contract suite"\n' >"$repo/scripts/validate-plugin-contracts.test.sh"
+chmod +x "$repo/scripts/validate-plugin-contracts.test.sh"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m suite
+RC=0
+ERR="$(cd "$tmp" && COPY_STUB_RC=0 CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+check "a copy run elsewhere skips the contract step when the branch changes the validator's suite" \
+  '[[ $RC == 0 && $ERR == *"SKIP validate-plugins: contract-validator (the branch changes the validator"* ]]'
+git_test_config "$repo" reset -q --hard "$pre_contracts"
+rm -f "$tools/scripts/validate-plugins.sh"
+check "the contract validator imports no local module, so check-affected's list of its files is whole" \
+  '[[ -f $SELF_DIR/validate-plugin-contracts.mjs ]] && ! grep -qE "(from|import|import\(|require\() *[\"'"'"']\.\.?/" "$SELF_DIR/validate-plugin-contracts.mjs"'
+
 # machine-specific-paths loads the merge-base's patterns file, never the
 # branch's, whose own edit here would make a home path pass.
 printf '{"root": "/%s/alice/project"}\n' home >"$repo/settings.json"

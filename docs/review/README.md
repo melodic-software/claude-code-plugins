@@ -14,3 +14,4 @@ concern a change touches; each line names a rule, and its link states the rule i
 | [`hooks.md`](hooks.md) | a hooks module or a hook's matching |
 | [`untrusted-content.md`](untrusted-content.md) | text read from web pages, tracker items or tool output |
 | [`pull-requests.md`](pull-requests.md) | work on an open pull request |
+| [`linters.md`](linters.md) | a linter or formatter version, or its configuration |

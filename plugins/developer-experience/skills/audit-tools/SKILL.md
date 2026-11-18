@@ -35,8 +35,7 @@ repositories are read only when named.
 
 Inventory everything, then judge it; an item left out of the inventory gets no verdict.
 
-- Scripts, and every task-runner entry (a Makefile target, a `package.json` script, a
-  `pyproject` entry point, a justfile or taskfile recipe) as its own item.
+- Scripts, and every task-runner entry as its own item.
 - Command-line tools the repository builds or ships.
 - Git hooks and hook-manager config.
 - Agent tooling in the repository: skills, legacy `.claude/commands` files, Claude Code hooks
