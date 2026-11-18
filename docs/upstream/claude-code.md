@@ -46,8 +46,9 @@ it to the newest published release.
 Rows below are the decisions from the `2.1.257` through `2.1.296` read. The recheck added no rows:
 its fixes are in the pull requests that
 [#13286](https://github.com/melodic-software/claude-code-plugins/issues/13286) lists. The 2026-11-18
-recheck added no rows either; it updated two docs-lag rows whose pages now state the release's
-behavior, and routed what it did not fix in the pull request that moved the marker. A record names
+recheck added no rows either; it updated the 296-003 docs-lag row, removed the 319-005 docs-lag
+row because settings-reference now lists `permissions.denyInsteadOfPrompting`, and routed what it
+did not fix in the pull request that moved the marker. A record names
 the pull request that first carried the apply, or this file when the apply is on the branch that
 introduces the ledger. Pages fetched again on 2026-09-28 for the rows in this file did not move the
 marker: later releases were not read as a range.
@@ -243,7 +244,6 @@ not yet state the release's behavior; recheck a row when its page does.
 
 | Topic | Items | Release | Page |
 |---|---|---|---|
-| `permissions.denyInsteadOfPrompting` | 319-005 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [settings-reference, `permissions.denyInsteadOfPrompting`](https://code.claude.com/docs/en/settings-reference#permissions-denyinsteadofprompting); as of 2026-11-18 it lists the setting, so this row is closed |
 | `/permissions` in cloud sessions | 319-072 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [claude-code-on-the-web, Manage context](https://code.claude.com/docs/en/claude-code-on-the-web#manage-context); recheck when it names `/permissions` |
 | Nested skill loading under the Bash sandbox | 319-114 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [skills, Discovery from parent and nested directories](https://code.claude.com/docs/en/skills#discovery-from-parent-and-nested-directories); recheck when it states the sandbox condition |
 | Self-paced `/loop` end and `CLAUDE_CODE_LOOP_KEEPALIVE` | 319-115 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [scheduled-tasks, Stop a loop](https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop); [env-vars](https://code.claude.com/docs/en/env-vars); recheck when the section drops its fallback-wakeup sentence |
