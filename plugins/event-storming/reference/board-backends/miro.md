@@ -158,9 +158,9 @@ For the board's coordinate origin and a sticky note's default size, fetch
 
 **Horizontal spacing: 400px between items on the main flow.** This gives ~200px of clear space between stickies. 200px is too tight (stickies touch, text overlaps). For Problems/Opportunities zones with longer text, use 300px minimum.
 
-**Vertical spacing: 250px minimum between all adjacent rows.** Any spacing below 200px creates overlaps. 250px provides a 50px visual buffer.
+**Vertical spacing: 250px minimum between all adjacent rows.** Any spacing below 200px creates overlaps: a default sticky (square or rectangle) renders ~199px tall in our tests. 250px provides a 50px visual buffer.
 
-**No reactor sub-rows.** Any row offset below 200px overlaps, so each
+**No reactor sub-rows.** Any row offset below the ~199px sticky height overlaps by construction, so each
 persona gets ONE y-row and hermit/reactor behavioral mode is tracked in persona profile files, not
 as a second board row. Confirm with `miro_detect_overlaps` rather than by eye.
 
