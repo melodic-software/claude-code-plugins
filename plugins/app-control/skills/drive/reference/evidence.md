@@ -31,7 +31,7 @@ as an argument, so `report.md` and `report.json` carry the same mark once they h
 ## report.md
 
 For a person. It lists, in order: the mode and the control skill (or the line
-`No control skill: drive used <fallback>.`), the `resolved:` line naming the feature file and any part, the launch record, what `ready` found (each environment's data sources and missing kinds included) and its exit status, each step with its action, entry
+`No control skill: drive used <fallback>.`), the `resolved:` line naming the feature file and any part, the launch record, what `ready` found (each environment's data sources, their grants checks and caps, and missing kinds included) and its exit status, each step with its action, entry
 point, stated result and observed text side by side, the command, exit code and standard error of a command-line step, and artifact paths (a capture step also names the process, by pid, name,
 start time and command line, and the exact command run), then each `Budget:` measure with its value and threshold, capability gaps, `blocked:` lines, cleanup and the lessons, or `Lessons: none`. It
 records what was done and seen. It rates nothing and says nothing about whether a change works.

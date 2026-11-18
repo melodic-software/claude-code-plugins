@@ -3491,7 +3491,8 @@ def id_chain(repo: Path, tmp_path: Path) -> tuple[Path, Path]:
 
 def fill_hop2(repo: Path, tmp_path: Path, retire: list[dict[str, str]], **values: str):
     """Hop 2's skeleton over an id-carrying hop 1, filled through `fill` with a
-    `retire` key; returns the fill result, the hot file and its hop file."""
+    `retire` key and any optional slot `values` names; returns the fill result,
+    the hot file and its hop file."""
     hop1 = s3_hop(repo, tmp_path, values=ID_VALUES)
     made = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
     target = Path(out(made).strip())
@@ -3500,7 +3501,7 @@ def fill_hop2(repo: Path, tmp_path: Path, retire: list[dict[str, str]], **values
     payload: dict[str, object] = {
         name: merged.get(name, SHAPE3_VALUES.get(name))
         for name, instruction in instructions.items()
-        if not instruction.startswith("optional:")
+        if not instruction.startswith("optional:") or name in values
     }
     payload["retire"] = retire
     filled = run("fill", str(target), "--slots", slots_file(tmp_path, payload))
@@ -3520,7 +3521,7 @@ def test_ids_new_writes_question_and_decision_floors(tmp_path):
         now="2026-09-02T10:00:00Z",
         values={
             "open-questions": "- [Q2] Which color? (Q14 in the old notes)",
-            "decisions": "- [D5] Paint first.",
+            "decisions-new": "- [D5] Paint first.",
         },
     )
     hop3 = s3_hop(repo, tmp_path, hop2, sid=SID_C, now="2026-09-03T10:00:00Z")
@@ -3560,7 +3561,7 @@ def test_ids_an_id_less_question_or_decision_fails_on_a_first_hop(tmp_path):
     ("slot", "title", "prefix"),
     [
         ("open-questions", "Open questions", "Q"),
-        ("decisions", "Decisions in force", "D"),
+        ("decisions-new", "Decisions in force", "D"),
     ],
 )
 def test_ids_an_id_less_entry_fails_once_the_predecessor_carries_the_floor(
@@ -3747,7 +3748,7 @@ def test_retire_through_fill_moves_each_ref_and_validates(tmp_path):
             {"ref": "[h1]#2", "reason": "the widget shipped"},
             {"ref": "[h1-h11]", "reason": "summarized in the start line"},
         ],
-        **{"open-questions": SHAPE3_VALUES["open-questions"]},
+        **{"open-questions-new": SHAPE3_VALUES["open-questions"]},
     )
     assert filled.returncode == 0, err(filled)
     result = strict(hot)
@@ -3853,6 +3854,172 @@ def test_retire_pointers_carry_forward_verbatim(tmp_path):
     dropped = strict(hop3)
     assert dropped.returncode == 1, out(dropped)
     assert "the predecessor's retire pointer is missing" in out(dropped), out(dropped)
+
+
+def test_carry_new_copies_questions_and_decisions_off_disk(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path, values=ID_VALUES)
+    made = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    assert made.returncode == 0, err(made)
+    text = Path(out(made).strip()).read_text(encoding="utf-8")
+    sections = _sections_by_hand(text)
+    instructions = slot_instructions(text)
+    for title, entry, slot in (
+        ("Open questions", QUESTION, "open-questions"),
+        ("Decisions in force", DECISION, "decisions"),
+    ):
+        assert sections[title].startswith(entry + "\n"), sections[title]
+        assert slot not in instructions
+        assert instructions[f"{slot}-new"].startswith("optional:")
+        assert "Rewritten h2: <why>" in instructions[f"{slot}-new"]
+
+
+@pytest.mark.parametrize(
+    ("entry", "short", "title"),
+    [
+        (QUESTION, "- [Q1] Which color?", "Open questions"),
+        (DECISION, "- [D1] Paint before polish.", "Decisions in force"),
+    ],
+    ids=["question", "decision"],
+)
+def test_carry_a_shortened_entry_fails_until_marked_as_this_hops_rewrite(
+    tmp_path, entry, short, title
+):
+    hop2, _ = id_chain(make_repo(tmp_path), tmp_path)
+    ref = entry[2:6]
+    edit(hop2, entry + "\n", short + "\n")
+    shortened = strict(hop2)
+    assert shortened.returncode == 1, out(shortened)
+    needle = f"{title}: carried entry {ref} changed without a retire or a rewrite mark"
+    assert needle in out(shortened), out(shortened)
+    edit(hop2, short + "\n", f"{short} Rewritten h1: an earlier hop's mark.\n")
+    stale = strict(hop2)
+    assert stale.returncode == 1 and needle in out(stale), out(stale)
+    edit(hop2, "Rewritten h1: an earlier hop's mark.", "Rewritten h2: the owner narrowed it.")
+    marked = strict(hop2)
+    assert marked.returncode == 0, out(marked)
+
+
+@pytest.mark.parametrize(
+    ("ref", "slot", "replacement"),
+    [
+        ("[Q1]", "open-questions-new", "- [Q2] Which shade of blue?"),
+        ("[D1]", "decisions-new", "- [D2] Paint after the primer dries."),
+    ],
+    ids=["question", "decision"],
+)
+def test_carry_a_changed_entry_passes_through_retire(tmp_path, ref, slot, replacement):
+    filled, hot, _ = fill_hop2(
+        make_repo(tmp_path),
+        tmp_path,
+        [{"ref": ref, "reason": "superseded by the new entry"}],
+        **{slot: replacement},
+    )
+    assert filled.returncode == 0, err(filled)
+    result = strict(hot)
+    assert result.returncode == 0, out(result)
+    assert replacement in hot.read_text(encoding="utf-8")
+
+
+def fill_chain(
+    repo: Path, tmp_path: Path, hops: int, observations: str | None = None
+) -> tuple[list[Path], list[subprocess.CompletedProcess[bytes]]]:
+    """`hops` shape-3 hops, each through `new` and one `fill`, each adding one
+    trail line; returns the hot files and each one's first `validate` result."""
+    paths: list[Path] = []
+    results: list[subprocess.CompletedProcess[bytes]] = []
+    for hop in range(1, hops + 1):
+        d = str(hop)
+        sid = f"{d * 8}-{d * 4}-4{d * 3}-8{d * 3}-{d * 12}"
+        previous = paths[-1] if paths else None
+        made = s3_new(repo, tmp_path, previous, sid=sid, now=f"2026-09-0{d}T10:00:00Z")
+        assert made.returncode == 0, err(made)
+        path = Path(out(made).strip())
+        payload = {
+            name: SHAPE3_VALUES[name]
+            for name, instruction in slot_instructions(
+                path.read_text(encoding="utf-8")
+            ).items()
+            if not instruction.startswith("optional:")
+        }
+        if observations is not None:
+            payload["observations"] = observations
+        if hop > 1:
+            payload["trail-new"] = f"- [h{hop}] moved to step {hop} (agent-initiated)."
+        filled = run("fill", str(path), "--slots", slots_file(tmp_path, payload))
+        assert filled.returncode == 0, err(filled)
+        paths.append(path)
+        results.append(run("validate", str(path)))
+    return paths, results
+
+
+def test_fold_moves_trail_lines_older_than_three_hops_behind_one_pointer(tmp_path):
+    module = _save_point_module()
+    assert module.DIRECTION_HOPS_KEPT == 3
+    repo = make_repo(tmp_path)
+    paths, results = fill_chain(repo, tmp_path, 5)
+    for result in results:
+        assert result.returncode == 0, out(result)
+    text = paths[-1].read_text(encoding="utf-8")
+    trail = _sections_by_hand(text)["Direction changes"].split("\n")
+    pointer = trail[0]
+    assert pointer.startswith(module.FOLD_PREFIX), trail
+    assert f"h5-{'5' * 8}.md" in pointer, pointer
+    tagged = [line for line in trail if line.startswith("- [h")]
+    assert tagged == [f"- [h{k}] moved to step {k} (agent-initiated)." for k in (3, 4, 5)]
+    archive = repo / ".work" / "handoffs" / "archive" / HOP1.removesuffix(".md")
+    folded_at_4 = (archive / f"h4-{'4' * 8}.md").read_text(encoding="utf-8")
+    assert SHAPE3_VALUES["trail"] in folded_at_4
+    folded_at_5 = (archive / f"h5-{'5' * 8}.md").read_text(encoding="utf-8")
+    assert "- [h2] moved to step 2 (agent-initiated)." in folded_at_5
+    edit(paths[-1], pointer + "\n", "")
+    dropped = run("validate", str(paths[-1]))
+    assert dropped.returncode == 1, out(dropped)
+    assert "folded out without the '- Folded:' pointer line" in out(dropped), out(dropped)
+
+
+def test_fold_pointer_carries_forward_when_nothing_new_folds(tmp_path):
+    """Only hop 1 writes a trail line: hop 4 folds it, and hop 5, folding
+    nothing, keeps hop 4's pointer verbatim."""
+    module = _save_point_module()
+    paths = s3_chain(make_repo(tmp_path), tmp_path, [SID_A, SID_B, SID_C, SID_D, SID_E])
+    hop4, hop5 = (path.read_text(encoding="utf-8").split("\n") for path in paths[3:])
+    pointer = next(line for line in hop4 if line.startswith(module.FOLD_PREFIX))
+    assert f"h4-{SID_D[:8]}.md" in pointer, pointer
+    assert pointer in hop5
+    kept = run("validate", str(paths[-1]))
+    assert kept.returncode == 0, out(kept)
+    edit(paths[-1], pointer + "\n", "")
+    dropped = run("validate", str(paths[-1]))
+    assert dropped.returncode == 1, out(dropped)
+    assert "the predecessor's '- Folded:' pointer line is missing" in out(dropped)
+
+
+def test_fold_keeps_the_fixed_part_of_a_hop8_chain_within_hop4s(tmp_path):
+    module = _save_point_module()
+    paths, results = fill_chain(make_repo(tmp_path), tmp_path, 8)
+    for result in results:
+        assert result.returncode == 0, out(result)
+
+    def fixed(path: Path) -> int:
+        _, core, carried, _ = module._size_parts(module.parse_doc(path))
+        return core + carried
+
+    assert fixed(paths[7]) <= fixed(paths[3]), (fixed(paths[7]), fixed(paths[3]))
+
+
+def test_fold_a_hop8_chain_within_a_hop4_budget_validates_on_the_first_fill(tmp_path):
+    """Hop 4's written sections are padded to 40 bytes under the cap; hops 5 to 8
+    write the same sections and pass `validate` after one `fill` each."""
+    probe, _ = fill_chain(make_repo(tmp_path / "a"), tmp_path / "a", 4)
+    pad = HOT_CAP - len(probe[3].read_bytes()) - 40
+    observations = SHAPE3_VALUES["observations"] + "\n- " + "x" * (pad - 3)
+    paths, results = fill_chain(make_repo(tmp_path / "b"), tmp_path / "b", 8, observations)
+    for path, result in zip(paths, results):
+        assert result.returncode == 0, out(result)
+        assert "FAIL" not in out(result), out(result)
+        assert len(path.read_bytes()) <= HOT_CAP
+    assert len(paths[7].read_bytes()) <= len(paths[3].read_bytes())
 
 
 # --- shape 3: amend ---------------------------------------------------------------

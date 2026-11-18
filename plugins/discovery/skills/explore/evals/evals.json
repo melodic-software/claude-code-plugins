@@ -363,6 +363,20 @@
         "The run does not reconstruct the file or guess its contents while the question is open",
         "The rest of the config exploration continues rather than stalling on the question"
       ]
+    },
+    {
+      "id": 28,
+      "name": "test-locations-and-version-probe-resolve-from-the-repo",
+      "narration": true,
+      "prompt": "Explore the billing service before I add a proration rule: where are its tests, and which runtime version is installed here?[The repository holds pyproject.toml, whose [tool.pytest.ini_options] sets testpaths = [\"spec\"] and python_files = [\"*_spec.py\"]; the tests are spec/billing/proration_spec.py and spec/billing/invoice_spec.py. There is no tests/ directory and no test_*.py file. No .claude/ecosystems/ record exists, and no repository file (CLAUDE.md, AGENTS.md, CONTRIBUTING.md or a script) states a command that reports the installed runtime version.]",
+      "files": [],
+      "expected_output": "Finds the tests under spec/ from the test tool's own config in pyproject.toml, names that file as the source of the test locations, and reads the two spec files. It does not report the billing service as untested because no test_*.py or tests/ path exists. For the installed runtime version it finds no record and no stated command, so it records the runtime version command as an unresolved gap naming what it read, rather than running a version command no repository file implies.",
+      "expectations": [
+        "The test locations come from pyproject.toml's testpaths and python_files settings, and the output names that file as their source",
+        "spec/billing/proration_spec.py and spec/billing/invoice_spec.py are reported as the billing tests",
+        "The run does not conclude the billing service has no tests from the absence of test_*.py files or a tests/ directory",
+        "The runtime version command is recorded as an unresolved gap that names what was read, and no version command absent from the repository is run or presented as resolved"
+      ]
     }
   ]
 }

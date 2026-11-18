@@ -3,6 +3,12 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.21] - 2026-11-17
+
+### Changed
+
+- `/firecrawl:update` no longer states how often `firecrawl-cli` releases or how the upstream skill changes, and `/firecrawl:firecrawl`'s transient-DNS gotcha no longer quotes the proxy's error string. The retry advice stays.
+
 ## [0.8.20] - 2026-11-17
 
 ### Changed

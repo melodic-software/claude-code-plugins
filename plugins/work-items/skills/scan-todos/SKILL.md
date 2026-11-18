@@ -35,8 +35,9 @@ If the consuming repo has its own comment-hygiene tooling (a shared pattern libr
 
 ```bash
 # -C roots the scan at the repo top — a bare git grep from a subdirectory searches only that subtree.
-# With --path <dir>, thread it in as a root-relative pathspec (keep the exclusions): ... -- '<dir>' ':!*.min.*' ':!*node_modules*'
-git -C "<project root>" grep -nE '\b(TODO|FIXME|HACK|XXX)\b' -- ':!*.min.*' ':!*node_modules*' | tr -d '\r'
+# With --path <dir>, thread it in as a root-relative pathspec: ... -- '<dir>'
+# Thread the consuming repo's documented exclusion paths in the same way, as ':!<path>' pathspecs after --.
+git -C "<project root>" grep -nE '\b(TODO|FIXME|HACK|XXX)\b' | tr -d '\r'
 ```
 
 `<project root>` is the literal path [`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet.

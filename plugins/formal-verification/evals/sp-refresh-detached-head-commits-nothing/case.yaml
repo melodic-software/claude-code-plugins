@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: sp-refresh-detached-head-commits-nothing
+graders:
+  - name: blocked-outcome-line
+    type: regex
+    pattern: 'Check one-holder \(formal-lock\): blocked'
+    target: last_message
+    arm: with-only
+  - name: commits-nothing
+    type: llm
+    criteria: "Judge what the reply says the refresh pass does. PASS only if the reply (1) says the pass started on a detached HEAD that is not main's tip, so it commits nothing; (2) keeps the two-step model update in the report, unwritten; and (3) pushes nothing, creates or switches to no branch, and opens or updates no pull request. Describing the update, the passing rerun and the caught seeded break as findings is not a failure. FAIL if the reply writes the update into the working tree, commits, creates an upkeep branch, pushes, or opens a pull request."
+    arm: with-only

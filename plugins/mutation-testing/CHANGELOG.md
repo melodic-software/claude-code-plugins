@@ -3,6 +3,14 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0] - 2026-11-17
+
+### Added
+
+- `/mutation-testing:audit --persist-findings` writes each demonstrated equivalent mutant, with its
+  demonstration, to a `## Declined candidates` section of the findings file, which the fix action
+  does not parse. The suppression record still never holds an equivalent mutant.
+
 ## [0.19.0] - 2026-11-16
 
 ### Added

@@ -139,7 +139,7 @@ The consuming repo defines the members of these axes to match its own architectu
 |------|--------|-----------------|
 | Area | `area:` | The repo's architecture surface (modules, apps, infrastructure lanes, cross-cutting concerns) |
 | Category | `category:` | Domain categorization of the work (e.g. testing, general) |
-| Ecosystem | `ecosystem:` | Language/toolchain (e.g. dotnet, python, typescript, bash) |
+| Ecosystem | `ecosystem:` | Language/toolchain |
 
 When a project-specific axis has no labels in the consuming repo, actions simply omit that axis, with no validation error.
 

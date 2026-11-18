@@ -197,11 +197,17 @@ Constraints:
   path and never inside the repo. On Unix/Linux/Git Bash, create a private run directory and write
   the page inside it, echoing the directory in the same call:
   `d=$(mktemp -d "${TMPDIR:-/tmp}/explore-directions-XXXXXX"); echo "$d"`, then writing to
-  `<echoed dir>/explore-directions.html`. Echo it because shell state does not survive between Bash
-  calls: the directory name is random, so an unechoed path is unrecoverable in the call that writes
-  the file. Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable.
-  That is why the page takes a fixed name inside the generated directory rather than an
-  `explore-directions-XXXXXX.html` template, which macOS cannot create at all. On Windows, a
+  `<echoed dir>/explore-directions.html`. Echo it: the directory name is random, so a path the
+  call does not print is lost to the call that writes the file, and whether a shell variable
+  carries to the next Bash call is
+  [Tools reference § What persists between commands](https://code.claude.com/docs/en/tools-reference#what-persists-between-commands).
+  Carry the temp root in the positional template, keep the `XXXXXX` placeholders trailing, and
+  give the page a fixed name inside the generated directory rather than an
+  `explore-directions-XXXXXX.html` template: GNU and BSD (macOS) `mktemp` read that one shape the
+  same way, and a bare relative template resolves against the current directory, the consumer's
+  repository. Where the two dialects differ (the `-p`, `--tmpdir` and `-t` options, and Xs that
+  are not trailing), read the [GNU](https://man7.org/linux/man-pages/man1/mktemp.1.html) and
+  [BSD](https://man.freebsd.org/cgi/man.cgi?query=mktemp&sektion=1) manual pages. On Windows, a
   user-scoped temp under `%LOCALAPPDATA%\Temp`. One file per run (one per screen when the run
   covers several), or one per variant when the person asks for separate files. The path is
   handed to the user to open from `file://`, so do not delete it. It must still be readable when
@@ -446,8 +452,11 @@ Before acting on a row, read [reference/boundaries.md](reference/boundaries.md) 
   [reference/bundled-design.md](reference/bundled-design.md)), you can run `/design <scope>` instead
   of or alongside this skill for a hand-editable design canvas.
   Every offer adds that `/design`'s description should read "Make a new Design artifact from a
-  brief". A `design` entry in your skill listing is a local skill shadowing the bundled one: make
-  no offer, and tell the user a local `design` skill shadows the bundled canvas command.
+  brief", so the user can tell the bundled canvas from a same-named local skill; the string is
+  quoted on purpose, and its as-of date and recheck trigger are in the 2.1.285 row of
+  [reference/bundled-design.md](reference/bundled-design.md). A `design` entry in your skill
+  listing is a local skill shadowing the bundled one: make no offer, and tell the user a local
+  `design` skill shadows the bundled canvas command.
 - **`ClaudeDesign` (built-in tool)**: for an existing claude.ai/design project the person names,
   links or asks for, use the tool when it resolves; write only to that project, only after they
   asked, and report a refusal without retrying around it.

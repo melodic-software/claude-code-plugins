@@ -1,17 +1,3 @@
-// The tree a /toolchain:check or /toolchain:lint result was recorded for, and the store that
-// holds it.
-//
-// "The tree" is the content git would commit if every change in the working tree were staged:
-// tracked edits, deletions and untracked files that .gitignore does not exclude. Its hash is a git
-// tree id, so the same content gives the same id whatever HEAD is, and any edit gives a new one.
-// It is computed on a copy of the index, so the real index is never touched, and with
-// `update-index --info-only`, so no file content is written to the object database; only the
-// small tree objects `write-tree` makes are.
-//
-// The store sits under the repository's common git directory, shared by every worktree:
-// toolchain-results/<tree>/<skill> holds the Overall line the skill printed for that tree, and
-// toolchain-results/sessions/<session id> what the Stop hook saw at that session's last turn end.
-
 import { execFileSync } from "node:child_process";
 import {
   copyFileSync,
@@ -43,13 +29,11 @@ function git(dir, args, env, input) {
   });
 }
 
-// The verdict word of an Overall line, or null when the line is not one.
 export function verdictOf(line) {
   const match = typeof line === "string" ? OVERALL.exec(line) : null;
   return match ? match[1] : null;
 }
 
-// The repository at <dir>: {top, store, index}. Throws when <dir> is not in a work tree.
 export function repository(dir) {
   const [top, common, index] = git(dir, [
     "rev-parse",
@@ -65,8 +49,6 @@ export function repository(dir) {
   return { top, store: join(common, "toolchain-results"), index };
 }
 
-// True when the work tree has no change git would commit: nothing staged, modified, deleted or
-// untracked outside .gitignore.
 export function isClean(repo) {
   return git(repo.top, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]) === "";
 }
@@ -76,7 +58,6 @@ function updateIndex(top, flags, paths, env) {
   git(top, ["update-index", ...flags, "-z", "--stdin"], env, paths.map((path) => `${path}\0`).join(""));
 }
 
-// The tree id of the working tree as described at the top of this file.
 export function treeHash(repo) {
   const scratch = mkdtempSync(join(tmpdir(), "toolchain-tree-"));
   try {
@@ -130,15 +111,10 @@ export function treeHash(repo) {
   }
 }
 
-// <line> with each run of control characters replaced by one space, trimmed and capped at
-// MAX_LINE characters. Applied on write and again on read, since a record file can be placed in
-// the store by something other than record().
 function sanitize(line) {
   return String(line).replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, MAX_LINE);
 }
 
-// Writes <text> to <dir>/<name> through a temporary file and a rename, so a reader never sees a
-// partly written file.
 function writeAtomically(dir, name, text) {
   mkdirSync(dir, { recursive: true });
   const part = join(dir, `.${name}.${process.pid}`);
@@ -146,7 +122,6 @@ function writeAtomically(dir, name, text) {
   renameSync(part, join(dir, name));
 }
 
-// Stores <line> as <skill>'s result for <tree>. The line must be an Overall line.
 export function record(repo, tree, skill, line) {
   if (!SKILLS.includes(skill)) throw new Error(`skill must be one of ${SKILLS.join(", ")}`);
   const clean = sanitize(line);
@@ -155,9 +130,6 @@ export function record(repo, tree, skill, line) {
   return clean;
 }
 
-// What the hook saw at a session's previous turn end, so a turn that changed no file and recorded
-// no result stays quiet: sessions/<session id> holds one line. Returns "" when nothing is stored or
-// the id is not a plain token.
 const SESSION_ID = /^[A-Za-z0-9._-]{1,128}$/;
 export function lastSeen(repo, session) {
   if (!SESSION_ID.test(session ?? "")) return "";
@@ -168,8 +140,6 @@ export function lastSeen(repo, session) {
   }
 }
 
-// Stores <seen> as what the hook saw at this turn end. Best effort: an unwritable store only
-// means the next turn end reports again.
 export function remember(repo, session, seen) {
   if (!SESSION_ID.test(session ?? "")) return;
   try {
@@ -179,8 +149,6 @@ export function remember(repo, session, seen) {
   }
 }
 
-// The results recorded for <tree>: [{skill, line, verdict}], verdict null when the file holds no
-// Overall line. A skill with no file is left out.
 export function results(repo, tree) {
   const found = [];
   for (const skill of SKILLS) {

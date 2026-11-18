@@ -417,10 +417,12 @@ minutes (the cron runs at minutes 4 and 34). A run held again at attempt 2 waits
 next checks run. The reconciler lists pr-verify's and pr-review-main's succeeded runs from `FAULT_HELD_HOURS` back, or
 from the last pass that read when that is earlier, since a pass idle through an outage reads
 nothing, or from the oldest first attempt that pass saw still going, since a run's three jobs can
-take about 17 hours. That pass already lists the runs still going, so this adds no read. Each run's jobs are read once, since a run with no hold is carried as settled, and at
-most `FAULT_HELD_READS` a pass across both lanes. pr-verify's about 700 succeeded runs a day and
-pr-review-main's 425 on 2026-11-05 make about 47 jobs reads an hour, plus one or two listing reads
-per lane a pass. Monitor signal 13 counts these holds since the trigger-gate change below.
+take about 17 hours. That pass already lists the runs still going, so this adds no read. Only a
+run an open head may own has its jobs read: one created from 60 s before to 2 hours after an open
+head's newest checks completion that starts its lane, or every run when a head's listing failed or
+no open head has such a completion. A hold on any other run would judge a closed PR or a moved
+head. Each run's jobs are read once, since a run with no hold is carried as settled, and at most
+`FAULT_HELD_READS` a pass across both lanes, plus one or two listing reads per lane a pass. Monitor signal 13 counts these holds since the trigger-gate change below.
 
 The holds above end green with only a notice, so the monitoring lane's signal 13 counts them: the
 `retry-spent` fault hold, work-resolve-issue's `WIP cap hold`, work-unblock's held listings and issue reads, pr-refine's held `fix-docs` reads and unread heads,

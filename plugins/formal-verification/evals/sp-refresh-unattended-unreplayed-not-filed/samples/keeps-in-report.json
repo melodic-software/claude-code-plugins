@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "Check one-holder (formal-lock): blocked: counterexample not replayed\n\nI read 7a7a7a7. The counterexample's second step, a timeout firing inside release(), runs through a vendored timer whose source is not in the repository, so I could neither confirm nor rule it out. It is unreplayed: it stays in this report and goes to no tracker. No verification edit is made and the sync commit stays a1b2c3d.\n\nOutside the contract: .claude/skills/lock-proof/ runs a prover against src/lock.js. Unattended, I ran the pass on it report-only; nothing is converted or filed.", "why": "every part"}
+  ],
+  "fail": [
+    {"answer": "Check one-holder (formal-lock): bug\n\nFiled through /bugs:write and /work-items:track add.", "why": "files an unreplayed counterexample"},
+    {"answer": "Check one-holder (formal-lock): blocked\n\nThe counterexample stays in the report. I converted lock-proof into .claude/skills/formal-lock-proof/.", "why": "converts unattended"}
+  ]
+}

@@ -190,7 +190,7 @@ reader applies.
 | `pr-verify` | `workflow_run` on the completion of a successful, or hold-only, `pr-require-checks` run of a same-repository, non-draft PR ([Verifier verdict](#verifier-verdict)) |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
-| `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, a dispatch at the half-hourly tick for a fix request on such a thread, or a trusted human's dispatch |
+| `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, a dispatch at the half-hourly tick for a fix request on such a thread or a trusted person's top-level comment addressed to the lane, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
 | `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran; a sweep whose closed-issue listing fails holds green, and the next one reads back past it), which each finished `work-resolve-issue` run that ran a job also starts, so a freed slot admits the next deferred issue at once; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs (one a merged `Refs:` pull request names after its newest decision comment goes to triage instead) and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
@@ -480,7 +480,22 @@ The request must be newer than the head's newest `pr-unblock / address-feedback`
 runs that started before it stop counting for that dispatch, except a limit stop, which keeps its
 reset hold. Each request is sent once, a head with three rounds or releasing skips is not sent, and
 `dispatchFeedback` re-checks every other condition. This sweep does not take a fix request in a
-thread a trusted person opened or on an owner PR. To start a round at once, an account on the
+thread a trusted person opened or on an owner PR.
+
+A top-level comment on a lanes App PR is answered the same way, through the same tick and no new
+trigger, when a person on the trusted-actor list wrote it, a line of it starts `PR-fix lane:` in
+any letter case outside a fenced code block, and no lanes App comment whose first line is
+`<!-- pr-unblock:answered-comment <id> -->` answers it yet (`address-feedback.mjs`
+`askedComments`). The sweep takes such a comment after the fix requests, with the same newer-than,
+send-once and three-round bounds, and a review completion dispatches a head with one even with no
+unresolved thread. `address-feedback-select` lists up to ten, oldest first, in `threads.json`'s
+`pr_comments`, as data like a finding body, and none on a PR carrying the human-gated label, one a person
+opened, or one that changes `.github/workflows/`. The model reads them with the review-thread tool's `comments`, makes no edit for
+them, and records each `answered`; `publish-feedback` posts one top-level comment per answer,
+starting with that marker line, after the thread replies and only when they escalate nothing,
+skipping a comment edited or answered since. The sweep sends the head again for a comment
+edited after the last round, or left over when a round answered its ten, within the same bounds.
+A round that answers only comments still counts toward the round cap. To start a round at once, an account on the
 trusted-actor list dispatches the lane directly:
 
 ```bash
@@ -3546,7 +3561,7 @@ Its scripts and tests are in
 | 1 main red | the newest dispatched or scheduled `pr-require-checks` run on `main` failed, read from each failed job's failure-level annotations; the flake class is named only from GitHub's own runner messages (a timeout, a lost runner) | `main-red:<job>` |
 | 2 ceiling | a reading in the window is over 90%: the lanes App and `GITHUB_TOKEN` REST quotas from pr-merge's `api-budget` notices, the lanes App quota from `request-lane-token`'s `mint lanes-app` notice in lane runs (when the broker returns `rate_limit`), plus the lane's own `GET /rate_limit`, and this repository's in-progress Actions jobs against 60 | `ceiling:lanes-app-rest`, `ceiling:github-token`, `ceiling:actions-jobs` |
 | 3 throttling | a failure annotation in a failed lane run (not a `pr-require-checks` or `pr-test-platforms` suite run) names a rate limit, a 429 or `github-rate-limited`, or a reading shows 0 remaining, or a `pr-merge` hold still unbroken at the monitoring run has a reason that starts `rate limited` (a hold a later listing followed is not seen); or the broker refused a lane token (any status except `workflow-modified`, which pr-merge re-fires) or was unreachable | `throttle:rate-limited`, `broker-deny:<status>-<reason>` |
-| 4 merge-queue ejections | more than 2 merge groups failed in the last 24 hours, each listed with its PR and failing steps | `merge-queue-ejections` |
+| 4 merge-queue ejections | the merge queue removed pull requests for failed checks more than 2 times in the last 24 hours, read from the timelines of the pull requests whose merge groups failed (one GraphQL query per 25, at most 50 pull requests; more, over 100 failed merge-group runs, or a pull request with over 100 merge-queue and label items in the window, leaves the signal unread), each removal listed with its PR and the failing steps of its newest failed group. A failed group the queue rebuilt with no removal is not counted, nor is a removal a hold caused after the enqueue: a label `ci-status` holds on (`do-not-merge`, the human-gated label, `pr-verify-failed`, `security: outside-actor`) added while queued, or a failed group of that enqueue whose queue-hold step names the lanes kill switch, read for the newest 10 failed groups | `merge-queue-ejections` |
 | 5 held PRs | pr-merge's newest `pr-merge-summary` lists PRs blocked and untouched for over 24 hours, batched | `held-over-24h` |
 | 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-file-upstream-drift-issues` failed: the first on findings, the weekly drift filer on a failed issue write, an unreachable upstream or a check script that broke its exit contract, after filing every issue, or in its report job with nothing filed when a drift check could not finish | `audit:<workflow>` |
 | 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational; listed in the run summary only, never filed, since nothing in this repository acts on it | `platform:<incident>`, `platform:actions` |

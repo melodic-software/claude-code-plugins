@@ -78,9 +78,11 @@ both:
   lands somewhere unintended or fails.
 - **Double-quoted is still unsafe.** The path is pasted in as literal text, and bash expands `$name`,
   executes a backtick or `$(…)` substitution, and consumes a backslash *inside* double quotes.
-  Verified: a spool path under a directory named ``lit$name-`whoami`.txt`` resolved to
-  `litINJECTED-<user>.txt`, because the variable expanded and the command substitution ran,
-  while the single-quoted form opened the correct file.
+  Verified in the plugin's acceptance review (probe record: the marketplace's
+  `docs/adr/0093-record-plugin-acceptance-security-reviews.md`, section "Review record: `x`",
+  criterion 4): for a spool path under a directory named ``lit$name-`whoami`.txt``, the variable
+  expanded and the command substitution ran, while the single-quoted form opened the correct
+  file.
 
 If the resolved path contains an apostrophe, close the quoted run, escape that one character, and
 reopen as `'…'\''…'`, rather than falling back to double quotes.
@@ -131,8 +133,11 @@ disagreement is the dangerous case: `-w` prints the status line curl already rec
 that dies afterwards still reports `200`.
 
 Verified against curl 8.19.0, as of 2026-07-25. An over-cap response printed `200` on stdout **and
-exited 63**. Recheck when the step-1 flag set changes, or when a curl release notes a change to
-`--max-filesize` or to exit-code semantics:
+exited 63**. Probe record: the `x` review record (the marketplace's
+`docs/adr/0093-record-plugin-acceptance-security-reviews.md`, criterion 5); the transcript below
+shows the shape, with a placeholder host. Recheck when the step-1
+flag set changes, or when a curl release notes a change to `--max-filesize` or to exit-code
+semantics:
 
 ```console
 $ curl -q -sS --max-filesize 5000 -o spool.md -w '%{http_code}' https://example.invalid/big
@@ -156,10 +161,16 @@ makes the code the only thing on stdout, observable rather than inferred from bo
 **Success requires exactly `200`. Every other code is a failure, listed or not.** The table below
 names the ones with specific advice; it is not the set of codes that can arrive. A redirect is the
 case that proves the rule. Without `-L` curl does not follow it, so a `3xx` completes with **exit
-`0`** and whatever short body the server attached. Verified: a `302` returned exit `0` with the
-status in `-w`; the same shape with a `307` carries a `text/plain` "Temporary Redirect" body. Plain
-text is syntactically valid Markdown, so the body check cannot reject it. Only the status code can.
-The same holds for `401`, `403`, and any other unlisted code.
+`0`** and whatever short body the server attached. The same review (criterion 5) records that a
+non-followed `3xx` completes with exit `0` and a plain-text body; the `302` and `307` specifics
+are recorded only here: a `302` returned exit `0` with the status in `-w`; the same shape with a
+`307` carries a `text/plain` "Temporary Redirect" body. Plain text is syntactically valid
+Markdown, so the body check cannot reject it. Only the status code can. The same holds for `401`,
+`403`, and any other unlisted code.
+
+- **Pointer**: for the `3xx` observation, the `x` review record above. **As of**: 2026-07-24.
+  **Recheck trigger**: a curl release notes a change to redirect handling without `-L` or to
+  exit-code semantics.
 
 **Single-quote the path at the `-o` target and at the delete, and pass it raw to `Read`.**
 Rules, the verified expansion hazard, and why the two sites differ are under "Response spooling"
@@ -220,21 +231,27 @@ Two limits, reported rather than worked around:
 
 ## Gotchas
 
-Observed during empirical verification (2026-07-24). Recheck when xtomd or Thread Reader App changes an endpoint or response shape, or a package is published under `@xtomd/mcp-server`:
+Observed during the 0.1.0 pre-release verification (2026-07-24), the probe behind every bullet
+below. Each bullet names where its evidence is recorded: this plugin's `CHANGELOG.md` entry for
+0.1.0, or the `x` review record (the marketplace's
+`docs/adr/0093-record-plugin-acceptance-security-reviews.md`, section "Review record: `x`"); a
+bullet naming neither is recorded only here. Recheck when xtomd or Thread Reader App changes an endpoint or response shape, or a package is published under `@xtomd/mcp-server`:
 
 - **A GET to `/api/markdown` returns HTTP `200`.** Not a success. The body is a self-describing
   stub reading `"method":"POST"`.
-- **A Thread Reader App miss also returns HTTP `200`**, redirecting to `.../thread/<id>/error`.
-- **Length is not evidence of a chain, in either direction.** A genuine 12-post chain returned
+- **A Thread Reader App miss also returns HTTP `200`**, redirecting to `.../thread/<id>/error`
+  (recorded: CHANGELOG 0.1.0).
+- **Length is not evidence of a chain, in either direction** (recorded: CHANGELOG 0.1.0). A genuine 12-post chain returned
   `isNoteTweet: false` with a 346-character root. The converse does not follow: `isNoteTweet: true`
   reports a long-form representation, not the absence of replies, so a chain can begin with a note
   tweet. Escalate on positive continuation evidence, not on the flag alone.
 - **`replies` in the `/api/fetch` payload is an integer**, an engagement count. Nothing in that
   schema carries sibling or child posts.
-- **xtomd's docs advertise an `@xtomd/mcp-server` npm package that does not exist** (registry `404`).
-  The name is unregistered and claimable by anyone. Treat any package that later appears under it
-  as untrusted.
-- **A URL with an apostrophe breaks out of the request body.** Verified against a real `argv` dump:
+- **xtomd's docs advertise an `@xtomd/mcp-server` npm package that does not exist** (registry `404`;
+  recorded: the `x` review record, criterion 6). The name is unregistered and claimable by anyone.
+  Treat any package that later appears under it as untrusted.
+- **A URL with an apostrophe breaks out of the request body** (recorded: the `x` review record,
+  criterion 1). Verified against a real `argv` dump:
   the payload contributed a second unconstrained URL and an `-o` arbitrary-write flag to the
   receiving process. This is why the gate rebuilds from captures instead of escaping. Hand-escaping
   is the failure mode, not the fix.

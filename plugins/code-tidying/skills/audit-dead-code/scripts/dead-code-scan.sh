@@ -617,8 +617,8 @@ lane_vulture() {
 
 # ---------------------------------------------------------------------------
 # Lane: gopls (Go) — unexported symbols only, which is the lane's declared
-# coverage, not a defect. `gopls check` runs go list plus its own front end and
-# per official docs "does not run the actual compiler".
+# coverage, not a defect. A gopls run executes no project code (Go has no
+# build.rs equivalent): https://go.dev/gopls/features/diagnostics
 # ---------------------------------------------------------------------------
 
 lane_gopls() {

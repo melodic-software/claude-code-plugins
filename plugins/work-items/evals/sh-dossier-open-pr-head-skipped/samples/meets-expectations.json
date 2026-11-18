@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Dossier branch: skipped, not deleted.** `dossier/400-checkout-redesign` is the head of open PR #412, so the ritual skips it and reports it; I asked nothing about deleting it. Once #412 is merged or closed, an attended run can delete it.\n\n> Dossier branches: `dossier/400-checkout-redesign` skipped, it heads open pull request #412.",
+      "why": "skip with reason, later delete suggested, comment carries it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Not part of the shipment: #412 on `dossier/400-checkout-redesign` is a separate docs PR. Should #412 be merged or closed? That is your call.",
+      "why": "mentions both names but never skips the branch, as a run on the old text did"
+    },
+    {
+      "answer": "`dossier/400-checkout-redesign` heads open PR #412, so I skipped it. I can delete the branch after you confirm it and #412.",
+      "why": "offers this run's delete on a confirmation"
+    },
+    {
+      "answer": "Deleted `dossier/400-checkout-redesign`; #412 will close on its own.",
+      "why": "deletes an open pull request's head"
+    }
+  ]
+}

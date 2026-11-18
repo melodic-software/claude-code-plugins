@@ -231,6 +231,7 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | cant-fail-test-repair | hybrid: DET detect (built: the `testing:audit` script detector; no agent session); AGT repair judgment is the routine | DC (PR) | repo | C3 (an assertion's adequacy is not mechanically checkable: a test that now fails may be right or wrong) | join: proven recurring manual pattern |
 | stale-flag-removal | hybrid: DET staleness detect (no agent session); AGT/HUM removal disposition is the routine | DC (PR) | repo | C4 (a flag definition is a configuration file; composes above the C3 the direct-change rule alone would give); disposition human-gated | join: proven recurring manual pattern |
 | formal-logic-modeling | AGT | R | repo | C1 | join: a stated invariant or specification artifact exists to model against |
+| formal-verification-upkeep | AGT | R + WI + DC (one PR confined to the formal-area folder and the paths its sync file lists) | repo | C1 (report/WI); gated verification-PR portion C3 | join: proven recurring manual pattern |
 | layering-enforcement | AGT/HUM | R | repo | C1; disposition human-gated | join: layering rules stated as text, and a recurring manual pattern the incumbent reviewer does not already cover |
 | logic-simplification-sweep | AGT | DC (PR) | repo | C3 (equivalence above expression level is not mechanically checkable) | join (external): published effectiveness evidence exists |
 | abstraction-flattening | AGT | DC (PR) | repo | C4 (structural surface) | join (external): a validated detector is published |
@@ -356,6 +357,15 @@ commentary, and a leaf that contradicts one is non-conforming.
   is a reasonable start); a pass with no change since the last clean one skips, by the skill's own
   rule. No leaf under
   `routines/` is written until a consumer records a manual run of the skill.
+- **`formal-verification-upkeep` and `formal-logic-modeling` are distinct classes.**
+  `formal-logic-modeling` writes a new model against a stated invariant; `formal-verification-upkeep`
+  keeps existing checks true to code that changed since their sync commit. The pass is
+  `/formal-verification:specify refresh --unattended`, when the formal-verification plugin is
+  enabled: its report is the `R` output, a replayed bug it files is the `WI` output, and its one pull
+  request carries only checks that end in sync or updated with a seeded break caught. A property
+  change waits for a person, so it never reaches the pull request. No leaf under `routines/` is
+  written, and no schedule runs the pass, until a consumer records repeated manual runs of the
+  skill.
 - **`whole-map-live-verification`: the pass starts by hand, and the class has no leaf yet.** The
   pass is `/testing:run-e2e map`, when the testing plugin is enabled and its skill has the `map`
   scope: one live verification run over every entry of the feature map, with no change to diff
