@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.19.5] - 2026-11-18
+
+### Removed
+
+- `methodology` no longer names an embedding model in the cosine-similarity recipe: the named model and its docs link are gone from `reference/recipes.md`, which keeps only "a sentence-embedding model" ([#16797](https://github.com/melodic-software/claude-code-plugins/issues/16797)).
+
 ## [0.19.4] - 2026-11-17
 
 ### Changed

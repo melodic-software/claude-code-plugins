@@ -144,6 +144,11 @@ changes `/status`, `/usage`, the startup banner or the usage-limit notice.
 
 values: `cli/account.mjs`
 
+Run that source as exactly `node <skill-dir>/cli/account.mjs`, with one session running and
+before `## Cleanup` stops it: no `--session`, no other argument, and no pipe, redirect or wrapper
+around it. A run whose shell runs only listed commands is refused any other form, and the
+post-check then publishes nothing.
+
 ## Cleanup
 
 `node <skill-dir>/driver/driver.mjs stop --session <session>`, after `record stop` when a recording
