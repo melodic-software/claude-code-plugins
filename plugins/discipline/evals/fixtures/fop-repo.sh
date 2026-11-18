@@ -51,7 +51,7 @@ esac
 git add .
 git commit -q -m "scaffold textkit"
 
-if [ "$mode" = drift ]; then
+if [[ "$mode" = drift ]]; then
 	git checkout -q -b feat/trim
 	cat >textkit/trim.py <<'PY'
 def trim(text, width):
