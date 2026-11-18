@@ -1314,6 +1314,22 @@ hook `ask` in a lane. This subsection holds which mode each lane runs in.
 - **As of:** 2026-11-01.
 - **Recheck trigger:** that page's `--permission-prompts` row changes.
 
+**A `/loop` lane in an interactive session is attended-only.** Someone must be watching the
+session and able to stop it. Such a lane runs unattended only under the owner exemption below
+while it holds; after that, an unattended local lane needs an `L2` launch or runs as a CI lane.
+
+**Owner exemption below `L2`.** Local unattended runs need the `L2` isolation floor
+([isolation ladder, "Local lanes"](../../../plugins/autonomy/reference/guardrails/isolation-ladder.md#local-lanes)).
+The owner granted this exemption from that floor on 2026-11-18:
+
+- **Paths:** `/loop` lanes in an interactive session; the `claude-oom-notify` job in the
+  provisioning repository; and the `lanes` launcher's `--bg` launches, its `run-once` pass and its
+  restart consumer.
+- **Ends:** when this repository has no open issues and no open pull requests. The `L2` floor then
+  applies to these paths again.
+- **Still required:** no path uses bypass mode or `--dangerously-skip-permissions`. The lane
+  launches keep the permission modes this section records.
+
 **Launch options.** An unattended Claude Code launch passes this set, drawn from what the lanes
 launcher builds. Other headless launchers adopt it when next touched. A flag whose effect no probe
 has shown stays out of the table. The lanes launcher also passes `--permission-prompts none` on

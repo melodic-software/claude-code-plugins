@@ -92,10 +92,16 @@ every other surface keep `L2`, and `C5` work keeps `L3` on every surface.
 
 ## Local lanes
 
-A lane on a local machine runs unattended, so the `L2` floor applies to it. No exemption like the
-[CI-lane one](#ci-lanes-on-provider-hosted-runners) exists for local lanes. Known gap: a local lane
-that runs unattended below `L2` is non-conforming until its substrate reaches `L2` or the owner
-decides an exemption with its own conditions.
+A lane on a local machine runs unattended, so the `L2` floor applies to it. No standing exemption
+like the [CI-lane one](#ci-lanes-on-provider-hosted-runners) exists for local lanes. A local lane
+that runs unattended below `L2` is non-conforming until its substrate reaches `L2` or an owner
+exemption covers it.
+
+An owner exemption is recorded where the adopting repository's lane convention lives, and names
+the paths it covers, the date the owner granted it, the condition that ends it, and what stays
+required while it holds. When it ends, the `L2` floor applies to those paths again. This
+marketplace records its exemption in the loop-lane convention's "Permission modes" section
+(`docs/contracts/loop-lane/README.md`).
 
 ## WSL on a Windows host
 
@@ -133,8 +139,8 @@ its [Fail-closed](../../skills/setup/context/windows-surfaces.md#fail-closed) se
 Where no `L2`-capable substrate exists on an execution surface, autonomous dispatch is
 blocked for that surface and guided setup names the compliant paths. The
 [CI-lane surface](#ci-lanes-on-provider-hosted-runners) is exempt only while all five of its
-conditions hold. This rule is
-fail-closed: silently degrading to a lower level is never conforming, because a silent degrade
+conditions hold, and a local path an owner exemption covers is exempt only while that
+[exemption](#local-lanes) holds. This rule is fail-closed: silently degrading to a lower level is never conforming, because a silent degrade
 leaks the trust loop the ladder exists to protect.
 
 ## Permission posture
