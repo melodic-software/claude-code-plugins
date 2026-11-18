@@ -56,8 +56,10 @@ prompt. A `Not installed` line does not stop an apply: only a missing required p
   takes this session's profile. It writes no settings file, so it needs no preview. Every launcher
   (a handoff, a background session, a lane) starts sessions through it; see its usage for
   `--with`, `--unattended` and `--json`. A person in a terminal starts one with
-  `claude --profile <name>` and resumes it with `claude --resume <id>` or `claude -c` (their
-  dotfiles' `claude` function runs `start --claude-args` for those flags); tell them that form.
+  `profiles.mjs start <name>`, or, where their dotfiles define the `claude` shell function, by
+  giving it `--profile <name>` (Claude Code itself has no such flag); with the function,
+  `claude --resume <id>` and `claude -c` resume in the profile, since it runs
+  `start --claude-args` for those flags. Tell them both forms.
 - **apply `<name>`**: `apply <name> --for folder|initial|session`. Ask where when the user has not
   said: `folder` for this folder, `initial` for every folder without its own profile, `session` for
   one session started with the `claude --settings` command the tool prints. Run `list` first when

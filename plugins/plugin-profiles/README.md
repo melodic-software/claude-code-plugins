@@ -47,13 +47,14 @@ installed, it offers to install it and installs only on your yes at that moment.
 
 ## Start a session in a profile
 
-Start and resume from plain `claude`:
+Start and resume from plain `claude` through the `claude` shell function your dotfiles provide.
+Claude Code itself has no `--profile` flag; the function adds it:
 
-- `claude --profile build` starts a terminal in `build`.
+- `--profile build` given to the function starts a terminal in `build`.
 - `claude -c` and `claude --resume <id>` resume in the profile the session ran in.
 - Everything else `claude` does is unchanged.
 
-This needs the `claude` shell function your dotfiles provide. It runs the real `claude` untouched
+The function runs the real `claude` untouched
 unless the words start with a flag and include `-c`, `--continue`, `-r`, `--resume` or
 `--profile`; then it runs `profiles.mjs start --claude-args`, which takes `--profile <name>` out of
 the words, writes the one-session file and starts `claude` with it and every other word. The
