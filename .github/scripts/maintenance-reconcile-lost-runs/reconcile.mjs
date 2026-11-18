@@ -425,7 +425,8 @@ const carriedJobsEntry = (e) =>
   SHA.test(e.head ?? "") &&
   typeof e.updated_at === "string" &&
   Array.isArray(e.jobs) &&
-  e.jobs.every(isObject);
+  e.jobs.every(isObject) &&
+  (e.held === undefined || e.held === true);
 
 const isTime = (value) => typeof value === "string" && !Number.isNaN(Date.parse(value));
 const passesKey = (pr, head) => `${pr}:${head}`;
@@ -919,7 +920,13 @@ async function holdReason(call, repo, run, judge, settled, carry = new Map(), ke
 // and a re-run would judge that head again (holdReason holds it the same
 // way). An unreadable listing throws.
 export const WRITTEN = "after its verdict write started, so a re-run would judge the head again";
-async function faultHeld(call, repo, run) {
+async function faultHeld(call, repo, run, carry = new Map(), keep = new Map()) {
+  const key = jobsKey(run.id, 1);
+  const carried = carry.get(key);
+  if (carried?.held === true && carried.head === run.head_sha && carried.updated_at === run.updated_at) {
+    keep.set(key, carried);
+    return { held: true, final: false };
+  }
   const listing = await firstAttemptJobs(call, repo, run.id);
   const marked = listing.jobs.filter(
     (job) => Number.isSafeInteger(job?.id) && Array.isArray(job.steps) && job.steps.some((step) => step?.name === HELD_STEP && step.conclusion === "success"),
@@ -930,6 +937,9 @@ async function faultHeld(call, repo, run) {
   }
   for (const job of marked) {
     if (heldNoted(await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`))) {
+      if (typeof run.updated_at === "string" && wholeListing(listing) && listing.jobs.every((j) => stepsKnown(j))) {
+        keep.set(key, { id: run.id, attempt: 1, head: run.head_sha, updated_at: run.updated_at, jobs: listing.jobs.map(slimJob), held: true });
+      }
       return { held: true, final: false };
     }
   }
@@ -1552,7 +1562,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         break;
       }
       try {
-        const { held, final, written } = await faultHeld(call, repo, r);
+        const { held, final, written } = await faultHeld(call, repo, r, carriedJobs, keepJobs);
         if (written) {
           settle.push({ id: r.id, reason: WRITTEN });
           sayHeld(r, WRITTEN);

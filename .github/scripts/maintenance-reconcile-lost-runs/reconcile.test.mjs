@@ -835,6 +835,27 @@ test("a run created 10 hours ago, still going at one pass and held at the next, 
   assert.deepEqual(alone.reruns, []);
 });
 
+const heldReads = (calls, id) => calls.filter((c) => c.includes(`/actions/runs/${id}/attempts/1/jobs`) || c.includes("/check-runs/7001/annotations"));
+test("a held run's hold is carried: the next pass reads none of its jobs or annotations and re-runs it the same way", async () => {
+  const first = await reconcile({ pulls: [], runs: [heldRun(301)], carry: null });
+  assert.equal(heldReads(first.calls, 301).length, 2,"the first pass reads the run's jobs and the held job's annotations");
+  assert.deepEqual(first.reruns, [301]);
+  const second = await reconcile({ pulls: [], runs: [heldRun(301)], carry: JSON.stringify(first.settled) });
+  assert.equal(second.code, 0);
+  assert.deepEqual(heldReads(second.calls, 301), [], "a carried hold is not read again");
+  assert.deepEqual(second.reruns, first.reruns);
+  assert.deepEqual(records(second.outputs), records(first.outputs));
+  assert.deepEqual(second.settled.jobs, first.settled.jobs, "the hold is carried on to the pass after");
+});
+
+test("a held run whose updated_at changed is read again rather than taken from the carry", async () => {
+  const first = await reconcile({ pulls: [], runs: [heldRun(301)], carry: null });
+  const changed = await reconcile({ pulls: [], runs: [heldRun(301, { updated: "2026-10-19T19:50:00Z" })], carry: JSON.stringify(first.settled) });
+  assert.equal(changed.code, 0);
+  assert.equal(heldReads(changed.calls, 301).length, 2);
+  assert.deepEqual(changed.reruns, [301]);
+});
+
 test("a pass reads at most 100 succeeded runs' jobs for a hold, oldest first, and the next pass starts at the first it left", async () => {
   // Left from an outage: 120 runs from 05:00, a minute apart, with the last
   // reading pass at 04:00.
