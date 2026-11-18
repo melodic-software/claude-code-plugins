@@ -1872,7 +1872,7 @@ test("work-resolve-issue.yml: apply-issue-patch commits the written patch from t
   const { jobs } = workflow("work-resolve-issue.yml");
   const apply = jobs["apply-issue-patch"];
   assert.equal(apply.uses, "./.github/workflows/pr-run-activity-write.yml");
-  assert.deepEqual(apply.needs, ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]);
+  assert.deepEqual(apply.needs, ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback", "check-human-pull"]);
   assert.equal(apply.with.activity, "apply-issue-patch");
   assert.equal(apply.with["patch-activity"], "resolve-issue");
   assert.equal(apply.secrets, undefined, "the apply job gets no Claude credential");
@@ -1901,7 +1901,7 @@ test("work-resolve-issue.yml: apply-issue-patch commits the written patch from t
   }
   assert.equal(apply.concurrency.group, "work-resolve-issue-write-${{ github.event.issue.number }}");
   assert.equal(apply.concurrency.queue, "max");
-  const runs = (started, state) =>
+  const runs = (started, state, human = { result: "success", pull: "" }) =>
     evaluate(apply.if, {
       "needs.resolve-issue-fallback.result": "skipped",
       "needs.resolve-issue-fallback.outputs.scan-issue-run-started": "",
@@ -1911,11 +1911,22 @@ test("work-resolve-issue.yml: apply-issue-patch commits the written patch from t
       "needs.resolve-issue-subscription.outputs.scan-patch-state": "",
       "needs.resolve-issue.outputs.scan-issue-run-started": started,
       "needs.resolve-issue.outputs.scan-patch-state": state,
+      "needs.check-human-pull.result": human.result,
+      "needs.check-human-pull.outputs.pull": human.pull,
     });
   assert.equal(runs("true", "written"), true);
   assert.equal(runs("true", "empty"), false, "an empty patch makes no branch");
   assert.equal(runs("true", ""), false);
   assert.equal(runs("false", "written"), false);
+  assert.equal(runs("true", "written", { result: "success", pull: "31" }), false, "a listed human's open pull request stops the push");
+  assert.equal(runs("true", "written", { result: "failure", pull: "" }), false, "a failed pull request read stops the push");
+  const check = jobs["check-human-pull"];
+  assert.deepEqual(check.needs, ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]);
+  assert.deepEqual(check.permissions, { contents: "read", issues: "read", "pull-requests": "read" });
+  const step = check.steps.find((s) => s.id === "check");
+  assert.equal(step.run, "node .base/.github/scripts/work-resolve-issue/check-human-pull.mjs");
+  assert.equal(step.env.TRUSTED_ACTORS_PATH, ".base/.github/standards/trusted-actors/trusted-actors.json");
+  assert.equal(check.outputs.pull, "${{ steps.check.outputs.pull }}");
   for (const job of ["run-checks", "report-outcome"]) {
     assert.ok(jobs[job].needs.includes("apply-issue-patch"), `${job} waits for the branch`);
   }
@@ -7192,7 +7203,11 @@ test("pr-run-activity-write.yml: the reply job reads run.json from the select jo
 test("work-resolve-issue.yml: report-outcome passes apply-issue-patch's escalation reason", () => {
   const job = workflow("work-resolve-issue.yml").jobs["report-outcome"];
   assert.ok(job.needs.includes("apply-issue-patch"));
-  const context = (reason, result = "success") => ({ "needs.apply-issue-patch.outputs.escalation-reason": reason, "needs.apply-issue-patch.result": result });
+  const context = (reason, result = "success", human = "success") => ({
+    "needs.apply-issue-patch.outputs.escalation-reason": reason,
+    "needs.apply-issue-patch.result": result,
+    "needs.check-human-pull.result": human,
+  });
   assert.equal(evaluate(job.with["escalation-reason"], context("patch-protected-path")), "patch-protected-path");
   assert.equal(evaluate(job.with["escalation-reason"], context("")), "");
   // Runs 40355135920 and 40354760854: apply-issue-patch crashed before giving
@@ -7200,6 +7215,9 @@ test("work-resolve-issue.yml: report-outcome passes apply-issue-patch's escalati
   assert.equal(evaluate(job.with["escalation-reason"], context("", "failure")), "patch-apply-failed");
   assert.equal(evaluate(job.with["escalation-reason"], context("patch-not-applied", "failure")), "patch-not-applied");
   assert.equal(evaluate(job.with["escalation-reason"], context("", "skipped")), "");
+  assert.equal(evaluate(job.with["escalation-reason"], context("", "skipped", "failure")), "patch-apply-failed", "a failed pull request read kept apply-issue-patch from running");
+  assert.ok(job.needs.includes("check-human-pull"));
+  assert.equal(job.with["human-pull"], "${{ needs.check-human-pull.outputs.pull }}");
 });
 
 // A kill switch that stopped apply-issue-patch green dropped this run's patch,
@@ -8768,7 +8786,7 @@ test("work-resolve-issue.yml: the key call reads only the API key and the subscr
 // the subscription call when it ran, else the first.
 test("work-resolve-issue.yml: every job after the calls takes each resolve-issue value from the call that ran", () => {
   const { jobs } = workflow("work-resolve-issue.yml");
-  const after = ["apply-issue-patch", "run-checks", "report-outcome", "report-statuses"];
+  const after = ["check-human-pull", "apply-issue-patch", "run-checks", "report-outcome", "report-statuses"];
   for (const id of after) {
     const needs = [jobs[id].needs].flat();
     assert.ok(needs.includes("resolve-issue") && needs.includes("resolve-issue-subscription") && needs.includes("resolve-issue-fallback"), id);
@@ -8844,6 +8862,8 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
       "needs.resolve-issue.outputs.scan-patch-state": first.patch ?? "",
       "needs.apply-issue-patch.outputs.skip-reason": "",
       "needs.resolve-issue-stale.outputs.stale": "",
+      "needs.check-human-pull.result": "success",
+      "needs.check-human-pull.outputs.pull": "",
     }));
   const handedOff = { started: "true" };
   const ran = { started: "true", uploaded: "true", patch: "written" };

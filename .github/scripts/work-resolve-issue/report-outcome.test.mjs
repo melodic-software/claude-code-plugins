@@ -4721,6 +4721,17 @@ test("route wait: a blocked-by-pr code keeps agent-ready and names the pull requ
   assert.equal(waitedPull("blocked-by-pr: nothing named", 77), "");
 });
 
+test("a done run whose push a listed human's open pull request skipped waits on that pull request and opens none", () => {
+  const plan = decideDone({ branch: "", changedFiles: [], runId: "555", humanPull: "31" });
+  assert.equal(plan.action, "wait");
+  assert.equal(plan.stop, "blocked-by-pr");
+  assert.equal(plan.pr, "31");
+  assert.match(plan.comment, /once #31 merges or closes/);
+  assert.match(plan.comment, /listed human's open pull request ＃31 names this issue/);
+  assert.equal(decideDone().action, "open-pr");
+  assert.equal(stoppedPlan("intent-change: the issue asks for X", { humanPull: "31" }).action, "hand-back", "a run's own stop keeps its route");
+});
+
 // Work that must land after another issue names no owner reason: intake
 // triage writes the blocked-by edge the run names, so admission waits for it.
 test("route intake: a blocked-by-issue code sends the issue back through intake, naming the issue it waits on", () => {
