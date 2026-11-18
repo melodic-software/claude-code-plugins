@@ -15,6 +15,12 @@
 #   - literal arguments after an anchor in join, resolve or Join-Path:
 #     join(here, "..", "x"), os.path.join(HERE, "../x"), Join-Path $PSScriptRoot '..\x';
 #   - pathlib: Path(__file__).parents[2] / "x", HERE.parent / "x".
+# A shell variable assigned from this file's location, alone or plus a path, or from
+# another such variable holds the directory that names; otherwise one named
+# *PLUGIN_ROOT or *PLUGIN_DIR holds the plugin's root, and any other the file's
+# directory. One assignment the check cannot resolve leaves a variable untraced.
+# Comment lines and path strings with no anchor are not crossings. Accepted limits:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/architecture/README.md#boundary-rules
 #
 # scripts/plugin-imports-exceptions.txt lists accepted crossings, one line per
 # file and sibling plugin: `<path> <sibling> <YYYY-MM-DD> <reason>`. A crossing it
@@ -97,7 +103,7 @@ declare -a pending=()
 verified=""
 re_assign='^[[:space:]]*(local[[:space:]]+|readonly[[:space:]]+|declare[[:space:]]+(-[A-Za-z]+[[:space:]]+)?)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$'
 re_cd='\$\(cd([[:space:]]+-[-A-Za-z]*)*[[:space:]]+"?'
-re_self='^"?('"$re_cd"')?\$\(dirname([[:space:]]+--)?[[:space:]]+"?\$\{?(0|BASH_SOURCE(\[0\])?)\}?"?\)"?([[:space:]]*&&[[:space:]]*pwd[^)]*\))?"?$|^"?\$\{BASH_SOURCE(\[0\])?%/\*\}"?$'
+re_self='^"?('"$re_cd"')?\$\(dirname([[:space:]]+--)?[[:space:]]+"?\$\{?(0|BASH_SOURCE(\[0\])?)\}?"?\)(/'"$path_chars"')?"?([[:space:]]*&&[[:space:]]*pwd[^)]*\))?"?$|^"?\$\{BASH_SOURCE(\[0\])?%/\*\}"?$'
 re_rhs='^"?('"$re_cd"')?\$\{?([A-Za-z_][A-Za-z0-9_]*)(%/\*)?\}?(/'"$path_chars"')?"?([[:space:]]*&&[[:space:]]*pwd[^)]*\))?"?$'
 
 trace() {
@@ -110,7 +116,8 @@ value_of() {
   local file="$1" rhs="$2" up rel
   REPLY="?" DEPS=""
   if [[ "$rhs" =~ $re_self ]]; then
-    REPLY="${file%/*}"
+    norm "${file%/*}" "${BASH_REMATCH[6]:-.}"
+    REPLY="${REPLY:-.}"
   elif [[ "$rhs" =~ $re_rhs ]] && [[ -z "${BASH_REMATCH[1]}" || -n "${BASH_REMATCH[6]}" ]]; then
     up="${BASH_REMATCH[4]:+/..}" rel="${BASH_REMATCH[5]}"
     if base_of "$file" "${BASH_REMATCH[3]}"; then

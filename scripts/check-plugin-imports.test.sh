@@ -109,6 +109,13 @@ expect_pass "a fixture root from mktemp holding plugins/beta passes"
 tree "$A/a.sh" "$here"$'\nREPO="$TMP/repo"\nmkdir -p "$REPO/plugins/beta/lib"'
 expect_pass "a variable also assigned a path the check cannot resolve is not traced"
 
+climb='root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"'
+tree "plugins/alpha/evals/x/scaffold.sh" "$climb"$'\nsource "$root/../beta/lib/x.sh"'
+expect_crossing "a climb after a variable assigned from dirname of the file plus a path fails" "plugins/alpha/evals/x/scaffold.sh:2" plugins/beta/lib/x.sh
+
+tree "plugins/alpha/evals/x/scaffold.sh" "$climb"$'\nsource "$root/../alpha/lib/x.sh"\nsource "$root/lib/x.sh"'
+expect_pass "a variable assigned from dirname of the file plus a path that stays in the plugin passes"
+
 tree "$A/a.sh" "$here"$'\nREPO="$(mktemp -d)"\nmkdir -p "$REPO/plugins/beta/lib"'
 expect_pass "a traced variable reassigned from mktemp is not traced"
 
