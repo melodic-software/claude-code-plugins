@@ -3,6 +3,13 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.10.1] - 2026-11-18
+
+### Fixed
+
+- The README intro and the manifest description now both count 22 toggleable guards, the guards
+  with their own `userConfig` switch; the README said twenty and the manifest 25.
+
 ## [3.10.0] - 2026-11-18
 
 ### Added

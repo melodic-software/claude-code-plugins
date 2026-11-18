@@ -60,9 +60,9 @@ This document defines the repeatable process for improving the **output of a sim
 
 **Outputs:**
 
-- Miro board(s) with all building blocks
+- Board(s) with all building blocks, on the run's backend
 - Agent transcripts (event lists, narrative walk-throughs, policy corrections)
-- Screenshot at each checkpoint
+- A snapshot at each checkpoint, where the backend offers one
 
 ---
 
@@ -72,7 +72,7 @@ This document defines the repeatable process for improving the **output of a sim
 
 **Process:**
 
-1. Read ALL board items (`miro_list_board_items` with `limit=1000`)
+1. `read_board` each board, the whole board
 2. Score each criterion in `simulation-evaluation.md` rubric: Pass / Partial / Fail, through the
    fresh-context scorer and the `verification` level in that file's "How to Run an Evaluation",
    step 3; the context that ran the simulation never scores it
@@ -139,7 +139,7 @@ Categorize each gap by fix location:
 
 | Fix Type | Scope | Where to Fix | Examples |
 |----------|-------|-------------|---------|
-| **Board correction** | Consumer | Miro boards (via MCP) | Missing legend entries, misplaced stickies, missing UL terms |
+| **Board correction** | Consumer | The boards, through the board operations | Missing legend entries, misplaced stickies, missing UL terms |
 | **Run-state update** | Consumer | `${CLAUDE_PLUGIN_DATA}/history.jsonl` | Updated metrics, new findings, version progression |
 | **Prompt improvement** | Authoring only | agentic-simulation.md | Better persona prompts, missing focal moments, weak differentiation |
 | **Process gate** | Authoring only | agentic-simulation.md | Missing checkpoint, insufficient event count gate, missing cleanup step |
@@ -159,7 +159,7 @@ Consumer fixes apply to the current run. Authoring-only fixes edit the plugin's 
 **Process:**
 For each fix, determine if it can be verified without a full re-run:
 
-- **Board corrections:** Visual verification via screenshot. Does the board now match the source?
+- **Board corrections:** Read the board back (and a snapshot where the backend offers one). Does the board now match the source?
 - **Prompt improvements:** Requires re-running the affected phase with the new prompt on a test board
 - **Process gates:** Requires re-running through the gate to verify it catches the issue
 - **Content gaps:** Read the updated doc and verify it matches the source chapter
@@ -230,10 +230,10 @@ For prompt improvements and process gates: run a MINI simulation (single phase, 
 | `simulation-evaluation.md` | Rubric, checklists, chapter index, version comparison template |
 | `iteration-workflow.md` | This file: the per-run quality loop (plus plugin-authoring steps) |
 | `agentic-simulation.md` | The simulation execution guide |
-| `${CLAUDE_PLUGIN_DATA}/history.jsonl` | Version history, board URLs, findings (per-plugin run-state store) |
-| `agentic-simulation.md` "Session lifecycle" | Process learning: MCP preflight. Test the Miro server before starting |
+| `${CLAUDE_PLUGIN_DATA}/history.jsonl` | Version history, board references, findings (per-plugin run-state store) |
+| `agentic-simulation.md` "Session lifecycle" | Process learning: backend preflight. Check the backend before starting |
 | `agentic-simulation.md` (Agent-invocation guidance) | Process learning: real Agent invocations, not scripted |
-| `miro-integration.md` (frame positioning) | Process learning: frame positioning gotchas |
+| The plugin's `reference/board-backends/` files | Process learning: a backend's own gotchas (for Miro, frame positioning) |
 
 ---
 
@@ -247,9 +247,9 @@ The skill is ready for production use on a real domain when:
 4. **Bounded contexts are meaningful**: divergence signals produce real BC boundaries, not noise
 5. **Ubiquitous language is captured**: 5+ domain-specific terms with precise definitions
 6. **Aggregates are behavior-rich**: aggregate:command ratio <= 1:1 after consolidation
-7. **MCP integration works**: board creation, sticky placement, and reading all via MCP tools
-8. **Visual verification passes, where it applies**: on the live-board path with a browser MCP
-   connected, screenshots show correct colors, layout, and density at each checkpoint; otherwise the
-   markdown artifact is checked instead
+7. **Board operations work**: board creation, sticky placement, and reading all through the board operations
+8. **Visual verification passes, where it applies**: where the backend offers snapshots, they
+   show correct colors, layout, and density at each checkpoint; otherwise the board as read is
+   checked instead
 9. **Version progression is positive**: each version scores equal or better than the previous
 10. **No known gaps**: all identified gaps from the gap analysis are either fixed or explicitly deferred with rationale

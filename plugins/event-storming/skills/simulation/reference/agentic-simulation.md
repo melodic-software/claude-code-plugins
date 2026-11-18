@@ -9,7 +9,7 @@
 - [Step 3: Build Agent Prompts](#step-3-build-agent-prompts)
 - [Step 4: Run the Simulated Session](#step-4-run-the-simulated-session)
 - [Step 5: Capture Outputs](#step-5-capture-outputs)
-- [Integration with Miro](#integration-with-miro)
+- [Running on a Board](#running-on-a-board)
 - [Tips for Effective Simulation](#tips-for-effective-simulation)
 - [Variation Modes: Execution Details](#variation-modes-execution-details)
 
@@ -296,7 +296,7 @@ Each persona is a separate Agent tool invocation, and this skill hands it its ea
     sponsor.md
     operations.md
     newhire.md
-  session-meta.md        # Domain, board IDs, current phase, persona list
+  session-meta.md        # Domain, backend, board references, current phase, persona list
 ```
 
 **Profile template** (`personas/{role}.md`):
@@ -497,11 +497,13 @@ The simulation produces:
 
 ---
 
-## Integration with Miro
+## Running on a Board
 
-When the `miro` plugin is enabled (see SKILL.md "Miro availability & graceful degradation"),
-simulated agents can place stickies directly on a Miro board. See `@./reference/miro-integration.md`
-for the tool namespace, color mapping, spacing values, and board setup.
+Every round reads and writes the board through the operations in the plugin's
+`reference/board-operations.md` (`read_board`, `add_stickies`, `move_sticky`, ...) on the backend
+the run chose (SKILL.md "Board backend"). Persona agents read the board and return stickies as
+data; the facilitator alone writes. How a backend stores or lays out a sticky is in its own file
+under `reference/board-backends/`.
 
 ### Round-Based Orchestration: Following Brandolini's Incremental Phases
 
@@ -516,49 +518,47 @@ disagreements.
 **Per-agent prompt must include:**
 
 1. **Persona profile**: if persona persistence is enabled, load the full profile file content from `{session_dir}/personas/{role}.md`. Otherwise, include inline: role, background (2-3 sentences), priorities (ordered), blind spots, communication style, what triggers them to speak up
-2. **Board ID and MCP instructions**: agents read the board themselves via `miro_list_board_items`, place events via `miro_create_sticky_note` or `miro_bulk_create_sticky_notes`
+2. **Board access and return shape**: the board reference and how to `read_board` it (for a markdown board, the file path to Read). The agent writes nothing: it returns its stickies as a list of `{kind, text, section, zone or row, parent}` entries, which the facilitator places
 3. **Domain context**: research relevant to their role, not the full dump, just what this persona would know from their professional experience
-4. **Color and format rules**: which colors are allowed this round (e.g., orange only during Chaotic Exploration), event format: `[PersonaName] Event in Past Tense`
-5. **Y-offset**: each persona occupies a distinct y-coordinate row during chaotic exploration
+4. **Kind and format rules**: which kinds are allowed this round (e.g., `event` only during Chaotic Exploration), event format: an event in past tense, with the persona carried in `by`, never in the text
+5. **Own lane**: each persona's stickies carry its name in `by`, which keeps it its own lane on every backend
 6. **Sticky note content rules (mandatory in every agent prompt):**
    - **Brevity:** 2-5 words per event. Past-tense verb phrases (`Order Placed`, `Payment Failed`). If it doesn't fit on a physical 76x76mm sticky note in thick marker, it's too long. **Key test:** count your words. If >5, split into multiple events or simplify
    - **No emojis:** Physical sticky notes are handwritten text only. Do not prefix stickies with emoji characters (🧑, 📖, 🔵, ⚡, 📊, 🏆, etc.). Plain text only. This applies to all board types (BP, PM, DL) and all agent prompts. Include this instruction in every subagent prompt that creates stickies
-   - **No literal newlines:** Do not use `\n` in sticky note content. Miro renders these as literal backslash-n, not line breaks. Use ` — ` (em dash with spaces) as separator instead
-   - **No type prefixes:** Do not add prefixes like "COMMAND:", "EVENT:", "POLICY:" to sticky content. The color is the type indicator, not a text prefix. Write the content only: `Submit Talk Proposal` not `🔵 COMMAND Submit Talk Proposal`
+   - **One line:** no line breaks in sticky text. Use ` — ` (em dash with spaces) as a separator instead
+   - **No type prefixes:** Do not add prefixes like "COMMAND:", "EVENT:", "POLICY:" to sticky content. The kind is the type indicator, not a text prefix. Write the content only: `Submit Talk Proposal` not `🔵 COMMAND Submit Talk Proposal`
 7. **Round-specific behavior:**
    - **Hermit agents**: "Do not read the board. Dump 8-12 events purely from your expertise."
-   - **Reactor agents**: "Read the board first via `miro_list_board_items`. Place events that react to what you see. Reference other personas' events by name, add your perspective, flag where you disagree."
-   - **"What is missing?" agents**: "Read the full board. Identify gaps: failure modes, edge cases, time-triggered events, financial flows, system interactions nobody mentioned. Place 3-5 events filling those gaps."
+   - **Reactor agents**: "Read the whole board first. Return events that react to what you see. Reference other personas' events by name, add your perspective, flag where you disagree."
+   - **"What is missing?" agents**: "Read the full board. Identify gaps: failure modes, edge cases, time-triggered events, financial flows, system interactions nobody mentioned. Return 3-5 events filling those gaps."
 
 **Round orchestration (facilitator workflow):**
 
 1. Spawn agent(s) for the current micro-round, using parallel Agent tool calls where simultaneous work is appropriate
-2. Wait for all agents to complete
+2. Wait for all agents to complete, then place every returned sticky in one `add_stickies` batch,
+   adding `by` (the persona) and `phase`
 3. **Post-placement quality gate (facilitator validates every round):**
-   a. Read the board via `miro_list_board_items` (`limit=1000`)
-   b. **Mechanical content scan:** run one pass over the new stickies' content strings and collect
-      three lists rather than judging them by eye: content over 5 words, content containing emoji
-      codepoints, and content starting with a type prefix such as `COMMAND:`, `EVENT:` or `POLICY:`.
-      Repair every hit via `miro_update_sticky_note`: split or simplify the long ones, strip the
-      emoji, drop the prefix (the color is the type indicator)
-   c. **Overlap check:** call `miro_detect_overlaps` and reposition every reported pair. Raise the
-      threshold above its 195px default on rectangle-heavy boards
+   a. `read_board`, the whole board
+   b. **Mechanical content scan** (`board-operations.md` "Content scan"), run with `check_board`
+      where the backend offers it; repair every hit with `update_sticky`
+   c. **Layout check:** `check_board` on a backend that lays stickies out by position; repair what
+      it reports
    d. **Phase name check:** scan for nouns/gerund phrases without past-tense verbs and flag as `[PHASE? Decompose this]`
-   e. **Visual checkpoint:** on the live-board path with a browser MCP connected, take a screenshot at every phase transition (a strong quality gate for board runs); in structured-markdown mode or with no browser MCP, skip it and verify against the markdown artifact instead
-   f. **Legend overflow check:** verify legend stickies are within frame bounds visually
-4. Next round's agents read the board themselves via MCP. Past 100 items, also give them the
+   e. **Visual checkpoint:** a `snapshot` at every phase transition where the backend offers one;
+      otherwise check against the board as read
+   f. **Legend check:** `update_legend`, so every kind on the board is listed
+4. Next round's agents `read_board` themselves. Past 100 items, also give them the
    structured summary that "Inter-round communication" below describes
 5. Repeat until cool down (see the event-count diagnostic below)
 6. If persona persistence is enabled, update the persona profile files with what each agent produced in this round
 
 **Board Setup (Facilitator)**
 
-1. Create board with `miro_create_board`
-2. Create Legend frame, but only show Domain Events initially (add to legend incrementally as phases progress)
-3. **Do not create a timeline frame.** A frame sized to the flow must grow every round, and frames created or resized after their content render on top and hide it (frame z-order gotcha in `miro-integration.md`). Rely on coordinate-based organization; the static Legend frame is the only frame.
-4. Set x=0 as the timeline start, flowing right
+1. `create_board` for the Big Picture format, with the domain, version, session and personas
+2. The legend starts with Domain Events only and grows as phases add kinds (`update_legend`)
+3. The timeline flows left to right; zones come later, in Enforce Timeline
 
-**Round 1: Chaotic Exploration (events only, orange stickies)**
+**Round 1: Chaotic Exploration (events only, orange `event` stickies)**
 
 The only notation at this point is orange Domain Events in past tense. No other colors, no actors, systems, commands, or hot spots.
 
@@ -575,9 +575,9 @@ Brandolini describes one organic phase, not structured "waves." The dynamics (Ch
 The simulation approximates this with parallel agent rounds, but must not impose artificial structure (no "Wave 1/Wave 2/Wave 3" labels, no behavioral mode switches between rounds).
 
 1. **Everyone at the wall, spawn all agents in parallel:**
-   Spawn all persona agents simultaneously. Each agent independently dumps Domain Events from their expertise, as many as its role's volume in the Behavioral Rules. Each agent places events in their own y-row. Whichever agent completes first is the organic icebreaker. This is emergent, not prescribed ("An icebreaker, the person that places the first sticky note... is your best ally", Ch. 4). The facilitator does not go first ("I tend to resist it, since it may put other's participants in passive mode", Ch. 4).
+   Spawn all persona agents simultaneously. Each agent independently dumps Domain Events from their expertise, as many as its role's volume in the Behavioral Rules. Each agent returns its events, which the facilitator places in the Timeline under that persona's name. Whichever agent completes first is the organic icebreaker. This is emergent, not prescribed ("An icebreaker, the person that places the first sticky note... is your best ally", Ch. 4). The facilitator does not go first ("I tend to resist it, since it may put other's participants in passive mode", Ch. 4).
 
-   Each agent chooses whether to read the board (`miro_list_board_items`) or not. Some will be hermits ("work mostly alone, dropping the bulk of their expertise"), some will glance at what's there. Do not prescribe "hermit mode" or "peripheral awareness mode". Let the agent prompt say: "You're at the wall with everyone else. Place your events. You may glance at what's already on the board, or ignore it entirely and just dump your expertise."
+   Each agent chooses whether to read the board or not. Some will be hermits ("work mostly alone, dropping the bulk of their expertise"), some will glance at what's there. Do not prescribe "hermit mode" or "peripheral awareness mode". Let the agent prompt say: "You're at the wall with everyone else. Write your events. You may glance at what's already on the board, or ignore it entirely and just dump your expertise."
 
    **Anti-Spoiler protection (critical for LLM agents):** LLM agents naturally want to be comprehensive and correct, so they dump complete, consistent process flows instead of partial, perspective-limited views. This is the Spoiler anti-pattern (Ch. 29). Every agent prompt must include: "You are not trying to be comprehensive. Place only as many events as your role knows (the volume in your Behavioral Rules), from your perspective only. Leave gaps. Your incomplete view is the point. Events you don't know about are someone else's job. If you're writing events that feel outside your expertise, stop."
 
@@ -588,7 +588,7 @@ The simulation approximates this with parallel agent rounds, but must not impose
    In real workshops, overlap happens because everyone writes about the same visible business moments from their own perspective, as in Brandolini's `Schedule Ready` vs `Schedule Completed` vs `Schedule Published` example (Ch. 6). In simulation, agents writing about completely different domain areas produces complementary coverage but zero overlap. To force natural overlap, include 5 **shared focal moments** in every agent's prompt: "Your domain includes these key moments that everyone encounters: [list pivotal transitions, e.g., 'a customer first engages', 'money changes hands', 'the product/service is delivered', 'something goes wrong']. Write events for these moments from your perspective using your vocabulary, and write events for the parts of the domain only you know about." Each persona will name the same moment differently, and that divergence is the signal we want.
 
 2. **Continued exploration (if areas are thin):**
-   If total events are well below 100 after the initial dump, or if the facilitator sees under-explored areas, spawn agents again. Each agent reads the board and adds more events from their own expertise, but is not yet "reacting to" or "referencing" others' events. That's Enforce Timeline behavior. The conversation is still mostly silent.
+   If total events are well below 100 after the initial dump, or if the facilitator sees under-explored areas, spawn agents again. Each agent reads the board and returns more events from their own expertise, but is not yet "reacting to" or "referencing" others' events. That's Enforce Timeline behavior. The conversation is still mostly silent.
 
    This is not a separate "wave". It is continued exploration, the same way workshop participants keep adding stickies after the initial rush. "Some might work mostly alone, dropping the bulk of their expertise in a single strip of orange sticky notes, ignoring the surrounding world" (Ch. 4).
 
@@ -627,18 +627,18 @@ next phase.
 **Legend completeness requirements (facilitator responsibility):**
 The legend must be incrementally updated as each phase introduces new building blocks. A missing legend entry = a building block viewers can't decode. After each phase, verify the legend contains all building block types currently on the board:
 
-- After Chaotic Exploration: Domain Event (orange)
-- After Enforce Timeline: add Hot Spot (red), Temporal Milestone (dark_green), Pivotal Event (dark_blue), Phase Name (cyan)
-- After People & Systems: add Person/Actor (yellow), External System (light_pink)
+- After Chaotic Exploration: `event`
+- After Enforce Timeline: add `hot-spot`, `milestone`, `pivotal`, `phase`
+- After People & Systems: add `person`, `external-system`
 - After Walk-through: no new types, but verify existing entries are still visible
-- After Value Exploration: add Value Created (green), Value Destroyed (pink)
-- After Problems & Opportunities: add Arrow Vote (light_blue)
-- Throughout: facilitator may note domain terms with precise meanings as gray stickies (facilitator observation, not a formal workshop step)
+- After Value Exploration: add `value-created`, `value-destroyed`
+- After Problems & Opportunities: add `vote`
+- Throughout: facilitator may note domain terms with precise meanings as `term` stickies (facilitator observation, not a formal workshop step)
 
 **Ubiquitous Language capture (facilitator observation, not a formal phase):**
-Per Brandolini (Ch. 1): "When new terms arise, and the discussion shows that they have an exact meaning in that context, I start capturing key term definitions on a special sticky note and place them just below the normal flow." In simulation, the facilitator notes domain-specific terms with precise contextual meanings as they emerge organically during any phase, not as a dedicated step. Use gray stickies placed below the main flow. These are not Wikipedia definitions, just what each term means in this domain conversation. Examples: "CFP: Call for Papers", "Track: Parallel session stream."
+Per Brandolini (Ch. 1): "When new terms arise, and the discussion shows that they have an exact meaning in that context, I start capturing key term definitions on a special sticky note and place them just below the normal flow." In simulation, the facilitator notes domain-specific terms with precise contextual meanings as they emerge organically during any phase, not as a dedicated step. Use `term` stickies in the Ubiquitous language section. These are not Wikipedia definitions, just what each term means in this domain conversation. Examples: "CFP: Call for Papers", "Track: Parallel session stream."
 
-At Wrapping Up, these gray stickies become graduation candidates: offer each resolved term for the consumer repo's committed project glossary, one entry per term with a 1-2 sentence definition of what it is and a plain `Avoid:` line listing the rejected synonyms, project-context terms only. When `/domain-driven-design:ubiquitous-language curate` is available in the current session, delegate this active maintenance to it by invoking it via the Skill tool; the skill discovers the consumer's format and location and routes only among contexts already established by the workshop or project. Without that skill, preserve the same discovery-first, lazy fallback and ask when placement is ambiguous. Glossary graduation never discovers bounded contexts.
+At Wrapping Up, these `term` stickies become graduation candidates: offer each resolved term for the consumer repo's committed project glossary, one entry per term with a 1-2 sentence definition of what it is and a plain `Avoid:` line listing the rejected synonyms, project-context terms only. When `/domain-driven-design:ubiquitous-language curate` is available in the current session, delegate this active maintenance to it by invoking it via the Skill tool; the skill discovers the consumer's format and location and routes only among contexts already established by the workshop or project. Without that skill, preserve the same discovery-first, lazy fallback and ask when placement is ambiguous. Glossary graduation never discovers bounded contexts.
 
 **Bounded context identification (post-workshop homework, not a workshop phase):**
 Brandolini is emphatic (Ch. 6): "Once the workshop is officially over, and participants left the workshop room, we can start talking software, ...finally!" and "We can't assume the business side to know about bounded contexts. BCs are mostly a software development issue." BC discovery is the software architect's homework after the workshop, using these 6 heuristics from Ch. 6:
@@ -655,46 +655,44 @@ Punchline: **"Merge the people, split the software"** (Ch. 6).
 In the simulation, run BC discovery as a separate facilitator activity after the workshop phases complete. Use the 6 heuristics above against the board data. Present findings to the user. They are the architect's analysis, not workshop output. Use short names (2-3 words), not verbose descriptions.
 
 **Board relationship tracking (simulation convenience, not from the book):**
-After completing all formats (BP → PM → DL), place an Exploration Map on the Big Picture board showing: (1) which problem won the arrow voting, (2) which BC was explored in PM + DL, (3) which BCs were identified but not explored (future work), (4) aggregate names and counts from DL. This is a simulation artifact for session continuity. Brandolini's approach is to take pictures and fold the paper roll.
+After completing all formats (BP → PM → DL), `set_exploration_map` on the Big Picture board showing: (1) which problem won the arrow voting, (2) which BC was explored in PM + DL, (3) which BCs were identified but not explored (future work), (4) aggregate names and counts from DL. This is a simulation artifact for session continuity. Brandolini's approach is to take pictures and fold the paper roll.
 
 **Session lifecycle (setup → run → teardown):**
 
 Every simulation session follows this lifecycle. The protocol ensures clean state, prevents artifact leakage between sessions, and supports concurrent execution across different conversations.
 
-**Structured-markdown fallback mode:** when the Miro availability gate (SKILL.md "Miro availability & graceful degradation") has routed the run to structured-markdown output, skip every Miro-tool and board-screenshot step below: board creation, sticky placement, phase-transition screenshots (which need a browser MCP), and `miro_delete_board` teardown. In that mode the model, persona, and session-state steps still run; the board-rendering steps are replaced by appending to the markdown artifact. Only run the Miro/screenshot steps when the live-board path is active.
-
 **1. Session Setup (before any board creation):**
 
 - Generate session ID: `{domain}-{YYYYMMDD}-{random4}` (e.g., `devconf-20260321-a7f2`)
 - Create session directory: `{session_dir}/personas/` (where `{session_dir}` is created by the secure temp primitive in "Persona Persistence Across Rounds" and its returned path is carried for the rest of the session)
-- MCP preflight: test Miro MCP with a read-only call (e.g., `miro_list_boards`). If MCP fails, inform user and get approval for fallback
+- Backend preflight: `check_available` on the chosen backend. If it fails, stop and offer the routes in SKILL.md "Board backend"; never switch backends unasked
 - Domain research: 3+ web-research searches (Perplexity MCP if present, else `WebSearch`) before building persona prompts
 - Generate persona profile files (see "Persona Persistence Across Rounds" section above)
-- Record session metadata in `{session_dir}/session-meta.md`: domain, personas, board IDs (updated as boards are created)
+- Record session metadata in `{session_dir}/session-meta.md`: domain, personas, backend, board references (updated as boards are created)
 - Check the plugin data store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) for previous version boards and metrics (comparison baseline)
 
 **2. Session Run (the simulation itself):**
 
-- Create boards with descriptive names including version: `EventStorming Big Picture v{N} — {Domain}`
-- Update `session-meta.md` with board IDs as they're created
+- `create_board` with a title including the version: `Big Picture v{N} - {Domain}`
+- Update `session-meta.md` with board references as they're created
 - Update persona profiles after each round with events placed, people/systems added, challenges made
-- Take screenshots at every phase transition (visual checkpoints)
+- Take a `snapshot` at every phase transition where the backend offers one (visual checkpoints)
 - All board deletions require user confirmation (including cleanup of test boards)
 
 **3. Session Teardown (after evaluation):**
 
-- Update the plugin data store with version metrics, board URLs, and findings (`${CLAUDE_PLUGIN_DATA}/history.jsonl`)
+- Update the plugin data store with version metrics, board references (`{backend, ref}`), and findings (`${CLAUDE_PLUGIN_DATA}/history.jsonl`)
 - Ask user about persona temp files: "Delete persona profiles? (Can be archived for session replay)"
   - Delete the session directory recursively, path quoted (`rm -rf "{session_dir}/"` on POSIX/Git Bash; `Remove-Item -LiteralPath "{session_dir}" -Recurse -Force` on PowerShell)
   - Archive: copy to `${CLAUDE_PLUGIN_DATA}/sessions/{session_id}/` (see "Cleanup protocol" above)
-- Clean up test/smoke-test boards (with user confirmation via `miro_delete_board`)
+- Clean up test/smoke-test boards (`delete_board`, each confirmed by the user by name)
 - Optionally clean up old version boards (keep only latest, with user approval)
 
 **Concurrent session safety:**
 
 - Session IDs include random suffix, so no collision between conversations
 - Temp directories never overlap. Each is created by the temp primitive with its own random component, so two concurrent sessions cannot land on the same path even within one conversation
-- Board names include version number (`v7`, `v8` etc.), visually distinct in Miro
+- Board titles include the version number (`v7`, `v8` etc.); markdown boards also sit in their own session folder
 - Persona profiles are session-scoped, so one session's Organizer doesn't bleed into another's
 
 **Key principles for realistic simulation:**
@@ -703,7 +701,7 @@ Every simulation session follows this lifecycle. The protocol ensures clean stat
 - **Duplicates are desired**: agents writing independently about the same moment is a signal, not an error. During sorting, resist merging duplicates, because divergent wordings for "apparently the same event" are bounded context signals (Brandolini Ch. 6). Genuine identical duplicates can be stacked but divergent phrasings stay visible
 - **Asymmetric output is natural**: Domain Experts dump 15 events, New Hires add 5. Don't force equal output. "Some might work mostly alone, dropping the bulk of their expertise in a single strip of orange sticky notes" (Ch. 4)
 - **The facilitator breaks "committee circles"**: if agents converge too quickly on clean consistent flows, prompt them to disagree. "Discussing to reach an agreement on every single sticky note, before writing it would kill workshop throughput and hide exactly the contradictions we want to explore" (Ch. 4)
-- **No connectors / arrows**, per Brandolini (Ch. 7): "once an arrow is drawn, your brain avoids moving stickies to preserve arrows" (Sunken Cost Fallacy). In Miro, do not use connectors during Big Picture. Use proximity and temporal order instead
+- **No connectors / arrows**, per Brandolini (Ch. 7): "once an arrow is drawn, your brain avoids moving stickies to preserve arrows" (Sunken Cost Fallacy). No backend draws connectors during Big Picture. Use proximity and temporal order instead
 - **Continuous source validation**: after each phase, check: "Is this how it should be done?" against the bundled methodology references (`/event-storming:methodology`), which encode Brandolini's guidance. Only read the book itself if the user has supplied a copy. Never block a phase waiting on the book, because the bundled references are sufficient
 - **"The model is still wrong"**: the workshop output is provisional. "Some inconsistencies could only be spotted by coding and testing the model in the real world" (Ch. 9). Don't fall in love with the artifact
 
@@ -733,32 +731,21 @@ This is not a separate "contradiction round". Brandolini explicitly warns agains
 
 1. Facilitator selects sorting strategy based on domain characteristics
 2. **Place temporal milestones/pivotal events above the persona event rows** (negative y). These act as section headers, consistent with Brandolini's "colored tape" at the top of the wall
-3. Identifies 4-5 **Pivotal Events**, marked with dark_blue stickies on the Pivotal Events row (see the Big Picture Y-Coordinate Table in `miro-integration.md`)
-4. **Physically sort events into timeline zones** using `miro_update_sticky_note` to reposition each event to the correct x-zone under its milestone. Group events by milestone, maintain persona y-offsets within each zone. This is the digital equivalent of physically moving stickies along the paper roll
+3. Identifies 4-5 **Pivotal Events**, placed as `pivotal` stickies, and calls `define_zones` with one zone per business phase they bound
+4. **Physically sort events into timeline zones** with `move_sticky`, each event into the zone under its milestone, keeping its persona. This is the digital equivalent of physically moving stickies along the paper roll
 5. Places duplicates and near-duplicates next to each other (never merge them). These are bounded context signals. Place a hot spot between them: `[DIVERGENCE] Organizer says "X" vs Speaker says "Y" — different context?`
 6. **Hot spots during enforcement are facilitator-only**: do not prompt personas for problems yet. "An explicit call for problems too early creates a flood with low signal-to-noise ratio" (Brandolini). The facilitator observes inconsistencies during sorting and marks them
 7. **Do not walk through or reverse narrative yet.** That comes after People & Systems are visible (Round 4)
 
-**Sorting layout (positioning strategy):**
-Assign x-zones to each milestone. For Temporal Milestones with 7 zones:
+**Sorting in batch:** `read_board` first, assign each event its zone, then move them in one batch.
+A backend that lays the board out by position turns zones into position (for Miro, its "Zone x
+ranges").
 
-- Zone 1 (12 months before): x=0 to x=2000
-- Zone 2 (6 months before): x=2400 to x=4400
-- Zone 3 (3 months before): x=4800 to x=6800
-- Zone 4 (1 month before): x=7200 to x=9200
-- Zone 5 (Conference week): x=9600 to x=11600
-- Zone 6 (Conference day): x=12000 to x=15200
-- Zone 7 (After conference): x=15600 to x=18000
+**Inter-round communication:** Agents `read_board` at the start of each round, so they see all events from all personas and react accordingly. The facilitator does not need to summarize board state. When boards exceed 100 items, the facilitator should provide agents with a structured summary organized by timeline position alongside the board read. Each persona agent sees the full event list (not just their own) so they can react to other perspectives.
 
-Within each zone, events from different personas keep their original y-offsets (persona rows). Use `miro_update_sticky_note(board_id, item_id, x=new_x)`. Read all items first, categorize by milestone zone, then reposition in batch
-
-**Inter-round communication:** Agents read the board directly via `miro_list_board_items` at the start of each round, so they see all events from all personas and react accordingly. The facilitator does not need to summarize board state. When boards exceed 100 items, the facilitator should provide agents with a structured summary organized by timeline position alongside the raw MCP read. Each persona agent sees the full event list (not just their own) so they can react to other perspectives.
-
-**Board reading, one call for the whole board:**
-`miro_list_board_items` paginates internally and returns at most `limit` items, which defaults to
-20 and accepts up to 1000. Agents and facilitators pass an explicit `limit` large enough for the
-whole board (use `limit=1000`); calling the tool again without raising `limit` returns the same
-first items, not the next page. A partial board read is equivalent to a participant who can only
+**Board reading, the whole board every time:**
+`read_board` always returns the whole board; a backend whose read can stop short reads past that
+limit (its file says how). A partial board read is equivalent to a participant who can only
 see half the wall: they'll miss critical context and produce bad analysis. Brandolini's physical
 wall is always fully visible ("People will need to see the forest and the trees", Ch. 4). Our
 digital equivalent must be too.
@@ -772,11 +759,11 @@ Run a facilitator step-back after Round 2 (not just after Round 4). Early step-b
 - Use "people" not "actors/users/roles/personas", a fuzzy definition for inclusion (Brandolini Ch. 4: "I prefer to use the term people")
 - External system fuzzy definition: **"whatever we can put the blame on"** (Ch. 4). This may include non-software things: "Bad Luck," "Europe," "Brexit," "GDPR" are all legitimate
 - Facilitator provides each persona with the sorted timeline, then prompts: "Looking at this timeline, who are the key people involved in your area? What external systems do you depend on or blame?"
-- Place people on the People/Actors row and external systems on the External Systems row, both above the persona event rows, per the Big Picture Y-Coordinate Table in `miro-integration.md` (external systems sit at the top of the board, not below the flow)
+- Place people and external systems in the People and systems section, as `person` and `external-system` stickies
 - **Trigger the "Is this a person or a system?" conversation.** Brandolini highlights this as an interesting question that reveals ownership attitudes (Ch. 4). Prompt agents: "Is [thing X] a person or a system? Who owns it?"
 - This triggers more events: "mundane activities that occur on the boundaries" (Ch. 4)
 - **Be alert for sarcastic complaints.** "I am usually alert for spontaneous comments (usually sarcastic complaints) that we should capture with Hot Spots" (Ch. 4). Prompt agents: "Any complaints about working with these systems?"
-- **Adding systems triggers new events.** Per Brandolini Ch. 4: "Adding new systems usually triggers the need for more events." When personas place external systems on the board, the facilitator should prompt them: "What events happen because of this system? What breaks when this system is down?" Expect 5-10 new events triggered by adding people and systems
+- **Adding systems triggers new events.** Per Brandolini Ch. 4: "Adding new systems usually triggers the need for more events." When personas add external systems to the board, the facilitator should prompt them: "What events happen because of this system? What breaks when this system is down?" Expect 5-10 new events triggered by adding people and systems
 - Update the legend with People and External Systems
 
 **Round 4: Explicit Walk-through (forward, separate from Reverse Narrative)**
@@ -853,13 +840,13 @@ Start with money, "the most obvious choice" (Ch. 5). Facilitator prompts: "Where
 
 **Process Modeling** (after Big Picture identifies the problem to solve):
 
-Create a new Miro board. This is a different workshop with different participants (3-5 people, more technical). See `/event-storming:methodology --process` for full details.
+`create_board` for the Process Modeling format: a new board, separate from Big Picture. This is a different workshop with different participants (3-5 people, more technical). See `/event-storming:methodology --process` for full details.
 
 **Board Setup:**
 
-1. Create board titled "Process Modeling: [Selected Problem/Process]"
-2. Create Legend frame showing "The Picture That Explains Everything": Actor → ReadModel → Command → System → Event → Policy → Command...
-3. Carry over relevant events from Big Picture as starting context. **Do NOT create a growing timeline frame** (frame z-order gotcha in `miro-integration.md`). Use coordinate-based organization; the static Legend frame is the only frame
+1. Title it "Process Modeling: [Selected Problem/Process]"
+2. The legend shows "The Picture That Explains Everything": Actor → ReadModel → Command → System → Event → Policy → Command...
+3. Carry over relevant events from Big Picture as starting context, into the Flow's `main` row
 4. **Critical: display the color grammar visibly**, because "there must be a lilac between an orange and the blue"
 
 **Personas:** Reduce to 3-5 from Big Picture. Keep Domain Expert, add Developer, keep one business role. Drop broad stakeholders.
@@ -878,9 +865,9 @@ Create a new Miro board. This is a different workshop with different participant
 **Round 2: Alternative Paths + Unfulfilled Expectations**
 
 - For each command: "What if it fails? What if it's rejected? What if it partially succeeds?"
-- Place happy path events on the Main Flow row; route failure/rejection alternatives to the
-  Exception flows row and additional/secondary alternatives to the Secondary alternatives row
-  (see the Process Modeling Y-Coordinate Table in `miro-integration.md`)
+- Place happy path events on the `main` row; route failure/rejection alternatives to the
+  `exceptions` row and additional/secondary alternatives to the `alternatives` row
+  (`board-operations.md` "Placement")
 - **Events that are not happening** (Ch. 14): Model unfulfilled expectations via time-triggered events. "End of day happened before Greeting Received" models a forgotten birthday. Prompt agents: "What should happen but doesn't? What deadlines expire? What expectations go unfulfilled?" Making the time-frame explicit leads to interesting insights
 - Continue until all paths reach a stable state (System Happy + User Happy)
 
@@ -908,12 +895,12 @@ Create a new Miro board. This is a different workshop with different participant
 
 **Design-Level** (after Process Modeling converges on a solution):
 
-Create another new Miro board. This is mostly developers (3-7) + one domain expert. See `/event-storming:methodology --design-level` for full details.
+`create_board` for the Design-Level format, another new board. This is mostly developers (3-7) + one domain expert. See `/event-storming:methodology --design-level` for full details.
 
 **Board Setup:**
 
-1. Create board titled "Design-Level: [Bounded Context Name]"
-2. Create Legend showing all building blocks including Aggregates (pale yellow)
+1. Title it "Design-Level: [Bounded Context Name]"
+2. The legend shows all building blocks including Aggregates (pale yellow)
 3. Carry over the Process Model events, commands, policies as starting context
 
 **Personas:** 3-7, mostly developers. Keep one Domain Expert for validation. Drop business-only roles.
@@ -928,7 +915,7 @@ Create another new Miro board. This is mostly developers (3-7) + one domain expe
 
 **Step 6: Fill Business Rules, Discover Invariants (20-30 min).** Second critical discussion moment. For each blank yellow sticky, fill in preconditions ("what must be true before?"), postconditions ("what is true after?"), and invariants ("what must remain true all along?"). Brandolini: look for responsibilities first, then information needed, then name.
 
-**Step 7: Group → Aggregates (15-20 min).** When two business rules deal with similar data or enforce related invariants, stack them vertically. This breaks the timeline, and that is expected. Commands enforcing the same invariant share an aggregate. **Consolidation challenge (facilitator):** If aggregate count exceeds command count, something is wrong. Group by shared invariant, not by entity.
+**Step 7: Group → Aggregates (15-20 min).** When two business rules deal with similar data or enforce related invariants, stack them vertically. This breaks the timeline, and that is expected. Commands enforcing the same invariant share an aggregate; record each with `group` (`aggregate`). **Consolidation challenge (facilitator):** If aggregate count exceeds command count, something is wrong. Group by shared invariant, not by entity.
 
 **Step 8: Name the Aggregates (5-10 min).** Last step for naming: "What would you call a class that does X and enforces Y?"
 
@@ -946,39 +933,24 @@ Default action: **Start coding the top-priority BC.** Present to the user verbat
 
 Continue to additional BCs only on explicit user opt-in that acknowledges it exceeds Brandolini's recommended scope. When the user opts in, label the extended boards **"Exploratory: exceeds Brandolini's recommended scope"** (valuable as domain-exploration / architecture-planning artifacts, not method-endorsed).
 
-### Spacing and Frame Management
+### Placement
 
-Big Picture y-coordinates follow the canonical **Big Picture Y-Coordinate Table** in
-`miro-integration.md`, the single source of truth. Do not restate coordinate values here.
+The skills never name a coordinate. Each sticky gets a section and, inside it, a zone, a row or a
+parent, plus `by` and `phase` (`board-operations.md` "Placement"); a backend that lays the board
+out by position derives the position from those (for Miro, its "Placement to coordinates").
 
-Layout invariants for the agentic run:
-
-- **Each persona is assigned one event row** from the canonical table (Persona 1 at the `y=0`
-  timeline baseline, e.g. Domain Expert → Persona 1, Developer → Persona 2, Operations → Persona 3,
-  …). **Personas keep that row across both Chaotic Exploration (Round 1) and Enforce Timeline
-  (Round 2+)**, so sorting moves stickies along x into milestone zones, never off their persona row.
-  During Chaotic Exploration, x values spread across the timeline width, roughly chronological but
-  not sorted. Chaos is expected.
-- **Header rows sit above the persona rows** (External Systems, Pivotal Events, People/Actors,
-  Divergence Markers) and **post-timeline content sits below** (walk-through, reverse narrative,
-  value created/destroyed, UL terms, problems, opportunities, arrow votes, BC labels), all per the
-  canonical table.
-- **400px horizontal** between flow items; **≥250px vertical** between adjacent rows
-  (`miro-integration.md` "Positioning Strategy (Tested Values)").
-
-**Do not create or resize timeline frames.** A frame sized to the growing flow must be resized each
-round, and frames created or recreated after their content render on top and hide it (frame z-order
-gotcha in `miro-integration.md`). Use coordinate-based organization; the static Legend frame is the
-only frame. **Place a copy of the legend near the sorted timeline** (not just near the chaotic dump)
-so users don't have to scroll back.
+- **Each persona keeps its lane** (`by`) across Chaotic Exploration (Round 1) and Enforce Timeline
+  (Round 2+), so sorting moves stickies into milestone zones, never out of their persona's lane.
+  During Chaotic Exploration, events are roughly chronological but not sorted. Chaos is expected.
+- **Markers sit apart from the flow:** pivotal events and milestones mark zones; people and
+  systems have their own section; walk-through and reverse-narrative events carry their `phase`;
+  value, terms, problems, opportunities, votes and contexts each have their own place.
+- **No growing frames or boxes** around the timeline: zones are the only grouping on it.
 
 ### Attribution
 
-Include persona name in sticky content for traceability:
-
-- `[DomainExpert] Order Placed`
-- `[Developer] !!! Race condition on concurrent orders`
-- `[Operations] Payment Gateway Timeout`
+Every sticky carries the persona who placed it in `by`, or `facilitator`, so traceability survives
+on every backend. Sticky text stays plain: `Order Placed`, not `[DomainExpert] Order Placed`.
 
 ---
 
@@ -1020,11 +992,11 @@ These modes are variations on the core Big Picture simulation. Each modifies the
 
 ### `--value`: Standalone Value Exploration (Book Ch. 5)
 
-**Prerequisites:** Requires an existing Big Picture board with People & Systems and Walk-through completed. Read the board via MCP before starting.
+**Prerequisites:** Requires an existing Big Picture board with People & Systems and Walk-through completed. `read_board` before starting.
 
 **Execution:** Run all 5 sub-rounds from Ch. 5 as separate agent rounds on the existing board:
 
-1. **Financial value:** Spawn each persona with "Where does money change hands? Place green stickies for value created, pink for value destroyed, along the existing event flow"
+1. **Financial value:** Spawn each persona with "Where does money change hands? Return value-created and value-destroyed stickies, each anchored to the event it belongs to"
 2. **Non-financial currencies:** Re-prompt each persona with "Now forget about money. Think about: time, stress, reputation, pride, belonging, safety, status, anxiety, awareness. What do you gain or lose at each step?"
 3. **Contrasting perspectives:** Facilitator reads the board, identifies events where multiple personas placed value stickies. Spawn 2-3 personas to debate: "The [Expert] says this step creates value. The [User] says it destroys value. Who's right?"
 4. **Diverging perspectives (segments):** Prompt with "Are all users the same? Do they have the same needs?" Discover segments. For each segment, re-evaluate the value stickies
@@ -1053,7 +1025,7 @@ These modes are variations on the core Big Picture simulation. Each modifies the
 
 ### `--crc`: Event-Driven CRC Cards Validation (Book Ch. 22)
 
-**Prerequisites:** Requires a completed Design-Level board with named aggregates. Read the board via MCP.
+**Prerequisites:** Requires a completed Design-Level board with named aggregates. `read_board` first.
 
 **Execution:**
 
