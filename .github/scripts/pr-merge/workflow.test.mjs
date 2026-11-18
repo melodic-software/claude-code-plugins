@@ -601,6 +601,7 @@ test("the eval-release wake runs on what the merge job released, whatever its re
   assert.equal(evalIf("wake-eval-released", dispatch, { pr: "" }, released("7")), true, "a sweep dispatch that released a pull request");
   assert.equal(evalIf("wake-eval-released", dispatch, { pr: "" }, released("")), false, "a sweep dispatch that released none");
   assert.equal(evalIf("merge", dispatch, { pr: "7" }), false, "a PR-scoped dispatch skips merge");
+  assert.equal(evalIf("wake-eval-released", dispatch, { pr: "7" }, released("", "skipped")), false, "a PR-scoped dispatch wakes nothing");
   const wake = job("wake-eval-released");
   assert.match(wake, /^ {4}needs: \[merge\]\n/m);
   assert.match(wake, /\n {4}permissions:\n {6}actions: write\n {6}contents: read\n {4}[a-z]/);

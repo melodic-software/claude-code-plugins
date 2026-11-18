@@ -953,8 +953,10 @@ a trust gate. An expedite label from a human with write access skips
 set never resumes an item, expedites it, sets its work class or lifts a hold.
 
 On its schedule, `pr-merge` gives a PR a new head, an empty commit, when the token broker refused
-a lane run on its current head as `workflow-modified`, once per version of the workflow file the
-broker named (`.github/scripts/pr-merge/refire-refused.mjs`).
+a `pr-unblock` run on its current head as `workflow-modified`, once per version of the workflow
+file the broker named. An `address-feedback` run refused that way is left to the feedback sweep
+(`.github/scripts/pr-merge/refire-refused.mjs`). A scheduled run or a sweep dispatch also releases
+an eval hold: [Cross-lane PR hold](../../contracts/loop-lane/README.md#cross-lane-pr-hold).
 
 A pr-unblock escalation whose reason repository state can settle is also cleared without a
 person. On its schedule, `pr-merge` rechecks each open PR into main carrying the human-gated
