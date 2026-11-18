@@ -12,5 +12,6 @@ bump: minor
 ### Changed
 
 - **Breaking:** enabling the `miro` plugin no longer puts runs on a Miro board. Set `board_backend` to `miro`, pass `--backend miro`, or give the run a Miro board URL to keep using Miro.
+- **Breaking:** the plugin now needs Claude Code v2.1.271 or later, because the `board_backend` option limits its value with `options`; earlier versions cannot load the plugin.
 - The Miro reference moves to `reference/board-backends/miro.md` and now holds every Miro tool name, color and coordinate; the skills name operations only.
 - Run-state entries record each board as `{backend, ref}`; an older entry with a bare URL reads as a Miro board.
