@@ -151,14 +151,16 @@ text, and a quote, `$(…)` or backtick inside it can break out of an inline she
 
 ## Sandboxed sessions: GraphQL is unavailable
 
-A cloud session behind the GitHub proxy is served no GraphQL operation: every GraphQL request gets
-`HTTP 403`, whatever token is set. Pointer:
-[Configure cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy).
-As-of: 2026-10-11. Recheck trigger: that section changes its GraphQL entry, or a release note names
-the GitHub proxy. `gh pr view --json`, `gh repo view --json`, `gh pr create`, `gh pr ready`
-and `gh pr merge` all run over GraphQL. The 403 looks like an expired token or a missing scope but
-is neither: switch to the REST route the spoke names rather than re-authenticating. Probe
-read-only:
+In a cloud session behind the GitHub proxy, this plugin treats GraphQL as unavailable: when a
+GraphQL call is refused there, take the REST route the spoke names and leave the token as it is:
+the refusal comes from the proxy, not from the token or its scopes. `gh pr view --json`, `gh repo view --json`, `gh pr create`, `gh pr ready` and
+`gh pr merge` all run over GraphQL.
+
+- **Pointer**: when you need what the proxy refuses and how its refusal reads, fetch
+  [Configure cloud environments: GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy)
+  live.
+
+Probe read-only:
 
 ```bash
 gh api graphql -f query='query{viewer{login}}' --jq '.data.viewer.login'
@@ -176,8 +178,11 @@ restriction is handled in the pull-request skill's `create.md` §2.4.0 and the
 
 ## Draft stage
 
-A draft cannot merge until it is marked ready
-([changing the stage of a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/changing-the-stage-of-a-pull-request)).
+Mark a draft ready before any merge attempt on it.
+
+- **Pointer**: when you need what the draft stage blocks, fetch
+  [Marking a pull request as ready for review](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/changing-the-stage-of-a-pull-request#marking-a-pull-request-as-ready-for-review)
+  live.
 
 ## API budget
 

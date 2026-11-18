@@ -329,7 +329,7 @@ settle mechanically, which is why writers drift to process framing. So each crit
 both halves, the goal-state and the command or diff that settles it.
 
 ```markdown
-- [x] `dotnet test` green on the affected projects
+- [x] the project's test command exits 0 on the affected projects
 - [ ] the retry path is exercised by a test that fails without the fix
 ```
 

@@ -221,8 +221,8 @@ hand-written; the shared medium resolver decides the destination, with this plug
   [styling § Shape](https://likec4.dev/dsl/styling/#shape) live. As of: 2026-11-10. Recheck
   trigger: any of those sections changes that syntax, or a newer `likec4` release ships: set
   `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
-- **Actors are not derived.** The system-context page lists people as supporting elements and does
-  not describe reading them from configuration. This skill records an actor only from an
+- **Actors are not derived.** Tracked configuration does not say who uses a system (CODEOWNERS
+  and commit authors name maintainers, not users), so any actor drawn from it would be a guess. This skill records an actor only from an
   operator-stated `--actors` file. A non-interactive run passes no file, and the artifact says so.
 - **The dialect key is `diagram_dialect.system`, and it has no default.** Every C4 view of the code reads the key
   the authoring-formats convention assigns to

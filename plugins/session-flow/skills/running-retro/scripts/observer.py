@@ -1109,7 +1109,7 @@ between two calls is never license to report a missed batch; (d) NARRATION -- \
 read the surrounding "say" text for an evident control, resource, or side-effect dependency \
 (an edit made before a test that exercises it runs); (e) STATE-WIDE CONSUMER -- a later \
 call that reads or verifies the whole working state rather than a named resource (a build, \
-test, lint, typecheck, or VCS command -- "pytest", "go build ./...", "git status") is \
+test, lint, typecheck, or VCS command) is \
 dependent on any earlier call in the pair that MUTATED state (a Write/Edit, or a Bash \
 command that writes), even though neither input names a shared path and (b) therefore finds \
 nothing: the verification had to observe the mutation, so the two could not have run in \

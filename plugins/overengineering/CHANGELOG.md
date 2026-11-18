@@ -3,6 +3,12 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.6] - 2026-11-18
+
+### Changed
+
+- The audit's delegated-run artifact write states the neutral-filename-then-rename route as our decision, in place of an unrecorded claim about which harnesses refuse a report-shaped filename ([#16878](https://github.com/melodic-software/claude-code-plugins/issues/16878)).
+
 ## [0.11.5] - 2026-11-17
 
 ### Changed

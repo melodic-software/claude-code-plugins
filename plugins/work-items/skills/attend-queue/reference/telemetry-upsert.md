@@ -4,8 +4,8 @@ The upsert this lane runs to maintain its one sentinel-identified status comment
 lane instance**. [`../SKILL.md`](../SKILL.md)'s "Telemetry" section owns that the comment exists and
 when it is written; this file owns the contract of the script that maintains the singleton.
 
-The mechanism lives in this plugin rather than in `harness-ops` because an installed plugin cannot
-invoke a sibling plugin's scripts.
+The script ships in this plugin rather than in `harness-ops`, so the lane never depends on a
+sibling plugin being installed.
 
 Per the convention, this lane too maintains exactly one sentinel-identified status comment **per
 lane instance** on its per-lane tracking issue in the target repository (default title

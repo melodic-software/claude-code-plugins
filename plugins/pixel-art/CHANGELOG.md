@@ -3,6 +3,12 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.27] - 2026-11-18
+
+### Changed
+
+- `reference/backends.md` no longer restates Aseprite's license terms. It says the plugin never installs or redistributes Aseprite, and points to the FAQ's Licensing & Commercial section for license, source-build and commercial-use questions.
+
 ## [0.7.26] - 2026-11-17
 
 ### Fixed

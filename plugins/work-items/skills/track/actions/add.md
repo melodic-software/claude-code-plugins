@@ -46,7 +46,7 @@ Create a new work item with labels from the taxonomy.
 
 1. **Read the house style** ([`reference/issue-house-style.md`](../../../reference/issue-house-style.md)) and apply it to the title, type, parent and blocked-by edges set below.
 
-1. **Resolve the issue type** `{type}` from `--type` (default `task`), mapping the input to the coarse type: `fix` → `Bug`, `feat` → `Feature`, everything else → `Task`. **Org repos** (native Issue Types available): the type is applied through the seam as a native Issue Type, **not** a label, so it is not part of `{labels}`. The type is the only classification stamped here, and no status field is written. **Personal / non-org repos** (native-type mechanism unavailable): the type rides as a coarse long-form label instead. Append `type: bug` / `type: feature` / `type: task` (colon-space, matching the reconciled naming) to `{labels}`. Determine which path applies from the bound adapter's capabilities (for the GitHub adapter, native Issue Types are an org-only feature).
+1. **Resolve the issue type** `{type}` from `--type` (default `task`), mapping the input to the coarse type: `fix` → `Bug`, `feat` → `Feature`, everything else → `Task`. **Org repos** (native Issue Types available): the type is applied through the seam as a native Issue Type, **not** a label, so it is not part of `{labels}`. The type is the only classification stamped here, and no status field is written. **Personal / non-org repos** (native-type mechanism unavailable): the type rides as a coarse long-form label instead. Append `type: bug` / `type: feature` / `type: task` (colon-space, matching the reconciled naming) to `{labels}`. Determine which path applies from the bound adapter's capabilities.
 
 1. **Resolve `--priority`** when given, by [`reference/tracker-seam.md`](../../../reference/tracker-seam.md) "Setting an item's priority": find where priority lives and match the value against the live set. A value with no match stops the action before anything is created, naming the valid values. On labels, the matched label goes into `{labels}`; on the field, it does not, and the write follows creation.
 
@@ -80,7 +80,7 @@ mktemp
   --title "{title}" \
   --body-file "<temp path from call 1>" \
   --type "{type}" \
-  --labels "{labels}"   # --type: org repos only (native Issue Type); on personal/non-org repos drop it, the type is already a type: label in {labels}
+  --labels "{labels}"   # --type: only on the native Issue Type path; on the label path drop it, the type is already a type: label in {labels}
 # Call 3: run it whether call 2 succeeded or failed, so no temp file is left behind.
 rm -f "<temp path from call 1>"
 ```

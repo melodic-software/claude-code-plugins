@@ -42,12 +42,14 @@ cd "$PROJECT_DIR" && golangci-lint run --fix <files>
   `./...` expansion (empirically verified, Go 1.26.5). `project-discovery: ["go.mod"]` in
   `go.yaml` handles this by walking to each discovered module root. Always run build/test/lint
   from the module root containing the relevant `go.mod`, not just the repo root.
-- **golangci-lint's config discovery has no `root = true`-equivalent stop marker**: unlike
-  EditorConfig, it walks from the target up to the filesystem root and then falls back to the
-  user's **home directory**. A stray `~/.golangci.yml` on a developer's machine can make a local
-  run diverge from a clean CI container that has no such file. This plugin's own `opt-in` gate
-  only ceilings *its* presence check at the repo root. It does not (and cannot) suppress
-  golangci-lint's own home-directory fallback once the tool actually runs.
+- **A stray home-directory golangci-lint config can change a local run**: golangci-lint's own
+  config search can reach past the repo root, so a `~/.golangci.yml` on a developer's machine can
+  make a local run diverge from a clean CI container that has no such file. This plugin's own
+  `opt-in` gate only ceilings *its* presence check at the repo root. It does not (and cannot)
+  suppress the tool's own search once the tool actually runs. When a local result differs from
+  CI, read the search order in the
+  [golangci-lint configuration file docs](https://golangci-lint.run/docs/configuration/file/)
+  and run with `-v` to see which config file was used.
 - **`go mod tidy -diff` has a Go version floor**: the `go-mod-tidy-drift` gate in `go.yaml` uses
   this flag, and the gate's `remediation` names the floor. An older toolchain rejects it outright;
   `go version` confirms the installed toolchain is below that documented floor, so `/toolchain:check` reports the gate as `skip (unsupported: ...)`

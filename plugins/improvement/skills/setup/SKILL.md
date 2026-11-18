@@ -27,7 +27,8 @@ then the interview-and-write flow. Any other argument is an error naming these t
 Three layers, resolved user-global (`~/.claude/improvement.md`) → team
 (`.claude/improvement.md`, tracked) → personal override (`.claude/improvement.local.md`,
 gitignored), merged per the semantics declared in
-`${CLAUDE_PLUGIN_ROOT}/reference/config.md`: per-key override for scalars, union for
+`${CLAUDE_PLUGIN_ROOT}/reference/config.md`: per-key override for scalars, a ceiling personal
+layers can only lower for `find_open_item_cap`, union for
 `churn_exclude`, per-source-name merge for `evidence_sources` with an empty-body opt-out. This
 skill writes only the **team** file; changes to the user-global layer or the personal override are the
 user's to make. Anchor every repo-relative read at the repo root (`${CLAUDE_PROJECT_DIR}` when
@@ -45,12 +46,14 @@ per FAIL. Modify nothing, and do not run a scan. That is `/improvement:find`.
    as the whole effective config.
 2. **Effective configuration.** Report the merged result and which layer supplied each value:
    the effective `churn_window`, whether exclusions resolved from the repository are on (`churn_exclude_defaults`), declared
-   `churn_exclude` additions, the effective `find_open_item_cap`, and every `evidence_sources` entry (name, `mcp_server`, `kind`,
+   `churn_exclude` additions, the effective `find_open_item_cap` and unattended run controls (`find_run_item_cap`, its floor and ceiling, `find_size_band`, `find_scope`, `find_suppress_dismissed`), and every `evidence_sources` entry (name, `mcp_server`, `kind`,
    scope), including entries a later layer opted out, reported as removed, not broken. A
    malformed layer degrades soft: name it, resolve as if absent, report the parse error.
 3. **Key validity.** Each `evidence_sources` entry names an `mcp_server`; an entry missing it is
    FAIL, naming the entry. A `find_open_item_cap` that is not a non-negative integer is FAIL,
-   naming the layer. Where the session can enumerate available MCP servers, note (INFO)
+   naming the layer, and a personal value above the team value or default is WARN: it is ignored.
+   Any other `find_*` value outside its type in the key contract, or a run cap whose floor, start
+   and ceiling do not ascend, is FAIL, naming the layer. Where the session can enumerate available MCP servers, note (INFO)
    any declared server not currently available. At find-time that source becomes an
    evidence-gap line, which may be expected on this machine.
 4. **Tracked, not ignored.** A present team file must be committed to be team-shared, and
@@ -84,7 +87,7 @@ user.
    Grep the plugin directory), each named with the file that shows it
    is mechanical; the plugin ships no list of them, and a persisted entry is a declared pattern
    that `churn_exclude_defaults: false` does not drop); keep `churn_window` at the bundled default unless the repo's history is
-   young or the user says otherwise; keep `find_open_item_cap` at the bundled default unless the
+   young or the user says otherwise; keep `find_open_item_cap` and the other `find_*` keys at the bundled defaults unless the
    user names another; and draft `evidence_sources` candidates from the MCP
    servers the consumer has configured that plausibly carry telemetry, a candidate is a
    proposal for the user to confirm, never an assumption. No plausible source and none volunteered

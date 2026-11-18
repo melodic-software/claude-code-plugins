@@ -3,6 +3,15 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.3.4] - 2026-11-18
+
+### Changed
+
+- The synced standards contract copy (`reference/standards-contract.md`) moves to 1.1.6: its index
+  example drops the `csharp` row, the Surface column lists no example ecosystem ids, and the
+  pointer-pattern bullet drops its C# directive. The schema, index shape, resolution ladder and
+  migration rules are unchanged.
+
 ## [10.3.3] - 2026-11-18
 
 ### Changed

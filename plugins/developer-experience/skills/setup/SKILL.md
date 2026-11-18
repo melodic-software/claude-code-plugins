@@ -153,15 +153,17 @@ configure (conventions at the path), or nothing to do.
    preceded by `claude plugin install discovery@<marketplace>` when it is not installed.
    Done when each installed agent has a file path with its source URL, or is reported unresolved.
 3. Before writing each personal file, check whether it is a symlink or managed by a dotfile
-   manager (for chezmoi, `chezmoi source-path <file>` prints a source path for a managed file).
+   manager (for chezmoi, run `chezmoi source-path <file>` and read its exit by the rule below).
    If it is either, print the pointer line for the user to add at the source and write nothing.
 4. Otherwise show the pointer line (text in the spoke) and the file, and write it only after the
    user's yes. A line already present is left as it is. Done when every personal file is reported
    as written, already present, printed for its source, or declined.
 
-chezmoi: pointer <https://www.chezmoi.io/reference/commands/source-path/>, as of 2026-10-09; the
-page does not state the result for an unmanaged file, and a probe that day printed "not managed"
-and exited 1. Recheck when that page documents the unmanaged case.
+chezmoi: a non-zero exit from `chezmoi source-path <file>` counts as unmanaged; the page does not
+cover the unmanaged case, so this is our rule.
+
+- **Pointer**: when `chezmoi source-path` gives a result the rule above does not cover, fetch
+  <https://www.chezmoi.io/reference/commands/source-path/> live.
 
 ## Next
 

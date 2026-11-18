@@ -178,10 +178,8 @@ When a GraphQL read is refused (the cloud GitHub proxy's HTTP 403), sections 1-4
 re-read from repository-scoped REST endpoints and the header names the transport.
 Then the merge-ready list reports `review=n/a` and reads merge state for at most
 `--pr-limit` open PRs (default 50), saying so when capped or when GitHub has not
-finished computing a PR's mergeability; and the stranded-findings section renders
-`UNREADABLE`, because review threads have no REST read. The stuck section renders
-`UNREADABLE` there too: a label event is a GraphQL read, and a REST read would take one
-events call per item.
+finished computing a PR's mergeability; and the stranded-findings and stuck sections render
+`UNREADABLE`, because the script reads review threads and label events only through GraphQL.
 
 The brief treats a clean PR as verified only when its head contains its base branch's tip. It
 reads one comparison per clean PR, up to `--pr-limit`, and prints an `UNVERIFIED` line under a PR
@@ -404,9 +402,8 @@ moves to this run's `--stranded-days` floor; a failed or partial read leaves it 
 merge therefore leaves the window only after a full read covered it and it fell behind that run's
 floor, however long the gap between runs.
 
-A review that lands after a merge has nowhere to go: the ruleset's
-`required_review_thread_resolution` is a merge-time predicate that already passed, the babysit lane
-works *open* PRs, and nothing on a merged PR surfaces its open threads. This section is the only
+A review that lands after a merge has nowhere to go: the merge gate already passed, the babysit
+lane works *open* PRs, and nothing on a merged PR surfaces its open threads. This section is the only
 place they appear. The comment-vs-merge timestamp comparison is the discriminator, a thread
 that predates the merge was visible to the gate and is an ordinary unresolved thread, not this
 failure mode.

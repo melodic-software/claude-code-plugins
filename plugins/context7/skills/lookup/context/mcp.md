@@ -28,8 +28,7 @@ Add to the consuming project's `.mcp.json` (or user-scope MCP config). Anonymous
 }
 ```
 
-With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the header name Context7's server expects). Only use this form once `CONTEXT7_API_KEY` is actually set in your environment (or add a `${VAR:-default}` fallback): an unset variable shows up as failed auth, not as a config error (the Unset variables without a default pointer at the top of this file, which sits under no
-section heading, has the detail):
+With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the header name Context7's server expects). Use this form only once `CONTEXT7_API_KEY` is set in your environment, or add a `${VAR:-default}` fallback, so the server never starts with a header value you did not intend. What an unset variable does is in the Unset variables without a default pointer at the top of this file, which sits under no section heading:
 
 ```json
 {
@@ -59,16 +58,11 @@ Same input shape as CLI, same backend, and same output substance. Only the trans
 
 ## Why prefer MCP over CLI for most lookups
 
-Empirical observation, 2026-04, React and EF Core test queries. Recheck when the `ctx7` minor
-version changes, or when Context7 changes its default response depth.
-
 | Dimension | Result |
 |---|---|
-| Default content per `query-docs` call | ~1.8× more than `ctx7 docs` at default settings |
 | Output format | Clean markdown (no ANSI codes to strip) |
 | Windows ceremony | None (no `MSYS_NO_PATHCONV=1` prefix) |
 | Auto-discovery by the model | Tool appears in the tool list, so the model picks it naturally |
-| Latency | ~2.1s (same as CLI, both network-bound) |
 
 **Default route for conversational library lookups is MCP** when it is configured. CLI's advantages kick in when you want composability (pipe to grep, dump to disk, script), not when you just want the answer.
 

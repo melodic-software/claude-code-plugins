@@ -77,16 +77,17 @@ full convention: `docs/contracts/recommendation-basis/README.md` in the marketpl
 built-in command performs it.
 
 - **`/install-github-app` (built-in command)**: the person's own setup command for the Claude
-  GitHub App on one repository; the model does not invoke it. What it sets up is read live from
-  the pointer in the "What `/install-github-app` installs and sets up" row of
-  [reference/native-install-github-app.md](reference/native-install-github-app.md) (the file
-  has no section heading to anchor).
+  GitHub App on one repository. Who can invoke it and whether it is gated is recorded in the
+  "is a built-in setup command" row of
+  [reference/native-install-github-app.md](reference/native-install-github-app.md); what it sets
+  up is read live from the pointer in that file's "What `/install-github-app` installs and sets
+  up" row (the file has no section heading to anchor).
 - **This skill (marketplace plugin).** Read-only design guidance across the GitHub settings plane,
   grounded in live `gh` state and the fetched GitHub docs; changes only through `--apply`.
 
 **Routing.** When the ask is installing the Claude GitHub App or its Actions workflow on a
-repository, offer it to the person: If /install-github-app is available in your session (gate basis:
-it registers gated; records in
+repository, offer it to the person: If /install-github-app is available in your session (gate basis: the
+"is a built-in setup command" row of
 [reference/native-install-github-app.md](reference/native-install-github-app.md)), you can run it
 instead of or alongside this skill. Keep this skill for the surrounding policy: Actions permissions, secrets scope, rulesets,
 and app access. When the caller passes `--unattended`, the run records the
@@ -95,9 +96,9 @@ offer in its output instead of asking; without that flag it asks.
 **Mutation gate.** `/install-github-app` changes the repository outside this skill's gate. This
 skill never runs it on the person's behalf, and `--apply` never stands in for it.
 
-**Availability is never assumed.** The command registers gated; this section states what to do
-when the person can run it, never that it is present. The four-part records live in
-[reference/native-install-github-app.md](reference/native-install-github-app.md).
+**Availability is never assumed.** This section states what to do when the person can run it,
+never that it is present; its gating is recorded in the "is a built-in setup command" row cited
+above.
 
 ## Proactive suggestions
 

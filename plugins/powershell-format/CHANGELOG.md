@@ -3,6 +3,12 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.1] - 2026-11-18
+
+### Fixed
+
+- The lefthook remote runs the `format` and `lint` jobs in one piped group, `powershell-format-remote`, format first, so a consumer whose `lefthook.yml` sets `parallel: true` no longer has a commit blocked by a finding format fixes. A failing job's skip hint names the group and the job inside it. A clone whose `lefthook-local.yml` skips `powershell-format-remote-format` or `powershell-format-remote-lint` at the top level must move that skip under the group, or every commit fails.
+
 ## [2.1.0] - 2026-11-18
 
 ### Added

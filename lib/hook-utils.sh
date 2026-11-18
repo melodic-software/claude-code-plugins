@@ -999,15 +999,18 @@ hook::in_git_working_tree() {
   (
     unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
       GIT_DISCOVERY_ACROSS_FILESYSTEM
-    git -C "$1" rev-parse --show-toplevel
+    git --no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null -C "$1" rev-parse --show-toplevel
   ) >/dev/null 2>&1
 }
 
-# git for a repository this hook did not create, with every command-running key an ignore check
+# git for a repository this hook did not create, with every command-running key a hook's git call
 # can reach turned off on the command line, which outranks the repository's config and its
 # includes: https://git-scm.com/docs/git#Documentation/git.txt--cltnamegtltvaluegt
 # (core.fsmonitor runs when the index is read:
 # https://git-scm.com/docs/git-config#Documentation/git-config.txt-corefsmonitor).
+# A function cannot be exec'd, and as the last command of a `( … )` subshell or a
+# pipeline element it costs bash a second process: such a caller, and one that hands
+# argv to another program, passes the same overrides itself.
 #   hook::git_untrusted check-ignore -q -- "$path"
 hook::git_untrusted() {
   git --no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"
@@ -1864,7 +1867,7 @@ hook::repo_root_uncached_to() {
   # on every repo_root call (~80 ms on Windows Git Bash) to delete one byte
   # class bash already rewrites in place. Same bytes as `tr -d '\r'` — the
   # same substitution buffer_stdin already uses for the payload.
-  __hu_rr_val=$(git -C "$__hu_rr_hint" rev-parse --show-toplevel 2>/dev/null) || __hu_rr_val=""
+  __hu_rr_val=$(hook::git_untrusted -C "$__hu_rr_hint" rev-parse --show-toplevel 2>/dev/null) || __hu_rr_val=""
   __hu_rr_val="${__hu_rr_val//$'\r'/}"
   if [[ -n "$__hu_rr_val" ]]; then
     printf -v "$__hu_rr_dest" '%s' "$__hu_rr_val"
