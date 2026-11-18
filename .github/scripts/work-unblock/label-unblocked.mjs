@@ -471,11 +471,14 @@ const RATE_LIMITED = stamped(
   String.raw`##\[error\].* (?:hit GitHub's .+ rate limit|left GitHub's .+ requests, at or under its stop-floor share \S+|got a GitHub server error, HTTP (?<status>5\d\d) with a Retry-After)(?: \(status \d+\))?: no call to it before (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \(`,
 );
 const ERROR_LINE = stamped(String.raw`##\[error\]`);
-const HELD_UNTIL = stamped(String.raw`##\[error\].* was not sent: GitHub's .+ rate limit holds until (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)$`);
+const HELD_UNTIL = stamped(
+  String.raw`##\[error\].* was not sent: GitHub(?:'s .+ rate limit holds until| answered HTTP (?<status>5\d\d) with a Retry-After; no call to it before) (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)(?: \(.*\))?$`,
+);
 const RAW_LIMIT = stamped(String.raw`##\[error\]Unhandled error: HttpError: API rate limit exceeded\b`);
 const LIMIT_COMPANION = stamped(
-  String.raw`##\[error\](?:Process completed with exit code [0-9]+\.$|\S+ \S+ failed with status 403$|handoff evidence for \S+ still missing after [0-9]+ reads: the jobs read failed$|leak-scan: no finished scan \(HttpError\);)`,
+  String.raw`##\[error\](?:\S+ \S+ failed with status 403$|handoff evidence for \S+ still missing after [0-9]+ reads: the jobs read failed$|leak-scan: no finished scan \(HttpError\);)`,
 );
+const FLOOR_JOB_ENDS = new Set(["success", "skipped", "failure"]);
 const NO_RESET = "rate-limited";
 const LOG_UNREAD = "unread";
 const OVER_CAP = /answered a body over \d+ bytes$/;
@@ -1780,7 +1783,7 @@ export const breakerComment = (key, { repo, run, ended, budget = false, earlier 
 
 const floorComment = (key, { repo, run, reset, named, server }) => {
   const stopper = server ? `A GitHub server error hold (HTTP ${server} with a Retry-After)` : named ? "A GitHub API pool's stop floor" : "GitHub's API rate limit";
-  return `<!-- work-unblock refired ${key} breaker -->\n${floorTag(reset)}\nThis records a re-fire of an earlier stop, not a new one. ${stopper} stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, after its model ran${named ? `, until ${isoSecond(reset)}` : ""}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run${named ? " early in a window" : ""}. A floor stop is the lanes' load, not a fault in this issue. After limits.limit-stops-per-issue of these since a person last added \`${LABEL}\` or a run last reported, work-unblock waits the limits.stranded-backoff-hours \`failed-again\` backoff instead.`;
+  return `<!-- work-unblock refired ${key} breaker -->\n${floorTag(reset)}\nThis records a re-fire of an earlier stop, not a new one. ${stopper} stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, after its model ran${named ? `, until ${isoSecond(reset)}` : ""}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run${named ? " early in a window" : ""}. ${server ? "A GitHub server error is" : "A floor stop is the lanes' load,"} not a fault in this issue. After limits.limit-stops-per-issue of these since a person last added \`${LABEL}\` or a run last reported, work-unblock waits the limits.stranded-backoff-hours \`failed-again\` backoff instead.`;
 };
 
 // The backoff record of an issue whose re-fires on these workflow files keep
@@ -2054,11 +2057,12 @@ const modelRan = (jobs) => jobs.some((job) => (job.steps ?? []).some((step) => M
 
 async function floorStop(jobsOf, refusalOf, runs) {
   let stop = null;
+  let limitSeen = false;
   for (const run of runs.filter((item) => FAILED.has(item.conclusion))) {
     const jobs = await jobsOf(run);
     const stopped = jobs.filter((job) => job.conclusion === "failure");
     const failedSteps = stopped.map((job) => (job.steps ?? []).filter((step) => step?.conclusion === "failure"));
-    if (stopped.length === 0 || !modelRan(jobs) || failedSteps.some((steps) => steps.length === 0 || steps.some((step) => MODEL_STEP.test(String(step.name))))) {
+    if (stopped.length === 0 || !modelRan(jobs) || jobs.some((job) => !FLOOR_JOB_ENDS.has(job.conclusion)) || failedSteps.some((steps) => steps.length === 0 || steps.some((step) => MODEL_STEP.test(String(step.name))))) {
       return null;
     }
     for (const job of stopped) {
@@ -2071,12 +2075,13 @@ async function floorStop(jobsOf, refusalOf, runs) {
       }
       const [at, hold] = found.split(" ");
       const reset = Date.parse(at);
+      limitSeen ||= !hold;
       if (!stop || reset > (stop.reset ?? 0)) {
         stop = { run, reset: Number.isFinite(reset) ? reset : null, server: hold?.replace("server-", "") ?? null };
       }
     }
   }
-  return stop;
+  return stop && limitSeen ? { ...stop, server: null } : stop;
 }
 
 // The reason the broker refused `job`, from its log: the failed step's last
@@ -2111,24 +2116,33 @@ function refusalReader(jobLog, repo, carry) {
   };
 }
 
-const stopNamedIn = (line) => {
-  const { reset, status } = RATE_LIMITED.exec(line)?.groups ?? {};
-  return reset && Number.isFinite(Date.parse(reset)) ? `${reset}${status ? ` server-${status}` : ""}` : null;
-};
+const stopNamed = ({ reset, status } = {}) => (reset && Number.isFinite(Date.parse(reset)) ? `${reset}${status ? ` server-${status}` : ""}` : null);
+const stopNamedIn = (line) => stopNamed(RATE_LIMITED.exec(line)?.groups);
 
 function floorIn(lines) {
   let found = null;
+  let limited = false;
+  let unexplained = true;
   for (const line of lines.filter((item) => ERROR_LINE.test(item))) {
-    const named = stopNamedIn(line) ?? HELD_UNTIL.exec(line)?.groups.reset;
+    const named = stopNamedIn(line) ?? stopNamed(HELD_UNTIL.exec(line)?.groups);
     if (named) {
       found = !found || found === NO_RESET || Date.parse(named.split(" ")[0]) > Date.parse(found.split(" ")[0]) ? named : found;
+      limited ||= !named.includes(" ");
+      unexplained = false;
     } else if (RAW_LIMIT.test(line)) {
       found ??= NO_RESET;
+      limited = true;
+      unexplained = false;
+    } else if (STEP_FAILED.test(line)) {
+      if (unexplained) {
+        return null;
+      }
+      unexplained = true;
     } else if (!LIMIT_COMPANION.test(line)) {
       return null;
     }
   }
-  return found;
+  return found && limited ? found.split(" ")[0] : found;
 }
 
 // The refusal in a log's `lines`, in `mode`, as refusalReader describes.
@@ -2629,7 +2643,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     if (named.some(relabeled)) {
       return stranded(ended, `already re-fired after its floor stop until ${isoSecond(reset)}`, "failed-again");
     }
-    const spent = markers.filter((marker) => marker.floor !== undefined && marker.at > from).length;
+    const spent = new Set(markers.filter((marker) => marker.floor !== undefined && marker.at > from).map((marker) => marker.floor)).size;
     if (named.length === 0 && spent >= limits["limit-stops-per-issue"]) {
       return stranded(ended, `${spent} floor re-fires since a person last added ${LABEL} or a run last reported`, "failed-again");
     }
@@ -2644,7 +2658,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
       reason: null,
       resets: ended,
       refire: await workflowKey(),
-      recorded: named.length > 0,
+      recorded: named.some((marker) => marker.at >= now - HOUR_MS),
       floor: { run: floored.run.id, reset, named: floored.reset !== null, server: floored.server },
       ...(floored.reset !== null && { closes: opens + FLOOR_SPAN_MS }),
     };
