@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [9.7.1] - 2026-11-18
+
+### Changed
+
+- The enforcement ladder copy is 3.3.1: its `compiler-setting` row and its last "Where boundary rules live" entry no longer name a language's compiler options or an architecture-test library ([#16787](https://github.com/melodic-software/claude-code-plugins/issues/16787)).
+
 ## [9.7.0] - 2026-11-17
 
 ### Changed

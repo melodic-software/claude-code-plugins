@@ -40,7 +40,7 @@ area's `formal-<area>` skill, under `## Tool and why`.
 | `create "<promise>"` | the `formal-<area>` folder, after the yeses below | Builds and proves one check. |
 | `create` with no promise | nothing until a yes | Shows the bare form's proposal and waits for a yes. |
 | `create --unattended` | nothing | A dry run: the plan, and the open questions a person must answer. |
-| `check [SKILL_DIR...]` | nothing | The contract gate. |
+| `check [SKILL_DIR...]` | nothing | Runs the contract gate over each `formal-<area>` skill. |
 | `refresh [SKILL_DIR...]` | the `formal-<area>` folder, in a commit of its own | Brings each check back in line with the code. |
 | `refresh --convert SKILL_DIR` | that skill, as a `formal-<area>` folder | Converts a verification skill outside the contract, attended only. |
 

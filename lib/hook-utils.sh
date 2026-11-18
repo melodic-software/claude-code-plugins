@@ -1013,6 +1013,17 @@ hook::in_git_working_tree() {
   ) >/dev/null 2>&1
 }
 
+# git for a repository this hook did not create, with every command-running key an ignore check
+# can reach turned off on the command line, which outranks the repository's config and its
+# includes: https://git-scm.com/docs/git#Documentation/git.txt--cltnamegtltvaluegt
+# (core.fsmonitor runs when the index is read:
+# https://git-scm.com/docs/git-config#Documentation/git-config.txt-corefsmonitor).
+# The function spelling of HOOK_GIT above, which holds the one set of overrides.
+#   hook::git_untrusted check-ignore -q -- "$path"
+hook::git_untrusted() {
+  "${HOOK_GIT[@]}" "$@"
+}
+
 # True when the repository enclosing <file> gitignores it (hook-precision rule
 # 6, #4671). A rewrite of an ignored file has no `git checkout` to undo it.
 #

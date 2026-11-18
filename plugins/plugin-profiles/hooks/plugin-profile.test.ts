@@ -36,14 +36,18 @@ const NEXT_STEP = 'Send any message, or run /reload-plugins now, to load the cha
 
 const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?: Out; clearDry?: Out; clear?: Out; reloadHangs?: boolean; noPane?: boolean } = {}) => {
   const w = { runs: [] as string[][], envs: [] as (Record<string, string> | undefined)[], asks: [] as { question: string; options: string[] }[], logs: [] as string[], commands: [] as string[], registered: [] as string[], panes: [] as string[], closed: [] as string[] }
+  const up = new Set<string>()
   on('ui.open', ($: unknown, e: { id: string }) => {
     w.panes.push(e.id)
+    up.add(e.id)
     return { value: cli.noPane ? { isPlaced: false, reason: 'no surface' } : { isPlaced: true } }
   })
   on('ui.close', ($: unknown, e: { id: string }) => {
     w.closed.push(e.id)
+    up.delete(e.id)
     return { value: undefined }
   })
+  on('ui.panes', () => ({ value: [...up].map(id => ({ id, title: id, isShown: true, isFocused: true, isPlaced: !cli.noPane })) }))
   on('process.run', ($: unknown, e: { argv: readonly string[]; init?: { env?: Record<string, string> } }) => {
     const args = e.argv.slice(2)
     w.runs.push([...args])
@@ -188,6 +192,58 @@ test('#16747: Cancel in the picker pane closes it: nothing chosen, nothing writt
   expect(w.logs).toEqual(['No profile chosen; nothing changed.'])
   expect(w.closed).toEqual(['plugin-profile-picker'])
   expect(w.runs).toEqual([['list', '--json']])
+})
+
+test('#16816: a second /plugin-profile while the pane is open is refused, and the first pick still settles', async ($, on) => {
+  const w = world(on, ['Apply'])
+  expect((await run($)).text).toBe(PICK_IN_PANE)
+  expect((await run($)).text).toBe('A profile pick is already open in its pane; pick there, or press Cancel and run /plugin-profile again.')
+  expect((await run($, 'planning')).text).toBe('A profile pick is already open in its pane; pick there, or press Cancel and run /plugin-profile again.')
+  expect(w.panes).toEqual(['plugin-profile-picker'])
+  const ui = await $.ui.mount({ ...PICKER, surface: 'terminal' })
+  await ui.press({ key: 'profile:review' })
+  await settle()
+  await ui.unmount()
+  expect(writes(w)).toEqual([['apply', 'review', '--for', 'folder', '--defer-off', '--yes']])
+  expect(w.logs[w.logs.length - 1]).toMatch(/^Switched this folder to profile review\./)
+})
+
+test('#16816: a pick in an open pane is refused while a switch from before waits for its reload', async ($, on) => {
+  const w = world(on, ['Apply'])
+  let armed = false
+  on('state.get', ($: unknown, e: { key: string }, next: (e: unknown) => unknown) =>
+    armed && e.key === 'switch' ? { value: { value: { profile: 'build', phase: 'armed' }, version: 1 } } : next(e),
+  )
+  expect((await run($)).text).toBe(PICK_IN_PANE)
+  armed = true
+  const ui = await $.ui.mount({ ...PICKER, surface: 'terminal' })
+  await ui.press({ key: 'profile:planning' })
+  await settle()
+  await ui.unmount()
+  expect(writes(w)).toEqual([])
+  expect(w.logs[w.logs.length - 1]).toMatch(/^A change to this folder's profile is still waiting for its reload/)
+})
+
+test('#16816: two row presses before the first settles run one switch', async ($, on) => {
+  const w = world(on, ['Apply', 'Apply'])
+  await run($)
+  const ui = await $.ui.mount({ ...PICKER, surface: 'terminal' })
+  await Promise.all([ui.press({ key: 'profile:review' }), ui.press({ key: 'profile:planning' })])
+  await settle()
+  await ui.unmount()
+  expect(w.asks).toEqual([{ question: 'Apply profile review to this folder?', options: ['Apply', 'Cancel'] }])
+  expect(writes(w)).toEqual([['apply', 'review', '--for', 'folder', '--defer-off', '--yes']])
+})
+
+test('#16816: once the pane closes, /plugin-profile opens it again', async ($, on) => {
+  const w = world(on, [])
+  expect((await run($)).text).toBe(PICK_IN_PANE)
+  const ui = await $.ui.mount({ ...PICKER, surface: 'terminal' })
+  await ui.press({ key: 'cancel' })
+  await settle()
+  await ui.unmount()
+  expect((await run($)).text).toBe(PICK_IN_PANE)
+  expect(w.panes).toEqual(['plugin-profile-picker', 'plugin-profile-picker'])
 })
 
 test('AC6: where the pane cannot be placed, the picker pages through every profile, previews the pick, asks, then writes the on entries', async ($, on) => {

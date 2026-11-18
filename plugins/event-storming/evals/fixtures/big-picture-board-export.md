@@ -1,74 +1,108 @@
-# Big Picture board export: "Online Course Marketplace"
+---
+board: event-storming/1
+format: big-picture
+title: Big Picture v1 - Online Course Marketplace
+domain: Online Course Marketplace
+version: 1
+session: courses-20261118-a7f2
+phase: wrapping-up
+updated: "2026-11-18T05:30:00Z"
+personas:
+  - Instructor
+  - Student
+  - Support Agent
+  - Finance
+---
 
-Text export of a completed Big Picture EventStorming board (People & Systems and
-Walk-through phases done). Use this as the board data for a `--discover-bcs` run.
-Run Brandolini's 6 heuristics against it. No live Miro read is required; treat the
-rows below as the parsed board items.
+# Big Picture v1 - Online Course Marketplace
 
-## Timeline (orange domain events, left → right), grouped by timeline zone
+## Timeline
 
-### Zone 1: Onboarding & content
+### Onboarding and content {#z1}
 
-- `Instructor Signed Up`, persona: Instructor, y-row: instructor
-- `Instructor Profile Verified`, persona: Support Agent, y-row: support
-- `Course Draft Created`, persona: Instructor, y-row: instructor
-- `Course Content Uploaded`, persona: Instructor, y-row: instructor
-- `Course Submitted For Review`, persona: Instructor, y-row: instructor
-- `Course Approved`, persona: Support Agent, y-row: support
-- `Course Published`, persona: Instructor, y-row: instructor
-  - NOTE: Support Agent's sticky for this same moment reads `Course Went Live`
+- [event] Instructor Signed Up {#s1 by=Instructor phase=chaotic-exploration}
+- [event] Instructor Profile Verified {#s2 by="Support Agent" phase=chaotic-exploration}
+- [event] Course Draft Created {#s3 by=Instructor phase=chaotic-exploration}
+- [event] Course Content Uploaded {#s4 by=Instructor phase=chaotic-exploration}
+- [event] Course Submitted For Review {#s5 by=Instructor phase=chaotic-exploration}
+- [event] Course Approved {#s6 by="Support Agent" phase=chaotic-exploration}
+- [event] Course Published {#s7 by=Instructor phase=chaotic-exploration}
+- [event] Course Went Live {#s8 by="Support Agent" phase=chaotic-exploration}
+  - [hot-spot] \[DIVERGENCE\] Course Published vs Course Went Live {#s9 by=facilitator phase=enforce-timeline}
+- [pivotal] Course Published {#s10 by=facilitator phase=enforce-timeline}
 
-`--- PIVOTAL: Course Published ---`
+### Discovery and purchase {#z2}
 
-### Zone 2: Discovery & purchase
+- [event] Student Signed Up {#s11 by=Student phase=chaotic-exploration}
+- [event] Student Enrolled {#s12 by=Instructor phase=chaotic-exploration}
+  - [hot-spot] \[DIVERGENCE\] Student Enrolled means platform signup here {#s13 by=facilitator phase=enforce-timeline}
+- [event] Course Added To Cart {#s14 by=Student phase=chaotic-exploration}
+- [event] Checkout Started {#s15 by=Student phase=chaotic-exploration}
+- [event] Payment Authorized {#s16 by=Finance phase=chaotic-exploration}
+- [event] Payment Captured {#s17 by=Finance phase=chaotic-exploration}
+- [event] Enrollment Granted {#s18 by=Student phase=walk-through}
+  - [hot-spot] Enrollment here means course access {#s19 by=facilitator phase=walk-through}
+- [pivotal] Payment Captured {#s20 by=facilitator phase=enforce-timeline}
 
-- `Student Signed Up`, persona: Student, y-row: student
-  - NOTE: Instructor referred to this moment as `Student Enrolled` (see divergence below)
-- `Course Added To Cart`, persona: Student, y-row: student
-- `Checkout Started`, persona: Student, y-row: student
-- `Payment Authorized`, persona: Finance, y-row: finance, external: Payment Gateway
-- `Payment Captured`, persona: Finance, y-row: finance, external: Payment Gateway
-- `Enrollment Granted`, persona: Student, y-row: student
-  - NOTE: this is enrollment INTO A COURSE, distinct from `Student Signed Up`
+### Learning and completion {#z3}
 
-`--- PIVOTAL: Payment Captured ---`
+This zone runs in parallel with course authoring, on a different timescale.
 
-### Zone 3: Learning & completion (runs in parallel with Zone 1 authoring, on a different timescale)
+- [event] Lesson Started {#s21 by=Student phase=chaotic-exploration}
+- [event] Lesson Completed {#s22 by=Student phase=chaotic-exploration}
+- [event] Quiz Passed {#s23 by=Student phase=chaotic-exploration}
+- [event] Course Completed {#s24 by=Student phase=chaotic-exploration}
+- [event] Certificate Issued {#s25 by=Student phase=people-and-systems}
 
-- `Lesson Started`, persona: Student, y-row: student
-- `Lesson Completed`, persona: Student, y-row: student
-- `Quiz Passed`, persona: Student, y-row: student
-- `Course Completed`, persona: Student, y-row: student
-- `Certificate Issued`, persona: Student, y-row: student, external: Email Service
+### Money and disputes {#z4}
 
-### Zone 4: Money & disputes
+- [event] Refund Requested {#s26 by=Student phase=chaotic-exploration}
+- [event] Chargeback Filed {#s27 by=Finance phase=chaotic-exploration}
+  - [hot-spot] \[DIVERGENCE\] Refund Requested vs Chargeback Filed {#s28 by=facilitator phase=enforce-timeline}
+- [event] Refund Reviewed {#s29 by="Support Agent" phase=chaotic-exploration}
+- [event] Refund Issued {#s30 by=Finance phase=chaotic-exploration}
+- [event] Instructor Payout Calculated {#s31 by=Finance phase=reverse-narrative}
+- [event] Instructor Payout Sent {#s32 by=Finance phase=reverse-narrative}
 
-- `Refund Requested`, persona: Student, y-row: student
-  - NOTE: Finance's sticky for this same moment reads `Chargeback Filed`
-- `Refund Reviewed`, persona: Support Agent, y-row: support
-- `Refund Issued`, persona: Finance, y-row: finance, external: Payment Gateway
-- `Instructor Payout Calculated`, persona: Finance, y-row: finance
-- `Instructor Payout Sent`, persona: Finance, y-row: finance, external: Payment Gateway
+## People and systems
 
-## People (small yellow)
+- [person] Instructor: authors and publishes courses {#s33 by=facilitator phase=people-and-systems}
+- [person] Student: discovers, buys, learns {#s34 by=facilitator phase=people-and-systems}
+- [person] Support Agent: reviews courses, mediates refunds {#s35 by=facilitator phase=people-and-systems}
+- [person] Finance: payments, refunds, payouts {#s36 by=facilitator phase=people-and-systems}
+- [external-system] Payment Gateway {#s37 by=Finance phase=people-and-systems}
+- [external-system] Email Service {#s38 by=Student phase=people-and-systems}
 
-- Instructor: authors and publishes courses
-- Student: discovers, buys, learns
-- Support Agent: reviews courses, mediates refunds
-- Finance: handles payments, refunds, payouts
+## Problems
 
-## External systems (pink)
+- [hot-spot] \[DIVERGENCE\] Enrollment: signup or course access? {#s39 by=facilitator phase=problems-and-opportunities}
+- [hot-spot] Refund disputes take 6+ days {#s40 by="Support Agent" phase=problems-and-opportunities}
+- [hot-spot] Who approves a course? {#s41 by=Instructor phase=problems-and-opportunities}
 
-- Payment Gateway: authorizes, captures, refunds, pays out
-- Email Service: sends certificates and notifications
+## Opportunities
 
-## Hot spots (magenta)
+## Votes
 
-- `[DIVERGENCE] "Enrollment"`: Student uses it for platform signup (`Student Signed Up`);
-  Instructor/Finance use it for course access (`Enrollment Granted`). Same word, two meanings.
-- `Refund disputes take 6+ days`: Support and Finance both touch refunds; nobody owns the SLA.
-- `Who approves a course — Support or an editor?`: approval ownership unclear.
+- [vote] Refund disputes take 6+ days {#s42 by=Finance phase=arrow-voting on=s40}
+- [vote] Refund disputes take 6+ days {#s43 by="Support Agent" phase=arrow-voting on=s40}
+- [vote] Refund disputes take 6+ days {#s44 by=Student phase=arrow-voting on=s40}
+- [vote] Who approves a course? {#s45 by=Instructor phase=arrow-voting on=s41}
 
-## Arrow voting
+## Ubiquitous language
 
-- Winner (most votes): `Refund disputes take 6+ days`
+## Bounded contexts
+
+## Exploration map
+
+- Arrow-voting winner: Refund disputes take 6+ days
+
+## Legend
+
+| Kind | Meaning |
+|---|---|
+| `event` | Domain event: something that happened, past tense |
+| `person` | Person or actor |
+| `external-system` | External system: whatever we can put the blame on |
+| `hot-spot` | Hot spot: a problem, question or disagreement |
+| `pivotal` | Pivotal event: a phase boundary |
+| `vote` | Arrow vote |

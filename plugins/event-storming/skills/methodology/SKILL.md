@@ -28,7 +28,7 @@ Parse `$ARGUMENTS` for:
 
 If no filter is specified, run the **Interactive Discovery** flow below.
 
-To *run* an agentic AI-driven workshop (multi-persona simulation on Miro) rather than read facilitation guidance, invoke `/event-storming:simulation` via the Skill tool.
+To *run* an agentic AI-driven workshop (multi-persona simulation on a markdown or Miro board) rather than read facilitation guidance, invoke `/event-storming:simulation` via the Skill tool.
 
 ---
 
@@ -38,22 +38,19 @@ When invoked with no arguments, help the user figure out what they need. Don't d
 
 ### Step 1: Check for existing boards
 
-**Miro availability gate:** this step needs the first-party `miro` plugin, a separately enabled
-plugin that bundles a local-stdio MCP server. Its tools carry a prefix Claude Code assigns, which
-differs between the plugin-provided server and the same server configured directly at user or
-project scope. Look for a callable tool whose name ends in `__miro_list_boards` under any prefix;
-match that Miro-specific tool name, not a server that merely happens to be called `miro`. If none is
-callable, skip board discovery entirely and go straight to Step 2. Do not error. Reference-only
-guidance (every `--<format>` action) works with no Miro at all. Every `miro_*` tool named below
-denotes that tool under whichever prefix the gate found.
+Existing boards are listed through `list_boards`, the board operation in the plugin's
+[board-operations.md](../../reference/board-operations.md), on each backend that answers without
+setup. Never error, and never ask for setup here: reference-only guidance (every `--<format>`
+action) needs no board at all.
 
-- **Pointer**: when the prefix format needs re-deriving, fetch
-  [Plugin-provided MCP servers](https://code.claude.com/docs/en/mcp#plugin-provided-mcp-servers)
-  and
-  [Server names, tool names, and reloads](https://code.claude.com/docs/en/plugins/components#server-names-tool-names-and-reloads)
-  live.
+- **Markdown boards:** glob `*/*.md` under the board directory, `docs/event-storming` unless the
+  team file `event-storming.yaml` in the convention home sets `board_dir`
+  ([markdown.md](../../reference/board-backends/markdown.md#where-boards-live)), and read each
+  file's frontmatter for its title, format and `updated`.
+- **Miro boards:** only when the Miro backend's `check_available` passes
+  ([miro.md](../../reference/board-backends/miro.md#tool-namespace)); otherwise skip Miro silently.
 
-When Miro is available, query it for recent boards with that prefix's `miro_list_boards`. Look for boards with EventStorming-related names (containing "Big Picture", "Process Model", "Design-Level", "EventStorming", or domain-specific names from prior sessions). Sort by last modified.
+With no board found on either, go straight to Step 2. Sort what you found by last change.
 
 If recent boards exist, present them:
 > "I found these EventStorming boards:
@@ -67,7 +64,7 @@ If recent boards exist, present them:
 > 2. Start a new EventStorming session
 > 3. Just learn about EventStorming (reference mode)"
 
-If the user picks an existing board, read it via `miro_list_board_items` (`limit=1000`) to understand what's there: what format was used, what phase it's in, what building blocks are present. Then suggest next steps:
+If the user picks an existing board, `read_board` it, the whole board, to understand what's there: what format was used, what phase it's in, what building blocks are present. Then suggest next steps:
 
 - If it's a Big Picture with no PM/DL follow-up → suggest `/event-storming:simulation --process-model` or `/event-storming:simulation --value` on the winning problem
 - If it's a Big Picture with PM done → suggest `/event-storming:simulation --design-level` or `/event-storming:simulation --crc`

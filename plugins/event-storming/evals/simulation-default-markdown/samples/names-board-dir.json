@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "The board goes to docs/event-storming/bakery-20261118-a7f2/big-picture.md.", "why": "the default board directory with a session folder"},
+    {"answer": "Boards are written under `docs/event-storming/` and never committed.", "why": "the directory in code formatting"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "The board goes to a markdown file in your repository.", "why": "names no directory"},
+    {"answer": "Boards go under docs/eventstorming/.", "why": "a different directory"}
+  ]
+}

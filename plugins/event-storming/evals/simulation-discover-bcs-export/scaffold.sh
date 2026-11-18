@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# A completed Big Picture board's items, exported as structured markdown, in the workspace.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-bash "${here}/../fixtures/scaffold-guard.sh" big-picture-board-export.md
-cat "${here}/../fixtures/big-picture-board-export.md" >big-picture-board-export.md
+board=docs/event-storming/courses-20261118-a7f2/big-picture.md
+bash "${here}/../fixtures/scaffold-guard.sh" docs
+mkdir -p "$(dirname "${board}")"
+cat "${here}/../fixtures/big-picture-board-export.md" >"${board}"

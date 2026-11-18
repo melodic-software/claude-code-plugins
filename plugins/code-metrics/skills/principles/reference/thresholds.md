@@ -67,9 +67,9 @@ measure it is applied to, in any source this plugin cites.
 
 | Value | Applied to | Where it was looked for | What was found |
 |---|---|---|---|
-| 22 | Cyclomatic complexity | McCabe 1976 and NIST SP 500-235 (full text); the threshold pages of Aivosto, ESLint, ReSharper, Microsoft CA1502, NDepend, NASA SWEHB | No source attributes 22 to anyone |
-| 22 | Cognitive complexity | Campbell's white paper; SonarSource rule S3776 | No standard sets a cognitive threshold; SonarSource's rule default is a product decision |
-| 80 | Halstead difficulty | Halstead 1977 as reproduced by NASA NTRS, IBM, and radon; vendor threshold pages | Halstead defines difficulty and sets no limit; nothing attributes 80 to anyone |
+| 22 | Cyclomatic complexity | McCabe 1976 and NIST SP 500-235 (full text); the threshold pages of NASA SWEHB and Aivosto; vendor rule defaults | No source attributes 22 to anyone |
+| 22 | Cognitive complexity | Campbell's white paper; vendor rule defaults | No standard sets a cognitive threshold; a vendor's rule default is a product decision |
+| 80 | Halstead difficulty | Halstead 1977 as reproduced by NASA NTRS and IBM; vendor threshold pages | Halstead defines difficulty and sets no limit; nothing attributes 80 to anyone |
 | 500 | Lines per file | ISO/IEC 5055 clauses 6 and 8 | The nearest standards figure is the informative 1000, and the normative form is a percentage. Selectable through config |
 | 100 | Coverage percentage | ISO/IEC 25023 preview; the coverage-effectiveness studies in literature.md | A policy, not a standard. A coverage number rises whenever a line executes, with or without an assertion |
 | 25 | CRAP | The Crap4j FAQ and the 2007 announcement | Not the authors' number. Savoia and Evans suggested 30, as a starting point after "a LOT of opinions" |
