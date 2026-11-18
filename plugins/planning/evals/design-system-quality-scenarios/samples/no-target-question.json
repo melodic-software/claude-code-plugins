@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "1. **Queue between order service and worker.** I recommend a durable queue, so the 60 s p95 budget and the 1-hour catch-up after a Mailgun outage both hold. Basis: Brief Constraints. Do you agree with a durable queue?",
+      "why": "a design question, no target re-asked"
+    },
+    {
+      "answer": "",
+      "why": "empty reply asks nothing"
+    },
+    {
+      "answer": "Which queue technology should we use: SQS or RabbitMQ?",
+      "why": "a technology question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "What latency target should the confirmation email meet?",
+      "why": "re-asks the performance target"
+    },
+    {
+      "answer": "2. What peak load should the worker be sized for?",
+      "why": "re-asks the scalability target"
+    },
+    {
+      "answer": "Is an availability SLO needed for Mailgun outages?",
+      "why": "re-opens the reliability requirement"
+    }
+  ]
+}
