@@ -74,7 +74,10 @@ per FAIL. Modify nothing, and do not run a scan. That is `/improvement:find`.
 Run `check`, then interview and write the team file. Draft values from the invocation and the
 repo without asking, but write nothing before the user answers: the first interview question,
 with its recommendation, comes before any `Write` to `.claude/improvement.md`, even when every
-value looks unambiguous. A value the invocation names is a draft the interview confirms.
+value looks unambiguous. A value the invocation names is a draft the interview confirms. When
+the invocation asks to see a proposal instead of a write, showing the whole draft (the file,
+the verification of step 5 and the report) with its recommendations is that question: present
+it in one reply and write nothing.
 
 1. **Read the effective config first, across all layers**, and present the merged baseline with
    per-layer provenance. Exactly as `check` step 2 reports it. When a higher layer's opt-out or
