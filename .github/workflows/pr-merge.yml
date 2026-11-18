@@ -1016,6 +1016,7 @@ jobs:
       # true; the summary says what would have been started. An earlier lane
       # merge that still needs a full run is the dispatch-post-merge-runs job's.
       dispatch: ${{ steps.mode.outputs.live == 'true' && steps.gate.outputs.dispatch == 'true' }}
+      mended-heads: ${{ steps.clear.outputs.mended-heads }}
     steps:
       # A rate limit stopped dispatch-post-merge-runs's GITHUB_TOKEN calls, which
       # this job's reads share: it sends nothing and ends red. Every later step
@@ -2245,6 +2246,7 @@ jobs:
       # five pull requests a run.
       # Rules: .github/scripts/pr-merge/clear-escalations.mjs.
       - name: Clear escalations whose reason no longer holds
+        id: clear
         if: >-
           always() && github.event_name == 'schedule'
           && steps.lane-token.outputs.token != ''
@@ -3097,8 +3099,8 @@ jobs:
   # Not on a PR-scoped dispatch: the next sweep posts what that run would.
   report-unarmed-status:
     name: Report Unarmed Status
-    needs: [enable-auto-merge]
-    if: ${{ !cancelled() && !inputs.pr && needs.enable-auto-merge.outputs.unarmed-statuses != '' }}
+    needs: [merge, enable-auto-merge]
+    if: ${{ !cancelled() && !inputs.pr && (needs.enable-auto-merge.outputs.unarmed-statuses != '' || needs.merge.outputs.mended-heads != '') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -3132,11 +3134,26 @@ jobs:
           node-version-file: .base/.node-version
 
       - name: Post the pr-merge/unarmed statuses
+        if: needs.enable-auto-merge.outputs.unarmed-statuses != ''
         timeout-minutes: 3
         env:
           GH_TOKEN: ${{ github.token }}
           STATUSES: ${{ needs.enable-auto-merge.outputs.unarmed-statuses }}
         run: node .base/.github/scripts/pr-merge/post-unarmed-status.mjs
+
+      - name: Clear the address-feedback stops pr-verify settled
+        if: ${{ !cancelled() && needs.merge.outputs.mended-heads != '' }}
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MENDED_HEADS: ${{ needs.merge.outputs.mended-heads }}
+          ACTIVITY: address-feedback
+          CLEAR_DESCRIPTION: pr-verify passed this head after a trusted body edit; the stop is settled
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          for head in $MENDED_HEADS; do
+            HEAD_SHA=$head bash .base/.github/scripts/pr-unblock/report-escalation.sh clear
+          done
 
       - name: Log the API budget at the end
         if: always()

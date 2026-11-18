@@ -9,8 +9,9 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
-import { main, NATIVE_READS_PER_RUN, SESSION_CHECKS_PER_RUN } from "./clear-escalations.mjs";
-import { refusalBody } from "./enable-auto-merge.mjs";
+import { main, MENDED_OUTPUT, NATIVE_READS_PER_RUN, SESSION_CHECKS_PER_RUN } from "./clear-escalations.mjs";
+import { refusalBody, unblockHold } from "./enable-auto-merge.mjs";
+import { unblockStops } from "./merge-holds.mjs";
 import { escalationActivity, escalationRoute, ROUTES } from "../pr-unblock/escalation-routes.mjs";
 import { CREDENTIAL_HOLD, SIGNED_COMMITS_HOLD } from "../pr-unblock/gate-source.mjs";
 
@@ -1175,7 +1176,7 @@ test("labels past the read cap are read on a later run", async () => {
 // of 2026-10-26: a person is needed only for intent, design or a HIGH/CRITICAL
 // security finding, so a mechanical stop comes off once trusted evidence shows
 // its cause gone.
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -1914,6 +1915,8 @@ const findingThread = ({ resolved = false, laneAt } = {}) => ({
 const bodyEdit = (editor, editedAt = "2026-11-18T01:40:00Z") => ({ editedAt, editor });
 const KYLE_EDIT = bodyEdit({ __typename: "User", login: "kyle-sexton", databaseId: PERSON_ID });
 const PASSED = { head: HEAD, refusal: null, ineligible: null, reviews: null, atHead: ["fail", "pass-notes"], supersededAtHead: true };
+let outputs = 0;
+const outputFile = () => join(TRUSTED_DIR, `output-${(outputs += 1)}`);
 const settled = (reason = "feedback-disputed", options = {}) =>
   sessionWorld({
     timeline: [sessionLabeled(BOT, "2026-11-18T01:59:00Z"), commented(BOT, stopBody(reason), "2026-11-18T01:59:02Z")],
@@ -1928,8 +1931,14 @@ test("a feedback stop pr-verify settled after a trusted body edit comes off at t
   for (const reason of ["feedback-disputed", "feedback-untaken-threads", "feedback-uncertain"]) {
     assert.equal(ROUTES[reason].label, "needs-session");
     const w = settled(reason);
-    const { code, logs } = await run(w, { TRUSTED_ACTORS_PATH: TRUSTED });
+    const output = outputFile();
+    const { code, logs } = await run(w, { TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: output });
     assert.equal(code, 0);
+    assert.equal(readFileSync(output, "utf8"), `${MENDED_OUTPUT}=${HEAD}\n`, "the head goes to report-escalation.sh clear");
+    const before = [status("failure", ACTIONS_BOT, "2026-11-18T01:59:01Z", "pr-unblock/address-feedback")];
+    const cleared = [status("success", ACTIONS_BOT, "2026-11-18T02:30:00Z", "pr-unblock/address-feedback"), ...before];
+    assert.match(unblockHold(unblockStops(before)), /pr-unblock\/address-feedback is failure/);
+    assert.equal(unblockHold(unblockStops(cleared)), null, "enable-auto-merge no longer holds the head");
     assert.deepEqual(w.writes(), [{ method: "DELETE", path: `/repos/${REPO}/issues/8/labels/needs-session`, body: undefined }], `${reason}\n${logs.join("\n")}`);
     assert.ok(logs.some((line) => /#8 needs-session cleared: pr-verify passed .* after a trusted body edit superseded its FAIL/.test(line)), logs.join("\n"));
     assert.deepEqual(
@@ -1957,17 +1966,21 @@ test("a settled-looking feedback stop keeps needs-session when any one condition
     ["the trusted list does not read", {}, { TRUSTED_ACTORS_PATH: "/nonexistent/trusted-actors.json" }, /trusted-actor list did not read/],
   ]) {
     const w = settled("feedback-disputed", options);
-    const { code, logs } = await run(w, { TRUSTED_ACTORS_PATH: TRUSTED, ...env });
+    const output = outputFile();
+    const { code, logs } = await run(w, { TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: output, ...env });
     assert.equal(code, 0, name);
     assert.deepEqual(w.writes(), [], name);
+    assert.equal(existsSync(output), false, `${name}: no head goes to the status clear`);
     assert.ok(logs.some((line) => /#8 needs-session kept: feedback-disputed still fails/.test(line) && kept.test(line)), `${name}\n${logs.join("\n")}`);
   }
 });
 
 test("only the three feedback stops are mended this way, and only at their own head", async () => {
   const other = settled("ci-fix-escalated");
-  const { logs } = await run(other, { TRUSTED_ACTORS_PATH: TRUSTED });
+  const output = outputFile();
+  const { logs } = await run(other, { TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: output });
   assert.deepEqual(other.writes(), []);
+  assert.equal(existsSync(output), false, "no head goes to the status clear");
   assert.equal(other.reads.length, 0, "no reader run for a stop pr-verify does not settle");
   assert.ok(logs.some((line) => /#8 needs-session kept: ci-fix-escalated still fails .*not a stop pr-verify settles/.test(line)), logs.join("\n"));
   const security = settled("feedback-disputed-security");

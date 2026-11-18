@@ -171,6 +171,7 @@
 //                        token also reads branch activity, check runs and
 //                        main's history for a trusted move, and the review
 //                        lanes' runs, jobs and annotations
+import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -1659,6 +1660,8 @@ const SAME_HEAD_ONLY = Object.freeze(["dependency-workflow-unpinned"]);
 // (newest first), or undefined.
 const laneStatus = (statuses, context) => statuses.find((status) => status?.context === context && status?.creator?.login === "github-actions[bot]");
 
+/** The step output naming, space-separated, each head whose stop verifierMend lifted; pr-merge.yml's report-unarmed-status job clears its pr-unblock/address-feedback failure with report-escalation.sh clear. */
+export const MENDED_OUTPUT = "mended-heads";
 const VERIFIER_MENDS = Object.freeze(["feedback-disputed", "feedback-untaken-threads", "feedback-uncertain"]);
 /** babysit_verify_evidence.py PASSES. */
 const PASS_VERDICTS = Object.freeze(["pass", "pass-notes"]);
@@ -1860,7 +1863,7 @@ async function sessionVerdict({ github, checks, repo, number, label, bot, truste
     const mend = await guarded(() => verifierMend({ github, repo, pull, stops: open, bot, trusted, verify, reads }));
     if (mend?.why !== undefined) {
       why.push(mend.why);
-      return { reason: null, why: why.join("; ") };
+      return { reason: null, why: why.join("; "), mended: current };
     }
     const { reason, context, head, own } = open[0];
     const state = own?.state === "success" ? "no success since the stop" : (own?.state ?? "no status");
@@ -1899,7 +1902,7 @@ async function labeledPulls(github, repo, label) {
 // reading at most SESSION_CHECKS_PER_RUN pull requests a label a run. No
 // comment: the label queues a session and holds nothing a person must see
 // lifted. The failures counted.
-async function clearSessionLabels({ github, checks, repo, bot, runNumber, trusted, verify, reads }) {
+async function clearSessionLabels({ github, checks, repo, bot, runNumber, trusted, verify, reads, mended }) {
   let failed = 0;
   for (const label of SESSION_LABELS) {
     for (const [index, { number }] of rotated(await labeledPulls(github, repo, label), runNumber).entries()) {
@@ -1915,6 +1918,9 @@ async function clearSessionLabels({ github, checks, repo, bot, runNumber, truste
         }
         await github("DELETE", `/repos/${repo}/issues/${number}/labels/${encodeURIComponent(label)}`);
         console.log(`clear-escalations: #${number} ${label} cleared: ${result.why}`);
+        if (result.mended !== undefined) {
+          mended.push(result.mended);
+        }
       } catch (error) {
         failed += 1;
         reportError(number, error);
@@ -2026,7 +2032,11 @@ export async function main({ env = process.env, github, checks, verify, reader, 
         reportError(number, error);
       }
     }
-    failed += await clearSessionLabels({ github, checks, repo, bot, runNumber: Number(env.GITHUB_RUN_NUMBER), trusted, verify, reads });
+    const mended = [];
+    failed += await clearSessionLabels({ github, checks, repo, bot, runNumber: Number(env.GITHUB_RUN_NUMBER), trusted, verify, reads, mended });
+    if (mended.length > 0 && env.GITHUB_OUTPUT) {
+      appendFileSync(env.GITHUB_OUTPUT, `${MENDED_OUTPUT}=${mended.join(" ")}\n`);
+    }
     return failed === 0 ? 0 : 1;
   } catch (error) {
     console.log(`::error title=clear-escalations::${escapeCommand(error?.message ?? error)}`);

@@ -820,6 +820,16 @@ check "clear: exit 0" 0 "$RC"
 check "clear: success posted over the failure" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
 has "clear: state success" 'state=success' "$STUB/calls"
 has "clear: the activity's context" 'context=pr-unblock/address-feedback' "$STUB/calls"
+has "clear: the default description names a same-head retry" 'description=The lane ran again on this head and did not stop' "$STUB/calls"
+setup '[]' '[]'
+printf '%s' "[{\"context\":\"pr-unblock/address-feedback\",\"state\":\"failure\",\"creator\":$GHA}]" >"$STUB/statuses.json"
+set +e
+(cd "$STUB/ws" && env PATH="$TMP/bin:$PATH" STUB="$STUB" GH_TOKEN=t GITHUB_REPOSITORY=o/r HEAD_SHA="$HEAD_A" \
+  ACTIVITY=address-feedback CLEAR_DESCRIPTION=$'pr-verify settled\nthe stop' "$SUT" clear) >"$STUB/out" 2>&1
+RC=$?
+set -e
+check "clear with CLEAR_DESCRIPTION: exit 0" 0 "$RC"
+has "clear with CLEAR_DESCRIPTION: the description names the mend, on one line" 'description=pr-verify settled the stop' "$STUB/calls"
 clear_case resolve-conflicts "[{\"context\":\"pr-unblock/conflict\",\"state\":\"failure\",\"creator\":$GHA}]"
 has "clear: resolve-conflicts clears pr-unblock/conflict" 'context=pr-unblock/conflict' "$STUB/calls"
 clear_case fix-ci "[{\"context\":\"pr-unblock/fix-ci\",\"state\":\"success\",\"creator\":$GHA},{\"context\":\"pr-unblock/fix-ci\",\"state\":\"failure\",\"creator\":$GHA}]"
