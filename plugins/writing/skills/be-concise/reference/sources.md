@@ -76,9 +76,9 @@ a numeric target.
 
 ### Inverted Pyramid (Schade, 2018)
 
-Our use: property 1's ordering (the point, then ranked detail, then
-background) takes this article as its model, and the doctrine names the
-inverted pyramid as the whole of its point-first rule.
+Our use: property 1 cites this article as one of the four sources for its
+point-first rule, which is the whole of the inverted pyramid, and as the model
+for its ranking rule (key points, then supporting detail, then background).
 
 - **Pointer**: when checking property 1's ordering against its source, fetch
   [Inverted Pyramid](https://www.nngroup.com/articles/inverted-pyramid/) live.
