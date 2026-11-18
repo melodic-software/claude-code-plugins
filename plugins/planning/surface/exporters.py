@@ -1436,7 +1436,9 @@ def export_brief(d, text=None):
             for r in archived
         ),
     ] or ["- none"]
-    verdicts = bullets(sections.get("adrVerdicts"))
+    verdicts = [
+        b for b in bullets(sections.get("adrVerdicts")) if not NONE_BULLET.match(b)
+    ]
     if verdicts:
         out += ["", "### ADR verdicts", "", *verdicts]
     out += ["", "### Deferred questions", ""]

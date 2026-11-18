@@ -17,6 +17,10 @@
     {
       "answer": "### ADR verdicts\n- Q1 attempt count: no ADR\n- Q2 backoff schedule: no ADR\n- Q4 alert channel: no ADR\n",
       "why": "Q3 missing"
+    },
+    {
+      "answer": "### ADR verdicts\n- Q1 attempt count: no ADR\n- Q2 backoff schedule: no ADR\n- Q3 failed-delivery storage: no ADR\n- Q4 alert channel: no ADR\n",
+      "why": "each line lost its reason"
     }
   ]
 }

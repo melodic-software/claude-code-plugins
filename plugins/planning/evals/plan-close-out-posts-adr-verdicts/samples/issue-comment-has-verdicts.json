@@ -13,6 +13,10 @@
     {
       "answer": "Closed by the PR. See the PR description for the plan.\n",
       "why": "the issue copy carries no verdict lines"
+    },
+    {
+      "answer": "### ADR verdicts\n- Q1 attempt count: no ADR\n- Q2 backoff schedule: no ADR\n- Q3 failed-delivery storage: no ADR; easy to reverse\n- Q4 alert channel: no ADR\n",
+      "why": "the lines were shortened, not copied verbatim"
     }
   ]
 }

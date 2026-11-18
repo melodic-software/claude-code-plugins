@@ -21,6 +21,10 @@
     {
       "answer": "## Brief\n\n### ADR verdicts\n- Q1 attempt count: no ADR\n- Q2 backoff schedule: no ADR\n- Q3 failed-delivery storage: Postgres table\n- Q4 alert channel: integrations channel\n\n### Deferred questions\n- none\n",
       "why": "Q3 and Q4 lines carry no verdict"
+    },
+    {
+      "answer": "## Brief\n\n### ADR verdicts\n- Q1 attempt count: no ADR\n- Q2 backoff schedule: no ADR\n- Q3 failed-delivery storage: no ADR\n- Q4 alert channel: no ADR\n\n### Deferred questions\n- none\n",
+      "why": "Q3's confirmed verdict was changed to no ADR"
     }
   ]
 }

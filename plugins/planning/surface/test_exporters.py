@@ -1048,8 +1048,11 @@ class TestBriefRestatements(SessionCase):
             "--ledger", self.export("ledger"), "--brief", self.export("brief")
         )
         self.assertEqual(rc, 0, out)
-        text = self.brief([self.rev(1, goal="Ship it.")], [self.confirm(2, 1)])
-        self.assertNotIn("### ADR verdicts", text)
+        for absent in ({}, {"adrVerdicts": "- none"}):
+            text = self.brief(
+                [self.rev(1, goal="Ship it.", **absent)], [self.confirm(2, 1)]
+            )
+            self.assertNotIn("### ADR verdicts", text)
 
     def test_a_restated_deferred_of_none_is_no_entry(self):
         text = self.brief(
