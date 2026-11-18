@@ -141,7 +141,7 @@ blocked for that surface and guided setup names the compliant paths. The
 [CI-lane surface](#ci-lanes-on-provider-hosted-runners) is exempt only while all five of its
 conditions hold, and a local path an owner exemption covers is exempt only while that
 [exemption](#local-lanes) holds. This rule is fail-closed: silently degrading to a lower level is never conforming, because a silent degrade
-leaks the trust loop the ladder exists to protect.
+runs the work under weaker containment than the policy requires, with nobody told.
 
 ## Permission posture
 

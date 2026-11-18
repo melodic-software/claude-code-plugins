@@ -570,7 +570,7 @@ the record back, and the tracker item stays the escalation of record.
 
 **Ignoring the record directory is the lane's own preflight, not a consumer obligation.** Because
 the write is unconditional, an unignored directory strands an untracked file in the working tree a
-lane runs its gates against, and escalation detail sits one careless stage from being committed.
+lane runs its gates against, and a careless `git add` could commit the escalation detail.
 Nothing delivers a tracked ignore rule into a consuming repo, since this marketplace's root rule
 covers only its own dogfooding checkout and a plugin ships no consumer-side `.gitignore`, so a lane that
 depended on the consumer having added one would break for every existing consumer that upgrades
@@ -1084,7 +1084,7 @@ otherwise escalate a lane for obeying the guard exactly. Only cycles the lane wa
 counted, so the detector measures a lane failing to move a queue it could have moved.
 When an increment
 brings the counter to the stall threshold, default **3** consecutive no-progress cycles (a lane
-may expose the threshold as its own config key), the lane **escalates and keeps looping**: a
+may expose the threshold as its own config key), the lane **escalates and keeps looping**, because a
 stalled lane is usually a signal about the queue, not a reason to terminate. The stall escalation
 rides §2's contract unchanged (role label + machine-marked comment), a loop-health signal on the
 one channel, not a second channel and not a new guardrail event class. At most one stall escalation
@@ -1394,7 +1394,7 @@ dropping `either` from the pause threshold or weakening `must` to `may` is not. 
 runs in CI as the `loop-lane-floor-drift-gate` lane, with its own suite
 `scripts/check-loop-lane-floor-drift.test.sh`.
 
-**The registry does not decide what gets checked; the corpus does.** Before comparing anything, the
+**What gets checked comes from the tracked files, not from the registry.** Before comparing anything, the
 check scans every tracked file for the floor's opening bullet and fails on any carrier its registry
 does not name. That is what keeps registration from being optional: a new lane that inlines the
 floor and forgets the entry turns the lane red on the pull request that adds it, rather than passing
@@ -1406,7 +1406,7 @@ registered consumer, compared on every run, or a member of the check's own `DATA
 which is what a file holding the marker as test data or illustration goes on. Both lists live in the
 check, both are printed on every run including `--check`, and both fail on an entry that has gone
 stale. So the checked set equals the carried set minus a finite, enumerated, reviewed exception
-list. It is deliberately not phrased as an equality: an exception list exists, and a claim of
+list. It is deliberately not phrased as an equality, because an exception list exists and a claim of
 "provably equal" would be exactly the unbacked assurance this section was rewritten to remove.
 
 **A file cannot excuse itself, and that is why the exception list is not an in-file annotation.**
