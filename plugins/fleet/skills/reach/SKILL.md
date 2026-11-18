@@ -94,8 +94,8 @@ travels in a prompt.
 Each verb fills `<agent-args>` and `<prompt>` in a matrix row. Every verb but the first starts an
 agent, and each agent turn costs real usage, even a one-line turn
 ([Manage costs: Track your costs](https://code.claude.com/docs/en/costs#track-your-costs); the Cost
-row of [reference/relay.md § Verified behavior](reference/relay.md#verified-behavior) holds the
-dated measurement and how to re-measure it). When a script can do the job, run the script.
+row of [reference/relay.md § Verified behavior](reference/relay.md#verified-behavior) holds what
+our probe found and how to re-measure it). When a script can do the job, run the script.
 
 | Verb | `<agent-args>` | `<prompt>` | Status |
 |---|---|---|---|

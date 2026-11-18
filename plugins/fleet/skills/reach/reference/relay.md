@@ -306,11 +306,15 @@ credential through a prompt or a copy.
 
 ## Verified behavior
 
-Claim: the per-lane account model and the route results below. Basis: live probes between
-a desktop and a laptop, each lane on its own claude.ai sign-in. As of 2026-09-29, Claude
-Code 2.1.284. Recheck when a Claude Code release note touches `ListAgents`, `SendMessage`, Remote
-Control session listing, `crossSessionInbound` or `-n`/`--name`, or when a route below fails its
-hop check.
+The per-lane account model and the route results below are what our live probes between a
+desktop and a laptop observed, each lane on its own claude.ai sign-in, on Claude Code 2.1.284. A
+row that names a later Claude Code version records a later probe and carries its own recheck.
+
+- **Pointer**: when a 2.1.284 route below fails its hop check, or a Claude Code release note touches
+  `ListAgents`, `SendMessage`, Remote Control session listing, `crossSessionInbound` or
+  `-n`/`--name`, read the probe evidence in
+  [#5337](https://github.com/melodic-software/claude-code-plugins/pull/5337) and probe the route
+  again.
 
 The hub's guidance on `notify_when_idle`, `--bare`, `--bg`, `--session-id` and a `-p` receiver
 also rests on documented flag behavior.
