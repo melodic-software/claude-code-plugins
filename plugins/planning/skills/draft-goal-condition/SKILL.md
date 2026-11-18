@@ -41,8 +41,9 @@ see the result. When either is missing, prompt once instead.
   which says when the bundled `claude-api` skill's hillclimb fits and who starts it.
 - **Interval-driven** ("every 5 minutes", "poll until") → `/loop`, not `/goal`.
 - **Cloud / sessionless / scheduled** ("nightly", "each morning", runs with no session open) →
-  routines / `/schedule`. Before recommending them, read their release status (a research-preview
-  label, for instance) on `https://code.claude.com/docs/en/routines` during the Step 1 fetch.
+  routines / `/schedule`. Before recommending them, read their release status on
+  `https://code.claude.com/docs/en/routines` during the Step 1 fetch, and name it in the
+  recommendation, so the user knows whether the surface may still change.
 - **Custom per-turn logic across all sessions** (deterministic script check, settings-scoped) → a
   prompt-based Stop hook.
 - **More agents than one conversation can coordinate** (or orchestration worth codifying as a

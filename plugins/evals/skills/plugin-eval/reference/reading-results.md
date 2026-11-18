@@ -239,10 +239,12 @@ without-run lost its judge to the ceiling: `scoreWithout` and `delta` were both 
   - **Recheck trigger**: the plugin-evals page documents `judgeCostUsd`, or a suite `costUsd`
     differs from the sum of its per-run `costUsd` values.
 - `error` is `null` or the reason the run ended abnormally, such as a timeout. A non-null `error`
-  does **not** by itself imply score 0: some errored runs are still graded, while a run that ended
-  on an API error, a rate limit mid-suite included, scores 0 ungraded, which is why that limit reads
-  as a regression rather than as an outage. Which runs fall on each side:
-  [JSON result](https://code.claude.com/docs/en/plugin-evals#json-result).
+  alone does not tell you whether the run was graded, so check which kind of error it is; a usage
+  or rate limit takes [the usage-limit rerun in SKILL.md Gotchas](../SKILL.md#gotchas), so it is
+  never read as a regression.
+  - **Pointer**: when a run's `error` is non-null, fetch
+    [JSON result](https://code.claude.com/docs/en/plugin-evals#json-result) live for which errored
+    runs are still graded.
 - `aborted` appears when a mock's `expect:` or `abort_when` stopped the run, carrying `server`,
   `tool`, and `reason`. It scores 0 while `error` stays `null`.
 - `skippedPaidGraders: true` means the cost ceiling skipped this run's judge calls. The skipped

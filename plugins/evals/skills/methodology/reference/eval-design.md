@@ -59,12 +59,15 @@ prompt and leave `max_tokens` headroom rather than fencing the answer with a tig
 ## Effort as an eval axis
 
 For applications on models with an effort parameter, effort is an eval dimension, not a fixed
-setting: sweep the suite across effort levels and read cost against score. On a non-saturated
-suite, a flat cost-performance curve across levels means the task is not bound by thinking
-compute, and higher effort buys cost without score; a steep curve locates the cheapest level
-that holds the target. Sweep model and effort together, since a stronger model at low effort can
-beat a weaker one at high effort on both axes (basis:
-`platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort`).
+setting. On a non-saturated suite, sweep model and effort together, read cost against score, and
+pick the cheapest model-and-effort pair that holds the target; sweep the two together because the
+cheapest such pair can sit at any model. A saturated suite cannot show where a cheaper pair starts
+losing score.
+
+- **Pointer**: when reading an effort sweep's cost-against-score curve, or choosing between a
+  stronger model at lower effort and a weaker one at higher effort, fetch
+  [Tune effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort)
+  live.
 
 When the bundled `claude-api` skill resolves in this session, its `hillclimb` subcommand
 automates this search over a suite; this repository's step map for it is
