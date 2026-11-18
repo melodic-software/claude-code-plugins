@@ -171,12 +171,13 @@
 //                        token also reads branch activity, check runs and
 //                        main's history for a trusted move, and the review
 //                        lanes' runs, jobs and annotations
+import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate, retryServerErrors } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
-import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
+import { humanGatedLabelFrom, isVerifierRoot } from "../pr-unblock/address-feedback.mjs";
 import {
   CLEARED,
   ESCALATION,
@@ -1659,6 +1660,125 @@ const SAME_HEAD_ONLY = Object.freeze(["dependency-workflow-unpinned"]);
 // (newest first), or undefined.
 const laneStatus = (statuses, context) => statuses.find((status) => status?.context === context && status?.creator?.login === "github-actions[bot]");
 
+/**
+ * The step output naming, space-separated, each head whose stop verifierMend
+ * settled. pr-merge.yml's report-unarmed-status job clears its
+ * pr-unblock/address-feedback failure with report-escalation.sh clear. The
+ * label stays until a later run finds that success newer than the stop (the
+ * same-head lift), so a clear that failed is requested again on the next run
+ * while every mend condition still holds.
+ */
+export const MENDED_OUTPUT = "mended-heads";
+const VERIFIER_MENDS = Object.freeze(["feedback-disputed", "feedback-untaken-threads", "feedback-uncertain"]);
+/** babysit_verify_evidence.py PASSES. */
+const PASS_VERDICTS = Object.freeze(["pass", "pass-notes"]);
+const SESSION_THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100, after: $after) {
+        nodes {
+          isResolved
+          root: comments(first: 1) { nodes { author { ... on User { databaseId } ... on Bot { databaseId } } body createdAt originalCommit { oid } } }
+          comments(first: 100) { totalCount nodes { createdAt author { __typename login } } }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}`;
+
+/** Every review thread on `number`, resolved or not, each with its root comment, or null when a listing may be cut short. */
+async function allThreads(github, repo, number) {
+  const [owner, name] = repo.split("/");
+  const all = [];
+  let after = null;
+  for (let page = 0; page < THREAD_PAGES; page += 1) {
+    const threads = (await github("POST", "/graphql", { query: SESSION_THREADS_QUERY, variables: { owner, name, number, after } }))?.data?.repository?.pullRequest?.reviewThreads;
+    if (!Array.isArray(threads?.nodes)) {
+      return null;
+    }
+    for (const thread of threads.nodes) {
+      const root = thread?.root?.nodes?.[0];
+      const comments = thread?.comments;
+      if (typeof thread?.isResolved !== "boolean" || root === undefined || !Array.isArray(comments?.nodes) || !(comments.totalCount <= comments.nodes.length)) {
+        return null;
+      }
+      all.push({ resolved: thread.isResolved, root, comments: comments.nodes });
+    }
+    if (!threads.pageInfo?.hasNextPage) {
+      return all;
+    }
+    after = threads.pageInfo.endCursor;
+  }
+  return null;
+}
+
+/**
+ * Whether pr-verify settled the address-feedback `stops` routed to a session
+ * label at `pull`'s head: { why } when every one of these holds, else
+ * { reason } naming the first that does not.
+ * - Every stop is at the current head with a VERIFIER_MENDS reason.
+ * - The review threads read whole, none is unresolved, at least one opens
+ *   with a pr-verify fail note (isVerifierRoot), and no other thread carries
+ *   a lanes App comment written from the first fail note to the stop.
+ * - From the first fail note's creation on, at least one body edit, and every
+ *   body edit and issue connect or disconnect, is by a User whose id
+ *   trusted-actors.json lists as a `human` (resolve-pr.mjs editedByPeople):
+ *   no bot's or untrusted person's edit counts. resolve-pr.mjs loads here,
+ *   not at the top, since ci-status's sparse checkout of this module holds
+ *   none of its imports and only pr-merge reaches this.
+ * - The gate's reader (one of the run's NATIVE_READS_PER_RUN) answers at the
+ *   head with no verdict refusal and a pass or pass-notes there, and, when a
+ *   fail note sits on that head, `supersededAtHead`: a counted pass after
+ *   that FAIL gave way to it.
+ */
+async function verifierMend({ github, repo, pull, stops, bot, trusted, verify, reads }) {
+  const head = pull.head.sha;
+  const other = stops.find((stop) => stop.head !== head || !VERIFIER_MENDS.includes(stop.reason));
+  if (other !== undefined) {
+    return { reason: `${other.reason} at ${other.head} is not a stop pr-verify settles at this head` };
+  }
+  if (trusted === null) {
+    return { reason: "the trusted-actor list did not read" };
+  }
+  const threads = await allThreads(github, repo, pull.number);
+  if (threads === null) {
+    return { reason: "the review threads did not read whole" };
+  }
+  const open = threads.filter((thread) => !thread.resolved).length;
+  if (open > 0) {
+    return { reason: `${open} review thread(s) are unresolved` };
+  }
+  const note = (thread) => isVerifierRoot({ authorId: thread.root.author?.databaseId, body: thread.root.body });
+  const failAt = Math.min(...threads.filter(note).map((thread) => Date.parse(thread.root.createdAt)));
+  if (!Number.isFinite(failAt)) {
+    return { reason: "no pr-verify fail-note thread with a readable time" };
+  }
+  const stoppedAt = Math.max(...stops.map((stop) => stop.stoppedAt));
+  const lane = (author) => author?.__typename === "Bot" && (author.login === bot || `${author.login}[bot]` === bot);
+  const worked = threads.some(
+    (thread) => !note(thread) && thread.comments.some((comment) => lane(comment?.author) && !(Date.parse(comment.createdAt) < failAt) && !(Date.parse(comment.createdAt) > stoppedAt)),
+  );
+  if (worked) {
+    return { reason: "the lane answered a thread that is not a pr-verify fail note since the FAIL" };
+  }
+  const { editedByPeople } = await import("../pr-verify/resolve-pr.mjs");
+  if (!(await editedByPeople(github, repo, pull.number, trusted, new Date(failAt).toISOString()))) {
+    return { reason: "no trusted person edited the body since the FAIL, or someone else edited it or its links" };
+  }
+  if (reads.left <= 0) {
+    return { reason: `the gate's reader waits: ${NATIVE_READS_PER_RUN} reader runs this run` };
+  }
+  reads.left -= 1;
+  const evidence = await verify({ number: pull.number, headRefOid: head, baseRefOid: pull.base?.sha }, "C3");
+  const passed = evidence?.head === head && evidence.refusal === null && PASS_VERDICTS.some((verdict) => evidence.atHead?.includes(verdict));
+  const failedHere = threads.some((thread) => note(thread) && thread.root.originalCommit?.oid === head);
+  if (!passed || (failedHere && evidence.supersededAtHead !== true)) {
+    return { reason: `no counted pass at ${head} supersedes its FAIL (${verifyHold(evidence, head) ?? "the FAIL there stands"})` };
+  }
+  return { why: `pr-verify passed ${head} after a trusted body edit superseded its FAIL, and no review thread is open` };
+}
+
 // Whether the session label `label` on `number` comes off, or { reason }
 // saying why it stays. It comes off only when the lanes App added it last,
 // and every lanes App lane-stopped comment (one per activity, edited in
@@ -1682,7 +1802,7 @@ const laneStatus = (statuses, context) => statuses.find((status) => status?.cont
 // A stop since the label whose reason or head does not parse, none at all,
 // or a read that fails keeps it. `checks` (the job token) reads the statuses
 // and check runs; the lanes App token holds no statuses permission.
-async function sessionVerdict({ github, checks, repo, number, label, bot }) {
+async function sessionVerdict({ github, checks, repo, number, label, bot, trusted = null, verify, reads = { left: 0 } }) {
   const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
   const { labeled, since } = labelHistory(timeline, label, new Set());
   if (!isApp(labeled?.actor, bot)) {
@@ -1741,14 +1861,20 @@ async function sessionVerdict({ github, checks, repo, number, label, bot }) {
   if (open.length === 0) {
     return { reason: null, why: why.join("; ") };
   }
-  const current = (await guarded(() => github("GET", `/repos/${repo}/pulls/${number}`)))?.head?.sha;
+  const pull = await guarded(() => github("GET", `/repos/${repo}/pulls/${number}`));
+  const current = pull?.head?.sha;
   if (!SHA.test(String(current))) {
     return { reason: "the pull request's head did not read" };
   }
   if (routed.some(({ head }) => head === current)) {
+    const mend = await guarded(() => verifierMend({ github, repo, pull, stops: open, bot, trusted, verify, reads }));
+    if (mend?.why !== undefined) {
+      why.push(mend.why);
+      return { reason: null, why: why.join("; "), mended: current };
+    }
     const { reason, context, head, own } = open[0];
     const state = own?.state === "success" ? "no success since the stop" : (own?.state ?? "no status");
-    return { reason: `${reason} still fails ${context} at ${head} (${state})` };
+    return { reason: `${reason} still fails ${context} at ${head} (${state}); not mended: ${mend?.reason ?? "a read failed"}` };
   }
   const now = await guarded(() => readStatuses(checks, repo, current));
   if (now === null) {
@@ -1783,7 +1909,7 @@ async function labeledPulls(github, repo, label) {
 // reading at most SESSION_CHECKS_PER_RUN pull requests a label a run. No
 // comment: the label queues a session and holds nothing a person must see
 // lifted. The failures counted.
-async function clearSessionLabels({ github, checks, repo, bot, runNumber }) {
+async function clearSessionLabels({ github, checks, repo, bot, runNumber, trusted, verify, reads, mended }) {
   let failed = 0;
   for (const label of SESSION_LABELS) {
     for (const [index, { number }] of rotated(await labeledPulls(github, repo, label), runNumber).entries()) {
@@ -1792,9 +1918,14 @@ async function clearSessionLabels({ github, checks, repo, bot, runNumber }) {
         continue;
       }
       try {
-        const result = await sessionVerdict({ github, checks, repo, number, label, bot });
+        const result = await sessionVerdict({ github, checks, repo, number, label, bot, trusted, verify, reads });
         if (result.reason !== null) {
           console.log(`clear-escalations: #${number} ${label} kept: ${result.reason}`);
+          continue;
+        }
+        if (result.mended !== undefined) {
+          mended.push(result.mended);
+          console.log(`clear-escalations: #${number} ${label} kept until its status clears: ${result.why}`);
           continue;
         }
         await github("DELETE", `/repos/${repo}/issues/${number}/labels/${encodeURIComponent(label)}`);
@@ -1910,7 +2041,11 @@ export async function main({ env = process.env, github, checks, verify, reader, 
         reportError(number, error);
       }
     }
-    failed += await clearSessionLabels({ github, checks, repo, bot, runNumber: Number(env.GITHUB_RUN_NUMBER) });
+    const mended = [];
+    failed += await clearSessionLabels({ github, checks, repo, bot, runNumber: Number(env.GITHUB_RUN_NUMBER), trusted, verify, reads, mended });
+    if (mended.length > 0 && env.GITHUB_OUTPUT) {
+      appendFileSync(env.GITHUB_OUTPUT, `${MENDED_OUTPUT}=${mended.join(" ")}\n`);
+    }
     return failed === 0 ? 0 : 1;
   } catch (error) {
     console.log(`::error title=clear-escalations::${escapeCommand(error?.message ?? error)}`);

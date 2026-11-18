@@ -43,13 +43,8 @@ name: Upstream Apply Changelog
 # reads it live.
 
 on:
-  # Every ten minutes, at minutes no other schedule here uses. A tick makes
-  # at most thirteen GITHUB_TOKEN REST calls (ten done-marker reads, the cap
-  # read, the key's credit-history read once a release is picked, and one
-  # artifact read when that history skips the model), at most 78 an hour of
-  # the token's 1,000.
   schedule:
-    - cron: "5-59/10 * * * *"
+    - cron: "25 * * * *"
   workflow_dispatch:
     inputs:
       release:

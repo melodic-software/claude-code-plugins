@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Rule: other packages import billing only by `@shop/billing`. Mechanism: the exports map in packages/billing/package.json, already in place; I added no scan or lint rule. Proof: with `import { balance } from '@shop/billing/src/ledger.js'` injected in packages/reporting/src/report.js, `bash scripts/check.sh` exited 1 with ERR_PACKAGE_PATH_NOT_EXPORTED; after removing that line it passed. Recorded: Enforced by: `bash scripts/check.sh`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I added scripts/check-imports.sh, which greps for `@shop/billing/` subpaths, and wired it into scripts/check.sh. It failed on an injected import and passed after removal.",
+      "why": "a second check beside the export map"
+    },
+    {
+      "answer": "The exports map already enforces this rule, so it is enforced. Recorded the command.",
+      "why": "no failing run on an injected violation"
+    }
+  ]
+}

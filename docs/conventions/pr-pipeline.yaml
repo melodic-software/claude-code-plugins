@@ -900,10 +900,6 @@ lanes:
       - activity: apply-verdict
       - activity: apply-refinement
         needs: [apply-verdict]
-  # Started every ten minutes and by a listed human's dispatch naming one Claude Code
-  # release (.github/workflows/upstream-apply-changelog.yml). Push and pull request
-  # open are separate jobs: the broker refuses contents and pull-requests
-  # write in one mint.
   upstream-apply-changelog:
     stage: upstream
     slots:

@@ -52,3 +52,7 @@ probe-evals/
 
 # test_hygiene.py builds same-volume hard-link fixtures beside the engine; a killed run leaves them
 plugins/disk-hygiene/skills/clean/scripts/tmp*/
+
+# .NET build output of fixture projects; an editor's C# extension restores them in place
+plugins/*/scripts/fixtures/**/bin/
+plugins/*/scripts/fixtures/**/obj/

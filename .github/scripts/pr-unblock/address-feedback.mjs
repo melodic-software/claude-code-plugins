@@ -1641,6 +1641,28 @@ export function refreshableSections(body, names = []) {
     .map(({ heading, text }) => ({ heading, text }));
 }
 
+/** The read-only body view's caps: code points per section, and sections. A PR body holds at most 65,536 characters, so the view stays far under the thread file's 1 MiB cap. */
+export const BODY_VIEW_LIMITS = { text: 8000, sections: 30 };
+// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what it replaces
+const VIEW_CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f]/g;
+
+/**
+ * Every `##` section of the body, the ones refreshableSections leaves out
+ * included, so the round can read what it may not rewrite: each heading and
+ * its text cut to BODY_VIEW_LIMITS.text code points (`truncated` says so),
+ * control characters but tab and newline shown as "?".
+ */
+export function bodyView(body) {
+  const clean = (text) => text.replace(VIEW_CONTROL, "?");
+  return bodySections(body)
+    .sections.filter((section) => section.heading !== "")
+    .slice(0, BODY_VIEW_LIMITS.sections)
+    .map(({ heading, text }) => {
+      const points = [...text.replace(/\r$/gm, "")];
+      return { heading: clean(heading), text: clean(points.slice(0, BODY_VIEW_LIMITS.text).join("")), truncated: points.length > BODY_VIEW_LIMITS.text };
+    });
+}
+
 // The kept threads of a PR as they are now: the reply job's re-read, judged
 // against `heads` (the select job's reviewed heads) when given, else the
 // markers as they are now.
@@ -2233,6 +2255,9 @@ export async function main(argv, env, { api, actions, log = (line) => console.lo
   if (command === "select") {
     need(env, ["THREAD_FILE", "RUN_FILE"]);
     const result = await selectThreads();
+    if (result.file) {
+      result.file.body_view = bodyView(result.body);
+    }
     // pr_body_refresh from the base's source-control.yaml (unset is on), and
     // its pr_body_required_sections list.
     if (result.file && env.BODY_REFRESH !== "false") {

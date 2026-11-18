@@ -3636,7 +3636,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ci-tools
-          key: ci-tools-${{ runner.os }}-shfmt-v3.14.1-duckdb-v1.5.5-lefthook-2.2.2
+          key: ci-tools-${{ runner.os }}-shfmt-v3.14.1-duckdb-v1.5.5-lefthook-2.2.2-go-1.27.4
       - name: Install pinned shfmt
         uses: ./.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
         with:
@@ -3784,6 +3784,37 @@ jobs:
           gunzip "$RUNNER_TEMP/duckdb/duckdb.gz"
           chmod +x "$RUNNER_TEMP/duckdb/duckdb"
           echo "$RUNNER_TEMP/duckdb" >> "$GITHUB_PATH"
+      - name: Install pinned typos for the spelling remote suite
+        if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'lefthook')
+        uses: melodic-software/ci-workflows/.github/actions/typos@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        with:
+          config: _typos.toml
+          paths: lefthook-remote.yml
+          annotations: 'false'
+      - name: Install pinned actionlint for the actionlint remote suite
+        if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'lefthook')
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        with:
+          paths: .github/workflows/pr-review-approved.yml
+          color: 'false'
+      - name: Install pinned Go and goimports for the go-format remote suite
+        if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'lefthook')
+        env:
+          GO_VERSION: 1.27.4
+          GO_SHA256: 7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840
+          GOIMPORTS_VERSION: v0.52.0
+        run: |
+          mkdir -p "$RUNNER_TEMP/go-dist" "$HOME/.cache/ci-tools"
+          cached="$HOME/.cache/ci-tools/go$GO_VERSION.linux-amd64.tar.gz"
+          [ -f "$cached" ] || curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$cached" \
+            "https://go.dev/dl/go$GO_VERSION.linux-amd64.tar.gz"
+          cp "$cached" "$RUNNER_TEMP/go-dist/go.tar.gz"
+          echo "$GO_SHA256  $RUNNER_TEMP/go-dist/go.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/go-dist/go.tar.gz" -C "$RUNNER_TEMP"
+          test "$("$RUNNER_TEMP/go/bin/go" env GOVERSION)" = "go$GO_VERSION"
+          GOBIN="$RUNNER_TEMP/gobin" GOTOOLCHAIN=local "$RUNNER_TEMP/go/bin/go" install "golang.org/x/tools/cmd/goimports@$GOIMPORTS_VERSION"
+          echo "$RUNNER_TEMP/gobin" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/go/bin" >> "$GITHUB_PATH"
       # The guardrails remote's end-to-end suite runs real lefthook against a
       # stand-in remote; a broken lefthook-remote.yml would block every
       # consumer's commits, so it fails here instead of skipping
@@ -3822,6 +3853,7 @@ jobs:
           VISUAL_COMPARE_DEPS_DIR: .work
           # The guardrails remote's end-to-end cases fail on a missing lefthook here instead of skipping green.
           GUARDRAILS_REQUIRE_LEFTHOOK: '1'
+          LEFTHOOK_REMOTE_REQUIRE_TOOLS: '1'
           # On main (schedule, dispatch) a failing suite in
           # scripts/run-plugin-tests-advisory.txt warns instead of failing the
           # leg; pull requests and merge groups still fail on it.

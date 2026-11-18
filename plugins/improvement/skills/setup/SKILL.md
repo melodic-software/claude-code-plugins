@@ -45,11 +45,12 @@ per FAIL. Modify nothing, and do not run a scan. That is `/improvement:find`.
    as the whole effective config.
 2. **Effective configuration.** Report the merged result and which layer supplied each value:
    the effective `churn_window`, whether bundled exclusion defaults are on, declared
-   `churn_exclude` additions, and every `evidence_sources` entry (name, `mcp_server`, `kind`,
+   `churn_exclude` additions, the effective `find_open_item_cap`, and every `evidence_sources` entry (name, `mcp_server`, `kind`,
    scope), including entries a later layer opted out, reported as removed, not broken. A
    malformed layer degrades soft: name it, resolve as if absent, report the parse error.
 3. **Key validity.** Each `evidence_sources` entry names an `mcp_server`; an entry missing it is
-   FAIL, naming the entry. Where the session can enumerate available MCP servers, note (INFO)
+   FAIL, naming the entry. A `find_open_item_cap` that is not a non-negative integer is FAIL,
+   naming the layer. Where the session can enumerate available MCP servers, note (INFO)
    any declared server not currently available. At find-time that source becomes an
    evidence-gap line, which may be expected on this machine.
 4. **Tracked, not ignored.** A present team file must be committed to be team-shared, and
@@ -79,7 +80,8 @@ user.
 2. **Draft defaults from the repo.** Before asking: propose `churn_exclude` additions from what
    actually exists (generated/build output trees, snapshot or designer files not covered by the
    bundled defaults, the `excludes` ERE in `${CLAUDE_PLUGIN_ROOT}/skills/find/context/hotspots.md`: one Read of that file, never Glob or Grep the plugin directory); keep `churn_window` at the bundled default unless the repo's history is
-   young or the user says otherwise; and draft `evidence_sources` candidates from the MCP
+   young or the user says otherwise; keep `find_open_item_cap` at the bundled default unless the
+   user names another; and draft `evidence_sources` candidates from the MCP
    servers the consumer has configured that plausibly carry telemetry, a candidate is a
    proposal for the user to confirm, never an assumption. No plausible source and none volunteered
    is a fine outcome: write the churn keys only, and say Tier 2 stays a declared gap.

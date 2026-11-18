@@ -1,5 +1,28 @@
 # Changelog for the PR pipeline convention
 
+## [10.9.0] - 2026-11-18
+
+### Added
+
+- `maintenance-verify-whole-map.yml` runs `/testing:run-e2e map` on a listed human's dispatch, in the pull-request capture's sandbox, launch broker and key proxy on the pr-verify API key, under the capture's token caps and driven model. It takes `features`, `max_entries` (default 40, at most 100) and `baseline_run`, prints the entry count, the token caps, the driven model and the driver's turns before any model turn, and stops on the lanes kill switch. It keeps `findings.json` as `map-findings` for 90 days and the evidence as `map-evidence` for 7, and compares against the newest earlier pass's `map-findings`. Its driver leg takes the new run route `verify-map`, on the new `verify-map` profile (Opus, effort high, 300 turns).
+
+- `resolve-conflicts-select` checks, after a conflicted merge and before any model turn, whether main already holds the pull request's change (`.github/scripts/pr-unblock/superseded-by-main.mjs`, git alone, no model): every non-merge commit the head adds since its merge base has a patch-id twin among main's commits since it, or the head's whole diff from that merge base has one main commit's patch-id (a squash merge). Such a pull request escalates the new `superseded-by-main` reason, routed `hold` with owner reason `intent`: the human-gated label and a comment saying main already contains the change, with no conflict-resolution run. The lane never closes it. A pull request main holds only part of goes on to the model as before.
+
+### Changed
+
+- The release intake lane (`upstream-apply-changelog.yml`) runs hourly, at minute 25, where it ran every ten minutes. No event reaches this repository when a Claude Code release ships, and about one release a day came in; the env-scrub probe of each release runs up to an hour after it ships.
+
+- Intake admission takes an own-agent filing with no person (ADR 0111). `own-agents` in `admission-rules.json` lists the identities, by default the lanes App alone; github-actions[bot] stays trusted only for upstream-drift issues. Such a filing is admitted only at Size small or medium, with exactly one `source: <producer>` label, and with its body unedited by any other account, which then counts as its spec in admission and in pr-verify. Size large, a patch over the scan cap, a missing `source:` label or another account's edit holds it for a listed human, and it is never split automatically. It waits at `status: ready` while `own-agents.source-cap` (default 5) or more older open issues carry its `source:` label. A listed human's issue is admitted as before.
+
+### Fixed
+
+- `address-feedback-select` writes `body_view` to `threads.json`: every `##` section of the pull request body, each cut to 8,000 characters, read-only. `body_sections`, the sections a round may rewrite, is unchanged, so a round can now read a Summary over the 4,000-character refresh cap, the last section and unlisted headings.
+- pr-merge's `clear-escalations` settles an address-feedback stop at the current head with reason `feedback-disputed`, `feedback-untaken-threads` or `feedback-uncertain` once pr-verify settled it: no review thread is unresolved, at least one opens with a pr-verify fail note, the lane answered no other thread from the first fail note to the stop, every body edit and issue link change since the first fail note is by a human on `trusted-actors.json` (at least one edit), and the gate's reader answers a pass or pass-notes at that head with no verdict refusal, superseding a FAIL there. A bot's edit never counts. The step hands each such head to pr-merge's `report-unarmed-status` job, which already holds `statuses: write`. That job runs `report-escalation.sh clear` to post a github-actions[bot] success over the head's failing `pr-unblock/address-feedback` status, so neither enable-auto-merge nor ci-status holds the head on it. The label comes off on a later run, once that success is newer than the stop (the same-head lift). A clear that failed is therefore requested again on every run while all the conditions still hold. `report-escalation.sh clear` takes an optional `CLEAR_DESCRIPTION`. The kill-switch and rate-limit gates on the step are unchanged.
+
+### Security
+
+- The read runner's `run-claude-cli` legs turn Claude Code's sandbox off only for a `prepare: ci-context` skill, whose bare Bash may reach hosts beyond GitHub. Every other read activity runs its Bash in run-claude-cli's default sandbox.
+
 ## [10.8.0] - 2026-11-17
 
 ### Added

@@ -1475,10 +1475,10 @@ test("the pr-merge/unarmed statuses are posted by a job of their own, with statu
   assert.match(arm, /\n {6}- name: Arm and disarm auto-merge\n {8}id: arm\n/);
   assert.match(arm, /RISK_ESCALATION_MINUTES=\$\(yq '\.merge\."risk-escalation-minutes" \/\/ ""' "\$config"\)\n/);
   const post = job("report-unarmed-status");
-  assert.match(post, /^ {4}name: Report Unarmed Status\n {4}needs: \[enable-auto-merge\]\n/);
+  assert.match(post, /^ {4}name: Report Unarmed Status\n {4}needs: \[merge, enable-auto-merge\]\n/);
   // It runs whenever enable-auto-merge handed it statuses, after a failed
   // step too, and only then.
-  assert.match(post, /\n {4}if: \$\{\{ !cancelled\(\) && !inputs\.pr && needs\.enable-auto-merge\.outputs\.unarmed-statuses != '' \}\}\n/);
+  assert.match(post, /\n {4}if: \$\{\{ !cancelled\(\) && !inputs\.pr && \(needs\.enable-auto-merge\.outputs\.unarmed-statuses != '' \|\| needs\.merge\.outputs\.mended-heads != ''\) \}\}\n/);
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(post)[1];
   assert.deepEqual(
     [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
@@ -1488,6 +1488,11 @@ test("the pr-merge/unarmed statuses are posted by a job of their own, with statu
   assert.match(post, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n/);
   // The statuses reach the script through its environment, never the shell.
   assert.match(post, /\n {10}STATUSES: \$\{\{ needs\.enable-auto-merge\.outputs\.unarmed-statuses \}\}\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/post-unarmed-status\.mjs\n/);
+  const gate = job("merge");
+  assert.match(gate, /\n {6}mended-heads: \$\{\{ steps\.clear\.outputs\.mended-heads \}\}\n/);
+  assert.match(gate, /- name: Clear escalations whose reason no longer holds\n {8}id: clear\n/);
+  assert.match(post, /\n {10}MENDED_HEADS: \$\{\{ needs\.merge\.outputs\.mended-heads \}\}\n {10}ACTIVITY: address-feedback\n/);
+  assert.match(post, /HEAD_SHA=\$head bash \.base\/\.github\/scripts\/pr-unblock\/report-escalation\.sh clear\n/);
 });
 
 // The merge job's sizing comment: about two minutes before the loop, then the

@@ -79,8 +79,8 @@ through an installed-plugin invocation of `/formal-verification:specify`.
   only compared, so states with the same order behave alike. Under it TLC's distinct-state count
   depends on exploration order; the chart command runs one worker, so its count is stable. The view
   does not decide the verdicts: without `VIEW`, `Yield.cfg` holds every rule at
-  c5bca03b095a (21,746,774 states, raw TLC, 16 workers, 1 min 42 s). Rerun without it after any
-  change to `View` or to what holds a tick.
+  c4fe439dfb47 (21,746,774 states, the chart command with one worker, 4 min 23 s). Rerun without
+  it after any change to `View` or to what holds a tick.
 - The seeded break in `sync.yaml` was run against this model: with `yield-to-full-run: 'false'`
   (`Yield = FALSE`), `NoStaleCarry` breaks after 5,056 distinct states in `Yield.cfg` and 7,972 in
   `YieldNoHold.cfg` (`caught: true`).
@@ -160,8 +160,16 @@ When a covered file in `sync.yaml` changes, read the change against the model: a
 changed `needs`, a changed Aggregate lane results input, or a repin of the ci-workflows composite
 means the model may change. Read the pinned `run.sh` and `action.yml` at the new commit
 (`gh api -H 'Accept: application/vnd.github.raw' 'repos/melodic-software/ci-workflows/contents/.github/actions/pr-require-checks/aggregate-results/run.sh?ref=<sha>'`)
-and re-cite the changed lines in the model's comments. A promise changed on purpose means a rule
-changes, and only with the owner's yes. Never weaken a rule to make it hold. Move `commit` forward
+and re-cite the changed lines in the model's comments. The names the model reads, for a search of
+new code that touches the same state: in `WF`, the `ci-lanes` context, the `mark-lanes` job, the
+ci-status job's `needs` and `if:`, the contract-only predicate (`labeled`, `unlabeled`, `edited`),
+the `concurrency` group, and the Aggregate lane results step's `aggregate-results` pin and its
+`yield-to-full-run`, `yield-wait-seconds`, `carry-forward-wait-seconds` and
+`rerun-contract-only-siblings` inputs; in `RUN`, `write_status`, `list_in_flight_full_runs`,
+`read_newest_entry`, `read_carried_state`, `verify_carried_writer`, `verify_writer_step`,
+`gate_step_outcome`, `verify_no_newer_verdict`, `writer_attempt_wrote`, `carried_postdates`,
+`held_success_carries`, `yield_hold` and `fail_superseded`. A promise changed on purpose means a
+rule changes, and only with the owner's yes. Never weaken a rule to make it hold. Move `commit` forward
 only after confirming the model describes the code at the new commit, which must be on the default
 branch; rerun both cfgs, the seeded break and the run without `VIEW`, and update the known results
 above. When a change edits the covered code itself, its stale-coverage warning is expected until

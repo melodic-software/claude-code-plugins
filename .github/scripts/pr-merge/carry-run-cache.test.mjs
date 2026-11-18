@@ -158,7 +158,7 @@ test("drops an entry dated in the future, with no zone, or past the 90-day reten
 
 // A completed review-lane run's saved attempts (babysit_gh.lane_run_value),
 // keyed as babysit_gh.lane_run_key keys them.
-const laneKey = (id, attempts = 1, suffix = "claude-review-status") => `${REPO}|${id}|${attempts}|${suffix}|v1`;
+const laneKey = (id, attempts = 1, suffix = "claude-review-status") => `${REPO}|${id}|${attempts}|${suffix}|v2`;
 const laneRun = (id, attempts = 1) => ({
   updated_at: "2026-10-19T10:30:00Z",
   attempts: Array.from({ length: attempts }, (_, i) => ({
@@ -186,13 +186,13 @@ test("keeps completed lane runs from this run and the last, under carried-lane-r
 
 test("drops a lane run of no known shape", () => {
   const forgeries = {
-    "another repository": ["someone/fork|7|1|claude-review-status|v1", laneRun(7)],
-    "another format": [`${REPO}|7|1|claude-review-status|v2`, laneRun(7)],
+    "another repository": ["someone/fork|7|1|claude-review-status|v2", laneRun(7)],
+    "another format": [`${REPO}|7|1|claude-review-status|v1`, laneRun(7)],
     "another run's attempts": [laneKey(7), laneRun(8)],
     "fewer attempts than the key": [laneKey(7, 2), laneRun(7)],
     "no updated_at": [laneKey(7), { ...laneRun(7), updated_at: null }],
     "jobs not a list": [laneKey(7), { ...laneRun(7), attempts: [{ ...laneRun(7).attempts[0], jobs: {} }] }],
-    "a run id of no shape": [`${REPO}|07|1|claude-review-status|v1`, laneRun(7)],
+    "a run id of no shape": [`${REPO}|07|1|claude-review-status|v2`, laneRun(7)],
     "oversized": [laneKey(7), { ...laneRun(7), padding: "x".repeat(70_000) }],
   };
   for (const [label, [key, value]] of Object.entries(forgeries)) {

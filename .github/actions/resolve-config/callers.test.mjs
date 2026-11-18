@@ -7427,6 +7427,7 @@ test("pr-unblock.yml: resolve-conflicts is reported neutral when the select job 
     [{ state: "escalate", escalation: "protected-path-conflict" }, "Skip reason: lane-stopped"],
     [{ state: "escalate", escalation: "repeat-cap" }, "Skip reason: lane-stopped"],
     [{ state: "escalate", escalation: "unresolved-conflict" }, "Skip reason: lane-stopped"],
+    [{ state: "conflicted", escalation: "superseded-by-main" }, "Skip reason: awaiting-human"],
   ]) {
     const calls = await postNotRunChecks(notRun, context("false", head, given));
     assert.deepEqual(
@@ -7457,14 +7458,25 @@ test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, p
   assert.match(step("base-sha").run, /git -C \.base rev-parse HEAD/);
   // proceed: true only for a conflicted merge, false for a skip, a clean merge
   // or an escalation, empty for a stop before the merge.
-  const proceed = (applies, state, held = applies === "true" ? "false" : "", behind = held === "false" ? "true" : "") =>
-    evaluate(select.outputs.proceed, { "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": applies, "steps.hold.outputs.held": held, "steps.behind.outputs.behind": behind, "steps.prepare.outputs.merge-state": state });
+  const proceed = (applies, state, held = applies === "true" ? "false" : "", behind = held === "false" ? "true" : "", superseded = state === "conflicted" ? "false" : "") =>
+    evaluate(select.outputs.proceed, { "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": applies, "steps.hold.outputs.held": held, "steps.behind.outputs.behind": behind, "steps.prepare.outputs.merge-state": state, "steps.superseded.outputs.superseded": superseded });
   assert.equal(proceed("true", "conflicted"), "true");
   assert.equal(proceed("true", "clean"), "false");
   assert.equal(proceed("true", "escalate"), "false");
   assert.equal(proceed("false", ""), "false");
   assert.equal(proceed("", ""), "");
   assert.equal(proceed("true", ""), "", "a merge step that failed");
+  assert.equal(proceed("true", "conflicted", "false", "true", "true"), "false", "a conflicted head main already holds goes to a person before any model turn");
+  assert.equal(proceed("true", "conflicted", "false", "true", ""), "", "a superseded check that failed");
+  const reason = (prepared, superseded) => evaluate(select.outputs["escalation-reason"], { "steps.prepare.outputs.escalation-reason": prepared, "steps.superseded.outputs.superseded": superseded }).trim();
+  assert.equal(reason("", "true"), "superseded-by-main");
+  assert.equal(reason("", "false"), "");
+  assert.equal(reason("repeat-cap", ""), "repeat-cap");
+  assert.equal(step("superseded").if, "steps.prepare.outputs.merge-state == 'conflicted'");
+  assert.equal(step("superseded")["working-directory"], "head");
+  assert.equal(step("superseded").env.BASE_SHA, "${{ steps.base-sha.outputs.sha }}");
+  assert.equal(step("superseded").env.HEAD_SHA, "${{ steps.head.outputs.sha }}");
+  assert.match(step("superseded").run, /\.base\/\.github\/scripts\/pr-unblock\/superseded-by-main\.mjs/);
   // The human-gated hold (lane-hold.mjs) runs after the slot and before any
   // merge: held skips awaiting-human; a read that failed, or one that held
   // on a GitHub fault (no held output), decides nothing, so no check posts
@@ -7490,7 +7502,7 @@ test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, p
   assert.equal(ran("false"), false);
   assert.equal(ran(""), false, "a behind check that failed");
   const outputs = (behind) => {
-    const values = { "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": "true", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "false", "steps.behind.outputs.behind": behind, "steps.prepare.outputs.merge-state": "" };
+    const values = { "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": "true", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "false", "steps.behind.outputs.behind": behind, "steps.prepare.outputs.merge-state": "", "steps.superseded.outputs.superseded": "" };
     return [evaluate(select.outputs.proceed, values), evaluate(select.outputs["skip-reason"], values).trim()];
   };
   assert.deepEqual(outputs("false"), ["false", "up-to-date"]);
@@ -7499,7 +7511,7 @@ test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, p
   assert.equal(step("behind").env.BASE_SHA, "${{ steps.base-sha.outputs.sha }}");
   assert.equal(step("behind").env.HEAD_SHA, "${{ steps.head.outputs.sha }}");
   const order = select.steps.map((s) => s.id ?? s.name);
-  assert.ok(order.indexOf("Check out the PR head") < order.indexOf("behind") && order.indexOf("behind") < order.indexOf("prepare"));
+  assert.ok(order.indexOf("Check out the PR head") < order.indexOf("behind") && order.indexOf("behind") < order.indexOf("prepare") && order.indexOf("prepare") < order.indexOf("superseded"));
   const apply = workflow("pr-unblock.yml").jobs["apply-conflict-patch"];
   assert.equal(apply.with["patch-human-gate"], "${{ needs.resolve-conflicts-select.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}");
 });
@@ -7532,7 +7544,7 @@ test("pr-unblock.yml: resolve-conflicts-select skips a PR whose base is not the 
   assert.equal(head("feat/layer-1"), `sha=${"d".repeat(40)}\ndefault-base=false\n`);
   assert.equal(step("head").env.DEFAULT_BRANCH, "${{ github.event.repository.default_branch }}");
   assert.equal(step("slot").if, "steps.head.outcome == 'success' && steps.head.outputs.default-base == 'true'");
-  const values = { "steps.head.outputs.default-base": "false", "steps.slot.outputs.applies": "", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "", "steps.behind.outputs.behind": "", "steps.prepare.outputs.merge-state": "" };
+  const values = { "steps.head.outputs.default-base": "false", "steps.slot.outputs.applies": "", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "", "steps.behind.outputs.behind": "", "steps.prepare.outputs.merge-state": "", "steps.superseded.outputs.superseded": "" };
   assert.equal(evaluate(select.outputs.proceed, values), "false");
   assert.equal(evaluate(select.outputs["skip-reason"], values).trim(), "not-applicable");
   // The default branch's PR goes on to the slot as before.
@@ -7652,6 +7664,7 @@ test("pr-run-activity-write.yml: the first step admits every resolve-conflicts e
     "repeat-cap",
     "protected-path-conflict",
     "unresolved-conflict",
+    "superseded-by-main",
     "workflow-staged",
     "unexpected-path-staged",
     "conflict-patch-invalid",

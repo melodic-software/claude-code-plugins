@@ -685,6 +685,7 @@ jobs:
           fi
           case $ESCALATION_REASON in
             "" | protected-path-conflict | workflow-staged | unexpected-path-staged | repeat-cap | unresolved-conflict) ;;
+            superseded-by-main) ;;
             feedback-protected-path | feedback-round-cap | feedback-not-converging | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
             feedback-partial | feedback-incomplete | feedback-disputed) ;;
             feedback-round-cap-security | feedback-uncertain-security | feedback-disputed-security) ;;
