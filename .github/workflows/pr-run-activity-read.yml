@@ -1821,10 +1821,10 @@ jobs:
           max-turns: ${{ steps.config.outputs.max-turns }}
           # dontAsk unless the activity sets permission-mode: auto.
           permission-mode: ${{ steps.config.outputs.permission-mode }}
-          # Sandbox off (melodic-software/ci-workflows#1060): a ci-context
-          # skill gets bare Bash (collect-base-activity) and may run npm ci or
-          # a test suite that reaches hosts beyond GitHub.
-          sandbox: "false"
+          # Sandbox off only for ci-context, whose bare Bash may run npm ci or
+          # a test suite that reaches hosts beyond GitHub
+          # (https://github.com/melodic-software/ci-workflows/issues/1060).
+          sandbox: ${{ steps.config.outputs.prepare == 'ci-context' && 'false' || 'true' }}
           tools: ${{ steps.stage.outputs.tools }}
           allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
           disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
@@ -1881,10 +1881,10 @@ jobs:
           effort: ${{ steps.config.outputs.effort }}
           max-turns: ${{ steps.config.outputs.max-turns }}
           permission-mode: ${{ steps.config.outputs.permission-mode }}
-          # Sandbox off (melodic-software/ci-workflows#1060): a ci-context
-          # skill gets bare Bash (collect-base-activity) and may run npm ci or
-          # a test suite that reaches hosts beyond GitHub.
-          sandbox: "false"
+          # Sandbox off only for ci-context, whose bare Bash may run npm ci or
+          # a test suite that reaches hosts beyond GitHub
+          # (https://github.com/melodic-software/ci-workflows/issues/1060).
+          sandbox: ${{ steps.config.outputs.prepare == 'ci-context' && 'false' || 'true' }}
           tools: ${{ steps.stage.outputs.tools }}
           allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
           disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
@@ -1931,10 +1931,10 @@ jobs:
           effort: ${{ steps.config.outputs.effort }}
           max-turns: ${{ steps.config.outputs.max-turns }}
           permission-mode: ${{ steps.config.outputs.permission-mode }}
-          # Sandbox off (melodic-software/ci-workflows#1060): a ci-context
-          # skill gets bare Bash (collect-base-activity) and may run npm ci or
-          # a test suite that reaches hosts beyond GitHub.
-          sandbox: "false"
+          # Sandbox off only for ci-context, whose bare Bash may run npm ci or
+          # a test suite that reaches hosts beyond GitHub
+          # (https://github.com/melodic-software/ci-workflows/issues/1060).
+          sandbox: ${{ steps.config.outputs.prepare == 'ci-context' && 'false' || 'true' }}
           tools: ${{ steps.stage.outputs.tools }}
           allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
           disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
