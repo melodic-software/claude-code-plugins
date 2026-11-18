@@ -57,6 +57,19 @@ describe("isThin", () => {
     const laneBody = `${MARKER}\nProposed work class: none\n> Flags: intent\nFlags: none\n`;
     assert.equal(isThin({ body: "- [ ] x", laneBody }).thin, false);
   });
+  test("an intent flag in the typed verdict or the comment is thin", () => {
+    const none = JSON.stringify({ flags: [] });
+    const intent = JSON.stringify({ flags: ["intent"] });
+    assert.equal(isThin({ body: "- [ ] done", laneBody: laneComment("none").body, verdict: intent }).thin, true);
+    assert.equal(isThin({ body: "- [ ] done", laneBody: laneComment("intent").body, verdict: none }).thin, true);
+    assert.equal(isThin({ body: "- [ ] done", laneBody: "", verdict: none }).thin, false);
+  });
+  test("an unusable typed verdict leaves the comment's Flags line to decide", () => {
+    for (const verdict of ["", "{not json", JSON.stringify({ flags: ["urgent"] })]) {
+      assert.equal(isThin({ body: "- [ ] done", laneBody: laneComment("intent").body, verdict }).thin, true, verdict);
+      assert.equal(isThin({ body: "- [ ] done", laneBody: laneComment("none").body, verdict }).thin, false, verdict);
+    }
+  });
 });
 
 describe("searchTerms", () => {
@@ -809,6 +822,8 @@ describe("split", () => {
     assert.equal(splitOf({ body: BODY, laneBody, labels: ["status: ready"], rules, webHosts }), null, "not parked");
     assert.equal(splitOf({ body: BODY, laneBody, labels: [NEEDS_DECISION], admission: refusal(), rules, webHosts }), null, "a hold is a person's");
     assert.equal(splitOf({ body: BODY, laneBody: laneComment("security").body, labels: [PARKED_AT], admission: refusal(), rules, webHosts }), null, "a flagged verdict is not split");
+    assert.equal(splitOf({ body: BODY, laneBody, verdict: JSON.stringify({ flags: ["security"] }), labels: [PARKED_AT], admission: refusal(), rules, webHosts }), null, "a flag in the typed verdict is not split");
+    assert.equal(splitOf({ body: BODY, laneBody: "", verdict: JSON.stringify({ flags: [] }), labels: [PARKED_AT], admission: refusal(), rules, webHosts })?.items.length, split.items.length, "typed fields with no flag split");
     const reason = unrunnableReason(unrunnableCriteria(BODY, "- [ ] ", webHosts));
     assert.equal(
       splitOf({ body: BODY, laneBody, labels: [PARKED_AT], admission: `${ADMIT_MARKER}\n${refusalText(`Size Large is not one of Small, Medium; ${reason}`)}`, rules, webHosts }),

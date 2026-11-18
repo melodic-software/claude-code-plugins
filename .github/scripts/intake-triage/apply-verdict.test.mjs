@@ -73,6 +73,65 @@ const laneBody = ({ cls = "work-class: scoped", lines = ["Size: Small", "Complex
 const UNTRUSTED_BODY = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: untrusted"] });
 const ESCALATED_BODY = `${MARKER}\nProposed work class: none\n\nThanks for the report. Automated triage handed this issue to a maintainer.\n\n${OLD_FOOTER}`;
 
+describe("parseVerdict with a typed verdict", () => {
+  const typed = (fields = {}) => JSON.stringify({ size: "Large", complexity: "High", uncertainty: "Unknown", flags: [], blocked_by: [7, 7, 9], ...fields });
+
+  test("the typed fields decide the dimensions and blockers over the comment's lines", () => {
+    const verdict = parseVerdict(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Blocked by: #12"] }), DIMS, typed());
+    assert.deepEqual(verdict.dimensions, { size: "large", complexity: "high", uncertainty: "unknown" });
+    assert.deepEqual(verdict.flags, []);
+    assert.deepEqual(verdict.blockedBy, [7, 9]);
+    assert.deepEqual(verdict.problems, []);
+  });
+
+  test("usable typed fields stand in for lines the comment lacks", () => {
+    const verdict = parseVerdict(laneBody({ lines: [] }), DIMS, typed());
+    assert.deepEqual(verdict.dimensions, { size: "large", complexity: "high", uncertainty: "unknown" });
+    assert.deepEqual(verdict.problems, []);
+  });
+
+  test("a flag either source names counts, so neither lifts a hold", () => {
+    const lines = ["Size: Small", "Complexity: Low", "Uncertainty: Known"];
+    assert.deepEqual(parseVerdict(laneBody({ lines: [...lines, "Flags: security"] }), DIMS, typed({ flags: ["intent"] })).flags.sort(), ["intent", "security"]);
+    assert.deepEqual(parseVerdict(laneBody({ lines: [...lines, "Flags: cost"] }), DIMS, typed()).flags, ["cost"]);
+    const fromTyped = parseVerdict(laneBody({ lines: [...lines, "Flags: none"] }), DIMS, typed({ flags: ["untrusted"] }));
+    assert.equal(fromTyped.untrusted, true);
+    assert.deepEqual(fromTyped.flags, []);
+    assert.deepEqual(fromTyped.blockedBy, []);
+    assert.equal(parseVerdict(laneBody({ lines: [...lines, "Flags: untrusted"] }), DIMS, typed()).untrusted, true);
+  });
+
+  test("a Cost line in the comment still holds beside typed fields", () => {
+    const lines = ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none"];
+    assert.equal(parseVerdict(laneBody({ lines: [...lines, "Cost: a paid plan; no owner decision"] }), DIMS, typed()).cost, true);
+    assert.deepEqual(parseVerdict(laneBody({ lines: [...lines, "**Cost**: a paid plan"] }), DIMS, typed()).problems.length, 1);
+  });
+
+  test("an escalated comment names no blocker from typed fields", () => {
+    const verdict = parseVerdict(ESCALATED_BODY, DIMS, typed());
+    assert.equal(verdict.escalated, true);
+    assert.deepEqual(verdict.blockedBy, []);
+  });
+
+  test("unusable typed fields leave the comment's lines to decide", () => {
+    const lines = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: intent", "Blocked by: #12"] });
+    const fromLines = parseVerdict(lines, DIMS);
+    for (const text of ["", "{not json", "null", "[]", typed({ size: "Huge" }), typed({ size: 3 }), typed({ flags: ["urgent"] }), typed({ flags: ["cost", "cost"] }), typed({ flags: "none" }), typed({ blocked_by: ["#12"] }), typed({ blocked_by: [0] }), typed({ blocked_by: undefined })]) {
+      assert.deepEqual(parseVerdict(lines, DIMS, text), fromLines, text);
+    }
+  });
+
+  test("the workflow's verdict-schema offers exactly the values the verdict reads", () => {
+    const workflow = readFileSync(new URL("../../workflows/intake-triage.yml", import.meta.url), "utf8");
+    const schema = JSON.parse(/^ +verdict-schema: '(.+)'$/m.exec(workflow)[1]);
+    for (const key of ["size", "complexity", "uncertainty"]) {
+      assert.deepEqual(schema.properties[key].enum.map((value) => value.toLowerCase()).sort(), Object.values(DIMS.fields[key].options).sort(), key);
+    }
+    assert.deepEqual(schema.properties.flags.items.enum, ["intent", "security", "cost", "untrusted"]);
+    assert.deepEqual(schema.required, ["size", "complexity", "uncertainty", "flags", "blocked_by"]);
+  });
+});
+
 describe("parseVerdict", () => {
   test("reads the three dimensions and no flags, and carries no work class", () => {
     const verdict = parseVerdict(laneBody(), DIMS);

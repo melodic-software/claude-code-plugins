@@ -96,7 +96,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { ADMIT_MARKER, admissionParked, ATTENDED, authorAdmitted, bodyVersion, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, linesDigest, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitItemsLine, splitRecord, splitSourceLine, splitTaskLines, taskItems, taskText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
-import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
+import { LANES_APP_LOGIN, MARKER, typedFlags } from "./apply-verdict.mjs";
 import { carried, DECISION_LABELS, INFO_LABELS, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
@@ -141,18 +141,22 @@ export const isRefinement = (comment, appId) => byApp(comment, appId) && String(
 // Whether the lanes App already refined `body`.
 const refinedBody = (comments, appId, body) => comments.some((comment) => isRefinement(comment, appId) && String(comment.body).split("\n")[1] === bodyVersion(body));
 
-// The verdict's flags, or null without exactly one unquoted Flags line.
-const flagsOf = (laneBody) => {
-  const flags = String(laneBody ?? "")
+const flagsOf = (laneBody, verdict) => {
+  const found = String(laneBody ?? "")
     .split("\n")
     .filter((line) => line.startsWith("Flags: "));
-  return flags.length === 1 ? flags[0].slice(7).split(",").map((flag) => flag.trim()) : null;
+  const lines = found.length === 1 ? found[0].slice(7).split(",").map((flag) => flag.trim()) : null;
+  const typed = typedFlags(verdict);
+  if (typed === null) {
+    return lines;
+  }
+  const flags = [...new Set([...typed, ...(lines ?? []).filter((flag) => flag !== "none")])];
+  return flags.length > 0 ? flags : ["none"];
 };
 
-// {thin, reasons} from the body and the triage comment's verdict lines.
-export function isThin({ body, laneBody }) {
+export function isThin({ body, laneBody, verdict }) {
   const reasons = [];
-  if (flagsOf(laneBody)?.includes("intent")) {
+  if (flagsOf(laneBody, verdict)?.includes("intent")) {
     reasons.push("the triage flagged intent: no exact outcome");
   }
   if (!String(body ?? "").split("\n").some((line) => line.trimStart().startsWith(TASK))) {
@@ -170,8 +174,8 @@ export function isThin({ body, laneBody }) {
 // it for those items and nothing else. {count, items:
 // [{n, kind, text}]}, each text the item's first line, whole. Who set the
 // label and wrote the comment is checked apart. Pure.
-export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) {
-  if (!confirmedOnly(labels) || flagsOf(laneBody)?.join() !== "none") {
+export function splitOf({ body, laneBody, verdict, labels, admission, rules, webHosts }) {
+  if (!confirmedOnly(labels) || flagsOf(laneBody, verdict)?.join() !== "none") {
     return null;
   }
   const items = taskItems(body, rules["task-list"]);
@@ -607,7 +611,7 @@ function orderProblem(order, count) {
 // statusReader), when given, decides the label names the needs-human and
 // split checks read, so a hold or an admission park only the Work status
 // field holds counts.
-export async function selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, statusOf, note = () => {} }) {
+export async function selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, statusOf, verdict, note = () => {} }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const no = (reason) => ({ refine: false, reason });
@@ -633,8 +637,8 @@ export async function selectRefinement({ github, repository, number, humans, app
   if (refinedBody(comments, appId, issue.body)) {
     return no("the lanes App already refined this body");
   }
-  const { thin, reasons } = sized?.thin ? { thin: true, reasons: [sized.thin] } : isThin({ body: issue.body, laneBody: lane.body });
-  const split = thin ? null : splitOf({ body: issue.body, laneBody: lane.body, labels, admission: admissionComment(comments, appId), ...splitConfig() });
+  const { thin, reasons } = sized?.thin ? { thin: true, reasons: [sized.thin] } : isThin({ body: issue.body, laneBody: lane.body, verdict });
+  const split = thin ? null : splitOf({ body: issue.body, laneBody: lane.body, verdict, labels, admission: admissionComment(comments, appId), ...splitConfig() });
   if (!thin && split === null) {
     return no("not thin, and no done-when items to split off");
   }
@@ -1265,7 +1269,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL });
         const held = baseHolds(env.BASE_PATH);
         const splitConfig = () => ({ rules: rules(), webHosts: issueLaneWebHostsFromBase(env), attended: attendedClassesFromBase(env), held });
-        const result = await selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, statusOf: statusReader({ env, github, repository }), note: summary });
+        const result = await selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, statusOf: statusReader({ env, github, repository }), verdict: env.VERDICT, note: summary });
         if (result.refine) {
           writeFileSync(env.CONTEXT_PATH, `${JSON.stringify(result.context, null, 2)}\n`);
         }
