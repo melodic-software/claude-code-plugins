@@ -4,6 +4,11 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [6.5.1] - 2026-11-18
+
+Docs-only; patch. The release intake workflow checks for a new Claude Code release every hour,
+where it checked every ten minutes.
+
 ## [6.5.0] - 2026-11-16
 
 Changed guidance; minor under this contract's own rule. No required part, canonical name, or
