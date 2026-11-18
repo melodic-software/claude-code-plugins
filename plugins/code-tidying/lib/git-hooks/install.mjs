@@ -923,10 +923,23 @@ function globRegex(glob) {
   return new RegExp(`^${escaped.replace(/\*\*/g, "\0").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]").replace(/\0/g, ".*")}$`);
 }
 
+function marketplaceClone(plugin) {
+  const market = path.resolve(plugin.root, "..", "..");
+  const cache = path.dirname(market);
+  if (path.basename(cache) !== "cache") return [];
+  try {
+    const known = JSON.parse(readText(path.join(path.dirname(cache), "known_marketplaces.json")) ?? "{}");
+    const location = known?.[path.basename(market)]?.installLocation;
+    return typeof location === "string" ? [location] : [];
+  } catch {
+    return [];
+  }
+}
+
 function aggregatePlugins(info, plugin, consumerNamesAggregate) {
   const { git_url: url, aggregate } = plugin.remote;
   if (aggregate === undefined || !consumerNamesAggregate) return [plugin];
-  const tops = [...remoteCaches(info, plugin), path.resolve(plugin.root, "..", "..")];
+  const tops = [...remoteCaches(info, plugin), path.resolve(plugin.root, "..", ".."), ...marketplaceClone(plugin)];
   const top = tops.find((t) => readText(path.join(t, aggregate)) !== null);
   if (top === undefined) return [plugin];
   const block = /^extends:[ \t]*\n((?:[ \t]+-.*(?:\n|$))*)/m.exec(readText(path.join(top, aggregate)))?.[1] ?? "";
