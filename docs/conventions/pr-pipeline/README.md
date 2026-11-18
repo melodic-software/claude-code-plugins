@@ -952,6 +952,10 @@ a trust gate. An expedite label from a human with write access skips
 `refine`. A label counts only when the actor on its label event is a trusted human: a label the App
 set never resumes an item, expedites it, sets its work class or lifts a hold.
 
+On its schedule, `pr-merge` gives a PR a new head, an empty commit, when the token broker refused
+a lane run on its current head as `workflow-modified`, once per version of the workflow file the
+broker named (`.github/scripts/pr-merge/refire-refused.mjs`).
+
 A pr-unblock escalation whose reason repository state can settle is also cleared without a
 person. On its schedule, `pr-merge` rechecks each open PR into main carrying the human-gated
 label and removes it, after one comment naming the reason and the head, when every reason the

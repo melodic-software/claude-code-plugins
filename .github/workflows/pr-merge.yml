@@ -59,13 +59,6 @@ run-name: "${{ inputs.pr && format('pr-merge: arm #{0}', inputs.pr) || '' }}"
 # post-merge check also files the demotion record once it reads the run red,
 # and either filer's record is found by the other through its failing run.
 #
-# On its schedule it also gives a PR a new head, an empty commit, when a lane
-# run on its current head was refused by the token broker as
-# workflow-modified, once per version of the workflow file the broker named,
-# and takes off a needs-human label the lanes App set for a pr-unblock
-# escalation once its recorded reason no longer holds, and a do-not-merge
-# held only for eval evidence once its no-loss record names the head.
-#
 # How to keep one PR from merging: put the line `Hold: a human merges this`
 # in its body, or add the `do-not-merge` or `needs-human` label (the
 # human-gated role label). The gate refuses all of them.
