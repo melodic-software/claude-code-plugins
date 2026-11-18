@@ -2,19 +2,26 @@ schema_version: "1.1"
 name: wr-glossary-docs-path
 context:
   scaffold_script: scaffold.sh
-description: "Glossary reader, docs placement. The same workspace and prompt as wr-glossary-root with the glossary at docs/glossary.md instead of a root GLOSSARY.md. Graded on whether the run finds and reads the glossary at docs/glossary.md, a sibling of tool_library.py rather than an ancestor on its walk-up path, whether it prints the skill's `Glossary: <path>` line naming docs/glossary.md, and whether the tests use none of the glossary's rejected synonyms for a loan. Whether the tests say Loan is not graded: the control names the feature loan unprompted. Source: the maintainers' own writing, an owner-approved measurement before the glossary capability is restructured. Hard: the glossary is off the documented read path and the request says 'check out' throughout. Needs --scaffold --allow-tools Bash Edit Write."
+description: "Glossary reader, docs placement. The same workspace and prompt as wr-glossary-root with the glossary at docs/glossary.md instead of a root GLOSSARY.md. Graded on whether the run finds and reads the glossary at docs/glossary.md, a sibling of tool_library.py rather than an ancestor on its walk-up path, whether it prints the skill's `Glossary: <path>` line naming docs/glossary.md, and whether the tests use Loan and none of its rejected synonyms. The control names the feature loan unprompted, so canonical-term passes there too; no-rejected-term and the line grader are what separate the cases. Source: the maintainers' own writing, an owner-approved measurement before the glossary capability is restructured. Hard: the glossary is off the documented read path and the request says 'check out' throughout. Needs --scaffold --allow-tools Bash Edit Write."
 tags: [testing, write, glossary, hard]
 runs: 3
 execution:
   max_turns: 60
   timeout_seconds: 900
   allowed_tools: [Read, Glob, Grep, Bash, Edit, Write, Skill]
-expected_outcome: "Reads docs/glossary.md and prints `Glossary: docs/glossary.md`, then adds the feature to Library under the glossary's term, such as a loan with a due date, with unittest tests in tests/test_tool_library.py that use none of checkout, rental or booking, and runs the suite until it passes"
+expected_outcome: "Reads docs/glossary.md and prints `Glossary: docs/glossary.md`, then adds the feature to Library under the glossary's term, such as a loan with a due date, with unittest tests in tests/test_tool_library.py that use Loan and none of checkout, rental or booking, and runs the suite until it passes"
 graders:
   - name: skill-fired
     type: tool_used
     tool: Skill
     input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: canonical-term
+    type: regex
+    target:
+      source: file
+      path: tests/test_tool_library.py
+    flags: i
+    pattern: 'loan'
   - name: glossary-line
     type: regex
     target: trace
