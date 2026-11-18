@@ -178,12 +178,13 @@ if [[ -z "$name" ]]; then
 fi
 repo_dir="${repo_dir:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 
-# The plugin option is read from the environment rather than substituting
-# `${user_config.worktree_root}` into a command: a value substituted into a shell
-# field would be executed by the shell, which is why Claude Code rejects that
-# form outright and exports CLAUDE_PLUGIN_OPTION_<KEY> instead
-# (pointer: <https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell>).
-# It rides the helper's --fallback-root rung, BELOW the `worktreeroot.path` git config key
+# Read the worktree_root option from its CLAUDE_PLUGIN_OPTION_ variable, never
+# by writing `${user_config.worktree_root}` into the hook command: the
+# configured path stays data, and text substituted into a shell command can
+# run as code.
+#   Pointer: when checking how a plugin option reaches a shell-form hook, fetch
+#   <https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell> live.
+# The option rides the helper's --fallback-root rung, BELOW the `worktreeroot.path` git config key
 # the helper reads from the target repository (includes on) — most specific
 # first, per reference/worktree-root-convention.md (#2610/#2612).
 root="${CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT:-}"
