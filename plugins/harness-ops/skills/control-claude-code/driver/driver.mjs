@@ -605,16 +605,21 @@ const MIRROR_READY = 'ccd-mirror-ready';
 const MIRROR_MS = 5000;
 const FRAME_MS = 250;
 
-/** The `- <label> | <regex>` lines under SKILL.md's `## Mask`, as case-insensitive regular expressions. */
-export function readMasks(text) {
+/**
+ * The `- <label> | <regex>` lines under SKILL.md's `## Mask`, as case-insensitive regular expressions;
+ * the lines under its `### Real setup` only for a session launched with --real-setup.
+ */
+export function readMasks(text, { realSetup = false } = {}) {
   const masks = [];
   let inside = false;
+  let skip = false;
   let fence = false;
   for (const line of text.split(/\r?\n/)) {
     if (/^\s*(```|~~~)/.test(line)) fence = !fence;
     else if (fence) continue;
-    else if (line.startsWith('## ')) inside = line.trim() === '## Mask';
-    else if (inside) {
+    else if (line.startsWith('## ')) [inside, skip] = [line.trim() === '## Mask', false];
+    else if (inside && line.startsWith('### ')) skip = line.trim() === '### Real setup' && !realSetup;
+    else if (inside && !skip) {
       const m = /^- ([^|]*[^|\s])\s*\|\s*(\S.*)$/.exec(line);
       if (m) masks.push({ label: m[1].trim(), pattern: new RegExp(m[2].trimEnd(), 'gi') });
     }
@@ -794,7 +799,7 @@ async function openMirror(ctx, size) {
 
 /** The live screen, masked. */
 async function maskedFrame(t, ctx) {
-  ctx.mask ??= { masks: readMasks(readFileSync(SKILL_FILE, 'utf8')), values: statusValues(sessionStatus(ctx)) };
+  ctx.mask ??= { masks: readMasks(readFileSync(SKILL_FILE, 'utf8'), ctx), values: statusValues(sessionStatus(ctx)) };
   const size = await t.getSize();
   const { rows, text } = maskCells(await t.cells(0, 0, size.cols, size.rows), ctx.mask.masks, ctx.mask.values, size.cols);
   return { size, text, draw: renderFrame(rows) };
@@ -923,7 +928,7 @@ async function serve(opts) {
   for (const name of Object.keys(process.env)) if (!(name in launch.env)) delete process.env[name]; // the engine merges onto this env
   const { TuiTest } = await import(pathToFileURL(join(opts.install, 'node_modules', ENGINE, 'dist', 'index.js')).href);
   const terminal = TuiTest.ephemeral(COMPONENT);
-  const ctx = { TuiTest, env: launch.env, keySource: launch.keySource };
+  const ctx = { TuiTest, env: launch.env, keySource: launch.keySource, realSetup: Boolean(opts['real-setup']) };
   await terminal.run(launch.argv[0], launch.argv.slice(1), { env: launch.env, cols: 120, rows: 40 });
   // claude has its copy: later children and in-process reads no longer see the key. /proc/<pid>/environ
   // still shows the environment the holder started with, which #8651's isolation probe covers.

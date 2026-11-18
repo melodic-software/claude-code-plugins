@@ -1259,17 +1259,26 @@ test('a home path outside the cwd line is masked through the row end', () => {
   assert.equal(text, `see ${'*'.repeat(19)}`);
 });
 
-test('status line rows shaped like https://code.claude.com/docs/en/statusline#rate-limit-usage lose their session id, cost and limits through the row end', () => {
-  for (const [row, kept] of [
-    ['session 01234567-89ab-4cde-8f01-23456789abcd', 'session '],
-    ['[Opus 5.5] | $0.42 | 12m 3s', '[Opus 5.5] | '],
-    ['[Opus 5.5] | 5h: 23% 7d: 41%', '[Opus 5.5] | '],
-    ['[Opus 5.5] | spend: $12.50 / $100.00', '[Opus 5.5] | '],
-    ['[Opus 5.5] | 7d 41%', '[Opus 5.5] | '],
-  ]) {
-    assert.equal(maskRow(row, [], 0), `${kept}${'*'.repeat(row.length - kept.length)}`, row);
+const REAL_SETUP_MASKS = driver.readMasks(readFileSync(join(HERE, '..', 'SKILL.md'), 'utf8'), { realSetup: true });
+const STATUS_LINE_ROWS = [
+  ['session 01234567-89ab-4cde-8f01-23456789abcd', 'session '],
+  ['[Opus 5.5] | $0.42 | 12m 3s', '[Opus 5.5] | '],
+  ['[Opus 5.5] | 5h: 23% 7d: 41%', '[Opus 5.5] | '],
+  ['[Opus 5.5] | spend: $12.50 / $100.00', '[Opus 5.5] | '],
+  ['[Opus 5.5] | 7d 41%', '[Opus 5.5] | '],
+];
+
+test('under --real-setup, status line rows shaped like https://code.claude.com/docs/en/statusline#rate-limit-usage lose their session id, cost and limits through the row end', () => {
+  const realRow = (row) => driver.maskCells(toCells(row), REAL_SETUP_MASKS, []).text;
+  for (const [row, kept] of STATUS_LINE_ROWS) assert.equal(realRow(row), `${kept}${'*'.repeat(row.length - kept.length)}`, row);
+  for (const kept of ['[Opus 5.5] 8% context', 'Total duration (wall): 14s', 'Version: 2.1.316']) assert.equal(realRow(kept), kept);
+  assert.equal(REAL_SETUP_MASKS.length, MASKS.length + 3, 'real-setup adds exactly the status line masks');
+});
+
+test('a default launch keeps a dollar amount, a UUID and a 5h or 7d row: the status line masks load only under --real-setup', () => {
+  for (const row of ['cost so far: $3 for 2 runs', 'run 01234567-89ab-4cde-8f01-23456789abcd done', ...STATUS_LINE_ROWS.slice(2).map(([r]) => r)]) {
+    assert.equal(maskRow(row, [], 0), row);
   }
-  for (const kept of ['[Opus 5.5] 8% context', 'Total duration (wall): 14s', 'Version: 2.1.316']) assert.equal(maskRow(kept, [], 0), kept);
 });
 
 test('a masked cell loses its colors and attributes, so a colored meter shows no level', () => {
@@ -1339,6 +1348,26 @@ test('screenshot hands the renderer the masked screen and writes a sidecar witho
   } finally {
     await main(['stop', '--session', name]).catch(() => {});
     rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('a screenshot masks the status line rows only for a session launched with --real-setup', posixOnly, async () => {
+  const rows = ['cost so far: $3 for 2 runs', 'run 01234567-89ab-4cde-8f01-23456789abcd done'];
+  for (const [flags, masked] of [[[], false], [['--real-setup'], true]]) {
+    const box = maskBox(rows.join('\n'));
+    const name = session();
+    const png = join(box.root, 'rows.png');
+    try {
+      await withPath(box.bin, async () => {
+        await main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60', ...flags]);
+        assert.equal(await quietly(() => main(['screenshot', png, '--session', name])).then((r) => r.result), 0);
+      });
+      const sidecar = readFileSync(`${png}.txt`, 'utf8');
+      for (const row of rows) assert.equal(sidecar.includes(row), !masked, `${flags.join(' ') || 'default'}: ${row}`);
+    } finally {
+      await main(['stop', '--session', name]).catch(() => {});
+      rmSync(box.root, { recursive: true, force: true });
+    }
   }
 });
 
