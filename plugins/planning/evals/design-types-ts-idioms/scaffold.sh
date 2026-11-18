@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A TypeScript shipment poller with a retry policy literal. The graded outcome is whether the type
-# inventory holds the literal to its type with satisfies.
 set -euo pipefail
 
 git init -q -b main
