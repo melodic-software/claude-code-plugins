@@ -96,9 +96,10 @@ Apply ADR 0052's rule for choosing a mod, which starts from upstream's compariso
 ## Where a mod runs and how it is switched off
 
 State in the plugin's README which session types it was tested in. A plugin with `PreToolUse`
-settings hooks says in its README that a mod can keep them from running and can approve a call they
-blocked. Setting `CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json` to load a mod in the Desktop
-app is a user-scope change and needs the user's approval.
+settings hooks says in its README what a loaded mod can do to those hooks, as ADR 0052 decides, and
+links the two events sections below for the detail. Setting `CLAUDE_CODE_PLUGIN_DIRS` in
+`~/.claude/settings.json` to load a mod in the Desktop app is a user-scope change and needs the
+user's approval.
 
 - **Pointer**: for session types, see
   [overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run);
@@ -114,10 +115,9 @@ app is a user-scope change and needs the user's approval.
 - **Recheck trigger**: the where-mods-run table changes a row, the minimum version changes, or the
   settings-hooks section changes where plugin `PreToolUse` hooks run.
 
-The switches that stop installed mods differ from those that stop built-in mods. When a mod passes
-`claude plugin test` and does nothing on a machine with managed settings or a Team or Enterprise
-login, check the organization's mod policy and the built-in guard's messages before debugging the
-mod.
+When a mod passes `claude plugin test` and does nothing, check, through the pointers below, the
+switches for installed and built-in mods, the organization's mod policy and the built-in guard's
+messages before debugging the mod.
 
 - **Pointer**: for built-in mods and how each is switched off, see
   [overview: mods built into Claude Code](https://code.claude.com/docs/en/plugins/mods/overview#mods-built-into-claude-code);
@@ -146,9 +146,9 @@ mod.
 
 ## Before relying on `$.process` or `session.start`
 
-A mod that starts programs or restores state at session start reads these two upstream statements
-first: `$.process` is declared CLI only, and `session.start` does not fire again after `/clear`,
-`/resume` or `/branch`.
+A mod that starts programs or restores state at session start reads the `process` doc comment and
+the `session.start` sections below first, for the surfaces `$.process` is declared on and the
+commands after which `session.start` does not fire again.
 
 - **Pointer**: for `$.process`, see the doc comment on `process` in
   [`mods/types/claude-code.d.ts`](https://github.com/anthropics/claude-code/blob/main/mods/types/claude-code.d.ts)
@@ -176,10 +176,12 @@ the engine skips the hook's answer and logs `hook failed closed`. The evidence f
 ## When a mod does nothing or misbehaves
 
 Look up a log, toast or refusal line by its text on the troubleshoot page, whose headings are those
-texts. A mod writes its own diagnostics to the debug log, not the transcript. A mod that registers
-an agent does so from its `session.start` hook. Work a mod starts on its own after the user stops a
-turn follows the API's interrupt rules. A load problem that is not specific to mods goes to the
-plugin troubleshooting page.
+texts. A mod in this repository writes its own diagnostics to the debug log, not the transcript,
+which carries only lines a reader acts on
+([hook-observability](../hook-observability/README.md#text-a-hook-adds-for-the-model-frequency-and-phrasing)).
+Then check, through the pointers below, the debug log, where and when the mod registers an agent,
+and what it does after the user stops a turn. A load problem that is not specific to mods
+goes to the plugin troubleshooting page.
 
 - **Pointer**: for the debug log, see
   [troubleshoot: read the debug log](https://code.claude.com/docs/en/plugins/mods/troubleshoot#read-the-debug-log)

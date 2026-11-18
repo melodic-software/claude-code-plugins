@@ -65,8 +65,8 @@ edits a file the user is working in, on the strength of an unrelated tool call, 
 diff. The harness's own signal for it is a generic "PostToolUse hook modified `<file>` after your
 edit (likely a formatter)" line that names no hook and shows no change, quoted from an observed
 session, not from a docs page, and used here only as an illustration of the shape such a
-notice takes. The rule rests on a negative: we found no file-change or diff surface among the hook
-output channels, so a benign reflow and a wrong dictionary rewrite arrive identically.
+notice takes. We require the disclosure so a user can tell a benign reflow from a wrong
+dictionary rewrite.
 
 - **Pointer**: for the hook output fields, see <https://code.claude.com/docs/en/hooks#json-output>.
 - **Recheck trigger**: a Claude Code release that adds a file-change or diff surface to the hook
@@ -83,9 +83,9 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
 
 **Not required** for two situations that are already visible or already correctly agent-scoped:
 
-- **Exit-2 blocking paths.** A block already delivers its reason, so repeating it on
-  `systemMessage` is redundant, not more observable. Pointer: for where the blocking message goes,
-  see <https://code.claude.com/docs/en/hooks#exit-code-2>. As of: 2026-10-04. Recheck trigger:
+- **Exit-2 blocking paths.** A block's reason goes in the block, once; we do not copy it to
+  `systemMessage`. Pointer: for where the blocking message goes, see
+  <https://code.claude.com/docs/en/hooks#exit-code-2>. As of: 2026-10-04. Recheck trigger:
   that section changes what a `PreToolUse` block shows or which text becomes its reason. A
   blocking hook may still carry a `systemMessage` (see above), but only for content that meets the
   carve-out below, never for the reason itself.
@@ -133,17 +133,18 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
 (wraps `hook::notice_once` + `hook::emit_skip_notice`) for a missing-`jq` gate, or pair
 `hook::notice_once` with `hook::emit_skip_notice` directly for a non-`jq` prerequisite. A raw,
 unguarded `hook::emit_skip_notice` call on a broad-matcher hook is a conformance defect. The user
-notice fires once per session; the model notice fires once per agent, because a non-fork subagent
-does not share the parent's context and would otherwise never see why the hook skipped. A fork
-inherits only what fired before it spawned
-([subagents: how forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents)),
-so it gets its own notice too. Neither renews. The
+notice fires once per session; the model notice fires once per agent, a fork included, so each
+agent that hits the skip is told why without relying on what it inherited from its parent. For
+what a subagent or a fork inherits, see
+[subagents: how forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents).
+Neither notice renews. The
 text says the notice will not repeat this session, never that the skip lasts the session: the hook
 probes again on every call. A plugin README states the cadence as "once per session". A missing
 external binary keeps the same cadence, with the install route in its user notice.
 
-**Important exit-code caveat:** a bare `echo "..." >&2; exit 0` skip is **not a notice**; only
-stdout JSON carries one. Pointer: for where exit-0 stderr goes, see
+**Important exit-code caveat:** a bare `echo "..." >&2; exit 0` skip is **not a notice** under
+this convention. A notice is the stdout JSON the helpers above compose for both readers.
+Pointer: for where exit-0 stderr goes, see
 <https://code.claude.com/docs/en/hooks#exit-code-0>. As of: 2026-10-04. Recheck trigger: that
 section starts showing exit-0 stderr in the transcript or to the model. `scripts/check-silent-skips.sh`
 rejects a bare stderr write on the exit-0 skip shapes it inspects: a quiet skip there uses one of the
@@ -186,13 +187,12 @@ Three cap decisions, each with the section that owns the figure.
    - **Pointer**: for how several hooks' values are delivered, see
      <https://code.claude.com/docs/en/hooks#add-context-for-claude>.
 
-3. **`classifierContext` is not a fourth surface, and its cap governs neither channel above.** It
-   is a `PostToolUse` field addressed to the auto-mode classifier, never the user or the model, so
-   it changes nothing about which channel a fleet hook writes a notice to. No fleet hook emits it
-   today, and a `PreToolUse` guard cannot. Why this doc records it: a 2026-09-04 peer review read
-   the classifier note's shared cap as the `additionalContext` cap and filed the spelling
-   8,000-character self-cap as a bug; the report was withdrawn on this reading of the page, and
-   this is where the next reader should find the answer.
+3. **`classifierContext` is not a fourth surface, and its cap governs neither channel above.** A
+   fleet hook never writes a notice to it, and no fleet hook emits it today; its cap never lowers
+   the output cap item 1 sizes against. Why this doc records it: a 2026-09-04
+   peer review read the classifier note's shared cap as the `additionalContext` cap and filed the
+   spelling 8,000-character self-cap as a bug; the report was withdrawn on this reading of the
+   page, and this is where the next reader should find the answer.
    - **Pointer**: for the field and its limits, see
      <https://code.claude.com/docs/en/hooks#annotate-a-result-for-the-auto-mode-classifier>.
 
@@ -208,9 +208,9 @@ type, excluded path, missing prerequisite) does not need one; see the Conformanc
 for the precise rule and why. The guard mods emit on fewer outcomes, under a
 [recorded exception](#recorded-exception-the-guard-mods-lines-and-telemetry-owner-approved-2026-10-03).
 
-**Why a local file sink, not a real OTel exporter.** A hook process does not receive the session's
-`OTEL_*` exporter configuration, so it cannot emit real OpenTelemetry. The file-sink envelope is
-the only telemetry surface we give a hook; this is a constraint, not an oversight. Pointer: for
+**Why a local file sink, not a real OTel exporter.** The file-sink envelope is the only telemetry
+surface we give a hook, because a hook cannot count on receiving the session's exporter
+configuration. Pointer: for
 which subprocesses get no `OTEL_*` variables, see
 <https://code.claude.com/docs/en/monitoring-usage#administrator-configuration>.
 
