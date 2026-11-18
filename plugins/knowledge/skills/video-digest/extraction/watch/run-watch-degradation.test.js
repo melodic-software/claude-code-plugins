@@ -35,6 +35,10 @@ vi.mock("../adapters/registry.js", async (importOriginal) => {
   return { ...actual, acquireMedia: vi.fn() };
 });
 
+vi.mock("./temp-space-check.js", () => ({
+  checkTempSpace: vi.fn(async () => ({ state: "enough", message: "" })),
+}));
+
 // The machine-under-test has no faster-whisper: capability detection reports
 // absent, and the transcription rung must never be reached.
 vi.mock("../transcript/asr-transcribe.js", async (importOriginal) => {

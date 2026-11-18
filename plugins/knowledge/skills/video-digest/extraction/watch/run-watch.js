@@ -35,6 +35,9 @@
  * is recorded in watch.json so `--recover` plans with it too; without it,
  * `--recover` derives the same duration default.
  *
+ * Before the download, `temp-space-check.js` probes the selected formats' size: the run exits 1
+ * when OS temp has less than twice that free, and warns and continues when no size is known.
+ *
  * Vision absorption, research, and synthesis run in the skill session (not this script).
  */
 
@@ -80,6 +83,7 @@ import { detectRecoverableBootstrap } from "./detect-recoverable-bootstrap.js";
 import { recordDurationMismatch } from "./duration-mismatch.js";
 import { postBootstrapSlice } from "./post-bootstrap-slice.js";
 import { recoverWatchBootstrapCli } from "./recover-watch-bootstrap.js";
+import { checkTempSpace } from "./temp-space-check.js";
 import {
   continuationPromptPath,
   createWatchState,
@@ -351,6 +355,11 @@ async function watchUrl({
   const asrCanStandIn = strategyArg.override === null || strategyArg.override === "asr";
   const asrDetection = timeRange && asrCanStandIn ? await detectAsrCapability() : null;
   throwIfInterrupted();
+
+  const space = await checkTempSpace({ url, adapter, tempDir: os.tmpdir(), timeRange });
+  throwIfInterrupted();
+  if (space.message) writeStderr(space.message);
+  if (space.state === "short") return 1;
 
   /** @type {import('../adapters/adapter-contract.js').AcquireOutcome} */
   let acquisition;

@@ -12,12 +12,12 @@ Quality is partly subjective, but some aspects are measurable:
 |---------------|-----------------|--------------|
 | Complexity | Cyclomatic complexity, nesting depth | `/code-metrics:audit complexity --json` when the `code-metrics` plugin is enabled (treat the pair as INCONCLUSIVE when `status` is `empty` on either side, or when the two documents' `schema` values or `root.path` differ; a baseline taken before `code-metrics/v2` is a v1 document and must be re-taken); otherwise count conditionals, measure max nesting |
 | Size | Lines of code, file count, method length | `/code-metrics:audit size --json` when the `code-metrics` plugin is enabled (same INCONCLUSIVE rule); otherwise a line counter (`wc -l` on POSIX/Git Bash, `Measure-Object -Line` in PowerShell), `git diff --stat` |
-| Coupling | Dependency count, import count | Count import/dependency declarations (`import`/`require`/`using`, package or project references) |
+| Coupling | Dependency count, import count | Count import/dependency declarations and package or project references |
 | Cohesion | Methods per class, related functionality | Inspect class responsibility |
 | Duplication | Repeated code blocks | `/code-metrics:audit-duplication --json` when the `code-metrics` plugin is enabled (same INCONCLUSIVE rule); otherwise grep for similar patterns |
 | Test coverage | Test count, assertion count, covered lines per function | `/code-metrics:audit-coverage --json` over the build's existing coverage artifact when the `code-metrics` plugin is enabled (same INCONCLUSIVE rule); otherwise your test runner's output, test inventory |
-| Test fault-detection | Covered-code mutation score | Your ecosystem's mutation tool, diff-scoped (see below) |
-| API surface | Public member count | Count `public` declarations |
+| Test fault-detection | Covered-code mutation score | The repository's own mutation tool, diff-scoped (see below) |
+| API surface | Public member count | Count the declarations the code exposes outside its module |
 
 Produce every count with a command or script whose output goes into the report (a line counter, a grep count, the project's complexity or coverage tool). A figure tallied by reading the code is an estimate, not a measurement, and the Before and After columns carry measurements only.
 
@@ -77,17 +77,18 @@ Produce every count with a command or script whose output goes into the report (
 
 "More tests" and "higher coverage" are both weak proxies for it. A test count rises with
 assertion-free tests, and coverage rises with code the tests execute without checking. The proxy
-that measures the claim directly is the **covered-code mutation score** (PIT names it *test
-strength*, Infection names it *Covered Code MSI*): the share of injected faults the suite detects,
-counting only faults in code the tests actually reach. Report it beside coverage, and report the
-*delta* diff-scoped to the change. A whole-repo score moves too slowly to attribute to one change.
+that measures the claim directly is the **covered-code mutation score**: the share of injected
+faults the suite detects, counting only faults in code the tests actually reach. Report it beside
+coverage, and report the *delta* diff-scoped to the change. A whole-repo score moves too slowly to
+attribute to one change.
 
 To collect it, invoke `/mutation-testing:audit` via the Skill tool when the `mutation-testing` plugin is enabled; it
-owns the run and the metric vocabulary. Without that plugin, run your ecosystem's own mutation tool
-(StrykerJS, Stryker.NET, PIT, Infection, mutmut) scoped to the diff with its own since/incremental
-flag, and read the covered-code figure rather than the headline one. When the language has no such
-tool, this proxy is unavailable. Say so and fall back to the qualitative test-quality assessment
-below rather than substituting a coverage number for it.
+owns the run and the metric vocabulary. Without that plugin, find the repository's own mutation
+tool by the steps in [`reference/ecosystem-resolution.md`](../../../reference/ecosystem-resolution.md),
+run it scoped to the diff with that tool's own since or incremental option, and read the
+covered-code figure rather than the headline one. When no mutation tool resolves, this proxy is
+unavailable. Say so and fall back to the qualitative test-quality assessment below rather than
+substituting a coverage number for it.
 
 Three caveats belong with the number whenever it is reported: scores are not comparable across
 repositories or operator sets, the ceiling is below 100% by an unknowable margin because equivalent

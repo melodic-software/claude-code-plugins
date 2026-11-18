@@ -28,6 +28,12 @@ Bulk frames and contact sheets stay in OS `tempSession` dirs, not the repo. When
 
 A successful `close` removes those recorded dirs on purpose, after it marks the slice complete. To keep the media in a project layout, run `watch/relayout-slice.js` before `close` (`output-contract.md` "Scope of the setting"); afterwards the media is gone and only `--no-media` works. When one is locked (on Windows, a scanner or player holding a file open), `close` warns on stderr with the path and still succeeds; delete that dir by hand once the lock is gone.
 
+## Small temp filesystem
+
+yt-dlp stages the separate video and audio streams, the merged file and the remuxed mp4 in the OS temp directory, so staging peaks at about twice the media size. Before the download, `run-watch.js` asks yt-dlp for the size of the formats it will select. When the temp directory has less than twice that free, it exits 1 before downloading and names the directory, the space needed and the space free. When yt-dlp reports no size, it prints a warning naming the directory and continues. A ranged run counts only its share of the video.
+
+To stage on a larger disk, set `TMPDIR` (on Windows, `TEMP`) to a directory there before the watch, since `os.tmpdir()` reads it ([Node.js `os.tmpdir()`](https://nodejs.org/api/os.html#ostmpdir)). Keep it set for every later `run.mjs` call in the session: `watch.json` stores the `tempSession` paths relative to the temp directory and resolves them against it again, so a later call without it looks for the frames and contact sheets in the default temp directory. No flag moves the staging.
+
 ## Cloud agent without media toolchain
 
 `watch` needs ffmpeg + ImageMagick for frame extraction and contact sheets. A cloud agent lacking the media toolchain must **fail closed and not run watch**; route to the prerequisites fix path instead of producing a frameless run. The tools can often be installed in place: `SKILL.md` "Prerequisites" lists the fallbacks to try when the platform package is missing or below its floor.

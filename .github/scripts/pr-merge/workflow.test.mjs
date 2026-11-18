@@ -560,6 +560,51 @@ test("a PR-scoped dispatch runs only enable-auto-merge", () => {
   assert.match(job("report-unarmed-status"), /\n {4}if: \$\{\{ !cancelled\(\) && !inputs\.pr && /);
 });
 
+function runEvalWake(released) {
+  const block = job("wake-eval-released").split("\n      - name: Wake pr-merge for each released pull request\n")[1].split("\n      - name: ")[0];
+  const dir = tempDir("pr-merge-eval-wake-");
+  mkdirSync(join(dir, "bin"));
+  writeFileSync(join(dir, "bin", "gh"), `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >>"${dir}/log"\n`, { mode: 0o755 });
+  writeFileSync(join(dir, "body.sh"), runBody(block));
+  const result = spawnSync("bash", ["-e", join(dir, "body.sh")], {
+    env: {
+      ...process.env,
+      PATH: `${join(dir, "bin")}:${process.env.PATH}`,
+      GH_TOKEN: "x",
+      GITHUB_REPOSITORY: "o/r",
+      RELEASED: released,
+      MAX_WAKES: /\n {10}MAX_WAKES: (\d+)\n/.exec(block)[1],
+    },
+    encoding: "utf8",
+  });
+  const log = existsSync(join(dir, "log")) ? readFileSync(join(dir, "log"), "utf8") : "";
+  rmSync(dir, { recursive: true, force: true });
+  return { status: result.status, calls: log.split("\n").filter(Boolean) };
+}
+
+test("each pull request the eval-hold release freed gets one PR-scoped pr-merge dispatch, at most five", () => {
+  const dispatch = (pr) => `workflow run pr-merge.yml -R o/r --ref main -f pr=${pr}`;
+  assert.deepEqual(runEvalWake("7 9"), { status: 0, calls: [dispatch(7), dispatch(9)] });
+  assert.deepEqual(runEvalWake("11 12 13 14 15 16"), { status: 0, calls: ["11", "12", "13", "14", "15"].map(dispatch) });
+  assert.deepEqual(runEvalWake(""), { status: 0, calls: [] });
+  assert.deepEqual(runEvalWake("0 x7 8"), { status: 0, calls: [dispatch(8)] });
+});
+
+test("the eval-release wake runs on what the merge job released, whatever its result, with only actions: write", () => {
+  const schedule = { event_name: "schedule", event: {} };
+  const released = (value, result = "success") => ({ merge: { result, outputs: { "eval-released": value } } });
+  assert.equal(evalIf("wake-eval-released", schedule, {}, released("7")), true);
+  assert.equal(evalIf("wake-eval-released", schedule, {}, released("7", "failure")), true);
+  assert.equal(evalIf("wake-eval-released", schedule, {}, released("", "skipped")), false);
+  assert.equal(evalIf("wake-eval-released", schedule, {}, released("")), false);
+  const wake = job("wake-eval-released");
+  assert.match(wake, /^ {4}needs: \[merge\]\n/m);
+  assert.match(wake, /\n {4}permissions:\n {6}actions: write\n {6}contents: read\n {4}[a-z]/);
+  assert.match(job("merge"), /\n {6}actions: read\n/);
+  assert.match(job("merge"), /\n {6}eval-released: \$\{\{ steps\.release-eval\.outputs\.released \}\}\n/);
+  assert.match(job("merge"), /- name: Release eval holds whose record matches the head\n {8}id: release-eval\n/);
+});
+
 // The dispatch's input, the cron backstop and the marker readers key on.
 test("pr-merge takes a pr input, runs every 30 minutes and names a PR-scoped run", () => {
   assert.match(merge, /\n {2}workflow_dispatch:\n {4}inputs:\n {6}pr:\n(?: {8}.*\n)*? {8}type: string\n {8}required: false\n/);
