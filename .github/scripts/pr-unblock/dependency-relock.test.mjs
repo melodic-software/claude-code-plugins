@@ -1,17 +1,18 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { fixContentRefusal } from "./dependency-classify.mjs";
-import { main, movePipPin, parseGroups, relockPatch, relockTarget } from "./dependency-relock.mjs";
+import { COMPILE_COMMAND, main, movePipPin, parseGroups, relockPatch, relockRequest, relockTarget } from "./dependency-relock.mjs";
 import { unifiedDiff } from "./install-script-pin.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const COMMAND = "uv pip compile requirements.in --universal --generate-hashes --python-version 3.12 -o requirements.txt";
+const TARGET = { directory: "plugins/explainer-video", name: "playwright", from: "1.65.1", to: "1.65.2" };
 
 const SHARED_PIP_ENTRY = `version: 2
 updates:
@@ -130,15 +131,10 @@ test("movePipPin moves exactly one pin of the package and keeps the rest of the 
   assert.throws(() => movePipPin(IN("1.65.1"), { name: "playwright", from: "1.65.1", to: "1.65.2 --index-url x" }), /exact version/);
 });
 
-test("relockPatch writes a patch that turns the head's files into the relock, a change the fix rule admits", async () => {
-  const target = { directory: "plugins/explainer-video", name: "playwright", from: "1.65.1", to: "1.65.2" };
-  const runs = [];
-  const run = async (files) => {
-    runs.push(files);
-    return TXT("1.65.2");
-  };
-  const { patch } = await relockPatch(target, { readText: readFrom(MEDIA_RENDER_BUMPED_EXPLAINER_VIDEO_LEFT.texts), run });
-  assert.deepEqual(runs, [{ requirementsIn: IN("1.65.2"), requirementsTxt: TXT("1.65.1") }]);
+test("relockRequest hands the relock job the moved requirements.in and the head's lock, and relockPatch turns the head's files into the relock", async () => {
+  const request = await relockRequest(TARGET, { readText: readFrom(MEDIA_RENDER_BUMPED_EXPLAINER_VIDEO_LEFT.texts) });
+  assert.deepEqual(request, { ...TARGET, in_before: IN("1.65.1"), in_after: IN("1.65.2"), txt_before: TXT("1.65.1") });
+  const patch = relockPatch(request, TXT("1.65.2"));
   const repo = tempDir("dependency-relock-");
   execFileSync("git", ["init", "-q", repo]);
   mkdirSync(join(repo, "plugins/explainer-video"), { recursive: true });
@@ -152,13 +148,30 @@ test("relockPatch writes a patch that turns the head's files into the relock, a 
   assert.equal(fixContentRefusal("plugins/explainer-video/requirements.in", IN("1.65.1"), IN("1.65.2")), null);
 });
 
-test("relockPatch refuses a relock that is more than pins and hashes, or that misses the pin", async () => {
-  const target = { directory: "plugins/explainer-video", name: "playwright", from: "1.65.1", to: "1.65.2" };
-  const readText = readFrom(MEDIA_RENDER_BUMPED_EXPLAINER_VIDEO_LEFT.texts);
-  const indexed = async () => `--index-url https://evil.example/simple\n${TXT("1.65.2")}`;
-  await assert.rejects(relockPatch(target, { readText, run: indexed }), /requirements-line/);
-  await assert.rejects(relockPatch(target, { readText, run: async () => TXT("1.65.1") }), /does not pin playwright==1\.65\.2/);
-  await assert.rejects(relockPatch(target, { readText: readFrom({}), run: indexed }), /no requirements\.in and requirements\.txt/);
+test("relockRequest refuses a directory with no lock or a lock another command wrote, before any job runs uv", async () => {
+  await assert.rejects(relockRequest(TARGET, { readText: readFrom({}) }), /no requirements\.in and requirements\.txt/);
+  const foreign = { ...MEDIA_RENDER_BUMPED_EXPLAINER_VIDEO_LEFT.texts, "plugins/explainer-video/requirements.txt": TXT("1.65.1", `${COMMAND} --index-url https://evil.example/simple`) };
+  await assert.rejects(relockRequest(TARGET, { readText: readFrom(foreign) }), /was not compiled by/);
+});
+
+test("relockPatch refuses a relocked lock that is more than pins and hashes, or that misses the pin", async () => {
+  const request = await relockRequest(TARGET, { readText: readFrom(MEDIA_RENDER_BUMPED_EXPLAINER_VIDEO_LEFT.texts) });
+  assert.throws(() => relockPatch(request, `--index-url https://evil.example/simple\n${TXT("1.65.2")}`), /requirements-line/);
+  assert.throws(() => relockPatch(request, TXT("1.65.1")), /does not pin playwright==1\.65\.2/);
+  assert.throws(() => relockPatch(request, TXT("1.65.2").replace("pycairo==1.29.1", "pycairo==1.29.1\nevil==1.0.0 \\\n    --hash=sha256:00\n")), /refused/);
+});
+
+test("patch writes the checked patch from the request file and the relocked lock, and fails on a refused one", async () => {
+  const dir = tempDir("dependency-relock-cli-");
+  const request = await relockRequest(TARGET, { readText: readFrom(MEDIA_RENDER_BUMPED_EXPLAINER_VIDEO_LEFT.texts) });
+  writeFileSync(join(dir, "request.json"), JSON.stringify(request));
+  writeFileSync(join(dir, "requirements.txt"), TXT("1.65.2"));
+  const lines = [];
+  assert.equal(main(["patch", join(dir, "request.json"), join(dir, "requirements.txt"), join(dir, "patch.diff")], { log: (line) => lines.push(line) }), 0);
+  assert.equal(readFileSync(join(dir, "patch.diff"), "utf8"), relockPatch(request, TXT("1.65.2")));
+  assert.deepEqual(lines, ["plugins/explainer-video relocked to playwright==1.65.2 from 1.65.1"]);
+  writeFileSync(join(dir, "requirements.txt"), TXT("1.65.1"));
+  assert.throws(() => main(["patch", join(dir, "request.json"), join(dir, "requirements.txt"), join(dir, "refused.diff")], { log: () => {} }), /does not pin/);
 });
 
 test("unifiedDiff round-trips a change that adds and removes lines", () => {
@@ -187,7 +200,26 @@ test("check fails while a group's directories pin different versions, naming bot
   assert.equal(main(["check", root], { log: () => {} }), 0);
 });
 
-test("relock-requirements.sh relocks with the lock's own command and refuses a lock another command wrote", () => {
+test("check fails when no pip group reads or a group directory's requirements.in cannot be read, rather than passing on nothing", () => {
+  const root = tempDir("dependency-relock-check-unread-");
+  mkdirSync(join(root, ".github"));
+  mkdirSync(join(root, "lib/media-render"), { recursive: true });
+  writeFileSync(join(root, "lib/media-render/requirements.in"), IN("1.65.2"));
+  writeFileSync(join(root, ".github/dependabot.yml"), SHARED_PIP_ENTRY);
+  const missing = [];
+  assert.equal(main(["check", root], { log: (line) => missing.push(line) }), 1);
+  assert.ok(missing.includes("::error file=.github/dependabot.yml::the playwright group's plugins/explainer-video/requirements.in cannot be read"), missing.join("\n"));
+  for (const config of [SHARED_PIP_ENTRY.replace("group-by: dependency-name", "group-by: other"), "version: 2\nupdates: [{package-ecosystem: pip, directory: /}]\n", null]) {
+    if (config === null) rmSync(join(root, ".github/dependabot.yml"));
+    else writeFileSync(join(root, ".github/dependabot.yml"), config);
+    const lines = [];
+    assert.equal(main(["check", root], { log: (line) => lines.push(line) }), 1, String(config));
+    assert.deepEqual(lines, ["::error file=.github/dependabot.yml::no pip group-by dependency-name group reads, so nothing holds its directories to one pin"]);
+  }
+});
+
+test("relock-requirements.sh runs the flags of the command relockRequest requires the lock's header to name", () => {
+  assert.equal(COMPILE_COMMAND, COMMAND);
   const dir = tempDir("dependency-relock-sh-");
   const uv = join(dir, "uv");
   writeFileSync(uv, `#!/usr/bin/env bash\nprintf '%s\\n' "$@" >"${join(dir, "args")}"\n`);
@@ -196,10 +228,7 @@ test("relock-requirements.sh relocks with the lock's own command and refuses a l
   mkdirSync(work);
   writeFileSync(join(work, "requirements.in"), IN("1.65.2"));
   writeFileSync(join(work, "requirements.txt"), TXT("1.65.1"));
-  const script = join(HERE, "relock-requirements.sh");
-  execFileSync("bash", [script, work], { env: { PATH: process.env.PATH, RELOCK_UV: uv } });
+  execFileSync("bash", [join(HERE, "relock-requirements.sh"), work], { env: { PATH: process.env.PATH, RELOCK_UV: uv } });
   const args = readFileSync(join(dir, "args"), "utf8").trim().split("\n");
   assert.deepEqual(args, ["pip", "compile", "--quiet", "--no-config", "--directory", work, ...COMMAND.split(" ").slice(3), "--custom-compile-command", COMMAND]);
-  writeFileSync(join(work, "requirements.txt"), TXT("1.65.1", `${COMMAND} --index-url https://evil.example/simple`));
-  assert.throws(() => execFileSync("bash", [script, work], { env: { PATH: process.env.PATH, RELOCK_UV: uv }, stdio: "pipe" }), /was not compiled by/);
 });

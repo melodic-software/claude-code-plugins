@@ -34,7 +34,7 @@ import {
   provenanceReasons,
   withProvenance,
 } from "./dependency-classify.mjs";
-import { parseGroups, relockPatch, relockTarget, runRelock } from "./dependency-relock.mjs";
+import { parseGroups, relockRequest, relockTarget } from "./dependency-relock.mjs";
 import { movePin, PACKAGE, unifiedDiff } from "./install-script-pin.mjs";
 
 export const DEFAULT_MAX_ROUNDS = 2;
@@ -234,7 +234,6 @@ export async function select({
   repository = "",
   maxRounds = DEFAULT_MAX_ROUNDS,
   provenance,
-  relock = runRelock,
 }) {
   const pull = await api.getPull(pr);
   if (pull.user?.id !== dependabotId || pull.user?.login !== DEPENDABOT_LOGIN) {
@@ -276,7 +275,7 @@ export async function select({
   try {
     const target = await relockTarget({ files, groups, readText: (path) => api.getText(path, headSha) });
     if (target) {
-      return { decision: "relock", relock: await relockPatch(target, { readText: (path) => api.getText(path, headSha), run: relock }), classification };
+      return { decision: "relock", relock: await relockRequest(target, { readText: (path) => api.getText(path, headSha) }), classification };
     }
   } catch (error) {
     relockError = error.message;
@@ -387,7 +386,7 @@ export function contextRun({ pr, headSha, classification, file, config, startedA
 // `date -u +%Y-%m-%dT%H:%M:%SZ`'s shape, which the verdict job requires.
 const utcSeconds = (date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
 
-export async function main(argv, env, { api, log = (line) => console.log(line), provenance, now = () => new Date(), relock = (files) => runRelock(files, env) } = {}) {
+export async function main(argv, env, { api, log = (line) => console.log(line), provenance, now = () => new Date() } = {}) {
   if (argv[0] !== "select") {
     throw new Error("usage: review-dependency.mjs select");
   }
@@ -433,7 +432,6 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     groups: config === null ? [] : parseGroups(readFileSync(env.DEPENDABOT_CONFIG, "utf8")),
     policy: readPolicy(env.DEPENDABOT_POLICY, log),
     provenance,
-    relock,
   });
   if (result.file) {
     writeFileSync(env.DEPENDENCY_FILE, `${JSON.stringify(result.file, null, 2)}\n`);
@@ -441,27 +439,28 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     writeFileSync(env.CONTEXT_RUN_FILE, `${JSON.stringify(run)}\n`);
   }
   const output = (key, value) => appendFileSync(env.GITHUB_OUTPUT, `${key}=${value}\n`);
-  const patch = result.pin
-    ? {
-        patch: result.pin.patch,
-        row: "install-script-pin",
-        line: `${PACKAGE} install-script pin: ${result.pin.from} to ${result.pin.to}, pushed by apply-dependency-pin with no model turn`,
-      }
-    : result.relock && {
-        patch: result.relock.patch,
-        row: "dependency-relock",
-        line: `${result.relock.directory} relocked to ${result.relock.name}==${result.relock.to} from ${result.relock.from}, pushed by apply-dependency-pin with no model turn`,
-      };
-  if (patch) {
-    need(env, ["PIN_PATCH_FILE"]);
-    writeFileSync(env.PIN_PATCH_FILE, patch.patch);
-    output("pin-state", "written");
-    output("pin-sha256", createHash("sha256").update(patch.patch).digest("hex"));
-    output("pin-prepare", patch.row);
-    log(patch.line);
+  const summary = (line) => {
+    log(line);
     if (env.GITHUB_STEP_SUMMARY) {
-      appendFileSync(env.GITHUB_STEP_SUMMARY, `${patch.line}\n`);
+      appendFileSync(env.GITHUB_STEP_SUMMARY, `${line}\n`);
     }
+  };
+  if (result.pin) {
+    need(env, ["PIN_PATCH_FILE"]);
+    writeFileSync(env.PIN_PATCH_FILE, result.pin.patch);
+    output("pin-state", "written");
+    output("pin-sha256", createHash("sha256").update(result.pin.patch).digest("hex"));
+    summary(`${PACKAGE} install-script pin: ${result.pin.from} to ${result.pin.to}, pushed by apply-dependency-pin with no model turn`);
+  }
+  if (result.relock) {
+    need(env, ["RELOCK_DIR"]);
+    const request = `${JSON.stringify(result.relock)}\n`;
+    writeFileSync(`${env.RELOCK_DIR}/request.json`, request);
+    writeFileSync(`${env.RELOCK_DIR}/requirements.in`, result.relock.in_after);
+    writeFileSync(`${env.RELOCK_DIR}/requirements.txt`, result.relock.txt_before);
+    output("relock-state", "written");
+    output("relock-sha256", createHash("sha256").update(request).digest("hex"));
+    summary(`${result.relock.directory}: ${result.relock.name} ${result.relock.from} to ${result.relock.to}, relocked by review-dependency-relock and pushed by apply-dependency-relock with no model turn`);
   }
   if (result.pinError) {
     log(`::warning::the ${PACKAGE} install-script pin was not moved (${result.pinError}); the model reviews the pull request as it stands`);

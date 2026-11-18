@@ -2,20 +2,25 @@
  * The directories of one .github/dependabot.yml entry that a `group-by:
  * dependency-name` group names pin each of its packages at one version.
  * Dependabot can open such a group's pull request with one directory bumped
- * and another left behind (its pip-compile could not relock that one); this
- * relocks the lagging directory with uv to the bumped directory's pin.
- * review-dependency.mjs select writes its patch, which apply-dependency-pin
- * pushes under patch-rules.json's dependency-relock row. `check` exits 1
- * while a group's directories disagree, for pr-require-checks.yml.
+ * and another left behind (its pip-compile could not relock that one). The
+ * pr-unblock lane relocks the lagging directory to the bumped directory's pin
+ * across three jobs, so uv, which may build a package's metadata and so run
+ * its code, never runs beside a token: review-dependency.mjs select writes the
+ * request (relockRequest), review-dependency-relock runs
+ * relock-requirements.sh on it with no permissions, and
+ * review-dependency-relock-patch, base code alone, checks the result and
+ * writes the patch (`patch`) that apply-dependency-relock pushes under
+ * patch-rules.json's dependency-relock row. `check` exits 1 while a group's
+ * directories disagree, a group directory's requirements.in cannot be read, or
+ * no pip group reads at all, for pr-require-checks.yml.
  *
  *   node dependency-relock.mjs check [root]
+ *   node dependency-relock.mjs patch <request.json> <relocked requirements.txt> <patch.diff>
  */
 
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 
 import { fixContentRefusal } from "./dependency-classify.mjs";
 import { unifiedDiff } from "./install-script-pin.mjs";
@@ -139,43 +144,46 @@ export function movePipPin(text, { name, from, to }) {
   return lines.join("\n");
 }
 
-const SCRIPT = fileURLToPath(new URL("./relock-requirements.sh", import.meta.url));
+export const COMPILE_COMMAND = "uv pip compile requirements.in --universal --generate-hashes --python-version 3.12 -o requirements.txt";
 
-/** Its environment carries no token: the uv resolve may build a package's metadata, which runs that package's code. */
-export async function runRelock({ requirementsIn, requirementsTxt }, env = process.env) {
-  const dir = mkdtempSync(join(env.RUNNER_TEMP || tmpdir(), "relock-"));
-  try {
-    writeFileSync(join(dir, "requirements.in"), requirementsIn);
-    writeFileSync(join(dir, "requirements.txt"), requirementsTxt);
-    const keep = Object.fromEntries(["PATH", "HOME", "RUNNER_TEMP", "TMPDIR"].filter((key) => env[key]).map((key) => [key, env[key]]));
-    execFileSync("bash", [SCRIPT, dir], { env: keep, stdio: ["ignore", "inherit", "inherit"], timeout: 300_000 });
-    return readFileSync(join(dir, "requirements.txt"), "utf8");
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
+/**
+ * What review-dependency-relock runs uv on, read from the head as data: the
+ * moved requirements.in and the head's requirements.txt. Refused here, before
+ * any job runs uv, when a file is missing, the pin does not move or the lock
+ * was not compiled by COMPILE_COMMAND, so the model reviews such a pull request.
+ */
+export async function relockRequest(target, { readText }) {
+  const inBefore = await readText(fileIn(target.directory, "requirements.in"));
+  const txtBefore = await readText(fileIn(target.directory, "requirements.txt"));
+  if (inBefore === null || txtBefore === null) throw new Error(`${target.directory || "the root"} has no requirements.in and requirements.txt`);
+  if (txtBefore.replace(/\r\n/g, "\n").split("\n")[1] !== `#    ${COMPILE_COMMAND}`) {
+    throw new Error(`${fileIn(target.directory, "requirements.txt")} was not compiled by \`${COMPILE_COMMAND}\``);
   }
+  return { ...target, in_before: inBefore, in_after: movePipPin(inBefore, target), txt_before: txtBefore };
 }
 
-/** Held to the push job's own rule (fixContentRefusal) before it is handed on, so a relock that would be refused never leaves here. */
-export async function relockPatch(target, { readText, run = runRelock }) {
-  const inPath = fileIn(target.directory, "requirements.in");
-  const txtPath = fileIn(target.directory, "requirements.txt");
-  const inBefore = await readText(inPath);
-  const txtBefore = await readText(txtPath);
-  if (inBefore === null || txtBefore === null) throw new Error(`${target.directory || "the root"} has no requirements.in and requirements.txt`);
-  const inAfter = movePipPin(inBefore, target);
-  const txtAfter = await run({ requirementsIn: inAfter, requirementsTxt: txtBefore });
-  if (pinsOf(txtAfter.replace(/ \\$/gm, "").replace(/ ;[^\n]*$/gm, "")).get(normalize(target.name))?.version !== target.to) {
-    throw new Error(`the relocked requirements.txt does not pin ${target.name}==${target.to}`);
+/** Held to the push job's own rule (fixContentRefusal), so a relock that would be refused never leaves the patch job. */
+export function relockPatch(request, txtAfter) {
+  const inPath = fileIn(request.directory, "requirements.in");
+  const txtPath = fileIn(request.directory, "requirements.txt");
+  if (pinsOf(txtAfter.replace(/ \\$/gm, "").replace(/ ;[^\n]*$/gm, "")).get(normalize(request.name))?.version !== request.to) {
+    throw new Error(`the relocked requirements.txt does not pin ${request.name}==${request.to}`);
   }
-  for (const [path, before, after] of [[inPath, inBefore, inAfter], [txtPath, txtBefore, txtAfter]]) {
+  for (const [path, before, after] of [[inPath, request.in_before, request.in_after], [txtPath, request.txt_before, txtAfter]]) {
     const why = fixContentRefusal(path, before, after);
     if (why) throw new Error(`the relock of ${path} is refused: ${why}`);
   }
-  return { ...target, patch: `${unifiedDiff(inPath, inBefore, inAfter)}${unifiedDiff(txtPath, txtBefore, txtAfter)}` };
+  return `${unifiedDiff(inPath, request.in_before, request.in_after)}${unifiedDiff(txtPath, request.txt_before, txtAfter)}`;
 }
 
 export function main(argv, { log = (line) => console.log(line) } = {}) {
-  if (argv[0] !== "check") throw new Error("usage: dependency-relock.mjs check [root]");
+  if (argv[0] === "patch" && argv.length === 4) {
+    const request = JSON.parse(readFileSync(argv[1], "utf8"));
+    writeFileSync(argv[3], relockPatch(request, readFileSync(argv[2], "utf8")));
+    log(`${request.directory} relocked to ${request.name}==${request.to} from ${request.from}`);
+    return 0;
+  }
+  if (argv[0] !== "check") throw new Error("usage: dependency-relock.mjs check [root] | patch <request.json> <requirements.txt> <patch.diff>");
   const root = argv[1] ?? ".";
   const read = (path) => {
     try {
@@ -184,10 +192,23 @@ export function main(argv, { log = (line) => console.log(line) } = {}) {
       return null;
     }
   };
+  const groups = parseGroups(read(".github/dependabot.yml")).filter((group) => group.ecosystem === "pip");
+  if (groups.length === 0) {
+    log("::error file=.github/dependabot.yml::no pip group-by dependency-name group reads, so nothing holds its directories to one pin");
+    return 1;
+  }
   let code = 0;
-  for (const group of parseGroups(read(".github/dependabot.yml"))) {
-    if (group.ecosystem !== "pip") continue;
-    const pinned = group.directories.map((directory) => [directory, pinsOf(read(fileIn(directory, "requirements.in")))]);
+  for (const group of groups) {
+    const pinned = [];
+    for (const directory of group.directories) {
+      const text = read(fileIn(directory, "requirements.in"));
+      if (text === null) {
+        log(`::error file=.github/dependabot.yml::the ${group.name} group's ${fileIn(directory, "requirements.in")} cannot be read`);
+        code = 1;
+      } else {
+        pinned.push([directory, pinsOf(text)]);
+      }
+    }
     const keys = new Set(pinned.flatMap(([, pins]) => [...pins.keys()]).filter((key) => group.patterns.some((pattern) => matches(pattern, key))));
     for (const key of keys) {
       const held = pinned.filter(([, pins]) => pins.has(key)).map(([directory, pins]) => [directory, pins.get(key)]);

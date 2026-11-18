@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
@@ -610,7 +610,7 @@ test("main writes the pin patch, its SHA-256 and a step summary line, and posts 
   await main(["select"], env, { api: fakeApi({ files: PIN_FILES, texts: pinTexts("2.1.316") }), log: () => {} });
   const patch = readFileSync(env.PIN_PATCH_FILE, "utf8");
   const sum = createHash("sha256").update(patch).digest("hex");
-  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `pin-state=written\npin-sha256=${sum}\npin-prepare=install-script-pin\nproceed=false\nskip-reason=no-model-turn\nescalation-reason=\n`);
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `pin-state=written\npin-sha256=${sum}\nproceed=false\nskip-reason=no-model-turn\nescalation-reason=\n`);
   assert.match(readFileSync(env.GITHUB_STEP_SUMMARY, "utf8"), /^@anthropic-ai\/claude-code install-script pin: 2\.1\.316 to 2\.1\.317/);
   assert.equal(existsSync(env.DEPENDENCY_FILE), false);
 });
@@ -626,35 +626,39 @@ const groupTexts = (lagging) => ({
   "plugins/explainer-video/requirements.in": `manim[typst]==0.21.0\nplaywright==${lagging}\n`,
   "plugins/explainer-video/requirements.txt": `${LOCK_HEADER}playwright==${lagging} \\\n    --hash=sha256:${"a".repeat(64)}\n    # via -r requirements.in\n`,
 });
-const relocked = async () => `${LOCK_HEADER}playwright==1.65.2 \\\n    --hash=sha256:${"b".repeat(64)}\n    # via -r requirements.in\n`;
 const relockArgs = { ...pinArgs, groups: GROUPS, config: [["pip", "/plugins/explainer-video"], ["pip", "/lib/media-render"]] };
 
-test("select relocks the directory a dependency-name group left behind, with no model turn", async () => {
-  const result = await select({ api: fakeApi({ files: GROUP_FILES, texts: groupTexts("1.65.1") }), ...relockArgs, relock: relocked });
+test("select hands the relock job the directory a dependency-name group left behind, with no model turn", async () => {
+  const texts = groupTexts("1.65.1");
+  const result = await select({ api: fakeApi({ files: GROUP_FILES, texts }), ...relockArgs });
   assert.equal(result.decision, "relock");
-  assert.deepEqual([result.relock.directory, result.relock.name, result.relock.from, result.relock.to], ["plugins/explainer-video", "playwright", "1.65.1", "1.65.2"]);
-  assert.match(result.relock.patch, /^-playwright==1\.65\.1$\n^\+playwright==1\.65\.2$/m);
-  assert.match(result.relock.patch, /^\+\+\+ b\/plugins\/explainer-video\/requirements\.txt$/m);
+  assert.deepEqual(result.relock, {
+    directory: "plugins/explainer-video",
+    name: "playwright",
+    from: "1.65.1",
+    to: "1.65.2",
+    in_before: texts["plugins/explainer-video/requirements.in"],
+    in_after: "manim[typst]==0.21.0\nplaywright==1.65.2\n",
+    txt_before: texts["plugins/explainer-video/requirements.txt"],
+  });
   assert.equal(result.file, undefined, "no context file: the model does not run");
 });
 
 test("select relocks nothing when the group's directories already agree", async () => {
-  const relock = async () => assert.fail("the directories agree, so nothing is relocked");
-  const result = await select({ api: fakeApi({ files: GROUP_FILES, texts: groupTexts("1.65.2") }), ...relockArgs, relock });
+  const result = await select({ api: fakeApi({ files: GROUP_FILES, texts: groupTexts("1.65.2") }), ...relockArgs });
   assert.equal(result.decision, "proceed");
   assert.equal(result.relockError, "");
 });
 
-test("select hands the model a pull request whose relock fails, with the reason", async () => {
-  const relock = async () => {
-    throw new Error("uv exited 1");
-  };
-  const result = await select({ api: fakeApi({ files: GROUP_FILES, texts: groupTexts("1.65.1") }), ...relockArgs, relock });
+test("select hands the model a pull request whose lagging lock another command wrote, with the reason", async () => {
+  const texts = { ...groupTexts("1.65.1") };
+  texts["plugins/explainer-video/requirements.txt"] = texts["plugins/explainer-video/requirements.txt"].replace("-o requirements.txt", "-o requirements.txt --index-url https://evil.example/simple");
+  const result = await select({ api: fakeApi({ files: GROUP_FILES, texts }), ...relockArgs });
   assert.equal(result.decision, "proceed");
-  assert.equal(result.relockError, "uv exited 1");
+  assert.match(result.relockError, /was not compiled by/);
 });
 
-test("main writes the relock patch under the dependency-relock row and posts no-model-turn", async () => {
+test("main writes the relock request the relock job reads, its SHA-256, and posts no-model-turn", async () => {
   const dir = tempDir("review-dependency-");
   const actors = join(dir, "actors.json");
   writeFileSync(actors, JSON.stringify({ actors: [{ id: DEPENDABOT, login: "dependabot[bot]", kind: "bot" }] }));
@@ -663,6 +667,8 @@ test("main writes the relock patch under the dependency-relock row and posts no-
     config,
     "version: 2\nupdates:\n  - package-ecosystem: pip\n    directories:\n      - /plugins/explainer-video\n      - /lib/media-render\n    groups:\n      playwright:\n        group-by: dependency-name\n        patterns:\n          - \"playwright\"\n",
   );
+  const relockDir = join(dir, "relock");
+  mkdirSync(relockDir);
   const env = {
     GITHUB_TOKEN: "t",
     GITHUB_REPOSITORY: "o/r",
@@ -674,15 +680,19 @@ test("main writes the relock patch under the dependency-relock row and posts no-
     TRUSTED_ACTORS: actors,
     DEPENDENCY_FILE: join(dir, "dependency.json"),
     CONTEXT_RUN_FILE: join(dir, "context.json"),
-    PIN_PATCH_FILE: join(dir, "patch.diff"),
+    RELOCK_DIR: relockDir,
     DEPENDABOT_CONFIG: config,
     DEPENDABOT_POLICY: join(dir, "policy.json"),
   };
-  await main(["select"], env, { api: fakeApi({ files: GROUP_FILES, texts: groupTexts("1.65.1") }), log: () => {}, relock: relocked });
-  const patch = readFileSync(env.PIN_PATCH_FILE, "utf8");
-  const sum = createHash("sha256").update(patch).digest("hex");
-  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `pin-state=written\npin-sha256=${sum}\npin-prepare=dependency-relock\nproceed=false\nskip-reason=no-model-turn\nescalation-reason=\n`);
-  assert.match(readFileSync(env.GITHUB_STEP_SUMMARY, "utf8"), /^plugins\/explainer-video relocked to playwright==1\.65\.2/);
+  const texts = groupTexts("1.65.1");
+  await main(["select"], env, { api: fakeApi({ files: GROUP_FILES, texts }), log: () => {} });
+  const request = readFileSync(join(relockDir, "request.json"), "utf8");
+  assert.equal(JSON.parse(request).to, "1.65.2");
+  assert.equal(readFileSync(join(relockDir, "requirements.in"), "utf8"), "manim[typst]==0.21.0\nplaywright==1.65.2\n");
+  assert.equal(readFileSync(join(relockDir, "requirements.txt"), "utf8"), texts["plugins/explainer-video/requirements.txt"]);
+  const sum = createHash("sha256").update(request).digest("hex");
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `relock-state=written\nrelock-sha256=${sum}\nproceed=false\nskip-reason=no-model-turn\nescalation-reason=\n`);
+  assert.match(readFileSync(env.GITHUB_STEP_SUMMARY, "utf8"), /^plugins\/explainer-video: playwright 1\.65\.1 to 1\.65\.2, relocked by review-dependency-relock/);
 });
 
 test("main warns and hands the model a pin it cannot move", async () => {
