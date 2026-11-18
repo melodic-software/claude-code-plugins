@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Glossary: GLOSSARY.md\\nThe request says check out; the glossary's term is Loan, so I use lend and Loan.\"}]}}\n",
+      "why": "the skill's line with a relative path"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Prerequisites checked.\\n\\n**Glossary:** `/tmp/w/GLOSSARY.md`\"}]}}\n",
+      "why": "bold label, backticked absolute path, after other text"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"Read the glossary first.\"},{\"type\":\"text\",\"text\":\"Glossary: ./GLOSSARY.md\"}]}}\n",
+      "why": "text block after a thinking block, dot-slash path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty trace"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Glossary: none\\nI will name the feature after the request.\"}]}}\n",
+      "why": "reports no glossary"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_x\",\"content\":\"Read the match that covers the code. Print one line, `Glossary: <path | none>`.\"}]}}\n",
+      "why": "the skill body's instruction arriving as a tool result"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/w/GLOSSARY.md\"}}]}}\n",
+      "why": "reads the glossary but prints no line"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_x\",\"content\":\"Glossary: GLOSSARY.md\"}]}}\n",
+      "why": "the line appears only in tool output, not printed by the run"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Glossary: README.md\"}]}}\n",
+      "why": "names another file"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Glossary: none\\nLater I saw GLOSSARY.md in the listing.\"}]}}\n",
+      "why": "the file name on a later line, not on the Glossary line"
+    }
+  ]
+}

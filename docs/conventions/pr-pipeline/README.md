@@ -3236,6 +3236,14 @@ and the base's rules are reused for two minutes, and a failed read is never shar
 enqueue, a default branch or rules a gate took from the file are read again for the branch read,
 and any change holds. An attended gate run reads both fresh. Without the variable nothing is shared.
 
+### The whole-map pass
+
+`.github/workflows/maintenance-verify-whole-map.yml` runs `/testing:run-e2e map` over
+`merge.verify-capture.app`'s control skill on the default branch, only on a listed human's
+dispatch, in the capture's sandbox, launch broker and key proxy on the pr-verify key, under the
+capture's token caps and driven model. Its driver leg takes the `verify-map` run route. Its header
+says what it runs and keeps.
+
 ## Review-lane holds
 
 Both review callers (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) pass
@@ -3674,7 +3682,8 @@ the [Merge-Risk line](#the-merge-risk-line)'s rating, `review-code` and
 `summarize-reuse` for the read-only pass that describes a lane branch work-resolve-issue reuses
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and `adjudicate-feedback` for
 pr-unblock's read-only judge of a review finding address-feedback disputed
-([pr-run-activity.md](pr-run-activity.md)), on the `review` profile. A run no route names takes `models.default-profile`. The config reader rejects a route or default
+([pr-run-activity.md](pr-run-activity.md)), on the `review` profile, and `verify-map` for the
+[whole-map pass](#the-whole-map-pass)'s driver leg. A run no route names takes `models.default-profile`. The config reader rejects a route or default
 naming an undefined profile, and a route that is neither a skill activity nor a run route. A config with no `models` block gives every run the built-in `standard`
 profile: model `opus` and 75 turns. `resolve-config` turns the run's profile into its
 `claude-args` and `settings-json` outputs, which the runners on claude-code-action pass as
