@@ -3,6 +3,12 @@
 All notable changes to the `javascript-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.4] - 2026-11-18
+
+### Security
+
+- The format hook's adapter lookups (Biome config discovery and the committed-`node_modules` check) run git through `rt_git`, which in a hook is `hook::git_untrusted`, so editing a file no longer starts a `core.fsmonitor` command or git hook named in that repository's config.
+
 ## [3.1.3] - 2026-11-18
 
 ### Changed

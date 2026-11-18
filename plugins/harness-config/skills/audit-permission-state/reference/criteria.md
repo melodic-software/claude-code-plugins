@@ -399,6 +399,13 @@ the expanded case would report a discard that did not happen.
 Every item below was measured on 2.1.225, not assumed. Each is a way this lane could have reported a
 confident wrong answer.
 
+- **Probe**: the runs recorded in `scripts/automode-block-lint.sh`, in its header and in its
+  `--critique` handling (three runs on one config: two cut mid-sentence, one empty, all exit 0),
+  which keeps them beside the code that defends against them.
+- **As of**: 2026-08-12
+- **Recheck trigger**: a release note changes the output or exit status of `claude auto-mode
+  config`, `defaults` or `critique`.
+
 | Defect | What the reader does |
 | --- | --- |
 | `claude auto-mode config` emits **raw control characters inside JSON string values**. `jq` and strict `json.loads` both reject it, exit status still 0 | parses non-strictly. The offending byte is a raw line feed inside a string, so no line-oriented POSIX filter can distinguish it from the pretty-printer's structural newlines, which is why this lane needs a real parser and why pure POSIX was tested and rejected |

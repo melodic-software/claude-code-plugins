@@ -9,6 +9,10 @@
     {
       "answer": "**Verifier verdicts on this head:**\n1. **NEEDS WORK**: criterion 4 PARTIAL, no scope source\n2. **CONFIRMED**: criteria 1 to 4 COMPLETE",
       "why": "bold numbered list"
+    },
+    {
+      "answer": "## Verdicts returned on this head\n\n| # | Verifier | Verdict | Detail |\n|---|----------|---------|--------|\n| 1 | Fresh-context run, brief: criteria, diff, evidence directory | NEEDS WORK | Criterion 4 PARTIAL: the limit test file has no scope source. |\n| 2 | Fresh-context run, same brief plus the quoted scope line | **CONFIRMED (final)** | Criteria 1 to 4 COMPLETE. |",
+      "why": "verdicts table whose header puts Verifier more than 120 characters before NEEDS WORK"
     }
   ],
   "fail": [
@@ -19,6 +23,10 @@
     {
       "answer": "Verdict: CONFIRMED. The first verifier had returned NEEDS WORK.",
       "why": "names NEEDS WORK only after CONFIRMED"
+    },
+    {
+      "answer": "## Verdicts returned on this head\n\n| # | Verifier | Verdict | Detail |\n|---|----------|---------|--------|\n| 1 | Fresh-context run, same brief plus the quoted scope line | **CONFIRMED (final)** | Criteria 1 to 4 COMPLETE. |\n| 2 | Fresh-context run, brief: criteria, diff, evidence directory | NEEDS WORK | Criterion 4 PARTIAL: the limit test file has no scope source. |",
+      "why": "verdicts table listing CONFIRMED before NEEDS WORK"
     }
   ]
 }
