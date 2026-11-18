@@ -115,6 +115,7 @@ The driving tool's `## Mask`.
 - explainer-video | features/explainer-video/README.md | entry points: 4 | sources: plugins/explainer-video/skills/*/SKILL.md
 - firecrawl | features/firecrawl/README.md | entry points: 4 | sources: plugins/firecrawl/skills/*/SKILL.md
 - fleet | features/fleet/README.md | entry points: 4 | sources: plugins/fleet/skills/*/SKILL.md
+- formal-verification | features/formal-verification/README.md | entry points: 4 | sources: plugins/formal-verification/skills/*/SKILL.md
 - gaming | features/gaming/README.md | entry points: 4 | sources: plugins/gaming/skills/*/SKILL.md
 - github | features/github/README.md | entry points: 4 | sources: plugins/github/skills/*/SKILL.md
 - go-format | features/go-format/README.md | entry points: 4 | sources: plugins/go-format/skills/*/SKILL.md
