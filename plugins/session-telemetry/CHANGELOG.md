@@ -3,6 +3,12 @@
 All notable changes to the `session-telemetry` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.6] - 2026-11-18
+
+### Security
+
+- `hook-utils.sh`'s repository-root lookups and `harness-ops-paths.sh`'s two `git rev-parse` calls pass the overrides `hook::git_untrusted` uses, so those calls run with the repository's `core.fsmonitor`, git hooks and pager turned off, as the ignore check already does.
+
 ## [0.1.5] - 2026-11-18
 
 ### Security

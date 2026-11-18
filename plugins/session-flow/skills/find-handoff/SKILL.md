@@ -53,7 +53,9 @@ resolution input, `Handoff origin:`, described after them:
    second pair headed by its own `Type /goal` instruction line sits above or below the resume
    region. That goal region is not a signal, since the resume region is always present and keys
    the recovery; it is part of the unit recovered (below), and a scan that assumes exactly two
-   rails in a prompt misses or truncates it.
+   rails in a prompt misses or truncates it. On a markdown surface (the Desktop app, the web) the
+   same prompt prints with ``Run `/clear`, then paste this:`` over a fenced `text` block in place
+   of the rail pair (`save-point.md`, "Markdown surfaces"); that form is this signal too.
 3. **`Prior session: <UUID>`** and the `type: handoff` frontmatter (structure doc), corroborating
    signal that pins the session chain. Corroboration only: the file-mode shape emits the
    `Prior session:` line, but the producer's prompt-only checklist does not require it, so its

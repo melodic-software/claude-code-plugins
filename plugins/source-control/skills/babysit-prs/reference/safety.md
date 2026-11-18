@@ -812,9 +812,10 @@ Recheck when a `gh` release adds an async-merge command, when either REST page c
 field, or when stacked pull requests leave public preview or GitHub announces merge-queue support
 for stacks.
 
-**Claim, basis, as of, recheck:** the CLI merge's merge-queue behavior and the GraphQL queue
-fields the gate reads back are recorded with their basis, date and recheck trigger in the
-[GitHub provider file](../../../reference/providers/github/babysit-prs/safety.md#a-cli-merge-the-queue-took).
+- **Pointer**: when you need the CLI merge's merge-queue behavior or the GraphQL queue fields the
+  gate reads back, read the
+  [GitHub provider file](../../../reference/providers/github/babysit-prs/safety.md#a-cli-merge-the-queue-took),
+  which points to the upstream sections.
 
 ### Lane-pinned merge authorization: report, don't re-pin
 

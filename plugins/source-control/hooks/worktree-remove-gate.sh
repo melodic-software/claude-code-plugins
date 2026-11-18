@@ -9,18 +9,22 @@
 # `/source-control:worktree cleanup` runs at its own teardown
 # (scripts/reap-project-plugin-records.sh) runs here too.
 #
-# Contract (hooks page, stamp below):
-#   * stdin is one JSON object: the common fields (session_id, cwd, ...) plus
-#     `worktree_path`, the path the WorktreeCreate hook returned.
-#   * exit 0 counts as removed whatever is left on disk, and no git fallback
-#     runs, so this hook deletes the directory itself.
-#   * a non-zero exit fails the removal while the directory exists: the worktree
-#     stays on disk, and stderr reaches the debug log (and, for a
-#     background-session delete, the start of it in agent view). Every refusal
-#     leads with the remedy.
-#   * it does not fire when a subagent or workflow agent finishes; those
-#     worktrees stay for `/source-control:worktree cleanup` and the audit's
-#     Step 2b remedy.
+# Rules this hook keeps:
+#   * It acts only on the payload's `worktree_path`, so it never removes a path
+#     the payload did not name, and it refuses a lock whose reason does not
+#     name the payload's `session_id`, so it never takes a worktree another
+#     session still claims.
+#   * It exits 0 only once the directory is gone, so a success never leaves the
+#     worktree on disk; it deletes the directory itself rather than relying on
+#     anything to run after it.
+#   * Every refusal exits 1 with the directory still on disk and leads stderr
+#     with the remedy, so the first line says what to do.
+#   * A worktree this hook is not run for is left to
+#     `/source-control:worktree cleanup` and the audit's Step 2b remedy.
+#   Pointer: when checking which removals run this hook, what its payload
+#   carries, or how its exit code is read, fetch
+#   <https://code.claude.com/docs/en/hooks#worktreeremove> and
+#   <https://code.claude.com/docs/en/hooks#worktreeremove-input> live.
 #
 # Refused before anything is reaped (exit 1, directory left in place):
 #   * a path that is relative, a symlink, not a directory, a main working tree,
@@ -41,12 +45,6 @@
 # here would destroy commits nothing else holds. Carried gitignored files are not
 # compared (`/source-control:pull-request create` owns that sync), and the
 # Workspace environment `down` never runs here.
-#
-# ── Verification stamp (docs/contracts/upstream-drift) ────────────────────────
-# Claim: the contract bullets above.
-# Basis: <https://code.claude.com/docs/en/hooks#worktreeremove> and
-#   <https://code.claude.com/docs/en/hooks#worktreeremove-input>.
-# ───────────────────────────────────────────────────────────────────────────────
 
 set -uo pipefail
 
@@ -123,7 +121,10 @@ esac
   gate::refuse 'check the directory for work to keep, then remove it by hand' \
     "no .git file, so it is not a linked git worktree and its uncommitted work cannot be checked: $path"
 
-git_dirs="$(git -C "$path" rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null)" ||
+# shellcheck source=hook-utils.sh
+source "$HOOK_DIR/hook-utils.sh"
+
+git_dirs="$(hook::git_untrusted -C "$path" rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null)" ||
   gate::refuse 'if the main clone moved, run git worktree repair from it; otherwise check the directory by hand' \
     "git cannot resolve the worktree at $path"
 git_dir="${git_dirs%%$'\n'*}"
@@ -143,7 +144,7 @@ for marker in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG rebase-merge re
       "$marker exists in $git_dir: an operation is in progress in $path"
 done
 
-status="$(git -C "$path" status --porcelain --ignore-submodules=none 2>/dev/null)" ||
+status="$(hook::git_untrusted -C "$path" status --porcelain --ignore-submodules=none 2>/dev/null)" ||
   gate::refuse 'run git status in the worktree, fix what it reports, then remove it again' \
     "git status failed in $path, so its changes could not be checked"
 if [[ -n "$status" ]]; then
@@ -158,8 +159,8 @@ fi
   gate::refuse 'remove it with /source-control:worktree cleanup, which confirms before forcing' \
     "$path has submodules, which plain git worktree remove refuses"
 
-if ! git -C "$path" symbolic-ref -q HEAD >/dev/null 2>&1; then
-  unheld="$(git -C "$path" rev-list --max-count=1 HEAD --not --branches --tags --remotes 2>/dev/null)" ||
+if ! hook::git_untrusted -C "$path" symbolic-ref -q HEAD >/dev/null 2>&1; then
+  unheld="$(hook::git_untrusted -C "$path" rev-list --max-count=1 HEAD --not --branches --tags --remotes 2>/dev/null)" ||
     gate::refuse 'create a branch at HEAD (git switch -c <name>), then remove the worktree again' \
       "HEAD is detached in $path and its commits could not be checked"
   [[ -z "$unheld" ]] ||
@@ -198,16 +199,16 @@ fi
 cd -- "$common_dir" 2>/dev/null || cd / || true
 
 if ((locked)); then
-  unlock_err="$(git -C "$common_dir" worktree unlock "$path" 2>&1)" ||
+  unlock_err="$(hook::git_untrusted -C "$common_dir" worktree unlock "$path" 2>&1)" ||
     gate::refuse 'run git worktree unlock on the path, then remove the worktree again' \
       "git worktree unlock failed for $path (its records are already reaped): ${unlock_err//$'\n'/ }"
 fi
 
-remove_err="$(git -C "$common_dir" worktree remove "$path" 2>&1)"
+remove_err="$(hook::git_untrusted -C "$common_dir" worktree remove "$path" 2>&1)"
 remove_rc=$?
 if ((remove_rc != 0)); then
   if ((locked)) && [[ -e "$path" ]]; then
-    git -C "$common_dir" worktree lock --reason "$lock_reason" "$path" >/dev/null 2>&1
+    hook::git_untrusted -C "$common_dir" worktree lock --reason "$lock_reason" "$path" >/dev/null 2>&1
   fi
   gate::refuse 'fix what the git error below names, then remove the worktree again' \
     "git worktree remove exited $remove_rc for $path (its records are already reaped): ${remove_err//$'\n'/ }"

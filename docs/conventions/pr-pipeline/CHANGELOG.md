@@ -1,5 +1,24 @@
 # Changelog for the PR pipeline convention
 
+## [10.11.0] - 2026-11-18
+
+### Changed
+
+- The `work-unblock` sweep re-fires an issue run that stopped on a rate limit after its model ran as
+  a fresh start, from the reset the run names to 20 minutes after it, repeating hourly. A run counts
+  only when every failed job ended on a rate limit. With no reset named, it re-fires from an hour
+  after the run ended.
+- Each issue re-fires once per reset, at most the lane's slots per rolling hour, and takes the
+  `failed-again` backoff after `limit-stops-per-issue` of these re-fires.
+- A start-gate re-fire that names a reset uses the same 20-minute span. A re-fire whose span closes
+  before the sweep writes it waits for the next window.
+
+## [10.10.1] - 2026-11-18
+
+### Fixed
+
+- pr-merge's eval-hold release also runs on a `workflow_dispatch` sweep (no `pr` input), so a valid hold no longer waits for a scheduled run the brake or token pacing skipped. A PR-scoped dispatch stays excluded, and the release's other conditions and limits are unchanged.
+
 ## [10.10.0] - 2026-11-18
 
 ### Changed

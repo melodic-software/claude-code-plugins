@@ -94,7 +94,6 @@ plugins/performance/skills/go-faster/reference/catalog/git.md 11
 plugins/performance/skills/go-faster/reference/catalog/harness.md 6
 plugins/performance/skills/go-faster/reference/catalog/measurement.md 1
 plugins/planning/skills/design/reference/design-defaults.md 1
-plugins/planning/skills/design/reference/type-discipline/typescript.md 2
 plugins/planning/skills/draft-goal-condition/reference/native-goal.md 2
 plugins/planning/skills/draft-goal-condition/reference/workflow-row.md 1
 plugins/planning/skills/interview/context/surface.md 1
@@ -111,7 +110,6 @@ plugins/prototype/skills/explore-directions/reference/claude-design-tool.md 1
 plugins/repo-fleet-hygiene/skills/apply/SKILL.md 1
 plugins/repo-fleet-hygiene/skills/audit/SKILL.md 1
 plugins/repo-fleet-hygiene/skills/audit/reference/official-sources.md 4
-plugins/repo-hygiene/skills/clean/context/clean-batch.md 1
 plugins/review/skills/code-review/reference/bundled-code-review.md 2
 plugins/review/skills/quality-gate/context/pr.md 2
 plugins/session-flow/skills/orchestrate/context/sources.md 1

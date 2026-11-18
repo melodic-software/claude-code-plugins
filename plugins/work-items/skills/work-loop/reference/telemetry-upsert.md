@@ -4,8 +4,8 @@ The upsert this lane runs to maintain its one sentinel-identified status comment
 lane instance**. `SKILL.md`'s "Telemetry and durable loop state" owns where the comment lives and
 what goes in it; this file owns the contract of the script that maintains the singleton.
 
-The mechanism lives in this plugin rather than in `harness-ops` because an installed plugin cannot
-invoke a sibling plugin's scripts.
+The script ships in this plugin rather than in `harness-ops`, so the lane never depends on a
+sibling plugin being installed.
 
 **Resolve the lane instance first.** The marker names the *writer*, not the lane type, per the
 convention's lane-instance identity rule. Resolution order matches `SKILL.md`'s invocation surface

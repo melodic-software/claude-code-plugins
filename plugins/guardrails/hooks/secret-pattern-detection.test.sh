@@ -614,7 +614,7 @@ REAL_GIT="$(command -v git)"
 {
   printf '#!/usr/bin/env bash\n'
   # shellcheck disable=SC2016  # the shim's own expansions are literal source text
-  printf 'if [[ "${1:-}" == "-C" ]]; then printf "%%s\\n" "${2:-}" >>"%s"; fi\n' "$GIT_C_LOG"
+  printf 'a=("$@"); for ((i = 0; i < $# - 1; i++)); do [[ "${a[i]}" == "-C" ]] && printf "%%s\\n" "${a[i + 1]}" >>"%s"; done\n' "$GIT_C_LOG"
   printf 'exec "%s" "$@"\n' "$REAL_GIT"
 } >"$GIT_SHIM_DIR/git"
 chmod +x "$GIT_SHIM_DIR/git"

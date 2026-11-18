@@ -541,10 +541,10 @@ real-time deadline. A hold that lands after the merge is not a hold.
   loss ([skills and agents](../../review/skills-and-agents.md)) uses `reason=eval`, and the session
   that posts the paired result adds a line
   `<!-- eval-pair verdict=no-loss validity=VALID head=<40-hex head SHA> -->` when the run is VALID
-  and shows no loss. pr-merge's scheduled run then removes `do-not-merge`, after a comment naming
-  the record and the head, when that record is the newest since the label went on and names the
-  current head, both lines are by a listed human, on a line of their own outside a quote or fence,
-  and no other reason, body hold or member veto stands
+  and shows no loss. pr-merge's scheduled run or sweep dispatch (one with no `pr` input) then
+  removes `do-not-merge`, after a comment naming the record and the head, when that record is the
+  newest since the label went on and names the current head, both lines are by a listed human, on a
+  line of their own outside a quote or fence, and no other reason, body hold or member veto stands
   ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). Keep "do not
   merge" and `do-not-merge` out of the record comment: they read as a veto.
 

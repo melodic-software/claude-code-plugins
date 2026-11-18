@@ -460,7 +460,7 @@ repo_git_probe() {
     return 0
   fi
   out=$(
-    git -C "$dir" ${HOOK_PROBE_LOCATING[@]+"${HOOK_PROBE_LOCATING[@]}"} "$@" 2>/dev/null
+    hook::git_untrusted -C "$dir" ${HOOK_PROBE_LOCATING[@]+"${HOOK_PROBE_LOCATING[@]}"} "$@" 2>/dev/null
     printf 'x'
   )
   out="${out%x}"

@@ -1,56 +1,25 @@
 {
   "pass": [
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- cart page: passed\n- checkout page: passed\n- receipt page: passed\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\nBefore (base main)\n\n![Before: cart.png](/tmp/w/evidence/base/cart.png)\n\nAfter (head)\n\n![After: cart.png](/tmp/w/evidence/head/cart.png)\n\n</details>\n\n<details>\n<summary>The checkout page shows the total in currency</summary>\n\npassed\n\nBefore (base main)\n\n![Before: checkout.png](/tmp/w/evidence/base/checkout.png)\n\nAfter (head)\n\n![After: checkout.png](/tmp/w/evidence/head/checkout.png)\n\n</details>\n\n<details>\n<summary>The receipt page shows the total in currency</summary>\n\npassed\n\nBefore (base main)\n\n![Before: receipt.png](/tmp/w/evidence/base/receipt.png)\n\nAfter (head)\n\n![After: receipt.png](/tmp/w/evidence/head/receipt.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
-          }
-        }
-      ],
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- cart page: passed\n- checkout page: passed\n- receipt page: passed\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\nBefore (base main)\n\n![Before: cart.png](/tmp/w/evidence/base/cart.png)\n\nAfter (head)\n\n![After: cart.png](/tmp/w/evidence/head/cart.png)\n\n</details>\n\n<details>\n<summary>The checkout page shows the total in currency</summary>\n\npassed\n\nBefore (base main)\n\n![Before: checkout.png](/tmp/w/evidence/base/checkout.png)\n\nAfter (head)\n\n![After: checkout.png](/tmp/w/evidence/head/checkout.png)\n\n</details>\n\n<details>\n<summary>The receipt page shows the total in currency</summary>\n\npassed\n\nBefore (base main)\n\n![Before: receipt.png](/tmp/w/evidence/base/receipt.png)\n\nAfter (head)\n\n![After: receipt.png](/tmp/w/evidence/head/receipt.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n",
       "why": "each capture labeled with its run"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- cart page: passed\n- checkout page: passed\n- receipt page: passed\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n**Before (base main)**\n\n![Before: cart.png](/tmp/w/evidence/base/cart.png)\n\n**After (head)**\n\n![After: cart.png](/tmp/w/evidence/head/cart.png)\n\n</details>\n\n<details>\n<summary>The checkout page shows the total in currency</summary>\n\npassed\n\n**Before (base main)**\n\n![Before: checkout.png](/tmp/w/evidence/base/checkout.png)\n\n**After (head)**\n\n![After: checkout.png](/tmp/w/evidence/head/checkout.png)\n\n</details>\n\n<details>\n<summary>The receipt page shows the total in currency</summary>\n\npassed\n\n**Before (base main)**\n\n![Before: receipt.png](/tmp/w/evidence/base/receipt.png)\n\n**After (head)**\n\n![After: receipt.png](/tmp/w/evidence/head/receipt.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
-          }
-        }
-      ],
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- cart page: passed\n- checkout page: passed\n- receipt page: passed\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n**Before (base main)**\n\n![Before: cart.png](/tmp/w/evidence/base/cart.png)\n\n**After (head)**\n\n![After: cart.png](/tmp/w/evidence/head/cart.png)\n\n</details>\n\n<details>\n<summary>The checkout page shows the total in currency</summary>\n\npassed\n\n**Before (base main)**\n\n![Before: checkout.png](/tmp/w/evidence/base/checkout.png)\n\n**After (head)**\n\n![After: checkout.png](/tmp/w/evidence/head/checkout.png)\n\n</details>\n\n<details>\n<summary>The receipt page shows the total in currency</summary>\n\npassed\n\n**Before (base main)**\n\n![Before: receipt.png](/tmp/w/evidence/base/receipt.png)\n\n**After (head)**\n\n![After: receipt.png](/tmp/w/evidence/head/receipt.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n",
       "why": "bold run labels"
     }
   ],
   "fail": [
     {
-      "answer": []
+      "answer": "",
+      "why": "nothing was posted"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- cart page: passed\n- checkout page: passed\n- receipt page: passed\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n![cart.png](/tmp/w/evidence/base/cart.png)\n\n![cart.png](/tmp/w/evidence/head/cart.png)\n\n</details>\n\n<details>\n<summary>The checkout page shows the total in currency</summary>\n\npassed\n\n![checkout.png](/tmp/w/evidence/base/checkout.png)\n\n![checkout.png](/tmp/w/evidence/head/checkout.png)\n\n</details>\n\n<details>\n<summary>The receipt page shows the total in currency</summary>\n\npassed\n\n![receipt.png](/tmp/w/evidence/base/receipt.png)\n\n![receipt.png](/tmp/w/evidence/head/receipt.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
-          }
-        }
-      ],
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- cart page: passed\n- checkout page: passed\n- receipt page: passed\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n![cart.png](/tmp/w/evidence/base/cart.png)\n\n![cart.png](/tmp/w/evidence/head/cart.png)\n\n</details>\n\n<details>\n<summary>The checkout page shows the total in currency</summary>\n\npassed\n\n![checkout.png](/tmp/w/evidence/base/checkout.png)\n\n![checkout.png](/tmp/w/evidence/head/checkout.png)\n\n</details>\n\n<details>\n<summary>The receipt page shows the total in currency</summary>\n\npassed\n\n![receipt.png](/tmp/w/evidence/base/receipt.png)\n\n![receipt.png](/tmp/w/evidence/head/receipt.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n",
       "why": "same file names, no run labels"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- cart page: passed\n- checkout page: passed\n- receipt page: passed\n\n| | cart page |\n|---|---|\n| Before | ![a](/tmp/a.png) |\n| After | ![b](/tmp/b.png) |\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
-          }
-        }
-      ],
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- cart page: passed\n- checkout page: passed\n- receipt page: passed\n\n| | cart page |\n|---|---|\n| Before | ![a](/tmp/a.png) |\n| After | ![b](/tmp/b.png) |\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n",
       "why": "a table, not collapsed sections"
     }
   ]

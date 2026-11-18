@@ -32,7 +32,8 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 | OS | Tool | Requirement |
 |---|---|---|
 | macOS | [`osascript … display notification`](https://code-maven.com/display-notification-from-the-mac-command-line) | Built-in. No dependency. First run prompts to allow notifications for the terminal app. |
-| Linux | [`notify-send`](https://man.archlinux.org/man/notify-send.1.en#DESCRIPTION) | Needs `notify-send` on `PATH`. Without it, the `os_toast` channel is a silent no-op. |
+| Linux | [`notify-send`](https://man.archlinux.org/man/notify-send.1.en#DESCRIPTION) | Needs `notify-send` on `PATH`. Without it, the `os_toast` channel is a silent no-op, except under WSL. |
+| WSL without `notify-send` | `powershell.exe` raising a [Windows toast](https://learn.microsoft.com/windows/apps/develop/notifications/app-notifications/toast-notifications-overview) | Needs `WSL_DISTRO_NAME` set and `powershell.exe` reachable through WSL interop. The toast shows under Windows PowerShell's name. This is the only toast the Desktop app on WSL gets for a permission or idle prompt. |
 | Windows / other | none | No OS-toast branch: a fire-and-forget hook process leaves no live activator host for a WinRT toast to render into, so it would never reliably surface. The `terminal_notify` channel (OSC 9) carries Windows attention; which Windows terminals handle OSC 9 is read at the Emit terminal notifications pointer record above. |
 
 - **Pointer**: when checking what `notify-send` is and the project that ships it, fetch

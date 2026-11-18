@@ -3,6 +3,12 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1] - 2026-11-18
+
+### Fixed
+
+- A board write that fails no longer leaves a temp file beside the board, a temp file left by a killed run no longer blocks a later write, and rewriting a board keeps its file mode.
+
 ## [0.9.0] - 2026-11-18
 
 ### Added

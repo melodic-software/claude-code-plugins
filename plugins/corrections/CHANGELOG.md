@@ -3,6 +3,12 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.8.2] - 2026-11-18
+
+### Changed
+
+- The `codify` skill's line on what `count-checks` reads is reworded; the behavior is unchanged.
+
 ## [1.8.1] - 2026-11-18
 
 ### Changed

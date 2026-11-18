@@ -12,6 +12,7 @@
 - [Writing the handoff file (full path)](#writing-the-handoff-file-full-path)
 - [Emit the position panel](#emit-the-position-panel)
 - [Emit the copy/paste resume prompt](#emit-the-copypaste-resume-prompt)
+- [Markdown surfaces](#markdown-surfaces)
 - [Detection contract, consumed by `/session-flow:find-handoff`](#detection-contract-consumed-by-session-flowfind-handoff)
 
 Shared by `/session-flow:handoff` and `/session-flow:continue-in-background`. This document owns
@@ -405,7 +406,9 @@ Where the panel sits in the response belongs to the citing skill, which owns its
 
 - Each region sits between two full-width `─` (U+2500) rails: top rail, text, bottom rail. Use
   literal `─`, not markdown `---` (turns the adjacent line into a heading) and not a code fence
-  (the user copies the text between the rails, not fence markers).
+  (the user copies the text between the rails, not fence markers). This is the terminal's form and
+  the form the file stores; a surface that renders markdown prints it differently ("Markdown
+  surfaces").
 - The only thing between a region's rails is its text, with no labels and no padding lines.
   Commentary sits above the top rail or below the bottom rail, never between.
 - One plain-language instruction sits directly above each region's top rail. The resume region's is
@@ -768,6 +771,36 @@ stated ("no session UUID available; chain gap accepted"), never a hand-written h
 
 After the rails prompt is emitted, control returns to the citing skill's delivery step.
 
+## Markdown surfaces
+
+The Desktop app and Claude Code on the web render a reply as markdown in a proportional font.
+There the rails are plain lines with no copy control, paths inside them turn into links, a `- [x]`
+checklist draws struck through, and the position panel's leading spaces collapse. The terminal
+draws none of that, so the rails stay the terminal's form.
+
+A citing skill reads the surface from the `surface` probe ([`gather.md`](gather.md)): a
+`CLAUDE_CODE_ENTRYPOINT` of `claude-desktop`, or a `CLAUDE_CODE_REMOTE` of `true`, is a markdown
+surface; anything else, an unset value included, is the terminal. On a markdown surface:
+
+- **The prompt is the `emit --format markdown` output**, pasted verbatim. Each rail pair prints as
+  a fenced `text` block (a fence longer than any backtick run inside it), which the app draws with
+  a copy button and without links. The resume copy line reads ``Run `/clear`, then paste this:``,
+  and the goal line reads ``then paste this.`` before its confirm sentence. Every line between the
+  rails is unchanged, and everything outside them, the below-rail notes included, prints as it is.
+  `amend --format markdown` prints its prompt the same way.
+- **The file is untouched.** It still stores the rails, so `emit` with no flag, recovery from the
+  file, and `continue-in-background`'s launch read the same bytes as before.
+- **The position panel is a numbered list**, one unit per item: ✅ for `[x]`, ▶ and bold with
+  `← you are here` for the current unit, ⬜ for pending, ⛔ for blocked. The completeness line and
+  the three blocks follow, and every other panel rule holds.
+
+- **The handoff's enforcement checklist is one line**, `Checklist: <ticked>/<total> pass`, then
+  each box not ticked and each `validate` WARN or FAIL line as one bullet, never a `- [x]` list,
+  which the app draws struck through. On the prompt-only path each region prints as a fenced
+  `text` block under the same copy lines.
+
+A citing skill's own audit lines follow that skill's rule for this surface.
+
 ## Detection contract, consumed by `/session-flow:find-handoff`
 
 The output shape above is a **stable detection contract**, not merely a display convention:
@@ -777,7 +810,8 @@ order, are (1) the `Read @…-handoff-*.md` directive, the exact path to recover
 handoff, which appears in both regions when a goal region exists and names one path; (2) the
 `─` (U+2500) rail pair headed by the `` `/clear`, then copy everything between the dashed lines ``
 instruction line (the resume region), the primary key for a prompt-only handoff, which writes no
-file;
+file, or, as a markdown surface prints it ("Markdown surfaces"), the fenced `text` block under
+the ``Run `/clear`, then paste this:`` line, whose content is the region's text;
 and (3) the `Prior session: <UUID>` line, which, together with the `type: handoff` frontmatter
 ([`structure.md`](structure.md)), pins the session chain; it is emitted by the file-mode shape
 but is not required of prompt-only output, so consumers treat it as corroboration, never a
