@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: interview-brief-keeps-adr-verdicts
+description: "The user confirms a closing restatement whose ADR verdicts say no decision gets an ADR, and the interview writes the Brief. Why hard: the verdicts look like chat bookkeeping and the Brief template's familiar sections hold everything else, so the easy path writes the Brief without them and the one record of why the storage choice got no ADR is lost."
+tags: [interview, brief, adr, closing-summary, scaffold]
+expected_outcome: ".work/webhook-retries/PLAN.md has a ### ADR verdicts section under ## Brief with one line per decision Q1 to Q4, each carrying its verdict, including Q3 (failed-delivery storage in a Postgres table, Redis stream weighed) with no ADR."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/planning:interview Add retries to the partner webhook sender. Use the topic slug `webhook-retries`.\n\nWhere we are: an engineering session, domain_docs is auto, and the architecture plugin is not installed. Every question in .work/webhook-retries/interview-checklist.md is answered and the assumption sweep added nothing. Goal in my words: partners stop losing events when their endpoint blips. Acceptance: an event is retried up to five attempts with the agreed backoff, an exhausted event lands in failed_deliveries and posts one alert. Finish line: merged, checked by me via the PR. Quality bar: internal.\n\nYour closing restatement listed these ADR verdicts: Q1 attempt count: no ADR, no real alternative weighed. Q2 backoff schedule: no ADR, no real alternative weighed. Q3 failed-delivery storage: ADR candidate, not checked (a Postgres table was weighed against a Redis stream). Q4 alert channel: no ADR, a process decision.\n\nMy reply: Confirmed, all of it. Write the Brief now."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?interview"'
+    arm: with-only
+  - name: brief-has-adr-verdicts
+    type: regex
+    pattern: '^#{2,4}[ \t]*ADR verdicts[ \t]*$[^#]*\bQ1\b[^\n]*no ADR[^#]*\bQ2\b[^\n]*no ADR[^#]*\bQ3\b[^\n]*(?:ADR candidate|no ADR)[^#]*\bQ4\b[^\n]*no ADR'
+    flags: mi
+    arm: both
+    target: { source: file, path: .work/webhook-retries/PLAN.md }

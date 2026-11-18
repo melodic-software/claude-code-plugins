@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Summary\nRetries for the partner webhook sender.\n\n<details><summary>Plan</summary>\n\n### ADR verdicts\n- Q1 attempt count: no ADR; no real alternative weighed\n- Q2 backoff schedule: no ADR; no real alternative weighed\n- Q3 failed-delivery storage: no ADR; a Postgres table was weighed against a Redis stream, and the record-decision skill judged it easy to reverse\n- Q4 alert channel: no ADR; a process decision\n\n</details>\n",
+      "why": "all four verdict lines in the posted copy"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "<details><summary>Plan</summary>\n\n### Acceptance criteria\n- AC1: retried up to five attempts\n\n</details>\n\nNo ADRs were written for this change.\n",
+      "why": "the verdict lines were dropped"
+    },
+    {
+      "answer": "### ADR verdicts\n- Q1 attempt count: no ADR\n- Q2 backoff schedule: no ADR\n- Q4 alert channel: no ADR\n",
+      "why": "Q3 missing"
+    }
+  ]
+}

@@ -10,7 +10,8 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  Constraints, Acceptance criteria and Out-of-scope come from the newest confirmed
                  restatement rev (without one, each Problem field reads `unknown` and each Work
                  size field `not assessed`; with no confirmed Constraints it lists the page's
-                 recorded constraints and the ledger's `## Constraint ledger` rows), as do a
+                 recorded constraints and the ledger's `## Constraint ledger` rows), as do an
+                 ADR verdicts section from its adrVerdicts bullets, a
                  Decisions section from its decisions recap (a line taken while unticked
                  commitments held its row open reads `answered` once they are ticked), the
                  Deferred questions entries
@@ -1435,6 +1436,9 @@ def export_brief(d, text=None):
             for r in archived
         ),
     ] or ["- none"]
+    verdicts = bullets(sections.get("adrVerdicts"))
+    if verdicts:
+        out += ["", "### ADR verdicts", "", *verdicts]
     out += ["", "### Deferred questions", ""]
     retired = [r for r in rows if r["status"] in ("deferred", "blocked")]
     for r in retired:
