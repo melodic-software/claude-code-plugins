@@ -172,12 +172,13 @@ never default-then-correct.
 Fix by where the state lives:
 
 - **Theme**: a blocking inline script in `<head>` that sets the class or `data-theme` before paint.
-  `next-themes` does this; the finding is a hand-rolled toggle.
-  That is, a toggle with no such script, which sets the theme only after first paint. A script you
-  write is a static string with no value interpolated into it: it accepts only the theme names the
+  The finding is a hand-rolled toggle: one with no such script, which sets the theme only after
+  first paint. A theme library is not the finding when its own docs say it handles this (the
+  `next-themes` pointer below). A script you write is a static string with no value interpolated into it: it accepts only the theme names the
   app defines (such as `light`, `dark`, `system`), falls back to the default for anything else, and
   applies the result with `classList` or `setAttribute`, never by writing markup. Under a
-  Content-Security-Policy, allow it with a nonce or a hash, never `'unsafe-inline'`.
+  Content-Security-Policy, allow that one script by a nonce or a hash, never `'unsafe-inline'`, so
+  the policy still blocks every inline script the app did not write.
 - **Server-rendered layout state** (sidebar open, density): store it in a cookie and read it on the
   server, so the HTML arrives correct. Parse the cookie to one of the values the app defines, fall
   back to the default otherwise, and never write its raw value into the markup.
@@ -188,11 +189,13 @@ Hunt for: `useEffect` that reads `localStorage` and then calls a state setter fo
 layout, tab, or density; `dark:` classes applied by a client-only hook; `useState(false)` followed by
 an effect that corrects it.
 
-- **Pointer**: next-themes, README, "The Flash",
-  <https://github.com/pacocoursey/next-themes#the-flash>
+- **Pointer**: when the project sets its theme with `next-themes`, fetch next-themes, README, "The
+  Flash", <https://github.com/pacocoursey/next-themes#the-flash> live.
 
-- **Pointer**: MDN, `Content-Security-Policy: script-src`, "Unsafe inline script",
+- **Pointer**: when allowing the theme script under a Content-Security-Policy, fetch MDN,
+  `Content-Security-Policy: script-src`, "Unsafe inline script",
   <https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/script-src#unsafe_inline_script>
+  live.
 
 **Audit: Important.** Persisted theme, sidebar, layout, tab or density state that renders a default
 on first paint and corrects itself after.

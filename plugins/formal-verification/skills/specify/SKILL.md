@@ -23,7 +23,9 @@ finds the part of the repo where that matters most, verifies one property of it,
 follows [the formal-area contract](../../reference/formal-skill.md)
 (`${CLAUDE_PLUGIN_ROOT}/reference/formal-skill.md`); read it before any form below.
 
-The reference files write this plugin's folder as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`.
+The reference files write this plugin's folder as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`;
+when the plugin is not installed and runs from a checkout of its source, it is the folder that holds
+its `.claude-plugin/plugin.json`.
 
 This skill names no verification tool. The question and the repository choose it, by
 [`reference/choose-a-tool.md`](reference/choose-a-tool.md), and the choice is recorded only in the

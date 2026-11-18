@@ -75,7 +75,9 @@ model, and the races live between comment, assignee and clock reads that no unit
 - The model is finite, so no bound limits the first pass; the run commands pass
   `--rerun-states` to cover it after a break.
 - The seeded break in `sync.yaml` was run against this model: with the winner taken as the latest
-  live lease, `OneHolder` breaks in `LocalLane.cfg` after 1,415 distinct states (`caught: true`).
+  live lease, `OneHolder` breaks after 1,415 distinct states in `LocalLane.cfg` and 1,888 in
+  `LocalTriage.cfg` (`caught: true`). `report.md` does not give that count: it is the last
+  "distinct states found" line of the run's `tlc.out`.
 
 ## Not covered
 
@@ -116,7 +118,9 @@ against a triage claim; both with renew, every failure off and `BoundedStall`. `
 must cover the whole space (1,686,588 and 1,356,633 states): after a rule breaks, the command rechecks
 the others under that bound, and a smaller bound leaves them not checked.
 
-Pass a new `--out` folder each run.
+Pass a new `--out` folder each run. Where `/formal-verification:chart` cannot be invoked (the
+plugin not installed), follow `plugins/formal-verification/skills/chart/SKILL.md` by hand with
+`plugins/formal-verification` as `${CLAUDE_PLUGIN_ROOT}` and the jar passed with `--jar`.
 
 ## Reading a result
 
@@ -161,4 +165,9 @@ two, a new branch, a retry, or a moved check means the model changes; a promise 
 means a rule changes, and only with the owner's yes. Never weaken a rule to make it hold. Move
 `commit` forward only after confirming the model describes the code at the new commit, re-cite
 the changed line numbers in the model's comments, rerun every shipped cfg and the seeded break,
-and update the known results above.
+and update the known results above. When a ticket branch edits a covered file, `commit` moves in a
+follow-up change after it lands, and `check`'s stale-coverage warning is expected until then.
+
+To carry the seeded break into the model, change `Min` to `Max` in `Judge` and in `ArbRunSup`, the
+model's two encodings of `wit_lease_winner`. `view.mjs` still labels `ArbJudge` with the unbroken
+rule, so read a break path by its actions, not that label.

@@ -80,7 +80,7 @@ One entry per check, under a top-level `checks:` list. Every key is required.
 | `covers` | The repository paths whose change can make the check stale: files, or globs where `**` crosses `/`. |
 | `commit` | The sync commit: the last commit at which someone confirmed the verification describes the covered code. It is a commit already on the repository's default branch, resolved from the repository (the merge base of the working branch and the default branch, or a later default-branch commit) at which the covered files are identical to the ones confirmed, never a commit only a feature branch holds: a squash or rebase merge discards that commit. |
 | `command` | The command that runs the check, as `## Run` gives it. |
-| `seeded_break` | The break that showed the check can fail: `change` (what was broken in the covered code), `caught` (`true` once the check caught it) and `commit` (the default-branch commit the break was made against, chosen as for the sync commit). |
+| `seeded_break` | The break that showed the check can fail: `change` (what was broken in the covered code and, where the check reads a model, the model edit that carried it), `caught` (`true` once the check caught it) and `commit` (the default-branch commit the break was made against, chosen as for the sync commit). |
 
 Before the check has run against a seeded break, `seeded_break.caught` is `false`, and the skill
 says so under `## Bounds and assumptions`. An optional top-level `outside_model:` list names model

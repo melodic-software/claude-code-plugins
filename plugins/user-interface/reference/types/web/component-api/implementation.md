@@ -107,8 +107,8 @@ table in `../../../component-libraries.md`.
 
 ## Forwarding refs
 
-Always forward refs on components that wrap DOM elements. Where the project's React version takes
-`ref` as a prop:
+Always forward refs on components that wrap DOM elements, in the form the project's React version
+takes. The prop form:
 
 ```tsx
 function Button({ ref, children, ...props }: ButtonProps) {
@@ -120,7 +120,7 @@ function Button({ ref, children, ...props }: ButtonProps) {
 }
 ```
 
-Where it needs `forwardRef`:
+The `forwardRef` form:
 
 ```tsx
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -134,11 +134,11 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 );
 ```
 
-Read which form the project's React version takes from the pointer below, and write new components
-in that form.
+Write new components in the form the pointer below gives for the project's React version.
 
-- **Pointer**: <https://react.dev/reference/react/forwardRef#reference> (the notice that opens the
-  page, above that section); correlate with
+- **Pointer**: when choosing the form for a new component, fetch React, `forwardRef`,
+  <https://react.dev/reference/react/forwardRef#reference> live, reading the notice that opens the
+  page, above that section; correlate with
   <https://react.dev/learn/manipulating-the-dom-with-refs#accessing-another-components-dom-nodes>
 
 ## Spreading remaining props

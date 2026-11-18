@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Count: 1 occurrence (66d1282) against a threshold of 2; you invoked it, so I went on. Rung: lint-rule. Proposal: .work/codify/main/20261117T181500Z-proposal.md. Not counted: a team meeting's issue list, stand-up notes, ticket comments. Paste or point me at any and I will recount.",
+      "why": "finished count and proposal, offer made once in the report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Before I start counting: I can't see a team meeting's issue list, stand-up notes or ticket comments. Do you have any? If you have nothing to add, say \"none\" and I'll count from git history.",
+      "why": "stops on a question before counting"
+    },
+    {
+      "answer": "Count: 1 occurrence against a threshold of 2. Proposal written to .work/codify/main/20261117T181500Z-proposal.md.",
+      "why": "never makes the offer"
+    },
+    {
+      "answer": "I can't read a team meeting's issue list, stand-up notes or ticket comments; want to add any? ... Count: 1 against 2. Proposal written. ... Again: any meeting issue lists, stand-up notes or ticket comments to recount with?",
+      "why": "makes the offer twice"
+    }
+  ]
+}

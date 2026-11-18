@@ -42,8 +42,8 @@
       "default": false
     },
     "question_pacing": {
-      "description": "How /planning:interview asks a frontier. round: every ready question in one message. single: the same questions, one per message, largest blast radius first. A request in the session overrides it for that session.",
-      "enum": ["round", "single"],
+      "description": "How /planning:interview asks a frontier. round: every ready question in one message. single: the same questions, one per message, largest blast radius first. auto: single for a broad, open-ended topic, else round, chosen before the first round. A request in the session overrides it for that session.",
+      "enum": ["round", "single", "auto"],
       "default": "round"
     },
     "domain_docs": {

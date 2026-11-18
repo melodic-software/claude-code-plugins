@@ -140,7 +140,7 @@ downloaded source code ZIPs. If neither exists, skip.
 
 1. Extract "Final" ZIP (latest complete state) to `code/repo/` for Phase 3 access
 2. If per-lesson Initial/Final ZIPs exist, extract each Final to `code/repo/{module-slug}/`
-3. Analyze project structure: detect .sln, .csproj, frameworks, NuGet packages
+3. Analyze project structure: detect the project and build files, frameworks and package dependencies
 4. Write `code/analysis.json` with structure findings
 5. Build section-to-module mapping from ZIP naming conventions (e.g., "02.4 - Lesson Title")
 
@@ -340,15 +340,11 @@ lessons. Do not parallelize DOM interactions, browser contexts, lesson navigatio
    action item assumes. Codebase may have changed since course was digested
 2. **Invoke `/discovery:research` via the Skill tool** (when it is among the available skills; otherwise research primary sources directly and say once that `discovery` would add tiered multi-source research) on specific library/framework/pattern to verify recommendation is
    current. Course content has a recorded-at date but no guarantee of currency:
-   - NuGet/npm package versions may have changed (pre-release → stable, or breaking changes)
+   - Package versions may have changed (pre-release → stable, or breaking changes)
    - Framework APIs may have evolved
    - Best practices may have shifted
 3. **Flag stale recommendations** in `action-items.md` with `⚠ STALE` marker if `/discovery:research`
    reveals recommendation is outdated
-
-**Example:** MCP course references `ModelContextProtocol` NuGet packages that were pre-release
-at recording time. Before using recommended patterns, verify current stable version via
-`/discovery:research` or `mcp__nuget__get_latest_package_version`.
 
 **Rule:** Course content is a starting point for research, not a final answer. Every action item
 gets `/discovery:explore` + `/discovery:research` verification at time of integration, not at digest time.
