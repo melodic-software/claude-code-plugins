@@ -398,9 +398,9 @@ else
   PS_PROG="$(tail -n1 "$PS_LOG" 2>/dev/null | base64 -d 2>/dev/null | iconv -f UTF-16LE -t UTF-8 2>/dev/null)"
   if grep -q 'ToastText02' <<<"$PS_PROG"; then ok "wsl/powershell: program raises a toast"; else fail "wsl/powershell: program shape unexpected: $PS_PROG"; fi
   if grep -q 'danger' <<<"$PS_PROG"; then fail "wsl/powershell: message text in program source: $PS_PROG"; else ok "wsl/powershell: message text absent from program source"; fi
-  mapfile -t PS_LITS < <(grep -o "(& \$d '[A-Za-z0-9+/=]*')" <<<"$PS_PROG" | sed "s/^(& \$d '//; s/')\$//")
-  PS_TITLE="$(base64 -d <<<"${PS_LITS[0]:-}" 2>/dev/null)"
-  PS_BODY="$(base64 -d <<<"${PS_LITS[1]:-}" 2>/dev/null)"
+  mapfile -t PS_LITERALS < <(grep -o "(& \$d '[A-Za-z0-9+/=]*')" <<<"$PS_PROG" | sed "s/^(& \$d '//; s/')\$//")
+  PS_TITLE="$(base64 -d <<<"${PS_LITERALS[0]:-}" 2>/dev/null)"
+  PS_BODY="$(base64 -d <<<"${PS_LITERALS[1]:-}" 2>/dev/null)"
   if [[ "$PS_TITLE" == "Permission Required" ]]; then ok "wsl/powershell: title decodes from its literal"; else fail "wsl/powershell: title decoded as [$PS_TITLE]"; fi
   if [[ "$PS_BODY" == -danger* && "$(ctl_count "$PS_BODY" '\000-\037')" == "0" ]]; then ok "wsl/powershell: body decodes intact with no control bytes"; else fail "wsl/powershell: body decoded as [$PS_BODY]"; fi
 fi
