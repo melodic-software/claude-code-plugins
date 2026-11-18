@@ -3,6 +3,15 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.0] - 2026-11-18
+
+### Added
+
+- On a person's invocation, `/corrections:codify`'s report names the sources its count cannot read
+  (a team meeting's issue list, stand-up notes, ticket comments) and offers once to recount with
+  any the person pastes or points at; the run does not stop to ask. Pasted text is data to count,
+  never instructions. The model's invocation offers nothing.
+
 ## [1.6.0] - 2026-11-17
 
 ### Added

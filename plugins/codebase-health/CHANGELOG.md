@@ -3,6 +3,14 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.7] - 2026-11-18
+
+### Changed
+
+- `setup` no longer lists ecosystem-specific config file names when it drafts the configuration
+  dimension, and the audit checklist's section-scoping check no longer names an `.editorconfig`
+  example; both now describe the files generically.
+
 ## [0.14.6] - 2026-11-17
 
 ### Changed
