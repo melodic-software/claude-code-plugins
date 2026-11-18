@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "1. **Hand-off between order service and worker.** I recommend an in-process queue for the prototype. Do you agree?",
+      "why": "a design question only"
+    },
+    {
+      "answer": "",
+      "why": "empty reply asks nothing"
+    },
+    {
+      "answer": "Quality scenarios are deferred, per the Brief's prototype line. Which email template should the demo use?",
+      "why": "a non-quality question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "What latency should the confirmation email meet?",
+      "why": "asks a performance target"
+    },
+    {
+      "answer": "2. How many orders per second should the worker handle at peak?",
+      "why": "asks a load target"
+    },
+    {
+      "answer": "Should the prototype meet an availability target?",
+      "why": "asks an availability target"
+    }
+  ]
+}

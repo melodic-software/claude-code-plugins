@@ -1,0 +1,5 @@
+pre-commit:
+  jobs:
+    - name: go-format-remote-format
+      script: go-format-format.sh
+      runner: sh

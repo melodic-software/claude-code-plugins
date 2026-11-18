@@ -17,8 +17,10 @@
 //          --json it prints the preview lines and what a caller branches on as one object. A plugin
 //          it would switch on whose required prerequisites are missing stops the write unless a
 //          person types yes to the stated consequence; --yes alone never covers that. --for folder
-//          writes .claude/settings.local.json, initial writes user settings.json, session writes a
-//          file for `claude --settings` and changes no settings file. --defer-off writes the
+//          writes the .claude/settings.local.json Claude Code reads, at the repository root in git
+//          (lib/folder-file.mjs; https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository); initial writes user settings.json; session writes a file for
+//          `claude --settings` and changes no settings file. The record of a folder in git goes
+//          under its .git/plugin-profiles, of user settings under ~/.claude/plugin-profiles-state. --defer-off writes the
 //          entries that switch plugins on and records the ones that switch plugins off as
 //          pending, for an in-session switch; the next apply writes them. A target the surface
 //          does not support (lib/surface.mjs) is refused, and so is --for folder when the
@@ -78,17 +80,18 @@ import { spawn } from "node:child_process";
 import { existsSync, readdirSync, realpathSync, readFileSync, rmdirSync, rmSync, statSync } from "node:fs";
 import { constants as osConstants, homedir } from "node:os";
 import { createHash } from "node:crypto";
-import { basename, dirname, join, resolve, win32 as win32Path } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { CheckError, checkProfiles, readMarketplace } from "../lib/check.mjs";
+import { claudeCommand } from "../lib/claude-command.mjs";
 import { InventoryError, installPlugin, inventory, knownMarketplaces, marketplaceLocation, recordsFromCli, recordsFromDisk } from "../lib/inventory.mjs";
 import { PlanError, TARGET_LEVEL, effective, excludedAlwaysOn, plan } from "../lib/plan.mjs";
 import { OptionsError, managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { missingRequired } from "../lib/prerequisite-gate.mjs";
 import { replaceFile } from "../lib/atomic-file.mjs";
-import { ALWAYS_ON, PLUGIN_ID, ProfileError, everyProfile, ignoredLine, parseProfile, profileLevels, profileNamed, profileText, readCatalog, readProfileFiles, resolveCatalog } from "../lib/profile-files.mjs";
+import { ALWAYS_ON, PLUGIN_ID, ProfileError, everyProfile, ignoredLine, parseProfile, profileLevels, profileNamed, profileText, readCatalog, readProfileFiles, resolveCatalog, sourcesOf } from "../lib/profile-files.mjs";
 import { folderLevel } from "../lib/folder-file.mjs";
 import { ABSENT, baseline, deleteRecord, findRecord, holdsEveryEntry, nextRecord, realPath, restoreEdits, saveRecord } from "../lib/record.mjs";
 import {
@@ -336,6 +339,23 @@ function prepare(opts, where, catalog, records) {
 const changeCount = (p) => Object.keys(p.edits.enabledPlugins).length + Object.keys(p.edits.skillOverrides).length;
 const sameChange = (a, b) => JSON.stringify([a.final, a.pending, a.edits]) === JSON.stringify([b.final, b.pending, b.edits]);
 const list = (ids) => (ids.length ? ids.join(", ") : "none");
+const KEPT_BECAUSE = {
+  profile: "this profile switches it on",
+  repository: "the repository's settings enable it",
+  managed: "managed settings pin it",
+  folder: "folder settings pin it",
+};
+
+/** What a profile that leaves out always-on says about the always-on plugins: which go off, and which stay on and why. */
+function alwaysOnLines(r) {
+  const guardrailsOff = r.alwaysOnOff.some((id) => id.startsWith("guardrails@"));
+  return [
+    ...(r.alwaysOnOff.length
+      ? [`Switches off ${guardrailsOff ? "guardrails and the other always-on plugins" : "always-on plugins"} that other profiles keep on (${r.alwaysOnOff.length}): ${list(r.alwaysOnOff)}`]
+      : []),
+    ...r.alwaysOnKept.map((k) => `Always-on plugin left on, because ${KEPT_BECAUSE[k.by]}: ${k.id}`),
+  ];
+}
 
 /**
  * The lines that say what an apply changes; the terminal prompt and the mod's preview both show them.
@@ -350,6 +370,7 @@ function previewLines(p, gate, { nameUntouched = true } = {}) {
     `Switches on (${r.enabled.length}): ${list(on)}`,
     `Switches off (${r.disabled.length}): ${list(r.disabled)}`,
   ];
+  lines.push(...alwaysOnLines(r));
   const left = Object.keys(p.pending);
   if (left.length) {
     const named = left.filter((id) => r.disabled.includes(id));
@@ -386,6 +407,8 @@ const previewJson = (p, gate, upToDate, others) => ({
   pending: Object.keys(p.pending),
   mcpOrLspOn: p.plan.mcpOrLspOn,
   hookPluginsOff: p.plan.hookPluginsOff,
+  alwaysOnOff: p.plan.alwaysOnOff,
+  alwaysOnKept: p.plan.alwaysOnKept,
   prerequisitesMissing: gate.map((g) => g.plugin),
   ignored: p.plan.ignored,
   repositoryOn: p.plan.repositoryOn,
@@ -537,7 +560,6 @@ function sweepSessions(where, keep, dir = sessionsDir(where)) {
 
 const quoted = (word) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `"${word.replace(/(["\\$`])/g, "\\$1")}"`);
 
-/** Writes the session file for name (none when null) and returns what claude is started with; launch and start share it. */
 /** The plan for a one-session profile and its missing required prerequisites; with nobody there to decide, a missing one refuses. */
 function profileGate(name, opts, where, env, verb) {
   const p = prepare({ ...opts, name, target: "session" }, where, catalogFor(where, "session"), () => recordsFromCli());
@@ -545,11 +567,15 @@ function profileGate(name, opts, where, env, verb) {
     p.plan.enabled.map((id) => p.inv.get(id)),
     { env, platform: process.platform, cwd: where.projectDir, dataDirOf: (id) => join(where.configDir, "plugins", "data", dataDirName(id)) },
   );
-  const lines = previewLines(p, gate).filter((line) => line.startsWith("Missing required prerequisite") || line.startsWith("Not installed"));
+  const lines = [
+    ...alwaysOnLines(p.plan),
+    ...previewLines(p, gate).filter((line) => line.startsWith("Missing required prerequisite") || line.startsWith("Not installed")),
+  ];
   if (gate.length && opts.unattended) throw new NotApplied(`not ${verb}: profile ${name} switches on a plugin missing a required prerequisite, and nobody is there to decide.\n${lines.join("\n")}`);
   return { p, gate, lines };
 }
 
+/** Writes the session file for name (none when null) and returns what claude is started with; launch and start share it. */
 function launchSettings(name, opts, where, env, io) {
   const own = launcherSettings(opts.with);
   const result = { profile: name, folder: where.projectDir, file: null, prerequisitesMissing: [], settingsArgs: [] };
@@ -663,7 +689,7 @@ function runClaude(args, env, io) {
   for (const name of CLEARED) delete childEnv[name];
   const command = claudeCommand(env, process.platform);
   if (command.refusal) {
-    io.err(`${command.refusal}\nRun it yourself: claude ${args.map(quoted).join(" ")}`);
+    io.err(`start: ${command.refusal}\nRun it yourself: claude ${args.map(quoted).join(" ")}`);
     return Promise.resolve(127);
   }
   let child = null;
@@ -681,24 +707,6 @@ function runClaude(args, env, io) {
   }).finally(() => {
     for (const [signal, handler] of Object.entries(handlers)) process.off(signal, handler);
   });
-}
-
-/**
- * The claude executable to spawn without a shell: on Windows the claude.exe found on PATH, since a .cmd runs only
- * through a shell, which would split or interpret the person's arguments (https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows).
- */
-export function claudeCommand(env, platform, isFile = (path) => existsSync(path)) {
-  if (platform !== "win32") return { file: "claude" };
-  const pathVar = Object.keys(env).find((key) => key.toUpperCase() === "PATH");
-  const dirs = (pathVar ? env[pathVar] : "").split(";").filter(Boolean);
-  const exe = dirs.map((dir) => win32Path.join(dir, "claude.exe")).find(isFile);
-  if (exe) return { file: exe };
-  const script = dirs.flatMap((dir) => ["claude.cmd", "claude.bat"].map((name) => win32Path.join(dir, name))).find(isFile);
-  return {
-    refusal: script
-      ? `start: found ${script} but no claude.exe on PATH; a .cmd runs only through a shell, which would split or interpret your arguments, so start needs the native claude.exe.`
-      : "start: no claude.exe on PATH.",
-  };
 }
 
 /** What a start resumes and in which profile: the claude arguments to run, the profile, a session file to reuse, and the line to print. */
@@ -1052,12 +1060,12 @@ function usage(opts, env, io) {
   return 0;
 }
 
-/** The plugins the initial profile switches on: always-on, plus the profile recorded for user settings. */
+/** The plugins the initial profile switches on: the profile recorded for user settings with what it merges, else always-on. */
 function initialMembers(where) {
   const catalog = catalogFor(where, "initial");
   const rec = recordOf(where, where.paths.user).record;
-  const chosen = rec ? catalog.profiles.get(rec.profile) : null;
-  return new Set([catalog.alwaysOn, chosen].filter(Boolean).flatMap((p) => [...p.plugins, ...p.optional]));
+  const chosen = (rec && catalog.profiles.get(rec.profile)) ?? catalog.alwaysOn;
+  return new Set(sourcesOf(catalog, chosen).flatMap((p) => [...p.plugins, ...p.optional]));
 }
 
 function switchOffAtUser(id, file) {
@@ -1109,7 +1117,7 @@ async function save(opts, where, io) {
   const path = join(levels.find((l) => l.level === opts.level).dir, `${opts.name}.yaml`);
   const files = readProfileFiles(levels);
   const current = files.find((f) => f.path === path);
-  const merged = { description: opts.description ?? current?.def.description ?? null };
+  const merged = { description: opts.description ?? current?.def.description ?? null, alwaysOn: current?.def.alwaysOn ?? null };
   for (const [flag, field] of Object.entries(SAVE_LISTS)) merged[field] = [...new Set([...(current?.def[field] ?? []), ...idsOf(opts[flag])])];
   const text = profileText(merged);
   const def = parseProfile(text, path);

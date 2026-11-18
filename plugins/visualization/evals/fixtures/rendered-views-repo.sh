@@ -8,9 +8,9 @@
 # diagram_target: excalidraw, and no team file.
 set -euo pipefail
 set -o noclobber
-mode="${1:?mode: team-file, personal-file or diagram-target-file}"
+mode="${1:?mode: team-file, personal-file, diagram-target-file or diagram-target-excalidraw-file}"
 case "${mode}" in
-team-file | personal-file | diagram-target-file) ;;
+team-file | personal-file | diagram-target-file | diagram-target-excalidraw-file) ;;
 *) echo "unknown mode: ${mode}" >&2 && exit 2 ;;
 esac
 
@@ -65,6 +65,11 @@ team-file)
 diagram-target-file)
   printf 'docs/conventions/visualization.local.yaml\n' >.gitignore
   printf 'diagram_target: excalidraw\n' >docs/conventions/visualization.local.yaml
+  g add README.md .gitignore
+  ;;
+diagram-target-excalidraw-file)
+  printf 'docs/conventions/visualization.local.yaml\n' >.gitignore
+  printf 'diagram_target: excalidraw-file\n' >docs/conventions/visualization.local.yaml
   g add README.md .gitignore
   ;;
 *) # personal-file; the mode was checked above

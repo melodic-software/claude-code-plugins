@@ -1,6 +1,6 @@
 {
   "name": "guardrails",
-  "description": "25 toggleable guards. Blocks: secret writes, machine paths, hook bypass, force-push, reset --hard, open-review merges, cross-domain paths, PR-fix requests, drive-root /tmp, exported MSYS_NO_PATHCONV, cd && git, foreground waits, unsafe rm -r, expanding commit -m, off-convention titles, local-only Artifacts; opt-in, credential reads, main-checkout edits. Asks: settings writes. Warns: Workflow fan-out, bare gh pr create. Git hooks: commits, secrets, paths, CLI flags, skill refs, removed paths.",
+  "description": "22 toggleable guards. Blocks: secret writes, machine paths, hook bypass, force-push, reset --hard, open-review merges, cross-domain paths, PR-fix requests, drive-root /tmp, exported MSYS_NO_PATHCONV, cd && git, foreground waits, unsafe rm -r, expanding commit -m, off-convention titles, local-only Artifacts; opt-in, credential reads, main-checkout edits. Asks: settings writes. Warns: Workflow fan-out, bare gh pr create. Git hooks: commits, secrets, paths, CLI flags, skill refs, removed paths.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -240,5 +240,5 @@
       "default": ""
     }
   },
-  "version": "3.8.1"
+  "version": "3.10.0"
 }

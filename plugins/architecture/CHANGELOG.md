@@ -3,6 +3,20 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.7] - 2026-11-18
+
+### Changed
+
+- The enforcement ladder copy is 3.3.1: its `compiler-setting` row and its last "Where boundary rules live" entry no longer name a language's compiler options or an architecture-test library ([#16787](https://github.com/melodic-software/claude-code-plugins/issues/16787)).
+
+## [5.2.6] - 2026-11-18
+
+### Fixed
+
+- `/architecture:enforce-boundaries` adds no second check for a rule a build-time boundary already
+  enforces in full, such as a package export map; it proves that boundary on an injected violation
+  instead.
+
 ## [5.2.5] - 2026-11-17
 
 ### Changed

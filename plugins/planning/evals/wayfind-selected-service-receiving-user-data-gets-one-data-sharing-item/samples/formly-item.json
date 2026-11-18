@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Create interview item 'Formly data sharing': which patient fields cross to Formly, under what agreement, and whether a BAA is needed before build.",
+      "why": "one data-sharing interview item for Formly"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Graduated #702 and closed it. Next on the frontier: 'Draft the intake flow'.",
+      "why": "charts no Formly item"
+    }
+  ]
+}

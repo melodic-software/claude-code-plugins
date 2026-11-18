@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.20.2] - 2026-11-18
+
+### Changed
+
+- An approval no longer carries across a push that touches `plugins/testing/scripts/**` or `plugins/testing/skills/run-e2e/scripts/**` (`CARRY_REFUSES`), since `maintenance-verify-whole-map.yml`, a hold path, runs the map settings resolve and the findings checker from there.
+
+### Fixed
+
+- `/source-control:setup apply` resolves the repository root in its own Bash calls and writes it as a literal `<project root>` in its `layer=team` and `layer=local` snippets, so a worktree-isolated session can run them as written.
+- The `layer=team` snippet's `.gitignore` probe runs `git -C "$REPO_ROOT" check-ignore`, as the snippet's other git commands do. Before, it ran from the current directory, so a session outside the repository's working tree hit a git error that the probe read as "no match", and the snippet then reported success.
+
+- **A pre-existing red full run stops holding the post-merge report.** A red full run charged to no merge (red again on its re-run, failing only checks already failing before the merge) left the report's `unattributed` list only when the floor moved. It now stops counting once a full run passes after it on a newer commit of the default branch. A pass on the same commit leaves it counting, and a newly failing check is still a failure.
+- **`babysit_verify_evidence.py settle --idle-tick --probe-unmoved`.** A report that would stand but for its unattributed runs, with nothing else moved since, is refused as `idle tick unattributed-unmoved`. Without the flag that refusal reads nothing, as before.
+
+- `/source-control:babysit-prs`: the merge gate binds a review lane's attempt 2 when a leg of attempt 1 held on a GitHub API rate limit: the lane job left its `held:` notice for the head and no completion record, and the leg's annotations show the hold beside a 403 or 429 at remaining 0. The lane-run read now fetches the annotations of a green leg whose `Claude review` step skipped, and the saved lane-run format moves to `v2` so no record saved without them is used.
+
+- `comments --ci`: the review-thread tool's new `body` action prints every `##` section of the pull request body, read-only, each cut to 8,000 characters with `truncated` set when cut, including the sections `sections` does not offer. `record-body` still takes only the headings `sections` prints.
+
 ## [11.20.1] - 2026-11-17
 
 ### Fixed

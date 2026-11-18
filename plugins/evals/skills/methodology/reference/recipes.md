@@ -25,10 +25,10 @@ This repository's own defaults and source-conflict records: [local-decisions.md]
 - **Exact match**: normalize (strip whitespace, lowercase) then compare with the labeled answer.
   Fits clear-cut categorical outputs (e.g. positive/negative/neutral/mixed). Edge cases from the
   source: sarcasm ("I just love it when my flight gets delayed for 5 hours"), mixed sentiment.
-- **Cosine similarity**: embed each output with a sentence-embedding model (source uses
-  Sentence-BERT `all-MiniLM-L6-v2`; <https://sbert.net/>), score mean pairwise cosine similarity
-  across outputs for paraphrased variants of the same question; closer to 1 = more consistent.
-  Edge cases: typos, long rambling phrasings, irrelevant info mixed into the question.
+- **Cosine similarity**: embed each output with a sentence-embedding model, score mean pairwise
+  cosine similarity across outputs for paraphrased variants of the same question; closer to 1 =
+  more consistent. Edge cases: typos, long rambling phrasings, irrelevant info mixed into the
+  question.
 - **ROUGE-L**: longest-common-subsequence F1 between a generated and a reference summary; high
   score = key information captured in coherent order. Edge cases: multitopic articles, misleading
   titles.
