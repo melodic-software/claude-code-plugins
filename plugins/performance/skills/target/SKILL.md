@@ -53,12 +53,12 @@ the hot interaction, and events tagged with the
 
 ## Measure the layers before choosing one
 
-When a candidate spans layers (a shell wrapper around a Python program; a route through an ORM
-through a driver), attribute cost *across the layers* before picking one to optimize.
+When a candidate spans layers (a wrapper script around a larger program; a request through a data
+access layer through a driver), attribute cost *across the layers* before picking one to optimize.
 
-Do not pick the largest layer by size: a 125-line shell wrapper can carry roughly 88% of the cost
-while the 1903-line Python guard body it execs is not the bottleneck. Layer attribution is cheap
-and reorders the candidate list.
+Do not pick the largest layer by size: a 125-line wrapper can carry roughly 88% of the cost while
+the 1903-line program it execs is not the bottleneck. Layer attribution is cheap and reorders the
+candidate list.
 
 Trace past the headline event too: work no metric covers (background reloads, idle-state work)
 still costs. For a field report with a recording, follow the diagnosis ladder before theorizing.
