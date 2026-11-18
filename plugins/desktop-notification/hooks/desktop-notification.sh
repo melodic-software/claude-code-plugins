@@ -150,7 +150,7 @@ if [[ "${CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED:-true}" == "
   # git repo → body is just the message). Branch is also untrusted input — strip
   # C0 bytes through the same gate as .message (a ref name can't legally carry
   # them, but defense-in-depth so the branch can never reach a sink un-sanitized).
-  BRANCH=$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null) || BRANCH=""
+  BRANCH=$(hook::git_untrusted -C "$REPO_ROOT" branch --show-current 2>/dev/null) || BRANCH=""
   strip_c0_to BRANCH "$BRANCH"
   BODY="$MESSAGE"
   [[ -n "$BRANCH" ]] && BODY="$MESSAGE — $BRANCH"
