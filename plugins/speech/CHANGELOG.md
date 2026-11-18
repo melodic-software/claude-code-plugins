@@ -3,6 +3,13 @@
 All notable changes to the `speech` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.7] - 2026-11-18
+
+### Changed
+
+- **Bump onnxruntime from 1.31.1 to 1.32.0 in /plugins/speech in the pip-minor-patch group** (#17113).
+  - `onnxruntime` 1.31.1→1.32.0
+
 ## [1.2.6] - 2026-11-18
 
 ### Security

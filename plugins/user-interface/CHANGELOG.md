@@ -3,6 +3,13 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.22] - 2026-11-18
+
+### Changed
+
+- `audit`'s first failure mode now states the rule (device emulation never counts as verifying a touch fix: verify on a device or report a device check) and points at the `touch` concern's "7. Verify on hardware" for why, instead of restating what emulation misses.
+- `write-css` gives the reason for its `text-rendering: optimizeLegibility` ban, with an MDN link, and names the selectors and properties that replace or hide the page scrollbar, matching the `touch` audit's hunt.
+
 ## [0.27.21] - 2026-11-18
 
 ### Changed
