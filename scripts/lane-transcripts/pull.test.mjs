@@ -216,6 +216,25 @@ test("the backlog alert turns on at 5 days, before the 7-day listing floor passe
   assert.match(result.err, /^ALERT: /m);
 });
 
+test("status alerts when pull-outcomes has not succeeded in 5 days or its backlog has not drained, and stays quiet on a sink that never ran it", () => {
+  const fresh = iso(NOW - 86400_000);
+  const old = iso(NOW - 6 * 86400_000);
+  const statusOf = (state) => {
+    const sink = sinkDir();
+    seedState(sink, { last_success_at: fresh, ...state });
+    return run(["status", "--sink", sink], { deps: fakeDeps([]) });
+  };
+  const failing = statusOf({ outcomes: { last_success_at: old } });
+  assert.equal(failing.code, 1);
+  assert.match(failing.err, /^ALERT: no pull-outcomes pass has succeeded/m);
+  assert.doesNotMatch(failing.err, /lane transcript pull/);
+  const stalled = statusOf({ outcomes: { last_success_at: fresh, resume_cutoff_at: old } });
+  assert.equal(stalled.code, 1);
+  assert.match(stalled.err, /^ALERT: budget-stopped pull-outcomes passes/m);
+  assert.equal(statusOf({ outcomes: { last_success_at: fresh } }).code, 0);
+  assert.equal(statusOf({}).code, 0);
+});
+
 test("a budget-stopped pull's successor starts listing at the name it stopped on and wraps, so two pulls together list every name", () => {
   const { privateText } = generate();
   const sink = sinkDir();

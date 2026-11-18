@@ -569,9 +569,15 @@ export function backfill(sink) {
 export function status(sink, now = Date.now()) {
   const rows = readRows(sink);
   const state = readState(sink);
+  const pull = staleness(state, now);
+  const outcomes = state.outcomes ? staleness(state.outcomes, now) : { stale: false, backlog_stale: false };
   return {
     sink,
-    ...staleness(state, now),
+    ...pull,
+    stale: pull.stale || outcomes.stale,
+    pull_stale: pull.stale,
+    outcomes_stale: outcomes.stale,
+    outcomes_backlog_stale: outcomes.backlog_stale,
     budget_exhausted: state.budget_exhausted ?? false,
     resume_cutoff_at: state.resume_cutoff_at ?? null,
     rows: rows.length,
@@ -584,10 +590,14 @@ export function status(sink, now = Date.now()) {
   };
 }
 
-const alert = (s) =>
+const pullAlert = (s) =>
   s.backlog_stale
     ? `ALERT: budget-stopped pulls have not drained the lane transcript backlog in 5 days (cutoff: ${s.resume_cutoff_at})`
     : `ALERT: no lane transcript pull has succeeded in the last 5 days (last: ${s.last_success_at ?? "never"})`;
+const outcomesAlert = (s) =>
+  s.outcomes_backlog_stale
+    ? `ALERT: budget-stopped pull-outcomes passes have not drained the lane-outcome backlog in 5 days (cutoff: ${s.outcomes_resume_cutoff_at})`
+    : `ALERT: no pull-outcomes pass has succeeded in the last 5 days (last: ${s.outcomes_last_success_at ?? "never"})`;
 
 /** A kind, never a value: a failed listing call names its exit status only. */
 const failureKind = (error, listing) => (error instanceof PullError ? error.message : error?.status !== undefined ? `${listing}: gh exited ${error.status}` : error?.name ?? "error");
@@ -610,7 +620,8 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
   const d = deps ?? defaultDeps(env);
   // Alerts on a stale sink; the exit code is 1 when it is stale.
   const alertIfStale = (s) => {
-    if (s.stale) io.err(`${alert(s)}\n`);
+    if (s.pull_stale) io.err(`${pullAlert(s)}\n`);
+    if (s.outcomes_stale) io.err(`${outcomesAlert(s)}\n`);
     return s.stale ? 1 : 0;
   };
   if (command === "status") {

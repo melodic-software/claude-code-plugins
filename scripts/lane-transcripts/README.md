@@ -17,7 +17,7 @@ node scripts/lane-transcripts/pull.mjs backfill
 | Command | Does | Exit |
 |---|---|---|
 | `pull` | Copies every new `lane-transcript-*` artifact, then prunes | 0 done, including one that missed an artifact; 1 failed, and `ALERT:` on stderr when no pull succeeded in 5 days (a pull that missed an artifact and is that stale exits 1 too), or when a budget-stopped backlog is over 5 days old |
-| `status` | Prints the last successful pull, its age, and the store's size and counts as JSON | 1 and `ALERT:` when no pull succeeded in 5 days, or a budget-stopped backlog is over 5 days old |
+| `status` | Prints the last successful pull, its age, and the store's size and counts as JSON | 1 and `ALERT:` when no pull succeeded in 5 days, or a budget-stopped backlog is over 5 days old; the same two checks apply to `pull-outcomes` once it has run |
 | `query` | Prints the metrics rows matching every filter given, as JSONL with the transcript's absolute path | 0 |
 | `prune` | Applies retention alone | 0 |
 | `pull-outcomes` | Copies the lane-outcome records of every lane workflow run to `outcomes.jsonl`, then sets each row's failure class | 0 done, including one that missed a run; 1 failed |
