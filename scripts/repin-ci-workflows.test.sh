@@ -164,4 +164,12 @@ run 0 'apply leaves a formal model citing the old SHA' apply "$OLD" v0.74.0 "$NE
 LAST_OUTPUT="$(cat "$scratch/model/.claude/skills/formal-lanes/model/Lanes.tla")"
 contains 'the model keeps its checked commit' "$OLD"
 
+mk_repo "$scratch/skilldoc"
+mkdir -p "$scratch/skilldoc/.claude/skills/formal-lanes"
+echo "pinned at ${OLD}" >"$scratch/skilldoc/.claude/skills/formal-lanes/SKILL.md"
+git_test_config "$scratch/skilldoc" add .claude
+git_test_config "$scratch/skilldoc" commit -qm skilldoc
+run 1 'apply still fails on a formal skill file outside its model' apply "$OLD" v0.74.0 "$NEW" v0.75.0 --root "$scratch/skilldoc"
+contains 'the failure names the skill file' 'still appears after the rewrite in: .claude/skills/formal-lanes/SKILL.md'
+
 test_harness::report
