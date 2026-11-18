@@ -66,9 +66,10 @@ a check that ends `in sync` or `updated` with its seeded break caught. A propose
    merge base with the tip when the ticket's own diff
    (`git diff --name-only <merge base> HEAD`) touches no covered path; otherwise it is `HEAD`, and
    that folder's sync commit stays where it is, to move in a follow-up change after the ticket lands;
-   until then `check` keeps its stale-coverage `WARN` for it. A folder the ticket does not touch
-   gets the full pass at the merge base, and its writes commit on the ticket branch; name the
-   folders to leave the others out. A sync commit is always a commit on the default branch.
+   until then `check` keeps its stale-coverage `WARN` for it (a failure under `on_stale: fail`). A
+   folder the ticket does not touch gets the full pass at the merge base, and its writes commit on
+   the ticket branch; name the folders to leave the others out. A sync commit is always a commit on
+   the default branch.
 
 ## Pass
 
