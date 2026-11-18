@@ -59,7 +59,7 @@ Throwaway marketplace in an isolated `CLAUDE_CONFIG_DIR` for the plugin probes.
 | `resume-keeps-settings` | no | `claude -p --settings <file>` saw the file's env value; `claude -p --resume <id>` without the flag printed none |
 | `reload-removes-skills` | no | owner's live probe on 2.1.325 (interview F23): skills stayed listed after the reload |
 | `reload-from-turn-complete` | yes | owner's live probe on 2.1.325 (interview F23): counts moved 85/330 to 84/329 from a `turn.complete` hook |
-| `surface-vars` | partial | `CLAUDE_CODE_ENTRYPOINT=cli` observed in a CLI session; cloud sets `CLAUDE_CODE_REMOTE=true` (env-vars docs); Desktop and VS Code values UNVERIFIED (variable undocumented); Desktop WSL loads no plugins |
+| `surface-vars` | partial | `CLAUDE_CODE_ENTRYPOINT=cli` observed in a CLI session; cloud sets `CLAUDE_CODE_REMOTE=true` (env-vars docs); Desktop and VS Code values UNVERIFIED (variable undocumented); a Desktop WSL session sets `claude-desktop` and loads plugins (observed, Desktop 6.6695.0) |
 | `default-on-existing-users` | no | a plugin added to the marketplace with `defaultEnabled: true` was not installed by `marketplace update` |
 | `deps-enable-from-settings` | yes, on update | updating a plugin that gained a dependency installed it and wrote it `true` at user scope; a dependency set `false` stops the dependent loading: `Dependency "pb@probe-mkt" is disabled — enable it or remove the dependency` |
 
