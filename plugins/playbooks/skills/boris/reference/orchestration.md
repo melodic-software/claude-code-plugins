@@ -51,28 +51,28 @@ Research preview (May 28, 2026) for tasks too big for one pass. Trigger: say **"
 
 ## 81. Why Workflows: Three Failure Modes They Fix
 
-From Thariq Shihipar + Sid Bidasaria (the engineers who built them): the default harness plans AND executes in one context window, and long single-window work develops (1) **agentic laziness**, declaring done after partial progress; (2) **self-preferential bias**, preferring its own results when judging; (3) **goal drift**, where lossy compaction quietly drops "don't do X" constraints. A workflow orchestrates separate Claudes, each with its own context window and one focused goal: laziness loses to a deterministic loop, bias loses to a different judge, drift loses because small goals never get summarized away.
+From Thariq Shihipar + Sid Bidasaria (the engineers who built them): long work in one context window has three failure modes, and a workflow of separate Claudes, each with its own context window and one focused goal, answers each.
 
 - **Pointer**: the three failure modes are defined in the blog post's
   [Why dynamic workflows](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#why-dynamic-workflows).
 
 ## 82. Workflow Primitives, and Dynamic vs Static
 
-A dynamic workflow is a JavaScript file built from `agent()`, `parallel()` (barrier: waits for all) and `pipeline()` (no barrier: items stream through stages independently). For the current primitives and `agent()` options, see [What the saved script looks like](https://code.claude.com/docs/en/workflows#what-the-saved-script-looks-like) and the bundled `/workflow-authoring` skill (as of 2026-10-02; recheck when that section adds or renames a primitive). Workflows are resumable: interrupt and resume picks up where it left off. Dynamic beats static (Agent SDK / `claude -p`): static harnesses must handle every edge case so they end up generic; Opus 4.8+ writes a custom harness tailor-made for the case.
+A dynamic workflow is a JavaScript file built from `agent()`, `parallel()` (barrier: waits for all) and `pipeline()` (no barrier: items stream through stages independently). For the current primitives and `agent()` options, see [What the saved script looks like](https://code.claude.com/docs/en/workflows#what-the-saved-script-looks-like) and the bundled `/workflow-authoring` skill (as of 2026-10-02; recheck when that section adds or renames a primitive). Workflows are resumable: interrupt and resume picks up where it left off.
 
 - **Pointer**: for the dynamic-versus-static argument, see the blog post's
   [Dynamic vs static workflows](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#dynamic-vs-static-workflows).
 
 ## 83. The Six Workflow Patterns Claude Composes
 
-1. **Classify-and-act**: classifier routes to different agents/behavior. 2. **Fan-out-and-synthesize**: parallel agents, barrier, merge. 3. **Adversarial verification**: a separate agent verifies each output against a rubric (kills self-preferential bias). 4. **Generate-and-filter**: many ideas, filter by rubric, return the tested few. 5. **Tournament**: N agents compete, judge pairwise (comparative judgment beats absolute scoring). 6. **Loop-until-done**: keep spawning agents until a stop condition, not a fixed pass count. Claude mixes and nests them; knowing the names helps you nudge via prompt.
+Claude mixes and nests six named patterns; knowing the names helps you nudge it toward one in a prompt.
 
 - **Pointer**: for the pattern list, see the blog post's
   [Helpful patterns when using dynamic workflows](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#helpful-patterns-when-using-dynamic-workflows).
 
 ## 84. Workflow Use Cases: Often Better for Non-Coding Work
 
-Thariq: sometimes more useful for non-technical work. Migrations/refactors (Bun's Zig→Rust rewrite used workflows); deep research + the inverse, deep verification ("verify every technical claim in my blog draft against the codebase"); sorting 1,000+ items via tournament/pairwise pipeline; memory/rule adherence (one verifier per rule + a skeptic persona); root-cause investigation (independent hypotheses, each facing refuters); triage/taste/evals/routing (quarantine pattern for untrusted content).
+Thariq: sometimes more useful for non-technical work than for code.
 
 - **Pointer**: for the use-case list, see the blog post's
   [Use cases](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#use-cases).

@@ -1,11 +1,4 @@
 # shellcheck shell=bash
-# Run as `bash result-gate.test.sh`, the way scripts/run-plugin-tests.sh runs every suite.
-# Contract tests for the turn-end result gate, launched as hooks.json registers it. A recorded
-# FAIL, INCOMPLETE or STOPPED for the current tree, from check or lint, is a systemMessage and no
-# block; a recorded PASS is silent; a record for another tree does not count; a clean tree is
-# silent, and so is a turn that changed no file and recorded nothing; the mode comes from user settings only, defaults to advisory, and enforce blocks once on
-# a recorded FAIL and never on an unreadable record or a missing git. The hook runs no build, test
-# or lint command.
 # test-scope: plugins/toolchain/hooks/hooks.json plugins/toolchain/lib/tree-result.mjs plugins/toolchain/scripts/record-result.mjs plugins/toolchain/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_TURN_END_RESULT_GATE
@@ -25,7 +18,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -42,14 +35,13 @@ expect "the Stop row launches node on the result gate" \
 expect "the option defaults to advisory" "advisory" \
   "$(jq -r '.userConfig.turn_end_result_gate.default' "$PLUGIN/.claude-plugin/plugin.json")"
 
-# An install in the plugin cache layout, so its user settings file is the one beside the cache.
 CONFIG="$WORK/config"
 INSTALL="$CONFIG/plugins/cache/mkt/toolchain/1.0.0"
 mkdir -p "$INSTALL"
 cp -R "$PLUGIN/.claude-plugin" "$PLUGIN/hooks" "$PLUGIN/lib" "$PLUGIN/scripts" "$INSTALL/"
 HOOK="$INSTALL/hooks/result-gate.mjs"
 RECORD="$INSTALL/scripts/record-result.mjs"
-set_mode() { # <mode or empty for no settings file>
+set_mode() {
   if [[ -z "$1" ]]; then
     rm -f "$CONFIG/settings.json"
   else
@@ -65,9 +57,7 @@ printf 'seed\n' >"$R/a.txt"
 git -C "$R" add -A
 git -C "$R" commit -q -m seed
 
-# Each call is a fresh session unless SESSION names one, so the hook's "nothing new since this
-# session's last turn end" rule only applies where a case asks for it.
-stop() { # <stop_hook_active> [env...] -> "<rc>|<stdout>"
+stop() {
   local active="$1" out rc sid="${SESSION:-s$BASHPID-$RANDOM}"
   shift
   out="$(printf '{"session_id":"%s","hook_event_name":"Stop","stop_hook_active":%s,"cwd":"%s"}' "$sid" "$active" "$R" |
@@ -129,7 +119,6 @@ rm "$R/new.txt"
 expect "the same content hashes to the same tree, so its record counts again" "yes" \
   "$([[ "$(message "$(stop false)")" == *"check: Overall: FAIL"* ]] && echo yes)"
 
-# AC5 within one session: a turn that changes no file and records nothing says nothing new.
 rm -rf "$(store)"
 printf 'turn\n' >"$R/turn.txt"
 NO_RECORD="no /toolchain:check or /toolchain:lint result is recorded"
@@ -186,7 +175,6 @@ mkdir -p "$NOGIT"
 ln -s "$(command -v node)" "$NOGIT/node"
 expect "AC6: enforce with git missing fails open, silent" "0|" "$(stop false PATH="$NOGIT")"
 
-# AC7: every build, test or lint entry point a project could use is a stub that leaves a mark.
 rm -rf "$(store)"
 record check "Overall: FAIL (1 of 1 ecosystems failed)"
 STUBS="$WORK/stubs"
@@ -211,12 +199,10 @@ expect "record refuses an unknown skill" "1" \
 expect "record outside a repository exits 2" "2" \
   "$(node "$RECORD" --dir "$WORK" --skill check --overall "Overall: PASS" >/dev/null 2>&1; echo $?)"
 
-# An unstaged change that swaps a tracked file for a directory, or a directory for a file, hashes
-# to the tree `git add -A` would stage.
 LIB="$INSTALL/lib/tree-result.mjs"
 hash_of() { node --input-type=module -e "import { repository, treeHash } from '$LIB'; console.log(treeHash(repository(process.argv[1])));" "$1" 2>/dev/null; }
 staged_tree() { (export GIT_INDEX_FILE="$WORK/staged-index" && cp "$1/.git/index" "$GIT_INDEX_FILE" && git -C "$1" add -A && git -C "$1" write-tree && rm -f "$GIT_INDEX_FILE"); }
-swap_repo() { # <dir>: a repository with a tracked file `f` and a tracked directory `d/`
+swap_repo() {
   git init -q -b main "$1"
   printf 'f\n' >"$1/f"
   mkdir -p "$1/d"

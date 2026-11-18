@@ -11,11 +11,13 @@ const RELOAD = 'reload-plugins'
 const MORE = 'More profiles'
 const CLEAR = 'No profile'
 const PICKER = 'plugin-profile-picker'
+const ROW = 'profile:'
 const APPLY = 'Apply'
 const CANCEL = 'Cancel'
 // $.ui.ask takes two to four labels: a page holds three profiles and MORE.
 const PAGE = 3
 const NEXT_STEP = `Send any message, or run /${RELOAD} now, to load the change into this session; a new session starts with it.`
+const NOT_CHOSEN = 'No profile chosen; nothing changed.'
 
 type Profile = { name: string; description: string | null }
 type Preview = {
@@ -29,6 +31,9 @@ type Preview = {
 type ClearPreview = { recorded: boolean; sessionProfile: string | null; lines: string[] }
 
 const pending = atom({ plugin: 'plugin-profiles', key: 'switch' } as const, null as Switch | null)
+const picker = atom({ plugin: 'plugin-profiles', key: 'picker' } as const, [] as PickerEntry[])
+const focused = atom({ plugin: 'plugin-profiles', key: 'focused' } as const, null as string | null)
+let picking = false
 
 const cli = async ($: EngineInterface, args: readonly string[]) =>
   $.process.run(['node', `${$.plugin.root}/${CLI}`, ...args], {
@@ -41,6 +46,8 @@ const list = (ids: readonly string[]) => ids.join(', ')
 const show = ($: EngineInterface, lines: readonly string[]) => {
   for (const line of lines) if (line.trim()) $.ui.log(line)
 }
+const stayLoaded = (off: readonly string[]) =>
+  `${off.length === 1 ? 'The plugin it switches off stays' : `The ${off.length} plugins it switches off stay`} loaded in this session until a later /${RELOAD} or the next session start.`
 
 const registerCommand = ($: EngineInterface) =>
   $.command.register({
@@ -49,35 +56,30 @@ const registerCommand = ($: EngineInterface) =>
     argumentHint: '[profile]',
   })
 
-const picker = atom({ plugin: 'plugin-profiles', key: 'picker' } as const, [] as PickerEntry[])
-let choose: ((name: string | undefined) => void) | undefined
-
 const entriesOf = (profiles: readonly Profile[]): PickerEntry[] => [
-  ...profiles.map(p => ({ value: p.name, label: `${p.name}${p.description ? `: ${p.description}` : ''}` })),
-  { value: CLEAR, label: `${CLEAR}: clear this folder's profile, back to your user and project settings` },
+  ...profiles.map(p => ({ name: p.name, description: p.description ?? '' })),
+  { name: CLEAR, description: "clear this folder's profile, back to your user and project settings" },
 ]
+const labelOf = (e: PickerEntry) => (e.description ? `${e.name}: ${e.description}` : e.name)
 
-async function chosen($: EngineInterface, name: string | undefined) {
-  const done = choose
-  choose = undefined
+const outcome = async (run: () => Promise<string>) => {
+  try {
+    return await run()
+  } catch (err) {
+    return `Nothing changed: ${err instanceof Error ? err.message : String(err)}`
+  }
+}
+
+async function picked($: EngineInterface, name: string | undefined) {
+  if (!picking) return
+  picking = false
   await $.ui.close({ id: PICKER }).catch(() => undefined)
-  done?.(name)
+  show($, [name ? await outcome(() => switchTo($, name)) : NOT_CHOSEN])
 }
 
-/** Every profile in one pane; undefined when the person closes it. */
-async function pick($: EngineInterface, profiles: readonly Profile[]): Promise<string | undefined> {
-  const entries = entriesOf(profiles)
-  await update($, picker, () => entries)
-  const picked = new Promise<string | undefined>(resolve => (choose = resolve))
-  const opened = await $.ui.open({ id: PICKER, title: 'Which profile should this folder use?', focus: true, closeOnEscape: true })
-  if (opened.isPlaced) return picked
-  choose = undefined
-  return pickByPages($, entries)
-}
-
-async function pickByPages($: EngineInterface, list: readonly PickerEntry[]): Promise<string | undefined> {
-  show($, list.map(e => e.label))
-  const names = list.map(e => e.value)
+async function pickByPages($: EngineInterface, entries: readonly PickerEntry[]): Promise<string | undefined> {
+  show($, entries.map(labelOf))
+  const names = entries.map(e => e.name)
   for (let start = 0; ; start = start + PAGE >= names.length ? 0 : start + PAGE) {
     const options = names.length <= PAGE + 1 ? names : [...names.slice(start, start + PAGE), MORE]
     const answer = (await $.ui.ask('Which profile should this folder use?', { options, header: 'Profile' })).trim()
@@ -121,17 +123,21 @@ async function clearProfile($: EngineInterface): Promise<string> {
 async function switchProfile($: EngineInterface, args: string): Promise<string> {
   const waiting = await read($, pending)
   if (waiting) return `A change to this folder's profile is still waiting for its reload: ${NEXT_STEP} Then run /${COMMAND} again.`
-  let name = args
-  if (!name) {
-    const listed = await cli($, ['list', '--json'])
-    if (listed.exitCode !== 0) return failure(listed)
-    try {
-      name = (await pick($, JSON.parse(listed.stdout) as Profile[])) ?? ''
-    } catch {
-      name = ''
-    }
-    if (!name) return 'No profile chosen; nothing changed.'
-  }
+  if (args) return switchTo($, args)
+  const listed = await cli($, ['list', '--json'])
+  if (listed.exitCode !== 0) return failure(listed)
+  const entries = entriesOf(JSON.parse(listed.stdout) as Profile[])
+  await update($, picker, () => entries)
+  await update($, focused, () => null)
+  picking = true
+  const opened = await $.ui.open({ id: PICKER, title: 'Which profile should this folder use?', focus: true, closeOnEscape: true })
+  if (opened.isPlaced) return 'Pick a profile in the pane; the next step shows what it changes and asks before writing.'
+  picking = false
+  const name = await pickByPages($, entries).catch(() => undefined)
+  return name ? switchTo($, name) : NOT_CHOSEN
+}
+
+async function switchTo($: EngineInterface, name: string): Promise<string> {
   if (name === CLEAR) return clearProfile($)
   const dry = await cli($, ['apply', name, '--for', 'folder', '--defer-off', '--dry-run', '--json'])
   if (dry.exitCode !== 0) return failure(dry)
@@ -145,10 +151,7 @@ async function switchProfile($: EngineInterface, args: string): Promise<string> 
   const applied = await cli($, ['apply', name, '--for', 'folder', '--defer-off', '--yes'])
   if (applied.exitCode !== 0) return failure(applied)
   await update($, pending, (): Switch => ({ profile: name, phase: 'armed', off: preview.pending }))
-  const stay = preview.pending.length
-    ? ` The plugins it switches off (${list(preview.pending)}) stay loaded in this session until a later /${RELOAD} or the next session start.`
-    : ''
-  return `Switched this folder to profile ${name}. ${NEXT_STEP}${stay}`
+  return `Switched this folder to profile ${name}. ${NEXT_STEP}${preview.pending.length ? ` ${stayLoaded(preview.pending)}` : ''}`
 }
 
 /** Writes the off entries once the reload has run, finishing the switch's off-pending record. */
@@ -169,9 +172,7 @@ async function finish($: EngineInterface): Promise<void> {
   $.ui.log(
     r.exitCode !== 0
       ? `The switch to ${s.profile} is unfinished (${failure(r)}); /${COMMAND} ${s.profile} finishes it.`
-      : off.length
-        ? `Profile ${s.profile} is in force. The plugins it switches off (${list(off)}) stay loaded in this session until a later /${RELOAD} or the next session start.`
-        : `Profile ${s.profile} is in force.`,
+      : `Profile ${s.profile} is in force.${off.length ? ` ${stayLoaded(off)}` : ''}`,
   )
 }
 
@@ -206,46 +207,59 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // A mobile app that does not say it draws Select shows nothing for it, so mobile gets a Button
-  // per profile: https://code.claude.com/docs/en/plugins/mods/interface#build-a-tree-from-elements
   on('ui.render', { component: 'Pane', requestId: PICKER }, async ($, e) => {
-    const { Box, Text, Select, Button } = $.ui.resolve(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
     const entries = await read($, picker)
     if (!entries.length) return <Text dimColor>No profiles to pick.</Text>
+    const focus = await read($, focused)
+    const shown = entries.find(entry => entry.name === focus)
     return (
       <Box flexDirection="column">
         <Text dimColor>Pick one; the next step shows what it changes and asks before writing.</Text>
-        {e.surface === 'mobile' ? (
-          entries.map(entry => (
-            <Button key={`profile:${entry.value}`} onPress={() => void chosen($, entry.value)}>
-              {entry.label}
-            </Button>
-          ))
-        ) : (
-          <Select key="profile" label="Profile" autoFocus options={entries} onSelect={value => void chosen($, value)} />
-        )}
-        <Button key="cancel" role="dismiss" onPress={() => void chosen($, undefined)}>
+        {entries.map((entry, i) => (
+          <Box key={`row:${entry.name}`} flexDirection="column">
+            <Box flexDirection="row">
+              <Button key={`${ROW}${entry.name}`} autoFocus={i === 0 || undefined} onPress={() => void picked($, entry.name)}>
+                {entry.name}
+              </Button>
+              <Text dimColor wrap="truncate-end">
+                {entry.description ? ` ${entry.description}` : ''}
+              </Text>
+            </Box>
+            {entry.description ? (
+              <Box display="none" hover={{ display: 'flex' }}>
+                <Text wrap="wrap">{entry.description}</Text>
+              </Box>
+            ) : null}
+          </Box>
+        ))}
+        {shown ? (
+          <Text wrap="wrap">
+            {labelOf(shown)}
+          </Text>
+        ) : null}
+        <Button key="cancel" role="dismiss" onPress={() => void picked($, undefined)}>
           Cancel
         </Button>
       </Box>
     )
   })
 
+  on('ui.focus', { requestId: PICKER }, async ($, e, next) => {
+    await update($, focused, () => (e.element?.startsWith(ROW) ? e.element.slice(ROW.length) : null))
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
   on('ui.close', { id: PICKER }, async ($, e, next) => {
     const result = await next(e)
-    const done = choose
-    choose = undefined
-    done?.(undefined)
+    if (picking) {
+      picking = false
+      $.ui.log(NOT_CHOSEN)
+    }
     return result
   }).catch(($, e, next) => next(e))
 
-  on('command.run', { command: COMMAND }, async ($, e) => {
-    try {
-      return { text: await switchProfile($, e.args.trim()) }
-    } catch (err) {
-      return { text: `Nothing changed: ${err instanceof Error ? err.message : String(err)}` }
-    }
-  })
+  on('command.run', { command: COMMAND }, async ($, e) => ({ text: await outcome(() => switchProfile($, e.args.trim())) }))
 
   // A reload from the command's own handler does not take, so it waits for the turn's end.
   on('turn.complete', async ($, e, next) => {

@@ -57,6 +57,33 @@ test("userConfig wins over the default, and an unrendered placeholder counts as 
   assert.deepEqual(out.provenance, { glossary_file: "userConfig", glossary_map_file: "default" });
 });
 
+/** The resolver run with `stdin` as the `--user-config -` input. */
+function settingsFromStdin(stdin) {
+  const r = spawnSync(process.execPath, [SCRIPT, "--home", HOME, "--project", repo(), "--user-config", "-"], { encoding: "utf8", input: stdin });
+  assert.equal(r.status, 0, r.stderr);
+  return JSON.parse(r.stdout);
+}
+
+test("--user-config - takes each name=value line raw, so a double quote or = needs no escaping", () => {
+  const out = settingsFromStdin('glossary_file=say "hi".md\nglossary_map_file=a=b.md\n');
+  assert.deepEqual(out.values, { glossary_file: 'say "hi".md', glossary_map_file: "a=b.md" });
+  assert.deepEqual(out.provenance, { glossary_file: "userConfig", glossary_map_file: "userConfig" });
+  assert.deepEqual(layer(out, "userConfig").errors, []);
+});
+
+test("--user-config - drops a backslash value as a path and still applies the other setting", () => {
+  const out = settingsFromStdin('glossary_file=say "hi".md\nglossary_map_file=a\\b.md\n');
+  assert.deepEqual(out.values, { glossary_file: 'say "hi".md', glossary_map_file: "GLOSSARY-MAP.md" });
+  assert.deepEqual(layer(out, "userConfig").error_keys, ["glossary_map_file"]);
+});
+
+test("--user-config - leaves an empty value and an unrendered placeholder unset", () => {
+  const out = settingsFromStdin("glossary_file=\nglossary_map_file=${user_config.glossary_map_file}\n");
+  assert.deepEqual(out.values, DEFAULTS);
+  assert.deepEqual(out.provenance, { glossary_file: "default", glossary_map_file: "default" });
+  assert.deepEqual(layer(out, "userConfig").errors, []);
+});
+
 test("the team file wins over userConfig, and the personal override over the team file", () => {
   const dir = repo({ [TEAM]: "glossary_file: TEAM.md\nglossary_map_file: TEAM-MAP.md\n", [LOCAL]: "glossary_map_file: MINE-MAP.md\n" });
   const out = settings(["--project", dir], { userConfig: { glossary_file: "USER.md", glossary_map_file: "USER-MAP.md" } });

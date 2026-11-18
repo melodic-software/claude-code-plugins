@@ -1,5 +1,13 @@
 # Changelog for the ecosystem-commands convention
 
+## [1.6.0] - 2026-11-17
+
+Additive schema change: new optional `test-changed-cmd` key, a change-scoped test command over
+`<files>`, also accepted as a `requires` key. `/toolchain:check` runs it for a change and runs
+the full `test-cmd` under `all` or when `<files>` is empty; a repository's CI calls the same
+recorded command for its change-scoped run. No bundled default sets it, so no existing record
+changes. Tolerant readers ignore the key until they upgrade.
+
 ## [1.5.0] - 2026-11-17
 
 Additive schema change: new optional `lint-cmd` key, the report-only lint command, separate from

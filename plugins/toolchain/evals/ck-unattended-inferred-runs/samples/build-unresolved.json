@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "| typescript | skip (unresolved: typescript.build-cmd) | pass | skip (unresolved: typescript.check-cmd) | INCOMPLETE |"}
+  ],
+  "fail": [
+    {"answer": "| typescript | pass | pass | skip (opt-in unmet: no biome or eslint config) | PASS |", "why": "the bundled build ran"},
+    {"answer": "| typescript | — | pass | — | PASS |", "why": "an unrecorded key read as not applicable"}
+  ]
+}

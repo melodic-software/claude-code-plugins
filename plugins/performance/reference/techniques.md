@@ -122,14 +122,14 @@ exclude movement the user caused and movement before the page is usable. When: t
 defect rate, not a duration. Counter: occurrences under the definition. Fails when: the definition
 is loose enough to count user-caused movement. Used by: `/performance:goal` §1.
 
-- **Pointer**: when deciding which layout shifts count, fetch web.dev's [Expected versus unexpected layout shifts][cls-expected] live; correlate with the post's [The loop, thread by thread section][loop].
+- **Pointer**: when deciding which layout shifts count, fetch the post's [The loop, thread by thread section][loop] live.
 
 **Measure the underlying signal.** Go below a composite score to the raw events it is built from.
 When: a composite score is green while the symptom is visible. Counter: raw event count or
 magnitude. Fails when: the raw events are summed back into the same composite. Used by:
 `/performance:goal` §1 and Gotchas.
 
-- **Pointer**: when a layout score is green but movement is visible, fetch web.dev's [Layout shifts in detail][cls-detail] live; correlate with the post's [The loop, thread by thread section][loop].
+- **Pointer**: when a layout score is green but movement is visible, fetch the post's [The loop, thread by thread section][loop] live.
 
 **Instrumentation parity.** Every surface compared in one ranking carries the same start and end
 marks. When: one surface lacks the marks the others have. Counter: none. Fails when: surfaces are
@@ -215,11 +215,13 @@ under a CPU simulator and compare with a checked-in baseline. Durations need sam
 percentiles; a counter needs neither, only two agreeing runs on the unchanged subject before it is
 trusted (harness-integrity rule 1). `ratchet.py add` and `propose-tighten` measure twice by
 default, and `--runs` tunes it. When: the hot path is CPU-bound code in one process. Counter:
-instructions executed (`Ir` under Cachegrind). Fails when: the deterministic mode is assumed rather
-than checked. Used by: `/performance:snapshot` step 2. Tool specifics are in the verification
-records below.
+instructions executed. Fails when: the deterministic mode is assumed rather than checked, or
+another event's total is read as the instruction count. Used by: `/performance:snapshot` step 2.
+The simulator, and which of its events is the instruction count, come from the repository's own
+conventions, with `/discovery:research` where they do not settle it, never from this plugin. When
+neither resolves one, report the recipe as unresolved and skip it.
 
-- **Pointer**: when choosing Cachegrind's options, fetch the Cachegrind manual's [command-line options][cg-opts] live; correlate with the post's [Anything can be hill climbed section][climb].
+- **Pointer**: when you want the recipe in a full optimization loop, fetch the post's [Anything can be hill climbed section][climb] live.
 
 **Deterministic counters by layer.** When instruction counts are unavailable (a browser, a
 multi-process path), use the counter in this table that matches the subject's layer:
@@ -252,7 +254,7 @@ independent causes. Counter: events per region per phase. Fails when: region nam
 UI they label. Used by: `/performance:snapshot` step 2; `/performance:target` for naming the
 symptom.
 
-- **Pointer**: when mapping a layout shift to the elements that moved, fetch MDN's [LayoutShift: sources property][ls-sources] live; correlate with the post's [The loop, thread by thread section][loop].
+- **Pointer**: when mapping a layout shift to the elements that moved, fetch the post's [The loop, thread by thread section][loop] live.
 
 **Force the bad ordering in a test.** For an intermittent race, write a test that delays one
 dependency past the event it races (for example, data arriving after first paint), so the bad
@@ -317,20 +319,6 @@ over budget. Fails when: a check is skipped; each row names its own failure. Use
 
 ### Verification records
 
-**Cachegrind as the instruction counter.** This plugin counts instructions with Cachegrind's `Ir`
-event and leaves cache simulation off. When: the instruction-count recipe runs. Counter: `Ir`. Fails
-when: another event's total is read as the instruction count. Used by: the instruction-count recipe
-above, run by hand.
-
-- **Pointer**: when checking which events Cachegrind collects by default, fetch the Cachegrind manual's [command-line options][cg-opts] live.
-
-**`node --predictable` is not relied on.** This plugin does not assume the flag makes counts repeat
-run to run; it runs the count twice (harness-integrity rule 1). When: counting a Node subject.
-Counter: whichever count the recipe takes. Fails when: one run's count is trusted because the flag
-is set. Used by: the instruction-count recipe above, run by hand.
-
-- **Pointer**: when checking what the flag does on the installed Node, fetch the output of `node --v8-options` live (probed on Node v24.20.0). **As of**: 2026-09-23. **Recheck trigger**: a Node major release.
-
 **Call counts and timings in separate runs.** Take call counts with precise coverage on, and time
 the path in a separate run with it off. When: call counts come from precise coverage. Counter:
 function call counts. Fails when: a timing is taken with coverage on. Used by:
@@ -339,9 +327,10 @@ function call counts. Fails when: a timing is taken with coverage on. Used by:
 - **Pointer**: when you need what enabling precise coverage changes, fetch `Profiler.startPreciseCoverage` in [`js_protocol.json`][cdp-js] live.
 
 **Stepped frames through DevTools.** A browser rig that steps frames uses
-`HeadlessExperimental.beginFrame` and records that the domain is experimental. When: a browser rig
-must step frames. Counter: frames over budget. Fails when: the domain changes and the rig is not
-rechecked. Used by: `/performance:snapshot` step 2 (fixed-tick stepping).
+`HeadlessExperimental.beginFrame` and records the domain's status as `browser_protocol.json` gives
+it when the rig is built, so a later change to that status sends the rig back for a recheck. When: a
+browser rig must step frames. Counter: frames over budget. Fails when: the domain changes and the
+rig is not rechecked. Used by: `/performance:snapshot` step 2 (fixed-tick stepping).
 
 - **Pointer**: when building the rig, fetch `HeadlessExperimental.beginFrame` in [`browser_protocol.json`][cdp-browser] live.
 
@@ -457,7 +446,7 @@ When: a layout defect appears only on some navigations. Counter: shifts on prere
 when: the lab never prerenders, so the class is invisible. Used by: `/performance:target` cause
 checklist.
 
-- **Pointer**: when a layout defect appears only on some navigations, fetch MDN's [How is speculative loading achieved?][spec-loading] live; correlate with the post's [Guardrails section][guard].
+- **Pointer**: when a layout defect appears only on some navigations, fetch the post's [Guardrails section][guard] live.
 
 ## F. Optimization patterns (latency catalog)
 
@@ -855,11 +844,6 @@ reads `none` while something went unexercised. Used by: `/performance:verify` §
 [hooks]: https://code.claude.com/docs/en/hooks#hook-handler-fields
 [hook-complete]: https://code.claude.com/docs/en/monitoring-usage#hook-execution-complete-event
 [channels]: https://code.claude.com/docs/en/plugins/host-marketplace#run-release-channels
-[cls-expected]: https://web.dev/articles/cls#expected-unexpected-layout-shifts
-[cls-detail]: https://web.dev/articles/cls#layout-shifts-in-detail
-[ls-sources]: https://developer.mozilla.org/en-US/docs/Web/API/LayoutShift/sources
-[spec-loading]: https://developer.mozilla.org/en-US/docs/Web/Performance/Guides/Speculative_loading#how_is_speculative_loading_achieved
-[cg-opts]: https://valgrind.org/docs/manual/cg-manual.html#cg-manual.cgopts
 [cg-annotate]: https://valgrind.org/docs/manual/cg-manual.html#cg-manual.running-cg_annotate
 [cdp-js]: https://github.com/ChromeDevTools/devtools-protocol/blob/master/json/js_protocol.json
 [cdp-browser]: https://github.com/ChromeDevTools/devtools-protocol/blob/master/json/browser_protocol.json

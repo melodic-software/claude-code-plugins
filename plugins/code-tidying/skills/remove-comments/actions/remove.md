@@ -91,9 +91,11 @@ absent, and no move dissolves a *why* ("Apply capacity" in dissolving-moves.md).
    proof: name those files and their count in the report **now** and triage them as proposals only.
    Then run `<skill-dir>/scripts/comment-census.sh --json` over the scope, writing it to
    `${TEMP:-${TMPDIR:-/tmp}}/remove-comments/<run-id>/baseline.json` with `<run-id>` unique per run;
-   step 7 reads that exact path back. `TEMP` comes first because Git Bash on Windows sets
-   `TMPDIR=/tmp`, which resolves to the drive root. **Exit 3 is a stop, not a zero:** neither `scc`
-   nor pygments resolved, so there is no baseline and no step-7 delta. Report the layer, quote the
+   step 7 reads that exact path back. `TEMP` comes first because under Git Bash on Windows
+   `TMPDIR=/tmp` resolves to the drive root, not the platform temp directory: our observation,
+   recorded in the plugin's [CHANGELOG](../../../CHANGELOG.md) 0.18.1 entry. **Exit 3 is a stop,
+   not a zero:** neither `scc` nor pygments resolved, so there is no baseline and no step-7 delta.
+   Report the layer, quote the
    script's install hint, and stop. Done when the file exists, or the run has stopped with the
    missing layer named.
 5. **Triage.** Classify every remaining comment A/B/C per [../reference/triage.md](../reference/triage.md).
@@ -141,7 +143,10 @@ absent, and no move dissolves a *why* ("Apply capacity" in dissolving-moves.md).
    RENAME-ONLY), the staged commit-message block, and the keeps and rewrites with one-line reasons,
    each `explanatory` keep naming its criterion-2 evidence and each `necessary` or `none` keep the
    rule that kept it. Name the block's landing place: the pending commit, the next commit touching
-   already-committed code, or the `--notes` path, with a refused tracked path said plainly. Then the
+   already-committed code, or the `--notes` path, with a refused tracked path said plainly. In a
+   repository that squash-merges with the pull request's body as the message (`SKILL.md` "Hard
+   rules"), the landing place is the shipping pull request's body, and the report says so; when the
+   setting could not be read, it names both. Then the
    census delta, `comment-census.sh --baseline` pointed at the exact `baseline.json` step 4 wrote, in
    lines, bytes and estimated tokens; when the census could not run, say so and name the missing
    layer, never `+0`. Then these lists, each "none" when empty:

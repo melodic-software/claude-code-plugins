@@ -9,6 +9,7 @@ git config user.email eval@example.invalid
 git config user.name eval
 git config --local checks.bash-format.format.declined true
 git config --local checks.bash-format.lint.declined true
+git config --local checks.bash-format.lint-full.declined true
 printf '#!/usr/bin/env bash\necho hello\n' >demo.sh
 printf 'root = true\n\n[*.sh]\nindent_style = space\nindent_size = 2\n' >.editorconfig
 printf 'shell=bash\n' >.shellcheckrc

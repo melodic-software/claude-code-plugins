@@ -3,6 +3,12 @@
 All notable changes to the `session-telemetry` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.4] - 2026-11-17
+
+### Fixed
+
+- `measure-hook-log-budget.sh` waits on each parallel hook row and append job by pid and exits 3 when one fails, instead of timing a failed run into `parallel_wall_*` or reporting a short append line count.
+
 ## [0.1.3] - 2026-11-17
 
 ### Changed

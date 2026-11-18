@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "no calls"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/repo/.claude/skills/formal-lock/sync.yaml"}}], "why": "reads the skill"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "bugs:write", "args": "timeout in release() lets two clients hold the lock"}}], "why": "files the unreplayed counterexample"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "work-items:track", "args": "add lock bug"}}], "why": "hands it to the tracker"}
+  ]
+}

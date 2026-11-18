@@ -1383,10 +1383,16 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
 
   // A Work status other than agent-ready starts neither job, so it holds no runner.
   for (const [name, option, runs] of [["agent-ready", AGENT_READY_OPTION, true], ["another option", 86380002, false]]) {
-    const context = {
+    const event = {
       ...AGENT_READY_FIELD,
       "github.event.issue_field_value.option.id": option,
-      "needs.check-admission.outputs.proceed": "true",
+      "github.event.sender.type": "User",
+      "github.event.sender.id": 1,
+      "vars.AUTOMATION_LANES_APP_SENDER_ID": "337595936",
+    };
+    const context = {
+      ...event,
+      "needs.check-admission.outputs.proceed": evaluate(jobs["check-admission"].if, event) ? "true" : "",
       "needs.pick-slot.outputs.capped": "false",
       "needs.pick-slot.outputs.skip-key": "",
     };
@@ -2504,20 +2510,22 @@ test("a job reads a Claude API key only when its catalog lane runs on run-claude
   }
 });
 
-// The one step outside a launcher that may read a Claude credential:
-// pr-verify-capture.yml's key proxy start, which pipes pr-verify's key on
-// stdin to a proxy running as its own OS user before the runner is isolated,
-// so the driven Claude Code and the pull request code beside it reach the API
-// with a dummy key (owner decision Q6, option A). Only in this shape: that
-// job, that step name, the key as its one env value PROXY_KEY, and no other
-// secret reference anywhere in the step.
+// The one step outside a launcher that may read a Claude credential: the key
+// proxy start in pr-verify-capture.yml and in maintenance-verify-whole-map.yml,
+// which shares the capture's steps. It pipes pr-verify's key on stdin to a
+// proxy running as its own OS user before the runner is isolated, so the
+// driven Claude Code and the code beside it reach the API with a dummy key
+// (owner decision Q6, option A). Only in this shape: those jobs, that step
+// name, the key as its one env value PROXY_KEY, and no other secret reference
+// anywhere in the step
+// (https://github.com/melodic-software/claude-code-plugins/issues/16564).
 const KEY_PROXY_START = {
-  key: "pr-verify-capture.yml capture",
+  keys: ["pr-verify-capture.yml capture", "maintenance-verify-whole-map.yml verify-map"],
   name: "Start the key proxy",
   env: { PROXY_KEY: "${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}" },
 };
 const isKeyProxyStart = (key, step) =>
-  key === KEY_PROXY_START.key &&
+  KEY_PROXY_START.keys.includes(key) &&
   step.name === KEY_PROXY_START.name &&
   step.uses === undefined &&
   step.with === undefined &&
@@ -2534,22 +2542,26 @@ test("a Claude credential reaches only the launcher step of its catalog lane", (
 });
 
 test("the key proxy's start is the one step outside a launcher that reads a key, and only in its exact shape", () => {
-  const steps = workflow("pr-verify-capture.yml").jobs.capture.steps;
-  const start = steps.find((step) => step.name === KEY_PROXY_START.name);
+  for (const key of KEY_PROXY_START.keys) {
+    const [file, job] = key.split(" ");
+    const steps = workflow(file).jobs[job].steps;
+    assert.equal(steps.filter((step) => isKeyProxyStart(key, step)).length, 1, key);
+  }
+  const KEY = KEY_PROXY_START.keys[0];
+  const start = workflow("pr-verify-capture.yml").jobs.capture.steps.find((step) => step.name === KEY_PROXY_START.name);
   assert.ok(start);
-  assert.equal(steps.filter((step) => isKeyProxyStart(KEY_PROXY_START.key, step)).length, 1);
   // Without the exception it is a stray reader, so the exception is what lets it pass.
   assert.deepEqual(strayClaudeReaders({ doc: {}, job: { steps: [start] } }, "run-claude-cli"), [`step ${KEY_PROXY_START.name}`]);
   const stillStray = {
-    "another job": [KEY_PROXY_START.key.replace(" capture", " capture-subscription"), start],
-    "another workflow": [KEY_PROXY_START.key.replace("pr-verify-capture.yml", "pr-verify.yml"), start],
-    "another step name": [KEY_PROXY_START.key, { ...start, name: "Start the proxy" }],
-    "the key under another name": [KEY_PROXY_START.key, { ...start, env: { KEY: KEY_PROXY_START.env.PROXY_KEY } }],
-    "another secret as PROXY_KEY": [KEY_PROXY_START.key, { ...start, env: { PROXY_KEY: "${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}" } }],
-    "a second env value": [KEY_PROXY_START.key, { ...start, env: { ...start.env, OTHER: "x" } }],
-    "a secret in the script": [KEY_PROXY_START.key, { ...start, run: `${start.run}\necho "\${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"` }],
-    "every secret in the script": [KEY_PROXY_START.key, { ...start, run: `${start.run}\necho '\${{ toJSON(secrets) }}'` }],
-    "an action": [KEY_PROXY_START.key, { ...start, uses: "./x" }],
+    "another job": [KEY.replace(" capture", " capture-subscription"), start],
+    "another workflow": [KEY.replace("pr-verify-capture.yml", "pr-verify.yml"), start],
+    "another step name": [KEY, { ...start, name: "Start the proxy" }],
+    "the key under another name": [KEY, { ...start, env: { KEY: KEY_PROXY_START.env.PROXY_KEY } }],
+    "another secret as PROXY_KEY": [KEY, { ...start, env: { PROXY_KEY: "${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}" } }],
+    "a second env value": [KEY, { ...start, env: { ...start.env, OTHER: "x" } }],
+    "a secret in the script": [KEY, { ...start, run: `${start.run}\necho "\${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"` }],
+    "every secret in the script": [KEY, { ...start, run: `${start.run}\necho '\${{ toJSON(secrets) }}'` }],
+    "an action": [KEY, { ...start, uses: "./x" }],
   };
   for (const [why, [key, step]] of Object.entries(stillStray)) assert.equal(isKeyProxyStart(key, step), false, why);
 });
@@ -3221,6 +3233,7 @@ const HANDOFF = {
 const PATCH_OUTPUTS_OF = (firstId) =>
   SCAN_ONLY.has(firstId) ? Object.fromEntries(Object.entries(PATCH_OUTPUTS).map(([input, output]) => [input, `scan-${output}`])) : PATCH_OUTPUTS;
 const WRITE_RUNNER = "./.github/workflows/pr-run-activity-write.yml";
+const RUN_JOB_MINUTES = { "fix-docs": 30 };
 
 for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LANES) {
   test(`${file}: ${subId} runs only after ${firstId} handed off, read ${HANDOFF[firstId] ? `by ${HANDOFF[firstId]}` : "from its credit stop or empty key alone"}`, () => {
@@ -3301,7 +3314,9 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
     for (const id of [firstId, subId, applyId]) {
       assert.deepEqual(jobs[id].concurrency, { group: first.concurrency.group, queue: "max" }, id);
     }
-    assert.equal(first.with["timeout-minutes"], 60, "the run job holds the 50-minute launcher step");
+    for (const id of [firstId, subId, `${firstId}-fallback`]) {
+      assert.equal(jobs[id].with["timeout-minutes"], RUN_JOB_MINUTES[firstId] ?? 60, `${id}: the run job holds its launcher step and leg`);
+    }
   });
 
   test(`${file}: ${applyId} takes the patch from whichever ${firstId} call ran the activity, under ${firstId}'s prepare-mode row`, () => {
@@ -4688,7 +4703,7 @@ function withInputs(step, values) {
 
 // Runs the carry step, then the seal step as the composite runs it, on the
 // given files; returns the two steps' outputs and their log.
-function carry(t, files, { publicLine = CARRIER.publicLine, issue = false, gate = read("../../../lib/publish-gate.mjs") } = {}) {
+function carry(t, files, { publicLine = CARRIER.publicLine, issue = false, gate = read("../../../lib/publish-gate.mjs"), plant } = {}) {
   const root = tempDir("carry-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const temp = join(root, "temp");
@@ -4701,6 +4716,8 @@ function carry(t, files, { publicLine = CARRIER.publicLine, issue = false, gate 
   // The copy step's gate, from the base.
   mkdirSync(join(temp, "read-patch"));
   if (gate) writeFileSync(join(temp, "read-patch", "publish-gate.mjs"), gate);
+  const gateSha256 = gate ? createHash("sha256").update(gate).digest("hex") : "";
+  plant?.(join(temp, "read-patch", "publish-gate.mjs"));
   for (const [name, bytes] of Object.entries(files)) {
     const file = join(temp, name);
     if (bytes === "symlink") symlinkSync("/etc/hostname", file);
@@ -4716,6 +4733,7 @@ function carry(t, files, { publicLine = CARRIER.publicLine, issue = false, gate 
     CARRY_DIR: join(temp, "carry"),
     SEAL_DIR: join(temp, "seal-lane-output"),
     PATCH_GATE: join(temp, "read-patch", "publish-gate.mjs"),
+    GATE_SHA256: gateSha256,
     // The step's issue-mode expression, as the runner would expand it.
     OUTCOME_DIR: issue ? join(temp, "work-outcome") : "",
     GITHUB_WORKSPACE: workspace,
@@ -4785,6 +4803,24 @@ test("scan job: an oversize patch is refused `patch` only after a clean carry sc
   assert.equal(missing.outputs.refused, "output", "an oversize patch with no scan answer holds");
   const copy = runSteps().find((s) => s.name === "Copy the patch collector and the output sealer from the base");
   assert.match(copy.run, /\.base\/lib\/publish-gate\.mjs/);
+});
+
+test("pr-run-activity-read.yml: the carry's patch scan imports the gate only when it matches the SHA-256 recorded from the base, so a planted, linked or missing gate holds the oversize patch", (t) => {
+  const steps = runSteps();
+  const step = steps.find((s) => s.id === "carry");
+  assert.equal(step.env.GATE_SHA256, "${{ steps.seal-copy.outputs.gate-sha256 }}");
+  assert.ok(steps.findIndex((s) => s.id === "seal-copy") < steps.findIndex((s) => s.name === "Check out the PR head"), "recorded before head code");
+  const oversize = { "patch/patch.diff": Buffer.concat([Buffer.alloc(262145, 0x0a), Buffer.from(`+${KEY}\n`)]) };
+  const neverBlocks = "export const scanLeak = () => ({ block: null });\n";
+  for (const [what, plant] of [
+    ["a planted gate", (file) => writeFileSync(file, neverBlocks)],
+    ["a gate replaced by a link", (file) => { const real = `${file}.real`; writeFileSync(real, readFileSync(file)); rmSync(file); symlinkSync(real, file); }],
+    ["a missing gate", (file) => rmSync(file)],
+  ]) {
+    assert.equal(carry(t, oversize, { plant }).outputs["patch-scan"], "hit", what);
+    assert.equal(carry(t, { "patch/patch.diff": Buffer.alloc(262145, 0x61) }, { plant }).outputs["patch-scan"], "hit", `${what}: even a clean patch holds`);
+  }
+  assert.equal(carry(t, { "patch/patch.diff": Buffer.alloc(262145, 0x61) }).outputs["patch-scan"], "clean", "the base gate still scans");
 });
 
 test("pr-run-activity-read.yml: a payload over its cap carries only its byte count, an absent one nothing, and the placeholder key seals nothing", (t) => {
@@ -10582,6 +10618,11 @@ const LEG_EXEMPTIONS = {
     legs: ["subscription", "fallback"],
     reason:
       "the capture runs on the key alone and records blocked otherwise (owner decision Q5): its driven Claude Code reaches the API only through a key proxy we run, and a subscription token may not be routed through one, so the lane never takes these legs (#12232)",
+  },
+  "maintenance-verify-whole-map.yml pr-verify verify-map": {
+    legs: ["subscription", "fallback"],
+    reason:
+      "the whole-map pass runs in the capture's sandbox behind the same key proxy, so it is key-only for the capture's reason and records blocked otherwise (#12232)",
   },
 };
 // The issues an exemption may name: the full-chain tracker, or the capture's permanent key-only decision.

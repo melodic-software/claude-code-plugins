@@ -261,11 +261,10 @@ unambiguous; ask only where an item genuinely needs the user.
    already carries ≥1 item, or seeding was opted into). On the default skipped path, run neither and go
    straight to step 9. Recurring items can't be fully derived, but don't skip the rung. Propose
    candidates from what the repo actually contains, each with a recommended cadence:
-   - Dependency manifests (`package.json`, `*.csproj` / `Directory.Packages.props`, `pyproject.toml`,
-     `Cargo.toml`, `go.mod`) → a "Review dependency manifest / check for updates" item (recommend
+   - Dependency manifests → a "Review dependency manifest / check for updates" item (recommend
      `quarterly`).
-   - Lint / formatter config (`.editorconfig`, `eslint.config.*`, `ruff.toml`, analyzer rulesets) → a
-     "Review linter config against current defaults" item (recommend `quarterly`).
+   - Lint / formatter config → a "Review linter config against current defaults" item (recommend
+     `quarterly`).
    - CI workflow definitions (`.github/workflows/`) → a "Review CI workflow pins / action versions"
      item (recommend `quarterly`).
    - Security-sensitive surfaces (auth, secrets handling, `SECURITY.md`) → a "Security review" item

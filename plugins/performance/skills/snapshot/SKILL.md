@@ -45,15 +45,14 @@ The refusal names what it can still report, since an unexplained refusal gets ov
 reflexively: on a host that fails `is_measurable()`, the durable result is a deterministic spawn
 count of 4 -> 1, not a duration.
 
-**Say plainly that this refusal is a house rule, not consensus.** No surveyed benchmarking tool
-refuses above a variance threshold: pyperf, Criterion, JMH and benchstat all warn and print the
-number anyway.
+**Say plainly that this refusal is a house rule, not consensus**, so nobody takes it for common
+benchmarking practice: this plugin chose to refuse, and no benchmarking tool is the source of
+that choice.
 
-- **Pointer**: when you need pyperf's own stability thresholds, fetch
-  [pyperf check](https://pyperf.readthedocs.io/en/latest/cli.html#check-cmd) live. Recheck the
-  other tools at [Criterion command-line output](https://bheisler.github.io/criterion.rs/book/user_guide/command_line_output.html),
-  [benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat) and
-  [JMH](https://github.com/openjdk/jmh).
+- **Pointer**: when you need to say how a benchmarking tool handles an unstable run, fetch its own
+  docs live: [pyperf check](https://pyperf.readthedocs.io/en/latest/cli.html#check-cmd),
+  [Criterion command-line output](https://bheisler.github.io/criterion.rs/book/user_guide/command_line_output.html)
+  and [benchstat: Tips](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat#hdr-Tips).
 
 ### 1b. Measuring-tool integrity (before timing)
 
@@ -97,9 +96,9 @@ average. See [lab rigs](../../reference/techniques.md#c-lab-measurement-and-rigs
 ### 2b. Code path under test (before each arm)
 
 The goal names which **code path(s)** the metric is meant to exercise, and the observable that
-identifies each (for example skip with no interpreter versus Python run path, cold cache versus
-warm). A goal with no `Path:` line goes back to `/performance:goal`. Before **each** arm, either
-**reset** the state files that select the path (markers, sentinel files, cache keys) or **record**
+identifies each (for example skip with no interpreter versus interpreter run path, cold cache
+versus warm). A goal with no `Path:` line goes back to `/performance:goal`. Before **each** arm,
+either **reset** the state files that select the path (markers, sentinel files, cache keys) or **record**
 their values and carry them in the report; say which was done. After the arm, report which path
 actually ran, with evidence (a marker file, exit code, or the set of processes spawned). A path
 that cannot be observed is reported `unobserved`, never assumed. One line per arm, required in the
@@ -201,21 +200,20 @@ median, since six repeats of two identical arms at five pairs gave medians from 
 one run reported 17.12x. A lowered `BENCH_MIN_PAIRS` prints itself on the line; carry it into the
 report.
 
-Grounded, Tier 1, `benchstat`'s own documentation: *"The best way to do this is to interleave before
-and after runs, rather than running, say, 10 iterations of the before benchmark, and then 10
-iterations of the after benchmark."*
+Interleaving is grounded at Tier 1 in `benchstat`'s own documentation.
+
+- **Pointer**: when citing that grounding, fetch
+  [benchstat: Tips](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat#hdr-Tips) live.
 
 **Under uncontrolled concurrent load, suppress the paired ratio** and report per-arm percentiles
 only. The arms are no longer load-matched, and pairing by index compares samples that never shared
 conditions.
 
-Do not describe this as "paired statistics, per benchstat". `benchstat` recommends interleaved
-*collection* and then analyzes with the **Mann-Whitney U test**, which is an independent two-sample
-test. It documents no `-delta-test` flag. Verified 2026-09-06 against
-`https://pkg.go.dev/golang.org/x/perf/cmd/benchstat` at module version
-`v0.0.0-20260819171926-ebcb4798430d`, which documents `-filter`, `-table`, `-row`, `-col`, and
-`-ignore`, and states that benchstat uses the Mann-Whitney U-test for A/B comparisons. Recheck when
-that page lists a `-delta-test` flag again, or names a test other than Mann-Whitney U.
+Do not describe this as "paired statistics, per benchstat": the per-pair ratio is this plugin's own
+analysis (`ratio.py`), not benchstat's.
+
+- **Pointer**: when naming the test benchstat compares the arms with, fetch
+  [benchstat: Units](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat#hdr-Units) live.
 
 ### Simultaneous duet (for a genuinely shared machine)
 

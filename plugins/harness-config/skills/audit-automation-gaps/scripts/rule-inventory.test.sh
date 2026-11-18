@@ -206,7 +206,7 @@ assert_no "C: nothing named as uncounted" "$out" "present, not counted"
 E="$TMP/parity"
 new_repo "$E"
 mkdir -p "$E/docs/conventions"
-expected="make-impossible:1 shared-helper:1 compiler-setting:2 editorconfig-severity:2 analyzer-pack-rule:2 custom-analyzer:2 syntax-pattern-rule:2 architecture-test:2 behavior-test:2 harness-setting:2 action-guard:2 scaffold:2 runtime-verification:3 formal-verification:3 automated-review:4 instruction:4 skill:4 human-review:5"
+expected="make-impossible:1 shared-helper:1 compiler-setting:2 formatter:2 editorconfig-severity:2 analyzer-pack-rule:2 custom-analyzer:2 syntax-pattern-rule:2 architecture-test:2 behavior-test:2 harness-setting:2 action-guard:2 scaffold:2 runtime-verification:3 formal-verification:3 automated-review:4 instruction:4 skill:4 human-review:5"
 {
   echo "rule_inventory:"
   echo "  declared:"
@@ -218,7 +218,7 @@ commit_all "$E"
 got="$(bash "$GEN" --root "$E" --rows | awk -F'\t' '{printf "%s%s:%s", sep, $3, $4; sep = " "}')"
 assert_eq "parity: every ladder rung maps to its tier" "$expected" "$got"
 n_ids="$(grep -Eo '^(\| `[a-z-]+` \||[0-9]+\. \*\*`[a-z-]+`\*\*)' "$LADDER" | wc -l | tr -d ' ')"
-assert_eq "parity: the ladder copy holds no other rung id" 18 "$n_ids"
+assert_eq "parity: the ladder copy holds no other rung id" 19 "$n_ids"
 
 home_repo() {
   new_repo "$1"

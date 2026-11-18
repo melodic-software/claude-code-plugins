@@ -2333,13 +2333,20 @@ jobs:
           CARRY_DIR: ${{ runner.temp }}/carry
           SEAL_DIR: ${{ runner.temp }}/seal-lane-output
           PATCH_GATE: ${{ runner.temp }}/read-patch/publish-gate.mjs
+          GATE_SHA256: ${{ steps.seal-copy.outputs.gate-sha256 }}
         run: |
           rm -rf "$CARRY_DIR"
           mkdir -p "$CARRY_DIR"
           patch_is_clean() {
+            local sum
+            [ -n "$GATE_SHA256" ] && [ ! -L "$PATCH_GATE" ] && [ -f "$PATCH_GATE" ] || return 1
+            sum=$(sha256sum <"$PATCH_GATE")
+            [ "${sum%% *}" = "$GATE_SHA256" ] || return 1
             timeout 120 node --input-type=module -e '
+              import { createHash } from "node:crypto";
               import { readFileSync } from "node:fs";
               import { pathToFileURL } from "node:url";
+              if (createHash("sha256").update(readFileSync(process.env.PATCH_GATE)).digest("hex") !== process.env.GATE_SHA256) process.exit(1);
               const { scanLeak } = await import(pathToFileURL(process.env.PATCH_GATE).href);
               const bytes = readFileSync(process.argv[1]);
               const held = scanLeak(bytes, { diff: true }).block || /^GIT binary patch$/m.test(bytes.toString("latin1"));

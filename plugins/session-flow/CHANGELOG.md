@@ -1,5 +1,26 @@
 # Changelog: session-flow plugin
 
+## [9.7.0] - 2026-11-17
+
+### Changed
+
+- **Shape-3 handoffs carry questions and decisions off disk.** Once the predecessor holds entries in `## Open questions` or `## Decisions in force`, `save_point.py new` copies the section, as it does rules, and offers an `open-questions-new` or `decisions-new` slot for new entries. `validate` fails a carried entry whose text changed, unless it left through `retire` or ends with `Rewritten h<N>: <why>` for this hop. A decision shortened to meet the size cap no longer passes on its id alone.
+- **Old direction changes fold out of the hot file.** `new` moves Direction changes lines 3 or more hops old (`DIRECTION_HOPS_KEPT`) out of the hot file and leaves one `- Folded:` pointer line, so the trail no longer grows the hot file's fixed part hop after hop. Untagged lines never fold. The folded lines stay verbatim in the hop files, and `validate` fails a hop that drops the pointer. The 24,600-byte hot-file cap is unchanged.
+
+## [9.6.3] - 2026-11-17
+
+### Changed
+
+- The workflow's stage triggers say that what a live system holds now is no stage: the asking stage reads it through the system's CLI or MCP tool.
+
+## [9.6.2] - 2026-11-17
+
+### Changed
+
+- The bundled enforcement ladder is 3.3.0: it adds the `formatter` rung, first after
+  `compiler-setting` on the static-analysis tier, for a style rule the repository's recorded
+  format command can enforce. No rung moves or is renamed.
+
 ## [9.6.1] - 2026-11-17
 
 ### Changed

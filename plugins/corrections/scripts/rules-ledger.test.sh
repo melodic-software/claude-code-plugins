@@ -167,6 +167,28 @@ variant prosekept 'del(.rows[0].prose)'
 run "$V"
 fails_with "check with prose left beside it" 'AGENTS\.md:3: check row does not flag its prose for deletion'
 
+variant planted 'del(.rows[0].old_ref) | .rows[0].plant = ".work/codify/x/plant-1.patch"'
+run "$V"
+DETAIL="exit $RC; stderr: $ERR"
+check "check proven by a plant: exits 0" test "$RC" -eq 0
+variant bothproofs '.rows[0].plant = ".work/codify/x/plant-1.patch"'
+run "$V"
+fails_with "check with an old ref and a plant" 'AGENTS\.md:3: check row has both old_ref and plant'
+
+variant fmt '.rows[0].rung = "formatter" | .rows[0].style = "formatter" | .rows[1].style = "lint"'
+run "$V"
+DETAIL="exit $RC; stderr: $ERR"
+check "formatter and lint labels: exits 0" test "$RC" -eq 0
+variant fmtnolabel '.rows[0].rung = "formatter"'
+run "$V"
+fails_with "formatter rung without its label" 'AGENTS\.md:3: formatter rung row needs style "formatter"'
+variant fmtwrongrung '.rows[0].style = "formatter"'
+run "$V"
+fails_with "formatter label on a lint rung" 'AGENTS\.md:3: style "formatter" needs the formatter rung'
+variant badstyle '.rows[3].style = "pretty"'
+run "$V"
+fails_with "unknown style label" 'api\.md:1: style "pretty" is not formatter or lint'
+
 # 8. A prose, delete or held row needs a reason.
 for i in 1 2 3; do
   variant "noreason$i" "del(.rows[$i].reason)"

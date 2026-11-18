@@ -35,6 +35,10 @@
       "type": ["string", "null"],
       "description": "Test command. Null when no test framework is wired."
     },
+    "test-changed-cmd": {
+      "type": ["string", "null"],
+      "description": "Change-scoped test command over <files>: runs the tests the changed files select. /toolchain:check runs it for a change and test-cmd under all; CI calls the same recorded command. Null or absent when the repository has no change-scoped test command."
+    },
     "check-cmd": {
       "type": ["string", "null"],
       "description": "Lint/format check command (no file modification). Null when lint does not apply."
@@ -66,7 +70,7 @@
     },
     "requires": {
       "type": "object",
-      "propertyNames": { "enum": ["build-cmd", "test-cmd", "check-cmd", "fix-cmd", "code-fix-cmd"] },
+      "propertyNames": { "enum": ["build-cmd", "test-cmd", "test-changed-cmd", "check-cmd", "fix-cmd", "code-fix-cmd"] },
       "additionalProperties": { "$ref": "#/$defs/prerequisites" },
       "description": "What a command needs beyond the tool it is invoked through being on PATH, keyed by command key: a runtime package that must be installed, or a tool at the build the repo pins for CI. Before a resolver runs a command it runs each entry's probe; when any entry is absent, the command does not run and its cell reads skip (prerequisite missing: <name>), an environment skip that keeps the run from reading PASS. One missing entry skips the whole command, every tool bundled in its string included. Resolvers never install a declared prerequisite."
     },

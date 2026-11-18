@@ -1790,6 +1790,13 @@ test("review-threads: the commit names each fixed thread in a Lane-Thread line a
   assert.deepEqual(none.calls, []);
 });
 
+test("review-threads: a round that kept only comments, no thread or note, pushes nothing", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  const api = fakeApi(fix.repo, fix.head);
+  await assert.rejects(pushWith(fix, api, { row: row("review-threads"), context: { keptThreads: keptOf([]), fixedThreads: [] } }), /kept thread paths/);
+  assert.deepEqual(api.calls, []);
+});
+
 test("main names the threads the scanned replies fix in the review-threads commit", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
   const base = scratch(t);

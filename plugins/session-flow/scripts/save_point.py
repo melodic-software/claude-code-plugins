@@ -173,6 +173,10 @@ RETIRED_ENTRY_SECTIONS = {
 }
 AMENDMENT_RE = re.compile(r"^(?:- )?\*\*Amended.*?:\*\*")
 TRAIL_TAG_RE = re.compile(r"^- \[(h\d+(?:-h?\d+)?)\]")
+DIRECTION_HOPS_KEPT = 3
+FOLD_PREFIX = "- Folded: "
+REWRITE_MARK = "Rewritten"
+REWRITE_MARK_RE = re.compile(rf"\b{REWRITE_MARK} h(\d+): \S")
 RETIRED_PREFIX = "Retired:"
 CODIFIED_RE = re.compile(r"\bcodified in \[R(\d+)\]")
 # Retire headings whose listings Review before you continue must point at.
@@ -1488,7 +1492,31 @@ def _entry_units(doc: Doc, title: str) -> tuple[list[tuple[str, ...]], list[str]
     if title == "Original goal":
         spans, plain = _amendment_spans(lines)
         return [tuple(lines[a:b]) for a, b in spans], plain
-    return [(line,) for line in lines if line.strip()], []
+    return [
+        (line,) for line in lines if line.strip() and not line.startswith(FOLD_PREFIX)
+    ], []
+
+
+def _folds(line: str, hop: int) -> bool:
+    """A Direction changes line whose newest tagged hop is DIRECTION_HOPS_KEPT
+    or more hops before `hop`; an untagged line never folds."""
+    m = TRAIL_TAG_RE.match(line)
+    newest = int(re.findall(r"\d+", m.group(1))[-1]) if m else None
+    return newest is not None and hop - newest >= DIRECTION_HOPS_KEPT
+
+
+def _carries(pred: Doc | None, spec: IdSpec) -> bool:
+    """`new` copies `spec`'s question or decision section off disk: the
+    predecessor is shape 3, carries the id floor and holds entries there, each
+    with an id (an id-less legacy entry is rewritten through the full slot)."""
+    if spec is RULES or pred is None or pred.shape != 3:
+        return False
+    entries = _id_entries(pred, spec)
+    return (
+        _fm_int(pred, spec.floor_key) is not None
+        and bool(entries)
+        and all(n is not None for n, _, _ in entries)
+    )
 
 
 def _retired_listings(
@@ -1560,8 +1588,21 @@ def _check_retired_entries(
 ) -> None:
     """Original goal and Direction changes lose nothing: each predecessor goal
     line stays in order byte for byte, and each amendment unit or trail line
-    stays in order or is listed verbatim, with a reason, in this hop's file."""
+    stays in order or is listed verbatim, with a reason, in this hop's file. A
+    trail line old enough to fold may leave behind the fold pointer."""
     text = archived or ""
+    hop = _fm_int(doc, "hop") or 0
+
+    def fold_pointed(d: Doc) -> bool:
+        return any(
+            line.startswith(FOLD_PREFIX) for line in d.section("Direction changes") or []
+        )
+
+    folded = fold_pointed(doc)
+    if fold_pointed(pred) and not folded:
+        report(
+            f"Direction changes: the predecessor's '{FOLD_PREFIX.strip()}' pointer line is missing; keep the line `new` wrote, so the folded lines stay reachable"
+        )
     for title, heading in RETIRED_ENTRY_SECTIONS.items():
         pred_units, pred_plain = _entry_units(pred, title)
         own_units, own_plain = _entry_units(doc, title)
@@ -1589,6 +1630,11 @@ def _check_retired_entries(
                 report(
                     f"{title}: predecessor entry moved out of order (carried entries keep their order): {unit[0][:60]!r}"
                 )
+            elif title == "Direction changes" and _folds(unit[0], hop):
+                if not folded:
+                    report(
+                        f"{title}: predecessor line folded out without the '{FOLD_PREFIX.strip()}' pointer line `new` writes; keep that line: {unit[0][:60]!r}"
+                    )
             elif unit in unreasoned:
                 report(
                     f"{title}: predecessor entry listed under '## {heading}' in {rel} with an empty 'Retired:' reason: {unit[0][:60]!r}"
@@ -1920,18 +1966,29 @@ def _check_carry_3(
         _check_retired_entries(doc, f, pred, start, rel, archived, report)
         if archived is None:
             return
+        hop = _fm_int(doc, "hop")
         for spec in ID_SPECS:
             own = {n: e for n, e, _ in _id_entries(doc, spec) if n is not None}
             retired = _retired_ids(archived, spec)
+            marked = _carries(pred, spec)
             for n, entry, title in _id_entries(pred, spec):
                 if n is None:
                     continue
                 ref = f"[{spec.prefix}{n}]"
                 prior = _squash(entry.text)
                 if n in own:
-                    if _squash(own[n].text) != prior and prior not in arch:
+                    if _squash(own[n].text) == prior:
+                        continue
+                    if prior not in arch:
                         report(
                             f"{title}: changed entry {ref} has no prior text in {rel}; an entry rewritten in place keeps its predecessor text there"
+                        )
+                    elif marked and not any(
+                        int(m.group(1)) == hop
+                        for m in REWRITE_MARK_RE.finditer(own[n].text)
+                    ):
+                        report(
+                            f"{title}: carried entry {ref} changed without a retire or a rewrite mark; keep the text `new` copied, end a rewrite with '{REWRITE_MARK} h{hop}: <why>' (the prior text stays in {rel}), or retire it through the 'retire' list"
                         )
                 elif prior not in arch:
                     report(
@@ -3523,12 +3580,23 @@ def build_skeleton_3(
     trail_line = f"one line per change of direction, '- [h<k>] <change> (<cause>)', the cause owner-directed (quoting the owner) or agent-initiated; flag a remaining action that serves no recorded goal or detour as '- [h{hop}] DRIFT: <action>'"
     trail_retire = f"; a carried line that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[h<k>]#<i>', 'reason': ...}} (i counts the lines tagged [h<k>]), which lists it in {hop_rel} under '## {RETIRED_ENTRY_SECTIONS['Direction changes']}'"
     if carried:
+        pointer, kept, folded = None, [], False
+        for line in _section_lines(pred, "Direction changes"):
+            if line.startswith(FOLD_PREFIX):
+                pointer = line
+            elif _folds(line, hop):
+                folded = True
+            else:
+                kept.append(line)
+        if folded:
+            pointer = f"{FOLD_PREFIX}lines {DIRECTION_HOPS_KEPT} or more hops old are verbatim under '## Direction changes' in the hop file of the hop that folded them, the newest {hop_rel}"
         trail = [
-            *_section_lines(pred, "Direction changes"),
+            *([pointer] if pointer else []),
+            *_trim_blank(kept),
             "",
             _fill(
                 "trail-new",
-                f"optional: this hop's lines below the carried ones, {trail_line}{trail_retire}; delete this line when the direction did not change",
+                f"optional: this hop's lines below the carried ones, {trail_line}{trail_retire}; `new` folds a line out once it is {DIRECTION_HOPS_KEPT} hops old, and the '{FOLD_PREFIX.strip()}' line pointing at the folded lines stays; delete this line when the direction did not change",
             ),
         ]
     elif pred is None:
@@ -3554,6 +3622,27 @@ def build_skeleton_3(
             "six lines max: when written and against which branch or commit, where the work stands, the single next action and the section that governs it; close with the obligation to read Current rules first",
         ),
     )
+    def id_body(title: str, name: str, instruction: str) -> list[str]:
+        """A slot, or for a question or decision section `new` carries
+        (`_carries`), the predecessor's entries copied off disk above an
+        optional slot for new ones."""
+        spec = next((s for s in ID_SPECS[1:] if title in s.sections), None)
+        if spec is None or not _carries(pred, spec):
+            return [_fill(name, instruction)]
+        ref = f"[{spec.prefix}<n>]"
+        shape = {
+            "Q": f"'- {ref} <question>' with its options, a recommendation and what it unblocks",
+            "D": f"'- {ref} <decision> (<reason>)', a decision the remaining actions depend on",
+        }[spec.prefix]
+        return [
+            *_section_lines(pred, title),
+            "",
+            _fill(
+                f"{name}-new",
+                f"optional: new entries below the carried ones, one per line, {shape}, new ids from {spec.prefix}{floors[spec.floor_key]}; a carried entry is copied off disk and keeps its text, or is rewritten in place under its id ending with '{REWRITE_MARK} h{hop}: <why>', its prior text staying in {hop_rel}; one that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '{ref}', 'reason': ...}}, which lists it in {hop_rel} under '## {spec.retired_heading}'; write 'None.' plus a reason here when that list empties the section; delete this line when nothing changes",
+            ),
+        ]
+
     for title, name, instruction in (
         (
             "Completion criteria",
@@ -3571,7 +3660,7 @@ def build_skeleton_3(
             f"one per line, '- [Q<n>] <question>' with its options, a recommendation and what it unblocks, new ids from Q{floors['next_question_id']}; a carried question keeps its id; one that is answered or no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[Q<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {ID_SPECS[1].retired_heading}'; 'None.' plus a reason when there are none",
         ),
     ):
-        section(title, [_fill(name, instruction)])
+        section(title, id_body(title, name, instruction))
 
     rule_line = f"one per line, '- [R<n>] <the rule's current text, verbatim>', new ids from R{next_id}; a rule binding beyond this chain's goal goes under Standing preferences"
     if carried:
@@ -3624,7 +3713,7 @@ def build_skeleton_3(
             REWRITTEN["Suggested skills"][1] + (PURPOSE_SKILLS if purpose else ""),
         ),
     ):
-        section(title, [_fill(name, instruction)])
+        section(title, id_body(title, name, instruction))
 
     section("This session", _this_session_lines())
 

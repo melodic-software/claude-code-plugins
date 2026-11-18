@@ -53,12 +53,12 @@ the hot interaction, and events tagged with the
 
 ## Measure the layers before choosing one
 
-When a candidate spans layers (a shell wrapper around a Python program; a route through an ORM
-through a driver), attribute cost *across the layers* before picking one to optimize.
+When a candidate spans layers (a wrapper script around a larger program; a request through a data
+access layer through a driver), attribute cost *across the layers* before picking one to optimize.
 
-Do not pick the largest layer by size: a 125-line shell wrapper can carry roughly 88% of the cost
-while the 1903-line Python guard body it execs is not the bottleneck. Layer attribution is cheap
-and reorders the candidate list.
+Do not pick the largest layer by size: a 125-line wrapper can carry roughly 88% of the cost while
+the 1903-line program it execs is not the bottleneck. Layer attribution is cheap and reorders the
+candidate list.
 
 Trace past the headline event too: work no metric covers (background reloads, idle-state work)
 still costs. For a field report with a recording, follow the diagnosis ladder before theorizing.
@@ -118,9 +118,12 @@ deterministic counters to try before timing. If no counter exists for a candidat
 explicitly: it changes what `/performance:goal` can promise.
 
 Counts over wall clock is sourced only for **instruction counts** (Valgrind's Cachegrind manual;
-Iai); extending it to spawns, syscalls and queries is this plugin's own generalization, and
-Valgrind's manual also argues execution time "is a better metric than instruction counts because
-it's what users perceive". Present a counter as *reproducible*, never as *more truthful*.
+Iai); extending it to spawns, syscalls and queries is this plugin's own generalization. Present a
+counter as *reproducible*, never as *more truthful*: the duration is what a user feels, and a
+counter stands in for it only where the two move together.
+
+- **Pointer**: when weighing instruction counts against execution time, fetch the Cachegrind
+  manual's [Overview](https://valgrind.org/docs/manual/cg-manual.html#cg-manual.overview) live.
 
 ## Output
 
