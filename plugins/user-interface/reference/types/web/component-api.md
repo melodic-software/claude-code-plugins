@@ -12,8 +12,7 @@ before configuration, name things the way the platform names them, and support b
 uncontrolled state when state is involved.
 
 The examples are React (JSX). In another framework, keep the contract and write it in that
-framework's own idiom. Working code for each pattern is in `component-api/implementation.md`; which
-primitives library to build on is in `../../component-libraries.md`.
+framework's own idiom; which primitives library to build on is in `../../component-libraries.md`.
 
 A rule that ends in **Audit:** gives the severity `/user-interface:audit` uses for a finding against
 it, and what that finding looks like.
@@ -87,8 +86,10 @@ Don't use them when:
 - It has 1-3 props
 - The structure never changes
 
-Share the implicit state through React context: the root provides, the parts consume.
-Implementation in `component-api/implementation.md`.
+Share the implicit state through the framework's own context mechanism: the root provides, the
+parts consume. A part rendered outside its root fails loudly, with a message naming the root,
+instead of reading a missing context, and a part that handles an event runs the consumer's handler
+before its own.
 
 **Audit: Important.** A multi-part component that drills every part through props on one root
 instead of compound parts sharing context.
@@ -224,22 +225,18 @@ consumer needs it:
 <Input value={value} onChange={(e) => setValue(e.target.value)} />
 ```
 
-Full dual-mode implementation in `component-api/implementation.md`.
-
 **Audit: Important.** A component that holds state and accepts only `value` and `onChange`, or only
 `defaultValue`.
 
 ## 6. Play nice with the DOM
 
 - **Forward refs** on every component that wraps a DOM element: otherwise focus management,
-  tooltips, and popover positioning break for composers. How depends on the React version
-  (`component-api/implementation.md`, "Forwarding refs").
+  tooltips, and popover positioning break for composers. How depends on the framework and its
+  version.
 - **Spread remaining props** (`{...props}`) so `aria-*`, `data-testid`, and other HTML attributes
   pass through.
 - **Pick defaults that work for 80% of usages**: e.g. `variant = "primary"`, `size = "md"`, and
   `type = "button"` (not `"submit"`: the safer default).
-
-Code for all three in `component-api/implementation.md`.
 
 Swallowing props is the usual failure: destructuring everything and forgetting `{...props}` breaks
 `aria-*`, `data-*`, and testing attributes. Missing ref forwarding breaks focus management,
@@ -271,9 +268,8 @@ Let consumers swap the rendered element while keeping the behavior and styles:
 ```
 
 On a component built on a primitives library, use that library's own form of the pattern rather
-than a second one beside it, and make the element passed in meet what its composition page asks of
-a custom component. Each library's composition page is in the Composition column of the primitives
-table in `../../component-libraries.md`, with its pointer record.
+than a second one beside it, and make the element passed in meet what the library's own composition
+documentation asks of a custom component.
 
 **Audit: Suggestion.** A shared component with no way to render a different element, so a link
 styled as a button has to be a `<button>` that navigates.
@@ -296,8 +292,7 @@ element-swapping prop beside the library's.
 />
 ```
 
-For optional sections that take arbitrary JSX, use slot props (`header={<h2>Title</h2>}`): see the
-slot pattern in `component-api/implementation.md`.
+For optional sections that take arbitrary JSX, use slot props (`header={<h2>Title</h2>}`).
 
 **Audit: Suggestion.** Data-driven content forced through children where a render prop would
 pass the item, or a fixed optional section that takes only a string where a slot prop would take
@@ -319,8 +314,9 @@ times. Wait for the pattern to emerge, then extract it.
 
 ## 11. Error boundaries
 
-Wrap complex components in error boundaries so one broken widget doesn't take down the page. Code
-in `component-api/implementation.md`.
+Wrap complex components in error boundaries so one broken widget doesn't take down the page. Use
+the project's own error boundary, or the one from a package it already uses; with neither, write one
+once and reuse it.
 
 **Audit: Important.** A complex widget whose render error can take down the whole page because no
 error boundary wraps it.
