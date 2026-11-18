@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": [], "why": "no call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/ws/bakery-big-picture.md", "content": "# Big Picture\n"}}], "why": "writes the artifact before the go-ahead"}
+  ]
+}

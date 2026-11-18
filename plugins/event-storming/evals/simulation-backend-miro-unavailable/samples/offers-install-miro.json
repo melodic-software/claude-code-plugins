@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Install + enable the `miro` plugin, then retry.", "why": "path 2"},
+    {"answer": "Connect the Miro MCP server and run this again.", "why": "connect"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Miro isn't available, so I can't read the board.", "why": "no install or connect path"},
+    {"answer": "Then connect to https://miro.com/app/board/abc123 in your browser.", "why": "only the URL names miro"}
+  ]
+}
