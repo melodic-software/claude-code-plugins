@@ -37,7 +37,7 @@ enforced at the seam, and the routine's bound definition is what derives the
 
 A **wholly** deterministic check is not a routine. Judgment-free date, threshold, and
 pipeline mechanics run with **no agent session and zero agent tokens**. That property is
-the invariant this contract fixes, and the substrate carrying it is a deployment-owned
+the invariant this contract fixes, and what hosts the check is a deployment-owned
 binding like every other hosting choice (§Hosting stance), never a mechanism named here.
 Failures file work items through the same trigger adapters. The catalog flags such classes
 `not-a-routine`. They stay visible as rows, never silent exclusions.
