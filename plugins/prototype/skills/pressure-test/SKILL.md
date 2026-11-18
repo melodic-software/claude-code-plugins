@@ -284,15 +284,15 @@ line); pass it to a handler that updates the state through the logic module; dra
 again, replacing the old one; repeat until quit.
 
 Make it start with one command. Add an entry to the project's existing task runner, so the user
-types the equivalent of `pnpm run loans-proto` or `dotnet run --project <path>` and never has to
-remember a file path. With no task runner, write the command at the top of a prototype README.
+types one short command and never has to remember a file path. With no task runner, write the
+command at the top of a prototype README.
 
 ### 4. Hand it over
 
 Before the handover, run the shared discipline's
 [clean-state proof](../../context/discipline.md#clean-state-proof-and-check-list): start the
 prototype from a clean state, drive it yourself through an ordered check list, and leave it clean.
-For the loans case the list opens: "1. Start with `pnpm run loans-proto`. Expect: one copy, on
+For the loans case the list opens: "1. Start it with the one command. Expect: one copy, on
 the shelf, no loans. 2. Press `b` to borrow. Expect: on loan, due in 14 days." For the HTML demo
 shell, the guided walkthroughs supply the list's steps, in the order the person should run them.
 
