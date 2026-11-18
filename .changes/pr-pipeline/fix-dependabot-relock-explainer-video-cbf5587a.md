@@ -11,6 +11,6 @@ bump: minor
   permissions, `review-dependency-relock-patch`
   checks the relocked lock with base code, and `apply-dependency-relock` pushes it as a
   `[dependabot skip]` commit held to `dependency-version-change`. A relock that fails or is refused
-  stops as `dependency-pin-invalid`, labelled `needs-session`; it does not go to the model. `dependency-relock.mjs check` fails `test-bash` while a group's
+  stops as `dependency-pin-invalid`, labeled `needs-session`; it does not go to the model. `dependency-relock.mjs check` fails `test-bash` while a group's
   directories disagree, when no pip group reads, or when a group directory's `requirements.in`
   cannot be read.
