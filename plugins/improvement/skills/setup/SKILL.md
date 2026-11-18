@@ -88,7 +88,10 @@ user.
    user names another; and draft `evidence_sources` candidates from the MCP
    servers the consumer has configured that plausibly carry telemetry, a candidate is a
    proposal for the user to confirm, never an assumption. No plausible source and none volunteered
-   is a fine outcome: write the churn keys only, and say Tier 2 stays a declared gap.
+   is a fine outcome: write the churn keys only, and say Tier 2 stays a declared gap. Resolving
+   an exclusion from the repository only drafts it: every value this step drafts, a resolved
+   exclusion or a source the invocation names included, goes to step 3's interview, and nothing
+   is written before the user answers.
 3. **Interview, one decision at a time**: window, exclusions, then each telemetry source (name,
    `mcp_server`, `kind`, scope, hints) with a recommendation the user accepts, edits, or
    declines.
