@@ -282,6 +282,67 @@ test('in-sandbox refuses unless the launch keeps a broker dummy key: --restricte
   }
 });
 
+test('real-setup drops --restricted and --strict-mcp-config, keeps the plugin dir, and still clears every key for "none"', () => {
+  const input = { PATH: '/usr/bin' };
+  for (const name of CLEARED) input[name] = 'set-by-parent';
+  const { argv, env, keySource } = buildLaunch({ pluginDir: '/p', realSetup: true }, input);
+  assert.deepEqual(argv, ['claude', '--plugin-dir', '/p']);
+  for (const name of CLEARED) assert.equal(name in env, false, `${name} must be unset`);
+  assert.equal(env.CLAUDE_CODE_HIDE_CWD, '1');
+  assert.equal('CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' in env, false);
+  assert.equal(keySource, 'none');
+  const print = driver.buildPrint({ pluginDir: '/p', realSetup: true }, {}, 'say ok').argv;
+  assert.deepEqual(print, ['claude', '--plugin-dir', '/p', ...driver.PRINT_FLAGS, 'say ok']);
+});
+
+test('real-setup is refused with --unattended, --in-sandbox or a kept credential, before anything runs', async () => {
+  const real = { pluginDir: '/p', realSetup: true };
+  for (const [config, env] of [
+    [{ ...real, unattended: true, credentials: CI }, {}],
+    [{ ...real, unattended: true, credentials: CI }, { ANTHROPIC_API_KEY: 'fake' }],
+    [{ ...real, unattended: true, credentials: CI }, { CLAUDE_CODE_OAUTH_TOKEN: 'fake' }],
+    [{ ...real, inSandbox: true }, {}],
+    [{ ...real, unattended: true, credentials: CI, inSandbox: true }, { ANTHROPIC_API_KEY: 'ccd-dummy-x' }],
+  ]) {
+    assert.throws(() => buildLaunch(config, env), { code: 1, message: /^refused: --real-setup / }, JSON.stringify([config, env]));
+  }
+  const out = join(RUNTIME, 'real-setup.jsonl');
+  for (const args of [
+    ['launch', '--plugin-dir', '/p', '--real-setup', '--unattended'],
+    ['ready', '--plugin-dir', HERE, '--out', out, '--real-setup', '--unattended'],
+    ['log', 'hi', '--plugin-dir', HERE, '--out', out, '--real-setup', '--in-sandbox'],
+  ]) {
+    await assert.rejects(main(args), { code: 1, message: /^refused: --real-setup / }, args.join(' '));
+  }
+  assert.equal(existsSync(out), false, 'no claude started');
+});
+
+test('a launcher replaces the bare claude and gets only the plugin dir; print mode adds the stream-json flags and the prompt', () => {
+  const launcher = ['node', '/x/profiles.mjs', 'start', 'build'];
+  const config = { pluginDir: '/p', realSetup: true, launcher };
+  assert.deepEqual(buildLaunch(config, {}).argv, [...launcher, '--plugin-dir', '/p']);
+  assert.deepEqual(driver.buildPrint(config, {}, 'say ok').argv, [...launcher, '--plugin-dir', '/p', ...driver.PRINT_FLAGS, 'say ok']);
+  assert.deepEqual(launcher, ['node', '/x/profiles.mjs', 'start', 'build'], 'the launcher is not mutated');
+});
+
+test('a launcher without --real-setup is a usage error', async () => {
+  assert.throws(() => buildLaunch({ pluginDir: '/p', launcher: ['node'] }, {}), { code: 2, message: '--launcher runs only with --real-setup' });
+  await assert.rejects(main(['launch', '--plugin-dir', '/p', '--launcher', 'node']), { code: 2, message: '--launcher runs only with --real-setup' });
+});
+
+test('launch --dry-run with --real-setup and a launcher prints the launcher command line', async () => {
+  const s = session();
+  const plugin = mkdtempSync(join(tmpdir(), 'ccd-dry-'));
+  try {
+    const launcher = ['node', '/x/profiles.mjs', 'start', 'build'].flatMap((word) => ['--launcher', word]);
+    const { status, text } = await printed(['launch', '--plugin-dir', plugin, '--session', s, '--real-setup', ...launcher, '--dry-run']);
+    assert.equal(status, 0);
+    assert.equal(text, `dry run: would launch session '${s}' running node /x/profiles.mjs start build --plugin-dir ${plugin}; started nothing`);
+  } finally {
+    rmSync(plugin, { recursive: true, force: true });
+  }
+});
+
 test('unattended refuses two CI credentials set at once, before anything runs', async () => {
   const saved = { ...process.env };
   process.env.ANTHROPIC_API_KEY = 'fake';
@@ -714,6 +775,39 @@ export const TuiTest = { ephemeral: () => ({
   }
 });
 
+test('a real-setup launch through a launcher reaches the holder: the launcher starts with the plugin dir and nothing else', posixOnly, async () => {
+  const box = sandbox();
+  const seen = join(box.root, 'seen.json');
+  const records = `import { writeFileSync } from 'node:fs';
+export const TuiTest = { ephemeral: () => ({
+  run: async (cmd, args, opts) => writeFileSync(${JSON.stringify(seen)}, JSON.stringify({ cmd, args, key: opts.env.ANTHROPIC_API_KEY ?? null })),
+  state: async () => ({ exited: null, exit_signal: null }),
+  type: async () => {},
+  close: async () => {},
+  closeQuiet: async () => {},
+}) };
+`;
+  placeEngine(box.target, records, { marked: true });
+  const name = session();
+  const launcher = ['node', '/x/profiles.mjs', 'start', '-build'].flatMap((word) => [`--launcher=${word}`]);
+  try {
+    await withEnv({ ANTHROPIC_API_KEY: 'from-parent' }, () =>
+      withPath(box.bin, () =>
+        main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60', '--real-setup', ...launcher]),
+      ),
+    );
+    const got = JSON.parse(readFileSync(seen, 'utf8'));
+    assert.equal(got.cmd, 'node');
+    assert.deepEqual(got.args, ['/x/profiles.mjs', 'start', '-build', '--plugin-dir', '/p']);
+    assert.equal(got.key, null, 'the parent key never reaches the launcher');
+    assert.equal(await main(['type', 'x', '--session', name]), 0, 'the launched session takes input');
+    assert.equal(await main(['stop', '--session', name]), 0);
+  } finally {
+    await main(['stop', '--session', name]).catch(() => {});
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
 const isAlive = (pid) => {
   try {
     process.kill(pid, 0);
@@ -826,6 +920,30 @@ test('ready stops claude at the init event and passes on apiKeySource "none"', p
   } finally {
     if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = saved;
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('ready with --real-setup runs its turn through the launcher, unrestricted, and still requires "none"', posixOnly, async () => {
+  const box = sandbox();
+  stubClaude(box, 'none', 'exec sleep 30');
+  const out = join(box.root, 'init.jsonl');
+  try {
+    const plugin = pluginDir(box);
+    const { result, text } = await withPath(box.bin, () =>
+      quietly(() =>
+        main(['ready', '--plugin-dir', plugin, '--out', out, '--deps-dir', box.deps, '--real-setup', '--launcher', 'env', '--launcher', 'claude']),
+      ),
+    );
+    assert.equal(result, 0);
+    assert.match(text, /apiKeySource: none/);
+    assert.deepEqual(readFileSync(join(box.root, 'argv'), 'utf8').trim().split('\n'), [
+      '--plugin-dir',
+      plugin,
+      ...driver.PRINT_FLAGS,
+      'Reply with the single word ok.',
+    ]);
+  } finally {
     rmSync(box.root, { recursive: true, force: true });
   }
 });
@@ -1141,6 +1259,19 @@ test('a home path outside the cwd line is masked through the row end', () => {
   assert.equal(text, `see ${'*'.repeat(19)}`);
 });
 
+test('status line rows shaped like https://code.claude.com/docs/en/statusline#rate-limit-usage lose their session id, cost and limits through the row end', () => {
+  for (const [row, kept] of [
+    ['session 01234567-89ab-4cde-8f01-23456789abcd', 'session '],
+    ['[Opus 5.5] | $0.42 | 12m 3s', '[Opus 5.5] | '],
+    ['[Opus 5.5] | 5h: 23% 7d: 41%', '[Opus 5.5] | '],
+    ['[Opus 5.5] | spend: $12.50 / $100.00', '[Opus 5.5] | '],
+    ['[Opus 5.5] | 7d 41%', '[Opus 5.5] | '],
+  ]) {
+    assert.equal(maskRow(row, [], 0), `${kept}${'*'.repeat(row.length - kept.length)}`, row);
+  }
+  for (const kept of ['[Opus 5.5] 8% context', 'Total duration (wall): 14s', 'Version: 2.1.316']) assert.equal(maskRow(kept, [], 0), kept);
+});
+
 test('a masked cell loses its colors and attributes, so a colored meter shows no level', () => {
   const cells = toCells('42% used').map((c) => ({ ...c, bg: '#ff0000', inverse: true }));
   const { rows } = driver.maskCells(cells, MASKS, []);
@@ -1417,6 +1548,23 @@ test('with CCD_BROKER_SOCK set, launch, ready and log go to the broker; socket v
     });
     await withEnv({ CCD_BROKER_SOCK: fb.sock }, () => main(['launch', '--plugin-dir', '/p', '--session', 'brk']));
     assert.deepEqual(JSON.parse(fb.seen[0]), { verb: 'launch', args: ['--plugin-dir', '/p', '--session', 'brk'] });
+  } finally {
+    fb.close();
+  }
+});
+
+test('with CCD_BROKER_SOCK set, --real-setup is refused before anything reaches the broker', posixOnly, async () => {
+  const fb = await fakeBroker([JSON.stringify({ exit: 0 })]);
+  try {
+    await withEnv({ CCD_BROKER_SOCK: fb.sock }, async () => {
+      for (const args of [
+        ['launch', '--plugin-dir', '/p', '--real-setup'],
+        ['ready', '--plugin-dir', '/p', '--out', 'o', '--real-setup', '--dry-run'],
+      ]) {
+        await assert.rejects(main(args), { code: 1, message: /^refused: --real-setup .*launch broker/ }, args.join(' '));
+      }
+    });
+    assert.deepEqual(fb.seen, [], 'the broker got no request');
   } finally {
     fb.close();
   }

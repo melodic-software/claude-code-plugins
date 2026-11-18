@@ -59,6 +59,23 @@ that keeps `ANTHROPIC_API_KEY` reads the `ANTHROPIC_API_KEY` row of
 <https://code.claude.com/docs/en/env-vars#variables> for what the interactive session does with the
 key, and screenshots that first screen.
 
+A drive that must show the plugin beside the person's own setup (their settings files, installed
+plugins, hooks, MCP servers, status line and Bash) adds `--real-setup` to `launch`, `ready` and
+`log`, which drops `--restricted` and `--strict-mcp-config` and changes nothing else: the same
+variables are cleared and Ready still requires `none`. It runs only attended, at the person's
+request: the driver refuses it with `--unattended`, with `--in-sandbox`, with any kept credential,
+and through the launch broker. With it, `--launcher <word>`, once per word, runs that command in
+place of the bare `claude`, with only `--plugin-dir <plugin-dir>` (and, for `ready` and `log`, the
+print-mode flags and prompt) after it; it never passes through a shell, and it runs with the person's own permissions, so name
+only a launcher the person named. To start in a plugin profile:
+
+`node <skill-dir>/driver/driver.mjs launch --plugin-dir <plugin-dir> --session <session> --real-setup --launcher node --launcher <profiles.mjs> --launcher start --launcher <profile>`
+
+where `<profiles.mjs>` is the plugin-profiles plugin's `scripts/profiles.mjs`. A word starting with
+`-` is written `--launcher=<word>`. Ready takes the same flags, so its turn runs what the session
+runs. The first screen of such a session can open with dialogs a restricted launch never shows
+(Gotchas).
+
 Data: none: the session runs in the person's own Claude Code config directory (`CLAUDE_CONFIG_DIR`,
 else `~/.claude`), shared across runs, because the run reuses the account it is signed in with; a
 new directory per run would start signed out. The launch sets no config directory.
@@ -127,6 +144,14 @@ changes `/status`, `/usage`, the startup banner or the usage-limit notice.
 - usage reset | resets [^·]*[^· \t]
 - cost | (?<=Total cost:[ \t]+)[^ \t]+
 - token usage | (?<=Usage:[ \t]+)[0-9](?:.*[^ \t])?
+- status line session id | [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+- status line cost | \$[ \t]*[0-9]
+- status line limit | \b(?:5h|7d|spend)\b[: \t]*[$0-9]
+
+The status line rows are the person's own status line command, shown under `--real-setup`; their
+shapes follow the session, cost and rate-limit fields of
+<https://code.claude.com/docs/en/statusline#available-data>. A status line that prints them in
+another form gets its own mask line before its first capture.
 
 values: `cli/account.mjs`
 
@@ -156,6 +181,16 @@ is running. It stops the session this run launched; the evidence files stay.
 - A status glyph drawn as a box is the missing font doctor names, not the plugin under test.
 - Ready stops before any request, so it does not show the session is signed in; the launched
   session's first screen does. Screenshot it before the first step.
+- A `--real-setup` session can open on a first-run dialog. Screenshot it, answer it as below, and
+  take the next step only once the prompt shows:
+  - Folder trust: trust only the checkout the person already works in; for any other folder, stop
+    the run. Run `--real-setup`, Ready included, only from a folder the person already trusts;
+    what print mode and an untrusted folder load:
+    <https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder>.
+  - External CLAUDE.md imports: decline; the drive needs no file from outside the project
+    (<https://code.claude.com/docs/en/memory#import-additional-files>).
+  - The auto-mode offer: decline, which leaves the person's setting as it was
+    (<https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode>).
 
 ## Features
 
